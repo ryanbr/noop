@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.BatteryStd
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Brightness6
+import androidx.compose.material.icons.filled.ViewAgenda
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.Download
@@ -86,6 +87,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -140,6 +142,7 @@ import com.noop.update.UpdateCheck
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 import com.noop.analytics.ClockFormatPreference
 
@@ -303,6 +306,19 @@ class ProfileStore(private val prefs: SharedPreferences) {
      *  null when 0 (auto-fit), the positive value otherwise. */
     val stepsManualOverride: Double? get() = stepsManualCoefficient.takeIf { it > 0 }
 
+    /**
+     * #1816: true when the strap has banked ANY motion (gravity samples → `dayMotionIntensity > 0`)
+     * in the calibration scan window. Written by the analytics engine on every pass so it tracks a
+     * fresh strap's first sync without a separate query. The Today tile reads this to decide whether
+     * "Need N more days where your phone also counted steps" is the honest caption or a lie: a step
+     * estimate is `motion * coefficient`, so with the motion half missing neither the estimate nor the
+     * fit moves however many phone-counted days the user collects. The caption that names only the
+     * phone half is actively misleading. Twin of the Swift `ProfileStore.stepsHasBankedMotion`.
+     */
+    var stepsHasBankedMotion: Boolean
+        get() = prefs.getBoolean(KEY_STEPS_HAS_MOTION, false)
+        set(v) = prefs.edit().putBoolean(KEY_STEPS_HAS_MOTION, v).apply()
+
     /** The auto (Tanaka) HR-max for the current age. */
     val hrMaxAuto: Int get() = Zones.hrMaxTanaka(age)
 
@@ -420,6 +436,7 @@ class ProfileStore(private val prefs: SharedPreferences) {
         private const val KEY_STEPS_CONFIDENCE = "steps_calibration_confidence"
         private const val KEY_STEPS_MANUAL_FLAG = "steps_calibration_manual"
         private const val KEY_STEPS_MANUAL_COEFF = "steps_manual_coefficient"
+        private const val KEY_STEPS_HAS_MOTION = "steps_has_banked_motion"
 
         private const val AGE_MIN = 13
         private const val AGE_MAX = 100
@@ -669,11 +686,13 @@ fun SettingsScreen(
     // BETA feature flag, default ON (`live_sessions_beta`, see LiveSessionPrefs); off hides the entry.
     var liveSessionsBeta by remember { mutableStateOf(LiveSessionPrefs.enabled(context)) }
 
-    // Imperial/Metric display preference (D#103). Display-only — stored data stays SI. The system drives
-    // the profile fields below (imperial entry) too, so it's local state the whole screen reads.
-    // `temperatureRaw` is "" (match the system) or a TemperatureUnit raw value. SharedPreferences isn't
-    // reactive, so these mirror into local state like the toggles above.
+    // Display preferences. The original system remains the body choice; exercise distance/pace has an
+    // independent override. SharedPreferences isn't reactive, so both mirror into local state.
     var unitSystem by remember { mutableStateOf(UnitPrefs.system(context)) }
+    var distanceSystemRaw by remember {
+        mutableStateOf(NoopPrefs.of(context).getString(NoopPrefs.KEY_DISTANCE_UNIT_SYSTEM, "") ?: "")
+    }
+    val distanceUnitSystem = UnitPrefs.resolveDistance(unitSystem, distanceSystemRaw)
     var clockFormat by remember { mutableStateOf(ClockPrefs.preference(context)) }   // #1821
     var temperatureRaw by remember {
         mutableStateOf(NoopPrefs.of(context).getString(NoopPrefs.KEY_TEMPERATURE_UNIT, "") ?: "")
@@ -1220,16 +1239,14 @@ fun SettingsScreen(
         }
 
         // --- Units ---
-        // Imperial/Metric display toggle + a separate temperature override. Display-only — nothing
-        // stored changes; NOOP keeps everything in SI and converts at the point of display. Mirrors the
-        // macOS Settings → Units card.
+        // Independent body and exercise-distance choices plus temperature/effort overrides. Display-only.
         SettingsCard(
             icon = Icons.Filled.Straighten,
             title = uiString(R.string.l10n_settings_screen_units_12748281),
-            blurb = "Choose how distances, weights, heights, temperatures and Effort are shown. Your data is always stored the same way. This only changes the display.",
+            blurb = uiString(R.string.units_settings_blurb),
         ) {
             Column {
-                SettingsFormRow(label = uiString(R.string.l10n_settings_screen_measurement_system_701d765d)) {
+                SettingsFormRow(label = uiString(R.string.units_body_measurements)) {
                     SegmentedPillControl(
                         items = listOf(UnitSystem.METRIC, UnitSystem.IMPERIAL),
                         selection = unitSystem,
@@ -1241,9 +1258,23 @@ fun SettingsScreen(
                     )
                 }
                 SettingsRowDivider()
+                SettingsFormRow(label = uiString(R.string.units_exercise_distance_pace)) {
+                    SegmentedPillControl(
+                        items = listOf(UnitSystem.METRIC, UnitSystem.IMPERIAL),
+                        selection = distanceUnitSystem,
+                        label = {
+                            if (it == UnitSystem.METRIC) uiString(R.string.units_kilometres)
+                            else uiString(R.string.units_miles)
+                        },
+                        onSelect = {
+                            distanceSystemRaw = it.raw
+                            NoopPrefs.setDistanceUnitSystem(context, it)
+                        },
+                    )
+                }
+                SettingsRowDivider()
                 SettingsFormRow(label = uiString(R.string.l10n_settings_screen_temperature_0a9062a9)) {
-                    // Three-way: "Match" follows the system above; °C / °F pin it explicitly. Stored as an
-                    // empty string ("match") or the TemperatureUnit raw value.
+                    // Three-way: the default follows body measurements; °C / °F pin it explicitly.
                     SegmentedPillControl(
                         items = listOf("", TemperatureUnit.CELSIUS.raw, TemperatureUnit.FAHRENHEIT.raw),
                         selection = temperatureRaw,
@@ -1251,7 +1282,7 @@ fun SettingsScreen(
                             when (it) {
                                 TemperatureUnit.CELSIUS.raw -> "°C"
                                 TemperatureUnit.FAHRENHEIT.raw -> "°F"
-                                else -> "Match"
+                                else -> uiString(R.string.units_follow_body)
                             }
                         },
                         onSelect = {
@@ -1372,32 +1403,6 @@ fun SettingsScreen(
                             context.hostingActivity()?.recreate()
                         }
                     },
-                )
-            }
-            SettingsRowDivider()
-            // #1836: which bottom-bar layout to draw. Default OFF — the shipped reserved slot. The
-            // overlay lets a screen's own backdrop show through the bar's glass, which is what it was
-            // built for, but it is app-shell layout no test can judge, so it ships switchable.
-            SettingsFormRow(label = uiString(R.string.l10n_settings_screen_bottom_bar_overlay_f257c96f)) {
-                Switch(
-                    checked = BottomBarStyleStore.overlay,
-                    onCheckedChange = { BottomBarStyleStore.set(context, it) },
-                )
-            }
-            SettingsRowDivider()
-            // #1839: hide the bar while scrolling down, bring it back on scrolling up. Only does anything
-            // with the overlay on, because in the slot layout the space is reserved and hiding the bar
-            // would leave an empty band — so the row is disabled rather than silently inert.
-            // Reduce Motion pins the bar visible (a bar that vanishes without animation reads as a
-            // glitch), so with it on the toggle would flip and change nothing. A switch that silently
-            // does nothing is worse than one that is plainly unavailable, so it greys out for the same
-            // reason it does without the overlay.
-            val autoHideAvailable = BottomBarStyleStore.overlay && !rememberReduceMotion()
-            SettingsFormRow(label = uiString(R.string.l10n_settings_screen_hide_bar_when_scrolling_b077d9f3)) {
-                Switch(
-                    checked = BottomBarStyleStore.autoHide,
-                    enabled = autoHideAvailable,
-                    onCheckedChange = { BottomBarStyleStore.setAutoHide(context, it) },
                 )
             }
             SettingsRowDivider()
@@ -1732,6 +1737,111 @@ fun SettingsScreen(
             }
         }
 
+        // The bar's own card. These four options are all about one piece of app-shell chrome, and living
+        // among the theme controls in Appearance meant two of them sat between unrelated rows while the
+        // other two had nowhere to go. Grouped, the size and transparency read as what they are: choices
+        // about the same bar the toggles above them move and hide.
+        SettingsCard(
+            icon = Icons.Filled.ViewAgenda,
+            title = uiString(R.string.l10n_settings_screen_bottom_bar_f84098a9),
+            blurb = uiString(R.string.l10n_settings_screen_how_the_navigation_bar_looks_f186b099),
+        ) {
+            // #1836: which bottom-bar layout to draw. Default OFF — the shipped reserved slot. The
+            // overlay lets a screen's own backdrop show through the bar's glass, which is what it was
+            // built for, but it is app-shell layout no test can judge, so it ships switchable.
+            SettingsFormRow(label = uiString(R.string.l10n_settings_screen_bottom_bar_overlay_f257c96f)) {
+                Switch(
+                    checked = BottomBarStyleStore.overlay,
+                    onCheckedChange = { BottomBarStyleStore.set(context, it) },
+                )
+            }
+            SettingsRowDivider()
+            // #1839: hide the bar while scrolling down, bring it back on scrolling up. Only does anything
+            // with the overlay on, because in the slot layout the space is reserved and hiding the bar
+            // would leave an empty band — so the row is disabled rather than silently inert.
+            // Reduce Motion pins the bar visible (a bar that vanishes without animation reads as a
+            // glitch), so with it on the toggle would flip and change nothing. A switch that silently
+            // does nothing is worse than one that is plainly unavailable, so it greys out for the same
+            // reason it does without the overlay.
+            val autoHideAvailable = BottomBarStyleStore.overlay && !rememberReduceMotion()
+            SettingsFormRow(label = uiString(R.string.l10n_settings_screen_hide_bar_when_scrolling_b077d9f3)) {
+                Switch(
+                    checked = BottomBarStyleStore.autoHide,
+                    enabled = autoHideAvailable,
+                    onCheckedChange = { BottomBarStyleStore.setAutoHide(context, it) },
+                )
+            }
+            // Reaching either control below means scrolling DOWN, which auto-hide reads as "hide the
+            // bar" - so a change made here landed on a bar the user could not see, and neither a slider
+            // drag nor a menu pick is a scroll, so nothing brought it back.
+            //
+            // Keyed on what the bar LOOKS like rather than on either control, so one rule covers both: a
+            // drag restarts this every frame and stays pinned throughout, a menu pick fires it once, and
+            // either way the bar is held a moment longer so the result is visible after the finger lifts.
+            LaunchedEffect(BottomBarStyleStore.scale, BottomBarStyleStore.opacityStep) {
+                BottomBarStyleStore.pinPreview(true)
+                delay(1_500)
+                BottomBarStyleStore.pinPreview(false)
+            }
+            SettingsRowDivider()
+            // Size. A dropdown of fixed multipliers rather than a slider: these are the sizes worth
+            // having, and a continuous control here mostly produces sizes a user cannot tell apart.
+            var sizeMenuOpen by remember { mutableStateOf(false) }
+            SettingsFormRow(label = uiString(R.string.l10n_settings_screen_bar_size_2304bfbb)) {
+                Box {
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(999.dp))
+                            .clickable { sizeMenuOpen = true }
+                            .background(Palette.surfaceInset)
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(scaleLabel(BottomBarStyleStore.scale), style = NoopType.subhead,
+                             color = Palette.textPrimary)
+                        Icon(Icons.Filled.ArrowDropDown, contentDescription = null,
+                             tint = Palette.textSecondary)
+                    }
+                    DropdownMenu(expanded = sizeMenuOpen, onDismissRequest = { sizeMenuOpen = false }) {
+                        BOTTOM_BAR_SCALES.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(scaleLabel(option), color = Palette.textPrimary) },
+                                onClick = {
+                                    sizeMenuOpen = false
+                                    BottomBarStyleStore.setScale(context, option)
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+            SettingsRowDivider()
+            // Transparency, in the eight steps the store defines. The slider writes on every change so the
+            // bar updates live underneath the sheet - the whole point is seeing it against your own screen.
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(uiString(R.string.l10n_settings_screen_bar_transparency_3f648fbb), style = NoopType.subhead, color = Palette.textPrimary)
+                Text(uiString(R.string.l10n_settings_screen_how_see_through_the_bar_is_ddb0c208), style = NoopType.footnote, color = Palette.textTertiary)
+                Slider(
+                    value = BottomBarStyleStore.opacityStep.toFloat(),
+                    // Live while dragging, persisted once on release: a drag emits a value per frame, and
+                    // writing each one records a decision the user makes once. Rounded, not truncated -
+                    // the snapped value can arrive as 5.9999998, which truncation would read as step 5.
+                    onValueChange = { BottomBarStyleStore.previewOpacityStep(it.roundToInt()) },
+                    onValueChangeFinished = {
+                        BottomBarStyleStore.setOpacityStep(context, BottomBarStyleStore.opacityStep)
+                    },
+                    valueRange = MIN_OPACITY_STEP.toFloat()..MAX_OPACITY_STEP.toFloat(),
+                    // Compose counts the stops BETWEEN the ends, so N notches is N-2. Derived, not
+                    // written out, so changing the notch count cannot leave this line disagreeing with it.
+                    steps = MAX_OPACITY_STEP - MIN_OPACITY_STEP - 1,
+                    colors = SliderDefaults.colors(
+                        thumbColor = Palette.accent,
+                        activeTrackColor = Palette.accent,
+                    ),
+                )
+            }
+        }
         // --- Background image (#custom-background) ---
         // An optional custom photo drawn full-bleed behind EVERY tab (including More), in place of the
         // day-cycle sky (precedence: image > sky > flat canvas). Pick from Photos or Browse the files; the

@@ -5,6 +5,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,7 +25,10 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -248,7 +252,47 @@ private fun CoachChat(vm: CoachViewModel) {
     val error by vm.error.collectAsStateWithLifecycle()
     val provider by vm.provider.collectAsStateWithLifecycle()
     val model by vm.model.collectAsStateWithLifecycle()
-    var input by remember { mutableStateOf("") }
+    val suggestions by vm.suggestions.collectAsStateWithLifecycle()
+    // K15: the composer draft is persisted to SharedPreferences so it survives an app relaunch.
+    // Restored on first composition, saved on every change. Keyed identically to the iOS twin.
+    val draftPrefs = remember { context.getSharedPreferences("noop_coach_draft", android.content.Context.MODE_PRIVATE) }
+    var input by remember { mutableStateOf(draftPrefs.getString("draft", "") ?: "") }
+    // K2: confirmation gate for the destructive "Clear conversation" action.
+    var showClearConfirm by remember { mutableStateOf(false) }
+
+    // Refresh the contextual chips whenever the chat empties (so a fresh sync updates them) and
+    // once on first show. Best-effort; the VM falls back to the generic set on any failure.
+    LaunchedEffect(messages.isEmpty()) {
+        if (messages.isEmpty()) vm.refreshSuggestions()
+    }
+
+    // K14: vibrate when a reply arrives (sending goes true → false with messages present).
+    var wasSending by remember { mutableStateOf(false) }
+    LaunchedEffect(sending) {
+        if (wasSending && !sending && messages.isNotEmpty()) {
+            val vibrator = context.getSystemService(android.content.Context.VIBRATOR_SERVICE)
+                as android.os.Vibrator
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                vibrator.vibrate(
+                    android.os.VibrationEffect.createOneShot(50, android.os.VibrationEffect.DEFAULT_AMPLITUDE)
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(50)
+            }
+        }
+        wasSending = sending
+    }
+
+    // K2 + K5 ordering matters and both gate on an EMPTY transcript, so this is ONE coroutine,
+    // sequential: restore whatever the prior launch persisted FIRST, THEN surface a brief the
+    // scheduled notification already generated (if any) — so K5 never overwrites K2's restore, and
+    // never appends a duplicate brief onto a transcript K2 just repopulated.
+    LaunchedEffect(Unit) {
+        vm.loadPersistedMessagesIfNeeded()
+        vm.loadBriefSettings(context)
+        vm.consumeScheduledBriefIfAny(context)
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
 
@@ -280,6 +324,22 @@ private fun CoachChat(vm: CoachViewModel) {
             }
         }
 
+        if (showClearConfirm) {
+            AlertDialog(
+                onDismissRequest = { showClearConfirm = false },
+                title = { Text(stringResource(R.string.coach_clear_conversation_confirm)) },
+                text = { Text(stringResource(R.string.coach_clear_conversation_message)) },
+                confirmButton = {
+                    TextButton(onClick = { vm.clearConversation(); showClearConfirm = false }) {
+                        Text(stringResource(R.string.coach_clear_action), color = Palette.statusCritical)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showClearConfirm = false }) { Text(stringResource(R.string.l10n_coach_screen_cancel_77dfd213)) }
+                },
+            )
+        }
+
         // Data-access consent, off by default; no metrics are sent until this is on.
         val consent by vm.consent.collectAsStateWithLifecycle()
         NoopCard(padding = 14.dp, tint = Palette.chargeColor) {
@@ -303,6 +363,9 @@ private fun CoachChat(vm: CoachViewModel) {
         // take effect on the next message (the engine reads the stored prompt fresh per send).
         CoachInstructions(vm = vm)
 
+        // K5: the scheduled morning-brief notification.
+        MorningBriefCard(vm = vm)
+
         // Transcript or empty-state with suggested prompts.
         if (messages.isEmpty()) {
             NoopCard(padding = 18.dp) {
@@ -311,13 +374,17 @@ private fun CoachChat(vm: CoachViewModel) {
                         uiString(R.string.l10n_coach_screen_ask_anything_about_your_recent_recovery_e6c287ca),
                         style = NoopType.subhead, color = Palette.textSecondary,
                     )
-                    SuggestedPrompts(onPick = { input = it })
+                    SuggestedPrompts(prompts = suggestions, onPick = { input = it })
                 }
             }
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                messages.forEach { msg -> ChatBubble(msg) }
+                messages.forEach { msg -> ChatBubble(msg, vm) }
                 if (sending) ThinkingBubble()
+                // K7: follow-up suggestion chips after each assistant reply (when not mid-send).
+                if (!sending && messages.isNotEmpty() && messages.last().role == "assistant") {
+                    SuggestedPrompts(prompts = vm.followUpSuggestions, onPick = { input = it })
+                }
             }
         }
 
@@ -337,43 +404,113 @@ private fun CoachChat(vm: CoachViewModel) {
         }
 
         // Input row + Send, a frosted overlay surface so the composer reads as a docked input bar.
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .background(Palette.surfaceOverlay)
-                .border(1.dp, Palette.hairline, RoundedCornerShape(18.dp))
-                .padding(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            OutlinedTextField(
-                value = input,
-                onValueChange = {
-                    input = it
-                    if (error != null) vm.clearError()
-                },
-                modifier = Modifier.weight(1f),
-                placeholder = { Text(uiString(R.string.l10n_coach_screen_ask_your_coach_b1577d4c), style = NoopType.body, color = Palette.textTertiary) },
-                textStyle = NoopType.body,
-                singleLine = false,
-                maxLines = 4,
-                enabled = !sending,
-                colors = coachFieldColors(),
-                shape = RoundedCornerShape(14.dp),
-            )
-            SendButton(
-                enabled = input.isNotBlank() && !sending,
-                sending = sending,
-                onClick = {
-                    vm.send(context, input)
-                    input = ""
-                },
-            )
+        // K4: the mic button (on-device voice input) sits between the text field and Send.
+        MicComposerRow(
+            input = input,
+            onInputChange = {
+                input = it
+                // K15: persist the draft so it survives an app relaunch.
+                draftPrefs.edit().putString("draft", it).apply()
+                if (error != null) vm.clearError()
+            },
+            sending = sending,
+            onSend = {
+                vm.send(context, input)
+                input = ""
+                // K15: clear the persisted draft on send.
+                draftPrefs.edit().remove("draft").apply()
+            },
+        )
+
+        // K12: rough token estimate shown when the draft is non-empty.
+        if (input.isNotBlank()) {
+            vm.estimatedTokens(input)?.let { tokens ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                    horizontalArrangement = Arrangement.Start,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Speed,
+                        contentDescription = null,
+                        modifier = Modifier.size(10.dp),
+                        tint = Palette.textTertiary,
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        stringResource(R.string.coach_token_estimate, tokens),
+                        style = NoopType.caption,
+                        color = Palette.textTertiary,
+                    )
+                    if (tokens > 8000) {
+                        Text(
+                            stringResource(R.string.coach_token_warning),
+                            style = NoopType.caption,
+                            color = Palette.textTertiary,
+                        )
+                    }
+                }
+            }
         }
 
         // Privacy note repeated under the input so it's always on screen.
         PrivacyNote(local = provider == AiProvider.CUSTOM)
+    }
+}
+
+/**
+ * K5: the scheduled morning-brief notification settings — enable switch, time-of-day chip, and an
+ * explicit "Generate now" action. Mirrors the daily-debug-export settings row shape
+ * ([DebugExportScheduler]) and the Swift twin's `morningBriefBar`.
+ */
+@Composable
+private fun MorningBriefCard(vm: CoachViewModel) {
+    val context = LocalContext.current
+    val enabled by vm.briefEnabled.collectAsStateWithLifecycle()
+    val minutes by vm.briefMinutes.collectAsStateWithLifecycle()
+    val generating by vm.briefGenerating.collectAsStateWithLifecycle()
+    val status by vm.briefStatus.collectAsStateWithLifecycle()
+
+    NoopCard(padding = 14.dp, tint = Palette.chargeColor) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(stringResource(R.string.coach_morning_brief), style = NoopType.subhead, color = Palette.textPrimary)
+                    Text(
+                        if (enabled)
+                            stringResource(R.string.coach_morning_brief_desc)
+                        else stringResource(R.string.coach_morning_brief_off),
+                        style = NoopType.footnote, color = Palette.textTertiary,
+                    )
+                }
+                androidx.compose.material3.Switch(
+                    checked = enabled,
+                    onCheckedChange = { vm.setBriefEnabled(context, it) },
+                )
+            }
+            if (enabled) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.coach_morning_brief_time), style = NoopType.subhead, color = Palette.textPrimary, modifier = Modifier.weight(1f))
+                    TimeChip(
+                        minutes = minutes,
+                        accessibilityLabel = "Morning brief time",
+                        onPicked = { vm.setBriefMinutes(context, it) },
+                    )
+                }
+                Text(
+                    stringResource(R.string.coach_morning_brief_best_effort),
+                    style = NoopType.caption, color = Palette.textTertiary,
+                )
+                CoachPrimaryButton(
+                    label = if (generating) stringResource(R.string.coach_generating) else stringResource(R.string.coach_generate_now),
+                    enabled = !generating,
+                    onClick = { vm.generateBriefNow(context) },
+                )
+                if (status != null) {
+                    Text(status.orEmpty(), style = NoopType.footnote, color = Palette.textTertiary)
+                }
+            }
+        }
     }
 }
 
@@ -452,9 +589,14 @@ private fun CoachInstructions(vm: CoachViewModel) {
 // MARK: - Chat bubbles
 
 @Composable
-private fun ChatBubble(msg: ChatMsg) {
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+private fun ChatBubble(msg: ChatMsg, vm: CoachViewModel) {
     val isUser = msg.role == "user"
     val bubbleShape = RoundedCornerShape(16.dp)
+    val context = LocalContext.current
+    val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+    // K8: long-press popup menu for Copy / Share / Save on assistant replies.
+    var showMenu by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
@@ -475,7 +617,18 @@ private fun ChatBubble(msg: ChatMsg) {
             modifier = Modifier
                 .widthIn(max = 320.dp)
                 .then(bubbleModifier)
-                .padding(horizontal = 14.dp, vertical = 10.dp),
+                .padding(horizontal = 14.dp, vertical = 10.dp)
+                // K8: long-press assistant bubbles to show Copy / Share / Save. User bubbles
+                // are not actionable (the text is the user's own input).
+                .then(
+                    if (isUser) Modifier
+                    else Modifier.combinedClickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {},
+                        onLongClick = { showMenu = true },
+                    )
+                ),
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Overline(
@@ -488,6 +641,39 @@ private fun ChatBubble(msg: ChatMsg) {
                     // Render the Coach's Markdown (bold/lists/headings) instead of raw symbols (#149).
                     CoachMarkdown(msg.text, color = Palette.textPrimary)
                 }
+            }
+            // K8: dropdown popup anchored to the bubble.
+            DropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = { showMenu = false },
+            ) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.coach_copy_action)) },
+                    onClick = {
+                        clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(msg.text))
+                        showMenu = false
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.coach_share_action)) },
+                    onClick = {
+                        val sendIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(android.content.Intent.EXTRA_TEXT, msg.text)
+                        }
+                        context.startActivity(
+                            android.content.Intent.createChooser(sendIntent, "Share Coach advice")
+                        )
+                        showMenu = false
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.coach_save_to_journal)) },
+                    onClick = {
+                        vm.saveAdviceToJournal(msg.text)
+                        showMenu = false
+                    },
+                )
             }
         }
     }
@@ -526,11 +712,11 @@ private fun ThinkingBubble() {
 internal val SUGGESTED_PROMPTS: List<String> get() = CoachPrompts.SUGGESTIONS
 
 @Composable
-private fun SuggestedPrompts(onPick: (String) -> Unit) {
+private fun SuggestedPrompts(prompts: List<String>, onPick: (String) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Overline("Try asking")
         // Simple wrapped column of chips (one per row keeps long prompts readable).
-        SUGGESTED_PROMPTS.forEach { prompt ->
+        prompts.forEach { prompt ->
             val shape = RoundedCornerShape(50)
             val chipInteraction = remember { MutableInteractionSource() }
             Text(
@@ -766,6 +952,175 @@ private fun CoachPrimaryButton(label: String, enabled: Boolean, onClick: () -> U
         contentAlignment = Alignment.Center,
     ) {
         Text(label, style = NoopType.headline, color = Palette.surfaceBase)
+    }
+}
+
+// MARK: - K4: Voice input composer row (mic button + text field + send)
+
+/**
+ * K4: The composer row with a mic button (on-device voice input) between the text field and Send.
+ * Mirrors the iOS `CoachView.composer` + `micButton` twin. The mic button:
+ *  - requests RECORD_AUDIO at runtime on first tap (via [rememberLauncherForActivityResult]),
+ *  - starts/stops [CoachVoiceInput], which uses `createOnDeviceSpeechRecognizer` behind an
+ *    `isOnDeviceRecognitionAvailable` gate (API 31+); below that the button is not composed at all,
+ *  - streams the partial transcript into the text field live,
+ *  - on stop, appends the finalized transcript to the draft (not replace, so it composes with
+ *    typed text).
+ * Only the resulting TEXT ever reaches the AI provider — no new network path, no audio egress. That
+ * is a guarantee rather than a preference: `createOnDeviceSpeechRecognizer` cannot fall back to a
+ * server, where the `EXTRA_PREFER_OFFLINE` this line used to name was a hint the platform could ignore.
+ */
+@Composable
+private fun MicComposerRow(
+    input: String,
+    onInputChange: (String) -> Unit,
+    sending: Boolean,
+    onSend: () -> Unit,
+) {
+    val context = LocalContext.current
+    var isRecording by remember { mutableStateOf(false) }
+    var voiceStatus by remember { mutableStateOf<String?>(null) }
+
+    // The voice controller is remembered for the lifetime of the composer; destroyed on leave.
+    val voiceInput = remember {
+        CoachVoiceInput(
+            context = context,
+            onPartial = { partial -> onInputChange(partial) },
+            onFinal = { final ->
+                val trimmed = final.trim()
+                if (trimmed.isNotEmpty()) {
+                    // Append to the draft (not replace) so voice composes with typed text.
+                    val merged = if (input.isBlank()) trimmed else "$input $trimmed"
+                    onInputChange(merged)
+                }
+            },
+            onError = { msg -> voiceStatus = msg },
+        )
+    }
+    // Release the recognizer when the composer leaves composition.
+    androidx.compose.runtime.DisposableEffect(voiceInput) {
+        onDispose { voiceInput.destroy() }
+    }
+
+    // Runtime RECORD_AUDIO permission launcher — raised on the first mic tap if not yet granted.
+    val permLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) {
+            voiceInput.start()
+            isRecording = true
+        } else {
+            voiceStatus = context.getString(R.string.coach_voice_permission_denied)
+        }
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(Palette.surfaceOverlay)
+            .border(1.dp, Palette.hairline, RoundedCornerShape(18.dp))
+            .padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        OutlinedTextField(
+            value = input,
+            onValueChange = onInputChange,
+            modifier = Modifier.weight(1f),
+            placeholder = {
+                Text(
+                    if (isRecording) stringResource(R.string.coach_listening) else uiString(R.string.l10n_coach_screen_ask_your_coach_b1577d4c),
+                    style = NoopType.body,
+                    color = Palette.textTertiary,
+                )
+            },
+            textStyle = NoopType.body,
+            singleLine = false,
+            maxLines = 4,
+            enabled = !sending,
+            colors = coachFieldColors(),
+            shape = RoundedCornerShape(14.dp),
+        )
+
+        // K4: mic button — on-device voice input. Hidden entirely when on-device recognition
+        // is not available (API < 31 or locale without an offline model), matching iOS which
+        // disables voice when `supportsOnDeviceRecognition` is false.
+        if (voiceInput.isAvailable()) {
+            MicButton(
+                isRecording = isRecording,
+                enabled = !sending,
+                statusMessage = voiceStatus,
+                onClick = {
+                    voiceStatus = null
+                    if (isRecording) {
+                        voiceInput.stop()
+                        isRecording = false
+                    } else {
+                        if (voiceInput.isPermissionGranted()) {
+                            voiceInput.start()
+                            isRecording = true
+                        } else {
+                            permLauncher.launch(voiceInput.requiredPermission)
+                        }
+                    }
+                },
+            )
+        }
+
+        SendButton(
+            enabled = input.isNotBlank() && !sending,
+            sending = sending,
+            onClick = onSend,
+        )
+    }
+
+    // Voice status / error line (e.g. "Microphone permission denied" or locale-not-supported).
+    if (voiceStatus != null) {
+        Text(
+            voiceStatus!!,
+            style = NoopType.footnote,
+            color = Palette.textTertiary,
+        )
+    }
+}
+
+@Composable
+private fun MicButton(
+    isRecording: Boolean,
+    enabled: Boolean,
+    statusMessage: String?,
+    onClick: () -> Unit,
+) {
+    val bg = if (isRecording) Palette.statusCritical.copy(alpha = 0.15f) else Palette.surfaceInset
+    val tint = if (isRecording) Palette.statusCritical else Palette.textSecondary
+    val interaction = remember { MutableInteractionSource() }
+    val desc = if (isRecording) "Stop voice input" else "Voice input"
+    val statusSuffix = statusMessage?.let { stringResource(R.string.coach_status_suffix, it) } ?: ""
+    Box(
+        modifier = Modifier
+            .size(48.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(bg)
+            .border(1.dp, Palette.hairline, RoundedCornerShape(14.dp))
+            .let {
+                if (enabled)
+                    it
+                        .liquidPress(interaction)
+                        .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+                else it
+            }
+            .semantics {
+                contentDescription = desc + statusSuffix
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            if (isRecording) Icons.Filled.Stop else Icons.Filled.Mic,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(20.dp),
+        )
     }
 }
 

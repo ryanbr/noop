@@ -1771,6 +1771,12 @@
     <string name="smart_alarm_body">你的智能闹钟刚刚响了。</string>
     <string name="battery_channel_name">电量提醒</string>
     <string name="battery_channel_desc">当手环电量低或已充满时提醒。</string>
+    <!-- K5: scheduled Coach morning-brief notification. -->
+    <string name="coach_brief_channel_name">教练晨间简报</string>
+    <string name="coach_brief_channel_desc">今日教练简报，在设备上按您选择的时间生成。</string>
+    <string name="coach_brief_title">今日教练简报</string>
+    <string name="coach_brief_unavailable_title">教练简报不可用</string>
+    <string name="coach_brief_unavailable_body">无法生成今日简报。打开教练重试。</string>
     <string name="l10n_app_changelog_battery_saver_quiets_the_gauges_translated_bdbe8650">省电模式让仪表静止、Android 通知已翻译、图表秒开</string>
     <string name="l10n_health_screen_no_spo_import_or_health_value_408f8c55">无 SpO₂ 导入或健康数值</string>
     <string name="l10n_health_screen_raw_counts_only_needs_an_import_d0e33552">仅原始计数 — 需导入</string>
@@ -2260,7 +2266,9 @@
     <string name="today_steps_headline_calibrated">根据手机同时记录的 %1$d 天估算</string>
     <string name="today_steps_headline_connect_phone">连接手机步数以估算步数</string>
     <string name="today_steps_headline_more_days">还需 %1$d 天由手机同时记录步数</string>
+    <string name="today_steps_headline_no_motion">尚未同步运动数据</string>
     <string name="today_synthesis_learning_baseline">正在建立基线：%1$d/%2$d 晚。</string>
+    <string name="today_synthesis_nights_without_hrv">最近 %2$d 晚中有 %1$d 晚未记录 HRV。请检查夜间是否佩戴并已同步。</string>
     <string name="today_last_night_date">昨晚 · %1$s</string>
     <string name="today_hr_min">最低</string>
     <string name="today_hr_avg">平均</string>
@@ -2591,4 +2599,53 @@
     <string name="settings_day_cycle_midnight">00:00</string>
     <string name="settings_day_cycle_sleep_description">默认。周期从检测到的主要睡眠开始。睡眠数据缺失或不可靠时，将使用当地午夜。</string>
     <string name="settings_day_cycle_midnight_description">使用从 00:00 到次日 00:00 的常规当地日历日。</string>
+    <string name="l10n_settings_screen_bottom_bar_f84098a9">底部栏</string>
+    <string name="l10n_settings_screen_how_the_navigation_bar_looks_f186b099">导航栏的外观——它的大小，以及透过它能看到多少屏幕内容。</string>
+    <string name="l10n_settings_screen_bar_size_2304bfbb">栏大小</string>
+    <string name="l10n_settings_screen_bar_transparency_3f648fbb">栏透明度</string>
+    <string name="l10n_settings_screen_how_see_through_the_bar_is_ddb0c208">底部栏的透明程度。即使在最淡的一档也会保留边框，因此始终能找到它。</string>
+
+    <!-- Coach screen -->
+    <string name="coach_clear_conversation_confirm">清除对话？</string>
+    <string name="coach_clear_conversation_message">这会从此设备删除已保存的对话。教练记录是你自己的笔记，而非医疗建议。</string>
+    <string name="coach_clear_action">清除</string>
+    <string name="coach_token_estimate">~%1$d 个 token</string>
+    <string name="coach_token_warning"> · 可能超出小型上下文窗口</string>
+    <string name="coach_morning_brief">晨间简报</string>
+    <string name="coach_morning_brief_desc">一条本地通知，包含今天的准备状态和训练计划，每天早晨在设备上生成。</string>
+    <string name="coach_morning_brief_off">关闭：不会按计划生成或发送任何内容。</string>
+    <string name="coach_morning_brief_time">时间</string>
+    <string name="coach_morning_brief_best_effort">尽力而为：Android 自行决定后台应用何时唤醒以生成它。</string>
+    <string name="coach_copy_action">复制</string>
+    <string name="coach_share_action">分享</string>
+    <string name="coach_save_to_journal">保存到日志</string>
+    <string name="coach_listening">聆听中…</string>
+    <string name="coach_generating">生成中…</string>
+    <string name="coach_generate_now">立即生成</string>
+    <string name="coach_status_suffix">：%1$s</string>
+    <string name="coach_no_reply">（无回复）</string>
+    <string name="coach_stream_interrupted">%1$s\n\n*(流已中断)*</string>
+    <string name="coach_today_brief_format">今日简报\n\n%1$s</string>
+    <string name="coach_brief_widget_title">✦ 教练简报</string>
+    <string name="coach_brief_widget_empty">暂无简报</string>
+    <string name="coach_brief_widget_enable">在教练设置中启用晨间简报，即可在此查看今天的准备状态。</string>
+    <string name="coach_voice_error_no_speech">未检测到语音。</string>
+    <string name="coach_voice_error_audio">录音失败。</string>
+    <string name="coach_voice_error_busy">语音识别器正忙。请重试。</string>
+    <string name="coach_voice_error_permission">麦克风权限被拒绝。</string>
+    <string name="coach_voice_error_generic">语音输入失败。请重试。</string>
+    <string name="coach_voice_error_server">此语言不支持设备端语音识别。</string>
+    <string name="coach_voice_error_unavailable">此设备或语言不支持设备端语音识别。</string>
+    <string name="coach_voice_unavailable">此设备或语言不支持设备端语音识别。</string>
+    <string name="coach_voice_permission_denied">麦克风权限被拒绝。请在设置中启用以使用语音输入。</string>
+    <string name="units_settings_blurb">分别选择身体测量和运动距离的单位。数据的存储方式始终不变；这些设置只会改变显示方式。</string>
+    <string name="units_body_measurements">身体测量</string>
+    <string name="units_exercise_distance_pace">运动距离和配速</string>
+    <string name="units_kilometres">公里</string>
+    <string name="units_miles">英里</string>
+    <string name="units_follow_body">跟随身体测量</string>
+    <string name="l10n_devices_screen_battery_pack_probe_151_re_d722af00">电池盒探测 (151 RE)…</string>
+    <string name="l10n_devices_screen_battery_pack_probe_result_151_df43dff2">电池盒探测结果 (151)</string>
+    <string name="l10n_devices_screen_battery_pack_probe_explainer_40b3470d">发送只读的电池盒命令 (151) 并解码手环的回复——电池盒的电量、序列号和蓝牙地址。不会向手环写入任何内容，也不会影响您的数据。WHOOP 4.0 没有电池盒命令，预期会保持静默；这种静默本身就是有用的结果。</string>
+    <string name="l10n_devices_screen_pack_charge_0e9589da">电池盒 %1$.1f%%</string>
 </resources>

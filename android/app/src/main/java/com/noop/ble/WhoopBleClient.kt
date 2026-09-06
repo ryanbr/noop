@@ -170,6 +170,14 @@ data class LiveState(
      *  Cleared on disconnect so a stale flag can't outlive the link. Twin of macOS
      *  LiveState.charging. */
     val charging: Boolean? = null,
+    /** Battery-pack charge, tenths-of-a-percent precision, from the pushed pack event (109) payload.
+     *  5/MG only — a WHOOP 4.0 has no pack fuel gauge (its pack reads as a VOLTAGE via opcode 98, a
+     *  different quantity). Null until the first pack event lands, cleared on BATTERY_PACK_REMOVED and
+     *  on disconnect, so a removed pack or a dropped link can never leave a stale charge on the card.
+     *
+     *  There is deliberately no separate "pack attached" flag: nothing needs one. Non-null here already
+     *  means a pack is attached and reporting, because the strap only sends the event while one is on. */
+    val packSocPct: Double? = null,
     /** Wrist-wear from WRIST_ON/WRIST_OFF events. Defaults TRUE to match the macOS LiveState (Swift
      *  parity) — assume worn until the strap says otherwise. (Was false, which made the UI show
      *  "Worn: Off" forever when no WRIST_ON event arrived — issue #18.) */
@@ -1344,6 +1352,12 @@ class WhoopBleClient(
                 charging = null, strapFirmware = null, historyLayoutVersion = null,
                 pairingHint = null, scanning = false,
                 statusNote = null,
+                // Pack readout dies with the link, the same rule as [charging]: a card still showing
+                // "Pack 56.9%" for a strap we are no longer talking to is a stale reading, not a stale
+                // pill. This clear is also why no expiry timer is needed — the only way to miss a pack
+                // removal is to be disconnected for it, and reconnecting starts from null either way.
+                // Event 109 re-establishes the reading within a couple of minutes if a pack is still on.
+                packSocPct = null,
             )
 
         /** #1466: did this offload hand over anything at all? Acked chunks, persisted rows, or deep packets.
@@ -1541,6 +1555,100 @@ class WhoopBleClient(
 
         /** #690: persisted previous body-location payload hex, so a new capture can diff against it. */
         private const val KEY_690_PREV_PAYLOAD = "noop.690.prevPayload"
+
+        /** Sentinel value of [batteryPackProbe] between sending the cmd-151 probe and its reply landing. */
+        const val WAITING_BATTERY_PACK_PROBE = "__waiting__"
+
+        /** How long to wait for a cmd-151 COMMAND_RESPONSE before treating the silence as "no reply".
+         *  Same window as the #690 probe — long enough to ride out a mid-flight sync, short enough that
+         *  the dialog does not hang. */
+        const val BATTERY_PACK_PROBE_TIMEOUT_MS = 8_000L
+
+        /**
+         * Blank the pack's six address bytes inside the raw frame dump, leaving every other byte
+         * readable. [cmdOff] + 5 is the address offset the decoder uses; [decoded] gates the edit so a
+         * frame that did NOT decode keeps all of its bytes, offsets being the open question there.
+         */
+        internal fun maskPackAddrInDump(rawHex: String, cmdOff: Int, decoded: Boolean): String {
+            if (!decoded) return rawHex
+            val from = (cmdOff + 5) * 2
+            val to = from + 12
+            if (from < 0 || to > rawHex.length) return rawHex
+            return rawHex.substring(0, from) + "••••••••••••" + rawHex.substring(to)
+        }
+
+        /**
+         * First and last octet of a pack's BT address, the rest masked — the same shape
+         * `redactStrapLogPii` gives a colon-formatted MAC, applied at the SOURCE because this report
+         * also reaches a copy-to-clipboard dialog that the scrubber never sees.
+         */
+        internal fun maskPackBtAddr(btAddr: String?): String {
+            if (btAddr.isNullOrEmpty()) return "<none>"
+            if (btAddr.length != 12) return "<malformed>"
+            return "${btAddr.take(2)}:••:••:••:••:${btAddr.takeLast(2)}"
+        }
+
+        /**
+         * Format a cmd-151 COMMAND_RESPONSE into a readable report for the Devices dialog + strap log.
+         * Pure, so it is unit-testable without a strap. [cmdOff] is the response-command byte offset
+         * (10 on 5/MG; a WHOOP 4.0 has no pack command at all and is not expected to answer).
+         *
+         * Reports BOTH readings of the SoC word deliberately. The tenths-of-a-percent interpretation is
+         * an UNVALIDATED CANDIDATE re-derived from two captured frames, and the same raw value is
+         * equally consistent with mAh remaining; the committed "absent" vector is all zeros, so the pair
+         * confirms the present-flag discriminator and says nothing about the unit. Asserting one reading
+         * here would be a diagnostic claiming more than it can attribute, so the raw word is shown beside
+         * both and the operator settles it with a second capture at a different pack level.
+         */
+        internal fun formatBatteryPackProbe(frame: ByteArray, cmdOff: Int): String {
+            val sb = StringBuilder()
+            val info = com.noop.protocol.BatteryPackInfo.decode(frame, cmdOff)
+            sb.append("GET_BATTERY_PACK_INFO (151) response, ${frame.size} bytes, cmdOff=$cmdOff\n")
+            // The dump is the evidence, so it stays whole EXCEPT the six address bytes, and only once
+            // `decode` has confirmed the layout. `redactStrapLogPii` lifts the serial out of a hex run
+            // but has no rule that can reach a colon-less address, so without this the pack's MAC ships
+            // in both sinks even after scrubbing. Masked at a KNOWN offset only: when decode returned
+            // null the offsets are precisely what is in question, and blanking a guessed range there
+            // would destroy the evidence the operator opened this probe to read.
+            val rawHex = frame.joinToString("") { "%02x".format(it) }
+            sb.append("raw: ${maskPackAddrInDump(rawHex, cmdOff, info != null && info.present)}\n\n")
+            if (info == null) {
+                sb.append("DID NOT DECODE as a 151 SUCCESS response at this offset.\n")
+                sb.append("Either the reply is not a 151 response, or its result byte is not SUCCESS, or\n")
+                sb.append("the frame is shorter than the candidate layout needs. The raw hex above is the\n")
+                sb.append("evidence — the opcode may be right and the OFFSETS wrong.")
+                return sb.toString()
+            }
+            if (!info.present) {
+                sb.append("present = FALSE — the strap reports NO pack attached.\n")
+                sb.append("If a pack IS physically attached right now, the present-flag offset is wrong.")
+                return sb.toString()
+            }
+            sb.append("present = TRUE\n")
+            // logSafe + a masked address, NOT the raw pair. This report goes to the SHAREABLE strap log
+            // AND to a dialog with a copy button, and neither identifier survives contact with the
+            // scrubber: `redactStrapLogPii` keys the serial rule on a literal "WHOOP " prefix (a bare
+            // `serial  = BB5AP…` matches nothing) and keys the MAC rule on COLONS, which `btAddr`'s
+            // colon-less `joinToString("")` never produces. The pack-log line in
+            // `handleCommandResponse` already learned this and says so; a probe that prints them raw
+            // would walk both straight back out. Three characters tell two packs apart, and the first
+            // and last octet tell two addresses apart, which is all a diagnostic needs.
+            sb.append("serial  = ${com.noop.data.WhoopSerialIdentity.logSafe(info.serial)}\n")
+            sb.append("bt addr = ${maskPackBtAddr(info.btAddr)}\n")
+            // Read the SoC word straight from the frame rather than reconstructing it from the decoded
+            // Double — decode() already bounds-checked this offset when it returned present=true, and a
+            // float round-trip could land the raw value one off.
+            val rawWord = (frame[cmdOff + 27].toInt() and 0xFF) or ((frame[cmdOff + 28].toInt() and 0xFF) shl 8)
+            sb.append("SoC raw word = $rawWord\n")
+            sb.append("  read as tenths-of-a-percent: ${rawWord / 10.0}%\n")
+            sb.append("  read as-is (e.g. mAh):       $rawWord\n")
+            if (rawWord > 1000) {
+                sb.append("  NOTE raw > 1000, so it CANNOT be tenths of a percent — this is not SoC%.\n")
+            }
+            sb.append("\nCompare against the pack's actual level, then capture again at a clearly\n")
+            sb.append("different level: a reading that tracks the gauge and stays <= 1000 is SoC%.")
+            return sb.toString()
+        }
 
         /** #761: sentinel value of [featureFlagProbe] while the read-only enumeration walk is running. */
         const val WAITING_FEATURE_FLAG_PROBE = "__waiting__"
@@ -1925,6 +2033,11 @@ class WhoopBleClient(
     // #690: the body-location probe result (or the waiting sentinel), shown + copied in the Devices dialog.
     private val _bodyLocationProbe = MutableStateFlow<String?>(null)
     val bodyLocationProbe: StateFlow<String?> = _bodyLocationProbe.asStateFlow()
+
+    // The cmd-151 battery-pack probe result (or the waiting sentinel), shown + copied in the Devices
+    // dialog. Read-only diagnostic: it decodes nothing into live state and gates nothing.
+    private val _batteryPackProbe = MutableStateFlow<String?>(null)
+    val batteryPackProbe: StateFlow<String?> = _batteryPackProbe.asStateFlow()
 
     // #761: the READ-ONLY feature-flag ENUMERATION report — the flag NAMES the strap's own firmware lists
     // — or the waiting sentinel while the walk runs. Nothing is written to the strap to produce it.
@@ -2946,6 +3059,11 @@ class WhoopBleClient(
                     if (newData) "yes"
                     else "no (empty/duplicate offload — nothing changed since last run) — skipping (#1146)")
                 if (newData) runCatching {
+                    // #1816: set the motion sink so a fresh strap's first backfill flips the Today caption
+                    // from "No motion synced yet" to the phone-step-days countdown as soon as it lands.
+                    IntelligenceEngine.stepsHasMotionSink = { hasMotion ->
+                        profileStore.stepsHasBankedMotion = hasMotion
+                    }
                     IntelligenceEngine.analyzeRecent(
                         repo = repository,
                         profile = profile,
@@ -3060,6 +3178,8 @@ class WhoopBleClient(
                     if (it is kotlin.coroutines.cancellation.CancellationException) throw it
                     log("Backfill: post-sync scoring failed: ${it.message}")
                 }
+                // #1816: clear the motion sink after the post-backfill pass completes.
+                IntelligenceEngine.stepsHasMotionSink = null
                 // Keep the opt-in Health Connect writeback fresh in background-only operation too.
                 if (NoopPrefs.hcWriteback(context)) {
                     // #660: log the count AND any PII-safe failure categories (the writer also persists
@@ -4143,6 +4263,14 @@ class WhoopBleClient(
                 // probeBodyLocationAndStatus() (user-initiated, Test Centre gated); response decoded to a
                 // diagnostic report only, never gates wear/scoring. Whether 5/MG answers is a hardware check.
                 cmd != CommandNumber.GET_BODY_LOCATION_AND_STATUS &&
+                // GET_BATTERY_PACK_INFO (151) over puffin: read-only read of the pack's charge/serial.
+                // Gated HARDER than the 98/84 probes above — allowed ONLY while a probe is actually in
+                // flight, the 117/118 treatment — because unlike those two this opcode has never been
+                // sent to any strap by this app, so a default install must not be able to form these
+                // bytes at all. Driven only by probeBatteryPackInfo() (user-initiated, Test Centre
+                // gated). Whether a 5/MG answers at all is exactly the hardware question being asked.
+                !(cmd == CommandNumber.GET_BATTERY_PACK_INFO &&
+                    _batteryPackProbe.value == WAITING_BATTERY_PACK_PROBE) &&
                 // START_FF_KEY_EXCHANGE (117) / SEND_NEXT_FF (118) over puffin: the READ-ONLY feature-flag
                 // ENUMERATION probe (#761) — it reads the strap's own flag NAMES and writes no value. Gated
                 // harder than the probes above: allowed ONLY while a probe is actually in flight, so on a
@@ -4634,6 +4762,40 @@ class WhoopBleClient(
 
     /** Clear the #690 probe result (Devices dialog dismissed). */
     fun clearBodyLocationProbe() { _bodyLocationProbe.value = null }
+
+    /** Read-only cmd-151 probe: ask the strap for its battery pack's charge/serial/address and let the
+     *  COMMAND_RESPONSE hook decode + surface it. User-initiated (Test Centre gated). Decodes into the
+     *  dialog and the strap log ONLY — it feeds no live state and gates nothing.
+     *
+     *  KNOWN RESULT, so nobody re-runs this expecting data: on WHOOP MG fw 50.39.1.0 opcode 151 answers
+     *  FAILURE(0) whether or not a pack is attached and charging, across five argument forms. The pack
+     *  READOUT does not use this command at all — the strap volunteers the same record, unprompted, in
+     *  an uncatalogued pushed event, 0x6D (109). This probe is kept only as RE
+     *  instrumentation: the golden vectors behind `BatteryPackInfo` came from a WHOOP 5 rather than an
+     *  MG, so a non-MG owner running this is exactly the capture that would show whether the FAILURE is
+     *  MG-specific. Same read-only, Test-Centre-gated shape as the #592 and #690 probes. */
+    fun probeBatteryPackInfo() {
+        if (!_state.value.connected) {
+            log("Battery-pack probe (151) ignored — not connected")
+            return
+        }
+        // MUST be set before send(): the 5/MG allow-list admits opcode 151 only while this sentinel is
+        // in place, so setting it afterwards would have the strap's own gate drop our own probe.
+        _batteryPackProbe.value = WAITING_BATTERY_PACK_PROBE
+        log("Battery-pack probe: sending GET_BATTERY_PACK_INFO(151, read-only) on family=$connectedFamily; the decoded reply is dumped below when it lands")
+        send(CommandNumber.GET_BATTERY_PACK_INFO)
+        // Silence is itself a verdict. ATOMIC compare-and-set so a real reply landing microseconds
+        // before the timeout is never clobbered by this late "no reply".
+        handler.postDelayed({
+            val msg = "Battery-pack probe: no COMMAND_RESPONSE for opcode 151 within " +
+                "${BATTERY_PACK_PROBE_TIMEOUT_MS / 1000}s — the strap served no reply. On a WHOOP 4.0 that " +
+                "is EXPECTED (a 4.0 has no pack command; its pack reads as a VOLTAGE via opcode 98)."
+            if (_batteryPackProbe.compareAndSet(WAITING_BATTERY_PACK_PROBE, msg)) log(msg)
+        }, BATTERY_PACK_PROBE_TIMEOUT_MS)
+    }
+
+    /** Clear the cmd-151 probe result (Devices dialog dismissed). */
+    fun clearBatteryPackProbe() { _batteryPackProbe.value = null }
 
     /**
      * #761 read-only probe: ask the strap to ENUMERATE the feature-flag key names its firmware knows —
@@ -7119,6 +7281,20 @@ class WhoopBleClient(
                         _bodyLocationProbe.value = text
                         if (payHex != null) NoopPrefs.of(context).edit().putString(KEY_690_PREV_PAYLOAD, payHex).apply()
                     }
+                    // cmd-151 battery-pack probe: decode the pack's charge/serial/address into the Devices
+                    // dialog and the strap log. In-flight-guarded like #690 above — 0x97 could
+                    // coincidentally be some data frame's cmd-offset byte, and this is strictly a
+                    // user-triggered diagnostic, so a stray match must never pop the result dialog.
+                    if (frame.size > cmdOff && (frame[cmdOff].toInt() and 0xFF) == CommandNumber.GET_BATTERY_PACK_INFO.rawValue &&
+                        _batteryPackProbe.value == WAITING_BATTERY_PACK_PROBE) {
+                        val text = formatBatteryPackProbe(frame, cmdOff)
+                        log("Battery-pack probe (151):\n$text")
+                        // Scrub the DIALOG copy too. log() already redacts on the way to the strap log,
+                        // but this value is rendered behind a copy-to-clipboard button, so it is a second
+                        // sink the scrubber otherwise never sees — and the `raw:` frame dump carries the
+                        // serial as ASCII inside the hex, which is exactly what redactStrapLogPii masks.
+                        _batteryPackProbe.value = redactStrapLogPii(text)
+                    }
                     // #761: a reply to the read-only feature-flag enumeration (117/118). In-flight-guarded
                     // inside handleFeatureFlagProbeResponse, so this is a byte compare on every other frame.
                     if (frame.size > cmdOff &&
@@ -7770,7 +7946,46 @@ class WhoopBleClient(
                             if (ev.startsWith("BATTERY_PACK_CONNECTED")) {
                                 _state.update { s -> s.copy(charging = true) }
                             } else if (ev.startsWith("BATTERY_PACK_REMOVED")) {
-                                _state.update { s -> s.copy(charging = false) }
+                                // Removal clears the readout too: a detached pack must not leave a stale
+                                // charge sitting on the card.
+                                _state.update { s -> s.copy(charging = false, packSocPct = null) }
+                            }
+                            // The pack's own charge. The strap volunteers the full pack record — present
+                            // flag, BT address, serial and SoC — in the UNCATALOGUED event 109 every couple
+                            // of minutes while a pack is attached, so this needs no command, no
+                            // send-allowlist entry and no polling. Because it REPEATS it is a level signal:
+                            // unlike the old edge-driven charging flag it re-establishes itself after any
+                            // reconnect and cannot go stale.
+                            //
+                            // Hardware-confirmed on WHOOP MG fw 50.39.1.0 (2026-09-01): three consecutive
+                            // records, serial WBB5AP0000001, SoC 57.1% -> 56.9% -> 56.7% as the pack drained
+                            // into the strap. That falling trend across a real physical process — not one
+                            // plausible-looking value — is what establishes the SoC word as tenths of a
+                            // percent. Gated by BatteryPackInfo.displayable below, so a wrong offset
+                            // yields nothing rather than a fabricated reading.
+                            // Matched on the event BYTE, not on the rendered label: an uncatalogued event
+                            // renders as "0x6D(109)" only because nothing names it, so a future
+                            // EventNumber entry would rename it and silently break a string match.
+                            // A 5/MG event frame carries its event number at offset 10.
+                            if (connectedFamily == DeviceFamily.WHOOP5 && frame.size > 10 &&
+                                (frame[10].toInt() and 0xFF) == com.noop.protocol.BatteryPackInfo.PACK_INFO_EVENT
+                            ) {
+                                com.noop.protocol.BatteryPackInfo.decodeEventFrame(frame)?.let { info ->
+                                    val soc = info.socPct
+                                    // [displayable] is #1303's gate, not a second copy of it: present, a
+                                    // charge, and inside 0..100. Two definitions of one rule is how the
+                                    // command path and the event path end up disagreeing about the same
+                                    // pack, which is the drift decodeRecord() exists to prevent.
+                                    if (info.displayable && soc != null) {
+                                        // charging=true here as well as on event 21 is the anti-staleness
+                                        // half: if the attach edge was missed (app started with the pack
+                                        // already on, or the link dropped over the attach), this repeating
+                                        // event re-establishes the state within a couple of minutes.
+                                        _state.update { s -> s.copy(packSocPct = soc, charging = true) }
+                                    } else if (!info.present) {
+                                        _state.update { s -> s.copy(packSocPct = null) }
+                                    }
+                                }
                             }
                         }
                         // PR #577: the strap fired its firmware smart alarm (STRAP_DRIVEN_ALARM_EXECUTED,

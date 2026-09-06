@@ -9,27 +9,29 @@ import unittest
 import decode_features as df
 
 
-def _conn():
+def _conn(owner=None):
     c = sqlite3.connect(":memory:")
     df.apply_schema(c)
+    if owner is not None:
+        owner.addCleanup(c.close)
     return c
 
 
 class SchemaTests(unittest.TestCase):
     def test_creates_four_feature_tables(self):
-        c = _conn()
+        c = _conn(self)
         names = {r[0] for r in c.execute(
             "SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
         self.assertTrue({"feat_second", "feat_rr", "feat_ppg", "feat_event"} <= names)
 
     def test_schema_is_idempotent(self):
-        c = _conn()
+        c = _conn(self)
         df.apply_schema(c)  # second apply must not raise
         self.assertTrue(True)
 
     def test_feat_ppg_has_burst_index_column(self):
         # PR#553: the raw per-burst counter column ships on a fresh feat_ppg.
-        c = _conn()
+        c = _conn(self)
         cols = {r[1] for r in c.execute("PRAGMA table_info(feat_ppg)")}
         self.assertIn("burst_index", cols)
 
@@ -37,6 +39,7 @@ class SchemaTests(unittest.TestCase):
         # A pre-PR#553 DB has feat_ppg WITHOUT burst_index; apply_schema must ALTER it in once, and a
         # second apply must be a no-op (never raise "duplicate column").
         c = sqlite3.connect(":memory:")
+        self.addCleanup(c.close)
         c.executescript(
             "CREATE TABLE feat_ppg (device_id INTEGER NOT NULL, unix INTEGER NOT NULL, "
             "sample_idx INTEGER NOT NULL, channel INTEGER NOT NULL, value INTEGER NOT NULL, "
@@ -149,7 +152,7 @@ class FeatureToRowsTests(unittest.TestCase):
 
 class ApplyRowsTests(unittest.TestCase):
     def test_inserts_all_tables(self):
-        c = _conn()
+        c = _conn(self)
         mapped = [
             df.feature_to_rows(_rec(47, {"heart_rate": 95, "rr_intervals": [600, 610]})),
             df.feature_to_rows(_rec(47, {"ppg_waveform": [1, 2], "burst_index": 3}, unix=1001, version=26)),
@@ -165,7 +168,7 @@ class ApplyRowsTests(unittest.TestCase):
         self.assertEqual((ch, bi), (0, 3))
 
     def test_idempotent(self):
-        c = _conn()
+        c = _conn(self)
         mapped = [df.feature_to_rows(_rec(47, {"heart_rate": 95, "rr_intervals": [600]}))]
         df.apply_rows(c, 1, mapped)
         df.apply_rows(c, 1, mapped)  # second time changes nothing
@@ -173,7 +176,7 @@ class ApplyRowsTests(unittest.TestCase):
         self.assertEqual(c.execute("SELECT COUNT(*) FROM feat_rr").fetchone()[0], 1)
 
     def test_coalesce_merges_partial_seconds(self):
-        c = _conn()
+        c = _conn(self)
         # scalar-only second, then ppg-only at SAME unix must not clobber hr.
         df.apply_rows(c, 1, [df.feature_to_rows(_rec(47, {"heart_rate": 88}, unix=1000))])
         df.apply_rows(c, 1, [df.feature_to_rows(_rec(47, {"gravity_x": 0.5}, unix=1000, version=18))])
@@ -286,6 +289,11 @@ class _FakeDB:
 
 
 class DecodeNewTests(unittest.TestCase):
+    def _db(self):
+        db = _FakeDB(self._frames())
+        self.addCleanup(db.db.close)
+        return db
+
     def _frames(self):
         return [
             (1, "aa", "6108", 10, 1000, 95, 47),
@@ -302,7 +310,7 @@ class DecodeNewTests(unittest.TestCase):
         ]
 
     def test_decodes_and_advances_cursor(self):
-        fdb = _FakeDB(self._frames())
+        fdb = self._db()
         res = df.decode_new(fdb, 1, decode_fn=self._decoder)
         self.assertEqual(res["frames"], 3)
         self.assertEqual(res["skipped"], 1)              # the inner_type-49 frame
@@ -310,19 +318,19 @@ class DecodeNewTests(unittest.TestCase):
         self.assertEqual(fdb.state(1)["last_decoded_frame_id"], "3")
 
     def test_incremental_second_run_is_noop(self):
-        fdb = _FakeDB(self._frames())
+        fdb = self._db()
         df.decode_new(fdb, 1, decode_fn=self._decoder)
         res2 = df.decode_new(fdb, 1, decode_fn=self._decoder)
         self.assertEqual(res2["frames"], 0)              # cursor past all frames
 
     def test_full_redecodes_from_zero(self):
-        fdb = _FakeDB(self._frames())
+        fdb = self._db()
         df.decode_new(fdb, 1, decode_fn=self._decoder)
         res = df.decode_new(fdb, 1, full=True, decode_fn=self._decoder)
         self.assertEqual(res["frames"], 3)               # full ignores the cursor
 
     def test_decoder_count_mismatch_raises(self):
-        fdb = _FakeDB(self._frames())   # 3 frames
+        fdb = self._db()   # 3 frames
         short = lambda records: [_dec_obj([_fld("heart_rate", 95, "hr")])]  # returns only 1
         with self.assertRaises(RuntimeError):
             df.decode_new(fdb, 1, decode_fn=short)

@@ -6,9 +6,12 @@ import AppIntents
 /// into the running `AppModel` directly (BLE only lives in the foreground app), so they enqueue here
 /// and the app drains the queue when it next becomes active.
 enum PendingIntents {
-    enum Action: String { case markMoment, buzz }
+    enum Action: String { case markMoment, buzz, askCoach }
 
     private static let key = "noop.pendingIntents"
+    /// K9: the question text for a pending `.askCoach` action. Stored separately because the
+    /// action queue encodes as `[String]` and a question can contain colons.
+    private static let coachQuestionKey = "noop.pendingCoachQuestion"
     private static var defaults: UserDefaults? { UserDefaults(suiteName: WidgetSnapshot.suiteName) }
 
     /// Optional `at` is the invocation time, captured now and consumed on drain. Encoded into the
@@ -20,6 +23,23 @@ enum PendingIntents {
         if let date { list.append("\(action.rawValue):\(date.timeIntervalSince1970)") }
         else { list.append(action.rawValue) }
         d.set(list, forKey: key)
+    }
+
+    /// K9: queue an "Ask Coach" action with the associated question text. The question is stored
+    /// in a dedicated key (one pending question at a time — the user rarely queues multiple Siri
+    /// questions before the app opens).
+    static func appendAskCoach(question: String, at date: Date? = nil) {
+        guard let d = defaults else { return }
+        d.set(question, forKey: coachQuestionKey)
+        append(.askCoach, at: date)
+    }
+
+    /// K9: read and clear the pending coach question. Returns nil when no question is queued.
+    static func consumeCoachQuestion() -> String? {
+        guard let d = defaults else { return nil }
+        let q = d.string(forKey: coachQuestionKey)
+        d.removeObject(forKey: coachQuestionKey)
+        return q
     }
 
     static func drain() -> [(action: Action, date: Date?)] {
@@ -62,6 +82,24 @@ struct BuzzStrapIntent: AppIntent {
     }
 }
 
+/// K9: Ask the Coach a question via Siri. Queues the question and opens the app, which sends it
+/// to the configured provider and surfaces the response. The question is spoken or typed in Siri;
+/// the app handles the actual network call using the user's saved key.
+struct AskCoachIntent: AppIntent {
+    static var title: LocalizedStringResource = "Ask Coach"
+    static var description = IntentDescription("Ask your NOOP Coach a question about your recovery, sleep, or training.")
+    static var openAppWhenRun = true
+
+    /// The question to ask, populated by Siri from the user's spoken phrase.
+    @Parameter(title: "Question")
+    var question: String
+
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        PendingIntents.appendAskCoach(question: question, at: Date())
+        return .result(dialog: "Opening Coach with your question: \(question)")
+    }
+}
+
 /// Surfaces NOOP's intents to Siri, Spotlight, and the Shortcuts gallery without any user setup.
 struct NOOPShortcuts: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
@@ -73,6 +111,16 @@ struct NOOPShortcuts: AppShortcutsProvider {
                     phrases: ["Buzz my \(.applicationName) strap"],
                     shortTitle: "Buzz Strap",
                     systemImageName: "waveform.path")
+        // K9: "Ask Coach" via Siri — opens Coach with the question and sends it. The question
+        // parameter is provided via the Shortcuts app or Siri prompts for it when the phrase fires.
+        AppShortcut(intent: AskCoachIntent(),
+                    phrases: [
+                        "Ask \(.applicationName) about my recovery",
+                        "Ask \(.applicationName) how I'm doing",
+                        "Ask \(.applicationName) Coach",
+                    ],
+                    shortTitle: "Ask Coach",
+                    systemImageName: "sparkles")
     }
 }
 #endif

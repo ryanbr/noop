@@ -95,6 +95,27 @@ enum WindDownNudge {
         return ((raw % day) + day) % day
     }
 
+    /// The day shift for a given weekday's nudge — 0 if the nudge lands on the same day as the wake,
+    /// -1 if it wraps to the previous evening. The minute-of-day wrap in `nudgeMinuteOfDay` silently
+    /// loses which day the nudge belongs to; this companion carries that information so the scheduler
+    /// can pin the trigger to the nudge's day, not the wake's. (#1863)
+    ///
+    /// `raw` is always in [-780, 1139] given the clamped inputs (wake ≤ 1439, sleepNeed ≥ 300, lead ≤ 120),
+    /// so the shift is always 0 or -1 — but the formula is general floor-division for safety.
+    static func nudgeDayShift(forWeekday weekday: Int) -> Int {
+        let raw = wakeMinutes(forWeekday: weekday) - sleepNeedMinutes - leadMinutes
+        let day = 24 * 60
+        // Floor division (Swift's `/` truncates toward zero, so adjust for negatives).
+        return raw < 0 ? -(((-raw - 1) / day) + 1) : raw / day
+    }
+
+    /// Shift a Calendar weekday (1=Sun…7=Sat) by a day count, wrapping through the week end. (#1863)
+    /// `shiftedWeekday(weekday: 1, by: -1)` → 7 (Sunday's evening-before nudge fires on Saturday).
+    static func shiftedWeekday(weekday: Int, by shift: Int) -> Int {
+        let zeroBased = weekday - 1 + shift
+        return ((zeroBased % 7) + 7) % 7 + 1
+    }
+
     // MARK: - Public API
 
     /// The result of enabling the nudge — lets the UI react instead of silently persisting an "on" toggle
@@ -190,11 +211,18 @@ enum WindDownNudge {
         if hasPerDayOverrides {
             for weekday in 1...7 {
                 let minute = nudgeMinuteOfDay(forWeekday: weekday)
+                // #1863 — an early wake (e.g. 03:30) wraps the nudge minute to the previous evening
+                // (19:00). The minute wrap alone loses which DAY that evening belongs to, so the trigger
+                // was pinned to the wake's own weekday — firing 8+ hours AFTER the wake it precedes.
+                // Derive the day shift and pin the trigger to the nudge's day, not the wake's.
+                let shift = nudgeDayShift(forWeekday: weekday)
                 var comps = DateComponents()
-                comps.weekday = weekday   // Calendar weekday 1=Sun…7=Sat → fires weekly on that day
+                comps.weekday = shiftedWeekday(weekday: weekday, by: shift)   // the nudge's day
                 comps.hour = minute / 60
                 comps.minute = minute % 60
                 let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: true)
+                // The request id stays keyed to the wake's weekday so toggling/clearing overrides
+                // always matches the ids `perDayRequestIds` enumerates.
                 center.add(UNNotificationRequest(identifier: "\(requestId)-wd\(weekday)",
                                                  content: content, trigger: trigger))
             }

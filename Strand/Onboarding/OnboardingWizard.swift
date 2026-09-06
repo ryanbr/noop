@@ -727,10 +727,17 @@ private struct BondedStep: View {
 private struct ProfileStep: View {
     @EnvironmentObject private var profile: ProfileStore
 
-    // Imperial/Metric display preference (D#103). The stored profile is always SI; the steppers keep
-    // operating in SI (0.5 kg / 1 cm) and only the DISPLAYED value re-labels to lb / ft-in.
+    // The stored profile is always SI. Body measurements and exercise distance can follow the regional
+    // conventions independently; an unset distance choice follows the body choice for compatibility.
     @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
+    @AppStorage(UnitPrefs.distanceSystemKey) private var distanceSystemRaw = ""
     private var unitSystem: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .metric }
+    private var distanceUnitSystem: UnitSystem {
+        UnitPrefs.resolveDistance(system: unitSystem, override: distanceSystemRaw)
+    }
+    private var distanceSystemBinding: Binding<String> {
+        Binding(get: { distanceUnitSystem.rawValue }, set: { distanceSystemRaw = $0 })
+    }
 
     private let sexes: [(String, String)] = [
         ("male", String(localized: "Male")), ("female", String(localized: "Female")),
@@ -767,16 +774,25 @@ private struct ProfileStep: View {
 
                         Divider().overlay(StrandPalette.hairline)
 
-                        // Units control (#781). Without this, onboarding read `unitSystemRaw` for the
-                        // Weight/Height display but had NO way to set it, so US users were locked to
-                        // kg/cm until they later found Settings → Units. Mirror the Sex picker idiom; the
-                        // stored profile stays SI either way, only the displayed labels re-format (lb / ft-in
-                        // via UnitFormatter). Same key (`units.system`) the Settings → Units card writes.
+                        // Keep the two choices explicit here: "Metric/Imperial" alone cannot describe
+                        // common mixed conventions such as Canadian pounds with kilometres.
                         VStack(alignment: .leading, spacing: 8) {
-                            Text("Units").strandOverline()
-                            Picker("Units", selection: $unitSystemRaw) {
+                            Text("Body measurements").strandOverline()
+                            Picker("Body measurements", selection: $unitSystemRaw) {
                                 Text("Metric").tag(UnitSystem.metric.rawValue)
                                 Text("Imperial").tag(UnitSystem.imperial.rawValue)
+                            }
+                            .pickerStyle(.segmented)
+                            .labelsHidden()
+                        }
+
+                        Divider().overlay(StrandPalette.hairline)
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Exercise distance & pace").strandOverline()
+                            Picker("Exercise distance & pace", selection: distanceSystemBinding) {
+                                Text("Kilometres").tag(UnitSystem.metric.rawValue)
+                                Text("Miles").tag(UnitSystem.imperial.rawValue)
                             }
                             .pickerStyle(.segmented)
                             .labelsHidden()

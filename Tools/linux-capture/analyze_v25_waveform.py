@@ -52,6 +52,8 @@ import statistics
 import struct
 import sys
 
+from capture_io import configure_utf8_stdio
+
 # --- v25 record geometry (WHOOP 4.0 envelope: 0xAA, len u16, crc8, type@4, version@5, ...) -----------
 TYPE_HISTORICAL = 0x2F        # 47, at byte 4
 VERSION_V25 = 25              # at byte 5
@@ -164,7 +166,8 @@ def load_corpus(argv):
         print("No corpus given — running the DEMO on the bundled resting frames (which cannot pin the\n"
               "span; that is the point). Build a real corpus (--template) with a HR ≠ 60.\n")
         return [BUNDLED_RESTING]
-    return json.load(open(paths[0]))
+    with open(paths[0], encoding="utf-8") as f:
+        return json.load(f)
 
 
 def analyze(corpus):
@@ -266,6 +269,7 @@ def selftest():
 
 
 if __name__ == "__main__":
+    configure_utf8_stdio()
     if "--selftest" in sys.argv:
         selftest()
     else:

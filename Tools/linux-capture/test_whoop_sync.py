@@ -8,9 +8,15 @@ The whoop4 frame offsets exercised here (inner @ 4, meta_type @ 6, trim cursor @
 verified whoop5 offsets minus 4, and match the on-hardware HISTORY_END the strap serves.
 """
 
+import asyncio
 import os
+import sqlite3
+import sys
 import tempfile
+import threading
 import unittest
+from contextlib import suppress
+from unittest import mock
 
 import whoop_frame as wf
 import whoop_sync as ws
@@ -98,6 +104,89 @@ class WhoopDBTests(unittest.TestCase):
         self.tmp = tempfile.mkdtemp()
         self.db = ws.WhoopDB(os.path.join(self.tmp, "t.db"))
 
+    def tearDown(self):
+        self.db.close()
+
+    def test_context_manager_closes_on_normal_exit(self):
+        path = os.path.join(self.tmp, "normal.db")
+        with ws.WhoopDB(path) as db:
+            con = db.db
+            con.execute("SELECT 1")
+        with self.assertRaises(sqlite3.ProgrammingError):
+            con.execute("SELECT 1")
+
+    def test_context_manager_closes_on_exception(self):
+        path = os.path.join(self.tmp, "error.db")
+        with self.assertRaisesRegex(RuntimeError, "boom"):
+            with ws.WhoopDB(path) as db:
+                con = db.db
+                raise RuntimeError("boom")
+        with self.assertRaises(sqlite3.ProgrammingError):
+            con.execute("SELECT 1")
+
+    def test_constructor_closes_if_schema_initialization_fails(self):
+        opened = []
+        real_connect = sqlite3.connect
+
+        def tracking_connect(*args, **kwargs):
+            con = real_connect(*args, **kwargs)
+            opened.append(con)
+            return con
+
+        path = os.path.join(self.tmp, "init-error.db")
+        with mock.patch.object(ws.sqlite3, "connect", side_effect=tracking_connect), \
+                mock.patch.object(ws.decode_features, "apply_schema", side_effect=RuntimeError("boom")):
+            with self.assertRaisesRegex(RuntimeError, "boom"):
+                ws.WhoopDB(path)
+        self.assertEqual(len(opened), 1)
+        with self.assertRaises(sqlite3.ProgrammingError):
+            opened[0].execute("SELECT 1")
+
+    def test_database_outlives_cancelled_thread_commit(self):
+        """A cancelled to_thread await must not close SQLite while its worker still commits."""
+        started = threading.Event()
+        release = threading.Event()
+        errors = []
+        db_path = os.path.join(self.tmp, "cancelled-commit.db")
+        real_close = ws.WhoopDB.close
+
+        def close_then_release(db):
+            real_close(db)
+            release.set()
+
+        async def candidate_run(args, db):
+            did = db.upsert_device("AA:BB:CC:DD:EE:FF", model="whoop4")
+            frame = (1, "61080005", 47, 1000, 60, "aa01")
+
+            def delayed_commit():
+                started.set()
+                release.wait(timeout=0.3)
+                try:
+                    db.commit_chunk(did, [frame], trim=1, complete=False)
+                except Exception as exc:
+                    errors.append(exc)
+
+            task = asyncio.create_task(asyncio.to_thread(delayed_commit))
+
+            async def wait_until_started():
+                while not started.is_set():
+                    await asyncio.sleep(0.005)
+
+            await asyncio.wait_for(wait_until_started(), timeout=1.0)
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
+
+        argv = ["whoop_sync.py", "sync", "--address", "AA:BB:CC:DD:EE:FF", "--db", db_path]
+        try:
+            with mock.patch.object(ws, "_run", side_effect=candidate_run), \
+                    mock.patch.object(ws.WhoopDB, "close", autospec=True, side_effect=close_then_release), \
+                    mock.patch.object(sys, "argv", argv):
+                ws.main()
+        finally:
+            release.set()
+        self.assertEqual(errors, [])
+
     def _frame(self, hexstr, t=47, unix=1000, hr=60):
         return (1, "61080005", t, unix, hr, hexstr)   # (recv_ms, char, inner_type, unix, hr, hex)
 
@@ -138,7 +227,7 @@ class WhoopDBTests(unittest.TestCase):
         out = os.path.join(self.tmp, "o.json")
         n = self.db.export_json(did, out, only_type=47)
         self.assertEqual(n, 1)
-        with open(out) as f:
+        with open(out, encoding="utf-8") as f:
             recs = json.load(f)
         self.assertEqual(recs[0]["hex"], "aa01")
 
@@ -156,6 +245,9 @@ class DecodeWiringTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
         self.db = ws.WhoopDB(os.path.join(self.tmp, "t.db"))
+
+    def tearDown(self):
+        self.db.close()
 
     def _frame(self, hexstr, t=47, unix=1000, hr=60):
         return (1, "61080005", t, unix, hr, hexstr)   # (recv_ms, char, inner_type, unix, hr, hex)

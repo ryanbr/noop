@@ -289,6 +289,11 @@ object RecoveryScorer {
      * samples whose ts ∈ [start, end]. Rejects single-beat dips while capturing
      * the night's true floor. Returns null when there are no HR samples in window.
      *
+     * The window is CLOSED at both ends, so the binning is too: bins are `[t, t + windowS)` except
+     * the final one, which is `[t, end]`. Half-open bins alone would admit a sample sitting
+     * exactly on an aligned `end` through the prefilter and then place it in no bin — counted as
+     * data, silently ignored. A zero-length window (`start == end`) is that single closed bin.
+     *
      * Artifact hardening (#686): a bin may only WIN the floor when it is BOTH well-populated
      * (≥ [restingHRMinBinSamples], so one lone artifact beat can't be a bin "mean") AND
      * physiologically plausible (mean ≥ [restingHRMinPlausibleBpm], rejecting dropout-driven
@@ -306,9 +311,14 @@ object RecoveryScorer {
         val means = ArrayList<Double>()      // every bin mean (legacy floor, the fallback)
         val qualified = ArrayList<Double>()  // bins eligible to WIN the floor (#686)
         var t = start
-        while (t < end) {
+        do {
+            // The last bin (its half-open end reaches or passes `end`) closes on `end` instead,
+            // catching an endpoint sample the prefilter already admitted. `seg` holds nothing past
+            // `end`, so "everything from t onwards" IS [t, end]. `do` runs once for a zero-length
+            // window, where that single closed bin is the whole window.
             val binEnd = t + restingHRWindowS
-            val win = seg.filter { it.ts >= t && it.ts < binEnd }
+            val isFinal = binEnd >= end
+            val win = seg.filter { it.ts >= t && (isFinal || it.ts < binEnd) }
             if (win.isNotEmpty()) {
                 val mean = win.sumOf { it.bpm }.toDouble() / win.size.toDouble()
                 means.add(mean)
@@ -319,7 +329,7 @@ object RecoveryScorer {
                 }
             }
             t += restingHRWindowS
-        }
+        } while (t < end)
         val floor: Double = qualified.minOrNull()
             ?: means.minOrNull()
             ?: (seg.sumOf { it.bpm }.toDouble() / seg.size.toDouble())
@@ -346,7 +356,9 @@ object RecoveryScorer {
      *
      * Computed as the least-squares slope of the SAME non-overlapping 5-minute HR bin means
      * [restingHR] uses ([restingHRWindowS]) against each bin's midpoint time (hours from
-     * `start`). NEGATIVE = declining (HR falling through the night — the physiologically
+     * `start`, and for the final closed bin still its half-open midpoint `t + windowS / 2`, so a
+     * partial or endpoint-only last bin keeps the same time axis as every other bin).
+     * NEGATIVE = declining (HR falling through the night — the physiologically
      * expected, good pattern); POSITIVE = rising (restlessness, illness, alcohol, a late
      * stimulant). Returns null when fewer than [recoveryIndexMinBins] bins have data (too
      * little of the window to fit a trend) or there are no samples at all — it never
@@ -362,16 +374,19 @@ object RecoveryScorer {
         // underlying series, one as a floor, one as a trend across it.
         val points = ArrayList<Pair<Double, Double>>() // (tHours, meanBpm)
         var t = start
-        while (t < end) {
+        do {
+            // Final bin closes on `end` — same closed-window rule as restingHR, so an
+            // endpoint sample counts toward the bin gate instead of vanishing after admission.
             val binEnd = t + restingHRWindowS
-            val win = seg.filter { it.ts >= t && it.ts < binEnd }
+            val isFinal = binEnd >= end
+            val win = seg.filter { it.ts >= t && (isFinal || it.ts < binEnd) }
             if (win.isNotEmpty()) {
                 val mean = win.sumOf { it.bpm }.toDouble() / win.size.toDouble()
                 val midpointS = (t - start).toDouble() + restingHRWindowS / 2.0
                 points.add((midpointS / 3600.0) to mean)
             }
             t += restingHRWindowS
-        }
+        } while (t < end)
         if (points.size < recoveryIndexMinBins) return null
 
         // Least-squares slope: Σ((t−t̄)(y−ȳ)) / Σ((t−t̄)²), bpm per hour.

@@ -125,6 +125,7 @@ fun DevicesScreen(
     val batteryProbeResult by viewModel.extendedBatteryProbe.collectAsStateWithLifecycle()
     // #690 body-location probe result — same non-null-shows-the-dialog contract.
     val bodyLocationProbeResult by viewModel.bodyLocationProbe.collectAsStateWithLifecycle()
+    val batteryPackProbeResult by viewModel.batteryPackProbe.collectAsStateWithLifecycle()
     // #761: the read-only feature-flag ENUMERATION report (or the waiting sentinel while it walks).
     val featureFlagProbeResult by viewModel.featureFlagProbe.collectAsStateWithLifecycle()
     // #103: the read-only device-config READ report (or the waiting sentinel while the plan runs).
@@ -156,6 +157,7 @@ fun DevicesScreen(
     var probeTarget by remember { mutableStateOf<PairedDeviceRow?>(null) }
     var batteryProbeTarget by remember { mutableStateOf<PairedDeviceRow?>(null) }
     var bodyLocationProbeTarget by remember { mutableStateOf<PairedDeviceRow?>(null) }
+    var batteryPackProbeTarget by remember { mutableStateOf<PairedDeviceRow?>(null) }
     var featureFlagProbeTarget by remember { mutableStateOf<PairedDeviceRow?>(null) }
     var deviceConfigProbeTarget by remember { mutableStateOf<PairedDeviceRow?>(null) }
     // After removing the ACTIVE device with other devices still paired, prompt to pick a new active one.
@@ -253,6 +255,8 @@ fun DevicesScreen(
                     live.batteryPct?.let { Math.round(it).toInt() } else null,
                 liveBatteryMv = if (device.status == DeviceStatus.active.name && live.connected)
                     live.batteryMv else null,
+                livePackSocPct = if (device.status == DeviceStatus.active.name && live.connected)
+                    live.packSocPct else null,
                 // Firmware version for the ACTIVE strap. It's a STABLE property (NOOP can't change a strap's
                 // firmware), so prefer the live handshake value but fall back to the last-known persisted
                 // firmware (NoopPrefs, written on connect) when the live value is momentarily null — mid-
@@ -312,6 +316,13 @@ fun DevicesScreen(
                     SourceCoordinator.isWhoop(device) &&
                     TestCentre.from(context).active(TestDomain.CONNECTION)
                 ) { { bodyLocationProbeTarget = device } } else null,
+                // cmd-151 battery-pack probe: read-only, same Test Centre gate. Offered on both families
+                // even though only a 5/MG is expected to answer — a 4.0's SILENCE is itself the evidence
+                // that the pack command is 5/MG-only, and costs nothing to collect.
+                onPackInfoProbe = if (device.status == DeviceStatus.active.name && live.connected &&
+                    SourceCoordinator.isWhoop(device) &&
+                    TestCentre.from(context).active(TestDomain.CONNECTION)
+                ) { { batteryPackProbeTarget = device } } else null,
                 // #761 feature-flag ENUMERATION probe: read-only (names only, nothing written), both
                 // families. Same Test Centre gate.
                 onFeatureFlagProbe = if (device.status == DeviceStatus.active.name && live.connected &&
@@ -474,6 +485,19 @@ fun DevicesScreen(
         BodyLocationProbeResultDialog(
             text = result,
             onDismiss = { viewModel.clearBodyLocationProbe() },
+        )
+    }
+    // cmd-151 battery-pack probe: read-only send + decoded pack charge/serial/address.
+    batteryPackProbeTarget?.let {
+        BatteryPackProbeDialog(
+            onSend = { viewModel.probeBatteryPackInfo(); batteryPackProbeTarget = null },
+            onDismiss = { batteryPackProbeTarget = null },
+        )
+    }
+    batteryPackProbeResult?.let { result ->
+        BatteryPackProbeResultDialog(
+            text = result,
+            onDismiss = { viewModel.clearBatteryPackProbe() },
         )
     }
     // #761 feature-flag ENUMERATION probe: read-only key-name listing (117 then repeated 118); no value
@@ -706,6 +730,10 @@ private fun DeviceCard(
      *  generic strap, or an FTMS machine. null when not active/connected or no battery was reported. */
     liveBatteryPct: Int? = null,
     liveBatteryMv: Int? = null,
+    /** Battery-pack charge % (5/MG only), from the pushed pack event. Null when no pack is attached or
+     *  none has been reported yet — the row is simply absent then, which is the "only show it when a
+     *  pack is actually on" behaviour, for free. */
+    livePackSocPct: Double? = null,
     /** The active+connected strap's firmware version (from the connect handshake). null when not
      *  active/connected, or for a source that reports no firmware (e.g. a non-WHOOP strap). */
     liveFirmware: String? = null,
@@ -729,6 +757,8 @@ private fun DeviceCard(
     onBatteryProbe: (() -> Unit)? = null,
     // #690 body-location opcode probe (Test Centre → Connection, both WHOOP families). Read-only.
     onBodyLocationProbe: (() -> Unit)? = null,
+    // cmd-151 battery-pack probe (Test Centre → Connection). Read-only; 5/MG answers, a 4.0 should not.
+    onPackInfoProbe: (() -> Unit)? = null,
     /** #761 feature-flag ENUMERATION probe (Test Centre → Connection, both WHOOP families). Read-only:
      *  it reads the flag NAMES the strap's firmware knows and writes nothing. */
     onFeatureFlagProbe: (() -> Unit)? = null,
@@ -825,11 +855,18 @@ private fun DeviceCard(
             val voltsSuffix = if (liveBatteryMv != null)
                 " · " + stringResource(R.string.l10n_devices_screen_pack_voltage_9af3c3ff, liveBatteryMv / 1000.0)
             else ""
+            // Battery-pack charge (5/MG). Present only while a pack is actually attached, because the
+            // strap only sends the pack event then — so an empty suffix is the whole "hide it when not
+            // charging" rule, with no extra conditional.
+            val packSuffix = if (livePackSocPct != null)
+                " · " + stringResource(R.string.l10n_devices_screen_pack_charge_0e9589da, livePackSocPct)
+            else ""
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     lastSeenLine(device, isLiveConnected, bondRefused) +
                         (liveFirmware?.let { " · FW $it" } ?: "") +
                         voltsSuffix +
+                        packSuffix +
                         (historyLayoutLine(liveHistoryLayout)?.let { " · $it" } ?: ""),
                     style = NoopType.footnote,
                     color = Palette.textTertiary,
@@ -853,6 +890,7 @@ private fun DeviceCard(
                     onRebootProbe = onRebootProbe,
                     onBatteryProbe = onBatteryProbe,
                     onBodyLocationProbe = onBodyLocationProbe,
+                    onPackInfoProbe = onPackInfoProbe,
                     onFeatureFlagProbe = onFeatureFlagProbe,
                 onAbortSync = onAbortSync,
                     onDeviceConfigProbe = onDeviceConfigProbe,
@@ -977,6 +1015,7 @@ private fun DeviceActionsMenu(
     onRebootProbe: (() -> Unit)? = null,
     onBatteryProbe: (() -> Unit)? = null,
     onBodyLocationProbe: (() -> Unit)? = null,
+    onPackInfoProbe: (() -> Unit)? = null,
     /** #761 feature-flag ENUMERATION probe (Test Centre → Connection, both WHOOP families). Read-only:
      *  it reads the flag NAMES the strap's firmware knows and writes nothing. */
     onFeatureFlagProbe: (() -> Unit)? = null,
@@ -1047,6 +1086,10 @@ private fun DeviceActionsMenu(
                 // #690: read-only body-location opcode probe — decodes revision/location/confidence/status.
                 if (onBodyLocationProbe != null) {
                     MenuItem(uiString(R.string.l10n_devices_screen_body_location_probe_690_re_7def8c39), Icons.Filled.BugReport) { onOpenChange(false); onBodyLocationProbe() }
+                }
+                // Read-only battery-pack probe (cmd 151) — decodes the pack's charge/serial/address.
+                if (onPackInfoProbe != null) {
+                    MenuItem(uiString(R.string.l10n_devices_screen_battery_pack_probe_151_re_d722af00), Icons.Filled.BugReport) { onOpenChange(false); onPackInfoProbe() }
                 }
                 // #761 feature-flag ENUMERATION probe (RE): read-only key-name listing, both families.
                 if (onAbortSync != null) {
@@ -1299,6 +1342,72 @@ private fun BodyLocationProbeDialog(
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text(uiString(R.string.l10n_devices_screen_cancel_77dfd213), style = NoopType.body, color = Palette.textSecondary)
+            }
+        },
+    )
+}
+
+/** Confirmation for the read-only cmd-151 battery-pack probe. Nothing is written to the strap. */
+@Composable
+private fun BatteryPackProbeDialog(
+    onSend: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.surfaceOverlay,
+        title = { Text(uiString(R.string.l10n_devices_screen_battery_pack_probe_151_re_d722af00), style = NoopType.title2, color = Palette.textPrimary) },
+        text = {
+            Text(
+                uiString(R.string.l10n_devices_screen_battery_pack_probe_explainer_40b3470d),
+                style = NoopType.subhead,
+                color = Palette.textSecondary,
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onSend) {
+                Text(uiString(R.string.l10n_devices_screen_send_probe_read_only_36b318bc), style = NoopType.body, color = Palette.accent)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(uiString(R.string.l10n_devices_screen_cancel_77dfd213), style = NoopType.body, color = Palette.textSecondary)
+            }
+        },
+    )
+}
+
+/** cmd-151 probe result: raw hex plus the decoded pack record (or a "waiting…" state), with a Copy
+ *  button. Read-only; dismiss clears the result. */
+@Composable
+private fun BatteryPackProbeResultDialog(
+    text: String,
+    onDismiss: () -> Unit,
+) {
+    val clipboard = LocalClipboardManager.current
+    val waiting = text == WhoopBleClient.WAITING_BATTERY_PACK_PROBE
+    val shown = if (waiting) uiString(R.string.l10n_devices_screen_waiting_for_the_straps_reply_5a06e7ac) else text
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.surfaceOverlay,
+        title = { Text(uiString(R.string.l10n_devices_screen_battery_pack_probe_result_151_df43dff2), style = NoopType.title2, color = Palette.textPrimary) },
+        text = {
+            Column(modifier = Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
+                SelectionContainer {
+                    Text(shown, style = if (waiting) NoopType.subhead else NoopType.mono, color = Palette.textSecondary)
+                }
+            }
+        },
+        confirmButton = {
+            if (!waiting) {
+                TextButton(onClick = { clipboard.setText(AnnotatedString(text)) }) {
+                    Text(uiString(R.string.l10n_devices_screen_copy_af74f7c5), style = NoopType.body, color = Palette.accent)
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(uiString(R.string.l10n_devices_screen_close_bbfa773e), style = NoopType.body, color = Palette.textSecondary)
             }
         },
     )

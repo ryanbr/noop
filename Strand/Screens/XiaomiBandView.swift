@@ -19,6 +19,13 @@ private struct ChartWidthKey: PreferenceKey {
 
 struct XiaomiBandView: View {
     @EnvironmentObject var repo: Repository
+    @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
+    @AppStorage(UnitPrefs.distanceSystemKey) private var distanceSystemRaw = ""
+    private var distanceUnitSystem: UnitSystem {
+        UnitPrefs.resolveDistance(
+            system: UnitSystem(rawValue: unitSystemRaw) ?? .metric,
+            override: distanceSystemRaw)
+    }
 
     /// Per-source partition key — matches `XiaomiImporter.deviceId`.
     private static let source = "xiaomi-band"
@@ -165,7 +172,9 @@ struct XiaomiBandView: View {
             .chart("Sleep score", "sleep_score", accentGradient, 0...100, { "\(Int($0.rounded()))" }),
             .header("Activity & Energy", "Movement"),
             .chart("Steps", "steps", cyanGradient, 0...12000, { intString($0) }),
-            .chart("Distance", "distance_m", cyanGradient, 0...10000, { String(format: "%.2f km", $0 / 1000) }),
+            .chart("Distance", "distance_m", cyanGradient, 0...10000, {
+                UnitFormatter.distanceFromMeters($0, system: distanceUnitSystem)
+            }),
             .chart("Active energy", "energy_kcal", amberGradient, 0...1000, { "\(intString($0)) kcal" }),
             .chart("Intensity minutes", "intensity_min", amberGradient, 0...120, { "\(Int($0.rounded())) min" }),
             .header("Wellbeing", "Body energy"),

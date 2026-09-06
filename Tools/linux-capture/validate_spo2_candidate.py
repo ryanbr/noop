@@ -81,6 +81,7 @@ import zipfile
 from datetime import datetime, timezone
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
+from capture_io import configure_utf8_stdio
 import whoop_activity as wa
 import whoop_frame as wf
 
@@ -150,6 +151,7 @@ NOMINAL_DUTY_WINDOW_S = 30
 # worth ranking — otherwise a 2-valued byte can win a 5-night |r| race by coincidence alone.
 MIN_DISTINCT_INBAND = 5
 MIN_INBAND_STDEV = 0.5
+
 
 # English + localized cycle headers → canonical keys (mirrors StrandImport HeaderNorm subset).
 HEADER_ALIASES = {
@@ -467,7 +469,7 @@ def load_frame_records(path: str, *, device_id: int = 2) -> List[dict]:
             )
         return [{"hex": r[0]} for r in rows]
 
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         capture = json.load(f)
     if not isinstance(capture, list):
         raise SystemExit(f"{path}: expected a JSON list of frame records, or a whoop_sync.py .db")
@@ -1151,6 +1153,7 @@ def format_postable(results: Sequence[dict]) -> str:
 # --- CLI -------------------------------------------------------------------------------------------
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
+    configure_utf8_stdio()
     p = argparse.ArgumentParser(
         description="Validate WHOOP 5/MG v18 spo2_candidate_82 against a CSV export (#103)."
     )
@@ -1205,7 +1208,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     results: List[dict] = []
 
     if args.batch:
-        with open(args.batch) as f:
+        with open(args.batch, encoding="utf-8") as f:
             batch = json.load(f)
         if not isinstance(batch, list) or not batch:
             print("batch file must be a non-empty JSON list", file=sys.stderr)

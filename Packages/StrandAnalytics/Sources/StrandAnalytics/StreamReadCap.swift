@@ -77,6 +77,20 @@ public enum StreamReadCap {
     /// truncated one.
     public static let headroom = 1.5
 
+    /// The cap on the sleep engine's skin-temp reads, named rather than left a literal so the no-night
+    /// line can say when one came back AT it. Skin reads OUTSIDE the engine (a chart, an export) keep
+    /// their own limits - this is not a repo-wide skin cap.
+    ///
+    /// Not derived from a row rate like the caps below: skin's density was never measured. Skin rides the
+    /// record that carries gravity, and gravity ranged from 177 to 192,698 rows across 54 HOURS in one
+    /// capture, so whether 200,000 is generous or tight is genuinely unknown - which is the reason to
+    /// print the count. Unchanged in value: this names what both platforms already read at.
+    ///
+    /// Shared by two reads with very different spans - the night window, and the ~21-day WHOOP 4.0 anchor
+    /// scan. Only the window read's count reaches the no-night line, so an `atCap=skin` marker means THAT
+    /// read was clipped; a clipped anchor scan still goes unreported.
+    public static let skin = 200_000
+
     /// The cap for a stream producing `rowsPerSecond` at its densest.
     public static func cap(rowsPerSecond: Double) -> Int {
         Int((Double(windowSeconds) * rowsPerSecond * headroom).rounded(.up))

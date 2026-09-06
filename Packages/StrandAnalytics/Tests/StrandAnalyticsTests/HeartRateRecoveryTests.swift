@@ -15,6 +15,15 @@ final class HeartRateRecoveryTests: XCTestCase {
         return values.enumerated().map { i, bpm in HRSample(ts: target - values.count / 2 + i, bpm: bpm) }
     }
 
+    private func result(for eligibilitySamples: [HRSample]) -> HeartRateRecovery.Result? {
+        HeartRateRecovery.calculate(
+            samples: eligibilitySamples + window(minutes: 1, values: [140, 140, 140]),
+            workoutStart: end - 300,
+            workoutEnd: end,
+            maxHR: 200
+        )
+    }
+
     func testCalculatesOneTwoAndFiveMinuteDropsFromRobustReadings() {
         let samples = denseEligible()
             + window(minutes: 1, values: [146, 146, 220, 146, 146]) // optical spike cannot own the reading
@@ -40,6 +49,58 @@ final class HeartRateRecoveryTests: XCTestCase {
         let samples = sparse + window(minutes: 1, values: [140, 140, 140])
         XCTAssertNil(HeartRateRecovery.calculate(samples: samples, workoutStart: end - 300,
                                                  workoutEnd: end, maxHR: 200))
+    }
+
+    func testRejectsThreeSeparatedFortySecondHighIntensityRuns() {
+        let samples = [
+            HRSample(ts: end - 140, bpm: 170), HRSample(ts: end - 130, bpm: 170),
+            HRSample(ts: end - 120, bpm: 170), HRSample(ts: end - 110, bpm: 170),
+            HRSample(ts: end - 100, bpm: 120),
+            HRSample(ts: end - 90, bpm: 170), HRSample(ts: end - 80, bpm: 170),
+            HRSample(ts: end - 70, bpm: 170), HRSample(ts: end - 60, bpm: 170),
+            HRSample(ts: end - 50, bpm: 120),
+            HRSample(ts: end - 40, bpm: 170), HRSample(ts: end - 30, bpm: 170),
+            HRSample(ts: end - 20, bpm: 170), HRSample(ts: end - 10, bpm: 170),
+            HRSample(ts: end, bpm: 120),
+        ]
+
+        XCTAssertNil(result(for: samples))
+    }
+
+    func testGapExactlyAtCapUsesLeftSampleAndExactMinimumIsAccepted() {
+        let samples = stride(from: end - 120, through: end - 10, by: 10)
+            .map { HRSample(ts: $0, bpm: 170) }
+            + [HRSample(ts: end, bpm: 120)]
+
+        XCTAssertEqual(result(for: samples), .init(endHR: 170, after1Minute: 30,
+                                                  after2Minutes: nil, after5Minutes: nil))
+    }
+
+    func testGapOverCapResetsTheQualifyingRun() {
+        let beforeGap = stride(from: end - 180, through: end - 110, by: 10)
+            .map { HRSample(ts: $0, bpm: 170) }
+        let afterGap = stride(from: end - 99, through: end - 9, by: 10)
+            .map { HRSample(ts: $0, bpm: 170) }
+            + [HRSample(ts: end, bpm: 170)]
+
+        XCTAssertNil(result(for: beforeGap + afterGap))
+    }
+
+    func testBelowThresholdIntervalResetsTheQualifyingRun() {
+        let samples = stride(from: end - 130, through: end, by: 10).map { ts in
+            HRSample(ts: ts, bpm: ts == end - 60 ? 120 : 170)
+        }
+
+        XCTAssertNil(result(for: samples))
+    }
+
+    func testDuplicateTimestampDoesNotBreakAnOtherwiseContinuousRun() {
+        let samples = stride(from: end - 120, through: end, by: 10)
+            .map { HRSample(ts: $0, bpm: 170) }
+            + [HRSample(ts: end - 60, bpm: 120)]
+
+        XCTAssertEqual(result(for: samples), .init(endHR: 170, after1Minute: 30,
+                                                  after2Minutes: nil, after5Minutes: nil))
     }
 
     func testDoesNotCreditPreWorkoutHeartRateTowardEligibility() {

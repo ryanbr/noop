@@ -82,6 +82,62 @@ final class ReadTests: XCTestCase {
         XCTAssertTrue(withGravity.contains("|g1|"))
     }
 
+    /// #29: the per-DAY twin of the test above. `analysisFingerprint` answers "did anything change
+    /// anywhere"; the `analyzeRecent` reuse cache asks "did THIS night's scored input change", and keyed on
+    /// HR alone it could not see a channel that landed after HR — so a night scored from HR alone kept
+    /// being re-served with no HRV in it.
+    ///
+    /// Each stream is committed on its own here, because the failure mode IS independent commits: every one
+    /// of them must move the witness while `hrFingerprint` stays frozen.
+    func testDayStreamFingerprintMovesForEveryStreamThatLandsAfterHr() async throws {
+        let store = try await seeded()
+        let hrBefore = try await store.hrFingerprint(deviceId: "dev1", from: 0, to: 1000)
+        var previous = try await store.dayStreamFingerprint(deviceId: "dev1", from: 0, to: 1000)
+
+        // Every arm of the witness gets an entry: an arm that silently reads a NEIGHBOURING table is
+        // valid SQL and invisible to a test that never commits its stream.
+        let commits: [(String, Streams)] = [
+            ("ppgHr", Streams(ppgHr: [PpgHrSample(ts: 401, bpm: 62, conf: 0.9)])),
+            ("rr", Streams(rr: [RRInterval(ts: 400, rrMs: 810)])),
+            ("resp", Streams(resp: [RespSample(ts: 400, raw: 12)])),
+            ("spo2", Streams(spo2: [SpO2Sample(ts: 400, red: 100, ir: 200)])),
+            ("gravity", Streams(gravity: [GravitySample(ts: 400, x: 0, y: 0, z: 1)])),
+            ("steps", Streams(steps: [StepSample(ts: 400, counter: 7)])),
+            ("skin", Streams(skinTemp: [SkinTempSample(ts: 400, raw: 1290)])),
+            ("sleepState", Streams(sleepState: [SleepStateSample(ts: 400, state: 2)])),
+            ("event", Streams(events: [WhoopEvent(ts: 410, kind: "WRIST_OFF", payload: [:])])),
+        ]
+        for (label, commit) in commits {
+            _ = try await store.insert(commit, deviceId: "dev1")
+            let now = try await store.dayStreamFingerprint(deviceId: "dev1", from: 0, to: 1000)
+            XCTAssertNotEqual(previous, now, "a \(label) row landing after HR must move the day witness")
+            previous = now
+        }
+
+        // The HR witness never moved across ANY of those commits — the reason HR alone was not enough.
+        let hrAfter = try await store.hrFingerprint(deviceId: "dev1", from: 0, to: 1000)
+        XCTAssertEqual(hrBefore.count, hrAfter.count)
+        XCTAssertEqual(hrBefore.maxTs, hrAfter.maxTs)
+
+        // Reading twice with nothing committed in between must be identical, or the reuse cache would
+        // re-score every night on every pass and give back the drain it exists to close.
+        let idle = try await store.dayStreamFingerprint(deviceId: "dev1", from: 0, to: 1000)
+        XCTAssertEqual(previous, idle)
+    }
+
+    /// The witness is scoped exactly like the reads it stands in for: another device's rows and rows
+    /// outside the night window must not move it, or every night would invalidate on any strap's traffic.
+    func testDayStreamFingerprintIsDeviceAndWindowScoped() async throws {
+        let store = try await seeded()
+        let base = try await store.dayStreamFingerprint(deviceId: "dev1", from: 0, to: 1000)
+        _ = try await store.insert(Streams(rr: [RRInterval(ts: 400, rrMs: 810)]), deviceId: "other")
+        let afterOtherDevice = try await store.dayStreamFingerprint(deviceId: "dev1", from: 0, to: 1000)
+        XCTAssertEqual(base, afterOtherDevice, "another device's R-R is not this owner's night")
+        _ = try await store.insert(Streams(rr: [RRInterval(ts: 5000, rrMs: 810)]), deviceId: "dev1")
+        let afterOutsideWindow = try await store.dayStreamFingerprint(deviceId: "dev1", from: 0, to: 1000)
+        XCTAssertEqual(base, afterOutsideWindow, "an R-R beat outside the window is not this night's input")
+    }
+
     func testHrBucketsAveragePerBucketOrderedAndDeviceScoped() async throws {
         let store = try await seeded()
         // 200s buckets over dev1's ts 100/200/300 (bpm 60/61/62):
@@ -308,4 +364,108 @@ final class ReadTests: XCTestCase {
         XCTAssertEqual(stats.rawBytes, 4)
 #endif
     }
+
+    /// #1911: the footprint must name EVERY accumulating table, including the four the Apple probe used
+    /// to omit — `ppgHr`, `sleepState`, `ppgWaveform`, `v18Aux`. Those are the ones a row-count model
+    /// misprices worst (`ppgWaveformSample` is the only blob table), so leaving them out made the
+    /// footprint unable to attribute the bytes it was collected to explain.
+    ///
+    /// Pinned against the Android key set verbatim: a maintainer comparing meta.json across platforms is
+    /// comparing the same map, and a table added to one side without the other shows up here.
+    func testStorageRowCountsNamesEveryAccumulatingTable() async throws {
+        let store = try await WhoopStore.inMemory()
+        let counts = try await store.storageRowCounts()
+        let expected = ["hr", "rr", "events", "battery", "spo2", "skinTemp", "resp", "gravity",
+                        "steps", "ppgHr", "sleepState", "ppgWaveform", "v18Aux"]
+        XCTAssertEqual(Set(counts.keys), Set(expected),
+                       "key set must match Android's WhoopRepository.storageRowCounts exactly")
+        for k in expected {
+            XCTAssertEqual(counts[k], 0, "\(k) starts empty in a fresh store")
+        }
+    }
+
+    /// The total and the breakdown are derived from ONE list, so they cannot disagree about which tables
+    /// exist. Pinned because they used to be two hand-maintained lists, and the older one had already
+    /// drifted once — the comment on `storageStats` records it omitting six tables.
+    func testStorageStatsTotalAgreesWithTheBreakdown() async throws {
+        let store = try await seeded()
+        let counts = try await store.storageRowCounts()
+        let stats = try await store.storageStats()
+        XCTAssertEqual(stats.decodedRows, counts.values.reduce(0, +),
+                       "the summed total must equal the per-table breakdown")
+    }
+
+
+    /// #1911: the byte estimate must MEASURE the blob rather than assume a fixed row width.
+    /// `ppgWaveformSample` is the only table here whose row size varies, and the one a per-second row
+    /// model misprices worst — a footprint that treats every row as fixed-width answers the wrong question
+    /// about exactly the table the question is usually about.
+    ///
+    /// Pinned by GROWING the blob rather than by comparing tables. My first attempt asserted that a blob
+    /// row estimates larger than an all-numeric row, which is false on a fixture: with a three-sample
+    /// blob `ppgWaveformSample` is three columns to `hrSample`'s four, so it estimates SMALLER. The blob
+    /// dominates in production (~48 bytes per v26 strap-second), not in a seed — so the invariant worth
+    /// pinning is that the blob's length reaches the estimate at all, which comparing two blob sizes
+    /// establishes and comparing two tables does not.
+    func testStorageByteEstimatesGrowWithBlobLength() async throws {
+        func estimate(sampleCount: Int) async throws -> Int {
+            let store = try await WhoopStore.inMemory()
+            let samples = [Int](repeating: 7, count: sampleCount)
+            _ = try await store.insert(Streams(ppgWaveform: [PpgWaveformSample(ts: 400, samples: samples)]),
+                                       deviceId: "dev1")
+            return try await store.storageByteEstimates()["ppgWaveform"] ?? 0
+        }
+        let small = try await estimate(sampleCount: 4)      // ~8 bytes packed i16
+        let large = try await estimate(sampleCount: 200)    // ~400 bytes packed i16
+        XCTAssertGreaterThan(small, 0, "the blob table must be estimated, not skipped")
+        XCTAssertGreaterThan(large, small + 300,
+                             "a 400-byte blob must estimate far above an 8-byte one, or the blob is not measured")
+    }
+
+    /// An empty table is omitted rather than reported as zero bytes, matching the row counts: absent means
+    /// "nothing to attribute here", which is a different claim from a measured zero.
+    func testStorageByteEstimatesOmitEmptyTables() async throws {
+        let store = try await WhoopStore.inMemory()
+        let bytes = try await store.storageByteEstimates()
+        XCTAssertTrue(bytes.isEmpty, "a fresh store has no rows, so nothing to estimate")
+    }
+
+
+    /// Passing known counts must not change the answer — it only skips a second `COUNT(*)` pass. Pinned
+    /// because the whole point of the parameter is that it is an optimisation, and an optimisation that
+    /// quietly changes the number it optimises is worse than the scan it saves.
+    func testStorageByteEstimatesAreUnchangedByPassingKnownCounts() async throws {
+        let store = try await seeded()
+        let counts = try await store.storageRowCounts()
+        let computed = try await store.storageByteEstimates()
+        let reused = try await store.storageByteEstimates(rowCounts: counts)
+        XCTAssertEqual(computed, reused)
+    }
+
+    /// The raw-outbox read must agree with the aggregate it was split out of, or the probe's rawBytes
+    /// silently changed meaning when it stopped counting thirteen decoded tables to get one number.
+    ///
+    /// They share one implementation now rather than being two copies this test compares — `syncRead` is
+    /// `dbWriter.read` and nesting one inside another deadlocks, so a plain `db`-taking helper is the only
+    /// way to share it. The assertion stays as the guard on that wiring.
+    func testRawOutboxStatsMatchTheAggregate() async throws {
+        let store = try await seeded()
+        let stats = try await store.storageStats()
+        let outbox = try await store.rawOutboxStats()
+        XCTAssertEqual(outbox.batches, stats.rawBatches)
+        XCTAssertEqual(outbox.bytes, stats.rawBytes)
+    }
+
+
+    /// A negative sample limit must not become an unbounded scan. SQLite reads `LIMIT -1` as "no limit",
+    /// so an unchecked value would full-scan every table — the exact cost the sampling exists to avoid,
+    /// reached by passing a number that looks like it would sample less rather than more.
+    func testStorageByteEstimatesClampANegativeSampleLimit() async throws {
+        let store = try await seeded()
+        let normal = try await store.storageByteEstimates()
+        let negative = try await store.storageByteEstimates(sampleRows: -1)
+        XCTAssertEqual(negative.keys.sorted(), normal.keys.sorted())
+        for (k, v) in negative { XCTAssertGreaterThan(v, 0, "\(k) must still estimate") }
+    }
+
 }

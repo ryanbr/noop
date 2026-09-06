@@ -37,6 +37,7 @@ class BackupSettingsCodecTest {
             "profile.hrMax" to 191,
             "profile.hrZoneThresholds" to "95,118,142,168,184",
             "units.system" to "imperial",
+            "units.distance" to "metric",
             "units.temperature" to "celsius",
             "effort.scale" to "whoop",
             "dayCycle.mode" to "sleep_onset",
@@ -57,6 +58,7 @@ class BackupSettingsCodecTest {
         assertEquals(191, back["profile.hrMax"])
         assertEquals("95,118,142,168,184", back["profile.hrZoneThresholds"])
         assertEquals("imperial", back["units.system"])
+        assertEquals("metric", back["units.distance"])
         assertEquals("celsius", back["units.temperature"])
         assertEquals("whoop", back["effort.scale"])
         assertEquals("sleep_onset", back["dayCycle.mode"])

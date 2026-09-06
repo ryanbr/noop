@@ -190,7 +190,7 @@ HRV is the dominant driver, and NOOP needs a few nights to learn your personal b
 
 ### Resting HR (`restingHR`)
 
-"Lowest sustained HR" during the in-bed window = the **minimum of 5-minute non-overlapping bin means** of HR samples in `[start, end]`. This rejects single-beat dips while capturing the night's true floor.
+"Lowest sustained HR" during the in-bed window = the **minimum of 5-minute non-overlapping bin means** of HR samples in `[start, end]`. This rejects single-beat dips while capturing the night's true floor. The window is closed at both ends, so the bins are `[t, t + 300)` except the last one, which closes on `end` — a sample sitting exactly on an aligned `end` belongs to that final bin.
 
 ---
 

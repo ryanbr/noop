@@ -659,11 +659,13 @@ private fun BondedStep(viewModel: AppViewModel) {
 private fun ProfileStep() {
     val context = LocalContext.current
     val profile = remember { ProfileStore.from(context.applicationContext) }
-    // Imperial/Metric display preference (D#103). The stored profile is always SI; the steppers keep
-    // operating in SI and only the DISPLAYED value re-labels to lb / ft-in. Held in remembered state
-    // (#781) so the Units control below can flip it live. SharedPreferences isn't reactive, so the
-    // picker writes through to NoopPrefs AND updates this state to re-render the Weight/Height labels.
+    // The stored profile is always SI. Body measurements and exercise distance can follow regional
+    // conventions independently; an unset distance choice follows the body choice for compatibility.
     var unitSystem by remember { mutableStateOf(UnitPrefs.system(context)) }
+    var distanceSystemRaw by remember {
+        mutableStateOf(NoopPrefs.of(context).getString(NoopPrefs.KEY_DISTANCE_UNIT_SYSTEM, "") ?: "")
+    }
+    val distanceUnitSystem = UnitPrefs.resolveDistance(unitSystem, distanceSystemRaw)
     var rev by remember { mutableIntStateOf(0) }
     fun mutate(block: () -> Unit) {
         block()
@@ -712,12 +714,10 @@ private fun ProfileStep() {
                     )
                 }
                 ThinDivider()
-                // Units control (#781). Onboarding read `unitSystem` for the Weight/Height display but
-                // had no way to set it, so US users were locked to kg/cm until they found Settings →
-                // Units. Mirror the Sex picker idiom; the stored profile stays SI either way, only the
-                // displayed labels re-format (lb / ft-in). Same key Settings → Units writes.
+                // Keep the two choices explicit: "Metric/Imperial" alone cannot describe common mixed
+                // conventions such as Canadian pounds with kilometres.
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Overline(uiString(R.string.onboarding_units), color = Palette.textTertiary)
+                    Overline(uiString(R.string.units_body_measurements), color = Palette.textTertiary)
                     SegmentedPillControl(
                         items = listOf(UnitSystem.METRIC, UnitSystem.IMPERIAL),
                         selection = unitSystem,
@@ -725,6 +725,23 @@ private fun ProfileStep() {
                         onSelect = {
                             unitSystem = it
                             NoopPrefs.setUnitSystem(context, it)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                ThinDivider()
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Overline(uiString(R.string.units_exercise_distance_pace), color = Palette.textTertiary)
+                    SegmentedPillControl(
+                        items = listOf(UnitSystem.METRIC, UnitSystem.IMPERIAL),
+                        selection = distanceUnitSystem,
+                        label = {
+                            if (it == UnitSystem.METRIC) uiString(R.string.units_kilometres)
+                            else uiString(R.string.units_miles)
+                        },
+                        onSelect = {
+                            distanceSystemRaw = it.raw
+                            NoopPrefs.setDistanceUnitSystem(context, it)
                         },
                         modifier = Modifier.fillMaxWidth(),
                     )

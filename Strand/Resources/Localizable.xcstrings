@@ -1,6 +1,33 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Body measurement units": { "localizations": {
+      "de": { "stringUnit": { "state": "translated", "value": "Einheiten für Körpermaße" } }, "es": { "stringUnit": { "state": "translated", "value": "Unidades de medidas corporales" } }, "fr": { "stringUnit": { "state": "translated", "value": "Unités des mensurations" } }, "it": { "stringUnit": { "state": "translated", "value": "Unità delle misure corporee" } }, "pl": { "stringUnit": { "state": "translated", "value": "Jednostki pomiarów ciała" } }, "pt-PT": { "stringUnit": { "state": "translated", "value": "Unidades das medidas corporais" } }, "ru": { "stringUnit": { "state": "translated", "value": "Единицы параметров тела" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "身体测量单位" } }, "zh-Hant": { "stringUnit": { "state": "translated", "value": "身體測量單位" } }
+    } },
+    "Body measurements": { "localizations": {
+      "de": { "stringUnit": { "state": "translated", "value": "Körpermaße" } }, "es": { "stringUnit": { "state": "translated", "value": "Medidas corporales" } }, "fr": { "stringUnit": { "state": "translated", "value": "Mensurations" } }, "it": { "stringUnit": { "state": "translated", "value": "Misure corporee" } }, "pl": { "stringUnit": { "state": "translated", "value": "Pomiary ciała" } }, "pt-PT": { "stringUnit": { "state": "translated", "value": "Medidas corporais" } }, "ru": { "stringUnit": { "state": "translated", "value": "Параметры тела" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "身体测量" } }, "zh-Hant": { "stringUnit": { "state": "translated", "value": "身體測量" } }
+    } },
+    "Choose body measurements and exercise distance separately. Your data is always stored the same way; these settings only change its display.": { "localizations": {
+      "de": { "stringUnit": { "state": "translated", "value": "Wähle Einheiten für Körpermaße und Trainingsdistanz separat. Deine Daten werden immer gleich gespeichert; diese Einstellungen ändern nur die Anzeige." } }, "es": { "stringUnit": { "state": "translated", "value": "Elige por separado las unidades de las medidas corporales y de la distancia de ejercicio. Los datos siempre se almacenan igual; estos ajustes solo cambian su visualización." } }, "fr": { "stringUnit": { "state": "translated", "value": "Choisissez séparément les unités des mensurations et de la distance d’exercice. Les données sont toujours stockées de la même façon ; ces réglages ne changent que leur affichage." } }, "it": { "stringUnit": { "state": "translated", "value": "Scegli separatamente le unità per le misure corporee e la distanza di allenamento. I dati vengono sempre memorizzati allo stesso modo; queste impostazioni cambiano solo la visualizzazione." } }, "pl": { "stringUnit": { "state": "translated", "value": "Wybierz osobno jednostki pomiarów ciała i dystansu treningu. Dane są zawsze przechowywane tak samo; te ustawienia zmieniają tylko sposób wyświetlania." } }, "pt-PT": { "stringUnit": { "state": "translated", "value": "Escolha separadamente as unidades para medidas corporais e distância de exercício. Os dados são sempre armazenados da mesma forma; estas definições alteram apenas a apresentação." } }, "ru": { "stringUnit": { "state": "translated", "value": "Выберите единицы для параметров тела и дистанции тренировки отдельно. Данные всегда хранятся одинаково; эти настройки меняют только отображение." } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "分别选择身体测量和运动距离的单位。数据的存储方式始终不变；这些设置只会改变显示方式。" } }, "zh-Hant": { "stringUnit": { "state": "translated", "value": "分別選擇身體測量和運動距離的單位。資料的儲存方式始終不變；這些設定只會改變顯示方式。" } }
+    } },
+    "Distance must be 0–621 mi.": { "localizations": {
+      "de": { "stringUnit": { "state": "translated", "value": "Die Distanz muss zwischen 0 und 621 mi liegen." } }, "es": { "stringUnit": { "state": "translated", "value": "La distancia debe ser de 0 a 621 mi." } }, "fr": { "stringUnit": { "state": "translated", "value": "La distance doit être comprise entre 0 et 621 mi." } }, "it": { "stringUnit": { "state": "translated", "value": "La distanza deve essere compresa tra 0 e 621 mi." } }, "pl": { "stringUnit": { "state": "translated", "value": "Dystans musi wynosić od 0 do 621 mi." } }, "pt-PT": { "stringUnit": { "state": "translated", "value": "A distância deve ser entre 0 e 621 mi." } }, "ru": { "stringUnit": { "state": "translated", "value": "Дистанция должна быть от 0 до 621 мили." } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "距离必须在 0–621 英里之间。" } }, "zh-Hant": { "stringUnit": { "state": "translated", "value": "距離必須在 0–621 英里之間。" } }
+    } },
+    "Exercise distance & pace": { "localizations": {
+      "de": { "stringUnit": { "state": "translated", "value": "Trainingsdistanz & Tempo" } }, "es": { "stringUnit": { "state": "translated", "value": "Distancia y ritmo del ejercicio" } }, "fr": { "stringUnit": { "state": "translated", "value": "Distance et allure d’exercice" } }, "it": { "stringUnit": { "state": "translated", "value": "Distanza e passo dell’allenamento" } }, "pl": { "stringUnit": { "state": "translated", "value": "Dystans i tempo treningu" } }, "pt-PT": { "stringUnit": { "state": "translated", "value": "Distância e ritmo do exercício" } }, "ru": { "stringUnit": { "state": "translated", "value": "Дистанция и темп тренировки" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "运动距离和配速" } }, "zh-Hant": { "stringUnit": { "state": "translated", "value": "運動距離和配速" } }
+    } },
+    "Exercise distance and pace units": { "localizations": {
+      "de": { "stringUnit": { "state": "translated", "value": "Einheiten für Trainingsdistanz und Tempo" } }, "es": { "stringUnit": { "state": "translated", "value": "Unidades de distancia y ritmo del ejercicio" } }, "fr": { "stringUnit": { "state": "translated", "value": "Unités de distance et d’allure d’exercice" } }, "it": { "stringUnit": { "state": "translated", "value": "Unità di distanza e passo dell’allenamento" } }, "pl": { "stringUnit": { "state": "translated", "value": "Jednostki dystansu i tempa treningu" } }, "pt-PT": { "stringUnit": { "state": "translated", "value": "Unidades de distância e ritmo do exercício" } }, "ru": { "stringUnit": { "state": "translated", "value": "Единицы дистанции и темпа тренировки" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "运动距离和配速单位" } }, "zh-Hant": { "stringUnit": { "state": "translated", "value": "運動距離和配速單位" } }
+    } },
+    "Follow body": { "localizations": {
+      "de": { "stringUnit": { "state": "translated", "value": "Wie Körpermaße" } }, "es": { "stringUnit": { "state": "translated", "value": "Según medidas corporales" } }, "fr": { "stringUnit": { "state": "translated", "value": "Selon les mensurations" } }, "it": { "stringUnit": { "state": "translated", "value": "Come misure corporee" } }, "pl": { "stringUnit": { "state": "translated", "value": "Jak pomiary ciała" } }, "pt-PT": { "stringUnit": { "state": "translated", "value": "Como medidas corporais" } }, "ru": { "stringUnit": { "state": "translated", "value": "Как для параметров тела" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "跟随身体测量" } }, "zh-Hant": { "stringUnit": { "state": "translated", "value": "跟隨身體測量" } }
+    } },
+    "Kilometres": { "localizations": {
+      "de": { "stringUnit": { "state": "translated", "value": "Kilometer" } }, "es": { "stringUnit": { "state": "translated", "value": "Kilómetros" } }, "fr": { "stringUnit": { "state": "translated", "value": "Kilomètres" } }, "it": { "stringUnit": { "state": "translated", "value": "Chilometri" } }, "pl": { "stringUnit": { "state": "translated", "value": "Kilometry" } }, "pt-PT": { "stringUnit": { "state": "translated", "value": "Quilómetros" } }, "ru": { "stringUnit": { "state": "translated", "value": "Километры" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "公里" } }, "zh-Hant": { "stringUnit": { "state": "translated", "value": "公里" } }
+    } },
+    "Miles": { "localizations": {
+      "de": { "stringUnit": { "state": "translated", "value": "Meilen" } }, "es": { "stringUnit": { "state": "translated", "value": "Millas" } }, "fr": { "stringUnit": { "state": "translated", "value": "Miles" } }, "it": { "stringUnit": { "state": "translated", "value": "Miglia" } }, "pl": { "stringUnit": { "state": "translated", "value": "Mile" } }, "pt-PT": { "stringUnit": { "state": "translated", "value": "Milhas" } }, "ru": { "stringUnit": { "state": "translated", "value": "Мили" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "英里" } }, "zh-Hant": { "stringUnit": { "state": "translated", "value": "英里" } }
+    } },
     "Calculating last night's sleep…": { "localizations": {
       "de": { "stringUnit": { "state": "translated", "value": "Der Schlaf der letzten Nacht wird berechnet…" } }, "en": { "stringUnit": { "state": "translated", "value": "Calculating last night's sleep…" } }, "es": { "stringUnit": { "state": "translated", "value": "Calculando el sueño de anoche…" } }, "fr": { "stringUnit": { "state": "translated", "value": "Calcul du sommeil de la nuit dernière…" } }, "it": { "stringUnit": { "state": "translated", "value": "Calcolo del sonno della scorsa notte…" } }, "pl": { "stringUnit": { "state": "translated", "value": "Obliczanie snu z ostatniej nocy…" } }, "pt-PT": { "stringUnit": { "state": "translated", "value": "A calcular o sono da noite passada…" } }, "ru": { "stringUnit": { "state": "translated", "value": "Рассчитываю сон за прошлую ночь…" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "正在计算昨夜睡眠…" } }, "zh-Hant": { "stringUnit": { "state": "translated", "value": "正在計算昨夜睡眠…" } }
     } },
@@ -209723,7 +209750,343 @@
     "iCloud Drive": {"localizations":{"de":{"stringUnit":{"state":"translated","value":"iCloud Drive"}},"es":{"stringUnit":{"state":"translated","value":"iCloud Drive"}},"fr":{"stringUnit":{"state":"translated","value":"iCloud Drive"}},"it":{"stringUnit":{"state":"translated","value":"iCloud Drive"}},"pl":{"stringUnit":{"state":"translated","value":"iCloud Drive"}},"pt-PT":{"stringUnit":{"state":"translated","value":"iCloud Drive"}},"ru":{"stringUnit":{"state":"translated","value":"iCloud Drive"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"iCloud 云盘"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"iCloud 雲碟"}}}},
     "iCloud Drive › %@": {"localizations":{"de":{"stringUnit":{"state":"translated","value":"iCloud Drive › %@"}},"es":{"stringUnit":{"state":"translated","value":"iCloud Drive › %@"}},"fr":{"stringUnit":{"state":"translated","value":"iCloud Drive › %@"}},"it":{"stringUnit":{"state":"translated","value":"iCloud Drive › %@"}},"pl":{"stringUnit":{"state":"translated","value":"iCloud Drive › %@"}},"pt-PT":{"stringUnit":{"state":"translated","value":"iCloud Drive › %@"}},"ru":{"stringUnit":{"state":"translated","value":"iCloud Drive › %@"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"iCloud 云盘 › %@"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"iCloud 雲碟 › %@"}}}},
     "NOOP (in Files)": {"localizations":{"de":{"stringUnit":{"state":"translated","value":"NOOP (in Dateien)"}},"es":{"stringUnit":{"state":"translated","value":"NOOP (en Archivos)"}},"fr":{"stringUnit":{"state":"translated","value":"NOOP (dans Fichiers)"}},"it":{"stringUnit":{"state":"translated","value":"NOOP (in File)"}},"pl":{"stringUnit":{"state":"translated","value":"NOOP (w Plikach)"}},"pt-PT":{"stringUnit":{"state":"translated","value":"NOOP (em Ficheiros)"}},"ru":{"stringUnit":{"state":"translated","value":"NOOP (в Файлах)"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"NOOP（在“文件”中）"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"NOOP（在「檔案」中）"}}}},
-    "Live heart rate is streaming, but your strap is not fully paired. The encrypted pairing is what carries motion, skin temperature, SpO₂ and respiratory rate — without it, sleep is staged from heart rate alone. Buzz, alarms and history sync need it too.": {"localizations":{"de":{"stringUnit":{"state":"translated","value":"Die Live-Herzfrequenz wird übertragen, aber dein Strap ist nicht vollständig gekoppelt. Die verschlüsselte Kopplung liefert Bewegung, Hauttemperatur, SpO₂ und Atemfrequenz — ohne sie wird der Schlaf allein aus der Herzfrequenz abgeleitet. Auch Buzz, Wecker und Verlaufssynchronisierung brauchen sie."}},"es":{"stringUnit":{"state":"translated","value":"La frecuencia cardíaca en vivo se está transmitiendo, pero tu correa no está totalmente emparejada. El emparejamiento cifrado es el que aporta movimiento, temperatura de la piel, SpO₂ y frecuencia respiratoria: sin él, el sueño se calcula solo a partir de la frecuencia cardíaca. El zumbido, las alarmas y la sincronización del historial también lo necesitan."}},"fr":{"stringUnit":{"state":"translated","value":"La fréquence cardiaque en direct est transmise, mais votre bracelet n'est pas entièrement appairé. C'est l'appairage chiffré qui transporte le mouvement, la température cutanée, la SpO₂ et la fréquence respiratoire — sans lui, le sommeil est estimé à partir de la seule fréquence cardiaque. Le buzz, les alarmes et la synchronisation de l'historique en ont besoin aussi."}},"it":{"stringUnit":{"state":"translated","value":"La frequenza cardiaca live viene trasmessa, ma il tuo strap non è completamente associato. È l'associazione cifrata a trasportare movimento, temperatura della pelle, SpO₂ e frequenza respiratoria — senza di essa il sonno viene stimato dalla sola frequenza cardiaca. Anche buzz, sveglie e sincronizzazione della cronologia ne hanno bisogno."}},"pl":{"stringUnit":{"state":"translated","value":"Tętno na żywo jest przesyłane, ale opaska nie jest w pełni sparowana. To szyfrowane parowanie przenosi ruch, temperaturę skóry, SpO₂ i częstość oddechów — bez niego sen jest wyznaczany wyłącznie z tętna. Wibracje, alarmy i synchronizacja historii też go wymagają."}},"pt-PT":{"stringUnit":{"state":"translated","value":"A frequência cardíaca em direto está a ser transmitida, mas a sua pulseira não está totalmente emparelhada. É o emparelhamento encriptado que transporta movimento, temperatura da pele, SpO₂ e taxa respiratória — sem ele, o sono é calculado apenas a partir da frequência cardíaca. O zumbido, os alarmes e a sincronização do histórico também precisam dele."}},"ru":{"stringUnit":{"state":"translated","value":"Пульс передаётся в реальном времени, но ремешок сопряжён не полностью. Именно зашифрованное сопряжение передаёт движение, температуру кожи, SpO₂ и частоту дыхания — без него сон определяется только по пульсу. Вибрация, будильники и синхронизация истории тоже требуют его."}},"zh-Hans":{"stringUnit":{"state":"translated","value":"实时心率正在传输，但你的手环尚未完全配对。加密配对才能传输动作、皮肤温度、SpO₂ 和呼吸频率——没有它，睡眠只能依据心率推算。震动、闹钟和历史同步同样需要它。"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"即時心率正在傳輸，但你的手環尚未完全配對。加密配對才能傳輸動作、皮膚溫度、SpO₂ 和呼吸頻率——沒有它，睡眠只能依據心率推算。震動、鬧鐘和歷史同步同樣需要它。"}}}}
+    "Live heart rate is streaming, but your strap is not fully paired. The encrypted pairing is what carries motion, skin temperature, SpO₂ and respiratory rate — without it, sleep is staged from heart rate alone. Buzz, alarms and history sync need it too.": {"localizations":{"de":{"stringUnit":{"state":"translated","value":"Die Live-Herzfrequenz wird übertragen, aber dein Strap ist nicht vollständig gekoppelt. Die verschlüsselte Kopplung liefert Bewegung, Hauttemperatur, SpO₂ und Atemfrequenz — ohne sie wird der Schlaf allein aus der Herzfrequenz abgeleitet. Auch Buzz, Wecker und Verlaufssynchronisierung brauchen sie."}},"es":{"stringUnit":{"state":"translated","value":"La frecuencia cardíaca en vivo se está transmitiendo, pero tu correa no está totalmente emparejada. El emparejamiento cifrado es el que aporta movimiento, temperatura de la piel, SpO₂ y frecuencia respiratoria: sin él, el sueño se calcula solo a partir de la frecuencia cardíaca. El zumbido, las alarmas y la sincronización del historial también lo necesitan."}},"fr":{"stringUnit":{"state":"translated","value":"La fréquence cardiaque en direct est transmise, mais votre bracelet n'est pas entièrement appairé. C'est l'appairage chiffré qui transporte le mouvement, la température cutanée, la SpO₂ et la fréquence respiratoire — sans lui, le sommeil est estimé à partir de la seule fréquence cardiaque. Le buzz, les alarmes et la synchronisation de l'historique en ont besoin aussi."}},"it":{"stringUnit":{"state":"translated","value":"La frequenza cardiaca live viene trasmessa, ma il tuo strap non è completamente associato. È l'associazione cifrata a trasportare movimento, temperatura della pelle, SpO₂ e frequenza respiratoria — senza di essa il sonno viene stimato dalla sola frequenza cardiaca. Anche buzz, sveglie e sincronizzazione della cronologia ne hanno bisogno."}},"pl":{"stringUnit":{"state":"translated","value":"Tętno na żywo jest przesyłane, ale opaska nie jest w pełni sparowana. To szyfrowane parowanie przenosi ruch, temperaturę skóry, SpO₂ i częstość oddechów — bez niego sen jest wyznaczany wyłącznie z tętna. Wibracje, alarmy i synchronizacja historii też go wymagają."}},"pt-PT":{"stringUnit":{"state":"translated","value":"A frequência cardíaca em direto está a ser transmitida, mas a sua pulseira não está totalmente emparelhada. É o emparelhamento encriptado que transporta movimento, temperatura da pele, SpO₂ e taxa respiratória — sem ele, o sono é calculado apenas a partir da frequência cardíaca. O zumbido, os alarmes e a sincronização do histórico também precisam dele."}},"ru":{"stringUnit":{"state":"translated","value":"Пульс передаётся в реальном времени, но ремешок сопряжён не полностью. Именно зашифрованное сопряжение передаёт движение, температуру кожи, SpO₂ и частоту дыхания — без него сон определяется только по пульсу. Вибрация, будильники и синхронизация истории тоже требуют его."}},"zh-Hans":{"stringUnit":{"state":"translated","value":"实时心率正在传输，但你的手环尚未完全配对。加密配对才能传输动作、皮肤温度、SpO₂ 和呼吸频率——没有它，睡眠只能依据心率推算。震动、闹钟和历史同步同样需要它。"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"即時心率正在傳輸，但你的手環尚未完全配對。加密配對才能傳輸動作、皮膚溫度、SpO₂ 和呼吸頻率——沒有它，睡眠只能依據心率推算。震動、鬧鐘和歷史同步同樣需要它。"}}}},
+    "Clear conversation": {"localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Clear conversation"}},
+        "de": {"stringUnit": {"state": "translated", "value": "Unterhaltung löschen"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Borrar conversación"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Effacer la conversation"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Cancella conversazione"}},
+        "pl": {"stringUnit": {"state": "translated", "value": "Wyczyść rozmowę"}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "Limpar conversa"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Очистить разговор"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "清除对话"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "清除對話"}}
+    } },
+    "Clear the saved conversation": {"localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Clear the saved conversation"}},
+        "de": {"stringUnit": {"state": "translated", "value": "Gespeicherte Unterhaltung löschen"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Borrar la conversación guardada"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Effacer la conversation enregistrée"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Cancella la conversazione salvata"}},
+        "pl": {"stringUnit": {"state": "translated", "value": "Wyczyść zapisaną rozmowę"}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "Limpar a conversa guardada"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Очистить сохранённый разговор"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "清除已保存的对话"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "清除已儲存的對話"}}
+    } },
+    "Clear conversation?": {"localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Clear conversation?"}},
+        "de": {"stringUnit": {"state": "translated", "value": "Unterhaltung löschen?"}},
+        "es": {"stringUnit": {"state": "translated", "value": "¿Borrar conversación?"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Effacer la conversation ?"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Cancella conversazione?"}},
+        "pl": {"stringUnit": {"state": "translated", "value": "Wyczyścić rozmowę?"}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "Limpar conversa?"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Очистить разговор?"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "清除对话？"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "清除對話？"}}
+    } },
+    "This deletes the saved conversation from this device. Coach history is your own notes, not medical advice.": {"localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "This deletes the saved conversation from this device. Coach history is your own notes, not medical advice."}},
+        "de": {"stringUnit": {"state": "translated", "value": "Dies löscht die gespeicherte Unterhaltung von diesem Gerät. Coach-Verlauf sind deine eigenen Notizen, kein medizinischer Rat."}},
+        "es": {"stringUnit": {"state": "translated", "value": "Esto borra la conversación guardada de este dispositivo. El historial de Coach son tus propias notas, no consejo médico."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Cela efface la conversation enregistrée de cet appareil. L'historique du Coach constitue vos propres notes, pas un avis médical."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Questo elimina la conversazione salvata da questo dispositivo. La cronologia di Coach sono i tuoi appunti, non consigli medici."}},
+        "pl": {"stringUnit": {"state": "translated", "value": "Spowoduje to usunięcie zapisanej rozmowy z tego urządzenia. Historia Coach to Twoje własne notatki, a nie porada medyczna."}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "Isto elimina a conversa guardada deste dispositivo. O histórico do Coach são as tuas próprias notas, não aconselhamento médico."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Это удалит сохранённый разговор с этого устройства. История Коуча — это ваши собственные заметки, а не медицинская консультация."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "这会从此设备删除已保存的对话。Coach 历史是你自己的笔记，不是医疗建议。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "這會從此裝置刪除已儲存的對話。Coach 歷史是你自己的筆記，不是醫療建議。"}}
+    } },
+    "Morning brief": {"localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Morning brief"}},
+        "de": {"stringUnit": {"state": "translated", "value": "Morgenbrief"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Resumen matutino"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Bref du matin"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Riepilogo mattutino"}},
+        "pl": {"stringUnit": {"state": "translated", "value": "Poranne podsumowanie"}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "Resumo matinal"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Утренняя сводка"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "晨间简报"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "晨間簡報"}}
+    } },
+    "A local notification with today's readiness + training plan, generated on-device each morning.": {"localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "A local notification with today's readiness + training plan, generated on-device each morning."}},
+        "de": {"stringUnit": {"state": "translated", "value": "Eine lokale Benachrichtigung mit heutiger Bereitschaft + Trainingsplan, jeden Morgen auf dem Gerät generiert."}},
+        "es": {"stringUnit": {"state": "translated", "value": "Una notificación local con la disponibilidad de hoy + el plan de entrenamiento, generada en el dispositivo cada mañana."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Une notification locale avec la disponibilité du jour + le plan d'entraînement, générée sur l'appareil chaque matin."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Una notifica locale con la disponibilità di oggi + il piano di allenamento, generata sul dispositivo ogni mattina."}},
+        "pl": {"stringUnit": {"state": "translated", "value": "Lokalne powiadomienie z dzisiejszą gotowością + planem treningowym, generowane na urządzeniu każdego ranka."}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "Uma notificação local com a disponibilidade de hoje + o plano de treino, gerada no dispositivo todas as manhãs."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Локальное уведомление с сегодняшней готовностью + планом тренировок, генерируется на устройстве каждое утро."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "一条包含今日准备度 + 训练计划的本地通知，每天早晨在设备上生成。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "一條包含今日準備度 + 訓練計劃的本地通知，每天早晨在裝置上生成。"}}
+    } },
+    "Off: nothing is generated or sent on a schedule.": {"localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Off: nothing is generated or sent on a schedule."}},
+        "de": {"stringUnit": {"state": "translated", "value": "Aus: Es wird nichts generiert oder nach Zeitplan gesendet."}},
+        "es": {"stringUnit": {"state": "translated", "value": "Desactivado: no se genera ni se envía nada según un horario."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Désactivé : rien n'est généré ni envoyé selon un calendrier."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Off: non viene generato né inviato nulla in base a una pianificazione."}},
+        "pl": {"stringUnit": {"state": "translated", "value": "Wyłączone: nic nie jest generowane ani wysyłane według harmonogramu."}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "Desativado: nada é gerado ou enviado num agendamento."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Выключено: ничего не генерируется и не отправляется по расписанию."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "关闭：不会按计划生成或发送任何内容。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "關閉：不會按計劃生成或發送任何內容。"}}
+    } },
+    "Morning brief time": {"localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Morning brief time"}},
+        "de": {"stringUnit": {"state": "translated", "value": "Morgenbrief-Zeit"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Hora del resumen matutino"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Heure du bref du matin"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Ora del riepilogo mattutino"}},
+        "pl": {"stringUnit": {"state": "translated", "value": "Czas porannego podsumowania"}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "Hora do resumo matinal"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Время утренней сводки"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "晨间简报时间"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "晨間簡報時間"}}
+    } },
+    "At %@, NOOP will use your key to generate today's brief. Best-effort: %@ decides exactly when a backgrounded app wakes.": {"localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "At %@, NOOP will use your key to generate today's brief. Best-effort: %@ decides exactly when a backgrounded app wakes."}},
+        "de": {"stringUnit": {"state": "translated", "value": "Um %@ verwendet NOOP deinen Schlüssel, um den heutigen Brief zu generieren. Best-Effort: %@ entscheidet genau, wann eine Hintergrund-App aktiviert wird."}},
+        "es": {"stringUnit": {"state": "translated", "value": "A las %@, NOOP usará tu clave para generar el resumen de hoy. Best-effort: %@ decide cuándo exactamente se activa una app en segundo plano."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "À %@, NOOP utilisera votre clé pour générer le bref du jour. Au mieux : %@ décide du moment exact où une app en arrière-plan se réveille."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Alle %@, NOOP userà la tua chiave per generare il riepilogo di oggi. Best-effort: %@ decide esattamente quando un'app in background si attiva."}},
+        "pl": {"stringUnit": {"state": "translated", "value": "O %@ NOOP użyje Twojego klucza do wygenerowania dzisiejszego podsumowania. Best-effort: %@ decyduje, kiedy dokładnie aplikacja w tle się wybudzi."}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "Às %@, o NOOP usará a tua chave para gerar o resumo de hoje. Best-effort: %@ decide exatamente quando uma app em segundo plano é ativada."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "В %@ NOOP использует ваш ключ для генерации сегодняшней сводки. По возможности: %@ решает, когда именно фоновое приложение пробуждается."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "在 %@，NOOP 将使用你的密钥生成今日简报。尽力而为：%@ 决定后台应用何时唤醒。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "在 %@，NOOP 將使用你的密鑰生成今日簡報。盡力而為：%@ 決定背景應用何時喚醒。"}}
+    } },
+    "Send chart image to Gemini": {"localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Send chart image to Gemini"}},
+        "de": {"stringUnit": {"state": "translated", "value": "Diagrammbild an Gemini senden"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Enviar imagen del gráfico a Gemini"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Envoyer l'image du graphique à Gemini"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Invia immagine del grafico a Gemini"}},
+        "pl": {"stringUnit": {"state": "translated", "value": "Wyślij obraz wykresu do Gemini"}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "Enviar imagem do gráfico para o Gemini"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Отправить изображение графика в Gemini"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "将图表图像发送给 Gemini"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "將圖表影像傳送給 Gemini"}}
+    } },
+    "On: a chart snapshot of your trends is sent with each question. Gemini can analyze the visual.": {"localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "On: a chart snapshot of your trends is sent with each question. Gemini can analyze the visual."}},
+        "de": {"stringUnit": {"state": "translated", "value": "An: Bei jeder Frage wird ein Diagramm-Snapshot deiner Trends gesendet. Gemini kann das Visuelle analysieren."}},
+        "es": {"stringUnit": {"state": "translated", "value": "Activado: se envía una captura del gráfico de tus tendencias con cada pregunta. Gemini puede analizar lo visual."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Activé : un instantané du graphique de vos tendances est envoyé avec chaque question. Gemini peut analyser le visuel."}},
+        "it": {"stringUnit": {"state": "translated", "value": "On: un'istantanea del grafico dei tuoi trend viene inviata con ogni domanda. Gemini può analizzare l'aspetto visivo."}},
+        "pl": {"stringUnit": {"state": "translated", "value": "Włączone: z każdym pytaniem wysyłany jest zrzut wykresu Twoich trendów. Gemini może przeanalizować obraz."}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "Ativado: uma captura do gráfico das tuas tendências é enviada com cada pergunta. O Gemini pode analisar a imagem."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Вкл: снимок графика ваших трендов отправляется с каждым вопросом. Gemini может проанализировать визуальные данные."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "开启：每次提问时会发送趋势图表快照。Gemini 可以分析视觉内容。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "開啟：每次提問時會發送趨勢圖表快照。Gemini 可以分析視覺內容。"}}
+    } },
+    "Off: only text is sent. Enable to let Gemini see your charts.": {"localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Off: only text is sent. Enable to let Gemini see your charts."}},
+        "de": {"stringUnit": {"state": "translated", "value": "Aus: Es wird nur Text gesendet. Aktiviere dies, damit Gemini deine Diagramme sehen kann."}},
+        "es": {"stringUnit": {"state": "translated", "value": "Desactivado: solo se envía texto. Actívalo para que Gemini vea tus gráficos."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Désactivé : seul le texte est envoyé. Activez pour permettre à Gemini de voir vos graphiques."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Off: viene inviato solo testo. Attiva per permettere a Gemini di vedere i tuoi grafici."}},
+        "pl": {"stringUnit": {"state": "translated", "value": "Wyłączone: wysyłany jest tylko tekst. Włącz, aby Gemini mógł zobaczyć Twoje wykresy."}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "Desativado: apenas é enviado texto. Ativa para permitir que o Gemini veja os teus gráficos."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Выкл: отправляется только текст. Включите, чтобы Gemini мог видеть ваши графики."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "关闭：仅发送文本。启用以让 Gemini 查看你的图表。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "關閉：僅發送文本。啟用以讓 Gemini 查看你的圖表。"}}
+    } },
+    "Save to Journal": {"localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Save to Journal"}},
+        "de": {"stringUnit": {"state": "translated", "value": "Im Tagebuch speichern"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Guardar en el diario"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Enregistrer dans le journal"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Salva nel diario"}},
+        "pl": {"stringUnit": {"state": "translated", "value": "Zapisz w dzienniku"}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "Guardar no diário"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Сохранить в журнал"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "保存到日志"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "儲存到日誌"}}
+    } },
+    "Follow-up prompt: %@": {"localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Follow-up prompt: %@"}},
+        "de": {"stringUnit": {"state": "translated", "value": "Folge-Prompt: %@"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Pregunta de seguimiento: %@"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Question de suivi : %@"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Prompt di follow-up: %@"}},
+        "pl": {"stringUnit": {"state": "translated", "value": "Prompt uzupełniający: %@"}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "Pergunta de seguimento: %@"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Дополнительный запрос: %@"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "后续提示：%@"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "後續提示：%@"}}
+    } },
+    "~%lld tokens": {"localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "~%lld tokens"}},
+        "de": {"stringUnit": {"state": "translated", "value": "~%lld Token"}},
+        "es": {"stringUnit": {"state": "translated", "value": "~%lld tokens"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "~%lld jetons"}},
+        "it": {"stringUnit": {"state": "translated", "value": "~%lld token"}},
+        "pl": {"stringUnit": {"state": "translated", "value": "~%lld tokenów"}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "~%lld tokens"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "~%lld токенов"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "~%lld 个 token"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "~%lld 個 token"}}
+    } },
+    "· may exceed small context windows": {"localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "· may exceed small context windows"}},
+        "de": {"stringUnit": {"state": "translated", "value": "· kann kleine Kontextfenster überschreiten"}},
+        "es": {"stringUnit": {"state": "translated", "value": "· puede superar ventanas de contexto pequeñas"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "· peut dépasser les petites fenêtres de contexte"}},
+        "it": {"stringUnit": {"state": "translated", "value": "· potrebbe superare le piccole finestre di contesto"}},
+        "pl": {"stringUnit": {"state": "translated", "value": "· może przekroczyć małe okna kontekstu"}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "· pode exceder janelas de contexto pequenas"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "· может превышать небольшие окна контекста"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "· 可能超出小型上下文窗口"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "· 可能超出小型上下文視窗"}}
+    } },
+    "Ask out loud": {"localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Ask out loud"}},
+        "de": {"stringUnit": {"state": "translated", "value": "Laut fragen"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Preguntar en voz alta"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Poser la question à voix haute"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Chiedi a voce alta"}},
+        "pl": {"stringUnit": {"state": "translated", "value": "Zapytaj na głos"}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "Perguntar em voz alta"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Задать вопрос вслух"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "大声提问"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "大聲提問"}}
+    } },
+    "Stop voice input": {"localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Stop voice input"}},
+        "de": {"stringUnit": {"state": "translated", "value": "Spracheingabe stoppen"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Detener entrada de voz"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Arrêter la saisie vocale"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Ferma input vocale"}},
+        "pl": {"stringUnit": {"state": "translated", "value": "Zatrzymaj wprowadzanie głosowe"}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "Parar entrada de voz"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Остановить голосовой ввод"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "停止语音输入"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "停止語音輸入"}}
+    } },
+    "Voice input": {"localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Voice input"}},
+        "de": {"stringUnit": {"state": "translated", "value": "Spracheingabe"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Entrada de voz"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Saisie vocale"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Input vocale"}},
+        "pl": {"stringUnit": {"state": "translated", "value": "Wprowadzanie głosowe"}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "Entrada de voz"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Голосовой ввод"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "语音输入"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "語音輸入"}}
+    } },
+    "Coach Brief": {"localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Coach Brief"}},
+        "de": {"stringUnit": {"state": "translated", "value": "Coach-Brief"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Resumen del Coach"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Bref du Coach"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Riepilogo Coach"}},
+        "pl": {"stringUnit": {"state": "translated", "value": "Podsumowanie Coach"}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "Resumo do Coach"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Сводка Коуча"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "Coach 简报"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "Coach 簡報"}}
+    } },
+    "No brief yet": {"localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "No brief yet"}},
+        "de": {"stringUnit": {"state": "translated", "value": "Noch kein Brief"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Aún no hay resumen"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Pas encore de bref"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Nessun riepilogo ancora"}},
+        "pl": {"stringUnit": {"state": "translated", "value": "Brak podsumowania"}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "Ainda sem resumo"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Сводки пока нет"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "尚无简报"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "尚無簡報"}}
+    } },
+    "Enable Morning Brief in Coach settings to see today's readiness here.": {"localizations": {
+        "en": {"stringUnit": {"state": "translated", "value": "Enable Morning Brief in Coach settings to see today's readiness here."}},
+        "de": {"stringUnit": {"state": "translated", "value": "Aktiviere den Morgenbrief in den Coach-Einstellungen, um die heutige Bereitschaft hier zu sehen."}},
+        "es": {"stringUnit": {"state": "translated", "value": "Activa el resumen matutino en los ajustes de Coach para ver la disponibilidad de hoy aquí."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Activez le bref du matin dans les réglages du Coach pour voir la disponibilité du jour ici."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Attiva il riepilogo mattutino nelle impostazioni di Coach per vedere la disponibilità di oggi qui."}},
+        "pl": {"stringUnit": {"state": "translated", "value": "Włącz poranne podsumowanie w ustawieniach Coach, aby zobaczyć tu dzisiejszą gotowość."}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "Ativa o resumo matinal nas definições do Coach para ver a disponibilidade de hoje aqui."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Включите утреннюю сводку в настройках Коуча, чтобы видеть сегодняшнюю готовность здесь."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "在 Coach 设置中启用晨间简报以在此处查看今日准备度。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "在 Coach 設定中啟用晨間簡報以在此處查看今日準備度。"}}
+    } },
+    "Voice input unavailable. Check microphone permission in Settings.": { "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Spracheingabe nicht verfügbar. Prüfe die Mikrofonberechtigung in den Einstellungen."}},
+        "en": {"stringUnit": {"state": "translated", "value": "Voice input unavailable. Check microphone permission in Settings."}},
+        "es": {"stringUnit": {"state": "translated", "value": "Entrada de voz no disponible. Comprueba el permiso del micrófono en Ajustes."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Saisie vocale indisponible. Vérifiez l'autorisation du microphone dans Réglages."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Input vocale non disponibile. Controlla l'autorizzazione del microfono in Impostazioni."}},
+        "pl": {"stringUnit": {"state": "translated", "value": "Wprowadzanie głosowe niedostępne. Sprawdź uprawnienie mikrofonu w Ustawieniach."}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "Entrada de voz indisponível. Verifica a permissão do microfone nas Definições."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Голосовой ввод недоступен. Проверьте разрешение микрофона в Настройках."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "语音输入不可用。请在“设置”中检查麦克风权限。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "語音輸入無法使用。請在「設定」中檢查麥克風權限。"}}
+    } },
+    "On-device speech not available for %@.": { "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Geräteinterne Spracherkennung für %@ nicht verfügbar."}},
+        "en": {"stringUnit": {"state": "translated", "value": "On-device speech not available for %@."}},
+        "es": {"stringUnit": {"state": "translated", "value": "El reconocimiento de voz en el dispositivo no está disponible para %@."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "La reconnaissance vocale sur l'appareil n'est pas disponible pour %@."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Il riconoscimento vocale sul dispositivo non è disponibile per %@."}},
+        "pl": {"stringUnit": {"state": "translated", "value": "Rozpoznawanie mowy na urządzeniu jest niedostępne dla %@."}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "O reconhecimento de voz no dispositivo não está disponível para %@."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Распознавание речи на устройстве недоступно для %@."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "设备端语音识别不支持 %@。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "裝置端語音辨識不支援 %@。"}}
+    } },
+    "Couldn't start the microphone: %@": { "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Mikrofon konnte nicht gestartet werden: %@"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Couldn't start the microphone: %@"}},
+        "es": {"stringUnit": {"state": "translated", "value": "No se pudo iniciar el micrófono: %@"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Impossible de démarrer le microphone : %@"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Impossibile avviare il microfono: %@"}},
+        "pl": {"stringUnit": {"state": "translated", "value": "Nie udało się uruchomić mikrofonu: %@"}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "Não foi possível iniciar o microfone: %@"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Не удалось включить микрофон: %@"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "无法启动麦克风：%@"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "無法啟動麥克風：%@"}}
+    } },
+    "%lld of %lld nights": { "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "%lld von %lld Nächten"}},
+        "en": {"stringUnit": {"state": "translated", "value": "%lld of %lld nights"}},
+        "es": {"stringUnit": {"state": "translated", "value": "%lld de %lld noches"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "%lld nuits sur %lld"}},
+        "it": {"stringUnit": {"state": "translated", "value": "%lld di %lld notti"}},
+        "pl": {"stringUnit": {"state": "translated", "value": "%lld z %lld nocy"}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "%lld de %lld noites"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "%lld из %lld ночей"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "%lld / %lld 晚"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "%lld / %lld 晚"}}
+    } },
+    "%lld of the last %lld nights recorded no HRV. Check the strap is worn overnight and syncing.": { "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "%lld der letzten %lld Nächte haben keine HRV aufgezeichnet. Prüfe, ob der Strap nachts getragen wird und synchronisiert."}},
+        "en": {"stringUnit": {"state": "translated", "value": "%lld of the last %lld nights recorded no HRV. Check the strap is worn overnight and syncing."}},
+        "es": {"stringUnit": {"state": "translated", "value": "%lld de las últimas %lld noches no registraron HRV. Comprueba que llevas la banda por la noche y que se sincroniza."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "%lld des %lld dernières nuits n’ont enregistré aucune VFC. Vérifiez que le bracelet est porté la nuit et se synchronise."}},
+        "it": {"stringUnit": {"state": "translated", "value": "%lld delle ultime %lld notti non hanno registrato HRV. Controlla che la fascia sia indossata di notte e si sincronizzi."}},
+        "pl": {"stringUnit": {"state": "translated", "value": "%lld z ostatnich %lld nocy nie zarejestrowało HRV. Sprawdź, czy opaska jest noszona w nocy i synchronizuje się."}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "%lld das últimas %lld noites não registaram HRV. Verifica se usas a fita à noite e se sincroniza."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "%lld из последних %lld ночей не записали ВСР. Проверьте, что ремешок надет ночью и синхронизируется."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "最近 %2$lld 晚中有 %1$lld 晚未记录 HRV。请检查夜间是否佩戴并已同步。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "最近 %2$lld 晚中有 %1$lld 晚未記錄 HRV。請檢查夜間是否配戴並已同步。"}}
+    } },
+    "Re-derives the absolute °C for nights the 21-night rescore window never reaches, using the same funnel as the scoring pass. Fill-only: it never overwrites a measured value. Watch the strap log for the result.": { "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Leitet das absolute °C für Nächte neu ab, die das 21-Nächte-Fenster nie erreicht, mit demselben Funnel wie der Scoring-Durchlauf. Nur Auffüllen: ein gemessener Wert wird nie überschrieben. Das Ergebnis steht im Strap-Log."}},
+        "en": {"stringUnit": {"state": "translated", "value": "Re-derives the absolute °C for nights the 21-night rescore window never reaches, using the same funnel as the scoring pass. Fill-only: it never overwrites a measured value. Watch the strap log for the result."}},
+        "es": {"stringUnit": {"state": "translated", "value": "Vuelve a derivar el °C absoluto de las noches que la ventana de 21 noches nunca alcanza, con el mismo embudo que la pasada de puntuación. Solo rellena: nunca sobrescribe un valor medido. Consulta el resultado en el registro de la banda."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Recalcule le °C absolu des nuits que la fenêtre de 21 nuits n’atteint jamais, avec le même entonnoir que la passe de calcul. Remplissage seul : une valeur mesurée n’est jamais écrasée. Le résultat s’affiche dans le journal du bracelet."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Ricalcola il °C assoluto per le notti che la finestra di 21 notti non raggiunge mai, con lo stesso funnel della passata di calcolo. Solo riempimento: non sovrascrive mai un valore misurato. Il risultato è nel log della fascia."}},
+        "pl": {"stringUnit": {"state": "translated", "value": "Ponownie wylicza bezwzględne °C dla nocy, których nie obejmuje okno 21 nocy, tym samym lejkiem co przebieg oceniający. Tylko uzupełnia: nigdy nie nadpisuje zmierzonej wartości. Wynik znajdziesz w dzienniku opaski."}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "Volta a derivar o °C absoluto das noites que a janela de 21 noites nunca alcança, com o mesmo funil da passagem de pontuação. Apenas preenche: nunca substitui um valor medido. Vê o resultado no registo da fita."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Пересчитывает абсолютные °C для ночей, до которых не доходит окно в 21 ночь, тем же алгоритмом, что и обычный расчёт. Только заполняет: измеренное значение никогда не перезаписывается. Результат смотрите в журнале ремешка."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "用与评分流程相同的漏斗，为 21 晚窗口未覆盖的夜晚重新推导绝对温度（°C）。仅填充：绝不覆盖已测量的值。结果见腕带日志。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "以與評分流程相同的漏斗，為 21 晚視窗未涵蓋的夜晚重新推導絕對溫度（°C）。僅填充：絕不覆寫已測量的值。結果見腕帶日誌。"}}
+    } }
   },
   "version": "1.0"
 }

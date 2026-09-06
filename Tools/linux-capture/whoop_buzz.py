@@ -40,6 +40,7 @@ import sys
 from bleak import BleakClient, BleakScanner
 from bleak.exc import BleakError
 
+from capture_io import configure_utf8_stdio
 import whoop_frame as wf
 
 log = logging.getLogger("whoop_buzz")
@@ -294,4 +295,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    configure_utf8_stdio()
     sys.exit(main())

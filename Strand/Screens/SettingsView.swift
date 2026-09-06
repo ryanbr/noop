@@ -170,9 +170,8 @@ struct SettingsView: View {
     /// WHOOP 4.0) regardless of this switch. See [PuffinExperiment.motionAwareWakeKey].
     @AppStorage(PuffinExperiment.motionAwareWakeKey) private var motionAwareWakeEnabled = false
 
-    // Imperial/Metric display preference (D#103). Stored data is always SI; this only changes how
-    // distances/weights/heights/temperatures are SHOWN — and lets the profile fields below take
-    // imperial entry. Temperature has a separate override so °C/°F can be picked independently.
+    // Display preferences. `units.system` remains the body-measurement choice for compatibility;
+    // exercise distance/pace can override it independently. Stored data is always SI.
     /// #1821: Clock format. Defaults to `.system`, so upgrading changes nobody's displayed times.
     /// #1841: shared with Android by name and meaning; each platform keeps its own store. Default FALSE
     /// on Apple (Android defaults true) because the system behaviour may not fire on our
@@ -181,6 +180,7 @@ struct SettingsView: View {
     @AppStorage(ClockFormatPreference.defaultsKey)
     private var clockFormatRaw = ClockFormatPreference.system.rawValue
     @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
+    @AppStorage(UnitPrefs.distanceSystemKey) private var distanceSystemRaw = ""
     @AppStorage(UnitPrefs.temperatureKey) private var temperatureRaw = ""
     @AppStorage(UnitPrefs.skinTempDisplayKey) private var skinTempDisplayRaw = ""   // #1846
     // Effort display scale (#268). Display-only — Effort stays stored 0–100, this only chooses whether
@@ -257,6 +257,12 @@ struct SettingsView: View {
     }
 
     private var unitSystem: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .metric }
+    private var distanceUnitSystem: UnitSystem {
+        UnitPrefs.resolveDistance(system: unitSystem, override: distanceSystemRaw)
+    }
+    private var distanceSystemBinding: Binding<String> {
+        Binding(get: { distanceUnitSystem.rawValue }, set: { distanceSystemRaw = $0 })
+    }
     private var temperatureUnit: TemperatureUnit {
         UnitPrefs.resolveTemperature(system: unitSystem, override: temperatureRaw)
     }
@@ -984,31 +990,41 @@ struct SettingsView: View {
 
     // MARK: - Units
 
-    /// Imperial/Metric display toggle + a separate temperature override. Display-only — nothing stored
-    /// changes, NOOP keeps everything in SI and converts at the point of display.
+    /// Independent body and exercise-distance unit choices plus temperature and Effort overrides.
+    /// Display-only — nothing stored changes; NOOP keeps everything in SI.
     private var unitsCard: some View {
         SettingsSection(
             icon: "ruler",
             title: "Units",
-            blurb: "Choose how distances, weights, heights, temperatures and Effort are shown. Your data is always stored the same way. This only changes the display."
+            blurb: "Choose body measurements and exercise distance separately. Your data is always stored the same way; these settings only change its display."
         ) {
             VStack(spacing: 0) {
-                FormRow(label: "Measurement system") {
-                    Picker("Measurement system", selection: $unitSystemRaw) {
+                FormRow(label: "Body measurements") {
+                    Picker("Body measurements", selection: $unitSystemRaw) {
                         Text("Metric").tag(UnitSystem.metric.rawValue)
                         Text("Imperial").tag(UnitSystem.imperial.rawValue)
                     }
                     .labelsHidden()
                     .pickerStyle(.menu)
                     .tint(StrandPalette.accent)
-                    .accessibilityLabel("Measurement system")
+                    .accessibilityLabel("Body measurement units")
+                }
+                rowDivider
+                FormRow(label: "Exercise distance & pace") {
+                    Picker("Exercise distance & pace", selection: distanceSystemBinding) {
+                        Text("Kilometres").tag(UnitSystem.metric.rawValue)
+                        Text("Miles").tag(UnitSystem.imperial.rawValue)
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .tint(StrandPalette.accent)
+                    .accessibilityLabel("Exercise distance and pace units")
                 }
                 rowDivider
                 FormRow(label: "Temperature") {
-                    // Three-way: "Match" follows the system above; °C / °F pin it explicitly. Stored as
-                    // an empty string ("match") or the TemperatureUnit raw value.
+                    // Three-way: "Follow body" follows body measurements; °C / °F pin it explicitly.
                     Picker("Temperature", selection: $temperatureRaw) {
-                        Text("Match").tag("")
+                        Text("Follow body").tag("")
                         Text("°C").tag(TemperatureUnit.celsius.rawValue)
                         Text("°F").tag(TemperatureUnit.fahrenheit.rawValue)
                     }

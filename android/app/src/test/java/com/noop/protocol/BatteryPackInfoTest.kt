@@ -127,4 +127,48 @@ class BatteryPackInfoTest {
                                      voltageMv = 3_900)
         assertFalse(v.displayable)
     }
+
+    /**
+     * REAL HARDWARE vectors: the pack record as the strap actually delivers it — the payload of the
+     * uncatalogued pushed event 109, captured from a WHOOP MG on fw 50.39.1.0 (2026-09-01). Command 151
+     * answers FAILURE(0) on this firmware whatever you send it, so the event is the transport the
+     * feature runs on; these two frames are what proves the field offsets on MG hardware.
+     */
+    private val packEvent569 = "f5481c000100005e005301574242354150303030303030310000003902010c00"
+    private val packEvent567 = "1e451c000100005e005301574242354150303030303030310000003702010c00"
+
+    @Test fun pushedPackEventCarriesTheSameRecordAsTheCommandReply() {
+        val a = BatteryPackInfo.decodeEventPayload(bytes(packEvent569))!!
+        assertEquals(true, a.present)
+        assertEquals("WBB5AP0000001", a.serial)
+        assertEquals("00005e005301", a.btAddr)
+        assertEquals(56.9, a.socPct!!, 1e-9)
+        assertNull(a.voltageMv)                       // the event never carries a voltage
+    }
+
+    /**
+     * The SoC field TRACKS A VARYING INPUT rather than merely looking plausible once: these two records
+     * are minutes apart while the pack drains into the strap, and the value falls. A single reading
+     * cannot tell tenths-of-a-percent from mAh; a falling pair in the physically correct direction, both
+     * within 0..100 when read as tenths, is what settles the unit.
+     */
+    @Test fun packSocFallsAsThePackDrainsIntoTheStrap() {
+        val first = BatteryPackInfo.decodeEventPayload(bytes(packEvent569))!!.socPct!!
+        val later = BatteryPackInfo.decodeEventPayload(bytes(packEvent567))!!.socPct!!
+        assertEquals(56.9, first, 1e-9)
+        assertEquals(56.7, later, 1e-9)
+        assertTrue("pack SoC must fall while discharging into the strap", later < first)
+        assertTrue("read as tenths-of-a-percent both samples are a real percentage", first <= 100.0 && later >= 0.0)
+    }
+
+    /** The command path and the event path must agree field-for-field — they share [decodeRecord], and a
+     *  refactor that let them drift would silently give the Devices card two different pack readings. */
+    @Test fun commandAndEventPathsShareOneRecordDecoder() {
+        val viaCommand = BatteryPackInfo.decode(bytes(attachedHex))!!
+        val viaRecord = BatteryPackInfo.decodeRecord(bytes(attachedHex), 14)!!   // cmdOff 10 + 4
+        assertEquals(viaCommand.present, viaRecord.present)
+        assertEquals(viaCommand.serial, viaRecord.serial)
+        assertEquals(viaCommand.btAddr, viaRecord.btAddr)
+        assertEquals(viaCommand.socPct!!, viaRecord.socPct!!, 1e-9)
+    }
 }

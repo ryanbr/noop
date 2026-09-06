@@ -35,7 +35,12 @@ struct WorkoutDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
     @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
-    private var unitSystem: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .metric }
+    @AppStorage(UnitPrefs.distanceSystemKey) private var distanceSystemRaw = ""
+    private var distanceUnitSystem: UnitSystem {
+        UnitPrefs.resolveDistance(
+            system: UnitSystem(rawValue: unitSystemRaw) ?? .metric,
+            override: distanceSystemRaw)
+    }
 
     @AppStorage(UnitPrefs.effortScaleKey) private var effortScaleRaw = EffortScale.hundred.rawValue
     private var effortScale: EffortScale { UnitPrefs.resolveEffortScale(effortScaleRaw) }
@@ -361,12 +366,7 @@ struct WorkoutDetailView: View {
         let secs = row.durationS ?? Double(row.endTs - row.startTs)
         guard secs > 0 else { return "–" }
         let km = m / 1000.0
-        let (perUnit, label): (Double, String) = unitSystem == .imperial
-            ? (km * UnitFormatter.milesPerKilometer, "/mi")
-            : (km, "/km")
-        guard perUnit > 0 else { return "–" }
-        let secsPerUnit = Int((secs / perUnit).rounded())
-        return "\(secsPerUnit / 60):\(String(format: "%02d", secsPerUnit % 60)) \(label)"
+        return UnitFormatter.paceFromSecPerKm(secs / km, system: distanceUnitSystem)
     }
 
     private var routeAccessibilityLabel: String {
@@ -598,7 +598,7 @@ struct WorkoutDetailView: View {
     }
     private func distanceLabel(_ m: Double?) -> String {
         guard let m, m > 0 else { return "–" }
-        return UnitFormatter.distanceFromMeters(m, system: unitSystem)
+        return UnitFormatter.distanceFromMeters(m, system: distanceUnitSystem)
     }
     private func grouped(_ v: Double) -> String {
         Self.intFmt.string(from: NSNumber(value: Int(v.rounded()))) ?? "\(Int(v.rounded()))"

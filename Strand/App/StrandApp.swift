@@ -22,12 +22,16 @@ struct StrandApp: App {
         // Foreground presentation: without a delegate, macOS suppresses a notification's banner while the
         // app is frontmost, so a reminder tested with NOOP open would show nothing. Mirrors iOS.
         UNUserNotificationCenter.current().delegate = NotificationPresenter.shared
+        // K5: tapping a scheduled morning-brief notification routes to Coach via the shared NavRouter.
+        let router = NavRouter()
+        _router = StateObject(wrappedValue: router)
+        NotificationPresenter.shared.onCoachBriefTapped = { [weak router] in router?.openCoach() }
     }
 
     @StateObject private var model = AppModel()
     /// Shared cross-screen navigation hook (e.g. Live → Devices). The macOS shell (`RootView`)
     /// observes it and drives the sidebar selection.
-    @StateObject private var router = NavRouter()
+    @StateObject private var router: NavRouter
     /// #267: drives a foreground sync kick when the window becomes active (no scenePhase hook
     /// existed on macOS before this).
     @Environment(\.scenePhase) private var scenePhase

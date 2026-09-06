@@ -66,14 +66,23 @@ object HeartRateRecovery {
 
     private fun sustainedSeconds(threshold: Double, samples: List<HrSample>): Long {
         if (samples.size < 2) return 0L
-        var seconds = 0L
+        var currentSeconds = 0L
+        var longestSeconds = 0L
         for (i in 0 until samples.lastIndex) {
             val gap = samples[i + 1].ts - samples[i].ts
-            if (gap in 1..maximumContinuousGapSeconds && samples[i].bpm.toDouble() >= threshold) {
-                seconds += gap
+            if (gap <= 0L) continue
+            if (gap > maximumContinuousGapSeconds) {
+                currentSeconds = 0L
+                continue
             }
+            if (samples[i].bpm.toDouble() < threshold) {
+                currentSeconds = 0L
+                continue
+            }
+            currentSeconds += gap
+            longestSeconds = maxOf(longestSeconds, currentSeconds)
         }
-        return seconds
+        return longestSeconds
     }
 
     private fun median(values: List<Int>): Int? {

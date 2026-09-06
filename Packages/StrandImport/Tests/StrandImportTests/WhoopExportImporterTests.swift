@@ -94,6 +94,36 @@ final class WhoopExportImporterTests: XCTestCase {
         XCTAssertEqual(r1.recoveryScore, 55)
     }
 
+    // MARK: - #1849: Fahrenheit skin-temp import
+
+    /// A Fahrenheit WHOOP export ships `skin_temp_f` instead of `skin_temp_celsius`. The
+    /// importer must convert the °F value to °C on the way in — NOT store it unconverted
+    /// (92.3 °F stored as 92.3 in a °C column reads as a lethal fever and poisons the
+    /// baseline). 91.58 °F = 33.1 °C, the same value the Celsius fixture carries.
+    func testFahrenheitSkinTempIsConvertedToCelsius() throws {
+        let table = CSVTable(data: Fixtures.data("physiological_cycles_fahrenheit.csv"))
+        let rows = WhoopExportImporter().parseCycles(table)
+
+        XCTAssertEqual(rows.count, 1)
+        let r0 = try XCTUnwrap(rows.first)
+        // 91.58 °F → (91.58 − 32) × 5/9 = 33.1 °C — the same stored value the Celsius
+        // fixture produces, so a Fahrenheit import lands byte-identical to a Celsius one.
+        XCTAssertEqual(r0.skinTempCelsius ?? -999, 33.1, accuracy: 0.001,
+                       "a Fahrenheit skin_temp_f must be converted to °C on import, not stored as-is")
+    }
+
+    /// A Celsius export (the canonical form) is unaffected — `skin_temp_celsius` is read
+    /// directly and no conversion is applied. This is the regression guard: the fix must
+    /// not change the Celsius path.
+    func testCelsiusSkinTempIsUnchanged() throws {
+        let table = CSVTable(data: Fixtures.data("physiological_cycles.csv"))
+        let rows = WhoopExportImporter().parseCycles(table)
+
+        let r0 = try XCTUnwrap(rows.first)
+        XCTAssertEqual(r0.skinTempCelsius ?? -999, 33.1, accuracy: 0.001,
+                       "a Celsius skin_temp_celsius must pass through unchanged")
+    }
+
     // MARK: - workouts.csv WITHOUT GPS columns
 
     func testWorkoutsWithoutGPSColumnsStillParse() throws {

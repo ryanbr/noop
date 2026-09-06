@@ -112,4 +112,42 @@ final class BatteryPackInfoTests: XCTestCase {
         let v = BatteryPackInfo.Info(present: true, socPct: nil, serial: nil, btAddr: nil, voltageMv: 3_900)
         XCTAssertFalse(v.displayable)
     }
+
+    /// REAL HARDWARE vectors: the pack record as the strap actually delivers it — the payload of the
+    /// uncatalogued pushed event 109, captured from a WHOOP MG on fw 50.39.1.0 (2026-09-01). Command 151
+    /// answers FAILURE(0) on that firmware whatever you send it, so the event is the transport the feature
+    /// runs on. The Kotlin twin asserts the same values.
+    private let packEvent569 = "f5481c000100005e005301574242354150303030303030310000003902010c00"
+    private let packEvent567 = "1e451c000100005e005301574242354150303030303030310000003702010c00"
+
+    func testPushedPackEventCarriesTheSameRecordAsTheCommandReply() {
+        let info = BatteryPackInfo.decodeEventPayload(bytes(packEvent569))
+        XCTAssertEqual(info?.present, true)
+        XCTAssertEqual(info?.serial, "WBB5AP0000001")
+        XCTAssertEqual(info?.btAddr, "00005e005301")
+        XCTAssertEqual(info?.socPct ?? -1, 56.9, accuracy: 1e-9)
+        XCTAssertNil(info?.voltageMv)               // the event never carries a voltage
+    }
+
+    /// The SoC field TRACKS A VARYING INPUT rather than merely looking plausible once: these two records are
+    /// minutes apart while the pack drains into the strap, and the value falls. A single reading cannot tell
+    /// tenths-of-a-percent from mAh; a falling pair in the physically correct direction, both inside 0...100
+    /// when read as tenths, is what settles the unit.
+    func testPackSocFallsAsThePackDrainsIntoTheStrap() {
+        let first = BatteryPackInfo.decodeEventPayload(bytes(packEvent569))?.socPct ?? -1
+        let later = BatteryPackInfo.decodeEventPayload(bytes(packEvent567))?.socPct ?? -1
+        XCTAssertEqual(first, 56.9, accuracy: 1e-9)
+        XCTAssertEqual(later, 56.7, accuracy: 1e-9)
+        XCTAssertLessThan(later, first, "pack SoC must fall while discharging into the strap")
+        XCTAssertLessThanOrEqual(first, 100.0)
+        XCTAssertGreaterThanOrEqual(later, 0.0)
+    }
+
+    /// The command path and the event path must agree field-for-field — they share `decodeRecord`, and a
+    /// refactor letting them drift would silently give the Devices card two different pack readings.
+    func testCommandAndEventPathsShareOneRecordDecoder() {
+        let viaCommand = BatteryPackInfo.decode(frame: bytes(attachedHex))
+        let viaRecord = BatteryPackInfo.decodeRecord(bytes(attachedHex), base: 14)   // cmdOff 10 + 4
+        XCTAssertEqual(viaCommand, viaRecord)
+    }
 }

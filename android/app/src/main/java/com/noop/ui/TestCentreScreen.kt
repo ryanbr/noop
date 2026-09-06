@@ -493,6 +493,10 @@ private suspend fun buildPending(
         if (f.exists()) dbBytes += f.length()
     }
     val rows = vm.repo.storageRowCounts()
+    // #1911: bytes beside the counts, reusing the counts just read rather than a second COUNT(*) pass over
+    // thirteen tables - each is a full scan on the large stores this report is pulled from.
+    val rowBytes = com.noop.data.StorageFootprint(
+        com.noop.data.WhoopDatabase.get(context)).byteEstimates(rows)
     var rawBytes = 0L
     for (name in listOf(
         com.noop.ble.WhoopBleClient.WHOOP5_CAPTURE_FILE,
@@ -506,6 +510,7 @@ private suspend fun buildPending(
             dbBytes = dbBytes.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
             rows = rows,
             rawCaptureBytes = rawBytes.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+            rowBytes = rowBytes,
         )
     } else {
         null

@@ -450,6 +450,9 @@
     <string name="l10n_devices_screen_body_location_probe_690_re_7def8c39">Körperpositions-Test (#690 RE)…</string>
     <string name="l10n_devices_screen_body_location_probe_result_690_60c5ee79">Ergebnis des Körperpositions-Tests (#690)</string>
     <string name="l10n_devices_screen_body_location_probe_explainer_a9363239">Sendet den nur lesenden Körperpositions-Befehl (0x54) und schreibt die vollständige Rohantwort des Bands ins Strap-Log, wobei der Datensatz (Revision / Position / Konfidenz / Status) auf der WHOOP 4.0 dekodiert wird. Es wird nichts auf das Band geschrieben, und Trageerkennung oder Bewertung werden nie verändert.</string>
+    <string name="l10n_devices_screen_battery_pack_probe_151_re_d722af00">Akkupack-Test (151 RE)…</string>
+    <string name="l10n_devices_screen_battery_pack_probe_result_151_df43dff2">Ergebnis des Akkupack-Tests (151)</string>
+    <string name="l10n_devices_screen_battery_pack_probe_explainer_40b3470d">Sendet den nur lesenden Akkupack-Befehl (151) und dekodiert die Antwort des Bands — Ladestand, Seriennummer und Bluetooth-Adresse des Akkupacks. Es wird nichts auf das Band geschrieben und nichts fließt in deine Daten. Eine WHOOP 4.0 hat keinen Akkupack-Befehl und bleibt erwartungsgemäß stumm; dieses Schweigen ist selbst ein nützliches Ergebnis.</string>
     <string name="l10n_devices_screen_delete_this_device_s_data_3cae7a2a">Daten dieses Geräts löschen…</string>
     <string name="l10n_devices_screen_disconnect_ed28e068">Trennen</string>
     <string name="l10n_devices_screen_feature_flag_probe_761_re_21241d68">Feature-Flag-Test (#761 RE)…</string>
@@ -475,6 +478,7 @@
     <string name="l10n_devices_screen_leave_none_active_b5c858cb">Keins aktiv lassen</string>
     <string name="l10n_devices_screen_name_709a2322">Name</string>
     <string name="l10n_devices_screen_pack_voltage_9af3c3ff">%1$.2f V</string>
+    <string name="l10n_devices_screen_pack_charge_0e9589da">Pack %1$.1f%%</string>
     <string name="l10n_devices_screen_paired_locally_noop_owns_this_ring_30c16190">Lokal gekoppelt. NOOP besitzt diesen Ring, solange es den Schlüssel hält. Wenn du ihn erneut zurücksetzt oder in der Oura-App einrichtest, besitzt NOOP ihn nicht mehr, und du müsstest ihn zum Übernehmen neu hinzufügen.</string>
     <string name="l10n_devices_screen_pick_a_new_active_strap_edd73542">Neuen aktiven Strap auswählen</string>
     <string name="l10n_devices_screen_rename_device_ee233604">Gerät umbenennen</string>
@@ -971,6 +975,8 @@
     <string name="l10n_today_screen_calibrating_37c2c9bd">Kalibrierung</string>
     <string name="l10n_today_screen_no_new_nights_from_your_strap_for_stale_days_8863bcfe">Seit %1$d Tagen keine neuen Nächte von deinem Strap. Prüfe, ob er verbunden ist und Daten speichert.</string>
     <string name="l10n_today_screen_calibratingnights_of_baselines_minnightsseed_3b76e55c">%1$s von %2$s</string>
+    <string name="l10n_today_screen_choose_which_cards_show_on_today_f79942e1">Wähle, welche Karten auf Heute angezeigt werden, und ordne sie mit den Pfeilen neu an.</string>
+    <string name="l10n_today_screen_calibratingnights_of_baselines_minnightsseed_3b76e55c">%1$s von %2$s Nächten</string>
     <string name="l10n_today_screen_choose_which_cards_show_on_today_f79942e1">Wähle, welche Karten auf Heute angezeigt werden, und ordne sie mit den Pfeilen neu an.</string>
     <string name="l10n_today_screen_close_bbfa773e">Schließen</string>
     <string name="l10n_today_screen_customise_your_cards_2428d761">Passe deine Karten an</string>
@@ -1875,6 +1881,12 @@
     <string name="smart_alarm_body">Dein Smart-Wecker hat gerade geklingelt.</string>
     <string name="battery_channel_name">Akku-Hinweise</string>
     <string name="battery_channel_desc">Hinweise, wenn der Strap-Akku schwach oder voll geladen ist.</string>
+    <!-- K5: scheduled Coach morning-brief notification. -->
+    <string name="coach_brief_channel_name">Coach-Morgenbrief</string>
+    <string name="coach_brief_channel_desc">Heutiger Coaching-Brief, auf dem Gerät zur gewählten Zeit generiert.</string>
+    <string name="coach_brief_title">Heutiger Coaching-Brief</string>
+    <string name="coach_brief_unavailable_title">Coach-Brief nicht verfügbar</string>
+    <string name="coach_brief_unavailable_body">Heutiger Brief konnte nicht generiert werden. Öffne Coach, um es erneut zu versuchen.</string>
     <string name="l10n_app_changelog_battery_saver_quiets_the_gauges_translated_bdbe8650">Energiesparmodus beruhigt die Anzeigen, übersetzte Android-Benachrichtigungen und sofort geladene Diagramme</string>
     <string name="l10n_health_screen_no_spo_import_or_health_value_408f8c55">Kein SpO₂-Import- oder Health-Wert</string>
     <string name="l10n_health_screen_raw_counts_only_needs_an_import_d0e33552">Nur Rohwerte — Import erforderlich</string>
@@ -2346,7 +2358,9 @@
     <string name="today_steps_headline_calibrated">Aus %1$d Tagen mit Smartphone-Schritten geschätzt</string>
     <string name="today_steps_headline_connect_phone">Verbinde die Schrittzählung deines Smartphones, um Schritte zu schätzen</string>
     <string name="today_steps_headline_more_days">Noch %1$d Tage mit Smartphone-Schritten nötig</string>
+    <string name="today_steps_headline_no_motion">Noch keine Bewegungsdaten synchronisiert</string>
     <string name="today_synthesis_learning_baseline">Dein Basiswert wird gelernt, %1$d von %2$d Nächten.</string>
+    <string name="today_synthesis_nights_without_hrv">%1$d der letzten %2$d Nächte haben keine HRV aufgezeichnet. Prüfe, ob der Strap nachts getragen wird und synchronisiert.</string>
     <string name="today_last_night_date">Letzte Nacht · %1$s</string>
     <string name="today_hr_min">Min.</string>
     <string name="today_hr_avg">Ø</string>
@@ -2691,4 +2705,49 @@
     <string name="settings_day_cycle_midnight">00:00</string>
     <string name="settings_day_cycle_sleep_description">Standard. Der Zyklus folgt dem Beginn deines erkannten Hauptschlafs. Bei fehlenden oder unzuverlässigen Schlafdaten verwendet NOOP ersatzweise die lokale Mitternacht.</string>
     <string name="settings_day_cycle_midnight_description">Verwendet einen herkömmlichen lokalen Kalendertag von 00:00 bis 00:00 Uhr.</string>
+    <string name="l10n_settings_screen_bottom_bar_f84098a9">Untere Leiste</string>
+    <string name="l10n_settings_screen_how_the_navigation_bar_looks_f186b099">Wie die Navigationsleiste aussieht – ihre Größe und wie viel vom Bildschirm durchscheint.</string>
+    <string name="l10n_settings_screen_bar_size_2304bfbb">Leistengröße</string>
+    <string name="l10n_settings_screen_bar_transparency_3f648fbb">Transparenz der Leiste</string>
+    <string name="l10n_settings_screen_how_see_through_the_bar_is_ddb0c208">Wie durchsichtig die Leiste ist. Die schwächste Stufe zeigt weiterhin ihren Rand, damit sie immer auffindbar bleibt.</string>
+
+    <!-- Coach screen -->
+    <string name="coach_clear_conversation_confirm">Unterhaltung löschen?</string>
+    <string name="coach_clear_conversation_message">Dies löscht die gespeicherte Unterhaltung von diesem Gerät. Der Coach-Verlauf sind deine eigenen Notizen, kein medizinischer Rat.</string>
+    <string name="coach_clear_action">Löschen</string>
+    <string name="coach_token_estimate">~%1$d Token</string>
+    <string name="coach_token_warning"> · kann kleine Kontextfenster überschreiten</string>
+    <string name="coach_morning_brief">Morgenbrief</string>
+    <string name="coach_morning_brief_desc">Eine lokale Benachrichtigung mit heutiger Bereitschaft + Trainingsplan, jeden Morgen auf dem Gerät erstellt.</string>
+    <string name="coach_morning_brief_off">Aus: Es wird nichts generiert oder nach Zeitplan gesendet.</string>
+    <string name="coach_morning_brief_time">Uhrzeit</string>
+    <string name="coach_morning_brief_best_effort">Best-Effort: Android entscheidet genau, wann eine App im Hintergrund erwacht, um es zu erstellen.</string>
+    <string name="coach_copy_action">Kopieren</string>
+    <string name="coach_share_action">Teilen</string>
+    <string name="coach_save_to_journal">Im Tagebuch speichern</string>
+    <string name="coach_listening">Lausche…</string>
+    <string name="coach_generating">Wird erstellt…</string>
+    <string name="coach_generate_now">Jetzt erstellen</string>
+    <string name="coach_status_suffix">: %1$s</string>
+    <string name="coach_no_reply">(keine Antwort)</string>
+    <string name="coach_stream_interrupted">%1$s\n\n*(Stream unterbrochen)*</string>
+    <string name="coach_today_brief_format">Heutiger Brief\n\n%1$s</string>
+    <string name="coach_brief_widget_title">✦ Coach-Brief</string>
+    <string name="coach_brief_widget_empty">Noch kein Brief</string>
+    <string name="coach_brief_widget_enable">Aktiviere den Morgenbrief in den Coach-Einstellungen, um die heutige Bereitschaft hier zu sehen.</string>
+    <string name="coach_voice_error_no_speech">Keine Sprache erkannt.</string>
+    <string name="coach_voice_error_audio">Audioaufnahme fehlgeschlagen.</string>
+    <string name="coach_voice_error_busy">Spracherkennung ist beschäftigt. Versuchen Sie es erneut.</string>
+    <string name="coach_voice_error_permission">Mikrofonberechtigung verweigert.</string>
+    <string name="coach_voice_error_generic">Spracheingabe fehlgeschlagen. Versuchen Sie es erneut.</string>
+    <string name="coach_voice_error_server">On-Device-Spracherkennung für diese Sprache nicht verfügbar.</string>
+    <string name="coach_voice_error_unavailable">On-Device-Spracherkennung ist auf diesem Gerät oder für diese Sprache nicht verfügbar.</string>
+    <string name="coach_voice_unavailable">On-Device-Spracherkennung ist auf diesem Gerät oder für diese Sprache nicht verfügbar.</string>
+    <string name="coach_voice_permission_denied">Mikrofonberechtigung verweigert. Aktivieren Sie sie in den Einstellungen, um die Spracheingabe zu nutzen.</string>
+    <string name="units_settings_blurb">Wähle Einheiten für Körpermaße und Trainingsdistanz separat. Deine Daten werden immer gleich gespeichert; diese Einstellungen ändern nur die Anzeige.</string>
+    <string name="units_body_measurements">Körpermaße</string>
+    <string name="units_exercise_distance_pace">Trainingsdistanz &amp; Tempo</string>
+    <string name="units_kilometres">Kilometer</string>
+    <string name="units_miles">Meilen</string>
+    <string name="units_follow_body">Wie Körpermaße</string>
 </resources>

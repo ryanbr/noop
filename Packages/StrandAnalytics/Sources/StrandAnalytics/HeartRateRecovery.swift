@@ -82,13 +82,23 @@ public enum HeartRateRecovery {
 
     private static func sustainedSeconds(atOrAbove threshold: Double, in samples: [HRSample]) -> Int {
         guard samples.count >= 2 else { return 0 }
-        var seconds = 0
+        var currentSeconds = 0
+        var longestSeconds = 0
         for i in 0..<(samples.count - 1) {
             let gap = samples[i + 1].ts - samples[i].ts
-            guard gap > 0, gap <= maximumContinuousGapSeconds else { continue }
-            if Double(samples[i].bpm) >= threshold { seconds += gap }
+            guard gap > 0 else { continue }
+            guard gap <= maximumContinuousGapSeconds else {
+                currentSeconds = 0
+                continue
+            }
+            guard Double(samples[i].bpm) >= threshold else {
+                currentSeconds = 0
+                continue
+            }
+            currentSeconds += gap
+            longestSeconds = max(longestSeconds, currentSeconds)
         }
-        return seconds
+        return longestSeconds
     }
 
     private static func median(_ values: [Int]) -> Int? {

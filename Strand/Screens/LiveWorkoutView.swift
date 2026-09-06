@@ -498,8 +498,8 @@ private extension View {
 /// power meter) feeding RSC/CSC/CPS ALONGSIDE heart rate. Only the fields the sensor actually sent
 /// render — each metric is dropped when its value is absent, and the WHOLE block (panel + entrance stagger)
 /// is hidden when nothing is present (`live.hasSensorMetrics`), so a plain HR-only workout looks exactly
-/// as before. Honest units: speed km/h, cadence per-minute (steps for running / rpm for cycling), power
-/// watts. Tinted with the Effort world so it reads as part of the hero, not a competing accent. Nothing
+/// as before. Speed follows the exercise-distance preference; cadence stays per-minute and power in watts.
+/// Tinted with the Effort world so it reads as part of the hero, not a competing accent. Nothing
 /// here touches HR / zone / effort.
 ///
 /// This is a standalone leaf that owns its OWN `@EnvironmentObject live` (the parent `LiveWorkoutView`
@@ -510,10 +510,18 @@ private extension View {
 /// so the rendered output matches the previous inline code.
 private struct SensorRowIfPresent: View {
     @EnvironmentObject private var live: LiveState
+    @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
+    @AppStorage(UnitPrefs.distanceSystemKey) private var distanceSystemRaw = ""
+    private var distanceUnitSystem: UnitSystem {
+        UnitPrefs.resolveDistance(
+            system: UnitSystem(rawValue: unitSystemRaw) ?? .metric,
+            override: distanceSystemRaw)
+    }
 
     var body: some View {
         if live.hasSensorMetrics {
-            let speed = LiveState.formatSpeedKmh(live.sensorSpeedKmh)
+            let speed = UnitFormatter.speedFromKilometersPerHour(
+                live.sensorSpeedKmh, system: distanceUnitSystem)
             let cadence = LiveState.formatCadence(live.sensorCadence)
             let power = LiveState.formatPowerWatts(live.sensorPowerWatts)
             NoopCard(padding: NoopMetrics.cardInnerPadding, tint: StrandPalette.effortColor) {
@@ -522,7 +530,7 @@ private struct SensorRowIfPresent: View {
                         .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
                         .foregroundStyle(StrandPalette.textSecondary)
                     HStack(spacing: NoopMetrics.gap) {
-                        if let speed { stat(String(localized: "SPEED"), "\(speed) km/h", tint: StrandPalette.effortColor) }
+                        if let speed { stat(String(localized: "SPEED"), speed, tint: StrandPalette.effortColor) }
                         if let cadence { stat(String(localized: "CADENCE"), "\(cadence)/min", tint: StrandPalette.effortColor) }
                         if let power { stat(String(localized: "POWER"), "\(power) W", tint: StrandPalette.effortColor) }
                     }
@@ -560,7 +568,12 @@ private struct SensorRowIfPresent: View {
 private struct DistancePaceRowIfPresent: View {
     @ObservedObject var recorder: GpsWorkoutRecorder
     @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
-    private var unitSystem: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .metric }
+    @AppStorage(UnitPrefs.distanceSystemKey) private var distanceSystemRaw = ""
+    private var distanceUnitSystem: UnitSystem {
+        UnitPrefs.resolveDistance(
+            system: UnitSystem(rawValue: unitSystemRaw) ?? .metric,
+            override: distanceSystemRaw)
+    }
 
     var body: some View {
         // `isRecording` is essential, not just `pointCount > 0`: the recorder is a single long-lived
@@ -574,10 +587,10 @@ private struct DistancePaceRowIfPresent: View {
                     // "Distance"/"Pace" are already localized (reused from the detail view); uppercased for
                     // the caps stat grid, exactly as the detail route stats do.
                     stat(String(localized: "Distance").uppercased(),
-                         UnitFormatter.distanceFromMeters(recorder.distanceM, system: unitSystem))
+                         UnitFormatter.distanceFromMeters(recorder.distanceM, system: distanceUnitSystem))
                     statDivider
                     stat(String(localized: "Pace").uppercased(),
-                         UnitFormatter.paceFromSecPerKm(recorder.paceSecPerKm, system: unitSystem))
+                         UnitFormatter.paceFromSecPerKm(recorder.paceSecPerKm, system: distanceUnitSystem))
                 }
             }
         }

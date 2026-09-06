@@ -634,6 +634,28 @@ data class AppleStepHour(
 )
 
 /**
+ * PRD-K2: one persisted turn in the AI Coach conversation (Room v37 / MIGRATION_36_37). Swift
+ * `coachMessage` (WhoopStore Database.swift `v43-coach-messages` migration). Lets the Coach chat
+ * survive relaunch. `orderIndex` (not `createdAt`, which two streamed turns can share to the second)
+ * is a monotonically-increasing counter so replay order is exact. `provider` isn't filtered on for
+ * v1 (a conversation is a conversation across a provider switch) but is carried so a future
+ * per-provider view/filter doesn't need another migration. NEVER added to the `.noopbak` backup
+ * whitelist — a separate, deliberate decision (CLAUDE.md's backup contract).
+ *
+ * Fields are declared in the SAME order as the Swift GRDB schema (id, role, text, provider,
+ * createdAt, orderIndex) so the migration's CREATE TABLE column order matches Room's generated shape.
+ */
+@Entity(tableName = "coachMessage")
+data class CoachMessageRow(
+    @PrimaryKey val id: String,
+    val role: String,       // "user" | "assistant"
+    val text: String,
+    val provider: String,
+    val createdAt: Long,    // epoch seconds
+    val orderIndex: Int,    // monotonic replay order
+)
+
+/**
  * The RAW WHOOP 5.0 v26 optical PPG waveform, one record per second (v27 / MIGRATION_18_19, issue #156
  * follow-up). Swift `ppgWaveformSample` (WhoopStore Database.swift `v27-ppg-waveform` migration). The
  * strap's 24 Hz buffer was fully decoded but only ever used to derive [PpgHrSample]; the samples
@@ -647,6 +669,13 @@ data class AppleStepHour(
  * PK (deviceId, ts) mirrors every other per-second stream; a truncated frame can decode fewer than 24
  * samples. Fields are declared in the SAME order as the GRDB schema
  * (deviceId, ts, samples, burstIndex) so Room's generated shape stays byte-identical.
+ *
+ * CAPPED, not unbounded (#1911): [WhoopRepository.PPG_WAVEFORM_RETENTION_ROWS] rolling rows per device,
+ * the same shape [V18AuxSampleEntity] uses. The cap is NEWEST-N ROWS, never an age cutoff, and that is
+ * load-bearing for the paragraph above: a sporadic wearer's v26 seconds are spread thin over months, so
+ * dropping by wall-clock age would empty the table for exactly the user a future re-analysis needs most,
+ * and a waveform has no aggregate that survives it. Bounding the bytes while always leaving a full working
+ * set is the whole point. Swift twin: `WhoopStore.ppgWaveformRetentionRows`.
  */
 @Entity(tableName = "ppgWaveformSample", primaryKeys = ["deviceId", "ts"])
 data class PpgWaveformSampleEntity(

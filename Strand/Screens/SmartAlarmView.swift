@@ -366,6 +366,9 @@ struct SmartAlarmView: View {
                     if !on {
                         for weekday in 1...7 { WindDownNudge.setWakeOverride(weekday: weekday, minutes: nil) }
                         overrides = [:]
+                        // #1864: re-arm the strap alarm + backup notification so they drop the per-day
+                        // times and revert to the single default, matching the wind-down nudge's revert.
+                        model.applySmartAlarm()
                     }
                 }
         }
@@ -396,6 +399,9 @@ struct SmartAlarmView: View {
                 Button {
                     WindDownNudge.setWakeOverride(weekday: weekday, minutes: nil)
                     overrides[weekday] = nil
+                    // #1864: re-arm so clearing an override reverts that day's wake to the default time
+                    // on the strap alarm + backup notification too, not just the wind-down nudge.
+                    model.applySmartAlarm()
                 } label: {
                     Image(systemName: "arrow.uturn.backward")
                         .font(.system(size: 12, weight: .semibold))
@@ -428,6 +434,10 @@ struct SmartAlarmView: View {
                 let m = (c.hour ?? 7) * 60 + (c.minute ?? 0)
                 WindDownNudge.setWakeOverride(weekday: weekday, minutes: m)
                 overrides[weekday] = m
+                // #1864: re-arm the strap alarm + backup notification so the new per-day time takes
+                // effect immediately, not just the wind-down reminder. Without this the override moved
+                // only the evening nudge and left the wake on the default time.
+                model.applySmartAlarm()
             }
         )
     }

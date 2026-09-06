@@ -151,26 +151,30 @@ import argparse
 import json
 import datetime as _dt
 
+from capture_io import configure_utf8_stdio
+
 DEFAULT_DB = "captures/whoop4.db"
 
 
 def records(db_path=DEFAULT_DB, device_id=2, start=None, end=None):
     """Decoded v18 records (time-ordered) from the frames table."""
     con = sqlite3.connect(db_path)
-    q = "SELECT hex FROM frames WHERE device_id=? AND inner_type=47"
-    args = [device_id]
-    if start is not None:
-        q += " AND unix>=?"; args.append(start)
-    if end is not None:
-        q += " AND unix<?"; args.append(end)
-    q += " ORDER BY unix"
-    out = []
-    for (hx,) in con.execute(q, args):
-        d = decode_v18(bytes.fromhex(hx))
-        if d is not None:
-            out.append(d)
-    con.close()
-    return out
+    try:
+        q = "SELECT hex FROM frames WHERE device_id=? AND inner_type=47"
+        args = [device_id]
+        if start is not None:
+            q += " AND unix>=?"; args.append(start)
+        if end is not None:
+            q += " AND unix<?"; args.append(end)
+        q += " ORDER BY unix"
+        out = []
+        for (hx,) in con.execute(q, args):
+            d = decode_v18(bytes.fromhex(hx))
+            if d is not None:
+                out.append(d)
+        return out
+    finally:
+        con.close()
 
 
 def _day_bounds(day):
@@ -233,4 +237,5 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
+    configure_utf8_stdio()
     main()

@@ -521,6 +521,23 @@ extension WhoopStore {
         }
     }
 
+    /// #1853: FILL-ONLY write of `skinTempC` for nights the backfill re-derived an absolute for.
+    /// Updates ONLY the `skinTempC` column of an existing row, and ONLY when that column is currently
+    /// NULL — never an upsert of a rebuilt row, never overwriting a measured value. A single-column
+    /// UPDATE is deliberate: the backfill must not touch `skinTempDevC` or any other scored field, and
+    /// a full-row upsert would risk clobbering a concurrent scoring pass's write. Returns rows filled.
+    @discardableResult
+    public func fillSkinTempC(deviceId: String, day: String, skinTempC: Double) async throws -> Int {
+        try syncWrite { db in
+            try db.execute(sql: """
+                UPDATE dailyMetric
+                SET skinTempC = ?
+                WHERE deviceId = ? AND day = ? AND skinTempC IS NULL
+                """, arguments: [skinTempC, deviceId, day])
+            return db.changesCount
+        }
+    }
+
     // MARK: - Reads
 
     /// Cached sleep sessions overlapping [from, to] (by startTs), oldest first.

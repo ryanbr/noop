@@ -1,4 +1,5 @@
 import Foundation
+import StrandAnalytics
 
 struct GeminiClient: AIProviderClient {
 
@@ -9,14 +10,7 @@ struct GeminiClient: AIProviderClient {
         messages: [(role: ChatMessage.Role, content: String)],
         session: URLSession
     ) async throws -> String {
-        var contents: [[String: Any]] = []
-        for m in messages {
-            contents.append([
-                "role": m.role == .assistant ? "model" : "user",
-                "parts": [["text": m.content]]
-            ])
-        }
-
+        let contents = GeminiClient.buildContents(from: messages)
         let body: [String: Any] = [
             "system_instruction": ["parts": [["text": systemPrompt]]],
             "contents": contents,
@@ -52,8 +46,104 @@ struct GeminiClient: AIProviderClient {
         return text
     }
 
-    func fetchModels(key: String, session: URLSession) async throws -> [String] {
-        var req = URLRequest(url: AIProvider.gemini.modelsEndpoint)
+    /// K11: Build Gemini "contents" array from wire messages. Extracted so the multimodal path
+    /// (which appends an `inline_data` image part to the last user turn) can reuse it.
+    static func buildContents(from messages: [(role: ChatMessage.Role, content: String)]) -> [[String: Any]] {
+        var contents: [[String: Any]] = []
+        for m in messages {
+            contents.append([
+                "role": m.role == .assistant ? "model" : "user",
+                "parts": [["text": m.content]]
+            ])
+        }
+        return contents
+    }
+
+    /// K11: Append a base64-encoded image to the last user turn's parts (Gemini multimodal).
+    /// The image is sent as an `inline_data` part alongside the existing text part.
+    static func appendImage(_ base64: String, mimeType: String, to contents: inout [[String: Any]]) {
+        guard let lastUserIdx = contents.lastIndex(where: { ($0["role"] as? String) == "user" }) else { return }
+        var parts = contents[lastUserIdx]["parts"] as? [[String: Any]] ?? []
+        parts.append(["inline_data": ["mime_type": mimeType, "data": base64]])
+        contents[lastUserIdx]["parts"] = parts
+    }
+
+    /// K1: Stream via `:streamGenerateContent?alt=sse`. Same body as `send`, different endpoint +
+    /// SSE parsing. The concatenated deltas are byte-identical to `send`'s return (parity pin in
+    /// `SseDeltasTests.geminiReassembleMatchesFullReply`).
+    func stream(
+        key: String,
+        model: String,
+        systemPrompt: String,
+        messages: [(role: ChatMessage.Role, content: String)],
+        session: URLSession,
+        onDelta: (String) -> Void
+    ) async throws {
+        let contents = GeminiClient.buildContents(from: messages)
+
+        let body: [String: Any] = [
+            "system_instruction": ["parts": [["text": systemPrompt]]],
+            "contents": contents,
+            "generationConfig": ["temperature": 0.6, "maxOutputTokens": 4096]
+        ]
+
+        // :streamGenerateContent?alt=sse — SSE line-per-chunk. Built via URL(string:) to avoid
+        // appendingPathComponent percent-encoding the ":" (same note as `send`).
+        guard let url = URL(string: "\(AIProvider.gemini.endpoint.absoluteString)/\(model):streamGenerateContent?alt=sse") else {
+            throw AICoachError.network("invalid model id")
+        }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue(key, forHTTPHeaderField: "x-goog-api-key")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        try await performStreamingRequest(req, session: session) { payload in
+            if let delta = SseDeltas.geminiDelta(payload) {
+                onDelta(delta)
+            }
+        }
+    }
+
+    /// K11: Stream with an optional inline image (base64 PNG). Appends the image as
+    /// `inline_data` to the last user turn's parts, then streams as normal.
+    func streamWithImage(
+        key: String,
+        model: String,
+        systemPrompt: String,
+        messages: [(role: ChatMessage.Role, content: String)],
+        inlineImage: String?,
+        session: URLSession,
+        onDelta: (String) -> Void
+    ) async throws {
+        var contents = GeminiClient.buildContents(from: messages)
+        if let image = inlineImage {
+            GeminiClient.appendImage(image, mimeType: "image/png", to: &contents)
+        }
+
+        let body: [String: Any] = [
+            "system_instruction": ["parts": [["text": systemPrompt]]],
+            "contents": contents,
+            "generationConfig": ["temperature": 0.6, "maxOutputTokens": 4096]
+        ]
+
+        guard let url = URL(string: "\(AIProvider.gemini.endpoint.absoluteString)/\(model):streamGenerateContent?alt=sse") else {
+            throw AICoachError.network("invalid model id")
+        }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue(key, forHTTPHeaderField: "x-goog-api-key")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        try await performStreamingRequest(req, session: session) { payload in
+            if let delta = SseDeltas.geminiDelta(payload) {
+                onDelta(delta)
+            }
+        }
+    }
+
+    func fetchModels(key: String, session: URLSession) async throws -> [String] {        var req = URLRequest(url: AIProvider.gemini.modelsEndpoint)
         req.httpMethod = "GET"
         req.setValue(key, forHTTPHeaderField: "x-goog-api-key")
 

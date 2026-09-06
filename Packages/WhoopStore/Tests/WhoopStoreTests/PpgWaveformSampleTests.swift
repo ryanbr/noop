@@ -108,4 +108,135 @@ final class PpgWaveformSampleTests: XCTestCase {
         data.append(0xFF)
         XCTAssertEqual(WhoopStore.unpackPpgSamples(data), [1, 2, 3])
     }
+
+    // MARK: - #1911 rolling retention
+
+    private func retentionStore() async throws -> WhoopStore {
+        let s = try await WhoopStore.inMemory()
+        try await s.upsertDevice(id: "dev1", mac: nil, name: nil)
+        return s
+    }
+
+    private func waveform(_ ts: Int) -> Streams {
+        Streams(ppgWaveform: [PpgWaveformSample(ts: ts, samples: realSamples, burstIndex: 0)])
+    }
+
+    /// The cap keeps the NEWEST rows. This is the property the whole design rests on — an age-based drop
+    /// would instead empty the table for a sporadic wearer, whom a future PPG estimator needs most.
+    func testRetentionKeepsTheNewestRows() async throws {
+        let s = try await retentionStore()
+        for ts in 100...105 {
+            _ = try await s.insert(waveform(ts), deviceId: "dev1",
+                                   v18AuxRetentionRows: WhoopStore.v18AuxRetentionRows,
+                                   v18AuxPruneEveryRows: WhoopStore.v18AuxPruneEveryRows,
+                                   ppgWaveformRetentionRows: 2, ppgWaveformPruneEveryRows: 1)
+        }
+        let rows = try await s.ppgWaveformSamples(deviceId: "dev1", from: 0, to: 1_000)
+        XCTAssertEqual(rows.map(\.ts), [104, 105], "newest-N, not oldest-N and not everything")
+    }
+
+    /// Under the sweep threshold nothing is evicted — the overshoot is deliberate amortisation.
+    func testRetentionDoesNotSweepUnderTheThreshold() async throws {
+        let s = try await retentionStore()
+        for ts in 100...104 {
+            _ = try await s.insert(waveform(ts), deviceId: "dev1",
+                                   v18AuxRetentionRows: WhoopStore.v18AuxRetentionRows,
+                                   v18AuxPruneEveryRows: WhoopStore.v18AuxPruneEveryRows,
+                                   ppgWaveformRetentionRows: 2, ppgWaveformPruneEveryRows: 50)
+        }
+        let rows = try await s.ppgWaveformSamples(deviceId: "dev1", from: 0, to: 1_000)
+        XCTAssertEqual(rows.count, 5, "under the threshold the sweep must not run — overshoot is the point")
+    }
+
+    /// The counter resets after each sweep, so a long offload sweeps repeatedly rather than latching once.
+    func testRetentionCounterResetsAfterEachSweep() async throws {
+        let s = try await retentionStore()
+        for ts in 100...111 {
+            _ = try await s.insert(waveform(ts), deviceId: "dev1",
+                                   v18AuxRetentionRows: WhoopStore.v18AuxRetentionRows,
+                                   v18AuxPruneEveryRows: WhoopStore.v18AuxPruneEveryRows,
+                                   ppgWaveformRetentionRows: 2, ppgWaveformPruneEveryRows: 4)
+        }
+        let rows = try await s.ppgWaveformSamples(deviceId: "dev1", from: 0, to: 1_000)
+        XCTAssertEqual(rows.map(\.ts), [110, 111],
+                       "a second sweep must happen; the counter cannot latch after the first")
+    }
+
+    /// The budget is per device, because the delete is — one strap must not spend another's.
+    func testRetentionBudgetIsNotSharedBetweenDevices() async throws {
+        let s = try await retentionStore()
+        try await s.upsertDevice(id: "dev2", mac: nil, name: nil)
+        for ts in 100...102 {
+            _ = try await s.insert(waveform(ts), deviceId: "dev1",
+                                   v18AuxRetentionRows: WhoopStore.v18AuxRetentionRows,
+                                   v18AuxPruneEveryRows: WhoopStore.v18AuxPruneEveryRows,
+                                   ppgWaveformRetentionRows: 1, ppgWaveformPruneEveryRows: 4)
+        }
+        // With a SHARED counter dev2's single row crosses the threshold and sweeps; because the delete is
+        // scoped to dev2 it would evict nothing from dev1 while zeroing dev1's budget.
+        _ = try await s.insert(waveform(200), deviceId: "dev2",
+                               v18AuxRetentionRows: WhoopStore.v18AuxRetentionRows,
+                               v18AuxPruneEveryRows: WhoopStore.v18AuxPruneEveryRows,
+                               ppgWaveformRetentionRows: 1, ppgWaveformPruneEveryRows: 4)
+        _ = try await s.insert(waveform(103), deviceId: "dev1",
+                               v18AuxRetentionRows: WhoopStore.v18AuxRetentionRows,
+                               v18AuxPruneEveryRows: WhoopStore.v18AuxPruneEveryRows,
+                               ppgWaveformRetentionRows: 1, ppgWaveformPruneEveryRows: 4)
+        let d1 = try await s.ppgWaveformSamples(deviceId: "dev1", from: 0, to: 1_000)
+        XCTAssertEqual(d1.map(\.ts), [103],
+                       "dev1's own fourth row must trigger dev1's sweep — dev2 cannot spend its budget")
+    }
+
+    /// A batch with no waveform row must not sweep at all: a WHOOP 4.0 offload, or any non-v26 second,
+    /// never pays for the index scan and never evicts. Guards against banking the budget off other streams.
+    func testNoWaveformRowsMeansNoRetentionSweep() async throws {
+        let s = try await retentionStore()
+        _ = try await s.insert(waveform(100), deviceId: "dev1",
+                               v18AuxRetentionRows: WhoopStore.v18AuxRetentionRows,
+                               v18AuxPruneEveryRows: WhoopStore.v18AuxPruneEveryRows,
+                               ppgWaveformRetentionRows: 5, ppgWaveformPruneEveryRows: 1)
+        // An HR-only batch banks nothing here, so the cap of 1 must NOT evict the waveform row above.
+        _ = try await s.insert(Streams(hr: [HRSample(ts: 200, bpm: 60)]), deviceId: "dev1",
+                               v18AuxRetentionRows: WhoopStore.v18AuxRetentionRows,
+                               v18AuxPruneEveryRows: WhoopStore.v18AuxPruneEveryRows,
+                               ppgWaveformRetentionRows: 1, ppgWaveformPruneEveryRows: 1)
+        let rows = try await s.ppgWaveformSamples(deviceId: "dev1", from: 0, to: 1_000)
+        XCTAssertEqual(rows.map(\.ts), [100])
+    }
+
+    /// One strap's sweep must not evict ANOTHER strap's rows. Distinct from the budget test above, which
+    /// only proves the two devices bank separately: this pins the DELETE's own device scoping, and it is
+    /// the reason the older strap's rows sit BELOW the sweeping strap's cutoff. With `dev2` newer than the
+    /// cutoff (as in the budget test) the rows survive even a DELETE that has lost its `deviceId` filter,
+    /// so that arrangement cannot see the bug. Dropping the outer filter is silent cross-device data loss
+    /// on a multi-strap install, and nothing else in the suite catches it.
+    func testRetentionSweepDoesNotEvictAnotherDevicesRows() async throws {
+        let s = try await retentionStore()
+        try await s.upsertDevice(id: "dev2", mac: nil, name: nil)
+        for ts in [500, 501] {
+            _ = try await s.insert(waveform(ts), deviceId: "dev2",
+                                   v18AuxRetentionRows: WhoopStore.v18AuxRetentionRows,
+                                   v18AuxPruneEveryRows: WhoopStore.v18AuxPruneEveryRows,
+                                   ppgWaveformRetentionRows: 10, ppgWaveformPruneEveryRows: 50)
+        }
+        // dev1's rows are all NEWER than dev2's, so dev1's cutoff sits above every dev2 row.
+        for ts in 1_000...1_003 {
+            _ = try await s.insert(waveform(ts), deviceId: "dev1",
+                                   v18AuxRetentionRows: WhoopStore.v18AuxRetentionRows,
+                                   v18AuxPruneEveryRows: WhoopStore.v18AuxPruneEveryRows,
+                                   ppgWaveformRetentionRows: 1, ppgWaveformPruneEveryRows: 1)
+        }
+        let d1 = try await s.ppgWaveformSamples(deviceId: "dev1", from: 0, to: 10_000)
+        let d2 = try await s.ppgWaveformSamples(deviceId: "dev2", from: 0, to: 10_000)
+        XCTAssertEqual(d1.map(\.ts), [1_003], "dev1 is swept to its own cap")
+        XCTAssertEqual(d2.map(\.ts), [500, 501],
+                       "dev2's older rows must survive dev1's sweep — the DELETE is per device")
+    }
+
+    /// The production cap must stay a WEEK-SCALE newest-N row count, not an age-based drop. Pins the
+    /// constant so a future "just make it 7 days" edit has to confront `ppgWaveformRetentionRows`' note.
+    func testProductionRetentionCapIsAWeekOfStrapSeconds() {
+        XCTAssertEqual(WhoopStore.ppgWaveformRetentionRows, 604_800)
+        XCTAssertEqual(WhoopStore.ppgWaveformPruneEveryRows, 10_000)
+    }
 }

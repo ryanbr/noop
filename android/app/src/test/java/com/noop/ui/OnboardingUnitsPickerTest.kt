@@ -21,6 +21,7 @@ class OnboardingUnitsPickerTest {
     @Test
     fun unitSystemKeyIsTheSharedPrefsKey() {
         assertEquals("units.system", NoopPrefs.KEY_UNIT_SYSTEM)
+        assertEquals("units.distance", NoopPrefs.KEY_DISTANCE_UNIT_SYSTEM)
     }
 
     /** The control's items are the [UnitSystem] entries; their raw values must round-trip through the

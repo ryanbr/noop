@@ -29,6 +29,7 @@ import struct
 import sys
 import zipfile
 
+from capture_io import configure_utf8_stdio
 import whoop_frame as wf
 
 # --- Ground-truth CSV loading ----------------------------------------------------------------------
@@ -301,7 +302,7 @@ def main():
                    help="restrict to one record type byte, e.g. 0x2f")
     args = p.parse_args()
 
-    with open(args.capture) as f:
+    with open(args.capture, encoding="utf-8") as f:
         records = json.load(f)
     rows = load_ground_truth(args.export)
     if not rows:
@@ -344,4 +345,5 @@ def main():
 
 
 if __name__ == "__main__":
+    configure_utf8_stdio()
     main()

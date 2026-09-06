@@ -29,6 +29,7 @@ import time
 
 from bleak import BleakClient, BleakScanner
 
+from capture_io import configure_utf8_stdio
 import whoop_frame as wf
 
 # --- GATT UUIDs (from docs/BLE_REVERSE_ENGINEERING.md) ---------------------------------------------
@@ -146,7 +147,7 @@ class Capture:
         if not self.records:
             return
         tmp = self.out_path + ".tmp"
-        with open(tmp, "w") as f:
+        with open(tmp, "w", encoding="utf-8") as f:
             json.dump(self.records, f, indent=1)
         import os
         os.replace(tmp, self.out_path)
@@ -496,4 +497,5 @@ def main():
 
 
 if __name__ == "__main__":
+    configure_utf8_stdio()
     main()

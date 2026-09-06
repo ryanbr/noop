@@ -5,8 +5,97 @@ we control — not strap frames. Stdlib only; runs under either `python3 -m unit
 README documents and the only one in requirements.txt) or pytest.
 """
 import math
+import os
+import sqlite3
+import sys
+import tempfile
+from unittest import mock
 
 import whoop_spot_hrv as H
+
+
+def _empty_ppg_db():
+    fd, path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    con = sqlite3.connect(path)
+    con.execute(
+        "CREATE TABLE feat_ppg (device_id INTEGER, unix INTEGER, sample_idx INTEGER, "
+        "channel INTEGER, value INTEGER)"
+    )
+    con.close()
+    return path
+
+
+def _assert_connection_closed(con):
+    try:
+        con.execute("SELECT 1")
+    except sqlite3.ProgrammingError:
+        return
+    raise AssertionError("SQLite connection remained open")
+
+
+def _run_main_tracking_connection(path, *extra_args):
+    opened = []
+    real_connect = sqlite3.connect
+
+    def tracking_connect(*args, **kwargs):
+        con = real_connect(*args, **kwargs)
+        opened.append(con)
+        return con
+
+    argv = ["whoop_spot_hrv.py", "--db", path, "--device", "1", *extra_args]
+    with mock.patch.object(H.sqlite3, "connect", side_effect=tracking_connect), \
+            mock.patch.object(sys, "argv", argv):
+        result = H.main()
+    assert len(opened) == 1
+    return result, opened[0]
+
+
+def test_main_closes_database_on_normal_path():
+    path = _empty_ppg_db()
+    try:
+        result, con = _run_main_tracking_connection(path, "--start", "1", "--end", "2")
+        assert result == 0
+        _assert_connection_closed(con)
+    finally:
+        os.remove(path)
+
+
+def test_main_closes_database_on_no_windows_early_return():
+    path = _empty_ppg_db()
+    try:
+        result, con = _run_main_tracking_connection(path)
+        assert result == 1
+        _assert_connection_closed(con)
+    finally:
+        os.remove(path)
+
+
+def test_main_closes_database_when_query_raises():
+    path = _empty_ppg_db()
+    opened = []
+    real_connect = sqlite3.connect
+
+    def tracking_connect(*args, **kwargs):
+        con = real_connect(*args, **kwargs)
+        opened.append(con)
+        return con
+
+    argv = ["whoop_spot_hrv.py", "--db", path, "--device", "1"]
+    try:
+        with mock.patch.object(H.sqlite3, "connect", side_effect=tracking_connect), \
+                mock.patch.object(H, "_covered_windows", side_effect=RuntimeError("query failed")), \
+                mock.patch.object(sys, "argv", argv):
+            try:
+                H.main()
+            except RuntimeError as exc:
+                assert str(exc) == "query failed"
+            else:
+                raise AssertionError("expected query failure")
+        assert len(opened) == 1
+        _assert_connection_closed(opened[0])
+    finally:
+        os.remove(path)
 
 
 def _synth_ppg(fs, n_beats, ibi_ms, width_s=0.12):
