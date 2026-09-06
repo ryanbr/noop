@@ -1551,6 +1551,30 @@ class WhoopBleClient(
         const val BATTERY_PACK_PROBE_TIMEOUT_MS = 8_000L
 
         /**
+         * Blank the pack's six address bytes inside the raw frame dump, leaving every other byte
+         * readable. [cmdOff] + 5 is the address offset the decoder uses; [decoded] gates the edit so a
+         * frame that did NOT decode keeps all of its bytes, offsets being the open question there.
+         */
+        internal fun maskPackAddrInDump(rawHex: String, cmdOff: Int, decoded: Boolean): String {
+            if (!decoded) return rawHex
+            val from = (cmdOff + 5) * 2
+            val to = from + 12
+            if (from < 0 || to > rawHex.length) return rawHex
+            return rawHex.substring(0, from) + "••••••••••••" + rawHex.substring(to)
+        }
+
+        /**
+         * First and last octet of a pack's BT address, the rest masked — the same shape
+         * `redactStrapLogPii` gives a colon-formatted MAC, applied at the SOURCE because this report
+         * also reaches a copy-to-clipboard dialog that the scrubber never sees.
+         */
+        internal fun maskPackBtAddr(btAddr: String?): String {
+            if (btAddr.isNullOrEmpty()) return "<none>"
+            if (btAddr.length != 12) return "<malformed>"
+            return "${btAddr.take(2)}:••:••:••:••:${btAddr.takeLast(2)}"
+        }
+
+        /**
          * Format a cmd-151 COMMAND_RESPONSE into a readable report for the Devices dialog + strap log.
          * Pure, so it is unit-testable without a strap. [cmdOff] is the response-command byte offset
          * (10 on 5/MG; a WHOOP 4.0 has no pack command at all and is not expected to answer).
@@ -1564,9 +1588,16 @@ class WhoopBleClient(
          */
         internal fun formatBatteryPackProbe(frame: ByteArray, cmdOff: Int): String {
             val sb = StringBuilder()
-            sb.append("GET_BATTERY_PACK_INFO (151) response, ${frame.size} bytes, cmdOff=$cmdOff\n")
-            sb.append("raw: ${frame.joinToString("") { "%02x".format(it) }}\n\n")
             val info = com.noop.protocol.BatteryPackInfo.decode(frame, cmdOff)
+            sb.append("GET_BATTERY_PACK_INFO (151) response, ${frame.size} bytes, cmdOff=$cmdOff\n")
+            // The dump is the evidence, so it stays whole EXCEPT the six address bytes, and only once
+            // `decode` has confirmed the layout. `redactStrapLogPii` lifts the serial out of a hex run
+            // but has no rule that can reach a colon-less address, so without this the pack's MAC ships
+            // in both sinks even after scrubbing. Masked at a KNOWN offset only: when decode returned
+            // null the offsets are precisely what is in question, and blanking a guessed range there
+            // would destroy the evidence the operator opened this probe to read.
+            val rawHex = frame.joinToString("") { "%02x".format(it) }
+            sb.append("raw: ${maskPackAddrInDump(rawHex, cmdOff, info != null && info.present)}\n\n")
             if (info == null) {
                 sb.append("DID NOT DECODE as a 151 SUCCESS response at this offset.\n")
                 sb.append("Either the reply is not a 151 response, or its result byte is not SUCCESS, or\n")
@@ -1580,8 +1611,16 @@ class WhoopBleClient(
                 return sb.toString()
             }
             sb.append("present = TRUE\n")
-            sb.append("serial  = ${info.serial ?: "<undecodable>"}\n")
-            sb.append("bt addr = ${info.btAddr ?: "<none>"}\n")
+            // logSafe + a masked address, NOT the raw pair. This report goes to the SHAREABLE strap log
+            // AND to a dialog with a copy button, and neither identifier survives contact with the
+            // scrubber: `redactStrapLogPii` keys the serial rule on a literal "WHOOP " prefix (a bare
+            // `serial  = BB5AP…` matches nothing) and keys the MAC rule on COLONS, which `btAddr`'s
+            // colon-less `joinToString("")` never produces. The pack-log line in
+            // `handleCommandResponse` already learned this and says so; a probe that prints them raw
+            // would walk both straight back out. Three characters tell two packs apart, and the first
+            // and last octet tell two addresses apart, which is all a diagnostic needs.
+            sb.append("serial  = ${com.noop.data.WhoopSerialIdentity.logSafe(info.serial)}\n")
+            sb.append("bt addr = ${maskPackBtAddr(info.btAddr)}\n")
             // Read the SoC word straight from the frame rather than reconstructing it from the decoded
             // Double — decode() already bounds-checked this offset when it returned present=true, and a
             // float round-trip could land the raw value one off.
@@ -7236,7 +7275,11 @@ class WhoopBleClient(
                         _batteryPackProbe.value == WAITING_BATTERY_PACK_PROBE) {
                         val text = formatBatteryPackProbe(frame, cmdOff)
                         log("Battery-pack probe (151):\n$text")
-                        _batteryPackProbe.value = text
+                        // Scrub the DIALOG copy too. log() already redacts on the way to the strap log,
+                        // but this value is rendered behind a copy-to-clipboard button, so it is a second
+                        // sink the scrubber otherwise never sees — and the `raw:` frame dump carries the
+                        // serial as ASCII inside the hex, which is exactly what redactStrapLogPii masks.
+                        _batteryPackProbe.value = redactStrapLogPii(text)
                     }
                     // #761: a reply to the read-only feature-flag enumeration (117/118). In-flight-guarded
                     // inside handleFeatureFlagProbeResponse, so this is a byte compare on every other frame.
