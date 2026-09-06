@@ -962,14 +962,13 @@ private fun CoachPrimaryButton(label: String, enabled: Boolean, onClick: () -> U
  * Mirrors the iOS `CoachView.composer` + `micButton` twin. The mic button:
  *  - requests RECORD_AUDIO at runtime on first tap (via [rememberLauncherForActivityResult]),
  *  - starts/stops [CoachVoiceInput], which uses `createOnDeviceSpeechRecognizer` behind an
- *    `isOnDeviceRecognitionAvailable` gate (API 31+) and hides the mic entirely below that, so audio
- *    cannot reach a server. This line used to say EXTRA_PREFER_OFFLINE, which was a PREFERENCE the
- *    platform could ignore; that is the weaker mechanism the review replaced, and a doc still naming
- *    it would have this screen vouching for a guarantee the code no longer relies on,
+ *    `isOnDeviceRecognitionAvailable` gate (API 31+); below that the button is not composed at all,
  *  - streams the partial transcript into the text field live,
  *  - on stop, appends the finalized transcript to the draft (not replace, so it composes with
  *    typed text).
- * Only the resulting TEXT ever reaches the AI provider — no new network path, no audio egress.
+ * Only the resulting TEXT ever reaches the AI provider — no new network path, no audio egress. That
+ * is a guarantee rather than a preference: `createOnDeviceSpeechRecognizer` cannot fall back to a
+ * server, where the `EXTRA_PREFER_OFFLINE` this line used to name was a hint the platform could ignore.
  */
 @Composable
 private fun MicComposerRow(
