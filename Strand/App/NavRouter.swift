@@ -97,6 +97,4 @@ final class NavRouter: ObservableObject {
         pendingJournalDayOffset = offset
         requestedDestination = .journal
     }
-    /// K5: open Coach — the scheduled morning-brief notification's tap-through target.
-    func openCoach() { requestedDestination = .coach }
 }
