@@ -30,7 +30,8 @@ import WhoopStore
 ///
 /// The display half (whether Today shows a stale carried value or falls through to its no-data state) is
 /// #977's `freshRestScore` + `isCarryStale`, which live in the app target and are covered there and by
-/// Android's `RestFreshnessTest`. This package pins only what it owns.
+/// Android's `RestFreshnessTest`. This package pins only what it owns, and says so at the bottom of the
+/// file rather than keeping a test that re-simulates a rule it cannot import.
 final class Live5RestFrozenTests: XCTestCase {
 
     private func hrStream(start: Int, durationS: Int, bpm: Int) -> [HRSample] {
@@ -70,14 +71,32 @@ final class Live5RestFrozenTests: XCTestCase {
     /// frozen state is closed and the old `XCTExpectFailure` was vouching for a fixed bug. If it fails,
     /// the gap is real and this is where it lives.
     func testV2WithNoGravityStagesTheNightFromHrAlone() {
-        let start = nightStart()
-        let dur = 8 * 60 * 60
-        let hr = hrStream(start: start, durationS: dur, bpm: 50)
+        // Awake HR either side of the sleep block, NOT a flat night. `hrOnlySleepRuns` flags an epoch as
+        // sleep when its median sits under the 10th-percentile baseline x 1.05, so a constant-bpm fixture
+        // makes that test trivially true for every epoch — the whole window becomes one "sleep" run and
+        // the probe would pass even if V2 were over-staging wholesale, which is the exact 4.0 failure
+        // mode #319 describes. With a real spread the baseline has to FIND the quiet block.
+        let awakeBefore = 2 * 60 * 60
+        let asleep = 8 * 60 * 60
+        let awakeAfter = 2 * 60 * 60
+        let windowStart = nightStart() - awakeBefore
+        let hr = hrStream(start: windowStart, durationS: awakeBefore, bpm: 72)
+            + hrStream(start: nightStart(), durationS: asleep, bpm: 50)
+            + hrStream(start: nightStart() + asleep, durationS: awakeAfter, bpm: 72)
+
         let sessions = SleepStager.detectSleep(hr: hr, gravity: [], useSleepStagerV2: true)
         XCTAssertFalse(sessions.isEmpty,
                        "V2 has an HR-only spine (hrOnlySleepRuns); a dense sleep-plausible night must stage")
         XCTAssertTrue(sessions.allSatisfy { $0.hrOnly },
                       "staged without gravity ⇒ every session must carry hrOnly, so consumers can weigh it")
+
+        // The staged time must resemble the quiet block, not the whole window. Deliberately loose (staging
+        // trims edges and may split): what this rejects is "everything is sleep", which is the way an
+        // HR-only spine fails silently.
+        let staged = sessions.reduce(0) { $0 + ($1.end - $1.start) }
+        XCTAssertGreaterThan(staged, 5 * 60 * 60, "staged well under the quiet block ⇒ the spine missed it")
+        XCTAssertLessThan(staged, awakeBefore + asleep + awakeAfter - 60 * 60,
+                          "staged the awake hours too ⇒ over-staging, not detection")
     }
 
     // MARK: - Stage 2: no sleep ⇒ no Rest composite ⇒ no sleep_performance point
@@ -133,27 +152,11 @@ final class Live5RestFrozenTests: XCTestCase {
                         "Sleep aggregates present ⇒ a Rest composite ⇒ a sleep_performance point is written")
     }
 
-    /// When no point is written, the SERIES tail is the last night that scored. That is a fact about the
-    /// series and it is unchanged — but it is no longer the same statement as "Today shows 93 forever",
-    /// which is what this test used to assert.
-    ///
-    /// #977 put `freshRestScore` + `isCarryStale` in front of the display: today's own value wins, else
-    /// the carry is used ONLY on today and ONLY inside the freshness window, else the read-out falls
-    /// through to its no-data state rather than freezing on a weeks-old number. Those live in the app
-    /// target (and Android's `TodayScoring.freshRestScore`, covered by `RestFreshnessTest`), so this
-    /// package pins the series semantics and names where the gate is tested instead of re-simulating a
-    /// display rule it cannot import.
-    func testSeriesTailIsTheLastScoredNightWhenNoPointIsWritten() {
-        let restByDay: [String: Double] = [
-            "2026-06-25": 88,
-            "2026-06-26": 91,
-            "2026-06-27": 93,   // the last night that staged and scored
-        ]
-        let seriesTail = restByDay.max(by: { $0.key < $1.key })?.value
-        XCTAssertEqual(seriesTail, 93, "the tail is the newest scored night, not the newest day")
-        // Later days ran and advanced Charge but wrote no sleep_performance row, so the tail does not move.
-        for day in ["2026-06-28", "2026-06-29", "2026-06-30"] {
-            XCTAssertNil(restByDay[day], "\(day) wrote no Rest point, so it contributes nothing to the tail")
-        }
-    }
+    // The display half deliberately has NO test here. It used to, and that test asserted `max(by:)` over a
+    // literal dictionary — it exercised no product code at all, which is worse than no test because it
+    // reads like coverage. Since #977 the rule it meant to describe is `freshRestScore` + `isCarryStale`:
+    // today's own value wins, the carry applies only on today and only inside the freshness window, and
+    // otherwise the read-out falls through to its no-data state instead of freezing on a weeks-old number.
+    // Those live in the app target and in Android's `TodayScoring.freshRestScore`, covered by
+    // `RestFreshnessTest`. This package pins what it owns and points at the rest.
 }
