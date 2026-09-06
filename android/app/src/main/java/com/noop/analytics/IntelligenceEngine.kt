@@ -823,7 +823,8 @@ object IntelligenceEngine {
                 // per-day anchor block below is a no-op — byte-identical anchor either way. A 5/MG banks
                 // skin-temp centidegrees directly — no per-device anchor — so its anchor slot stays null.
                 if (cacheOwnerFamily == DeviceFamily.WHOOP4 && !skinAnchorResolvedOwners.contains(owner)) {
-                    val windowSkin = repo.skinTempSamples(owner, skinAnchorScanFrom, skinAnchorScanTo, STREAM_LIMIT)
+                    val windowSkin = repo.skinTempSamples(owner, skinAnchorScanFrom, skinAnchorScanTo,
+                        StreamReadCap.SKIN)
                     Whoop4SkinTemp.deviceAnchorRaw(windowSkin.map { it.raw })?.let { skinAnchorByOwner[owner] = it }
                     skinAnchorResolvedOwners.add(owner)
                 }
@@ -2736,7 +2737,7 @@ object IntelligenceEngine {
         skinAnchorScanFrom: Long,
         skinAnchorScanTo: Long,
     ): DaySkinReads {
-        val skin = repo.skinTempSamples(owner, from, to, STREAM_LIMIT)
+        val skin = repo.skinTempSamples(owner, from, to, StreamReadCap.SKIN)
         // #93: WHOOP 4.0 raw SpO2 PPG samples for the night; analyzeDay banks the nightly red/IR ADC
         // means on the DailyMetric. Empty on a 5/MG (no v24 spo2 channels) → the raw means stay null.
         val spo2 = repo.spo2Samples(owner, from, to, STREAM_LIMIT)
@@ -2765,7 +2766,8 @@ object IntelligenceEngine {
         // identical to today). Computed here once per owner alongside the family resolution.
         val skinAnchorRaw = if (skinFamily == DeviceFamily.WHOOP4) {
             if (!skinAnchorResolvedOwners.contains(owner)) {
-                val windowSkin = repo.skinTempSamples(owner, skinAnchorScanFrom, skinAnchorScanTo, STREAM_LIMIT)
+                val windowSkin = repo.skinTempSamples(owner, skinAnchorScanFrom, skinAnchorScanTo,
+                    StreamReadCap.SKIN)
                 Whoop4SkinTemp.deviceAnchorRaw(windowSkin.map { it.raw })?.let { skinAnchorByOwner[owner] = it }
                 skinAnchorResolvedOwners.add(owner)
             }
@@ -2936,7 +2938,7 @@ object IntelligenceEngine {
      */
     internal fun sleepDetectNoNightLogLine(
         day: String, hrCount: Int, rrCount: Int, respCount: Int, gravCount: Int,
-        stepCount: Int, providedCount: Int, windowHours: Int, skinCount: Int = 0,
+        stepCount: Int, providedCount: Int, windowHours: Int, skinCount: Int,
     ): String {
         // `reason` names WHICH absence this is, because grav=0 is printed but its consequence is not.
         //
@@ -2964,6 +2966,9 @@ object IntelligenceEngine {
             if (gravCount >= StreamReadCap.GRAVITY) add("grav")
             if (hrCount >= StreamReadCap.HR) add("hr")
             if (rrCount >= StreamReadCap.RR) add("rr")
+            // Skin is here because it is the stream whose density was never measured — the reason the
+            // count is printed at all. The count is the night-WINDOW read, so this marks that read clipped.
+            if (skinCount >= StreamReadCap.SKIN) add("skin")
         }
         val capNote = if (atCap.isEmpty()) "" else " atCap=${atCap.joinToString(",")}"
         return "sleep-detect day=$day NO-NIGHT hr=$hrCount rr=$rrCount resp=$respCount " +

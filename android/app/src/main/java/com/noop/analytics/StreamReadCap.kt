@@ -91,6 +91,21 @@ object StreamReadCap {
      */
     const val HEADROOM = 1.5
 
+    /**
+     * The cap on the skin-temp reads, named rather than left a literal so the no-night line can say when
+     * one came back AT it.
+     *
+     * Not derived from a row rate like the caps below: skin's density was never measured. Skin rides the
+     * record that carries gravity, and gravity ranged from 177 to 192,698 rows across 54 HOURS in one
+     * capture, so whether 200,000 is generous or tight is genuinely unknown - which is the reason to
+     * print the count. Unchanged in value: this names what both platforms already read at.
+     *
+     * Shared by two reads with very different spans - the night window, and the ~21-day WHOOP 4.0 anchor
+     * scan. Only the window read's count reaches the no-night line, so an `atCap=skin` marker means THAT
+     * read was clipped; a clipped anchor scan still goes unreported.
+     */
+    const val SKIN = 200_000
+
     /** The cap for a stream producing [rowsPerSecond] at its densest. */
     fun cap(rowsPerSecond: Double): Int = ceil(WINDOW_SECONDS * rowsPerSecond * HEADROOM).toInt()
 

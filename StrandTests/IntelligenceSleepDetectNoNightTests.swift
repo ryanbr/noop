@@ -72,7 +72,6 @@ final class IntelligenceSleepDetectNoNightTests: XCTestCase {
         XCTAssertLessThan(192_698, StreamReadCap.gravity)
     }
 
-
     /// The count that could not be measured. Skin temp only appears in a Test Centre "Night" line, which
     /// fires when a session EXISTS — so on the nights being triaged, the ones with no sleep at all, its
     /// volume was invisible.
@@ -81,6 +80,15 @@ final class IntelligenceSleepDetectNoNightTests: XCTestCase {
             day: "2026-09-06", hrCount: 1000, rrCount: 900, respCount: 0, gravCount: 0,
             stepCount: 0, providedCount: 0, windowHours: 54, skinCount: 4242)
         XCTAssertTrue(line.contains("skin=4242"), line)
+    }
+
+    /// Skin is the stream whose density was never measured, and it was the one `atCap` did not cover
+    /// when the marker was first written — so a clipped skin read printed a bare count and no warning.
+    func testSkinAtItsReadCapIsNamed() {
+        let line = IntelligenceEngine.sleepDetectNoNightLogLine(
+            day: "2026-09-06", hrCount: 10, rrCount: 10, respCount: 0, gravCount: 10,
+            stepCount: 0, providedCount: 0, windowHours: 54, skinCount: StreamReadCap.skin)
+        XCTAssertTrue(line.contains("atCap=skin"), line)
     }
 
 }

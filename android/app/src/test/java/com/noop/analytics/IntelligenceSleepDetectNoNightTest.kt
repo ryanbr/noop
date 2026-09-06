@@ -22,7 +22,7 @@ class IntelligenceSleepDetectNoNightTest {
         // gate the night → nothing stages. window=54h is the past-day span (30 h back → next midnight).
         val line = IntelligenceEngine.sleepDetectNoNightLogLine(
             day = "2026-08-11", hrCount = 41230, rrCount = 0, respCount = 880,
-            gravCount = 0, stepCount = 12, providedCount = 0, windowHours = 54,
+            gravCount = 0, stepCount = 12, providedCount = 0, windowHours = 54, skinCount = 0,
         )
         assertEquals(
             // reason=no-motion is the point of this fixture: grav=0 means the stager has no HR-only
@@ -39,7 +39,7 @@ class IntelligenceSleepDetectNoNightTest {
         // Today's read caps at dayStart+18h (vs a past day's next-midnight), so the whole span is 48 h.
         val line = IntelligenceEngine.sleepDetectNoNightLogLine(
             day = "2026-08-12", hrCount = 5000, rrCount = 900, respCount = 300,
-            gravCount = 4, stepCount = 0, providedCount = 0, windowHours = 48,
+            gravCount = 4, stepCount = 0, providedCount = 0, windowHours = 48, skinCount = 0,
         )
         assertTrue(line, line.contains("window=48h"))
         // The other branch: motion WAS present and staging still produced nothing, which is the case
@@ -52,7 +52,7 @@ class IntelligenceSleepDetectNoNightTest {
         // House style: never an em-dash in shared text.
         val line = IntelligenceEngine.sleepDetectNoNightLogLine(
             day = "2026-08-11", hrCount = 1, rrCount = 1, respCount = 1,
-            gravCount = 1, stepCount = 1, providedCount = 1, windowHours = 54,
+            gravCount = 1, stepCount = 1, providedCount = 1, windowHours = 54, skinCount = 1,
         )
         assertFalse(line.contains("—"))
     }
@@ -66,7 +66,7 @@ class IntelligenceSleepDetectNoNightTest {
     @Test fun `a stream at its read cap is named`() {
         val line = IntelligenceEngine.sleepDetectNoNightLogLine(
             day = "2026-09-06", hrCount = 1000, rrCount = 1000, respCount = 0,
-            gravCount = StreamReadCap.GRAVITY, stepCount = 0, providedCount = 0, windowHours = 54,
+            gravCount = StreamReadCap.GRAVITY, stepCount = 0, providedCount = 0, windowHours = 54, skinCount = 0,
         )
         assertTrue(line, line.contains("atCap=grav"))
     }
@@ -75,7 +75,7 @@ class IntelligenceSleepDetectNoNightTest {
     @Test fun `a night under the caps carries no marker`() {
         val line = IntelligenceEngine.sleepDetectNoNightLogLine(
             day = "2026-09-06", hrCount = 192_698, rrCount = 136_285, respCount = 0,
-            gravCount = 192_698, stepCount = 0, providedCount = 0, windowHours = 54,
+            gravCount = 192_698, stepCount = 0, providedCount = 0, windowHours = 54, skinCount = 0,
         )
         assertFalse(line, line.contains("atCap"))
     }
@@ -89,7 +89,6 @@ class IntelligenceSleepDetectNoNightTest {
         assertTrue(192_698 < StreamReadCap.GRAVITY)
     }
 
-
     /**
      * The count that could not be measured. Skin temp only appears in a Test Centre "Night" line, which
      * fires when a session EXISTS - so on the nights being triaged, the ones with no sleep at all, its
@@ -102,6 +101,18 @@ class IntelligenceSleepDetectNoNightTest {
             stepCount = 0, providedCount = 0, windowHours = 54, skinCount = 4242,
         )
         assertTrue(line, line.contains("skin=4242"))
+    }
+
+    /**
+     * Skin is the stream whose density was never measured, and it was the one `atCap` did not cover
+     * when the marker was first written — so a clipped skin read printed a bare count and no warning.
+     */
+    @Test fun `skin at its read cap is named`() {
+        val line = IntelligenceEngine.sleepDetectNoNightLogLine(
+            day = "2026-09-06", hrCount = 10, rrCount = 10, respCount = 0, gravCount = 10,
+            stepCount = 0, providedCount = 0, windowHours = 54, skinCount = StreamReadCap.SKIN,
+        )
+        assertTrue(line, line.contains("atCap=skin"))
     }
 
 }

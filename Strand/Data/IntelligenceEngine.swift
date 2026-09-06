@@ -340,7 +340,7 @@ final class IntelligenceEngine: ObservableObject {
     nonisolated static func sleepDetectNoNightLogLine(day: String, hrCount: Int, rrCount: Int,
                                                       respCount: Int, gravCount: Int, stepCount: Int,
                                                       providedCount: Int, windowHours: Int,
-                                                      skinCount: Int = 0) -> String {
+                                                      skinCount: Int) -> String {
         // `reason` names WHICH absence this is, because grav=0 is printed but its consequence is not.
         // With no motion the stager has no HR-only fallback, so no quantity of HR can stage a night — a
         // strap capability limit, not a coverage gap, and the two want completely different follow-ups.
@@ -360,6 +360,9 @@ final class IntelligenceEngine: ObservableObject {
         if gravCount >= StreamReadCap.gravity { atCap.append("grav") }
         if hrCount >= StreamReadCap.hr { atCap.append("hr") }
         if rrCount >= StreamReadCap.rr { atCap.append("rr") }
+        // Skin is here because it is the stream whose density was never measured — the reason the
+        // count is printed at all. The count is the night-WINDOW read, so this marks that read clipped.
+        if skinCount >= StreamReadCap.skin { atCap.append("skin") }
         let capNote = atCap.isEmpty ? "" : " atCap=" + atCap.joined(separator: ",")
         return "sleep-detect day=\(day) NO-NIGHT hr=\(hrCount) rr=\(rrCount) resp=\(respCount) "
             + "grav=\(gravCount) skin=\(skinCount) steps=\(stepCount) provided=\(providedCount) "
@@ -984,7 +987,7 @@ final class IntelligenceEngine: ObservableObject {
                         let windowSkin = (try? await store.skinTempSamples(deviceId: owner,
                                                                            from: skinAnchorScanFrom,
                                                                            to: skinAnchorScanTo,
-                                                                           limit: 200_000)) ?? []
+                                                                           limit: StreamReadCap.skin)) ?? []
                         if let anchor = Whoop4SkinTemp.deviceAnchorRaw(windowSkin.map { $0.raw }) {
                             skinAnchorByOwner[owner] = anchor
                         }
@@ -1044,7 +1047,7 @@ final class IntelligenceEngine: ObservableObject {
                 let grav = (try? await store.gravitySamples(deviceId: owner, from: from, to: to,
                                                             limit: StreamReadCap.gravity)) ?? []
                 let steps = (try? await store.stepSamples(deviceId: owner, from: from, to: to, limit: 200_000)) ?? []
-                let skin = (try? await store.skinTempSamples(deviceId: owner, from: from, to: to, limit: 200_000)) ?? []
+                let skin = (try? await store.skinTempSamples(deviceId: owner, from: from, to: to, limit: StreamReadCap.skin)) ?? []
                 // #93: WHOOP 4.0 raw SpO2 PPG samples for the night; analyzeDay banks the nightly red/IR ADC
                 // means on the DailyMetric. Empty on a 5/MG (no v24 spo2 channels) → the raw means stay nil.
                 let spo2 = (try? await store.spo2Samples(deviceId: owner, from: from, to: to, limit: 200_000)) ?? []
@@ -1072,7 +1075,7 @@ final class IntelligenceEngine: ObservableObject {
                         let windowSkin = (try? await store.skinTempSamples(deviceId: owner,
                                                                            from: skinAnchorScanFrom,
                                                                            to: skinAnchorScanTo,
-                                                                           limit: 200_000)) ?? []
+                                                                           limit: StreamReadCap.skin)) ?? []
                         if let anchor = Whoop4SkinTemp.deviceAnchorRaw(windowSkin.map { $0.raw }) {
                             skinAnchorByOwner[owner] = anchor
                         }
@@ -1305,7 +1308,8 @@ final class IntelligenceEngine: ObservableObject {
                         hrvDiag = Self.sleepDetectNoNightLogLine(
                             day: day, hrCount: hr.count, rrCount: rr.count, respCount: resp.count,
                             gravCount: grav.count, stepCount: steps.count,
-                            providedCount: providedSleep.count, windowHours: windowHours)
+                            providedCount: providedSleep.count, windowHours: windowHours,
+                            skinCount: skin.count)
                     } else {
                         hrvDiag = nil
                     }
