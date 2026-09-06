@@ -770,7 +770,7 @@
     <string name="l10n_today_screen_arrange_today_6b699147">Arregla hoy</string>
     <string name="l10n_today_screen_calibrating_37c2c9bd">Calibrando</string>
     <string name="l10n_today_screen_no_new_nights_from_your_strap_for_stale_days_8863bcfe">Sin nuevas noches de tu strap desde hace %1$d días. Comprueba que esté conectado y guardando datos.</string>
-    <string name="l10n_today_screen_calibratingnights_of_baselines_minnightsseed_3b76e55c">%1$s de %2$s</string>
+    <string name="l10n_today_screen_calibratingnights_of_baselines_minnightsseed_3b76e55c">%1$s de %2$s noches</string>
     <string name="l10n_today_screen_choose_which_cards_show_on_today_f79942e1">Elija qué tarjetas muestran en Hoy y reordenarlos con las flechas.</string>
     <string name="l10n_today_screen_close_bbfa773e">Cerrar</string>
     <string name="l10n_today_screen_customise_your_cards_2428d761">Personaliza tus tarjetas</string>

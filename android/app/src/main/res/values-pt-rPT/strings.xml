@@ -935,7 +935,7 @@
     <string name="l10n_today_screen_arrange_today_6b699147">Organize hoje</string>
     <string name="l10n_today_screen_calibrating_37c2c9bd">A calibrar</string>
     <string name="l10n_today_screen_no_new_nights_from_your_strap_for_stale_days_8863bcfe">Nenhuma noite nova na tua bracelete durante %1$d dias. Verifique se está ligado e a guardar dados.</string>
-    <string name="l10n_today_screen_calibratingnights_of_baselines_minnightsseed_3b76e55c">%1$s de %2$s</string>
+    <string name="l10n_today_screen_calibratingnights_of_baselines_minnightsseed_3b76e55c">%1$s de %2$s noites</string>
     <string name="l10n_today_screen_choose_which_cards_show_on_today_f79942e1">Escolha quais os cartões que serão apresentados no Hoje e reordene-os com as setas. </string>
     <string name="l10n_today_screen_close_bbfa773e">Fechar</string>
     <string name="l10n_today_screen_customise_your_cards_2428d761">Personalize os teus cartões</string>

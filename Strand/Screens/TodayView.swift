@@ -3397,8 +3397,14 @@ struct TodayView: View {
                 // the same lineLimit/scaleFactor guard so it never wraps, then its "N of 4" subtitle below.
                 Text("Calibrating").font(StrandFont.headline).foregroundStyle(StrandPalette.textPrimary)
                     .lineLimit(1).minimumScaleFactor(0.7).fixedSize()
-                Text("\(n) of \(Baselines.minNightsSeed)").font(StrandFont.footnote).foregroundStyle(StrandPalette.textSecondary)
-                    .lineLimit(1)
+                // #1816's lesson on a second tile: a bare "2 of 4" under "Calibrating" is read as DAYS,
+                // and a wearer five days in reports it stuck. It counts NIGHTS THAT BANKED A USABLE HRV
+                // (`Baselines.update` only advances `nValid` for a non-nil in-range value), so a week of
+                // wear with three R-R-less nights genuinely sits at 2. Naming the unit is the whole fix:
+                // the number is right, the reader's unit was not.
+                Text("\(n) of \(Baselines.minNightsSeed) nights").font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .lineLimit(1).minimumScaleFactor(0.7)
             } else {
                 ringNoData(diameter: diameter)
             }
