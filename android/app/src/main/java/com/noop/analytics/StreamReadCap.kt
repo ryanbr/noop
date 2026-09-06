@@ -92,8 +92,9 @@ object StreamReadCap {
     const val HEADROOM = 1.5
 
     /**
-     * The cap on the skin-temp reads, named rather than left a literal so the no-night line can say when
-     * one came back AT it.
+     * The cap on the sleep engine's skin-temp reads, named rather than left a literal so the no-night
+     * line can say when one came back AT it. Skin reads OUTSIDE the engine (a chart, an export) keep
+     * their own limits - this is not a repo-wide skin cap.
      *
      * Not derived from a row rate like the caps below: skin's density was never measured. Skin rides the
      * record that carries gravity, and gravity ranged from 177 to 192,698 rows across 54 HOURS in one
