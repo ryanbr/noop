@@ -3108,7 +3108,32 @@ object SleepStager {
      */
     internal fun sessionAvgHRV(start: Long, end: Long, rr: List<RrInterval>): Double? {
         val vals = sessionHrvWindows(start, end, rr, emptyList()).mapNotNull { it.rmssd }
-        return if (vals.isEmpty()) null else vals.sum() / vals.size.toDouble()
+        if (vals.isEmpty()) return null
+        // #1118: refuse the night outright when its own R-R banks more beat-time than the wall clock it
+        // spans. Gated HERE rather than at the caller because this is where RMSSD BECOMES the day's HRV:
+        // one seam covers the daily row, the sleep-session cache, the Health card and the baseline that
+        // later nights are scored against, so none of them can end up disagreeing about whether the night
+        // was trustworthy. See [HrvAnalyzer.successiveDiffIsTrustworthy] for why an over-count corrupts a
+        // successive-difference statistic and why a blank is the right answer.
+        //
+        // Classified over the SAME beats the value was built from, windowed [start, end] exactly as
+        // `sessionHrvWindows` does, so the verdict cannot describe a different set of beats than the number
+        // it is gating.
+        val seg = rr.filter { it.ts in start..end }
+        val segTs = seg.map { it.ts }
+        val segMs = seg.map { it.rrMs.toDouble() }
+        val coverage = HrvAnalyzer.rrCoverage(segTs, segMs)
+        // `collapsed` is deliberately the SAME figure as `coverage`, which pins every over-count here to
+        // CROSS_SECOND. That is not a claim about which kind it is. The collapsed figure exists only to
+        // choose BETWEEN the two over-count verdicts, and this gate refuses both, so the real one would
+        // change no outcome — while costing a full sort of the night's ~50-70k beats, since
+        // [HrvAnalyzer.collapsedCoverage] opens with `sortedWith`. This runs per session, per day, across
+        // ~21 days of every analyzeRecent, every 15 minutes; #1510 cut this exact path from six sorts a
+        // night to two, and buying a distinction the caller discards would hand that back. `rrCoverage` is
+        // a single O(n) pass. If a future gate ever needs the two over-count cases apart, compute it then.
+        val verdict = HrvAnalyzer.classifyCoverage(coverage, coverage)
+        if (!HrvAnalyzer.successiveDiffIsTrustworthy(verdict)) return null
+        return vals.sum() / vals.size.toDouble()
     }
 
     /**

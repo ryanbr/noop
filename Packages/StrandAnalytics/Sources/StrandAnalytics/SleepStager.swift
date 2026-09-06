@@ -2802,7 +2802,32 @@ public enum SleepStager {
     /// Uses the same range-filter + ≥2-valid-interval rule as hrv.rmssd().
     static func sessionAvgHRV(start: Int, end: Int, rr: [RRInterval]) -> Double? {
         let vals = sessionHrvWindows(start: start, end: end, rr: rr, stages: []).compactMap { $0.rmssd }
-        return vals.isEmpty ? nil : vals.reduce(0, +) / Double(vals.count)
+        if vals.isEmpty { return nil }
+        // #1118: refuse the night outright when its own R-R banks more beat-time than the wall clock it
+        // spans. Gated HERE rather than at the caller because this is where RMSSD BECOMES the day's HRV:
+        // one seam covers the daily row, the sleep-session cache, the Health card and the baseline that
+        // later nights are scored against, so none of them can end up disagreeing about whether the night
+        // was trustworthy. See `HRVAnalyzer.successiveDiffIsTrustworthy` for why an over-count corrupts a
+        // successive-difference statistic and why a blank is the right answer.
+        //
+        // Classified over the SAME beats the value was built from, windowed [start, end] exactly as
+        // `sessionHrvWindows` does, so the verdict cannot describe a different set of beats than the number
+        // it is gating.
+        let seg = rr.filter { $0.ts >= start && $0.ts <= end }
+        let segTs = seg.map { $0.ts }
+        let segMs = seg.map { Double($0.rrMs) }
+        let coverage = HRVAnalyzer.rrCoverage(tsSec: segTs, rrMs: segMs)
+        // `collapsed` is deliberately the SAME figure as `coverage`, which pins every over-count here to
+        // crossSecondOverCount. That is not a claim about which kind it is. The collapsed figure exists only
+        // to choose BETWEEN the two over-count verdicts, and this gate refuses both, so the real one would
+        // change no outcome — while costing a full sort of the night's ~50-70k beats, since
+        // `collapsedCoverage` opens with a sort. This runs per session, per day, across ~21 days of every
+        // analyzeRecent, every 15 minutes; #1510 cut this exact path from six sorts a night to two, and
+        // buying a distinction the caller discards would hand that back. `rrCoverage` is a single O(n)
+        // pass. If a future gate ever needs the two over-count cases apart, compute it then.
+        let verdict = HRVAnalyzer.classifyCoverage(coverage: coverage, collapsed: coverage)
+        guard HRVAnalyzer.successiveDiffIsTrustworthy(verdict) else { return nil }
+        return vals.reduce(0, +) / Double(vals.count)
     }
 
     /// Per-5-min-window RMSSD across a session, each window tagged with the sleep stage at its CENTER
