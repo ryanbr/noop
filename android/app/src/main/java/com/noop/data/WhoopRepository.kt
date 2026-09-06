@@ -661,6 +661,14 @@ class WhoopRepository(
     suspend fun hrFingerprintWindow(deviceId: String, from: Long, to: Long): Pair<Int, Long> =
         Pair(dao.countHrInWindow(deviceId, from, to), dao.maxHrTsInWindow(deviceId, from, to))
 
+    /** #29 — the same per-day (device + window) witness for every OTHER stream analyzeDay scores: PPG-derived
+     *  HR, R-R, respiration, SpO2, gravity, steps, skin temp and events. [hrFingerprintWindow] cannot see a
+     *  channel that lands after HR, and an offload commits its channels independently, so keyed on HR alone
+     *  the reuse cache re-served an HRV-less scan for the rest of the process. See
+     *  DAY_STREAM_FINGERPRINT_SQL; mirrors Swift WhoopStore.dayStreamFingerprint. */
+    suspend fun dayStreamFingerprint(deviceId: String, from: Long, to: Long): String =
+        dao.dayStreamFingerprint(deviceId, from, to)
+
     // MARK: - Server-derived caches (latest value wins on conflict)
 
     suspend fun upsertDailyMetrics(days: List<DailyMetric>) = dao.upsertDailyMetrics(days)

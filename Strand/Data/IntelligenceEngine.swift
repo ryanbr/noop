@@ -975,10 +975,19 @@ final class IntelligenceEngine: ObservableObject {
                         }
                         skinAnchorResolvedOwners.insert(owner)
                     }
-                    if let fp = try? await store.hrFingerprint(deviceId: owner, from: from, to: to) {
+                    if let fp = try? await store.hrFingerprint(deviceId: owner, from: from, to: to),
+                       let streamFp = try? await store.dayStreamFingerprint(deviceId: owner, from: from, to: to) {
                         let key = AnalyzeRecentDayCache.cacheKey(
                             owner: owner, hrCount: fp.count, hrMaxTs: fp.maxTs,
                             skinAnchorRaw: skinAnchorByOwner[owner],
+                            // #29: the OTHER scored streams for this night. Without it a night whose R-R
+                            // (or resp/SpO2) landed after its HR keys identically to the HR-only scan it
+                            // was scored from, and the HRV-less result is re-served for the rest of the
+                            // session — force refresh included, since `force` only bypasses the whole-pass
+                            // watermark gate above, never this one. Both reads are index-only aggregates
+                            // over the same `(deviceId, ts)` keys; a miss costs the 7 full stream reads
+                            // this gate exists to skip.
+                            streams: streamFp,
                             // #1575: `hrvTraceActive &&` matters. With the HRV trace OFF no detail
                             // line is ever produced, so the flag describes nothing — but it would still
                             // flip at midnight and invalidate yesterday, charging EVERY user an extra

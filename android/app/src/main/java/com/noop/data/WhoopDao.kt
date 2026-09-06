@@ -23,6 +23,48 @@ internal const val ANALYSIS_FINGERPRINT_SQL =
         "'t' || (SELECT COALESCE(MAX(rowid), 0) FROM skinTempSample) || '|' || " +
         "'z' || (SELECT COALESCE(MAX(rowid), 0) FROM stepSample)"
 
+/** Per-day, per-owner witness of every scored stream the HR fingerprint does NOT cover (#29).
+ *
+ * [ANALYSIS_FINGERPRINT_SQL] answers "did anything change anywhere"; the analyzeRecent per-day reuse cache
+ * asks "did THIS night's scored input change". A history offload does not commit its channels together —
+ * HR can land first and R-R, respiration or SpO2 minutes later, and an offloaded HR row duplicating a live
+ * one is ignored on conflict — so a night scored once from HR alone can gain its R-R with COUNT/MAX over
+ * hrSample completely unmoved. Keyed on HR alone the cache re-served that HRV-less scan for the rest of the
+ * process, a user-initiated refresh included.
+ *
+ * COUNT(*) is the load-bearing half: it moves when a backfill lands rows INSIDE a window already covered,
+ * which MAX(ts) alone would miss. Every arm is an index range walk over the same (deviceId, ts) key the HR
+ * fingerprint uses, materializing no rows.
+ *
+ * rrInterval is filtered exactly as [WhoopDao.rrIntervals] filters at read (the 0x6E SpO2-IBI duplicate and
+ * future-stamped beats), so the witness counts the beats that are actually scored. The literal 2 is
+ * RrSourceChannel.SPO2_IBI.code, pinned to the enum by RrChannelTest, for the same reason it is a literal
+ * there: a Room @Query is a compile-time constant string.
+ *
+ * The result is opaque and only ever compared to itself in memory, so it needs no byte identity with the
+ * Swift twin, `WhoopStore.dayStreamFingerprint`. Kept as one constant so Room and a plain-JVM SQLite test
+ * execute the exact same statement. */
+internal const val DAY_STREAM_FINGERPRINT_SQL =
+    "SELECT 's1|' || " +
+        "'p' || (SELECT COUNT(*) FROM ppgHrSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
+        "':' || (SELECT COALESCE(MAX(ts), 0) FROM ppgHrSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || '|' || " +
+        "'r' || (SELECT COUNT(*) FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
+        "AND (srcChannel IS NULL OR srcChannel <> 2) AND (tsSuspect IS NULL OR tsSuspect <> 1)) || " +
+        "':' || (SELECT COALESCE(MAX(ts), 0) FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
+        "AND (srcChannel IS NULL OR srcChannel <> 2) AND (tsSuspect IS NULL OR tsSuspect <> 1)) || '|' || " +
+        "'x' || (SELECT COUNT(*) FROM respSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
+        "':' || (SELECT COALESCE(MAX(ts), 0) FROM respSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || '|' || " +
+        "'o' || (SELECT COUNT(*) FROM spo2Sample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
+        "':' || (SELECT COALESCE(MAX(ts), 0) FROM spo2Sample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || '|' || " +
+        "'g' || (SELECT COUNT(*) FROM gravitySample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
+        "':' || (SELECT COALESCE(MAX(ts), 0) FROM gravitySample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || '|' || " +
+        "'z' || (SELECT COUNT(*) FROM stepSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
+        "':' || (SELECT COALESCE(MAX(ts), 0) FROM stepSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || '|' || " +
+        "'t' || (SELECT COUNT(*) FROM skinTempSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
+        "':' || (SELECT COALESCE(MAX(ts), 0) FROM skinTempSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || '|' || " +
+        "'e' || (SELECT COUNT(*) FROM event WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
+        "':' || (SELECT COALESCE(MAX(ts), 0) FROM event WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to)"
+
 /**
  * Data-access for the local store. Mirrors the GRDB reads/writes in WhoopStore
  * (StreamStore.swift, Reads.swift, MetricsCache.swift).
@@ -1062,6 +1104,11 @@ interface WhoopDao : DeviceRegistryDao {
     suspend fun countHrInWindow(deviceId: String, from: Long, to: Long): Int
     @Query("SELECT COALESCE(MAX(ts), 0) FROM hrSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to")
     suspend fun maxHrTsInWindow(deviceId: String, from: Long, to: Long): Long
+    // #29: the same per-day (device + window) witness for every OTHER scored stream — see
+    // DAY_STREAM_FINGERPRINT_SQL. Without it a night whose R-R landed after its HR keyed identically to the
+    // HR-only scan it was scored from, and that HRV-less scan was re-served for the rest of the process.
+    @Query(DAY_STREAM_FINGERPRINT_SQL)
+    suspend fun dayStreamFingerprint(deviceId: String, from: Long, to: Long): String
     @Query("SELECT COUNT(*) FROM rrInterval") suspend fun countRr(): Int
     @Query("SELECT COUNT(*) FROM event") suspend fun countEvents(): Int
     @Query("SELECT COUNT(*) FROM battery") suspend fun countBattery(): Int

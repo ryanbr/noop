@@ -830,6 +830,13 @@ object IntelligenceEngine {
                 val (fpCount, fpMaxTs) = repo.hrFingerprintWindow(owner, from, to)
                 val key = AnalyzeRecentDayCache.cacheKey(
                     owner, fpCount, fpMaxTs, skinAnchorByOwner[owner],
+                    // #29: the OTHER scored streams for this night. Without it a night whose R-R (or
+                    // resp/SpO2) landed after its HR keys identically to the HR-only scan it was scored
+                    // from, and the HRV-less result is re-served for the rest of the process — a
+                    // user-initiated refresh included, since that only bypasses the whole-pass watermark
+                    // gate, never this one. Both reads are index-only aggregates over the same
+                    // (deviceId, ts) keys; a miss costs the full stream reads this gate exists to skip.
+                    streams = repo.dayStreamFingerprint(owner, from, to),
                     // #1575: `&& hrvTraceSink != null` matters. With the HRV trace OFF no detail line
                     // is ever produced, so the flag describes nothing — but it would still flip at
                     // midnight and invalidate yesterday, charging EVERY user an extra day's re-score to

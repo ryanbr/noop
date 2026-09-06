@@ -82,6 +82,57 @@ final class ReadTests: XCTestCase {
         XCTAssertTrue(withGravity.contains("|g1|"))
     }
 
+    /// #29: the per-DAY twin of the test above. `analysisFingerprint` answers "did anything change
+    /// anywhere"; the `analyzeRecent` reuse cache asks "did THIS night's scored input change", and keyed on
+    /// HR alone it could not see a channel that landed after HR — so a night scored from HR alone kept
+    /// being re-served with no HRV in it.
+    ///
+    /// Each stream is committed on its own here, because the failure mode IS independent commits: every one
+    /// of them must move the witness while `hrFingerprint` stays frozen.
+    func testDayStreamFingerprintMovesForEveryStreamThatLandsAfterHr() async throws {
+        let store = try await seeded()
+        let hrBefore = try await store.hrFingerprint(deviceId: "dev1", from: 0, to: 1000)
+        var previous = try await store.dayStreamFingerprint(deviceId: "dev1", from: 0, to: 1000)
+
+        let commits: [(String, Streams)] = [
+            ("rr", Streams(rr: [RRInterval(ts: 400, rrMs: 810)])),
+            ("resp", Streams(resp: [RespSample(ts: 400, raw: 12)])),
+            ("spo2", Streams(spo2: [SpO2Sample(ts: 400, red: 100, ir: 200)])),
+            ("gravity", Streams(gravity: [GravitySample(ts: 400, x: 0, y: 0, z: 1)])),
+            ("skin", Streams(skinTemp: [SkinTempSample(ts: 400, raw: 1290)])),
+            ("event", Streams(events: [WhoopEvent(ts: 410, kind: "WRIST_OFF", payload: [:])])),
+        ]
+        for (label, commit) in commits {
+            _ = try await store.insert(commit, deviceId: "dev1")
+            let now = try await store.dayStreamFingerprint(deviceId: "dev1", from: 0, to: 1000)
+            XCTAssertNotEqual(previous, now, "a \(label) row landing after HR must move the day witness")
+            previous = now
+        }
+
+        // The HR witness never moved across ANY of those commits — the reason HR alone was not enough.
+        let hrAfter = try await store.hrFingerprint(deviceId: "dev1", from: 0, to: 1000)
+        XCTAssertEqual(hrBefore.count, hrAfter.count)
+        XCTAssertEqual(hrBefore.maxTs, hrAfter.maxTs)
+
+        // Reading twice with nothing committed in between must be identical, or the reuse cache would
+        // re-score every night on every pass and give back the drain it exists to close.
+        let idle = try await store.dayStreamFingerprint(deviceId: "dev1", from: 0, to: 1000)
+        XCTAssertEqual(previous, idle)
+    }
+
+    /// The witness is scoped exactly like the reads it stands in for: another device's rows and rows
+    /// outside the night window must not move it, or every night would invalidate on any strap's traffic.
+    func testDayStreamFingerprintIsDeviceAndWindowScoped() async throws {
+        let store = try await seeded()
+        let base = try await store.dayStreamFingerprint(deviceId: "dev1", from: 0, to: 1000)
+        _ = try await store.insert(Streams(rr: [RRInterval(ts: 400, rrMs: 810)]), deviceId: "other")
+        let afterOtherDevice = try await store.dayStreamFingerprint(deviceId: "dev1", from: 0, to: 1000)
+        XCTAssertEqual(base, afterOtherDevice, "another device's R-R is not this owner's night")
+        _ = try await store.insert(Streams(rr: [RRInterval(ts: 5000, rrMs: 810)]), deviceId: "dev1")
+        let afterOutsideWindow = try await store.dayStreamFingerprint(deviceId: "dev1", from: 0, to: 1000)
+        XCTAssertEqual(base, afterOutsideWindow, "an R-R beat outside the window is not this night's input")
+    }
+
     func testHrBucketsAveragePerBucketOrderedAndDeviceScoped() async throws {
         let store = try await seeded()
         // 200s buckets over dev1's ts 100/200/300 (bpm 60/61/62):
