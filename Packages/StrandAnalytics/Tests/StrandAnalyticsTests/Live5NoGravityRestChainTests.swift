@@ -3,7 +3,13 @@ import XCTest
 import WhoopProtocol
 import WhoopStore
 
-/// Bug #977 (iOS, WHOOP 5.0, live Bluetooth): "Rest score stuck 93 since forever."
+/// The no-gravity Rest chain, from bug #977 (iOS, WHOOP 5.0, live Bluetooth): "Rest score stuck 93 since
+/// forever."
+///
+/// Renamed from `Live5RestFrozenTests`. The frozen state is closed (see below), and a file called
+/// "Frozen" is the same stale signal the `XCTExpectFailure` in it used to be: something a reader greps,
+/// believes, and acts on long after it stopped being true. #977 stays named here for archaeology; the
+/// file is named for the chain it pins.
 ///
 /// The mechanism: a LIVE WHOOP 5.0 streams standard 0x2A37 HR continuously, but gravity is only ever
 /// populated by the *history offload* (Backfiller). With no overnight gravity the day reaches the scoring
@@ -34,7 +40,7 @@ import WhoopStore
 /// #977's `freshRestScore` + `isCarryStale`, which live in the app target and are covered there and by
 /// Android's `RestFreshnessTest`. This package pins only what it owns, and says so at the bottom of the
 /// file rather than keeping a test that re-simulates a rule it cannot import.
-final class Live5RestFrozenTests: XCTestCase {
+final class Live5NoGravityRestChainTests: XCTestCase {
 
     private func hrStream(start: Int, durationS: Int, bpm: Int) -> [HRSample] {
         stride(from: 0, to: durationS, by: 1).map { HRSample(ts: start + $0, bpm: bpm) }
@@ -52,10 +58,12 @@ final class Live5RestFrozenTests: XCTestCase {
     /// V1, stated EXPLICITLY rather than taken from the default: 8 h of continuous sleep-plausible HR
     /// with zero gravity yields nothing, because V1's spine is motion stillness and there is none.
     ///
-    /// Still worth pinning — V1 remains selectable, and the 4.0 is unvalidated on either stager
-    /// (#271/#319) — but it is no longer what a default install runs, which is the whole point of the
-    /// V2 test below. The original spelling of this test relied on `useSleepStagerV2`'s default, so it
-    /// silently stopped describing shipped behaviour the moment that default moved.
+    /// `SleepStagerTests.testDetectSleepEmptyGravity` already asserts the empty-gravity case once, on the
+    /// default stager. The pair here is not that assertion again: it is the statement that the answer is
+    /// the SAME on both stagers, which is the fact the chain turns on and the one whose absence let this
+    /// file spend two years implying V2 might rescue the night. The original spelling relied on
+    /// `useSleepStagerV2`'s default, so it silently stopped describing shipped behaviour when that
+    /// default moved — which is how the implication survived.
     func testV1WithNoGravityDetectsNoSleep() {
         let start = nightStart()
         let dur = 8 * 60 * 60
@@ -117,28 +125,11 @@ final class Live5RestFrozenTests: XCTestCase {
     /// Android TodayScreen.kt line 689): when today has no `sleep_performance` row, both
     /// platforms fall back to the latest value in the series. If new nights never write a row,
     /// that latest value is pinned to the last night that WAS scored — 93 — forever.
-    // MARK: - The other joint: a STAGED night must yield a composite
-
-    /// The half of the chain this package owns downstream of staging: once a night is staged, its
-    /// aggregates must produce a Rest signal.
-    ///
-    /// This replaces a test that wrapped `XCTExpectFailure("#977 not yet fixed")` around
-    /// `Rest.composite(daily:)` for a row with NO sleep fields. That assertion could never pass whatever
-    /// was fixed upstream — a row without `totalSleepMin`/`efficiency` is nil by the guard's definition,
-    /// not by a bug — so it asserted the wrong layer and would have gone on advertising #977 as open
-    /// forever. The real requirement it was reaching for is the pair: the shipping stager stages the
-    /// night (above), and a staged night scores (here).
-    func testStagedNightYieldsARestComposite() {
-        let daily = DailyMetric(day: "2026-07-02",
-                                totalSleepMin: 7 * 60,
-                                efficiency: 0.92,
-                                deepMin: 80, remMin: 95, lightMin: 245, disturbances: 3,
-                                restingHr: 52, avgHrv: 65,
-                                recovery: nil, strain: nil, exerciseCount: nil,
-                                spo2Pct: nil, skinTempDevC: nil, respRateBpm: nil)
-        XCTAssertNotNil(AnalyticsEngine.Rest.composite(daily: daily),
-                        "Sleep aggregates present ⇒ a Rest composite ⇒ a sleep_performance point is written")
-    }
+    // The downstream joint - a STAGED night yields a composite - deliberately has no test here either.
+    // `Rest.composite` is exercised in `RestWiringImpactTests`, `RestSubScoreTraceTests`,
+    // `SleepStageTotalsTests` and `AnalyticsEngineTests`; a fifth assertion that a complete row scores
+    // would be noise. What is NOT covered elsewhere is the nil case above, which is the one this chain
+    // turns on, so that is the one that lives here.
 
     // The display half deliberately has NO test here. It used to, and that test asserted `max(by:)` over a
     // literal dictionary — it exercised no product code at all, which is worse than no test because it
