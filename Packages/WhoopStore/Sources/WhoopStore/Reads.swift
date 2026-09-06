@@ -660,12 +660,18 @@ extension WhoopStore {
                 guard let cols, !cols.isEmpty else { continue }
                 // Table and column names come from the schema, never from user input, so interpolating
                 // them is safe here in the same way the COUNT above is.
-                let terms = cols.map { c -> String in
-                    let name: String = c["name"]
-                    let type = (c["type"] as String?)?.uppercased() ?? ""
-                    return (type.contains("BLOB") || type.contains("TEXT"))
-                        ? "COALESCE(LENGTH(\"\(name)\"), 0)" : "8"
+                // `typeof()` at runtime, not the DECLARED type, and byte length via CAST rather than
+                // LENGTH: SQLite is dynamically typed, so a column declared INTEGER can hold text, and
+                // LENGTH on text counts CHARACTERS while the store spends bytes. Mirrors the expression
+                // Kotlin already uses in `PushSnapshotPreflight.rowEstimateExpression`.
+                let terms = cols.compactMap { c -> String? in
+                    guard let name = c["name"] as String? else { return nil }
+                    let q = "\"\(name)\""
+                    return "(CASE WHEN \(q) IS NULL THEN 0 "
+                        + "WHEN typeof(\(q)) IN ('text','blob') THEN length(CAST(\(q) AS BLOB)) "
+                        + "ELSE 8 END)"
                 }
+                guard !terms.isEmpty else { continue }
                 let sql = "SELECT AVG(n) FROM (SELECT (\(terms.joined(separator: " + "))) AS n "
                     // Clamped: SQLite reads a NEGATIVE limit as no limit at all, so an unchecked value
                     // here would full-scan the very tables the sampling exists to avoid scanning.

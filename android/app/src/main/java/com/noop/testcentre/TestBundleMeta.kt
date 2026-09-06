@@ -25,7 +25,13 @@ data class TestBundleMeta(
     val captureCheck: CaptureCheck,
 ) {
     data class Build(val channel: String, val signed: Boolean)
-    data class Storage(val dbBytes: Int, val rows: Map<String, Int>, val rawCaptureBytes: Int)
+    data class Storage(
+        val dbBytes: Int,
+        val rows: Map<String, Int>,
+        val rawCaptureBytes: Int,
+        /** #1911: estimated payload bytes per table, keyed as [rows] is. Swift twin: `Storage.rowBytes`. */
+        val rowBytes: Map<String, Int> = emptyMap(),
+    )
 
     /** The report-completeness tie (twin of the Swift CaptureCheck): per-domain killer-trace presence
      *  ({domainId -> "present"|"MISSING"}) plus the overall `complete` flag, so a maintainer can tell at
@@ -53,7 +59,10 @@ data class TestBundleMeta(
             "storage" to mapOf(
                 "db_bytes" to storage.dbBytes,
                 "raw_capture_bytes" to storage.rawCaptureBytes,
-                "rows" to storage.rows),
+                "rows" to storage.rows,
+                // #1911: bytes beside the counts, so this block matches the Apple bundle's. Rows alone
+                // cannot say which table holds a large store - ppgWaveformSample's rows carry a BLOB.
+                "row_bytes" to storage.rowBytes),
             "strap_model" to strapModel,
             "test_profile" to testProfile,
             "truncated" to truncated)
