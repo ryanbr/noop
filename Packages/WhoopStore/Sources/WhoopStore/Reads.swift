@@ -614,7 +614,8 @@ extension WhoopStore {
     /// row-count model misprices worst, since `ppgWaveformSample` is the only blob table here. A footprint
     /// that omits the blob table cannot attribute the bytes it was collected to explain.
     ///
-    /// Shares `rawTables` with `storageStats()` so a table added to one is counted by both. Best-effort
+    /// Shares `rawTableKeys` with `storageStats()` and `TimestampHeal` so a table added to one is seen by
+    /// all three — counted in the total, named in the breakdown, and healed. Best-effort
     /// per table: an unreadable count is omitted rather than reported as zero, because a zero here reads
     /// as "this table is empty" and that is a different claim from "this table could not be read".
     public func storageRowCounts() async throws -> [String: Int] {
@@ -639,14 +640,15 @@ extension WhoopStore {
     /// Aggregate storage footprint: total decoded rows, raw batch count, total raw byteSize.
     public func storageStats() async throws -> (decodedRows: Int, rawBatches: Int, rawBytes: Int) {
         try syncRead { db in
-            // The COMPLETE set of accumulating decoded raw streams — KEEP IN SYNC with
-            // `TimestampHeal.rawTables` (its per-timestamp purge is the canonical list) and the Android
-            // `WhoopRepository.storageRowCounts`. The list now lives in `rawTableKeys`, shared with
-            // `storageRowCounts()` above, so the total and the per-table breakdown cannot disagree about
-            // which tables exist. Summed by iterating the list rather than a hand-written
-            // expression, because the old fixed sum silently under-reported: it omitted stepSample,
-            // ppgHrSample, sleepStateSample, ppgWaveformSample, rawImuSample and v18AuxSample — and a 4.0
-            // with PPG (ppgHrSample/ppgWaveformSample) or IMU capture (rawImuSample) banks millions of rows.
+            // The COMPLETE set of accumulating decoded raw streams, from `rawTableKeys` — no longer a
+            // "keep in sync with TimestampHeal" instruction, because that copy is gone and the heal now
+            // reads the same list. Android's `WhoopRepository.storageRowCounts` is the one that still has
+            // to be kept in step by hand; the note there says so.
+            //
+            // Summed by iterating the list rather than a hand-written expression, because the old fixed
+            // sum silently under-reported: it omitted stepSample, ppgHrSample, sleepStateSample,
+            // ppgWaveformSample, rawImuSample and v18AuxSample — and a 4.0 with PPG banks millions of
+            // rows. (rawImuSample has since been dropped outright, in `v41-drop-raw-imu-sample`.)
             // Table names are compile-time constants (never user input), so the interpolation is safe.
             var decoded = 0
             for (_, t) in Self.rawTableKeys {
