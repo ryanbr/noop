@@ -2164,8 +2164,13 @@ class WhoopRepository(
 
         /**
          * #1911: rolling retention for the v27 PPG waveform table (Swift twin
-         * `WhoopStore.ppgWaveformRetentionRows`). Previously the only UNBOUNDED blob table, and at
-         * ~1 row/second through a v26-heavy night the fastest-growing table per byte in the store.
+         * `WhoopStore.ppgWaveformRetentionRows`). Previously the only UNBOUNDED blob table, and it carries
+         * by far the largest PER-ROW cost of any decoded stream: ~120 B against ~30 B for a scalar row.
+         *
+         * It is NOT the store's fastest-growing table, and this note must not be read as saying so. v26
+         * runs only in optical windows, roughly 28,800 rows/day by #1911's own figures, where `rrInterval`
+         * banks ~100,000/day and remains the higher-volume table by bytes. Capping this one bounds the
+         * worst row, not the bulk of #1911's ~93 MB/day.
          *
          * A NEWEST-N-ROWS CAP, DELIBERATELY NOT A TIME-WINDOW DROP. #1911 proposes "dropped after the hot
          * window", calling the waveform "diagnostic-only". That framing is wrong: the migration note on
@@ -2179,8 +2184,11 @@ class WhoopRepository(
          * 604,800 = 7 × 86,400, matching the aux cap's "week of strap-seconds" semantic and #1911's own
          * 7-day hot window. The ceiling is larger than aux's because the row is: ~120 B/row (a 48 B
          * packed-i16 blob for 24 samples plus row and primary-key-index overhead) gives a ~70 MB hard
-         * ceiling per device against ~50 MB for aux. In practice v26 is a fraction of the strap's seconds,
-         * so occupancy sits far below that. Retuning is one constant with no migration.
+         * ceiling per device against ~50 MB for aux. That ceiling is the bound worth quoting; the wall-clock
+         * span is longer than the arithmetic suggests, because v26 only runs in optical windows. At #1911's
+         * ~28,800 rows/day the cap holds about three weeks of typical wear, and proportionally more for a
+         * sporadic wearer, which is exactly the population an age-based cutoff would have emptied. Retuning
+         * is one constant with no migration.
          */
         const val PPG_WAVEFORM_RETENTION_ROWS = 604_800
 

@@ -541,8 +541,9 @@ extension WhoopStore {
         // Retention: CAPPED at `WhoopStore.ppgWaveformRetentionRows` newest rows per device (#1911), swept
         // amortised on insert exactly like `v18AuxSample`. This table is the ONE exception to "no durable
         // per-second table is pruned" (hrSample, spo2Sample, … are still never pruned), because it is the
-        // only one storing a blob rather than a scalar: ~120 B/row against ~30 B, and #1911 measured the
-        // decoded streams at ~93 MB/day with this table the fastest-growing per byte. `PrunePolicy`'s
+        // only one storing a blob rather than a scalar: ~120 B/row against ~30 B. It is the worst ROW, not
+        // the biggest table — v26 runs only in optical windows (~28,800 rows/day) where `rrInterval` banks
+        // ~100,000/day, so most of #1911's ~93 MB/day is still unbounded elsewhere. `PrunePolicy`'s
         // ~50 MB cap governs ONLY `rawBatch` (raw, pre-decode frames kept for re-decode / re-sync); it is
         // untouched by and unrelated to this table.
         //

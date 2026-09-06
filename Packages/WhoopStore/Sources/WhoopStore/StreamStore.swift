@@ -59,8 +59,13 @@ extension WhoopStore {
     }
 
     /// Rolling retention for the v27 PPG waveform table (twin of Kotlin `PPG_WAVEFORM_RETENTION_ROWS`),
-    /// added for #1911. This table was previously the only UNBOUNDED blob table, and at ~1 row/second
-    /// through a v26-heavy night it is the fastest-growing table per byte in the store.
+    /// added for #1911. This table was previously the only UNBOUNDED blob table, and it carries by far the
+    /// largest PER-ROW cost of any decoded stream: ~120 B against ~30 B for a scalar row.
+    ///
+    /// It is NOT the store's fastest-growing table, and this note must not be read as saying so. v26 runs
+    /// only in optical windows, roughly 28,800 rows/day by #1911's own figures, where `rrInterval` banks
+    /// ~100,000/day and remains the higher-volume table by bytes. Capping this one bounds the worst row,
+    /// not the bulk of #1911's ~93 MB/day.
     ///
     /// **A NEWEST-N-ROWS CAP, DELIBERATELY NOT A TIME-WINDOW DROP.** #1911 proposes "dropped after the hot
     /// window", justifying it as "diagnostic-only". That justification is wrong, and the migration note on
@@ -75,10 +80,12 @@ extension WhoopStore {
     /// 604,800 = 7 × 86,400, matching the aux cap's "a week of strap-seconds" semantic and #1911's own
     /// 7-day hot window. The ceiling is larger than the aux table's because the row is: ~120 B/row (a 48 B
     /// packed-i16 blob for 24 samples, plus row and primary-key-index overhead) puts it at a **~70 MB hard
-    /// ceiling** per device, against ~50 MB for aux. In practice v26 is a fraction of the strap's seconds,
-    /// so occupancy is far below that and the window spans considerably longer than a week in wall-clock
-    /// terms. Retuning is a one-constant change with no migration once a device `row_bytes` measurement
-    /// lands, and RELAXING a cap is always cheaper than imposing one on a user with a year of history.
+    /// ceiling** per device, against ~50 MB for aux. That ceiling is the bound worth quoting; the wall-clock
+    /// span is longer than the arithmetic suggests, because v26 only runs in optical windows. At #1911's
+    /// ~28,800 rows/day the cap holds about **three weeks** of typical wear, and proportionally more for a
+    /// sporadic wearer, which is exactly the population an age-based cutoff would have emptied. Retuning is
+    /// a one-constant change with no migration once a device `row_bytes` measurement lands, and RELAXING a
+    /// cap is always cheaper than imposing one on a user with a year of history.
     public static let ppgWaveformRetentionRows = 604_800
 
     /// Rows to bank before sweeping `ppgWaveformSample` again, same amortisation as
