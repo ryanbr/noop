@@ -380,18 +380,23 @@ struct WorkoutDetailView: View {
     /// their phone recorded GPS data that actually came from another app.
     private var routeOriginLabel: LocalizedStringKey {
         switch WorkoutSource.classify(row.source) {
-        case .apple: return "Imported from Apple Health"
-        case .whoop, .lifting, .activityFile: return "Imported"
+        // "Imported" rather than naming the app: every string here is one the catalog already carries in
+        // all nine locales, so the honesty fix ships translated on day one. A source-specific variant
+        // ("Imported from Apple Health") would be a NEW key, and nothing catches a missing entry: the i18n
+        // audit checks locale coverage OF catalog entries, not that a `String(localized:)` literal has one.
+        // It would have read English on every non-English device while the gate stayed green.
+        case .apple, .whoop, .lifting, .activityFile: return "Imported"
         case .detected, .manual: return "Recorded on device"
         }
     }
 
     private var routeDescription: String {
         switch WorkoutSource.classify(row.source) {
-        case .apple:
-            return String(localized: "GPS route imported from Apple Health. Stored on your device; nothing leaves your phone.")
-        case .whoop, .lifting, .activityFile:
-            return String(localized: "GPS route imported from an external source. Stored on your device; nothing leaves your phone.")
+        // Same rule as the overline: both of these are existing catalog keys with all nine locales. The
+        // imported line carries the privacy claim without the "recorded on your device" the original
+        // string opens with, which is the part that was untrue for a route another app collected.
+        case .apple, .whoop, .lifting, .activityFile:
+            return String(localized: "This stays on your device. It is never uploaded, never synced, never shared.")
         case .detected, .manual:
             return String(localized: "Your GPS route for this session, recorded and stored on your device. Nothing leaves your phone.")
         }

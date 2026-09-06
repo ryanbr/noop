@@ -269,6 +269,47 @@ final class GpsRouteMathTests: XCTestCase {
         }
     }
 
+    /// The batched write an import uses must be indistinguishable from a run of single stores.
+    ///
+    /// `collectWorkouts` collects every imported route and calls `storeAll` once, because `store`
+    /// rewrites the whole capped map per call and an import calls it per workout. This pins that the
+    /// shortcut costs nothing: same keys, same values, and the same oldest-first eviction when the batch
+    /// overflows [RouteStore.maxRoutes].
+    func testStoreAllMatchesRepeatedSingleStores() {
+        let sport = "Running"
+        func route(_ i: Int) -> WorkoutRoute {
+            let pts = [RouteMath.LatLng(51.5 + Double(i) / 1000, -0.12),
+                       RouteMath.LatLng(51.5 + Double(i) / 1000, -0.13)]
+            return WorkoutRoute(polyline: RouteMath.encode(pts), distanceM: RouteMath.totalMeters(pts))
+        }
+        // More than the cap, so eviction is exercised rather than assumed.
+        let n = RouteStore.maxRoutes + 25
+        let entries = (0..<n).map { (route: route($0), startTs: 1_700_000_000 + $0 * 3_600, sport: sport) }
+
+        let oneByOne = freshDefaults()
+        for e in entries { RouteStore.store(e.route, startTs: e.startTs, sport: e.sport, into: oneByOne) }
+
+        let batched = freshDefaults()
+        RouteStore.storeAll(entries, into: batched)
+
+        XCTAssertEqual(RouteStore.loadMap(from: batched), RouteStore.loadMap(from: oneByOne),
+                       "batching must not change which routes survive, nor their values")
+        XCTAssertEqual(RouteStore.loadMap(from: batched).count, RouteStore.maxRoutes)
+        // The newest survive and the oldest are gone, in both.
+        XCTAssertNotNil(RouteStore.load(startTs: entries.last!.startTs, sport: sport, from: batched))
+        XCTAssertNil(RouteStore.load(startTs: entries.first!.startTs, sport: sport, from: batched))
+    }
+
+    /// An empty batch must not touch the store at all, so an import with no routes writes nothing.
+    func testStoreAllWithNoRoutesWritesNothing() {
+        let defaults = freshDefaults()
+        RouteStore.store(WorkoutRoute(polyline: "abc", distanceM: 1), startTs: 1_700_000_000,
+                         sport: "Running", into: defaults)
+        let before = RouteStore.loadMap(from: defaults)
+        RouteStore.storeAll([], into: defaults)
+        XCTAssertEqual(RouteStore.loadMap(from: defaults), before)
+    }
+
     /// #1205: a workout with no GPS route (e.g. a gym session imported from Apple Health) must
     /// load nil from RouteStore, so WorkoutDetailView shows no map card — exactly as before.
     func testImportedWorkoutWithoutRouteLoadsNil() {

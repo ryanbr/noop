@@ -1335,15 +1335,21 @@ final class HealthKitBridge: ObservableObject {
         // (permission not granted, no route data, HealthKit error) leaves the workout intact with
         // no map, which is exactly the pre-change behaviour. Stored via RouteStore under the same
         // (startTs, sport) key WorkoutDetailView loads from, so no UI change is needed.
+        // Collected first and written ONCE. `RouteStore.store` rewrites the entire capped map on every
+        // call, which is right for the recorder's single call at workout end but quadratic here: a
+        // 500-workout first import would decode and re-encode a 400-entry map 500 times, on the order of
+        // a gigabyte of JSON through UserDefaults. `storeAll` applies the same eviction, once.
+        var importedRoutes: [(route: WorkoutRoute, startTs: Int, sport: String)] = []
         for (workout, row) in workoutsAndRows {
             if let route = await Self.fetchWorkoutRoute(for: workout, store: store),
                route.count >= 2 {
                 let polyline = RouteMath.encode(route)
                 let distanceM = RouteMath.totalMeters(route)
-                RouteStore.store(WorkoutRoute(polyline: polyline, distanceM: distanceM),
-                                 startTs: row.startTs, sport: row.sport)
+                importedRoutes.append((WorkoutRoute(polyline: polyline, distanceM: distanceM),
+                                       row.startTs, row.sport))
             }
         }
+        RouteStore.storeAll(importedRoutes)
         return workoutsAndRows.map { $0.1 }
     }
 
