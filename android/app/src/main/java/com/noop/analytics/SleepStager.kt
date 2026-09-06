@@ -3122,10 +3122,16 @@ object SleepStager {
         val seg = rr.filter { it.ts in start..end }
         val segTs = seg.map { it.ts }
         val segMs = seg.map { it.rrMs.toDouble() }
-        val verdict = HrvAnalyzer.classifyCoverage(
-            HrvAnalyzer.rrCoverage(segTs, segMs),
-            HrvAnalyzer.collapsedCoverage(segTs, segMs),
-        )
+        val coverage = HrvAnalyzer.rrCoverage(segTs, segMs)
+        // `collapsed` is deliberately the SAME figure as `coverage`, which pins every over-count here to
+        // CROSS_SECOND. That is not a claim about which kind it is. The collapsed figure exists only to
+        // choose BETWEEN the two over-count verdicts, and this gate refuses both, so the real one would
+        // change no outcome — while costing a full sort of the night's ~50-70k beats, since
+        // [HrvAnalyzer.collapsedCoverage] opens with `sortedWith`. This runs per session, per day, across
+        // ~21 days of every analyzeRecent, every 15 minutes; #1510 cut this exact path from six sorts a
+        // night to two, and buying a distinction the caller discards would hand that back. `rrCoverage` is
+        // a single O(n) pass. If a future gate ever needs the two over-count cases apart, compute it then.
+        val verdict = HrvAnalyzer.classifyCoverage(coverage, coverage)
         if (!HrvAnalyzer.successiveDiffIsTrustworthy(verdict)) return null
         return vals.sum() / vals.size.toDouble()
     }

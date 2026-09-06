@@ -2816,9 +2816,16 @@ public enum SleepStager {
         let seg = rr.filter { $0.ts >= start && $0.ts <= end }
         let segTs = seg.map { $0.ts }
         let segMs = seg.map { Double($0.rrMs) }
-        let verdict = HRVAnalyzer.classifyCoverage(
-            coverage: HRVAnalyzer.rrCoverage(tsSec: segTs, rrMs: segMs),
-            collapsed: HRVAnalyzer.collapsedCoverage(tsSec: segTs, rrMs: segMs))
+        let coverage = HRVAnalyzer.rrCoverage(tsSec: segTs, rrMs: segMs)
+        // `collapsed` is deliberately the SAME figure as `coverage`, which pins every over-count here to
+        // crossSecondOverCount. That is not a claim about which kind it is. The collapsed figure exists only
+        // to choose BETWEEN the two over-count verdicts, and this gate refuses both, so the real one would
+        // change no outcome — while costing a full sort of the night's ~50-70k beats, since
+        // `collapsedCoverage` opens with a sort. This runs per session, per day, across ~21 days of every
+        // analyzeRecent, every 15 minutes; #1510 cut this exact path from six sorts a night to two, and
+        // buying a distinction the caller discards would hand that back. `rrCoverage` is a single O(n)
+        // pass. If a future gate ever needs the two over-count cases apart, compute it then.
+        let verdict = HRVAnalyzer.classifyCoverage(coverage: coverage, collapsed: coverage)
         guard HRVAnalyzer.successiveDiffIsTrustworthy(verdict) else { return nil }
         return vals.reduce(0, +) / Double(vals.count)
     }

@@ -14,7 +14,11 @@ final class HrvOverCountGateTests: XCTestCase {
         !SleepStager.sessionHrvWindows(start: start, end: end, rr: rr, stages: []).compactMap { $0.rmssd }.isEmpty
     }
 
-    /// Two near-equal beats per second: ~1.8x coverage that a same-second collapse would fix.
+    /// Two near-equal beats per second: the shape a same-second collapse WOULD bring back under the
+    /// ceiling. It must still be withheld, and this is the case that guards the gate's cheap
+    /// classification — `sessionAvgHRV` passes coverage as its own collapsed figure to avoid a sort, so a
+    /// night of this shape reports `crossSecondOverCount` internally. The outcome is what matters and is
+    /// asserted here; restoring the real collapsed figure would relabel this night and change nothing.
     func testSameSecondOverCountIsWithheld() {
         let start = 1_000, end = 1_600
         var rr: [RRInterval] = []

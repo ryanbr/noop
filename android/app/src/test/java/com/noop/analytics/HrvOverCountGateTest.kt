@@ -22,7 +22,13 @@ class HrvOverCountGateTest {
     private fun windowsYieldRmssd(start: Long, end: Long, rr: List<RrInterval>): Boolean =
         SleepStager.sessionHrvWindows(start, end, rr, emptyList()).mapNotNull { it.rmssd }.isNotEmpty()
 
-    /** Two near-equal beats per second: ~1.8x coverage that a same-second collapse would fix. */
+    /**
+     * Two near-equal beats per second: the shape a same-second collapse WOULD bring back under the
+     * ceiling. It must still be withheld, and this is the case that guards the gate's cheap
+     * classification — [SleepStager.sessionAvgHRV] passes coverage as its own collapsed figure to avoid
+     * a sort, so a night of this shape reports CROSS_SECOND internally. The outcome is what matters and
+     * is asserted here; restoring the real collapsed figure would relabel this night and change nothing.
+     */
     @Test fun sameSecondOverCountIsWithheld() {
         val start = 1000L
         val end = start + 600
