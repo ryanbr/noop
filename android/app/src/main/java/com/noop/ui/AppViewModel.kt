@@ -2225,6 +2225,17 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
 
     fun clearBodyLocationProbe() = ble.clearBodyLocationProbe()
 
+    /** Read-only battery-pack probe (cmd 151) — asks the strap for its pack's charge, serial and BT
+     *  address. User-initiated, Test-Centre-gated in DevicesScreen; the decoded report goes to the
+     *  dialog + strap log only, and feeds no live state. 5/MG only in practice (a 4.0 has no pack
+     *  command), and whether a 5/MG answers at all is the hardware question being asked. */
+    fun probeBatteryPackInfo() = ble.probeBatteryPackInfo()
+
+    /** cmd-151 probe result text (null until a reply lands; waiting sentinel while in flight). */
+    val batteryPackProbe = ble.batteryPackProbe
+
+    fun clearBatteryPackProbe() = ble.clearBatteryPackProbe()
+
     /** #761: READ-ONLY feature-flag ENUMERATION probe (117 then repeated 118) — reads the flag NAMES the
      *  strap's own firmware knows and writes nothing (no SET_FF_VALUE, no value of any kind).
      *  User-initiated, Test-Centre-gated in DevicesScreen; the report goes to the dialog + strap log. */

@@ -2268,6 +2268,7 @@
     <string name="today_steps_headline_more_days">还需 %1$d 天由手机同时记录步数</string>
     <string name="today_steps_headline_no_motion">尚未同步运动数据</string>
     <string name="today_synthesis_learning_baseline">正在建立基线：%1$d/%2$d 晚。</string>
+    <string name="today_synthesis_nights_without_hrv">最近 %2$d 晚中有 %1$d 晚未记录 HRV。请检查夜间是否佩戴并已同步。</string>
     <string name="today_last_night_date">昨晚 · %1$s</string>
     <string name="today_hr_min">最低</string>
     <string name="today_hr_avg">平均</string>
@@ -2643,6 +2644,10 @@
     <string name="units_kilometres">公里</string>
     <string name="units_miles">英里</string>
     <string name="units_follow_body">跟随身体测量</string>
+    <string name="l10n_devices_screen_battery_pack_probe_151_re_d722af00">电池盒探测 (151 RE)…</string>
+    <string name="l10n_devices_screen_battery_pack_probe_result_151_df43dff2">电池盒探测结果 (151)</string>
+    <string name="l10n_devices_screen_battery_pack_probe_explainer_40b3470d">发送只读的电池盒命令 (151) 并解码手环的回复——电池盒的电量、序列号和蓝牙地址。不会向手环写入任何内容，也不会影响您的数据。WHOOP 4.0 没有电池盒命令，预期会保持静默；这种静默本身就是有用的结果。</string>
+    <string name="l10n_devices_screen_pack_charge_0e9589da">电池盒 %1$.1f%%</string>
     <string name="l10n_today_screen_pending_sync_cbe01f9e">等待同步</string>
     <string name="l10n_today_screen_strap_history_still_offloading_80140264">手环历史记录仍在传输</string>
 </resources>

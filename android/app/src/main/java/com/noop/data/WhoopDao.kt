@@ -197,6 +197,19 @@ interface WhoopDao : DeviceRegistryDao {
     suspend fun insertV18Aux(rows: List<V18AuxSampleEntity>): List<Long>
 
     /**
+     * Bound the PPG waveform table to the newest [keep] rows for [deviceId] (#1911 rolling retention).
+     * Same shape as [pruneV18Aux] below, and deliberately the same NEWEST-N semantic rather than an
+     * age-based delete: see `WhoopRepository.PPG_WAVEFORM_RETENTION_ROWS`. Swift twin: the DELETE at the
+     * end of `WhoopStore.insert`.
+     */
+    @Query(
+        "DELETE FROM ppgWaveformSample WHERE deviceId = :deviceId AND ts < " +
+            "(SELECT MIN(ts) FROM (SELECT ts FROM ppgWaveformSample WHERE deviceId = :deviceId " +
+            "ORDER BY ts DESC LIMIT :keep))",
+    )
+    suspend fun prunePpgWaveform(deviceId: String, keep: Int)
+
+    /**
      * Bound the v18 aux table to the newest [keep] rows for [deviceId] (rolling retention, v31). Same
      * shape as [pruneRawImu] — this is instrumentation nothing reads yet, so it is capped rather than
      * unbounded. Swift twin: the DELETE at the end of `WhoopStore.insert`.

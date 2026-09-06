@@ -138,6 +138,13 @@ object AnalyticsEngine {
      * back to 0 — an empty 1970 window no real sample matches — rather than throwing, so a single bad key can
      * never take down a whole scoring pass. Byte-identical twin of the Swift `AnalyticsEngine.dayStartUtcSeconds`
      * (locked cross-platform by AnalyticsEngineDayBoundsTest / AnalyticsEngineDayBoundsTests).
+     *
+     * This is a UTC midnight that callers pair with one captured offset and fixed 86,400-second blocks, so
+     * every boundary beyond a clock change sits an hour from the local midnight it names. [LocalDayWindows]
+     * is the zone-rule-correct primitive built to replace that, and is deliberately called by nothing yet.
+     * This function remains the shipped answer until a switch-over lands; the two disagree by an hour on
+     * the far side of a transition, and `LocalDayWindowsTest` pins both answers so the difference is
+     * visible rather than discovered.
      */
     fun dayStartUtcSeconds(day: String): Long =
         runCatching { LocalDate.parse(day).atStartOfDay(ZoneOffset.UTC).toEpochSecond() }.getOrDefault(0L)

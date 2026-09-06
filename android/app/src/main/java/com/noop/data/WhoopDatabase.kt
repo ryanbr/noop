@@ -548,6 +548,12 @@ abstract class WhoopDatabase : RoomDatabase() {
          * BLOB (2 bytes/sample, little-endian i16, [StreamPersistence.packPpgSamples]) rather than 24 scalar
          * rows.
          *
+         * Retention: `ppgWaveformSample` is CAPPED at [WhoopRepository.PPG_WAVEFORM_RETENTION_ROWS] rolling
+         * rows per device (#1911), the same shape `v18AuxSample` uses. The cap is NEWEST-N ROWS and never an
+         * age cutoff: v26 seconds are spread thin over months for a sporadic wearer, so dropping by
+         * wall-clock age would empty the table for exactly the user a future re-analysis needs most, and a
+         * waveform has no aggregate that survives it. Swift twin: the `v27-ppg-waveform` migration note.
+         *
          * CREATE TABLE only (no existing data touched), so already-offloaded raw streams survive. The SQL MUST
          * match Room's generated schema for [PpgWaveformSampleEntity] exactly: deviceId TEXT NOT NULL, ts
          * INTEGER NOT NULL, samples BLOB NOT NULL (all Kotlin non-null, no SQL DEFAULT), composite PRIMARY KEY

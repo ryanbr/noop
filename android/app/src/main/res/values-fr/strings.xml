@@ -268,6 +268,9 @@
     <string name="l10n_devices_screen_body_location_probe_690_re_7def8c39">Sonde de position corporelle (#690 RE)…</string>
     <string name="l10n_devices_screen_body_location_probe_result_690_60c5ee79">Résultat de la sonde de position corporelle (#690)</string>
     <string name="l10n_devices_screen_body_location_probe_explainer_a9363239">Envoie la commande de position corporelle en lecture seule (0x54) et consigne la réponse brute complète du bracelet dans le journal, en décodant l\'enregistrement (révision / position / confiance / état) sur la WHOOP 4.0. Rien n\'est écrit sur le bracelet, et la détection de port ou la notation ne sont jamais modifiées.</string>
+    <string name="l10n_devices_screen_battery_pack_probe_151_re_d722af00">Test du pack de batterie (151 RE)…</string>
+    <string name="l10n_devices_screen_battery_pack_probe_result_151_df43dff2">Résultat du test du pack de batterie (151)</string>
+    <string name="l10n_devices_screen_battery_pack_probe_explainer_40b3470d">Envoie la commande en lecture seule du pack de batterie (151) et décode la réponse du bracelet : charge, numéro de série et adresse Bluetooth du pack. Rien n\'est écrit sur le bracelet et rien n\'alimente tes données. Une WHOOP 4.0 n\'a pas de commande de pack et devrait rester silencieuse ; ce silence est lui-même un résultat utile.</string>
     <string name="l10n_devices_screen_delete_this_device_s_data_3cae7a2a">Supprimer les données de cet appareil…</string>
     <string name="l10n_devices_screen_disconnect_ed28e068">Déconnecter</string>
     <string name="l10n_devices_screen_feature_flag_probe_761_re_21241d68">Sonde des indicateurs de fonction (#761 RE)…</string>
@@ -293,6 +296,7 @@
     <string name="l10n_devices_screen_leave_none_active_b5c858cb">N\'en laisser aucune active</string>
     <string name="l10n_devices_screen_name_709a2322">Nom</string>
     <string name="l10n_devices_screen_pack_voltage_9af3c3ff">%1$.2f V</string>
+    <string name="l10n_devices_screen_pack_charge_0e9589da">Pack %1$.1f%%</string>
     <string name="l10n_devices_screen_paired_locally_noop_owns_this_ring_30c16190">Associée localement. NOOP possède cette bague tant qu\'il détient la clé. Si vous la réinitialisez à nouveau ou la configurez dans l\'app Oura, NOOP ne la possède plus et vous devrez la rajouter pour en reprendre le contrôle.</string>
     <string name="l10n_devices_screen_pick_a_new_active_strap_edd73542">Choisir un nouveau bracelet actif</string>
     <string name="l10n_devices_screen_rename_device_ee233604">Renommer l\'appareil</string>
@@ -788,7 +792,7 @@
     <string name="l10n_today_screen_arrange_today_6b699147">Arrange aujourd\'hui</string>
     <string name="l10n_today_screen_calibrating_37c2c9bd">Calibration en cours</string>
     <string name="l10n_today_screen_no_new_nights_from_your_strap_for_stale_days_8863bcfe">Aucune nouvelle nuit de votre strap depuis %1$d jours. Vérifiez qu\'il est connecté et enregistre les données.</string>
-    <string name="l10n_today_screen_calibratingnights_of_baselines_minnightsseed_3b76e55c">%1$s de %2$s</string>
+    <string name="l10n_today_screen_calibratingnights_of_baselines_minnightsseed_3b76e55c">%1$s nuits sur %2$s</string>
     <string name="l10n_today_screen_choose_which_cards_show_on_today_f79942e1">Choisissez les cartes affichées sur Today et réarrangez-les avec les flèches.</string>
     <string name="l10n_today_screen_close_bbfa773e">Fermer</string>
     <string name="l10n_today_screen_customise_your_cards_2428d761">Personnalisez vos cartes</string>
@@ -2340,6 +2344,7 @@
     <string name="today_steps_headline_more_days">Encore %1$d jours également comptés par le téléphone</string>
     <string name="today_steps_headline_no_motion">Aucune donnée de mouvement synchronisée pour l\'instant</string>
     <string name="today_synthesis_learning_baseline">Création de votre référence, %1$d nuits sur %2$d.</string>
+    <string name="today_synthesis_nights_without_hrv">%1$d des %2$d dernières nuits n\'ont enregistré aucune VFC. Vérifiez que le bracelet est porté la nuit et se synchronise.</string>
     <string name="today_last_night_date">Nuit dernière · %1$s</string>
     <string name="today_hr_min">Min.</string>
     <string name="today_hr_avg">Moy.</string>

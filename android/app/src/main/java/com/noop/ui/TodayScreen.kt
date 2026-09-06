@@ -2962,7 +2962,22 @@ private fun SynthesisHeroCard(
             } else {
                 // Comma (not the old em-dash) to match the Swift canonical synthesis copy VERBATIM
                 // (TodayView "Learning your baseline, N of M nights.") and the no-em-dash standing rule.
-                uiString(R.string.today_synthesis_learning_baseline, recoveryCalibration, Baselines.minNightsSeed)
+                // #612 above covers a TOTAL drought. The common shape is the other one: nights arriving,
+                // most of them empty. Five days in with three HRV-less nights sits at "2 of 4" with no
+                // reason given, which reads as a stuck counter rather than as missing data. Name the
+                // missing nights so a wearer has something to act on instead of something to wait for.
+                // Swift twin: TodayView.calibrationDetail.
+                val cov = Baselines.recentHrvCoverage(
+                    days.map { it.day }, days.map { it.avgHrv }, logicalDayKeyNow(),
+                )
+                val base = uiString(
+                    R.string.today_synthesis_learning_baseline, recoveryCalibration, Baselines.minNightsSeed,
+                )
+                if (cov.missing > 0 && cov.observed > 0) {
+                    base + " " + uiString(R.string.today_synthesis_nights_without_hrv, cov.missing, cov.observed)
+                } else {
+                    base
+                }
             }
         } else if (carriedDay != null) {
             // Carried prior-day read, summarise that day + stamp it so it isn't passed off as today's.
@@ -3022,6 +3037,17 @@ private fun SynthesisHeroCard(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
+                        // While calibrating, the detail carries the progress AND, when nights are arriving
+                        // empty, the reason. Collapsed used to show only "Calibrating", which is the state
+                        // the field report was taken in: the explanation existed one tap away and the
+                        // wearer had no way to know it was there. iOS never gated this line; matching it.
+                        if (recoveryCalibration != null) {
+                            Text(
+                                detail,
+                                style = NoopType.caption,
+                                color = Palette.textSecondary,
+                            )
+                        }
                     }
                     Icon(
                         Icons.Filled.KeyboardArrowDown,

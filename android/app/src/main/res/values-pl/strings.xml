@@ -415,6 +415,9 @@
     <string name="l10n_devices_screen_body_location_probe_690_re_7def8c39">Sonda do lokalizacji ciała (#690 RE)…</string>
     <string name="l10n_devices_screen_body_location_probe_result_690_60c5ee79">Wynik sondy lokalizacji ciała (#690)</string>
     <string name="l10n_devices_screen_body_location_probe_explainer_a9363239">Wysyła polecenie lokalizacji ciała tylko do odczytu (0x54) i zrzuca pełną nieprzetworzoną odpowiedź paska do dziennika paska, dekodując zapis (wersja/lokalizacja/pewność/status) w WHOOP 4.0. Nic nie jest zapisane na pasku i nigdy nie zmienia sposobu wykrywania zużycia ani punktacji.</string>
+    <string name="l10n_devices_screen_battery_pack_probe_151_re_d722af00">Test pakietu baterii (151 RE)…</string>
+    <string name="l10n_devices_screen_battery_pack_probe_result_151_df43dff2">Wynik testu pakietu baterii (151)</string>
+    <string name="l10n_devices_screen_battery_pack_probe_explainer_40b3470d">Wysyła tylko do odczytu polecenie pakietu baterii (151) i dekoduje odpowiedź opaski — poziom naładowania, numer seryjny i adres Bluetooth pakietu. Nic nie jest zapisywane na opasce i nic nie trafia do Twoich danych. WHOOP 4.0 nie ma polecenia pakietu i zgodnie z oczekiwaniami milczy; samo to milczenie jest użytecznym wynikiem.</string>
     <string name="l10n_devices_screen_feature_flag_probe_761_re_21241d68">Sonda z flagą funkcji (#761 RE)…</string>
     <string name="l10n_devices_screen_stop_sync_4a1f2b6e">Zatrzymaj synchronizację</string>
     <string name="l10n_devices_screen_feature_flag_probe_result_761_c50ef4d4">Wynik sondy z flagą funkcji (nr 761)</string>
@@ -432,6 +435,7 @@
     <string name="l10n_devices_screen_leave_none_active_b5c858cb">Nie pozostawiaj żadnego aktywnego</string>
     <string name="l10n_devices_screen_name_709a2322">Nazwa</string>
     <string name="l10n_devices_screen_pack_voltage_9af3c3ff">%1$.2f V</string>
+    <string name="l10n_devices_screen_pack_charge_0e9589da">Pack %1$.1f%%</string>
     <string name="l10n_devices_screen_paired_locally_noop_owns_this_ring_30c16190">Sparowane lokalnie. NOOP jest właścicielem tego pierścienia, dopóki trzyma klucz. Jeśli zresetujesz go ponownie lub skonfigurujesz w aplikacji Oura, NOOP nie będzie już jego właścicielem i dodasz go ponownie, aby go przejąć.</string>
     <string name="l10n_devices_screen_pick_a_new_active_strap_edd73542">Wybierz nowy aktywny pasek</string>
     <string name="l10n_devices_screen_rename_device_ee233604">Zmień nazwę urządzenia</string>
@@ -921,7 +925,7 @@
     <string name="l10n_today_screen_arrange_today_6b699147">Umów się już dziś</string>
     <string name="l10n_today_screen_calibrating_37c2c9bd">Kalibracja</string>
     <string name="l10n_today_screen_no_new_nights_from_your_strap_for_stale_days_8863bcfe">Żadnych nowych nocy z Twojego paska przez %1$d dni. Sprawdź, czy jest podłączony i zapisuje dane.</string>
-    <string name="l10n_today_screen_calibratingnights_of_baselines_minnightsseed_3b76e55c">%1$s lub %2$s</string>
+    <string name="l10n_today_screen_calibratingnights_of_baselines_minnightsseed_3b76e55c">%1$s z %2$s nocy</string>
     <string name="l10n_today_screen_choose_which_cards_show_on_today_f79942e1">Wybierz, które karty mają być wyświetlane w Dzisiaj i zmień ich kolejność za pomocą strzałek.</string>
     <string name="l10n_today_screen_close_bbfa773e">Zamknij</string>
     <string name="l10n_today_screen_customise_your_cards_2428d761">Dostosuj swoje karty</string>
@@ -2333,6 +2337,7 @@
     <string name="today_steps_headline_more_days">Potrzeba jeszcze %1$d dni z krokami telefonu</string>
     <string name="today_steps_headline_no_motion">Brak zsynchronizowanych danych o ruchu</string>
     <string name="today_synthesis_learning_baseline">Tworzenie bazy: %1$d z %2$d nocy.</string>
+    <string name="today_synthesis_nights_without_hrv">%1$d z ostatnich %2$d nocy nie zarejestrowało HRV. Sprawdź, czy opaska jest noszona w nocy i synchronizuje się.</string>
     <string name="today_last_night_date">Ostatnia noc · %1$s</string>
     <string name="today_hr_min">Min.</string>
     <string name="today_hr_avg">Śr.</string>

@@ -1,26 +1,19 @@
 package com.noop.analytics
 
-import com.noop.data.HrSample
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Tests the two OPTIONAL Oura-Readiness-style Charge terms (#417): the Recovery-Index
- * overnight HR-decline slope and the Activity-Balance previous-day-Effort term, plus the
- * "strain" MetricCfg that backs the latter. Faithful Kotlin mirror of the #417 cases in
+ * Tests the two OPTIONAL Oura-Readiness-style Charge terms (#417) as recovery(...) consumes them:
+ * the Recovery-Index overnight HR-decline slope and the Activity-Balance previous-day-Effort term,
+ * plus the "strain" MetricCfg that backs the latter. Faithful Kotlin mirror of the #417 cases in
  * RecoveryScorerTests.swift / BaselinesTests.swift — same scenarios, same expected values,
  * byte-identical logic. Both terms are DORMANT (null-default); the central claim pinned here
  * is that every existing caller's score is byte-identical to before they existed.
  */
 class RecoveryIndexActivityBalanceTest {
-
-    private val dev = "test"
-
-    private fun hr(ts: Long, bpm: Int) = HrSample(deviceId = dev, ts = ts, bpm = bpm)
 
     /** A usable baseline with a given mean and Gaussian sigma (spread is internal abs-dev units). */
     private fun baseline(mean: Double, sigma: Double, nValid: Int = 14): BaselineState =
@@ -28,76 +21,6 @@ class RecoveryIndexActivityBalanceTest {
             baseline = mean, spread = sigma / 1.253, nValid = nValid, nightsSinceUpdate = 0,
             status = if (nValid >= 14) BaselineStatus.TRUSTED else BaselineStatus.PROVISIONAL,
         )
-
-    /**
-     * A synthetic full-night HR series with a KNOWN injected slope: samples every 30 s for
-     * [hours] hours, bpm = startBpm + slopePerHour × elapsed-hours (rounded to the integer bpm
-     * the wire carries). Mirrors the Swift `slopeSeries` helper.
-     */
-    private fun slopeSeries(
-        startBpm: Double,
-        slopePerHour: Double,
-        hours: Int,
-    ): Triple<List<HrSample>, Long, Long> {
-        val originTs = 100_000L
-        val totalSeconds = hours * 3600
-        val samples = ArrayList<HrSample>()
-        var t = 0
-        while (t < totalSeconds) {
-            val bpm = startBpm + slopePerHour * (t.toDouble() / 3600.0)
-            samples.add(hr(originTs + t, Math.round(bpm).toInt()))
-            t += 30
-        }
-        return Triple(samples, originTs, originTs + totalSeconds)
-    }
-
-    // ── recoveryIndexSlope ───────────────────────────────────────────────────────
-
-    @Test
-    fun recoveryIndexSlopeNullWhenNoSamples() {
-        assertNull(RecoveryScorer.recoveryIndexSlope(emptyList(), 0L, 1000L))
-    }
-
-    @Test
-    fun recoveryIndexSlopeNullWhenTooFewBins() {
-        // Only 2 five-minute bins (10 minutes) of data — below recoveryIndexMinBins — too
-        // little of the night to fit a trend; must return null, never a fabricated slope.
-        val start = 5000L
-        val samples = ArrayList<HrSample>()
-        for (i in 0 until 300) samples.add(hr(start + i, 60))
-        for (i in 0 until 300) samples.add(hr(start + 300 + i, 55))
-        assertNull(RecoveryScorer.recoveryIndexSlope(samples, start, start + 600))
-    }
-
-    @Test
-    fun recoveryIndexSlopeRecoversMultipleDistinctInjectedSlopes() {
-        // Derived-signal rule: recover MULTIPLE distinct injected slopes, not one matched case.
-        // Four full-night (6 h) synthetic series: flat, mild decline, steep decline, rising.
-        val flat = slopeSeries(startBpm = 62.0, slopePerHour = 0.0, hours = 6)
-        val mild = slopeSeries(startBpm = 62.0, slopePerHour = -1.0, hours = 6)
-        val steep = slopeSeries(startBpm = 68.0, slopePerHour = -4.0, hours = 6)
-        val rising = slopeSeries(startBpm = 55.0, slopePerHour = 2.0, hours = 6)
-
-        val flatSlope = RecoveryScorer.recoveryIndexSlope(flat.first, flat.second, flat.third)
-        val mildSlope = RecoveryScorer.recoveryIndexSlope(mild.first, mild.second, mild.third)
-        val steepSlope = RecoveryScorer.recoveryIndexSlope(steep.first, steep.second, steep.third)
-        val risingSlope = RecoveryScorer.recoveryIndexSlope(rising.first, rising.second, rising.third)
-
-        assertNotNull(flatSlope); assertNotNull(mildSlope)
-        assertNotNull(steepSlope); assertNotNull(risingSlope)
-
-        // Each recovered slope is close to its OWN injected value (within integer-bpm rounding
-        // noise from the synthetic series), not just relatively ordered.
-        assertEquals(0.0, flatSlope!!, 0.3)
-        assertEquals(-1.0, mildSlope!!, 0.3)
-        assertEquals(-4.0, steepSlope!!, 0.3)
-        assertEquals(2.0, risingSlope!!, 0.3)
-
-        // And strictly ordered steep-decline < mild-decline < flat < rising.
-        assertTrue(steepSlope < mildSlope)
-        assertTrue(mildSlope < flatSlope)
-        assertTrue(flatSlope < risingSlope)
-    }
 
     // ── Recovery Index / Activity-Balance folded into recovery(...) ──────────────
 

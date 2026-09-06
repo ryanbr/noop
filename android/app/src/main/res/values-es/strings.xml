@@ -250,6 +250,9 @@
     <string name="l10n_devices_screen_body_location_probe_690_re_7def8c39">Sonda de posición corporal (#690 RE)…</string>
     <string name="l10n_devices_screen_body_location_probe_result_690_60c5ee79">Resultado de la sonda de posición corporal (#690)</string>
     <string name="l10n_devices_screen_body_location_probe_explainer_a9363239">Envía el comando de posición corporal de solo lectura (0x54) y vuelca la respuesta cruda completa de la banda al registro, decodificando el registro (revisión / posición / confianza / estado) en la WHOOP 4.0. No se escribe nada en la banda y nunca cambia la detección de uso ni la puntuación.</string>
+    <string name="l10n_devices_screen_battery_pack_probe_151_re_d722af00">Prueba del pack de batería (151 RE)…</string>
+    <string name="l10n_devices_screen_battery_pack_probe_result_151_df43dff2">Resultado de la prueba del pack de batería (151)</string>
+    <string name="l10n_devices_screen_battery_pack_probe_explainer_40b3470d">Envía el comando de solo lectura del pack de batería (151) y descodifica la respuesta de la banda: carga, número de serie y dirección Bluetooth del pack. No se escribe nada en la banda y nada afecta a tus datos. Una WHOOP 4.0 no tiene comando de pack y se espera que no responda; ese silencio también es un resultado útil.</string>
     <string name="l10n_devices_screen_delete_this_device_s_data_3cae7a2a">Eliminar los datos de este dispositivo…</string>
     <string name="l10n_devices_screen_disconnect_ed28e068">Desconectar</string>
     <string name="l10n_devices_screen_feature_flag_probe_761_re_21241d68">Sonda de indicadores de función (#761 RE)…</string>
@@ -275,6 +278,7 @@
     <string name="l10n_devices_screen_leave_none_active_b5c858cb">No dejar ninguna activa</string>
     <string name="l10n_devices_screen_name_709a2322">Nombre</string>
     <string name="l10n_devices_screen_pack_voltage_9af3c3ff">%1$.2f V</string>
+    <string name="l10n_devices_screen_pack_charge_0e9589da">Pack %1$.1f%%</string>
     <string name="l10n_devices_screen_paired_locally_noop_owns_this_ring_30c16190">Emparejado localmente. NOOP es propietario de este anillo mientras conserva la clave. Si lo restableces de nuevo o lo configuras en la app de Oura, NOOP deja de ser propietario y tendrías que volver a añadirlo para retomar el control.</string>
     <string name="l10n_devices_screen_pick_a_new_active_strap_edd73542">Elige una nueva pulsera activa</string>
     <string name="l10n_devices_screen_rename_device_ee233604">Renombrar dispositivo</string>
@@ -770,7 +774,7 @@
     <string name="l10n_today_screen_arrange_today_6b699147">Arregla hoy</string>
     <string name="l10n_today_screen_calibrating_37c2c9bd">Calibrando</string>
     <string name="l10n_today_screen_no_new_nights_from_your_strap_for_stale_days_8863bcfe">Sin nuevas noches de tu strap desde hace %1$d días. Comprueba que esté conectado y guardando datos.</string>
-    <string name="l10n_today_screen_calibratingnights_of_baselines_minnightsseed_3b76e55c">%1$s de %2$s</string>
+    <string name="l10n_today_screen_calibratingnights_of_baselines_minnightsseed_3b76e55c">%1$s de %2$s noches</string>
     <string name="l10n_today_screen_choose_which_cards_show_on_today_f79942e1">Elija qué tarjetas muestran en Hoy y reordenarlos con las flechas.</string>
     <string name="l10n_today_screen_close_bbfa773e">Cerrar</string>
     <string name="l10n_today_screen_customise_your_cards_2428d761">Personaliza tus tarjetas</string>
@@ -2341,6 +2345,7 @@
     <string name="today_steps_headline_more_days">Faltan %1$d días contabilizados también por el teléfono</string>
     <string name="today_steps_headline_no_motion">Aún no se han sincronizado datos de movimiento</string>
     <string name="today_synthesis_learning_baseline">Creando tu referencia, %1$d de %2$d noches.</string>
+    <string name="today_synthesis_nights_without_hrv">%1$d de las últimas %2$d noches no registraron HRV. Comprueba que llevas la banda por la noche y que se sincroniza.</string>
     <string name="today_last_night_date">Anoche · %1$s</string>
     <string name="today_hr_min">Mín.</string>
     <string name="today_hr_avg">Media</string>

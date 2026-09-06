@@ -1362,9 +1362,12 @@ final class IntelligenceEngine: ObservableObject {
                     // covers 1.25x its wall-clock reads ~197 ms across a sleeping night, against a 40-100 ms
                     // physiological range. Printing that number beside the verdict that says it cannot be
                     // trusted invites it to be read as a measurement, so it is withheld instead; the
-                    // `rrIntegrity=` field on the same line says why. RMSSD/meanNN are NOT withheld — mean
-                    // rate survives an over-count, and RMSSD's dominant error was the emission order fixed
-                    // at the write path (#1072).
+                    // `rrIntegrity=` field on the same line says why. meanNN is NOT withheld: mean rate
+                    // survives an over-count. RMSSD is not withheld FROM THIS LINE either, but it no longer
+                    // reaches the card, the daily row or the baseline on an over-counted night — the gate
+                    // that stops it lives in `SleepStager.sessionAvgHRV` (#1118). Printing the computed
+                    // value here while the app refused to use it is a known wart, held back to keep this
+                    // line byte-identical to the Kotlin twin, whose method budget has no room for it.
                     // P7' follow-up: the over-count verdict is necessary but NOT sufficient. The
                     // 2026-08-06 Oura night measured coverage 1.03 / `plausible` — no duplication at
                     // all, its records tiling the timeline at a fill ratio of 0.990 — and still printed

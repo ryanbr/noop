@@ -1132,6 +1132,16 @@ struct TodayView: View {
            stale > Baselines.staleDays {
             return "No new nights from your strap for \(stale) days. Check it's connected and saving data."
         }
+        // #612 covers a TOTAL drought (nothing valid for staleDays). The common shape is the other one:
+        // nights arriving, most of them empty — five days in with three HRV-less nights sits at "2 of 4"
+        // with no reason given, which reads as a stuck counter. Name the missing nights so the wearer has
+        // something to act on instead of something to wait for.
+        let cov = Baselines.recentHrvCoverage(dayKeys: repo.days.map(\.day),
+                                              nightlyHrv: repo.days.map(\.avgHrv),
+                                              today: Repository.logicalDayKey(Date()))
+        if cov.missing > 0, cov.observed > 0 {
+            return "Learning your baseline, \(n) of \(Baselines.minNightsSeed) nights. \(cov.missing) of the last \(cov.observed) nights recorded no HRV. Check the strap is worn overnight and syncing."
+        }
         return "Learning your baseline, \(n) of \(Baselines.minNightsSeed) nights."
     }
 
@@ -3443,8 +3453,14 @@ struct TodayView: View {
                 // the same lineLimit/scaleFactor guard so it never wraps, then its "N of 4" subtitle below.
                 Text("Calibrating").font(StrandFont.headline).foregroundStyle(StrandPalette.textPrimary)
                     .lineLimit(1).minimumScaleFactor(0.7).fixedSize()
-                Text("\(n) of \(Baselines.minNightsSeed)").font(StrandFont.footnote).foregroundStyle(StrandPalette.textSecondary)
-                    .lineLimit(1)
+                // #1816's lesson on a second tile: a bare "2 of 4" under "Calibrating" is read as DAYS,
+                // and a wearer five days in reports it stuck. It counts NIGHTS THAT BANKED A USABLE HRV
+                // (`Baselines.update` only advances `nValid` for a non-nil in-range value), so a week of
+                // wear with three R-R-less nights genuinely sits at 2. Naming the unit is the whole fix:
+                // the number is right, the reader's unit was not.
+                Text("\(n) of \(Baselines.minNightsSeed) nights").font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .lineLimit(1).minimumScaleFactor(0.7)
             } else {
                 ringNoData(diameter: diameter)
             }

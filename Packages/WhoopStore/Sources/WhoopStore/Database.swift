@@ -538,12 +538,20 @@ extension WhoopStore {
         // That keeps a v26-heavy night to roughly the same order of magnitude as ONE extra per-second
         // stream (≈50 bytes/row), not 24x that. Additive only, a NEW table, no existing row touched.
         //
-        // Retention: no pruning, matching every other durable per-second table (hrSample, spo2Sample, …
-        // are never pruned either) — this is decoded biometric history, not the transient raw outbox.
-        // `PrunePolicy`'s ~50 MB cap governs ONLY `rawBatch` (raw, pre-decode frames kept for re-decode /
-        // re-sync); it is untouched by and unrelated to this table. Growth here is bounded by how much
-        // v26 data a strap actually emits (firmware chooses v26 vs v18 per second, not every night is
-        // v26-heavy), not by an artificial cap.
+        // Retention: CAPPED at `WhoopStore.ppgWaveformRetentionRows` newest rows per device (#1911), swept
+        // amortised on insert exactly like `v18AuxSample`. This table is the ONE exception to "no durable
+        // per-second table is pruned" (hrSample, spo2Sample, … are still never pruned), because it is the
+        // only one storing a blob rather than a scalar: ~120 B/row against ~30 B. It is the worst ROW, not
+        // the biggest table — v26 runs only in optical windows (~28,800 rows/day) where `rrInterval` banks
+        // ~100,000/day, so most of #1911's ~93 MB/day is still unbounded elsewhere. `PrunePolicy`'s
+        // ~50 MB cap governs ONLY `rawBatch` (raw, pre-decode frames kept for re-decode / re-sync); it is
+        // untouched by and unrelated to this table.
+        //
+        // The cap is NEWEST-N-ROWS, not an age-based drop, and that distinction is load-bearing for the
+        // consumer note below: a sporadic wearer's v26 seconds are spread thin over months, so deleting by
+        // wall-clock age would empty the table for exactly the user a future estimator needs most, while
+        // newest-N always leaves a full working set. See `ppgWaveformRetentionRows` for the byte maths and
+        // for why #1911's "diagnostic-only, drop after the hot window" framing was not followed.
         //
         // CONSUMER STATUS — deliberately none, and stated here so nobody has to re-derive it. The writer is
         // live on both platforms (offload + archive replay + the Android capture importer), but the reader
