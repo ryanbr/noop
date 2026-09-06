@@ -327,13 +327,15 @@ Consecutive same-stage epochs are merged into `StageSegment`s tiling `[start, en
 ### Outputs
 
 - `SleepSession` — `start`, `end`, `efficiency` (AASM `asleep / in-bed`, where `asleep = in-bed − wake`), `stages`, per-session `restingHR` (lowest 5-min rolling-mean HR) and `avgHRV` (mean RMSSD over 5-min tumbling windows).
+- `hypnogramMetrics(_:)` — AASM-style roll-up: TIB / TST / SPT / SOL / REM latency / WASO / efficiency / disturbances, plus deep/REM/light minutes and percentages.
 
 ### Per-session resting HR and HRV
 
 `sessionRestingHR` is the **minimum of 5-minute non-overlapping bin means** of the HR samples in `[start, end]` — "lowest sustained HR", which rejects single-beat dips while capturing the night's true floor. With no bin populated it falls back to the all-sample mean, so a session with data never scores nil. `sessionHrvWindows` tumbles the same 5-minute grid over the RR series, cleans each bucket (range filter + Malik ectopic rejection, gap-aware) and emits one window per bin tagged with the stage at its center; `sessionAvgHRV` is the mean of those window RMSSDs. These two are the shipped source of the per-session `restingHR` / `avgHRV`, of the HRV nightly trace and of the last-deep-run comparator.
 
 **Window endpoint rule.** The session window is closed at both ends, so the binning is too: bins are `[t, t + 300)` except the last one, which is `[t, end]`. A sample or beat sitting exactly on an aligned `end` passes the `[start, end]` prefilter, so it must land in a bin rather than be admitted and then dropped. A zero-length window (`start == end`) is that single closed bin. Bin start times, the stage-tagging center and the RMSSD math are unaffected.
-- `hypnogramMetrics(_:)` — AASM-style roll-up: TIB / TST / SPT / SOL / REM latency / WASO / efficiency / disturbances, plus deep/REM/light minutes and percentages.
+
+Because these two functions are the shipped path, the rule can move a displayed number on a night whose session length is an exact multiple of 300 s with a sample on `end`: per-session `restingHR`/`avgHRV` and the HRV trace. Stored rows keep the old value until that night is re-scored (`MetricsCache` overwrites both on every recompute).
 
 ### Motion-corroborated wake — elevated-but-motionless HR is not wake (default ON)
 
