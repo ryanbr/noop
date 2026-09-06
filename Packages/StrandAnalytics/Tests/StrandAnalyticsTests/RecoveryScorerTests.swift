@@ -284,6 +284,88 @@ final class RecoveryScorerTests: XCTestCase {
         XCTAssertLessThan(flatSlope!, risingSlope!)
     }
 
+    // MARK: - Window endpoint: the closed [start, end] window has a closed FINAL bin
+
+    // Both `restingHR` and `recoveryIndexSlope` prefilter ts ∈ [start, end], so a sample sitting
+    // exactly ON `end` is admitted. With bins shaped [t, t+300) and a loop that stops at `end`, an
+    // ALIGNED end (end - start a multiple of the bin width) left that admitted sample in no bin at
+    // all: it was counted as data and then silently ignored. The final bin is therefore closed at
+    // `end`. The paired non-aligned cases pin the behaviour that was already correct, so the fix
+    // cannot be mistaken for a change to trailing partial bins.
+
+    func testRestingHRAlignedEndpointSampleReachesABin() {
+        // Issue #39's minimal case: start = 0, end = 300 (exactly one bin wide), five samples on
+        // the endpoint. They pass the prefilter, so they must also populate the final bin — and
+        // five is exactly restingHRMinBinSamples, so the bin qualifies for the floor. This case
+        // already returned 60 before the fix, but only because NO bin held anything and the
+        // all-sample fallback stepped in; it now flows through the bin path like any other
+        // window. testRestingHREndpointSampleLandsInFinalBinOnly is where the fallback cannot
+        // hide the dropped sample.
+        let hr = (0..<5).map { _ in HRSample(ts: 300, bpm: 60) }
+        XCTAssertEqual(RecoveryScorer.restingHR(hr, start: 0, end: 300), 60,
+                       "a sample exactly on an aligned end must belong to the final bin")
+    }
+
+    func testRestingHRNonAlignedEndpointSampleReachesABin() {
+        // Paired non-aligned case: end = 450 falls mid-bin, so the endpoint sample was always
+        // inside the trailing partial bin. Same answer, before and after the fix.
+        let hr = (0..<5).map { _ in HRSample(ts: 450, bpm: 60) }
+        XCTAssertEqual(RecoveryScorer.restingHR(hr, start: 0, end: 450), 60,
+                       "a sample on a non-aligned end stays in the trailing partial bin")
+    }
+
+    func testRestingHREndpointSampleLandsInFinalBinOnly() {
+        // The endpoint must join the LAST bin, not leak into earlier ones: a dense 70 bpm first
+        // bin plus five endpoint beats at 40 gives a floor of 40 (the endpoint bin), while the
+        // 70 bpm bin is untouched. A rule that admitted ts == end into every bin would drag the
+        // first bin's mean down instead.
+        var hr: [HRSample] = (0..<300).map { HRSample(ts: $0, bpm: 70) }
+        hr.append(contentsOf: (0..<5).map { _ in HRSample(ts: 600, bpm: 40) })
+        XCTAssertEqual(RecoveryScorer.restingHR(hr, start: 0, end: 600), 40,
+                       "the endpoint sample belongs to the final bin only")
+    }
+
+    func testRestingHRDegenerateZeroLengthWindow() {
+        // start == end: the single instant is one closed bin. Five samples clear the count bar,
+        // so the floor is their mean — the same number the all-sample fallback produced before.
+        let hr = (0..<5).map { _ in HRSample(ts: 1000, bpm: 58) }
+        XCTAssertEqual(RecoveryScorer.restingHR(hr, start: 1000, end: 1000), 58)
+    }
+
+    func testRecoveryIndexSlopeAlignedEndpointCompletesTheBinGate() throws {
+        // Issue #39's second case: six samples over an aligned 30-minute window, the last exactly
+        // on `end`. Dropping it left five bins — one short of recoveryIndexMinBins — so the gate
+        // turned a complete window into nil. With the final bin closed there are six bins and a
+        // slope. Expected value from the Swift oracle in Tools-free standalone form (see the
+        // Kotlin twin, which pins the same literal).
+        let hr = [HRSample(ts: 0, bpm: 66), HRSample(ts: 300, bpm: 64),
+                  HRSample(ts: 600, bpm: 62), HRSample(ts: 900, bpm: 60),
+                  HRSample(ts: 1200, bpm: 58), HRSample(ts: 1800, bpm: 54)]
+        let slope = try XCTUnwrap(RecoveryScorer.recoveryIndexSlope(hr, start: 0, end: 1800),
+                                  "an admitted endpoint sample must count toward the bin gate")
+        XCTAssertEqual(slope, -27.428571428571423, accuracy: 1e-9)
+    }
+
+    func testRecoveryIndexSlopeStillNilWithOnlyFiveBins() {
+        // The gate itself is unchanged: the same window without the endpoint sample has five
+        // bins and must stay nil. Closing the final bin adds no bin where there is no sample.
+        let hr = [HRSample(ts: 0, bpm: 66), HRSample(ts: 300, bpm: 64),
+                  HRSample(ts: 600, bpm: 62), HRSample(ts: 900, bpm: 60),
+                  HRSample(ts: 1200, bpm: 58)]
+        XCTAssertNil(RecoveryScorer.recoveryIndexSlope(hr, start: 0, end: 1800))
+    }
+
+    func testRecoveryIndexSlopeNonAlignedEndpointCompletesTheBinGate() throws {
+        // Paired non-aligned case: end = 1750 sits mid-bin, so the endpoint sample was already in
+        // the trailing partial bin and the gate was already satisfied. Pinned so the fix is
+        // visibly confined to the aligned case.
+        let hr = [HRSample(ts: 0, bpm: 66), HRSample(ts: 300, bpm: 64),
+                  HRSample(ts: 600, bpm: 62), HRSample(ts: 900, bpm: 60),
+                  HRSample(ts: 1200, bpm: 58), HRSample(ts: 1750, bpm: 54)]
+        let slope = try XCTUnwrap(RecoveryScorer.recoveryIndexSlope(hr, start: 0, end: 1750))
+        XCTAssertEqual(slope, -27.428571428571423, accuracy: 1e-9)
+    }
+
     // MARK: - Recovery Index / Activity-Balance folded into recovery(...)
 
     func testRecoveryIndexAndActivityBalanceDefaultNilByteIdenticalToBefore() {
