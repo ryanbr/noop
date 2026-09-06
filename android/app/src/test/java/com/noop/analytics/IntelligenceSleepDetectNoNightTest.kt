@@ -56,4 +56,37 @@ class IntelligenceSleepDetectNoNightTest {
         )
         assertFalse(line.contains("—"))
     }
+
+    /**
+     * The signal this line was missing. Gravity is a PLAIN read with no truncation counter, so a night
+     * clipped of its newest motion staged badly and said nothing about why - and `grav=192698` reads as
+     * healthy until you know it is 96% of a cap. A read that comes back AT the limit is truncated, which
+     * is what `full.count >= limit` means everywhere else here.
+     */
+    @Test fun `a stream at its read cap is named`() {
+        val line = IntelligenceEngine.sleepDetectNoNightLogLine(
+            day = "2026-09-06", hrCount = 1000, rrCount = 1000, respCount = 0,
+            gravCount = StreamReadCap.GRAVITY, stepCount = 0, providedCount = 0, windowHours = 54,
+        )
+        assertTrue(line, line.contains("atCap=grav"))
+    }
+
+    /** A healthy night says nothing extra - the marker only appears when something actually clipped. */
+    @Test fun `a night under the caps carries no marker`() {
+        val line = IntelligenceEngine.sleepDetectNoNightLogLine(
+            day = "2026-09-06", hrCount = 192_698, rrCount = 136_285, respCount = 0,
+            gravCount = 192_698, stepCount = 0, providedCount = 0, windowHours = 54,
+        )
+        assertFalse(line, line.contains("atCap"))
+    }
+
+    /**
+     * The field capture that motivated the caps: 192,698 gravity rows was 96% of the OLD 200,000 limit
+     * and silent. Under the caps this ships with, the same night is comfortably clear - so a marker
+     * appearing now means a genuinely denser night, not the old ceiling.
+     */
+    @Test fun `the measured field night is clear of the caps`() {
+        assertTrue(192_698 < StreamReadCap.GRAVITY)
+    }
+
 }

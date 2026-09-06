@@ -45,4 +45,30 @@ final class IntelligenceSleepDetectNoNightTests: XCTestCase {
             gravCount: 1, stepCount: 1, providedCount: 1, windowHours: 54)
         XCTAssertFalse(line.contains("—"))
     }
+
+    /// The signal this line was missing. Gravity is a PLAIN read with no truncation counter, so a night
+    /// clipped of its newest motion staged badly and said nothing about why — and `grav=192698` reads as
+    /// healthy until you know it is 96% of a cap. A read that comes back AT the limit is truncated, which
+    /// is what `full.count >= limit` means everywhere else here.
+    func testAStreamAtItsReadCapIsNamed() {
+        let line = IntelligenceEngine.sleepDetectNoNightLogLine(
+            day: "2026-09-06", hrCount: 1000, rrCount: 1000, respCount: 0,
+            gravCount: StreamReadCap.gravity, stepCount: 0, providedCount: 0, windowHours: 54)
+        XCTAssertTrue(line.contains("atCap=grav"), line)
+    }
+
+    /// A healthy night says nothing extra — the marker only appears when something actually clipped.
+    func testANightUnderTheCapsCarriesNoMarker() {
+        let line = IntelligenceEngine.sleepDetectNoNightLogLine(
+            day: "2026-09-06", hrCount: 192_698, rrCount: 136_285, respCount: 0,
+            gravCount: 192_698, stepCount: 0, providedCount: 0, windowHours: 54)
+        XCTAssertFalse(line.contains("atCap"), line)
+    }
+
+    /// The field capture that motivated the caps: 192,698 gravity rows was 96% of the OLD 200,000 limit
+    /// and silent. Under the caps this ships with, the same night is comfortably clear.
+    func testTheMeasuredFieldNightIsClearOfTheCaps() {
+        XCTAssertLessThan(192_698, StreamReadCap.gravity)
+    }
+
 }

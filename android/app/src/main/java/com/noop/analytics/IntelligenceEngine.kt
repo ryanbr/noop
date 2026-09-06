@@ -2951,9 +2951,24 @@ object IntelligenceEngine {
         // With motion present the inputs were there and staging still produced nothing, which remains the
         // case most worth investigating.
         val reason = if (gravCount == 0) "no-motion" else "staged-none"
+        // #1118 follow-up: name any stream that came back AT its read cap. A read that returns exactly
+        // the limit is the definition of truncated everywhere else here (`full.count >= limit`), and it
+        // is the one thing a reader cannot infer from the counts alone - `grav=192698` looks healthy
+        // until you know the cap it is 96% of.
+        //
+        // GRAVITY is why this exists. HR and R-R ride a SlidingStreamWindow, which counts its own
+        // truncations; gravity is a plain read with no counter at all, so a night clipped of its newest
+        // motion staged badly and said nothing. That is the difference between "this release fixes your
+        // night" and "your offload never ran", and a log could not tell them apart.
+        val atCap = buildList {
+            if (gravCount >= StreamReadCap.GRAVITY) add("grav")
+            if (hrCount >= StreamReadCap.HR) add("hr")
+            if (rrCount >= StreamReadCap.RR) add("rr")
+        }
+        val capNote = if (atCap.isEmpty()) "" else " atCap=${atCap.joinToString(",")}"
         return "sleep-detect day=$day NO-NIGHT hr=$hrCount rr=$rrCount resp=$respCount " +
             "grav=$gravCount steps=$stepCount provided=$providedCount window=${windowHours}h " +
-            "reason=$reason"
+            "reason=$reason$capNote"
     }
 
     /**
