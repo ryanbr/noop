@@ -405,10 +405,11 @@ object HrvAnalyzer {
      * arriving in real time, carrying no timestamps to measure coverage with — and suppressing those
      * would refuse honest readings, the opposite of the point.
      *
-     * Successive-difference statistics (RMSSD, pNN50) are not gated HERE, but they are no longer ungated:
-     * see [successiveDiffIsTrustworthy] below. The question this comment used to leave open, whether they
-     * need a gate of their own, was one for a post-fix capture to answer. That capture has since arrived
-     * and answered it yes.
+     * Successive-difference statistics (RMSSD, pNN50) are not gated HERE, but they are no longer ungated
+     * by COVERAGE: see [successiveDiffIsTrustworthy] below. The question this comment left open was one for
+     * a post-fix capture to answer; that capture arrived and answered it yes. Note it answered THIS
+     * question only. The sibling deferral on [beatValuesAreTrustworthy], about beat-to-beat accuracy, is
+     * still open and still waiting on a capture of its own.
      */
     fun beatSpreadIsTrustworthy(verdict: RrCoverageVerdict): Boolean = when (verdict) {
         RrCoverageVerdict.SAME_SECOND_OVER_COUNT, RrCoverageVerdict.CROSS_SECOND_OVER_COUNT -> false
@@ -522,8 +523,12 @@ object HrvAnalyzer {
      * median, so no per-beat artifact rule can see the fault — it is in the decomposition, not in
      * outliers.
      *
-     * Successive-difference statistics (RMSSD, pNN50) are deliberately NOT gated here, for the same
-     * reason they are not gated by the coverage verdict: that is a question for a capture to answer.
+     * Successive-difference statistics (RMSSD, pNN50) are deliberately NOT gated here. They ARE now gated
+     * on the coverage verdict ([successiveDiffIsTrustworthy]), but that is a different fault and a
+     * different population, and the capture that justified it says nothing about this one. Gating here
+     * would sweep in the very night described above: coverage 1.03, verdict PLAUSIBLE, and untrustworthy
+     * only in its decomposition. Refusing those needs its own capture, and inventing one from a WHOOP 4.0
+     * over-count would be exactly the assumption the paragraph above refused to bake in.
      */
     fun beatValuesAreTrustworthy(beatAccurateFraction: Double): Boolean =
         // Negated `<` so a NaN input lands on `true` — NaN means "not measured", and an unmeasured
