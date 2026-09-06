@@ -961,7 +961,11 @@ private fun CoachPrimaryButton(label: String, enabled: Boolean, onClick: () -> U
  * K4: The composer row with a mic button (on-device voice input) between the text field and Send.
  * Mirrors the iOS `CoachView.composer` + `micButton` twin. The mic button:
  *  - requests RECORD_AUDIO at runtime on first tap (via [rememberLauncherForActivityResult]),
- *  - starts/stops [CoachVoiceInput] (Android platform SpeechRecognizer, EXTRA_PREFER_OFFLINE),
+ *  - starts/stops [CoachVoiceInput], which uses `createOnDeviceSpeechRecognizer` behind an
+ *    `isOnDeviceRecognitionAvailable` gate (API 31+) and hides the mic entirely below that, so audio
+ *    cannot reach a server. This line used to say EXTRA_PREFER_OFFLINE, which was a PREFERENCE the
+ *    platform could ignore; that is the weaker mechanism the review replaced, and a doc still naming
+ *    it would have this screen vouching for a guarantee the code no longer relies on,
  *  - streams the partial transcript into the text field live,
  *  - on stop, appends the finalized transcript to the draft (not replace, so it composes with
  *    typed text).
