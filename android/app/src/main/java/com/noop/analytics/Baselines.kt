@@ -247,13 +247,18 @@ object Baselines {
      * Counts only days the app has a row for, so a new install is not charged for nights before it owned
      * the strap. Pure and TZ-free (civil-day arithmetic).
      */
+    /** Named rather than a `Pair`: the two numbers are both Ints with the same units, so `first`/`second`
+     *  at a call site is a coin toss that no test would catch — "5 of the last 3 nights" is absurd to a
+     *  reader and invisible to a compiler. Mirrors the Swift twin's `(observed:missing:)` labels. */
+    data class HrvCoverage(val observed: Int, val missing: Int)
+
     fun recentHrvCoverage(
         dayKeys: List<String>,
         nightlyHrv: List<Double?>,
         today: String,
         window: Int = staleDays,
-    ): Pair<Int, Int> {
-        val t = isoEpochDay(today) ?: return 0 to 0
+    ): HrvCoverage {
+        val t = isoEpochDay(today) ?: return HrvCoverage(0, 0)
         var observed = 0
         var missing = 0
         for (i in 0 until minOf(dayKeys.size, nightlyHrv.size)) {
@@ -262,7 +267,7 @@ object Baselines {
             observed++
             if (nightlyHrv[i] == null) missing++
         }
-        return observed to missing
+        return HrvCoverage(observed, missing)
     }
 
     /** #612: calendar days since the newest night that carried a usable HRV reading (the baseline's input),

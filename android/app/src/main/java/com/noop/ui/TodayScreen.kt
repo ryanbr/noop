@@ -2949,8 +2949,8 @@ private fun SynthesisHeroCard(
                 val base = uiString(
                     R.string.today_synthesis_learning_baseline, recoveryCalibration, Baselines.minNightsSeed,
                 )
-                if (cov.second > 0 && cov.first > 0) {
-                    base + " " + uiString(R.string.today_synthesis_nights_without_hrv, cov.second, cov.first)
+                if (cov.missing > 0 && cov.observed > 0) {
+                    base + " " + uiString(R.string.today_synthesis_nights_without_hrv, cov.missing, cov.observed)
                 } else {
                     base
                 }
