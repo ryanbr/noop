@@ -234,6 +234,11 @@ object Baselines {
         return BaselineStatus.TRUSTED
     }
 
+    /** Named rather than a `Pair`: the two numbers are both Ints with the same units, so `first`/`second`
+     *  at a call site is a coin toss that no test would catch — "5 of the last 3 nights" is absurd to a
+     *  reader and invisible to a compiler. Mirrors the Swift twin's `(observed:missing:)` labels. */
+    data class HrvCoverage(val observed: Int, val missing: Int)
+
     /**
      * Nights the app OBSERVED in the recent window, and how many carried no usable HRV. Swift twin:
      * `Baselines.recentHrvCoverage`.
@@ -247,11 +252,6 @@ object Baselines {
      * Counts only days the app has a row for, so a new install is not charged for nights before it owned
      * the strap. Pure and TZ-free (civil-day arithmetic).
      */
-    /** Named rather than a `Pair`: the two numbers are both Ints with the same units, so `first`/`second`
-     *  at a call site is a coin toss that no test would catch — "5 of the last 3 nights" is absurd to a
-     *  reader and invisible to a compiler. Mirrors the Swift twin's `(observed:missing:)` labels. */
-    data class HrvCoverage(val observed: Int, val missing: Int)
-
     fun recentHrvCoverage(
         dayKeys: List<String>,
         nightlyHrv: List<Double?>,
