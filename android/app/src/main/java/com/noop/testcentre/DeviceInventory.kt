@@ -28,7 +28,7 @@ internal data class InventoryRow(
  * publishing an address. This line carries no data the log did not already carry.
  *
  * [nowSec] is passed in rather than read, so the output is a pure function of its inputs. Swift twin:
- * `DebugDataDiagnostics.deviceInventoryLines`.
+ * `DeviceInventory.deviceInventoryLines`.
  */
 internal fun deviceInventoryLines(
     rows: List<InventoryRow>,

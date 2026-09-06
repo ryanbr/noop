@@ -820,7 +820,8 @@ public enum HRVAnalyzer {
     ///
     /// The wrap did not always land negative, which is the dangerous half: a 100% multi-share 8 h night
     /// (`pct(28_800_000, 28_800_000)`) returned 25 in 32 bits - positive, plausible, and wrong by 75
-    /// points. A negative percentage was a symptom of this, never the test for it. Twin of Kotlin `pct`.
+    /// points. A negative percentage was a symptom of this, never the test for it. Twin of Kotlin
+    /// `HrvAnalyzer.pct`.
     static func pct(_ part: Int, _ total: Int) -> Int {
         total > 0 ? Int((Int64(part) * 200 + Int64(total)) / (Int64(total) * 2)) : 0
     }

@@ -1,0 +1,52 @@
+# These are the scanner's own unit and repository-acceptance tests. Run the
+# multi-minute suite when its implementation, authority, tests, or workflow
+# changes; ordinary product-source changes belong to the later ledger/ratchet
+# gate, not to repeated self-testing of the scanner.
+name: Parity Governance CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'Tools/issue_ref.py'
+      - 'Tools/parity_*.py'
+      - 'Tools/parity_*.json'
+      - 'Tools/tests/**'
+      - '.github/workflows/parity-governance.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'Tools/issue_ref.py'
+      - 'Tools/parity_*.py'
+      - 'Tools/parity_*.json'
+      - 'Tools/tests/**'
+      - '.github/workflows/parity-governance.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: parity-governance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  parity-governance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run parity-governance tests
+        run: |
+          set -o pipefail
+          python3 -m unittest discover -s tests -p "test_*.py" -v 2>&1 | tee "$RUNNER_TEMP/out.txt"
+          ran=$(grep -oE '^Ran [0-9]+ test' "$RUNNER_TEMP/out.txt" | grep -oE '[0-9]+')
+          echo "collected ${ran:-0} tests"
+          if [ "${ran:-0}" -lt 102 ]; then
+            echo "::error::expected at least 102 parity-governance tests, collected ${ran:-0} — discovery is broken, not the suite"
+            exit 1
+          fi
+        working-directory: Tools

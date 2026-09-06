@@ -947,7 +947,8 @@ final class AICoachEngine: ObservableObject {
         return todayEpochDay > lastEpochDay
     }
 
-    /// Days since the epoch in the LOCAL calendar — the twin of Kotlin's `LocalDate.now().toEpochDay()`.
+    /// Days since the epoch in the LOCAL calendar. Kotlin computes the same value with
+    /// `LocalDate.now().toEpochDay()`.
     ///
     /// Counted with calendar day arithmetic from `startOfDay`, not by dividing an interval by 86,400:
     /// a day is not always 86,400 seconds (DST), and the rule only needs a value that increments

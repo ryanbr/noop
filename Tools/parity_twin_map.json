@@ -1,0 +1,34 @@
+{
+  "schema_version": 3,
+  "derivation": "parity_ledger.build_twin_map/v3",
+  "scope": {
+    "swift_roots": [
+      "Packages/StrandAnalytics/Sources",
+      "Packages/StrandImport/Sources",
+      "Packages/WhoopStore/Sources",
+      "Packages/WhoopProtocol/Sources",
+      "Packages/OuraProtocol/Sources"
+    ],
+    "kotlin_roots": [
+      "android/app/src/main/java/com/noop/analytics",
+      "android/app/src/main/java/com/noop/ingest",
+      "android/app/src/main/java/com/noop/data",
+      "android/app/src/main/java/com/noop/protocol",
+      "android/app/src/main/java/com/noop/oura"
+    ]
+  },
+  "authority": {
+    "files": {"count": 432, "sha256": "30214f495397bae365a78d8e04eb2cc9561a92e5293cd068161062e2ef8ddc86"},
+    "functions": {"count": 3865, "sha256": "b173146912dcf5b2066d9c23d8724575a9fae2cbeb64d5cba3018742b5d1318c"},
+    "properties": {"count": 405, "sha256": "ed689dcb46799cb54c4eea428009d520f9dc1d95375852908effafb21d538b9e"},
+    "constants": {"count": 1742, "sha256": "1e7836e823d2b79db2d2461ee1fde4a0aca278ce8116442d7577c08054ff7081"},
+    "file_pairs": {"count": 44, "sha256": "98fccb5f86944c3647d35f1c2aaf93283a7185fe43027d0766e17ec03d6548b3"},
+    "function_pairs": {"count": 88, "sha256": "7ac0aac4679cd06ba1382bd55bf9e18b47b95ea27187769fd6a3973b27259280"},
+    "property_pairs": {"count": 135, "sha256": "01f19e67d0cd9f168f462c6382184b48c9c9db16497b1ec41deccb8f09df9eb3"},
+    "constant_pairs": {"count": 612, "sha256": "baeeea399f404489842f24dc0528c9b95ba1cb87a532bcdcfbc89acc2bb12b4e"},
+    "unpaired_files": {"count": 356, "sha256": "19b43d755b27b76f604a3e894d6a07eac32ba04f7b324294186aa695f9d7b40c"},
+    "unpaired_functions": {"count": 3695, "sha256": "26c8e48ddedb6528b45490d93ab5482810697eb5461b91809b9d735c156a786c"},
+    "unpaired_properties": {"count": 135, "sha256": "41b602106ce442a1b50cfa75a52b506e1894793ded2b364bbb0ed05230649eb8"},
+    "unpaired_constants": {"count": 518, "sha256": "eb1aab06f5cfed91bdd61e6e3b1c9622706a9ca283f82b1af23456a10b2dc88a"}
+  }
+}
