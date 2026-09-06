@@ -3141,7 +3141,9 @@ object SleepStager {
             } while (t < end)
         }
         if (bins == 0) return null
-        val gatedFloor = gated?.let { Math.round(it).toInt() }
+        // `roundToInt`, matching sessionRestingHR immediately below: this number is compared against
+        // that function's output, so the two must not round a tie differently.
+        val gatedFloor = gated?.roundToInt()
         val changes = gatedFloor != null && gatedFloor != shippedFloor
         if (!changes) return null
         return "rhr bins day=$day bins=$bins thin=$thin implausible=$implausible " +
