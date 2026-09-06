@@ -503,7 +503,7 @@
     <string name="l10n_health_screen_detail_format_latest_second_detail_unit_9664278b">%1$s %2$s</string>
     <string name="l10n_health_screen_detail_format_one_second_detail_unit_6fde90d3">%1$s %2$s</string>
     <string name="l10n_health_screen_heart_rate_dde6e8f7">Herzfrequenz</string>
-    <string name="l10n_health_screen_helping_most_best_label_edee8773">Hilf am meisten: %1$s</string>
+    <string name="l10n_health_screen_helping_most_best_label_edee8773">Hilft am meisten: %1$s</string>
     <string name="l10n_health_screen_history_synced_8339779d">Verlauf synchronisiert</string>
     <string name="l10n_health_screen_holding_you_back_worst_label_863a1809">Halte dich zurück: %1$s</string>
     <string name="l10n_health_screen_how_accurate_is_this_dae653a8">Wie genau ist das?</string>
@@ -1724,7 +1724,7 @@
     <string name="l10n_today_screen_steps_cdde4f20">Schritte</string>
     <string name="l10n_today_screen_strain_79fe380e">Belastung</string>
     <string name="l10n_today_screen_synced_from_2aa7258b">Synchronisiert aus</string>
-    <string name="l10n_today_screen_synthesis_876bc749">SYNTHESE</string>
+    <string name="l10n_today_screen_synthesis_876bc749">ZUSAMMENFASSUNG</string>
     <string name="l10n_today_screen_unitformatter_effortdisplay_strain_effortscale_effort_53dbd951">%1$s Anstrengung</string>
     <string name="l10n_today_screen_value_bpm_8f3a90c3">%1$s bpm</string>
     <string name="l10n_today_screen_visavg_8c9a4746">%1$s</string>
