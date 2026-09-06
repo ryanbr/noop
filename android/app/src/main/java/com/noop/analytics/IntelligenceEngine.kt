@@ -2973,6 +2973,11 @@ object IntelligenceEngine {
         // only value is that its absence means "not clipped". Their exact truncation count is already
         // printed unconditionally once per pass by `WindowedStreamPlan.logLine` (`hrTruncated=`), so
         // nothing is lost by declining to guess it per night.
+        //
+        // resp and steps are plain reads too, and equally judgeable, but stay unmarked on purpose: neither
+        // is a staging input, so clipping one cannot be the reason a night is missing. Their counts are
+        // printed as context. The marker answers "did a stream that could explain this get cut short",
+        // not "was every read complete".
         val atCap = buildList {
             if (gravCount >= StreamReadCap.GRAVITY) add("grav")
             if (skinCount >= StreamReadCap.SKIN) add("skin")
