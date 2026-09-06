@@ -18,8 +18,12 @@ import WhoopProtocol
 ///
 /// Non-negotiable: a fill-only write (`WhoopStore.fillSkinTempC`) that can only fill a NULL, never an
 /// upsert of a rebuilt row. `skinTempDevC` and every other scored field are untouched.
-@MainActor
-final class SkinTempBackfillWalker {
+/// An `actor`, deliberately, not a `@MainActor` class. This walks up to ten pages of fifty nights and
+/// reads three streams for each, and while every `await` yields the main thread, each RESUMPTION and all
+/// the per-night work between them would land on it. There is no UI state here - the store is an actor,
+/// `DeviceRegistryStore` is a Sendable struct, and the result types are Sendable - so nothing needs the
+/// main actor, and a long diagnostic pass has no business competing with the UI for it.
+actor SkinTempBackfillWalker {
 
     /// One night that filled — the day and the re-derived absolute.
     struct FilledNight: Sendable {
