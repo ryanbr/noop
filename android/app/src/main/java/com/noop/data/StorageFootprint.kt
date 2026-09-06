@@ -1,6 +1,8 @@
 package com.noop.data
 
 import androidx.sqlite.db.SimpleSQLiteQuery
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * #1911: estimated payload bytes per decoded stream table. Swift twin: `WhoopStore.storageByteEstimates`,
@@ -35,9 +37,17 @@ internal class StorageFootprint(private val db: WhoopDatabase) {
      * Payload only: no index pages, no page slack, no WAL. Read it against `db_bytes`, not as a second
      * file size. An unreadable or empty table is omitted rather than reported as zero, matching the row
      * counts — absent means "nothing to attribute here", which is not a measured zero.
+     *
+     * Suspending, and explicitly on IO. The callers launch the storage probe on the UI scope (the Test
+     * Centre screen says so in its own doc), and Room's suspend DAO methods hop to its query executor for
+     * free — a raw-query helper like this one does not, so without the switch these PRAGMA and AVG reads
+     * would run on the main thread, over the multi-gigabyte store this diagnostic exists for.
      */
-    fun byteEstimates(rowCounts: Map<String, Int>, sampleRows: Int = 500): Map<String, Int> = runCatching {
-        val raw = db.openHelper.writableDatabase
+    suspend fun byteEstimates(rowCounts: Map<String, Int>, sampleRows: Int = 500): Map<String, Int> =
+        withContext(Dispatchers.IO) { estimateBlocking(rowCounts, sampleRows) }
+
+    private fun estimateBlocking(rowCounts: Map<String, Int>, sampleRows: Int): Map<String, Int> = runCatching {
+        val raw = db.openHelper.readableDatabase
         val limit = maxOf(1, sampleRows)
         val out = mutableMapOf<String, Int>()
         for ((key, table) in STORAGE_TABLES) {
