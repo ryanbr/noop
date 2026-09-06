@@ -2749,6 +2749,7 @@
     <string name="coach_voice_error_permission">Microphone permission denied.</string>
     <string name="coach_voice_error_generic">Voice input failed. Try again.</string>
     <string name="coach_voice_error_server">On-device speech is unavailable for this locale.</string>
+    <string name="coach_voice_error_unavailable">On-device speech recognition is not available on this device or locale.</string>
     <string name="coach_voice_unavailable">On-device speech recognition is not available on this device or locale.</string>
     <string name="coach_voice_permission_denied">Microphone permission denied. Enable it in Settings to use voice input.</string>
 </resources>

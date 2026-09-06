@@ -2720,6 +2720,7 @@
     <string name="coach_voice_error_permission">Permiso de micrófono denegado.</string>
     <string name="coach_voice_error_generic">Error de entrada de voz. Inténtelo de nuevo.</string>
     <string name="coach_voice_error_server">El reconocimiento de voz en el dispositivo no está disponible para este idioma.</string>
+    <string name="coach_voice_error_unavailable">El reconocimiento de voz en el dispositivo no está disponible en este dispositivo o idioma.</string>
     <string name="coach_voice_unavailable">El reconocimiento de voz en el dispositivo no está disponible en este dispositivo o idioma.</string>
     <string name="coach_voice_permission_denied">Permiso de micrófono denegado. Actívalo en Configuración para usar la entrada de voz.</string>
 </resources>

@@ -2724,6 +2724,7 @@
     <string name="coach_voice_error_permission">Odmowa uprawnień do mikrofonu.</string>
     <string name="coach_voice_error_generic">Wprowadzanie głosowe nie powiodło się. Spróbuj ponownie.</string>
     <string name="coach_voice_error_server">Rozpoznawanie mowy na urządzeniu jest niedostępne dla tego języka.</string>
+    <string name="coach_voice_error_unavailable">Rozpoznawanie mowy na urządzeniu jest niedostępne na tym urządzeniu lub dla tego języka.</string>
     <string name="coach_voice_unavailable">Rozpoznawanie mowy na urządzeniu nie jest dostępne na tym urządzeniu lub w tym języku.</string>
     <string name="coach_voice_permission_denied">Odmowa uprawnień do mikrofonu. Włącz je w Ustawieniach, aby używać wprowadzania głosowego.</string>
 </resources>

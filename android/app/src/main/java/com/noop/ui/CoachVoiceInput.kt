@@ -79,11 +79,11 @@ class CoachVoiceInput(
     fun start() {
         if (isRecording) return
         if (!isAvailable()) {
-            onError("On-device speech recognition is not available on this device or locale.")
+            onError(context.getString(R.string.coach_voice_error_unavailable))
             return
         }
         if (!isPermissionGranted()) {
-            onError("Microphone permission not granted.")
+            onError(context.getString(R.string.coach_voice_error_permission))
             return
         }
         // SpeechRecognizer must be created on the main thread; this class is called from Compose

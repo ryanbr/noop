@@ -1387,6 +1387,7 @@
     <string name="coach_voice_error_permission">Разрешение на микрофон отклонено.</string>
     <string name="coach_voice_error_generic">Ошибка голосового ввода. Попробуйте снова.</string>
     <string name="coach_voice_error_server">Распознавание речи на устройстве недоступно для этого языка.</string>
+    <string name="coach_voice_error_unavailable">Распознавание речи на устройстве недоступно на этом устройстве или для этого языка.</string>
     <string name="coach_voice_unavailable">Распознавание речи на устройстве недоступно на этом устройстве или для этого языка.</string>
     <string name="coach_voice_permission_denied">Разрешение на микрофон отклонено. Включите его в Настройках, чтобы использовать голосовой ввод.</string>
     <string name="l10n_compare_screen_remove_title_ddb5361c">Удалить %1$s</string>

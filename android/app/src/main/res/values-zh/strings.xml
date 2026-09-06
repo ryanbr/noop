@@ -2633,6 +2633,7 @@
     <string name="coach_voice_error_permission">麦克风权限被拒绝。</string>
     <string name="coach_voice_error_generic">语音输入失败。请重试。</string>
     <string name="coach_voice_error_server">此语言不支持设备端语音识别。</string>
+    <string name="coach_voice_error_unavailable">此设备或语言不支持设备端语音识别。</string>
     <string name="coach_voice_unavailable">此设备或语言不支持设备端语音识别。</string>
     <string name="coach_voice_permission_denied">麦克风权限被拒绝。请在设置中启用以使用语音输入。</string>
 </resources>

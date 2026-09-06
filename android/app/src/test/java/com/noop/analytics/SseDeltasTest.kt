@@ -268,4 +268,24 @@ class SseDeltasTest {
         }
         assertEquals("ok", sb.toString())
     }
+
+    // ── CRLF parity ──────────────────────────────────────────────────────────────────────────
+    //
+    // The Swift twin trims `.whitespacesAndNewlines`; Kotlin's `trim()` already strips \r. These
+    // pin that, because the divergence they guard against was real: Swift used `.whitespaces`
+    // (space and tab only), so on a CRLF stream `isDone("[DONE]\r")` was false on iOS and true
+    // here, and iOS never saw the end-of-stream sentinel. Fixing one side without pinning the
+    // other leaves it free to drift straight back.
+
+    /** A CRLF stream leaves a trailing \r after splitting on \n. It must not hide the sentinel. */
+    @Test fun `isDone strips CRLF`() {
+        assertTrue(SseDeltas.isDone("[DONE]\r"))
+        assertTrue(SseDeltas.isDone("[DONE]\r\n"))
+    }
+
+    /** The same trailing \r must not end up inside the JSON payload handed to the parsers. */
+    @Test fun `dataPayload strips CRLF`() {
+        assertEquals("{\"hello\":1}", SseDeltas.dataPayload("data: {\"hello\":1}\r"))
+    }
+
 }

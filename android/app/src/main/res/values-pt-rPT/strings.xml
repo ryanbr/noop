@@ -2712,6 +2712,7 @@
     <string name="coach_voice_error_permission">Permissão de microfone negada.</string>
     <string name="coach_voice_error_generic">Falha na entrada de voz. Tente novamente.</string>
     <string name="coach_voice_error_server">O reconhecimento de voz no dispositivo não está disponível para este idioma.</string>
+    <string name="coach_voice_error_unavailable">O reconhecimento de voz no dispositivo não está disponível neste dispositivo ou idioma.</string>
     <string name="coach_voice_unavailable">O reconhecimento de voz no dispositivo não está disponível neste dispositivo ou idioma.</string>
     <string name="coach_voice_permission_denied">Permissão de microfone negada. Ative-a nas Configurações para usar a entrada de voz.</string>
 </resources>

@@ -2719,6 +2719,7 @@
     <string name="coach_voice_error_permission">Autorisation du microphone refusée.</string>
     <string name="coach_voice_error_generic">Échec de la saisie vocale. Réessayez.</string>
     <string name="coach_voice_error_server">La reconnaissance vocale sur l\'appareil n\'est pas disponible pour cette langue.</string>
+    <string name="coach_voice_error_unavailable">La reconnaissance vocale sur l\'appareil n\'est pas disponible sur cet appareil ou pour cette langue.</string>
     <string name="coach_voice_unavailable">La reconnaissance vocale sur l\'appareil n\'est pas disponible sur cet appareil ou pour cette langue.</string>
     <string name="coach_voice_permission_denied">Autorisation du microphone refusée. Activez-la dans les Paramètres pour utiliser la saisie vocale.</string>
 </resources>

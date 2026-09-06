@@ -2733,6 +2733,7 @@
     <string name="coach_voice_error_permission">Mikrofonberechtigung verweigert.</string>
     <string name="coach_voice_error_generic">Spracheingabe fehlgeschlagen. Versuchen Sie es erneut.</string>
     <string name="coach_voice_error_server">On-Device-Spracherkennung für diese Sprache nicht verfügbar.</string>
+    <string name="coach_voice_error_unavailable">On-Device-Spracherkennung ist auf diesem Gerät oder für diese Sprache nicht verfügbar.</string>
     <string name="coach_voice_unavailable">On-Device-Spracherkennung ist auf diesem Gerät oder für diese Sprache nicht verfügbar.</string>
     <string name="coach_voice_permission_denied">Mikrofonberechtigung verweigert. Aktivieren Sie sie in den Einstellungen, um die Spracheingabe zu nutzen.</string>
 </resources>
