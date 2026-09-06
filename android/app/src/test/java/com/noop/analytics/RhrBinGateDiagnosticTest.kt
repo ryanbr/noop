@@ -38,16 +38,43 @@ class RhrBinGateDiagnosticTest {
         assertTrue("must report the gated floor it would use instead, got: $line", line.contains("gated=60"))
     }
 
-    /** A thin bin that does NOT win still reports, because the population is what is being measured. */
-    @Test fun aThinBinThatDoesNotWinStillReportsButChangesNothing() {
+    /** A thin bin that does NOT win is silent: a thin FINAL bin is structural on most spans, not a finding. */
+    @Test fun aThinBinThatCannotWinTheFloorIsSilent() {
         val start = 1_000L
         val end = start + 1800
         val dense = hr(start, 1500, 60)
         val strayHigh = listOf(HrSample("d", start + 1700, 90))   // thin, but far above the floor
-        val line = SleepStager.rhrBinGateLogLine("2026-01-01", listOf(start to end), dense + strayHigh, 60)
-        assertTrue("still worth reporting, got: $line", line != null)
-        assertTrue(line!!.contains("thin=1"))
-        assertTrue("the floor is unchanged, got: $line", line.contains("wouldChange=false"))
+        assertNull(
+            "a thin bin that cannot win the floor is noise, not a finding",
+            SleepStager.rhrBinGateLogLine("2026-01-01", listOf(start to end), dense + strayHigh, 60),
+        )
+    }
+
+    /**
+     * The load-bearing invariant: the line must judge the SAME partition `sessionRestingHR` ships.
+     *
+     * Every other case here hands the floor in as a literal, so none of them would notice the two
+     * binnings drifting apart, and a diagnostic describing a different partition than the one it is
+     * measuring would argue for a change on false evidence. Here the shipped floor comes FROM
+     * `sessionRestingHR`, and on a night where no bin is thin the gate must agree with it exactly, which
+     * the line reports by staying silent. A partition mismatch shows up as a spurious `wouldChange`.
+     */
+    @Test fun theDiagnosticJudgesTheSamePartitionSessionRestingHrShips() {
+        val start = 1_000L
+        for (spanS in listOf(1800L, 1801L, 1500L, 300L, 299L)) {   // aligned, +1, exact, one bin, short
+            val end = start + spanS
+            // Dense, with a genuinely lower stretch so the floor is not degenerate.
+            val samples = (0 until spanS.toInt()).map {
+                HrSample("d", start + it, if (it in 600..899) 55 else 65)
+            }
+            val shipped = SleepStager.sessionRestingHR(start, end, samples)
+            assertTrue("precondition: a floor exists for span $spanS", shipped != null)
+            assertNull(
+                "span $spanS: every bin is dense, so the gate must agree with sessionRestingHR " +
+                    "and the line must stay silent",
+                SleepStager.rhrBinGateLogLine("2026-01-01", listOf(start to end), samples, shipped!!),
+            )
+        }
     }
 
     /** No sleep sessions, or no samples inside them, is not a finding. */

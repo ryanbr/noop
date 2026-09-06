@@ -3093,10 +3093,17 @@ object SleepStager {
      * Bins are built exactly as `sessionRestingHR` builds them, closed final bin included, or the line
      * would describe a different partition than the one it is judging.
      *
-     * Returns null on a night where the gate changes nothing AND every bin is well-populated, so a clean
-     * night stays silent and the log only carries the cases worth reading. Same posture as the
-     * over-count-only R-R dump. Counts and bpm only, no timestamps. Pure. Twin of Swift
-     * `rhrBinGateLogLine`.
+     * Returns null unless the gate would actually MOVE the floor, so the log carries only the nights the
+     * question is about. Reporting every thin bin instead would fire on nearly all of them, because a thin
+     * final bin is STRUCTURAL rather than an artefact: the last bin closes on `end`, so a session whose
+     * span is not a multiple of the window holds only `span mod 300` samples there. A 1801-second night
+     * has six 300-sample bins and a final bin of two. That bin is real data and almost never wins the
+     * floor, so it is noise to report and, separately, something a future gate should weigh before
+     * excluding bins on sample count alone.
+     *
+     * The counts still ride along when the line does fire, since they are the context for the change.
+     * Same posture as the over-count-only R-R dump. Counts and bpm only, no timestamps. Pure. Twin of
+     * Swift `rhrBinGateLogLine`.
      */
     internal fun rhrBinGateLogLine(
         day: String,
@@ -3136,7 +3143,7 @@ object SleepStager {
         if (bins == 0) return null
         val gatedFloor = gated?.let { Math.round(it).toInt() }
         val changes = gatedFloor != null && gatedFloor != shippedFloor
-        if (!changes && thin == 0 && implausible == 0) return null
+        if (!changes) return null
         return "rhr bins day=$day bins=$bins thin=$thin implausible=$implausible " +
             "winnerN=$bestN floor=$shippedFloor gated=${gatedFloor ?: "nil"} wouldChange=$changes " +
             "(measure-only; nothing is gated yet)"
