@@ -643,11 +643,18 @@ extension WhoopStore {
     /// nominal 8. It EXCLUDES index pages, page slack and the WAL, so it is a payload lower bound, not the
     /// file size — compare it against `db_bytes` in the same probe rather than expecting the two to meet.
     /// An unreadable table is omitted, on the same reasoning as the row counts: absent is not zero.
-    public func storageByteEstimates(sampleRows: Int = 500) async throws -> [String: Int] {
+    /// `rowCounts` lets a caller that already has them - the Test Centre probe does - avoid a second
+    /// `COUNT(*)` pass over every table. That matters here more than it usually would: this diagnostic is
+    /// read on the multi-gigabyte stores it exists to explain, where each count is a full scan, so a tool
+    /// that counts the same thirteen tables three times is slowest exactly where it is needed.
+    public func storageByteEstimates(sampleRows: Int = 500,
+                                     rowCounts: [String: Int]? = nil) async throws -> [String: Int] {
         try syncRead { db in
             var out: [String: Int] = [:]
             for (key, table) in Self.rawTableKeys {
-                guard let rows = try? Int.fetchOne(db, sql: "SELECT COUNT(*) FROM \(table)"), rows > 0
+                let known = rowCounts?[key]
+                guard let rows = known ?? (try? Int.fetchOne(db, sql: "SELECT COUNT(*) FROM \(table)")),
+                      rows > 0
                 else { continue }
                 let cols = try? Row.fetchAll(db, sql: "PRAGMA table_info(\(table))")
                 guard let cols, !cols.isEmpty else { continue }
@@ -677,6 +684,19 @@ extension WhoopStore {
         ("sleepState", "sleepStateSample"), ("ppgWaveform", "ppgWaveformSample"),
         ("v18Aux", "v18AuxSample"),
     ]
+
+    /// The raw outbox alone: batch count and total byteSize, with NO decoded-table counting.
+    ///
+    /// `storageStats()` returns these beside a 13-table `COUNT(*)` sweep, and the Test Centre probe was
+    /// calling it purely for `rawBytes` and discarding the rest - thirteen full scans, on the large stores
+    /// where a scan is least free, for two numbers that touch a different table entirely.
+    public func rawOutboxStats() async throws -> (batches: Int, bytes: Int) {
+        try syncRead { db in
+            let batches = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM rawBatch") ?? 0
+            let bytes = try Int.fetchOne(db, sql: "SELECT COALESCE(SUM(byteSize), 0) FROM rawBatch") ?? 0
+            return (batches, bytes)
+        }
+    }
 
     /// Aggregate storage footprint: total decoded rows, raw batch count, total raw byteSize.
     public func storageStats() async throws -> (decodedRows: Int, rawBatches: Int, rawBytes: Int) {

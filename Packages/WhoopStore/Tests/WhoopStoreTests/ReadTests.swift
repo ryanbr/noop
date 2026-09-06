@@ -430,4 +430,26 @@ final class ReadTests: XCTestCase {
         XCTAssertTrue(bytes.isEmpty, "a fresh store has no rows, so nothing to estimate")
     }
 
+
+    /// Passing known counts must not change the answer — it only skips a second `COUNT(*)` pass. Pinned
+    /// because the whole point of the parameter is that it is an optimisation, and an optimisation that
+    /// quietly changes the number it optimises is worse than the scan it saves.
+    func testStorageByteEstimatesAreUnchangedByPassingKnownCounts() async throws {
+        let store = try await seeded()
+        let counts = try await store.storageRowCounts()
+        let computed = try await store.storageByteEstimates()
+        let reused = try await store.storageByteEstimates(rowCounts: counts)
+        XCTAssertEqual(computed, reused)
+    }
+
+    /// The raw-outbox read must agree with the aggregate it was split out of, or the probe's rawBytes
+    /// silently changed meaning when it stopped counting thirteen decoded tables to get one number.
+    func testRawOutboxStatsMatchTheAggregate() async throws {
+        let store = try await seeded()
+        let stats = try await store.storageStats()
+        let outbox = try await store.rawOutboxStats()
+        XCTAssertEqual(outbox.batches, stats.rawBatches)
+        XCTAssertEqual(outbox.bytes, stats.rawBytes)
+    }
+
 }

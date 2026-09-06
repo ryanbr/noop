@@ -91,8 +91,11 @@ final class TestCentreReport: ObservableObject {
             // ppgWaveformSample's rows carry a BLOB, so it is precisely where a row model misleads, and
             // precisely the table this question is usually about. Estimated (sampled payload, no index or
             // page overhead), so it is a lower bound to compare against db_bytes, not a second file size.
-            if let bytes = try? await store.storageByteEstimates() { rowBytes = bytes }
-            rawBytes = (try? await store.storageStats().rawBytes) ?? 0
+            if let bytes = try? await store.storageByteEstimates(rowCounts: rows) { rowBytes = bytes }
+            // `rawOutboxStats`, not `storageStats`: the latter counts all thirteen decoded tables to
+            // return a total this probe does not use, and those are full scans on exactly the stores
+            // this report is pulled from.
+            rawBytes = (try? await store.rawOutboxStats().bytes) ?? 0
         }
         if let url = live.puffinCaptureURL {
             rawBytes += (try? fm.attributesOfItem(atPath: url.path))?[.size] as? Int ?? 0
