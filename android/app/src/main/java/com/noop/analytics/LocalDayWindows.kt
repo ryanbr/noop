@@ -190,6 +190,12 @@ internal data class LocalDayStart(
  * a day on which the clocks move is 23 or 25 hours long. This type is the shared primitive that answers
  * it correctly; it changes no caller on its own.
  *
+ * SO TWO ANSWERS COEXIST, and this one is not yet the shipped one. [AnalyticsEngine.dayStartUtcSeconds]
+ * with `AnalyticsEngine.dayString` remains what every scored day actually uses; this file is called by
+ * nothing but its own tests until a switch-over lands. They disagree by an hour on the far side of a
+ * transition, which `LocalDayWindowsTest` pins deliberately by asserting BOTH answers for
+ * America/New_York on 2025-10-19. Reach for the core unless you are writing that switch-over.
+ *
  * Nothing here is inherited from the platform's date resolution: the ambiguous, skipped and
  * non-existent cases are resolved by the rules stated on each operation, so that a future change in
  * library behaviour is a change to this file rather than a silent change of a day boundary. That is why

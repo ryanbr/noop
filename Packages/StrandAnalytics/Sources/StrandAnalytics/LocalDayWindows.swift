@@ -142,6 +142,14 @@ public struct LocalDayStart: Hashable, Sendable {
 /// because a day on which the clocks move is 23 or 25 hours long. This type is the shared primitive
 /// that answers it correctly; it changes no caller on its own.
 ///
+/// SO TWO ANSWERS COEXIST, and this one is not yet the shipped one. `AnalyticsEngine.dayStartUtcSeconds`
+/// with `AnalyticsEngine.dayString` remains what every scored day actually uses; this file is called by
+/// nothing but its own tests until a switch-over lands. They disagree by an hour on the far side of a
+/// transition, which `LocalDayWindowsTests` pins deliberately by asserting BOTH answers for
+/// America/New_York on 2025-10-19. Reach for the core unless you are writing that switch-over.
+///
+/// Kotlin twin: `LocalDayWindows`.
+///
 /// Nothing here is inherited from a calendar: the ambiguous, skipped and non-existent cases are
 /// resolved by the rules stated on each operation, so that a future change in library behaviour is a
 /// change to this file rather than a silent change of a day boundary. The only thing asked of the

@@ -175,6 +175,13 @@ public enum AnalyticsEngine {
     /// from `dayString`), and the Kotlin mirror degrades the SAME way (`runCatching { … }.getOrDefault(0)`)
     /// instead of throwing, so a single bad day key can never take down a whole scoring pass on either
     /// platform (nil-tolerant over fail-fast, per the #996 review).
+    ///
+    /// This is a UTC midnight that callers pair with one captured offset and fixed 86,400-second blocks,
+    /// so every boundary beyond a clock change sits an hour from the local midnight it names.
+    /// `LocalDayWindows` is the zone-rule-correct primitive built to replace that, and is deliberately
+    /// called by nothing yet. This function remains the shipped answer until a switch-over lands; the two
+    /// disagree by an hour on the far side of a transition, and `LocalDayWindowsTests` pins both answers
+    /// so the difference is visible rather than discovered.
     static func dayStartUtcSeconds(_ day: String) -> Int {
         Int(isoDay.date(from: day)?.timeIntervalSince1970 ?? 0)
     }
