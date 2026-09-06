@@ -1,4 +1,5 @@
 import XCTest
+import StrandAnalytics
 @testable import Strand
 
 /// Pins the "HR tracked but no sleep" diagnostic (#1244). When a day clears the >=200-HR gate yet the
