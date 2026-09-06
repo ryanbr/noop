@@ -1119,6 +1119,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val analyzeHasNewData = analyzeFp != NoopPrefs.analyzeWatermark(appContext)
                 if (analyzeHasNewData) ble.externalLog("re-score: trigger=idle newData=yes")
                 if (analyzeHasNewData) runCatching {
+                    // #1816: set the motion sink before the pass so the Today tile can name the right
+                    // missing half (motion, not phone steps) when none has arrived yet. Cleared after.
+                    IntelligenceEngine.stepsHasMotionSink = { hasMotion ->
+                        profileStore.stepsHasBankedMotion = hasMotion
+                    }
                     IntelligenceEngine.analyzeRecent(
                         repo = repository,
                         profile = currentProfile(),
@@ -1138,11 +1143,6 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                             profileStore.stepsCalibrationSampleDays = cal.sampleDays
                             profileStore.stepsCalibrationConfidence = cal.confidence
                             profileStore.stepsCalibrationManual = cal.manual
-                        },
-                        // #1816: persist whether the strap banked any motion so the Today tile can name
-                        // the right missing half (motion, not phone steps) when none has arrived yet.
-                        persistStepsHasMotion = { hasMotion ->
-                            profileStore.stepsHasBankedMotion = hasMotion
                         },
                         // Manual "Recalibrate baseline" anchor (Settings → Charge advanced). The analytics
                         // layer is Context-free, so read the epoch (whole seconds, written as a Long by the
@@ -1243,6 +1243,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     }
                 }
                     .onFailure { if (it is kotlin.coroutines.cancellation.CancellationException) throw it }
+                // #1816: clear the motion sink after the pass completes (success or failure) so a stale
+                // callback is never left behind. The next pass sets its own before calling analyzeRecent.
+                IntelligenceEngine.stepsHasMotionSink = null
                 // Opt-in writeback: push the freshly computed nights into Health Connect so other
                 // apps see them. Idempotent (clientRecordId per metric+day), so re-running every
                 // cycle just upserts. Never let an HC hiccup (perm revoked mid-flight, provider
@@ -1835,6 +1838,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      */
     private suspend fun rescoreAfterEdit() {
         runCatching {
+            // #1816: set the motion sink before the pass, clear it after (same pattern as the 15-min loop).
+            IntelligenceEngine.stepsHasMotionSink = { hasMotion ->
+                profileStore.stepsHasBankedMotion = hasMotion
+            }
             IntelligenceEngine.analyzeRecent(
                 repo = repository,
                 profile = currentProfile(),
@@ -1868,9 +1875,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 dayCycleMode = NoopPrefs.dayCycleMode(appContext),
             )
         }.onFailure { if (it is kotlin.coroutines.cancellation.CancellationException) throw it }
+        IntelligenceEngine.stepsHasMotionSink = null
     }
-
-    /** Re-read every source + the dismissed markers and republish [workouts]. */
     fun loadWorkouts() {
         viewModelScope.launch {
             val now = System.currentTimeMillis() / 1000

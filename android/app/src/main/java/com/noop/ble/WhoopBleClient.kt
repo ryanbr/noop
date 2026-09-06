@@ -2946,6 +2946,11 @@ class WhoopBleClient(
                     if (newData) "yes"
                     else "no (empty/duplicate offload — nothing changed since last run) — skipping (#1146)")
                 if (newData) runCatching {
+                    // #1816: set the motion sink so a fresh strap's first backfill flips the Today caption
+                    // from "No motion synced yet" to the phone-step-days countdown as soon as it lands.
+                    IntelligenceEngine.stepsHasMotionSink = { hasMotion ->
+                        profileStore.stepsHasBankedMotion = hasMotion
+                    }
                     IntelligenceEngine.analyzeRecent(
                         repo = repository,
                         profile = profile,
@@ -2970,12 +2975,6 @@ class WhoopBleClient(
                             profileStore.stepsCalibrationSampleDays = cal.sampleDays
                             profileStore.stepsCalibrationConfidence = cal.confidence
                             profileStore.stepsCalibrationManual = cal.manual
-                        },
-                        // #1816: persist the motion flag on the post-backfill pass too, so a fresh
-                        // strap's first sync flips the Today caption from "No motion synced yet" to
-                        // the phone-step-days countdown as soon as the backfill lands.
-                        persistStepsHasMotion = { hasMotion ->
-                            profileStore.stepsHasBankedMotion = hasMotion
                         },
                         // Manual "Recalibrate baseline" anchor (noop.hrvBaselineEpoch, whole seconds in a
                         // Long). The analytics layer is Context-free, so read it here and thread it down so
@@ -3066,6 +3065,8 @@ class WhoopBleClient(
                     if (it is kotlin.coroutines.cancellation.CancellationException) throw it
                     log("Backfill: post-sync scoring failed: ${it.message}")
                 }
+                // #1816: clear the motion sink after the post-backfill pass completes.
+                IntelligenceEngine.stepsHasMotionSink = null
                 // Keep the opt-in Health Connect writeback fresh in background-only operation too.
                 if (NoopPrefs.hcWriteback(context)) {
                     // #660: log the count AND any PII-safe failure categories (the writer also persists

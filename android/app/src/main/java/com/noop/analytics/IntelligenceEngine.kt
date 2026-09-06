@@ -61,6 +61,17 @@ object IntelligenceEngine {
      */
     private val analyzeGate = Mutex()
 
+    /** #1816: optional sink for whether the strap banked ANY motion in the calibration scan window.
+     *  Set by the caller (AppViewModel / WhoopBleClient) before calling [analyzeRecent] and cleared
+     *  after, so the Today tile can distinguish "Need N more phone-step days" (motion exists, phone
+     *  half missing) from "No motion synced yet" (the motion half is the blocker). A field rather
+     *  than a parameter because [analyzeRecentOnCpu] sits close to the JVM 64 KB method ceiling and
+     *  the JaCoCo budget test (#1524) guards its margin — one more function-typed parameter + call
+     *  site would push it over. Safe for the same reason [skippedSleepDays] and [dayScanCache] are:
+     *  every pass runs under [analyzeGate], so there is no concurrent access. */
+    @Volatile
+    var stepsHasMotionSink: ((Boolean) -> Unit)? = null
+
     /** #1121: days this pass skipped for too little raw HR, emitted as ONE line after the loop instead of
      *  one line each — see [skippedSleepDaysLine]. A FIELD, not a local, for a mechanical reason:
      *  [analyzeRecentOnCpu] is `suspend` and sits 64 bytes under the JVM ceiling #1524 guards, so one more
@@ -336,13 +347,8 @@ object IntelligenceEngine {
         // StepsEstimateEngine.calibrate. [persistStepsCalibration] receives the fitted (or manual) model
         // each pass so the caller (AppViewModel) can mirror it into ProfileStore for the Settings/Steps
         // screen. Both default to no-op so existing callers / tests are unaffected.
-        // #1816: [persistStepsHasMotion] receives whether the strap banked ANY motion in the calibration
-        // scan window, so the Today tile can distinguish "Need N more phone-step days" (motion exists,
-        // phone half missing) from "No motion synced yet" (the motion half is the blocker). Defaults to
-        // no-op so existing callers / tests are unaffected.
         manualStepCoefficient: Double? = null,
         persistStepsCalibration: (StepsEstimateEngine.Calibration) -> Unit = {},
-        persistStepsHasMotion: (Boolean) -> Unit = {},
         // Manual "Recalibrate baseline" anchor (noop.hrvBaselineEpoch, epoch SECONDS; 0 = none). The
         // analytics layer is Context-free, so the caller reads it from SharedPreferences and passes it
         // down to the HRV foldHistory. Default 0.0 → no recalibration, so other callers are unaffected.
@@ -432,7 +438,7 @@ object IntelligenceEngine {
         // lock is held only for this engine's own passes, never across an unrelated suspension.
         val scored = analyzeGate.withLock {
             val (out, healed) = analyzeRecentOnCpu(repo, profile, maxDays, importedDeviceId, maxHROverride,
-                nowSeconds, ownerSource, manualStepCoefficient, persistStepsCalibration, persistStepsHasMotion, baselineEpoch,
+                nowSeconds, ownerSource, manualStepCoefficient, persistStepsCalibration, baselineEpoch,
                 recoveryEpoch, diag, useExperimentalSleepV2, useMotionAwareWake, sleepTraceSink, recoveryTraceSink,
                 stepsTraceSink, universalSink, workoutsTraceSink, hrvTraceSink, deepHrvWindow,
                 spo2CandidateDisplay, effortMethod, dayCycleMode)
@@ -443,7 +449,7 @@ object IntelligenceEngine {
             // re-scores the window against the cleaned store; its own heal then finds nothing (the duplicates
             // are gone), so this can never loop. Mirrors the Swift pendingForcedRescore re-arm.
             else analyzeRecentOnCpu(repo, profile, maxDays, importedDeviceId, maxHROverride,
-                nowSeconds, ownerSource, manualStepCoefficient, persistStepsCalibration, persistStepsHasMotion, baselineEpoch,
+                nowSeconds, ownerSource, manualStepCoefficient, persistStepsCalibration, baselineEpoch,
                 recoveryEpoch, diag, useExperimentalSleepV2, useMotionAwareWake, sleepTraceSink, recoveryTraceSink,
                 stepsTraceSink, universalSink, workoutsTraceSink, hrvTraceSink, deepHrvWindow,
                 spo2CandidateDisplay, effortMethod, dayCycleMode).first
@@ -508,7 +514,6 @@ object IntelligenceEngine {
         ownerSource: DayOwnerSource? = null,
         manualStepCoefficient: Double? = null,
         persistStepsCalibration: (StepsEstimateEngine.Calibration) -> Unit = {},
-        persistStepsHasMotion: (Boolean) -> Unit = {},
         baselineEpoch: Double = 0.0,
         recoveryEpoch: Double = 0.0,
         diag: (String) -> Unit = {},
@@ -1840,7 +1845,6 @@ object IntelligenceEngine {
             importedDeviceId = importedDeviceId,
             manualStepCoefficient = manualStepCoefficient,
             persistStepsCalibration = persistStepsCalibration,
-            persistStepsHasMotion = persistStepsHasMotion,
             stepsTraceSink = stepsTraceSink,
         )
         // DURABILITY GUARD (iOS PR #395 cachedSleepKept): drop any freshly-detected session that
@@ -1966,7 +1970,6 @@ object IntelligenceEngine {
         importedDeviceId: String,
         manualStepCoefficient: Double?,
         persistStepsCalibration: (StepsEstimateEngine.Calibration) -> Unit,
-        persistStepsHasMotion: (Boolean) -> Unit,
         stepsTraceSink: ((String) -> Unit)?,
     ) {
         // ── Fitness Age (Phase 2) , weekly, keyed to the week's Saturday ──
@@ -2060,7 +2063,7 @@ object IntelligenceEngine {
         // "No motion synced yet" (the motion half is the blocker, and no number of phone-step days will
         // move the estimate or the fit). A step estimate is `motion * coefficient`, so with the motion
         // half missing the caption that names only the phone half is a lie.
-        persistStepsHasMotion(motionByDay.isNotEmpty())
+        stepsHasMotionSink?.invoke(motionByDay.isNotEmpty())
         // Build calibration points only for days with BOTH a motion volume and a real phone step count.
         val calPoints = motionByDay.mapNotNull { (day, motion) ->
             refStepsByDay[day]?.let { StepsEstimateEngine.CalibrationPoint(motion = motion, steps = it) }

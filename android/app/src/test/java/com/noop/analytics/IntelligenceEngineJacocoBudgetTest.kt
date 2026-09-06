@@ -218,7 +218,6 @@ class IntelligenceEngineJacocoBudgetTest {
             "strap",
             1.5,
             persistCalibration,
-            { _: Boolean -> }, // #1816: persistStepsHasMotion — no-op for the reflection test
             trace,
             continuation,
         )
