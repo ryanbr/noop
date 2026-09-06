@@ -21,10 +21,20 @@
 name: Tools Python CI
 
 on:
+  # Path-filtered like android.yml / swift-packages.yml / app-build.yml. Without this the workflow ran on
+  # EVERY pull request and every push to main, including the many that touch no Python at all - and with a
+  # Windows runner now in it, billed at twice a Linux minute, that is a real cost for a job whose inputs
+  # cannot have changed. The workflow file itself is included so a change to the job still tests itself.
   pull_request:
     branches: [main]
+    paths:
+      - 'Tools/**'
+      - '.github/workflows/tools-python.yml'
   push:
     branches: [main]
+    paths:
+      - 'Tools/**'
+      - '.github/workflows/tools-python.yml'
   workflow_dispatch:
 
 concurrency:
