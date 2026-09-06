@@ -3080,6 +3080,69 @@ object SleepStager {
     // ── Per-session HR / HRV ─────────────────────────────────────────────────
 
     /**
+     * #1943: what an artefact gate WOULD do to tonight's resting-HR floor, measured and reported without
+     * changing it.
+     *
+     * [SleepStager.sessionRestingHR] takes the minimum of the 5-minute bin means unconditionally, so any
+     * non-empty bin can win, including one built from a single sample at the edge of a wear gap. The
+     * helper deleted alongside it had two conditions the shipped path never had: a bin may only WIN when
+     * it holds at least [minBinSamples] samples and its mean is at least [minPlausibleBpm]. Porting them
+     * is a small change; what nobody can currently say is how OFTEN it would move a displayed number, and
+     * that number feeds the baseline later nights are scored against. So measure first.
+     *
+     * Bins are built exactly as `sessionRestingHR` builds them, closed final bin included, or the line
+     * would describe a different partition than the one it is judging.
+     *
+     * Returns null on a night where the gate changes nothing AND every bin is well-populated, so a clean
+     * night stays silent and the log only carries the cases worth reading. Same posture as the
+     * over-count-only R-R dump. Counts and bpm only, no timestamps. Pure. Twin of Swift
+     * `rhrBinGateLogLine`.
+     */
+    internal fun rhrBinGateLogLine(
+        day: String,
+        sessions: List<Pair<Long, Long>>,
+        hr: List<HrSample>,
+        shippedFloor: Int,
+        minBinSamples: Int = 5,
+        minPlausibleBpm: Double = 25.0,
+    ): String? {
+        val windowS = 5 * 60L
+        var bins = 0
+        var thin = 0
+        var implausible = 0
+        var best: Double? = null          // the current rule: min over every non-empty bin
+        var bestN = 0
+        var gated: Double? = null         // the candidate rule: min over qualifying bins only
+        for ((start, end) in sessions) {
+            val seg = hr.filter { it.ts in start..end }
+            if (seg.isEmpty()) continue
+            var t = start
+            do {
+                val isFinal = t + windowS >= end
+                val win = seg.filter { it.ts >= t && (isFinal || it.ts < t + windowS) }
+                if (win.isNotEmpty()) {
+                    bins += 1
+                    val mean = win.sumOf { it.bpm }.toDouble() / win.size.toDouble()
+                    if (win.size < minBinSamples) thin += 1
+                    if (mean < minPlausibleBpm) implausible += 1
+                    if (best == null || mean < best!!) { best = mean; bestN = win.size }
+                    if (win.size >= minBinSamples && mean >= minPlausibleBpm &&
+                        (gated == null || mean < gated!!)
+                    ) gated = mean
+                }
+                t += windowS
+            } while (t < end)
+        }
+        if (bins == 0) return null
+        val gatedFloor = gated?.let { Math.round(it).toInt() }
+        val changes = gatedFloor != null && gatedFloor != shippedFloor
+        if (!changes && thin == 0 && implausible == 0) return null
+        return "rhr bins day=$day bins=$bins thin=$thin implausible=$implausible " +
+            "winnerN=$bestN floor=$shippedFloor gated=${gatedFloor ?: "nil"} wouldChange=$changes " +
+            "(measure-only; nothing is gated yet)"
+    }
+
+    /**
      * Lowest 5-min rolling-mean HR during the session (bpm), or null.
      *
      * The window is CLOSED at both ends, so the binning is too: bins are `[t, t + windowS)` except

@@ -138,6 +138,9 @@ final class IntelligenceEngine: ObservableObject {
     private struct DayScan {
         let result: AnalyticsEngine.DayResult
         let rhrLine: String?
+        /// #1943 measure-only bin-population line (see `SleepStager.rhrBinGateLogLine`); nil on a clean
+        /// night, replayed with `rhrLine` so the two read together.
+        let rhrBinLine: String?
         /// #1331 respiratory diagnostic line (see `respRateLogLine`); replayed with `rhrLine`.
         let respLine: String?
         /// CAPTURE-B (#814/#799): the resolved READ owner id this day was scored from, and how many HR rows
@@ -1493,11 +1496,17 @@ final class IntelligenceEngine: ObservableObject {
                 // Computed here (pure inputs) and carried out so the main actor can replay it through
                 // `diagnosticSink` in the SAME per-day order , the sink is a MainActor-bound closure.
                 var rhrLine: String?
+                var rhrBinLine: String?
                 if let floor = res.daily.restingHr {
                     let inBedBpms = hr.filter { s in
                         res.cachedSleep.contains { s.ts >= $0.startTs && s.ts < $0.endTs }
                     }.map { $0.bpm }
                     rhrLine = Self.rhrFloorMeanLogLine(day: res.daily.day, floor: floor, inBedBpms: inBedBpms)
+                    // #1943: and what an artefact gate would do to that floor. Silent on a clean night.
+                    rhrBinLine = SleepStager.rhrBinGateLogLine(
+                        day: res.daily.day,
+                        sessions: res.cachedSleep.map { ($0.startTs, $0.endTs) },
+                        hr: hr, shippedFloor: floor)
                 }
                 // #1331 respiratory diagnostic — a run of nil nights localises when it stopped. Same
                 // pure-compute-here / replay-on-main-actor path as rhrLine.
@@ -1547,7 +1556,8 @@ final class IntelligenceEngine: ObservableObject {
                 // windowing + delegation lives in the byte-identical, tested `AnalyticsEngine`.
                 let (primarySessionRHR, primarySessionRHRCoverage) =
                     AnalyticsEngine.primarySessionRestingHRWithCoverage(sessions: res.sleepSessions, hr: hr)
-                let scan = DayScan(result: res, rhrLine: rhrLine, respLine: respLine,
+                let scan = DayScan(result: res, rhrLine: rhrLine, rhrBinLine: rhrBinLine,
+                                   respLine: respLine,
                                    readOwner: owner, hrRows: hr.count,
                                    sleepTrace: sleepTrace, stepsTrace: stepsTrace, hrvTrace: hrvTrace,
                                    hrvDiag: Self.mergedDayDiag(hrvDiag, strainDiagLines),
@@ -1653,6 +1663,7 @@ final class IntelligenceEngine: ObservableObject {
                 primarySessionRHRCoverageByDay[res.daily.day] = cov
             }
             if let line = scan.rhrLine { diagnosticSink?(line, nil) }
+            if let line = scan.rhrBinLine { diagnosticSink?(line, nil) }
             if let line = scan.respLine { diagnosticSink?(line, nil) }
             // Sleep & Rest test mode (E5): replay this day's gate-trace + Rest lines tagged `.sleep` so they
             // land under the profile tag in the export. Empty unless the mode is active.
