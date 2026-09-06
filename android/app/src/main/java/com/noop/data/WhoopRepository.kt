@@ -2183,8 +2183,8 @@ class WhoopRepository(
          *
          * 604,800 = 7 × 86,400, matching the aux cap's "week of strap-seconds" semantic and #1911's own
          * 7-day hot window. The ceiling is larger than aux's because the row is: ~120 B/row (a 48 B
-         * packed-i16 blob for 24 samples plus row and primary-key-index overhead) gives a ~70 MB hard
-         * ceiling per device against ~50 MB for aux. That ceiling is the bound worth quoting; the wall-clock
+         * packed-i16 blob for 24 samples plus row and primary-key-index overhead) gives ~70 MB per device
+         * against ~50 MB for aux. That is the bound worth quoting; the wall-clock
          * span is longer than the arithmetic suggests, because v26 only runs in optical windows. At #1911's
          * ~28,800 rows/day the cap holds about three weeks of typical wear, and proportionally more for a
          * sporadic wearer, which is exactly the population an age-based cutoff would have emptied. Retuning
@@ -2196,7 +2196,17 @@ class WhoopRepository(
          *  [V18_AUX_PRUNE_EVERY_ROWS] below, for the same reason: the sweep walks up to
          *  [PPG_WAVEFORM_RETENTION_ROWS] index entries, so running it per insert batch is the cost. The
          *  table may sit this many rows (plus the crossing batch) above the cap, roughly a MB against its
-         *  ~70 MB ceiling. Swift twin: `WhoopStore.ppgWaveformPruneEveryRows`. */
+         *  ~70 MB bound. Swift twin: `WhoopStore.ppgWaveformPruneEveryRows`.
+         *
+         *  WHAT THIS BUDGET DOES NOT GUARANTEE, and why the cap above is stated as a size and not a "hard
+         *  ceiling": the counter is in-memory and per repository instance, so process death resets it. The
+         *  sweep is the ONLY thing enforcing retention on this table (the `*ByTs` deletes belong to the
+         *  timestamp heal, not to retention), so a repository that never banks this many rows in one
+         *  process lifetime never sweeps. Not a concern for the normal shape, since the budget accumulates
+         *  across every batch of a session and one night's offload banks ~28,800 rows, but a repository fed
+         *  only short bursts between app kills can drift above the cap indefinitely.
+         *  [V18_AUX_PRUNE_EVERY_ROWS] has the identical property; forcing a sweep once per session would
+         *  close it for both, and belongs in a change that covers both. */
         const val PPG_WAVEFORM_PRUNE_EVERY_ROWS = 10_000
 
         /**

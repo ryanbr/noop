@@ -79,8 +79,8 @@ extension WhoopStore {
     ///
     /// 604,800 = 7 × 86,400, matching the aux cap's "a week of strap-seconds" semantic and #1911's own
     /// 7-day hot window. The ceiling is larger than the aux table's because the row is: ~120 B/row (a 48 B
-    /// packed-i16 blob for 24 samples, plus row and primary-key-index overhead) puts it at a **~70 MB hard
-    /// ceiling** per device, against ~50 MB for aux. That ceiling is the bound worth quoting; the wall-clock
+    /// packed-i16 blob for 24 samples, plus row and primary-key-index overhead) puts it at **~70 MB per
+    /// device**, against ~50 MB for aux. That is the bound worth quoting; the wall-clock
     /// span is longer than the arithmetic suggests, because v26 only runs in optical windows. At #1911's
     /// ~28,800 rows/day the cap holds about **three weeks** of typical wear, and proportionally more for a
     /// sporadic wearer, which is exactly the population an age-based cutoff would have emptied. Retuning is
@@ -92,7 +92,17 @@ extension WhoopStore {
     /// `v18AuxPruneEveryRows` below and the same magnitude for the same reason: the sweep walks up to
     /// `ppgWaveformRetentionRows` index entries, so running it per insert batch is the cost. The table may
     /// sit this many rows (plus the crossing batch) above the cap in exchange, roughly a MB against its
-    /// ~70 MB ceiling.
+    /// ~70 MB bound.
+    ///
+    /// WHAT THIS BUDGET DOES NOT GUARANTEE, and the reason the cap above is stated as a size rather than a
+    /// "hard ceiling": the counter is in-memory and per store instance, so a process restart resets it.
+    /// The sweep is the ONLY thing enforcing retention on this table — `Collector.prune` covers the raw
+    /// outbox alone, and the `*ByTs` deletes belong to `TimestampHeal`, not to retention — so a store that
+    /// never banks this many rows in one process lifetime never sweeps at all. It is not a concern for the
+    /// normal shape (the budget accumulates across every batch of a session, and one night's offload banks
+    /// ~28,800 rows, crossing it twice over), but a store fed only short bursts between app kills can drift
+    /// above the cap indefinitely. `v18AuxPruneEveryRows` below has the identical property; a sweep forced
+    /// once per session would close it for both, and belongs in a change that covers both.
     public static let ppgWaveformPruneEveryRows = 10_000
 
     /// v31 rolling retention for the v18 aux-slot table (twin of Kotlin `V18_AUX_RETENTION_ROWS`).
