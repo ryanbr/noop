@@ -210051,17 +210051,17 @@
         "zh-Hans": {"stringUnit": {"state": "translated", "value": "无法启动麦克风：%@"}},
         "zh-Hant": {"stringUnit": {"state": "translated", "value": "無法啟動麥克風：%@"}}
     } },
-    "%@ of %@ nights": { "localizations": {
-        "de": {"stringUnit": {"state": "translated", "value": "%@ von %@ Nächten"}},
-        "en": {"stringUnit": {"state": "translated", "value": "%@ of %@ nights"}},
-        "es": {"stringUnit": {"state": "translated", "value": "%@ de %@ noches"}},
-        "fr": {"stringUnit": {"state": "translated", "value": "%@ nuits sur %@"}},
-        "it": {"stringUnit": {"state": "translated", "value": "%@ di %@ notti"}},
-        "pl": {"stringUnit": {"state": "translated", "value": "%@ z %@ nocy"}},
-        "pt-PT": {"stringUnit": {"state": "translated", "value": "%@ de %@ noites"}},
-        "ru": {"stringUnit": {"state": "translated", "value": "%@ из %@ ночей"}},
-        "zh-Hans": {"stringUnit": {"state": "translated", "value": "%@ / %@ 晚"}},
-        "zh-Hant": {"stringUnit": {"state": "translated", "value": "%@ / %@ 晚"}}
+    "%lld of %lld nights": { "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "%lld von %lld Nächten"}},
+        "en": {"stringUnit": {"state": "translated", "value": "%lld of %lld nights"}},
+        "es": {"stringUnit": {"state": "translated", "value": "%lld de %lld noches"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "%lld nuits sur %lld"}},
+        "it": {"stringUnit": {"state": "translated", "value": "%lld di %lld notti"}},
+        "pl": {"stringUnit": {"state": "translated", "value": "%lld z %lld nocy"}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "%lld de %lld noites"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "%lld из %lld ночей"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "%lld / %lld 晚"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "%lld / %lld 晚"}}
     } }
   },
   "version": "1.0"
