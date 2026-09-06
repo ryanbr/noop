@@ -71,7 +71,7 @@ class EcgResearchLog(
         val rejected: Boolean,
         /** The frame's CRC verdict, or null when there was nothing to check (the house `crcOk != false`
          *  idiom). A CRC FAILURE is recorded, not dropped: for a research capture a corrupt frame is
-         *  evidence, and dropping it would make "the strap sent nothing" indistinguishable from "we threw it
+         *  evidence, and dropping it would make "the strap sent nothing" indistinguishable from "the app threw it
          *  away". No decoder reads a row whose verdict is false. */
         val crcOk: Boolean? = null,
     )

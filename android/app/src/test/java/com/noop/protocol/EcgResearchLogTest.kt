@@ -128,7 +128,7 @@ class EcgResearchLogTest {
         log.recordRx(rawRecordRow(20, 200, crcOk = false))
         log.recordRx(rawRecordRow(30, 300, crcOk = null))
 
-        // Dropping a corrupt frame would make "the strap sent nothing" and "we threw it away" identical.
+        // Dropping a corrupt frame would make "the strap sent nothing" and "the app threw it away" identical.
         assertEquals(3, log.rxCount)
         val csv = log.bleRxCsv()
         val header = csv.lineSequence().first().split(",")
