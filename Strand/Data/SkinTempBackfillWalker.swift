@@ -184,4 +184,77 @@ final class SkinTempBackfillWalker {
         let utcMidnight = Calendar(identifier: .gregorian).date(from: comps) ?? Date()
         return Int(utcMidnight.timeIntervalSince1970) - tzOffsetSeconds
     }
+
+    // MARK: - Self-contained entry point (the call site)
+
+    /// The aggregate result of a full backfill pass (one or more pages), for the Test Centre report.
+    struct BackfillResult: Sendable {
+        let filled: [FilledNight]
+        let declined: [DeclinedNight]
+        let noRawData: [String]
+        /// The window anchor that was used (nil for a 5/MG or when the current window couldn't learn one).
+        let windowAnchorRaw: Double?
+        /// Whether the pass reached the end (false when a page was empty) or hit the page budget.
+        let reachedEnd: Bool
+        var filledCount: Int { filled.count }
+        var declinedCount: Int { declined.count }
+        var noRawDataCount: Int { noRawData.count }
+    }
+
+    /// Run the full backfill: resolve the WHOOP 4.0 window anchor from the CURRENT scoring window
+    /// (rule 3 — the same window-wide scan the engine uses), then page through the candidate nights
+    /// until a page is empty or `maxPages` is reached. This is the single entry point the Test Centre
+    /// action calls; it owns the anchor scan so the call site does not duplicate engine internals.
+    ///
+    /// `maxDays` mirrors the scoring pass's window (default 21). `maxPages` caps the per-pass cost
+    /// (default 10 pages × 50 nights = 500 nights, plenty for any install).
+    func runBackfill(maxDays: Int = 21, maxPages: Int = 10) async -> BackfillResult {
+        let tzOffset = TimeZone.current.secondsFromGMT()
+        let now = Int(Date().timeIntervalSince1970)
+        let nowLocalMidnight = Self.localMidnightUnix(
+            forDay: Self.dayKey(now: now, tzOffsetSeconds: tzOffset), tzOffsetSeconds: tzOffset)
+        // Rule 3: the anchor comes from the CURRENT scoring window, learned window-wide (not per-night).
+        // Same window bounds the engine's `analyzeRecent` uses for `skinAnchorScanFrom`/`skinAnchorScanTo`.
+        let scanFrom = nowLocalMidnight - (maxDays - 1) * 86_400 - StreamReadCap.lookbackSeconds
+        let scanTo = nowLocalMidnight + 18 * 3_600
+        let registry = DeviceRegistryStore(dbQueue: store.registryWriter)
+        let activeId = (try? registry.activeDeviceId()) ?? Repository.whoopSource
+        let regDevices = (try? registry.all()) ?? []
+        let family = IntelligenceEngine.skinTempFamily(forOwner: activeId, devices: regDevices)
+        // Only a 4.0 needs the anchor; a 5/MG (centidegree path) passes nil and proceeds.
+        let windowAnchorRaw: Double?
+        if family == .whoop4 {
+            let windowSkin = (try? await store.skinTempSamples(
+                deviceId: activeId, from: scanFrom, to: scanTo,
+                limit: StreamReadCap.skin)) ?? []
+            windowAnchorRaw = Whoop4SkinTemp.deviceAnchorRaw(windowSkin.map { $0.raw })
+        } else {
+            windowAnchorRaw = nil
+        }
+        var filled: [FilledNight] = []
+        var declined: [DeclinedNight] = []
+        var noRawData: [String] = []
+        var reachedEnd = false
+        for page in 0..<maxPages {
+            let r = await runPage(page: page, windowAnchorRaw: windowAnchorRaw,
+                                  tzOffsetSeconds: tzOffset)
+            filled.append(contentsOf: r.filled)
+            declined.append(contentsOf: r.declined)
+            noRawData.append(contentsOf: r.noRawData)
+            if !r.moreRemaining {
+                reachedEnd = true
+                break
+            }
+        }
+        return BackfillResult(filled: filled, declined: declined, noRawData: noRawData,
+                              windowAnchorRaw: windowAnchorRaw, reachedEnd: reachedEnd)
+    }
+
+    /// Local-day key (yyyy-MM-dd) for a unix timestamp, matching the engine's `dayString(ts,offsetSec:)`.
+    private static func dayKey(now: Int, tzOffsetSeconds: Int) -> String {
+        let comps = Calendar(identifier: .gregorian).dateComponents(
+            [.year, .month, .day], from: Date(timeIntervalSince1970: TimeInterval(now + tzOffsetSeconds)))
+        let y = comps.year ?? 0, m = comps.month ?? 0, d = comps.day ?? 0
+        return String(format: "%04d-%02d-%02d", y, m, d)
+    }
 }
