@@ -2266,6 +2266,7 @@
     <string name="today_steps_headline_calibrated">根据手机同时记录的 %1$d 天估算</string>
     <string name="today_steps_headline_connect_phone">连接手机步数以估算步数</string>
     <string name="today_steps_headline_more_days">还需 %1$d 天由手机同时记录步数</string>
+    <string name="today_steps_headline_no_motion">尚未同步运动数据</string>
     <string name="today_synthesis_learning_baseline">正在建立基线：%1$d/%2$d 晚。</string>
     <string name="today_last_night_date">昨晚 · %1$s</string>
     <string name="today_hr_min">最低</string>

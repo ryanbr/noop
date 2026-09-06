@@ -4306,13 +4306,35 @@ struct TodayView: View {
     /// number, and there is nothing for the user to go and do. `StatTile.caption` is optional, so nil
     /// renders NO caption rather than falling back to "today" — which would be its own small lie on a past
     /// day being browsed.
-    /// Twin of the Kotlin `stepsCalibrationPrompt` guard (#1514).
+    ///
+    /// #1816: when the strap has banked NO motion, the phone-step-days countdown is the wrong message.
+    /// A step estimate is `motion * coefficient`, so with the motion half missing neither the estimate
+    /// nor the fit moves however many days the phone counts — and the countdown that names only the
+    /// phone half sent a field reporter to enter Apple Health steps by hand expecting calibration to
+    /// start, which it cannot. The `stepsHasBankedMotion` flag is persisted by `IntelligenceEngine` on
+    /// every analytics pass, so it tracks a fresh strap's first sync without a per-render query. When
+    /// it is false, the caption says "No motion synced yet" instead — the same wording the calibration
+    /// sheet's no-motion banner uses, so the two surfaces agree. Twin of the Kotlin
+    /// `stepsCalibrationPrompt` guard (#1514).
     private var stepsCalibrationCaption: String? {
-        guard profile.stepsCalibrationCoefficient <= 0, profile.stepsManualCoefficient <= 0 else {
-            return nil
-        }
+        Self.stepsCalibrationCaption(coefficient: profile.stepsCalibrationCoefficient,
+                                     manualCoefficient: profile.stepsManualCoefficient,
+                                     hasBankedMotion: profile.stepsHasBankedMotion,
+                                     sampleDays: profile.stepsCalibrationSampleDays)
+    }
+
+    /// #1816: the pure decision behind `stepsCalibrationCaption`, extracted so it can be unit-tested
+    /// without a live view. Returns nil once a coefficient exists (a blank day is just a quiet one,
+    /// not a missing input). Returns "No motion synced yet" when the strap has banked no motion —
+    /// the motion half is the blocker, not the phone half, and the countdown that names only the
+    /// phone half is a lie. Otherwise returns the engine's `needsMoreDays` headline. Twin of the
+    /// Kotlin `stepsCalibrationPrompt` guard.
+    static func stepsCalibrationCaption(coefficient: Double, manualCoefficient: Double,
+                                        hasBankedMotion: Bool, sampleDays: Int) -> String? {
+        guard coefficient <= 0, manualCoefficient <= 0 else { return nil }
+        if !hasBankedMotion { return String(localized: "No motion synced yet") }
         let status = StepsEstimateEngine.CalibrationStatus.needsMoreDays(
-            have: profile.stepsCalibrationSampleDays,
+            have: sampleDays,
             need: StepsEstimateEngine.minCalibrationDays)
         return status.headline
     }

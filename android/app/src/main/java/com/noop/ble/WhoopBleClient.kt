@@ -2971,6 +2971,12 @@ class WhoopBleClient(
                             profileStore.stepsCalibrationConfidence = cal.confidence
                             profileStore.stepsCalibrationManual = cal.manual
                         },
+                        // #1816: persist the motion flag on the post-backfill pass too, so a fresh
+                        // strap's first sync flips the Today caption from "No motion synced yet" to
+                        // the phone-step-days countdown as soon as the backfill lands.
+                        persistStepsHasMotion = { hasMotion ->
+                            profileStore.stepsHasBankedMotion = hasMotion
+                        },
                         // Manual "Recalibrate baseline" anchor (noop.hrvBaselineEpoch, whole seconds in a
                         // Long). The analytics layer is Context-free, so read it here and thread it down so
                         // the post-backfill scoring pass honours the recalibration too — not just the UI's

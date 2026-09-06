@@ -306,6 +306,19 @@ class ProfileStore(private val prefs: SharedPreferences) {
      *  null when 0 (auto-fit), the positive value otherwise. */
     val stepsManualOverride: Double? get() = stepsManualCoefficient.takeIf { it > 0 }
 
+    /**
+     * #1816: true when the strap has banked ANY motion (gravity samples → `dayMotionIntensity > 0`)
+     * in the calibration scan window. Written by the analytics engine on every pass so it tracks a
+     * fresh strap's first sync without a separate query. The Today tile reads this to decide whether
+     * "Need N more days where your phone also counted steps" is the honest caption or a lie: a step
+     * estimate is `motion * coefficient`, so with the motion half missing neither the estimate nor the
+     * fit moves however many phone-counted days the user collects. The caption that names only the
+     * phone half is actively misleading. Twin of the Swift `ProfileStore.stepsHasBankedMotion`.
+     */
+    var stepsHasBankedMotion: Boolean
+        get() = prefs.getBoolean(KEY_STEPS_HAS_MOTION, false)
+        set(v) = prefs.edit().putBoolean(KEY_STEPS_HAS_MOTION, v).apply()
+
     /** The auto (Tanaka) HR-max for the current age. */
     val hrMaxAuto: Int get() = Zones.hrMaxTanaka(age)
 
@@ -423,6 +436,7 @@ class ProfileStore(private val prefs: SharedPreferences) {
         private const val KEY_STEPS_CONFIDENCE = "steps_calibration_confidence"
         private const val KEY_STEPS_MANUAL_FLAG = "steps_calibration_manual"
         private const val KEY_STEPS_MANUAL_COEFF = "steps_manual_coefficient"
+        private const val KEY_STEPS_HAS_MOTION = "steps_has_banked_motion"
 
         private const val AGE_MIN = 13
         private const val AGE_MAX = 100

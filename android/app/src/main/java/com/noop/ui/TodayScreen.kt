@@ -3919,6 +3919,15 @@ private fun stepsCalibrationPrompt(context: Context, profileStore: ProfileStore)
     ) {
         return null
     }
+    // #1816: when the strap has banked NO motion, the phone-step-days countdown is the wrong message.
+    // A step estimate is `motion * coefficient`, so with the motion half missing neither the estimate
+    // nor the fit moves however many days the phone counts — and the countdown that names only the
+    // phone half sent a field reporter to enter Apple Health steps by hand expecting calibration to
+    // start, which it cannot. Say "No motion synced yet" instead — the same wording the calibration
+    // sheet's no-motion banner uses, so the two surfaces agree.
+    if (!profileStore.stepsHasBankedMotion) {
+        return uiString(R.string.today_steps_headline_no_motion)
+    }
     val headline = StepsEstimateEngine.CalibrationStatus.NeedsMoreDays(
         have = profileStore.stepsCalibrationSampleDays,
         need = StepsEstimateEngine.MIN_CALIBRATION_DAYS,

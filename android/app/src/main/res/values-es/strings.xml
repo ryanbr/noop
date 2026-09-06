@@ -2339,6 +2339,7 @@
     <string name="today_steps_headline_calibrated">Estimado con %1$d días contabilizados también por el teléfono</string>
     <string name="today_steps_headline_connect_phone">Conecta el recuento de pasos del teléfono para estimar pasos</string>
     <string name="today_steps_headline_more_days">Faltan %1$d días contabilizados también por el teléfono</string>
+    <string name="today_steps_headline_no_motion">Aún no se han sincronizado datos de movimiento</string>
     <string name="today_synthesis_learning_baseline">Creando tu referencia, %1$d de %2$d noches.</string>
     <string name="today_last_night_date">Anoche · %1$s</string>
     <string name="today_hr_min">Mín.</string>

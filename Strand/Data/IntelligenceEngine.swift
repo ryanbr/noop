@@ -2361,6 +2361,13 @@ final class IntelligenceEngine: ObservableObject {
             }
             return (refSteps, motion)
         }.value
+        // #1816: persist whether the strap has banked ANY motion in the calibration scan window, so the
+        // Today tile can distinguish "Need N more phone-step days" (motion exists, phone half missing)
+        // from "No motion synced yet" (the motion half is the blocker, and no number of phone-step days
+        // will move the estimate or the fit). A step estimate is `motion * coefficient`, so with the
+        // motion half missing the caption that names only the phone half is a lie — it sent a field
+        // reporter to enter Apple Health steps by hand expecting calibration to start, which it cannot.
+        profile.stepsHasBankedMotion = !motionByDay.isEmpty
         // Build calibration points only for days with BOTH a motion volume and a real phone step count.
         let calPoints = motionByDay.compactMap { (day, motion) -> StepsEstimateEngine.CalibrationPoint? in
             guard let s = refStepsByDay[day] else { return nil }

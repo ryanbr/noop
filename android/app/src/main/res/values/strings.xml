@@ -2451,6 +2451,7 @@
     <string name="today_steps_headline_calibrated">Estimated from %1$d days your phone also counted</string>
     <string name="today_steps_headline_connect_phone">Connect your phone’s step count to estimate steps</string>
     <string name="today_steps_headline_more_days">Need %1$d more days where your phone also counted steps</string>
+    <string name="today_steps_headline_no_motion">No motion synced yet</string>
     <string name="today_synthesis_learning_baseline">Learning your baseline, %1$d of %2$d nights.</string>
     <string name="today_last_night_date">Last night · %1$s</string>
     <string name="today_hr_min">Min</string>

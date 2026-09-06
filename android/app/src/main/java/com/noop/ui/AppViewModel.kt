@@ -1139,6 +1139,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                             profileStore.stepsCalibrationConfidence = cal.confidence
                             profileStore.stepsCalibrationManual = cal.manual
                         },
+                        // #1816: persist whether the strap banked any motion so the Today tile can name
+                        // the right missing half (motion, not phone steps) when none has arrived yet.
+                        persistStepsHasMotion = { hasMotion ->
+                            profileStore.stepsHasBankedMotion = hasMotion
+                        },
                         // Manual "Recalibrate baseline" anchor (Settings → Charge advanced). The analytics
                         // layer is Context-free, so read the epoch (whole seconds, written as a Long by the
                         // button) here and thread it down — foldHistory drops every HRV night before it.

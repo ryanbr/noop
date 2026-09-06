@@ -2352,6 +2352,7 @@
     <string name="today_steps_headline_calibrated">Aus %1$d Tagen mit Smartphone-Schritten geschätzt</string>
     <string name="today_steps_headline_connect_phone">Verbinde die Schrittzählung deines Smartphones, um Schritte zu schätzen</string>
     <string name="today_steps_headline_more_days">Noch %1$d Tage mit Smartphone-Schritten nötig</string>
+    <string name="today_steps_headline_no_motion">Noch keine Bewegungsdaten synchronisiert</string>
     <string name="today_synthesis_learning_baseline">Dein Basiswert wird gelernt, %1$d von %2$d Nächten.</string>
     <string name="today_last_night_date">Letzte Nacht · %1$s</string>
     <string name="today_hr_min">Min.</string>
