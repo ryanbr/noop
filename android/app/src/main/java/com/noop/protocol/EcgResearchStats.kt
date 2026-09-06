@@ -151,6 +151,15 @@ object EcgResearchStats {
      * periodic at the record period, and at 100 Hz that period is 1.01 s == 59.4 bpm: inside this search band
      * and inside resting heart-rate range. An autocorrelation fed a concatenated record stream will therefore
      * report a confident ~59 bpm out of pure framing, with no cardiac content at all. That is the exact
+     * [excludeLag] is REQUIRED and has no default, which is the whole point of it. Passing the record
+     * period switches the guard on; passing null says "this source is not record-tiled" and accepts an
+     * unguarded estimate. Both are defensible, but only as a decision somebody made: with a default the
+     * shortest call, `estimateBpm(samples, fs)`, silently selected the unguarded form, and on a tiled
+     * 101-sample record at 100 Hz that form returns 59 — a believable resting rate manufactured from a
+     * buffer holding no rhythm at all. That is #194 exactly, and a wrong number nobody chose is the
+     * failure this whole method is shaped around. Requiring the argument costs one word at each call site
+     * and makes the unguarded path impossible to take by accident.
+     *
      * failure mode behind NOOP's withdrawn PPG->HR estimate, so when [excludeLag] is supplied:
      *
      *  1. lags within [excludeLagTolerance] of it cannot win, and
@@ -179,7 +188,7 @@ object EcgResearchStats {
         minBpm: Int = 40,
         maxBpm: Int = 180,
         minStrength: Double = 0.3,
-        excludeLag: Int? = null,
+        excludeLag: Int?,
         excludeLagTolerance: Int = 2,
         octaveTolerance: Double = 0.85,
         artefactDominance: Double = 1.0,

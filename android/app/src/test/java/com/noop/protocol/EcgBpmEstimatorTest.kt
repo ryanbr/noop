@@ -32,7 +32,7 @@ class EcgBpmEstimatorTest {
     fun recoversSeveralDifferentInjectedRates() {
         // One match is a coincidence; the method has to move with the input.
         for (bpm in intArrayOf(45, 52, 70, 88, 110, 132, 150, 170)) {
-            val got = EcgResearchStats.estimateBpm(beats(bpm), fs)
+            val got = EcgResearchStats.estimateBpm(beats(bpm), fs, excludeLag = null)
             assertNotNull("no estimate at $bpm bpm", got)
             // Lag quantisation at 100 Hz coarsens with rate, so allow a proportional tolerance.
             val tolerance = maxOf(3.0, bpm * 0.06)
@@ -47,7 +47,7 @@ class EcgBpmEstimatorTest {
     fun theEstimateRisesAndFallsWithTheInput() {
         // Monotonicity across the band: the ordering of the estimates must match the ordering of the truth.
         val truth = intArrayOf(50, 75, 100, 125, 150)
-        val got = truth.map { EcgResearchStats.estimateBpm(beats(it), fs)!! }
+        val got = truth.map { EcgResearchStats.estimateBpm(beats(it), fs, excludeLag = null)!! }
         assertTrue("estimates not monotonic with input: $got", got.zipWithNext().all { (a, b) -> a < b })
     }
 
@@ -109,16 +109,16 @@ class EcgBpmEstimatorTest {
 
     @Test
     fun noiseAndFlatlineAndTooShortAllReturnNull() {
-        assertNull(EcgResearchStats.estimateBpm(IntArray(0), fs))
-        assertNull("a buffer under one second cannot be judged", EcgResearchStats.estimateBpm(IntArray(fs - 1) { it }, fs))
-        assertNull("a flat trace has no variance", EcgResearchStats.estimateBpm(IntArray(400) { 0 }, fs))
+        assertNull(EcgResearchStats.estimateBpm(IntArray(0), fs, excludeLag = null))
+        assertNull("a buffer under one second cannot be judged", EcgResearchStats.estimateBpm(IntArray(fs - 1) { it }, fs, excludeLag = null))
+        assertNull("a flat trace has no variance", EcgResearchStats.estimateBpm(IntArray(400) { 0 }, fs, excludeLag = null))
         // Deterministic pseudo-noise: no dominant period should clear the strength floor.
         var seed = 12345L
         val noise = IntArray(800) {
             seed = (seed * 6364136223846793005L + 1442695040888963407L)
             ((seed shr 33).toInt() % 200)
         }
-        assertNull("pseudo-noise should not yield a confident rate", EcgResearchStats.estimateBpm(noise, fs))
+        assertNull("pseudo-noise should not yield a confident rate", EcgResearchStats.estimateBpm(noise, fs, excludeLag = null))
     }
 
     @Test
@@ -126,7 +126,7 @@ class EcgBpmEstimatorTest {
         // The lag score is a mean over the overlap, not a raw sum: an unnormalised sum shrinks with lag and
         // pulls the winner toward short lags (high BPM). A slow rate in a short-ish buffer is where that
         // bias showed, so pin it.
-        val got = EcgResearchStats.estimateBpm(beats(46, seconds = 4.0), fs)
+        val got = EcgResearchStats.estimateBpm(beats(46, seconds = 4.0), fs, excludeLag = null)
         assertNotNull(got)
         assertTrue("a slow rate was pulled high (got $got)", abs(got!! - 46) <= 5)
     }

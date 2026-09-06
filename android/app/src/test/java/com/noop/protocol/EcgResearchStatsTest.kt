@@ -103,14 +103,14 @@ class EcgResearchStatsTest {
         val n = fs * 6
         val periodSamples = 60.0 * fs / 72.0
         val beat = IntArray(n) { (1000 * Math.sin(2 * Math.PI * it / periodSamples)).toInt() }
-        val bpm = EcgResearchStats.estimateBpm(beat, fs)
+        val bpm = EcgResearchStats.estimateBpm(beat, fs, excludeLag = null)
         assertNotNull(bpm)
         assertTrue("expected ~72, got $bpm", bpm!! in 68..76)
 
         // Flat/near-zero -> no confident rhythm -> null (never a fabricated number).
-        assertNull(EcgResearchStats.estimateBpm(IntArray(fs * 3) { 0 }, fs))
+        assertNull(EcgResearchStats.estimateBpm(IntArray(fs * 3) { 0 }, fs, excludeLag = null))
         // Too short -> null.
-        assertNull(EcgResearchStats.estimateBpm(IntArray(fs / 2) { it }, fs))
+        assertNull(EcgResearchStats.estimateBpm(IntArray(fs / 2) { it }, fs, excludeLag = null))
     }
 
     @Test
