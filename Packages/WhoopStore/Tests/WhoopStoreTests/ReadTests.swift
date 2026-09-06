@@ -395,4 +395,36 @@ final class ReadTests: XCTestCase {
                        "the summed total must equal the per-table breakdown")
     }
 
+
+    /// #1911: the byte estimate must MEASURE the blob rather than assume it. `ppgWaveformSample` is the
+    /// only table here whose row size varies, and the one a per-second row model misprices worst — so a
+    /// footprint that treats every row as a fixed width answers the wrong question about exactly the table
+    /// the question is usually about.
+    ///
+    /// Seeded rows carry a real 4-byte blob, so its estimate must exceed a fixed-width table's per-row
+    /// figure by roughly the blob, and both must be positive and finite.
+    func testStorageByteEstimatesMeasureTheBlobColumn() async throws {
+        let store = try await seeded()
+        let bytes = try await store.storageByteEstimates()
+        let counts = try await store.storageRowCounts()
+        let wave = try XCTUnwrap(bytes["ppgWaveform"], "the blob table must be estimated, not skipped")
+        XCTAssertGreaterThan(wave, 0)
+        // Per-row, the blob table must cost more than a table of the same row count whose columns are all
+        // numeric — otherwise the blob is not being measured at all.
+        let waveRows = try XCTUnwrap(counts["ppgWaveform"])
+        let hrRows = try XCTUnwrap(counts["hr"])
+        if waveRows > 0, hrRows > 0, let hrBytes = bytes["hr"] {
+            XCTAssertGreaterThan(Double(wave) / Double(waveRows), Double(hrBytes) / Double(hrRows),
+                                 "a blob row must estimate larger than an all-numeric row")
+        }
+    }
+
+    /// An empty table is omitted rather than reported as zero bytes, matching the row counts: absent means
+    /// "nothing to attribute here", which is a different claim from a measured zero.
+    func testStorageByteEstimatesOmitEmptyTables() async throws {
+        let store = try await WhoopStore.inMemory()
+        let bytes = try await store.storageByteEstimates()
+        XCTAssertTrue(bytes.isEmpty, "a fresh store has no rows, so nothing to estimate")
+    }
+
 }

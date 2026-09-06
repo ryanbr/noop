@@ -628,6 +628,47 @@ extension WhoopStore {
         }
     }
 
+    /// Estimated payload bytes per decoded stream table, keyed as `storageRowCounts()` keys.
+    ///
+    /// #1911 asks which table holds a multi-gigabyte database, and row counts alone cannot answer it: the
+    /// twelve fixed-width tables are comparable by rows, but `ppgWaveformSample` stores a BLOB whose size
+    /// varies, and it is the table most likely to hold bytes a per-second row model does not predict. So
+    /// this measures the blob rather than assuming it.
+    ///
+    /// Sampled, not scanned: the mean payload of up to `sampleRows` rows, multiplied by the count. A full
+    /// `SUM(LENGTH(...))` over a 6.5 GB store is exactly the kind of read this diagnostic exists to let
+    /// someone avoid, and an estimate answers "which table dominates" just as well.
+    ///
+    /// What it measures: BLOB and TEXT columns by their real byte/character length, numeric columns at a
+    /// nominal 8. It EXCLUDES index pages, page slack and the WAL, so it is a payload lower bound, not the
+    /// file size — compare it against `db_bytes` in the same probe rather than expecting the two to meet.
+    /// An unreadable table is omitted, on the same reasoning as the row counts: absent is not zero.
+    public func storageByteEstimates(sampleRows: Int = 500) async throws -> [String: Int] {
+        try syncRead { db in
+            var out: [String: Int] = [:]
+            for (key, table) in Self.rawTableKeys {
+                guard let rows = try? Int.fetchOne(db, sql: "SELECT COUNT(*) FROM \(table)"), rows > 0
+                else { continue }
+                let cols = try? Row.fetchAll(db, sql: "PRAGMA table_info(\(table))")
+                guard let cols, !cols.isEmpty else { continue }
+                // Table and column names come from the schema, never from user input, so interpolating
+                // them is safe here in the same way the COUNT above is.
+                let terms = cols.map { c -> String in
+                    let name: String = c["name"]
+                    let type = (c["type"] as String?)?.uppercased() ?? ""
+                    return (type.contains("BLOB") || type.contains("TEXT"))
+                        ? "COALESCE(LENGTH(\"\(name)\"), 0)" : "8"
+                }
+                let sql = "SELECT AVG(n) FROM (SELECT (\(terms.joined(separator: " + "))) AS n "
+                    + "FROM \(table) LIMIT \(sampleRows))"
+                if let mean = try? Double.fetchOne(db, sql: sql), mean.isFinite, mean >= 0 {
+                    out[key] = Int((mean * Double(rows)).rounded())
+                }
+            }
+            return out
+        }
+    }
+
     /// The decoded stream tables and the key each reports under. The keys are Android's, verbatim.
     static let rawTableKeys: [(String, String)] = [
         ("hr", "hrSample"), ("rr", "rrInterval"), ("events", "event"), ("battery", "battery"),

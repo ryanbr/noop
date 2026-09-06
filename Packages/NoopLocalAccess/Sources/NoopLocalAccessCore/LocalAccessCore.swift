@@ -323,12 +323,23 @@ public final class ReadonlyNoopStore {
         try dbQueue.read { db in
             // Every durable decoded per-second table. The four below the first line were landed as
             // instrumentation and then left OUT of this count, which is how an unbounded, unpruned table
-            // became invisible: `ppgWaveformSample` banks a ~48-byte BLOB per v26 strap-second and
-            // `v18AuxSample` ~30 bytes per v18 strap-second, neither is pruned (deliberately — this is
-            // decoded biometric history, not the transient raw outbox), and until now neither showed up in
-            // the only readout a user has for "what is the store spending space on". Growth that nothing
-            // reads still has to be growth somebody can SEE. Guarded by `tableNames.contains` so a store
-            // predating any of these migrations still reports.
+            // became invisible: `ppgWaveformSample` banks a ~48-byte BLOB per v26 strap-second and is NOT
+            // pruned (deliberately — this is decoded biometric history, not the transient raw outbox), and
+            // until it was counted it did not show up in the only readout a user has for "what is the
+            // store spending space on". Growth that nothing reads still has to be growth somebody can SEE.
+            //
+            // `v18AuxSample` used to be named here as unpruned too. It is not, and has not been since the
+            // rolling retention landed (`WhoopStore.v18AuxRetentionRows` / `v18AuxPruneEveryRows`, Room
+            // migration v31, covered by `DeepCaptureChannelsTests`): ~604 800 rows, about seven days. The
+            // correction matters because #1911 is designing retention, and "which tables are already
+            // bounded" is the first thing such a design reads off — getting it wrong here would have it
+            // solving a problem twice, or trusting a bound that was never there.
+            //
+            // This list is a DELIBERATE fourth copy, not drift. The other three (`WhoopStore.rawTableKeys`,
+            // the footprint total and the timestamp heal) now share one list; this module cannot, because
+            // NoopLocalAccess depends on GRDB alone and stays independent of WhoopStore on purpose — it is
+            // the read-only access tool, and a dependency on the app's store package would defeat that.
+            // Guarded by `tableNames.contains` so a store predating any of these migrations still reports.
             let decodedTables = [
                 "hrSample", "rrInterval", "event", "battery", "spo2Sample",
                 "skinTempSample", "respSample", "gravitySample", "ppgHrSample", "stepSample",
