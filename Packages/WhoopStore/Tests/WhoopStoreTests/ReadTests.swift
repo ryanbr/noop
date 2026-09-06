@@ -364,4 +364,35 @@ final class ReadTests: XCTestCase {
         XCTAssertEqual(stats.rawBytes, 4)
 #endif
     }
+
+    /// #1911: the footprint must name EVERY accumulating table, including the four the Apple probe used
+    /// to omit — `ppgHr`, `sleepState`, `ppgWaveform`, `v18Aux`. Those are the ones a row-count model
+    /// misprices worst (`ppgWaveformSample` is the only blob table), so leaving them out made the
+    /// footprint unable to attribute the bytes it was collected to explain.
+    ///
+    /// Pinned against the Android key set verbatim: a maintainer comparing meta.json across platforms is
+    /// comparing the same map, and a table added to one side without the other shows up here.
+    func testStorageRowCountsNamesEveryAccumulatingTable() async throws {
+        let store = try await WhoopStore.inMemory()
+        let counts = try await store.storageRowCounts()
+        let expected = ["hr", "rr", "events", "battery", "spo2", "skinTemp", "resp", "gravity",
+                        "steps", "ppgHr", "sleepState", "ppgWaveform", "v18Aux"]
+        XCTAssertEqual(Set(counts.keys), Set(expected),
+                       "key set must match Android's WhoopRepository.storageRowCounts exactly")
+        for k in expected {
+            XCTAssertEqual(counts[k], 0, "\(k) starts empty in a fresh store")
+        }
+    }
+
+    /// The total and the breakdown are derived from ONE list, so they cannot disagree about which tables
+    /// exist. Pinned because they used to be two hand-maintained lists, and the older one had already
+    /// drifted once — the comment on `storageStats` records it omitting six tables.
+    func testStorageStatsTotalAgreesWithTheBreakdown() async throws {
+        let store = try await seeded()
+        let counts = try await store.storageRowCounts()
+        let stats = try await store.storageStats()
+        XCTAssertEqual(stats.decodedRows, counts.values.reduce(0, +),
+                       "the summed total must equal the per-table breakdown")
+    }
+
 }

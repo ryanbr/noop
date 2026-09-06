@@ -80,11 +80,12 @@ final class TestCentreReport: ObservableObject {
         var rows: [String: Int] = [:]
         var rawBytes = 0
         if let store = await repo?.storeHandle() {
-            if let c = try? await store.storageStats_rowCountsForTest() {
-                rows = ["hr": c.hr, "rr": c.rr, "events": c.events, "battery": c.battery,
-                        "spo2": c.spo2, "skinTemp": c.skinTemp, "resp": c.resp, "gravity": c.gravity]
-            }
-            if let steps = try? await store.stepCountForTest() { rows["steps"] = steps }
+            // #1911: every accumulating table, not the nine this used to name. The old shape read eight
+            // counts out of a test helper and bolted `steps` on beside them, which silently omitted
+            // ppgHr, sleepState, ppgWaveform and v18Aux — the four Android already reports and flags as
+            // "can each be large". A footprint that leaves out the only blob table cannot attribute the
+            // bytes it exists to explain, which is exactly what #1911 needs answered.
+            if let counts = try? await store.storageRowCounts() { rows = counts }
             rawBytes = (try? await store.storageStats().rawBytes) ?? 0
         }
         if let url = live.puffinCaptureURL {

@@ -605,22 +605,51 @@ extension WhoopStore {
         }
     }
 
+    /// Per-table row counts for every accumulating decoded stream, keyed identically to Android's
+    /// `WhoopRepository.storageRowCounts` so a maintainer reads the SAME map from either platform.
+    ///
+    /// #1911 wants to know WHICH table holds a multi-gigabyte database, and the answer was unavailable on
+    /// Apple: the Test Centre probe emitted nine keys and left out `ppgHr`, `sleepState`, `ppgWaveform`
+    /// and `v18Aux` — the four Android's own comment singles out as "can each be large", and the ones a
+    /// row-count model misprices worst, since `ppgWaveformSample` is the only blob table here. A footprint
+    /// that omits the blob table cannot attribute the bytes it was collected to explain.
+    ///
+    /// Shares `rawTables` with `storageStats()` so a table added to one is counted by both. Best-effort
+    /// per table: an unreadable count is omitted rather than reported as zero, because a zero here reads
+    /// as "this table is empty" and that is a different claim from "this table could not be read".
+    public func storageRowCounts() async throws -> [String: Int] {
+        try syncRead { db in
+            var out: [String: Int] = [:]
+            for (key, table) in Self.rawTableKeys {
+                if let n = try? Int.fetchOne(db, sql: "SELECT COUNT(*) FROM \(table)") { out[key] = n }
+            }
+            return out
+        }
+    }
+
+    /// The decoded stream tables and the key each reports under. The keys are Android's, verbatim.
+    static let rawTableKeys: [(String, String)] = [
+        ("hr", "hrSample"), ("rr", "rrInterval"), ("events", "event"), ("battery", "battery"),
+        ("spo2", "spo2Sample"), ("skinTemp", "skinTempSample"), ("resp", "respSample"),
+        ("gravity", "gravitySample"), ("steps", "stepSample"), ("ppgHr", "ppgHrSample"),
+        ("sleepState", "sleepStateSample"), ("ppgWaveform", "ppgWaveformSample"),
+        ("v18Aux", "v18AuxSample"),
+    ]
+
     /// Aggregate storage footprint: total decoded rows, raw batch count, total raw byteSize.
     public func storageStats() async throws -> (decodedRows: Int, rawBatches: Int, rawBytes: Int) {
         try syncRead { db in
             // The COMPLETE set of accumulating decoded raw streams — KEEP IN SYNC with
             // `TimestampHeal.rawTables` (its per-timestamp purge is the canonical list) and the Android
-            // `WhoopRepository.storageRowCounts`. Summed by iterating the list rather than a hand-written
+            // `WhoopRepository.storageRowCounts`. The list now lives in `rawTableKeys`, shared with
+            // `storageRowCounts()` above, so the total and the per-table breakdown cannot disagree about
+            // which tables exist. Summed by iterating the list rather than a hand-written
             // expression, because the old fixed sum silently under-reported: it omitted stepSample,
             // ppgHrSample, sleepStateSample, ppgWaveformSample, rawImuSample and v18AuxSample — and a 4.0
             // with PPG (ppgHrSample/ppgWaveformSample) or IMU capture (rawImuSample) banks millions of rows.
             // Table names are compile-time constants (never user input), so the interpolation is safe.
-            let rawTables = ["hrSample", "rrInterval", "event", "battery",
-                             "spo2Sample", "skinTempSample", "respSample", "gravitySample",
-                             "stepSample", "ppgHrSample", "sleepStateSample", "ppgWaveformSample",
-                             "v18AuxSample"]
             var decoded = 0
-            for t in rawTables {
+            for (_, t) in Self.rawTableKeys {
                 decoded += try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM \(t)") ?? 0
             }
             let batches = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM rawBatch") ?? 0
