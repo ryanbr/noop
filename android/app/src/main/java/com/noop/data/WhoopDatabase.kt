@@ -52,8 +52,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PpgWaveformSampleEntity::class,
         V18AuxSampleEntity::class,
         AppleStepHour::class,
+        CoachMessageRow::class,
     ],
-    version = 36,
+    version = 37,
     // #775: ON so Room's KSP processor writes the generated schema (every table's exact `CREATE TABLE`,
     // columns in declaration order with affinity/NOT NULL/default, PK and indices) as JSON. That export
     // is what lets a plain JVM test — no device, no Robolectric — read Android's REAL schema and compare
@@ -73,7 +74,7 @@ abstract class WhoopDatabase : RoomDatabase() {
         const val DB_NAME = "noop_whoop.db"
         /** Room schema version — MUST equal the `@Database(version = …)` above. Surfaced in the backup
          *  manifest (#1410) so an export states its schema. Bump both together on a migration. */
-        const val SCHEMA_VERSION = 36
+        const val SCHEMA_VERSION = 37
 
         @Volatile
         private var instance: WhoopDatabase? = null
@@ -947,6 +948,25 @@ abstract class WhoopDatabase : RoomDatabase() {
             }
         }
 
+        /** PRD-K2: persisted Coach conversation history (schema v37). Swift twin: WhoopStore
+         *  Database.swift `v39-coach-messages` migration. Column order matches [CoachMessageRow]
+         *  field declaration order so Room's generated `CREATE TABLE` shape agrees. */
+        internal val MIGRATION_36_37 = object : Migration(36, 37) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS `coachMessage` (
+                        `id` TEXT NOT NULL,
+                        `role` TEXT NOT NULL,
+                        `text` TEXT NOT NULL,
+                        `provider` TEXT NOT NULL,
+                        `createdAt` INTEGER NOT NULL,
+                        `orderIndex` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )"""
+                )
+            }
+        }
+
         /**
          * Every migration the builder registers, as a VALUE rather than an argument list.
          *
@@ -973,8 +993,8 @@ abstract class WhoopDatabase : RoomDatabase() {
             MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26,
             MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30,
             MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36,
+            MIGRATION_36_37,
         )
-
 
         private fun build(appContext: Context): WhoopDatabase =
             Room.databaseBuilder(appContext, WhoopDatabase::class.java, DB_NAME)

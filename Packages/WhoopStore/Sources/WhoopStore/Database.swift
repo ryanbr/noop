@@ -893,6 +893,24 @@ extension WhoopStore {
                 t.add(column: "sleepHrOnly", .boolean)
             }
         }
+        // PRD-K2: persist the Coach conversation on-device so it survives relaunch. One row per chat
+        // turn; `orderIndex` is a monotonically-increasing counter (not `createdAt`, which two
+        // streamed turns can share to the second) so replay order is exact. `provider` isn't filtered
+        // on for v1 (a conversation is a conversation across a provider switch) but is carried so a
+        // future per-provider view/filter doesn't need another migration. Never added to the
+        // `.noopbak` backup whitelist (a separate, deliberate decision — CLAUDE.md's backup contract).
+        migrator.registerMigration("v43-coach-messages") { db in
+            try db.create(table: "coachMessage", options: [.ifNotExists]) { t in
+                t.column("id", .text).primaryKey()
+                t.column("role", .text).notNull()       // "user" | "assistant"
+                t.column("text", .text).notNull()
+                t.column("provider", .text).notNull()
+                t.column("createdAt", .integer).notNull()
+                t.column("orderIndex", .integer).notNull()
+            }
+            // No index: the table is capped at maxStoredMessages (40 rows), so a full scan + sort on
+            // read is negligible and an index buys nothing worth the extra Room<->GRDB parity surface.
+        }
         return migrator
     }
 }

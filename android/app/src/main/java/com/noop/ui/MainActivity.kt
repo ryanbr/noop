@@ -118,6 +118,9 @@ class MainActivity : ComponentActivity() {
         // feature is off). Wrapped because a WorkManager hiccup must never block launch.
         runCatching { DebugExportScheduler.reschedule(applicationContext) }
 
+        // K5: self-heal the scheduled Coach morning-brief job (no-op when off / already scheduled).
+        runCatching { CoachBriefScheduler.reschedule(applicationContext) }
+
         // Backup & Sync (#791): self-heal the daily auto-backup schedule (no-op when off / no folder),
         // and run a DEFERRED on-launch catch-up backup. Must-fix #4: the catch-up is gated on the toggle
         // being ON, runs fully off the main thread on Dispatchers.IO, and is launched AFTER the
@@ -1082,6 +1085,18 @@ object NoopPrefs {
 
     fun setCoachSignals(context: Context, enabled: Boolean) {
         of(context).edit().putBoolean(KEY_COACH_SIGNALS, enabled).apply()
+    }
+
+    /** K11: Coach multimodal chart image (opt-in, default OFF). When ON and the provider is Gemini,
+     *  a chart snapshot is sent as inline_data alongside the text. A THIRD opt-in on top of the
+     *  existing data consent. Only Gemini supports multimodal input. */
+    const val KEY_COACH_MULTIMODAL = "noop.coachMultimodal"
+
+    fun coachMultimodal(context: Context): Boolean =
+        of(context).getBoolean(KEY_COACH_MULTIMODAL, false)
+
+    fun setCoachMultimodal(context: Context, enabled: Boolean) {
+        of(context).edit().putBoolean(KEY_COACH_MULTIMODAL, enabled).apply()
     }
 
     /** The user's EDITED Coach system prompt. Empty/absent means "use the built-in default". A small,

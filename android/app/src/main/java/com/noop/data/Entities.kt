@@ -634,6 +634,28 @@ data class AppleStepHour(
 )
 
 /**
+ * PRD-K2: one persisted turn in the AI Coach conversation (v39 / MIGRATION_31_32). Swift
+ * `coachMessage` (WhoopStore Database.swift `v39-coach-messages` migration). Lets the Coach chat
+ * survive relaunch. `orderIndex` (not `createdAt`, which two streamed turns can share to the second)
+ * is a monotonically-increasing counter so replay order is exact. `provider` isn't filtered on for
+ * v1 (a conversation is a conversation across a provider switch) but is carried so a future
+ * per-provider view/filter doesn't need another migration. NEVER added to the `.noopbak` backup
+ * whitelist — a separate, deliberate decision (CLAUDE.md's backup contract).
+ *
+ * Fields are declared in the SAME order as the Swift GRDB schema (id, role, text, provider,
+ * createdAt, orderIndex) so the migration's CREATE TABLE column order matches Room's generated shape.
+ */
+@Entity(tableName = "coachMessage")
+data class CoachMessageRow(
+    @PrimaryKey val id: String,
+    val role: String,       // "user" | "assistant"
+    val text: String,
+    val provider: String,
+    val createdAt: Long,    // epoch seconds
+    val orderIndex: Int,    // monotonic replay order
+)
+
+/**
  * The RAW WHOOP 5.0 v26 optical PPG waveform, one record per second (v27 / MIGRATION_18_19, issue #156
  * follow-up). Swift `ppgWaveformSample` (WhoopStore Database.swift `v27-ppg-waveform` migration). The
  * strap's 24 Hz buffer was fully decoded but only ever used to derive [PpgHrSample]; the samples

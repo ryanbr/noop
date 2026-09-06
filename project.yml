@@ -285,6 +285,12 @@ targets:
         NSHealthShareUsageDescription: "NOOP reads your own Apple Health data on-device to compute recovery, strain, and sleep. Nothing leaves your device."
         NSHealthUpdateUsageDescription: "NOOP writes the metrics it computes from your strap back into Apple Health, on-device and only when you allow it."
         NSMotionUsageDescription: "NOOP reads your iPhone's step count for a walking or running workout to show steps in the activity summary. It stays on your device. Nothing leaves it."
+        # K4: Coach voice input. Speech is transcribed ON-DEVICE ONLY (requiresOnDeviceRecognition);
+        # the mic button is disabled where the locale doesn't support that, never falls back to
+        # server transcription. Only the resulting TEXT reaches the provider, via the same channel
+        # a typed question already uses.
+        NSSpeechRecognitionUsageDescription: "NOOP transcribes your question on-device so you can ask the coach out loud instead of typing. Audio never leaves your iPhone."
+        NSMicrophoneUsageDescription: "NOOP uses the microphone to let you ask the coach a question by voice. The audio is transcribed on-device and never leaves your iPhone."
         # #187: the opt-in AI Coach's "Custom (OpenAI-compatible)" provider can point at a LOCAL LLM on
         # the LAN (Ollama / LM Studio at http://192.168.x.x:11434). ATS blocks cleartext by default;
         # NSAllowsLocalNetworking exempts loopback/.local/private-LAN hosts ONLY — public HTTPS endpoints

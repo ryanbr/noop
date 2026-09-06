@@ -1157,4 +1157,31 @@ interface WhoopDao : DeviceRegistryDao {
      *  (before [minTs]) AND computed (`-noop`), so an imported multi-year sleep history survives (v8.2.1). */
     @Query("DELETE FROM sleepSession WHERE startTs > :maxTs OR (startTs < :minTs AND deviceId LIKE '%-noop')")
     suspend fun pruneSleepSessionByTs(minTs: Long, maxTs: Long): Int
+
+    // MARK: - PRD-K2: persisted Coach conversation
+
+    /** The full stored conversation, oldest first (by orderIndex). */
+    @Query("SELECT * FROM coachMessage ORDER BY orderIndex ASC")
+    suspend fun coachMessages(): List<CoachMessageRow>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCoachMessagesRaw(rows: List<CoachMessageRow>)
+
+    /** Wipe the entire stored conversation (the Coach toolbar's "Clear conversation" action, and the
+     *  first half of a full replace). */
+    @Query("DELETE FROM coachMessage")
+    suspend fun clearCoachMessages()
+
+    /**
+     * Replace the ENTIRE stored conversation with [rows] in one transaction. Simpler and safer than
+     * incremental insert/update/delete bookkeeping across the several streaming-finalization call
+     * sites (a streamed reply mutates the same message's text repeatedly before settling); the table
+     * is capped at the caller's MAX_STORED_MESSAGES, so a full replace is always cheap. Byte-parity
+     * twin of Swift `WhoopStore.replaceCoachMessages`.
+     */
+    @Transaction
+    suspend fun replaceCoachMessages(rows: List<CoachMessageRow>) {
+        clearCoachMessages()
+        if (rows.isNotEmpty()) insertCoachMessagesRaw(rows)
+    }
 }

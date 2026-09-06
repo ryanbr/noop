@@ -1861,6 +1861,12 @@
     <string name="smart_alarm_body">Votre alarme intelligente vient de sonner.</string>
     <string name="battery_channel_name">Alertes de batterie</string>
     <string name="battery_channel_desc">Alertes lorsque la batterie du bracelet est faible ou complètement chargée.</string>
+    <!-- K5: scheduled Coach morning-brief notification. -->
+    <string name="coach_brief_channel_name">Brief matinal du Coach</string>
+    <string name="coach_brief_channel_desc">"Brief de coaching du jour, généré sur l'appareil à l'heure choisie."</string>
+    <string name="coach_brief_title">Brief de coaching du jour</string>
+    <string name="coach_brief_unavailable_title">Brief du Coach indisponible</string>
+    <string name="coach_brief_unavailable_body">Impossible de générer le brief du jour. Ouvrez Coach pour réessayer.</string>
     <string name="l10n_app_changelog_battery_saver_quiets_the_gauges_translated_bdbe8650">L\'économiseur de batterie fige les jauges, notifications Android traduites et graphiques instantanés</string>
     <string name="l10n_health_screen_no_spo_import_or_health_value_408f8c55">Aucune importation SpO₂ ni valeur Santé</string>
     <string name="l10n_health_screen_raw_counts_only_needs_an_import_d0e33552">Valeurs brutes uniquement — importation requise</string>
@@ -2682,4 +2688,29 @@
     <string name="l10n_settings_screen_bar_size_2304bfbb">Taille de la barre</string>
     <string name="l10n_settings_screen_bar_transparency_3f648fbb">Transparence de la barre</string>
     <string name="l10n_settings_screen_how_see_through_the_bar_is_ddb0c208">À quel point la barre est transparente. Le niveau le plus faible affiche encore son contour, elle reste donc toujours repérable.</string>
+
+    <!-- Coach screen -->
+    <string name="coach_clear_conversation_confirm">Effacer la conversation ?</string>
+    <string name="coach_clear_conversation_message">"Ceci efface la conversation enregistrée de cet appareil. L'historique du Coach est constitué de vos propres notes, pas d'un avis médical."</string>
+    <string name="coach_clear_action">Effacer</string>
+    <string name="coach_token_estimate">~%1$d jetons</string>
+    <string name="coach_token_warning"> · peut dépasser les petites fenêtres de contexte</string>
+    <string name="coach_morning_brief">Brief matinal</string>
+    <string name="coach_morning_brief_desc">"Une notification locale avec la préparation + le plan d'entraînement du jour, générée sur l'appareil chaque matin."</string>
+    <string name="coach_morning_brief_off">"Désactivé : rien n'est généré ni envoyé selon un calendrier."</string>
+    <string name="coach_morning_brief_time">Heure</string>
+    <string name="coach_morning_brief_best_effort">Au mieux : Android décide exactement quand une app en arrière-plan se réveille pour le générer.</string>
+    <string name="coach_copy_action">Copier</string>
+    <string name="coach_share_action">Partager</string>
+    <string name="coach_save_to_journal">Enregistrer dans le journal</string>
+    <string name="coach_listening">Écoute…</string>
+    <string name="coach_generating">Génération…</string>
+    <string name="coach_generate_now">Générer maintenant</string>
+    <string name="coach_status_suffix"> : %1$s</string>
+    <string name="coach_no_reply">(pas de réponse)</string>
+    <string name="coach_stream_interrupted">%1$s\n\n*(flux interrompu)*</string>
+    <string name="coach_today_brief_format">Brief du jour\n\n%1$s</string>
+    <string name="coach_brief_widget_title">✦ Brief du Coach</string>
+    <string name="coach_brief_widget_empty">Pas encore de brief</string>
+    <string name="coach_brief_widget_enable">"Activez le Brief matinal dans les réglages du Coach pour voir la préparation d'aujourd'hui ici."</string>
 </resources>

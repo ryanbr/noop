@@ -214,6 +214,14 @@ final class AICoachEngine: ObservableObject {
         didSet { UserDefaults.standard.set(includeOnDeviceSignals, forKey: Self.onDeviceSignalsKey) }
     }
 
+    /// K11: THIRD opt-in — send a chart image alongside the text when using Gemini's multimodal
+    /// API. OFF by default and gated behind `dataConsent` too. Only active when the provider is
+    /// Gemini (the only provider with multimodal support in the app). When on, the Coach composer
+    /// shows an "Attach chart" toggle; the rendered chart is sent as inline_data to Gemini.
+    @Published var multimodalChartEnabled: Bool {
+        didSet { UserDefaults.standard.set(multimodalChartEnabled, forKey: Self.multimodalChartKey) }
+    }
+
     private let repo: Repository
     private let session: URLSession
 
@@ -222,6 +230,7 @@ final class AICoachEngine: ObservableObject {
     private static let consentKey = "ai.dataConsent"
     private static let customConnectedKey = "ai.customConnected"
     private static let onDeviceSignalsKey = "ai.includeOnDeviceSignals"
+    private static let multimodalChartKey = "ai.multimodalChartEnabled"
     /// UserDefaults key holding the user's EDITED system prompt. Absent (or blank) means "use the
     /// built-in default". Small text key, never a secret, so plain UserDefaults is fine. Read FRESH
     /// per request (see `systemPrompt`) so an edit takes effect on the very next message.
@@ -291,6 +300,39 @@ final class AICoachEngine: ObservableObject {
         objectWillChange.send()
     }
 
+    /// Contextual suggestion chips for the composer, derived from today's bands via `CoachSuggestions`.
+    /// Reads only on-device `repo.days`; pure, byte-identical to the Android twin. Returns the stable
+    /// generic fallback when there is no usable data for today.
+    var suggestions: [String] { CoachSuggestions.suggestions(for: repo.days.last, recent: repo.days) }
+
+    /// K7: Follow-up suggestion chips shown after each assistant reply. These are generic
+    /// conversational follow-ups (not data-derived) so the user can dig deeper without typing.
+    /// Byte-identical to the Android twin's `followUpSuggestions`.
+    static let followUpSuggestions: [String] = [
+        "Tell me more about that",
+        "What should I do next?",
+        "How does today compare to this week?",
+        "Give me a specific action plan",
+    ]
+
+    /// K12: Rough token estimate for the next send, based on the current draft + context size.
+    /// Uses the standard ~4 chars/token heuristic. This is an estimate only — actual token counts
+    /// vary by tokenizer. Returns nil when the engine isn't configured (no context to estimate).
+    func estimatedTokens(forDraft draft: String) -> Int? {
+        guard isConfigured else { return nil }
+        // Estimate the context size: system prompt + data context (rough — we don't build the
+        // full context here to avoid a DB read on every keystroke). Use the last known context
+        // size or a reasonable default.
+        let systemPromptTokens = systemPrompt.count / 4
+        // The data context is typically ~2000-4000 chars depending on the user's data.
+        // Use a conservative estimate of 3000 chars (750 tokens) when consent is on.
+        let contextTokens = dataConsent ? 750 : 50
+        // History tokens: sum of all message texts in the windowed history.
+        let historyTokens = windowedMessages().reduce(0) { $0 + $1.text.count / 4 }
+        let draftTokens = draft.count / 4
+        return systemPromptTokens + contextTokens + historyTokens + draftTokens
+    }
+
     /// Used in place of the metrics context when the user has NOT granted data access.
     private let noConsentNote = """
     NOTE: The user has not granted access to their biometric data. Coach generally and encourage \
@@ -326,6 +368,7 @@ final class AICoachEngine: ObservableObject {
         self.customAuthHeader = AIProvider.customAuthHeader
         self.customConnected = UserDefaults.standard.bool(forKey: Self.customConnectedKey)
         self.includeOnDeviceSignals = UserDefaults.standard.bool(forKey: Self.onDeviceSignalsKey)
+        self.multimodalChartEnabled = UserDefaults.standard.bool(forKey: Self.multimodalChartKey)
     }
 
     // MARK: Key management
@@ -499,6 +542,77 @@ final class AICoachEngine: ObservableObject {
         }
     }
 
+    // MARK: - K2: persisted conversation history
+
+    /// Guards `loadPersistedMessagesIfNeeded()` so it only ever runs once per app launch, even if the
+    /// Coach screen's `.task` re-fires (e.g. a tab re-select).
+    private var didLoadPersistedMessages = false
+
+    /// Load the conversation persisted by a PRIOR launch (PRD-K2), so relaunching doesn't lose it.
+    /// Called from the Coach screen's `.task` (mirroring `startBriefIfNeeded`) rather than `init`,
+    /// which is synchronous and runs for every screen the app builds, not just Coach. Best-effort: a
+    /// store failure just leaves the transcript empty, matching pre-K2 behaviour — never crashes.
+    func loadPersistedMessagesIfNeeded() async {
+        guard !didLoadPersistedMessages else { return }
+        didLoadPersistedMessages = true
+        guard messages.isEmpty, let store = await repo.storeHandle() else { return }
+        guard let rows = try? await store.coachMessages(), !rows.isEmpty else { return }
+        messages = rows
+            .sorted { $0.orderIndex < $1.orderIndex }
+            .map { ChatMessage(id: UUID(uuidString: $0.id) ?? UUID(),
+                                role: ChatMessage.Role(rawValue: $0.role) ?? .user,
+                                text: $0.text) }
+    }
+
+    /// Replace the ENTIRE persisted conversation with the current in-memory `messages`. Called once
+    /// per completed send/brief (not per streamed chunk) so a streamed reply's several in-place text
+    /// mutations don't hammer the store. Fire-and-forget; a store failure never blocks the UI — the
+    /// in-memory transcript (what the user sees) is unaffected either way.
+    private func persistMessages() {
+        let snapshot = messages
+        let providerId = provider.rawValue
+        Task {
+            guard let store = await repo.storeHandle() else { return }
+            let rows = snapshot.enumerated().map { index, m in
+                CoachMessageRow(id: m.id.uuidString, role: m.role.rawValue, text: m.text,
+                                 provider: providerId, createdAt: Int(Date().timeIntervalSince1970),
+                                 orderIndex: index)
+            }
+            try? await store.replaceCoachMessages(rows)
+        }
+    }
+
+    /// The Coach toolbar's "Clear conversation" action: wipes both the in-memory transcript and the
+    /// persisted table. Fire-and-forget on the store side; the in-memory clear is immediate.
+    func clearConversation() {
+        messages = []
+        droppedSummary = nil      // K13: reset the summary cache on clear
+        droppedSummaryKey = []
+        Task { try? await repo.storeHandle()?.clearCoachMessages() }
+    }
+
+    /// K5: surface a brief generated by the SCHEDULED morning-brief notification as the first Coach
+    /// message, with no network call — called once when the app opens via a tap on that notification.
+    /// No-op if a conversation already exists, so it never duplicates into an active chat.
+    func surfaceScheduledBrief(_ text: String) {
+        guard messages.isEmpty else { return }
+        appendMessage(ChatMessage(role: .assistant, text: "Today's brief\n\n" + text))
+        persistMessages()
+    }
+
+    /// K5: append an explicitly-generated brief (the Coach settings "Generate now" button) as a new
+    /// assistant message, unconditionally — unlike `surfaceScheduledBrief`, this always appends so a
+    /// mid-conversation tap still shows the fresh brief.
+    func appendGeneratedBrief(_ text: String) {
+        appendMessage(ChatMessage(role: .assistant, text: "Today's brief\n\n" + text))
+        persistMessages()
+    }
+
+    /// K11: An optional chart image (base64-encoded PNG) to send with the next user message.
+    /// Set by the composer's "Attach chart" toggle when multimodal is enabled and the provider
+    /// is Gemini. Consumed (cleared) on the next send. nil when no image is attached.
+    @Published var pendingChartImage: String?
+
     /// Send a question: append it, build the metrics context, call the chosen provider with the
     /// system prompt + context + running history, parse the reply, append it. Never throws/crashes;
     /// failures land in `errorText`.
@@ -525,54 +639,169 @@ final class AICoachEngine: ObservableObject {
         errorText = nil
         appendMessage(ChatMessage(role: .user, text: trimmed))
         sending = true
-        defer { sending = false }
+        // K2: persist once the turn is fully settled (success, mid-stream error, or empty-stream
+        // removal) — not per streamed chunk, so a long reply doesn't hammer the store.
+        defer { sending = false; persistMessages() }
 
         // Build the data context once and prepend it to the FIRST user turn we send. We send the
         // full running history so follow-ups stay coherent; the context only needs to ride the
         // earliest user message.
         // Include the user's data ONLY with explicit consent; otherwise send a note instead of numbers.
         let context = dataConsent ? await buildFullContext() : noConsentNote
-        let wire = wireMessages(context: context)
+        // K13: if the conversation overflows the sliding window, summarize the dropped middle so
+        // the model retains context continuity. Best-effort; failure degrades to the old gap.
+        await summarizeDroppedMiddleIfNeeded(key: key)
+        var wire = wireMessages(context: context)
+
+        // K11: If a chart image is pending and the provider is Gemini, attach it to the last
+        // user turn as inline_data. Non-Gemini providers can't accept images, so the image is
+        // silently dropped (the text question still goes through). Cleared after consumption.
+        let imageBase64 = pendingChartImage
+        pendingChartImage = nil
+
+        // K1: Stream the reply. Append a placeholder assistant message, then mutate its text as
+        // chunks arrive by replacing the last element in `messages`. The transcript re-renders on
+        // each update (SwiftUI binds to `messages`). On error mid-stream, keep the partial text and
+        // append a "(stream interrupted)" marker — never a crash.
+        let placeholder = ChatMessage(role: .assistant, text: "")
+        appendMessage(placeholder)
+        var accumulated = ""
 
         do {
-            let reply = try await callProvider(key: key, messages: wire)
-            let clean = reply.trimmingCharacters(in: .whitespacesAndNewlines)
-            appendMessage(ChatMessage(role: .assistant, text: clean.isEmpty ? "(no reply)" : clean))
+            try await streamProvider(key: key, messages: wire, inlineImage: imageBase64) { delta in
+                accumulated += delta
+                // Replace the last message's text with the accumulated stream so far.
+                if let lastIdx = self.messages.indices.last,
+                   self.messages[lastIdx].role == .assistant {
+                    self.messages[lastIdx] = ChatMessage(
+                        id: placeholder.id, role: .assistant, text: accumulated
+                    )
+                }
+            }
+            // Finalize: trim whitespace. If the stream produced nothing, show "(no reply)".
+            let clean = accumulated.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let lastIdx = messages.indices.last, messages[lastIdx].role == .assistant {
+                messages[lastIdx] = ChatMessage(
+                    id: placeholder.id, role: .assistant,
+                    text: clean.isEmpty ? "(no reply)" : clean
+                )
+            }
         } catch let e as AICoachError {
+            // Mid-stream error: keep the partial text + an interrupted marker (PRD K1 acceptance).
+            let partial = accumulated.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !partial.isEmpty, let lastIdx = messages.indices.last, messages[lastIdx].role == .assistant {
+                messages[lastIdx] = ChatMessage(
+                    id: placeholder.id, role: .assistant,
+                    text: partial + "\n\n*(stream interrupted)*"
+                )
+            } else if let lastIdx = messages.indices.last, messages[lastIdx].role == .assistant {
+                // No text received at all — remove the empty placeholder.
+                messages.remove(at: lastIdx)
+            }
             errorText = e.errorDescription
         } catch {
+            let partial = accumulated.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !partial.isEmpty, let lastIdx = messages.indices.last, messages[lastIdx].role == .assistant {
+                messages[lastIdx] = ChatMessage(
+                    id: placeholder.id, role: .assistant,
+                    text: partial + "\n\n*(stream interrupted)*"
+                )
+            } else if let lastIdx = messages.indices.last, messages[lastIdx].role == .assistant {
+                messages.remove(at: lastIdx)
+            }
             errorText = AICoachError.network(error.localizedDescription).errorDescription
         }
     }
 
     /// Proactively generate "Today's brief" the first time the Coach opens, readiness + a training
     /// prescription + one recovery tip, without the user typing. Requires a key + data consent.
+    /// K1: streams the brief the same way `send` does.
     func startBriefIfNeeded() async {
         guard isConfigured, dataConsent, messages.isEmpty, !sending else { return }
         guard let key = resolvedKey else { return }
         errorText = nil
         sending = true
-        defer { sending = false }
+        defer { sending = false; persistMessages() }
 
         let context = await buildFullContext()
-        let instruction = """
-        Based on the data above, give me TODAY'S coaching brief in three short parts: \
-        (1) my readiness in one line, citing charge, HRV and rest; \
-        (2) exactly what training to do today and what to avoid; \
-        (3) one specific thing to improve my charge. Be punchy and motivating.
-        """
-        let wire: [(role: ChatMessage.Role, content: String)] = [(.user, context + "\n\n---\n\n" + instruction)]
+        let wire: [(role: ChatMessage.Role, content: String)] =
+            [(.user, context + "\n\n---\n\n" + Self.briefInstruction)]
+
+        let prefix = "Today's brief\n\n"
+        let placeholder = ChatMessage(role: .assistant, text: prefix)
+        appendMessage(placeholder)
+        var accumulated = ""
+
         do {
-            let reply = try await callProvider(key: key, messages: wire)
-            let clean = reply.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !clean.isEmpty {
-                appendMessage(ChatMessage(role: .assistant, text: "Today's brief\n\n" + clean))
+            try await streamProvider(key: key, messages: wire) { delta in
+                accumulated += delta
+                if let lastIdx = self.messages.indices.last,
+                   self.messages[lastIdx].role == .assistant {
+                    self.messages[lastIdx] = ChatMessage(
+                        id: placeholder.id, role: .assistant, text: prefix + accumulated
+                    )
+                }
+            }
+            let clean = accumulated.trimmingCharacters(in: .whitespacesAndNewlines)
+            if clean.isEmpty {
+                if let lastIdx = messages.indices.last, messages[lastIdx].role == .assistant {
+                    messages.remove(at: lastIdx)
+                }
+            } else if let lastIdx = messages.indices.last, messages[lastIdx].role == .assistant {
+                messages[lastIdx] = ChatMessage(id: placeholder.id, role: .assistant, text: prefix + clean)
             }
         } catch let e as AICoachError {
+            let partial = accumulated.trimmingCharacters(in: .whitespacesAndNewlines)
+            if partial.isEmpty {
+                if let lastIdx = messages.indices.last, messages[lastIdx].role == .assistant {
+                    messages.remove(at: lastIdx)
+                }
+            } else if let lastIdx = messages.indices.last, messages[lastIdx].role == .assistant {
+                messages[lastIdx] = ChatMessage(
+                    id: placeholder.id, role: .assistant,
+                    text: prefix + partial + "\n\n*(stream interrupted)*"
+                )
+            }
             errorText = e.errorDescription
         } catch {
+            let partial = accumulated.trimmingCharacters(in: .whitespacesAndNewlines)
+            if partial.isEmpty {
+                if let lastIdx = messages.indices.last, messages[lastIdx].role == .assistant {
+                    messages.remove(at: lastIdx)
+                }
+            } else if let lastIdx = messages.indices.last, messages[lastIdx].role == .assistant {
+                messages[lastIdx] = ChatMessage(
+                    id: placeholder.id, role: .assistant,
+                    text: prefix + partial + "\n\n*(stream interrupted)*"
+                )
+            }
             errorText = AICoachError.network(error.localizedDescription).errorDescription
         }
+    }
+
+    /// K5: The brief instruction shared by the interactive `startBriefIfNeeded()` (streamed into the
+    /// chat) and the headless `generateBrief()` below (used by the scheduled morning-brief notification).
+    /// Kept in one place so the two paths never drift.
+    private static let briefInstruction = """
+    Based on the data above, give me TODAY'S coaching brief in three short parts: \
+    (1) my readiness in one line, citing charge, HRV and rest; \
+    (2) exactly what training to do today and what to avoid; \
+    (3) one specific thing to improve my charge. Be punchy and motivating.
+    """
+
+    /// K5: Generate today's coaching brief WITHOUT touching the visible chat transcript. Used by the
+    /// scheduled morning-brief notification (`CoachBriefScheduler`), which can run with no Coach screen
+    /// open and must never append to (or duplicate into) `messages`. Non-streaming (a background/BGTask
+    /// context has no UI to stream into). Returns nil when not configured/consented, on any network
+    /// failure, or when the reply is empty — the caller treats nil as "brief unavailable"; never throws.
+    func generateBrief() async -> String? {
+        guard isConfigured, dataConsent, let key = resolvedKey else { return nil }
+        let context = await buildFullContext()
+        let wire: [(role: ChatMessage.Role, content: String)] =
+            [(.user, context + "\n\n---\n\n" + Self.briefInstruction)]
+        guard let reply = try? await callProvider(key: key, messages: wire) else { return nil }
+        let clean = reply.trimmingCharacters(in: .whitespacesAndNewlines)
+        return clean.isEmpty ? nil : clean
     }
 
     /// Full data context = the metrics summary + recent workouts (+ an OPT-IN on-device-signals summary
@@ -678,6 +907,25 @@ final class AICoachEngine: ObservableObject {
         )
     }
 
+    /// K1: Dispatch to the user's chosen provider client's streaming method. The default
+    /// `AIProviderClient.stream` falls back to `send` + a single delta, so providers without
+    /// streaming still work. K11: when an inline image is present, dispatches to
+    /// `streamWithImage` instead (Gemini overrides it; others ignore the image).
+    private func streamProvider(key: String,
+                                messages: [(role: ChatMessage.Role, content: String)],
+                                inlineImage: String? = nil,
+                                onDelta: (String) -> Void) async throws {
+        try await provider.client.streamWithImage(
+            key: key,
+            model: model,
+            systemPrompt: systemPrompt,
+            messages: messages,
+            inlineImage: inlineImage,
+            session: session,
+            onDelta: onDelta
+        )
+    }
+
     /// Sliding window over the chat: the FIRST user turn (it carries the metrics context) plus the most
     /// recent `maxHistoryMessages`, dropping the middle. Sending the whole growing history crowds out the
     /// reply on small-context local servers (Ollama defaults to a 2048-token window, the Custom
@@ -711,14 +959,66 @@ final class AICoachEngine: ObservableObject {
         return calendar.dateComponents([.day], from: epoch, to: start).day ?? 0
     }
 
+    ///
+    /// K13: when the middle is dropped, a one-line summary of the dropped turns is prepended to the
+    /// first user turn so the model retains context continuity (instead of seeing a gap). The summary
+    /// is generated via the same provider, with a short prompt; on failure it degrades to the old
+    /// behaviour (no summary, just the windowed set).
     private static let maxHistoryMessages = 10
+    /// K13: the cached summary of the dropped middle, regenerated when the dropped set changes.
+    private var droppedSummary: String?
+    private var droppedSummaryKey: [String] = []
+
     private func windowedMessages() -> [ChatMessage] {
         guard messages.count > Self.maxHistoryMessages + 1,
               let firstUser = messages.firstIndex(where: { $0.role == .user }) else { return messages }
         let recentStart = messages.count - Self.maxHistoryMessages
         // If the first user turn already falls inside the recent window, that window covers it.
         if firstUser >= recentStart { return Array(messages.suffix(Self.maxHistoryMessages)) }
-        return [messages[firstUser]] + Array(messages[recentStart...])
+        // K13: inject the summary of the dropped middle by prepending it to the first user turn,
+        // so the model sees continuity instead of a gap. We don't use a separate system message
+        // because the Role enum only has .user/.assistant (providers map those to API roles).
+        var windowed = [messages[firstUser]]
+        if let summary = droppedSummary {
+            let first = windowed[0]
+            windowed[0] = ChatMessage(id: first.id, role: first.role, text: "\(summary)\n\n---\n\n\(first.text)")
+        }
+        windowed.append(contentsOf: messages[recentStart...])
+        return windowed
+    }
+
+    /// K13: When the conversation overflows the sliding window, summarize the dropped middle turns
+    /// into a single system message. Called before each send when the window would drop messages.
+    /// Best-effort: on any failure, leaves `droppedSummary` nil (the old gap behaviour).
+    private func summarizeDroppedMiddleIfNeeded(key: String) async {
+        guard messages.count > Self.maxHistoryMessages + 1,
+              let firstUser = messages.firstIndex(where: { $0.role == .user }) else { return }
+        let recentStart = messages.count - Self.maxHistoryMessages
+        guard firstUser < recentStart else { return }
+
+        // The dropped middle is messages[firstUser+1 ..< recentStart]. Cache on its identity so we
+        // don't re-summarize the same set on every send.
+        let dropped = Array(messages[(firstUser + 1)..<recentStart])
+        let keySignature = dropped.map { "\($0.role.rawValue):\($0.text)" }
+        guard droppedSummaryKey != keySignature else { return }
+        droppedSummaryKey = keySignature
+
+        // Build a compact transcript of the dropped turns for the summarizer.
+        let transcript = dropped.map { m in
+            "\(m.role == .user ? "User" : "Coach"): \(m.text)"
+        }.joined(separator: "\n")
+
+        let summaryPrompt = """
+        Summarize the following conversation in 2-3 sentences, preserving the key advice and \
+        any specific numbers or recommendations. This summary will be shown to you as context \
+        for the ongoing conversation.\n\n\(transcript)
+        """
+        let wire: [(role: ChatMessage.Role, content: String)] = [
+            (.user, "You are a concise summarizer. Summarize the conversation in 2-3 sentences.\n\n\(summaryPrompt)"),
+        ]
+        if let summary = try? await callProvider(key: key, messages: wire) {
+            droppedSummary = "Summary of earlier conversation: \(summary.trimmingCharacters(in: .whitespacesAndNewlines))"
+        }
     }
 
     /// The chat as `(role, content)` pairs, with the metrics context prepended to the first user turn.

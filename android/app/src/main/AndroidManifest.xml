@@ -61,6 +61,14 @@
          request READ_CALL_LOG and never reads incoming numbers, contacts, or call history. -->
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
 
+    <!-- K4: Coach voice input. The on-device SpeechRecognizer transcribes the user's spoken
+         question locally; only the resulting TEXT ever reaches the AI provider (via the same
+         channel a typed question uses). Requested at runtime, only when the user taps the mic
+         button in the Coach composer. No audio leaves the device. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- K14: haptic feedback (vibration) when a Coach reply arrives. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <!-- Smart alarm (#207). The guaranteed wake is an exact OS alarm scheduled via AlarmManager,
          independent of Bluetooth and the app being alive. SCHEDULE_EXACT_ALARM (API 31-32) is
          requested at runtime from the alarm screen; USE_EXACT_ALARM (API 33+) is the alarm-clock
@@ -275,6 +283,20 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/noop_compact_widget_info" />
+        </receiver>
+
+        <!-- K10: Coach brief home-screen widget. Shows the stored morning brief (generated on a
+             schedule by CoachBriefScheduler, K5) — never live-networked. Tap → opens the app. -->
+        <receiver
+            android:name="com.noop.widget.CoachBriefWidgetReceiver"
+            android:exported="true"
+            android:label="Coach Brief">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/coach_brief_widget_info" />
         </receiver>
 
         <!-- Optional native phone-call alerts. The receiver only reacts to ringing/offhook/idle state

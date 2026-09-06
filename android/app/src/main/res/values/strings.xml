@@ -1973,6 +1973,12 @@
     <string name="smart_alarm_body">Your smart alarm just went off.</string>
     <string name="battery_channel_name">Battery alerts</string>
     <string name="battery_channel_desc">Alerts when the strap battery is low or fully charged.</string>
+    <!-- K5: scheduled Coach morning-brief notification. -->
+    <string name="coach_brief_channel_name">Coach morning brief</string>
+    <string name="coach_brief_channel_desc">Today\'s coaching brief, generated on-device at your chosen time.</string>
+    <string name="coach_brief_title">Today\'s coaching brief</string>
+    <string name="coach_brief_unavailable_title">Coach brief unavailable</string>
+    <string name="coach_brief_unavailable_body">Couldn\'t generate today\'s brief. Open Coach to try again.</string>
     <string name="l10n_app_changelog_battery_saver_quiets_the_gauges_translated_bdbe8650">Battery saver quiets the gauges, translated Android notifications, and instant chart loads</string>
     <string name="l10n_health_screen_no_spo_import_or_health_value_408f8c55">No SpO₂ import or Health value</string>
     <string name="l10n_health_screen_raw_counts_only_needs_an_import_d0e33552">Raw counts only — needs an import</string>
@@ -2709,4 +2715,30 @@
     <string name="l10n_settings_screen_bar_size_2304bfbb">Bar size</string>
     <string name="l10n_settings_screen_bar_transparency_3f648fbb">Bar transparency</string>
     <string name="l10n_settings_screen_how_see_through_the_bar_is_ddb0c208">How see-through the bar is. The faintest step still shows its rim, so it can always be found.</string>
+
+    <!-- Coach screen: clear-conversation dialog, morning-brief settings, message actions, and
+         voice input. Externalized from CoachScreen.kt / CoachViewModel.kt hardcoded literals. -->
+    <string name="coach_clear_conversation_confirm">Clear conversation?</string>
+    <string name="coach_clear_conversation_message">This deletes the saved conversation from this device. Coach history is your own notes, not medical advice.</string>
+    <string name="coach_clear_action">Clear</string>
+    <string name="coach_token_estimate">~%1$d tokens</string>
+    <string name="coach_token_warning"> · may exceed small context windows</string>
+    <string name="coach_morning_brief">Morning brief</string>
+    <string name="coach_morning_brief_desc">A local notification with today\'s readiness + training plan, generated on-device each morning.</string>
+    <string name="coach_morning_brief_off">Off: nothing is generated or sent on a schedule.</string>
+    <string name="coach_morning_brief_time">Time</string>
+    <string name="coach_morning_brief_best_effort">Best-effort: Android decides exactly when a backgrounded app wakes to generate it.</string>
+    <string name="coach_copy_action">Copy</string>
+    <string name="coach_share_action">Share</string>
+    <string name="coach_save_to_journal">Save to Journal</string>
+    <string name="coach_listening">Listening…</string>
+    <string name="coach_generating">Generating…</string>
+    <string name="coach_generate_now">Generate now</string>
+    <string name="coach_status_suffix">: %1$s</string>
+    <string name="coach_no_reply">(no reply)</string>
+    <string name="coach_stream_interrupted">%1$s\n\n*(stream interrupted)*</string>
+    <string name="coach_today_brief_format">Today\'s brief\n\n%1$s</string>
+    <string name="coach_brief_widget_title">✦ Coach Brief</string>
+    <string name="coach_brief_widget_empty">No brief yet</string>
+    <string name="coach_brief_widget_enable">Enable Morning Brief in Coach settings to see today\'s readiness here.</string>
 </resources>
