@@ -366,6 +366,41 @@ final class RecoveryScorerTests: XCTestCase {
         XCTAssertEqual(slope, -27.428571428571423, accuracy: 1e-9)
     }
 
+    func testRestingHREndpointSweepMatchesOracle() {
+        // Twin of the Kotlin RecoveryScorerWindowEndpointTest sweep: `end` walks a whole bin width
+        // and beyond, in 25 s steps, against a dense 70 bpm opening bin plus five endpoint beats at
+        // 60. Same 37 literals, from the same standalone-oracle stdout, so the oracle guards BOTH
+        // directions — a Swift-side drift fails here rather than waiting for two field logs to
+        // disagree. Note end = 300: the single closed bin holds BOTH groups (mean 69.8 → 70).
+        let expected = [62, 68, 69, 69, 70, 70, 70, 70, 70, 70, 70, 70, 70,
+                        60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60,
+                        60, 60, 60, 60, 60, 60, 60, 60, 60, 60, 60]
+        var i = 0
+        var endTs = 0
+        while endTs <= 900 {
+            var hr: [HRSample] = (0..<300).map { HRSample(ts: $0, bpm: 70) }
+            hr.append(contentsOf: (0..<5).map { _ in HRSample(ts: endTs, bpm: 60) })
+            XCTAssertEqual(RecoveryScorer.restingHR(hr, start: 0, end: endTs), expected[i],
+                           "restingHR.end=\(endTs)")
+            i += 1
+            endTs += 25
+        }
+    }
+
+    func testRecoveryIndexSlopeFullNightUnchanged() throws {
+        // Twin of the Kotlin full-night pin: a 6 h night has no sample on `end`, so the endpoint
+        // rule must not move it — the oracle's slope for a −2 bpm/hour synthetic night, to the
+        // last digit.
+        var hr: [HRSample] = []
+        var s = 0
+        while s < 6 * 3600 {
+            hr.append(HRSample(ts: s, bpm: Int((62.0 - 2.0 * Double(s) / 3600.0).rounded())))
+            s += 30
+        }
+        let slope = try XCTUnwrap(RecoveryScorer.recoveryIndexSlope(hr, start: 0, end: 6 * 3600))
+        XCTAssertEqual(slope, -2.0071001350569166, accuracy: 1e-9)
+    }
+
     // MARK: - Recovery Index / Activity-Balance folded into recovery(...)
 
     func testRecoveryIndexAndActivityBalanceDefaultNilByteIdenticalToBefore() {
