@@ -21977,7 +21977,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ein Read-Only Plews / Altini am kleinsten Wert während der Änderung Ihrer nächtlichen HRV: Es zeigt an, ob Ihre 7-Nächte-HRV-Basislinie über, innerhalb oder unter Ihrem persönlichen normalen Band liegt. Es ändert nichts anderes - der Energiering ist identisch, ob dieser ein- oder ausgeschaltet ist. Dies ist eine grobe / frühe Prüfung, die noch nicht gegen unterschiedliche reale Daten (n = 1) validiert wurde."
+            "value": "Ein Read-Only Plews / Altini am kleinsten Wert während der Änderung deiner nächtlichen HRV: Es zeigt an, ob deine 7-Nächte-HRV-Basislinie über, innerhalb oder unter deinem persönlichen normalen Band liegt. Es ändert nichts anderes - der Energiering ist identisch, ob dieser ein- oder ausgeschaltet ist. Dies ist eine grobe / frühe Prüfung, die noch nicht gegen unterschiedliche reale Daten (n = 1) validiert wurde."
           }
         },
         "es": {
@@ -22720,7 +22720,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ein transparentes kardiorespiratorisches Rezept, das sich tief und REM besser erholt als das ältere V1-Staging und jetzt standardmäßig ist. Es ändert sich nur, wie bereits erkannte Nächte in Etappen unterteilt sind (Erkennung und Ergebnisse sind unverändert); Schalten Sie es aus, um auf V1 zurückzugreifen. Tritt in den nächsten Nächten inszeniert."
+            "value": "Ein transparentes kardiorespiratorisches Rezept, das sich tief und REM besser erholt als das ältere V1-Staging und jetzt standardmäßig ist. Es ändert sich nur, wie bereits erkannte Nächte in Etappen unterteilt sind (Erkennung und Ergebnisse sind unverändert); Schalte es aus, um auf V1 zurückzugreifen. Tritt in den nächsten Nächten inszeniert."
           }
         },
         "es": {
@@ -26068,7 +26068,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fügen Sie Ihre Oura-App-Anmeldeinformationen zu OuraSecrets.xcconfig hinzu, um dies zu ermöglichen."
+            "value": "Füge deine Oura-App-Anmeldeinformationen zu OuraSecrets.xcconfig hinzu, um dies zu ermöglichen."
           }
         },
         "es": {
@@ -29896,7 +29896,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bewaffnet am Riemen selbst mit dem experimentellen Befehl 5/MG. Ein gurtgetriebener Wake ist immer noch unbestätigt auf 5/MG auf unserer Seite (bestätigt nur auf WHOOP 4.0), also halten Sie einen Backup-Alarm für alles, was Sie wirklich nicht verpassen können."
+            "value": "Bewaffnet am Riemen selbst mit dem experimentellen Befehl 5/MG. Ein gurtgetriebener Wake ist immer noch unbestätigt auf 5/MG auf unserer Seite (bestätigt nur auf WHOOP 4.0), also halte einen Backup-Alarm für alles, was du wirklich nicht verpassen kannst."
           }
         },
         "es": {
@@ -29936,7 +29936,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bewaffnet auf dem gurt selbst, so dass es zu ihrer wachzeit summen kann, auch wenn ihr telefon schläft oder xnoopx geschlossen ist. Sendet den genauen Alarmbefehl, den die offizielle App sendet, bestätigtes Summen auf einem echten WHOOP 4.0 (Community-Wire-Capture + On-Device-Test, #535). Halten Sie einen Backup-Alarm für alles, was Sie wirklich nicht verpassen können."
+            "value": "Bewaffnet auf dem gurt selbst, so dass es zu ihrer wachzeit summen kann, auch wenn ihr telefon schläft oder xnoopx geschlossen ist. Sendet den genauen Alarmbefehl, den die offizielle App sendet, bestätigtes Summen auf einem echten WHOOP 4.0 (Community-Wire-Capture + On-Device-Test, #535). Halte einen Backup-Alarm für alles, was du wirklich nicht verpassen kannst."
           }
         },
         "es": {
@@ -30034,7 +30034,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Armiert den Riemen, um zu Ihrer Weckzeit zu summen, auch wenn NOOP geschlossen ist. Sendet den genauen Alarmbefehl, den die offizielle App sendet, bestätigtes Summen auf einem echten WHOOP 4.0 (Community-Wire-Capture + On-Device-Test, #535). Halten Sie einen Backup-Alarm für alles, was Sie wirklich nicht verpassen können."
+            "value": "Armiert den Riemen, um zu deiner Weckzeit zu summen, auch wenn NOOP geschlossen ist. Sendet den genauen Alarmbefehl, den die offizielle App sendet, bestätigtes Summen auf einem echten WHOOP 4.0 (Community-Wire-Capture + On-Device-Test, #535). Halte einen Backup-Alarm für alles, was du wirklich nicht verpassen kannst."
           }
         },
         "es": {
@@ -38064,7 +38064,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Geben Sie einen Marker CSV (Datum, Marker, Wert, Einheit). Namen, die mit der Katalogfaltung auf Ihre vorhandenen Markierungen übereinstimmen; alles andere kommt als benutzerdefinierte Markierung vor. Zeilen, die nicht gelesen werden können, werden übersprungen und gezählt, nie erraten. Alles, was Sie importieren, bleibt auf %1$@."
+            "value": "Gib einen Marker CSV (Datum, Marker, Wert, Einheit). Namen, die mit der Katalogfaltung auf deine vorhandenen Markierungen übereinstimmen; alles andere kommt als benutzerdefinierte Markierung vor. Zeilen, die nicht gelesen werden können, werden übersprungen und gezählt, nie erraten. Alles, was du importierst, bleibt auf %1$@."
           }
         },
         "es": {
@@ -44599,7 +44599,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Energie gewichtet Ihre HRV gegenüber Ihrer persönlichen Basislinie (~55%%), Ruheherzfrequenz (~20%%), Erholungsqualität (~15%%), Atmung (~5%%) und Hauttemperaturabweichung (~5%%). Belastung ist eine kardiovaskuläre Belastung von 0–%lld aus der Zeit in Herzfrequenzzonen. Erholung wird aus Bewegung und Herzfrequenz in Schlafphasen eingeteilt. Alles wird hier aus den Rohdaten des Straps berechnet."
+            "value": "Energie gewichtet deine HRV gegenüber deiner persönlichen Basislinie (~55%%), Ruheherzfrequenz (~20%%), Erholungsqualität (~15%%), Atmung (~5%%) und Hauttemperaturabweichung (~5%%). Belastung ist eine kardiovaskuläre Belastung von 0–%lld aus der Zeit in Herzfrequenzzonen. Erholung wird aus Bewegung und Herzfrequenz in Schlafphasen eingeteilt. Alles wird hier aus den Rohdaten des Straps berechnet."
           }
         },
         "es": {
@@ -75917,7 +75917,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Heads up: Dieser Testmodus ist ausgeschaltet, so dass der Bericht keine Erfassung dafür hat. Für einen nützlichen Bericht schalten Sie den Modus ein, reproduzieren das Problem beim Tragen des Riemens und melden Sie es erneut."
+            "value": "Heads up: Dieser Testmodus ist ausgeschaltet, so dass der Bericht keine Erfassung dafür hat. Für einen nützlichen Bericht schalte den Modus ein, reproduzieren das Problem beim Tragen des Riemens und melde es erneut."
           }
         },
         "es": {
@@ -80674,7 +80674,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wie man das liest: HRV, Ruhe HR, Schlafdauer, Atemfrequenz und Hauttemperatur werden vom Band gemessen (Hauttemperatur wird als Abweichung von der eigenen Baseline angezeigt). Workouts ist die Anzahl der Aktivitäten, die Sie protokolliert haben oder die erkannt wurden. Recovery, Strain und Stress sind die eigenen On-Device-Scores von NOOP, keine klinischen Maßnahmen: Erholung ist eine tägliche Bereitschaft Komposit (HRV, Ruhe HR, Schlaf und Haut-Temper-Trend), Strain ist Herz-Kreislauf-Last von der Herzfrequenz abgeleitet, und Stress ist ein 0-3 autonome Last-Index von Ruhe HR und HRV."
+            "value": "Wie man das liest: HRV, Ruhe HR, Schlafdauer, Atemfrequenz und Hauttemperatur werden vom Band gemessen (Hauttemperatur wird als Abweichung von der eigenen Baseline angezeigt). Workouts ist die Anzahl der Aktivitäten, die du protokolliert hast oder die erkannt wurden. Recovery, Strain und Stress sind die eigenen On-Device-Scores von NOOP, keine klinischen Maßnahmen: Erholung ist eine tägliche Bereitschaft Komposit (HRV, Ruhe HR, Schlaf und Haut-Temper-Trend), Strain ist Herz-Kreislauf-Last von der Herzfrequenz abgeleitet, und Stress ist ein 0-3 autonome Last-Index von Ruhe HR und HRV."
           }
         },
         "es": {
@@ -100399,7 +100399,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bewegen Sie diesen Schlaf?"
+            "value": "Bewege diesen Schlaf?"
           }
         },
         "es": {
@@ -101455,7 +101455,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "NOOP bietet Ihnen drei tägliche Werte (Charge, Effort und Rest), jede auf einer 0-100-Skala. Sie werden aus den rohen Signalen Ihres Gurts mit veröffentlichten, von Experten begutachteten Sportwissenschaften aufgebaut und vollständig auf Ihrem Gerät berechnet. Sie sind NICHT die Ergebnisse von WHOOP: Wir haben keine privaten Algorithmen von WHOOP und tun nicht so, als ob. Sie zielen auf die gleichen drei Fragen mit Open Science, so dass sie normalerweise WHOOP in Richtung verfolgen, aber nicht mit Zahl für Zahl übereinstimmen. Und darum geht es."
+            "value": "NOOP bietet dir drei tägliche Werte (Charge, Effort und Rest), jede auf einer 0-100-Skala. Sie werden aus den rohen Signalen deines Gurts mit veröffentlichten, von Experten begutachteten Sportwissenschaften aufgebaut und vollständig auf deinem Gerät berechnet. Sie sind NICHT die Ergebnisse von WHOOP: Wir haben keine privaten Algorithmen von WHOOP und tun nicht so, als ob. Sie zielen auf die gleichen drei Fragen mit Open Science, so dass sie normalerweise WHOOP in Richtung verfolgen, aber nicht mit Zahl für Zahl übereinstimmen. Und darum geht es."
           }
         },
         "es": {
@@ -113858,7 +113858,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ältere Backups darüber hinaus werden viele beschnitten, älteste zuerst (≈ so viele Tage). Wenn Daten jemals korrumpiert werden, stellen Sie das Neueste wieder her."
+            "value": "Ältere Backups darüber hinaus werden viele beschnitten, älteste zuerst (≈ so viele Tage). Wenn Daten jemals korrumpiert werden, stelle das Neueste wieder her."
           }
         },
         "es": {
@@ -121210,7 +121210,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bitte bestätigen Sie diese:"
+            "value": "Bitte bestätige diese:"
           }
         },
         "es": {
@@ -121314,7 +121314,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bitte lesen Sie die Punkte unten und bestätigen Sie dann jede Aussage."
+            "value": "Bitte lies die Punkte unten und bestätige dann jede Aussage."
           }
         },
         "es": {
@@ -126182,7 +126182,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lesen Sie Ihre Herzfrequenz, HRV, Blutsauerstoff, Atemfrequenz, Schlaf, Schritte und Energie direkt von Apple Health und schreiben Sie NOOP's Banddaten zurück: Schlafen Sie mit vollen Stadien, kontinuierlicher Herzfrequenz, Workouts und nächtlichen Vitalen. Alles bleibt auf %1$@."
+            "value": "Lies deine Herzfrequenz, HRV, Blutsauerstoff, Atemfrequenz, Schlaf, Schritte und Energie direkt von Apple Health und schreibe NOOP's Banddaten zurück: Schlafe mit vollen Stadien, kontinuierlicher Herzfrequenz, Workouts und nächtlichen Vitalen. Alles bleibt auf %1$@."
           }
         },
         "es": {
@@ -131745,7 +131745,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ersetzt die Registerkarte Heute durch das Prototyp-Redesign. Schalten Sie es jederzeit aus, um zum klassischen Dashboard zurückzukehren. Lies die gleichen live-daten von deinem strap."
+            "value": "Ersetzt die Registerkarte Heute durch das Prototyp-Redesign. Schalte es jederzeit aus, um zum klassischen Dashboard zurückzukehren. Lies die gleichen live-daten von deinem strap."
           }
         },
         "es": {
@@ -133551,7 +133551,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$@ neu starten? Es trennt sich für etwa 30 Sekunden, während es neu startet, und verbindet sich dann von selbst wieder. Ihre aufgezeichneten Daten werden aufbewahrt."
+            "value": "%1$@ neu starten? Es trennt sich für etwa 30 Sekunden, während es neu startet, und verbindet sich dann von selbst wieder. Deine aufgezeichneten Daten werden aufbewahrt."
           }
         },
         "es": {
@@ -133631,7 +133631,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Starten Sie dieses Band neu?"
+            "value": "Starte dieses Band neu?"
           }
         },
         "es": {
@@ -136403,7 +136403,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Läuft den kontinuierlichen HRV-Stream nur während Ihres ruhigen Stundenfensters (standardmäßig 22:00-07:00 Uhr) aus und halbiert damit die Batteriekosten. Tagesstresswerte werden sparsamer sein. Hinweis: Die kontinuierliche Hintergrund-HRV-Erfassung (einschließlich Nickerchen am Tag) wird außerhalb dieses Fensters angehalten. Für On-Demand-HRV-Messungen am Tag (einschließlich Nickerchen), verwenden Sie die Schaltfläche \"Take an HRV reading\" auf dem Live-Bildschirm."
+            "value": "Läuft den kontinuierlichen HRV-Stream nur während deines ruhigen Stundenfensters (standardmäßig 22:00-07:00 Uhr) aus und halbiert damit die Batteriekosten. Tagesstresswerte werden sparsamer sein. Hinweis: Die kontinuierliche Hintergrund-HRV-Erfassung (einschließlich Nickerchen am Tag) wird außerhalb dieses Fensters angehalten. Für On-Demand-HRV-Messungen am Tag (einschließlich Nickerchen), verwende die Schaltfläche \"Take an HRV reading\" auf dem Live-Bildschirm."
           }
         },
         "es": {
@@ -156721,7 +156721,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tippen Sie auf eine Bühne, um mit Ihrem 30-Tage-Typ zu vergleichen."
+            "value": "Tippe auf eine Bühne, um mit deinem 30-Tage-Typ zu vergleichen."
           }
         },
         "es": {
@@ -157823,7 +157823,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Deshalb beginnt eine Watch-Only-Energie mit \"Kalibrieren\". NOOP benötigt etwa sieben Nächte Ihrer HRV, um zu erfahren, wie normal für Sie aussieht. Bis es sie hat, hält es die Punktzahl zurück, anstatt zu erraten. Sobald die Basislinie festgelegt ist, erscheint Ihre Energie mit ihrem Vertrauen auf der gleichen 0-100-Skala wie ein Gurt."
+            "value": "Deshalb beginnt eine Watch-Only-Energie mit \"Kalibrieren\". NOOP benötigt etwa sieben Nächte deiner HRV, um zu erfahren, wie normal für dich aussieht. Bis es sie hat, hält es die Punktzahl zurück, anstatt zu erraten. Sobald die Basislinie festgelegt ist, erscheint deine Energie mit ihrem Vertrauen auf der gleichen 0-100-Skala wie ein Gurt."
           }
         },
         "es": {
@@ -157979,7 +157979,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Der WHOOP 4.0-Reboot-Frame wird nicht bestätigt - ein normaler Neustart wird ignoriert (# 235). Senden sie jedem kandidaten und beobachten sie beide das straplog und das strap selbst. \"Keine Trennung innerhalb von 12s\" bedeutet, dass das Band den Rahmen ignoriert hat. Eine \"Link Drop\" -Linie bedeutet, dass der Rahmen den Riemen erreicht hat - aber ein Drop Link allein ist kein Neustart: Ein echter Neustart schaltet auch das Sensorlicht des Riemens für ein paar Sekunden aus, also wenn das Licht anblieb, war es nur eine Drop-Verbindung, kein Neustart. Zerstörungsfrei - Ihre Daten werden gespeichert. Bitte teilen Sie das Protokoll, damit wir den echten Rahmen anheften können."
+            "value": "Der WHOOP 4.0-Reboot-Frame wird nicht bestätigt - ein normaler Neustart wird ignoriert (# 235). Sende sie an jeden Kandidaten und beobachte dabei sowohl das Straplog als auch den Strap selbst. \"Keine Trennung innerhalb von 12s\" bedeutet, dass das Band den Rahmen ignoriert hat. Eine \"Link Drop\" -Linie bedeutet, dass der Rahmen den Riemen erreicht hat - aber ein Drop Link allein ist kein Neustart: Ein echter Neustart schaltet auch das Sensorlicht des Riemens für ein paar Sekunden aus, also wenn das Licht anblieb, war es nur eine Drop-Verbindung, kein Neustart. Zerstörungsfrei - deine Daten werden gespeichert. Bitte teile das Protokoll, damit wir den echten Rahmen anheften können."
           }
         },
         "es": {
@@ -158407,7 +158407,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Die Linie ist der 0-3 Proxy jeder Wachstunde, der heute gegen Ihre eigenen ruhigen Stunden erzielt wurde. Die Bar unten teilt Ihren Tag in ruhige, moderate und hohe Stresszeit."
+            "value": "Die Linie ist der 0-3 Proxy jeder Wachstunde, der heute gegen deine eigenen ruhigen Stunden erzielt wurde. Die Bar unten teilt deinen Tag in ruhige, moderate und hohe Stresszeit."
           }
         },
         "es": {
@@ -158917,7 +158917,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Der Riemen meldet eine andere Zeit als NOOP sendet, so dass sein Firmware-Alarm nicht zu Ihrer Weckzeit feuert - normalerweise ein Riemen, dessen Uhr oder Alarm zurückgesetzt wurde. Setzen Sie den Riemen in der offiziellen WHOOP-App zurück (oder laden Sie ihn vollständig auf und verbinden Sie ihn wieder), und halten Sie den Uhralarm Ihres Telefons solange wach, bis es dauert."
+            "value": "Der Riemen meldet eine andere Zeit als NOOP sendet, so dass sein Firmware-Alarm nicht zu deiner Weckzeit feuert - normalerweise ein Riemen, dessen Uhr oder Alarm zurückgesetzt wurde. Setze den Riemen in der offiziellen WHOOP-App zurück (oder lade ihn vollständig auf und verbinde ihn wieder), und halte den Uhralarm deines Telefons solange wach, bis es dauert."
           }
         },
         "es": {
@@ -159834,7 +159834,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Auch diese Sicherungen sind unverschlüsselt. Wenn dieser Ordner mit Drive, Dropbox oder iCloud synchronisiert wird, landet die lesbare Datei auch dort — zeigen Sie nur auf einen Dienst, dem Sie vertrauen."
+            "value": "Auch diese Sicherungen sind unverschlüsselt. Wenn dieser Ordner mit Drive, Dropbox oder iCloud synchronisiert wird, landet die lesbare Datei auch dort — zeige nur auf einen Dienst, dem du vertraust."
           }
         },
         "en": {
@@ -160557,7 +160557,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Das ist ein einfaches, unverschlüsseltes Archiv — wer die Datei bekommt, kann sie mit jedem Zip-Programm öffnen. Bewahren Sie sie an einem Ort auf, dem Sie vertrauen."
+            "value": "Das ist ein einfaches, unverschlüsseltes Archiv — wer die Datei bekommt, kann sie mit jedem Zip-Programm öffnen. Bewahre sie an einem Ort auf, dem du vertraust."
           }
         },
         "en": {
@@ -166134,7 +166134,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Schalten Sie Benachrichtigungen für NOOP in den Einstellungen ein, um Ihre Winddown-Erinnerung zu erhalten."
+            "value": "Schalte Benachrichtigungen für NOOP in den Einstellungen ein, um deine Winddown-Erinnerung zu erhalten."
           }
         },
         "es": {
@@ -172253,7 +172253,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wir vergleichen die heutige Ruheherzfrequenz und HRV mit Ihrer eigenen 30-Tage-Baseline. Eine höher als üblich ruhende HR und eine niedriger als üblich HRV schieben beide die Punktzahl nach oben, klassische Zeichen, dass der Körper aktiviert wird. Die kombinierte Schicht wird auf eine 0-3 Skala abgebildet: 0 ist ruhig, 1,5 sitzt an der Basislinie, 3 ist stark aktiviert."
+            "value": "Wir vergleichen die heutige Ruheherzfrequenz und HRV mit deiner eigenen 30-Tage-Baseline. Eine höher als üblich ruhende HR und eine niedriger als üblich HRV schieben beide die Punktzahl nach oben, klassische Zeichen, dass der Körper aktiviert wird. Die kombinierte Schicht wird auf eine 0-3 Skala abgebildet: 0 ist ruhig, 1,5 sitzt an der Basislinie, 3 ist stark aktiviert."
           }
         },
         "es": {
@@ -174997,7 +174997,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wenn NOOP die Herzfrequenz aus der optischen Wellenform WHOOP 5/MG v26 rekonstruiert (die Sekunden, in denen das Band keine HR gespeichert hat), verfeinern Sie den Autokorrelationspeak mit einem parabolischen Sublag-Fit, so dass die Schätzung nicht auf etwa 16 bpm-Schritte in der Nähe einer hohen HR quantifiziert wird. Es füllt nur Sekunden, die das Band nie gemeldet hat; es überschreibt niemals eine gespeicherte HR. 5/MG, standardmäßig ausgeschaltet."
+            "value": "Wenn NOOP die Herzfrequenz aus der optischen Wellenform WHOOP 5/MG v26 rekonstruiert (die Sekunden, in denen das Band keine HR gespeichert hat), verfeinere den Autokorrelationspeak mit einem parabolischen Sublag-Fit, so dass die Schätzung nicht auf etwa 16 bpm-Schritte in der Nähe einer hohen HR quantifiziert wird. Es füllt nur Sekunden, die das Band nie gemeldet hat; es überschreibt niemals eine gespeicherte HR. 5/MG, standardmäßig ausgeschaltet."
           }
         },
         "es": {
@@ -175914,7 +175914,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Die ganze Nacht ist das Standardmaß von NOOP; Deep Sleep Pools HRV nur über Slow Wave Sleep, lesen niedriger und passend zu WHOOP. Durch das Umschalten werden Ihre letzten Nächte über das neue Fenster neu bewertet und sofort wirksam, sobald Sie ein paar Nächte Daten haben."
+            "value": "Die ganze Nacht ist das Standardmaß von NOOP; Deep Sleep Pools HRV nur über Slow Wave Sleep, lesen niedriger und passend zu WHOOP. Durch das Umschalten werden deine letzten Nächte über das neue Fenster neu bewertet und sofort wirksam, sobald du ein paar Nächte Daten hast."
           }
         },
         "es": {
