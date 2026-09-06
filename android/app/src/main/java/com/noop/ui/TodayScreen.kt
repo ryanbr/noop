@@ -3013,6 +3013,17 @@ private fun SynthesisHeroCard(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
+                        // While calibrating, the detail carries the progress AND, when nights are arriving
+                        // empty, the reason. Collapsed used to show only "Calibrating", which is the state
+                        // the field report was taken in: the explanation existed one tap away and the
+                        // wearer had no way to know it was there. iOS never gated this line; matching it.
+                        if (recoveryCalibration != null) {
+                            Text(
+                                detail,
+                                style = NoopType.caption,
+                                color = Palette.textSecondary,
+                            )
+                        }
                     }
                     Icon(
                         Icons.Filled.KeyboardArrowDown,
