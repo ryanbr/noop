@@ -1288,12 +1288,7 @@ object IntelligenceEngine {
             // in-bed span the floor came from (so they're directly comparable); a night with no banked
             // floor (no matched sleep) logs nil and the line is skipped. Logging only , no scoring change.
             // Counts/bpm only; no timestamps or PII (the diag sink also scrubs). Byte-identical to Swift.
-            val rhrFloor = res.daily.restingHr
-            if (rhrFloor != null) {
-                val inBedBpms = hr.filter { s -> res.sleepSessions.any { s.ts >= it.start && s.ts < it.end } }
-                    .map { it.bpm }
-                dayDiag(rhrFloorMeanLogLine(day, rhrFloor, inBedBpms))
-            }
+            for (l in rhrDiagLines(day, res.daily.restingHr, hr, res.sleepSessions)) dayDiag(l)
             // #103/queue-11a: SpO₂ candidate nightly mean. Only computed when the display toggle is ON,
             // and the transform is device-conditional (com.noop.data.DeviceBrandCatalog.isOura, same
             // idiom OuraRespScale.isRingRateStream uses): a WHOOP owner averages the in-band (70–100)
@@ -2933,6 +2928,31 @@ object IntelligenceEngine {
         } else {
             "$base beatAccurate=$acc>=$gate rrIntegrity=$integrity — gate passed, cause is elsewhere"
         }
+    }
+
+    /**
+     * The night's resting-HR diagnostic lines: the floor-vs-mean explainer, and the measure-only
+     * bin-population line beside it when there is something to say.
+     *
+     * Built here rather than inline in `analyzeRecentOnCpu` because that method is BUDGETED:
+     * [IntelligenceEngineJacocoBudgetTest] ratchets its JaCoCo-instrumented size against the JVM's method
+     * limit, and the budget is never raised to fit a change. Returning the lines as a list, rather than
+     * emitting each at the call site, is what pays for the second one: the caller loses the null check,
+     * both lambdas and the intermediate list.
+     */
+    private fun rhrDiagLines(
+        day: String,
+        rhrFloor: Int?,
+        hr: List<com.noop.data.HrSample>,
+        sessions: List<DetectedSleep>,
+    ): List<String> {
+        if (rhrFloor == null) return emptyList()
+        val inBedBpms = hr.filter { s -> sessions.any { s.ts >= it.start && s.ts < it.end } }.map { it.bpm }
+        val out = ArrayList<String>(2)
+        out.add(rhrFloorMeanLogLine(day, rhrFloor, inBedBpms))
+        SleepStager.rhrBinGateLogLine(day, sessions.map { it.start to it.end }, hr, rhrFloor)
+            ?.let { out.add(it) }
+        return out
     }
 
     /**

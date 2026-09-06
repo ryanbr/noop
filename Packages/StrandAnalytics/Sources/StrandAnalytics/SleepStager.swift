@@ -2778,6 +2778,65 @@ public enum SleepStager {
     /// the final one, which is `[t, end]`. Half-open bins alone would admit a sample sitting exactly
     /// on an aligned `end` through the prefilter and then place it in no bin — counted as data,
     /// silently ignored. A zero-length window (`start == end`) is that single closed bin.
+    /// #1943: what an artefact gate WOULD do to tonight's resting-HR floor, measured and reported without
+    /// changing it.
+    ///
+    /// `sessionRestingHR` takes the minimum of the 5-minute bin means unconditionally, so any non-empty
+    /// bin can win, including one built from a single sample at the edge of a wear gap. The helper deleted
+    /// alongside it had two conditions the shipped path never had: a bin may only WIN when it holds at
+    /// least `minBinSamples` samples and its mean is at least `minPlausibleBpm`. Porting them is a small
+    /// change; what nobody can currently say is how OFTEN it would move a displayed number, and that
+    /// number feeds the baseline later nights are scored against. So measure first.
+    ///
+    /// Bins are built exactly as `sessionRestingHR` builds them, closed final bin included, or the line
+    /// would describe a different partition than the one it is judging.
+    ///
+    /// Returns nil unless the gate would actually MOVE the floor, so the log carries only the nights the
+    /// question is about. Reporting every thin bin instead would fire on nearly all of them, because a thin
+    /// final bin is STRUCTURAL rather than an artefact: the last bin closes on `end`, so a session whose
+    /// span is not a multiple of the window holds only `span mod 300` samples there. A 1801-second night
+    /// has six 300-sample bins and a final bin of two. That bin is real data and almost never wins the
+    /// floor, so it is noise to report and, separately, something a future gate should weigh before
+    /// excluding bins on sample count alone.
+    ///
+    /// The counts still ride along when the line does fire, since they are the context for the change.
+    /// Same posture as the over-count-only R-R dump. Counts and bpm only, no timestamps. Pure. Twin of
+    /// Kotlin `rhrBinGateLogLine`.
+    static func rhrBinGateLogLine(day: String, sessions: [(Int, Int)], hr: [HRSample],
+                                  shippedFloor: Int, minBinSamples: Int = 5,
+                                  minPlausibleBpm: Double = 25) -> String? {
+        let windowS = 5 * 60
+        var bins = 0, thin = 0, implausible = 0, bestN = 0
+        var best: Double?
+        var gated: Double?
+        for (start, end) in sessions {
+            let seg = hr.filter { $0.ts >= start && $0.ts <= end }
+            if seg.isEmpty { continue }
+            var t = start
+            repeat {
+                let isFinal = t + windowS >= end
+                let win = seg.filter { $0.ts >= t && (isFinal || $0.ts < t + windowS) }
+                if !win.isEmpty {
+                    bins += 1
+                    let mean = Double(win.reduce(0) { $0 + $1.bpm }) / Double(win.count)
+                    if win.count < minBinSamples { thin += 1 }
+                    if mean < minPlausibleBpm { implausible += 1 }
+                    if best == nil || mean < best! { best = mean; bestN = win.count }
+                    if win.count >= minBinSamples, mean >= minPlausibleBpm,
+                       gated == nil || mean < gated! { gated = mean }
+                }
+                t += windowS
+            } while t < end
+        }
+        if bins == 0 { return nil }
+        let gatedFloor = gated.map { Int($0.rounded()) }
+        let changes = gatedFloor != nil && gatedFloor != shippedFloor
+        if !changes { return nil }
+        return "rhr bins day=\(day) bins=\(bins) thin=\(thin) implausible=\(implausible) "
+            + "winnerN=\(bestN) floor=\(shippedFloor) gated=\(gatedFloor.map(String.init) ?? "nil") "
+            + "wouldChange=\(changes) (measure-only; nothing is gated yet)"
+    }
+
     static func sessionRestingHR(start: Int, end: Int, hr: [HRSample]) -> Int? {
         let seg = hr.filter { $0.ts >= start && $0.ts <= end }
         guard !seg.isEmpty else { return nil }

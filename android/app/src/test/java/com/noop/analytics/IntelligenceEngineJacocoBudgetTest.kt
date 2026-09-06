@@ -45,7 +45,7 @@ class IntelligenceEngineJacocoBudgetTest {
         // read windows need about 825), small enough that a large regression fails here rather than at the
         // JVM's 64 KB wall. If a change genuinely needs more, extract — this file already shows the shape
         // twice over.
-        assertExactMethodBudget(lengths, "analyzeRecentOnCpu", 56_000)
+        assertExactMethodBudget(lengths, "analyzeRecentOnCpu", 55_700)
         // Untouched: 6,415 against 12,000. Slack, but it has not been creeping, and ratcheting a method
         // nobody is pressing against would be tightening for its own sake.
         assertExactMethodBudget(lengths, "persistFitnessVitalityAndSteps", 12_000)
