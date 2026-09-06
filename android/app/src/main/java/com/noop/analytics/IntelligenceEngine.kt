@@ -61,6 +61,17 @@ object IntelligenceEngine {
      */
     private val analyzeGate = Mutex()
 
+    /** #1816: optional sink for whether the strap banked ANY motion in the calibration scan window.
+     *  Set by the caller (AppViewModel / WhoopBleClient) before calling [analyzeRecent] and cleared
+     *  after, so the Today tile can distinguish "Need N more phone-step days" (motion exists, phone
+     *  half missing) from "No motion synced yet" (the motion half is the blocker). A field rather
+     *  than a parameter because [analyzeRecentOnCpu] sits close to the JVM 64 KB method ceiling and
+     *  the JaCoCo budget test (#1524) guards its margin — one more function-typed parameter + call
+     *  site would push it over. Safe for the same reason [skippedSleepDays] and [dayScanCache] are:
+     *  every pass runs under [analyzeGate], so there is no concurrent access. */
+    @Volatile
+    var stepsHasMotionSink: ((Boolean) -> Unit)? = null
+
     /** #1121: days this pass skipped for too little raw HR, emitted as ONE line after the loop instead of
      *  one line each — see [skippedSleepDaysLine]. A FIELD, not a local, for a mechanical reason:
      *  [analyzeRecentOnCpu] is `suspend` and sits 64 bytes under the JVM ceiling #1524 guards, so one more
@@ -2047,6 +2058,12 @@ object IntelligenceEngine {
             val m = StepsEstimateEngine.dayMotionIntensity(grav)
             if (m > 0) motionByDay[dayKey] = m
         }
+        // #1816: persist whether the strap banked ANY motion in the calibration scan window, so the Today
+        // tile can distinguish "Need N more phone-step days" (motion exists, phone half missing) from
+        // "No motion synced yet" (the motion half is the blocker, and no number of phone-step days will
+        // move the estimate or the fit). A step estimate is `motion * coefficient`, so with the motion
+        // half missing the caption that names only the phone half is a lie.
+        stepsHasMotionSink?.invoke(motionByDay.isNotEmpty())
         // Build calibration points only for days with BOTH a motion volume and a real phone step count.
         val calPoints = motionByDay.mapNotNull { (day, motion) ->
             refStepsByDay[day]?.let { StepsEstimateEngine.CalibrationPoint(motion = motion, steps = it) }

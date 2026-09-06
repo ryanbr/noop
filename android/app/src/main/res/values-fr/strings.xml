@@ -788,7 +788,7 @@
     <string name="l10n_today_screen_arrange_today_6b699147">Arrange aujourd\'hui</string>
     <string name="l10n_today_screen_calibrating_37c2c9bd">Calibration en cours</string>
     <string name="l10n_today_screen_no_new_nights_from_your_strap_for_stale_days_8863bcfe">Aucune nouvelle nuit de votre strap depuis %1$d jours. Vérifiez qu\'il est connecté et enregistre les données.</string>
-    <string name="l10n_today_screen_calibratingnights_of_baselines_minnightsseed_3b76e55c">%1$s de %2$s</string>
+    <string name="l10n_today_screen_calibratingnights_of_baselines_minnightsseed_3b76e55c">%1$s nuits sur %2$s</string>
     <string name="l10n_today_screen_choose_which_cards_show_on_today_f79942e1">Choisissez les cartes affichées sur Today et réarrangez-les avec les flèches.</string>
     <string name="l10n_today_screen_close_bbfa773e">Fermer</string>
     <string name="l10n_today_screen_customise_your_cards_2428d761">Personnalisez vos cartes</string>
@@ -2338,7 +2338,9 @@
     <string name="today_steps_headline_calibrated">Estimation basée sur %1$d jours également comptés par le téléphone</string>
     <string name="today_steps_headline_connect_phone">Connectez le comptage de pas du téléphone pour estimer les pas</string>
     <string name="today_steps_headline_more_days">Encore %1$d jours également comptés par le téléphone</string>
+    <string name="today_steps_headline_no_motion">Aucune donnée de mouvement synchronisée pour l\'instant</string>
     <string name="today_synthesis_learning_baseline">Création de votre référence, %1$d nuits sur %2$d.</string>
+    <string name="today_synthesis_nights_without_hrv">%1$d des %2$d dernières nuits n\'ont enregistré aucune VFC. Vérifiez que le bracelet est porté la nuit et se synchronise.</string>
     <string name="today_last_night_date">Nuit dernière · %1$s</string>
     <string name="today_hr_min">Min.</string>
     <string name="today_hr_avg">Moy.</string>

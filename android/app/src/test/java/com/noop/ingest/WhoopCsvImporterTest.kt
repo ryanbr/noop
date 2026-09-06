@@ -118,6 +118,43 @@ class WhoopCsvImporterTest {
         assertEquals("2026-06-06", rows.single().day)
     }
 
+    // --- #1849: a Fahrenheit WHOOP export ships skin_temp_f, not skin_temp_celsius -------------
+
+    /**
+     * A Fahrenheit export ships `skin_temp_f` instead of `skin_temp_celsius`. The importer must
+     * convert the °F value to °C on the way in — NOT store it unconverted (92.3 °F stored as 92.3
+     * in a °C column reads as a lethal fever and poisons the baseline). 91.58 °F = 33.1 °C.
+     * Byte-identical with the Swift twin (WhoopExportImporterTests.testFahrenheitSkinTempIsConvertedToCelsius).
+     */
+    @Test
+    fun fahrenheitSkinTempIsConvertedToCelsius() {
+        val rows = cycles(
+            """
+            Cycle start time,Cycle end time,Cycle timezone,Recovery score %,Resting heart rate (bpm),Heart rate variability (ms),Skin temp (f),Blood oxygen %,Day Strain,Energy burned (cal),Max HR (bpm),Average HR (bpm),Sleep onset,Wake onset,Sleep performance %,Respiratory rate (rpm),Asleep duration (min),In bed duration (min),Light sleep duration (min),Deep (SWS) duration (min),REM duration (min),Awake duration (min),Sleep efficiency %,Sleep consistency %,Sleep need (min),Sleep debt (min)
+            2024-01-02 06:30:00,2024-01-03 06:29:00,UTC+01:00,72,52,68.4,91.58,96.0,12.5,2450,165,68,2024-01-01 23:15:00,2024-01-02 06:30:00,85,14.2,420,455,210,95,115,35,92.3,88.0,480,60
+            """
+        )
+        assertEquals(1, rows.size)
+        // 91.58 °F → (91.58 − 32) × 5/9 = 33.1 °C — the same stored value a Celsius import produces.
+        assertEquals(33.1, rows.single().skinTempDevC!!, 1e-3)
+    }
+
+    /**
+     * A Celsius export (the canonical form) is unaffected — `skin_temp_celsius` is read directly
+     * and no conversion is applied. Regression guard: the fix must not change the Celsius path.
+     */
+    @Test
+    fun celsiusSkinTempIsUnchanged() {
+        val rows = cycles(
+            """
+            Cycle start time,Cycle end time,Cycle timezone,Recovery score %,Resting heart rate (bpm),Heart rate variability (ms),Skin temp (celsius),Blood oxygen %,Day Strain,Energy burned (cal),Max HR (bpm),Average HR (bpm),Sleep onset,Wake onset,Sleep performance %,Respiratory rate (rpm),Asleep duration (min),In bed duration (min),Light sleep duration (min),Deep (SWS) duration (min),REM duration (min),Awake duration (min),Sleep efficiency %,Sleep consistency %,Sleep need (min),Sleep debt (min)
+            2024-01-02 06:30:00,2024-01-03 06:29:00,UTC+01:00,72,52,68.4,33.1,96.0,12.5,2450,165,68,2024-01-01 23:15:00,2024-01-02 06:30:00,85,14.2,420,455,210,95,115,35,92.3,88.0,480,60
+            """
+        )
+        assertEquals(1, rows.size)
+        assertEquals(33.1, rows.single().skinTempDevC!!, 1e-3)
+    }
+
     // --- #136: imported journal keys to the WAKE day, not the onset evening -------------------
 
     private fun journalWakeMap(csv: String): Map<Long, String> =

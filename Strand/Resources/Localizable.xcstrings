@@ -210051,6 +210051,30 @@
         "zh-Hans": {"stringUnit": {"state": "translated", "value": "无法启动麦克风：%@"}},
         "zh-Hant": {"stringUnit": {"state": "translated", "value": "無法啟動麥克風：%@"}}
     } },
+    "%lld of %lld nights": { "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "%lld von %lld Nächten"}},
+        "en": {"stringUnit": {"state": "translated", "value": "%lld of %lld nights"}},
+        "es": {"stringUnit": {"state": "translated", "value": "%lld de %lld noches"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "%lld nuits sur %lld"}},
+        "it": {"stringUnit": {"state": "translated", "value": "%lld di %lld notti"}},
+        "pl": {"stringUnit": {"state": "translated", "value": "%lld z %lld nocy"}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "%lld de %lld noites"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "%lld из %lld ночей"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "%lld / %lld 晚"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "%lld / %lld 晚"}}
+    } },
+    "%lld of the last %lld nights recorded no HRV. Check the strap is worn overnight and syncing.": { "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "%lld der letzten %lld Nächte haben keine HRV aufgezeichnet. Prüfe, ob der Strap nachts getragen wird und synchronisiert."}},
+        "en": {"stringUnit": {"state": "translated", "value": "%lld of the last %lld nights recorded no HRV. Check the strap is worn overnight and syncing."}},
+        "es": {"stringUnit": {"state": "translated", "value": "%lld de las últimas %lld noches no registraron HRV. Comprueba que llevas la banda por la noche y que se sincroniza."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "%lld des %lld dernières nuits n’ont enregistré aucune VFC. Vérifiez que le bracelet est porté la nuit et se synchronise."}},
+        "it": {"stringUnit": {"state": "translated", "value": "%lld delle ultime %lld notti non hanno registrato HRV. Controlla che la fascia sia indossata di notte e si sincronizzi."}},
+        "pl": {"stringUnit": {"state": "translated", "value": "%lld z ostatnich %lld nocy nie zarejestrowało HRV. Sprawdź, czy opaska jest noszona w nocy i synchronizuje się."}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "%lld das últimas %lld noites não registaram HRV. Verifica se usas a fita à noite e se sincroniza."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "%lld из последних %lld ночей не записали ВСР. Проверьте, что ремешок надет ночью и синхронизируется."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "最近 %2$lld 晚中有 %1$lld 晚未记录 HRV。请检查夜间是否佩戴并已同步。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "最近 %2$lld 晚中有 %1$lld 晚未記錄 HRV。請檢查夜間是否配戴並已同步。"}}
+    } },
     "Re-derives the absolute °C for nights the 21-night rescore window never reaches, using the same funnel as the scoring pass. Fill-only: it never overwrites a measured value. Watch the strap log for the result.": { "localizations": {
         "de": {"stringUnit": {"state": "translated", "value": "Leitet das absolute °C für Nächte neu ab, die das 21-Nächte-Fenster nie erreicht, mit demselben Funnel wie der Scoring-Durchlauf. Nur Auffüllen: ein gemessener Wert wird nie überschrieben. Das Ergebnis steht im Strap-Log."}},
         "en": {"stringUnit": {"state": "translated", "value": "Re-derives the absolute °C for nights the 21-night rescore window never reaches, using the same funnel as the scoring pass. Fill-only: it never overwrites a measured value. Watch the strap log for the result."}},

@@ -395,4 +395,77 @@ final class ReadTests: XCTestCase {
                        "the summed total must equal the per-table breakdown")
     }
 
+
+    /// #1911: the byte estimate must MEASURE the blob rather than assume a fixed row width.
+    /// `ppgWaveformSample` is the only table here whose row size varies, and the one a per-second row
+    /// model misprices worst — a footprint that treats every row as fixed-width answers the wrong question
+    /// about exactly the table the question is usually about.
+    ///
+    /// Pinned by GROWING the blob rather than by comparing tables. My first attempt asserted that a blob
+    /// row estimates larger than an all-numeric row, which is false on a fixture: with a three-sample
+    /// blob `ppgWaveformSample` is three columns to `hrSample`'s four, so it estimates SMALLER. The blob
+    /// dominates in production (~48 bytes per v26 strap-second), not in a seed — so the invariant worth
+    /// pinning is that the blob's length reaches the estimate at all, which comparing two blob sizes
+    /// establishes and comparing two tables does not.
+    func testStorageByteEstimatesGrowWithBlobLength() async throws {
+        func estimate(sampleCount: Int) async throws -> Int {
+            let store = try await WhoopStore.inMemory()
+            let samples = [Int](repeating: 7, count: sampleCount)
+            _ = try await store.insert(Streams(ppgWaveform: [PpgWaveformSample(ts: 400, samples: samples)]),
+                                       deviceId: "dev1")
+            return try await store.storageByteEstimates()["ppgWaveform"] ?? 0
+        }
+        let small = try await estimate(sampleCount: 4)      // ~8 bytes packed i16
+        let large = try await estimate(sampleCount: 200)    // ~400 bytes packed i16
+        XCTAssertGreaterThan(small, 0, "the blob table must be estimated, not skipped")
+        XCTAssertGreaterThan(large, small + 300,
+                             "a 400-byte blob must estimate far above an 8-byte one, or the blob is not measured")
+    }
+
+    /// An empty table is omitted rather than reported as zero bytes, matching the row counts: absent means
+    /// "nothing to attribute here", which is a different claim from a measured zero.
+    func testStorageByteEstimatesOmitEmptyTables() async throws {
+        let store = try await WhoopStore.inMemory()
+        let bytes = try await store.storageByteEstimates()
+        XCTAssertTrue(bytes.isEmpty, "a fresh store has no rows, so nothing to estimate")
+    }
+
+
+    /// Passing known counts must not change the answer — it only skips a second `COUNT(*)` pass. Pinned
+    /// because the whole point of the parameter is that it is an optimisation, and an optimisation that
+    /// quietly changes the number it optimises is worse than the scan it saves.
+    func testStorageByteEstimatesAreUnchangedByPassingKnownCounts() async throws {
+        let store = try await seeded()
+        let counts = try await store.storageRowCounts()
+        let computed = try await store.storageByteEstimates()
+        let reused = try await store.storageByteEstimates(rowCounts: counts)
+        XCTAssertEqual(computed, reused)
+    }
+
+    /// The raw-outbox read must agree with the aggregate it was split out of, or the probe's rawBytes
+    /// silently changed meaning when it stopped counting thirteen decoded tables to get one number.
+    ///
+    /// They share one implementation now rather than being two copies this test compares — `syncRead` is
+    /// `dbWriter.read` and nesting one inside another deadlocks, so a plain `db`-taking helper is the only
+    /// way to share it. The assertion stays as the guard on that wiring.
+    func testRawOutboxStatsMatchTheAggregate() async throws {
+        let store = try await seeded()
+        let stats = try await store.storageStats()
+        let outbox = try await store.rawOutboxStats()
+        XCTAssertEqual(outbox.batches, stats.rawBatches)
+        XCTAssertEqual(outbox.bytes, stats.rawBytes)
+    }
+
+
+    /// A negative sample limit must not become an unbounded scan. SQLite reads `LIMIT -1` as "no limit",
+    /// so an unchecked value would full-scan every table — the exact cost the sampling exists to avoid,
+    /// reached by passing a number that looks like it would sample less rather than more.
+    func testStorageByteEstimatesClampANegativeSampleLimit() async throws {
+        let store = try await seeded()
+        let normal = try await store.storageByteEstimates()
+        let negative = try await store.storageByteEstimates(sampleRows: -1)
+        XCTAssertEqual(negative.keys.sorted(), normal.keys.sorted())
+        for (k, v) in negative { XCTAssertGreaterThan(v, 0, "\(k) must still estimate") }
+    }
+
 }
