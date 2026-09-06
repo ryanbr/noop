@@ -1,6 +1,7 @@
 #if os(iOS)
 import Foundation
 import HealthKit
+import CoreLocation
 import UIKit
 import WhoopStore
 import StrandAnalytics
@@ -94,6 +95,11 @@ final class HealthKitBridge: ObservableObject {
         for id in HealthKitBridge.quantityReadIds { if let t = HKObjectType.quantityType(forIdentifier: id) { s.insert(t) } }
         if let sleep = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) { s.insert(sleep) }
         s.insert(HKObjectType.workoutType())
+        // #1205: workout routes (GPS) so imported workouts can show their map. Routes are separate
+        // samples associated with each HKWorkout; without this in readTypes the route query returns
+        // empty and the imported workout shows distance but no map — same as today, so the addition
+        // is strictly additive.
+        if let route = HKSeriesType.workoutRoute() { s.insert(route) }
         return s
     }
 
@@ -1293,16 +1299,21 @@ final class HealthKitBridge: ObservableObject {
             HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate),
             Self.notNoopAuthored,
         ])
-        return await withCheckedContinuation { (cont: CheckedContinuation<[WorkoutRow], Never>) in
+        // #1205: collect the HKWorkout objects alongside the rows so we can fetch their GPS routes
+        // after the sample query completes. Routes are separate HKWorkoutRoute samples associated
+        // with each workout; they cannot be read inside the sample query's completion handler
+        // (HealthKit does not allow nested queries on the same store), so we hold the workouts and
+        // fetch routes in a second pass below.
+        let workoutsAndRows: [(HKWorkout, WorkoutRow)] = await withCheckedContinuation { (cont: CheckedContinuation<[(HKWorkout, WorkoutRow)], Never>) in
             let sort = NSSortDescriptor(key: HKSampleSortIdentifierStartDate, ascending: true)
             let q = HKSampleQuery(sampleType: HKObjectType.workoutType(), predicate: predicate,
                                   limit: HKObjectQueryNoLimit, sortDescriptors: [sort]) { _, samples, _ in
-                var rows: [WorkoutRow] = []
+                var pairs: [(HKWorkout, WorkoutRow)] = []
                 for case let workout as HKWorkout in samples ?? [] {
                     let startTs = Int(workout.startDate.timeIntervalSince1970)
                     let endTs = max(Int(workout.endDate.timeIntervalSince1970), startTs)
                     let duration = workout.duration > 0 ? workout.duration : Double(endTs - startTs)
-                    rows.append(WorkoutRow(
+                    pairs.append((workout, WorkoutRow(
                         startTs: startTs,
                         endTs: endTs,
                         sport: Self.sportName(workout.workoutActivityType),
@@ -1314,12 +1325,61 @@ final class HealthKitBridge: ObservableObject {
                         strain: nil,
                         distanceM: workout.totalDistance?.doubleValue(for: .meter()),
                         zonesJSON: nil,
-                        notes: nil, steps: nil))
+                        notes: nil, steps: nil)))
                 }
-                cont.resume(returning: rows)
+                cont.resume(returning: pairs)
             }
             store.execute(q)
         }
+        // #1205: fetch and store GPS routes for each workout. Best-effort — a route read failure
+        // (permission not granted, no route data, HealthKit error) leaves the workout intact with
+        // no map, which is exactly the pre-change behaviour. Stored via RouteStore under the same
+        // (startTs, sport) key WorkoutDetailView loads from, so no UI change is needed.
+        for (workout, row) in workoutsAndRows {
+            if let route = await Self.fetchWorkoutRoute(for: workout, store: store),
+               route.count >= 2 {
+                let polyline = RouteMath.encode(route)
+                let distanceM = RouteMath.totalMeters(route)
+                RouteStore.store(WorkoutRoute(polyline: polyline, distanceM: distanceM),
+                                 startTs: row.startTs, sport: row.sport)
+            }
+        }
+        return workoutsAndRows.map { $0.1 }
+    }
+
+    /// #1205: fetch the GPS route (list of `RouteMath.LatLng`) for a single `HKWorkout`.
+    /// Queries `HKWorkoutRoute` samples overlapping the workout's time range, then collects all
+    /// `CLLocation` waypoints from each route via `HKWorkoutRouteQuery`. Returns `nil` when there
+    /// is no route, the user has not granted route read access, or HealthKit reports an error —
+    /// all of which are graceful skips (the workout imports without a map, same as today).
+    nonisolated static func fetchWorkoutRoute(for workout: HKWorkout, store: HKHealthStore) async -> [RouteMath.LatLng]? {
+        guard let routeType = HKSeriesType.workoutRoute() else { return nil }
+        let predicate = HKQuery.predicateForSamples(withStart: workout.startDate, end: workout.endDate, options: .strictStartDate)
+        // First: query for HKWorkoutRoute samples associated with this workout.
+        let routes: [HKWorkoutRoute] = await withCheckedContinuation { (cont: CheckedContinuation<[HKWorkoutRoute], Never>) in
+            let q = HKSampleQuery(sampleType: routeType, predicate: predicate,
+                                  limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, samples, _ in
+                let routeSamples = (samples as? [HKWorkoutRoute]) ?? []
+                cont.resume(returning: routeSamples)
+            }
+            store.execute(q)
+        }
+        guard !routes.isEmpty else { return nil }
+        // Second: collect CLLocation waypoints from each route. HKWorkoutRouteQuery calls its
+        // handler repeatedly with batches of locations; `done: true` marks the end of one route.
+        var points: [RouteMath.LatLng] = []
+        for route in routes {
+            await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+                let query = HKWorkoutRouteQuery(route: route) { _, locations, done, _ in
+                    for loc in locations ?? [] {
+                        points.append(RouteMath.LatLng(loc.coordinate.latitude, loc.coordinate.longitude))
+                    }
+                    if done { cont.resume(returning: ()) }
+                }
+                store.execute(query)
+            }
+        }
+        return points.isEmpty ? nil : points
     }
 
     /// Source tag stamped on workouts imported from Apple Health. Matches the macOS importer's

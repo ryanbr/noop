@@ -240,4 +240,39 @@ final class GpsRouteMathTests: XCTestCase {
         XCTAssertNil(RouteStore.load(startTs: 1_700_000_500, sport: "Walking", from: defaults))
         XCTAssertTrue(RouteStore.loadMap(from: defaults).isEmpty)
     }
+
+    // MARK: - #1205: imported GPS route lands under the key WorkoutDetailView loads
+
+    /// #1205: a route imported from Apple Health (HKWorkoutRoute) or Health Connect
+    /// (ExerciseRouteResult.Data) is stored via `RouteStore.store` under the workout's natural
+    /// key (startTs, sport). `WorkoutDetailView.load()` reads from that same key, so the imported
+    /// route appears on the detail screen with no UI change. This test pins that contract: the
+    /// store/load round-trip must survive under the exact key pair an imported workout carries.
+    func testImportedRouteRoundTripsUnderWorkoutNaturalKey() {
+        let defaults = freshDefaults()
+        let startTs = 1_700_000_000
+        let sport = "Running"
+        // Simulate what HealthKitBridge.collectWorkouts does after fetching an HKWorkoutRoute:
+        // encode the GPS points and store the resulting WorkoutRoute under the workout's key.
+        let points = [a, b, RouteMath.LatLng(51.4995, -0.1357)]
+        let route = WorkoutRoute(polyline: RouteMath.encode(points),
+                                 distanceM: RouteMath.totalMeters(points))
+        RouteStore.store(route, startTs: startTs, sport: sport, into: defaults)
+        // WorkoutDetailView.load() reads from the same key and decodes the polyline.
+        let loaded = RouteStore.load(startTs: startTs, sport: sport, from: defaults)
+        XCTAssertEqual(loaded, route)
+        let decoded = RouteMath.decode(loaded?.polyline ?? "")
+        XCTAssertEqual(decoded.count, points.count)
+        for i in points.indices {
+            XCTAssertEqual(decoded[i].lat, points[i].lat, accuracy: 1e-5)
+            XCTAssertEqual(decoded[i].lon, points[i].lon, accuracy: 1e-5)
+        }
+    }
+
+    /// #1205: a workout with no GPS route (e.g. a gym session imported from Apple Health) must
+    /// load nil from RouteStore, so WorkoutDetailView shows no map card — exactly as before.
+    func testImportedWorkoutWithoutRouteLoadsNil() {
+        let defaults = freshDefaults()
+        XCTAssertNil(RouteStore.load(startTs: 1_700_000_000, sport: "Strength Training", from: defaults))
+    }
 }

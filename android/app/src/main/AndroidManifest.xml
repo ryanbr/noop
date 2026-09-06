@@ -126,6 +126,12 @@
     <uses-permission android:name="android.permission.health.READ_BODY_FAT" />
     <uses-permission android:name="android.permission.health.READ_LEAN_BODY_MASS" />
     <uses-permission android:name="android.permission.health.READ_EXERCISE" />
+    <!-- #1205: GPS route data attached to an exercise session. This permission CANNOT be granted via
+         the standard Health Connect permission dialog — it is granted in Settings or via the
+         ExerciseRouteRequestContract dialog. Declaring it here lets a user who has granted it in
+         Settings import routes alongside their workouts; without it, the route is gracefully skipped
+         and the workout still imports with its distance/HR. Read-only; NOOP never writes routes. -->
+    <uses-permission android:name="android.permission.health.READ_EXERCISE_ROUTES" />
     <!-- Water logged in other apps (#949), so drinks tracked by a dedicated hydration app or a smart
          bottle don't have to be entered twice. Read-only; NOOP never writes water back. MUST be
          declared or Health Connect silently drops the runtime request (same trap as #412 above). -->

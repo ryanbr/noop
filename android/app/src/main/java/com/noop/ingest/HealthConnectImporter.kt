@@ -6,6 +6,7 @@ import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
 import androidx.health.connect.client.records.BodyFatRecord
 import androidx.health.connect.client.records.DistanceRecord
+import androidx.health.connect.client.records.ExerciseRouteResult
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.HeartRateVariabilityRmssdRecord
@@ -24,6 +25,7 @@ import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import com.noop.analytics.FitnessAgeEngine
 import com.noop.analytics.HydrationStore
+import com.noop.analytics.RouteMath
 import com.noop.data.AppleDaily
 import com.noop.data.DailyMetric
 import com.noop.data.ImportSummary
@@ -529,6 +531,22 @@ object HealthConnectImporter {
             readSelected(ExerciseSessionRecord::class) { r ->
                 val startS = r.startTime.epochSecond
                 val endS = r.endTime.epochSecond
+                // #1205: read the GPS route when the provider attached one. Health Connect gates
+                // route data behind a SEPARATE permission (READ_EXERCISE_ROUTES) that cannot be
+                // requested via the standard dialog — it is granted in Settings or via
+                // ExerciseRouteRequestContract. exerciseRouteResult reports which state this session
+                // is in: Data (we have it), ConsentRequired (the user has not granted), or NoData.
+                // A graceful skip on the latter two keeps the import working without the route, so
+                // the workout still lands with its distance/HR — just no map, same as today.
+                val routePolyline: String? = when (val result = r.exerciseRouteResult) {
+                    is ExerciseRouteResult.Data -> {
+                        val pts = result.exerciseRoute.route.map { loc ->
+                            RouteMath.LatLng(loc.latitude, loc.longitude)
+                        }
+                        if (pts.size >= 2) RouteMath.encode(pts) else null
+                    }
+                    else -> null
+                }
                 workouts.add(
                     WorkoutRow(
                         deviceId = HC_DEVICE,
@@ -548,6 +566,7 @@ object HealthConnectImporter {
                         distanceM = null,
                         zonesJSON = null,
                         notes = r.title,
+                        routePolyline = routePolyline,
                     )
                 )
                 // Count exercises per local day on the start day for the WHOOP daily backfill.

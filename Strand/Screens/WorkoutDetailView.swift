@@ -285,7 +285,7 @@ struct WorkoutDetailView: View {
     @ViewBuilder private var routeCard: some View {
         if route.count >= 2 {
             VStack(alignment: .leading, spacing: NoopMetrics.gap) {
-                SectionHeader("Route", overline: "Recorded on device",
+                SectionHeader("Route", overline: routeOriginLabel,
                               trailing: distanceLabel(row.distanceM))
                 NoopCard(padding: 0, tint: StrandPalette.effortColor) {
                     VStack(alignment: .leading, spacing: 0) {
@@ -303,7 +303,7 @@ struct WorkoutDetailView: View {
                         .padding(NoopMetrics.cardPadding)
                     }
                 }
-                Text("Your GPS route for this session, recorded and stored on your device. Nothing leaves your phone.")
+                Text(routeDescription)
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -372,6 +372,31 @@ struct WorkoutDetailView: View {
     private var routeAccessibilityLabel: String {
         let dist = distanceLabel(row.distanceM)
         return String(localized: "Map of your \(WorkoutSource.displaySport(row.sport)) route, \(dist).")
+    }
+
+    /// #1205: the route card's overline and description must be honest about where the route came
+    /// from. An on-device recorded route says "Recorded on device"; an imported route (Apple Health
+    /// or Health Connect) says "Imported from Apple Health" / "Imported" so the user is not told
+    /// their phone recorded GPS data that actually came from another app.
+    private var routeOriginLabel: String {
+        let cls = WorkoutSource.classify(row.source)
+        switch cls {
+        case .apple: return String(localized: "Imported from Apple Health")
+        case .whoop, .lifting, .activityFile: return String(localized: "Imported")
+        case .detected, .manual: return String(localized: "Recorded on device")
+        }
+    }
+
+    private var routeDescription: String {
+        let cls = WorkoutSource.classify(row.source)
+        switch cls {
+        case .apple:
+            return String(localized: "GPS route imported from Apple Health. Stored on your device; nothing leaves your phone.")
+        case .whoop, .lifting, .activityFile:
+            return String(localized: "GPS route imported from an external source. Stored on your device; nothing leaves your phone.")
+        case .detected, .manual:
+            return String(localized: "Your GPS route for this session, recorded and stored on your device. Nothing leaves your phone.")
+        }
     }
 
     // MARK: - HR curve
