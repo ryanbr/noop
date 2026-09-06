@@ -17,11 +17,13 @@ import WhoopStore
 ///  • The V1 stager still bails without gravity (`grav.count < 2`). That is unchanged and still pinned
 ///    below — V1 is a selectable fallback (the 4.0 is unvalidated on either stager, #271/#319), so its
 ///    behaviour is worth stating, but it is no longer what a default install runs.
-///  • V2 (`PuffinExperiment.experimentalSleepV2Enabled`, which defaults to ON) has an HR-only spine:
-///    `hrOnlySleepRuns` supplies what gravity stillness normally would. #1801 added it and #1884 stopped
-///    an all-HR-only night being discarded from the daily aggregates. So the shipping path CAN stage a
-///    no-gravity night, which is precisely the "HR-only fallback composite" the old fix-contract test
-///    named as one of two acceptable fixes.
+///  • The rescue is NOT inside `detectSleep` — neither stager finds a night without motion, and both are
+///    pinned saying so below. It is in `IntelligenceEngine`: when a day has no motion, no hypnogram and
+///    no stored night, it falls back to `SleepStager.hrOnlySessions(hr:rr:resp:)` (#1801) and feeds the
+///    result in as `providedSleep`. #1884 then stopped an all-HR-only night being discarded from the
+///    daily aggregates. So the shipping path DOES score a no-gravity night, which is precisely the
+///    "HR-only fallback composite" the old fix-contract test named as one of two acceptable fixes.
+///    That fallback is covered by `SleepStagerHrOnlySessionsTests` + `AnalyticsEngineHrOnlyDayTests`.
 ///
 /// The old contract test asserted `Rest.composite(daily:)` on a hand-built row with no sleep fields and
 /// wrapped it in `XCTExpectFailure`. That could never pass, whatever got fixed: a row with no aggregates
@@ -63,40 +65,26 @@ final class Live5RestFrozenTests: XCTestCase {
                       "V1's spine is motion stillness: no gravity, no session")
     }
 
-    /// The shipping path (V2 defaults ON). Same night, same absence of gravity — this is the case #977
-    /// froze on, and the one #1801's HR-only spine exists to stage.
+    /// V2 too. This is the correction to my first attempt at this test, which asserted that V2 WOULD
+    /// stage here and failed in CI — rightly.
     ///
-    /// This test is the probe that tells the two hypotheses apart. If it passes, a live 5.0 whose gravity
-    /// never offloaded now stages its night from HR alone, gets sleep aggregates, and Rest advances — the
-    /// frozen state is closed and the old `XCTExpectFailure` was vouching for a fixed bug. If it fails,
-    /// the gap is real and this is where it lives.
-    func testV2WithNoGravityStagesTheNightFromHrAlone() {
-        // Awake HR either side of the sleep block, NOT a flat night. `hrOnlySleepRuns` flags an epoch as
-        // sleep when its median sits under the 10th-percentile baseline x 1.05, so a constant-bpm fixture
-        // makes that test trivially true for every epoch — the whole window becomes one "sleep" run and
-        // the probe would pass even if V2 were over-staging wholesale, which is the exact 4.0 failure
-        // mode #319 describes. With a real spread the baseline has to FIND the quiet block.
-        let awakeBefore = 2 * 60 * 60
-        let asleep = 8 * 60 * 60
-        let awakeAfter = 2 * 60 * 60
-        let windowStart = nightStart() - awakeBefore
-        let hr = hrStream(start: windowStart, durationS: awakeBefore, bpm: 72)
-            + hrStream(start: nightStart(), durationS: asleep, bpm: 50)
-            + hrStream(start: nightStart() + asleep, durationS: awakeAfter, bpm: 72)
-
+    /// `detectSleep` has no HR-only rescue on either stager: V2's extra machinery is in how it stages a
+    /// run, not in finding one without motion. The rescue lives one layer up. `IntelligenceEngine` sees
+    /// the empty result and, when there is no motion, no hypnogram and no stored night, falls back to
+    /// `SleepStager.hrOnlySessions(hr:rr:resp:)` and feeds the result in as `providedSleep`
+    /// (`IntelligenceEngine.swift`, gate line `no-motion-no-hypnogram`). That fallback is covered by
+    /// `SleepStagerHrOnlySessionsTests` and `AnalyticsEngineHrOnlyDayTests`, so it is named here rather
+    /// than duplicated.
+    ///
+    /// Pinning this keeps the two facts adjacent: detection genuinely yields nothing without motion, and
+    /// that is not the end of the story — which is exactly what the original version of this file got
+    /// wrong in the other direction, by treating the empty result as the final word on Rest.
+    func testV2WithNoGravityAlsoDetectsNoSleep() {
+        let start = nightStart()
+        let hr = hrStream(start: start, durationS: 8 * 60 * 60, bpm: 50)
         let sessions = SleepStager.detectSleep(hr: hr, gravity: [], useSleepStagerV2: true)
-        XCTAssertFalse(sessions.isEmpty,
-                       "V2 has an HR-only spine (hrOnlySleepRuns); a dense sleep-plausible night must stage")
-        XCTAssertTrue(sessions.allSatisfy { $0.hrOnly },
-                      "staged without gravity ⇒ every session must carry hrOnly, so consumers can weigh it")
-
-        // The staged time must resemble the quiet block, not the whole window. Deliberately loose (staging
-        // trims edges and may split): what this rejects is "everything is sleep", which is the way an
-        // HR-only spine fails silently.
-        let staged = sessions.reduce(0) { $0 + ($1.end - $1.start) }
-        XCTAssertGreaterThan(staged, 5 * 60 * 60, "staged well under the quiet block ⇒ the spine missed it")
-        XCTAssertLessThan(staged, awakeBefore + asleep + awakeAfter - 60 * 60,
-                          "staged the awake hours too ⇒ over-staging, not detection")
+        XCTAssertTrue(sessions.isEmpty,
+                      "detectSleep needs motion on either stager; the HR-only rescue is the engine's fallback")
     }
 
     // MARK: - Stage 2: no sleep ⇒ no Rest composite ⇒ no sleep_performance point
