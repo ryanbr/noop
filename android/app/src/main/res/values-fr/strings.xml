@@ -2734,4 +2734,6 @@
     <string name="units_kilometres">Kilomètres</string>
     <string name="units_miles">Miles</string>
     <string name="units_follow_body">Selon les mensurations</string>
+    <string name="l10n_today_screen_pending_sync_cbe01f9e">Synchronisation en attente</string>
+    <string name="l10n_today_screen_strap_history_still_offloading_80140264">l\'historique du bracelet est encore en cours de transfert</string>
 </resources>
