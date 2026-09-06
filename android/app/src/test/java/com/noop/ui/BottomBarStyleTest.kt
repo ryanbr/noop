@@ -15,13 +15,41 @@ class BottomBarStyleTest {
         assertEquals(0.80f, alphaForOpacityStep(DEFAULT_OPACITY_STEP), 0.0001f)
     }
 
-    @Test fun `the eight steps run from faint to solid`() {
+    @Test fun `the steps run from faint to solid`() {
         assertEquals(0.30f, alphaForOpacityStep(MIN_OPACITY_STEP), 0.0001f)
         assertEquals(1.00f, alphaForOpacityStep(MAX_OPACITY_STEP), 0.0001f)
         val all = (MIN_OPACITY_STEP..MAX_OPACITY_STEP).map { alphaForOpacityStep(it) }
-        assertEquals(8, all.size)
+        assertEquals(11, all.size)
         assertEquals(all.sorted(), all)
         assertEquals(all.distinct().size, all.size)
+    }
+
+    /**
+     * THE property this exists for: the bar you already have sits at the CENTRE, so the slider reads as
+     * "more see-through than now" to the left and "less" to the right, with the same number of notches
+     * each way. If the default ever stops being centred, the control stops answering that question.
+     */
+    @Test fun `the default sits at the exact centre of the slider`() {
+        val below = DEFAULT_OPACITY_STEP - MIN_OPACITY_STEP
+        val above = MAX_OPACITY_STEP - DEFAULT_OPACITY_STEP
+        assertEquals("same number of notches either side of the default", below, above)
+    }
+
+    /** Left of the default is more see-through than today's bar; right of it is less. */
+    @Test fun `left is more transparent than the default and right is less`() {
+        val default = alphaForOpacityStep(DEFAULT_OPACITY_STEP)
+        for (s in MIN_OPACITY_STEP until DEFAULT_OPACITY_STEP) {
+            assertTrue("step $s must be more transparent", alphaForOpacityStep(s) < default)
+        }
+        for (s in (DEFAULT_OPACITY_STEP + 1)..MAX_OPACITY_STEP) {
+            assertTrue("step $s must be less transparent", alphaForOpacityStep(s) > default)
+        }
+    }
+
+    /** Every notch is a real change - no two adjacent steps render the same bar. */
+    @Test fun `every notch moves the alpha`() {
+        val all = (MIN_OPACITY_STEP..MAX_OPACITY_STEP).map { alphaForOpacityStep(it) }
+        all.zipWithNext { a, b -> assertTrue("adjacent steps must differ", b - a > 0.001f) }
     }
 
     /**

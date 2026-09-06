@@ -1790,7 +1790,8 @@ fun SettingsScreen(
                         BottomBarStyleStore.setOpacityStep(context, BottomBarStyleStore.opacityStep)
                     },
                     valueRange = MIN_OPACITY_STEP.toFloat()..MAX_OPACITY_STEP.toFloat(),
-                    // Compose counts the stops BETWEEN the ends, so eight stops is six.
+                    // Compose counts the stops BETWEEN the ends, so N notches is N-2. Derived, not
+                    // written out, so changing the notch count cannot leave this line disagreeing with it.
                     steps = MAX_OPACITY_STEP - MIN_OPACITY_STEP - 1,
                     colors = SliderDefaults.colors(
                         thumbColor = Palette.accent,
