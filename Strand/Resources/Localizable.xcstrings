@@ -21977,7 +21977,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ein Read-Only Plews / Altini am kleinsten Wert während der Änderung Ihrer nächtlichen HRV: Es zeigt an, ob Ihre 7-Nächte-HRV-Basislinie über, innerhalb oder unter Ihrem persönlichen normalen Band liegt. Es ändert nichts anderes - der Energiering ist identisch, ob dieser ein- oder ausgeschaltet ist. Dies ist eine grobe / frühe Prüfung, die noch nicht gegen unterschiedliche reale Daten (n = 1) validiert wurde."
+            "value": "Ein Read-Only Plews / Altini am kleinsten Wert während der Änderung deiner nächtlichen HRV: Es zeigt an, ob deine 7-Nächte-HRV-Basislinie über, innerhalb oder unter deinem persönlichen normalen Band liegt. Es ändert nichts anderes - der Energiering ist identisch, ob dieser ein- oder ausgeschaltet ist. Dies ist eine grobe / frühe Prüfung, die noch nicht gegen unterschiedliche reale Daten (n = 1) validiert wurde."
           }
         },
         "es": {
@@ -44599,7 +44599,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Energie gewichtet Ihre HRV gegenüber Ihrer persönlichen Basislinie (~55%%), Ruheherzfrequenz (~20%%), Erholungsqualität (~15%%), Atmung (~5%%) und Hauttemperaturabweichung (~5%%). Belastung ist eine kardiovaskuläre Belastung von 0–%lld aus der Zeit in Herzfrequenzzonen. Erholung wird aus Bewegung und Herzfrequenz in Schlafphasen eingeteilt. Alles wird hier aus den Rohdaten des Straps berechnet."
+            "value": "Energie gewichtet deine HRV gegenüber deiner persönlichen Basislinie (~55%%), Ruheherzfrequenz (~20%%), Erholungsqualität (~15%%), Atmung (~5%%) und Hauttemperaturabweichung (~5%%). Belastung ist eine kardiovaskuläre Belastung von 0–%lld aus der Zeit in Herzfrequenzzonen. Erholung wird aus Bewegung und Herzfrequenz in Schlafphasen eingeteilt. Alles wird hier aus den Rohdaten des Straps berechnet."
           }
         },
         "es": {
@@ -133551,7 +133551,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "%1$@ neu starten? Es trennt sich für etwa 30 Sekunden, während es neu startet, und verbindet sich dann von selbst wieder. Ihre aufgezeichneten Daten werden aufbewahrt."
+            "value": "%1$@ neu starten? Es trennt sich für etwa 30 Sekunden, während es neu startet, und verbindet sich dann von selbst wieder. Deine aufgezeichneten Daten werden aufbewahrt."
           }
         },
         "es": {
@@ -157979,7 +157979,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Der WHOOP 4.0-Reboot-Frame wird nicht bestätigt - ein normaler Neustart wird ignoriert (# 235). Senden sie jedem kandidaten und beobachten sie beide das straplog und das strap selbst. \"Keine Trennung innerhalb von 12s\" bedeutet, dass das Band den Rahmen ignoriert hat. Eine \"Link Drop\" -Linie bedeutet, dass der Rahmen den Riemen erreicht hat - aber ein Drop Link allein ist kein Neustart: Ein echter Neustart schaltet auch das Sensorlicht des Riemens für ein paar Sekunden aus, also wenn das Licht anblieb, war es nur eine Drop-Verbindung, kein Neustart. Zerstörungsfrei - Ihre Daten werden gespeichert. Bitte teile das Protokoll, damit wir den echten Rahmen anheften können."
+            "value": "Der WHOOP 4.0-Reboot-Frame wird nicht bestätigt - ein normaler Neustart wird ignoriert (# 235). Sende sie an jeden Kandidaten und beobachte dabei sowohl das Straplog als auch den Strap selbst. \"Keine Trennung innerhalb von 12s\" bedeutet, dass das Band den Rahmen ignoriert hat. Eine \"Link Drop\" -Linie bedeutet, dass der Rahmen den Riemen erreicht hat - aber ein Drop Link allein ist kein Neustart: Ein echter Neustart schaltet auch das Sensorlicht des Riemens für ein paar Sekunden aus, also wenn das Licht anblieb, war es nur eine Drop-Verbindung, kein Neustart. Zerstörungsfrei - deine Daten werden gespeichert. Bitte teile das Protokoll, damit wir den echten Rahmen anheften können."
           }
         },
         "es": {
@@ -158407,7 +158407,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Die Linie ist der 0-3 Proxy jeder Wachstunde, der heute gegen Ihre eigenen ruhigen Stunden erzielt wurde. Die Bar unten teilt Ihren Tag in ruhige, moderate und hohe Stresszeit."
+            "value": "Die Linie ist der 0-3 Proxy jeder Wachstunde, der heute gegen deine eigenen ruhigen Stunden erzielt wurde. Die Bar unten teilt deinen Tag in ruhige, moderate und hohe Stresszeit."
           }
         },
         "es": {
@@ -172253,7 +172253,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wir vergleichen die heutige Ruheherzfrequenz und HRV mit Ihrer eigenen 30-Tage-Baseline. Eine höher als üblich ruhende HR und eine niedriger als üblich HRV schieben beide die Punktzahl nach oben, klassische Zeichen, dass der Körper aktiviert wird. Die kombinierte Schicht wird auf eine 0-3 Skala abgebildet: 0 ist ruhig, 1,5 sitzt an der Basislinie, 3 ist stark aktiviert."
+            "value": "Wir vergleichen die heutige Ruheherzfrequenz und HRV mit deiner eigenen 30-Tage-Baseline. Eine höher als üblich ruhende HR und eine niedriger als üblich HRV schieben beide die Punktzahl nach oben, klassische Zeichen, dass der Körper aktiviert wird. Die kombinierte Schicht wird auf eine 0-3 Skala abgebildet: 0 ist ruhig, 1,5 sitzt an der Basislinie, 3 ist stark aktiviert."
           }
         },
         "es": {
