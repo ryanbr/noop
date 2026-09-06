@@ -2773,17 +2773,27 @@ public enum SleepStager {
     // MARK: - Per-session HR / HRV
 
     /// Lowest 5-min rolling-mean HR during the session (bpm), or nil.
+    ///
+    /// The window is CLOSED at both ends, so the binning is too: bins are `[t, t + windowS)` except
+    /// the final one, which is `[t, end]`. Half-open bins alone would admit a sample sitting exactly
+    /// on an aligned `end` through the prefilter and then place it in no bin — counted as data,
+    /// silently ignored. A zero-length window (`start == end`) is that single closed bin.
     static func sessionRestingHR(start: Int, end: Int, hr: [HRSample]) -> Int? {
         let seg = hr.filter { $0.ts >= start && $0.ts <= end }
         guard !seg.isEmpty else { return nil }
         let windowS = 5 * 60
         var means: [Double] = []
         var t = start
-        while t < end {
-            let win = seg.filter { $0.ts >= t && $0.ts < t + windowS }
+        repeat {
+            // The last bin (its half-open end reaches or passes `end`) closes on `end` instead,
+            // catching an endpoint sample the prefilter already admitted. `seg` holds nothing past
+            // `end`, so "everything from t onwards" IS [t, end]. `repeat` runs once for a
+            // zero-length window, where that single closed bin is the whole window.
+            let isFinal = t + windowS >= end
+            let win = seg.filter { $0.ts >= t && (isFinal || $0.ts < t + windowS) }
             if !win.isEmpty { means.append(Double(win.reduce(0) { $0 + $1.bpm }) / Double(win.count)) }
             t += windowS
-        }
+        } while t < end
         if let m = means.min() { return Int(m.rounded()) }
         let all = Double(seg.reduce(0) { $0 + $1.bpm }) / Double(seg.count)
         return Int(all.rounded())
@@ -2808,6 +2818,11 @@ public enum SleepStager {
     /// Per-5-min-window RMSSD across a session, each window tagged with the sleep stage at its CENTER
     /// (from `stages`) — the SINGLE source `sessionAvgHRV` averages, and the HRV nightly trace reads.
     /// Passing `[]` for `stages` tags every window "?" (the plain-average path needs no stages). (#141)
+    ///
+    /// Windows follow the same closed-window rule as `sessionRestingHR`: `[t, t + windowS)` except
+    /// the final one, which is `[t, end]`, so a beat sitting exactly on an aligned `end` lands in a
+    /// window instead of being admitted by the prefilter and then dropped. Window stage tagging and
+    /// `startTs` are unchanged — the final window keeps its half-open center `t + windowS / 2`.
     static func sessionHrvWindows(start: Int, end: Int, rr: [RRInterval], stages: [StageSegment]) -> [HrvWindow] {
         // CONTRACT: `rr` MUST already be ts-sorted (RMSSD is built from SUCCESSIVE differences, so a bucket
         // has to be chronological). The value path passes the loop's pre-sorted `rrS`; the trace caller sorts
@@ -2818,8 +2833,12 @@ public enum SleepStager {
         let windowS = 5 * 60
         var out: [HrvWindow] = []
         var t = start
-        while t < end {
-            let bucket = seg.filter { $0.ts >= t && $0.ts < t + windowS }.map { Double($0.rrMs) }
+        repeat {
+            // Final window closes on `end` — same closed-window rule as sessionRestingHR, so an
+            // endpoint beat counts instead of vanishing after admission. `repeat` runs once for a
+            // zero-length window, where that single closed window is the whole session.
+            let isFinal = t + windowS >= end
+            let bucket = seg.filter { $0.ts >= t && (isFinal || $0.ts < t + windowS) }.map { Double($0.rrMs) }
             // Full clean (range + Malik ectopic rejection), not just range — matches the
             // analyze() pipeline. The 0x2A37 RR on a WHOOP 5/MG is PPG-derived and noisier
             // than a 4.0's; rMSSD is built from SUCCESSIVE differences, so an un-rejected
@@ -2832,7 +2851,7 @@ public enum SleepStager {
             let stage = stages.first { center >= $0.start && center < $0.end }?.stage ?? "?"
             out.append(HrvWindow(startTs: t, stage: stage, cleanBeats: cleaned.nn.count, rmssd: rmssd))
             t += windowS
-        }
+        } while t < end
         return out
     }
 
