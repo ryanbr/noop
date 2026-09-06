@@ -183,4 +183,62 @@ final class HealthWritebackTests: XCTestCase {
         XCTAssertEqual(plan[0].allKeyStartTs, [t, t + 600])
         XCTAssertEqual(plan[0].intervals, [.init(start: t + 600, end: t + 7_200, kind: .unspecified)])
     }
+
+    // MARK: - Apple Health external UUID keys (#1503)
+
+    /// The key must NOT embed a device id — the active strap id is not durable and embedding it
+    /// stranded every prior record in Apple Health as unreachable duplicates after a re-pair.
+    func testVitalKeyHasNoDeviceIdSegment() {
+        let key = HealthWriteback.appleHealthVitalKey(metricId: "restingHeartRate", day: "2026-08-27")
+        XCTAssertEqual(key, "noop:restingHeartRate:2026-08-27")
+        // The key must be STABLE — no strap id, no hash, nothing that changes on a re-pair.
+        XCTAssertFalse(key.contains("my-whoop"),
+                       "the vital key must not embed a device id (#1503)")
+    }
+
+    func testSleepKeyHasNoDeviceIdSegment() {
+        let startTs = 1_700_000_000
+        let key = HealthWriteback.appleHealthSleepKey(startTs: startTs)
+        XCTAssertEqual(key, "noop:sleep:1700000000")
+        XCTAssertFalse(key.contains("my-whoop"),
+                       "the sleep key must not embed a device id (#1503)")
+    }
+
+    func testWorkoutKeyHasNoDeviceIdSegment() {
+        let startTs = 1_700_000_000
+        let key = HealthWriteback.appleHealthWorkoutKey(startTs: startTs)
+        XCTAssertEqual(key, "noop:workout:1700000000")
+        XCTAssertFalse(key.contains("my-whoop"),
+                       "the workout key must not embed a device id (#1503)")
+    }
+
+    /// The key is deterministic: the same inputs always produce the same key, so the
+    /// delete-then-write reconciliation can find prior records across app restarts and strap
+    /// lifecycle changes.
+    func testKeysAreDeterministic() {
+        XCTAssertEqual(
+            HealthWriteback.appleHealthVitalKey(metricId: "heartRateVariabilitySDNN", day: "2026-01-01"),
+            HealthWriteback.appleHealthVitalKey(metricId: "heartRateVariabilitySDNN", day: "2026-01-01"))
+        XCTAssertEqual(
+            HealthWriteback.appleHealthSleepKey(startTs: 123),
+            HealthWriteback.appleHealthSleepKey(startTs: 123))
+        XCTAssertEqual(
+            HealthWriteback.appleHealthWorkoutKey(startTs: 456),
+            HealthWriteback.appleHealthWorkoutKey(startTs: 456))
+    }
+
+    /// Different metrics on the same day produce different keys (no collision).
+    func testVitalKeysDifferByMetric() {
+        let day = "2026-08-27"
+        let rhr = HealthWriteback.appleHealthVitalKey(metricId: "restingHeartRate", day: day)
+        let hrv = HealthWriteback.appleHealthVitalKey(metricId: "heartRateVariabilitySDNN", day: day)
+        let spo2 = HealthWriteback.appleHealthVitalKey(metricId: "oxygenSaturation", day: day)
+        let resp = HealthWriteback.appleHealthVitalKey(metricId: "respiratoryRate", day: day)
+        XCTAssertNotEqual(rhr, hrv)
+        XCTAssertNotEqual(rhr, spo2)
+        XCTAssertNotEqual(rhr, resp)
+        XCTAssertNotEqual(hrv, spo2)
+        XCTAssertNotEqual(hrv, resp)
+        XCTAssertNotEqual(spo2, resp)
+    }
 }

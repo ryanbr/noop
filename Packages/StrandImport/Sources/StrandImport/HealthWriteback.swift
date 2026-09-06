@@ -154,4 +154,40 @@ public enum HealthWriteback {
         }
         return out
     }
+
+    // MARK: - Apple Health external UUID keys (#1503)
+
+    /// The deterministic `HKMetadataKeyExternalUUID` for a NOOP-written Apple Health record.
+    ///
+    /// The key is a natural key — `noop:<kind>:<identity>` — with NO device-id segment. The previous
+    /// scheme embedded the active strap id (`noop:<deviceId>:<kind>:<identity>`), which is NOT durable:
+    /// a re-pair or serial-based identification changes it, and every record written under the old id
+    /// becomes unreachable to the delete-then-write reconciliation (the delete predicate is built from
+    /// the id that is active NOW). The stranded records stay in Apple Health permanently as duplicates.
+    ///
+    /// Dropping the id segment matches the Android twin (`HealthConnectWriter.clientRecordId` carries
+    /// no device id — `noop-workout-<startTs>`) and makes the key mean what it is: a natural key over
+    /// the record's own identity, stable across strap lifecycle changes.
+    ///
+    /// `kind` is the metric's `HKQuantityTypeIdentifier.rawValue` for vitals, `"sleep"` for sleep
+    /// sessions, or `"workout"` for workouts. `identity` is the day key ("yyyy-MM-dd") for vitals or
+    /// the unix-second start timestamp for sleep/workout.
+    public static func appleHealthExternalUUID(kind: String, identity: String) -> String {
+        "noop:\(kind):\(identity)"
+    }
+
+    /// The vitals key: `noop:<metricId>:<day>`.
+    public static func appleHealthVitalKey(metricId: String, day: String) -> String {
+        appleHealthExternalUUID(kind: metricId, identity: day)
+    }
+
+    /// The sleep key: `noop:sleep:<startTs>`.
+    public static func appleHealthSleepKey(startTs: Int) -> String {
+        appleHealthExternalUUID(kind: "sleep", identity: "\(startTs)")
+    }
+
+    /// The workout key: `noop:workout:<startTs>`.
+    public static func appleHealthWorkoutKey(startTs: Int) -> String {
+        appleHealthExternalUUID(kind: "workout", identity: "\(startTs)")
+    }
 }
