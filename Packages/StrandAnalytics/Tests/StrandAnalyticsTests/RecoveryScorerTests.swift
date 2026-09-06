@@ -294,7 +294,7 @@ final class RecoveryScorerTests: XCTestCase {
     // cannot be mistaken for a change to trailing partial bins.
 
     func testRestingHRAlignedEndpointSampleReachesABin() {
-        // Issue #39's minimal case: start = 0, end = 300 (exactly one bin wide), five samples on
+        // The minimal case: start = 0, end = 300 (exactly one bin wide), five samples on
         // the endpoint. They pass the prefilter, so they must also populate the final bin — and
         // five is exactly restingHRMinBinSamples, so the bin qualifies for the floor. This case
         // already returned 60 before the fix, but only because NO bin held anything and the
@@ -333,7 +333,7 @@ final class RecoveryScorerTests: XCTestCase {
     }
 
     func testRecoveryIndexSlopeAlignedEndpointCompletesTheBinGate() throws {
-        // Issue #39's second case: six samples over an aligned 30-minute window, the last exactly
+        // The bin-gate case: six samples over an aligned 30-minute window, the last exactly
         // on `end`. Dropping it left five bins — one short of recoveryIndexMinBins — so the gate
         // turned a complete window into nil. With the final bin closed there are six bins and a
         // slope. Expected value from the Swift oracle in Tools-free standalone form (see the

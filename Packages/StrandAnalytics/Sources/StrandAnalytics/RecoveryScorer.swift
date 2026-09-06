@@ -247,7 +247,7 @@ public enum RecoveryScorer {
     /// the night's true floor. Returns nil when there are no HR samples in window.
     ///
     /// The window is CLOSED at both ends, so the binning is too: bins are `[t, t + windowS)`
-    /// except the final one, which is `[t, end]` (#39). Half-open bins alone would admit a
+    /// except the final one, which is `[t, end]`. Half-open bins alone would admit a
     /// sample sitting exactly on an aligned `end` through the prefilter and then place it in no
     /// bin — counted as data, silently ignored. A zero-length window (`start == end`) is that
     /// single closed bin.
@@ -327,7 +327,7 @@ public enum RecoveryScorer {
         var points: [(tHours: Double, meanBpm: Double)] = []
         var t = start
         repeat {
-            // Final bin closes on `end` — same closed-window rule as restingHR (#39), so an
+            // Final bin closes on `end` — same closed-window rule as restingHR, so an
             // endpoint sample counts toward the bin gate instead of vanishing after admission.
             let isFinal = t + restingHRWindowS >= end
             let win = seg.filter { $0.ts >= t && (isFinal || $0.ts < t + restingHRWindowS) }

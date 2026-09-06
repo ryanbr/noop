@@ -8,7 +8,7 @@ import org.junit.Test
 
 /**
  * Tests the closed-window binning of RecoveryScorer.restingHR and RecoveryScorer.recoveryIndexSlope
- * (#39). Both prefilter ts ∈ [start, end] but binned as [t, t+300) up to `end`, so a sample sitting
+ * Both prefilter ts ∈ [start, end] but binned as [t, t+300) up to `end`, so a sample sitting
  * exactly on an ALIGNED end was admitted and then belonged to no bin. The final bin now closes on
  * `end`.
  *
@@ -24,7 +24,7 @@ class RecoveryScorerWindowEndpointTest {
 
     @Test
     fun alignedEndpointSampleReachesABin() {
-        // Issue #39's minimal case: start = 0, end = 300 (exactly one bin wide), five samples on
+        // The minimal case: start = 0, end = 300 (exactly one bin wide), five samples on
         // the endpoint. This already returned 60 before the fix, but only because NO bin held
         // anything and the all-sample fallback stepped in; it now flows through the bin path.
         val samples = (0 until 5).map { hr(300L, 60) }
@@ -99,7 +99,7 @@ class RecoveryScorerWindowEndpointTest {
 
     @Test
     fun recoveryIndexSlopeAlignedEndpointCompletesTheBinGate() {
-        // Issue #39's second case: six samples over an aligned 30-minute window, the last exactly
+        // The bin-gate case: six samples over an aligned 30-minute window, the last exactly
         // on `end`. Dropping it left five bins — one short of recoveryIndexMinBins — so the gate
         // turned a complete window into null.
         val samples = listOf(
