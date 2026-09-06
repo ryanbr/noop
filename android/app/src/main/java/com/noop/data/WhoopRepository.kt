@@ -1707,6 +1707,15 @@ class WhoopRepository(
      * the Phase-1 zeros. Keys mirror the Swift probe (TestCentreReport.storageProbe) so a maintainer
      * reads the same map from either platform. Best-effort: a read failure returns empty (the caller's
      * zeroed fallback stays an honest "unreadable"), never a fabricated figure.
+     *
+     * THE KEY SET IS A CROSS-PLATFORM CONTRACT. Apple pins it in `WhoopStoreTests.ReadTests`
+     * (`testStorageRowCountsNamesEveryAccumulatingTable`) against this exact list, so adding a table
+     * there fails loudly until both sides agree. There is no equivalent pin on this side: these counts
+     * need a DAO, and the JVM unit tests have no in-memory Room, so a key added HERE and not there goes
+     * unnoticed. Add it to `WhoopStore.rawTableKeys` in the same change - the Apple probe reads that list
+     * for both its total and its breakdown, so a table missing from it is invisible in the footprint,
+     * which is how ppgWaveform - the only blob table, and the one a row-count model misprices worst -
+     * stayed unreported on Apple until #1911 asked which table was large.
      */
     suspend fun storageRowCounts(): Map<String, Int> = runCatching {
         mapOf(
