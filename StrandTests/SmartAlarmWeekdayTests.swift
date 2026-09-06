@@ -89,10 +89,11 @@ final class SmartAlarmWeekdayTests: XCTestCase {
     // MARK: nextSmartAlarmDate — per-weekday overrides (#1864)
 
     /// An override on the scanned day moves the fire time to THAT day's override, not the default.
-    /// now = Wed 06:00, default 07:00, Wednesday override 03:30 → today 03:30 has passed, so the
-    /// next Wednesday (7 days later) at 03:30. Without the override this would be today 07:00.
+    /// now = Wed 06:00, default 07:00, only Wednesdays selected (4), Wednesday override 03:30 →
+    /// today 03:30 has passed, so the next Wednesday (7 days later) at 03:30. Without the override
+    /// this would be today 07:00 (still ahead).
     func testOverrideOnToday_afterTime_rollsToNextWeek() {
-        let next = AppModel.nextSmartAlarmDate(minutes: 7 * 60, weekdays: [], overrides: [4: 3 * 60 + 30],
+        let next = AppModel.nextSmartAlarmDate(minutes: 7 * 60, weekdays: [4], overrides: [4: 3 * 60 + 30],
                                                from: wed(6, 0), calendar: cal)
         XCTAssertEqual(weekday(of: next!), 4, "Wednesday")
         XCTAssertEqual(next, cal.date(byAdding: .day, value: 7, to: wed(3, 30)))
