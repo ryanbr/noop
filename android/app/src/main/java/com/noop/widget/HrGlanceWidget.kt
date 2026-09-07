@@ -9,6 +9,7 @@ import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.Image
+import androidx.glance.ColorFilter
 import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
 import androidx.glance.LocalSize
@@ -120,10 +121,23 @@ private fun HrWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
             .padding(14.dp)
             .clickable(actionStartActivity<MainActivity>()),
     ) {
-        Text(
-            text = uiString(R.string.l10n_noop_glance_widget_heart_rate_410aa15c),
-            style = TextStyle(color = hrTextPrimary(dark), fontSize = 13.sp, fontWeight = FontWeight.Medium),
-        )
+        Row(verticalAlignment = Alignment.Vertical.CenterVertically) {
+            // The notification heart, reused. It is authored as a solid alpha mask for exactly this kind
+            // of single-colour tinting, so it takes the accent cleanly.
+            Image(
+                provider = ImageProvider(R.drawable.ic_stat_heart),
+                contentDescription = null,
+                modifier = GlanceModifier.width(14.dp).height(14.dp),
+                colorFilter = ColorFilter.tint(ColorProvider(hrAccent(dark))),
+            )
+            Spacer(GlanceModifier.width(6.dp))
+            Text(
+                text = uiString(R.string.l10n_noop_glance_widget_heart_rate_410aa15c),
+                style = TextStyle(
+                    color = hrTextPrimary(dark), fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                ),
+            )
+        }
         Spacer(GlanceModifier.height(6.dp))
 
         Row(verticalAlignment = Alignment.Vertical.Bottom) {
@@ -146,9 +160,15 @@ private fun HrWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
             }
             if (stats != null) {
                 Spacer(GlanceModifier.width(10.dp))
+                // A chip, not loose text: it is a summary OF the chart, and the tinted rounded ground is
+                // what separates it from the unit label sitting next to it.
                 Text(
                     text = uiString(R.string.l10n_hr_glance_widget_min_lo_max_hi_ef900e49, stats.min, stats.max),
-                    style = TextStyle(color = hrTextSecondary(dark), fontSize = 12.sp),
+                    style = TextStyle(color = hrTextPrimary(dark), fontSize = 11.sp),
+                    modifier = GlanceModifier
+                        .background(ColorProvider(hrAccent(dark).copy(alpha = 0.18f)))
+                        .cornerRadius(10.dp)
+                        .padding(horizontal = 8.dp, vertical = 3.dp),
                 )
             }
         }
@@ -165,10 +185,15 @@ private fun HrWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
         if (snap.updatedAtMs > 0) {
             Spacer(GlanceModifier.height(6.dp))
             val time = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(snap.updatedAtMs))
-            Text(
-                text = uiString(R.string.l10n_hr_glance_widget_updated_time_1b5feedb, time),
-                style = TextStyle(color = hrTextSecondary(dark), fontSize = 10.sp),
-            )
+            Row(
+                modifier = GlanceModifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.Horizontal.CenterHorizontally,
+            ) {
+                Text(
+                    text = uiString(R.string.l10n_hr_glance_widget_updated_time_1b5feedb, time),
+                    style = TextStyle(color = hrTextSecondary(dark), fontSize = 10.sp),
+                )
+            }
         }
     }
 }
