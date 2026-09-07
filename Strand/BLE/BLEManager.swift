@@ -4542,13 +4542,17 @@ public final class BLEManager: NSObject, ObservableObject {
         //
         // WHOOP 4.0 ONLY (#1948). Both commands this block used to send are refused on a 5/MG before they
         // leave the app: the send allowlist has no clause for `.getBatteryLevel` at all, and admits
-        // `.getBatteryPackInfo` only while a user-initiated probe is in flight. So on a 5/MG this was two
-        // dead sends and two skip lines per tick, under a comment claiming the pack "rides the SAME
-        // cadence as the strap's own gauge". It never rode anything.
+        // `.getBatteryPackInfo` only while a user-initiated probe is in flight. Two dead sends and two
+        // skip lines per tick, under a comment claiming the pack "rides the SAME cadence as the strap's
+        // own gauge". It never rode anything.
         //
-        // A 5/MG needs neither. Its percent comes from the 0x2A19 read that `enableLiveNotifications`
-        // drives off this same keep-alive (throttled to `whoop5BatteryReadMinIntervalSeconds`), and its pack charge from the
-        // pushed pack-info event (109), which since #1945 is that flag's only writer.
+        // That cost lands on a BONDED 5/MG specifically, the only kind whose tick runs at all
+        // (`keepAliveMayRun` refuses an unbonded one) — which is also what makes the removal free. The
+        // same `didBond` that lets this tick fire has already run `enableLiveNotifications` a few lines
+        // above, and THAT is what drives the 0x2A19 read (throttled to
+        // `whoop5BatteryReadMinIntervalSeconds`) a 5/MG's percent actually comes from. The read and the
+        // refused send were always co-resident, so dropping the send cannot strand the reading. The
+        // pack's charge comes from the pushed pack-info event (109), that flag's only writer since #1945.
         if selectedModel.deviceFamily != .whoop5,
            BLEManager.batteryPollDue(tick: keepAliveTick, charging: state.charging == true) {
             send(.getBatteryLevel, payload: [])

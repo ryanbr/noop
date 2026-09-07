@@ -50,7 +50,12 @@ final class Whoop5BatteryPollGuardTests: XCTestCase {
               let end = src.range(of: "private func startBackfillTimer") else {
             return XCTFail("the keep-alive battery block or its next landmark was not found")
         }
+        // Comments in this block name the opcode while explaining why it is not sent, so judge the CODE
+        // only — the same rule the Kotlin twin follows. Without this the guard fails on its own rationale.
         let block = String(src[start.lowerBound..<end.lowerBound])
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
         XCTAssertFalse(block.contains("getBatteryPackInfo"),
                        "the keep-alive must not send the pack opcode (#1948): \(block)")
     }
