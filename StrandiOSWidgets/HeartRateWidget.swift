@@ -71,7 +71,13 @@ private struct HrTraceShape: Shape {
 struct HeartRateWidgetView: View {
     let entry: HeartRateEntry
 
-    private var series: [HrPoint] { entry.snap?.hrSeries ?? [] }
+    /// Pruned on the way OUT as well as on the way in, matching the Kotlin twin. A widget rendered
+    /// hours after the last publish would otherwise draw a trace whose newest point is long stale, under
+    /// a time axis implying it is current — and WidgetKit renders an entry at ITS date, which is why the
+    /// window is measured from `entry.date` rather than from `Date()`.
+    private var series: [HrPoint] {
+        HrTrace.prune(entry.snap?.hrSeries ?? [], nowSec: Int64(entry.date.timeIntervalSince1970))
+    }
     private var stats: HrTrace.Stats? { HrTrace.stats(series) }
     /// The palette's HR zone-5 token, which resolves to exactly the hexes the Android widget carries as
     /// a local mirror (#C84E1E / #E0662F) — so the two widgets are the same colour rather than two
