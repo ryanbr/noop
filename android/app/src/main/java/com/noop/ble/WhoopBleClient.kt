@@ -165,10 +165,34 @@ data class LiveState(
      *  reconnects (or the settle timeout gives up). With `!connected` it drives the Devices card's
      *  transient "Reconnecting…" pill. Twin of macOS LiveState.rebootInProgress. */
     val rebootInProgress: Boolean = false,
-    /** Charging flag from BATTERY_LEVEL events — wire observation: u8 bit0 (4.0 @26 / 5.0 @30,
-     *  ~every 8 min on captured links). Flag only; battery % keeps its family source (#77).
-     *  Cleared on disconnect so a stale flag can't outlive the link. Twin of macOS
-     *  LiveState.charging. */
+    /** Charging flag. Two sources, and they mean different things (#1935).
+     *
+     *  The authority is BATTERY_LEVEL — wire observation: u8 bit0 (4.0 @26 / 5.0 @30, ~every 8 min on
+     *  captured links). That is a LEVEL signal from the strap's own gauge: every live battery event
+     *  rewrites this flag, whatever it was.
+     *
+     *  On a 5/MG it is ALSO set by BATTERY_PACK_CONNECTED(21) and cleared by BATTERY_PACK_REMOVED(22),
+     *  which is a latency win — 21 leads CHARGING_ON(7) by up to ~17 s in captures, so the pill responds
+     *  when the pack goes on. But 21 means A PACK WAS ATTACHED, not that charging began. They diverge on
+     *  a depleted pack or a poor contact: 21 fires, 7 never does, and this reads true while nothing
+     *  charges.
+     *
+     *  THAT STATE IS BOUNDED, which is why it is documented rather than split. It does not last until 22:
+     *  the next live BATTERY_LEVEL overwrites it from the gauge, so the window is about one battery
+     *  cadence. It matters beyond the pill because [lowPowerThrottleActive]'s twin reads this flag and a
+     *  true value disables the low-battery offload throttle, so a strap on a dead pack can skip
+     *  throttling for that window. Bounded and self-healing; splitting the state, or making the throttle
+     *  wait for a rising gauge, would cost every honest attach to close it.
+     *
+     *  What reads it beyond the pill, all bounded the same way. [idleThrottleActive] is the one that
+     *  matters, and it gates THREE levers, not one: the low-battery offload cadence, the GATT
+     *  connection-priority throttle, and the continuous-capture pause behind the user's own "Pause HRV
+     *  capture" percentage. So a pack attached but not charging can keep background capture running at
+     *  low battery after the user asked for it to stop. [batteryPollDue] also reads it, polling every
+     *  tick instead of every other, which is harmless and arguably wanted with a pack on.
+     *
+     *  Flag only; battery % keeps its family source (#77). Cleared on disconnect so a stale flag can't
+     *  outlive the link. Twin of macOS LiveState.charging. */
     val charging: Boolean? = null,
     /** Battery-pack charge, tenths-of-a-percent precision, from the pushed pack event (109) payload.
      *  5/MG only — a WHOOP 4.0 has no pack fuel gauge (its pack reads as a VOLTAGE via opcode 98, a
@@ -745,7 +769,14 @@ class WhoopBleClient(
          *  strap is DISCHARGING at/below [thresholdPct]. The
          *  phone's own Battery Saver deliberately does NOT trigger it — power saving is about the strap's
          *  charge, not the phone's. A charging strap never throttles. The threshold is its own hysteresis
-         *  (battery % moves slowly, so a boundary crossing flips at most once per point). */
+         *  (battery % moves slowly, so a boundary crossing flips at most once per point).
+         *
+         *  [LiveState.charging] is not purely "is charging" (#1935): on a 5/MG it is also set on pack
+         *  ATTACH, so a depleted or badly-seated pack reads true while nothing charges, and this gate then
+         *  stays off. The window is bounded — the next BATTERY_LEVEL rewrites the flag from the strap's own
+         *  gauge — and the reasoning for accepting that rather than splitting the state is on that field.
+         *  Read it before adding a trend check here: making this wait for a rising gauge would delay
+         *  throttle release on every honest attach to close an edge that already closes itself. */
         fun idleThrottleActive(batteryPct: Int, charging: Boolean, thresholdPct: Int): Boolean =
             thresholdPct > 0 && !charging && batteryPct <= thresholdPct
 
