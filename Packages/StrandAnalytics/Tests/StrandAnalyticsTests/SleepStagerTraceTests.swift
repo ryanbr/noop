@@ -106,8 +106,10 @@ final class SleepStagerTraceTests: XCTestCase {
 
     // MARK: - E3: sparse-gravity bridge trace
 
-    func testSparseBridgeTraceEmittedOnlyWhenSparse() {
-        // A dense overnight night is NOT sparse, so no sparse-bridge line appears.
+    func testSparseBridgeTraceEmittedOnlyWhenBridgeEnabled() {
+        // The line follows the bridge being ENABLED, not density: since #1937 a dense night whose runs
+        // are all under minSleepMin enables it too. This night is dense AND its single run clears the
+        // floor, so neither gate opens and no sparse-bridge line appears.
         let start = 1_749_513_600 + 2 * 3600
         let dur = 90 * 60
         var lines: [String] = []

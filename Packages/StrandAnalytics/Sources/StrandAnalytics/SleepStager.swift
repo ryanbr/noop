@@ -779,6 +779,23 @@ public enum SleepStager {
         let reason: String
     }
 
+    /// True when this night's sleep runs will ALL be dropped by `minSleepMin` yet add up to a plausible
+    /// night. Pure, so the rule can be tested without building gravity.
+    ///
+    /// The predicate is deliberately "today's answer is zero". Every run being under the floor means the
+    /// survival pass keeps none of them, so a bridge enabled on this basis can only turn nothing into
+    /// something; if any single run already clears the floor this is false, the sparse rule decides as
+    /// before, and a night that currently scores cannot change.
+    ///
+    /// Two runs at minimum, because one fragment is not a fragmented night. The SUM must clear the floor
+    /// so a handful of brief stirs does not become a night. Neither condition weakens what the bridge
+    /// itself checks. Kotlin twin: `isFragmentedToNothing`.
+    static func isFragmentedToNothing(_ sleepRunSpansS: [Int], minSleepS: Int) -> Bool {
+        sleepRunSpansS.count >= 2
+            && !sleepRunSpansS.contains { $0 >= minSleepS }
+            && sleepRunSpansS.reduce(0, +) >= minSleepS
+    }
+
     /// Per-pair explanation of `bridgeSparseSleep`, mirroring its rule EXACTLY (same adjacency walk,
     /// same `gap >= 0 && gap <= sparseBridgeGapMin*60`, same HR-band check) so the reasons describe what
     /// actually happened rather than an approximation. Only pairs the bridge itself CONSIDERS (two
@@ -1387,21 +1404,57 @@ public enum SleepStager {
         let flags = classifyStill(grav, deltas)
         var runs = buildRuns(grav, flags, sparse: sparse, hr: hrS, baseline: baseline)
         runs = mergePeriods(runs)
-        // Re-stitch sleep runs fragmented by pure gravity dropouts (sparse only) before minSleepMin.
+        let minSleepS = minSleepMin * 60
+        // #1937: a night whose sleep runs are ALL shorter than minSleepMin yields NO session at all,
+        // however much sleep they add up to. A real capture: five runs, 298 minutes of detected sleep,
+        // every one dropped for being about a minute short, and the night vanished.
+        //
+        // The bridge that exists to re-stitch fragments was switched off, because it is gated on the
+        // night being SPARSE (#308, so a dense night kept its original path byte-for-byte) and the night
+        // was dense. On the reporting device gravity coverage was 99.9%: the rescue was declined
+        // precisely because the data was good.
+        //
+        // So the bridge also runs when the night is fragmented to nothing. The gate is deliberately
+        // "today's answer is zero": if any single run already clears the floor this is false and the
+        // sparse rule decides exactly as before, so a night that currently scores cannot change. It can
+        // only turn nothing into something.
+        //
+        // Requiring the SUM to clear the floor keeps a handful of brief stirs from becoming a night, and
+        // the bridge's own rules still apply underneath — a gap longer than sparseBridgeGapMin, an
+        // intervening active run that is too long, or HR above the sleep band all still refuse. This
+        // enables the attempt; it does not weaken what the attempt checks.
+        //
+        // Deliberately NOT passed to buildRuns above, which takes its own `sparse` for the HR-vouched
+        // gap rule. That decides how runs are FORMED, so widening it would change the input to
+        // everything downstream including nights that currently score. This only re-stitches runs that
+        // are already built, and only when every one of them was about to be discarded.
+        // Evaluated unconditionally rather than short-circuited behind `sparse`, so the trace can
+        // report what it actually was on a sparse night too. It is a filter/map/sum over a handful of
+        // runs.
+        let fragmentedToNothing = isFragmentedToNothing(
+            runs.filter { $0.stage == "sleep" }.map { $0.end - $0.start }, minSleepS: minSleepS)
+        let bridgeEnabled = sparse || fragmentedToNothing
+        // Re-stitch sleep runs fragmented by gravity dropouts, before minSleepMin.
         let runsBeforeBridge = traceSink == nil ? 0 : runs.filter { $0.stage == "sleep" }.count
         // #737: capture the per-pair reasons BEFORE the merge mutates `runs`, so a bridge that changed
         // nothing still says why (gapTooLong / hrOutOfBand / overlap) instead of only before==after.
-        let bridgeResult = bridgeSparseSleepTraced(runs, sparse: sparse, hr: hrS, baseline: baseline)
+        let bridgeResult = bridgeSparseSleepTraced(runs, sparse: bridgeEnabled, hr: hrS, baseline: baseline)
         let bridgeAttempts = bridgeResult.1
         runs = bridgeResult.0
-        // Sleep & Rest test mode (E3): record the sparse-gravity bridge result, so a sparse 5.0 night
-        // rescued from fragmentation is visible. Only emitted when gravity is sparse (the only case the
-        // bridge can act) and only when tracing. Side-effect-only.
-        if let traceSink, sparse {
+        // Sleep & Rest test mode (E3): record the bridge result, so a night rescued from fragmentation
+        // is visible. Emitted whenever the bridge was ENABLED (sparse, or #1937's fragmented-to-nothing
+        // night) and only when tracing. Side-effect-only.
+        if let traceSink, bridgeEnabled {
             let runsAfterBridge = runs.filter { $0.stage == "sleep" }.count
+            // BOTH gates are reported, always, as their own k=v keys. The line used to hardcode
+            // `sparse=true`, which since #1937 could contradict the `sparse=false` on the summary line
+            // beside it. Emitting both (rather than one "why" naming the winner) keeps the key set
+            // identical on every night, which is what a reader diffing two nights, and any k=v parser,
+            // needs.
             traceSink(GateTrace.runLine(index: -1, startTs: 0, endTs: 0,
                 verdict: runsAfterBridge < runsBeforeBridge ? .kept : .dropped, gate: "sparseBridge",
-                detail: "sparse=true gapMin=\(sparseBridgeGapMin) runsBefore=\(runsBeforeBridge) runsAfter=\(runsAfterBridge)"))
+                detail: "sparse=\(sparse) fragmentedToNothing=\(fragmentedToNothing) "
+                    + "gapMin=\(sparseBridgeGapMin) runsBefore=\(runsBeforeBridge) runsAfter=\(runsAfterBridge)"))
             // #737: one line per pair the bridge CONSIDERED, each naming what it decided.
             //
             // #1657 changed what an empty list MEANS, so the wording changed with it. It used to mean
@@ -1422,8 +1475,6 @@ public enum SleepStager {
                         + "hrInSleepBand=\(a.hrInSleepBand) reason=\(a.reason)"))
             }
         }
-
-        let minSleepS = minSleepMin * 60
 
         var sessions: [SleepSession] = []
         // Continuous-sleep chain tracking so a real overnight sleep that runs PAST the daytime-band

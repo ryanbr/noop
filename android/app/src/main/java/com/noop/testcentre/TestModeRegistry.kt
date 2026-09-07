@@ -60,8 +60,8 @@ object TestModeRegistry {
         // composite, so gateTrace, wristOff (the offWristFrac field of the offWrist gate) and restSubScores
         // are the whole set. Dropped, all unemitted, same rationale the Import mode used for
         // firstFailingRow/failingFileSample/dedupMerge: hrDensity, perEpochFeatures, hypnogramV1V2 (flipLine
-        // has no call site), ppgOnlyNight, gravityCoverage (only the sparseBridge gate's sparse= flag, which
-        // already rides gateTrace) and skinTempDsp (skin-temp is a Recovery input, never written to the
+        // has no call site), ppgOnlyNight, gravityCoverage (only the sparseBridge gate's
+        // sparse=/fragmentedToNothing= flags, which already ride gateTrace) and skinTempDsp (skin-temp is a Recovery input, never written to the
         // sleep sink). The live-readout keys (hrDensityNow/gravityCoverageNow) are separate and unchanged.
         captures = listOf("gateTrace", "wristOff", "restSubScores"),
         questionnaire = listOf(

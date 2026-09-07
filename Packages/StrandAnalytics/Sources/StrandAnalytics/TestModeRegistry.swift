@@ -72,7 +72,7 @@ public enum TestModeRegistry {
         // (the offWristFrac field of the offWrist gate) and restSubScores. Dropped, all unemitted, same
         // rationale Import used for firstFailingRow/failingFileSample/dedupMerge: hrDensity, perEpochFeatures,
         // hypnogramV1V2 (flipLine has no call site), ppgOnlyNight, gravityCoverage (only the sparseBridge
-        // gate's sparse= flag, which already rides gateTrace) and skinTempDsp (skin-temp is a Recovery input,
+        // gate's sparse=/fragmentedToNothing= flags, which already ride gateTrace) and skinTempDsp (skin-temp is a Recovery input,
         // never written to the sleep sink). The live-readout keys (hrDensityNow/gravityCoverageNow) are separate.
         captures: ["gateTrace", "wristOff", "restSubScores"],
         questionnaire: [
