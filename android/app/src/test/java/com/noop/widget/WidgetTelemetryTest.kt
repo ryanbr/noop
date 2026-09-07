@@ -6,6 +6,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.util.Locale
 
 /**
  * Pins the widget cost counters. These exist to answer a field report ("battery drain feels worse
@@ -87,17 +88,17 @@ class WidgetTelemetryTest {
     @Test
     fun anUnchangedSeriesIsRecognisedAsARepeat() {
         val series = listOf(HrPoint(ts = 100, bpm = 60), HrPoint(ts = 160, bpm = 62))
-        assertFalse("the first draw is never a repeat", HrTraceSeen.repeat(series, 800, 250, false))
-        assertTrue(HrTraceSeen.repeat(series, 800, 250, false))
-        assertTrue(HrTraceSeen.repeat(series, 800, 250, false))
+        assertFalse("the first draw is never a repeat", HrTraceSeen.repeat("w1", series, 800, 250, false))
+        assertTrue(HrTraceSeen.repeat("w1", series, 800, 250, false))
+        assertTrue(HrTraceSeen.repeat("w1", series, 800, 250, false))
     }
 
     /** A new bucket is a different picture. */
     @Test
     fun anAdvancedSeriesIsNotARepeat() {
         val series = listOf(HrPoint(ts = 100, bpm = 60))
-        HrTraceSeen.repeat(series, 800, 250, false)
-        assertFalse(HrTraceSeen.repeat(series + HrPoint(ts = 160, bpm = 62), 800, 250, false))
+        HrTraceSeen.repeat("w1", series, 800, 250, false)
+        assertFalse(HrTraceSeen.repeat("w1", series + HrPoint(ts = 160, bpm = 62), 800, 250, false))
     }
 
     /**
@@ -108,16 +109,74 @@ class WidgetTelemetryTest {
     @Test
     fun aResizeOrThemeFlipIsNotARepeat() {
         val series = listOf(HrPoint(ts = 100, bpm = 60))
-        HrTraceSeen.repeat(series, 800, 250, false)
-        assertFalse("a resize redraws", HrTraceSeen.repeat(series, 900, 250, false))
-        assertFalse("a theme flip redraws", HrTraceSeen.repeat(series, 900, 250, true))
-        assertTrue(HrTraceSeen.repeat(series, 900, 250, true))
+        HrTraceSeen.repeat("w1", series, 800, 250, false)
+        assertFalse("a resize redraws", HrTraceSeen.repeat("w1", series, 900, 250, false))
+        assertFalse("a theme flip redraws", HrTraceSeen.repeat("w1", series, 900, 250, true))
+        assertTrue(HrTraceSeen.repeat("w1", series, 900, 250, true))
     }
 
     /** The newest sample's VALUE changing at the same timestamp still redraws. */
     @Test
     fun aChangedBpmAtTheSameTimestampIsNotARepeat() {
-        HrTraceSeen.repeat(listOf(HrPoint(ts = 100, bpm = 60)), 800, 250, false)
-        assertFalse(HrTraceSeen.repeat(listOf(HrPoint(ts = 100, bpm = 61)), 800, 250, false))
+        HrTraceSeen.repeat("w1", listOf(HrPoint(ts = 100, bpm = 60)), 800, 250, false)
+        assertFalse(HrTraceSeen.repeat("w1", listOf(HrPoint(ts = 100, bpm = 61)), 800, 250, false))
+    }
+
+    /**
+     * Two placed HR widgets must not answer for each other. A single shared slot made each widget's
+     * necessary FIRST draw look like a repeat of the other's, inflating the redundancy count - and an
+     * inflated count argues for an optimisation that is not actually on offer, which is the one
+     * direction this measurement must not be wrong in.
+     */
+    @Test
+    fun twoPlacedWidgetsDoNotAnswerForEachOther() {
+        val series = listOf(HrPoint(ts = 100, bpm = 60))
+        assertFalse("w1's first draw", HrTraceSeen.repeat("w1", series, 800, 250, false))
+        assertFalse("w2's first draw is its own, not a repeat of w1's",
+            HrTraceSeen.repeat("w2", series, 800, 250, false))
+        // Each still recognises its OWN repeat.
+        assertTrue(HrTraceSeen.repeat("w1", series, 800, 250, false))
+        assertTrue(HrTraceSeen.repeat("w2", series, 800, 250, false))
+        // And an advance on one does not clear the other.
+        val grown = series + HrPoint(ts = 160, bpm = 62)
+        assertFalse(HrTraceSeen.repeat("w1", grown, 800, 250, false))
+        assertTrue(HrTraceSeen.repeat("w2", series, 800, 250, false))
+    }
+
+    /**
+     * A widget composes from saved prefs when it is placed, or after a process start, with no push
+     * involved. Reporting "no pushes" there is true and drops the draw counts, which are the
+     * expensive half and the whole reason this exists.
+     */
+    @Test
+    fun drawsWithNoPushesAreStillReported() {
+        WidgetTelemetry.noteRender(bytes = 512 * 1024, elapsedMs = 5)
+        WidgetTelemetry.noteRender(bytes = 512 * 1024, elapsedMs = 5)
+        val line = WidgetTelemetry.snapshot(t0 + 120_000L).render()
+        assertTrue("must not claim an empty session: $line", "no pushes this app session" !in line)
+        assertTrue(line, "no pushes" in line)
+        assertTrue(line, "2 trace draws" in line)
+        assertTrue(line, "mean 512KB" in line)
+    }
+
+    /**
+     * The rate is a diagnostics field read by eye and by grep. Under a locale whose decimal separator
+     * is a comma, an unqualified format would print "30,0MB/h" and put a field separator inside a
+     * number.
+     */
+    @Test
+    fun ratesFormatWithADotWhateverTheDefaultLocale() {
+        val original = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.GERMANY)
+            repeat(10) { WidgetTelemetry.notePushAdmitted(t0 + it * 60_000L) }
+            repeat(10) { WidgetTelemetry.noteRender(bytes = 512 * 1024, elapsedMs = 4) }
+            val line = WidgetTelemetry.snapshot(t0 + 600_000L).render()
+            assertTrue(line, "60.0/h" in line)
+            assertTrue(line, "30.0MB/h" in line)
+            assertFalse(line, "," in line.substringAfter("Widgets:"))
+        } finally {
+            Locale.setDefault(original)
+        }
     }
 }

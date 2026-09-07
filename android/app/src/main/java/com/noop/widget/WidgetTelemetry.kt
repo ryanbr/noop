@@ -1,5 +1,7 @@
 package com.noop.widget
 
+import java.util.Locale
+
 /**
  * Counters for what the home-screen widgets actually cost, so "the widget drains my battery" is
  * decidable from an export instead of being argued from the code.
@@ -128,15 +130,24 @@ object WidgetTelemetry {
          * sessions is the whole point of collecting this.
          */
         fun render(): String {
-            if (pushesAdmitted == 0L && pushesGated == 0L) return "Widgets:     no pushes this app session"
+            // Renders are checked too: a widget composes from saved prefs when it is placed or after a
+            // process start, with no push involved. Reporting "no pushes" there would be true and would
+            // silently drop the draw counts, which are the expensive half.
+            if (pushesAdmitted == 0L && pushesGated == 0L && renders == 0L) {
+                return "Widgets:     no pushes this app session"
+            }
             val mins = uptimeMs / 60_000
-            val parts = ArrayList<String>(5)
-            parts.add("$pushesAdmitted pushed / ${pushesAdmitted + pushesGated} offered")
-            pushesPerHour?.let { parts.add("${"%.1f".format(it)}/h") }
+            val parts = ArrayList<String>(6)
+            if (pushesAdmitted > 0L || pushesGated > 0L) {
+                parts.add("$pushesAdmitted pushed / ${pushesAdmitted + pushesGated} offered")
+            } else {
+                parts.add("no pushes")
+            }
+            pushesPerHour?.let { parts.add("${String.format(Locale.US, "%.1f", it)}/h") }
             if (renders > 0) {
                 parts.add("$renders trace draw${if (renders == 1L) "" else "s"}")
                 meanRenderBytes?.let { parts.add("mean ${it / 1024}KB") }
-                renderBytesPerHour?.let { parts.add("${"%.1f".format(it / 1_048_576.0)}MB/h") }
+                renderBytesPerHour?.let { parts.add("${String.format(Locale.US, "%.1f", it / 1_048_576.0)}MB/h") }
                 parts.add("draw ${renderMs / renders}ms avg / ${renderMsMax}ms max")
             }
             if (rendersRedundant > 0) parts.add("$rendersRedundant redundant")
@@ -155,20 +166,35 @@ object WidgetTelemetry {
  * The signature covers everything the drawing depends on, not just the series: a size change or a
  * theme flip produces a genuinely different bitmap from the same points, and counting that as
  * redundant would overstate the saving on offer.
+ *
+ * Kept PER WIDGET INSTANCE. A single shared slot was wrong in the way that matters most here: with
+ * two HR widgets placed, each draw would clobber the other's signature, and two same-sized widgets
+ * would make each one's necessary first draw look like a repeat of the other's — inflating the
+ * redundancy count, which is exactly the direction that would argue for an optimisation that is not
+ * actually available. The map is bounded by the number of placed widgets.
  */
 internal object HrTraceSeen {
-    private var last: String? = null
+    private val last = HashMap<String, String>()
 
-    /** True when this draw reproduces the previous one exactly. Records the signature either way. */
+    /**
+     * True when this draw reproduces this WIDGET's previous one exactly. Records the signature either
+     * way. [instance] identifies the placed widget, so two of them cannot answer for each other.
+     */
     @Synchronized
-    fun repeat(series: List<HrPoint>, widthPx: Int, heightPx: Int, dark: Boolean): Boolean {
+    fun repeat(
+        instance: String,
+        series: List<HrPoint>,
+        widthPx: Int,
+        heightPx: Int,
+        dark: Boolean,
+    ): Boolean {
         val newest = series.lastOrNull()
         val sig = "${series.size}|${newest?.ts}|${newest?.bpm}|$widthPx|$heightPx|$dark"
-        val same = sig == last
-        last = sig
+        val same = sig == last[instance]
+        last[instance] = sig
         return same
     }
 
     @Synchronized
-    fun resetForTest() { last = null }
+    fun resetForTest() { last.clear() }
 }

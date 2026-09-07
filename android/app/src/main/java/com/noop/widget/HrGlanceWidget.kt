@@ -12,6 +12,7 @@ import androidx.glance.Image
 import androidx.glance.ColorFilter
 import androidx.glance.ImageProvider
 import androidx.glance.LocalContext
+import androidx.glance.LocalGlanceId
 import androidx.glance.LocalSize
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
@@ -258,6 +259,8 @@ private fun HrTraceImage(
 ) {
     val context = LocalContext.current
     val density = context.resources.displayMetrics.density
+    // Identifies THIS placed widget, so the redundant-draw memo below cannot confuse two of them.
+    val glanceInstance = LocalGlanceId.current.toString()
     // Leave room for the scale column so the trace is not drawn under its own labels.
     val chartWidthDp = hrChartWidthDp(widthDp)
     // ONE box for both the geometry and the bitmap. Sizing them separately let the trace be drawn to
@@ -289,7 +292,11 @@ private fun HrTraceImage(
         )
         // A push carrying no live sample appends no point, so this draw reproduced the previous bitmap
         // exactly. Counting them sizes the saving a future cache would take; nothing is skipped here.
-        if (HrTraceSeen.repeat(snap.hrSeries, wPx, hPx, dark)) WidgetTelemetry.noteRedundantRender()
+        // Keyed by the PLACED WIDGET, not globally: two HR widgets would otherwise answer for each
+        // other, and two of the same size would make each one's necessary draw look like a repeat.
+        if (HrTraceSeen.repeat(glanceInstance, snap.hrSeries, wPx, hPx, dark)) {
+            WidgetTelemetry.noteRedundantRender()
+        }
     }
 
     // The chart takes the ROW's remaining width by weight rather than a width computed from
