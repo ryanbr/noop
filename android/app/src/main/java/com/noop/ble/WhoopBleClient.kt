@@ -177,25 +177,24 @@ data class LiveState(
      *  a depleted pack or a poor contact: 21 fires, 7 never does, and this reads true while nothing
      *  charges.
      *
-     *  ON ANDROID THAT STATE DOES NOT HEAL ITSELF, which is the part to know before trusting the flag.
-     *  A live BATTERY_LEVEL does overwrite it from the gauge, but it is not the only writer: the pushed
-     *  pack-info event (109) sets it true AGAIN every couple of minutes for as long as a pack is
-     *  ATTACHED, keyed on presence plus a plausible SoC ([com.noop.protocol.BatteryPackInfo.Info.displayable]),
-     *  a flat pack included. That re-assertion is deliberate, the anti-staleness half for an attach edge
-     *  the app missed, but it fires several times more often than the ~8 min BATTERY_LEVEL that would
-     *  clear it, so the gauge's answer is overwritten before it can settle. A pack attached and NOT
-     *  charging therefore reads true until BATTERY_PACK_REMOVED(22), not for one battery cadence. The
-     *  gauge no longer has the last word, which is the part that is certain from the code; how often 109
-     *  repeats on a pack that is attached but FLAT is the one thing no capture has measured yet. iOS
-     *  does not do this: there the pack record is log-only, so its cadence bound is real. Tracked in
-     *  #1935; the anti-staleness job wants "a pack is attached", which [packSocPct] already answers.
+     *  THAT STATE IS BOUNDED, which is why it is documented rather than split. It does not last until 22:
+     *  the next live BATTERY_LEVEL overwrites it from the strap's own GAUGE, so the window is about one
+     *  battery cadence, and the gauge always gets the last word.
+     *
+     *  THE GAUGE ONLY GETS THE LAST WORD BECAUSE NOTHING ELSE REPEATS. That is a real constraint, not an
+     *  observation (#1935): the pushed pack-info event (109) used to write charging=true too, keyed on
+     *  pack PRESENCE plus a plausible SoC, as an anti-staleness half for a missed attach edge. It repeats
+     *  every couple of minutes, so it outran the ~8 min BATTERY_LEVEL and a flat or badly seated pack read
+     *  "charging" for its whole attachment instead of self-correcting. It now writes [packSocPct] alone,
+     *  which is what the anti-staleness job actually wanted. So: an EDGE may set this flag (7, 21, 22), a
+     *  repeating presence signal must not, or the gauge stops being able to correct it.
      *
      *  It matters beyond the pill. [WhoopBleClient.idleThrottleActive] reads this flag and gates THREE
      *  levers, not one: the low-battery offload cadence, the GATT connection-priority throttle, and the
      *  continuous-capture pause behind the user's own "Pause HRV capture" percentage. So a strap on a flat
-     *  or badly seated pack can skip low-battery throttling and keep background capture running for the
-     *  WHOLE attachment, after the user asked for it to stop. [WhoopBleClient.batteryPollDue] also reads
-     *  it, polling every tick instead of every other, which is harmless and arguably wanted with a pack on.
+     *  pack can skip low-battery throttling and keep background capture running after the user asked for
+     *  it to stop, for that window. [WhoopBleClient.batteryPollDue] also reads it, polling every tick
+     *  instead of every other, which is harmless and arguably wanted with a pack on.
      *
      *  Flag only; battery % keeps its family source (#77). Cleared on disconnect so a stale flag can't
      *  outlive the link. Twin of macOS LiveState.charging. */
@@ -8062,11 +8061,19 @@ class WhoopBleClient(
                                     // command path and the event path end up disagreeing about the same
                                     // pack, which is the drift decodeRecord() exists to prevent.
                                     if (info.displayable && soc != null) {
-                                        // charging=true here as well as on event 21 is the anti-staleness
-                                        // half: if the attach edge was missed (app started with the pack
-                                        // already on, or the link dropped over the attach), this repeating
-                                        // event re-establishes the state within a couple of minutes.
-                                        _state.update { s -> s.copy(packSocPct = soc, charging = true) }
+                                        // SoC ONLY, deliberately (#1935). This event says a pack is
+                                        // ATTACHED and how full it is, never that current is flowing.
+                                        // It used to write charging=true as well, as the anti-staleness
+                                        // half for a missed attach edge — but it repeats every couple of
+                                        // minutes, so it outran the ~8 min BATTERY_LEVEL that corrects the
+                                        // flag from the strap's own GAUGE, and a flat or badly seated pack
+                                        // then read "charging" for the whole attachment instead of
+                                        // self-correcting. BATTERY_PACK_CONNECTED(21) still lights the pill
+                                        // on the attach edge, so the latency win survives; the gauge now
+                                        // gets the last word, which is what iOS already did. A missed
+                                        // attach edge costs at most one battery cadence of lag and is then
+                                        // RIGHT, instead of being fast and possibly wrong.
+                                        _state.update { s -> s.copy(packSocPct = soc) }
                                     } else if (!info.present) {
                                         _state.update { s -> s.copy(packSocPct = null) }
                                     }
