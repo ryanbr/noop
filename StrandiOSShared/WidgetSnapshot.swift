@@ -128,9 +128,18 @@ public struct WidgetSnapshot: Codable, Equatable {
     /// the stored trace alone rather than truncating it, so a quiet strap does not erase the history the
     /// widget is drawing.
     public func save() {
+        save(previousSeries: WidgetSnapshot.load()?.hrSeries ?? [])
+    }
+
+    /// As `save()`, for a caller that already holds the stored snapshot.
+    ///
+    /// The publish path loads `previous` to decide whether anything changed, and `save()` was then
+    /// decoding the same App Group blob a second time just to reach the trace. Handing the series in
+    /// costs the caller nothing and removes a full JSON decode from every publish.
+    public func save(previousSeries: [HrPoint]) {
         guard let defaults = UserDefaults(suiteName: WidgetSnapshot.suiteName) else { return }
         var toStore = self
-        let previous = WidgetSnapshot.load()?.hrSeries ?? []
+        let previous = previousSeries
         let nowSec = Int64(updated.timeIntervalSince1970)
         toStore.hrSeries = bpm.map { HrTrace.append(previous, ts: nowSec, bpm: $0, nowSec: nowSec) }
             ?? HrTrace.prune(previous, nowSec: nowSec)
