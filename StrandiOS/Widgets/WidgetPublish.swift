@@ -112,6 +112,12 @@ extension WidgetSnapshot {
         if renderedContentChanged(from: previous, to: snap) {
             snap.save()
             WidgetCenter.shared.reloadAllTimelines()
+        } else if WidgetSnapshot.traceNeedsPoint(previous: previous, bpm: snap.bpm, now: snap.updated) {
+            // A steady heart changes nothing the header renders, so the branch above declines — but the
+            // TRACE still wants this minute's point, or it stops advancing at rest and prunes to empty
+            // (#1957). Persist without a reload: the point is for the next timeline WidgetKit builds,
+            // and spending a reload a minute is exactly what the dedup above exists to avoid.
+            snap.save()
         } else if liveUpdateRequiresFullBuild(previous: previous, now: snap.updated) {
             // The rollover's visible values can legitimately match yesterday's. Persist the fresh day
             // stamp once without spending a redundant WidgetKit reload, so later live ticks stay fast.

@@ -2,12 +2,14 @@ import WidgetKit
 import SwiftUI
 
 /// The widget extension entry point. Bundles the glanceable widget, the live-HR Live Activity,
-/// and the K10 Coach brief widget (stored morning brief on Lock Screen / Home Screen).
+/// the K10 Coach brief widget (stored morning brief on Lock Screen / Home Screen), and the
+/// heart-rate trace widget (#1957).
 @main
 struct NOOPWidgetBundle: WidgetBundle {
     var body: some Widget {
         NOOPWidget()
         NOOPLiveActivity()
         CoachBriefWidget()
+        HeartRateWidget()
     }
 }

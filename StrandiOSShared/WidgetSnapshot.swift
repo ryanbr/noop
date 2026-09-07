@@ -21,10 +21,17 @@ public struct WidgetSnapshot: Codable, Equatable {
     public var effortDisplay: String?
     /// True when `effortDisplay` is on WHOOP's 0–21 axis; false/nil means 0–100. Accessibility only.
     public var effortWhoop: Bool?
+    /// The last `HrTrace.windowSec` of heart rate, one point per minute, for the trace widget (#1957).
+    ///
+    /// Folded in by `save()` rather than by the callers that build a snapshot, which is the twin of the
+    /// Android store owning it: nothing that publishes had to learn the retention rule. Optional so a
+    /// snapshot written by an older build still decodes.
+    public var hrSeries: [HrPoint]?
 
     public init(recovery: Int?, bpm: Int?, batteryPct: Int?, bonded: Bool, updated: Date,
                 effort: Int? = nil, rest: Int? = nil, hrv: Int? = nil, restingHr: Int? = nil,
-                effortDisplay: String? = nil, effortWhoop: Bool? = nil) {
+                effortDisplay: String? = nil, effortWhoop: Bool? = nil,
+                hrSeries: [HrPoint]? = nil) {
         self.recovery = recovery
         self.bpm = bpm
         self.batteryPct = batteryPct
@@ -36,6 +43,7 @@ public struct WidgetSnapshot: Codable, Equatable {
         self.restingHr = restingHr
         self.effortDisplay = effortDisplay
         self.effortWhoop = effortWhoop
+        self.hrSeries = hrSeries
     }
 
     /// App Group suite the app and widget both use. Injected from the `APP_GROUP_ID` build setting
@@ -113,11 +121,36 @@ public struct WidgetSnapshot: Codable, Equatable {
         return snap
     }
 
-    /// Persist this snapshot into the shared suite.
+    /// Persist this snapshot into the shared suite, folding the live bpm into the trace on the way.
+    ///
+    /// The fold happens HERE, not in the callers that build a snapshot, so nothing that publishes has to
+    /// know the retention rule — the twin of the Android store owning it. A snapshot with no bpm leaves
+    /// the stored trace alone rather than truncating it, so a quiet strap does not erase the history the
+    /// widget is drawing.
     public func save() {
-        guard let defaults = UserDefaults(suiteName: WidgetSnapshot.suiteName),
-              let data = try? JSONEncoder().encode(self) else { return }
+        guard let defaults = UserDefaults(suiteName: WidgetSnapshot.suiteName) else { return }
+        var toStore = self
+        let previous = WidgetSnapshot.load()?.hrSeries ?? []
+        let nowSec = Int64(updated.timeIntervalSince1970)
+        toStore.hrSeries = bpm.map { HrTrace.append(previous, ts: nowSec, bpm: $0, nowSec: nowSec) }
+            ?? HrTrace.prune(previous, nowSec: nowSec)
+        guard let data = try? JSONEncoder().encode(toStore) else { return }
         defaults.set(data, forKey: WidgetSnapshot.storageKey)
+    }
+
+    /// Does the TRACE need a point, even though nothing the header renders has changed?
+    ///
+    /// `renderedContentChanged` compares bpm, not history, so a steady heart — the ordinary case at rest
+    /// — produced no publish and therefore no new trace point. The trace would stop advancing while the
+    /// strap streamed happily, and pruning would eventually empty it. Android does not have this problem
+    /// because its PushGate re-admits an unchanged key once a minute; this is that rule.
+    ///
+    /// Keyed on the BUCKET rather than elapsed seconds, so it asks for a write exactly when
+    /// `HrTrace.append` would actually record one, and never more often.
+    static func traceNeedsPoint(previous: WidgetSnapshot?, bpm: Int?, now: Date) -> Bool {
+        guard let bpm, bpm > 0 else { return false }
+        guard let last = previous?.hrSeries?.last else { return true }
+        return Int64(now.timeIntervalSince1970) / HrTrace.bucketSec > last.ts / HrTrace.bucketSec
     }
 
     /// Whether publishing `next` would change anything the widget actually renders. `updated` is

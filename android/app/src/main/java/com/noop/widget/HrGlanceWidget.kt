@@ -119,7 +119,11 @@ private const val HR_CHART_TARGET_DP = 92f
 private fun hrChartWidthDp(widthDp: Float): Float =
     (widthDp - HR_CARD_PADDING_DP - HR_SCALE_COLUMN_DP).coerceAtLeast(24f)
 
-/** The trace tint. A heart reads red in this app's language, not the screenshot's blue. */
+/** The trace tint. A heart reads red in this app's language, not the screenshot's blue.
+ *
+ *  These are the HR ZONE-5 hexes: `StrandPalette.zone5` on the Apple side resolves to exactly this
+ *  pair, so the two widgets are one colour rather than two approximations. Kept as a local literal for
+ *  the same reason every other colour in this package is — Glance composes outside the app theme. */
 private fun hrAccent(dark: Boolean) = if (dark) Color(0xFFE0662F) else Color(0xFFC84E1E)
 
 @Composable
