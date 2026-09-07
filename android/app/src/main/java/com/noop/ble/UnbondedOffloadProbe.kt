@@ -66,6 +66,52 @@ internal fun shouldProbeUnbondedOffload(
 }
 
 /**
+ * Why the unbonded-offload probe did NOT run on this link, or null when it will.
+ *
+ * [beginUnbondedOffloadProbe] returns SILENTLY when [shouldProbeUnbondedOffload] says no, and that
+ * silence is unreadable. A 5/MG log then shows the four puffin notify chars DISCOVERED, one standard-HR
+ * subscribe, and nothing further — which looks identical whether the app declined to ask or the strap
+ * refused. Those have opposite meanings for #1635: one is a setting, the other is the answer.
+ *
+ * Names the reason in the SAME ORDER the gate tests them, so the reason printed is the one that actually
+ * decided rather than the first one that happens to be true. Returns null exactly when the gate returns
+ * true, and the tests pin that agreement exhaustively over every input, so a new condition added to one
+ * cannot outlive the other.
+ *
+ * The consequence clause is appended only for an unbonded 5/MG, because that is the only case where the
+ * puffin chars go unsubscribed: a bonded strap reaches them through the ordinary handshake.
+ */
+internal fun unbondedProbeSkippedLine(
+    isWhoop5: Boolean,
+    optedIn: Boolean,
+    bonded: Boolean,
+    helloWrittenThisLink: Boolean,
+    alreadyProbedThisLink: Boolean,
+    previouslyRefused: Boolean,
+    silentLinksSoFar: Int,
+): String? {
+    val why = when {
+        !isWhoop5 -> "not a WHOOP 5/MG"
+        !optedIn -> "the unbonded-offload experiment is off"
+        bonded -> "this strap bonded, so the ordinary post-hello handshake reaches the offload"
+        helloWrittenThisLink ->
+            "a CLIENT_HELLO went out on this link, so a refusal here could not be attributed to the strap"
+        alreadyProbedThisLink -> "already probed on this link"
+        unbondedProbeRetired(previouslyRefused, silentLinksSoFar) ->
+            if (previouslyRefused) "retired for this strap: a refusal is latched"
+            else "retired for this strap: the silent-link budget is spent"
+        else -> return null
+    }
+    val consequence = if (isWhoop5 && !bonded) {
+        " The puffin notify chars stay unsubscribed on this link, so neither the historical offload nor a" +
+            " realtime IMU producer can reach us here."
+    } else {
+        ""
+    }
+    return "unbonded probe skipped — $why.$consequence"
+}
+
+/**
  * Has the probe stopped asking — for good, on this device?
  *
  * True on a latched refusal (the strap's verdict) or once the silent-link budget is spent. Extracted

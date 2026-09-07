@@ -2598,6 +2598,11 @@ class WhoopBleClient(
     @Volatile
     private var unbondedProbeAwaitingReply = false
 
+    /** True once the probe's skip reason has been logged on this link (#1949), so a retried start does
+     *  not repeat it. Cleared with the rest of the per-link probe state. */
+    @Volatile
+    private var unbondedProbeSkipLogged = false
+
     /** #1635: the probe has run on THIS link. Separate from [unbondedProbeAwaitingReply] because the
      *  keep-alive drains the same CCCD queue every 30s and would otherwise re-enter the probe's own
      *  completion branch for the life of the connection. */
@@ -5312,7 +5317,24 @@ class WhoopBleClient(
                 previouslyRefused = refused,
                 silentLinksSoFar = unbondedProbeSilentLinks,
             )
-        ) return
+        ) {
+            // #1949: say WHY, once per link. A silent return here is what made an MG capture unreadable:
+            // the puffin chars discovered, never subscribed, and no way to tell the app declined from the
+            // strap refusing — opposite meanings for #1635. Once per link, because this path is retried.
+            if (!unbondedProbeSkipLogged) {
+                unbondedProbeSkipLogged = true
+                unbondedProbeSkippedLine(
+                    isWhoop5 = connectedFamily == DeviceFamily.WHOOP5,
+                    optedIn = PuffinExperiment.from(context).unbondedOffload,
+                    bonded = didBond,
+                    helloWrittenThisLink = helloWrittenThisLink,
+                    alreadyProbedThisLink = unbondedProbeStartedThisLink,
+                    previouslyRefused = refused,
+                    silentLinksSoFar = unbondedProbeSilentLinks,
+                )?.let { log(it, com.noop.testcentre.TestDomain.CONNECTION) }
+            }
+            return
+        }
         // Stand aside while the DIS chain still holds the one serialized GATT queue. The fixed 6s delay
         // this used to rely on was chosen by reasoning and was wrong: a capture caught the chain still
         // running at 7s, every CCCD write returning busy, all four abandoned after the shared retry
@@ -6841,6 +6863,40 @@ class WhoopBleClient(
                             properties = it.properties,
                             writingWithResponse = false,
                         ), com.noop.testcentre.TestDomain.CONNECTION)
+                    }
+                }
+                // #1949: and what we HAVE with the strap, next to what it offers. The sibling dump above
+                // covers fd4b0002, the write char; this covers the four NOTIFY chars the offload and the
+                // realtime IMU producer both arrive on. A capture showed all four discovered, one
+                // standard-HR subscribe, and nothing more — which reads identically to the strap refusing
+                // them. Only HEART_RATE_CHAR and BATTERY_CHAR reach `cccdQueue` below on a 5/MG, so
+                // "subscribed=no" here is the app's own doing and the log should say so rather than
+                // leave it to be inferred. Local reads only, like its sibling: no GATT operation.
+                if (testCentre.active(com.noop.testcentre.TestDomain.CONNECTION)) {
+                    val notifyDump = runCatching {
+                        WHOOP5_NOTIFY_CHARS.mapNotNull { u ->
+                            whoop5.getCharacteristic(u)?.let { ch ->
+                                val cccd = ch.getDescriptor(CCCD)
+                                NotifyCharDump(
+                                    uuid = u.toString().take(8),
+                                    hasCccd = cccd != null,
+                                    subscribed = cccd?.value?.contentEquals(
+                                        BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE,
+                                    ) == true,
+                                )
+                            }
+                        }
+                    }.getOrDefault(emptyList())
+                    for (line in whoop5PairingDumpLines(
+                        bondState = runCatching { g.device.bondState }.getOrDefault(-1),
+                        didBond = didBond,
+                        helloWrittenThisLink = helloWrittenThisLink,
+                        probeOptedIn = runCatching {
+                            PuffinExperiment.from(context).unbondedOffload
+                        }.getOrDefault(false),
+                        notifyChars = notifyDump,
+                    )) {
+                        log(line, com.noop.testcentre.TestDomain.CONNECTION)
                     }
                 }
             } else {
@@ -10982,6 +11038,7 @@ class WhoopBleClient(
             chargeUnbondedProbeSilence()
         }
         unbondedProbeStartedThisLink = false
+        unbondedProbeSkipLogged = false
         unbondedProbeDeferrals = 0
         disChainInFlight = false
         unbondedProbeSubscribed = 0

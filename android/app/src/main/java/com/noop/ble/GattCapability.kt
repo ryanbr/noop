@@ -84,3 +84,54 @@ internal fun gattTreeLines(services: List<Pair<String, List<Pair<String, Int>>>>
         }
     }
 }
+
+/** One puffin NOTIFY characteristic as the pairing dump sees it. */
+internal data class NotifyCharDump(
+    val uuid: String,
+    val hasCccd: Boolean,
+    val subscribed: Boolean,
+)
+
+/**
+ * The link's PAIRING posture, next to which puffin notify chars are actually subscribed.
+ *
+ * [gattTreeLines] says what the strap OFFERS; this says what we have with it. On a 5/MG the two together
+ * are the difference between "the chars are not there" and "the chars are there and we never subscribed
+ * them", which a log otherwise cannot distinguish — the capture that prompted this showed all four puffin
+ * notify chars discovered, one standard-HR subscribe, and no further word (#1949).
+ *
+ * Same discipline as its sibling: reads already-known local state, sends nothing, and so works on exactly
+ * the strap that no puffin probe can reach.
+ *
+ * On encryption it deliberately claims LESS than a reader might want. Android publishes no
+ * link-encryption flag to a GATT client, and a remote characteristic's permissions read back as 0, so the
+ * bond state is the only standing proxy and it is not the same question. The hard evidence is a CCCD
+ * write status, which is why the note names the two codes that answer it (#1635).
+ */
+internal fun whoop5PairingDumpLines(
+    bondState: Int,
+    didBond: Boolean,
+    helloWrittenThisLink: Boolean,
+    probeOptedIn: Boolean,
+    notifyChars: List<NotifyCharDump>,
+): List<String> = buildList {
+    // [bondStateName] is BondStateTrace's, deliberately: two spellings of one OS state in one log is
+    // how a reader ends up believing they are two different readings.
+    add(
+        "pairing: bond=${bondStateName(bondState)} didBond=$didBond" +
+            " helloWritten=$helloWrittenThisLink unbondedProbe=${if (probeOptedIn) "on" else "off"}"
+    )
+    if (notifyChars.isEmpty()) {
+        add("  no puffin notify characteristics discovered")
+    } else {
+        for (c in notifyChars) {
+            add("  ${c.uuid} cccd=${if (c.hasCccd) "yes" else "no"}" +
+                " subscribed=${if (c.subscribed) "yes" else "no"}")
+        }
+    }
+    add(
+        "  note: Android publishes no link-encryption flag to a GATT client and a remote characteristic's" +
+            " permissions read back as 0, so bond= above is a proxy, not the answer. The hard evidence is a" +
+            " CCCD write returning status 5 (insufficient authentication) or 15 (insufficient encryption)."
+    )
+}

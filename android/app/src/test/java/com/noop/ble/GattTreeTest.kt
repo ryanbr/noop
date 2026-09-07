@@ -42,4 +42,62 @@ class GattTreeTest {
         assertTrue(single.contains(names))
         assertTrue(tree.contains(names))
     }
+
+    // --- #1949: the pairing dump ----------------------------------------------------------------------
+
+    private fun chars() = listOf(
+        NotifyCharDump("fd4b0003", hasCccd = true, subscribed = false),
+        NotifyCharDump("fd4b0007", hasCccd = true, subscribed = true),
+    )
+
+    @Test
+    fun `the header carries the pairing posture the log otherwise lacks`() {
+        val head = whoop5PairingDumpLines(
+            bondState = 10, didBond = false, helloWrittenThisLink = false,
+            probeOptedIn = false, notifyChars = chars(),
+        ).first()
+        assertEquals(
+            "pairing: bond=BOND_NONE didBond=false helloWritten=false unbondedProbe=off",
+            head,
+        )
+    }
+
+    @Test
+    fun `each notify char reports its CCCD and whether we subscribed it`() {
+        val lines = whoop5PairingDumpLines(
+            bondState = 12, didBond = true, helloWrittenThisLink = true,
+            probeOptedIn = true, notifyChars = chars(),
+        )
+        assertEquals("  fd4b0003 cccd=yes subscribed=no", lines[1])
+        assertEquals("  fd4b0007 cccd=yes subscribed=yes", lines[2])
+        assertTrue(lines.first(), lines.first().contains("bond=BOND_BONDED"))
+        assertTrue(lines.first(), lines.first().contains("unbondedProbe=on"))
+    }
+
+    /** Discovering none is itself a reading, and must not render as an empty section. */
+    @Test
+    fun `no discovered notify chars says so rather than printing nothing`() {
+        val lines = whoop5PairingDumpLines(
+            bondState = 10, didBond = false, helloWrittenThisLink = false,
+            probeOptedIn = false, notifyChars = emptyList(),
+        )
+        assertEquals("  no puffin notify characteristics discovered", lines[1])
+    }
+
+    /**
+     * The note is the honest part: bond state is a proxy, not an encryption reading, and the codes it
+     * names are what actually answer the question. Pinned so a later edit cannot quietly upgrade the
+     * claim to "the link is encrypted", which nothing here knows.
+     */
+    @Test
+    fun `the note refuses to claim an encryption state it cannot read`() {
+        val note = whoop5PairingDumpLines(
+            bondState = 10, didBond = false, helloWrittenThisLink = false,
+            probeOptedIn = false, notifyChars = chars(),
+        ).last()
+        assertTrue(note, note.contains("no link-encryption flag"))
+        assertTrue(note, note.contains("status 5 (insufficient authentication)"))
+        assertTrue(note, note.contains("15 (insufficient encryption)"))
+    }
+
 }

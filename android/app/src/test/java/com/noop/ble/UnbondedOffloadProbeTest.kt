@@ -526,4 +526,86 @@ class UnbondedOffloadProbeTest {
         }
     }
 
+    // --- #1949: the probe's skip reason ---------------------------------------------------------------
+
+    /**
+     * The explanation and the gate must agree on EVERY input, or a log line will claim a probe ran that
+     * did not, or stay silent about one that was skipped. Exhaustive rather than sampled because the two
+     * are separate `when` chains over the same seven inputs, and the failure mode is a condition added to
+     * one and forgotten in the other, which no hand-picked case is likely to sit on.
+     */
+    @Test
+    fun `a skip reason is produced exactly when the gate refuses`() {
+        val bools = listOf(false, true)
+        var refusals = 0
+        for (isWhoop5 in bools) for (optedIn in bools) for (bonded in bools)
+            for (hello in bools) for (already in bools) for (refused in bools)
+                for (silent in listOf(0, UNBONDED_PROBE_MAX_SILENT_LINKS)) {
+                    val runs = shouldProbeUnbondedOffload(
+                        isWhoop5 = isWhoop5, optedIn = optedIn, bonded = bonded,
+                        helloWrittenThisLink = hello, alreadyProbedThisLink = already,
+                        previouslyRefused = refused, silentLinksSoFar = silent,
+                    )
+                    val line = unbondedProbeSkippedLine(
+                        isWhoop5 = isWhoop5, optedIn = optedIn, bonded = bonded,
+                        helloWrittenThisLink = hello, alreadyProbedThisLink = already,
+                        previouslyRefused = refused, silentLinksSoFar = silent,
+                    )
+                    assertEquals(
+                        "gate=$runs but line=${line ?: "null"} for isWhoop5=$isWhoop5 optedIn=$optedIn " +
+                            "bonded=$bonded hello=$hello already=$already refused=$refused silent=$silent",
+                        runs, line == null,
+                    )
+                    if (!runs) refusals++
+                }
+        assertTrue("the sweep must actually exercise refusals", refusals > 0)
+    }
+
+    /** The reason printed is the one that DECIDED, so it must follow the gate's own order, not the first
+     *  condition that happens to be true. Every input below is refusing at once. */
+    @Test
+    fun `the reason follows the gate's order when several conditions refuse`() {
+        val line = unbondedProbeSkippedLine(
+            isWhoop5 = false, optedIn = false, bonded = true, helloWrittenThisLink = true,
+            alreadyProbedThisLink = true, previouslyRefused = true, silentLinksSoFar = 99,
+        )
+        assertTrue("family is tested first: $line", line!!.contains("not a WHOOP 5/MG"))
+    }
+
+    @Test
+    fun `the common case names the experiment, and says what it costs`() {
+        val line = unbondedProbeSkippedLine(
+            isWhoop5 = true, optedIn = false, bonded = false, helloWrittenThisLink = false,
+            alreadyProbedThisLink = false, previouslyRefused = false, silentLinksSoFar = 0,
+        )!!
+        assertTrue(line, line.contains("the unbonded-offload experiment is off"))
+        assertTrue("an unbonded 5/MG must be told what stays unsubscribed: $line",
+                   line.contains("puffin notify chars stay unsubscribed"))
+        assertTrue("and that it reaches the IMU producer too: $line", line.contains("realtime IMU"))
+    }
+
+    /** A bonded strap reaches those chars through the ordinary handshake, so the consequence clause would
+     *  be false there. The retirement reasons must also distinguish a latched refusal from a spent budget:
+     *  one is the strap's verdict, the other is ours. */
+    @Test
+    fun `the consequence is omitted when it would not be true, and retirement says which kind`() {
+        val bonded = unbondedProbeSkippedLine(
+            isWhoop5 = true, optedIn = true, bonded = true, helloWrittenThisLink = false,
+            alreadyProbedThisLink = false, previouslyRefused = false, silentLinksSoFar = 0,
+        )!!
+        assertTrue(bonded, !bonded.contains("stay unsubscribed"))
+
+        val refused = unbondedProbeSkippedLine(
+            isWhoop5 = true, optedIn = true, bonded = false, helloWrittenThisLink = false,
+            alreadyProbedThisLink = false, previouslyRefused = true, silentLinksSoFar = 0,
+        )!!
+        assertTrue(refused, refused.contains("a refusal is latched"))
+
+        val spent = unbondedProbeSkippedLine(
+            isWhoop5 = true, optedIn = true, bonded = false, helloWrittenThisLink = false,
+            alreadyProbedThisLink = false, previouslyRefused = false,
+            silentLinksSoFar = UNBONDED_PROBE_MAX_SILENT_LINKS,
+        )!!
+        assertTrue(spent, spent.contains("silent-link budget is spent"))
+    }
 }
