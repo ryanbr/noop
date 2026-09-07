@@ -2802,9 +2802,9 @@ public enum SleepStager {
     /// The counts still ride along when the line does fire, since they are the context for the change.
     /// Same posture as the over-count-only R-R dump. Counts and bpm only, no timestamps. Pure. Twin of
     /// Kotlin `rhrBinGateLogLine`.
-    static func rhrBinGateLogLine(day: String, sessions: [(Int, Int)], hr: [HRSample],
-                                  shippedFloor: Int, minBinSamples: Int = 5,
-                                  minPlausibleBpm: Double = 25) -> String? {
+    public static func rhrBinGateLogLine(day: String, sessions: [(Int, Int)], hr: [HRSample],
+                                         shippedFloor: Int, minBinSamples: Int = 5,
+                                         minPlausibleBpm: Double = 25) -> String? {
         let windowS = 5 * 60
         var bins = 0, thin = 0, implausible = 0, bestN = 0
         var best: Double?
