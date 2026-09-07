@@ -228,6 +228,21 @@ final class LiftingImporterTests: XCTestCase {
 
     // MARK: - Hevy API (draft)
 
+    /// A weight is narrowed nowhere, so nothing traps — but `Double("1e9999")` is infinity, and an
+    /// infinite top set rides out to the session note while poisoning the volume total. Kotlin always
+    /// dropped it at the parse; Swift did not, which meant the same hostile CSV imported differently
+    /// depending on the phone. The set still counts as work done, it just carries no weight.
+    func testHevyCSVRejectsANonFiniteWeight() {
+        let csv = """
+        title,start_time,exercise_title,set_type,weight_kg,reps
+        H,2026-06-01 18:00:00,Bench Press,normal,1e9999,5
+        """
+        let s = LiftingImporter.parseHevy(text: csv).sessions[0]
+        XCTAssertEqual(s.setCount, 1)
+        XCTAssertNil(s.topSetKg, "an infinite top set must not survive the parse")
+        XCTAssertEqual(s.volumeLoadKg, 0, accuracy: 0.001)
+    }
+
     private func apiPage(_ workouts: String) -> Data {
         Data("{\"page\":1,\"page_count\":1,\"workouts\":[\(workouts)]}".utf8)
     }

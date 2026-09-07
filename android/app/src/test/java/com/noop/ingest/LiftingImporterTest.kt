@@ -262,6 +262,25 @@ class LiftingImporterTest {
         assertEquals("Leg Day: $body", session("Leg Day").volumeLoadNote())
     }
 
+    /**
+     * "1e9999" parses to infinity, and an infinite top set would ride out to the session note while
+     * poisoning the volume total. Dropped at the parse on both platforms, so the same hostile CSV
+     * imports the same way whatever the phone. The set still counts as work done, it just carries no
+     * weight.
+     */
+    @Test
+    fun hevyCsvRejectsANonFiniteWeight() {
+        val s = hevy(
+            """
+            title,start_time,exercise_title,set_type,weight_kg,reps
+            H,2026-06-01 18:00:00,Bench Press,normal,1e9999,5
+            """
+        ).sessions[0]
+        assertEquals(1, s.setCount)
+        assertNull(s.topSetKg)
+        assertEquals(0.0, s.volumeLoadKg, 1e-6)
+    }
+
     // MARK: - Hevy Web API
 
     /**

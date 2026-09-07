@@ -160,8 +160,12 @@ public enum LiftingImporter {
             let setType = (row.cell("set_type", "type") ?? "").lowercased()
 
             // Weight: prefer kg; fall back to a lb column (convert). Bodyweight sets have no weight.
-            let weightKg: Double? = row.double("weight_kg", "weight", "weight_kgs")
-                ?? row.double("weight_lb", "weight_lbs", "weight_lbf").map { $0 * lbToKg }
+            // Non-finite is rejected here for the same reason reps are bounded: `Double("1e9999")` is
+            // infinity, and an infinite top set would ride all the way out to the session note while
+            // poisoning the volume total. Kotlin's twin already dropped it at this point.
+            let weightKg: Double? = (row.double("weight_kg", "weight", "weight_kgs")
+                ?? row.double("weight_lb", "weight_lbs", "weight_lbf").map { $0 * lbToKg })
+                .flatMap { $0.isFinite ? $0 : nil }
             let reps = boundedReps(row.double("reps", "rep_count"))
 
             let key = "\(title ?? "")|\(startRaw)"
