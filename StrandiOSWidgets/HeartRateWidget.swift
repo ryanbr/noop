@@ -116,12 +116,16 @@ struct HeartRateWidgetView: View {
                     // A scale of one repeated number says nothing the headline has not, so it waits for
                     // a range — the same rule the Android twin follows.
                     if let stats, stats.max > stats.min {
+                        // Ticks computed ONCE, and the gap keyed on the INDEX. Comparing the value to
+                        // `.last` happened to work only because a scale is drawn solely when there is a
+                        // range; with two equal ticks it would have dropped a spacer and skewed the scale.
+                        let ticks = HrTrace.bpmTicks(stats)
                         VStack(alignment: .trailing) {
-                            ForEach(Array(HrTrace.bpmTicks(stats).enumerated()), id: \.offset) { _, tick in
+                            ForEach(Array(ticks.enumerated()), id: \.offset) { index, tick in
                                 Text("\(tick)")
                                     .font(.system(size: 10))
                                     .foregroundStyle(StrandPalette.textSecondary)
-                                if tick != HrTrace.bpmTicks(stats).last { Spacer(minLength: 0) }
+                                if index < ticks.count - 1 { Spacer(minLength: 0) }
                             }
                         }
                     }
@@ -149,9 +153,14 @@ struct HeartRateWidgetView: View {
     /// whole card, so it does. Staleness is not encoded in colour here at all, so nothing needs saying
     /// about it.
     private var accessibilityText: String {
-        guard let bpm = entry.snap?.bpm else { return "Heart rate, no reading" }
-        guard let stats else { return "Heart rate \(bpm) bpm" }
-        return "Heart rate \(bpm) bpm, minimum \(stats.min), maximum \(stats.max)"
+        // String(localized:) rather than bare literals. The audit DOES scan `.accessibilityLabel(`, but
+        // it matches a literal sitting immediately after the paren — and this is a computed property, so
+        // extracting the sentence here hid it from the check. Hardcoded English would have shipped to
+        // every locale with the gate green, which is the same trap the Kotlin twin records for copy
+        // written inside a semantics {} lambda.
+        guard let bpm = entry.snap?.bpm else { return String(localized: "Heart rate, no reading") }
+        guard let stats else { return String(localized: "Heart rate \(bpm) bpm") }
+        return String(localized: "Heart rate \(bpm) bpm, minimum \(stats.min), maximum \(stats.max)")
     }
 }
 
