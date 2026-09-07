@@ -56,6 +56,11 @@ internal fun calendarNightsAgo(
     // yesterday morning is still "Last night", because the logical day has not turned over yet.
     val shown = java.time.Instant.ofEpochSecond(shownTs).atZone(z).toLocalDate()
     val d = java.time.temporal.ChronoUnit.DAYS.between(shown, today).toInt()
+    // A NEGATIVE distance is normal here, not just the clock-skew guard it looks like: between waking
+    // before 04:00 and the roll, the night's calendar date is already tomorrow relative to the logical
+    // day. Wake at 02:00 and check the tab at 03:00 and `shown` is the 7th while `today` is still the
+    // 6th. Falling back to the offset is the RIGHT answer for that (offset 0 is "Last night", which it
+    // is), so this branch carries a real case and must not be narrowed to an error path.
     return if (d >= 0) d else offset
 }
 

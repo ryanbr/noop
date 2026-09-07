@@ -389,6 +389,10 @@ struct SleepView: View {
         let shown = cal.startOfDay(for: Date(timeIntervalSince1970: TimeInterval(shownTs)))
         let today = cal.startOfDay(for: Repository.logicalDay(now))
         let d = cal.dateComponents([.day], from: shown, to: today).day ?? offset
+        // A negative distance is normal here, not just the clock-skew guard it looks like: between
+        // waking before 04:00 and the roll, the night's calendar date is already tomorrow relative to
+        // the logical day. Falling back to the offset is the right answer for that, so this branch
+        // carries a real case and must not be narrowed to an error path.
         return d >= 0 ? d : offset
     }
 

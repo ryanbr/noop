@@ -129,4 +129,24 @@ class SleepHeroLogicTest {
         val nav = listOf(nightOn(LocalDate.of(2026, 9, 20)))
         assertEquals(0, calendarNightsAgo(nav, 0, utc, LocalDate.of(2026, 9, 7)))
     }
+
+    /**
+     * The pre-roll window, pinned because it currently lands on the NEGATIVE branch and gets the right
+     * answer from what reads like an error fallback.
+     *
+     * Wake at 02:00 and open the tab at 03:00: the night's calendar date is the 7th while the logical
+     * day is still the 6th, so the distance is -1. Offset 0 is genuinely "Last night" there, and the
+     * fallback says so — but nothing distinguished this real case from clock skew, so a later tightening
+     * of that branch would break it silently.
+     */
+    @Test
+    fun aNightWokenBeforeTheRollStillReadsLastNight() {
+        val utc = TimeZone.getTimeZone("UTC")
+        val endTs = LocalDate.of(2026, 9, 7).atStartOfDay(ZoneOffset.UTC).plusHours(2).toEpochSecond()
+        val nav = listOf(listOf(SleepSession(deviceId = "d", startTs = endTs - 5 * 3600, endTs = endTs)))
+        // 03:00 on the 7th: the logical day has not rolled, so it is still the 6th.
+        val logicalToday = LocalDate.of(2026, 9, 6)
+        assertEquals(0, calendarNightsAgo(nav, 0, utc, logicalToday))
+        assertEquals("Last night", nightRelativeLabel(calendarNightsAgo(nav, 0, utc, logicalToday)))
+    }
 }
