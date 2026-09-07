@@ -40,6 +40,7 @@ object WidgetTelemetry {
     private var renderBytes = 0L
     private var renderMs = 0L
     private var renderMsMax = 0L
+    private var pushesUnchanged = 0L
     private var lastPushAtMs = 0L
 
     /** A push [PushGate] let through: prefs written and every placed widget recomposed. */
@@ -55,6 +56,16 @@ object WidgetTelemetry {
     fun notePushGated(nowMs: Long) {
         if (startedAtMs == 0L) startedAtMs = nowMs
         pushesGated += 1
+    }
+
+    /**
+     * A push [PushGate] admitted but [RenderedGate] then dropped, because nothing the widgets display
+     * had changed. Counted separately from a gated push: this is the saving the rendered gate takes,
+     * and it needs to be visible to justify keeping it.
+     */
+    @Synchronized
+    fun notePushUnchanged() {
+        pushesUnchanged += 1
     }
 
     /** One trace bitmap built: [bytes] is what crosses the Binder, [elapsedMs] is the draw alone. */
@@ -81,6 +92,7 @@ object WidgetTelemetry {
         uptimeMs = if (startedAtMs == 0L) 0L else nowMs - startedAtMs,
         pushesAdmitted = pushesAdmitted,
         pushesGated = pushesGated,
+        pushesUnchanged = pushesUnchanged,
         renders = renders,
         rendersRedundant = rendersRedundant,
         renderBytes = renderBytes,
@@ -91,7 +103,7 @@ object WidgetTelemetry {
 
     @Synchronized
     fun resetForTest() {
-        startedAtMs = 0L; pushesAdmitted = 0L; pushesGated = 0L
+        startedAtMs = 0L; pushesAdmitted = 0L; pushesGated = 0L; pushesUnchanged = 0L
         renders = 0L; rendersRedundant = 0L; renderBytes = 0L; renderMs = 0L; renderMsMax = 0L
         lastPushAtMs = 0L
     }
@@ -100,6 +112,7 @@ object WidgetTelemetry {
         val uptimeMs: Long,
         val pushesAdmitted: Long,
         val pushesGated: Long,
+        val pushesUnchanged: Long,
         val renders: Long,
         val rendersRedundant: Long,
         val renderBytes: Long,
@@ -150,6 +163,7 @@ object WidgetTelemetry {
                 renderBytesPerHour?.let { parts.add("${String.format(Locale.US, "%.1f", it / 1_048_576.0)}MB/h") }
                 parts.add("draw ${renderMs / renders}ms avg / ${renderMsMax}ms max")
             }
+            if (pushesUnchanged > 0) parts.add("$pushesUnchanged unchanged")
             if (rendersRedundant > 0) parts.add("$rendersRedundant redundant")
             return "Widgets:     ${parts.joinToString(" · ")} (over ${mins}m)"
         }

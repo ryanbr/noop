@@ -1,0 +1,111 @@
+package com.noop.widget
+
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+
+/**
+ * Pins the second gate: a push [PushGate] admitted still costs nothing when none of the widgets have
+ * anything different to show.
+ *
+ * This is the Android half of what `WidgetPublish.saveAndReloadIfChanged` has done on the Apple side
+ * since #1957, minus the trace-only case that Glance cannot take (no OS-scheduled rebuild to carry a
+ * withheld point to the screen). Everything asserted below is a case where a full widget update —
+ * including a half-megabyte bitmap over a Binder transaction — would have drawn what was already
+ * there.
+ */
+class RenderedGateTest {
+
+    @Before
+    fun setUp() = RenderedGate.resetForTest()
+
+    private fun snap(
+        hr: Int? = 62,
+        stale: Boolean = false,
+        recovery: Int? = 70,
+        battery: Int? = 80,
+        connected: Boolean = true,
+        series: List<HrPoint> = listOf(HrPoint(ts = 1000, bpm = 62)),
+    ) = WidgetSnapshot(
+        recoveryPct = recovery,
+        restPct = 80,
+        effortPct = 40,
+        heartRate = hr,
+        heartRateStale = stale,
+        batteryPct = battery,
+        connected = connected,
+        hrSeries = series,
+        updatedAtMs = 1_700_000_000_000L,
+    )
+
+    /** The widgets may be showing what an earlier process left them, so the first push always sends. */
+    @Test
+    fun theFirstPushAfterAProcessStartAlwaysSends() {
+        assertTrue(RenderedGate.changed(snap()))
+    }
+
+    /**
+     * The case this exists for: PushGate's 60-second timer fires whether or not anything moved, so a
+     * quiet strap used to cost a full widget update a minute to redraw an identical screen.
+     */
+    @Test
+    fun anIdenticalSnapshotIsNotSentTwice() {
+        assertTrue(RenderedGate.changed(snap()))
+        assertFalse(RenderedGate.changed(snap()))
+        assertFalse(RenderedGate.changed(snap()))
+    }
+
+    /**
+     * The heart-rate VALUE has to count, because PushGate deliberately does not know it — it keys on
+     * whether a reading exists, so that a stream of samples cannot admit a push each. If this gate
+     * ignored the value too, a changing heart rate would never reach the screen.
+     */
+    @Test
+    fun aChangedHeartRateSends() {
+        RenderedGate.changed(snap(hr = 62))
+        assertTrue(RenderedGate.changed(snap(hr = 63)))
+    }
+
+    /** Crossing LIVE_MS dims the reading, which is a visible change with no value change behind it. */
+    @Test
+    fun aStalenessFlipSends() {
+        RenderedGate.changed(snap(stale = false))
+        assertTrue(RenderedGate.changed(snap(stale = true)))
+    }
+
+    /** A new trace point IS sent on Android, unlike the Apple rule: nothing else would carry it. */
+    @Test
+    fun anAdvancedTraceSends() {
+        val series = listOf(HrPoint(ts = 1000, bpm = 62))
+        RenderedGate.changed(snap(series = series))
+        assertTrue(RenderedGate.changed(snap(series = series + HrPoint(ts = 1060, bpm = 63))))
+    }
+
+    /** A point ageing out of the window redraws the chart just as surely as one arriving. */
+    @Test
+    fun aPrunedTraceSends() {
+        RenderedGate.changed(snap(series = listOf(HrPoint(1000, 62), HrPoint(1060, 63))))
+        assertTrue(RenderedGate.changed(snap(series = listOf(HrPoint(1060, 63)))))
+    }
+
+    /** Every scalar the 2x2 and compact widgets render has to count, not just the HR ones. */
+    @Test
+    fun theOtherWidgetsFieldsSendToo() {
+        RenderedGate.changed(snap())
+        assertTrue("recovery", RenderedGate.changed(snap(recovery = 71)))
+        assertTrue("battery", RenderedGate.changed(snap(recovery = 71, battery = 79)))
+        assertTrue("connected", RenderedGate.changed(snap(recovery = 71, battery = 79, connected = false)))
+    }
+
+    /**
+     * The end state after a disconnect: the trace prunes empty and the reading is dropped, and from
+     * then on every push is identical. That is where this gate pays for itself, so it must not keep
+     * sending once there is nothing left to say.
+     */
+    @Test
+    fun aDrainedSnapshotSettlesAndStopsSending() {
+        assertTrue(RenderedGate.changed(snap(hr = null, series = emptyList())))
+        repeat(10) { assertFalse(RenderedGate.changed(snap(hr = null, series = emptyList()))) }
+    }
+}

@@ -75,6 +75,16 @@ object WidgetSnapshotStore {
             GlanceAppWidgetManager(app).getGlanceIds(HrGlanceWidget::class.java)
         }.getOrDefault(emptyList())
         if (standardIds.isEmpty() && compactIds.isEmpty() && hrIds.isEmpty()) return
+
+        // Nothing the widgets DISPLAY changed, so there is nothing to send. Read back what they will
+        // actually render rather than re-deriving it: `load` resolves staleness and prunes the trace,
+        // and a guess at either would be the thing that drifts.
+        val visible = runCatching { load(app) }.getOrNull()
+        if (visible != null && !RenderedGate.changed(visible)) {
+            WidgetTelemetry.notePushUnchanged()
+            return
+        }
+
         // Update only the providers that actually have a widget placed. The ids are already in hand, and
         // `updateAll` on a provider with none still crosses into GlanceAppWidgetManager to discover that
         // for itself. Someone running just the HR widget was paying for two of those on every push.
@@ -162,6 +172,49 @@ internal object HrDisplay {
         val fresh = live && age <= LIVE_MS                    // a live push AND recent — not a stale carry-over
         return lastHr to !fresh
     }
+}
+
+/**
+ * The second gate, after [PushGate]: does anything the widgets DISPLAY differ from what they were last
+ * sent?
+ *
+ * [PushGate] deliberately does not know the heart-rate VALUE (only whether there is one), because
+ * keying on it would admit a push per sample. That leaves a gap it cannot close: its 60-second timer
+ * clause fires whether or not anything moved, so a strap that has gone quiet used to cost a full widget
+ * update every minute — on the HR widget, a half-megabyte bitmap across a Binder transaction to draw
+ * exactly what was already on screen.
+ *
+ * The Apple side has had this since #1957 (`WidgetPublish.saveAndReloadIfChanged` +
+ * `WidgetSnapshot.renderedContentChanged`); Android did not, and was doing strictly more work per push
+ * for identical data.
+ *
+ * Deliberately NOT the Apple rule, which also declines a reload when only the TRACE advanced. WidgetKit
+ * rebuilds a timeline on its own schedule, so a point persisted without a reload still reaches the
+ * screen; Glance has no such rebuild (`updatePeriodMillis="0"`), so declining there would freeze the
+ * chart at rest until the number itself moved. This skips only when NOTHING changed, which is free.
+ * Whether the trace-only case is worth its cost is a question for the widget cost counters.
+ *
+ * The key spans every field any of the three widgets renders, so "nothing changed" means none of them
+ * had anything to show — a narrower per-widget gate would be a different, visible trade.
+ */
+internal object RenderedGate {
+    private var last: String? = null
+
+    /** True when [visible] differs from what was last sent. The first call after a process start always
+     *  admits: the widgets may be showing something an earlier process left them. */
+    @Synchronized
+    fun changed(visible: WidgetSnapshot): Boolean {
+        val newest = visible.hrSeries.lastOrNull()
+        val key = "${visible.recoveryPct}|${visible.restPct}|${visible.effortPct}|" +
+            "${visible.batteryPct}|${visible.connected}|${visible.heartRate}|" +
+            "${visible.heartRateStale}|${visible.hrSeries.size}|${newest?.ts}|${newest?.bpm}"
+        val differs = key != last
+        last = key
+        return differs
+    }
+
+    @Synchronized
+    fun resetForTest() { last = null }
 }
 
 /**
