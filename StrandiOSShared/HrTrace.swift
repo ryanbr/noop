@@ -46,7 +46,9 @@ public enum HrTrace {
         let bucket = ts / bucketSec * bucketSec
         var out = series.filter { $0.ts != bucket }
         out.append(HrPoint(ts: bucket, bpm: bpm))
-        out.sort { $0.ts < $1.ts }
+        // No sort here: `prune` sorts on the way out and has to anyway, since it is also the entry point
+        // for a decoded series. Appending at the end is already in order for anything but a backwards
+        // clock, and prune's sort is what makes even that correct.
         return prune(out, nowSec: now)
     }
 

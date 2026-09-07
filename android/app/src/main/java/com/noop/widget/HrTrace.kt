@@ -41,7 +41,9 @@ object HrTrace {
         val out = ArrayList<HrPoint>(series.size + 1)
         for (p in series) if (p.ts != bucket) out.add(p)
         out.add(HrPoint(bucket, bpm))
-        out.sortBy { it.ts }
+        // No sort here: [prune] sorts on the way out, and it has to anyway because [decode] feeds it
+        // untrusted input. Appending at the end is already in order for every sample that is not a clock
+        // jump backwards, and prune's sort is what makes even that case correct.
         return prune(out, nowSec)
     }
 

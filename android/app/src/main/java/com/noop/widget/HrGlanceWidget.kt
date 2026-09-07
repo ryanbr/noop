@@ -213,7 +213,7 @@ private fun HrWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
         // few minutes — a void reads as broken where a shorter widget reads as new.
         if (snap.hrSeries.isNotEmpty()) {
             Spacer(GlanceModifier.height(8.dp))
-            HrTraceImage(snap, dark, widthDp = size.width.value,
+            HrTraceImage(snap, dark, widthDp = size.width.value, stats = stats,
                          modifier = GlanceModifier.defaultWeight())
             HrTimeAxis(snap, dark)
         }
@@ -249,12 +249,14 @@ private fun HrTraceImage(
     snap: WidgetSnapshot,
     dark: Boolean,
     widthDp: Float,
+    // Passed in rather than recomputed: the caller already scanned the series for it, and a second scan
+    // per render also meant two places deciding what the scale describes.
+    stats: HrTrace.Stats?,
     // Weighted by the CALLER: Glance scopes defaultWeight() to Row/ColumnScope, so a composable
     // cannot claim its own share of the parent from in here.
     modifier: GlanceModifier,
 ) {
     val context = LocalContext.current
-    val stats = HrTrace.stats(snap.hrSeries)
     val density = context.resources.displayMetrics.density
     // Leave room for the scale column so the trace is not drawn under its own labels.
     val chartWidthDp = hrChartWidthDp(widthDp)
