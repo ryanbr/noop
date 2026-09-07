@@ -108,4 +108,30 @@ class RenderedGateTest {
         assertTrue(RenderedGate.changed(snap(hr = null, series = emptyList())))
         repeat(10) { assertFalse(RenderedGate.changed(snap(hr = null, series = emptyList()))) }
     }
+
+    /**
+     * The timestamp is the field this gate could most easily have got wrong, so it is asserted from
+     * both sides.
+     *
+     * All three widgets RENDER it — the HR card as a permanent "Updated <time>" line, the 2x2 and
+     * compact as their disconnected "last seen". Including it in the key would change the key on every
+     * push and the gate could never fire. Excluding it and letting the stamp advance anyway would tell
+     * the reader 14:47 while showing them 14:32's reading, and freeze a visible clock at whatever a
+     * later unrelated recomposition happened to read.
+     *
+     * So the key excludes it deliberately, and [WidgetSnapshotStore.push] puts the previous value back
+     * when it declines. This pins the first half; the second is push()'s.
+     */
+    @Test
+    fun theStampAloneDoesNotSend() {
+        RenderedGate.changed(snap())
+        val later = WidgetSnapshot(
+            recoveryPct = 70, restPct = 80, effortPct = 40,
+            heartRate = 62, heartRateStale = false, batteryPct = 80, connected = true,
+            hrSeries = listOf(HrPoint(ts = 1000, bpm = 62)),
+            updatedAtMs = 1_700_000_900_000L,          // fifteen minutes later, same everything else
+        )
+        assertFalse("a newer stamp with identical content is not worth an update",
+            RenderedGate.changed(later))
+    }
 }

@@ -59,6 +59,12 @@ object WidgetSnapshotStore {
         }
         WidgetTelemetry.notePushAdmitted(snap.updatedAtMs)
 
+        // Kept so a push that turns out to carry nothing new can put it back. All three widgets RENDER
+        // this stamp — the HR card as a permanent "Updated <time>" line, the 2x2 and compact as their
+        // disconnected "last seen" — so it is not the metadata the Apple twin can treat it as.
+        val previousUpdatedAt = app.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+            .getLong("updatedAt", 0L)
+
         // Persist before anything suspending, and only THEN mark the gate (#82: marking before the
         // write let a cancelled push burn the refresh window — the widget starved on stale prefs).
         // Saving even with no widget placed means a widget added later renders fresh data instantly.
@@ -81,6 +87,17 @@ object WidgetSnapshotStore {
         // and a guess at either would be the thing that drifts.
         val visible = runCatching { load(app) }.getOrNull()
         if (visible != null && !RenderedGate.changed(visible)) {
+            // The stamp reads "Updated <time>", so it names when the data is FROM. A push that carried
+            // nothing new must not advance it: doing so would tell the reader 14:47 while showing them
+            // 14:32's reading. Putting it back also keeps what the prefs hold and what the widget shows
+            // in agreement, so a recomposition for some unrelated reason — a launcher restart, a resize
+            // — cannot surface a time this push declined to display.
+            if (previousUpdatedAt > 0L) {
+                runCatching {
+                    app.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
+                        .putLong("updatedAt", previousUpdatedAt).apply()
+                }
+            }
             WidgetTelemetry.notePushUnchanged()
             return
         }
@@ -196,6 +213,13 @@ internal object HrDisplay {
  *
  * The key spans every field any of the three widgets renders, so "nothing changed" means none of them
  * had anything to show — a narrower per-widget gate would be a different, visible trade.
+ *
+ * `updatedAtMs` is the one field held OUT, and it is the reason this gate needed thought rather than a
+ * port. All three widgets display it, so including it would mean the key changed on every push and the
+ * gate could never fire; excluding it naively would freeze a visible clock. The resolution is that the
+ * stamp names when the DATA is from, not when the app last woke: [WidgetSnapshotStore.push] restores
+ * the previous value when it declines, so a frozen stamp is the truthful one. The Apple twin sidesteps
+ * this entirely because no widget family there renders the timestamp.
  */
 internal object RenderedGate {
     private var last: String? = null
