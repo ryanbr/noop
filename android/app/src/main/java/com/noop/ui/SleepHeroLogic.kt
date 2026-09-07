@@ -47,10 +47,14 @@ internal fun calendarNightsAgo(
     if (offset < 0 || offset >= navDays.size) return offset
     val shownTs = navDays[offset].firstOrNull()?.endTs ?: return offset
     val z = zone.toZoneId()
-    // Both sides on the LOGICAL scale (#144's 04:00 roll), because mixing them is its own bug: a night
-    // that ended at 02:00 belongs to the previous logical day, and comparing its raw calendar wake-date
-    // against a rolled "today" would report it a night further back than it is.
-    val shown = logicalDay(java.time.Instant.ofEpochSecond(shownTs).atZone(z))
+    // The shown night keeps its CALENDAR wake-date, because that is the key navDays groups by
+    // (`localDayString(endTs)`). Rolling this side too would let two distinct carousel entries collapse
+    // onto one label: a night ending 07:00 and the next ending 02:00 are separate groups but the same
+    // logical day, and both would print the same "nights ago".
+    //
+    // Only TODAY is rolled, which is what the small hours need: at 02:00 the night that ended
+    // yesterday morning is still "Last night", because the logical day has not turned over yet.
+    val shown = java.time.Instant.ofEpochSecond(shownTs).atZone(z).toLocalDate()
     val d = java.time.temporal.ChronoUnit.DAYS.between(shown, today).toInt()
     return if (d >= 0) d else offset
 }

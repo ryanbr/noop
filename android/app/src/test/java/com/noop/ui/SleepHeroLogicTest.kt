@@ -86,18 +86,40 @@ class SleepHeroLogicTest {
     }
 
     /**
-     * A night ending in the small hours belongs to the PREVIOUS logical day (#144's 04:00 roll), so
-     * both sides of the comparison are put on that scale. Mixing them would report such a night one
-     * further back than it is.
+     * Only TODAY is rolled to the logical day; the shown night keeps its calendar wake-date, because
+     * that is the key navDays groups by.
+     *
+     * Rolling both sides collapsed distinct carousel entries onto one label: a night ending 07:00 and
+     * the next ending 02:00 are separate groups but the same logical day, so both printed the same
+     * "nights ago". This pins that they stay apart.
      */
     @Test
-    fun aNightEndingBeforeFourAmCountsAgainstThePreviousLogicalDay() {
+    fun twoNightsEitherSideOfTheRollKeepDistinctLabels() {
         val utc = TimeZone.getTimeZone("UTC")
-        // Woke at 02:00 on the 7th: logically that is the 6th's night.
-        val endTs = LocalDate.of(2026, 9, 7).atStartOfDay(ZoneOffset.UTC).plusHours(2).toEpochSecond()
-        val nav = listOf(listOf(SleepSession(deviceId = "d", startTs = endTs - 6 * 3600, endTs = endTs)))
-        // And it is now 02:00 on the 7th too, which is still logically the 6th.
+        fun wakeAt(d: LocalDate, hour: Long) =
+            d.atStartOfDay(ZoneOffset.UTC).plusHours(hour).toEpochSecond()
+        val early = wakeAt(LocalDate.of(2026, 9, 7), 2)     // 02:00 on the 7th
+        val prior = wakeAt(LocalDate.of(2026, 9, 6), 7)     // 07:00 on the 6th
+        val nav = listOf(
+            listOf(SleepSession(deviceId = "d", startTs = early - 5 * 3600, endTs = early)),
+            listOf(SleepSession(deviceId = "d", startTs = prior - 6 * 3600, endTs = prior)),
+        )
+        val today = LocalDate.of(2026, 9, 7)               // mid-morning on the 7th
+        assertEquals(0, calendarNightsAgo(nav, 0, utc, today))
+        assertEquals(1, calendarNightsAgo(nav, 1, utc, today))
+    }
+
+    /**
+     * The small hours are why today is rolled at all: at 02:00 the logical day has not turned over,
+     * so the night that ended yesterday morning is still "Last night" rather than "1 night ago".
+     */
+    @Test
+    fun beforeFourAmYesterdayMorningsNightIsStillLastNight() {
+        val utc = TimeZone.getTimeZone("UTC")
+        val nav = listOf(nightOn(LocalDate.of(2026, 9, 6)))          // woke 07:00 on the 6th
+        // 02:00 on the 7th: logicalDayNow is still the 6th.
         assertEquals(0, calendarNightsAgo(nav, 0, utc, LocalDate.of(2026, 9, 6)))
+        assertEquals("Last night", nightRelativeLabel(calendarNightsAgo(nav, 0, utc, LocalDate.of(2026, 9, 6))))
     }
 
     /** A future-dated night must not produce a negative count; it falls back to the index. */

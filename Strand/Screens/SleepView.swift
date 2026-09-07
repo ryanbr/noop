@@ -375,16 +375,18 @@ struct SleepView: View {
     /// reporter read that as bad processing and it sent the investigation into the sleep stager
     /// instead of into this label.
     ///
-    /// Both sides sit on the LOGICAL day (the 04:00 roll `Repository.logicalDay` applies), because
-    /// mixing the scales is its own bug: a night that ended at 02:00 belongs to the previous logical
-    /// day, and comparing its raw calendar wake-date against a rolled "today" would report it a night
-    /// further back than it is. Kotlin twin: `calendarNightsAgo`.
+    /// The shown night keeps its CALENDAR wake-date, matching the key `navDays` groups by. Rolling
+    /// that side too would let two distinct carousel entries collapse onto one label: a night ending
+    /// 07:00 and the next ending 02:00 are separate groups but the same logical day, and both would
+    /// print the same "nights ago". Only TODAY is rolled, which is what the small hours need — at
+    /// 02:00 the night that ended yesterday morning is still "Last night". Kotlin twin:
+    /// `calendarNightsAgo`.
     private func nightsAgo(_ offset: Int, now: Date = Date()) -> Int {
         let days = navDays
         guard offset >= 0, offset < days.count, let shownTs = days[offset].first?.endTs
         else { return offset }
         let cal = Calendar.current
-        let shown = cal.startOfDay(for: Repository.logicalDay(Date(timeIntervalSince1970: TimeInterval(shownTs))))
+        let shown = cal.startOfDay(for: Date(timeIntervalSince1970: TimeInterval(shownTs)))
         let today = cal.startOfDay(for: Repository.logicalDay(now))
         let d = cal.dateComponents([.day], from: shown, to: today).day ?? offset
         return d >= 0 ? d : offset
