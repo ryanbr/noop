@@ -61,11 +61,6 @@ public enum MuscleAttribution {
         return out.trimmingCharacters(in: .whitespaces)
     }
 
-    /// The primary movers for a logged exercise name, or an empty array when it cannot be placed.
-    ///
-    /// Order matters: the first rule that matches wins, so the more specific phrase has to be tested
-    /// before the word it contains. "leg curl" is hamstrings and must be decided before "curl" sends
-    /// it to biceps; "front raise" is shoulders and must beat "raise"; "calf raise" likewise.
     /// Real exercises this vocabulary has no group for, which must attribute NOTHING rather than
     /// fall through to a generic rule that would be wrong.
     ///
@@ -77,6 +72,11 @@ public enum MuscleAttribution {
     /// deliberate absence of one, which is a different statement from "not recognised".
     static let unattributable: [String] = ["neck"]
 
+    /// The primary movers for a logged exercise name, or an empty array when it cannot be placed.
+    ///
+    /// Order matters: the first rule that matches wins, so the more specific phrase has to be tested
+    /// before the word it contains. "leg curl" is hamstrings and must be decided before "curl" sends
+    /// it to biceps; "front raise" is shoulders and must beat "raise"; "calf raise" likewise.
     public static func muscles(for exercise: String) -> [MuscleGroup] {
         let n = normalise(exercise)
         guard !n.isEmpty else { return [] }
