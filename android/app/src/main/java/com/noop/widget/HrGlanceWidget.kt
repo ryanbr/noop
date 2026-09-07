@@ -24,6 +24,7 @@ import androidx.glance.layout.Box
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
+import androidx.glance.layout.ContentScale
 import androidx.glance.layout.fillMaxHeight
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
@@ -285,6 +286,12 @@ private fun HrTraceImage(
                     provider = ImageProvider(bmp),
                     contentDescription = null,
                     modifier = GlanceModifier.fillMaxSize(),
+                    // FillBounds, not the default Fit. Everything about how this bitmap is sized assumes
+                    // it STRETCHES to the box: the width is drawn with headroom so it downscales, and the
+                    // height is drawn to an estimate because a weighted box has no knowable size. Fit
+                    // preserves aspect instead, so a 1034x253 trace in an 834x253 box would have been
+                    // letterboxed to 834x204 — 49px of dead space, undoing the height it was just given.
+                    contentScale = ContentScale.FillBounds,
                 )
             }
         }
