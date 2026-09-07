@@ -91,6 +91,18 @@ private fun hrSurface(dark: Boolean) = ColorProvider(if (dark) Color(0xFF0A1322)
 private fun hrTextPrimary(dark: Boolean) = ColorProvider(if (dark) Color(0xFFF4F6F8) else Color(0xFF1A2230))
 private fun hrTextSecondary(dark: Boolean) = ColorProvider(if (dark) Color(0xFF8A94A4) else Color(0xFF7C8696))
 
+/** Card padding, both sides. The chart and the axis under it must subtract the SAME figure or the
+ *  labels drift out of line with the trace they annotate. */
+private const val HR_CARD_PADDING_DP = 28f
+
+/** The bpm scale column plus its gap. Same reasoning: one number, read by both. Two copies of a layout
+ *  constant is how a chart and its axis end up a few pixels out of step. */
+private const val HR_SCALE_COLUMN_DP = 34f
+
+/** The chart width for a given widget width — the one place that arithmetic happens. */
+private fun hrChartWidthDp(widthDp: Float): Float =
+    (widthDp - HR_CARD_PADDING_DP - HR_SCALE_COLUMN_DP).coerceAtLeast(24f)
+
 /** The trace tint. A heart reads red in this app's language, not the screenshot's blue. */
 private fun hrAccent(dark: Boolean) = if (dark) Color(0xFFE0662F) else Color(0xFFC84E1E)
 
@@ -141,8 +153,14 @@ private fun HrWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
             }
         }
 
-        Spacer(GlanceModifier.height(8.dp))
-        HrTraceImage(snap, dark, widthDp = size.width.value, heightDp = 56f)
+        // No series, no chart row at all. On upgrade every existing install has a heart rate in prefs
+        // but no trace yet, and reserving the height for it would show a blank rectangle for the first
+        // few minutes — a void reads as broken where a shorter widget reads as new.
+        if (snap.hrSeries.isNotEmpty()) {
+            Spacer(GlanceModifier.height(8.dp))
+            HrTraceImage(snap, dark, widthDp = size.width.value, heightDp = 56f)
+            HrTimeAxis(snap, dark, widthDp = size.width.value)
+        }
 
         if (snap.updatedAtMs > 0) {
             Spacer(GlanceModifier.height(6.dp))
@@ -168,7 +186,7 @@ private fun HrTraceImage(snap: WidgetSnapshot, dark: Boolean, widthDp: Float, he
     val stats = HrTrace.stats(snap.hrSeries)
     val density = context.resources.displayMetrics.density
     // Leave room for the scale column so the trace is not drawn under its own labels.
-    val chartWidthDp = (widthDp - 28f - 34f).coerceAtLeast(24f)
+    val chartWidthDp = hrChartWidthDp(widthDp)
     // ONE box for both the geometry and the bitmap. Sizing them separately let the trace be drawn to
     // coordinates the bitmap did not have room for, clipping its right-hand end (#1957).
     val (wPx, hPx) = HrTrace.fitBox((chartWidthDp * density).toInt(), (heightDp * density).toInt())
@@ -196,19 +214,51 @@ private fun HrTraceImage(snap: WidgetSnapshot, dark: Boolean, widthDp: Float, he
         }
         if (stats != null) {
             Spacer(GlanceModifier.width(6.dp))
+            // Spread across the chart's height so max sits level with the top of the trace and min with
+            // the bottom, which is what makes it a SCALE. Stacked from the top with fixed gaps they were
+            // just three numbers near the chart, aligned to nothing.
             Column(
                 modifier = GlanceModifier.height(heightDp.dp),
                 horizontalAlignment = Alignment.Horizontal.End,
             ) {
-                for (tick in HrTrace.bpmTicks(stats)) {
+                val ticks = HrTrace.bpmTicks(stats)
+                ticks.forEachIndexed { i, tick ->
                     Text(
                         text = tick.toString(),
                         style = TextStyle(color = hrTextSecondary(dark), fontSize = 10.sp),
                         modifier = GlanceModifier.semantics { contentDescription = tick.toString() },
                     )
-                    Spacer(GlanceModifier.height(6.dp))
+                    if (i < ticks.size - 1) Spacer(GlanceModifier.defaultWeight())
                 }
             }
+        }
+    }
+}
+
+/**
+ * The time labels under the trace: first, middle and last of the DATA (see [HrTrace.timeTicks]).
+ *
+ * Spread with weighted spacers rather than fixed gaps, so the middle label sits over the middle of the
+ * chart whatever width the launcher gave the widget. Formatted through the locale's short time format,
+ * so a 12-hour device reads as one — a widget is not the place to impose a clock convention.
+ *
+ * Degrades with the ticks: under a minute of history there is one instant to name, and naming it three
+ * times would suggest a span that was never sampled.
+ */
+@Composable
+private fun HrTimeAxis(snap: WidgetSnapshot, dark: Boolean, widthDp: Float) {
+    val ticks = HrTrace.timeTicks(snap.hrSeries)
+    if (ticks.isEmpty()) return
+    val fmt = DateFormat.getTimeInstance(DateFormat.SHORT)
+    val chartWidthDp = hrChartWidthDp(widthDp)
+    Spacer(GlanceModifier.height(2.dp))
+    Row(modifier = GlanceModifier.width(chartWidthDp.dp)) {
+        ticks.forEachIndexed { i, ts ->
+            Text(
+                text = fmt.format(Date(ts * 1000)),
+                style = TextStyle(color = hrTextSecondary(dark), fontSize = 9.sp),
+            )
+            if (i < ticks.size - 1) Spacer(GlanceModifier.defaultWeight())
         }
     }
 }
