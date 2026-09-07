@@ -369,31 +369,15 @@ struct SleepView: View {
     /// raw index if it can't resolve. 0 = last night. Mirrors Android SleepHeroLogic.calendarNightsAgo.
     /// How many nights back the carousel night at `offset` is FROM TODAY.
     ///
-    /// Measured from today, not from the newest recorded night. Anchoring on the newest record made
-    /// offset 0 always land on zero, so the hero read "Last night" over a night that could be days
-    /// old — shown directly above the correct date, two adjacent labels contradicting each other. A
-    /// reporter read that as bad processing and it sent the investigation into the sleep stager
-    /// instead of into this label.
-    ///
-    /// The shown night keeps its CALENDAR wake-date, matching the key `navDays` groups by. Rolling
-    /// that side too would let two distinct carousel entries collapse onto one label: a night ending
-    /// 07:00 and the next ending 02:00 are separate groups but the same logical day, and both would
-    /// print the same "nights ago". Only TODAY is rolled, which is what the small hours need — at
-    /// 02:00 the night that ended yesterday morning is still "Last night". Kotlin twin:
-    /// `calendarNightsAgo`.
+    /// Delegates to `SleepNightLabel.nightsAgo`, which is where this logic is tested. It lived inline
+    /// and private here, which is why the newest-anchored defect went uncaught on this platform.
+    /// Kotlin twin: `calendarNightsAgo`.
     private func nightsAgo(_ offset: Int, now: Date = Date()) -> Int {
-        let days = navDays
-        guard offset >= 0, offset < days.count, let shownTs = days[offset].first?.endTs
-        else { return offset }
-        let cal = Calendar.current
-        let shown = cal.startOfDay(for: Date(timeIntervalSince1970: TimeInterval(shownTs)))
-        let today = cal.startOfDay(for: Repository.logicalDay(now))
-        let d = cal.dateComponents([.day], from: shown, to: today).day ?? offset
-        // A negative distance is normal here, not just the clock-skew guard it looks like: between
-        // waking before 04:00 and the roll, the night's calendar date is already tomorrow relative to
-        // the logical day. Falling back to the offset is the right answer for that, so this branch
-        // carries a real case and must not be narrowed to an error path.
-        return d >= 0 ? d : offset
+        SleepNightLabel.nightsAgo(
+            wakeTimestamps: navDays.map { Int($0.first?.endTs ?? 0) },
+            offset: offset,
+            today: Repository.logicalDay(now)
+        )
     }
 
     /// The night the Rest hero reflects: the ◀/▶-navigated night while browsing (falling back to
