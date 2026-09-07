@@ -4539,13 +4539,19 @@ public final class BLEManager: NSObject, ObservableObject {
         }   // re-arm so it can't lapse
         keepAliveTick += 1
         // #battery: ~60 s normally, ~30 s while charging (see `batteryPollDue`).
-        if BLEManager.batteryPollDue(tick: keepAliveTick, charging: state.charging == true) {
+        //
+        // WHOOP 4.0 ONLY (#1948). Both commands this block used to send are refused on a 5/MG before they
+        // leave the app: the send allowlist has no clause for `.getBatteryLevel` at all, and admits
+        // `.getBatteryPackInfo` only while a user-initiated probe is in flight. So on a 5/MG this was two
+        // dead sends and two skip lines per tick, under a comment claiming the pack "rides the SAME
+        // cadence as the strap's own gauge". It never rode anything.
+        //
+        // A 5/MG needs neither. Its percent comes from the 0x2A19 read that `enableLiveNotifications`
+        // drives off this same keep-alive (throttled to `whoop5BatteryReadMinIntervalSeconds`), and its pack charge from the
+        // pushed pack-info event (109), which since #1945 is that flag's only writer.
+        if selectedModel.deviceFamily != .whoop5,
+           BLEManager.batteryPollDue(tick: keepAliveTick, charging: state.charging == true) {
             send(.getBatteryLevel, payload: [])
-            // The 5/MG battery pack rides the SAME cadence as the strap's own gauge — it is the same
-            // question about the same physical thing, and a second timer would only be a second thing to
-            // get wrong. 5/MG only: a 4.0 never answers 151 (its pack is voltage-only via 98), so asking
-            // would be traffic with no reply.
-            if selectedModel.deviceFamily == .whoop5 { send(.getBatteryPackInfo, payload: []) }
         }
     }
 

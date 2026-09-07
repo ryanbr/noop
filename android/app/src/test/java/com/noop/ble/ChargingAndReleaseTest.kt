@@ -96,6 +96,37 @@ class ChargingAndReleaseTest {
                     code.contains("charging"))
     }
 
+    // --- #1948: the 5/MG keep-alive asks for nothing it cannot be given ------------------------------
+
+    /**
+     * The WHOOP5 keep-alive branch must not send `GET_BATTERY_PACK_INFO`.
+     *
+     * It did, on the gauge's cadence, under a comment saying the pack "rides the SAME cadence". It never
+     * did: the 5/MG send allowlist admits opcode 151 only while a user-initiated probe is in flight, so
+     * every one was refused before leaving the app — 40 in 40 minutes of one capture. The pack's charge
+     * comes from the pushed event (109) and the strap's percent from the 0x2A19 read, so asking bought
+     * nothing and cost a skip line a minute.
+     *
+     * Pinned against the source, like the pack-event guard above, because the send lives in a keep-alive
+     * body no JVM test can drive. Scoped to the WHOOP5 branch so the WHOOP4 poll beside it is untouched.
+     */
+    @Test
+    fun `the 5MG keepalive does not poll a pack opcode the allowlist refuses`() {
+        val src = clientSource()
+        val start = src.indexOf("} else if (connectedFamily == DeviceFamily.WHOOP5) {")
+        assertTrue("the WHOOP5 keep-alive branch was not found", start > 0)
+        val end = src.indexOf("#1865", start)
+        assertTrue("the branch's next landmark was not found", end > start)
+        val code = src.substring(start, end).lines()
+            .filterNot { it.trim().startsWith("//") }
+            .joinToString("\n")
+        assertFalse("the 5/MG keep-alive must not send GET_BATTERY_PACK_INFO (#1948): $code",
+                    code.contains("GET_BATTERY_PACK_INFO"))
+        // The 4.0 branch keeps its own poll: this is a 5/MG-only removal, not a battery-polling change.
+        assertTrue("the WHOOP4 gauge poll must survive",
+                   src.contains("if (batteryPollDue(keepAliveTick, s.charging == true)) send(CommandNumber.GET_BATTERY_LEVEL)"))
+    }
+
     private fun clientSource(): String {
         var root = java.io.File(System.getProperty("user.dir") ?: ".").canonicalFile
         repeat(4) {

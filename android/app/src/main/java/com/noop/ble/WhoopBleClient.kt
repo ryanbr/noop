@@ -8468,12 +8468,16 @@ class WhoopBleClient(
                     // #battery: ~60 s normally, ~30 s while charging (see [batteryPollDue]).
                     if (batteryPollDue(keepAliveTick, s.charging == true)) send(CommandNumber.GET_BATTERY_LEVEL)
                 } else if (connectedFamily == DeviceFamily.WHOOP5) {
-                    // The battery pack rides the SAME cadence as the strap's own gauge — the same question
-                    // about the same physical thing, and a second timer would only be a second thing to get
-                    // wrong. 5/MG only: a 4.0 never answers 151 (its pack is voltage-only via 98).
-                    if (batteryPollDue(keepAliveTick, s.charging == true)) {
-                        send(CommandNumber.GET_BATTERY_PACK_INFO)
-                    }
+                    // NO pack poll here (#1948). This used to send GET_BATTERY_PACK_INFO on the same
+                    // cadence as the gauge, with a comment saying the pack "rides the SAME cadence".
+                    // It never did: the 5/MG send allowlist admits opcode 151 ONLY while a user-initiated
+                    // probe is in flight, so every one of these was refused before it left the app. A
+                    // capture caught 40 of them in 40 minutes, one wasted call and one skip line a minute.
+                    //
+                    // Nothing is lost by not asking. The pack's charge arrives on the pushed pack-info
+                    // event (109), which since #1945 is its only writer, and the STRAP's own percent comes
+                    // from the 0x2A19 read below, not from a command. The probe path is untouched, and
+                    // remains how the hardware question ("does a 5/MG answer 151 at all?") gets asked.
                     // #1865: re-arm a LAPSED realtime stream. The WHOOP4 branch above re-sends
                     // TOGGLE_REALTIME_HR every tick precisely because "the firmware lets the realtime HR
                     // stream lapse if it isn't re-armed" — a 5/MG got none of that, on the reasoning that it
