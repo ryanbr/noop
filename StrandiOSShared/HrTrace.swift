@@ -1,7 +1,11 @@
 import Foundation
 
 /// One point on the widget's heart-rate trace: when it was taken, and the bpm.
-public struct HrPoint: Codable, Equatable {
+///
+/// `Sendable` because a SwiftUI `Shape` holding these is itself Sendable, and the compiler warns that
+/// carrying a non-Sendable stored property there is an error in a future language mode. Two immutable
+/// value fields, so it is Sendable by inspection rather than by assertion.
+public struct HrPoint: Codable, Equatable, Sendable {
     public let ts: Int64
     public let bpm: Int
     public init(ts: Int64, bpm: Int) {

@@ -1,3 +1,4 @@
+import StrandDesign
 import SwiftUI
 import WidgetKit
 
