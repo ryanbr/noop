@@ -86,7 +86,7 @@ object WidgetSnapshotStore {
         // actually render rather than re-deriving it: `load` resolves staleness and prunes the trace,
         // and a guess at either would be the thing that drifts.
         val visible = runCatching { load(app) }.getOrNull()
-        if (visible != null && !RenderedGate.changed(visible)) {
+        if (visible != null && !RenderedGate.changed(visible, WidgetTheme.isDark(app))) {
             // The stamp reads "Updated <time>", so it names when the data is FROM. A push that carried
             // nothing new must not advance it: doing so would tell the reader 14:47 while showing them
             // 14:32's reading. Putting it back also keeps what the prefs hold and what the widget shows
@@ -214,6 +214,13 @@ internal object HrDisplay {
  * The key spans every field any of the three widgets renders, so "nothing changed" means none of them
  * had anything to show — a narrower per-widget gate would be a different, visible trade.
  *
+ * The APPEARANCE is in the key even though it is not in the snapshot. The widgets read
+ * `theme.appearance` themselves at composition, and nothing refreshes them when it changes — today a
+ * theme flip reaches the screen only because every push updated unconditionally. Leaving it out would
+ * have meant a widget sat in the wrong colours until something unrelated moved, which is a regression
+ * this gate would have introduced rather than a cost it inherited. Resolved through [WidgetTheme] so it
+ * cannot disagree with what the widgets themselves decide.
+ *
  * `updatedAtMs` is the one field held OUT, and it is the reason this gate needed thought rather than a
  * port. All three widgets display it, so including it would mean the key changed on every push and the
  * gate could never fire; excluding it naively would freeze a visible clock. The resolution is that the
@@ -227,11 +234,12 @@ internal object RenderedGate {
     /** True when [visible] differs from what was last sent. The first call after a process start always
      *  admits: the widgets may be showing something an earlier process left them. */
     @Synchronized
-    fun changed(visible: WidgetSnapshot): Boolean {
+    fun changed(visible: WidgetSnapshot, dark: Boolean): Boolean {
         val newest = visible.hrSeries.lastOrNull()
         val key = "${visible.recoveryPct}|${visible.restPct}|${visible.effortPct}|" +
             "${visible.batteryPct}|${visible.connected}|${visible.heartRate}|" +
-            "${visible.heartRateStale}|${visible.hrSeries.size}|${newest?.ts}|${newest?.bpm}"
+            "${visible.heartRateStale}|${visible.hrSeries.size}|${newest?.ts}|${newest?.bpm}|" +
+            "$dark"
         val differs = key != last
         last = key
         return differs

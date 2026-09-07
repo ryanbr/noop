@@ -42,7 +42,7 @@ class RenderedGateTest {
     /** The widgets may be showing what an earlier process left them, so the first push always sends. */
     @Test
     fun theFirstPushAfterAProcessStartAlwaysSends() {
-        assertTrue(RenderedGate.changed(snap()))
+        assertTrue(RenderedGate.changed(snap(), dark = false))
     }
 
     /**
@@ -51,9 +51,9 @@ class RenderedGateTest {
      */
     @Test
     fun anIdenticalSnapshotIsNotSentTwice() {
-        assertTrue(RenderedGate.changed(snap()))
-        assertFalse(RenderedGate.changed(snap()))
-        assertFalse(RenderedGate.changed(snap()))
+        assertTrue(RenderedGate.changed(snap(), dark = false))
+        assertFalse(RenderedGate.changed(snap(), dark = false))
+        assertFalse(RenderedGate.changed(snap(), dark = false))
     }
 
     /**
@@ -63,39 +63,39 @@ class RenderedGateTest {
      */
     @Test
     fun aChangedHeartRateSends() {
-        RenderedGate.changed(snap(hr = 62))
-        assertTrue(RenderedGate.changed(snap(hr = 63)))
+        RenderedGate.changed(snap(hr = 62), dark = false)
+        assertTrue(RenderedGate.changed(snap(hr = 63), dark = false))
     }
 
     /** Crossing LIVE_MS dims the reading, which is a visible change with no value change behind it. */
     @Test
     fun aStalenessFlipSends() {
-        RenderedGate.changed(snap(stale = false))
-        assertTrue(RenderedGate.changed(snap(stale = true)))
+        RenderedGate.changed(snap(stale = false), dark = false)
+        assertTrue(RenderedGate.changed(snap(stale = true), dark = false))
     }
 
     /** A new trace point IS sent on Android, unlike the Apple rule: nothing else would carry it. */
     @Test
     fun anAdvancedTraceSends() {
         val series = listOf(HrPoint(ts = 1000, bpm = 62))
-        RenderedGate.changed(snap(series = series))
-        assertTrue(RenderedGate.changed(snap(series = series + HrPoint(ts = 1060, bpm = 63))))
+        RenderedGate.changed(snap(series = series), dark = false)
+        assertTrue(RenderedGate.changed(snap(series = series + HrPoint(ts = 1060, bpm = 63)), dark = false))
     }
 
     /** A point ageing out of the window redraws the chart just as surely as one arriving. */
     @Test
     fun aPrunedTraceSends() {
-        RenderedGate.changed(snap(series = listOf(HrPoint(1000, 62), HrPoint(1060, 63))))
-        assertTrue(RenderedGate.changed(snap(series = listOf(HrPoint(1060, 63)))))
+        RenderedGate.changed(snap(series = listOf(HrPoint(1000, 62), HrPoint(1060, 63))), dark = false)
+        assertTrue(RenderedGate.changed(snap(series = listOf(HrPoint(1060, 63))), dark = false))
     }
 
     /** Every scalar the 2x2 and compact widgets render has to count, not just the HR ones. */
     @Test
     fun theOtherWidgetsFieldsSendToo() {
-        RenderedGate.changed(snap())
-        assertTrue("recovery", RenderedGate.changed(snap(recovery = 71)))
-        assertTrue("battery", RenderedGate.changed(snap(recovery = 71, battery = 79)))
-        assertTrue("connected", RenderedGate.changed(snap(recovery = 71, battery = 79, connected = false)))
+        RenderedGate.changed(snap(), dark = false)
+        assertTrue("recovery", RenderedGate.changed(snap(recovery = 71), dark = false))
+        assertTrue("battery", RenderedGate.changed(snap(recovery = 71, battery = 79), dark = false))
+        assertTrue("connected", RenderedGate.changed(snap(recovery = 71, battery = 79, connected = false), dark = false))
     }
 
     /**
@@ -105,8 +105,8 @@ class RenderedGateTest {
      */
     @Test
     fun aDrainedSnapshotSettlesAndStopsSending() {
-        assertTrue(RenderedGate.changed(snap(hr = null, series = emptyList())))
-        repeat(10) { assertFalse(RenderedGate.changed(snap(hr = null, series = emptyList()))) }
+        assertTrue(RenderedGate.changed(snap(hr = null, series = emptyList()), dark = false))
+        repeat(10) { assertFalse(RenderedGate.changed(snap(hr = null, series = emptyList()), dark = false)) }
     }
 
     /**
@@ -124,7 +124,7 @@ class RenderedGateTest {
      */
     @Test
     fun theStampAloneDoesNotSend() {
-        RenderedGate.changed(snap())
+        RenderedGate.changed(snap(), dark = false)
         val later = WidgetSnapshot(
             recoveryPct = 70, restPct = 80, effortPct = 40,
             heartRate = 62, heartRateStale = false, batteryPct = 80, connected = true,
@@ -132,6 +132,19 @@ class RenderedGateTest {
             updatedAtMs = 1_700_000_900_000L,          // fifteen minutes later, same everything else
         )
         assertFalse("a newer stamp with identical content is not worth an update",
-            RenderedGate.changed(later))
+            RenderedGate.changed(later, dark = false))
+    }
+
+    /**
+     * The appearance is an input the widgets read at composition, not one the snapshot carries, and
+     * nothing refreshes them when it changes — a theme flip reaches the screen only because a push
+     * updated them. Leaving it out of the key would have left a widget in the wrong colours until
+     * something unrelated moved, which is a regression this gate would have INTRODUCED.
+     */
+    @Test
+    fun aThemeFlipSends() {
+        RenderedGate.changed(snap(), dark = false)
+        assertTrue(RenderedGate.changed(snap(), dark = true))
+        assertFalse("and settles again once sent", RenderedGate.changed(snap(), dark = true))
     }
 }
