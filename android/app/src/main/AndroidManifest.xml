@@ -291,6 +291,20 @@
                 android:resource="@xml/noop_compact_widget_info" />
         </receiver>
 
+        <!-- Heart-rate widget (#1957): live bpm with the last three hours as a trace. Same snapshot
+             source as the score widgets; the trace is a Bitmap because Glance cannot draw one. -->
+        <receiver
+            android:name="com.noop.widget.HrWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_hr_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/hr_widget_info" />
+        </receiver>
+
         <!-- K10: Coach brief home-screen widget. Shows the stored morning brief (generated on a
              schedule by CoachBriefScheduler, K5) — never live-networked. Tap → opens the app. -->
         <receiver

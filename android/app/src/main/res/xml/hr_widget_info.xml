@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Wider and shorter than the score widget: the trace needs horizontal room to be readable, and
+     nothing here is stacked. 4x2 cells at the default launcher grid. updatePeriodMillis is 0 because
+     WidgetSnapshotStore pushes on the app's own cadence; letting the system poll as well would wake
+     the widget on a schedule that has nothing to do with when a heart rate arrived. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/widget_hr_description"
+    android:minWidth="250dp"
+    android:minHeight="110dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:updatePeriodMillis="0"
+    android:initialLayout="@layout/glance_default_loading_layout" />

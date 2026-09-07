@@ -2650,4 +2650,8 @@
     <string name="l10n_devices_screen_pack_charge_0e9589da">电池盒 %1$.1f%%</string>
     <string name="l10n_today_screen_pending_sync_cbe01f9e">等待同步</string>
     <string name="l10n_today_screen_strap_history_still_offloading_80140264">手环历史记录仍在传输</string>
+    <string name="l10n_hr_glance_widget_min_lo_max_hi_ef900e49">最低 %1$d • 最高 %2$d</string>
+    <string name="l10n_hr_glance_widget_updated_time_1b5feedb">更新于 %1$s</string>
+    <string name="widget_hr_name">NOOP 心率</string>
+    <string name="widget_hr_description">实时心率，并显示最近三小时的曲线。</string>
 </resources>

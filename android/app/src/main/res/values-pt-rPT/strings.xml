@@ -2729,4 +2729,8 @@
     <string name="units_follow_body">Como medidas corporais</string>
     <string name="l10n_today_screen_pending_sync_cbe01f9e">Sincronização pendente</string>
     <string name="l10n_today_screen_strap_history_still_offloading_80140264">o histórico da bracelete ainda está a ser transferido</string>
+    <string name="l10n_hr_glance_widget_min_lo_max_hi_ef900e49">Mín %1$d • Máx %2$d</string>
+    <string name="l10n_hr_glance_widget_updated_time_1b5feedb">Atualizado %1$s</string>
+    <string name="widget_hr_name">NOOP Frequência cardíaca</string>
+    <string name="widget_hr_description">Frequência cardíaca em direto com as últimas três horas em gráfico.</string>
 </resources>

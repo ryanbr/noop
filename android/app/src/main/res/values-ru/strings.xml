@@ -2620,4 +2620,8 @@
     <string name="l10n_devices_screen_battery_pack_probe_explainer_40b3470d">Отправляет команду батарейного блока только для чтения (151) и декодирует ответ браслета — заряд блока, серийный номер и Bluetooth-адрес. На браслет ничего не записывается, и это не влияет на ваши данные. У WHOOP 4.0 нет команды блока, и ожидается молчание; само это молчание — полезный результат.</string>
     <string name="l10n_today_screen_pending_sync_cbe01f9e">Ожидает синхронизации</string>
     <string name="l10n_today_screen_strap_history_still_offloading_80140264">история браслета ещё передаётся</string>
+    <string name="l10n_hr_glance_widget_min_lo_max_hi_ef900e49">Мин %1$d • Макс %2$d</string>
+    <string name="l10n_hr_glance_widget_updated_time_1b5feedb">Обновлено %1$s</string>
+    <string name="widget_hr_name">NOOP Пульс</string>
+    <string name="widget_hr_description">Пульс в реальном времени и график за последние три часа.</string>
 </resources>

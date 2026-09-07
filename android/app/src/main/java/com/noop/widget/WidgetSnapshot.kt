@@ -24,6 +24,11 @@ data class WidgetSnapshot(
     /** Strap battery 0–100, null until the strap reports it. */
     val batteryPct: Int? = null,
     val connected: Boolean = false,
+    /** The last [HrTrace.WINDOW_SEC] of heart rate, one point per minute, for the trace widget (#1957).
+     *  Maintained by the STORE rather than by producers: `save` folds each live sample in and `load`
+     *  hands back the pruned series, so nothing that pushes a snapshot had to learn about it. Empty
+     *  until a live sample lands, which is also what a fresh install and a quiet strap look like. */
+    val hrSeries: List<HrPoint> = emptyList(),
     /** Wall-clock millis of the last push, so the widget can show honest staleness. */
     val updatedAtMs: Long = 0L,
 )
@@ -40,6 +45,10 @@ data class WidgetSnapshot(
  */
 object WidgetSnapshotStore {
     private const val FILE = "noop_widget"
+
+    /** Prefs key for the encoded heart-rate trace (#1957). Its own key so an older build, or a wipe of
+     *  the trace, leaves every scalar the other widgets read untouched. */
+    private const val KEY_SERIES = "hrSeries"
 
     suspend fun push(context: Context, snap: WidgetSnapshot) {
         val app = context.applicationContext
@@ -58,13 +67,18 @@ object WidgetSnapshotStore {
         val compactIds = runCatching {
             GlanceAppWidgetManager(app).getGlanceIds(NoopCompactGlanceWidget::class.java)
         }.getOrDefault(emptyList())
-        if (standardIds.isEmpty() && compactIds.isEmpty()) return
+        val hrIds = runCatching {
+            GlanceAppWidgetManager(app).getGlanceIds(HrGlanceWidget::class.java)
+        }.getOrDefault(emptyList())
+        if (standardIds.isEmpty() && compactIds.isEmpty() && hrIds.isEmpty()) return
         runCatching { NoopGlanceWidget().updateAll(app) }
         runCatching { NoopCompactGlanceWidget().updateAll(app) }
+        runCatching { HrGlanceWidget().updateAll(app) }
     }
 
     fun save(context: Context, snap: WidgetSnapshot) {
-        val e = context.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
+        val prefs = context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+        val e = prefs.edit()
             .putInt("recovery", snap.recoveryPct ?: -1)
             .putInt("rest", snap.restPct ?: -1)
             .putInt("effort", snap.effortPct ?: -1)
@@ -76,7 +90,18 @@ object WidgetSnapshotStore {
         // `hrLive` records that the retained value is now a carry-over so the widget dims it (see HrDisplay).
         val live = (snap.heartRate ?: 0) > 0
         e.putBoolean("hrLive", live)
-        if (live) e.putInt("hr", snap.heartRate!!).putLong("hrAt", snap.updatedAtMs)
+        if (live) {
+            e.putInt("hr", snap.heartRate!!).putLong("hrAt", snap.updatedAtMs)
+            // #1957: fold the sample into the trace. Read-modify-write is affordable here precisely
+            // because PushGate already throttles an unchanged key to once a minute, which is the same
+            // cadence HrTrace buckets at — so this runs about once per point, not once per sample.
+            val nowSec = snap.updatedAtMs / 1000
+            val folded = HrTrace.append(
+                HrTrace.decode(prefs.getString(KEY_SERIES, null)),
+                ts = nowSec, bpm = snap.heartRate!!, nowSec = nowSec,
+            )
+            e.putString(KEY_SERIES, HrTrace.encode(folded))
+        }
         e.apply()
     }
 
@@ -96,6 +121,13 @@ object WidgetSnapshotStore {
             heartRateStale = hrStale,
             batteryPct = p.getInt("battery", -1).takeIf { it >= 0 },
             connected = p.getBoolean("connected", false),
+            // Pruned on the way OUT as well as on the way in: a widget read hours after the last push
+            // would otherwise draw a trace whose newest point is stale, under a header that already
+            // dropped the number for being too old (see [HrDisplay.STALE_CAP_MS]).
+            hrSeries = HrTrace.prune(
+                HrTrace.decode(p.getString(KEY_SERIES, null)),
+                nowSec = System.currentTimeMillis() / 1000,
+            ),
             updatedAtMs = p.getLong("updatedAt", 0L),
         )
     }

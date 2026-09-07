@@ -2741,4 +2741,8 @@
     <string name="units_follow_body">Jak pomiary ciała</string>
     <string name="l10n_today_screen_pending_sync_cbe01f9e">Oczekuje na synchronizację</string>
     <string name="l10n_today_screen_strap_history_still_offloading_80140264">historia paska wciąż jest przesyłana</string>
+    <string name="l10n_hr_glance_widget_min_lo_max_hi_ef900e49">Min %1$d • Maks %2$d</string>
+    <string name="l10n_hr_glance_widget_updated_time_1b5feedb">Zaktualizowano %1$s</string>
+    <string name="widget_hr_name">NOOP Tętno</string>
+    <string name="widget_hr_description">Tętno na żywo z ostatnimi trzema godzinami jako wykres.</string>
 </resources>
