@@ -88,22 +88,21 @@ public final class LiveState: ObservableObject {
     /// charging began. They diverge on a depleted pack or a poor contact: 21 fires, 7 never does, and
     /// this reads true while nothing charges.
     ///
-    /// THAT STATE IS BOUNDED, which is why it is documented rather than split. It does not last until 22:
-    /// the next live BATTERY_LEVEL overwrites it from the gauge, so the window is about one battery
-    /// cadence. One thing extends it: the live router is skipped while an offload replays (backfill never
-    /// calls `handle(frame:)`), so a long history sync holds the stale value for its duration plus a
-    /// cadence. Android has the same exclusion explicitly, in `shouldApplyChargingFromBatteryEvent`.
-    /// It matters beyond the pill because `BLEManager.lowPowerThrottleActive` reads this flag
-    /// and a true value disables the low-battery offload throttle, so a strap on a dead pack can skip
-    /// throttling for that window. Bounded and self-healing; splitting the state, or making the throttle
-    /// wait for a rising gauge, would cost every honest attach to close it.
+    /// THAT STATE IS BOUNDED ON THIS PLATFORM, which is why it is documented rather than split. It does
+    /// not last until 22: the next live BATTERY_LEVEL overwrites it from the gauge, so the window is about
+    /// one battery cadence. That holds here for a specific reason — the pack record is LOG-ONLY on iOS
+    /// (`FrameRouter`, Test Centre gated), so nothing but the gauge writes this flag afterwards. The
+    /// Android twin is different and worse: it writes `charging = true` from the pushed pack-info event
+    /// (109) every couple of minutes while a pack is attached, which outruns the gauge and holds the flag
+    /// true for the whole attachment. Do not port that here, and read #1935 before adding any pack-derived
+    /// write to this flag.
     ///
-    /// What reads it beyond the pill, all bounded the same way. `BLEManager.lowPowerThrottleActive` is
-    /// the one that matters, and it gates THREE levers, not one: the low-battery offload cadence, the
-    /// connection-priority throttle, and the continuous-capture pause behind the user's own "Pause HRV
-    /// capture" percentage. So a pack attached but not charging can keep background capture running at low
-    /// battery after the user asked for it to stop. `BLEManager.batteryPollDue` also reads it, polling
-    /// every tick instead of every other, which is harmless and arguably wanted with a pack on.
+    /// It matters beyond the pill. `BLEManager.lowPowerThrottleActive` reads it and gates THREE levers, not
+    /// one: the low-battery offload cadence, the connection-priority throttle, and the continuous-capture
+    /// pause behind the user's own "Pause HRV capture" percentage. So a pack attached but not charging can
+    /// keep background capture running at low battery after the user asked for it to stop, for as long as
+    /// the flag is wrong. `BLEManager.batteryPollDue` also reads it, polling every tick instead of every
+    /// other, which is harmless and arguably wanted with a pack on.
     ///
     /// nil until the first event of a session; cleared on disconnect so a stale flag can't outlive the
     /// link. Flag ONLY — the battery % keeps its family-specific source (#77).

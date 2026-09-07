@@ -177,22 +177,23 @@ data class LiveState(
      *  a depleted pack or a poor contact: 21 fires, 7 never does, and this reads true while nothing
      *  charges.
      *
-     *  THAT STATE IS BOUNDED, which is why it is documented rather than split. It does not last until 22:
-     *  the next live BATTERY_LEVEL overwrites it from the gauge, so the window is about one battery
-     *  cadence. One thing extends it: [shouldApplyChargingFromBatteryEvent] suppresses the rewrite while
-     *  an offload replays, so a long history sync holds the stale value for its duration plus a cadence
-     *  (iOS has the same exclusion structurally: backfill never reaches the live router). It matters
-     *  beyond the pill because [lowPowerThrottleActive]'s twin reads this flag and a
-     *  true value disables the low-battery offload throttle, so a strap on a dead pack can skip
-     *  throttling for that window. Bounded and self-healing; splitting the state, or making the throttle
-     *  wait for a rising gauge, would cost every honest attach to close it.
+     *  ON ANDROID THAT STATE DOES NOT HEAL ITSELF, which is the part to know before trusting the flag.
+     *  A live BATTERY_LEVEL does overwrite it from the gauge, but it is not the only writer: the pushed
+     *  pack-info event (109) sets it true AGAIN every couple of minutes for as long as a pack is
+     *  ATTACHED, keyed on presence plus a plausible SoC ([com.noop.protocol.BatteryPackInfo.Info.displayable]),
+     *  a flat pack included. That re-assertion is deliberate, the anti-staleness half for an attach edge
+     *  the app missed, but it fires several times more often than the ~8 min BATTERY_LEVEL that would
+     *  clear it, so the gauge's answer is overwritten before it can settle. A pack attached and NOT
+     *  charging therefore reads true until BATTERY_PACK_REMOVED(22), not for one battery cadence. iOS
+     *  does not do this: there the pack record is log-only, so its cadence bound is real. Tracked in
+     *  #1935; the anti-staleness job wants "a pack is attached", which [packSocPct] already answers.
      *
-     *  What reads it beyond the pill, all bounded the same way. [idleThrottleActive] is the one that
-     *  matters, and it gates THREE levers, not one: the low-battery offload cadence, the GATT
-     *  connection-priority throttle, and the continuous-capture pause behind the user's own "Pause HRV
-     *  capture" percentage. So a pack attached but not charging can keep background capture running at
-     *  low battery after the user asked for it to stop. [batteryPollDue] also reads it, polling every
-     *  tick instead of every other, which is harmless and arguably wanted with a pack on.
+     *  It matters beyond the pill. [WhoopBleClient.idleThrottleActive] reads this flag and gates THREE
+     *  levers, not one: the low-battery offload cadence, the GATT connection-priority throttle, and the
+     *  continuous-capture pause behind the user's own "Pause HRV capture" percentage. So a strap on a flat
+     *  or badly seated pack can skip low-battery throttling and keep background capture running for the
+     *  WHOLE attachment, after the user asked for it to stop. [WhoopBleClient.batteryPollDue] also reads
+     *  it, polling every tick instead of every other, which is harmless and arguably wanted with a pack on.
      *
      *  Flag only; battery % keeps its family source (#77). Cleared on disconnect so a stale flag can't
      *  outlive the link. Twin of macOS LiveState.charging. */
