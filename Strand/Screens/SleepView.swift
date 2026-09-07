@@ -361,20 +361,22 @@ struct SleepView: View {
         return n == 0 ? "Last night" : (n == 1 ? "1 night ago" : "\(n) nights ago")
     }
 
-    /// #1311: how many CALENDAR nights back the carousel night at `offset` is from the newest recorded
-    /// night. The ◀/▶ carousel steps by RECORDED night (`navDays`, newest-first), so a night with no
-    /// data (strap off-body) is a gap the flat index can't see — labelling by index makes two nights
-    /// either side of a skipped night read as consecutive and desyncs the "N nights ago" labels (and the
-    /// Rest value they name). Uses the same local start-of-day `navDays` is grouped by; falls back to the
-    /// raw index if it can't resolve. 0 = last night. Mirrors Android SleepHeroLogic.calendarNightsAgo.
-    /// How many nights back the carousel night at `offset` is FROM TODAY.
+    /// #1311: how many nights back the carousel night at `offset` is, counted in CALENDAR nights rather
+    /// than carousel index. The ◀/▶ carousel steps by RECORDED night (`navDays`, newest-first), so a
+    /// night with no data (strap off-body) is a gap the flat index can't see — labelling by index makes
+    /// two nights either side of a skipped night read as consecutive and desyncs the "N nights ago"
+    /// labels (and the Rest value they name).
+    ///
+    /// Counted FROM TODAY, not from the newest recorded night.
     ///
     /// Delegates to `SleepNightLabel.nightsAgo`, which is where this logic is tested. It lived inline
     /// and private here, which is why the newest-anchored defect went uncaught on this platform.
     /// Kotlin twin: `calendarNightsAgo`.
     private func nightsAgo(_ offset: Int, now: Date = Date()) -> Int {
         SleepNightLabel.nightsAgo(
-            wakeTimestamps: navDays.map { Int($0.first?.endTs ?? 0) },
+            // Optional per entry, NOT `?? 0`: a day group with no session must fall back to the offset
+            // the way the Kotlin twin does. Zero would be 1970 and would read as ~20,000 nights ago.
+            wakeTimestamps: navDays.map { $0.first.map { s in Int(s.endTs) } },
             offset: offset,
             today: Repository.logicalDay(now)
         )

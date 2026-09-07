@@ -29,24 +29,22 @@ final class SleepNightLabelTests: XCTestCase {
     /// "Last night" over a night days old — beside the correct date, contradicting it.
     func testAStaleNewestNightIsNotCalledLastNight() {
         let n = SleepNightLabel.nightsAgo(
-            wakeTimestamps: [wake(2026, 9, 5)], offset: 0,
+            wakeTimestamps: [wake(2026, 9, 5)] as [Int?], offset: 0,
             today: day(2026, 9, 7), calendar: utc)
         XCTAssertEqual(n, 2)
-        XCTAssertEqual(SleepNightLabel.relative(n), "2 nights ago")
     }
 
     func testTheNightThatEndedThisMorningIsStillLastNight() {
         let n = SleepNightLabel.nightsAgo(
-            wakeTimestamps: [wake(2026, 9, 7)], offset: 0,
+            wakeTimestamps: [wake(2026, 9, 7)] as [Int?], offset: 0,
             today: day(2026, 9, 7), calendar: utc)
         XCTAssertEqual(n, 0)
-        XCTAssertEqual(SleepNightLabel.relative(n), "Last night")
     }
 
     /// Calendar distance, not carousel index: a night with no data is skipped by the carousel, so
     /// labelling by index would make the nights either side of it read as consecutive.
     func testCountsCalendarNightsNotCarouselIndex() {
-        let nights = [wake(2026, 8, 13), wake(2026, 8, 10)]
+        let nights: [Int?] = [wake(2026, 8, 13), wake(2026, 8, 10)]
         XCTAssertEqual(SleepNightLabel.nightsAgo(wakeTimestamps: nights, offset: 0,
                                                  today: day(2026, 8, 13), calendar: utc), 0)
         XCTAssertEqual(SleepNightLabel.nightsAgo(wakeTimestamps: nights, offset: 1,
@@ -56,7 +54,7 @@ final class SleepNightLabelTests: XCTestCase {
     /// Only TODAY is rolled; the shown night keeps its calendar wake-date, because that is what the
     /// carousel groups by. Rolling both sides collapsed two distinct entries onto one label.
     func testTwoNightsEitherSideOfTheRollKeepDistinctLabels() {
-        let nights = [wake(2026, 9, 7, 2), wake(2026, 9, 6, 7)]
+        let nights: [Int?] = [wake(2026, 9, 7, 2), wake(2026, 9, 6, 7)]
         XCTAssertEqual(SleepNightLabel.nightsAgo(wakeTimestamps: nights, offset: 0,
                                                  today: day(2026, 9, 7), calendar: utc), 0)
         XCTAssertEqual(SleepNightLabel.nightsAgo(wakeTimestamps: nights, offset: 1,
@@ -69,20 +67,28 @@ final class SleepNightLabelTests: XCTestCase {
     /// "Last night". Pinned so a later tightening of that branch cannot break it silently.
     func testANightWokenBeforeTheRollStillReadsLastNight() {
         let n = SleepNightLabel.nightsAgo(
-            wakeTimestamps: [wake(2026, 9, 7, 2)], offset: 0,
+            wakeTimestamps: [wake(2026, 9, 7, 2)] as [Int?], offset: 0,
             today: day(2026, 9, 6, 23), calendar: utc)
         XCTAssertEqual(n, 0)
-        XCTAssertEqual(SleepNightLabel.relative(n), "Last night")
     }
 
     func testOutOfRangeFallsBackToTheIndex() {
-        XCTAssertEqual(SleepNightLabel.nightsAgo(wakeTimestamps: [], offset: 5,
+        XCTAssertEqual(SleepNightLabel.nightsAgo(wakeTimestamps: [] as [Int?], offset: 5,
                                                  today: day(2026, 9, 7), calendar: utc), 5)
     }
 
-    func testRelativeWording() {
-        XCTAssertEqual(SleepNightLabel.relative(0), "Last night")
-        XCTAssertEqual(SleepNightLabel.relative(1), "1 night ago")
-        XCTAssertEqual(SleepNightLabel.relative(4), "4 nights ago")
+    /// A carousel entry with no session falls back to the offset, exactly as the Kotlin twin does.
+    /// Mapping it to 0 would put the night in 1970 and print roughly twenty thousand nights ago.
+    ///
+    /// The dates are chosen so the fallback is DISTINGUISHABLE: at offset 1 the answer is 1 only
+    /// because the guard fired, since the real night sits fourteen nights back and an unguarded 1970
+    /// would be five figures. A nil at offset 0 against a same-day today would have returned 0 either
+    /// way and proved nothing.
+    func testAnEntryWithNoSessionFallsBackToTheIndex() {
+        let nights: [Int?] = [wake(2026, 9, 6), nil]
+        XCTAssertEqual(SleepNightLabel.nightsAgo(wakeTimestamps: nights, offset: 0,
+                                                 today: day(2026, 9, 20), calendar: utc), 14)
+        XCTAssertEqual(SleepNightLabel.nightsAgo(wakeTimestamps: nights, offset: 1,
+                                                 today: day(2026, 9, 20), calendar: utc), 1)
     }
 }

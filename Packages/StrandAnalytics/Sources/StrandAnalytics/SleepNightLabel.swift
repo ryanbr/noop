@@ -8,19 +8,13 @@ import Foundation
 /// package's tests run in ordinary CI, unlike the app-target bundle, so the logic is verified on
 /// every change rather than only when the on-demand app build is dispatched.
 ///
-/// Kotlin twin: `calendarNightsAgo` / `nightRelativeLabel`.
+/// Only the arithmetic lives here. The WORDING deliberately stays in the view: it returns a
+/// `LocalizedStringKey`, so the literals have to remain in source for extraction, and pulling them
+/// into a `String` helper here would quietly drop them out of the catalogue. The Kotlin twin can share
+/// both halves because Android localises through resource ids instead.
+///
+/// Kotlin twin: `calendarNightsAgo`.
 public enum SleepNightLabel {
-
-    /// The relative name for a night [offset] positions back in the carousel.
-    ///
-    /// Kotlin twin: `nightRelativeLabel`.
-    public static func relative(_ nightsAgo: Int) -> String {
-        switch nightsAgo {
-        case 0: return "Last night"
-        case 1: return "1 night ago"
-        default: return "\(nightsAgo) nights ago"
-        }
-    }
 
     /// How many nights back the carousel entry at `offset` is FROM TODAY.
     ///
@@ -29,7 +23,8 @@ public enum SleepNightLabel {
     /// old, printed directly above the correct date: two adjacent labels contradicting each other.
     ///
     /// `wakeTimestamps` is newest-first, one per carousel entry, each the entry's wake instant. It is
-    /// timestamps rather than sessions so this stays free of view types.
+    /// timestamps rather than sessions so this stays free of view types, and OPTIONAL so an entry with
+    /// no session falls back to the offset instead of being read as 1970.
     ///
     /// `today` must be the LOGICAL day (the 04:00 roll), and the wake instants must NOT be rolled.
     /// The carousel groups nights by their calendar wake-date, so rolling that side too would let two
@@ -42,13 +37,14 @@ public enum SleepNightLabel {
     /// to the offset is the right answer there, so that branch carries a real case and must not be
     /// narrowed to an error path.
     public static func nightsAgo(
-        wakeTimestamps: [Int],
+        wakeTimestamps: [Int?],
         offset: Int,
         today: Date,
         calendar: Calendar = .current
     ) -> Int {
-        guard offset >= 0, offset < wakeTimestamps.count else { return offset }
-        let shown = calendar.startOfDay(for: Date(timeIntervalSince1970: TimeInterval(wakeTimestamps[offset])))
+        guard offset >= 0, offset < wakeTimestamps.count,
+              let shownTs = wakeTimestamps[offset] else { return offset }
+        let shown = calendar.startOfDay(for: Date(timeIntervalSince1970: TimeInterval(shownTs)))
         let todayStart = calendar.startOfDay(for: today)
         let d = calendar.dateComponents([.day], from: shown, to: todayStart).day ?? offset
         return d >= 0 ? d : offset
