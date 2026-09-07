@@ -5326,7 +5326,13 @@ class WhoopBleClient(
                 silentLinksSoFar = silentLinksNow,
             )
         ) {
-            // #1949: say WHY, once per link. A silent return here is what made an MG capture unreadable:
+            // #1949: say WHY, once per link. UNGATED, unlike the pairing dump, and deliberately so: the
+            // domain argument to log() is a TAG rather than a gate, so this lands in an ordinary strap
+            // log. That is the point — it explains a silence to whoever reads the log they already have,
+            // and it costs one line, only on a no-hello 5/MG link, which is the only place the probe is
+            // scheduled. The dump is eight lines of readout and stays behind the Test Centre domain.
+            //
+            // A silent return here is what made an MG capture unreadable:
             // the puffin chars discovered, never subscribed, and no way to tell the app declined from the
             // strap refusing — opposite meanings for #1635. Once per link, because this path is retried.
             if (!unbondedProbeSkipLogged) {
