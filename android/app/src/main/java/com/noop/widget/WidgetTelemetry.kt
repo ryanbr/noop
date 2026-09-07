@@ -32,7 +32,22 @@ import java.util.Locale
  */
 object WidgetTelemetry {
 
+    /**
+     * How long after the first push to ignore before the rates start counting.
+     *
+     * The snapshot's fields populate one after another at startup — recovery, then rest, then effort,
+     * then battery, then connection — and each one is a key change [PushGate] admits immediately. So a
+     * launch produces a burst that the 60-second refresh clause has nothing to do with. The first field
+     * sample showed six pushes in a hundred seconds reported as 215/h, against a steady state of about
+     * sixty: the number that matters most was wrong by three and a half times, in exactly the situation
+     * where someone looks at it first.
+     */
+    private const val WARMUP_MS = 60_000L
+
     private var startedAtMs = 0L
+    private var steadyStartMs = 0L
+    private var steadyPushes = 0L
+    private var steadyRenderBytes = 0L
     private var pushesAdmitted = 0L
     private var pushesGated = 0L
     private var renders = 0L
@@ -49,6 +64,10 @@ object WidgetTelemetry {
         if (startedAtMs == 0L) startedAtMs = nowMs
         pushesAdmitted += 1
         lastPushAtMs = nowMs
+        if (nowMs - startedAtMs >= WARMUP_MS) {
+            if (steadyStartMs == 0L) steadyStartMs = nowMs
+            steadyPushes += 1
+        }
     }
 
     /** A push the gate dropped. At live-HR cadence this should dwarf the admitted count. */
@@ -75,6 +94,7 @@ object WidgetTelemetry {
         renderBytes += bytes.toLong()
         renderMs += elapsedMs
         if (elapsedMs > renderMsMax) renderMsMax = elapsedMs
+        if (steadyStartMs != 0L) steadyRenderBytes += bytes.toLong()
     }
 
     /**
@@ -90,6 +110,9 @@ object WidgetTelemetry {
     @Synchronized
     fun snapshot(nowMs: Long): Snapshot = Snapshot(
         uptimeMs = if (startedAtMs == 0L) 0L else nowMs - startedAtMs,
+        steadyMs = if (steadyStartMs == 0L) 0L else nowMs - steadyStartMs,
+        steadyPushes = steadyPushes,
+        steadyRenderBytes = steadyRenderBytes,
         pushesAdmitted = pushesAdmitted,
         pushesGated = pushesGated,
         pushesUnchanged = pushesUnchanged,
@@ -103,13 +126,17 @@ object WidgetTelemetry {
 
     @Synchronized
     fun resetForTest() {
-        startedAtMs = 0L; pushesAdmitted = 0L; pushesGated = 0L; pushesUnchanged = 0L
+        startedAtMs = 0L; steadyStartMs = 0L; steadyPushes = 0L; steadyRenderBytes = 0L
+        pushesAdmitted = 0L; pushesGated = 0L; pushesUnchanged = 0L
         renders = 0L; rendersRedundant = 0L; renderBytes = 0L; renderMs = 0L; renderMsMax = 0L
         lastPushAtMs = 0L
     }
 
     data class Snapshot(
         val uptimeMs: Long,
+        val steadyMs: Long,
+        val steadyPushes: Long,
+        val steadyRenderBytes: Long,
         val pushesAdmitted: Long,
         val pushesGated: Long,
         val pushesUnchanged: Long,
@@ -123,19 +150,27 @@ object WidgetTelemetry {
         /** Mean bitmap in bytes, or null before the first render. */
         val meanRenderBytes: Long? get() = if (renders > 0) renderBytes / renders else null
 
-        /**
-         * Pushes per hour, extrapolated from this process's uptime. Null under a minute of uptime:
-         * a rate from a few seconds of samples is noise wearing a number's clothes.
-         */
-        val pushesPerHour: Double?
-            get() = if (uptimeMs >= 60_000L) pushesAdmitted * 3_600_000.0 / uptimeMs else null
+        /** A rate is only quoted once the steady window is long enough to mean something. Five
+         *  minutes of ordinary running is a handful of one-a-minute pushes; less is arithmetic. */
+        private val steadyEnough: Boolean get() = steadyMs >= 5 * 60_000L
 
         /**
-         * Bitmap bytes per hour at the observed rate — the figure the drain question turns on, since
-         * this is what crosses a Binder transaction to the launcher.
+         * Pushes per hour, measured over the STEADY window rather than since process start.
+         *
+         * The startup burst is excluded because it is not what the widget costs to keep running: the
+         * snapshot's fields arrive one by one and each is a key change admitted on the spot, so a
+         * launch produces pushes the 60-second clause had nothing to do with. Quoting them as a rate
+         * overstated the cost by three and a half times on the first sample from a device.
+         */
+        val pushesPerHour: Double?
+            get() = if (steadyEnough) steadyPushes * 3_600_000.0 / steadyMs else null
+
+        /**
+         * Bitmap bytes per hour — the figure the drain question turns on, since this is what crosses a
+         * Binder transaction to the launcher. Same steady window, for the same reason.
          */
         val renderBytesPerHour: Double?
-            get() = if (uptimeMs >= 60_000L) renderBytes * 3_600_000.0 / uptimeMs else null
+            get() = if (steadyEnough) steadyRenderBytes * 3_600_000.0 / steadyMs else null
 
         /**
          * One line for the diagnostics header. Deliberately reports the RATE alongside the raw counts:
@@ -150,6 +185,8 @@ object WidgetTelemetry {
                 return "Widgets:     no pushes this app session"
             }
             val mins = uptimeMs / 60_000
+            // Say when a rate is being withheld rather than leaving its absence to be read as zero.
+            val span = if (steadyEnough) "over ${mins}m" else "over ${mins}m, rates need 6m+"
             val parts = ArrayList<String>(6)
             if (pushesAdmitted > 0L || pushesGated > 0L) {
                 parts.add("$pushesAdmitted pushed / ${pushesAdmitted + pushesGated} offered")
@@ -165,7 +202,7 @@ object WidgetTelemetry {
             }
             if (pushesUnchanged > 0) parts.add("$pushesUnchanged unchanged")
             if (rendersRedundant > 0) parts.add("$rendersRedundant redundant")
-            return "Widgets:     ${parts.joinToString(" · ")} (over ${mins}m)"
+            return "Widgets:     ${parts.joinToString(" · ")} ($span)"
         }
     }
 }

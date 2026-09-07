@@ -38,16 +38,42 @@ class WidgetTelemetryTest {
         assertTrue("1 pushed / 60 offered" in s.render())
     }
 
-    /** A rate over one minute of uptime is the figure a drain question turns on. */
+    /** The rate is measured over the steady window, one push a minute being the ordinary cadence. */
     @Test
-    fun ratesAreExtrapolatedFromUptime() {
-        repeat(10) { WidgetTelemetry.notePushAdmitted(t0 + it * 60_000L) }
-        repeat(10) { WidgetTelemetry.noteRender(bytes = 512 * 1024, elapsedMs = 4) }
-        val s = WidgetTelemetry.snapshot(t0 + 600_000L)   // 10 minutes
-        assertEquals(60.0, s.pushesPerHour!!, 0.001)      // 10 pushes in 10m = 60/h
+    fun ratesAreExtrapolatedFromTheSteadyWindow() {
+        // One push at t0 opens the warm-up; the rest land a minute apart beyond it.
+        WidgetTelemetry.notePushAdmitted(t0)
+        for (m in 1..10) {
+            WidgetTelemetry.notePushAdmitted(t0 + m * 60_000L)
+            WidgetTelemetry.noteRender(bytes = 512 * 1024, elapsedMs = 4)
+        }
+        val s = WidgetTelemetry.snapshot(t0 + 660_000L)
+        // Steady window opens at the first post-warm-up push (t0+60s) and runs 10 minutes; ten pushes
+        // and ten draws inside it.
+        assertEquals(60.0, s.pushesPerHour!!, 0.001)
         assertEquals(512L, s.meanRenderBytes!! / 1024)
-        // 10 x 512KB in 10 minutes = 30MB/h.
         assertEquals(30.0, s.renderBytesPerHour!! / 1_048_576.0, 0.01)
+    }
+
+    /**
+     * The startup burst must not be quoted as a rate. The snapshot's fields arrive one by one at
+     * launch and each is a key change PushGate admits on the spot, so a launch produces pushes the
+     * 60-second clause had nothing to do with. A device reported six pushes in a hundred seconds as
+     * 215/h against a steady state of about sixty — the headline number wrong by three and a half
+     * times, in the situation where it is looked at first.
+     */
+    @Test
+    fun aStartupBurstIsNotQuotedAsARate() {
+        // Six pushes inside the first hundred seconds, as the real capture showed.
+        for (ms in listOf(0L, 2_000L, 5_000L, 9_000L, 30_000L, 95_000L)) {
+            WidgetTelemetry.notePushAdmitted(t0 + ms)
+        }
+        val s = WidgetTelemetry.snapshot(t0 + 100_000L)
+        assertEquals(6, s.pushesAdmitted)
+        assertNull("a burst is not a rate", s.pushesPerHour)
+        val line = s.render()
+        assertTrue(line, "6 pushed" in line)
+        assertTrue("the line must say the rate is withheld: $line", "rates need" in line)
     }
 
     /**
@@ -55,7 +81,7 @@ class WidgetTelemetryTest {
      * goes in front of someone deciding whether to change the refresh cadence.
      */
     @Test
-    fun noRateIsClaimedUnderAMinuteOfUptime() {
+    fun noRateIsClaimedUnderASteadyWindow() {
         WidgetTelemetry.notePushAdmitted(t0)
         val s = WidgetTelemetry.snapshot(t0 + 5_000L)
         assertNull(s.pushesPerHour)
@@ -169,9 +195,12 @@ class WidgetTelemetryTest {
         val original = Locale.getDefault()
         try {
             Locale.setDefault(Locale.GERMANY)
-            repeat(10) { WidgetTelemetry.notePushAdmitted(t0 + it * 60_000L) }
-            repeat(10) { WidgetTelemetry.noteRender(bytes = 512 * 1024, elapsedMs = 4) }
-            val line = WidgetTelemetry.snapshot(t0 + 600_000L).render()
+            WidgetTelemetry.notePushAdmitted(t0)
+            for (m in 1..10) {
+                WidgetTelemetry.notePushAdmitted(t0 + m * 60_000L)
+                WidgetTelemetry.noteRender(bytes = 512 * 1024, elapsedMs = 4)
+            }
+            val line = WidgetTelemetry.snapshot(t0 + 660_000L).render()
             assertTrue(line, "60.0/h" in line)
             assertTrue(line, "30.0MB/h" in line)
             assertFalse(line, "," in line.substringAfter("Widgets:"))
