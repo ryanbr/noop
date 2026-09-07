@@ -198,11 +198,29 @@ extension WhoopStore {
     // MARK: - Upserts (idempotent by natural key; latest server value wins on conflict)
 
     /// Upsert cached sleep sessions. Natural key (deviceId, startTs). Returns rows changed.
+    ///
+    /// A non-user-edited candidate whose stage timeline is LESS complete than what's already stored for
+    /// the same (deviceId, startTs) is dropped whole rather than written: a device can serve the same
+    /// night's hypnogram more than once (a reconnect mid-day, a resumed drain), and a later, shorter
+    /// decode has no business overwriting an earlier, fuller one — the two would otherwise silently
+    /// disagree on `stagesJSON` vs. `efficiency`/`endTs` for the same row. `HypnogramCoverage`'s 0/1/2
+    /// richness rank (none / holed / covers-its-span) is the same scale `SleepMerge` already judges a
+    /// day's best session on for DISPLAY; this applies the identical comparison at WRITE time so it
+    /// protects every caller (BLE live sources, importers, recomputes), not just the ones a caller
+    /// happens to gate behind their own dedup toggle.
     @discardableResult
     public func upsertSleepSessions(_ sessions: [CachedSleepSession], deviceId: String) async throws -> Int {
         try syncWrite { db in
             var n = 0
             for s in sessions {
+                if !s.userEdited, let existing = try Self.storedSleepSession(db, deviceId: deviceId, startTs: s.startTs),
+                   !existing.userEdited {
+                    let candidate = CachedSleepSession(startTs: s.startTs, endTs: s.endTs, efficiency: nil,
+                                                       restingHr: nil, avgHrv: nil, stagesJSON: s.stagesJSON)
+                    if SleepMerge.richness(candidate) < SleepMerge.richness(existing) {
+                        continue   // a less-complete re-serve of this night must never clobber the stored one
+                    }
+                }
                 try db.execute(sql: """
                     INSERT INTO sleepSession
                         (deviceId, startTs, endTs, efficiency, restingHr, avgHrv, stagesJSON,
@@ -229,6 +247,18 @@ extension WhoopStore {
             }
             return n
         }
+    }
+
+    /// The stored row at (deviceId, startTs), or nil when there is none yet — the completeness check
+    /// `upsertSleepSessions` runs before deciding whether a candidate may overwrite it. Only the fields
+    /// that check needs are read; `efficiency`/`restingHr`/`avgHrv` are left nil since richness never
+    /// looks at them.
+    private static func storedSleepSession(_ db: Database, deviceId: String, startTs: Int) throws -> CachedSleepSession? {
+        guard let row = try Row.fetchOne(db, sql: """
+            SELECT endTs, stagesJSON, userEdited FROM sleepSession WHERE deviceId = ? AND startTs = ?
+            """, arguments: [deviceId, startTs]) else { return nil }
+        return CachedSleepSession(startTs: startTs, endTs: row["endTs"], efficiency: nil, restingHr: nil,
+                                  avgHrv: nil, stagesJSON: row["stagesJSON"], userEdited: row["userEdited"])
     }
 
     /// Hand-correct a sleep session's bed (onset) and/or wake (end) time. Sets `userEdited = 1` so the

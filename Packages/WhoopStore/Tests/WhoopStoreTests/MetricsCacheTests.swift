@@ -32,15 +32,87 @@ final class MetricsCacheTests: XCTestCase {
         XCTAssertEqual(rows.count, 1)
         XCTAssertEqual(rows[0], s)
 
-        // Re-upsert the same natural key with updated values → no duplicate, value updated.
+        // Re-upsert the same natural key with updated values, stages covering their (shorter) new span
+        // just as fully as before → no duplicate, value updated (an ordinary refresh, not a regression).
         let s2 = CachedSleepSession(startTs: 1000, endTs: 6000, efficiency: 0.95,
-                                    restingHr: 50, avgHrv: 70.0, stagesJSON: nil)
+                                    restingHr: 50, avgHrv: 70.0,
+                                    stagesJSON: "[{\"start\":1000,\"end\":6000,\"stage\":\"light\"}]")
         try await store.upsertSleepSessions([s2], deviceId: "devA")
         rows = try await store.sleepSessions(deviceId: "devA", from: 0, to: 100_000, limit: 100)
         XCTAssertEqual(rows.count, 1, "same (deviceId,startTs) must not duplicate")
         XCTAssertEqual(rows[0].endTs, 6000)
         XCTAssertEqual(rows[0].efficiency, 0.95)
-        XCTAssertNil(rows[0].stagesJSON)
+        XCTAssertEqual(rows[0].stagesJSON, s2.stagesJSON)
+    }
+
+    /// A candidate whose stage timeline is LESS complete than what's already stored for the same
+    /// (deviceId, startTs) must be dropped whole — a device serving the same night's hypnogram twice (a
+    /// reconnect mid-day, a resumed drain) must never have its later, thinner decode clobber an earlier,
+    /// fuller one. Reproduces the exact shape of a real incident: a full-night hypnogram (96 segments,
+    /// fully covering its span) overwritten by a 5-segment tail slice covering only ~10% of the same
+    /// claimed span.
+    func testUpsertSleepSessionsDropsALessCompleteCandidate() async throws {
+        let store = try await WhoopStore.inMemory()
+        let full = CachedSleepSession(startTs: 1_000_000, endTs: 1_032_531, efficiency: 0.886,
+                                      restingHr: 50, avgHrv: 60,
+                                      stagesJSON: "[{\"start\":1000000,\"end\":1032531,\"stage\":\"light\"}]")
+        try await store.upsertSleepSessions([full], deviceId: "oura-ring")
+
+        // Same night, same key, but the "candidate" only covers the tail ~10% of the claimed span —
+        // holed, per HypnogramCoverage — with a bogus efficiency recomputed off just that slice.
+        let holedTail = CachedSleepSession(startTs: 1_000_000, endTs: 1_032_532, efficiency: 0.99,
+                                           restingHr: 48, avgHrv: 58,
+                                           stagesJSON: "[{\"start\":1029411,\"end\":1032532,\"stage\":\"rem\"}]")
+        try await store.upsertSleepSessions([holedTail], deviceId: "oura-ring")
+
+        let rows = try await store.sleepSessions(deviceId: "oura-ring", from: 0, to: 2_000_000, limit: 100)
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows[0], full, "the fuller, previously-stored night must survive untouched")
+    }
+
+    /// The mirror case: a candidate that IMPROVES on a holed stored row (fills in more of the same span)
+    /// must still win — the guard compares richness, it does not freeze the row forever.
+    func testUpsertSleepSessionsAcceptsAMoreCompleteCandidate() async throws {
+        let store = try await WhoopStore.inMemory()
+        let holed = CachedSleepSession(startTs: 1_000_000, endTs: 1_032_531, efficiency: 0.5,
+                                       restingHr: 50, avgHrv: 60,
+                                       stagesJSON: "[{\"start\":1000000,\"end\":1004000,\"stage\":\"light\"}]")
+        try await store.upsertSleepSessions([holed], deviceId: "oura-ring")
+
+        let full = CachedSleepSession(startTs: 1_000_000, endTs: 1_032_531, efficiency: 0.886,
+                                      restingHr: 48, avgHrv: 58,
+                                      stagesJSON: "[{\"start\":1000000,\"end\":1032531,\"stage\":\"light\"}]")
+        try await store.upsertSleepSessions([full], deviceId: "oura-ring")
+
+        let rows = try await store.sleepSessions(deviceId: "oura-ring", from: 0, to: 2_000_000, limit: 100)
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows[0], full, "a candidate that covers more of the night must still win")
+    }
+
+    /// The completeness guard must never engage for a user-edited row — `applySleepEdit`'s bounds/stages
+    /// are the dedicated correction path, and `upsertSleepSessions` already protects them unconditionally
+    /// regardless of richness. (Guards against the new check accidentally widening what "protected" means.)
+    func testUpsertSleepSessionsGuardNeverOverridesUserEditedProtection() async throws {
+        let store = try await WhoopStore.inMemory()
+        let full = CachedSleepSession(startTs: 1_000_000, endTs: 1_032_531, efficiency: 0.886,
+                                      restingHr: 50, avgHrv: 60,
+                                      stagesJSON: "[{\"start\":1000000,\"end\":1032531,\"stage\":\"light\"}]")
+        try await store.upsertSleepSessions([full], deviceId: "oura-ring")
+        _ = try await store.applySleepEdit(deviceId: "oura-ring", detectedStartTs: 1_000_000,
+                                           newStartTs: 1_000_000, newEndTs: 1_032_531,
+                                           stagesJSON: "[{\"start\":1000000,\"end\":1032531,\"stage\":\"deep\"}]")
+
+        // A richer-still re-decode arrives; the user's edit must still win untouched.
+        let richer = CachedSleepSession(startTs: 1_000_000, endTs: 1_032_531, efficiency: 0.9,
+                                        restingHr: 47, avgHrv: 57,
+                                        stagesJSON: "[{\"start\":1000000,\"end\":1016000,\"stage\":\"light\"}," +
+                                                    "{\"start\":1016000,\"end\":1032531,\"stage\":\"rem\"}]")
+        try await store.upsertSleepSessions([richer], deviceId: "oura-ring")
+
+        let rows = try await store.sleepSessions(deviceId: "oura-ring", from: 0, to: 2_000_000, limit: 100)
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertTrue(rows[0].userEdited)
+        XCTAssertEqual(rows[0].stagesJSON, "[{\"start\":1000000,\"end\":1032531,\"stage\":\"deep\"}]")
     }
 
     /// #345: the persisted sparse-coverage flag survives write→read, REFRESHES on a recompute (excluded
