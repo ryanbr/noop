@@ -35,7 +35,7 @@ class WidgetTelemetryTest {
         val s = WidgetTelemetry.snapshot(t0 + 60_000L)
         assertEquals(1, s.pushesAdmitted)
         assertEquals(59, s.pushesGated)
-        assertTrue("1 pushed / 60 offered" in s.render())
+        assertTrue(s.render(), "1 sent / 1 admitted / 60 offered" in s.render())
     }
 
     /** The rate is measured over the steady window, one push a minute being the ordinary cadence. */
@@ -72,7 +72,7 @@ class WidgetTelemetryTest {
         assertEquals(6, s.pushesAdmitted)
         assertNull("a burst is not a rate", s.pushesPerHour)
         val line = s.render()
-        assertTrue(line, "6 pushed" in line)
+        assertTrue(line, "6 sent / 6 admitted" in line)
         assertTrue("the line must say the rate is withheld: $line", "steady" in line)
     }
 
@@ -258,5 +258,29 @@ class WidgetTelemetryTest {
         assertTrue("uptime should read twenty minutes: $line", "over 20m" in line)
         assertTrue("and the wait should be stated against the steady window: $line",
             "steady 1m of 5m" in line)
+    }
+
+    /**
+     * The rate has to be blind to nothing except what never reached a widget. A push RenderedGate
+     * declines is admitted and then dropped, so counting it here would have made this figure unable
+     * to fall when the gate fired — and lowering it is the gate's entire purpose. An instrument that
+     * cannot show the effect of the optimisation shipped beside it is measuring the wrong thing.
+     */
+    @Test
+    fun declinedPushesAreNotCountedAsSentOrRated() {
+        WidgetTelemetry.notePushAdmitted(t0)                       // warm-up
+        for (m in 1..10) {
+            WidgetTelemetry.notePushAdmitted(t0 + m * 60_000L)
+            if (m > 5) WidgetTelemetry.notePushUnchanged()          // five of the ten never went out
+        }
+        val s = WidgetTelemetry.snapshot(t0 + 660_000L)
+        assertEquals(11, s.pushesAdmitted)
+        assertEquals(6, s.pushesSent)                              // 11 admitted - 5 declined
+        // Steady window holds ten pushes over ten minutes, five of them declined: five sends an hour
+        // at that cadence would be 30/h, not the 60/h the admitted count alone would have claimed.
+        assertEquals(30.0, s.pushesPerHour!!, 0.001)
+        val line = s.render()
+        assertTrue(line, "6 sent / 11 admitted" in line)
+        assertTrue(line, "5 unchanged" in line)
     }
 }

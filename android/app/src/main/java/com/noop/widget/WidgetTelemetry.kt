@@ -47,6 +47,7 @@ object WidgetTelemetry {
     private var startedAtMs = 0L
     private var steadyStartMs = 0L
     private var steadyPushes = 0L
+    private var steadyUnchanged = 0L
     private var steadyRenderBytes = 0L
     private var pushesAdmitted = 0L
     private var pushesGated = 0L
@@ -85,6 +86,7 @@ object WidgetTelemetry {
     @Synchronized
     fun notePushUnchanged() {
         pushesUnchanged += 1
+        if (steadyStartMs != 0L) steadyUnchanged += 1
     }
 
     /** One trace bitmap built: [bytes] is what crosses the Binder, [elapsedMs] is the draw alone. */
@@ -112,6 +114,7 @@ object WidgetTelemetry {
         uptimeMs = if (startedAtMs == 0L) 0L else nowMs - startedAtMs,
         steadyMs = if (steadyStartMs == 0L) 0L else nowMs - steadyStartMs,
         steadyPushes = steadyPushes,
+        steadyUnchanged = steadyUnchanged,
         steadyRenderBytes = steadyRenderBytes,
         pushesAdmitted = pushesAdmitted,
         pushesGated = pushesGated,
@@ -127,6 +130,7 @@ object WidgetTelemetry {
     @Synchronized
     fun resetForTest() {
         startedAtMs = 0L; steadyStartMs = 0L; steadyPushes = 0L; steadyRenderBytes = 0L
+        steadyUnchanged = 0L
         pushesAdmitted = 0L; pushesGated = 0L; pushesUnchanged = 0L
         renders = 0L; rendersRedundant = 0L; renderBytes = 0L; renderMs = 0L; renderMsMax = 0L
         lastPushAtMs = 0L
@@ -136,6 +140,7 @@ object WidgetTelemetry {
         val uptimeMs: Long,
         val steadyMs: Long,
         val steadyPushes: Long,
+        val steadyUnchanged: Long,
         val steadyRenderBytes: Long,
         val pushesAdmitted: Long,
         val pushesGated: Long,
@@ -162,16 +167,29 @@ object WidgetTelemetry {
          *  minutes of ordinary running is a handful of one-a-minute pushes; less is arithmetic. */
         private val steadyEnough: Boolean get() = steadyMs >= 5 * 60_000L
 
+        /** Pushes that actually became a widget update: admitted, then not dropped by [RenderedGate]. */
+        val pushesSent: Long get() = pushesAdmitted - pushesUnchanged
+
         /**
-         * Pushes per hour, measured over the STEADY window rather than since process start.
+         * Widget updates SENT per hour, over the steady window rather than since process start.
          *
-         * The startup burst is excluded because it is not what the widget costs to keep running: the
-         * snapshot's fields arrive one by one and each is a key change admitted on the spot, so a
-         * launch produces pushes the 60-second clause had nothing to do with. Quoting them as a rate
-         * overstated the cost by three and a half times on the first sample from a device.
+         * Two exclusions, for two different reasons. The startup burst goes because it is not what the
+         * widget costs to keep running — the snapshot's fields arrive one by one and each is a key
+         * change admitted on the spot, so a launch produces pushes the 60-second clause had nothing to
+         * do with, and quoting them overstated the cost by three and a half times on the first sample
+         * from a device.
+         *
+         * And pushes [RenderedGate] declined go because they never reached a widget. Counting them
+         * here would have made this rate blind to the one optimisation it exists to price: the gate's
+         * whole purpose is to lower this number, so a figure that could not fall when the gate fired
+         * would be measuring the wrong thing.
+         *
+         * Elapsed WALL-CLOCK time is the denominator, not time spent streaming, because that is what a
+         * battery question is asked in. A process that idles for an hour genuinely cost nothing over
+         * that hour, and the rate should say so.
          */
         val pushesPerHour: Double?
-            get() = if (steadyEnough) steadyPushes * 3_600_000.0 / steadyMs else null
+            get() = if (steadyEnough) (steadyPushes - steadyUnchanged) * 3_600_000.0 / steadyMs else null
 
         /**
          * Bitmap bytes per hour — the figure the drain question turns on, since this is what crosses a
@@ -204,7 +222,13 @@ object WidgetTelemetry {
             }
             val parts = ArrayList<String>(6)
             if (pushesAdmitted > 0L || pushesGated > 0L) {
-                parts.add("$pushesAdmitted pushed / ${pushesAdmitted + pushesGated} offered")
+                // SENT first, because it is the one that means "a widget was updated". `pushesAdmitted`
+                // alone read as that and was not: a push the rendered gate declined is admitted and
+                // never sent.
+                parts.add(
+                    "$pushesSent sent / $pushesAdmitted admitted / " +
+                        "${pushesAdmitted + pushesGated} offered",
+                )
             } else {
                 parts.add("no pushes")
             }
