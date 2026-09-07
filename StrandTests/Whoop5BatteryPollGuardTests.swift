@@ -46,9 +46,13 @@ final class Whoop5BatteryPollGuardTests: XCTestCase {
     /// the absence in the keep-alive rather than in the file, which would forbid the probe too.
     func testNoCadencedPackInfoSendSurvives() throws {
         let src = try managerSource()
-        guard let start = src.range(of: "// #battery: ~60 s normally"),
+        // The WHOLE keep-alive, not just the battery block inside it. Anchoring at the battery comment
+        // covered only what follows it, so a pack send added earlier in the same function would have
+        // slipped past while the assertion still read as if it guarded the tick. The Kotlin twin was
+        // widened for the mirror-image reason, and a control insertion proved it there.
+        guard let start = src.range(of: "private func keepAliveFire() {"),
               let end = src.range(of: "private func startBackfillTimer") else {
-            return XCTFail("the keep-alive battery block or its next landmark was not found")
+            return XCTFail("the keep-alive function or its next landmark was not found")
         }
         // Comments in this block name the opcode while explaining why it is not sent, so judge the CODE
         // only — the same rule the Kotlin twin follows. Without this the guard fails on its own rationale.
@@ -57,6 +61,6 @@ final class Whoop5BatteryPollGuardTests: XCTestCase {
             .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
             .joined(separator: "\n")
         XCTAssertFalse(block.contains("getBatteryPackInfo"),
-                       "the keep-alive must not send the pack opcode (#1948): \(block)")
+                       "no part of the keep-alive may send the pack opcode (#1948): \(block)")
     }
 }

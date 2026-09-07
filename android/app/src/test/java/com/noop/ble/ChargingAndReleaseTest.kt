@@ -115,8 +115,13 @@ class ChargingAndReleaseTest {
         val src = clientSource()
         val start = src.indexOf("} else if (connectedFamily == DeviceFamily.WHOOP5) {")
         assertTrue("the WHOOP5 keep-alive branch was not found", start > 0)
-        val end = src.indexOf("#1865", start)
-        assertTrue("the branch's next landmark was not found", end > start)
+        // Ends at the branch's OWN battery poll, not at the nearer #1865 landmark. Stopping there left a
+        // window holding one line of code and the rest comment, so a poll re-added anywhere past it would
+        // have slipped through while the negative control still passed — the control only re-inserts at
+        // the natural spot. This span covers every line between the branch opening and the 0x2A19 read,
+        // which is the whole region a battery send would plausibly be put back into.
+        val end = src.indexOf("5/MG battery comes only from a 0x2A19 read", start)
+        assertTrue("the branch's own battery poll was not found", end > start)
         val code = src.substring(start, end).lines()
             .filterNot { it.trim().startsWith("//") }
             .joinToString("\n")

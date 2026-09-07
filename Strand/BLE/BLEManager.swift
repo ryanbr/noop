@@ -4546,13 +4546,23 @@ public final class BLEManager: NSObject, ObservableObject {
         // skip lines per tick, under a comment claiming the pack "rides the SAME cadence as the strap's
         // own gauge". It never rode anything.
         //
-        // That cost lands on a BONDED 5/MG specifically, the only kind whose tick runs at all
-        // (`keepAliveMayRun` refuses an unbonded one) — which is also what makes the removal free. The
-        // same `didBond` that lets this tick fire has already run `enableLiveNotifications` a few lines
-        // above, and THAT is what drives the 0x2A19 read (throttled to
-        // `whoop5BatteryReadMinIntervalSeconds`) a 5/MG's percent actually comes from. The read and the
-        // refused send were always co-resident, so dropping the send cannot strand the reading. The
-        // pack's charge comes from the pushed pack-info event (109), that flag's only writer since #1945.
+        // Removing them cannot change what a 5/MG receives, and that is the whole argument: the allowlist
+        // refused both before they reached the peripheral, so no reading ever depended on either. Do not
+        // reach for a subtler one. An earlier draft here argued that the `didBond` letting this tick run
+        // had already driven the 0x2A19 read a few lines above, which is wrong twice over —
+        // `keepAliveMayRun` also admits a `bonded && .whoop5` tick with `didBond` false, and
+        // `enableLiveNotifications` is separately gated on `didBond`, so on a #1635 strap the tick fires
+        // and that read does not.
+        //
+        // Which leaves a real divergence, pre-existing and NOT introduced here: Android's keep-alive polls
+        // 0x2A19 for a 5/MG whenever it runs, while this one skips it unless `didBond`. An unbonded 5/MG
+        // therefore gets a periodic battery read on Android and none here. The pack's charge comes from
+        // the pushed pack-info event (109) on both, that flag's only writer since #1945.
+        //
+        // This leaves opcode 151 with NO sender on iOS, which is the state `FrameRouter` already records
+        // for its own decoder ("nothing sent the command, so the decoder had no caller"). Android keeps a
+        // user-initiated probe for it; there is no iOS twin of that, so asking a 5/MG whether it answers
+        // 151 at all is an Android-side question today.
         if selectedModel.deviceFamily != .whoop5,
            BLEManager.batteryPollDue(tick: keepAliveTick, charging: state.charging == true) {
             send(.getBatteryLevel, payload: [])
