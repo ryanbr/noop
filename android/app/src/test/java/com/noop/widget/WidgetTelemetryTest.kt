@@ -73,7 +73,7 @@ class WidgetTelemetryTest {
         assertNull("a burst is not a rate", s.pushesPerHour)
         val line = s.render()
         assertTrue(line, "6 pushed" in line)
-        assertTrue("the line must say the rate is withheld: $line", "rates need" in line)
+        assertTrue("the line must say the rate is withheld: $line", "steady" in line)
     }
 
     /**
@@ -241,5 +241,22 @@ class WidgetTelemetryTest {
         assertTrue("480dpi/380dp should be upscaled", effective(480f, 380f) < 1.0)
         // And a small card is where the intent survives best, though still short of the nominal 2x.
         assertTrue("420dpi/300dp should have the most headroom", effective(420f, 300f) > 1.5)
+    }
+
+    /**
+     * The withheld-rate message has to name the window it is actually waiting on. Phrasing it as a
+     * minimum UPTIME was wrong: pushes can be sparse enough that the steady window opens late, so the
+     * line would sit twenty minutes in still claiming it needed six, which reads as broken rather than
+     * explained.
+     */
+    @Test
+    fun aWithheldRateNamesTheSteadyWindowNotTheUptime() {
+        WidgetTelemetry.notePushAdmitted(t0)                    // opens warm-up
+        WidgetTelemetry.notePushAdmitted(t0 + 19 * 60_000L)     // opens steady, nineteen minutes in
+        val line = WidgetTelemetry.snapshot(t0 + 20 * 60_000L).render()
+        assertNull(WidgetTelemetry.snapshot(t0 + 20 * 60_000L).pushesPerHour)
+        assertTrue("uptime should read twenty minutes: $line", "over 20m" in line)
+        assertTrue("and the wait should be stated against the steady window: $line",
+            "steady 1m of 5m" in line)
     }
 }

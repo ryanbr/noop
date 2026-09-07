@@ -147,7 +147,15 @@ object WidgetTelemetry {
         val renderMsMax: Long,
         val lastPushAgoMs: Long?,
     ) {
-        /** Mean bitmap in bytes, or null before the first render. */
+        /**
+         * Mean bitmap in bytes, or null before the first render.
+         *
+         * Deliberately over EVERY draw, unlike the rates: this is a property of one bitmap, set by the
+         * widget's size and the screen's density, not something a startup burst distorts. Worth
+         * knowing when reading the line, since `mean` and `MB/h` beside each other do not span the
+         * same window and so will not divide into each other exactly. The same is true of the draw
+         * times below it.
+         */
         val meanRenderBytes: Long? get() = if (renders > 0) renderBytes / renders else null
 
         /** A rate is only quoted once the steady window is long enough to mean something. Five
@@ -185,8 +193,15 @@ object WidgetTelemetry {
                 return "Widgets:     no pushes this app session"
             }
             val mins = uptimeMs / 60_000
-            // Say when a rate is being withheld rather than leaving its absence to be read as zero.
-            val span = if (steadyEnough) "over ${mins}m" else "over ${mins}m, rates need 6m+"
+            // Say when a rate is being withheld, and say it in terms of the window it is actually
+            // waiting on. "needs 6m+" would read as a claim about UPTIME, and with sparse pushes the
+            // steady window opens late — twenty minutes in and still withholding would look broken
+            // rather than explained.
+            val span = if (steadyEnough) {
+                "over ${mins}m"
+            } else {
+                "over ${mins}m, steady ${steadyMs / 60_000}m of 5m"
+            }
             val parts = ArrayList<String>(6)
             if (pushesAdmitted > 0L || pushesGated > 0L) {
                 parts.add("$pushesAdmitted pushed / ${pushesAdmitted + pushesGated} offered")
