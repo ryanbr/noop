@@ -112,16 +112,24 @@ extension WidgetSnapshot {
         if renderedContentChanged(from: previous, to: snap) {
             snap.save(previousSeries: previous?.hrSeries ?? [])
             WidgetCenter.shared.reloadAllTimelines()
+            WidgetTelemetry.noteReloaded()
         } else if WidgetSnapshot.traceNeedsPoint(previous: previous, bpm: snap.bpm, now: snap.updated) {
             // A steady heart changes nothing the header renders, so the branch above declines — but the
             // TRACE still wants this minute's point, or it stops advancing at rest and prunes to empty
             // (#1957). Persist without a reload: the point is for the next timeline WidgetKit builds,
             // and spending a reload a minute is exactly what the dedup above exists to avoid.
             snap.save(previousSeries: previous?.hrSeries ?? [])
+            WidgetTelemetry.noteDeclined()
         } else if liveUpdateRequiresFullBuild(previous: previous, now: snap.updated) {
             // The rollover's visible values can legitimately match yesterday's. Persist the fresh day
             // stamp once without spending a redundant WidgetKit reload, so later live ticks stay fast.
             snap.save(previousSeries: previous?.hrSeries ?? [])
+            WidgetTelemetry.noteDeclined()
+        } else {
+            // Nothing at all to do. Counted rather than left as a silent fall-through: an outcome that
+            // records nothing is exactly how the Android counters came to report publishes that never
+            // went anywhere as if they had.
+            WidgetTelemetry.noteDeclined()
         }
     }
 
@@ -139,8 +147,12 @@ extension WidgetSnapshot {
         /// True (and stamps `now`) when at least `interval` has elapsed since the last HR-driven publish;
         /// false to skip this HR change. The first call always admits (`.distantPast`).
         static func admit(now: Date = Date()) -> Bool {
-            guard now.timeIntervalSince(lastPublishedAt) >= interval else { return false }
+            guard now.timeIntervalSince(lastPublishedAt) >= interval else {
+                WidgetTelemetry.noteGated(now: now)
+                return false
+            }
             lastPublishedAt = now
+            WidgetTelemetry.noteAdmitted(now: now)
             return true
         }
     }

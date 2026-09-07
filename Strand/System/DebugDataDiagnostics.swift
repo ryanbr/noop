@@ -92,6 +92,14 @@ enum DebugDataDiagnostics {
         }
         if restoreAt > 0 { lines.append("Last restore: \(relTime(now - restoreAt))") }
         #if os(iOS)
+        // What the home-screen widgets cost. Reported unconditionally, including the no-publish case,
+        // because the absence of widget activity is itself the answer to a drain report.
+        //
+        // iOS only: `WidgetTelemetry` lives in StrandiOSShared, which project.yml deliberately keeps
+        // OUT of the macOS application module. macOS has no home-screen widget to account for.
+        lines.append(WidgetTelemetry.snapshot().render())
+        #endif
+        #if os(iOS)
         // #52: iOS Backup & Sync folder-picker health. When users report "won't let me pick a folder",
         // this pins the failure stage: "cancelled"/"never used" ⇒ the picker's Open button never fired
         // (an iOS-side picker issue — the in-app "Use NOOP's own folder" fallback sidesteps it);
