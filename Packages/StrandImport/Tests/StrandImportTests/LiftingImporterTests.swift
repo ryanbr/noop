@@ -313,4 +313,23 @@ final class LiftingImporterTests: XCTestCase {
                                                  zone: TimeZone(identifier: "Asia/Tokyo")!)
         XCTAssertEqual(utc.sessions[0].start, tokyo.sessions[0].start)
     }
+
+
+    /// Hevy's set `type` is one of normal, warmup, dropset, failure (published spec). Only warmup is
+    /// excluded from volume: a dropset and a set taken to failure are work, and counting them as
+    /// warm-ups would under-report a hard session — the opposite of the error the exclusion prevents.
+    func testHevyAPICountsDropsetAndFailureSetsAsWork() {
+        let mixed = """
+        {"id":"w5","title":"Arms","start_time":"2026-09-07T10:00:00Z","end_time":"2026-09-07T10:40:00Z",
+         "exercises":[{"title":"Bicep Curl (Dumbbell)",
+                       "sets":[{"type":"warmup","weight_kg":10,"reps":10},
+                               {"type":"normal","weight_kg":20,"reps":10},
+                               {"type":"dropset","weight_kg":15,"reps":8},
+                               {"type":"failure","weight_kg":12,"reps":6}]}]}
+        """
+        let s = LiftingImporter.parseHevyAPI(data: apiPage(mixed)).sessions[0]
+        XCTAssertEqual(s.setCount, 3, "warmup excluded; dropset and failure are working sets")
+        XCTAssertEqual(s.volumeLoadKg, 20 * 10 + 15 * 8 + 12 * 6, accuracy: 0.001)
+        XCTAssertEqual(s.totalReps, 24)
+    }
 }

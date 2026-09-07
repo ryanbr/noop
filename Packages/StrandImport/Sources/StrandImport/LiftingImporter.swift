@@ -243,10 +243,15 @@ public enum LiftingImporter {
     /// #649 device-zone interpretation stays available if the API ever omits one. `zone` is carried
     /// through rather than assumed.
     ///
-    /// DRAFT: the envelope below (`workouts[]` with `start_time` / `end_time`, and
-    /// `exercises[].sets[]` carrying `weight_kg`, `reps`, `type`) is Hevy's documented v1 shape and
-    /// has NOT been checked against a live response. Tolerant by construction, so a wrong field name
-    /// yields no sessions rather than wrong numbers — but that is not a shipping state either.
+    /// The envelope is VERIFIED against Hevy's published OpenAPI spec (api.hevyapp.com/docs):
+    /// `GET /v1/workouts` returns `{ page, page_count, workouts[] }`; a workout carries `id`, `title`,
+    /// `description`, `start_time`, `end_time`; an exercise carries `title` and `sets[]`; a set
+    /// carries `type`, `weight_kg`, `reps` (and `distance_meters`, `duration_seconds`, `rpe`, which
+    /// this lane has nowhere to put).
+    ///
+    /// `type` is one of `normal`, `warmup`, `dropset`, `failure`. Only `warmup` is excluded from the
+    /// volume load — a dropset and a set taken to failure are working sets, and the shared
+    /// accumulator already treats them that way, which is why this path needs no rule of its own.
     public static func parseHevyAPI(data: Data, zone: TimeZone = .current) -> LiftingImportResult {
         let empty = LiftingImportResult(sessions: [], skipped: 0, earliest: nil, latest: nil)
         guard let root = try? JSONSerialization.jsonObject(with: BOM.stripUTF8(data)) else { return empty }
