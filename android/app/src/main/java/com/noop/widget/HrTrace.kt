@@ -88,6 +88,37 @@ object HrTrace {
     }
 
 
+    /**
+     * The largest drawing box that fits the widget payload budget, keeping the requested aspect.
+     *
+     * RemoteViews travels to the launcher over a BINDER TRANSACTION with a hard size ceiling, and a
+     * widget that exceeds it does not degrade — it fails to render at all. An ARGB_8888 bitmap costs
+     * four bytes a pixel, so a 300dp-wide chart on a 4x screen is already about a megabyte on its own,
+     * before the rest of the RemoteViews. Dimension caps alone do not express that: the constraint is
+     * AREA, and a wide-and-short box and a tall-and-narrow one can both be legal while their product
+     * is not.
+     *
+     * Downscaling is nearly free here in a way it would not be for text or an icon: a sparkline is a
+     * smooth line, and the `Image` stretches the result back to the same slot, so the only cost is a
+     * fractionally softer stroke.
+     *
+     * Returned as the box BOTH [points] and the renderer must use. They used to disagree — geometry ran
+     * at the requested width while the renderer clamped its own — which silently clipped the right-hand
+     * end of the trace on any screen large enough to hit the cap.
+     */
+    fun fitBox(widthPx: Int, heightPx: Int, maxBytes: Int = MAX_BITMAP_BYTES): Pair<Int, Int> {
+        val w = widthPx.coerceAtLeast(1)
+        val h = heightPx.coerceAtLeast(1)
+        val bytes = w.toLong() * h.toLong() * 4L
+        if (bytes <= maxBytes) return w to h
+        val scale = Math.sqrt(maxBytes.toDouble() / bytes.toDouble())
+        return (w * scale).toInt().coerceAtLeast(1) to (h * scale).toInt().coerceAtLeast(1)
+    }
+
+    /** The bitmap's byte budget. Half a megabyte leaves the rest of the RemoteViews comfortable inside
+     *  the transaction ceiling, and still affords a full-density chart on an ordinary phone. */
+    const val MAX_BITMAP_BYTES: Int = 512 * 1024
+
     /** A point in the trace's pixel box, origin top-left, as the renderer wants it. */
     data class Pt(val x: Float, val y: Float)
 

@@ -21,14 +21,6 @@ import android.graphics.Shader
  */
 internal object HrTraceRenderer {
 
-    /** Widest bitmap we will build. RemoteViews carries its payload over a Binder transaction with a
-     *  hard size limit, and a widget that exceeds it does not degrade, it fails to render at all. A
-     *  trace is a thin line: past this width the extra pixels buy nothing the eye resolves. */
-    const val MAX_WIDTH_PX = 1080
-
-    /** Same reasoning vertically. */
-    const val MAX_HEIGHT_PX = 480
-
     /**
      * @param points from [HrTrace.points], already normalised into the box
      * @return the trace, or null when there is nothing to draw or the box is degenerate — the caller
@@ -43,9 +35,13 @@ internal object HrTraceRenderer {
         strokePx: Float,
     ): Bitmap? {
         if (points.isEmpty()) return null
-        val w = widthPx.coerceIn(1, MAX_WIDTH_PX)
-        val h = heightPx.coerceIn(1, MAX_HEIGHT_PX)
+        // The caller sized this with [HrTrace.fitBox], which owns the payload budget. Clamping to a
+        // DIFFERENT ceiling here is what previously let the geometry and the bitmap disagree, so this
+        // only guards against a nonsense box, and re-checks the budget rather than re-deciding it.
+        val w = widthPx.coerceAtLeast(1)
+        val h = heightPx.coerceAtLeast(1)
         if (w < 2 || h < 2) return null
+        if (w.toLong() * h.toLong() * 4L > HrTrace.MAX_BITMAP_BYTES) return null
 
         val bmp = runCatching {
             Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)

@@ -150,4 +150,40 @@ class HrTraceTest {
     fun `stats over an empty series is null, not zero`() {
         assertNull(HrTrace.stats(emptyList()))
     }
+
+
+    // --- the drawing box -------------------------------------------------------------------------
+
+    /**
+     * RemoteViews fails to render rather than degrading when its transaction is too big, so the box has
+     * to be decided on AREA. The first version of this capped width and height independently, which let
+     * 1080x480 through at 1.98 MB — nearly double the ceiling it was written to respect.
+     */
+    @Test
+    fun `a box within budget is left alone`() {
+        assertEquals(750 to 168, HrTrace.fitBox(750, 168))   // 250dp x 56dp at 3x: 504 KB, fits
+    }
+
+    @Test
+    fun `an oversized box is scaled down to fit the budget`() {
+        val (w, h) = HrTrace.fitBox(1200, 224)               // 300dp x 56dp at 4x: 1.03 MB
+        assertTrue("$w x $h", w.toLong() * h * 4 <= HrTrace.MAX_BITMAP_BYTES)
+        assertTrue("must not collapse: $w x $h", w > 1 && h > 1)
+    }
+
+    /** Aspect must survive, or the trace is drawn into a box shaped unlike the slot it is stretched
+     *  back into, and the stroke thickens on one axis only. */
+    @Test
+    fun `scaling preserves the aspect ratio`() {
+        val (w, h) = HrTrace.fitBox(2000, 500)
+        assertEquals(4.0, w.toDouble() / h.toDouble(), 0.05)
+    }
+
+    @Test
+    fun `a degenerate box never returns zero`() {
+        assertEquals(1 to 1, HrTrace.fitBox(0, 0))
+        assertEquals(1 to 1, HrTrace.fitBox(-5, -5))
+        val (w, h) = HrTrace.fitBox(100_000, 100_000)
+        assertTrue("$w x $h", w >= 1 && h >= 1 && w.toLong() * h * 4 <= HrTrace.MAX_BITMAP_BYTES)
+    }
 }

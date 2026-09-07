@@ -169,8 +169,9 @@ private fun HrTraceImage(snap: WidgetSnapshot, dark: Boolean, widthDp: Float, he
     val density = context.resources.displayMetrics.density
     // Leave room for the scale column so the trace is not drawn under its own labels.
     val chartWidthDp = (widthDp - 28f - 34f).coerceAtLeast(24f)
-    val wPx = (chartWidthDp * density).toInt()
-    val hPx = (heightDp * density).toInt()
+    // ONE box for both the geometry and the bitmap. Sizing them separately let the trace be drawn to
+    // coordinates the bitmap did not have room for, clipping its right-hand end (#1957).
+    val (wPx, hPx) = HrTrace.fitBox((chartWidthDp * density).toInt(), (heightDp * density).toInt())
 
     val bmp = runCatching {
         HrTraceRenderer.render(
