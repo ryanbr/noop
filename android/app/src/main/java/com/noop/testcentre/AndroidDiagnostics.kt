@@ -150,6 +150,10 @@ object AndroidDiagnostics {
                     "(if you restored a backup, fully restart the app — #57)")
             }
             if (restoreAt > 0L) add("Last restore: ${relTime(now - restoreAt * 1000L)}")
+            // What the home-screen widgets actually cost. Reported unconditionally, including the "no
+            // pushes" case, because the absence of widget activity is itself the answer to a drain
+            // report — and until this line existed an export could not distinguish the two.
+            add(com.noop.widget.WidgetTelemetry.snapshot(now).render())
             // #1770 follow-up: which streams the ACTIVE strap actually delivered over the last 48 h. Four
             // EXISTS seeks, not counts — see WhoopDao.streamPresence for why that distinction matters on a
             // table holding ~190k motion rows a night.

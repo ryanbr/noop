@@ -53,7 +53,11 @@ object WidgetSnapshotStore {
     suspend fun push(context: Context, snap: WidgetSnapshot) {
         val app = context.applicationContext
         // Cheap, non-suspending gate FIRST — at live-HR cadence (~1/s) almost every call ends here.
-        if (!PushGate.admit(snap)) return
+        if (!PushGate.admit(snap)) {
+            WidgetTelemetry.notePushGated(snap.updatedAtMs)
+            return
+        }
+        WidgetTelemetry.notePushAdmitted(snap.updatedAtMs)
 
         // Persist before anything suspending, and only THEN mark the gate (#82: marking before the
         // write let a cancelled push burn the refresh window — the widget starved on stale prefs).

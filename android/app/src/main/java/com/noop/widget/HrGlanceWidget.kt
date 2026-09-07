@@ -268,6 +268,9 @@ private fun HrTraceImage(
     val hPx = (HR_CHART_TARGET_DP * density).toInt().coerceAtLeast(1)
     val wPx = HrTrace.widestAtHeight((chartWidthDp * density).toInt(), hPx)
 
+    // Measured, because "the widget drains the battery" was not decidable from an export: this is the
+    // only widget that ships a BITMAP rather than a few KB of text, and nothing counted what that cost.
+    val startedNs = System.nanoTime()
     val bmp = runCatching {
         HrTraceRenderer.render(
             points = HrTrace.points(snap.hrSeries, wPx.toFloat(), hPx.toFloat()),
@@ -279,6 +282,15 @@ private fun HrTraceImage(
             strokePx = 2f * density,
         )
     }.getOrNull()
+    if (bmp != null) {
+        WidgetTelemetry.noteRender(
+            bytes = wPx * hPx * HrTrace.BYTES_PER_PIXEL,
+            elapsedMs = (System.nanoTime() - startedNs) / 1_000_000,
+        )
+        // A push carrying no live sample appends no point, so this draw reproduced the previous bitmap
+        // exactly. Counting them sizes the saving a future cache would take; nothing is skipped here.
+        if (HrTraceSeen.repeat(snap.hrSeries, wPx, hPx, dark)) WidgetTelemetry.noteRedundantRender()
+    }
 
     // The chart takes the ROW's remaining width by weight rather than a width computed from
     // LocalSize. On a One UI launcher LocalSize reported a size smaller than the card actually
