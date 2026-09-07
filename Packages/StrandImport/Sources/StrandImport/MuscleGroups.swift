@@ -116,6 +116,11 @@ public enum MuscleAttribution {
         ("chest press", [.chest, .triceps]),
         ("chest fly", [.chest]),
         ("pec deck", [.chest]),
+        // Before the generic fly: a reverse fly and a rear-delt fly are REAR movements, and both
+        // contain "fly", so the generic rule would file the opposite side of the body. Order is the
+        // whole contract here, not a stylistic choice.
+        ("rear delt", [.shoulders, .upperBack]),
+        ("reverse fly", [.shoulders, .upperBack]),
         ("fly", [.chest]),
         ("push up", [.chest, .triceps]),
         ("pushup", [.chest, .triceps]),
@@ -126,8 +131,9 @@ public enum MuscleAttribution {
         ("arnold press", [.shoulders]),
         ("lateral raise", [.shoulders]),
         ("front raise", [.shoulders]),
-        ("rear delt", [.shoulders, .upperBack]),
         // arms
+        // Hevy writes it as one word; the two-word rule missed the spelling the catalogue uses.
+        ("skullcrusher", [.triceps]),
         ("skull crusher", [.triceps]),
         ("tricep", [.triceps]),
         ("pushdown", [.triceps]),
@@ -135,6 +141,10 @@ public enum MuscleAttribution {
         ("hammer curl", [.biceps, .forearms]),
         ("preacher curl", [.biceps]),
         ("bicep", [.biceps]),
+        // Before the generic curl: a nordic curl is a hamstring movement and a jefferson curl is a
+        // spinal one. Both contain "curl", so the generic rule would call them biceps.
+        ("nordic curl", [.hamstrings]),
+        ("jefferson curl", [.lowerBack, .hamstrings]),
         ("curl", [.biceps]),
         ("wrist", [.forearms]),
         ("farmer", [.forearms]),

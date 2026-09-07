@@ -36,6 +36,27 @@ final class MuscleGroupsTests: XCTestCase {
         XCTAssertEqual(MuscleAttribution.muscles(for: "Hammer Curl"), [.biceps, .forearms])
     }
 
+    /// Titles that match TWO rules whose needles do not contain each other, so the structural
+    /// shadowing test cannot see them: "Rear Delt Fly" contains both "rear delt" and "fly", and
+    /// whichever sits first in the table wins. Every one of these was wrong when first written.
+    func testCompoundTitlesResolveToTheRearOrLegMovementNotTheGenericOne() {
+        XCTAssertEqual(MuscleAttribution.muscles(for: "Rear Delt Fly"), [.shoulders, .upperBack],
+                       "the generic chest 'fly' rule would file the opposite side of the body")
+        XCTAssertEqual(MuscleAttribution.muscles(for: "Reverse Fly (Dumbbell)"), [.shoulders, .upperBack])
+        XCTAssertEqual(MuscleAttribution.muscles(for: "Nordic Curl"), [.hamstrings],
+                       "a nordic curl is hamstrings, not the biceps 'curl' rule")
+        XCTAssertEqual(MuscleAttribution.muscles(for: "Jefferson Curl"), [.lowerBack, .hamstrings])
+        XCTAssertEqual(MuscleAttribution.muscles(for: "Cable Fly"), [.chest], "a plain fly is still chest")
+        XCTAssertEqual(MuscleAttribution.muscles(for: "Chest Fly"), [.chest])
+    }
+
+    /// Hevy writes it as one word. A rule that only matches the spaced spelling silently attributes
+    /// nothing for the spelling the catalogue actually uses, which reads as an unknown lift.
+    func testSkullcrusherMatchesBothSpellings() {
+        XCTAssertEqual(MuscleAttribution.muscles(for: "Skullcrusher (Barbell)"), [.triceps])
+        XCTAssertEqual(MuscleAttribution.muscles(for: "Skull Crusher"), [.triceps])
+    }
+
     /// Equipment parentheses, hyphens and case must not change the answer.
     func testNormalisationIgnoresEquipmentPunctuationAndCase() {
         let expected: [MuscleGroup] = [.chest, .triceps]
@@ -69,6 +90,11 @@ final class MuscleGroupsTests: XCTestCase {
     /// Guards the ordering property itself rather than individual pairs: if a rule's needle contains
     /// an earlier rule's needle, the earlier one wins and the later is dead. This catches a new rule
     /// appended in the wrong place, which no example-based test would.
+    ///
+    /// What it does NOT catch: two rules whose needles do not contain each other, where a real title
+    /// contains BOTH. "rear delt" and "fly" are disjoint, yet "Rear Delt Fly" matches whichever comes
+    /// first — and it came out as chest until an example test was written for it. The example test
+    /// above is the guard for that class; this one cannot be.
     func testNoRuleIsShadowedByAnEarlierOne() {
         let rules = MuscleAttribution.rules
         for (i, later) in rules.enumerated() {
