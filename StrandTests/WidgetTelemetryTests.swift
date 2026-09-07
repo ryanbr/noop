@@ -92,4 +92,35 @@ final class WidgetTelemetryTests: XCTestCase {
         XCTAssertTrue(line.contains("60.0/h"), line)
         XCTAssertFalse(line.contains("60,0/h"), line)
     }
+
+    /// The widget-removed export is half of the comparison the counters exist for, so a reload with
+    /// nothing installed must not read as one. Android had exactly this bug; iOS never checks whether
+    /// a widget is placed before calling `reloadAllTimelines`, so without this the figure would be
+    /// just as blind here.
+    func testAReloadWithNoWidgetInstalledIsNotCountedAsOne() {
+        WidgetTelemetry.noteWidgetsInstalled(false)
+        WidgetTelemetry.noteAdmitted(now: t0)
+        for m in 1...10 {
+            let at = t0.addingTimeInterval(Double(m) * 60)
+            WidgetTelemetry.noteAdmitted(now: at)
+            WidgetTelemetry.noteNoWidget()
+        }
+        let s = WidgetTelemetry.snapshot(now: t0.addingTimeInterval(660))
+        XCTAssertEqual(s.admitted, 11)
+        XCTAssertEqual(s.reloaded, 0)
+        XCTAssertEqual(s.noWidget, 10)
+        XCTAssertEqual(s.reloadsPerHour ?? -1, 0, accuracy: 0.001)
+        XCTAssertTrue(s.render().contains("10 with no widget installed"), s.render())
+    }
+
+    /// Unknown must count as installed. Over-reporting reloads is the safe direction for a figure
+    /// whose whole purpose is to show a cost: a wrong "nothing was spent" is the one answer that would
+    /// end an investigation early.
+    func testPresenceDefaultsToInstalledBeforeWidgetKitHasAnswered() {
+        XCTAssertTrue(WidgetTelemetry.widgetsInstalled)
+        WidgetTelemetry.noteWidgetsInstalled(false)
+        XCTAssertFalse(WidgetTelemetry.widgetsInstalled)
+        WidgetTelemetry.resetForTest()
+        XCTAssertTrue(WidgetTelemetry.widgetsInstalled, "reset returns it to unknown, not to false")
+    }
 }

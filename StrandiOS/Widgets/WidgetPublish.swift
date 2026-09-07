@@ -21,6 +21,7 @@ extension WidgetSnapshot {
     /// the rollover yet always describes today.
     @MainActor
     static func publish(from model: AppModel) async {
+        await refreshWidgetPresence()
         let days = model.repo.days
         let now = Date()
         // The recovery-derived anchor: today's row when it's scored, else the freshest STRICTLY-PRIOR
@@ -112,7 +113,15 @@ extension WidgetSnapshot {
         if renderedContentChanged(from: previous, to: snap) {
             snap.save(previousSeries: previous?.hrSeries ?? [])
             WidgetCenter.shared.reloadAllTimelines()
-            WidgetTelemetry.noteReloaded()
+            // Android skips the update entirely when no widget is placed; WidgetKit offers no
+            // synchronous way to know, so the reload still goes out and is instead recorded honestly.
+            // Counting it as a reload would make a widget-removed export read exactly like a
+            // widget-installed one, which is half the comparison the counters exist for.
+            if WidgetTelemetry.widgetsInstalled {
+                WidgetTelemetry.noteReloaded()
+            } else {
+                WidgetTelemetry.noteNoWidget()
+            }
         } else if WidgetSnapshot.traceNeedsPoint(previous: previous, bpm: snap.bpm, now: snap.updated) {
             // A steady heart changes nothing the header renders, so the branch above declines — but the
             // TRACE still wants this minute's point, or it stops advancing at rest and prunes to empty
@@ -131,6 +140,28 @@ extension WidgetSnapshot {
             // went anywhere as if they had.
             WidgetTelemetry.noteDeclined()
         }
+    }
+
+    /// Ask WidgetKit whether any widget is actually installed, and remember the answer.
+    ///
+    /// Only on the full publish path: it is already `async`, and the once-a-minute live path has no
+    /// `await` to spend on an XPC round trip it does not need. The answer changes when a user adds or
+    /// removes a widget, which is exactly when the app is being foregrounded anyway, so a value from
+    /// the last full publish is fresh enough for a diagnostic.
+    ///
+    /// A failure leaves the previous answer in place rather than guessing, and "never asked" counts as
+    /// installed — over-reporting reloads is the safe direction for a figure meant to show a cost.
+    @MainActor
+    private static func refreshWidgetPresence() async {
+        let installed: Bool? = await withCheckedContinuation { continuation in
+            WidgetCenter.shared.getCurrentConfigurations { result in
+                switch result {
+                case .success(let widgets): continuation.resume(returning: !widgets.isEmpty)
+                case .failure: continuation.resume(returning: nil)
+                }
+            }
+        }
+        if let installed { WidgetTelemetry.noteWidgetsInstalled(installed) }
     }
 
     /// #114/#169: HR is the ONE high-frequency widget-publish trigger — `model.bpm` moves every few

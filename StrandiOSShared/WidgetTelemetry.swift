@@ -36,6 +36,9 @@ public enum WidgetTelemetry {
     private static var reloaded = 0
     private static var declined = 0
     private static var steadyReloads = 0
+    private static var noWidget = 0
+    private static var steadyNoWidget = 0
+    private static var installedKnown: Bool?
 
     /// A publish that `HRPublishThrottle` let through.
     public static func noteAdmitted(now: Date = Date()) {
@@ -71,6 +74,35 @@ public enum WidgetTelemetry {
         declined += 1
     }
 
+    /// A reload asked for with no widget installed to receive it.
+    ///
+    /// Android learned this the hard way: an export taken with the widget REMOVED is half of the
+    /// comparison that answers whether the widget costs anything, and counting these as reloads made
+    /// both halves read alike. iOS never checks whether a widget is placed before calling
+    /// `reloadAllTimelines`, so without this the same figure would be just as blind here.
+    public static func noteNoWidget() {
+        lock.lock(); defer { lock.unlock() }
+        noWidget += 1
+        if steadyStartedAt != nil { steadyNoWidget += 1 }
+    }
+
+    /// Record what WidgetKit says about installed widgets. Refreshed on the async publish paths, which
+    /// is the only place an `await` is available; the synchronous live path reads the last answer.
+    ///
+    /// Nil means never asked, and nil counts as INSTALLED at the call site. Unknown must not be able to
+    /// invent a saving that was never made — over-reporting reloads is the safe direction for a figure
+    /// whose purpose is to show a cost.
+    public static func noteWidgetsInstalled(_ installed: Bool) {
+        lock.lock(); defer { lock.unlock() }
+        installedKnown = installed
+    }
+
+    /// The last known answer, defaulting to true. See [noteWidgetsInstalled].
+    public static var widgetsInstalled: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return installedKnown ?? true
+    }
+
     public static func snapshot(now: Date = Date()) -> Snapshot {
         lock.lock(); defer { lock.unlock() }
         return Snapshot(
@@ -81,7 +113,9 @@ public enum WidgetTelemetry {
             admitted: admitted,
             reloaded: reloaded,
             declined: declined,
-            steadyReloads: steadyReloads
+            noWidget: noWidget,
+            steadyReloads: steadyReloads,
+            steadyNoWidget: steadyNoWidget
         )
     }
 
@@ -89,6 +123,7 @@ public enum WidgetTelemetry {
         lock.lock(); defer { lock.unlock() }
         startedAt = nil; steadyStartedAt = nil
         offered = 0; gated = 0; admitted = 0; reloaded = 0; declined = 0; steadyReloads = 0
+        noWidget = 0; steadyNoWidget = 0; installedKnown = nil
     }
 
     public struct Snapshot: Sendable, Equatable {
@@ -99,7 +134,9 @@ public enum WidgetTelemetry {
         public let admitted: Int
         public let reloaded: Int
         public let declined: Int
+        public let noWidget: Int
         public let steadyReloads: Int
+        public let steadyNoWidget: Int
 
         /// A rate is only quoted once the steady window is long enough to mean something. Five minutes
         /// of ordinary running is a handful of one-a-minute publishes; less is arithmetic.
@@ -110,6 +147,10 @@ public enum WidgetTelemetry {
         /// Reloads and not publishes, because a publish that declined the reload cost nothing and
         /// spent none of the budget. Counting those would make this figure unable to fall when the
         /// dedup in `saveAndReloadIfChanged` did its job, which is the one thing it is for.
+        ///
+        /// A reload asked for with no widget installed is not counted here either — it is recorded as
+        /// [noWidget] instead of as a reload, so this figure never claims a cost that had nowhere to
+        /// land.
         ///
         /// Elapsed WALL-CLOCK time is the denominator, not time spent streaming: the ceiling this runs
         /// against is expressed per hour of real time, as is a battery question.
@@ -127,6 +168,7 @@ public enum WidgetTelemetry {
                 parts.append(String(format: "%.1f/h", rate))
             }
             if declined > 0 { parts.append("\(declined) unchanged") }
+            if noWidget > 0 { parts.append("\(noWidget) with no widget installed") }
             let mins = Int(uptime / 60)
             let span = steadyEnough
                 ? "over \(mins)m"
