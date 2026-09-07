@@ -140,6 +140,22 @@ private fun HrWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
         }
         Spacer(GlanceModifier.height(6.dp))
 
+        // Built OUT here, not inside the semantics lambda: #571 recorded that the i18n audit cannot see
+        // copy assigned inside one, so a literal written there ships English to every locale. The bare
+        // number alone left TalkBack reading "69" with no unit and no idea what it measured.
+        val hrLabel = uiString(R.string.l10n_noop_glance_widget_heart_rate_410aa15c)
+        // Staleness is drawn ONLY by dimming the number, which is a colour-only channel — so TalkBack,
+        // and anyone who cannot perceive the dim, was told a carried-over reading was current. Marked on
+        // the LIVE side, exactly as the sibling widget settled it (#1799): a stale value then carries no
+        // claim rather than a contradicted one.
+        val liveSuffix =
+            if (snap.heartRateStale) "" else " " + uiString(R.string.l10n_today_screen_sync_chip_live_98aadb37)
+        val hrSpoken = snap.heartRate
+            ?.let {
+                "$hrLabel " + uiString(R.string.l10n_today_screen_value_bpm_8f3a90c3, it.toString()) + liveSuffix
+            }
+            ?: hrLabel
+
         Row(verticalAlignment = Alignment.Vertical.Bottom) {
             Text(
                 text = snap.heartRate?.toString() ?: "—",
@@ -148,6 +164,7 @@ private fun HrWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
                     fontSize = 30.sp,
                     fontWeight = FontWeight.Bold,
                 ),
+                modifier = GlanceModifier.semantics { contentDescription = hrSpoken },
             )
             if (snap.heartRate != null) {
                 Spacer(GlanceModifier.width(4.dp))
@@ -247,11 +264,16 @@ private fun HrTraceImage(snap: WidgetSnapshot, dark: Boolean, widthDp: Float, he
                 horizontalAlignment = Alignment.Horizontal.End,
             ) {
                 val ticks = HrTrace.bpmTicks(stats)
+                // Spoken WITH the unit. The previous description was the bare number the label already
+                // shows, which is exactly as useful as none: TalkBack announced "84, 72, 59" against a
+                // chart it cannot see. Glance has no way to mark a Text decorative, so the next best
+                // thing is to make each one say what it measures.
+                val spoken = ticks.map { uiString(R.string.l10n_today_screen_value_bpm_8f3a90c3, it.toString()) }
                 ticks.forEachIndexed { i, tick ->
                     Text(
                         text = tick.toString(),
                         style = TextStyle(color = hrTextSecondary(dark), fontSize = 10.sp),
-                        modifier = GlanceModifier.semantics { contentDescription = tick.toString() },
+                        modifier = GlanceModifier.semantics { contentDescription = spoken[i] },
                     )
                     if (i < ticks.size - 1) Spacer(GlanceModifier.defaultWeight())
                 }
