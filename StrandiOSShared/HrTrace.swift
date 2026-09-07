@@ -133,3 +133,31 @@ public enum HrTrace {
         return [first, mid, last]
     }
 }
+
+/// What heart rate the widget should SHOW, given how long ago it was actually measured.
+///
+/// Twin of the Kotlin `HrDisplay`, and the reason it exists is the same on both platforms: a snapshot
+/// carries the last reading indefinitely, so without an age rule a widget renders an hours-old number as
+/// though it were current.
+///
+/// Anchored to the newest TRACE POINT rather than to the snapshot's `updated`, which is the closer twin
+/// of Android reading its own `hrAt`. A publish happens for battery or score changes too, so `updated`
+/// refreshes without a new reading and would make a stale heart look fresh.
+public enum HrDisplay {
+    /// Past this without a newer reading the number is DIMMED: still shown, no longer claimed as live.
+    public static let liveWindow: TimeInterval = 2 * 60
+
+    /// Past this it is dropped entirely — too old to stand for the wearer at all.
+    public static let staleCap: TimeInterval = 15 * 60
+
+    /// - Returns: the bpm to show (nil to show nothing) and whether it is a carried-over reading.
+    public static func resolve(bpm: Int?, newestPointTs: Int64?, now: Date) -> (bpm: Int?, stale: Bool) {
+        guard let bpm, bpm > 0 else { return (nil, false) }
+        // No trace yet is the FIRST reading, not an old one: a widget added this minute has a bpm and an
+        // empty series, and dropping the number there would blank a widget that just started working.
+        guard let newestPointTs else { return (bpm, false) }
+        let age = now.timeIntervalSince1970 - TimeInterval(newestPointTs)
+        if age > staleCap { return (nil, false) }
+        return (bpm, age > liveWindow)
+    }
+}

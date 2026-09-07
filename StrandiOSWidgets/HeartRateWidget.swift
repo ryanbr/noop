@@ -79,6 +79,11 @@ struct HeartRateWidgetView: View {
         HrTrace.prune(entry.snap?.hrSeries ?? [], nowSec: Int64(entry.date.timeIntervalSince1970))
     }
     private var stats: HrTrace.Stats? { HrTrace.stats(series) }
+    /// Age-checked, so an hours-old reading is not printed as current. Without this the prune above made
+    /// the card incoherent: the trace emptied while the headline kept its confident number.
+    private var shown: (bpm: Int?, stale: Bool) {
+        HrDisplay.resolve(bpm: entry.snap?.bpm, newestPointTs: series.last?.ts, now: entry.date)
+    }
     /// The palette's HR zone-5 token, which resolves to exactly the hexes the Android widget carries as
     /// a local mirror (#C84E1E / #E0662F) — so the two widgets are the same colour rather than two
     /// approximations of one. Named rather than hardcoded here because, unlike Glance, this target can
@@ -97,10 +102,10 @@ struct HeartRateWidgetView: View {
             }
 
             HStack(alignment: .lastTextBaseline, spacing: 4) {
-                Text(entry.snap?.bpm.map(String.init) ?? "—")
+                Text(shown.bpm.map(String.init) ?? "—")
                     .font(.system(size: 30, weight: .bold, design: .rounded))
-                    .foregroundStyle(StrandPalette.textPrimary)
-                if entry.snap?.bpm != nil {
+                    .foregroundStyle(shown.stale ? StrandPalette.textSecondary : StrandPalette.textPrimary)
+                if shown.bpm != nil {
                     Text("bpm")
                         .font(.system(size: 12))
                         .foregroundStyle(StrandPalette.textSecondary)
@@ -164,7 +169,7 @@ struct HeartRateWidgetView: View {
         // extracting the sentence here hid it from the check. Hardcoded English would have shipped to
         // every locale with the gate green, which is the same trap the Kotlin twin records for copy
         // written inside a semantics {} lambda.
-        guard let bpm = entry.snap?.bpm else { return String(localized: "Heart rate, no reading") }
+        guard let bpm = shown.bpm else { return String(localized: "Heart rate, no reading") }
         guard let stats else { return String(localized: "Heart rate \(bpm) bpm") }
         return String(localized: "Heart rate \(bpm) bpm, minimum \(stats.min), maximum \(stats.max)")
     }

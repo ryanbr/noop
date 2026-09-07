@@ -137,4 +137,45 @@ final class HrTraceTests: XCTestCase {
         XCTAssertTrue(WidgetSnapshot.traceNeedsPoint(previous: nil, bpm: 70, now: now),
                       "no stored series at all means the first reading is wanted")
     }
+
+
+    // MARK: the age rule on the headline number
+
+    /// Twin of the Kotlin `HrDisplay`. Without it the card contradicted itself once the trace began
+    /// pruning: an empty chart under a confident number, from a reading hours old.
+    func testAFreshReadingIsShownAndNotDimmed() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let r = HrDisplay.resolve(bpm: 70, newestPointTs: Int64(now.timeIntervalSince1970) - 30, now: now)
+        XCTAssertEqual(r.bpm, 70)
+        XCTAssertFalse(r.stale)
+    }
+
+    func testACarriedReadingIsShownButDimmed() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let ts = Int64(now.timeIntervalSince1970 - HrDisplay.liveWindow - 30)
+        let r = HrDisplay.resolve(bpm: 70, newestPointTs: ts, now: now)
+        XCTAssertEqual(r.bpm, 70)
+        XCTAssertTrue(r.stale, "past the live window it is carried over, not current")
+    }
+
+    func testAnAncientReadingIsDroppedEntirely() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let ts = Int64(now.timeIntervalSince1970 - HrDisplay.staleCap - 60)
+        XCTAssertNil(HrDisplay.resolve(bpm: 70, newestPointTs: ts, now: now).bpm)
+    }
+
+    /// A widget added this minute has a reading and an empty series. Treating that as stale would blank
+    /// a widget at the moment it started working.
+    func testAFirstReadingWithNoTraceYetIsShown() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let r = HrDisplay.resolve(bpm: 70, newestPointTs: nil, now: now)
+        XCTAssertEqual(r.bpm, 70)
+        XCTAssertFalse(r.stale)
+    }
+
+    func testNoReadingShowsNothing() {
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        XCTAssertNil(HrDisplay.resolve(bpm: nil, newestPointTs: nil, now: now).bpm)
+        XCTAssertNil(HrDisplay.resolve(bpm: 0, newestPointTs: nil, now: now).bpm)
+    }
 }
