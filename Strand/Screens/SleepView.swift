@@ -367,15 +367,26 @@ struct SleepView: View {
     /// either side of a skipped night read as consecutive and desyncs the "N nights ago" labels (and the
     /// Rest value they name). Uses the same local start-of-day `navDays` is grouped by; falls back to the
     /// raw index if it can't resolve. 0 = last night. Mirrors Android SleepHeroLogic.calendarNightsAgo.
-    private func nightsAgo(_ offset: Int) -> Int {
+    /// How many nights back the carousel night at `offset` is FROM TODAY.
+    ///
+    /// Measured from today, not from the newest recorded night. Anchoring on the newest record made
+    /// offset 0 always land on zero, so the hero read "Last night" over a night that could be days
+    /// old — shown directly above the correct date, two adjacent labels contradicting each other. A
+    /// reporter read that as bad processing and it sent the investigation into the sleep stager
+    /// instead of into this label.
+    ///
+    /// Both sides sit on the LOGICAL day (the 04:00 roll `Repository.logicalDay` applies), because
+    /// mixing the scales is its own bug: a night that ended at 02:00 belongs to the previous logical
+    /// day, and comparing its raw calendar wake-date against a rolled "today" would report it a night
+    /// further back than it is. Kotlin twin: `calendarNightsAgo`.
+    private func nightsAgo(_ offset: Int, now: Date = Date()) -> Int {
         let days = navDays
-        guard offset >= 0, offset < days.count,
-              let newestTs = days.first?.first?.endTs, let shownTs = days[offset].first?.endTs
+        guard offset >= 0, offset < days.count, let shownTs = days[offset].first?.endTs
         else { return offset }
         let cal = Calendar.current
-        let shown = cal.startOfDay(for: Date(timeIntervalSince1970: TimeInterval(shownTs)))
-        let newest = cal.startOfDay(for: Date(timeIntervalSince1970: TimeInterval(newestTs)))
-        let d = cal.dateComponents([.day], from: shown, to: newest).day ?? offset
+        let shown = cal.startOfDay(for: Repository.logicalDay(Date(timeIntervalSince1970: TimeInterval(shownTs))))
+        let today = cal.startOfDay(for: Repository.logicalDay(now))
+        let d = cal.dateComponents([.day], from: shown, to: today).day ?? offset
         return d >= 0 ? d : offset
     }
 
