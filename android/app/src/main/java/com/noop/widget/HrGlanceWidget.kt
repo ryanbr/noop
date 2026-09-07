@@ -232,7 +232,11 @@ private fun HrTraceImage(snap: WidgetSnapshot, dark: Boolean, widthDp: Float, he
     val chartWidthDp = hrChartWidthDp(widthDp)
     // ONE box for both the geometry and the bitmap. Sizing them separately let the trace be drawn to
     // coordinates the bitmap did not have room for, clipping its right-hand end (#1957).
-    val (wPx, hPx) = HrTrace.fitBox((chartWidthDp * density).toInt(), (heightDp * density).toInt())
+    // Height exactly as displayed, width with headroom so the Image DOWNSCALES rather than stretching
+    // up: LocalSize under-reports on some launchers, and an upscale here is horizontal-only, which
+    // turns the stroke elliptical (#1957).
+    val hPx = (heightDp * density).toInt().coerceAtLeast(1)
+    val wPx = HrTrace.widestAtHeight((chartWidthDp * density).toInt(), hPx)
 
     val bmp = runCatching {
         HrTraceRenderer.render(
