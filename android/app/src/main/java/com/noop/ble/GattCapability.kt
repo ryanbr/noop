@@ -116,6 +116,14 @@ internal data class NotifyCharDump(
  * Same discipline as its sibling: reads already-known local state, sends nothing, and so works on exactly
  * the strap that no puffin probe can reach.
  *
+ * NO Swift twin, and this file's Swift half already says why in general: `gattTreeLines` was twinned
+ * because CoreBluetooth exposes services, characteristics and properties, "unlike the bond-state and
+ * pairing helpers, which have no Apple equivalent at all". This is one of those — it is keyed on the OS
+ * bond state, which CoreBluetooth does not publish, and on an opt-in for a probe that is Android-only.
+ * Worth recording for whoever wants the iOS equivalent: the asymmetry there runs the other way, since
+ * `CBCharacteristic.isNotifying` is authoritative, so iOS could carry the subscription column Android
+ * cannot — after the subscribe attempt, not at discovery.
+ *
  * On encryption it deliberately claims LESS than a reader might want. Android publishes no
  * link-encryption flag to a GATT client, and a remote characteristic's permissions read back as 0, so the
  * bond state is the only standing proxy and it is not the same question. The hard evidence is a CCCD
