@@ -72,7 +72,10 @@ public enum CaptureCompleteness {
         .dataImport: ["import stage=", "rowsIn="],
         .steps:      ["stepsRaw", "stepsCal"],
         .battery:    ["bank soc=", "socSeries"],
-        .recovery:   ["charge term", "charge score=", "charge nilScore"],
+        // "charge day=" for the same reason as the Kotlin twin: IntelligenceEngine re-emits every
+        // recovery trace line as `charge day=<day> ` + the body, so none of the three variants this
+        // used to name could ever match and the domain reported MISSING on every capture.
+        .recovery:   ["charge day="],
         .hrv:        ["hrv rmssd=", "hrv result=", "hrv nightSummary"],
         .universal:  ["dayOwner ", "strapClock "],
     ]

@@ -55,6 +55,25 @@ object AndroidDiagnostics {
     }
 
     /**
+     * The history-offload write-health line.
+     *
+     * "Offload:", not "Data write:". The stamp behind it is written ONLY when a backfill session
+     * persists rows, so it says nothing about live streaming - and on a strap that offloads nothing but
+     * streams happily (an unbonded 5/MG, the designed end state of #1635) the old label read as "this
+     * app has stored nothing from your strap" while a hundred thousand HR rows sat under that very
+     * device id. The scope now lives in the label, and the zero case says outright what it excludes.
+     *
+     * Pure and extracted for the same reason [strapProvidesLine] is: [summaryLines] needs a real
+     * Context, and the wording is the part a change would silently break.
+     */
+    internal fun offloadLine(okAtSec: Long, ageMs: Long): String =
+        "Offload:     " + if (okAtSec > 0L) {
+            "rows last landed ${relTime(ageMs)}"
+        } else {
+            "no history rows ever persisted (live HR/R-R are not counted here)"
+        }
+
+    /**
      * What the active strap actually delivered over the window — the line that says which scores can
      * exist at all.
      *
@@ -68,7 +87,7 @@ object AndroidDiagnostics {
      * strap simply not worn for two days would be reported as incapable of motion — the opposite kind of
      * wrong from the one this line exists to prevent. Over a window of actual wear, delivered and capable
      * are the same thing; the label keeps that assumption visible instead of implied.
-     * The label is padded to 13 like every other in this block ("Model:", "Data write:"), and the window
+     * The label is padded to 13 like every other in this block ("Model:", "Offload:"), and the window
      * rides the VALUE. "Provides(48h):" is 15 and overhung the column in a report that is aligned by hand
      * and read by eye.
      * Pure so it is unit-tested directly; byte-identical to the Swift twin.
@@ -144,7 +163,15 @@ object AndroidDiagnostics {
             ) ?: 0L
             val restoreAt = p.getLong("backup.lastRestoreAt", 0L)
             val now = System.currentTimeMillis()
-            add("Data write:  ${if (okAt > 0L) "rows last landed ${relTime(now - okAt * 1000L)}" else "no rows ever persisted"}")
+            // "Offload:", not "Data write:". The stamp behind it is written ONLY when a backfill session
+            // persists rows, so it says nothing about live streaming - and on a strap that offloads
+            // nothing but streams happily (an unbonded 5/MG, the designed end state of #1635) the old
+            // label read as "this app has stored nothing from your strap" while a hundred thousand HR
+            // rows sat under that very device id. The scope now lives in the label, and the zero case
+            // says outright what it does not cover.
+            // Age only means anything when something landed; pass 0 otherwise rather than `now`, which
+            // would be a 56-year "age" sitting unused in an argument a reader has to check is unused.
+            add(offloadLine(okAt, if (okAt > 0L) now - okAt * 1000L else 0L))
             if (stalledAt > 0L && stalledAt >= okAt) {
                 add("             ⚠ history NOT persisting — last offload STALLED ${relTime(now - stalledAt * 1000L)} " +
                     "(if you restored a backup, fully restart the app — #57)")

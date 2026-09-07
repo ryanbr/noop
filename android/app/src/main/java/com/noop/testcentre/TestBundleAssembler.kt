@@ -116,7 +116,11 @@ object TestBundleAssembler {
         // domain, whether its killer trace landed. Computed over the header+body that will ship (the guard
         // reads exactly what the maintainer reads). Byte-identical section to the Swift twin.
         val reportBody = header + "\n" + body
-        val captureCheck = ReportCompleteness.captureCheckSection(reportBody, activeDomains)
+        // The profile's age is part of whether this capture can be believed, so it is computed BEFORE
+        // the section rather than only stamped into meta.json where nobody reading report.txt sees it.
+        val ranSeconds = tc.startedAt(profile)?.let { (System.currentTimeMillis() / 1000L) - it }
+        val captureCheck =
+            ReportCompleteness.captureCheckSection(reportBody, activeDomains, ranSeconds)
         val reportText = reportBody + "\n" + captureCheck
         val entries = ArrayList<Pair<String, ByteArray>>()
         entries.add("report.txt" to reportText.toByteArray())
