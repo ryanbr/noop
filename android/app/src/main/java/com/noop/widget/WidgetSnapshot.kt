@@ -80,7 +80,13 @@ object WidgetSnapshotStore {
         val hrIds = runCatching {
             GlanceAppWidgetManager(app).getGlanceIds(HrGlanceWidget::class.java)
         }.getOrDefault(emptyList())
-        if (standardIds.isEmpty() && compactIds.isEmpty() && hrIds.isEmpty()) return
+        if (standardIds.isEmpty() && compactIds.isEmpty() && hrIds.isEmpty()) {
+            // Admitted, but there is nowhere for it to go. Recorded rather than returned silently: an
+            // export taken with the widget removed is half of the comparison that answers whether it
+            // costs anything, and counting this as a send would have made both halves look alike.
+            WidgetTelemetry.notePushNoWidget()
+            return
+        }
 
         // Nothing the widgets DISPLAY changed, so there is nothing to send. Read back what they will
         // actually render rather than re-deriving it: `load` resolves staleness and prunes the trace,

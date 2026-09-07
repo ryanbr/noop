@@ -48,6 +48,7 @@ object WidgetTelemetry {
     private var steadyStartMs = 0L
     private var steadyPushes = 0L
     private var steadyUnchanged = 0L
+    private var steadyNoWidget = 0L
     private var steadyRenderBytes = 0L
     private var pushesAdmitted = 0L
     private var pushesGated = 0L
@@ -57,6 +58,7 @@ object WidgetTelemetry {
     private var renderMs = 0L
     private var renderMsMax = 0L
     private var pushesUnchanged = 0L
+    private var pushesNoWidget = 0L
     private var lastPushAtMs = 0L
 
     /** A push [PushGate] let through: prefs written and every placed widget recomposed. */
@@ -89,6 +91,21 @@ object WidgetTelemetry {
         if (steadyStartMs != 0L) steadyUnchanged += 1
     }
 
+    /**
+     * A push admitted with no widget placed to receive it.
+     *
+     * A DIFFERENT outcome from [notePushUnchanged], and worth its own counter rather than folding the
+     * two together: "there was nothing new to show" and "there was nobody to show it to" answer
+     * different questions, and the second is exactly what an export taken with the widget removed is
+     * for. Counting it as a send would have made a widget-removed capture look identical to a
+     * widget-placed one on every figure except the draws.
+     */
+    @Synchronized
+    fun notePushNoWidget() {
+        pushesNoWidget += 1
+        if (steadyStartMs != 0L) steadyNoWidget += 1
+    }
+
     /** One trace bitmap built: [bytes] is what crosses the Binder, [elapsedMs] is the draw alone. */
     @Synchronized
     fun noteRender(bytes: Int, elapsedMs: Long) {
@@ -115,10 +132,12 @@ object WidgetTelemetry {
         steadyMs = if (steadyStartMs == 0L) 0L else nowMs - steadyStartMs,
         steadyPushes = steadyPushes,
         steadyUnchanged = steadyUnchanged,
+        steadyNoWidget = steadyNoWidget,
         steadyRenderBytes = steadyRenderBytes,
         pushesAdmitted = pushesAdmitted,
         pushesGated = pushesGated,
         pushesUnchanged = pushesUnchanged,
+        pushesNoWidget = pushesNoWidget,
         renders = renders,
         rendersRedundant = rendersRedundant,
         renderBytes = renderBytes,
@@ -131,7 +150,8 @@ object WidgetTelemetry {
     fun resetForTest() {
         startedAtMs = 0L; steadyStartMs = 0L; steadyPushes = 0L; steadyRenderBytes = 0L
         steadyUnchanged = 0L
-        pushesAdmitted = 0L; pushesGated = 0L; pushesUnchanged = 0L
+        pushesAdmitted = 0L; pushesGated = 0L; pushesUnchanged = 0L; pushesNoWidget = 0L
+        steadyNoWidget = 0L
         renders = 0L; rendersRedundant = 0L; renderBytes = 0L; renderMs = 0L; renderMsMax = 0L
         lastPushAtMs = 0L
     }
@@ -141,10 +161,12 @@ object WidgetTelemetry {
         val steadyMs: Long,
         val steadyPushes: Long,
         val steadyUnchanged: Long,
+        val steadyNoWidget: Long,
         val steadyRenderBytes: Long,
         val pushesAdmitted: Long,
         val pushesGated: Long,
         val pushesUnchanged: Long,
+        val pushesNoWidget: Long,
         val renders: Long,
         val rendersRedundant: Long,
         val renderBytes: Long,
@@ -167,8 +189,11 @@ object WidgetTelemetry {
          *  minutes of ordinary running is a handful of one-a-minute pushes; less is arithmetic. */
         private val steadyEnough: Boolean get() = steadyMs >= 5 * 60_000L
 
-        /** Pushes that actually became a widget update: admitted, then not dropped by [RenderedGate]. */
-        val pushesSent: Long get() = pushesAdmitted - pushesUnchanged
+        /**
+         * Pushes that actually became a widget update: admitted, then neither dropped by
+         * [RenderedGate] nor discarded for having no widget to go to.
+         */
+        val pushesSent: Long get() = pushesAdmitted - pushesUnchanged - pushesNoWidget
 
         /**
          * Widget updates SENT per hour, over the steady window rather than since process start.
@@ -189,7 +214,7 @@ object WidgetTelemetry {
          * that hour, and the rate should say so.
          */
         val pushesPerHour: Double?
-            get() = if (steadyEnough) (steadyPushes - steadyUnchanged) * 3_600_000.0 / steadyMs else null
+            get() = if (steadyEnough) (steadyPushes - steadyUnchanged - steadyNoWidget) * 3_600_000.0 / steadyMs else null
 
         /**
          * Bitmap bytes per hour — the figure the drain question turns on, since this is what crosses a
@@ -240,6 +265,7 @@ object WidgetTelemetry {
                 parts.add("draw ${renderMs / renders}ms avg / ${renderMsMax}ms max")
             }
             if (pushesUnchanged > 0) parts.add("$pushesUnchanged unchanged")
+            if (pushesNoWidget > 0) parts.add("$pushesNoWidget with no widget placed")
             if (rendersRedundant > 0) parts.add("$rendersRedundant redundant")
             return "Widgets:     ${parts.joinToString(" · ")} ($span)"
         }

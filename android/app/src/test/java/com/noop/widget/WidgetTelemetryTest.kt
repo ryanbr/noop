@@ -283,4 +283,43 @@ class WidgetTelemetryTest {
         assertTrue(line, "6 sent / 11 admitted" in line)
         assertTrue(line, "5 unchanged" in line)
     }
+
+    /**
+     * The widget-removed capture is half of the comparison that answers whether the widget costs
+     * anything, so a push with nowhere to go must not read as a send. Left as one, both halves of the
+     * A/B would have shown identical sent counts and rates, and only the draw count would have
+     * differed — which is a much weaker signal than the one the counters are supposed to give.
+     */
+    @Test
+    fun aPushWithNoWidgetPlacedIsNotASend() {
+        WidgetTelemetry.notePushAdmitted(t0)                       // warm-up
+        for (m in 1..10) {
+            WidgetTelemetry.notePushAdmitted(t0 + m * 60_000L)
+            WidgetTelemetry.notePushNoWidget()
+        }
+        val s = WidgetTelemetry.snapshot(t0 + 660_000L)
+        assertEquals(11, s.pushesAdmitted)
+        assertEquals(1, s.pushesSent)                              // only the warm-up push had a widget
+        assertEquals(0.0, s.pushesPerHour!!, 0.001)                // nothing was sent in the window
+        val line = s.render()
+        assertTrue(line, "1 sent / 11 admitted" in line)
+        assertTrue(line, "10 with no widget placed" in line)
+    }
+
+    /**
+     * The two non-send outcomes are different answers and must not be conflated: "nothing new to
+     * show" is the rendered gate doing its job, "nobody to show it to" is the widget being absent.
+     */
+    @Test
+    fun theTwoNonSendOutcomesAreReportedApart() {
+        WidgetTelemetry.notePushAdmitted(t0)
+        for (m in 1..10) WidgetTelemetry.notePushAdmitted(t0 + m * 60_000L)
+        repeat(3) { WidgetTelemetry.notePushUnchanged() }
+        repeat(2) { WidgetTelemetry.notePushNoWidget() }
+        val s = WidgetTelemetry.snapshot(t0 + 660_000L)
+        assertEquals(6, s.pushesSent)                              // 11 - 3 - 2
+        val line = s.render()
+        assertTrue(line, "3 unchanged" in line)
+        assertTrue(line, "2 with no widget placed" in line)
+    }
 }
