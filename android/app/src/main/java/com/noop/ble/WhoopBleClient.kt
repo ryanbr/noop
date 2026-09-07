@@ -5308,14 +5308,22 @@ class WhoopBleClient(
 
     private fun beginUnbondedOffloadProbe(g: BluetoothGatt) {
         val refused = unbondedOffloadPreviouslyRefused(g.device.address)
+        // Read each input ONCE: the gate's verdict and the line that explains it must be about the same
+        // state, or the log will name a reason that was not the one that decided.
+        val isWhoop5Now = connectedFamily == DeviceFamily.WHOOP5
+        val optedInNow = PuffinExperiment.from(context).unbondedOffload
+        val bondedNow = didBond
+        val helloWrittenNow = helloWrittenThisLink
+        val alreadyProbedNow = unbondedProbeStartedThisLink
+        val silentLinksNow = unbondedProbeSilentLinks
         if (!shouldProbeUnbondedOffload(
-                isWhoop5 = connectedFamily == DeviceFamily.WHOOP5,
-                optedIn = PuffinExperiment.from(context).unbondedOffload,
-                bonded = didBond,
-                helloWrittenThisLink = helloWrittenThisLink,
-                alreadyProbedThisLink = unbondedProbeStartedThisLink,
+                isWhoop5 = isWhoop5Now,
+                optedIn = optedInNow,
+                bonded = bondedNow,
+                helloWrittenThisLink = helloWrittenNow,
+                alreadyProbedThisLink = alreadyProbedNow,
                 previouslyRefused = refused,
-                silentLinksSoFar = unbondedProbeSilentLinks,
+                silentLinksSoFar = silentLinksNow,
             )
         ) {
             // #1949: say WHY, once per link. A silent return here is what made an MG capture unreadable:
@@ -5323,14 +5331,17 @@ class WhoopBleClient(
             // strap refusing — opposite meanings for #1635. Once per link, because this path is retried.
             if (!unbondedProbeSkipLogged) {
                 unbondedProbeSkipLogged = true
+                // The SAME values the gate just refused on, not a second read of each. `didBond` and the
+                // rest are @Volatile and the pref is a live file read, so re-reading them here could
+                // explain the skip with a state that is no longer the one that caused it.
                 unbondedProbeSkippedLine(
-                    isWhoop5 = connectedFamily == DeviceFamily.WHOOP5,
-                    optedIn = PuffinExperiment.from(context).unbondedOffload,
-                    bonded = didBond,
-                    helloWrittenThisLink = helloWrittenThisLink,
-                    alreadyProbedThisLink = unbondedProbeStartedThisLink,
+                    isWhoop5 = isWhoop5Now,
+                    optedIn = optedInNow,
+                    bonded = bondedNow,
+                    helloWrittenThisLink = helloWrittenNow,
+                    alreadyProbedThisLink = alreadyProbedNow,
                     previouslyRefused = refused,
-                    silentLinksSoFar = unbondedProbeSilentLinks,
+                    silentLinksSoFar = silentLinksNow,
                 )?.let { log(it, com.noop.testcentre.TestDomain.CONNECTION) }
             }
             return
@@ -6876,13 +6887,9 @@ class WhoopBleClient(
                     val notifyDump = runCatching {
                         WHOOP5_NOTIFY_CHARS.mapNotNull { u ->
                             whoop5.getCharacteristic(u)?.let { ch ->
-                                val cccd = ch.getDescriptor(CCCD)
                                 NotifyCharDump(
                                     uuid = u.toString().take(8),
-                                    hasCccd = cccd != null,
-                                    subscribed = cccd?.value?.contentEquals(
-                                        BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE,
-                                    ) == true,
+                                    hasCccd = ch.getDescriptor(CCCD) != null,
                                 )
                             }
                         }

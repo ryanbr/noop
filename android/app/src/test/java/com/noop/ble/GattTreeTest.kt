@@ -46,8 +46,8 @@ class GattTreeTest {
     // --- #1949: the pairing dump ----------------------------------------------------------------------
 
     private fun chars() = listOf(
-        NotifyCharDump("fd4b0003", hasCccd = true, subscribed = false),
-        NotifyCharDump("fd4b0007", hasCccd = true, subscribed = true),
+        NotifyCharDump("fd4b0003", hasCccd = true),
+        NotifyCharDump("fd4b0007", hasCccd = false),
     )
 
     @Test
@@ -63,15 +63,33 @@ class GattTreeTest {
     }
 
     @Test
-    fun `each notify char reports its CCCD and whether we subscribed it`() {
+    fun `each notify char reports whether it carries a CCCD`() {
         val lines = whoop5PairingDumpLines(
             bondState = 12, didBond = true, helloWrittenThisLink = true,
             probeOptedIn = true, notifyChars = chars(),
         )
-        assertEquals("  fd4b0003 cccd=yes subscribed=no", lines[1])
-        assertEquals("  fd4b0007 cccd=yes subscribed=yes", lines[2])
+        assertEquals("  fd4b0003 cccd=yes", lines[1])
+        assertEquals("  fd4b0007 cccd=no", lines[2])
         assertTrue(lines.first(), lines.first().contains("bond=BOND_BONDED"))
         assertTrue(lines.first(), lines.first().contains("unbondedProbe=on"))
+    }
+
+    /**
+     * There must be NO subscription column. This runs at service discovery, before the CCCD queue is
+     * drained, so any such field would read "not yet" as a matter of ordering rather than fact — and on
+     * API 33+ it could not be read at all, since `writeDescriptor(descriptor, value)` leaves
+     * `descriptor.value` null. The outcomes are the `Subscribed <uuid>` lines that follow, and the note
+     * points a reader at them instead of restating them wrongly here.
+     */
+    @Test
+    fun `no line claims a subscription state this dump cannot know yet`() {
+        val lines = whoop5PairingDumpLines(
+            bondState = 10, didBond = false, helloWrittenThisLink = false,
+            probeOptedIn = false, notifyChars = chars(),
+        )
+        assertTrue(lines.toString(), lines.none { it.contains("subscribed=") })
+        assertTrue("a reader must be told where the answer is: $lines",
+                   lines.any { it.contains("no later \"Subscribed\" line went unsubscribed by OUR choice") })
     }
 
     /** Discovering none is itself a reading, and must not render as an empty section. */
