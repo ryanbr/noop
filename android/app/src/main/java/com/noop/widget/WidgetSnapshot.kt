@@ -75,9 +75,12 @@ object WidgetSnapshotStore {
             GlanceAppWidgetManager(app).getGlanceIds(HrGlanceWidget::class.java)
         }.getOrDefault(emptyList())
         if (standardIds.isEmpty() && compactIds.isEmpty() && hrIds.isEmpty()) return
-        runCatching { NoopGlanceWidget().updateAll(app) }
-        runCatching { NoopCompactGlanceWidget().updateAll(app) }
-        runCatching { HrGlanceWidget().updateAll(app) }
+        // Update only the providers that actually have a widget placed. The ids are already in hand, and
+        // `updateAll` on a provider with none still crosses into GlanceAppWidgetManager to discover that
+        // for itself. Someone running just the HR widget was paying for two of those on every push.
+        if (standardIds.isNotEmpty()) runCatching { NoopGlanceWidget().updateAll(app) }
+        if (compactIds.isNotEmpty()) runCatching { NoopCompactGlanceWidget().updateAll(app) }
+        if (hrIds.isNotEmpty()) runCatching { HrGlanceWidget().updateAll(app) }
     }
 
     fun save(context: Context, snap: WidgetSnapshot) {

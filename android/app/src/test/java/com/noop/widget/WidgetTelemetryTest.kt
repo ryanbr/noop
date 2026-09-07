@@ -179,4 +179,38 @@ class WidgetTelemetryTest {
             Locale.setDefault(original)
         }
     }
+
+    /**
+     * The effective width headroom, which is NOT [HrTrace.WIDTH_HEADROOM]: the byte budget runs out
+     * first at any realistic widget size. Pinned because the constant reads like the guarantee and is
+     * not, and because the value below 1.0 is the case where the bitmap is UPSCALED — the artefact the
+     * headroom exists to prevent. If a change to the budget or the chart height moves these, that is
+     * worth seeing rather than discovering from a soft stroke on someone's home screen.
+     */
+    @Test
+    fun theByteBudgetBindsBeforeTheWidthHeadroomDoes() {
+        fun effective(densityDpi: Float, widthDp: Float): Double {
+            val density = densityDpi / 160f
+            val chartDp = (widthDp - 28f - 34f).coerceAtLeast(24f)
+            val req = (chartDp * density).toInt()
+            val h = (92f * density).toInt()
+            return HrTrace.widestAtHeight(req, h).toDouble() / req
+        }
+        // The property, not a pinned number: at every realistic size the BUDGET is what caps the width,
+        // so the nominal headroom is never reached and raising it would change nothing.
+        for (dpi in listOf(420f, 480f)) {
+            for (dp in listOf(300f, 340f, 380f)) {
+                val eff = effective(dpi, dp)
+                assertTrue(
+                    "$dpi/$dp reached $eff, so the byte budget was not the binding constraint",
+                    eff < HrTrace.WIDTH_HEADROOM,
+                )
+            }
+        }
+        // The case that matters: a wide card at high density is drawn NARROWER than it is displayed,
+        // so the bitmap is UPSCALED — precisely the artefact the headroom exists to prevent.
+        assertTrue("480dpi/380dp should be upscaled", effective(480f, 380f) < 1.0)
+        // And a small card is where the intent survives best, though still short of the nominal 2x.
+        assertTrue("420dpi/300dp should have the most headroom", effective(420f, 300f) > 1.5)
+    }
 }

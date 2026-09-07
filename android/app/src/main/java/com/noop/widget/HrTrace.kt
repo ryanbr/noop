@@ -146,8 +146,19 @@ object HrTrace {
         return want.coerceAtMost(budgetWidth).coerceAtLeast(requestedPx.coerceAtLeast(1).coerceAtMost(budgetWidth))
     }
 
-    /** How much wider than the reported width to draw, to cover a launcher that under-reports. Two
-     *  covers the ~1.6x seen on One UI with margin, and costs nothing a downscale does not absorb. */
+    /**
+     * How much wider than the reported width to draw, to cover a launcher that under-reports.
+     *
+     * NOTE THAT THIS CEILING IS RARELY THE ONE THAT BINDS. [MAX_BITMAP_BYTES] runs out first at any
+     * realistic widget size: at 420dpi a 300dp-wide card gets 1.66x, a 380dp one 1.26x, and at 480dpi
+     * a 380dp card gets 0.96x — narrower than the reported width, so the bitmap is UPSCALED, which is
+     * the artefact this constant exists to prevent. Raising this number changes nothing on a real
+     * phone; the byte budget is the lever, and it trades directly against horizontal resolution.
+     *
+     * Kept at two because it is the correct intent and it still binds on a small widget. The gap
+     * between the intent and what the budget allows is measured rather than papered over — see the
+     * widget cost counters.
+     */
     const val WIDTH_HEADROOM: Float = 2f
 
     /** A point in the trace's pixel box, origin top-left, as the renderer wants it. */
