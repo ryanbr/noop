@@ -92,6 +92,30 @@ class GattTreeTest {
                    lines.any { it.contains("no later \"Subscribed\" line went unsubscribed by OUR choice") })
     }
 
+    /**
+     * What an ABSENT `Subscribed` line means inverts with the opt-in, and this is the one distinction the
+     * dump exists to draw. Probe off: only HR and battery are ever queued, so an unsubscribed puffin char
+     * is ours. Probe ON: the probe subscribes those same chars, so a missing line is the strap refusing.
+     * A single unconditional sentence here would be confidently wrong in exactly the configuration the
+     * probe is run for.
+     */
+    @Test
+    fun `the note flips with the opt-in, because the meaning of a missing subscribe does`() {
+        val off = whoop5PairingDumpLines(
+            bondState = 10, didBond = false, helloWrittenThisLink = false,
+            probeOptedIn = false, notifyChars = chars(),
+        )
+        assertTrue(off.toString(), off.any { it.contains("went unsubscribed by OUR choice") })
+        assertTrue(off.toString(), off.none { it.contains("is the STRAP's answer") })
+
+        val on = whoop5PairingDumpLines(
+            bondState = 10, didBond = false, helloWrittenThisLink = false,
+            probeOptedIn = true, notifyChars = chars(),
+        )
+        assertTrue(on.toString(), on.any { it.contains("is the STRAP's answer") })
+        assertTrue(on.toString(), on.none { it.contains("by OUR choice") })
+    }
+
     /** Discovering none is itself a reading, and must not render as an empty section. */
     @Test
     fun `no discovered notify chars says so rather than printing nothing`() {

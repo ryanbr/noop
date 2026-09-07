@@ -108,7 +108,10 @@ internal data class NotifyCharDump(
  * notify chars discovered, one standard-HR subscribe, and no further word (#1949).
  *
  * It reports POSTURE, not outcome: this runs at service discovery, before the CCCD queue is drained, so
- * every subscription is still ahead of it. The outcomes are the `Subscribed <uuid>` lines that follow.
+ * every subscription is still ahead of it. The outcomes are the `Subscribed <uuid>` lines that follow, and
+ * what their ABSENCE means flips with [probeOptedIn] — ours when the probe is off, the strap's when it is
+ * on and subscribing those chars itself. The note says which, because guessing wrong there inverts the
+ * single distinction this dump exists to draw.
  *
  * Same discipline as its sibling: reads already-known local state, sends nothing, and so works on exactly
  * the strap that no puffin probe can reach.
@@ -138,9 +141,19 @@ internal fun whoop5PairingDumpLines(
             add("  ${c.uuid} cccd=${if (c.hasCccd) "yes" else "no"}")
         }
     }
+    // Which way this reads FLIPS with the opt-in, and getting it wrong would invert the one distinction
+    // the dump exists to draw. With the probe off, only the standard HR and battery chars are ever queued,
+    // so an unsubscribed puffin char is ours. With it ON, the probe subscribes those same chars itself, so
+    // a missing line there is the strap's answer and not a setting.
     add(
-        "  note: only the standard HR and battery chars are queued for subscription on a 5/MG, so a puffin" +
-            " char above with no later \"Subscribed\" line went unsubscribed by OUR choice, not the strap's."
+        if (probeOptedIn) {
+            "  note: the unbonded probe is ON and subscribes the puffin chars itself, so one above with no" +
+                " later \"Subscribed\" line is the STRAP's answer, logged with the status it refused on."
+        } else {
+            "  note: only the standard HR and battery chars are queued for subscription on a 5/MG, so a" +
+                " puffin char above with no later \"Subscribed\" line went unsubscribed by OUR choice," +
+                " not the strap's."
+        }
     )
     add(
         "  note: Android publishes no link-encryption flag to a GATT client and a remote characteristic's" +

@@ -6883,6 +6883,12 @@ class WhoopBleClient(
                 // them. Only HEART_RATE_CHAR and BATTERY_CHAR reach `cccdQueue` below on a 5/MG, so
                 // "subscribed=no" here is the app's own doing and the log should say so rather than
                 // leave it to be inferred. Local reads only, like its sibling: no GATT operation.
+                //
+                // Per CONNECT, unlike the tree above which is once per strap, and the difference is the
+                // point: the tree is static for a device while this is exactly the state that changes
+                // between links — a bond acquired, a hello written, the opt-in flipped. Seven lines
+                // against that sibling's thirty, so a reconnect loop costs a quarter as much as the
+                // enumeration that deliberately declined to repeat.
                 if (testCentre.active(com.noop.testcentre.TestDomain.CONNECTION)) {
                     val notifyDump = runCatching {
                         WHOOP5_NOTIFY_CHARS.mapNotNull { u ->
