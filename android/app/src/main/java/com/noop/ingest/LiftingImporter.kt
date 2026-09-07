@@ -21,10 +21,12 @@ import java.util.Locale
  *
  * Kotlin mirror of the macOS/iOS source of truth
  *   Packages/StrandImport/Sources/StrandImport/LiftingImporter.swift
- * so the same two formats, the same volume-load arithmetic and the same honest labelling apply on
+ * so the same formats, the same volume-load arithmetic and the same honest labelling apply on
  * every platform:
  *
  *   • Hevy CSV export        — one row per set; grouped into a session by (title + start_time).
+ *   • Hevy Web API response  — `GET /v1/workouts`, already grouped into `workouts[]
+ *                              .exercises[].sets[]`. Parsing only ([parseHevyAPI]); no client yet.
  *   • Liftosaur JSON export  — a `history` array of records with `startTime`/`endTime` (ms) and
  *                              nested `entries[].sets[]`.
  *
@@ -33,7 +35,7 @@ import java.util.Locale
  * `strain`, so imported lifting never feeds the HR-based Effort score. Weights normalise to
  * kilograms (Hevy `weight_kg` is kg; lb columns and Liftosaur's `lb` unit convert). Tolerant
  * throughout: a malformed set / record is skipped and counted, never fatal. Parsing is pure
- * ([parseHevy] / [parseLiftosaur]) so it is JVM unit-testable (LiftingImporterTest).
+ * ([parseHevy] / [parseHevyAPI] / [parseLiftosaur]) so it is JVM unit-testable (LiftingImporterTest).
  */
 object LiftingImporter {
 
@@ -220,8 +222,7 @@ object LiftingImporter {
             // non-finite/out-of-range value (NaN→0, +inf→MAX) and would store garbage rather than
             // crash; bound reps to a sane finite range and drop-and-skip otherwise so both platforms
             // reject the same hostile CSV (e.g. reps "1e9999" → +inf).
-            val reps = row.double("reps", "rep_count")
-                ?.takeIf { it.isFinite() && it >= 0 && it < 1e6 }?.toInt()
+            val reps = boundedReps(row.double("reps", "rep_count"))
 
             val key = "${title ?: ""}|$startRaw"
             val acc = byKey.getOrPut(key) { order.add(key); HevyAcc(start, title, zone) }
@@ -229,7 +230,63 @@ object LiftingImporter {
             acc.add(exercise, setType, weightKg, reps)
         }
 
-        return finish(order.mapNotNull { byKey[it]?.toSession() }, skipped)
+        return finishHevy(order.mapNotNull { byKey[it] }, skipped)
+    }
+
+    /**
+     * Parse a Hevy Web API `GET /v1/workouts` response body into one session per workout.
+     *
+     * The envelope is verified against Hevy's published OpenAPI spec: `{ page, page_count,
+     * workouts[] }`, a workout carrying `start_time` / `end_time` / `title` and
+     * `exercises[].sets[]` with `type`, `weight_kg` and `reps`. A bare array is also accepted so a
+     * caller that has already unwrapped a page can hand the list straight over.
+     *
+     * Folds through the same [HevyAcc] as the CSV lane, so the two cannot disagree about what counts
+     * as work. `type` is one of `normal`, `warmup`, `dropset` and `failure`; only `warmup` is
+     * excluded, because a dropset and a set taken to failure are work and dropping them would
+     * under-report a hard session.
+     *
+     * Kotlin mirror of `LiftingImporter.parseHevyAPI` in the Swift source of truth. Pure, so it is
+     * JVM-testable without a network client — which is deliberate: there is no client yet, and the
+     * transport question (where an API key lives in an offline-first app) is unanswered.
+     */
+    internal fun parseHevyAPI(data: ByteArray, zone: ZoneId = ZoneId.systemDefault()): Result {
+        val text = Bom.stripString(String(Bom.stripUtf8(data), Charsets.UTF_8)).trim()
+        val workouts: JSONArray = (
+            if (text.startsWith("[")) runCatching { JSONArray(text) }.getOrNull()
+            else runCatching { JSONObject(text) }.getOrNull()?.optJSONArray("workouts")
+            ) ?: return Result(emptyList(), 0, null, null)
+
+        val accs = ArrayList<HevyAcc>(workouts.length())
+        var skipped = 0
+        for (i in 0 until workouts.length()) {
+            val w = workouts.optJSONObject(i)
+            val start = w?.optString("start_time")?.ifEmpty { null }?.let { parseEpochSeconds(it, zone) }
+            if (w == null || start == null) { skipped++; continue }
+
+            val acc = HevyAcc(start, w.optString("title").trim().ifEmpty { null }, zone)
+            // Resolved through the same parseEpochSeconds the CSV lane uses, so the API and CSV
+            // paths cannot disagree about an end time.
+            acc.endRaw = w.optString("end_time").ifEmpty { null }
+
+            val exercises = w.optJSONArray("exercises") ?: JSONArray()
+            for (e in 0 until exercises.length()) {
+                val ex = exercises.optJSONObject(e) ?: continue
+                val exTitle = ex.optString("title")
+                val sets = ex.optJSONArray("sets") ?: JSONArray()
+                for (si in 0 until sets.length()) {
+                    val set = sets.optJSONObject(si) ?: continue
+                    acc.add(
+                        exercise = exTitle,
+                        setType = set.optString("type", "normal").lowercase(),
+                        weightKg = jsonDouble(set.opt("weight_kg")),
+                        reps = boundedReps(jsonDouble(set.opt("reps"))),
+                    )
+                }
+            }
+            accs.add(acc)
+        }
+        return finishHevy(accs, skipped)
     }
 
     /** Mutable per-session tally while folding Hevy set rows. */
@@ -351,17 +408,22 @@ object LiftingImporter {
     private fun liftosaurWeightKg(set: JSONObject, entryUnit: String?): Double? {
         val raw = if (set.has("weight")) set.opt("weight") else set.opt("weightValue")
         if (raw is JSONObject) {
-            val v = liftosaurDouble(raw.opt("value")) ?: return null
+            val v = jsonDouble(raw.opt("value")) ?: return null
             val unit = raw.optString("unit", "").lowercase().ifEmpty { entryUnit }
             return if (unit == "lb" || unit == "lbs") v * LB_TO_KG else v
         }
-        val v = liftosaurDouble(raw) ?: return null
+        val v = jsonDouble(raw) ?: return null
         return if (entryUnit == "lb" || entryUnit == "lbs") v * LB_TO_KG else v
     }
 
     // MARK: - JSON scalar coercion
 
-    private fun liftosaurDouble(any: Any?): Double? = when (any) {
+    /**
+     * A JSON number arrives as a [Number] or a quoted string depending on the encoder. Accept both
+     * and reject anything else, so a nulled weight stays absent rather than becoming zero volume.
+     * Shared by the Liftosaur, Hevy CSV and Hevy API lanes.
+     */
+    private fun jsonDouble(any: Any?): Double? = when (any) {
         is Number -> any.toDouble()
         is String -> any.toDoubleOrNull()
         else -> null
@@ -387,7 +449,7 @@ object LiftingImporter {
      * tolerated as a fallback. A 13-digit value is ms, a 10-digit value is seconds.
      */
     private fun liftosaurDate(any: Any?): Long? {
-        val ms = liftosaurDouble(any)
+        val ms = jsonDouble(any)
         if (ms != null && ms > 0) {
             return if (ms > 1_000_000_000_000.0) (ms / 1000).toLong() else ms.toLong()
         }
@@ -428,6 +490,25 @@ object LiftingImporter {
             }
         }
         return null
+    }
+
+    /**
+     * Bound a rep count before narrowing to Int. Kotlin's `Double.toInt()` SATURATES a non-finite or
+     * out-of-range value (NaN to 0, +inf to MAX_VALUE) and would store garbage; Swift's `Int(_:)`
+     * traps outright. Both Hevy lanes route through this so they cannot drift apart, and so a
+     * `{"reps": 1e9999}` in a response body is skipped on both platforms.
+     */
+    private fun boundedReps(d: Double?): Int? =
+        if (d != null && d.isFinite() && d >= 0 && d < 1e6) d.toInt() else null
+
+    /**
+     * Finish a Hevy parse from its accumulators. A workout whose sets all folded away (an all
+     * warm-up session) yields no [Session] and counts as SKIPPED, matching the Swift lane, which is
+     * why this takes accumulators rather than the sessions they produce.
+     */
+    private fun finishHevy(accs: List<HevyAcc>, skipped: Int): Result {
+        val sessions = accs.mapNotNull { it.toSession() }
+        return finish(sessions, skipped + (accs.size - sessions.size))
     }
 
     /** Build the result: sort sessions oldest-first and compute the day span. */

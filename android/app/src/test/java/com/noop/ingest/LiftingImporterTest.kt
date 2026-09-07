@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.ZoneId
 
 /**
  * Pins LiftingImporter.parse: a Hevy CSV export and a Liftosaur JSON export both fold into one
@@ -17,6 +18,20 @@ class LiftingImporterTest {
         LiftingImporter.parseHevy(CsvTable.fromData(csv.trimIndent().toByteArray()))
 
     private fun liftosaur(json: String) = LiftingImporter.parseLiftosaur(json.trimIndent())
+
+    private fun apiPage(workouts: String, zone: ZoneId = ZoneId.systemDefault()) =
+        LiftingImporter.parseHevyAPI(
+            """{"page":1,"page_count":1,"workouts":[$workouts]}""".toByteArray(),
+            zone,
+        )
+
+    private val apiWorkout = """
+        {"id":"w1","title":"Push Day","start_time":"2026-09-07T10:00:00Z","end_time":"2026-09-07T11:02:00Z",
+         "exercises":[{"title":"Bench Press","sets":[{"type":"warmup","weight_kg":40,"reps":10},
+                                                     {"type":"normal","weight_kg":60,"reps":8},
+                                                     {"type":"normal","weight_kg":60,"reps":8}]},
+                      {"title":"Overhead Press","sets":[{"type":"normal","weight_kg":40,"reps":10}]}]}
+    """.trimIndent()
 
     // MARK: - Hevy CSV
 
@@ -245,5 +260,135 @@ class LiftingImporterTest {
         assertEquals(body, session(null).volumeLoadNote())
         assertEquals(body, session("").volumeLoadNote())
         assertEquals("Leg Day: $body", session("Leg Day").volumeLoadNote())
+    }
+
+    // MARK: - Hevy Web API
+
+    /**
+     * The API must land on the SAME arithmetic as the CSV lane: warm-ups excluded from volume, sets
+     * counted, top set tracked. 60×8 + 60×8 + 40×10 = 1360 kg, and the 40 kg warm-up adds nothing.
+     */
+    @Test
+    fun hevyApiUsesTheSameVolumeArithmeticAsTheCsvLane() {
+        val r = apiPage(apiWorkout)
+        assertEquals(1, r.sessions.size)
+        val s = r.sessions[0]
+        assertEquals(1360.0, s.volumeLoadKg, 1e-6)
+        assertEquals(3, s.setCount)      // the warm-up is not a working set
+        assertEquals(2, s.exerciseCount)
+        assertEquals(26, s.totalReps)
+        assertEquals(60.0, s.topSetKg!!, 1e-6)
+        assertEquals("Push Day", s.title)
+        assertEquals(62.0 * 60, s.durationS!!, 1.0)
+    }
+
+    /**
+     * Hevy's set `type` is one of normal, warmup, dropset, failure (published spec). Only warmup is
+     * excluded from volume: a dropset and a set taken to failure are work, and counting them as
+     * warm-ups would under-report a hard session, the opposite of the error the exclusion prevents.
+     */
+    @Test
+    fun hevyApiCountsDropsetAndFailureSetsAsWork() {
+        val s = apiPage(
+            """
+            {"id":"w5","title":"Arms","start_time":"2026-09-07T10:00:00Z","end_time":"2026-09-07T10:40:00Z",
+             "exercises":[{"title":"Bicep Curl (Dumbbell)",
+                           "sets":[{"type":"warmup","weight_kg":10,"reps":10},
+                                   {"type":"normal","weight_kg":20,"reps":10},
+                                   {"type":"dropset","weight_kg":15,"reps":8},
+                                   {"type":"failure","weight_kg":12,"reps":6}]}]}
+            """.trimIndent()
+        ).sessions[0]
+        assertEquals(3, s.setCount)
+        assertEquals(20.0 * 10 + 15.0 * 8 + 12.0 * 6, s.volumeLoadKg, 1e-6)
+        assertEquals(24, s.totalReps)
+    }
+
+    /**
+     * A workout with no countable set is skipped, not stored as an empty session. The count comes
+     * from the shared Hevy tail, so the CSV lane reports it the same way and so does Swift.
+     */
+    @Test
+    fun hevyApiSkipsAWorkoutWithNoCountableSet() {
+        val r = apiPage(
+            """
+            {"id":"w2","title":"Rest","start_time":"2026-09-07T10:00:00Z","end_time":"2026-09-07T10:05:00Z",
+             "exercises":[{"title":"Bench Press","sets":[{"type":"warmup","weight_kg":40,"reps":10}]}]}
+            """.trimIndent()
+        )
+        assertTrue(r.sessions.isEmpty())
+        assertEquals(1, r.skipped)
+    }
+
+    /** No start means no window to attach the session to, so it is skipped rather than defaulted. */
+    @Test
+    fun hevyApiSkipsAWorkoutWithNoStart() {
+        val r = apiPage("""{"id":"w3","title":"x","end_time":"2026-09-07T11:00:00Z","exercises":[]}""")
+        assertTrue(r.sessions.isEmpty())
+        assertEquals(1, r.skipped)
+    }
+
+    /** This runs over another server's data: malformed input yields nothing rather than throwing. */
+    @Test
+    fun hevyApiMalformedInputYieldsNothing() {
+        assertTrue(LiftingImporter.parseHevyAPI("not json".toByteArray()).sessions.isEmpty())
+        assertTrue(LiftingImporter.parseHevyAPI(ByteArray(0)).sessions.isEmpty())
+        assertTrue(LiftingImporter.parseHevyAPI("""{"workouts":"nope"}""".toByteArray()).sessions.isEmpty())
+    }
+
+    /** A bare array is what a saved response pasted out of a browser looks like. */
+    @Test
+    fun hevyApiAcceptsABareArray() {
+        assertEquals(1, LiftingImporter.parseHevyAPI("[$apiWorkout]".toByteArray()).sessions.size)
+    }
+
+    /**
+     * Weights and reps may arrive quoted depending on the encoder. A nulled weight must not become
+     * zero volume silently: the set still counts as work done, it just adds nothing.
+     */
+    @Test
+    fun hevyApiAcceptsQuotedNumbersAndToleratesANullWeight() {
+        val s = apiPage(
+            """
+            {"id":"w4","title":"Q","start_time":"2026-09-07T10:00:00Z","end_time":"2026-09-07T10:30:00Z",
+             "exercises":[{"title":"Row","sets":[{"type":"normal","weight_kg":"50","reps":"5"},
+                                                 {"type":"normal","reps":12}]}]}
+            """.trimIndent()
+        ).sessions[0]
+        assertEquals(250.0, s.volumeLoadKg, 1e-6)
+        assertEquals(2, s.setCount)
+        assertEquals(17, s.totalReps)
+    }
+
+    /**
+     * The rep count is narrowed to Int, and Kotlin's `Double.toInt()` SATURATES a non-finite value
+     * (+inf to Int.MAX_VALUE) where Swift's `Int(_:)` traps. "1e9999" parses to infinity, so both
+     * platforms have to reject it here: the set still counts as work done, contributing no reps and
+     * no volume, rather than storing two billion of them.
+     */
+    @Test
+    fun hevyApiSurvivesAHostileRepCount() {
+        val s = apiPage(
+            """
+            {"id":"w6","title":"H","start_time":"2026-09-07T10:00:00Z","end_time":"2026-09-07T10:30:00Z",
+             "exercises":[{"title":"Row","sets":[{"type":"normal","weight_kg":50,"reps":"1e9999"}]}]}
+            """.trimIndent()
+        ).sessions[0]
+        assertEquals(1, s.setCount)
+        assertEquals(0, s.totalReps)
+        assertEquals(0.0, s.volumeLoadKg, 1e-6)
+    }
+
+    /**
+     * The API stamps an offset, which parseEpochSeconds honours over the device zone, so the same
+     * payload parses identically whatever zone the phone is in. That is the API's advantage over the
+     * CSV lane, where a zoneless wall clock has to be interpreted (#649).
+     */
+    @Test
+    fun hevyApiHonoursTheStampedOffsetRatherThanTheDeviceZone() {
+        assertEquals(
+            apiPage(apiWorkout, ZoneId.of("UTC")).sessions[0].startTs,
+            apiPage(apiWorkout, ZoneId.of("Asia/Tokyo")).sessions[0].startTs,
+        )
     }
 }

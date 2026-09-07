@@ -291,7 +291,7 @@ final class LiftingImporterTests: XCTestCase {
 
     /// Weights and reps may arrive quoted depending on the encoder. A nulled weight must not become
     /// zero volume silently — the set still counts, it just adds nothing.
-    func testHevyAPIAcceptsQuotedNumbersAndTolerlatesANullWeight() {
+    func testHevyAPIAcceptsQuotedNumbersAndToleratesANullWeight() {
         let quoted = """
         {"id":"w4","title":"Q","start_time":"2026-09-07T10:00:00Z","end_time":"2026-09-07T10:30:00Z",
          "exercises":[{"title":"Row","sets":[{"type":"normal","weight_kg":"50","reps":"5"},
@@ -314,6 +314,20 @@ final class LiftingImporterTests: XCTestCase {
         XCTAssertEqual(utc.sessions[0].start, tokyo.sessions[0].start)
     }
 
+    /// The rep count is narrowed to Int, and `Int(_:)` TRAPS on a non-finite Double rather than
+    /// saturating — `Double("1e9999")` is infinity. A response body is less trustworthy than a file
+    /// the user picked, so the bound has to hold here: the set still counts as work done, it just
+    /// contributes no reps and no volume.
+    func testHevyAPISurvivesAHostileRepCount() {
+        let hostile = """
+        {"id":"w6","title":"H","start_time":"2026-09-07T10:00:00Z","end_time":"2026-09-07T10:30:00Z",
+         "exercises":[{"title":"Row","sets":[{"type":"normal","weight_kg":50,"reps":"1e9999"}]}]}
+        """
+        let s = LiftingImporter.parseHevyAPI(data: apiPage(hostile)).sessions[0]
+        XCTAssertEqual(s.setCount, 1)
+        XCTAssertEqual(s.totalReps, 0)
+        XCTAssertEqual(s.volumeLoadKg, 0, accuracy: 0.001)
+    }
 
     /// Hevy's set `type` is one of normal, warmup, dropset, failure (published spec). Only warmup is
     /// excluded from volume: a dropset and a set taken to failure are work, and counting them as
@@ -329,7 +343,8 @@ final class LiftingImporterTests: XCTestCase {
         """
         let s = LiftingImporter.parseHevyAPI(data: apiPage(mixed)).sessions[0]
         XCTAssertEqual(s.setCount, 3, "warmup excluded; dropset and failure are working sets")
-        XCTAssertEqual(s.volumeLoadKg, 20 * 10 + 15 * 8 + 12 * 6, accuracy: 0.001)
+        // 20×10 + 15×8 + 12×6; pre-summed because the literal arithmetic blows the type-check budget.
+        XCTAssertEqual(s.volumeLoadKg, 296, accuracy: 0.001)
         XCTAssertEqual(s.totalReps, 24)
     }
 }

@@ -162,9 +162,7 @@ public enum LiftingImporter {
             // Weight: prefer kg; fall back to a lb column (convert). Bodyweight sets have no weight.
             let weightKg: Double? = row.double("weight_kg", "weight", "weight_kgs")
                 ?? row.double("weight_lb", "weight_lbs", "weight_lbf").map { $0 * lbToKg }
-            // Crafted-import-crash guard: Int($0) traps on non-finite/out-of-range
-            // Doubles from a hostile CSV; bound reps to a sane finite range.
-            let reps = row.double("reps", "rep_count").flatMap { $0.isFinite && $0 >= 0 && $0 < 1e6 ? Int($0) : nil }
+            let reps = boundedReps(row.double("reps", "rep_count"))
 
             let key = "\(title ?? "")|\(startRaw)"
             if byKey[key] == nil {
@@ -264,7 +262,7 @@ public enum LiftingImporter {
             return empty
         }
 
-        var sessions: [LiftingSession] = []
+        var accumulators: [HevyAccumulator] = []
         var skipped = 0
         for element in raw {
             guard let w = element as? [String: Any],
@@ -285,29 +283,25 @@ public enum LiftingImporter {
                     acc.add(
                         exercise: title,
                         setType: ((set["type"] as? String) ?? "normal").lowercased(),
-                        weightKg: numericValue(set["weight_kg"]),
-                        reps: numericValue(set["reps"]).map { Int($0) }
+                        weightKg: jsonDouble(set["weight_kg"]),
+                        reps: boundedReps(jsonDouble(set["reps"]))
                     )
                 }
             }
-            if let session = acc.session { sessions.append(session) } else { skipped += 1 }
+            accumulators.append(acc)
         }
-        let ordered = sessions.sorted { $0.start < $1.start }
-        return LiftingImportResult(
-            sessions: ordered,
-            skipped: skipped,
-            earliest: ordered.first?.start,
-            latest: ordered.map(\.end).max()
-        )
+        // The shared tail, so a workout whose sets all folded away counts as skipped and the reported
+        // range is derived exactly as the CSV lane derives it.
+        return finish(accumulators, skipped: skipped)
     }
 
-    /// A JSON number arrives as `Double`, `Int` or a quoted string depending on the encoder. Accept
-    /// all three and reject anything else, so a nulled weight does not become zero volume.
-    static func numericValue(_ any: Any?) -> Double? {
-        if let d = any as? Double { return d }
-        if let i = any as? Int { return Double(i) }
-        if let s = any as? String { return Double(s) }
-        return nil
+    /// Bound a rep count before `Int(_:)`, which TRAPS on a non-finite or out-of-range Double rather
+    /// than saturating. Both Hevy lanes route through this so they cannot drift apart, and so a
+    /// `{"reps": 1e9999}` in a response body is skipped rather than crashing the app — a network
+    /// payload deserves the guard more than a file the user picked does.
+    static func boundedReps(_ d: Double?) -> Int? {
+        guard let d, d.isFinite, d >= 0, d < 1e6 else { return nil }
+        return Int(d)
     }
 
     public static func parseLiftosaur(data: Data) -> LiftingImportResult {
@@ -385,21 +379,30 @@ public enum LiftingImporter {
     private static func liftosaurWeightKg(_ set: [String: Any], entryUnit: String?) -> Double? {
         let raw = set["weight"] ?? set["weightValue"]
         if let obj = raw as? [String: Any] {
-            guard let v = liftosaurDouble(obj["value"]) else { return nil }
+            guard let v = jsonDouble(obj["value"]) else { return nil }
             let unit = (obj["unit"] as? String)?.lowercased() ?? entryUnit
             return unit == "lb" || unit == "lbs" ? v * lbToKg : v
         }
-        guard let v = liftosaurDouble(raw) else { return nil }
+        guard let v = jsonDouble(raw) else { return nil }
         return entryUnit == "lb" || entryUnit == "lbs" ? v * lbToKg : v
     }
 
     // MARK: - JSON scalar coercion
 
-    private static func liftosaurDouble(_ any: Any?) -> Double? {
-        if let d = any as? Double { return d }
-        if let n = any as? NSNumber { return n.doubleValue }
-        if let s = any as? String { return Double(s) }
-        return nil
+    /// A JSON number arrives as a `Double`, an `NSNumber` or a quoted string depending on the
+    /// encoder. Accept all three and reject anything else, so a nulled weight stays absent rather
+    /// than becoming zero volume. Shared by the Liftosaur, Hevy CSV and Hevy API lanes.
+    static func jsonDouble(_ any: Any?) -> Double? {
+        let raw: Double?
+        if let d = any as? Double { raw = d }
+        else if let n = any as? NSNumber { raw = n.doubleValue }
+        else if let s = any as? String { raw = Double(s) }
+        else { raw = nil }
+        // Reject a non-finite result rather than carrying it into the volume load: `Double("1e9999")`
+        // is `+infinity`, and an infinite volume would print as "0 kg" via the safeInt fallback while
+        // poisoning the session total. Kotlin's twin rejects at the same point.
+        guard let raw, raw.isFinite else { return nil }
+        return raw
     }
 
     private static func liftosaurInt(_ any: Any?) -> Int? {
@@ -422,7 +425,7 @@ public enum LiftingImporter {
     /// Liftosaur timestamps are epoch milliseconds (number or numeric string). A plain ISO string is
     /// tolerated as a fallback.
     private static func liftosaurDate(_ any: Any?) -> Date? {
-        if let ms = liftosaurDouble(any), ms > 0 {
+        if let ms = jsonDouble(any), ms > 0 {
             // Heuristic: a 13-digit value is ms; a 10-digit value is seconds.
             return ms > 1_000_000_000_000 ? Date(timeIntervalSince1970: ms / 1000)
                                            : Date(timeIntervalSince1970: ms)
