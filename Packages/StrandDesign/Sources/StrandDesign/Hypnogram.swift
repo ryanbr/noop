@@ -154,14 +154,26 @@ public struct Hypnogram: View {
         let f = DateFormatter(); f.locale = Locale.current; f.setLocalizedDateFormatFromTemplate("jmm"); return f
     }()
 
-    /// Format a seconds-from-origin offset either as wall-clock (if nightStart
-    /// is set) or as elapsed H:MM from the start of the night.
-    private func timeLabel(_ secondsFromOrigin: TimeInterval) -> String {
+    /// Format a seconds-from-night-start offset (per `SleepInterval`'s own doc: `start`/`end` are
+    /// already "seconds from the start of the night", not from `origin`) either as wall-clock (if
+    /// `nightStart` is set) or as elapsed H:MM from the start of the night.
+    ///
+    /// Deliberately does NOT subtract `origin` here. `origin` (`intervals.first?.start`) exists so
+    /// `bandRect`/`risers`/`intervalIndex` can lay bars out to fill the plot's width starting from
+    /// whatever the first VISIBLE interval is — a layout concern. Reusing it here to compute a clock
+    /// time would silently assume the first visible interval always sits at the night's true onset. That
+    /// holds for an ordinary night (the first stage code lands a few seconds after onset, so `origin` is
+    /// negligible), but not for a holed/partial timeline, where the surviving stages can start hours into
+    /// the night — subtracting `origin` there forced the leading axis label to read as `nightStart`
+    /// verbatim regardless, mislabeling e.g. a night's last 52 minutes as its first 52.
+    /// `internal`, not `private`: exposed so `StrandDesignTests` can pin this exact math without a live
+    /// SwiftUI render.
+    func timeLabel(_ secondsFromNightStart: TimeInterval) -> String {
         if let nightStart {
-            let d = nightStart.addingTimeInterval(secondsFromOrigin - origin)
+            let d = nightStart.addingTimeInterval(secondsFromNightStart)
             return Hypnogram.clockFormatter.string(from: d)
         }
-        let total = Int((secondsFromOrigin - origin).rounded())
+        let total = Int(secondsFromNightStart.rounded())
         let h = total / 3600
         let m = (total % 3600) / 60
         return String(format: "%d:%02d", h, m)
