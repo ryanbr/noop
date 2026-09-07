@@ -260,37 +260,49 @@ object LiftingImporter {
         val accs = ArrayList<HevyAcc>(workouts.length())
         var skipped = 0
         for (i in 0 until workouts.length()) {
-            val w = workouts.optJSONObject(i)
-            val start = w?.optString("start_time")?.ifEmpty { null }?.let { parseEpochSeconds(it, zone) }
-            if (w == null || start == null) { skipped++; continue }
-
-            val acc = HevyAcc(start, w.optString("title").trim().ifEmpty { null }, zone)
-            // Resolved through the same parseEpochSeconds the CSV lane uses, so the API and CSV
-            // paths cannot disagree about an end time.
-            acc.endRaw = w.optString("end_time").ifEmpty { null }
-
-            val exercises = w.optJSONArray("exercises") ?: JSONArray()
-            for (e in 0 until exercises.length()) {
-                val ex = exercises.optJSONObject(e) ?: continue
-                val exTitle = ex.optString("title")
-                val sets = ex.optJSONArray("sets") ?: JSONArray()
-                for (si in 0 until sets.length()) {
-                    val set = sets.optJSONObject(si) ?: continue
-                    acc.add(
-                        exercise = exTitle,
-                        setType = set.optString("type", "normal").lowercase(),
-                        weightKg = jsonDouble(set.opt("weight_kg")),
-                        reps = boundedReps(jsonDouble(set.opt("reps"))),
-                    )
-                }
-            }
+            val acc = workouts.optJSONObject(i)?.let { hevyAccumulator(it, zone) }
+            if (acc == null) { skipped++; continue }
             accs.add(acc)
         }
         return finishHevy(accs, skipped)
     }
 
+    /**
+     * Fold ONE workout object from the Hevy API into an accumulator, or null when it carries no
+     * usable start (no start means no window to attach a session to).
+     *
+     * Shared by [parseHevyAPI] and the workout-events lane, which receives the SAME workout shape
+     * wrapped in an `updated` event. Factored out so an edit arriving over events cannot fold
+     * differently from the same workout arriving over a page.
+     */
+    internal fun hevyAccumulator(w: JSONObject, zone: ZoneId): HevyAcc? {
+        val start = w.optString("start_time").ifEmpty { null }?.let { parseEpochSeconds(it, zone) }
+            ?: return null
+        val acc = HevyAcc(start, w.optString("title").trim().ifEmpty { null }, zone)
+        // Resolved through the same parseEpochSeconds the CSV lane uses, so the API and CSV paths
+        // cannot disagree about an end time.
+        acc.endRaw = w.optString("end_time").ifEmpty { null }
+
+        val exercises = w.optJSONArray("exercises") ?: JSONArray()
+        for (e in 0 until exercises.length()) {
+            val ex = exercises.optJSONObject(e) ?: continue
+            val exTitle = ex.optString("title")
+            val sets = ex.optJSONArray("sets") ?: JSONArray()
+            for (si in 0 until sets.length()) {
+                val set = sets.optJSONObject(si) ?: continue
+                acc.add(
+                    exercise = exTitle,
+                    setType = set.optString("type", "normal").lowercase(),
+                    weightKg = jsonDouble(set.opt("weight_kg")),
+                    reps = boundedReps(jsonDouble(set.opt("reps"))),
+                )
+            }
+        }
+        return acc
+    }
+
     /** Mutable per-session tally while folding Hevy set rows. */
-    private class HevyAcc(val start: Long, val title: String?, val zone: ZoneId) {
+    internal class HevyAcc(val start: Long, val title: String?, val zone: ZoneId) {
         var endRaw: String? = null
         var volume = 0.0
         var sets = 0
@@ -423,7 +435,7 @@ object LiftingImporter {
      * and reject anything else, so a nulled weight stays absent rather than becoming zero volume.
      * Shared by the Liftosaur, Hevy CSV and Hevy API lanes.
      */
-    private fun jsonDouble(any: Any?): Double? = when (any) {
+    internal fun jsonDouble(any: Any?): Double? = when (any) {
         is Number -> any.toDouble()
         is String -> any.toDoubleOrNull()
         else -> null

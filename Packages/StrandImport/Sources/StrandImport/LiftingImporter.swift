@@ -180,8 +180,40 @@ public enum LiftingImporter {
         return finish(order.compactMap { byKey[$0] }, skipped: skipped)
     }
 
+    /// Fold ONE workout object from the Hevy API into an accumulator, or nil when it carries no
+    /// usable start (no start means no window to attach a session to).
+    ///
+    /// Shared by `parseHevyAPI` and the workout-events lane, which receives the SAME `Workout` shape
+    /// wrapped in an `updated` event. Factored out so an edit arriving over events cannot fold
+    /// differently from the same workout arriving over a page.
+    static func hevyAccumulator(from w: [String: Any], zone: TimeZone) -> HevyAccumulator? {
+        guard let startStr = w["start_time"] as? String,
+              let start = parseDate(startStr, zone: zone) else { return nil }
+        let rawTitle = (w["title"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let acc = HevyAccumulator(start: start,
+                                  title: (rawTitle?.isEmpty == false) ? rawTitle : nil,
+                                  zone: zone)
+        // The accessor resolves this through the same `parseDate`, so the API and CSV paths cannot
+        // disagree about an end time.
+        acc.endRaw = w["end_time"] as? String
+        for e in (w["exercises"] as? [Any]) ?? [] {
+            guard let ex = e as? [String: Any] else { continue }
+            let title = (ex["title"] as? String) ?? ""
+            for st in (ex["sets"] as? [Any]) ?? [] {
+                guard let set = st as? [String: Any] else { continue }
+                acc.add(
+                    exercise: title,
+                    setType: ((set["type"] as? String) ?? "normal").lowercased(),
+                    weightKg: jsonDouble(set["weight_kg"]),
+                    reps: boundedReps(jsonDouble(set["reps"]))
+                )
+            }
+        }
+        return acc
+    }
+
     /// Mutable per-session tally while folding Hevy set rows.
-    private final class HevyAccumulator {
+    final class HevyAccumulator {
         let start: Date
         let title: String?
         /// Device timezone used to resolve the zoneless Hevy end-time, matching the start (#649).
@@ -270,28 +302,7 @@ public enum LiftingImporter {
         var skipped = 0
         for element in raw {
             guard let w = element as? [String: Any],
-                  let startStr = w["start_time"] as? String,
-                  let start = parseDate(startStr, zone: zone) else { skipped += 1; continue }
-            let rawTitle = (w["title"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let acc = HevyAccumulator(start: start,
-                                      title: (rawTitle?.isEmpty == false) ? rawTitle : nil,
-                                      zone: zone)
-            // The accessor resolves this through the same `parseDate`, so the API and CSV paths
-            // cannot disagree about an end time.
-            acc.endRaw = w["end_time"] as? String
-            for e in (w["exercises"] as? [Any]) ?? [] {
-                guard let ex = e as? [String: Any] else { continue }
-                let title = (ex["title"] as? String) ?? ""
-                for st in (ex["sets"] as? [Any]) ?? [] {
-                    guard let set = st as? [String: Any] else { continue }
-                    acc.add(
-                        exercise: title,
-                        setType: ((set["type"] as? String) ?? "normal").lowercased(),
-                        weightKg: jsonDouble(set["weight_kg"]),
-                        reps: boundedReps(jsonDouble(set["reps"]))
-                    )
-                }
-            }
+                  let acc = hevyAccumulator(from: w, zone: zone) else { skipped += 1; continue }
             accumulators.append(acc)
         }
         // The shared tail, so a workout whose sets all folded away counts as skipped and the reported

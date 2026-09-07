@@ -358,8 +358,9 @@ final class LiftingImporterTests: XCTestCase {
         """
         let s = LiftingImporter.parseHevyAPI(data: apiPage(mixed)).sessions[0]
         XCTAssertEqual(s.setCount, 3, "warmup excluded; dropset and failure are working sets")
-        // 20×10 + 15×8 + 12×6; pre-summed because the literal arithmetic blows the type-check budget.
-        XCTAssertEqual(s.volumeLoadKg, 296, accuracy: 0.001)
+        // 20×10 + 15×8 + 12×6 = 200 + 120 + 72; pre-summed because the literal arithmetic blows the
+        // Swift type-check budget. Kotlin's twin computes it inline, which is what caught this sum.
+        XCTAssertEqual(s.volumeLoadKg, 392, accuracy: 0.001)
         XCTAssertEqual(s.totalReps, 24)
     }
 }
