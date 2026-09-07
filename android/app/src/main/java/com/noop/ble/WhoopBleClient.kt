@@ -184,7 +184,9 @@ data class LiveState(
      *  a flat pack included. That re-assertion is deliberate, the anti-staleness half for an attach edge
      *  the app missed, but it fires several times more often than the ~8 min BATTERY_LEVEL that would
      *  clear it, so the gauge's answer is overwritten before it can settle. A pack attached and NOT
-     *  charging therefore reads true until BATTERY_PACK_REMOVED(22), not for one battery cadence. iOS
+     *  charging therefore reads true until BATTERY_PACK_REMOVED(22), not for one battery cadence. The
+     *  gauge no longer has the last word, which is the part that is certain from the code; how often 109
+     *  repeats on a pack that is attached but FLAT is the one thing no capture has measured yet. iOS
      *  does not do this: there the pack record is log-only, so its cadence bound is real. Tracked in
      *  #1935; the anti-staleness job wants "a pack is attached", which [packSocPct] already answers.
      *
