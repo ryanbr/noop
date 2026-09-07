@@ -87,4 +87,39 @@ final class VitalReadingsTableTests: XCTestCase {
         )
         XCTAssertEqual(rows.first?.value, "72")
     }
+
+    // MARK: - #1942: the Explorer pairs a unit-BEARING formatter with an EMPTY unit
+
+    /// Every test above passes `spo2Format`, a unit-LESS closure, which is the contract this function was
+    /// written to and the one all of Android's call sites follow. The Explorer cannot follow it: its
+    /// formatter is `MetricDescriptor.format`, which already ends in the unit, and the CONVERTED one —
+    /// there is no unit-less iOS formatter that also converts kg→lb / °C→°F / 0–100→0–21. So it pairs that
+    /// formatter with an empty unit, and this pins both halves of that pairing.
+    ///
+    /// Passing the descriptor's stored `unit` alongside it is what rendered "33 % %" in the readings table
+    /// while the hero and the stat tiles, which render the formatter directly, stayed correct (#1942).
+    func testExplorerFormatterAlreadyCarriesTheUnitSoTheUnitParameterIsEmpty() throws {
+        let spo2 = try XCTUnwrap(MetricCatalog.metric(key: "spo2", source: strap))
+        let explorerFormat: (Double) -> String = { spo2.format($0, system: .metric, temperature: .celsius) }
+
+        // Half one: the Explorer's own formatter is unit-BEARING, unlike `spo2Format` above.
+        XCTAssertEqual(explorerFormat(97), "97 %")
+
+        // Half two: paired with an empty unit, the row carries exactly one.
+        let rows = vitalReadingRows(readings: spo2Readings(), unit: "", strapDeviceId: strap,
+                                    now: now, format: explorerFormat)
+        XCTAssertEqual(rows.first?.value, "97 %")
+    }
+
+    /// The function itself is not at fault, and this says so: given the pairing the Explorer used to pass,
+    /// doubling is the CORRECT output. That is why the fix is at the call site and why Android, whose
+    /// twin appends identically, was never affected. Kept as the counter-case to the test above so a
+    /// future reader restoring `unit: metric.unit` sees what it does.
+    func testAUnitBearingFormatterPlusAUnitDoublesItWhichIsWhyTheCallSitePassesEmpty() throws {
+        let spo2 = try XCTUnwrap(MetricCatalog.metric(key: "spo2", source: strap))
+        let rows = vitalReadingRows(readings: spo2Readings(), unit: spo2.unit, strapDeviceId: strap,
+                                    now: now,
+                                    format: { spo2.format($0, system: .metric, temperature: .celsius) })
+        XCTAssertEqual(rows.first?.value, "97 % %")
+    }
 }

@@ -1343,7 +1343,14 @@ struct MetricDetailView: View {
         let readings = windowed.map {
             VitalReading(day: $0.day, value: $0.value, source: sourceByDay[$0.day] ?? metric.source)
         }
-        let rows = vitalReadingRows(readings: readings, unit: metric.unit,
+        // The unit is passed EMPTY on purpose (#1942). `vitalReadingRows` appends its `unit` to whatever
+        // the formatter returns, and every `MetricDescriptor.format` overload already ends in the unit —
+        // the CONVERTED one, at that. Passing `metric.unit` here rendered "33 % %", and worse than a
+        // repeat for the three convertible families, whose stored label contradicts the displayed one:
+        // "182.0 lb kg", "Δ0.5 °F °C", "12.5 /21 /100". The Android twin appends the same way and is
+        // correct because every one of its call sites passes a UNIT-LESS closure; iOS has no unit-less
+        // formatter that also converts, so the unit comes from `fmt` and the parameter stays empty.
+        let rows = vitalReadingRows(readings: readings, unit: "",
                                     strapDeviceId: repo.deviceId, format: fmt)
         if !rows.isEmpty {
             NoopCard {
