@@ -224,4 +224,93 @@ final class LiftingImporterTests: XCTestCase {
         XCTAssertEqual(session(title: "").volumeLoadNote(), body)
         XCTAssertEqual(session(title: "Leg Day").volumeLoadNote(), "Leg Day: \(body)")
     }
+
+
+    // MARK: - Hevy API (draft)
+
+    private func apiPage(_ workouts: String) -> Data {
+        Data("{\"page\":1,\"page_count\":1,\"workouts\":[\(workouts)]}".utf8)
+    }
+
+    private let apiWorkout = """
+    {"id":"w1","title":"Push Day","start_time":"2026-09-07T10:00:00Z","end_time":"2026-09-07T11:02:00Z",
+     "exercises":[{"title":"Bench Press","sets":[{"type":"warmup","weight_kg":40,"reps":10},
+                                                 {"type":"normal","weight_kg":60,"reps":8},
+                                                 {"type":"normal","weight_kg":60,"reps":8}]},
+                  {"title":"Overhead Press","sets":[{"type":"normal","weight_kg":40,"reps":10}]}]}
+    """
+
+    /// The API must land on the SAME arithmetic as the CSV lane: warm-ups excluded from volume, sets
+    /// counted, top set tracked. 60x8 + 60x8 + 40x10 = 1360 kg, and the 40 kg warm-up adds nothing.
+    func testHevyAPIUsesTheSameVolumeArithmeticAsTheCSVLane() {
+        let out = LiftingImporter.parseHevyAPI(data: apiPage(apiWorkout))
+        XCTAssertEqual(out.sessions.count, 1)
+        let s = out.sessions[0]
+        XCTAssertEqual(s.volumeLoadKg, 1360, accuracy: 0.001)
+        XCTAssertEqual(s.setCount, 3, "the warm-up must not be counted as a working set")
+        XCTAssertEqual(s.exerciseCount, 2)
+        XCTAssertEqual(s.totalReps, 26)
+        XCTAssertEqual(s.topSetKg, 60)
+        XCTAssertEqual(s.title, "Push Day")
+        XCTAssertEqual(s.end.timeIntervalSince(s.start), 62 * 60, accuracy: 1)
+    }
+
+    /// A workout with no countable set is skipped, not stored as an empty session — the same rule the
+    /// CSV lane applies, and the reason `skipped` exists.
+    func testHevyAPISkipsAWorkoutWithNoCountableSet() {
+        let empty = """
+        {"id":"w2","title":"Rest","start_time":"2026-09-07T10:00:00Z","end_time":"2026-09-07T10:05:00Z",
+         "exercises":[{"title":"Bench Press","sets":[{"type":"warmup","weight_kg":40,"reps":10}]}]}
+        """
+        let out = LiftingImporter.parseHevyAPI(data: apiPage(empty))
+        XCTAssertTrue(out.sessions.isEmpty)
+        XCTAssertEqual(out.skipped, 1)
+    }
+
+    /// No start means no window to attach the session to, so it is skipped rather than defaulted.
+    func testHevyAPISkipsAWorkoutWithNoStart() {
+        let noStart = """
+        {"id":"w3","title":"x","end_time":"2026-09-07T11:00:00Z","exercises":[]}
+        """
+        let out = LiftingImporter.parseHevyAPI(data: apiPage(noStart))
+        XCTAssertTrue(out.sessions.isEmpty)
+        XCTAssertEqual(out.skipped, 1)
+    }
+
+    /// This runs over another server's data: malformed input yields nothing rather than throwing.
+    func testHevyAPIMalformedInputYieldsNothing() {
+        XCTAssertTrue(LiftingImporter.parseHevyAPI(data: Data("not json".utf8)).sessions.isEmpty)
+        XCTAssertTrue(LiftingImporter.parseHevyAPI(data: Data()).sessions.isEmpty)
+        XCTAssertTrue(LiftingImporter.parseHevyAPI(data: Data("{\"workouts\":\"nope\"}".utf8)).sessions.isEmpty)
+    }
+
+    /// A bare array is what a saved response pasted out of a browser looks like.
+    func testHevyAPIAcceptsABareArray() {
+        XCTAssertEqual(LiftingImporter.parseHevyAPI(data: Data("[\(apiWorkout)]".utf8)).sessions.count, 1)
+    }
+
+    /// Weights and reps may arrive quoted depending on the encoder. A nulled weight must not become
+    /// zero volume silently — the set still counts, it just adds nothing.
+    func testHevyAPIAcceptsQuotedNumbersAndTolerlatesANullWeight() {
+        let quoted = """
+        {"id":"w4","title":"Q","start_time":"2026-09-07T10:00:00Z","end_time":"2026-09-07T10:30:00Z",
+         "exercises":[{"title":"Row","sets":[{"type":"normal","weight_kg":"50","reps":"5"},
+                                             {"type":"normal","reps":12}]}]}
+        """
+        let s = LiftingImporter.parseHevyAPI(data: apiPage(quoted)).sessions[0]
+        XCTAssertEqual(s.volumeLoadKg, 250, accuracy: 0.001)
+        XCTAssertEqual(s.setCount, 2, "a weightless set still counts as work done")
+        XCTAssertEqual(s.totalReps, 17)
+    }
+
+    /// The API stamps an offset, which `parseDate` honours over the device zone — so the same payload
+    /// parses identically whatever zone the phone is in. That is the API's advantage over the CSV
+    /// lane, where a zoneless wall clock has to be interpreted (#649).
+    func testHevyAPIHonoursTheStampedOffsetRatherThanTheDeviceZone() {
+        let utc = LiftingImporter.parseHevyAPI(data: apiPage(apiWorkout),
+                                               zone: TimeZone(identifier: "UTC")!)
+        let tokyo = LiftingImporter.parseHevyAPI(data: apiPage(apiWorkout),
+                                                 zone: TimeZone(identifier: "Asia/Tokyo")!)
+        XCTAssertEqual(utc.sessions[0].start, tokyo.sessions[0].start)
+    }
 }

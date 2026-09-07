@@ -230,6 +230,81 @@ public enum LiftingImporter {
     // MARK: - Liftosaur JSON
 
     /// Parse a Liftosaur JSON export into one session per history record.
+    /// Parse a Hevy **API** workouts page into the same sessions the CSV export yields.
+    ///
+    /// A third sibling of [parseHevy] and [parseLiftosaur], deliberately not a lane of its own: the
+    /// API describes the same workouts the CSV export does, so it must produce the same
+    /// `LiftingSession`, through the same accumulator, with the same warm-up exclusion and volume-load
+    /// arithmetic and the same `sourceId`. A parallel model would import one session twice under two
+    /// provenances, and would let the two drift about what a set is worth.
+    ///
+    /// Dates go through [parseDate] for the same reason. It honours an embedded ISO offset first and
+    /// only falls back to zoneless wall-clock, so the API's stamped offsets are respected and the
+    /// #649 device-zone interpretation stays available if the API ever omits one. `zone` is carried
+    /// through rather than assumed.
+    ///
+    /// DRAFT: the envelope below (`workouts[]` with `start_time` / `end_time`, and
+    /// `exercises[].sets[]` carrying `weight_kg`, `reps`, `type`) is Hevy's documented v1 shape and
+    /// has NOT been checked against a live response. Tolerant by construction, so a wrong field name
+    /// yields no sessions rather than wrong numbers — but that is not a shipping state either.
+    public static func parseHevyAPI(data: Data, zone: TimeZone = .current) -> LiftingImportResult {
+        let empty = LiftingImportResult(sessions: [], skipped: 0, earliest: nil, latest: nil)
+        guard let root = try? JSONSerialization.jsonObject(with: BOM.stripUTF8(data)) else { return empty }
+        let raw: [Any]
+        if let obj = root as? [String: Any], let list = obj["workouts"] as? [Any] {
+            raw = list
+        } else if let list = root as? [Any] {
+            raw = list
+        } else {
+            return empty
+        }
+
+        var sessions: [LiftingSession] = []
+        var skipped = 0
+        for element in raw {
+            guard let w = element as? [String: Any],
+                  let startStr = w["start_time"] as? String,
+                  let start = parseDate(startStr, zone: zone) else { skipped += 1; continue }
+            let rawTitle = (w["title"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let acc = HevyAccumulator(start: start,
+                                      title: (rawTitle?.isEmpty == false) ? rawTitle : nil,
+                                      zone: zone)
+            // The accessor resolves this through the same `parseDate`, so the API and CSV paths
+            // cannot disagree about an end time.
+            acc.endRaw = w["end_time"] as? String
+            for e in (w["exercises"] as? [Any]) ?? [] {
+                guard let ex = e as? [String: Any] else { continue }
+                let title = (ex["title"] as? String) ?? ""
+                for st in (ex["sets"] as? [Any]) ?? [] {
+                    guard let set = st as? [String: Any] else { continue }
+                    acc.add(
+                        exercise: title,
+                        setType: ((set["type"] as? String) ?? "normal").lowercased(),
+                        weightKg: numericValue(set["weight_kg"]),
+                        reps: numericValue(set["reps"]).map { Int($0) }
+                    )
+                }
+            }
+            if let session = acc.session { sessions.append(session) } else { skipped += 1 }
+        }
+        let ordered = sessions.sorted { $0.start < $1.start }
+        return LiftingImportResult(
+            sessions: ordered,
+            skipped: skipped,
+            earliest: ordered.first?.start,
+            latest: ordered.map(\.end).max()
+        )
+    }
+
+    /// A JSON number arrives as `Double`, `Int` or a quoted string depending on the encoder. Accept
+    /// all three and reject anything else, so a nulled weight does not become zero volume.
+    static func numericValue(_ any: Any?) -> Double? {
+        if let d = any as? Double { return d }
+        if let i = any as? Int { return Double(i) }
+        if let s = any as? String { return Double(s) }
+        return nil
+    }
+
     public static func parseLiftosaur(data: Data) -> LiftingImportResult {
         // JSONSerialization rejects a leading UTF-8 BOM, so strip it (the shared CSV helper).
         guard let obj = try? JSONSerialization.jsonObject(with: BOM.stripUTF8(data)) else {
