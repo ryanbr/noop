@@ -50,6 +50,24 @@ final class MuscleGroupsTests: XCTestCase {
         XCTAssertEqual(MuscleAttribution.muscles(for: "Chest Fly"), [.chest])
     }
 
+    /// A wrist curl is forearms. The rule for it existed but sat BELOW the generic biceps "curl",
+    /// so it could never match the spelling the exercise is normally written with.
+    func testWristCurlIsForearmsNotBiceps() {
+        XCTAssertEqual(MuscleAttribution.muscles(for: "Wrist Curl"), [.forearms])
+        XCTAssertEqual(MuscleAttribution.muscles(for: "Reverse Wrist Curl (Barbell)"), [.forearms])
+    }
+
+    /// These thirteen groups have no neck, and "Neck Curl" contains "curl", so it came out as biceps.
+    /// A blank is the only honest answer: the table prefers a blank to a wrong muscle everywhere else,
+    /// and an exercise the vocabulary cannot express is exactly where that has to hold.
+    func testAnExerciseTheVocabularyCannotExpressAttributesNothing() {
+        XCTAssertTrue(MuscleAttribution.muscles(for: "Neck Curl").isEmpty)
+        XCTAssertTrue(MuscleAttribution.muscles(for: "Neck Extension").isEmpty)
+        XCTAssertTrue(MuscleAttribution.muscles(for: "Weighted Neck Harness").isEmpty)
+        XCTAssertEqual(MuscleAttribution.muscles(for: "Bicep Curl"), [.biceps],
+                       "the guard must not swallow an ordinary curl")
+    }
+
     /// Hevy writes it as one word. A rule that only matches the spaced spelling silently attributes
     /// nothing for the spelling the catalogue actually uses, which reads as an unknown lift.
     func testSkullcrusherMatchesBothSpellings() {

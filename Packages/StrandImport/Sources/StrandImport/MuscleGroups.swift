@@ -66,9 +66,21 @@ public enum MuscleAttribution {
     /// Order matters: the first rule that matches wins, so the more specific phrase has to be tested
     /// before the word it contains. "leg curl" is hamstrings and must be decided before "curl" sends
     /// it to biceps; "front raise" is shoulders and must beat "raise"; "calf raise" likewise.
+    /// Real exercises this vocabulary has no group for, which must attribute NOTHING rather than
+    /// fall through to a generic rule that would be wrong.
+    ///
+    /// "Neck Curl" contains "curl" and came out as BICEPS. These thirteen groups have no neck, so a
+    /// blank is the only honest answer, and a blank is what the whole table is supposed to prefer: it
+    /// invites a look, where a wrong muscle does not.
+    ///
+    /// Kept separate from `rules` because a rule must name at least one group. An entry here is the
+    /// deliberate absence of one, which is a different statement from "not recognised".
+    static let unattributable: [String] = ["neck"]
+
     public static func muscles(for exercise: String) -> [MuscleGroup] {
         let n = normalise(exercise)
         guard !n.isEmpty else { return [] }
+        guard !unattributable.contains(where: { n.contains($0) }) else { return [] }
         for (needle, groups) in rules where n.contains(needle) {
             return groups
         }
@@ -145,8 +157,10 @@ public enum MuscleAttribution {
         // spinal one. Both contain "curl", so the generic rule would call them biceps.
         ("nordic curl", [.hamstrings]),
         ("jefferson curl", [.lowerBack, .hamstrings]),
-        ("curl", [.biceps]),
+        // Before the generic curl: a wrist curl is forearms, and "Wrist Curl" is how the exercise is
+        // normally written, so the rule below was unreachable for the title it exists to catch.
         ("wrist", [.forearms]),
+        ("curl", [.biceps]),
         ("farmer", [.forearms]),
         // trunk
         ("plank", [.abs]),
