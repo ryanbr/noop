@@ -319,6 +319,26 @@ class ReportCompletenessContractTest {
         assertTrue(short, short.contains("9s"))
     }
 
+    /**
+     * The short-profile note goes AFTER the verdict, deliberately.
+     *
+     * Three tests above assert the section ENDS with the verdict line, and that invariant now holds
+     * only while no duration is passed. Keeping the note last is the right trade: it is the line that
+     * invalidates the verdict a reader has just been given, so burying it above would put the weaker
+     * statement in the more prominent place. Pinned here so the change of shape is a decision on the
+     * record rather than something a future endsWith assertion discovers.
+     */
+    @Test
+    fun theShortProfileNoteFollowsTheVerdictRatherThanReplacingIt() {
+        val line = ReportCompleteness.captureCheckSection(
+            "charge day=2026-09-07 score=1", setOf(TestDomain.RECOVERY), profileRanSeconds = 9,
+        )
+        val verdict = line.indexOf("complete: all active traces present")
+        val note = line.indexOf("TOO SHORT")
+        assertTrue(line, verdict in 0 until note)
+        assertTrue("the note is the footer when it fires", line.trimEnd().endsWith("export again."))
+    }
+
     /** Past the threshold it says nothing extra. */
     @Test
     fun aLongEnoughProfileAddsNoWarning() {

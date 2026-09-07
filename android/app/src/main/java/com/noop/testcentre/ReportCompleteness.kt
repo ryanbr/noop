@@ -218,7 +218,12 @@ object ReportCompleteness {
 
     /** The meta.json `capture_check` value: a {domainId -> "present"|"MISSING"} map plus the `complete`
      *  flag, for the machine-readable tie. Keys are the wire ids; emitted in sorted order by TestBundleMeta
-     *  so the JSON bytes line up with the Swift twin. */
+     *  so the JSON bytes line up with the Swift twin.
+     *
+     *  `complete` means TRACES PRESENT and nothing more, so it can read true on a capture whose section
+     *  carries the short-profile note. That is deliberate rather than an oversight: widening the flag
+     *  would change what every existing consumer thinks it asks. The duration a machine reader needs is
+     *  already in the meta beside this, as `profile_started_at`. */
     fun captureCheckMeta(reportText: String, active: Set<TestDomain>): CaptureCheckMeta {
         val statuses = statuses(reportText, active)
         val map = LinkedHashMap<String, String>()
