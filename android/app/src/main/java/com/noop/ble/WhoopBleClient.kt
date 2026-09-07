@@ -179,7 +179,10 @@ data class LiveState(
      *
      *  THAT STATE IS BOUNDED, which is why it is documented rather than split. It does not last until 22:
      *  the next live BATTERY_LEVEL overwrites it from the gauge, so the window is about one battery
-     *  cadence. It matters beyond the pill because [lowPowerThrottleActive]'s twin reads this flag and a
+     *  cadence. One thing extends it: [shouldApplyChargingFromBatteryEvent] suppresses the rewrite while
+     *  an offload replays, so a long history sync holds the stale value for its duration plus a cadence
+     *  (iOS has the same exclusion structurally: backfill never reaches the live router). It matters
+     *  beyond the pill because [lowPowerThrottleActive]'s twin reads this flag and a
      *  true value disables the low-battery offload throttle, so a strap on a dead pack can skip
      *  throttling for that window. Bounded and self-healing; splitting the state, or making the throttle
      *  wait for a rising gauge, would cost every honest attach to close it.

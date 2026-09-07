@@ -90,7 +90,10 @@ public final class LiveState: ObservableObject {
     ///
     /// THAT STATE IS BOUNDED, which is why it is documented rather than split. It does not last until 22:
     /// the next live BATTERY_LEVEL overwrites it from the gauge, so the window is about one battery
-    /// cadence. It matters beyond the pill because `BLEManager.lowPowerThrottleActive` reads this flag
+    /// cadence. One thing extends it: the live router is skipped while an offload replays (backfill never
+    /// calls `handle(frame:)`), so a long history sync holds the stale value for its duration plus a
+    /// cadence. Android has the same exclusion explicitly, in `shouldApplyChargingFromBatteryEvent`.
+    /// It matters beyond the pill because `BLEManager.lowPowerThrottleActive` reads this flag
     /// and a true value disables the low-battery offload throttle, so a strap on a dead pack can skip
     /// throttling for that window. Bounded and self-healing; splitting the state, or making the throttle
     /// wait for a rising gauge, would cost every honest attach to close it.
