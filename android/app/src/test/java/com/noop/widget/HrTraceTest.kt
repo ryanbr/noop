@@ -161,13 +161,13 @@ class HrTraceTest {
      */
     @Test
     fun `a box within budget is left alone`() {
-        assertEquals(750 to 168, HrTrace.fitBox(750, 168))   // 250dp x 56dp at 3x: 504 KB, fits
+        assertEquals(750 to 168, HrTrace.fitBox(750, 168))   // 250dp x 56dp at 3x, well inside budget
     }
 
     @Test
     fun `an oversized box is scaled down to fit the budget`() {
         val (w, h) = HrTrace.fitBox(1200, 224)               // 300dp x 56dp at 4x: 1.03 MB
-        assertTrue("$w x $h", w.toLong() * h * 4 <= HrTrace.MAX_BITMAP_BYTES)
+        assertTrue("$w x $h", w.toLong() * h * HrTrace.BYTES_PER_PIXEL <= HrTrace.MAX_BITMAP_BYTES)
         assertTrue("must not collapse: $w x $h", w > 1 && h > 1)
     }
 
@@ -184,7 +184,7 @@ class HrTraceTest {
         assertEquals(1 to 1, HrTrace.fitBox(0, 0))
         assertEquals(1 to 1, HrTrace.fitBox(-5, -5))
         val (w, h) = HrTrace.fitBox(100_000, 100_000)
-        assertTrue("$w x $h", w >= 1 && h >= 1 && w.toLong() * h * 4 <= HrTrace.MAX_BITMAP_BYTES)
+        assertTrue("$w x $h", w >= 1 && h >= 1 && w.toLong() * h * HrTrace.BYTES_PER_PIXEL <= HrTrace.MAX_BITMAP_BYTES)
     }
 
 
@@ -200,7 +200,7 @@ class HrTraceTest {
         // 188dp of chart at 2.75x, 56dp tall: the case a One UI card actually produced.
         val w = HrTrace.widestAtHeight(requestedPx = 517, heightPx = 154)
         assertTrue("$w must exceed the request", w > 517)
-        assertTrue("$w must stay in budget", w.toLong() * 154 * 4 <= HrTrace.MAX_BITMAP_BYTES)
+        assertTrue("$w must stay in budget", w.toLong() * 154 * HrTrace.BYTES_PER_PIXEL <= HrTrace.MAX_BITMAP_BYTES)
     }
 
     /** The budget wins over the headroom, never the other way round: a bitmap that breaks the payload
@@ -209,8 +209,8 @@ class HrTraceTest {
     fun `the budget caps the headroom`() {
         val h = 400
         val w = HrTrace.widestAtHeight(requestedPx = 4000, heightPx = h)
-        assertEquals(HrTrace.MAX_BITMAP_BYTES / (h * 4), w)
-        assertTrue(w.toLong() * h * 4 <= HrTrace.MAX_BITMAP_BYTES)
+        assertEquals(HrTrace.MAX_BITMAP_BYTES / (h * HrTrace.BYTES_PER_PIXEL), w)
+        assertTrue(w.toLong() * h * HrTrace.BYTES_PER_PIXEL <= HrTrace.MAX_BITMAP_BYTES)
     }
 
     @Test

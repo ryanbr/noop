@@ -109,7 +109,7 @@ object HrTrace {
     fun fitBox(widthPx: Int, heightPx: Int, maxBytes: Int = MAX_BITMAP_BYTES): Pair<Int, Int> {
         val w = widthPx.coerceAtLeast(1)
         val h = heightPx.coerceAtLeast(1)
-        val bytes = w.toLong() * h.toLong() * 4L
+        val bytes = w.toLong() * h.toLong() * BYTES_PER_PIXEL
         if (bytes <= maxBytes) return w to h
         val scale = Math.sqrt(maxBytes.toDouble() / bytes.toDouble())
         return (w * scale).toInt().coerceAtLeast(1) to (h * scale).toInt().coerceAtLeast(1)
@@ -118,6 +118,11 @@ object HrTrace {
     /** The bitmap's byte budget. Half a megabyte leaves the rest of the RemoteViews comfortable inside
      *  the transaction ceiling, and still affords a full-density chart on an ordinary phone. */
     const val MAX_BITMAP_BYTES: Int = 512 * 1024
+
+    /** Bytes per pixel the renderer actually spends. The trace is one hue over an opaque card, so it is
+     *  drawn RGB_565 rather than ARGB_8888 — there is no transparency to preserve, and at four bytes a
+     *  pixel the budget could not afford both a taller chart and a width that avoids stretching it. */
+    const val BYTES_PER_PIXEL: Int = 2
 
     /**
      * The widest bitmap the budget allows at an EXACT height, with headroom over what the caller asked.
@@ -134,7 +139,7 @@ object HrTrace {
      */
     fun widestAtHeight(requestedPx: Int, heightPx: Int, maxBytes: Int = MAX_BITMAP_BYTES): Int {
         val h = heightPx.coerceAtLeast(1)
-        val budgetWidth = (maxBytes / (h * 4)).coerceAtLeast(1)
+        val budgetWidth = (maxBytes / (h * BYTES_PER_PIXEL)).coerceAtLeast(1)
         val want = (requestedPx.coerceAtLeast(1) * WIDTH_HEADROOM).toInt()
         return want.coerceAtMost(budgetWidth).coerceAtLeast(requestedPx.coerceAtLeast(1).coerceAtMost(budgetWidth))
     }

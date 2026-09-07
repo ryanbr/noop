@@ -32,6 +32,9 @@ internal object HrTraceRenderer {
         heightPx: Int,
         lineColor: Int,
         fillTopColor: Int,
+        /** The card underneath. Drawn as the ground and used as the gradient's far end, because an
+         *  RGB_565 bitmap has no alpha to fade into. */
+        backgroundColor: Int,
         strokePx: Float,
     ): Bitmap? {
         if (points.isEmpty()) return null
@@ -41,12 +44,16 @@ internal object HrTraceRenderer {
         val w = widthPx.coerceAtLeast(1)
         val h = heightPx.coerceAtLeast(1)
         if (w < 2 || h < 2) return null
-        if (w.toLong() * h.toLong() * 4L > HrTrace.MAX_BITMAP_BYTES) return null
+        if (w.toLong() * h.toLong() * HrTrace.BYTES_PER_PIXEL > HrTrace.MAX_BITMAP_BYTES) return null
 
+        // RGB_565, half the bytes of ARGB_8888. The trace is one hue on an opaque card, so nothing here
+        // needs transparency — and at four bytes a pixel the payload budget could not afford both a chart
+        // tall enough to read and a width that did not have to be stretched to fill.
         val bmp = runCatching {
-            Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
+            Bitmap.createBitmap(w, h, Bitmap.Config.RGB_565)
         }.getOrNull() ?: return null
         val canvas = Canvas(bmp)
+        canvas.drawColor(backgroundColor)
 
         // Inset by the stroke so a point sitting exactly on the top or bottom edge is not shaved in
         // half. The geometry maps the extremes to 0 and `height`, which is correct for a line of zero
@@ -79,8 +86,9 @@ internal object HrTraceRenderer {
         fill.close()
         canvas.drawPath(fill, Paint().apply {
             isAntiAlias = true
+            isDither = true   // 565 bands a smooth ramp without it
             shader = LinearGradient(
-                0f, 0f, 0f, h.toFloat(), fillTopColor, fillTopColor and 0x00FFFFFF, Shader.TileMode.CLAMP,
+                0f, 0f, 0f, h.toFloat(), fillTopColor, backgroundColor, Shader.TileMode.CLAMP,
             )
         })
 

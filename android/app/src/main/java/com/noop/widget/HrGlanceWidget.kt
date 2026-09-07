@@ -24,6 +24,7 @@ import androidx.glance.layout.Box
 import androidx.glance.layout.Column
 import androidx.glance.layout.Row
 import androidx.glance.layout.Spacer
+import androidx.glance.layout.fillMaxHeight
 import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
@@ -88,7 +89,10 @@ class HrGlanceWidget : GlanceAppWidget() {
 
 // Local widget colours, mirroring the siblings rather than reading Palette: Glance composes outside the
 // app theme, so every widget in this package carries its own copy on purpose.
-private fun hrSurface(dark: Boolean) = ColorProvider(if (dark) Color(0xFF0A1322) else Color(0xFFF4F1EA))
+/** The card colour as a raw Color, so the renderer can paint it as the bitmap's ground. */
+private fun hrSurfaceColor(dark: Boolean) = if (dark) Color(0xFF0A1322) else Color(0xFFF4F1EA)
+
+private fun hrSurface(dark: Boolean) = ColorProvider(hrSurfaceColor(dark))
 private fun hrTextPrimary(dark: Boolean) = ColorProvider(if (dark) Color(0xFFF4F6F8) else Color(0xFF1A2230))
 private fun hrTextSecondary(dark: Boolean) = ColorProvider(if (dark) Color(0xFF8A94A4) else Color(0xFF7C8696))
 
@@ -99,6 +103,16 @@ private const val HR_CARD_PADDING_DP = 28f
 /** The bpm scale column plus its gap. Same reasoning: one number, read by both. Two copies of a layout
  *  constant is how a chart and its axis end up a few pixels out of step. */
 private const val HR_SCALE_COLUMN_DP = 34f
+
+/**
+ * The height the trace BITMAP is drawn at.
+ *
+ * The chart box takes the card's leftover height by weight, so its real height is not knowable here —
+ * the same situation as the width. This is the figure the bitmap is drawn at and the `Image` scales
+ * from, chosen generously so the common case downscales: a 4x2 cell left roughly 36dp unspent when the
+ * chart was pinned at 56, and that slack is what the graph looked small for.
+ */
+private const val HR_CHART_TARGET_DP = 92f
 
 /** The chart width for a given widget width — the one place that arithmetic happens. */
 private fun hrChartWidthDp(widthDp: Float): Float =
@@ -194,14 +208,16 @@ private fun HrWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
         // few minutes — a void reads as broken where a shorter widget reads as new.
         if (snap.hrSeries.isNotEmpty()) {
             Spacer(GlanceModifier.height(8.dp))
-            HrTraceImage(snap, dark, widthDp = size.width.value, heightDp = 56f)
+            HrTraceImage(snap, dark, widthDp = size.width.value,
+                         modifier = GlanceModifier.defaultWeight())
             HrTimeAxis(snap, dark)
         }
 
         if (snap.updatedAtMs > 0) {
-            // Takes up the slack rather than leaving it below: a 4x2 cell is taller than this content,
-            // and the stamp reads as a footer at the bottom where it read as abandoned in the middle.
-            Spacer(GlanceModifier.defaultWeight())
+            // No slack-eating spacer here any more. The chart takes the leftover height itself, which is
+            // what the card should be spending it on — a spacer pushed the stamp to the bottom and left
+            // the graph the same 56dp it had on a card half again as tall.
+            Spacer(GlanceModifier.height(4.dp))
             val time = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(snap.updatedAtMs))
             Row(
                 modifier = GlanceModifier.fillMaxWidth(),
@@ -224,7 +240,14 @@ private fun HrWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
  * actually gave us rather than from a guess.
  */
 @Composable
-private fun HrTraceImage(snap: WidgetSnapshot, dark: Boolean, widthDp: Float, heightDp: Float) {
+private fun HrTraceImage(
+    snap: WidgetSnapshot,
+    dark: Boolean,
+    widthDp: Float,
+    // Weighted by the CALLER: Glance scopes defaultWeight() to Row/ColumnScope, so a composable
+    // cannot claim its own share of the parent from in here.
+    modifier: GlanceModifier,
+) {
     val context = LocalContext.current
     val stats = HrTrace.stats(snap.hrSeries)
     val density = context.resources.displayMetrics.density
@@ -235,7 +258,7 @@ private fun HrTraceImage(snap: WidgetSnapshot, dark: Boolean, widthDp: Float, he
     // Height exactly as displayed, width with headroom so the Image DOWNSCALES rather than stretching
     // up: LocalSize under-reports on some launchers, and an upscale here is horizontal-only, which
     // turns the stroke elliptical (#1957).
-    val hPx = (heightDp * density).toInt().coerceAtLeast(1)
+    val hPx = (HR_CHART_TARGET_DP * density).toInt().coerceAtLeast(1)
     val wPx = HrTrace.widestAtHeight((chartWidthDp * density).toInt(), hPx)
 
     val bmp = runCatching {
@@ -245,6 +268,7 @@ private fun HrTraceImage(snap: WidgetSnapshot, dark: Boolean, widthDp: Float, he
             heightPx = hPx,
             lineColor = hrAccent(dark).toArgb(),
             fillTopColor = hrAccent(dark).copy(alpha = 0.35f).toArgb(),
+            backgroundColor = hrSurfaceColor(dark).toArgb(),
             strokePx = 2f * density,
         )
     }.getOrNull()
@@ -254,8 +278,8 @@ private fun HrTraceImage(snap: WidgetSnapshot, dark: Boolean, widthDp: Float, he
     // occupied, so the chart and its scale sat in the left half with dead space beside them. The
     // bitmap is still sized in pixels, but only to be drawn and then stretched — a smooth line
     // survives that, and the layout is now the launcher's business rather than my arithmetic.
-    Row(modifier = GlanceModifier.fillMaxWidth()) {
-        Box(modifier = GlanceModifier.height(heightDp.dp).defaultWeight()) {
+    Row(modifier = modifier.fillMaxWidth()) {
+        Box(modifier = GlanceModifier.fillMaxHeight().defaultWeight()) {
             if (bmp != null) {
                 Image(
                     provider = ImageProvider(bmp),
@@ -272,7 +296,7 @@ private fun HrTraceImage(snap: WidgetSnapshot, dark: Boolean, widthDp: Float, he
             // the bottom, which is what makes it a SCALE. Stacked from the top with fixed gaps they were
             // just three numbers near the chart, aligned to nothing.
             Column(
-                modifier = GlanceModifier.height(heightDp.dp),
+                modifier = GlanceModifier.fillMaxHeight(),
                 horizontalAlignment = Alignment.Horizontal.End,
             ) {
                 val ticks = HrTrace.bpmTicks(stats)
