@@ -109,7 +109,6 @@ private fun hrAccent(dark: Boolean) = if (dark) Color(0xFFE0662F) else Color(0xF
 
 @Composable
 private fun HrWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
-    val context = LocalContext.current
     val size = LocalSize.current
     val stats = HrTrace.stats(snap.hrSeries)
 
@@ -196,11 +195,13 @@ private fun HrWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
         if (snap.hrSeries.isNotEmpty()) {
             Spacer(GlanceModifier.height(8.dp))
             HrTraceImage(snap, dark, widthDp = size.width.value, heightDp = 56f)
-            HrTimeAxis(snap, dark, widthDp = size.width.value)
+            HrTimeAxis(snap, dark)
         }
 
         if (snap.updatedAtMs > 0) {
-            Spacer(GlanceModifier.height(6.dp))
+            // Takes up the slack rather than leaving it below: a 4x2 cell is taller than this content,
+            // and the stamp reads as a footer at the bottom where it read as abandoned in the middle.
+            Spacer(GlanceModifier.defaultWeight())
             val time = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(snap.updatedAtMs))
             Row(
                 modifier = GlanceModifier.fillMaxWidth(),
@@ -244,8 +245,13 @@ private fun HrTraceImage(snap: WidgetSnapshot, dark: Boolean, widthDp: Float, he
         )
     }.getOrNull()
 
+    // The chart takes the ROW's remaining width by weight rather than a width computed from
+    // LocalSize. On a One UI launcher LocalSize reported a size smaller than the card actually
+    // occupied, so the chart and its scale sat in the left half with dead space beside them. The
+    // bitmap is still sized in pixels, but only to be drawn and then stretched — a smooth line
+    // survives that, and the layout is now the launcher's business rather than my arithmetic.
     Row(modifier = GlanceModifier.fillMaxWidth()) {
-        Box(modifier = GlanceModifier.height(heightDp.dp).width(chartWidthDp.dp)) {
+        Box(modifier = GlanceModifier.height(heightDp.dp).defaultWeight()) {
             if (bmp != null) {
                 Image(
                     provider = ImageProvider(bmp),
@@ -254,7 +260,9 @@ private fun HrTraceImage(snap: WidgetSnapshot, dark: Boolean, widthDp: Float, he
                 )
             }
         }
-        if (stats != null) {
+        // A scale of one repeated number says nothing the headline has not: with no range there is
+        // nothing to scale against, and 78/78/78 beside a flat line is three labels of noise.
+        if (stats != null && stats.max > stats.min) {
             Spacer(GlanceModifier.width(6.dp))
             // Spread across the chart's height so max sits level with the top of the trace and min with
             // the bottom, which is what makes it a SCALE. Stacked from the top with fixed gaps they were
@@ -293,13 +301,15 @@ private fun HrTraceImage(snap: WidgetSnapshot, dark: Boolean, widthDp: Float, he
  * times would suggest a span that was never sampled.
  */
 @Composable
-private fun HrTimeAxis(snap: WidgetSnapshot, dark: Boolean, widthDp: Float) {
+private fun HrTimeAxis(snap: WidgetSnapshot, dark: Boolean) {
     val ticks = HrTrace.timeTicks(snap.hrSeries)
     if (ticks.isEmpty()) return
+    // Under a minute of history names one instant, and one label pinned to the left edge reads as a
+    // stray rather than an axis — so the axis only appears once there is a span to label.
+    if (ticks.size < 2) return
     val fmt = DateFormat.getTimeInstance(DateFormat.SHORT)
-    val chartWidthDp = hrChartWidthDp(widthDp)
     Spacer(GlanceModifier.height(2.dp))
-    Row(modifier = GlanceModifier.width(chartWidthDp.dp)) {
+    Row(modifier = GlanceModifier.fillMaxWidth()) {
         ticks.forEachIndexed { i, ts ->
             Text(
                 text = fmt.format(Date(ts * 1000)),
