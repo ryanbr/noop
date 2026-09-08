@@ -35,6 +35,19 @@ public enum Spo2ReTrace {
     /// samples, including one at 1% of traffic, and stops re-dumping a layout already at parity.
     public static let maxPerVersion = 3
 
+    /// Max records this dump may EXAMINE per session, separate from how many it may dump.
+    ///
+    /// The dump budget alone stopped bounding the work the moment `maxPerVersion` arrived: the loop's
+    /// outer guard counts DUMPS, so on a strap emitting one layout the per-version cap is reached at 3,
+    /// the dump count sticks below `maxSamples` forever, and every later chunk keeps re-examining every
+    /// frame to rediscover a version already at cap.
+    ///
+    /// Costs Apple far less than Android, which re-decodes each frame here while this side reads the
+    /// already-parsed record. It is applied on BOTH so the two platforms examine the same frames and so
+    /// dump the same records: a budget on one side only would silently diverge the two logs on a long
+    /// offload, which is the one thing this line's byte-identical promise cannot survive.
+    public static let maxExamined = 512
+
     /// One record's RE line: the mapped SpO2 channels + timestamp + layout version, then the FULL frame
     /// hex (no prefix cap - a v24 record is ~84 B and the unmapped tail is exactly where a banked SpO2
     /// would sit). Absent channels render "null" so a channel-less record still proves what it lacks.

@@ -55,4 +55,16 @@ class Spo2ReTraceTest {
     @Test fun sessionCapCoversSeveralDistinctLayouts() {
         assertTrue(Spo2ReTrace.MAX_SAMPLES / Spo2ReTrace.MAX_PER_VERSION >= 4)
     }
+
+    /**
+     * The examine budget is what keeps the search bounded now that a per-version cap can hold dumps back
+     * indefinitely. Without it the loop's only stop condition counts dumps, so a single-layout strap
+     * re-decodes every frame of every chunk for the whole offload to rediscover a version at cap.
+     */
+    @Test
+    fun `the examine budget bounds the search independently of the dump budget`() {
+        assertTrue(Spo2ReTrace.MAX_EXAMINED > Spo2ReTrace.MAX_SAMPLES)
+        // Enough frames to sweep several chunks, so a layout at a few percent of traffic is still found.
+        assertTrue(Spo2ReTrace.MAX_EXAMINED >= 256)
+    }
 }

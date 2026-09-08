@@ -246,6 +246,10 @@ final class Backfiller {
     /// Session-scoped alongside `spo2Dumped`; reset in `begin`. Twin of the Android `spo2DumpedByVersion`.
     private var spo2DumpedByVersion: [Int: Int] = [:]
 
+    /// SpO2 RE dump: records EXAMINED this session, bounded by `Spo2ReTrace.maxExamined`. Applied here so
+    /// both platforms examine the same frames and dump the same records. Twin of Android `spo2Examined`.
+    private var spo2Examined = 0
+
     /// Durably archives undecodable record frames BEFORE the trim ack (#77 / #91). Returns true once
     /// the bytes are safe (written OR cap-reached — either way the chunk may be acked) and false on a
     /// genuine write failure, in which case `finishChunk` holds the cursor/ack so the strap re-sends.
@@ -344,6 +348,7 @@ final class Backfiller {
         loggedLayoutVersions.removeAll(keepingCapacity: true)
         spo2Dumped = 0
         spo2DumpedByVersion = [:]
+        spo2Examined = 0
         // #547: the range markers belong to a connection's GET_DATA_RANGE, which BLEManager re-sets per
         // connect; clear them here so a fresh session never reuses a previous strap's window. BLEManager
         // re-publishes them as soon as the range reply arrives.
@@ -665,8 +670,11 @@ final class Backfiller {
             // frames carry no record bytes to correlate. Records dump whether or not they carry SpO2
             // channels, so "nothing banked" is provable too. Never a user-facing number (never-fabricate;
             // the #194 lesson). Twin of the Android Backfiller emit.
-            if spo2Dumped < Spo2ReTrace.maxSamples, connectionActive(), let connectionLog {
+            if spo2Dumped < Spo2ReTrace.maxSamples, spo2Examined < Spo2ReTrace.maxExamined,
+               connectionActive(), let connectionLog {
                 for (raw, p) in zip(frames, parsed) where spo2Dumped < Spo2ReTrace.maxSamples {
+                    if spo2Examined >= Spo2ReTrace.maxExamined { break }
+                    spo2Examined += 1
                     guard let unix = p.parsed["unix"]?.intValue else { continue }
                     // Stratify by layout: without this the first chunk's dominant layout eats the whole
                     // budget and the rare, still-unmapped one never gets a frame. See `maxPerVersion`.

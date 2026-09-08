@@ -296,6 +296,11 @@ class Backfiller(
      *  Session-scoped alongside [spo2Dumped]; reset in begin. Twin of the Swift `spo2DumpedByVersion`. */
     private val spo2DumpedByVersion = HashMap<Int, Int>()
 
+    /** SpO2 RE dump: records EXAMINED this session, bounded by [com.noop.analytics.Spo2ReTrace.MAX_EXAMINED].
+     *  Counts the decode attempts the search costs, which the dump counter stopped bounding once the
+     *  per-version cap could hold dumps back indefinitely. Reset in begin. Twin of Swift `spo2Examined`. */
+    private var spo2Examined = 0
+
     /**
      * #547: logged once per session the first time the #547 ingest gate drops an implausible-timestamp
      * record (a bad strap clock/flash emitting far-past / year-2027-spike / future-dated `unix` values).
@@ -356,6 +361,7 @@ class Backfiller(
         chunkIndex = 0
         spo2Dumped = 0
         spo2DumpedByVersion.clear()
+        spo2Examined = 0
         loggedImplausibleClock = false
         sessionDroppedImplausible = 0
         sessionUnhandledPacketTypes.clear()   // #891: a second offload must re-log its first sighting
@@ -475,9 +481,16 @@ class Backfiller(
             // the strap's type-50 console frames carry no record bytes to correlate. Records dump whether
             // or not they carry SpO2 channels, so "nothing banked" is provable too. Never a user-facing
             // number (never-fabricate; the #194 lesson). Twin of the Swift Backfiller emit.
-            if (spo2Dumped < com.noop.analytics.Spo2ReTrace.MAX_SAMPLES && connectionActive()) {
+            if (spo2Dumped < com.noop.analytics.Spo2ReTrace.MAX_SAMPLES &&
+                spo2Examined < com.noop.analytics.Spo2ReTrace.MAX_EXAMINED &&
+                connectionActive()
+            ) {
                 for (f in frames) {
                     if (spo2Dumped >= com.noop.analytics.Spo2ReTrace.MAX_SAMPLES) break
+                    // The decode below is a SECOND decode of a frame the extractor already decoded, so the
+                    // search has to be bounded by what it examines and not only by what it dumps.
+                    if (spo2Examined >= com.noop.analytics.Spo2ReTrace.MAX_EXAMINED) break
+                    spo2Examined++
                     val d = decodeHistorical(f, family) ?: continue
                     // `as? Long`, not `as? Int`: the decoder carries unix in the unsigned domain, so an
                     // Int cast would miss on EVERY record and silently stop the dump. See `histU32`.

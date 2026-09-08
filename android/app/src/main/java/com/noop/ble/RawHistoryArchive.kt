@@ -4,6 +4,7 @@ import android.content.Context
 import com.noop.data.WhoopRepository
 import com.noop.protocol.DeviceFamily
 import com.noop.protocol.extractHistoricalStreams
+import com.noop.protocol.toHexLower
 import java.io.File
 import java.io.FileOutputStream
 
@@ -115,7 +116,9 @@ class RawHistoryArchive(
     private fun familyTag(family: DeviceFamily): String =
         if (family == DeviceFamily.WHOOP5) "whoop5" else "whoop4"
 
-    private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
+    // Shared fast encoder: the archive writes one line per rejected frame, which on an unmapped-layout
+    // strap is every frame of every chunk.
+    private fun ByteArray.toHex(): String = toHexLower()
 
     /**
      * Every archived frame with its strap family, oldest first — the read-back of the JSONL that

@@ -41,6 +41,22 @@ object Spo2ReTrace {
     const val MAX_PER_VERSION = 3
 
     /**
+     * Max records this dump may EXAMINE per session, separate from how many it may dump.
+     *
+     * The dump budget alone stopped bounding the work the moment [MAX_PER_VERSION] arrived. The loop's
+     * outer guard counts DUMPS, so on a strap emitting one layout the per-version cap is reached at 3,
+     * the dump count sticks below [MAX_SAMPLES] forever, and every later chunk re-decodes every frame to
+     * rediscover a version already at cap. That is a full second decode of the whole offload, on top of
+     * the one the extractor already did, for a dump that can never fire again.
+     *
+     * Bounding examinations instead keeps the stratified search working - several chunks' worth of
+     * frames is plenty to turn up a layout at a few percent of traffic - while making the cost fixed
+     * rather than proportional to offload length. The pre-stratification code examined barely more
+     * frames than it dumped; this is the ceiling that restores that property.
+     */
+    const val MAX_EXAMINED = 512
+
+    /**
      * One record's RE line: the mapped SpO2 channels + timestamp + layout version, then the FULL frame
      * hex (no prefix cap - a v24 record is ~84 B and the unmapped tail is exactly where a banked SpO2
      * would sit). Absent channels render "null" so a channel-less record still proves what it lacks.

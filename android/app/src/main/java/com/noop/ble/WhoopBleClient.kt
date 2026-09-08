@@ -62,6 +62,7 @@ import com.noop.protocol.Whoop5Config
 import com.noop.protocol.extractStreams
 import com.noop.protocol.WhoopGattServiceFamily
 import com.noop.protocol.whoopGattScanDecision
+import com.noop.protocol.toHexLower
 import com.noop.analytics.Baselines
 import com.noop.analytics.BatterySocLine
 import com.noop.analytics.ConnectionReadout
@@ -11239,7 +11240,9 @@ class WhoopBleClient(
     /** Coerce a parsed value to a Double (battery_pct may arrive as Double or Int). */
     private fun doubleValue(v: Any?): Double? = (v as? Number)?.toDouble()
 
-    private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
+    // Delegates to the shared fast encoder: this runs once per captured frame for a whole offload, and
+    // the per-byte String.format it used to do allocated a Formatter for every byte of a 2140-B frame.
+    private fun ByteArray.toHex(): String = toHexLower()
 
     // MARK: 5/MG raw backfill capture (opt-in research aid, #78 fork)
     //
