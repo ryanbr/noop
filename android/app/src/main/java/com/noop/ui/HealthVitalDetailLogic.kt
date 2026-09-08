@@ -35,6 +35,66 @@ internal const val SPO2_CANDIDATE_ATTRIBUTION_SOURCE = "spo2-candidate-estimate"
 internal fun vo2MaxAttributionSource(estimator: Vo2MaxEstimator?): String =
     VO2_MAX_ATTRIBUTION_PREFIX + (estimator?.provenanceId ?: "unknown")
 
+/**
+ * The y-domain a metric should be drawn against, or null to scale to the data.
+ *
+ * Auto-scaling makes a calm metric look exactly as violent as a wild one: Rest moving 46..93 on a 0..100
+ * scale fills the same full height as Effort moving 0..42, and one low day rewrites the whole shape. For a
+ * metric whose natural range IS its interesting range, anchoring is what makes the height mean something.
+ *
+ * Deliberately a small allow-list rather than "percentages get 0..100". Blood oxygen is a percentage whose
+ * real movement lives in 90..100, so anchoring it to the nominal range would flatten the signal into a line
+ * at the top: strictly worse than auto-scaling. Resting HR, HRV and skin temperature have no fixed range at
+ * all.
+ *
+ * Effort is 0..100 here whatever the user's display scale says. The readings store the RAW 0-100 composite
+ * and only `format()` converts to the 0..21 reading, so the chart plots the stored value. Taking the domain
+ * from the display scale would have squashed every Effort chart on a WHOOP-scale install into the bottom
+ * fifth of its height.
+ */
+internal fun vitalChartYDomain(key: String): ClosedFloatingPointRange<Double>? =
+    when (key) {
+        "recovery", "sleep_performance", "strain" -> 0.0..100.0
+        else -> null
+    }
+
+/**
+ * Is this metric EXPECTED to have a reading every day?
+ *
+ * Only a daily metric can have a "missing day": breaking the line on a gap says a measurement that should
+ * be there is not. `fitness_age` and `vitality` come from `metricSeries` and are written only when the
+ * engine has the inputs, so they are sparse BY DESIGN and every point would be isolated, turning the chart
+ * into scattered dots. `vo2max_est` segments on estimator changes instead, which is a different question
+ * about the same line.
+ *
+ * Narrow for the same reason [vitalChartYDomain] is: this changes what a chart asserts, so it applies only
+ * where the assertion has been thought about.
+ */
+internal fun vitalIsDailyCadence(key: String): Boolean =
+    key !in setOf("fitness_age", "vitality", "vo2max_est")
+
+/**
+ * Segment ids that BREAK the line wherever a day has no reading.
+ *
+ * The chart spaces points by index, so a four-day gap is drawn exactly like a one-day step and the line
+ * slopes smoothly through days that were never measured. That is the chart asserting something it does not
+ * know. Breaking the stroke instead says "no reading here" without moving or dropping a single point, which
+ * is why this rides the existing segment mechanism rather than filtering the data.
+ *
+ * Days are consecutive when their keys are one calendar day apart. A non-parsing key never joins a run, so
+ * an unexpected format degrades to more breaks rather than to a confident wrong line.
+ */
+internal fun dailyGapSegmentIds(readings: List<VitalReading>): List<String> {
+    var group = 0
+    var previousDay: java.time.LocalDate? = null
+    return readings.map { reading ->
+        val day = runCatching { java.time.LocalDate.parse(reading.day) }.getOrNull()
+        if (previousDay != null && (day == null || day != previousDay!!.plusDays(1))) group++
+        previousDay = day
+        "gap$group"
+    }
+}
+
 /** Sequential ids for a method-aware trend. Nes → Uth → Nes becomes three segments rather than joining
  *  the non-adjacent Nes runs across an incompatible estimator. */
 internal fun vo2MaxTrendSegmentIds(readings: List<VitalReading>): List<String> {

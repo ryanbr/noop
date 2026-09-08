@@ -110,10 +110,15 @@ private fun pointsFor(
     height: Float,
     topPad: Float,
     bottomPad: Float,
+    yDomain: ClosedFloatingPointRange<Double>? = null,
 ): List<Offset> {
     val clean = values.filter { it.isFinite() }
     if (clean.size < 2 || width <= 0f || height <= 0f) return emptyList()
-    return pointsFor(clean, width, height, topPad, bottomPad, clean.min(), clean.max())
+    // A supplied domain never HIDES a reading: it widens to contain anything outside it, so anchoring can
+    // only ever change the scale, never clip a value off the chart.
+    val lo = yDomain?.let { minOf(it.start, clean.min()) } ?: clean.min()
+    val hi = yDomain?.let { maxOf(it.endInclusive, clean.max()) } ?: clean.max()
+    return pointsFor(clean, width, height, topPad, bottomPad, lo, hi)
 }
 
 private fun pointsFor(
@@ -246,6 +251,21 @@ fun LineChart(
     // Optional sequential line-segment ids, index-aligned with [values]. Adjacent unequal ids break the
     // stroke/fill without dropping either reading; used by VO₂max when its estimator changes.
     segmentIds: List<String>? = null,
+    /**
+     * Optional FIXED y-domain, instead of scaling to the data's own min/max.
+     *
+     * Auto-scaling makes every chart fill its full height whatever the metric actually did, so a Rest
+     * series moving 46..93 on a natural 0..100 scale is drawn exactly as violently as an Effort series
+     * moving 0..42. A reader cannot tell a calm metric from a volatile one, and a single low day rewrites
+     * the whole shape. Where a metric HAS a natural domain, saying so is what makes the height mean
+     * something.
+     *
+     * Default null keeps every existing caller byte-identical: only metrics that genuinely have a fixed
+     * range should pass one. A metric whose interesting variation is a narrow band inside its nominal
+     * range (blood oxygen lives at 90..100) is WORSE anchored, because the real movement flattens to a
+     * line at the top, so this is opt-in per metric rather than "percentages get 0..100".
+     */
+    yDomain: ClosedFloatingPointRange<Double>? = null,
 ) {
     val cleanValues = remember(values) { values.filter { it.isFinite() } }
     // Timestamps filtered by the SAME finiteness cut as cleanValues so indices stay aligned;
@@ -349,7 +369,7 @@ fun LineChart(
                     val strokePx = 2.5f
                     val topPad = strokePx + 4f
                     val bottomPad = strokePx + 4f
-                    val pts = pointsFor(cleanValues, size.width, size.height, topPad, bottomPad)
+                    val pts = pointsFor(cleanValues, size.width, size.height, topPad, bottomPad, yDomain)
                     if (pts.isEmpty()) {
                         onDrawBehind { drawBaseline() }
                     } else {
@@ -392,6 +412,19 @@ fun LineChart(
                             }
                             // The line itself.
                             for (path in linePaths) drawPath(path = path, color = color, style = lineStroke)
+                            // A segment of ONE point strokes nothing: a Path with a moveTo and no lineTo
+                            // draws no pixels. Without this the reading is silently invisible while the
+                            // stats row still counts it, which is exactly what breaking the line on a
+                            // missing day creates: an isolated day between two gaps. On the reported
+                            // Effort series that day was 5 Sep, the fortnight's MAXIMUM.
+                            for (range in segments) {
+                                if (range.first != range.last) continue
+                                drawCircle(
+                                    color = color,
+                                    radius = strokePx * 1.4f,
+                                    center = pts[range.first],
+                                )
+                            }
                             // A one-reading segment has no visible stroke. Method-segmented trends retain
                             // a small point so neither side of a method transition disappears.
                             if (cleanSegmentIds != null) {
@@ -408,7 +441,7 @@ fun LineChart(
                         val strokePx = 2.5f
                         val topPad = strokePx + 4f
                         val bottomPad = strokePx + 4f
-                        val pts = pointsFor(cleanValues, size.width, size.height, topPad, bottomPad)
+                        val pts = pointsFor(cleanValues, size.width, size.height, topPad, bottomPad, yDomain)
                         if (selectedIndex in pts.indices) {
                             val p = pts[selectedIndex]
                             drawLine(
