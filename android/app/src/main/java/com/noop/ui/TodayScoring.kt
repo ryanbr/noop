@@ -69,6 +69,9 @@ internal fun recoveryChargeDrivers(
     val ordered = days.sortedBy { it.day }
     val hrvBase = Baselines.foldHistory(ordered.map { it.avgHrv }, Baselines.hrvCfg)
     if (!hrvBase.usable) return emptyList()
+    // Passed on ungated, unlike respBase below, and that is deliberate since #1988: chargeDrivers
+    // gates this one itself, for its score AND for the row it builds from the baseline directly.
+    // Gating again here would be harmless but would suggest the callee does not, which it does.
     val rhrBase = Baselines.foldHistory(ordered.map { it.restingHr?.toDouble() }, Baselines.restingHRCfg)
     val respBase = Baselines.foldHistory(ordered.map { it.respRateBpm }, Baselines.respCfg).takeIf { it.usable }
 

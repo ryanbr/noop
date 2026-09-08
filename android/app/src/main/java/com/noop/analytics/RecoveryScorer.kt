@@ -293,7 +293,8 @@ object RecoveryScorer {
      * @param resp tonight's respiration (raw or calibrated — z is scale-invariant);
      *   null drops the term.
      * @param hrvBaseline HRV baseline (required for a score).
-     * @param rhrBaseline resting-HR baseline; null drops the RHR term.
+     * @param rhrBaseline resting-HR baseline; null drops the RHR term. On the BaselineState overload an
+     *   UNUSABLE baseline (#1988) is treated as null, so a synthetic cold-start midpoint never scores.
      * @param respBaseline respiration baseline; null drops the resp term.
      * @param sleepPerf sleep-performance proxy (Rest composite 0..1, or efficiency
      *   0..1 for legacy callers); null drops the term.
