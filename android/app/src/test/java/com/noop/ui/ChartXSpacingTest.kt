@@ -105,3 +105,42 @@ class ChartXSpacingTest {
         }
     }
 }
+
+/**
+ * The y geometry, specifically the property the zero FLOOR exists to give: a 0.0 reading sits at the very
+ * bottom of the plot. The first version of the floor broke exactly this. An all-zero series has zero span,
+ * and the zero-span fallback puts a flat line mid-chart, so an all-zero Effort week floated through the
+ * middle while claiming a floor at zero.
+ */
+class ChartFloorTest {
+
+    private val h = 100f
+    private val topPad = 6.5f
+    private val bottomPad = 6.5f
+    private fun yOf(values: List<Double>, domain: ClosedFloatingPointRange<Double>?) =
+        pointsFor(values, 100f, h, topPad, bottomPad, domain).map { it.y }
+
+    /** The bug: every reading zero, with a zero floor, must draw ON the floor and not mid-chart. */
+    @org.junit.Test
+    fun `an all-zero series sits on the floor, not in the middle`() {
+        val y = yOf(listOf(0.0, 0.0, 0.0), 0.0..0.0)
+        val bottom = h - bottomPad
+        y.forEach { org.junit.Assert.assertEquals(bottom, it, 0.01f) }
+    }
+
+    /** A zero reading beside real values also sits on the floor, which is why the floor is there. */
+    @org.junit.Test
+    fun `a zero reading beside real values sits on the floor`() {
+        val y = yOf(listOf(0.0, 42.3), 0.0..0.0)
+        org.junit.Assert.assertEquals(h - bottomPad, y.first(), 0.01f)
+        org.junit.Assert.assertEquals(topPad, y.last(), 0.01f)   // the max reaches the top
+    }
+
+    /** Without a domain a flat series keeps its old mid-chart placement: auto-scaled charts are untouched. */
+    @org.junit.Test
+    fun `a flat auto-scaled series still sits mid-chart`() {
+        val y = yOf(listOf(70.0, 70.0), null)
+        val mid = topPad + 0.5f * (h - topPad - bottomPad)
+        y.forEach { org.junit.Assert.assertEquals(mid, it, 0.01f) }
+    }
+}

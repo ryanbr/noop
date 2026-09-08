@@ -57,7 +57,14 @@ internal fun vitalChartYDomain(key: String): ClosedFloatingPointRange<Double>? =
         // "rest", NOT "sleep_performance": that is the SERIES name this detail reads underneath, and it is
         // never a detail key on Android. Writing the series name here compiled, passed a test asserting it,
         // and left the Rest chart auto-scaling exactly as before.
-        "recovery", "rest", "strain" -> 0.0..100.0
+        // A ZERO-WIDTH domain at 0, not 0..100. The chart widens a domain to contain the data, so this
+        // pins the FLOOR at zero while the ceiling follows the readings.
+        //
+        // Anchoring at 100 was the first attempt and it overcorrected: Effort peaks in the low forties, so
+        // the top ~58% of the chart sat permanently empty, and Rest at 46..93 wasted the bottom half. A
+        // zero floor keeps what actually mattered, that heights stay comparable and a 0.0 day reads as the
+        // floor rather than as the middle, without spending most of the height on range nobody reaches.
+        "recovery", "rest", "strain" -> 0.0..0.0
         else -> null
     }
 
@@ -75,43 +82,6 @@ internal fun dayEpochSeconds(readings: List<VitalReading>): List<Long>? {
         out += day.toEpochDay() * 86_400L
     }
     return out
-}
-
-/**
- * Is this metric EXPECTED to have a reading every day?
- *
- * Only a daily metric can have a "missing day": breaking the line on a gap says a measurement that should
- * be there is not. `fitness_age` and `vitality` come from `metricSeries` and are written only when the
- * engine has the inputs, so they are sparse BY DESIGN and every point would be isolated, turning the chart
- * into scattered dots. `vo2max_est` segments on estimator changes instead, which is a different question
- * about the same line.
- *
- * Narrow for the same reason [vitalChartYDomain] is: this changes what a chart asserts, so it applies only
- * where the assertion has been thought about.
- */
-internal fun vitalIsDailyCadence(key: String): Boolean =
-    key !in setOf("fitness_age", "vitality", "vo2max_est")
-
-/**
- * Segment ids that BREAK the line wherever a day has no reading.
- *
- * The chart spaces points by index, so a four-day gap is drawn exactly like a one-day step and the line
- * slopes smoothly through days that were never measured. That is the chart asserting something it does not
- * know. Breaking the stroke instead says "no reading here" without moving or dropping a single point, which
- * is why this rides the existing segment mechanism rather than filtering the data.
- *
- * Days are consecutive when their keys are one calendar day apart. A non-parsing key never joins a run, so
- * an unexpected format degrades to more breaks rather than to a confident wrong line.
- */
-internal fun dailyGapSegmentIds(readings: List<VitalReading>): List<String> {
-    var group = 0
-    var previousDay: java.time.LocalDate? = null
-    return readings.map { reading ->
-        val day = runCatching { java.time.LocalDate.parse(reading.day) }.getOrNull()
-        if (previousDay != null && (day == null || day != previousDay!!.plusDays(1))) group++
-        previousDay = day
-        "gap$group"
-    }
 }
 
 /** Sequential ids for a method-aware trend. Nes → Uth → Nes becomes three segments rather than joining

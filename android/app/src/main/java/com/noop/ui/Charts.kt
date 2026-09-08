@@ -104,7 +104,7 @@ private fun hypnogramSummary(stages: List<Pair<String, Float>>): String {
 /** Map a list of values into evenly-spaced points within [bounds], scaling y to the
  *  value range. A flat series (min == max) is centered vertically. Returns an empty
  *  list when there are fewer than two finite points. */
-private fun pointsFor(
+internal fun pointsFor(
     values: List<Double>,
     width: Float,
     height: Float,
@@ -118,7 +118,13 @@ private fun pointsFor(
     // A supplied domain never HIDES a reading: it widens to contain anything outside it, so anchoring can
     // only ever change the scale, never clip a value off the chart.
     val lo = yDomain?.let { minOf(it.start, clean.min()) } ?: clean.min()
-    val hi = yDomain?.let { maxOf(it.endInclusive, clean.max()) } ?: clean.max()
+    var hi = yDomain?.let { maxOf(it.endInclusive, clean.max()) } ?: clean.max()
+    // A series that is entirely flat AT the supplied floor would otherwise have zero span, and the
+    // zero-span fallback puts a flat line mid-chart. That is right when the scale came from the data
+    // (a steady 70bpm belongs in the middle) and wrong when a floor was asked for: an all-zero Effort
+    // week must sit ON the floor, which is the whole property the floor exists to give. Widening by one
+    // unit puts it there. Only when a domain was supplied, so auto-scaled charts keep their behaviour.
+    if (yDomain != null && hi <= lo) hi = lo + 1.0
     return pointsFor(clean, width, height, topPad, bottomPad, timestamps, lo, hi)
 }
 
@@ -268,6 +274,16 @@ fun LineChart(
      * line at the top, so this is opt-in per metric rather than "percentages get 0..100".
      */
     yDomain: ClosedFloatingPointRange<Double>? = null,
+    /**
+     * Draw a small marker at every reading.
+     *
+     * A line alone cannot say WHERE the measurements are. On a daily trend with missing days that matters:
+     * a long straight run is either a steady week or one reading either side of a gap, and the line looks
+     * identical. Markers say which, without fragmenting the stroke the way breaking it did.
+     *
+     * Opt-in, so the dense live charts (HR at 1 Hz) are untouched, where a dot per sample would be noise.
+     */
+    showsPoints: Boolean = false,
 ) {
     val cleanValues = remember(values) { values.filter { it.isFinite() } }
     // Timestamps filtered by the SAME finiteness cut as cleanValues so indices stay aligned;
@@ -419,18 +435,13 @@ fun LineChart(
                             }
                             // The line itself.
                             for (path in linePaths) drawPath(path = path, color = color, style = lineStroke)
-                            // A segment of ONE point strokes nothing: a Path with a moveTo and no lineTo
-                            // draws no pixels. Without this the reading is silently invisible while the
-                            // stats row still counts it, which is exactly what breaking the line on a
-                            // missing day creates: an isolated day between two gaps. On the reported
-                            // Effort series that day was 5 Sep, the fortnight's MAXIMUM.
-                            for (range in segments) {
-                                if (range.first != range.last) continue
-                                drawCircle(
-                                    color = color,
-                                    radius = strokePx * 1.4f,
-                                    center = pts[range.first],
-                                )
+                            // Markers only while they can still be told apart. On the ALL range a daily
+                            // series is hundreds of points, and a dot every few pixels merges into a
+                            // thick smear that hides the line it was meant to annotate.
+                            val markerRadius = strokePx * 1.2f
+                            val spacing = if (pts.size > 1) size.width / (pts.size - 1) else size.width
+                            if (showsPoints && spacing >= markerRadius * 3f) {
+                                for (p in pts) drawCircle(color = color, radius = markerRadius, center = p)
                             }
                             // A one-reading segment has no visible stroke. Method-segmented trends retain
                             // a small point so neither side of a method transition disappears.
