@@ -1301,10 +1301,24 @@ fun TodayScreen(
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 LiquidWordmark()
                 // One consistent customization affordance for section order and visibility.
+                //
+                // #2008: reported as "not visible". It was not hidden, it was unreadable as a control:
+                // #486 folded it out of its own pinned row onto the wordmark row, and it kept the
+                // TERTIARY text colour, so the one affordance for rearranging Today sat at the dimmest
+                // tier in the palette beside a decorative 50%-opacity wordmark. Nothing said "button".
+                //
+                // The compact row #486 wanted is kept. What changes is that it now reads as a control:
+                // secondary text on a frosted pill, which is the idiom the rest of Today uses for a
+                // tappable surface. iOS has never had this problem, its twin is a proper header button
+                // (`nativeLiquidGlassHeaderButton`) at a fixed control size.
                 TextButton(
                     onClick = { showLayoutEditor = true },
-                    colors = ButtonDefaults.textButtonColors(contentColor = Palette.textTertiary),
-                    modifier = Modifier.align(Alignment.CenterEnd),
+                    colors = ButtonDefaults.textButtonColors(contentColor = Palette.textSecondary),
+                    contentPadding = PaddingValues(horizontal = Metrics.space10, vertical = Metrics.space4),
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .clip(RoundedCornerShape(50))
+                        .frostedCardSurface(cornerRadius = 999.dp),
                 ) {
                     Icon(
                         Icons.Filled.Tune,
