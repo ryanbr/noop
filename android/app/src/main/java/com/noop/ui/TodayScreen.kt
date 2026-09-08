@@ -2791,12 +2791,12 @@ private fun HeroRingColumn(
     domain: DomainTheme,
     onInfo: () -> Unit,
     modifier: Modifier = Modifier,
-    // A1: when non-null the ring is tappable , Charge opens the breakdown sheet, Effort and Rest open
+    // A1: when non-null the ring is tappable. Charge opens the breakdown sheet; Effort and Rest open
     // their metric detail (#1995). The chevron cue is overlaid by the caller INSIDE the ring box so it
     // adds no stacked height (#762 self-sizing parity).
     //
     // This wires the tap for the ring's SURROUND and for TalkBack (which activates the semantics node
-    // directly). A touch that lands on the vessel itself never reaches here , see the onTap the callers
+    // directly). A touch that lands on the vessel itself never reaches here: see the onTap the callers
     // hand to HeroScoreVessel.
     onRingTap: (() -> Unit)? = null,
     // Charge's ring opens a breakdown, so "see what shaped" is honest there. Effort and Rest open a

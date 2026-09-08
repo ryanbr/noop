@@ -1033,7 +1033,10 @@ struct LiquidTodayView: View {
     private func cardLinkBody(title: String, sub: String, value: String,
                               tint: Color, frac: Double?) -> some View {
         HStack(spacing: 12) {
-                LiquidVessel(value: frac, tint: tint, animated: false).frame(width: 30, height: 30)
+                // tapPassesThrough: the vessel's splash gesture would otherwise swallow the enclosing
+                // Button's tap, leaving a dead 30pt disc on the leading edge of a tappable card row.
+                LiquidVessel(value: frac, tint: tint, animated: false, tapPassesThrough: true)
+                    .frame(width: 30, height: 30)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title.uppercased()).font(StrandFont.overlineScaled(11)).tracking(1.0)
                         .foregroundStyle(StrandPalette.textPrimary)
@@ -1198,7 +1201,9 @@ struct LiquidTodayView: View {
     private func vitalRowBody(_ label: String, _ value: String, _ tint: Color, _ frac: Double?,
                               linked: Bool) -> some View {
         HStack(spacing: 12) {
-            LiquidVessel(value: frac, tint: tint, animated: false).frame(width: 26, height: 26)
+            // Same as cardLinkBody: without this the disc eats the row's NavigationLink tap.
+            LiquidVessel(value: frac, tint: tint, animated: false, tapPassesThrough: true)
+                .frame(width: 26, height: 26)
             Text(label).font(StrandFont.subhead).foregroundStyle(StrandPalette.textSecondary)
             Spacer()
             Text(value).font(StrandFont.number(15)).foregroundStyle(StrandPalette.textPrimary)

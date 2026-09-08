@@ -76,12 +76,18 @@ fun LiquidVessel(
     tint: Color,
     animated: Boolean = true,
     modifier: Modifier = Modifier,
-    // #1995: run alongside the splash when the vessel is the tap target for something.
+    // Runs when the vessel itself is tapped. ANY caller that wraps a vessel in a clickable parent has to
+    // hand that same action down here as well.
     //
-    // The vessel owns a `clickable` for its splash, and in Compose a child's clickable CONSUMES the
-    // event, so a clickable parent never sees it. That silently broke the hero Charge ring: the column
-    // wrapped the vessel in a clickable Box and the tap never arrived. Passing the action IN, rather
-    // than wrapping the vessel, is what makes the ring both splash and act.
+    // On the animated render the vessel owns a `clickable` for its splash, and in Compose a child's
+    // clickable CONSUMES the event, so the clickable parent never sees a touch that lands on the vessel.
+    // The hero rings and the Coupled cards were wrapped rather than wired, so their taps went nowhere.
+    // Passing the action IN, instead of wrapping, is what lets one tap both splash and act.
+    //
+    // `onTap` SUPPLEMENTS a clickable parent, it does not replace one. The still render (reduce-motion,
+    // power-save, quiet motion, or `animated = false`) attaches no clickable at all, so there a tap
+    // reaches the parent by itself. That is why the rings kept working for anyone with reduced motion,
+    // and why this went unnoticed for so long.
     onTap: (() -> Unit)? = null,
 ) {
     val renderStill = rememberPoseStill()
@@ -121,11 +127,12 @@ fun LiquidVessel(
                     interactionSource = remember { MutableInteractionSource() },
                 ) {
                     sim.splash(12)
-                    onTap?.invoke()
                     // A LIGHT tap impact, matching iOS `.sensoryFeedback(.impact(weight: .light))`. Compose's
                     // HapticFeedbackType on this BOM only offers LongPress (heavy) / TextHandleMove, so route a
                     // light KEYBOARD_TAP through the platform view — the closest available light-impact tick.
                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    // Last: the splash and the tick are local feedback, and the action may navigate away.
+                    onTap?.invoke()
                 },
         ) {
             sim.step(now = seconds, tilt = LiquidMotion.shared.tilt, target = value ?: 0.0)
@@ -134,6 +141,9 @@ fun LiquidVessel(
     } else {
         // One-shot, cached render — posed at the fill line, no clock, no motion acquire.
         val posed = remember(value) { LiquidSim.posed(value ?: 0.0) }
+        // Deliberately NO clickable here: this branch has no splash to swallow with, so a tap falls
+        // straight through to whatever clickable parent the caller wrapped it in, which is the behaviour
+        // every caller already wants. Adding one would only take the parent's press animation away.
         Canvas(modifier = modifier.aspectRatio(1f)) {
             with(LiquidRender) { vessel(size = size, sim = posed, now = 0.0, tint = tint) }
         }

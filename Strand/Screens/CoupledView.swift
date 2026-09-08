@@ -408,8 +408,11 @@ struct CoupledView: View {
                         // Left: the SLEEP PERFORMANCE % as the liquid vessel (Rest world), with the score
                         // counting up over the fluid. Empty vessel when there's no scored performance.
                         ZStack {
+                            // heroCard opts its vessel out of hit testing so the Button owns the tap;
+                            // this ring keeps its splash instead and lets the NavigationLink run alongside.
                             LiquidVessel(value: sleepPerformance.map { max(0, min(1, $0 / 100)) },
-                                         tint: StrandPalette.restColor, animated: false)
+                                         tint: StrandPalette.restColor, animated: false,
+                                         tapPassesThrough: true)
                                 .frame(width: 88, height: 88)
                             if let p = sleepPerformance {
                                 CountUpText(value: p,

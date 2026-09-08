@@ -344,6 +344,8 @@ private fun HeroCard(
                         modifier = Modifier
                             .size(232.dp)
                             .alpha(if (isCarrying) 0.8f else 1f),
+                        // Without this the whole 232dp ring, which is most of the card, is a dead zone.
+                        onTap = onTap,
                     )
                     HeroCentre(recovery = recovery, readinessLevel = readinessLevel)
                 }
@@ -582,6 +584,7 @@ private fun SleepCard(
                     tint = Palette.restColor,
                     animated = sleepPerformance != null,
                     modifier = Modifier.size(96.dp),
+                    onTap = onOpenSleep,
                 )
                 if (sleepPerformance != null) {
                     CountUpText(
