@@ -659,7 +659,8 @@ struct LiquidTodayView: View {
             // Activity (`Repository.widgetAnchor`) and Android. Effort deliberately does NOT carry — it is
             // today's own accumulation, so yesterday's number would be a false statement, not a stale one.
             HeroScoreCell(label: String(localized: "Charge"), score: chargeDisplay.pct, tint: StrandPalette.chargeColor,
-                          animated: dataLoaded, onGuide: { guideSection = .charge })
+                          animated: dataLoaded, onGuide: { guideSection = .charge },
+                          detailRoute: .metric("recovery"))
             // #45: the hero Effort must honour the user's Effort scale like every other Effort read-out.
             // Show the value on the chosen scale (0–100 or WHOOP 0–21) with the matching vessel max, and
             // one decimal on the compressed 0–21 axis to match the app-wide `effortDisplay` convention
@@ -669,9 +670,11 @@ struct LiquidTodayView: View {
                           tint: StrandPalette.effortColor, animated: dataLoaded,
                           onGuide: { guideSection = .effort },
                           maxValue: effortScale == .whoop ? 21 : 100,
-                          decimals: effortScale == .whoop ? 1 : 0)
+                          decimals: effortScale == .whoop ? 1 : 0,
+                          detailRoute: .metric("strain"))
             HeroScoreCell(label: String(localized: "Rest"), score: restScore, tint: StrandPalette.restColor,
-                          animated: dataLoaded, onGuide: { guideSection = .rest })
+                          animated: dataLoaded, onGuide: { guideSection = .rest },
+                          detailRoute: .metric("sleep_performance"))
                 .overlay(alignment: .top) {
                     if let sourceLabel = heroSourceLabel {
                         SourceBadge("\(sourceLabel)", tint: StrandPalette.textSecondary)
@@ -2055,17 +2058,52 @@ private struct HeroScoreCell: View {
     // Decimal places for the displayed number. 0 keeps the whole-number scores; the WHOOP 0–21 Effort
     // scale passes 1 to match the app-wide one-decimal `effortDisplay` convention (#45).
     var decimals: Int = 0
+    /// Where the GAUGE taps through to, or nil to keep the ring inert (#1995).
+    ///
+    /// Same `TabRoute.metric(key)` the Recovery Vitals rows use, so a ring and the Key-Metrics tile for
+    /// the same score land on the identical dossier rather than diverging. The LABEL keeps its own job:
+    /// it opens the scoring guide, which is this screen's only route to that explainer.
+    var detailRoute: TabRoute? = nil
+
+    /// The gauge, linked when there is somewhere to go.
+    ///
+    /// Built here rather than inline so the linked and plain forms stay in one place and the body reads
+    /// as three stacked elements rather than a branch.
+    @ViewBuilder
+    private var gaugeView: some View {
+        let gauge = LiquidScoreGauge(
+            score: score,
+            tint: tint,
+            diameter: Self.vesselDiameter,
+            animated: animated,
+            maxValue: maxValue,
+            decimals: decimals,
+            tapPassesThrough: detailRoute != nil
+        )
+        if let detailRoute {
+            NavigationLink(value: detailRoute) { gauge }
+                .buttonStyle(LiquidPressStyle())
+                // The ring is what shows the NUMBER, so its spoken label carries the number too. Without
+                // this a VoiceOver user hears only the metric name on the element displaying the value,
+                // while the label below it reads the score, which is backwards.
+                .accessibilityLabel(Text("\(label), \(spokenScore)"))
+                .accessibilityHint(Text("Opens the trend and readings"))
+        } else {
+            gauge
+        }
+    }
+
+    /// The score as VoiceOver should say it, matching the label row's own phrasing.
+    private var spokenScore: String {
+        guard let score else { return String(localized: "no data yet") }
+        return decimals > 0
+            ? String(format: "%.\(decimals)f", locale: AppLanguage.activeLocale, score)
+            : String(Int(score.rounded()))
+    }
 
     var body: some View {
         VStack(spacing: 7) {
-            LiquidScoreGauge(
-                score: score,
-                tint: tint,
-                diameter: Self.vesselDiameter,
-                animated: animated,
-                maxValue: maxValue,
-                decimals: decimals
-            )
+            gaugeView
             Button(action: onGuide) {
                 HStack(spacing: 3) {
                     // #74: one line, shrink-to-fit rather than wrap under large Dynamic Type (mirrors the
@@ -2079,7 +2117,7 @@ private struct HeroScoreCell: View {
                 .foregroundStyle(StrandPalette.textSecondary)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(Text("\(label), \(score.map { decimals > 0 ? String(format: "%.\(decimals)f", locale: AppLanguage.activeLocale, $0) : String(Int($0.rounded())) } ?? String(localized: "no data yet")). See how it is scored."))
+            .accessibilityLabel(Text("\(label), \(spokenScore). See how it is scored."))
         }
         .frame(maxWidth: .infinity)
     }

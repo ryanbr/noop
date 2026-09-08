@@ -2771,4 +2771,6 @@
     <string name="units_kilometres">Kilometres</string>
     <string name="units_miles">Miles</string>
     <string name="units_follow_body">Follow body</string>
+    <string name="l10n_today_screen_see_the_charge_trend_9dcbcff7">See the Charge trend</string>
+    <string name="l10n_today_screen_every_day_s_score_over_time_a00ea7c7">Every day\'s score, over time.</string>
 </resources>

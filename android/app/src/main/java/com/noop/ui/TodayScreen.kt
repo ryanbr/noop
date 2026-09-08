@@ -35,6 +35,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.Accessibility
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Air
@@ -1515,6 +1516,7 @@ fun TodayScreen(
                                         historyPendingSync = live.historyPendingSync,
                                         isTodaySelected = selectedDayOffset == 0,
                                     ),
+                                    onOpenMetric = onOpenMetric,
                                 )
                             }
                             // Honest "why is Effort 0?" caption — only when today's Effort is a real
@@ -1802,6 +1804,10 @@ fun TodayScreen(
                 onHowCalculated = {
                     showChargeBreakdown = false
                     openGuide(ScoreSection.CHARGE)
+                },
+                onOpenTrend = {
+                    showChargeBreakdown = false
+                    onOpenMetric(HERO_CHARGE_METRIC_KEY)
                 },
             )
         }
@@ -2553,6 +2559,16 @@ private fun LiquidWordmark() {
     }
 }
 
+/// Vital-detail keys the hero rings open (#1995).
+///
+/// These are the keys `VitalDetailScreen`'s `when` accepts, NOT the metricSeries keys. Rest is the
+/// difference that bites: its detail key is "rest" while the series underneath it is
+/// "sleep_performance", which is what iOS routes on. An unknown key falls through that `when` to a null
+/// model and renders an empty screen, so the pairing is pinned by `HeroRingMetricKeyTest`.
+internal const val HERO_CHARGE_METRIC_KEY = "recovery"
+internal const val HERO_EFFORT_METRIC_KEY = "strain"
+internal const val HERO_REST_METRIC_KEY = "rest"
+
 // MARK: - Score hero row, three Charge / Effort / Rest score vessels
 //
 // The liquid Today hero: three equal daily-score vessels in Charge / Effort / Rest order, with a tappable
@@ -2575,6 +2591,11 @@ private fun ScoreHeroRow(
     // #1164: pending-sync state for today's Rest (strap has banked records not yet offloaded). When true
     // the Rest vessel shows "Pending sync" instead of a provisional number that will change.
     restPendingSync: Boolean = false,
+    // #1995: tapping the Effort or Rest ring opens that score's own vital detail, the same trend the
+    // metric cards below already push, so the ring and its card can never lead to different screens.
+    // Charge keeps `onChargeTap` (its breakdown sheet), which is richer than a trend and has no twin on
+    // the iOS liquid Today. Defaulted to a no-op so the ring stays inert where a host does not bind it.
+    onOpenMetric: ((String) -> Unit)? = null,
 ) {
     val recovery = day?.recovery
     // Prefer the live in-progress Effort for today, but never BELOW the day's already-earned strain
@@ -2672,6 +2693,7 @@ private fun ScoreHeroRow(
                     modifier = Modifier.width(col),
                     domain = DomainTheme.Effort,
                     onInfo = { onScoreInfo(ScoreSection.EFFORT) },
+                    onRingTap = onOpenMetric?.let { open -> { open(HERO_EFFORT_METRIC_KEY) } },
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         HeroScoreVessel(
@@ -2693,6 +2715,7 @@ private fun ScoreHeroRow(
                         modifier = Modifier.width(col),
                         domain = DomainTheme.Rest,
                         onInfo = { onScoreInfo(ScoreSection.REST) },
+                        onRingTap = onOpenMetric?.let { open -> { open(HERO_REST_METRIC_KEY) } },
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             HeroScoreVessel(
@@ -4636,6 +4659,15 @@ internal fun ChargeBreakdownSheet(
     showReadiness: Boolean,
     onClose: () -> Unit,
     onHowCalculated: () -> Unit,
+    // #1995: the Charge ring opens THIS sheet rather than the trend, because the sheet's other entry
+    // (the Synthesis card) sits in a section the user can hide, so routing the ring away could orphan it.
+    // The trend is therefore reachable from inside, which keeps every hero ring leading to its own
+    // score's detail while Charge's stays the richer one.
+    //
+    // Null renders NO row, which is why CoupledScreen passes nothing: that screen has no metric
+    // navigation at all, so a link there would be a dead one. A host that cannot go somewhere should
+    // not offer to.
+    onOpenTrend: (() -> Unit)? = null,
 ) {
     Surface(modifier = Modifier.fillMaxSize(), color = Palette.surfaceBase) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -4670,6 +4702,49 @@ internal fun ChargeBreakdownSheet(
                 // S4: the SEPARATE Readiness block now lives here behind the Charge-ring tap (today-only,
                 // matching the old inline gate). A one-word read (Push / Maintain / Rest) stays on the hero.
                 if (showReadiness) ReadinessSection(days, carriedDay = carriedDay)
+                onOpenTrend?.let { openTrend ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .clickable(
+                                onClickLabel = uiString(R.string.l10n_today_screen_see_the_charge_trend_9dcbcff7),
+                                onClick = openTrend,
+                            )
+                            .background(Palette.surfaceInset)
+                            .padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ShowChart,
+                            contentDescription = null,
+                            tint = DomainTheme.Charge.color,
+                            modifier = Modifier.size(14.dp),
+                        )
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(1.dp),
+                        ) {
+                            Text(
+                                uiString(R.string.l10n_today_screen_see_the_charge_trend_9dcbcff7),
+                                style = NoopType.subhead,
+                                color = Palette.textPrimary,
+                            )
+                            Text(
+                                uiString(R.string.l10n_today_screen_every_day_s_score_over_time_a00ea7c7),
+                                style = NoopType.caption,
+                                color = Palette.textTertiary,
+                            )
+                        }
+                        Icon(
+                            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = null,
+                            tint = Palette.textTertiary,
+                            modifier = Modifier.size(12.dp),
+                        )
+                    }
+                }
                 // Everything above is what shaped YOUR Charge today; this opens the general METHOD behind the
                 // score, so the two are clearly separated, not conflated. Opens the scoring guide at the
                 // Charge section, the same target the per-ring ⓘ buttons use. Mirrors the iOS chargeBreakdown

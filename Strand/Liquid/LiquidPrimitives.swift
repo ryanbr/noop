@@ -211,6 +211,25 @@ enum LiquidRender {
 
 // MARK: - Views
 
+/// Applies the splash tap either as a normal tap (consuming it) or as a simultaneous gesture (sharing
+/// it with whatever wraps the view).
+///
+/// A plain `onTapGesture` inside a `NavigationLink` swallows the tap, so the link never pushes. That is
+/// why the hero rings could splash but not navigate. `simultaneousGesture` lets both run, which is the
+/// behaviour a tappable gauge wants; standalone vessels keep the consuming tap so nothing else changes.
+private struct LiquidSplashTap: ViewModifier {
+    let passesThrough: Bool
+    let action: () -> Void
+
+    func body(content: Content) -> some View {
+        if passesThrough {
+            content.simultaneousGesture(TapGesture().onEnded { action() })
+        } else {
+            content.onTapGesture { action() }
+        }
+    }
+}
+
 /// A circular liquid gauge. `value` is 0...1 (nil = empty/no-data). Tap → splash.
 ///
 /// `animated: false` renders a single static frame (no TimelineView, no CoreMotion) — the small
@@ -220,16 +239,24 @@ struct LiquidVessel: View {
     let value: Double?
     let tint: Color
     var animated: Bool = true
+    /// When the vessel sits inside a NavigationLink or Button, the splash tap must not CONSUME the
+    /// tap or the wrapping control never fires. Opt in and the splash runs as a simultaneous gesture
+    /// instead, so both happen: the liquid still splashes and the link still pushes. Default false
+    /// keeps every standalone vessel byte-identical (#1995).
+    var tapPassesThrough: Bool = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject private var motion = NoopMotionState.shared
     @State private var sim: LiquidSim
     @State private var splashes = 0
 
-    init(value: Double?, tint: Color, animated: Bool = true) {
+    // The custom init exists to seed `_sim` from `value`, which also means the memberwise init is NOT
+    // synthesised: any new stored property has to be threaded through here or callers cannot pass it.
+    init(value: Double?, tint: Color, animated: Bool = true, tapPassesThrough: Bool = false) {
         self.value = value
         self.tint = tint
         self.animated = animated
+        self.tapPassesThrough = tapPassesThrough
         _sim = State(initialValue: LiquidSim(target: value ?? 0))
     }
 
@@ -250,7 +277,7 @@ struct LiquidVessel: View {
         }
         .aspectRatio(1, contentMode: .fit)
         .contentShape(Circle())
-        .onTapGesture { sim.splash(12); splashes &+= 1 }
+        .modifier(LiquidSplashTap(passesThrough: tapPassesThrough) { sim.splash(12); splashes &+= 1 })
         .liquidTapHaptic(trigger: splashes)   // light tap feedback (guarded so the primitives compile on macOS 13)
         .onAppear { LiquidMotion.shared.acquire() }
         .onDisappear { LiquidMotion.shared.release() }
@@ -425,6 +452,8 @@ struct LiquidScoreGauge: View {
     var captionText: String? = nil
     var numberColor: Color = StrandPalette.textPrimary
     var captionColor: Color = StrandPalette.textTertiary
+    /// Forwarded to `LiquidVessel` so a gauge inside a link still splashes AND still navigates (#1995).
+    var tapPassesThrough: Bool = false
 
     @State private var shown: Double = 0
 
@@ -434,7 +463,8 @@ struct LiquidScoreGauge: View {
 
     var body: some View {
         ZStack {
-            LiquidVessel(value: frac, tint: tint, animated: animated)
+            LiquidVessel(value: frac, tint: tint, animated: animated,
+                         tapPassesThrough: tapPassesThrough)
                 .frame(width: diameter, height: diameter)
             VStack(spacing: captionText == nil ? 0 : 1) {
                 Group {

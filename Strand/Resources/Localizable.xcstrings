@@ -210232,6 +210232,17 @@
         "ru": {"stringUnit": {"state": "translated", "value": "Пересчитывает абсолютные °C для ночей, до которых не доходит окно в 21 ночь, тем же алгоритмом, что и обычный расчёт. Только заполняет: измеренное значение никогда не перезаписывается. Результат смотрите в журнале ремешка."}},
         "zh-Hans": {"stringUnit": {"state": "translated", "value": "用与评分流程相同的漏斗，为 21 晚窗口未覆盖的夜晚重新推导绝对温度（°C）。仅填充：绝不覆盖已测量的值。结果见腕带日志。"}},
         "zh-Hant": {"stringUnit": {"state": "translated", "value": "以與評分流程相同的漏斗，為 21 晚視窗未涵蓋的夜晚重新推導絕對溫度（°C）。僅填充：絕不覆寫已測量的值。結果見腕帶日誌。"}}
+    } },
+    "Opens the trend and readings": { "localizations": {
+        "de": {"stringUnit": {"state": "translated", "value": "Öffnet den Trend und die Messwerte"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Abre la tendencia y las lecturas"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Ouvre la tendance et les relevés"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Apre l'andamento e le letture"}},
+        "pl": {"stringUnit": {"state": "translated", "value": "Otwiera trend i odczyty"}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "Abre a tendência e as leituras"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Открывает тренд и показания"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "打开趋势和读数"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "開啟趨勢與讀數"}}
     } }
   },
   "version": "1.0"
