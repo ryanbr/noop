@@ -143,6 +143,74 @@ class BondRefusalGiveUp(
                 "please share your strap log."
 
         /**
+         * #1997: which reconnect guide the never-bonded pause should show.
+         *
+         * Pure so the SELECTION is pinned and not just the two texts. Testing a predicate and a string
+         * separately proves neither is wired to the other, and an inline `if` in a BLE callback cannot be
+         * reached from a JVM test at all. Same shape as the other decisions in this file.
+         */
+        fun reconnectGuideFor(heldLink: Boolean): String =
+            if (heldLink) heldLinkGuide() else stalePairingGuide()
+
+        /**
+         * The long-standing guide: a stale pairing, or the official app holding the strap. Correct advice
+         * when the strap really is refusing, and the default whenever there is no evidence of a held link.
+         */
+        fun stalePairingGuide(): String =
+            """
+            Your strap connects but never finishes pairing with NOOP, so it drops and retries in a loop. This is almost always a stale Bluetooth pairing, usually after a WHOOP firmware update, or the official WHOOP app holding the strap. NOOP works fine once it's re-paired:
+
+            1. Quit the official WHOOP app (or turn off Bluetooth on that phone).
+            2. Open Settings → Bluetooth, find your WHOOP, and Forget / Unpair it.
+            3. Tap the band repeatedly until its LEDs flash blue (pairing mode).
+            4. Come back here and tap Connect.
+            """.trimIndent()
+
+        /**
+         * #1997: the reconnect GUIDE for a held link, replacing the re-pair steps for this state only.
+         *
+         * The re-pair guide's four steps are the right advice when a stale pairing is the cause. They are
+         * actively harmful here: nothing was exchanged for the strap to refuse, so forgetting the pairing
+         * and re-pairing changes nothing, and the reporter was doing it several times a day.
+         *
+         * Auto-reconnect still pauses, which is what stops both batteries draining on a retry loop. Only
+         * the explanation and the actions change.
+         */
+        fun heldLinkGuide(): String =
+            """
+            Your phone is still holding a Bluetooth connection to your strap, and your strap is not
+            answering on it: the connection size negotiation is refused and no data arrives. Re-pairing
+            will not change this, so it is not worth doing.
+
+            1. If the official WHOOP app is running, quit it. A strap talks to one phone at a time.
+            2. Otherwise turn Bluetooth off and back on, which releases the held connection.
+            3. Come back here and tap Connect.
+            """.trimIndent()
+
+        /**
+         * #1997: the paused hint for a link the OS was already HOLDING, rather than a strap refusing.
+         *
+         * [pausedHintHandshakeUnanswered] deliberately declines to name a cause, and that is right for an
+         * unanswered handshake: several things produce it and "close the WHOOP app" would be a guess
+         * dressed as instruction. This branch exists because there IS evidence. The MTU exchange was
+         * refused, which happens when it already took place on a connection the phone still holds, and not
+         * one frame arrived on the link. Naming what was observed is then reporting, not guessing.
+         *
+         * It still does not assert WHICH owner holds the link, because NOOP cannot see that. It names the
+         * two candidates and the actions that belong to the user. Crucially it does NOT send them to
+         * re-pair: nothing was exchanged for the strap to refuse, so re-pairing cannot change this state,
+         * and the reporter had been doing exactly that on a loop.
+         *
+         * Pure; no em-dash.
+         */
+        fun pausedHintLinkHeld(): String =
+            "NOOP stopped retrying because the phone's Bluetooth is still holding a connection to your " +
+                "strap that the strap is not answering on: the connection size negotiation is refused and " +
+                "no data arrives. Re-pairing will not change this, so it is not worth doing. If the " +
+                "official WHOOP app is running, quit it. Otherwise turn Bluetooth off and on again, which " +
+                "releases the held connection. Then tap Connect."
+
+        /**
          * #750: a short OPAQUE token for the epitaph, derived from the strap's device id.
          *
          * DIVERGENCE FROM SWIFT (deliberate, PII): on iOS the source is a CoreBluetooth-local UUID

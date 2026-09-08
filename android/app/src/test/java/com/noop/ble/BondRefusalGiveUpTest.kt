@@ -2,6 +2,7 @@ package com.noop.ble
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -100,5 +101,86 @@ class BondRefusalGiveUpTest {
         assertEquals(5, g.giveUpThreshold)
         repeat(4) { assertFalse(g.recordRefusal()) }
         assertTrue(g.recordRefusal())
+    }
+
+    // --- #1997: the held-link hint ---
+
+    /**
+     * The whole point of this branch: it must NOT send the user to re-pair. The reporter was re-pairing
+     * and rebooting on a loop because the generic guide told them to, for a state where nothing was
+     * exchanged for the strap to refuse.
+     */
+    @Test
+    fun `the held-link hint does not tell the user to re-pair`() {
+        val h = BondRefusalGiveUp.pausedHintLinkHeld().lowercase()
+        // It DOES say the word, to rule the action out. What it must not do is instruct it: no Forget,
+        // no Unpair, no numbered steps. Asserting the word is absent was wrong and this test caught it.
+        assertTrue(h, h.contains("re-pairing will not change this"))
+        assertFalse(h, h.contains("forget"))
+        assertFalse(h, h.contains("unpair"))
+        assertFalse(h, h.contains("1."))
+    }
+
+    /**
+     * It names both candidate owners and the action for each, without asserting WHICH holds the link,
+     * because NOOP cannot see that. Naming the observation is reporting; naming the owner would be a
+     * guess, which is the standard `pausedHintHandshakeUnanswered` already sets.
+     */
+    @Test
+    fun `the held-link hint offers both actions without claiming which owner holds it`() {
+        val h = BondRefusalGiveUp.pausedHintLinkHeld().lowercase()
+        assertTrue(h, h.contains("whoop app"))
+        assertTrue(h, h.contains("bluetooth off and on"))
+        assertFalse(h, h.contains("is holding it"))
+    }
+
+    /** Distinct from the generic hint, or the more specific observation would be invisible. */
+    @Test
+    fun `the held-link hint is not the unanswered-handshake hint`() {
+        assertNotEquals(
+            BondRefusalGiveUp.pausedHintHandshakeUnanswered(),
+            BondRefusalGiveUp.pausedHintLinkHeld(),
+        )
+    }
+
+    /**
+     * The guide is what the user actually sees, and it is where the harm was: the re-pair steps sent the
+     * reporter to forget and re-pair several times a day for a state re-pairing cannot change.
+     */
+    @Test
+    fun `the held-link guide replaces the re-pair steps rather than repeating them`() {
+        // Collapse the wrapping: the assertion is about what the guide SAYS, and a phrase that happens to
+        // straddle a line break is still said. Matching the raw string pinned the wrapping instead.
+        val g = BondRefusalGiveUp.heldLinkGuide().lowercase().replace(Regex("\\s+"), " ")
+        assertTrue(g, g.contains("re-pairing will not change this"))
+        assertFalse(g, g.contains("forget"))
+        assertFalse(g, g.contains("unpair"))
+        assertFalse(g, g.contains("flash blue"))
+        // and it still gives them something to do
+        assertTrue(g, g.contains("quit it"))
+        assertTrue(g, g.contains("bluetooth off and back on"))
+    }
+
+    /**
+     * The SELECTION, not just the two texts. Pinning a predicate and a string separately proves neither
+     * is wired to the other, which is how a fix ends up unreachable in the case it was written for.
+     */
+    @Test
+    fun `a held link selects the held-link guide, and anything else keeps the stale-pairing one`() {
+        assertEquals(BondRefusalGiveUp.heldLinkGuide(), BondRefusalGiveUp.reconnectGuideFor(heldLink = true))
+        assertEquals(BondRefusalGiveUp.stalePairingGuide(), BondRefusalGiveUp.reconnectGuideFor(heldLink = false))
+    }
+
+    /**
+     * The default path is unchanged copy. This guide was moved out of the BLE callback to make the
+     * selection testable, and a move must not edit what the user reads: an arrow was silently turned into
+     * a ">" during the extraction and this is what would have caught it.
+     */
+    @Test
+    fun `the stale-pairing guide still says exactly what it said`() {
+        val g = BondRefusalGiveUp.stalePairingGuide()
+        assertTrue(g, g.contains("Open Settings → Bluetooth, find your WHOOP, and Forget / Unpair it."))
+        assertTrue(g, g.contains("Tap the band repeatedly until its LEDs flash blue (pairing mode)."))
+        assertTrue(g, g.startsWith("Your strap connects but never finishes pairing with NOOP"))
     }
 }

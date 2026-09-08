@@ -1045,6 +1045,23 @@ class WhoopBleClient(
         ): Boolean = wasConnected && !didBond && !intentionalDisconnect && !staleDirectBond &&
             status != GATT_CONN_TERMINATE_LOCAL_HOST && !alreadyPausedForBondLoop && !helloSuppressed
 
+        /**
+         * #1997: was this link one the strap never spoke on, on a connection the OS was already holding?
+         *
+         * The MTU exchange is refused (non-zero status, so the link sits at the 23-byte default) and not a
+         * single frame arrived. On the reporting device every re-attach looked exactly like this while the
+         * one link that negotiated 247 carried traffic, so this is the shape of attaching to a stale
+         * connection rather than of a strap declining to pair.
+         *
+         * This selects the GUIDE, and deliberately does NOT gate the pause. Excluding these links from
+         * [shouldCountNeverBondedSelfDrop] was the first shape of this fix and it was wrong: CLIENT_HELLO
+         * is 5/MG only, so on the reporter's WHOOP 4.0 nothing else would have bounded the loop, and the
+         * connect-drop-retry cycle would have run forever draining both batteries. That is the exact
+         * failure #982 exists to prevent. The pause is right; only the explanation was wrong.
+         */
+        internal fun heldLinkWithoutTraffic(mtuStatus: Int, inboundFrames: Int): Boolean =
+            mtuStatus != 0 && inboundFrames == 0
+
         /** Pure guard for a delayed service-discovery kick. The operation belongs only to the exact
          *  connection that scheduled it, and a temporarily-missing GATT wrapper must not consume the
          *  once-only claim. Kept pure because local JVM tests cannot instantiate BluetoothGatt. */
@@ -6495,6 +6512,12 @@ class WhoopBleClient(
                 it.copy(pairingHint = when {
                     suppress -> BondRefusalGiveUp.helloSuppressedHint()
                     authRefusal -> BondRefusalGiveUp.pausedHint()
+                    // #1997: BEFORE the unanswered-handshake hint, because this is the more specific
+                    // observation. A refused MTU exchange with no inbound traffic says the link is held
+                    // and the strap is not on it, which the generic hint cannot say and which changes
+                    // what the user should do: not re-pair.
+                    heldLinkWithoutTraffic(lastMtuStatus, inboundFrames) ->
+                        BondRefusalGiveUp.pausedHintLinkHeld()
                     else -> BondRefusalGiveUp.pausedHintHandshakeUnanswered()
                 })
             }
@@ -6551,6 +6574,21 @@ class WhoopBleClient(
      *  the duplicate could re-enter discovery and leave every later CCCD write BUSY. Keep the dedup for
      *  stable telemetry and to avoid repeating any future callback-side work. */
     private var lastMtuValue = -1
+
+    /**
+     * #1997: the status the last MTU exchange reported, and the reason a refused one matters.
+     *
+     * A re-attach to a link the OS still holds answers the MTU request with a non-zero status and leaves
+     * the link at the 23-byte default. On the reporter's log every such link then carried ZERO inbound
+     * frames, while the one link that negotiated 247 carried traffic. So a refused exchange is a cheap,
+     * early tell that this link is not one the strap is actually talking on.
+     *
+     * Plain `var`, like [lastMtuValue] and `lastMtuAtMs` beside it, which are written in the same callback
+     * and read on the same paths. Marking only this one `@Volatile` would advertise a thread-safety
+     * property it cannot deliver: it is read in a single expression with `inboundFrames`, also a plain
+     * var, so the pair would be no more coherent than before while looking as though it had been made so.
+     */
+    private var lastMtuStatus = 0
     private var lastMtuAtMs = 0L
 
     /** #1066 follow-up: wall-clock of the `requestMtu` attempt, so `onMtuChanged` can log how long the MTU
@@ -6798,6 +6836,7 @@ class WhoopBleClient(
             }
             lastMtuValue = mtu
             lastMtuAtMs = now
+            lastMtuStatus = status
             // Whatever the strap granted (≤ requested). Telemetry only: Android can emit this callback
             // for the connection itself as well as requestMtu, without saying which. Starting discovery
             // here can overlap the still-running MTU operation and wedge service discovery.
@@ -6805,7 +6844,16 @@ class WhoopBleClient(
             // capture reveals how much headroom that 1.5s has before discovery. -1 when no request preceded
             // this callback (a bare connection-event MTU).
             val settledMs = if (mtuRequestedAtMs > 0L) now - mtuRequestedAtMs else -1L
-            log("MTU negotiated: $mtu (status=$status)" +
+            // #1997: a refused exchange has to READ as refused. "MTU negotiated: 23 (status=4)" looks like
+            // a result, and a triager has to already know that 23 is the default the link falls back to.
+            val mtuOutcome = if (status == BluetoothGatt.GATT_SUCCESS) {
+                // Unchanged on the healthy path: this line appears in every connection log and dropping
+                // its status would be a change nobody asked for. Only the refusal renders differently.
+                "MTU negotiated: $mtu (status=$status)"
+            } else {
+                "MTU exchange REFUSED (${gattStatusLabel(status)}) — link stays at the $mtu-byte default"
+            }
+            log(mtuOutcome +
                 if (settledMs >= 0L) " — settled ${settledMs}ms after request (fixed wait ${MTU_DISCOVERY_SETTLE_MS}ms)" else "")
         }
 
@@ -10857,16 +10905,14 @@ class WhoopBleClient(
                 // #1539: park the connect in the same breath as the pause, so this can end while backgrounded.
                 standingConnectWhilePausedIfDue(justTripped = true)
             if (_state.value.reconnectGuide == null) {
-                _state.update { it.copy(
-                    reconnectGuide = """
-                    Your strap connects but never finishes pairing with NOOP, so it drops and retries in a loop. This is almost always a stale Bluetooth pairing, usually after a WHOOP firmware update, or the official WHOOP app holding the strap. NOOP works fine once it's re-paired:
-
-                    1. Quit the official WHOOP app (or turn off Bluetooth on that phone).
-                    2. Open Settings → Bluetooth, find your WHOOP, and Forget / Unpair it.
-                    3. Tap the band repeatedly until its LEDs flash blue (pairing mode).
-                    4. Come back here and tap Connect.
-                    """.trimIndent()
-                ) }
+                // #1997: the pause is right either way, it stops both batteries draining on a loop. What
+                // was wrong is blaming the strap. When the MTU exchange was refused and nothing arrived,
+                // the phone is holding a connection the strap is not on, and re-pairing cannot change
+                // that: the reporter had been doing it several times a day on this guide's advice.
+                val guide = BondRefusalGiveUp.reconnectGuideFor(
+                    heldLinkWithoutTraffic(lastMtuStatus, inboundFrames),
+                )
+                _state.update { it.copy(reconnectGuide = guide) }
             }
         }
 
@@ -11158,6 +11204,7 @@ class WhoopBleClient(
         // Clear the onMtuChanged dedup (#50) so the first MTU callback of the NEXT connection — even to
         // the same strap with the same granted mtu — is never mistaken for a duplicate of the last one.
         lastMtuValue = -1
+        lastMtuStatus = 0
         lastMtuAtMs = 0L
         mtuRequestedAtMs = 0L   // #1066: don't measure settle time across a connection boundary
         // The strap forgets the realtime-HR toggle across a disconnect; the post-bond branch re-arms it
