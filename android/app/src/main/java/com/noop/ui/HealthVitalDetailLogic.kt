@@ -54,7 +54,10 @@ internal fun vo2MaxAttributionSource(estimator: Vo2MaxEstimator?): String =
  */
 internal fun vitalChartYDomain(key: String): ClosedFloatingPointRange<Double>? =
     when (key) {
-        "recovery", "sleep_performance", "strain" -> 0.0..100.0
+        // "rest", NOT "sleep_performance": that is the SERIES name this detail reads underneath, and it is
+        // never a detail key on Android. Writing the series name here compiled, passed a test asserting it,
+        // and left the Rest chart auto-scaling exactly as before.
+        "recovery", "rest", "strain" -> 0.0..100.0
         else -> null
     }
 

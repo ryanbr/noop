@@ -20,7 +20,7 @@ class VitalChartShapeTest {
     @Test
     fun `percentage metrics anchor to their natural range`() {
         assertEquals(0.0..100.0, vitalChartYDomain("recovery"))
-        assertEquals(0.0..100.0, vitalChartYDomain("sleep_performance"))
+        assertEquals(0.0..100.0, vitalChartYDomain("rest"))
         assertEquals(0.0..100.0, vitalChartYDomain("strain"))
     }
 
@@ -32,6 +32,27 @@ class VitalChartShapeTest {
     @Test
     fun `effort anchors to the stored scale, not the displayed one`() {
         assertEquals(0.0..100.0, vitalChartYDomain("strain"))
+    }
+
+    /**
+     * Every key in the allow-list has to be one the screen ACTUALLY receives. The first version anchored
+     * "sleep_performance", which is the series this detail reads underneath and never a detail key here,
+     * so Rest kept auto-scaling while a test asserting that key passed. Pinning against the real key list
+     * is what makes the allow-list checkable rather than plausible.
+     *
+     * `realKeys` is a HAND-MAINTAINED mirror of the `when` in `buildVitalDetail`/`buildSeriesVitalDetail`;
+     * a unit test cannot enumerate a `when`. It catches an anchored key that no screen sends, which is the
+     * bug that shipped. It does NOT catch a newly added metric, so a new key belongs here too.
+     */
+    @Test
+    fun `every anchored key is a real detail key`() {
+        val realKeys = setOf(
+            "recovery", "strain", "resp", "spo2", "rhr", "hrv", "skin", "rest",
+            "fitness_age", "vitality", "vo2max_est", "steps_est",
+        )
+        val anchored = realKeys.filter { vitalChartYDomain(it) != null }
+        assertEquals(setOf("recovery", "rest", "strain"), anchored.toSet())
+        assertNull(vitalChartYDomain("sleep_performance"))   // the series name, not a detail key
     }
 
     /**
