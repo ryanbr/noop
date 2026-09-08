@@ -86,6 +86,16 @@ final class Backfiller {
     private let log: ((String) -> Void)?
     /// Versions already reported this session, so the diagnostic logs each once (no spam).
     private var loggedUnmappedVersions: Set<Int> = []
+    /// #1992: reject frames still allowed to hex-dump (see `hexDumpAllowance`).
+    ///
+    /// Deliberately NOT reset in `begin()`, for the same reason as `lastAckedTrim`: the thing being
+    /// protected is the ROLLING LOG, which belongs to the process, not to one offload session. The
+    /// auto-continue re-kicks up to 24 sessions per connection, so a per-session budget would allow
+    /// 24 x 24 frames and flood the buffer exactly as before, which is the shape the reporter hit.
+    private(set) var rejectHexBudget = Backfiller.rejectHexDumpBudget
+    /// Reject frames seen this session, so the suppression line can say what it stopped showing.
+    private var rejectFramesSeen = 0
+    private var rejectHexSuppressedNoted = false
 
     /// Per-session persistence tally — the success-side observability the log forensics flagged as the
     /// blind spot (#150): we logged FAILURES (decoded-to-0) but never SUCCESSES, so a strap log couldn't
@@ -182,6 +192,26 @@ final class Backfiller {
     /// stops it re-kicking forever when the cursor is frozen. nil until the first ack. NOT reset in
     /// `begin()` (it's a cross-session high-water mark, not a per-session tally).
     private(set) var lastAckedTrim: UInt32?
+
+    /// Reject frames one connection may hex-dump (#1992). Three chunks worth at the per-chunk cap:
+    /// enough distinct records to triangulate field offsets (v25 was mapped from 45, spread over many
+    /// logs), while leaving room in a 2000-line rolling buffer for the lines that give the dump context.
+    /// The complete records are always in the reject archive.
+    static let rejectHexDumpBudget = 24
+
+    /// How many reject frames this chunk may hex-dump, given what the session has already spent (#1992).
+    ///
+    /// The dump is the only channel carrying an unmapped layout's raw bytes to someone who can map it,
+    /// and it was bounded PER CHUNK with no session budget. On the straps it exists for that defeats
+    /// itself: a strap rejecting ~25 records per chunk, across many chunks and many sessions per
+    /// connection, emits 8 long hex lines each time, floods the 2000-line rolling log, and evicts its own
+    /// earlier dumps along with the context needed to read them.
+    ///
+    /// Pure, so the arithmetic is testable without a Backfiller. Kotlin twin: `hexDumpAllowance`.
+    static func hexDumpAllowance(_ rejectedCount: Int, _ budgetRemaining: Int,
+                                 perChunkCap: Int = 8) -> Int {
+        max(0, min(rejectedCount, perChunkCap, budgetRemaining))
+    }
 
     /// Distinct historical layout versions logged this session. Unlike `loggedUnmappedVersions` (which
     /// only fires for layouts NOOP can't decode), this surfaces the layout on a HEALTHY sync too, so a
@@ -714,7 +744,9 @@ final class Backfiller {
                 // prefix — v25/v26 records run ~84 B and the truncated tail is exactly where the
                 // unmapped motion/HR fields sit), and sample a few more so one log carries enough
                 // records to triangulate offsets. These only ever fire for unmapped firmware.
-                let sample = Array(rejected.prefix(8))
+                rejectFramesSeen += rejected.count
+                // #1992: spend from a SESSION budget, not a fresh 8 per chunk. See `hexDumpAllowance`.
+                let sample = Array(rejected.prefix(Backfiller.hexDumpAllowance(rejected.count, rejectHexBudget)))
                 var emptySkipped = 0
                 for (i, f) in sample.enumerated() {
                     // #1007: an all-zero frame has no record layout to map, so its hex dump is pure log
@@ -722,9 +754,18 @@ final class Backfiller {
                     if isEmptyRecordFrame(f) { emptySkipped += 1; continue }
                     let hex = f.map { String(format: "%02x", $0) }.joined()
                     log?("Backfill: rejected frame[\(i)] \(f.count)B: \(hex)")
+                    rejectHexBudget -= 1
                 }
                 if emptySkipped > 0 {
                     log?("Backfill: #1007 \(emptySkipped)/\(sample.count) sampled frame(s) all-zero (empty payload) - hex dump skipped")
+                }
+                // Say ONCE that the sample is capped, so a reader knows the dump is a sample rather than
+                // everything the strap sent, and where the rest lives.
+                if rejectHexBudget <= 0, !rejectHexSuppressedNoted {
+                    rejectHexSuppressedNoted = true
+                    log?("Backfill: hex dumps capped at \(Backfiller.rejectHexDumpBudget) frame(s) while this connection lasts "
+                         + "(\(rejectFramesSeen) reject frame(s) seen so far); the complete records are in the "
+                         + "reject archive. Sample is enough to map a layout (#1992)")
                 }
             }
             // Commit the decoded rows FIRST (durable). Doing this before the reject archive means a
