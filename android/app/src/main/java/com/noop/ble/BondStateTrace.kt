@@ -26,7 +26,7 @@ internal const val NO_BOND_REASON = -1
 /**
  * A `BluetoothDevice.UNBOND_REASON_*` value, named.
  *
- * Deliberately mirrors [gattWriteStatusLabel]: name the codes that answer the question and leave
+ * Deliberately mirrors [gattStatusLabel]: name the codes that answer the question and leave
  * anything else as a bare number. A confidently wrong name in the line whose whole job is explaining a
  * pairing failure is worse than no name, and this broadcast's vendor stacks do emit values AOSP does
  * not define.

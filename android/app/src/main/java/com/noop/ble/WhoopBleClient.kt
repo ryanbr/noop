@@ -5238,7 +5238,7 @@ class WhoopBleClient(
         // set, the unbonded offload probe would stand aside for its full budget waiting on a chain that
         // had already died, in exactly the case the probe most wants a clear queue for.
         disChainInFlight = false
-        log(disReadFailureLine(uuid.toString(), gattWriteStatusLabel(status)))
+        log(disReadFailureLine(uuid.toString(), gattStatusLabel(status)))
         // Report it, but do NOT latch it when WE put a pairing in flight on this link. The latch is
         // persisted per device and permanent, and a read issued into a link that is mid-encryption
         // negotiation can fail for reasons that have nothing to do with the strap's policy. Latching that
@@ -5423,7 +5423,7 @@ class WhoopBleClient(
     private fun noteUnbondedProbeRefused(uuid: java.util.UUID, status: Int) {
         unbondedProbeSubscribing = false
         unbondedProbeAwaitingReply = false
-        log(puffinSubscribeRefusedLine(uuid.toString(), gattWriteStatusLabel(status)))
+        log(puffinSubscribeRefusedLine(uuid.toString(), gattStatusLabel(status)))
         if (explicitBondRequestedThisLink) {
             log("Unbonded offload probe: not latching that refusal — a pairing was requested on this link," +
                 " so the failure is not attributable to the strap (#1635)")
@@ -5999,7 +5999,7 @@ class WhoopBleClient(
 
         override fun onScanFailed(errorCode: Int) {
             scanning = false
-            log("Scan failed: $errorCode")
+            log("Scan failed: ${scanFailureLabel(errorCode)}")
         }
     }
 
@@ -6381,7 +6381,7 @@ class WhoopBleClient(
         val pinned = preferredAddress ?: return                 // single-WHOOP: nothing to re-adopt
         if (failedAddress == null || !failedAddress.equals(pinned, ignoreCase = true)) return
         pinnedBondRefusals++
-        log("Multi-WHOOP: pinned strap $pinned refused the encrypted bond (status=$status, refusal $pinnedBondRefusals/$PIN_BOND_REFUSAL_LIMIT)")
+        log("Multi-WHOOP: pinned strap $pinned refused the encrypted bond (${gattStatusLabel(status)}, refusal $pinnedBondRefusals/$PIN_BOND_REFUSAL_LIMIT)")
         val working = lastBondedAddress
         if (pinnedBondRefusals >= PIN_BOND_REFUSAL_LIMIT && working != null && !working.equals(pinned, ignoreCase = true)) {
             readoptWorkingStrap(working = working, awayFrom = pinned)
@@ -6826,7 +6826,7 @@ class WhoopBleClient(
         @SuppressLint("MissingPermission")
         override fun onServicesDiscovered(g: BluetoothGatt, status: Int) {
             if (status != BluetoothGatt.GATT_SUCCESS) {
-                log("Service discovery failed: $status")
+                log("Service discovery failed: ${gattStatusLabel(status)}")
                 return
             }
             // Port of didDiscoverServices → didDiscoverCharacteristicsFor, collapsed: Android
@@ -6984,7 +6984,7 @@ class WhoopBleClient(
         ) {
             // Port of didWriteValueFor: a CONFIRMED-write completion (no error) == bonding succeeded.
             if (status != BluetoothGatt.GATT_SUCCESS) {
-                log("Confirmed write failed: status=$status")
+                log("Confirmed write failed: ${gattStatusLabel(status)}")
                 // #1635: a FAILED completion is still a completion, and it carries two obligations.
                 //
                 // Report it: before this, a failed callback produced no line at all and then a false
@@ -7003,7 +7003,7 @@ class WhoopBleClient(
                         isHelloChar = failedHelloChar,
                         charUuid = characteristic.uuid.toString(),
                         elapsedMs = System.currentTimeMillis() - clientHelloWriteAtMs,
-                        status = gattWriteStatusLabel(status),
+                        status = gattStatusLabel(status),
                     ))
                 }
                 if (failedHelloChar) clientHelloWriteAtMs = 0L
@@ -7047,7 +7047,7 @@ class WhoopBleClient(
                         isHelloChar = isHelloChar,
                         charUuid = characteristic.uuid.toString(),
                         elapsedMs = System.currentTimeMillis() - clientHelloWriteAtMs,
-                        status = gattWriteStatusLabel(status),
+                        status = gattStatusLabel(status),
                     ))
                     // Consume the window ONLY for the hello's own completion. A foreign completion that
                     // cleared it would make a genuine ack arriving afterwards look unsolicited, costing a
@@ -7061,7 +7061,7 @@ class WhoopBleClient(
                     // Declining must not be silent — see [clientHelloDeclinedLine].
                     log(clientHelloDeclinedLine(
                         charUuid = characteristic.uuid.toString(),
-                        status = gattWriteStatusLabel(status),
+                        status = gattStatusLabel(status),
                     ))
                 }
                 // Only the hello's OWN completion is evidence of a bond. Declining here withholds the
@@ -7183,7 +7183,7 @@ class WhoopBleClient(
             status: Int,
         ) {
             if (status != BluetoothGatt.GATT_SUCCESS) {
-                log("Notify enable failed for ${descriptor.characteristic?.uuid}: status=$status")
+                log("Notify enable failed for ${descriptor.characteristic?.uuid}: ${gattStatusLabel(status)}")
                 // #1635: on the puffin notify chars during the unbonded probe, this IS the result — the
                 // generic line above cannot say so, because it is written for a transient stack failure
                 // and this is a verdict about whether the offload needs an encrypted link at all.
@@ -10972,7 +10972,7 @@ class WhoopBleClient(
             // #747: the bond keeps being refused, so auto-reconnect is paused: we stop hammering a strap that
             // can't bond (the epitaph + paused hint were already surfaced when the give-up tripped). The user
             // re-arms it by tapping Connect (clearPairingHintForUserConnect). We do NOT schedule a reconnect.
-            log("Disconnected (status=$status); auto-reconnect paused (strap keeps refusing to pair; tap Connect once it's free)")
+            log("Disconnected ${disconnectStatusLabel(status)}; auto-reconnect paused (strap keeps refusing to pair; tap Connect once it's free)")
             // #1539: a connect attempt CONSUMES the parked request, so re-park it — floored, so a reachable
             // strap that keeps refusing gets one attempt per window instead of a connect/refuse spin.
             standingConnectWhilePausedIfDue()
@@ -11026,7 +11026,7 @@ class WhoopBleClient(
                     staleBondRemoved = true
                     log(staleBondRemovalLine(staleDirectFailures, removeOsBond(staleDevice)))
                 }
-                log("Disconnected (status=$status) before the bonded fast-path reached a session — stale OS bond (attempt $staleDirectFailures); falling back to a scan")
+                log("Disconnected ${disconnectStatusLabel(status)} before the bonded fast-path reached a session — stale OS bond (attempt $staleDirectFailures); falling back to a scan")
                 lastDevice = null
                 // Two consecutive wiped-bond failures = the strap really reset its pairing (firmware
                 // update / official WHOOP app re-bond), not a one-off transient drop. Surface the same
@@ -11075,12 +11075,12 @@ class WhoopBleClient(
                 // count — keep it DIRECT; only a genuinely-out-of-range band escalates to PASSIVE for power.
                 val aclHeld = isStrapAclHeld(dev.address)
                 val passiveReconnect = passiveReconnectDecision(failedReconnectAttempts, aclHeld)
-                log("Disconnected (status=$status); reconnecting ${if (passiveReconnect) "passively" else "directly"} in ${directDelay / 1000}s (attempt $failedReconnectAttempts$heldSuffix${if (aclHeld) ", ACL-held" else ""})")
+                log("Disconnected ${disconnectStatusLabel(status)}; reconnecting ${if (passiveReconnect) "passively" else "directly"} in ${directDelay / 1000}s (attempt $failedReconnectAttempts$heldSuffix${if (aclHeld) ", ACL-held" else ""})")
                 // #1030 (ryanbr): cancellable backoff timer (see scheduleReconnect).
                 scheduleReconnect(directDelay) { connectToDevice(dev, autoConnect = passiveReconnect) }
             } else {
                 val rescanDelay = nextReconnectDelayMs()
-                log("Disconnected (status=$status); rescanning in ${rescanDelay / 1000}s (attempt $failedReconnectAttempts$heldSuffix)")
+                log("Disconnected ${disconnectStatusLabel(status)}; rescanning in ${rescanDelay / 1000}s (attempt $failedReconnectAttempts$heldSuffix)")
                 // #1030 (ryanbr): cancellable backoff timer (see scheduleReconnect).
                 scheduleReconnect(rescanDelay) { connectFromSystem(selectedModel) }
             }

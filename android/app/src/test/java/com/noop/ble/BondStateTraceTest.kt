@@ -240,7 +240,7 @@ class BondStateTraceTest {
 
     /**
      * An undefined value prints as itself rather than as a guess - the same discipline
-     * `gattWriteStatusLabel` applies to GATT codes, and vendor stacks do emit values AOSP does not define.
+     * `gattStatusLabel` applies to GATT codes, and vendor stacks do emit values AOSP does not define.
      */
     @Test
     fun `an unknown reason is not given an invented name`() {
