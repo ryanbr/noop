@@ -111,6 +111,7 @@ private fun pointsFor(
     topPad: Float,
     bottomPad: Float,
     yDomain: ClosedFloatingPointRange<Double>? = null,
+    timestamps: List<Long>? = null,
 ): List<Offset> {
     val clean = values.filter { it.isFinite() }
     if (clean.size < 2 || width <= 0f || height <= 0f) return emptyList()
@@ -118,7 +119,7 @@ private fun pointsFor(
     // only ever change the scale, never clip a value off the chart.
     val lo = yDomain?.let { minOf(it.start, clean.min()) } ?: clean.min()
     val hi = yDomain?.let { maxOf(it.endInclusive, clean.max()) } ?: clean.max()
-    return pointsFor(clean, width, height, topPad, bottomPad, lo, hi)
+    return pointsFor(clean, width, height, topPad, bottomPad, timestamps, lo, hi)
 }
 
 private fun pointsFor(
@@ -127,6 +128,7 @@ private fun pointsFor(
     height: Float,
     topPad: Float,
     bottomPad: Float,
+    timestamps: List<Long>?,
     minV: Double,
     maxV: Double,
 ): List<Offset> {
@@ -134,10 +136,10 @@ private fun pointsFor(
 
     val span = (maxV - minV)
     val usableH = (height - topPad - bottomPad).coerceAtLeast(1f)
-    val stepX = if (values.size > 1) width / (values.size - 1) else width
+    val fractions = xFractions(values.size, timestamps)
 
     return values.mapIndexed { i, v ->
-        val x = stepX * i
+        val x = fractions[i] * width
         val norm = if (span > 0.0) ((v - minV) / span).toFloat() else 0.5f
         val y = topPad + (1f - norm) * usableH
         Offset(x, y)
@@ -283,14 +285,19 @@ fun LineChart(
         else values.indices.filter { values[it].isFinite() }.map { segmentIds[it] }
     }
     var selectedIndex by remember(cleanValues) { mutableIntStateOf(-1) }
+    // Hoisted, not recomputed per gesture event: the drag handler fires every frame and this allocates a
+    // list the length of the series. Keyed on both inputs so the gesture handlers can be keyed on IT:
+    // keying them on `cleanValues` alone would let a timestamp change leave them hit-testing against
+    // stale positions, highlighting one day while labelling another.
+    val xFracs = remember(cleanValues, cleanTimestamps) { xFractions(cleanValues.size, cleanTimestamps) }
     val interactiveModifier = if (selectionEnabled) {
         Modifier
-            .pointerInput(cleanValues) {
+            .pointerInput(cleanValues, xFracs) {
                 detectTapGestures(
                     onTap = { offset ->
                         if (cleanValues.size >= 2 && size.width > 0) {
                             selectedIndex = nearestIndexForX(
-                                count = cleanValues.size,
+                                fractions = xFracs,
                                 width = size.width.toFloat(),
                                 x = offset.x,
                             )
@@ -300,12 +307,12 @@ fun LineChart(
             }
             .then(
                 if (dragSelectionEnabled) {
-                    Modifier.pointerInput(cleanValues) {
+                    Modifier.pointerInput(cleanValues, xFracs) {
                         detectHorizontalDragGestures(
                             onDragStart = { start ->
                                 if (cleanValues.size < 2 || size.width <= 0f) return@detectHorizontalDragGestures
                                 selectedIndex = nearestIndexForX(
-                                    count = cleanValues.size,
+                                    fractions = xFracs,
                                     width = size.width.toFloat(),
                                     x = start.x,
                                 )
@@ -313,7 +320,7 @@ fun LineChart(
                             onHorizontalDrag = { change, _ ->
                                 if (cleanValues.size < 2 || size.width <= 0f) return@detectHorizontalDragGestures
                                 selectedIndex = nearestIndexForX(
-                                    count = cleanValues.size,
+                                    fractions = xFracs,
                                     width = size.width.toFloat(),
                                     x = change.position.x,
                                 )
@@ -369,7 +376,7 @@ fun LineChart(
                     val strokePx = 2.5f
                     val topPad = strokePx + 4f
                     val bottomPad = strokePx + 4f
-                    val pts = pointsFor(cleanValues, size.width, size.height, topPad, bottomPad, yDomain)
+                    val pts = pointsFor(cleanValues, size.width, size.height, topPad, bottomPad, yDomain, cleanTimestamps)
                     if (pts.isEmpty()) {
                         onDrawBehind { drawBaseline() }
                     } else {
@@ -441,7 +448,7 @@ fun LineChart(
                         val strokePx = 2.5f
                         val topPad = strokePx + 4f
                         val bottomPad = strokePx + 4f
-                        val pts = pointsFor(cleanValues, size.width, size.height, topPad, bottomPad, yDomain)
+                        val pts = pointsFor(cleanValues, size.width, size.height, topPad, bottomPad, yDomain, cleanTimestamps)
                         if (selectedIndex in pts.indices) {
                             val p = pts[selectedIndex]
                             drawLine(
@@ -507,7 +514,9 @@ fun MultiLineChart(
         val bottomPad = strokePx + 4f
 
         cleanSeries.forEach { line ->
-            val pts = pointsFor(line.values, size.width, size.height, topPad, bottomPad, minV, maxV)
+            // MultiLineChart keeps index spacing: its series are index-aligned to each other, not to a
+            // shared clock, so positioning by time would need a per-series timeline it does not have.
+            val pts = pointsFor(line.values, size.width, size.height, topPad, bottomPad, null, minV, maxV)
             if (pts.isEmpty()) return@forEach
             val path = Path().apply {
                 moveTo(pts.first().x, pts.first().y)
@@ -522,12 +531,42 @@ fun MultiLineChart(
     }
 }
 
-private fun nearestIndexForX(count: Int, width: Float, x: Float): Int {
-    if (count <= 1 || width <= 0f) return 0
-    val step = width / (count - 1)
+/**
+ * Where each point sits horizontally, as a 0..1 fraction of the width.
+ *
+ * Index spacing puts every reading an equal step apart, so a four-day gap is drawn exactly like a one-day
+ * step. With per-point timestamps the position is proportional to TIME instead, which is what makes a gap
+ * occupy the width it actually spans, and what makes breaking the stroke across one read as "nothing
+ * measured here" rather than as a chopped line.
+ *
+ * Falls back to index spacing whenever time cannot order the points: no timestamps, a length mismatch, a
+ * zero span (every reading at the same instant), or a non-ascending sequence. Refusing rather than
+ * guessing, the same stance the rest of this file takes.
+ */
+internal fun xFractions(count: Int, timestamps: List<Long>?): List<Float> {
+    if (count <= 1) return List(count) { 0f }
+    val indexFractions = { List(count) { it.toFloat() / (count - 1) } }
+    if (timestamps == null || timestamps.size != count) return indexFractions()
+    if (timestamps.zipWithNext().any { (a, b) -> b < a }) return indexFractions()
+    val span = (timestamps.last() - timestamps.first()).toDouble()
+    if (span <= 0.0) return indexFractions()
+    return timestamps.map { ((it - timestamps.first()) / span).toFloat() }
+}
+
+/**
+ * The nearest point to a tapped x. Takes the SAME fractions the geometry used: deriving it from a uniform
+ * step independently would select the wrong reading the moment spacing stopped being uniform.
+ */
+private fun nearestIndexForX(fractions: List<Float>, width: Float, x: Float): Int {
+    if (fractions.size <= 1 || width <= 0f) return 0
     val clampedX = x.coerceIn(0f, width)
-    val raw = (clampedX / step).roundToInt()
-    return raw.coerceIn(0, count - 1)
+    var best = 0
+    var bestDist = Float.MAX_VALUE
+    fractions.forEachIndexed { i, f ->
+        val d = kotlin.math.abs(f * width - clampedX)
+        if (d < bestDist) { bestDist = d; best = i }
+    }
+    return best
 }
 
 /** The tap/drag pinpoint label: the caller's display formatter when supplied (#463), else the raw

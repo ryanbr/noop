@@ -62,6 +62,22 @@ internal fun vitalChartYDomain(key: String): ClosedFloatingPointRange<Double>? =
     }
 
 /**
+ * Per-reading epoch seconds from the day keys, or null when any day fails to parse.
+ *
+ * All-or-nothing on purpose: a partially-parsed list would position some points by time and the rest by a
+ * fallback, which is a worse lie than either rule applied consistently. Returning null makes the chart use
+ * index spacing, exactly as before.
+ */
+internal fun dayEpochSeconds(readings: List<VitalReading>): List<Long>? {
+    val out = ArrayList<Long>(readings.size)
+    for (r in readings) {
+        val day = runCatching { java.time.LocalDate.parse(r.day) }.getOrNull() ?: return null
+        out += day.toEpochDay() * 86_400L
+    }
+    return out
+}
+
+/**
  * Is this metric EXPECTED to have a reading every day?
  *
  * Only a daily metric can have a "missing day": breaking the line on a gap says a measurement that should

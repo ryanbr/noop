@@ -2101,6 +2101,10 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
                     // two are equal in length by construction rather than by luck — `LineChart` drops
                     // mismatched labels SILENTLY, which is a failure that looks exactly like doing nothing.
                     selectionLabels = dayLabels,
+                    // Position by DATE, not by reading index: a four-day gap now occupies four days of
+                    // width, which is what makes the break across it read as "nothing measured here"
+                    // rather than as a chopped line. Days that do not parse fall back to index spacing.
+                    timestamps = dayEpochSeconds(filteredReadings),
                     // #1662: the metric's OWN formatter AND unit — byte-for-byte what the Min/Avg/Max
                     // row below renders. Without it the scrub read-out falls back to LineChart's
                     // default, which prints a decimal for any non-integer, so a rounded metric answered
