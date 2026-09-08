@@ -236,7 +236,11 @@ class WhoopConnectionService : Service() {
                 }
             val cur = intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, BluetoothDevice.ERROR)
             val prev = intent.getIntExtra(BluetoothDevice.EXTRA_PREVIOUS_BOND_STATE, BluetoothDevice.ERROR)
-            runCatching { ble.onBondStateChanged(prev, cur, dev?.address) }
+            // WHY a bond ended, which the transition alone cannot say: refused, timed out and link-lost
+            // all render as BOND_BONDING -> BOND_NONE. [NO_BOND_REASON] when the OS supplied nothing.
+            // [EXTRA_BOND_REASON] documents why the extra's name is a literal rather than a reference.
+            val reason = intent.getIntExtra(EXTRA_BOND_REASON, NO_BOND_REASON)
+            runCatching { ble.onBondStateChanged(prev, cur, dev?.address, reason) }
         }
     }
 

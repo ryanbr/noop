@@ -5627,11 +5627,33 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
     /// locale-dependent free-text string. We emit the `CBError`/`CBATTError` raw enum value (an Int), so
     /// the token is locale-independent and carries no free text. A nil error reads "unknown"; an error
     /// from neither CoreBluetooth domain reads "code?" (no localizedDescription, which could carry text).
-    private func connErrorToken(_ error: Error?) -> String {
+    private func connErrorToken(_ error: Error?) -> String { BLEManager.bleErrorToken(error) }
+
+    /// The stable token itself. `nonisolated static` for the same reason `isInsufficientAuthError` is:
+    /// so a unit test pins it without a CoreBluetooth seam.
+    nonisolated static func bleErrorToken(_ error: Error?) -> String {
         guard let error else { return "unknown" }
         if let cb = error as? CBError { return "cbError\(cb.code.rawValue)" }
         if let att = error as? CBATTError { return "cbAttError\(att.code.rawValue)" }
         return "code?"
+    }
+
+    /// The same token as a log SUFFIX, for the ordinary strap log rather than Connection test mode.
+    ///
+    /// Foundation LOCALIZES CoreBluetooth error strings, so a failure line built from
+    /// `localizedDescription` alone is unmatchable in a shared log from a non-English phone. That is not
+    /// hypothetical here: `isInsufficientAuthError` documents the same property silently defeating the
+    /// old `localizedDescription.contains("encryption")` classification for the entire localized user
+    /// base (#78 hole-1), which Android was immune to because it matches GATT status ints 5/15. The
+    /// classification was made code-first then; the LOGGING still says only what the phone's locale says.
+    ///
+    /// ADDITIVE, never a replacement: the description stays for readability and for the CoreBluetooth
+    /// paths that surface plain NSErrors outside both domains (those read `code?`). The tokens line up
+    /// with the Android side by construction, since ATT insufficient-authentication and
+    /// insufficient-encryption are the same 5 and 15 that `gattWriteStatusLabel` names.
+    nonisolated static func bleErrorSuffix(_ error: Error?) -> String {
+        guard error != nil else { return "" }
+        return " [\(bleErrorToken(error))]"
     }
 
     /// Feed one 5/MG bond refusal into the #747 give-up and act on the trip (#1635).
@@ -5919,7 +5941,7 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
             // #747: the bond keeps being refused, so auto-reconnect is paused: we stop hammering a strap that
             // can't bond (the epitaph + paused hint were already surfaced when the give-up tripped). The user
             // re-arms it by tapping Connect. We do NOT schedule a rescan here.
-            log("Disconnected\(error.map { ": \($0.localizedDescription)" } ?? ""); auto-reconnect paused (strap keeps refusing to pair; tap Connect once it's free)")
+            log("Disconnected\(error.map { ": \($0.localizedDescription)" } ?? "")\(BLEManager.bleErrorSuffix(error)); auto-reconnect paused (strap keeps refusing to pair; tap Connect once it's free)")
             // #1539: a connect attempt CONSUMES the parked request, so re-park it — floored, so a reachable
             // strap that keeps refusing gets one attempt per window instead of a connect/refuse spin.
             standingConnectWhilePausedIfDue()
@@ -5928,7 +5950,7 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
                 state.append(log: "reconnect paused=bondLoop (strap refusing bond)", domain: .connection)
             }
         } else if !intentionalDisconnect {
-            log("Disconnected\(error.map { " — \($0.localizedDescription)" } ?? "")")
+            log("Disconnected\(error.map { " — \($0.localizedDescription)" } ?? "")\(BLEManager.bleErrorSuffix(error))")
             // Connection test mode: count + describe the involuntary reconnect churn, and mark the link
             // down for the uptime readout. Gated zero-cost (the .connection bool is read before any string
             // is built). Diagnostic only - the rescan above is unchanged. The count increments only on an
@@ -5963,7 +5985,7 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
                                didFailToConnect peripheral: CBPeripheral,
                                error: Error?) {
         cancelPendingConnectProbe()   // #730: it FAILED rather than pending — this log is the answer
-        log("Failed to connect\(error.map { " — \($0.localizedDescription)" } ?? "")")
+        log("Failed to connect\(error.map { " — \($0.localizedDescription)" } ?? "")\(BLEManager.bleErrorSuffix(error))")
         // The strap wiped its bond (a firmware update, or the official WHOOP app re-bonding it). macOS keeps
         // re-presenting the now-stale pairing key, so every reconnect loops on this same error with no
         // recovery and no user guidance. Surface an actionable re-pair guide instead of failing silently —
@@ -6295,7 +6317,7 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                            didWriteValueFor characteristic: CBCharacteristic,
                            error: Error?) {
         if let error = error {
-            log("Confirmed write failed: \(error.localizedDescription)")
+            log("Confirmed write failed: \(error.localizedDescription)\(BLEManager.bleErrorSuffix(error))")
             // #1635: a failed write owes no ack. Leaving the window open would let the NEXT completion on
             // fd4b0002 — DISABLE_ALARM and every other puffin command share it — satisfy both halves of
             // the bond gate below and declare a bond the strap never granted, which is the whole bug.

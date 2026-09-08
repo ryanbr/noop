@@ -2805,7 +2805,7 @@ class WhoopBleClient(
 
     /** #1635: record an OS bond-state transition in the strap log. The OS pairing flow has never been
      *  observed, which is what leaves the 5/MG bond failure undecided - see [bondStateTraceLine]. */
-    fun onBondStateChanged(previous: Int, current: Int, address: String?) {
+    fun onBondStateChanged(previous: Int, current: Int, address: String?, reason: Int? = null) {
         // Time against whichever request is actually outstanding. The hello takes precedence when both
         // are, but the explicit-pairing experiment deliberately sends no hello, so without the second
         // marker every transition it causes would print untimed — and how long a pairing took is most of
@@ -2817,7 +2817,7 @@ class WhoopBleClient(
         val label = if (helloMs != null) "CLIENT_HELLO" else "the pairing request"
         if (!shouldTraceBondState(address, lastDeviceAddress, since != null)) return
         sawBondTransitionThisLink = true
-        log(bondStateTraceLine(previous, current, address, since, label))
+        log(bondStateTraceLine(previous, current, address, since, label, reason))
     }
 
     @Volatile private var familyEstablished = false
