@@ -70,10 +70,16 @@ object RecoveryScorerTrace {
         val lines = ArrayList<String>()
         val nilTerms = ArrayList<String>()
 
+        // #1988: the trace reads this baseline DIRECTLY for its own `charge baseline rhr` line, its
+        // rhrZ and the saturation guard, not only through recovery(). recovery() now drops an
+        // unusable one, so without the same gate here the trace would list an rhr term the score
+        // did not use, which is precisely the divergence the line below promises cannot happen.
+        val rhrB = rhrBaseline?.takeIf { it.usable }
+
         // The score the dashboard reads, verbatim, so the trace cannot diverge from it.
         val score = RecoveryScorer.recovery(
             hrv = hrv, rhr = rhr, resp = resp,
-            hrvBaseline = hrvBaseline, rhrBaseline = rhrBaseline,
+            hrvBaseline = hrvBaseline, rhrBaseline = rhrB,
             respBaseline = respBaseline, sleepPerf = sleepPerf, skinTempDev = skinTempDev,
         )
 
@@ -92,7 +98,7 @@ object RecoveryScorerTrace {
             "charge baseline hrv mean=${r2(hrvBaseline.baseline)} spread=${r2(hrvBaseline.spread)} " +
                 "nValid=${hrvBaseline.nValid} status=${hrvBaseline.status.raw}",
         )
-        rhrBaseline?.let { b ->
+        rhrB?.let { b ->
             lines.add(
                 "charge baseline rhr mean=${r2(b.baseline)} spread=${r2(b.spread)} " +
                     "nValid=${b.nValid} status=${b.status.raw}",
@@ -111,7 +117,7 @@ object RecoveryScorerTrace {
         // Resting-HR z, computed up front so the saturation guard can read the HRV<->RHR coupling before
         // the HRV term is built. null when there is no RHR baseline. Numerically identical to the z
         // recovery() builds for the RHR term (same expression, same inputs).
-        val rhrZForGuard: Double? = rhrBaseline?.let { RecoveryScorer.zScore(it.baseline, rhr, it.spread) }
+        val rhrZForGuard: Double? = rhrB?.let { RecoveryScorer.zScore(it.baseline, rhr, it.spread) }
 
         // L9: every WEIGHT / SCALE / centre constant goes through r2() too (not just the z-scores), so a
         // future non-round weight (e.g. 0.333) renders identically on Swift and Kotlin and the parity

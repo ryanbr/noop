@@ -54,9 +54,15 @@ extension RecoveryScorer {
         var lines: [String] = []
         var nilTerms: [String] = []
 
+        // #1988: the trace reads this baseline DIRECTLY for its own `charge baseline rhr` line, its
+        // rhrZ and the saturation guard, not only through recovery(). recovery() now drops an
+        // unusable one, so without the same gate here the trace would list an rhr term the score
+        // did not use, which is precisely the divergence the line below promises cannot happen.
+        let rhrB = rhrBaseline.flatMap { $0.usable ? $0 : nil }
+
         // The score the dashboard reads, verbatim, so the trace cannot diverge from it.
         let score = recovery(hrv: hrv, rhr: rhr, resp: resp,
-                             hrvBaseline: hrvBaseline, rhrBaseline: rhrBaseline,
+                             hrvBaseline: hrvBaseline, rhrBaseline: rhrB,
                              respBaseline: respBaseline, sleepPerf: sleepPerf,
                              skinTempDev: skinTempDev)
 
@@ -73,7 +79,7 @@ extension RecoveryScorer {
         // baseline arg here (skinTempDev is already a deviation), so it has no baseline line.
         lines.append("charge baseline hrv mean=\(r2(hrvBaseline.baseline)) spread=\(r2(hrvBaseline.spread)) "
             + "nValid=\(hrvBaseline.nValid) status=\(hrvBaseline.status.rawValue)")
-        if let b = rhrBaseline {
+        if let b = rhrB {
             lines.append("charge baseline rhr mean=\(r2(b.baseline)) spread=\(r2(b.spread)) "
                 + "nValid=\(b.nValid) status=\(b.status.rawValue)")
         }
@@ -89,7 +95,7 @@ extension RecoveryScorer {
         // Resting-HR z, computed up front so the saturation guard can read the HRV<->RHR coupling
         // before the HRV term is built. nil when there is no RHR baseline. Numerically identical to
         // the z recovery() builds for the RHR term (same expression, same inputs).
-        let rhrZForGuard: Double? = rhrBaseline.map { zScore($0.baseline, mean: rhr, spread: $0.spread) }
+        let rhrZForGuard: Double? = rhrB.map { zScore($0.baseline, mean: rhr, spread: $0.spread) }
 
         // HRV term: higher is better. (Always present once usable; the cold-start guard above returned.)
         // This is the RAW z, exactly as recovery() scores it: the parasympathetic-saturation easing is
