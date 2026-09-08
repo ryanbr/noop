@@ -94,4 +94,42 @@ final class BackfillerHexDumpBudgetTests: XCTestCase {
                        "begin() must never refill the budget: the rolling log it protects belongs to "
                         + "the process, not to one offload session")
     }
+
+    // MARK: - #891: the unmapped-type dump line
+
+    /// The census names a type; this has to find the bytes that earned the name, and the byte count is
+    /// derived from those bytes so the number and the payload beside it cannot disagree.
+    @MainActor func testUnmappedTypeDumpLineSelectsTheMatchingFrame() {
+        let frames: [[UInt8]] = [[0x01, 0x02], [0xaa, 0xbb, 0xcc, 0xdd]]
+        let names = ["HISTORICAL_DATA", "type53"]
+        let line = Backfiller.unmappedTypeDumpLine(typeName: "type53", frames: frames, typeNames: names)
+        XCTAssertEqual(line, "Backfill: unmapped type type53 first frame 4B: aabbccdd")
+    }
+
+    /// The FIRST frame of that type, not the last: a long offload of one unmapped type costs one dump.
+    @MainActor func testUnmappedTypeDumpLineTakesTheFirstMatch() {
+        let frames: [[UInt8]] = [[0x11], [0x22]]
+        let names = ["type53", "type53"]
+        let line = Backfiller.unmappedTypeDumpLine(typeName: "type53", frames: frames, typeNames: names)
+        XCTAssertEqual(line, "Backfill: unmapped type type53 first frame 1B: 11")
+    }
+
+    /// No frame of that type in this chunk means no line, rather than an empty dump that reads like the
+    /// strap sent nothing. This is the case that would have shipped silently: reading `ParsedFrame.rawHex`
+    /// here returns "" on the ingest fast path (`collectFields: false`), so every real offload would have
+    /// logged a dump with no bytes in it while any test building its own ParsedFrame passed.
+    @MainActor func testUnmappedTypeDumpLineIsNilWhenNoFrameMatches() {
+        let frames: [[UInt8]] = [[0x01, 0x02]]
+        XCTAssertNil(Backfiller.unmappedTypeDumpLine(typeName: "type53", frames: frames,
+                                                    typeNames: ["HISTORICAL_DATA"]))
+    }
+
+    /// The full frame rides the line - no prefix cap, for the reason the reject dump has none: an unmapped
+    /// layout's fields are as likely to sit in the tail as the head.
+    @MainActor func testUnmappedTypeDumpLineDoesNotTruncate() {
+        let raw = [UInt8](repeating: 0xab, count: 600)
+        let line = Backfiller.unmappedTypeDumpLine(typeName: "type53", frames: [raw], typeNames: ["type53"])
+        XCTAssertTrue(line?.hasSuffix(String(repeating: "ab", count: 600)) == true)
+        XCTAssertTrue(line?.contains("600B") == true)
+    }
 }

@@ -291,6 +291,11 @@ class Backfiller(
      *  [com.noop.analytics.Spo2ReTrace.MAX_SAMPLES]. Session-scoped so the cap spans chunks; reset in begin. */
     private var spo2Dumped = 0
 
+    /** SpO2 RE dump: how many records this session dumped for each layout version, so one layout cannot
+     *  spend the whole session budget. Key -1 buckets a record whose `hist_version` did not decode.
+     *  Session-scoped alongside [spo2Dumped]; reset in begin. Twin of the Swift `spo2DumpedByVersion`. */
+    private val spo2DumpedByVersion = HashMap<Int, Int>()
+
     /**
      * #547: logged once per session the first time the #547 ingest gate drops an implausible-timestamp
      * record (a bad strap clock/flash emitting far-past / year-2027-spike / future-dated `unix` values).
@@ -350,6 +355,7 @@ class Backfiller(
         loggedLayoutVersions.clear()
         chunkIndex = 0
         spo2Dumped = 0
+        spo2DumpedByVersion.clear()
         loggedImplausibleClock = false
         sessionDroppedImplausible = 0
         sessionUnhandledPacketTypes.clear()   // #891: a second offload must re-log its first sighting
@@ -476,6 +482,11 @@ class Backfiller(
                     // `as? Long`, not `as? Int`: the decoder carries unix in the unsigned domain, so an
                     // Int cast would miss on EVERY record and silently stop the dump. See `histU32`.
                     val recUnix = d["unix"] as? Long ?: continue
+                    // Stratify by layout: without this the first chunk's dominant layout eats the whole
+                    // budget and the rare, still-unmapped one never gets a single frame. See MAX_PER_VERSION.
+                    val ver = d["hist_version"] as? Int ?: -1
+                    val dumpedForVer = spo2DumpedByVersion[ver] ?: 0
+                    if (dumpedForVer >= com.noop.analytics.Spo2ReTrace.MAX_PER_VERSION) continue
                     connectionLog(
                         com.noop.analytics.Spo2ReTrace.recordLine(
                             frame = f,
@@ -486,6 +497,7 @@ class Backfiller(
                             skinRaw = d["skin_temp_raw"] as? Int,
                         ),
                     )
+                    spo2DumpedByVersion[ver] = dumpedForVer + 1
                     spo2Dumped++
                 }
             }
@@ -528,6 +540,13 @@ class Backfiller(
                             "you recognise, this is a firmware record type NOOP has never mapped: please " +
                             "report it on #891 with the strap model and firmware build.",
                     )
+                    // #891: and the bytes, so the report is actionable. Without this the line above asks a
+                    // reporter to raise an issue about a record that exists nowhere else: the else branch
+                    // drops the frame and the reject archive only ever holds type-47. First sighting only,
+                    // so a long offload of one unmapped type still costs exactly one dump.
+                    decoded.unhandledPacketSamples[typeName]?.let { hex ->
+                        log(unmappedTypeDumpLine(typeName, hex))
+                    }
                 }
             }
             // #324: the strap RTC-state events (RTC_LOST / BOOT / SET_RTC) the #547 gate dropped for a bad
@@ -756,7 +775,15 @@ class Backfiller(
          */
         internal const val REJECT_HEX_DUMP_BUDGET = 24
 
-    /**
+        /**
+         * #891: the dump line for the first frame of an unmapped packet type. Byte-identical to the Swift
+         * `Backfiller.unmappedTypeDumpLine`; [hex] is the FULL frame, so the length is derived from it
+         * rather than passed separately and able to disagree with the bytes beside it.
+         */
+        internal fun unmappedTypeDumpLine(typeName: String, hex: String): String =
+            "Backfill: unmapped type $typeName first frame ${hex.length / 2}B: $hex"
+
+        /**
          * How many reject frames this chunk may hex-dump, given what the session has already spent (#1992).
          *
          * The dump is the only channel carrying an unmapped layout's raw bytes to someone who can map it,

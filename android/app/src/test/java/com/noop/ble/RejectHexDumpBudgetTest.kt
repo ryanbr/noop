@@ -1,6 +1,7 @@
 package com.noop.ble
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -56,5 +57,27 @@ class RejectHexDumpBudgetTest {
     /** The budget must clear more than one chunk, or the sample cannot span an offload. */
     @Test fun theBudgetIsWorthMoreThanOneChunk() {
         assertEquals(true, Backfiller.REJECT_HEX_DUMP_BUDGET > cap)
+    }
+
+    // --- #891: the unmapped-type dump line ---
+
+    /**
+     * The byte count is DERIVED from the hex rather than passed alongside it, so the number and the bytes
+     * beside it cannot disagree. A dump whose stated length contradicts its payload is worse than none:
+     * it sends whoever is mapping the layout looking for a field that was never there.
+     */
+    @Test
+    fun unmappedTypeDumpLineDerivesItsLengthFromTheBytes() {
+        val line = Backfiller.unmappedTypeDumpLine("type53", "aabbccdd")
+        assertEquals("Backfill: unmapped type type53 first frame 4B: aabbccdd", line)
+    }
+
+    /** The full frame rides the line - no prefix cap, for the reason the reject dump has none. */
+    @Test
+    fun unmappedTypeDumpLineDoesNotTruncate() {
+        val hex = "ab".repeat(600)
+        val line = Backfiller.unmappedTypeDumpLine("HISTORICAL_IMU_DATA_STREAM", hex)
+        assertTrue(line, line.endsWith(hex))
+        assertTrue(line, line.contains("600B"))
     }
 }

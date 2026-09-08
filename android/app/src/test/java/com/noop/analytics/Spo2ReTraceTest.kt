@@ -39,7 +39,20 @@ class Spo2ReTraceTest {
         assertTrue(line, line.contains("v=null"))
     }
 
-    @Test fun sampleCapBoundedAtEight() {
-        assertEquals(8, Spo2ReTrace.MAX_SAMPLES)
+    @Test fun sampleCapBounded() {
+        assertEquals(12, Spo2ReTrace.MAX_SAMPLES)
+    }
+
+    /** The per-layout cap is what stops one dominant layout spending the whole session budget, and it
+     *  only does that if it is strictly smaller than the session cap. */
+    @Test fun perVersionCapIsBoundedAndSmallerThanTheSessionCap() {
+        assertEquals(3, Spo2ReTrace.MAX_PER_VERSION)
+        assertTrue(Spo2ReTrace.MAX_PER_VERSION < Spo2ReTrace.MAX_SAMPLES)
+    }
+
+    /** The session cap has to leave room for more than one layout, or stratifying changes nothing:
+     *  a 5/MG emits v18 alongside v20/v21/v26 and every one of them needs samples. */
+    @Test fun sessionCapCoversSeveralDistinctLayouts() {
+        assertTrue(Spo2ReTrace.MAX_SAMPLES / Spo2ReTrace.MAX_PER_VERSION >= 4)
     }
 }

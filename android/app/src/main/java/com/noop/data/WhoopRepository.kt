@@ -86,6 +86,16 @@ data class StreamBatch(
      */
     val unhandledPacketTypes: Map<String, Int> = emptyMap(),
     /**
+     * #891: one full-frame hex sample per type in [unhandledPacketTypes], keyed the same way, taken from
+     * the first such frame in the batch.
+     *
+     * The census alone tells a reporter that their firmware banks a record NOOP cannot read, and then
+     * asks them to report it — while carrying none of the bytes anyone would need to map it. The dropped
+     * frame is not archived either: `rejectedHistoricalRecords` only ever holds type-47, so these bytes
+     * existed nowhere. Diag only (excluded from [isEmpty]). Mirrors Swift `Streams.unhandledPacketSamples`.
+     */
+    val unhandledPacketSamples: Map<String, String> = emptyMap(),
+    /**
      * #520 diagnostic: a summary of `dynamic_acceleration@41` (the strap's own gravity-removed motion
      * magnitude) over this batch's v18 records. The field has been decoded on both platforms all along
      * with nothing consuming it, so there is no evidence on whether it is a usable stillness signal;

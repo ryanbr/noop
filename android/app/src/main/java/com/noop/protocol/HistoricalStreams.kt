@@ -715,6 +715,10 @@ fun extractHistoricalStreams(
     var droppedImplausible = 0
     // #891: packet types that reach the `else` branch and are dropped. See StreamBatch.unhandledPacketTypes.
     val unhandledTypes = mutableMapOf<String, Int>()
+    // #891: the FIRST frame seen for each of those types, as full hex. The census says a type exists;
+    // without its bytes the strap log asks a reporter to open an issue about a record nobody can then
+    // map. One frame per type per batch is enough to place the fields and keeps the log bounded.
+    val unhandledSamples = mutableMapOf<String, String>()
     // #324: oldest/newest own-timestamp among the dropped records (the poisoned-range epoch span), and the
     // dropped RTC-state events (RTC_LOST / BOOT / SET_RTC) — the ground truth that the clock reset. Declared
     // before correctedWall so the local function can capture them (Kotlin: no forward reference to locals).
@@ -1045,6 +1049,10 @@ fun extractHistoricalStreams(
                     val parsed = Framing.parseFrame(frame, family)
                     if (parsed.ok && parsed.crcOk != false) {
                         unhandledTypes[name] = (unhandledTypes[name] ?: 0) + 1
+                        // No prefix cap: an unmapped layout's interesting fields are as likely to sit in
+                        // the tail as the head, and a truncated sample is the one shape that looks like
+                        // evidence without being any.
+                        unhandledSamples.getOrPut(name) { frame.joinToString("") { b -> "%02x".format(b) } }
                     }
                 }
             }
@@ -1064,6 +1072,7 @@ fun extractHistoricalStreams(
         ppgWaveform = ppgWaveform,
         v18Aux = v18Aux,
         unhandledPacketTypes = unhandledTypes,   // #891 diag census (not persisted)
+        unhandledPacketSamples = unhandledSamples,   // #891 one frame per unmapped type (not persisted)
         droppedImplausibleTs = droppedImplausible,
         droppedImplausibleOldestTs = droppedOldest,   // #324 poisoned-range epoch span (diag only)
         droppedImplausibleNewestTs = droppedNewest,

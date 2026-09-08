@@ -22,9 +22,23 @@ package com.noop.analytics
  */
 object Spo2ReTrace {
 
-    /** Max records dumped per offload session. A handful is enough for an offline correlation pass and
-     *  keeps the strap log bounded; the Backfiller counter spans chunks and resets per session. */
-    const val MAX_SAMPLES = 8
+    /** Max records dumped per offload session, across all layout versions. A handful is enough for an
+     *  offline correlation pass and keeps the strap log bounded; the Backfiller counter spans chunks and
+     *  resets per session. */
+    const val MAX_SAMPLES = 12
+
+    /**
+     * Max records dumped per DISTINCT layout version, so the budget cannot be spent entirely on the
+     * layout we already understand.
+     *
+     * The dump used to take the first [MAX_SAMPLES] decodable records in arrival order. On a strap that
+     * emits a dominant layout plus a rarer one, that spends the whole budget inside the first chunk on
+     * the dominant layout - and the rare one is precisely the one still unmapped. The log would then
+     * announce "historical records use layout vN" while carrying no bytes of vN at all: proof a thing
+     * exists, with no material to work on it. Stratifying guarantees every layout the strap emits gets
+     * samples, including one at 1% of traffic, and stops re-dumping a layout already at parity.
+     */
+    const val MAX_PER_VERSION = 3
 
     /**
      * One record's RE line: the mapped SpO2 channels + timestamp + layout version, then the FULL frame

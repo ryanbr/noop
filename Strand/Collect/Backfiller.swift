@@ -199,6 +199,24 @@ final class Backfiller {
     /// The complete records are always in the reject archive.
     static let rejectHexDumpBudget = 24
 
+    /// #891: the dump line for the first frame of an unmapped packet type, or nil when this chunk holds
+    /// no frame of that type.
+    ///
+    /// Pure and static so the SELECTION is pinnable: the census names a type, and this has to find the
+    /// bytes that earned the name. Byte-identical to the Android line, which sources its hex from
+    /// `StreamBatch.unhandledPacketSamples` because the Kotlin extractor is handed raw ByteArrays and can
+    /// sample in place. Swift's extractor only sees `ParsedFrame`s whose `rawHex` is empty on the ingest
+    /// fast path (`collectFields: false`, D#969), so the bytes have to be zipped back in here.
+    /// Takes `typeNames` rather than the `ParsedFrame`s they came from: the selection only needs the
+    /// name, and `ParsedFrame`'s memberwise init is internal to WhoopProtocol, so a StrandTests case
+    /// cannot build one. A helper that cannot be called from its own test is not a testable helper.
+    static func unmappedTypeDumpLine(typeName: String, frames: [[UInt8]],
+                                     typeNames: [String]) -> String? {
+        guard let raw = zip(frames, typeNames).first(where: { $0.1 == typeName })?.0 else { return nil }
+        let hex = raw.map { String(format: "%02x", $0) }.joined()
+        return "Backfill: unmapped type \(typeName) first frame \(raw.count)B: \(hex)"
+    }
+
     /// How many reject frames this chunk may hex-dump, given what the session has already spent (#1992).
     ///
     /// The dump is the only channel carrying an unmapped layout's raw bytes to someone who can map it,
@@ -222,6 +240,11 @@ final class Backfiller {
     /// SpO2 RE dump (PR #945, reimplemented): how many full-record dumps this session emitted, bounded by
     /// `Spo2ReTrace.maxSamples`. Session-scoped so the cap spans chunks; reset per session in `begin`.
     private var spo2Dumped = 0
+
+    /// SpO2 RE dump: how many records this session dumped for each layout version, so one layout cannot
+    /// spend the whole session budget. Key -1 buckets a record whose `hist_version` did not decode.
+    /// Session-scoped alongside `spo2Dumped`; reset in `begin`. Twin of the Android `spo2DumpedByVersion`.
+    private var spo2DumpedByVersion: [Int: Int] = [:]
 
     /// Durably archives undecodable record frames BEFORE the trim ack (#77 / #91). Returns true once
     /// the bytes are safe (written OR cap-reached — either way the chunk may be acked) and false on a
@@ -320,6 +343,7 @@ final class Backfiller {
         sessionDynAccel = Streams.DynAccelDiag()
         loggedLayoutVersions.removeAll(keepingCapacity: true)
         spo2Dumped = 0
+        spo2DumpedByVersion = [:]
         // #547: the range markers belong to a connection's GET_DATA_RANGE, which BLEManager re-sets per
         // connect; clear them here so a fresh session never reuses a previous strap's window. BLEManager
         // re-publishes them as soon as the range reply arrives.
@@ -644,6 +668,11 @@ final class Backfiller {
             if spo2Dumped < Spo2ReTrace.maxSamples, connectionActive(), let connectionLog {
                 for (raw, p) in zip(frames, parsed) where spo2Dumped < Spo2ReTrace.maxSamples {
                     guard let unix = p.parsed["unix"]?.intValue else { continue }
+                    // Stratify by layout: without this the first chunk's dominant layout eats the whole
+                    // budget and the rare, still-unmapped one never gets a frame. See `maxPerVersion`.
+                    let ver = p.parsed["hist_version"]?.intValue ?? -1
+                    let dumpedForVer = spo2DumpedByVersion[ver] ?? 0
+                    if dumpedForVer >= Spo2ReTrace.maxPerVersion { continue }
                     connectionLog(Spo2ReTrace.recordLine(
                         frame: raw,
                         version: p.parsed["hist_version"]?.intValue,
@@ -651,6 +680,7 @@ final class Backfiller {
                         red: p.parsed["spo2_red"]?.intValue,
                         ir: p.parsed["spo2_ir"]?.intValue,
                         skinRaw: p.parsed["skin_temp_raw"]?.intValue))
+                    spo2DumpedByVersion[ver] = dumpedForVer + 1
                     spo2Dumped += 1
                 }
             }
@@ -714,6 +744,21 @@ final class Backfiller {
                          "decoder has no rows for — they are being dropped. If \(typeName) is not a name " +
                          "you recognise, this is a firmware record type NOOP has never mapped: please " +
                          "report it on #891 with the strap model and firmware build.")
+                    // #891: and the bytes, so the report is actionable. Without this the line above asks a
+                    // reporter to raise an issue about a record that exists nowhere else: `default:` drops
+                    // the frame and the reject archive only ever holds type-47. First sighting only, so a
+                    // long offload of one unmapped type still costs exactly one dump.
+                    //
+                    // Taken HERE rather than in the extractor, which is where the Android twin collects it:
+                    // `extractHistoricalStreams` receives already-parsed frames, and `ParsedFrame.rawHex` is
+                    // deliberately empty on the ingest fast path (`collectFields: false`, D#969), so reading
+                    // it there would emit an empty dump on every real offload while passing any test that
+                    // builds its own ParsedFrame. The raw bytes only exist at this level. Same log line on
+                    // both platforms; no prefix cap, for the reason the reject dump has none.
+                    if let line = Backfiller.unmappedTypeDumpLine(typeName: typeName, frames: frames,
+                                                                  typeNames: parsed.map(\.typeName)) {
+                        log?(line)
+                    }
                 }
             }
             // Diagnostic (#77): the AGGREGATE silent-loss case — frames arrived but produced no rows at
