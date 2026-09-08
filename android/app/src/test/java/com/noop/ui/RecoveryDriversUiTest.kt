@@ -67,4 +67,33 @@ class RecoveryDriversUiTest {
     @Test fun nullDayProducesNoRows() {
         assertTrue(recoveryChargeDrivers(scoredHistory(), null).isEmpty())
     }
+
+    // ---- #1988: the RHR row needs a USABLE resting-HR baseline ----------------------------------
+
+    /**
+     * A history with no banked resting HR folds to `foldHistory`'s synthetic midpoint (about 75 bpm),
+     * which is nobody's resting HR. Scoring the RHR row against it moves a bar on a baseline the user
+     * has never had, so the row must be absent. The HRV row still stands, since that baseline is real.
+     *
+     * The display day itself carries a reading, so this is specifically the BASELINE being unusable,
+     * not the reading being missing.
+     */
+    @Test fun rhrRowIsAbsentWhenTheRestingHrBaselineIsNotUsable() {
+        val history = (1..6).map { day("2026-01-0$it", rhr = null) }
+        val today = day("2026-01-07", rhr = 55)
+        val drivers = recoveryChargeDrivers(history + today, today)
+        val labels = drivers.map { it.label }
+        assertTrue("the HRV baseline is real, so its row must still be there",
+            labels.contains(ChargeDriverLabel.HEART_RATE_VARIABILITY))
+        assertTrue("no usable resting-HR baseline, so no RHR row: got $labels",
+            !labels.contains(ChargeDriverLabel.RESTING_HEART_RATE))
+    }
+
+    /** Control: once the resting-HR baseline IS usable the row returns, so the gate is not a blanket off. */
+    @Test fun rhrRowReturnsOnceTheBaselineIsUsable() {
+        val days = scoredHistory()
+        val labels = recoveryChargeDrivers(days, days.last()).map { it.label }
+        assertTrue("a usable resting-HR baseline must still produce its row: got $labels",
+            labels.contains(ChargeDriverLabel.RESTING_HEART_RATE))
+    }
 }

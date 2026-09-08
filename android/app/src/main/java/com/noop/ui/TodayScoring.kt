@@ -69,7 +69,14 @@ internal fun recoveryChargeDrivers(
     val ordered = days.sortedBy { it.day }
     val hrvBase = Baselines.foldHistory(ordered.map { it.avgHrv }, Baselines.hrvCfg)
     if (!hrvBase.usable) return emptyList()
+    // #1988: gated on `usable`, exactly as the resp baseline below and as the iOS twins
+    // (TodayView / CoupledView) already do. foldHistory returns the config's SYNTHETIC midpoint
+    // (about 75 bpm for resting HR) when the history is empty or entirely out of range, which is
+    // nobody's resting HR, so an ungated baseline scored the RHR row against a number the user has
+    // never had. With it null the term drops and RecoveryDrivers renormalises, the same path taken
+    // when today's reading is missing.
     val rhrBase = Baselines.foldHistory(ordered.map { it.restingHr?.toDouble() }, Baselines.restingHRCfg)
+        .takeIf { it.usable }
     val respBase = Baselines.foldHistory(ordered.map { it.respRateBpm }, Baselines.respCfg).takeIf { it.usable }
 
     // sleepPerf: the Rest COMPOSITE (/100) when stages exist, else raw efficiency, the SAME derivation
