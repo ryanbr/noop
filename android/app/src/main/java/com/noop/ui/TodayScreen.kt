@@ -2649,6 +2649,8 @@ private fun ScoreHeroRow(
             ) {
                 // CHARGE, recovery 0–100, as a liquid VESSEL with the value counting up over it. Honest
                 // empty / calibrating overlay; badges its recovery winner.
+                val effortRingTap = onOpenMetric?.let { open -> { open(HERO_EFFORT_METRIC_KEY) } }
+                val restRingTap = onOpenMetric?.let { open -> { open(HERO_REST_METRIC_KEY) } }
                 HeroRingColumn(
                     modifier = Modifier.width(col),
                     domain = DomainTheme.Charge,
@@ -2671,6 +2673,7 @@ private fun ScoreHeroRow(
                                 diameter = ring,
                                 animated = animated,
                                 showsValue = true,
+                                onTap = onChargeTap,
                             )
                         } else {
                             HeroScoreVessel(
@@ -2680,6 +2683,7 @@ private fun ScoreHeroRow(
                                 diameter = ring,
                                 animated = animated,
                                 showsValue = recovery != null,
+                                onTap = onChargeTap,
                             )
                             // Empty vessel + calibrating / no-data overlay (the carried case is above).
                             if (recovery == null) RingEmptyOverlay(recoveryCalibration, diameter = ring)
@@ -2693,7 +2697,11 @@ private fun ScoreHeroRow(
                     modifier = Modifier.width(col),
                     domain = DomainTheme.Effort,
                     onInfo = { onScoreInfo(ScoreSection.EFFORT) },
-                    onRingTap = onOpenMetric?.let { open -> { open(HERO_EFFORT_METRIC_KEY) } },
+                    onRingTap = effortRingTap,
+                    ringTapLabel = uiString(
+                        R.string.today_action_open_detail,
+                        uiString(R.string.today_metric_effort),
+                    ),
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         HeroScoreVessel(
@@ -2704,6 +2712,7 @@ private fun ScoreHeroRow(
                             animated = animated,
                             showsValue = strain != null,
                             format = { if (effortScale == EffortScale.WHOOP) String.format(Locale.getDefault(), "%.1f", it) else it.toInt().toString() },
+                            onTap = effortRingTap,
                         )
                         if (strain == null) RingNoData(diameter = ring)
                     }
@@ -2715,7 +2724,11 @@ private fun ScoreHeroRow(
                         modifier = Modifier.width(col),
                         domain = DomainTheme.Rest,
                         onInfo = { onScoreInfo(ScoreSection.REST) },
-                        onRingTap = onOpenMetric?.let { open -> { open(HERO_REST_METRIC_KEY) } },
+                        onRingTap = restRingTap,
+                        ringTapLabel = uiString(
+                            R.string.today_action_open_detail,
+                            uiString(R.string.today_metric_rest),
+                        ),
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             HeroScoreVessel(
@@ -2725,6 +2738,7 @@ private fun ScoreHeroRow(
                                 diameter = ring,
                                 animated = animated,
                                 showsValue = restScore != null && !restPendingSync,
+                                onTap = restRingTap,
                             )
                             // #1164: when today's Rest is provisional (strap has banked records not yet
                             // offloaded), show "Pending sync" instead of a number that will change once the
@@ -2777,9 +2791,17 @@ private fun HeroRingColumn(
     domain: DomainTheme,
     onInfo: () -> Unit,
     modifier: Modifier = Modifier,
-    // A1: when non-null (Charge), the ring is tappable and opens the breakdown sheet. The chevron cue is
-    // overlaid by the caller INSIDE the ring box so it adds no stacked height (#762 self-sizing parity).
+    // A1: when non-null the ring is tappable , Charge opens the breakdown sheet, Effort and Rest open
+    // their metric detail (#1995). The chevron cue is overlaid by the caller INSIDE the ring box so it
+    // adds no stacked height (#762 self-sizing parity).
+    //
+    // This wires the tap for the ring's SURROUND and for TalkBack (which activates the semantics node
+    // directly). A touch that lands on the vessel itself never reaches here , see the onTap the callers
+    // hand to HeroScoreVessel.
     onRingTap: (() -> Unit)? = null,
+    // Charge's ring opens a breakdown, so "see what shaped" is honest there. Effort and Rest open a
+    // trend detail instead, so they override it rather than announce a breakdown they do not show.
+    ringTapLabel: String? = null,
     ring: @Composable () -> Unit,
 ) {
     val domainLabel = uiString(
@@ -2806,7 +2828,8 @@ private fun HeroRingColumn(
                     .clickable(
                         interactionSource = ringInteraction,
                         indication = null,
-                        onClickLabel = uiString(R.string.today_action_see_what_shaped, domainLabel),
+                        onClickLabel = ringTapLabel
+                            ?: uiString(R.string.today_action_see_what_shaped, domainLabel),
                         onClick = onRingTap,
                     ),
             ) { ring() }
@@ -2882,6 +2905,9 @@ private fun HeroScoreVessel(
     animated: Boolean = true,
     showsValue: Boolean = true,
     format: (Double) -> String = { it.roundToInt().toString() },
+    // #1995: forwarded to LiquidVessel so the ring can act on a tap as well as splash. Wrapping the
+    // vessel in a clickable parent does NOT work: its own clickable consumes the event first.
+    onTap: (() -> Unit)? = null,
 ) {
     Box(modifier = modifier.size(diameter), contentAlignment = Alignment.Center) {
         LiquidVessel(
@@ -2889,6 +2915,7 @@ private fun HeroScoreVessel(
             tint = tint,
             animated = animated,
             modifier = Modifier.size(diameter),
+            onTap = onTap,
         )
         if (showsValue) {
             // Count-up number over the vessel — white, tabular, a soft shadow for legibility, hit-transparent

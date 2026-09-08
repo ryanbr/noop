@@ -2242,6 +2242,7 @@
     <string name="today_action_how_charge">Как рассчитывается Заряд</string>
     <string name="today_action_reset_hr_zoom">Сбросить масштаб пульса</string>
     <string name="today_action_see_what_shaped">Посмотреть, что сформировало ваш показатель %1$s</string>
+    <string name="today_action_open_detail">Открыть подробности: %1$s</string>
     <string name="today_action_show_sources">Показать, откуда синхронизируется NOOP</string>
     <string name="today_action_show_workout">Показать детали тренировки</string>
     <string name="today_contributors">Участники</string>

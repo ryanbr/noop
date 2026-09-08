@@ -2312,6 +2312,7 @@
     <string name="today_action_how_charge">So wird Energie berechnet</string>
     <string name="today_action_reset_hr_zoom">Herzfrequenz-Zoom zurücksetzen</string>
     <string name="today_action_see_what_shaped">Einflüsse auf %1$s anzeigen</string>
+    <string name="today_action_open_detail">%1$s-Details öffnen</string>
     <string name="today_action_show_sources">Synchronisierte NOOP-Quellen anzeigen</string>
     <string name="today_action_show_workout">Workout-Details anzeigen</string>
     <string name="today_contributors">Einflussfaktoren</string>

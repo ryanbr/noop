@@ -2291,6 +2291,7 @@
     <string name="today_action_how_charge">Como a energia é calculada</string>
     <string name="today_action_reset_hr_zoom">Repor zoom da frequência cardíaca</string>
     <string name="today_action_see_what_shaped">Ver o que influenciou %1$s</string>
+    <string name="today_action_open_detail">Abrir o detalhe de %1$s</string>
     <string name="today_action_show_sources">Mostrar as fontes sincronizadas com o NOOP</string>
     <string name="today_action_show_workout">Mostrar os detalhes do treino</string>
     <string name="today_contributors">Contributos</string>

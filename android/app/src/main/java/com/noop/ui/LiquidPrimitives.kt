@@ -76,6 +76,13 @@ fun LiquidVessel(
     tint: Color,
     animated: Boolean = true,
     modifier: Modifier = Modifier,
+    // #1995: run alongside the splash when the vessel is the tap target for something.
+    //
+    // The vessel owns a `clickable` for its splash, and in Compose a child's clickable CONSUMES the
+    // event, so a clickable parent never sees it. That silently broke the hero Charge ring: the column
+    // wrapped the vessel in a clickable Box and the tap never arrived. Passing the action IN, rather
+    // than wrapping the vessel, is what makes the ring both splash and act.
+    onTap: (() -> Unit)? = null,
 ) {
     val renderStill = rememberPoseStill()
 
@@ -114,6 +121,7 @@ fun LiquidVessel(
                     interactionSource = remember { MutableInteractionSource() },
                 ) {
                     sim.splash(12)
+                    onTap?.invoke()
                     // A LIGHT tap impact, matching iOS `.sensoryFeedback(.impact(weight: .light))`. Compose's
                     // HapticFeedbackType on this BOM only offers LongPress (heavy) / TextHandleMove, so route a
                     // light KEYBOARD_TAP through the platform view — the closest available light-impact tick.

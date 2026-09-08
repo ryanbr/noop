@@ -2299,6 +2299,7 @@
     <string name="today_action_how_charge">Cómo se calcula la carga</string>
     <string name="today_action_reset_hr_zoom">Restablecer zoom de frecuencia cardíaca</string>
     <string name="today_action_see_what_shaped">Ver qué influyó en %1$s</string>
+    <string name="today_action_open_detail">Abrir el detalle de %1$s</string>
     <string name="today_action_show_sources">Mostrar las fuentes sincronizadas con NOOP</string>
     <string name="today_action_show_workout">Mostrar los detalles del entrenamiento</string>
     <string name="today_contributors">Factores</string>
