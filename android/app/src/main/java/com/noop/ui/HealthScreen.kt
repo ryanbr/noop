@@ -2086,6 +2086,29 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
                         color = Palette.textTertiary,
                     )
                 }
+                // #2008 follow-up: the daily SCORES are drawn as bars. A line asserts continuity between
+                // readings, and on a series swinging ~20 points a day that climb-and-dive through values
+                // which never existed is most of what reads as noise. One slot per DAY positions the bars
+                // by date and turns a missing day into an empty slot. Levels (resting HR, HRV, skin temp)
+                // stay lines: those really do vary continuously between measurements.
+                // Remembered like `dayLabels` beside it: densifying rebuilds a slot per day and formats a
+                // label for each, and on the ALL range that is hundreds of both. Recomputing them every
+                // recomposition is the cost this screen already avoids for the line path's derived lists.
+                val bars = remember(filteredReadings, key) {
+                    if (vitalChartIsBars(key)) densifyByDay(filteredReadings) else null
+                }
+                val barValues = remember(bars) { bars?.map { it.second } }
+                val barLabels = remember(bars) { bars?.map { shortDayLabel(it.first) } }
+                if (barValues != null && barLabels != null) {
+                    BarChart(
+                        values = barValues,
+                        modifier = Modifier.height(Metrics.chartHeight),
+                        color = detail.color,
+                        selectionEnabled = true,
+                        selectionLabels = barLabels,
+                        formatValue = { "${detail.format(it)} ${detail.unit}".trim() },
+                    )
+                } else {
                 LineChart(
                     values = values,
                     modifier = Modifier.height(Metrics.chartHeight),
@@ -2124,6 +2147,7 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
                     // the measurements actually are once gaps stretch the line between them.
                     showsPoints = true,
                 )
+                }
                 // #1662: the VO2max line is SPLIT on purpose wherever the estimator changes, so two
                 // non-adjacent Nes runs are never joined across an incompatible Uth stretch. Nothing said
                 // so, and a silent gap in a trend is indistinguishable from a rendering fault - it was

@@ -84,6 +84,51 @@ internal fun dayEpochSeconds(readings: List<VitalReading>): List<Long>? {
     return out
 }
 
+/**
+ * Which metrics are drawn as BARS rather than as a line.
+ *
+ * A line asserts continuity between points: it says the value travelled from one reading to the next. For
+ * a daily score that is false, and it is most of what makes a spiky series look chaotic. The reported
+ * Effort swings 19.8 points a day on a 0..42 range, so a line spends the whole chart climbing and diving
+ * through values that never existed.
+ *
+ * Bars claim nothing between slots. A zero day is a short bar beside a tall one instead of a plunge, and a
+ * day with no reading is simply an empty slot.
+ *
+ * Only the daily SCORES. Resting HR, HRV, skin temperature, respiratory rate and blood oxygen are levels
+ * that genuinely do vary continuously between measurements, so a line is the honest shape for them, and
+ * Fitness Age and Vitality are too sparse to fill a bar chart.
+ */
+internal fun vitalChartIsBars(key: String): Boolean = key in setOf("recovery", "rest", "strain")
+
+/**
+ * One slot per DAY across the window, rather than one per reading.
+ *
+ * Bars are laid out evenly across their slots, so giving every day a slot is what positions them by date:
+ * a missing day becomes an empty slot of the right width, with no separate spacing machinery. Days with no
+ * reading carry NaN, which the bar chart already treats as nothing to draw.
+ *
+ * Returns null when a day key fails to parse, so the caller falls back to the per-reading form rather than
+ * silently dropping readings into the wrong slots.
+ */
+internal fun densifyByDay(readings: List<VitalReading>): List<Pair<String, Double>>? {
+    if (readings.isEmpty()) return emptyList()
+    val byDay = LinkedHashMap<java.time.LocalDate, Double>()
+    for (r in readings) {
+        val day = runCatching { java.time.LocalDate.parse(r.day) }.getOrNull() ?: return null
+        byDay[day] = r.value
+    }
+    val first = byDay.keys.min()
+    val last = byDay.keys.max()
+    val out = ArrayList<Pair<String, Double>>()
+    var day = first
+    while (!day.isAfter(last)) {
+        out += day.toString() to (byDay[day] ?: Double.NaN)
+        day = day.plusDays(1)
+    }
+    return out
+}
+
 /** Sequential ids for a method-aware trend. Nes → Uth → Nes becomes three segments rather than joining
  *  the non-adjacent Nes runs across an incompatible estimator. */
 internal fun vo2MaxTrendSegmentIds(readings: List<VitalReading>): List<String> {

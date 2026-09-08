@@ -638,6 +638,14 @@ fun BarChart(
     formatValue: ((Double) -> String)? = null,
 ) {
     val cleanValues = remember(values) { values.map { if (it.isFinite() && it > 0.0) it else 0.0 } }
+    // The cleaned list flattens a non-finite value to 0.0 so it draws nothing, which is right for the
+    // GEOMETRY and wrong for the read-out: a caller passing NaN for "no reading that day" would have its
+    // empty slots answer "0.0" on tap, asserting a measurement that does not exist.
+    //
+    // The raw list decides only WHETHER a slot can be labelled, never what the label says. Cleaning also
+    // flattens NEGATIVES to zero, and at least one caller (sleep debt) may pass them, so reading the raw
+    // value for the number itself would quietly change what those charts report on tap.
+
     // cleanValues ZEROES (never drops) non-finite bars, so indices stay aligned with [values] and the
     // labels only need a size match — null when absent/mismatched so selection falls back to value-only.
     val cleanSelectionLabels = remember(values, selectionLabels) {
@@ -738,10 +746,15 @@ fun BarChart(
                                 cap = StrokeCap.Round,
                             )
                         }
-                        if (selectionEnabled && selectedIndex in clean.indices) {
+                        val selectedRaw = values.getOrNull(selectedIndex)
+                        if (selectionEnabled && selectedIndex in clean.indices &&
+                            selectedRaw != null && selectedRaw.isFinite()
+                        ) {
                             drawContext.canvas.nativeCanvas.apply {
                                 drawText(
                                     lineChartSelectionLabel(
+                                        // The CLEANED value, exactly as before, so no existing caller's
+                                        // label changes. The raw value only decides WHETHER to label.
                                         value = clean[selectedIndex],
                                         formatValue = formatValue,
                                         pointLabel = cleanSelectionLabels?.getOrNull(selectedIndex),
