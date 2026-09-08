@@ -106,44 +106,6 @@ class BondRefusalGiveUpTest {
     // --- #1997: the held-link hint ---
 
     /**
-     * The whole point of this branch: it must NOT send the user to re-pair. The reporter was re-pairing
-     * and rebooting on a loop because the generic guide told them to, for a state where nothing was
-     * exchanged for the strap to refuse.
-     */
-    @Test
-    fun `the held-link hint does not tell the user to re-pair`() {
-        val h = BondRefusalGiveUp.pausedHintLinkHeld().lowercase()
-        // It DOES say the word, to rule the action out. What it must not do is instruct it: no Forget,
-        // no Unpair, no numbered steps. Asserting the word is absent was wrong and this test caught it.
-        assertTrue(h, h.contains("re-pairing will not change this"))
-        assertFalse(h, h.contains("forget"))
-        assertFalse(h, h.contains("unpair"))
-        assertFalse(h, h.contains("1."))
-    }
-
-    /**
-     * It names both candidate owners and the action for each, without asserting WHICH holds the link,
-     * because NOOP cannot see that. Naming the observation is reporting; naming the owner would be a
-     * guess, which is the standard `pausedHintHandshakeUnanswered` already sets.
-     */
-    @Test
-    fun `the held-link hint offers both actions without claiming which owner holds it`() {
-        val h = BondRefusalGiveUp.pausedHintLinkHeld().lowercase()
-        assertTrue(h, h.contains("whoop app"))
-        assertTrue(h, h.contains("bluetooth off and on"))
-        assertFalse(h, h.contains("is holding it"))
-    }
-
-    /** Distinct from the generic hint, or the more specific observation would be invisible. */
-    @Test
-    fun `the held-link hint is not the unanswered-handshake hint`() {
-        assertNotEquals(
-            BondRefusalGiveUp.pausedHintHandshakeUnanswered(),
-            BondRefusalGiveUp.pausedHintLinkHeld(),
-        )
-    }
-
-    /**
      * The guide is what the user actually sees, and it is where the harm was: the re-pair steps sent the
      * reporter to forget and re-pair several times a day for a state re-pairing cannot change.
      */
@@ -157,8 +119,10 @@ class BondRefusalGiveUpTest {
         assertFalse(g, g.contains("unpair"))
         assertFalse(g, g.contains("flash blue"))
         // and it still gives them something to do
-        assertTrue(g, g.contains("quit it"))
         assertTrue(g, g.contains("bluetooth off and back on"))
+        // Universal action first, the conditional one second, for the same reason.
+        assertTrue(g, g.indexOf("bluetooth off and back on") < g.indexOf("whoop app"))
+        assertTrue(g, g.contains("if you have the official whoop app installed"))
     }
 
     /**
@@ -182,5 +146,22 @@ class BondRefusalGiveUpTest {
         assertTrue(g, g.contains("Open Settings → Bluetooth, find your WHOOP, and Forget / Unpair it."))
         assertTrue(g, g.contains("Tap the band repeatedly until its LEDs flash blue (pairing mode)."))
         assertTrue(g, g.startsWith("Your strap connects but never finishes pairing with NOOP"))
+    }
+
+    /**
+     * The diagnostic renders the verdict it is GIVEN, which is the verdict the guide is chosen from, so a
+     * log cannot report a decision the code did not make. Driven from `heldLinkWithoutTraffic` here so the
+     * inputs and the rendered verdict are checked against the real rule across every combination.
+     */
+    @Test
+    fun `the held-link diagnostic reports the same verdict the predicate reaches`() {
+        val cases = listOf(true to 0, false to 0, true to 6, false to 6)
+        for ((acl, inbound) in cases) {
+            val expected = WhoopBleClient.heldLinkWithoutTraffic(acl, inbound)
+            val line = BondRefusalGiveUp.heldLinkDiagLine(acl, inbound, expected)
+            assertTrue(line, line.endsWith(if (expected) "-> held" else "-> not held"))
+            assertTrue(line, line.contains("aclHeld=$acl"))
+            assertTrue(line, line.contains("inbound=$inbound"))
+        }
     }
 }

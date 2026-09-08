@@ -143,6 +143,25 @@ class BondRefusalGiveUp(
                 "please share your strap log."
 
         /**
+         * #1997: the three inputs the guide choice turns on, logged at the pause.
+         *
+         * The held-link branch is now deliberately conservative: it fires only when the OS itself reports
+         * the connection still held. Nothing in the field log that prompted it actually shows that signal
+         * on the silent links, because those took the give-up path, which prints no ACL marker. So the
+         * branch may be right and may simply never fire, and without this line the next log would not say
+         * which.
+         *
+         * The counters ship rather than just the behaviour, for the same reason the windowed-read ones do.
+         *
+         * [held] is PASSED IN rather than re-derived here. Restating `heldLinkWithoutTraffic`'s rule in a
+         * second file would let the line report a verdict the code did not reach the moment either copy
+         * changed. The caller evaluates the predicate once and hands the answer to both this and the guide,
+         * so all three cannot disagree.
+         */
+        fun heldLinkDiagLine(aclHeld: Boolean, inboundFrames: Int, held: Boolean): String =
+            "held-link check: aclHeld=$aclHeld inbound=$inboundFrames -> ${if (held) "held" else "not held"}"
+
+        /**
          * #1997: which reconnect guide the never-bonded pause should show.
          *
          * Pure so the SELECTION is pinned and not just the two texts. Testing a predicate and a string
@@ -182,33 +201,10 @@ class BondRefusalGiveUp(
             answering on it: the connection size negotiation is refused and no data arrives. Re-pairing
             will not change this, so it is not worth doing.
 
-            1. If the official WHOOP app is running, quit it. A strap talks to one phone at a time.
-            2. Otherwise turn Bluetooth off and back on, which releases the held connection.
+            1. Turn Bluetooth off and back on. That releases the held connection.
+            2. If you have the official WHOOP app installed, quit it too. A strap talks to one phone at a time.
             3. Come back here and tap Connect.
             """.trimIndent()
-
-        /**
-         * #1997: the paused hint for a link the OS was already HOLDING, rather than a strap refusing.
-         *
-         * [pausedHintHandshakeUnanswered] deliberately declines to name a cause, and that is right for an
-         * unanswered handshake: several things produce it and "close the WHOOP app" would be a guess
-         * dressed as instruction. This branch exists because there IS evidence. The MTU exchange was
-         * refused, which happens when it already took place on a connection the phone still holds, and not
-         * one frame arrived on the link. Naming what was observed is then reporting, not guessing.
-         *
-         * It still does not assert WHICH owner holds the link, because NOOP cannot see that. It names the
-         * two candidates and the actions that belong to the user. Crucially it does NOT send them to
-         * re-pair: nothing was exchanged for the strap to refuse, so re-pairing cannot change this state,
-         * and the reporter had been doing exactly that on a loop.
-         *
-         * Pure; no em-dash.
-         */
-        fun pausedHintLinkHeld(): String =
-            "NOOP stopped retrying because the phone's Bluetooth is still holding a connection to your " +
-                "strap that the strap is not answering on: the connection size negotiation is refused and " +
-                "no data arrives. Re-pairing will not change this, so it is not worth doing. If the " +
-                "official WHOOP app is running, quit it. Otherwise turn Bluetooth off and on again, which " +
-                "releases the held connection. Then tap Connect."
 
         /**
          * #750: a short OPAQUE token for the epitaph, derived from the strap's device id.

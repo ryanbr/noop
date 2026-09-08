@@ -189,11 +189,20 @@ class NeverBondedSelfDropGiveUpTest {
      * which this must not claim.
      */
     @Test
-    fun `a held link is a refused MTU exchange AND no traffic`() {
-        assertTrue(WhoopBleClient.heldLinkWithoutTraffic(mtuStatus = 4, inboundFrames = 0))
-        assertFalse(WhoopBleClient.heldLinkWithoutTraffic(mtuStatus = 4, inboundFrames = 6))
-        assertFalse(WhoopBleClient.heldLinkWithoutTraffic(mtuStatus = 0, inboundFrames = 0))
-        assertFalse(WhoopBleClient.heldLinkWithoutTraffic(mtuStatus = 0, inboundFrames = 6))
+    fun `a held link is the OS signal AND no traffic`() {
+        assertTrue(WhoopBleClient.heldLinkWithoutTraffic(aclHeld = true, inboundFrames = 0))
+        assertFalse(WhoopBleClient.heldLinkWithoutTraffic(aclHeld = true, inboundFrames = 6))
+    }
+
+    /**
+     * The narrowing that matters, and the reason it was added. A refused exchange with no traffic ALSO
+     * describes a stale pairing, where the right advice is the opposite: re-pair. The #1997 reporter
+     * turned out to be exactly that, with no official WHOOP app installed and a bond that had gone stale.
+     * Without the OS actually reporting the connection held, this must not claim it.
+     */
+    @Test
+    fun `a stale pairing is not mistaken for a held connection`() {
+        assertFalse(WhoopBleClient.heldLinkWithoutTraffic(aclHeld = false, inboundFrames = 0))
     }
 
     /**

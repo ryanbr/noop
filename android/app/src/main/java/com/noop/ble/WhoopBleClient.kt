@@ -1048,8 +1048,13 @@ class WhoopBleClient(
         /**
          * #1997: was this link one the strap never spoke on, on a connection the OS was already holding?
          *
-         * The MTU exchange is refused (non-zero status, so the link sits at the 23-byte default) and not a
-         * single frame arrived. On the reporting device every re-attach looked exactly like this while the
+         * The OS reports the connection still held ([isStrapAclHeld]) and not a single frame arrived on it.
+         *
+         * That is the whole claim the guide makes, so it is the whole predicate. An earlier version also
+         * required the MTU exchange to have been refused, which was how this inferred a held link BEFORE
+         * asking the OS directly. Once the direct signal is required the refusal adds no part of the claim
+         * and only narrows when it can fire, which on a branch with no field sighting yet is a cost with
+         * no benefit. The MTU refusal still reads as a refusal in the log, where it helps triage. On the reporting device every re-attach looked exactly like this while the
          * one link that negotiated 247 carried traffic, so this is the shape of attaching to a stale
          * connection rather than of a strap declining to pair.
          *
@@ -1059,8 +1064,8 @@ class WhoopBleClient(
          * connect-drop-retry cycle would have run forever draining both batteries. That is the exact
          * failure #982 exists to prevent. The pause is right; only the explanation was wrong.
          */
-        internal fun heldLinkWithoutTraffic(mtuStatus: Int, inboundFrames: Int): Boolean =
-            mtuStatus != 0 && inboundFrames == 0
+        internal fun heldLinkWithoutTraffic(aclHeld: Boolean, inboundFrames: Int): Boolean =
+            aclHeld && inboundFrames == 0
 
         /** Pure guard for a delayed service-discovery kick. The operation belongs only to the exact
          *  connection that scheduled it, and a temporarily-missing GATT wrapper must not consume the
@@ -6512,12 +6517,6 @@ class WhoopBleClient(
                 it.copy(pairingHint = when {
                     suppress -> BondRefusalGiveUp.helloSuppressedHint()
                     authRefusal -> BondRefusalGiveUp.pausedHint()
-                    // #1997: BEFORE the unanswered-handshake hint, because this is the more specific
-                    // observation. A refused MTU exchange with no inbound traffic says the link is held
-                    // and the strap is not on it, which the generic hint cannot say and which changes
-                    // what the user should do: not re-pair.
-                    heldLinkWithoutTraffic(lastMtuStatus, inboundFrames) ->
-                        BondRefusalGiveUp.pausedHintLinkHeld()
                     else -> BondRefusalGiveUp.pausedHintHandshakeUnanswered()
                 })
             }
@@ -6575,20 +6574,6 @@ class WhoopBleClient(
      *  stable telemetry and to avoid repeating any future callback-side work. */
     private var lastMtuValue = -1
 
-    /**
-     * #1997: the status the last MTU exchange reported, and the reason a refused one matters.
-     *
-     * A re-attach to a link the OS still holds answers the MTU request with a non-zero status and leaves
-     * the link at the 23-byte default. On the reporter's log every such link then carried ZERO inbound
-     * frames, while the one link that negotiated 247 carried traffic. So a refused exchange is a cheap,
-     * early tell that this link is not one the strap is actually talking on.
-     *
-     * Plain `var`, like [lastMtuValue] and `lastMtuAtMs` beside it, which are written in the same callback
-     * and read on the same paths. Marking only this one `@Volatile` would advertise a thread-safety
-     * property it cannot deliver: it is read in a single expression with `inboundFrames`, also a plain
-     * var, so the pair would be no more coherent than before while looking as though it had been made so.
-     */
-    private var lastMtuStatus = 0
     private var lastMtuAtMs = 0L
 
     /** #1066 follow-up: wall-clock of the `requestMtu` attempt, so `onMtuChanged` can log how long the MTU
@@ -6836,7 +6821,6 @@ class WhoopBleClient(
             }
             lastMtuValue = mtu
             lastMtuAtMs = now
-            lastMtuStatus = status
             // Whatever the strap granted (≤ requested). Telemetry only: Android can emit this callback
             // for the connection itself as well as requestMtu, without saying which. Starting discovery
             // here can overlap the still-running MTU operation and wedge service discovery.
@@ -10909,9 +10893,14 @@ class WhoopBleClient(
                 // was wrong is blaming the strap. When the MTU exchange was refused and nothing arrived,
                 // the phone is holding a connection the strap is not on, and re-pairing cannot change
                 // that: the reporter had been doing it several times a day on this guide's advice.
-                val guide = BondRefusalGiveUp.reconnectGuideFor(
-                    heldLinkWithoutTraffic(lastMtuStatus, inboundFrames),
-                )
+                // Read the OS signal ONCE: isStrapAclHeld is a binder call, and the diagnostic and the
+                // guide must agree about what was observed anyway.
+                val aclHeldNow = lastDeviceAddress?.let { isStrapAclHeld(it) } == true
+                // Say what the choice turned on, so a shared log can tell whether the held-link branch
+                // fired or was simply never reachable in the field.
+                val heldLink = heldLinkWithoutTraffic(aclHeldNow, inboundFrames)
+                log(BondRefusalGiveUp.heldLinkDiagLine(aclHeldNow, inboundFrames, heldLink))
+                val guide = BondRefusalGiveUp.reconnectGuideFor(heldLink)
                 _state.update { it.copy(reconnectGuide = guide) }
             }
         }
@@ -11204,7 +11193,6 @@ class WhoopBleClient(
         // Clear the onMtuChanged dedup (#50) so the first MTU callback of the NEXT connection — even to
         // the same strap with the same granted mtu — is never mistaken for a duplicate of the last one.
         lastMtuValue = -1
-        lastMtuStatus = 0
         lastMtuAtMs = 0L
         mtuRequestedAtMs = 0L   // #1066: don't measure settle time across a connection boundary
         // The strap forgets the realtime-HR toggle across a disconnect; the post-bond branch re-arms it
