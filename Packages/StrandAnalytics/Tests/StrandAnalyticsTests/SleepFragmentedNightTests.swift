@@ -1,5 +1,6 @@
 import XCTest
 @testable import StrandAnalytics
+import WhoopProtocol
 
 /// Swift twin of `SleepFragmentedNightTest`.
 ///
