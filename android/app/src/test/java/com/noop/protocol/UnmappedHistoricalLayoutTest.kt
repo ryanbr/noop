@@ -222,4 +222,63 @@ class UnmappedHistoricalLayoutTest {
         }
     }
 
+    /**
+     * The v20 OPTICAL body, end to end through the historical dispatch, on a real-shaped 2140-byte
+     * frame. The tests above use a short v18-derived frame, on which `Whoop5RawOptical.decode` refuses
+     * and only the shared header decodes, so without this the optical branch this port exists for would
+     * be entirely unexercised. `decode` requires the frame to BE the 2140-byte buffer, CRC-sealed, with
+     * the record class and layout version in place, so the fixture has to be sealed exactly as a strap
+     * seals one.
+     */
+    @Test
+    fun whoop5V20DecodesItsOpticalBlocksThroughTheHistoricalDispatch() {
+        val frame = sealedV20Frame(sampleCount = 3, firstSample = 0x00012345)
+        val d = decodeHistorical(frame, DeviceFamily.WHOOP5)
+        assertNotNull("a sealed v20 buffer must decode", d)
+        assertEquals(20, d!!["hist_version"])
+        assertEquals(Whoop5RawOptical.BLOCK_COUNT, d["sensor_block_count"])
+        assertEquals(3, d["block_b0_sample_count"])
+        assertEquals("the widest block's sample count", 3, d["sensor_channel_samples"])
+        // Two channel slots per block, emitted only for blocks whose sample count is non-zero.
+        assertEquals(2, d["sensor_channels_present"])
+        @Suppress("UNCHECKED_CAST")
+        val ch = d["channel_b0_0"] as List<Int>
+        assertEquals(3, ch.size)
+        assertEquals("raw signed i32 sample, no masking or scaling applied", 0x00012345, ch[0])
+        assertNotNull("the block's raw header is carried too", d["block_b0_header"])
+        // And it is still archived: it decoded, but it carries no heart rate and no gravity.
+        assertEquals(1, rejectedHistoricalRecords(listOf(frame), DeviceFamily.WHOOP5).size)
+    }
+
+    /**
+     * A 2140-byte v20 buffer with block 0 given [sampleCount] samples, the first of them [firstSample],
+     * sealed with both checksums. Mirrors the builder in `Whoop5RawOpticalTest`, which is private there.
+     */
+    private fun sealedV20Frame(sampleCount: Int, firstSample: Int): ByteArray {
+        val f = ByteArray(Whoop5RawOptical.BUFFER_LENGTH)
+        f[0] = 0xAA.toByte()
+        f[1] = 0x01
+        f[2] = 0x54            // declared length 2132 = 2140 - 8
+        f[3] = 0x08
+        f[4] = 0x01
+        f[8] = Whoop5RawOptical.RECORD_CLASS.toByte()
+        f[9] = Whoop5RawOptical.LAYOUT_VERSION.toByte()
+        f[10] = 0x81.toByte()  // v20's layout marker
+        // record_index @11 and unix @15, both u32 LE, so the shared header has real values to read.
+        for ((off, v) in listOf(11 to 0x0000_2233L, 15 to 0x6600_0000L)) {
+            for (b in 0 until 4) f[off + b] = ((v shr (8 * b)) and 0xFF).toByte()
+        }
+        val blockStart = Whoop5RawOptical.BLOCK_START
+        f[blockStart] = sampleCount.toByte()
+        val sampleStart = blockStart + Whoop5RawOptical.HEADER_LENGTH
+        for (b in 0 until 4) f[sampleStart + b] = ((firstSample shr (8 * b)) and 0xFF).toByte()
+        val headerCrc = Crc.crc16Modbus(f, 0, 6)
+        f[6] = (headerCrc and 0xFF).toByte()
+        f[7] = ((headerCrc shr 8) and 0xFF).toByte()
+        val end = Whoop5RawOptical.CHECKSUM_OFFSET
+        val payloadCrc = Crc.crc32(f, 8, end)
+        for (i in 0 until 4) f[end + i] = ((payloadCrc shr (8 * i)) and 0xFF).toByte()
+        return f
+    }
+
 }
