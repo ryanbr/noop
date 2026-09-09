@@ -31,19 +31,27 @@ final class PpgWaveformSampleTests: XCTestCase {
     func testPpgWaveformTableShape() async throws {
         let store = try await WhoopStore.inMemory()
         let cols = try await store.columnNamesForTest(table: "ppgWaveformSample")
-        XCTAssertEqual(Set(cols), ["deviceId", "ts", "samples", "burstIndex"])
+        // #2019: `baseCode` is the absolute optical code `samples` are deltas from. Nullable and
+        // additive, so an existing row keeps its deltas and reads null, which is the true statement
+        // about it: a delta series cannot be inverted without its starting point.
+        XCTAssertEqual(Set(cols), ["deviceId", "ts", "samples", "burstIndex", "baseCode"])
     }
 
     func testPpgWaveformInsertRoundTripAndDedup() async throws {
         let store = try await WhoopStore.inMemory()
-        let streams = Streams(ppgWaveform: [PpgWaveformSample(ts: 1_780_917_232,
-                                                              samples: realSamples, burstIndex: 7)])
+        // #2019: with a baseCode, so the round trip proves the column is WRITTEN and READ. The read is a
+        // named projection, so a new column is invisible to it until it is listed, and a base that banked
+        // but never came back would read as nil, which is exactly what a legacy row reads as.
+        let streams = Streams(ppgWaveform: [PpgWaveformSample(ts: 1_780_917_232, samples: realSamples,
+                                                              burstIndex: 7, baseCode: 378_307)])
         _ = try await store.insert(streams, deviceId: "my-whoop")
         let n1 = try await store.ppgWaveformCountForTest()
         XCTAssertEqual(n1, 1)
         let read = try await store.ppgWaveformSamples(deviceId: "my-whoop",
                                                        from: 1_780_917_232, to: 1_780_917_232)
-        XCTAssertEqual(read, [PpgWaveformSample(ts: 1_780_917_232, samples: realSamples, burstIndex: 7)])
+        XCTAssertEqual(read, [PpgWaveformSample(ts: 1_780_917_232, samples: realSamples, burstIndex: 7,
+                                                baseCode: 378_307)])
+        XCTAssertEqual(read.first?.baseCode, 378_307, "the absolute base must survive the round trip")
         // Re-inserting the same (deviceId, ts) is idempotent, ON CONFLICT DO NOTHING (mirrors every
         // other per-second stream's dedupe rule).
         _ = try await store.insert(streams, deviceId: "my-whoop")
