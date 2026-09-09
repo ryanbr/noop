@@ -697,20 +697,29 @@ final class Backfiller {
             // motion-driven) can never be computed from it, even though the offload "completes". Surface
             // each unmapped version once so the user's strap log reveals what their firmware emits.
             //
-            // The decision lives in `historicalLayoutIsUnmapped` (WhoopProtocol), which asks the 5/MG
-            // DISPATCH TABLE rather than sniffing the field names a record happened to decode. See its
-            // doc for why the field list kept going stale, and `HistoricalLayoutSupportTests` for the
-            // guard that stops it going stale again.
+            // TWO facts, not one (#1992). Whether the layout decodes is asked of the 5/MG dispatch table;
+            // whether the record carries anything scoreable stays the field test. The single old line said
+            // "doesn't decode yet" for both, which was wrong for v20 — and simply suppressing it there
+            // would have dropped the half that IS true, leaving a user with unstaged nights and nothing
+            // in the log saying why. See `historicalLayoutSupport` and its tests.
             for p in parsed {
                 guard let v = p.parsed["hist_version"]?.intValue,
                       !loggedUnmappedVersions.contains(v) else { continue }
-                guard historicalLayoutIsUnmapped(
+                let support = historicalLayoutSupport(
                     version: v, family: family,
                     hasHeartRate: p.parsed["heart_rate"] != nil,
                     hasGravity: p.parsed["gravity_x"] != nil,
-                    hasPpgWaveform: p.parsed["ppg_waveform"] != nil) else { continue }
+                    hasPpgWaveform: p.parsed["ppg_waveform"] != nil)
+                guard support != .supported else { continue }
                 loggedUnmappedVersions.insert(v)
-                log?("Historical records use firmware layout v\(v), which NOOP doesn't decode yet: those records carry no heart rate or motion, so any night made only of them can't be staged from the strap. A strap emitting a mix of layouts still stages the nights it can. Please report this (issue #1992).")
+                switch support {
+                case .unmapped:
+                    log?("Historical records use firmware layout v\(v), which NOOP doesn't decode yet: those records carry no heart rate or motion, so any night made only of them can't be staged from the strap. A strap emitting a mix of layouts still stages the nights it can. Please report this (issue #1992).")
+                case .decodesWithoutNamedSignal:
+                    log?("Historical records use firmware layout v\(v). NOOP decodes it, but these records carry no per-second heart rate and no motion (they hold raw sensor channels nothing scores yet), so any night made only of them can't be staged from the strap. A strap emitting a mix of layouts still stages the nights it can. Please report this (issue #1992).")
+                case .supported:
+                    break
+                }
             }
             let decoded = d.decoded
             // #520: accumulate the motion-magnitude diagnostic across the session; logged once at the

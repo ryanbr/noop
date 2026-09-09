@@ -1,31 +1,52 @@
 import Foundation
 
-/// Whether a historical record's layout version is one this platform has NO field map for, and so should
-/// be reported to the user as undecodable.
+/// How well this platform handles a historical record's layout version, for the strap-log line that tells
+/// a user why their nights are not staging.
 ///
-/// #1992. The old form of this question listed the signature field of every mapped layout and warned when
-/// a record carried none of them: `heart_rate`, then `gravity_x` once v25 was mapped, then `ppg_waveform`
-/// once v26 was. A list like that has to be extended by hand every time NOOP learns a layout, and twice it
-/// silently was not. #156 was v25 and v26 being reported as undecodable after they had been decoding for
-/// releases. v20 has been reported the same way ever since it was mapped, because the 5/MG optical record
-/// decodes to `sensor_block_count` and per-block headers rather than to any of the three names.
+/// The two negative cases are kept apart because they are different facts with different remedies, and the
+/// single line that used to cover both stated one of them wrongly. See `historicalLayoutSupport`.
+public enum HistoricalLayoutSupport: Equatable, Sendable {
+    /// The layout decodes and the record carries a named signal NOOP scores from.
+    case supported
+    /// The layout decodes, but this record carries no per-second heart rate and no motion, so a night made
+    /// only of these cannot be staged. What is missing is the meaning of the channels, not the layout: the
+    /// 5/MG optical record (v20) and raw IMU record (v21) both decode into raw arrays that no engine reads.
+    case decodesWithoutNamedSignal
+    /// This platform has no field map for the layout at all; the record does not decode.
+    case unmapped
+}
+
+/// Classify a historical record's layout version.
 ///
-/// On WHOOP 5.0/MG the question is therefore asked of `mappedWhoop5HistoricalVersions`, which is the list
-/// `decodeWhoop5Historical` itself dispatches on. It cannot drift from what NOOP decodes, because a layout
-/// that decodes is a layout with a `case` in that switch and an entry in that set.
+/// #1992. This used to be one question — "did the record decode any of `heart_rate`, `gravity_x` or
+/// `ppg_waveform`?" — and one message, which said NOOP could not decode the layout. That is a list which
+/// has to be extended by hand every time NOOP learns a layout, and twice it silently was not: #156 was v25
+/// and v26 being reported as undecodable after they had been decoding for releases, and v20 has been
+/// reported the same way ever since it was mapped, because the 5/MG optical record decodes to block counts
+/// and per-block headers rather than to any of the three names.
 ///
-/// WHOOP 4.0 keeps the field test. There is no equivalent dispatch set on that side, and every layout it
-/// does map emits one of the three names, so the test is accurate there today. If a 4.0 layout is ever
-/// mapped that emits none of them, this is the function that has to learn about it, and
-/// `HistoricalLayoutSupportTests` is where that shows up as a failure rather than as a false warning in
-/// somebody's strap log.
-public func historicalLayoutIsUnmapped(version: Int,
-                                       family: DeviceFamily,
-                                       hasHeartRate: Bool,
-                                       hasGravity: Bool,
-                                       hasPpgWaveform: Bool) -> Bool {
+/// Suppressing the line for v20 would have been the wrong correction, though, because the SECOND half of
+/// what it said is true: those records really do carry no heart rate or motion, and a night made only of
+/// them really cannot be staged. So the question splits. On WHOOP 5.0/MG, whether the layout decodes is
+/// asked of `mappedWhoop5HistoricalVersions`, the set `decodeWhoop5Historical` itself dispatches on, which
+/// cannot drift from what NOOP decodes. Whether the record carries anything scoreable stays the field test,
+/// which is what it was always actually measuring.
+///
+/// WHOOP 4.0 has no equivalent dispatch set, and every layout it maps emits one of the three names, so a
+/// record carrying none of them is genuinely unmapped there. If a 4.0 layout is ever mapped that emits
+/// none of them, this is the function that has to learn about it, and `HistoricalLayoutSupportTests` is
+/// where that shows up as a failure rather than as a wrong line in somebody's strap log.
+public func historicalLayoutSupport(version: Int,
+                                    family: DeviceFamily,
+                                    hasHeartRate: Bool,
+                                    hasGravity: Bool,
+                                    hasPpgWaveform: Bool) -> HistoricalLayoutSupport {
+    let carriesNamedSignal = hasHeartRate || hasGravity || hasPpgWaveform
     switch family {
-    case .whoop5: return !mappedWhoop5HistoricalVersions.contains(version)
-    case .whoop4: return !hasHeartRate && !hasGravity && !hasPpgWaveform
+    case .whoop5:
+        if !mappedWhoop5HistoricalVersions.contains(version) { return .unmapped }
+        return carriesNamedSignal ? .supported : .decodesWithoutNamedSignal
+    case .whoop4:
+        return carriesNamedSignal ? .supported : .unmapped
     }
 }
