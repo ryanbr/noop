@@ -81,7 +81,34 @@ public enum LiftProgramSheetImporter {
         case missingColumns([String])
         /// Read fine, but there was nothing in it.
         case empty
+        /// Too big to be a program sheet — see `maxFileBytes`.
+        case tooLarge
     }
+
+    // MARK: - Bounds
+    //
+    // A program is a few dozen rows. Everything below is far above any real sheet and far below
+    // anything that could hurt: this feature is a convenience, and it must never be the reason the
+    // app is slow, runs out of memory, or writes a database nobody wants.
+
+    /// A filled template is ~9 KB; a hand-built sheet with a year of programs is still well under a
+    /// megabyte. 8 MB is generous enough that no honest file is refused, and small enough that
+    /// reading it whole into memory on a phone is nothing.
+    public static let maxFileBytes = 8 * 1024 * 1024
+
+    /// Rows considered from a sheet. A spreadsheet can carry a million empty rows, and some writers
+    /// emit them; parsing them all is wasted work and the result would be unusable anyway.
+    static let maxRows = 5_000
+
+    /// Exercise lines kept per program. A program with more lines than this is not a program.
+    static let maxLinesPerProgram = 200
+
+    /// Programs created from one file.
+    static let maxPrograms = 50
+
+    /// Warnings reported. A pathological sheet could otherwise produce thousands, which helps nobody
+    /// and makes the preview unscrollable; the count is still reported honestly (see `warnings`).
+    static let maxWarnings = 50
 
     /// Column keys, after `HeaderNorm.normalize`. Several spellings map to the same field so a user
     /// who retypes the header — or translates it — is not punished for it.
@@ -98,6 +125,11 @@ public enum LiftProgramSheetImporter {
 
     /// Parse a filled-in template. Detects `.xlsx` by its ZIP magic bytes, else treats it as CSV.
     public static func parse(data: Data) throws -> LiftProgramImportResult {
+        // Refuse before doing any work. An .xlsx is a ZIP, so a hostile one can be small on disk and
+        // enormous expanded; `XlsxSheet` bounds the expansion separately. This bound is on what the
+        // caller handed us.
+        guard data.count <= maxFileBytes else { throw ImportError.tooLarge }
+
         let candidates: [XlsxSheet.Sheet]
         if isZip(data) {
             // Every sheet, in tab order — the workbook may carry instructions, notes or the user's
@@ -128,11 +160,12 @@ public enum LiftProgramSheetImporter {
         var indexByName: [String: Int] = [:]
         var warnings: [String] = []
 
-        for (i, row) in rows.enumerated() {
+        var truncated = false
+        for (i, row) in rows.prefix(maxRows).enumerated() {
             // Spreadsheets are full of trailing blank rows; they are not an error.
             let exercise = value(row, exerciseKeys)?.trimmed ?? ""
             if exercise.isEmpty {
-                if row.values.contains(where: { !$0.trimmed.isEmpty }) {
+                if row.values.contains(where: { !$0.trimmed.isEmpty }), warnings.count < maxWarnings {
                     warnings.append(rowMessage(i, "no exercise name, so the row was skipped"))
                 }
                 continue
@@ -143,7 +176,7 @@ public enum LiftProgramSheetImporter {
             var primary: LiftMuscle?
             if let raw = value(row, primaryKeys)?.trimmed.nilIfEmpty {
                 primary = LiftMuscle(sheetName: raw)
-                if primary == nil {
+                if primary == nil, warnings.count < maxWarnings {
                     warnings.append(rowMessage(i, "\"\(raw)\" is not a muscle group, so \"\(exercise)\" was left unclassified"))
                 }
             }
@@ -157,7 +190,7 @@ public enum LiftProgramSheetImporter {
                         // The store excludes the primary from the secondary list, so do it here too
                         // rather than leaving a row that says "chest, chest".
                         if m != primary, !secondary.contains(m) { secondary.append(m) }
-                    } else {
+                    } else if warnings.count < maxWarnings {
                         warnings.append(rowMessage(i, "\"\(token)\" is not a muscle group and was ignored"))
                     }
                 }
@@ -174,17 +207,26 @@ public enum LiftProgramSheetImporter {
                 note: value(row, noteKeys)?.trimmed.nilIfEmpty)
 
             if let idx = indexByName[programName.lowercased()] {
+                guard programs[idx].lines.count < maxLinesPerProgram else { truncated = true; continue }
                 programs[idx].lines.append(line)
                 if programs[idx].note == nil {
                     programs[idx].note = value(row, programNoteKeys)?.trimmed.nilIfEmpty
                 }
             } else {
+                guard programs.count < maxPrograms else { truncated = true; continue }
                 indexByName[programName.lowercased()] = programs.count
                 programs.append(ImportedProgram(
                     name: programName,
                     note: value(row, programNoteKeys)?.trimmed.nilIfEmpty,
                     lines: [line]))
             }
+        }
+
+        // Say so rather than silently importing a subset: a user whose sheet was cut off must be able
+        // to see that it was, and the preview is where they would notice.
+        if rows.count > maxRows || truncated {
+            warnings.append("The sheet is larger than a program can be, so only the first "
+                            + "\(maxPrograms) programs and \(maxLinesPerProgram) exercises each were read.")
         }
 
         guard !programs.isEmpty else { throw ImportError.empty }

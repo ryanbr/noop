@@ -184,6 +184,54 @@ final class LiftProgramSheetImporterTests: XCTestCase {
         XCTAssertEqual(r.programs[0].lines[0].targetSets, 5)
     }
 
+    // MARK: - Bounds
+    //
+    // This feature is a convenience. It must never be the reason the app is slow, runs out of
+    // memory, or writes a database nobody wants — so every input it accepts is bounded, and the
+    // bounds are pinned here.
+
+    func testAnAbsurdlyLargeFileIsRefusedBeforeAnyParsing() {
+        let big = Data(count: LiftProgramSheetImporter.maxFileBytes + 1)
+        XCTAssertThrowsError(try LiftProgramSheetImporter.parse(data: big)) { error in
+            XCTAssertEqual(error as? LiftProgramSheetImporter.ImportError, .tooLarge)
+        }
+    }
+
+    func testTooManyProgramsAreTruncatedAndSaidSo() throws {
+        var csv = "Program,Exercise\n"
+        for i in 0..<(LiftProgramSheetImporter.maxPrograms + 10) {
+            csv += "Program \(i),Exercise \(i)\n"
+        }
+        let r = try LiftProgramSheetImporter.parse(data: Data(csv.utf8))
+        XCTAssertEqual(r.programs.count, LiftProgramSheetImporter.maxPrograms)
+        XCTAssertTrue(r.warnings.contains { $0.contains("larger than a program can be") },
+                      "a truncated import must say it was truncated: \(r.warnings)")
+    }
+
+    func testTooManyLinesInOneProgramAreTruncated() throws {
+        var csv = "Program,Exercise\n"
+        for i in 0..<(LiftProgramSheetImporter.maxLinesPerProgram + 10) {
+            csv += "One,Exercise \(i)\n"
+        }
+        let r = try LiftProgramSheetImporter.parse(data: Data(csv.utf8))
+        XCTAssertEqual(r.programs.count, 1)
+        XCTAssertEqual(r.programs[0].lines.count, LiftProgramSheetImporter.maxLinesPerProgram)
+    }
+
+    /// A sheet full of bad muscle names must not produce thousands of warnings — the preview would
+    /// be unscrollable and the user no better informed.
+    func testWarningsAreCapped() throws {
+        // Deliberately under `maxLinesPerProgram`, so this isolates the WARNING cap rather than
+        // tripping the line cap and testing two things at once.
+        let rows = LiftProgramSheetImporter.maxLinesPerProgram - 10
+        var csv = "Exercise,Primary muscle\n"
+        for i in 0..<rows { csv += "Exercise \(i),Nonsense\n" }
+        let r = try LiftProgramSheetImporter.parse(data: Data(csv.utf8))
+        XCTAssertGreaterThan(rows, LiftProgramSheetImporter.maxWarnings, "the fixture must exceed the cap")
+        XCTAssertEqual(r.warnings.count, LiftProgramSheetImporter.maxWarnings)
+        XCTAssertEqual(r.programs[0].lines.count, rows, "every line still imports; only warnings are capped")
+    }
+
     // MARK: - Reaching the shipped template
 
     /// `docs/lift-log-program-template.xlsx` — the file users actually download, read from the repo
