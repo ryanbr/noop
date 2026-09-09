@@ -16,6 +16,9 @@ import StrandDesign
 struct LiftSessionBar: View {
     @EnvironmentObject var session: LiftSessionController
 
+    @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
+    private var unitSystem: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .metric }
+
     var body: some View {
         if let engine = session.engine, !engine.isFinished {
             Button {
@@ -87,13 +90,48 @@ struct LiftSessionBar: View {
         }
         switch engine.stage {
         case .working:
-            return String(localized: "Set \(slot.setIndex) — working")
+            guard let numbers = numbers(engine, slot: slot) else {
+                return String(localized: "Set \(slot.setIndex) — working")
+            }
+            return String(localized: "Set \(slot.setIndex) — \(numbers)")
         case .resting:
-            return (engine.restRemaining(now: session.now) ?? 0) == 0
-                ? String(localized: "Ready for the next set")
-                : String(localized: "Resting after set \(slot.setIndex)")
+            let ready = (engine.restRemaining(now: session.now) ?? 0) == 0
+            guard let numbers = numbers(engine, slot: slot) else {
+                return ready
+                    ? String(localized: "Ready for the next set")
+                    : String(localized: "Resting after set \(slot.setIndex)")
+            }
+            return ready
+                ? String(localized: "Ready — last was \(numbers)")
+                : String(localized: "Resting after \(numbers)")
         default:
             return String(localized: "\(engine.completedWorkingSets) of \(engine.plannedWorkingSets) sets done")
+        }
+    }
+
+    /// Reps x weight for the slot the bar is showing, as "10 x 50 kg".
+    ///
+    /// While RESTING these are what the set actually recorded; while WORKING the set does not exist
+    /// yet, so they are what completing it would record — the same numbers the sheet shows in grey.
+    /// Either way the bar answers "what am I lifting", which is the question you have when the phone
+    /// is face-down on a bench and the sheet is minimised.
+    ///
+    /// Nil when neither reps nor weight is known: a bar reading "Set 2 — x" helps nobody, so the
+    /// caller falls back to the plain wording.
+    private func numbers(_ engine: LiftSessionEngine, slot: LiftSlot) -> String? {
+        let carry = engine.recordedSet(for: slot).map {
+            LiftSetCarry(weightKg: $0.weightKg, reps: $0.reps)
+        } ?? session.carry(for: slot)
+
+        let weight = carry.weightKg.map {
+            LiftFormat.trim(LiftFormat.display(fromKilograms: $0, system: unitSystem))
+            + " " + LiftFormat.weightUnit(unitSystem)
+        }
+        switch (carry.reps, weight) {
+        case (let r?, let w?): return "\(r) x \(w)"
+        case (let r?, nil):    return String(localized: "\(r) reps")
+        case (nil, let w?):    return w
+        case (nil, nil):       return nil
         }
     }
 

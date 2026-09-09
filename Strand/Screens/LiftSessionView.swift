@@ -33,6 +33,10 @@ struct LiftSessionView: View {
     @State private var sessionRpeText = ""
     @State private var saving = false
 
+    /// For the live heart rate on the control bar. `AppModel.bpm` is the smoothed, spike-filtered
+    /// value every screen is supposed to show — never the raw per-beat number, which swings with HRV.
+    @EnvironmentObject private var model: AppModel
+
     @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
     private var unitSystem: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .metric }
 
@@ -139,14 +143,30 @@ struct LiftSessionView: View {
         .id(index)
     }
 
+    /// Width of the set-number column, shared by the heading and every row so the number sits
+    /// directly under its label.
+    ///
+    /// 34, not 26. `strandOverline` renders ALL-CAPS with +1.4 tracking, and at 26 the heading wrapped
+    /// mid-word — a real session photographed it reading "SE / T" over two lines. The headings are
+    /// also `lineLimit(1)` with a scale floor: this row is four short labels across a phone width in
+    /// ten languages, and a wrapped heading breaks the column alignment for every row beneath it.
+    private static let setColumnWidth: CGFloat = 34
+
+    /// Width of the trailing tick column. Mirrored by a clear spacer in the heading row so the four
+    /// labels sit over the four things they name.
+    private static let tickColumnWidth: CGFloat = 30
+
     private var columnHeadings: some View {
         HStack(spacing: 8) {
-            Text("Set").strandOverline().frame(width: 26, alignment: .leading)
+            Text("Set").strandOverline()
+                .frame(width: Self.setColumnWidth, alignment: .center)
             Text(weightHeading).strandOverline().frame(maxWidth: .infinity, alignment: .leading)
             Text("Reps").strandOverline().frame(maxWidth: .infinity, alignment: .leading)
             Text("RPE").strandOverline().frame(maxWidth: .infinity, alignment: .leading)
-            Color.clear.frame(width: 30)
+            Color.clear.frame(width: Self.tickColumnWidth)
         }
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
     }
 
     private var weightHeading: LocalizedStringKey {
@@ -176,7 +196,7 @@ struct LiftSessionView: View {
                                      ? StrandPalette.metricAmber
                                      : (isWorking ? StrandPalette.textPrimary
                                                   : StrandPalette.textSecondary))
-                    .frame(width: 26, alignment: .leading)
+                    .frame(width: Self.setColumnWidth, alignment: .center)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -206,7 +226,7 @@ struct LiftSessionView: View {
                                      : StrandPalette.statusPositive)
             }
             .buttonStyle(.plain)
-            .frame(width: 30)
+            .frame(width: Self.tickColumnWidth)
             .accessibilityLabel(recorded == nil
                                 ? String(localized: "Start this set")
                                 : String(localized: "Redo this set"))
@@ -329,6 +349,7 @@ struct LiftSessionView: View {
                       LiftFormat.duration(max(0, session.now - engine.startTs)),
                       tint: StrandPalette.textPrimary)
                 stageClock(engine)
+                heartRate()
                 Spacer(minLength: 0)
                 Button {
                     session.undo()
@@ -361,6 +382,24 @@ struct LiftSessionView: View {
         .overlay(alignment: .top) {
             Rectangle().fill(StrandPalette.textTertiary.opacity(0.15)).frame(height: 0.5)
         }
+    }
+
+    /// Live heart rate, beside the clocks that are already pinned above the action button.
+    ///
+    /// It belongs here and not in the scrolling sheet: this strip is the part that never scrolls
+    /// away, and a glance mid-set is the whole use — you are holding a bar, not browsing. Asked for
+    /// after a real session.
+    ///
+    /// Shown even when there is no value, as "—", the same way `LiveView` reports it. A row that
+    /// disappears when the strap stops streaming would shift the clocks beside it and leave the user
+    /// wondering whether the reading is missing or the feature is; a dash says which.
+    ///
+    /// This is display only. Nothing here feeds a score — Effort stays HR-derived from what the
+    /// strap MEASURED over the session window, computed by the analytics engine, not by this view.
+    private func heartRate() -> some View {
+        clock(String(localized: "HR"),
+              model.bpm.map(String.init) ?? "—",
+              tint: model.bpm == nil ? StrandPalette.textTertiary : StrandPalette.metricRose)
     }
 
     private func clock(_ label: String, _ value: String, tint: Color) -> some View {
