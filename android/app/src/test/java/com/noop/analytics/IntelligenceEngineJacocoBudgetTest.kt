@@ -1,6 +1,7 @@
 package com.noop.analytics
 
 import com.noop.data.DailyMetric
+import com.noop.data.GravityWitness
 import com.noop.data.WhoopDao
 import com.noop.data.WhoopRepository
 import java.lang.reflect.InvocationTargetException
@@ -248,14 +249,12 @@ class IntelligenceEngineJacocoBudgetTest {
                     events.add("gravity")
                     emptyList<Any>()
                 }
-                // The motion cache's witness: a COUNT and a MAX over the same window the read walks. Both
-                // are recorded, as one event per day, so the sequence below still says exactly which reads
-                // the helper makes and in what order.
-                "countGravityInWindow" -> {
+                // The motion cache's witness: one aggregate returning both the count and the newest
+                // timestamp, so the sequence below says exactly which reads the helper makes, in order.
+                "gravityWitnessInWindow" -> {
                     events.add("gravityFp")
-                    0
+                    GravityWitness(0, 0L)
                 }
-                "maxGravityTsInWindow" -> 0L
                 else -> throw UnsupportedOperationException("Extracted block must not call ${method.name}")
             }
         } as WhoopDao

@@ -700,7 +700,7 @@ class WhoopRepository(
      *  motion cache. Narrower than [dayStreamFingerprint] on purpose: dayMotionIntensity folds gravity
      *  alone, so a new HR row must not invalidate it. Mirrors Swift WhoopStore.gravityFingerprint. */
     suspend fun gravityFingerprintWindow(deviceId: String, from: Long, to: Long): Pair<Int, Long> =
-        Pair(dao.countGravityInWindow(deviceId, from, to), dao.maxGravityTsInWindow(deviceId, from, to))
+        dao.gravityWitnessInWindow(deviceId, from, to).let { it.c to it.m }
 
     /** #29 — the same per-day (device + window) witness for every OTHER stream analyzeDay scores: PPG-derived
      *  HR, R-R, respiration, SpO2, gravity, steps, skin temp and events. [hrFingerprintWindow] cannot see a

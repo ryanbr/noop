@@ -83,6 +83,15 @@ data class HrBucket(
     val avgBpm: Double,
 )
 
+/** The per-day gravity witness the steps-calibration motion cache keys on: [c] rows in the window and
+ *  [m] the newest timestamp among them. Query result of [WhoopDao.gravityWitnessInWindow], not a table.
+ *  Both columns come from ONE aggregate so the pair always describes a state the day was actually in;
+ *  mirrors the tuple Swift's `WhoopStore.gravityFingerprint` returns. */
+data class GravityWitness(
+    val c: Int,
+    val m: Long,
+)
+
 /** Aggregate HR over a time window, sample count + avg/max bpm. Query result of
  *  [WhoopDao.hrWindowStats], not a table. Used to derive a workout's HR from strap samples when
  *  the imported session carries none (#77). avg/max are null when n == 0. */

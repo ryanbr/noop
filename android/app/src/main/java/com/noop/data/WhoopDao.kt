@@ -1124,15 +1124,20 @@ interface WhoopDao : DeviceRegistryDao {
     suspend fun countHrInWindow(deviceId: String, from: Long, to: Long): Int
     @Query("SELECT COALESCE(MAX(ts), 0) FROM hrSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to")
     suspend fun maxHrTsInWindow(deviceId: String, from: Long, to: Long): Long
-    // Per-day (device + window) GRAVITY witness for the steps-calibration motion cache. The full
-    // DAY_STREAM_FINGERPRINT_SQL below also counts gravity, but alongside eight other streams, so a new
-    // HR row would invalidate a motion volume that cannot have changed. dayMotionIntensity folds one
-    // day's gravity and nothing else, so its key must move when that stream moves and at no other time.
-    // Same COUNT/MAX aggregate over the (deviceId, ts) index; mirrors Swift WhoopStore.gravityFingerprint.
-    @Query("SELECT COUNT(*) FROM gravitySample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to")
-    suspend fun countGravityInWindow(deviceId: String, from: Long, to: Long): Int
-    @Query("SELECT COALESCE(MAX(ts), 0) FROM gravitySample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to")
-    suspend fun maxGravityTsInWindow(deviceId: String, from: Long, to: Long): Long
+    // Per-day (device + window) GRAVITY witness for the steps-calibration motion cache. It is exactly the
+    // `g` segment of DAY_STREAM_FINGERPRINT_SQL below, on its own: that one counts gravity alongside eight
+    // other streams, so a new HR row would invalidate a motion volume that cannot have changed.
+    // dayMotionIntensity folds one day's gravity and nothing else, so its key must move when that stream
+    // moves and at no other time. Mirrors Swift WhoopStore.gravityFingerprint.
+    //
+    // ONE query returning both columns, not two returning one each. Two would let an insert land between
+    // them and yield a count from before it beside a newest-timestamp from after — a witness describing a
+    // state the day was never in. The pair has to be read atomically to mean anything.
+    @Query(
+        "SELECT COUNT(*) AS c, COALESCE(MAX(ts), 0) AS m FROM gravitySample " +
+            "WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to"
+    )
+    suspend fun gravityWitnessInWindow(deviceId: String, from: Long, to: Long): GravityWitness
     // #29: the same per-day (device + window) witness for every OTHER scored stream — see
     // DAY_STREAM_FINGERPRINT_SQL. Without it a night whose R-R landed after its HR keyed identically to the
     // HR-only scan it was scored from, and that HRV-less scan was re-served for the rest of the process.
