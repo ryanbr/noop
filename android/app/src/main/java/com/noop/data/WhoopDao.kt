@@ -1124,13 +1124,23 @@ interface WhoopDao : DeviceRegistryDao {
     suspend fun countHrInWindow(deviceId: String, from: Long, to: Long): Int
     @Query("SELECT COALESCE(MAX(ts), 0) FROM hrSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to")
     suspend fun maxHrTsInWindow(deviceId: String, from: Long, to: Long): Long
-    // Does this device have ANY heart-rate row in the window? A scalar EXISTS, not a row.
+    // Does this device have ANY heart rate in the window? A scalar EXISTS, not a row.
     //
     // The day-owner resolver asks this once per candidate per day, so a 60-day steps-calibration window
     // on a two-strap install asks it 120 times per pass. It used to be answered by fetching a LIMIT 1
-    // ROW and testing the list for emptiness, which materialises a cursor and an HrSample for a question
-    // whose answer is one bit. EXISTS stops at the first index entry and returns that bit.
-    @Query("SELECT EXISTS(SELECT 1 FROM hrSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to)")
+    // ROW from [hrSamples] and testing the list for emptiness, which materialises a cursor and an
+    // HrSample for a question whose answer is one bit.
+    //
+    // BOTH tables, because [hrSamples] is a UNION and "has heart rate" has always meant either of them.
+    // A WHOOP 4.0 v25 record stores no per-second HR at all — it is PPG-derived and lands in
+    // `ppgHrSample` — so checking `hrSample` alone would have quietly stopped those days from owning
+    // themselves. The union's `NOT EXISTS` de-dupe does not affect PRESENCE: a ppgHr row suppressed
+    // because an hrSample shares its ts implies hrSample is non-empty, so "union non-empty" is exactly
+    // "hrSample non-empty OR ppgHrSample non-empty". OR short-circuits, so the common case is one probe.
+    @Query(
+        "SELECT EXISTS(SELECT 1 FROM hrSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) " +
+            "OR EXISTS(SELECT 1 FROM ppgHrSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to)"
+    )
     suspend fun hasHrInWindow(deviceId: String, from: Long, to: Long): Boolean
 
     // Per-day (device + window) GRAVITY witness for the steps-calibration motion cache. It is exactly the

@@ -87,3 +87,60 @@ final class GravityWitnessTests: XCTestCase {
         XCTAssertEqual(fp.maxTs, 0)
     }
 }
+
+/// `hasHrInWindow` is the day-owner resolver's presence probe. It replaced a `LIMIT 1` fetch from
+/// `hrSamples`, which is a UNION of `hrSample` and `ppgHrSample`, so it has to answer for BOTH tables or
+/// it silently narrows which days a device can own.
+final class HasHrInWindowTests: XCTestCase {
+
+    private func store() async throws -> WhoopStore {
+        let s = try await WhoopStore.inMemory()
+        try await s.upsertDevice(id: "dev1", mac: nil, name: nil)
+        return s
+    }
+
+    /// The case the probe exists to get right, and the one a `hrSample`-only check would have broken: a
+    /// WHOOP 4.0 v25 record stores no per-second heart rate at all, only the PPG-derived value, so a day
+    /// of them lives entirely in `ppgHrSample`. Under a narrower probe that device would have stopped
+    /// being a candidate to own its own day.
+    func testPpgDerivedHeartRateAloneCountsAsPresent() async throws {
+        let s = try await store()
+        _ = try await s.insert(Streams(ppgHr: [PpgHrSample(ts: 500, bpm: 61, conf: 0.9)]), deviceId: "dev1")
+        let viaUnion = try await s.hrSamples(deviceId: "dev1", from: 0, to: 1000, limit: 1)
+        XCTAssertFalse(viaUnion.isEmpty, "the union read must see it, or this test proves nothing")
+        let present = try await s.hasHrInWindow(deviceId: "dev1", from: 0, to: 1000)
+        XCTAssertTrue(present, "a day with only PPG-derived HR must still count as present")
+    }
+
+    /// Ordinary strap HR, the common case.
+    func testStrapHeartRateCountsAsPresent() async throws {
+        let s = try await store()
+        _ = try await s.insert(Streams(hr: [HRSample(ts: 500, bpm: 60)]), deviceId: "dev1")
+        let present = try await s.hasHrInWindow(deviceId: "dev1", from: 0, to: 1000)
+        XCTAssertTrue(present)
+    }
+
+    /// Absent means absent: outside the window, and on another device, both read false rather than
+    /// letting a neighbouring day or a second strap claim ownership.
+    func testAbsenceIsScopedToTheDeviceAndTheWindow() async throws {
+        let s = try await store()
+        try await s.upsertDevice(id: "dev2", mac: nil, name: nil)
+        _ = try await s.insert(Streams(hr: [HRSample(ts: 5_000, bpm: 60)]), deviceId: "dev1")
+        let outsideWindow = try await s.hasHrInWindow(deviceId: "dev1", from: 0, to: 1000)
+        XCTAssertFalse(outsideWindow)
+        let otherDevice = try await s.hasHrInWindow(deviceId: "dev2", from: 0, to: 10_000)
+        XCTAssertFalse(otherDevice)
+    }
+
+    /// And it agrees with the read it replaced, which is the property that makes the swap safe.
+    func testItAgreesWithTheUnionReadItReplaced() async throws {
+        let s = try await store()
+        _ = try await s.insert(Streams(hr: [HRSample(ts: 100, bpm: 60)],
+                                       ppgHr: [PpgHrSample(ts: 900, bpm: 62, conf: 0.9)]), deviceId: "dev1")
+        for (from, to) in [(0, 50), (0, 150), (500, 1000), (0, 1000), (2_000, 3_000)] {
+            let viaUnion = !(try await s.hrSamples(deviceId: "dev1", from: from, to: to, limit: 1)).isEmpty
+            let viaExists = try await s.hasHrInWindow(deviceId: "dev1", from: from, to: to)
+            XCTAssertEqual(viaExists, viaUnion, "window \(from)...\(to)")
+        }
+    }
+}

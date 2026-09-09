@@ -97,18 +97,26 @@ extension WhoopStore {
         }
     }
 
-    /// Whether `deviceId` has ANY heart-rate row in the window, as a scalar EXISTS rather than a row.
+    /// Whether `deviceId` has ANY heart rate in the window, as a scalar EXISTS rather than a row.
     ///
     /// The day-owner resolver asks this once per candidate per day, so a 60-day steps-calibration window
     /// on a two-strap install asks it 120 times per pass. It used to be answered by fetching a `LIMIT 1`
-    /// ROW and testing the array for emptiness, which materialises a row and an `HRSample` for a question
-    /// whose answer is one bit. EXISTS stops at the first index entry and returns that bit. Same
-    /// `(deviceId, ts)` index, same semantics. Twin of Kotlin's `WhoopDao.hasHrInWindow`.
+    /// ROW from `hrSamples` and testing the array for emptiness, which materialises a row and an
+    /// `HRSample` for a question whose answer is one bit.
+    ///
+    /// BOTH tables, because `hrSamples` is a UNION and "has heart rate" has always meant either of them.
+    /// A WHOOP 4.0 v25 record stores no per-second HR at all — it is PPG-derived and lands in
+    /// `ppgHrSample` — so checking `hrSample` alone would have quietly stopped those days from owning
+    /// themselves. The union's `NOT EXISTS` de-dupe does not affect PRESENCE: a ppgHr row suppressed
+    /// because an hrSample shares its ts implies hrSample is non-empty, so "union non-empty" is exactly
+    /// "hrSample non-empty OR ppgHrSample non-empty". OR short-circuits, so the common case is one probe.
+    /// Twin of Kotlin's `WhoopDao.hasHrInWindow`.
     public func hasHrInWindow(deviceId: String, from: Int, to: Int) async throws -> Bool {
         try syncRead { db in
             try Bool.fetchOne(db, sql: """
                 SELECT EXISTS(SELECT 1 FROM hrSample WHERE deviceId = ? AND ts >= ? AND ts <= ?)
-                """, arguments: [deviceId, from, to]) ?? false
+                    OR EXISTS(SELECT 1 FROM ppgHrSample WHERE deviceId = ? AND ts >= ? AND ts <= ?)
+                """, arguments: [deviceId, from, to, deviceId, from, to]) ?? false
         }
     }
 
