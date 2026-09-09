@@ -16,6 +16,10 @@ import StrandDesign
 struct LiftSessionBar: View {
     @EnvironmentObject var session: LiftSessionController
 
+    /// Live heart rate, same source as the sheet's control bar: the smoothed, spike-filtered value,
+    /// never the raw per-beat number.
+    @EnvironmentObject private var model: AppModel
+
     @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
     private var unitSystem: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .metric }
 
@@ -42,6 +46,21 @@ struct LiftSessionBar: View {
                     }
 
                     Spacer(minLength: 0)
+
+                    // Shown only when there IS a reading, unlike the sheet's control bar, which
+                    // holds a "—" so its clocks do not shift. This is a capsule with four things
+                    // already competing for it; a permanent dash would cost width and say nothing.
+                    if let bpm = model.bpm {
+                        HStack(spacing: 3) {
+                            Image(systemName: "heart.fill")
+                                .font(.system(size: 10, weight: .semibold))
+                            Text("\(bpm)")
+                                .font(StrandFont.captionNumber)
+                                .monospacedDigit()
+                        }
+                        .foregroundStyle(StrandPalette.metricRose)
+                        .accessibilityLabel(String(localized: "Heart rate \(bpm)"))
+                    }
 
                     Text(bigClock(engine))
                         .font(StrandFont.bodyNumber)
@@ -77,62 +96,20 @@ struct LiftSessionBar: View {
         }
     }
 
+
+    /// Title and subtitle come from `LiftSessionController.presentation` — the SAME resolution the
+    /// Lock Screen Live Activity renders, so the two surfaces cannot word the session differently.
     private func title(_ engine: LiftSessionEngine) -> String {
-        guard let slot = engine.currentSlot, let item = engine.planItem(for: slot) else {
-            return session.programName ?? String(localized: "Session")
-        }
-        return item.exercise
+        session.presentation(system: unitSystem)?.exercise
+            ?? session.programName ?? String(localized: "Session")
     }
 
     private func subtitle(_ engine: LiftSessionEngine) -> String {
-        guard let slot = engine.currentSlot else {
+        guard let p = session.presentation(system: unitSystem) else {
             return String(localized: "\(engine.completedWorkingSets) of \(engine.plannedWorkingSets) sets done")
         }
-        switch engine.stage {
-        case .working:
-            guard let numbers = numbers(engine, slot: slot) else {
-                return String(localized: "Set \(slot.setIndex) — working")
-            }
-            return String(localized: "Set \(slot.setIndex) — \(numbers)")
-        case .resting:
-            let ready = (engine.restRemaining(now: session.now) ?? 0) == 0
-            guard let numbers = numbers(engine, slot: slot) else {
-                return ready
-                    ? String(localized: "Ready for the next set")
-                    : String(localized: "Resting after set \(slot.setIndex)")
-            }
-            return ready
-                ? String(localized: "Ready — last was \(numbers)")
-                : String(localized: "Resting after \(numbers)")
-        default:
-            return String(localized: "\(engine.completedWorkingSets) of \(engine.plannedWorkingSets) sets done")
-        }
-    }
-
-    /// Reps x weight for the slot the bar is showing, as "10 x 50 kg".
-    ///
-    /// While RESTING these are what the set actually recorded; while WORKING the set does not exist
-    /// yet, so they are what completing it would record — the same numbers the sheet shows in grey.
-    /// Either way the bar answers "what am I lifting", which is the question you have when the phone
-    /// is face-down on a bench and the sheet is minimised.
-    ///
-    /// Nil when neither reps nor weight is known: a bar reading "Set 2 — x" helps nobody, so the
-    /// caller falls back to the plain wording.
-    private func numbers(_ engine: LiftSessionEngine, slot: LiftSlot) -> String? {
-        let carry = engine.recordedSet(for: slot).map {
-            LiftSetCarry(weightKg: $0.weightKg, reps: $0.reps)
-        } ?? session.carry(for: slot)
-
-        let weight = carry.weightKg.map {
-            LiftFormat.trim(LiftFormat.display(fromKilograms: $0, system: unitSystem))
-            + " " + LiftFormat.weightUnit(unitSystem)
-        }
-        switch (carry.reps, weight) {
-        case (let r?, let w?): return "\(r) x \(w)"
-        case (let r?, nil):    return String(localized: "\(r) reps")
-        case (nil, let w?):    return w
-        case (nil, nil):       return nil
-        }
+        guard let detail = p.detail else { return p.status }
+        return "\(p.status) — \(detail)"
     }
 
     /// Rest counts DOWN (that is the number you act on); everything else counts up.
