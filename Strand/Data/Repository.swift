@@ -1324,16 +1324,15 @@ final class Repository: ObservableObject {
         let starts = sessions.map(\.startTs)
         let lo = starts.min() ?? 0
         let hi = starts.max() ?? 0
-        // Generous: one device cannot hold more rows in this span than the un-deduplicated union does,
-        // and a truncated page would silently fail to resolve the owners it dropped.
-        let pageLimit = max(sessions.count * 2, 256)
+        // `sleepSessionBounds`, not `sleepSessions`: the owner check needs two integers per block, and the
+        // fuller read selects `stagesJSON` among other columns. Fetching every night's staging blob once
+        // per candidate device, to compare a pair of timestamps, would re-read the same rows several times
+        // over on the histories this is meant to speed up. Unpaged, so a caller passing a sparse subset of
+        // a wide span cannot page short and lose the owners it dropped.
         var boundsByDevice: [String: [Int: Int]] = [:]   // deviceId -> startTs -> endTs
         var motionByDevice: [String: [Int: [Double]]] = [:]
         for id in candidateIds {
-            let rows = (try? await store.sleepSessions(deviceId: id, from: lo, to: hi,
-                                                       limit: pageLimit)) ?? []
-            boundsByDevice[id] = Dictionary(rows.map { ($0.startTs, $0.endTs) },
-                                            uniquingKeysWith: { first, _ in first })
+            boundsByDevice[id] = (try? await store.sleepSessionBounds(deviceId: id, from: lo, to: hi)) ?? [:]
             motionByDevice[id] = (try? await store.sessionMotions(deviceId: id,
                                                                   sessionStarts: starts)) ?? [:]
         }

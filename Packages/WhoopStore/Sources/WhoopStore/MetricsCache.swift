@@ -406,6 +406,28 @@ extension WhoopStore {
         }
     }
 
+    /// One device's session BOUNDS in a window, as `startTs -> endTs`, in a single lean read.
+    ///
+    /// Deliberately not `sleepSessions(deviceId:from:to:limit:)`, which selects `stagesJSON` among other
+    /// columns: a caller that only needs to know which blocks a device owns would haul every night's
+    /// staging blob, once per candidate device, to read two integers from each. On a browsable history
+    /// that is the same rows re-read several times over.
+    ///
+    /// `(deviceId, startTs)` is the primary key, so a start maps to exactly one end and the dictionary
+    /// loses nothing. Unpaged on purpose: the window bounds the result, and a page limit sized from a
+    /// caller's own list would silently drop rows for a caller that passed a sparse subset of a wide span.
+    public func sleepSessionBounds(deviceId: String, from: Int, to: Int) async throws -> [Int: Int] {
+        try syncRead { db in
+            var out: [Int: Int] = [:]
+            let rows = try Row.fetchAll(db, sql: """
+                SELECT startTs, endTs FROM sleepSession
+                WHERE deviceId = ? AND startTs >= ? AND startTs <= ?
+                """, arguments: [deviceId, from, to])
+            for row in rows { out[row["startTs"]] = row["endTs"] }
+            return out
+        }
+    }
+
     /// Batched twin of `sessionMotion` for a SET of session starts: the persisted per-epoch motion series
     /// for each of `sessionStarts` that HAS one, in a SINGLE query, keyed by startTs. Same contract as the
     /// single-key accessor — a start whose column is NULL/absent (or an empty series) is simply omitted from
