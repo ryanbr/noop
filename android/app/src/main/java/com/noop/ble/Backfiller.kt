@@ -454,57 +454,60 @@ class Backfiller(
             // reject path logged a version before, so a healthy sync never revealed v24/v25 (4.0) or
             // v18/v26 (5/MG). Sample the chunk's first genuine record (null ⇒ console/CRC-fail); log
             // each distinct layout once per session.
-            frames.firstNotNullOfOrNull { decodeHistorical(it, family)?.get("hist_version") as? Int }
-                ?.let { v ->
-                    if (loggedLayoutVersions.add(v)) {
-                        log("Backfill: historical records use layout v$v")
-                        // #1992: and say what that MEANS when it is not a layout NOOP can score from.
-                        // Android used to print the bare version and stop, so a user whose nights were not
-                        // staging had the fact in their log and none of the explanation, while the same
-                        // strap on iOS was told why. Asked of the LAYOUT: a layout counts as carrying a
-                        // signal when ANY of the chunk's records of that version did, so one thin record
-                        // cannot condemn it. Twin of the Swift Backfiller emit.
-                        val carriesSignal = frames.any {
-                            val d = decodeHistorical(it, family)
-                            d != null && (d["hist_version"] as? Int) == v &&
-                                (d.containsKey("heart_rate") || d.containsKey("gravity_x") ||
-                                    d.containsKey("ppg_waveform"))
-                        }
-                        when (com.noop.protocol.historicalLayoutSupport(
-                            version = v, family = family, hasHeartRate = carriesSignal,
-                            hasGravity = false, hasPpgWaveform = false,
-                        )) {
-                            com.noop.protocol.HistoricalLayoutSupport.UNMAPPED ->
-                                log(
-                                    "Historical records use firmware layout v$v, which NOOP doesn't decode yet: " +
-                                        "those records carry no heart rate or motion, so any night made only of them " +
-                                        "can't be staged from the strap. A strap emitting a mix of layouts still " +
-                                        "stages the nights it can. Please report this (issue #1992).",
-                                )
-                            com.noop.protocol.HistoricalLayoutSupport.DECODES_WITHOUT_NAMED_SIGNAL ->
-                                log(
-                                    "Historical records use firmware layout v$v. NOOP decodes it, but these records " +
-                                        "carry no per-second heart rate and no motion (they hold raw sensor channels " +
-                                        "nothing scores yet), so any night made only of them can't be staged from the " +
-                                        "strap. A strap emitting a mix of layouts still stages the nights it can. " +
-                                        "Please report this (issue #1992).",
-                                )
-                            com.noop.protocol.HistoricalLayoutSupport.SUPPORTED -> Unit
-                        }
-                        firmwareLayout(v)
-                        // Connection test mode: the firmware layout as a compact tagged line. A layout that
-                        // decoded a signature field (heart_rate / gravity_x / ppg_waveform) is decodable.
-                        // Gated zero-cost. Twin of the Swift Backfiller emit.
-                        emitConnection {
-                            val decodable = frames.any {
-                                val d = decodeHistorical(it, family)
-                                d != null && (d.containsKey("heart_rate") || d.containsKey("gravity_x") ||
-                                    d.containsKey("ppg_waveform"))
-                            }
-                            com.noop.analytics.ConnectionTrace.firmwareLine(v, decodable)
-                        }
-                    }
+            // EVERY distinct layout in the chunk, not just the first record's. The comment above says
+            // "log each distinct layout once per session" and the old form did not do that: it sampled the
+            // first decodable record and stopped, so a strap emitting v18 AND an unscoreable layout logged
+            // only the v18 and never mentioned the other one. That is precisely the mixed-layout strap the
+            // guidance below exists for. Swift reads its already-parsed frames for this and pays nothing;
+            // here it costs one decode pass over the chunk, beside the one `extractHistoricalStreams` just
+            // did, which is immaterial next to the transfer that delivered the chunk.
+            val layoutsInChunk = LinkedHashMap<Int, Boolean>()   // version -> any record carried a signal
+            for (f in frames) {
+                val d = decodeHistorical(f, family) ?: continue
+                val v = d["hist_version"] as? Int ?: continue
+                val carries = d.containsKey("heart_rate") || d.containsKey("gravity_x") ||
+                    d.containsKey("ppg_waveform")
+                layoutsInChunk[v] = (layoutsInChunk[v] ?: false) || carries
+            }
+            // `firmwareLayout` sets ONE state value and the connection trace names ONE layout, so both stay
+            // bound to the chunk's first version exactly as before; only the logging widened.
+            val firstLayout = layoutsInChunk.keys.firstOrNull()
+            for ((v, carriesSignal) in layoutsInChunk) {
+                if (!loggedLayoutVersions.add(v)) continue
+                log("Backfill: historical records use layout v$v")
+                // #1992: and say what that MEANS when it is not a layout NOOP can score from. Android used
+                // to print the bare version and stop, so a user whose nights were not staging had the fact
+                // in their log and none of the explanation, while the same strap on iOS was told why.
+                // Asked of the LAYOUT: it counts as carrying a signal when ANY of the chunk's records of
+                // that version did, so one thin record cannot condemn it. Twin of the Swift emit.
+                when (com.noop.protocol.historicalLayoutSupport(
+                    version = v, family = family, hasHeartRate = carriesSignal,
+                    hasGravity = false, hasPpgWaveform = false,
+                )) {
+                    com.noop.protocol.HistoricalLayoutSupport.UNMAPPED ->
+                        log(
+                            "Historical records use firmware layout v$v, which NOOP doesn't decode yet: " +
+                                "those records carry no heart rate or motion, so any night made only of them " +
+                                "can't be staged from the strap. A strap emitting a mix of layouts still " +
+                                "stages the nights it can. Please report this (issue #1992).",
+                        )
+                    com.noop.protocol.HistoricalLayoutSupport.DECODES_WITHOUT_NAMED_SIGNAL ->
+                        log(
+                            "Historical records use firmware layout v$v. NOOP decodes it, but these records " +
+                                "carry no per-second heart rate and no motion (they hold raw sensor channels " +
+                                "nothing scores yet), so any night made only of them can't be staged from the " +
+                                "strap. A strap emitting a mix of layouts still stages the nights it can. " +
+                                "Please report this (issue #1992).",
+                        )
+                    com.noop.protocol.HistoricalLayoutSupport.SUPPORTED -> Unit
                 }
+                if (v == firstLayout) {
+                    firmwareLayout(v)
+                    // Connection test mode: the firmware layout as a compact tagged line. Gated zero-cost.
+                    // Twin of the Swift Backfiller emit.
+                    emitConnection { com.noop.analytics.ConnectionTrace.firmwareLine(v, carriesSignal) }
+                }
+            }
             // SpO2 RE dump (PR #945, reimplemented): while the Connection test mode is on, dump a few FULL
             // historical records + their mapped raw SpO2 channels so an offline pass can tell whether the
             // strap banks a COMPUTED SpO2 (a byte tracking the WHOOP app's nightly %) vs only the raw
