@@ -610,7 +610,19 @@ fun rejectedHistoricalRecords(
         // an unmapped layout the v24-fallback plausibility gate rejected. This is precisely what
         // [extractHistoricalStreams] drops (`decodeHistorical(...) ?: continue`), so the rejected set
         // matches the silently-lost set exactly.
-        decodeHistorical(frame, family) == null
+        // DECODE OUTCOME: archive unless the record yielded something SCOREABLE, not merely something.
+        //
+        // This used to be `decodeHistorical(...) == null` — did it decode at all. That is the same wrong
+        // question the unmapped-layout rule above exists to replace, one step further down: a record that
+        // decodes into channels no engine reads is not data NOOP has kept, it is data NOOP has looked at
+        // and dropped, and the strap frees it on the very next trim ack. Today the two questions give the
+        // same answer here, because every layout mapped on this platform either yields a heart rate (v18)
+        // or is short-circuited above as having its own durable stream (v26). They stop agreeing the
+        // moment a layout is mapped whose records carry neither, which is exactly what porting the 5/MG
+        // optical (v20) and raw IMU (v21) decoders would do: without this, that port would silently stop
+        // archiving the very bytes needed to work out what those channels mean. Twin of the Swift tail.
+        val decoded = decodeHistorical(frame, family) ?: return@filter true
+        decoded["unix"] == null || (decoded["heart_rate"] == null && decoded["gravity_x"] == null)
     }
 }
 
