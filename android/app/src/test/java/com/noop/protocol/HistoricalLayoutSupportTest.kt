@@ -1,7 +1,7 @@
 package com.noop.protocol
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNotEquals
 import org.junit.Test
 
@@ -25,17 +25,16 @@ class HistoricalLayoutSupportTest {
     }
 
     /**
-     * v20 IS unmapped here, and that is correct rather than a gap in this function: Android's historical
-     * dispatch has no v20/v21 branch, so the record genuinely does not decode on this side. Swift answers
-     * DECODES_WITHOUT_NAMED_SIGNAL for the same version because its decoder does dispatch it. Pinned so the
-     * divergence is deliberate and visible, and so porting the decoder flips this test rather than
-     * surprising someone.
+     * v20 now decodes here as it does on Swift, so this says what Swift's twin says: the layout is
+     * understood, and it still cannot stage a night, because the optical channels map to no
+     * physiological value on either platform. The previous version of this test asserted the opposite
+     * and was written to flip exactly here when the decoder landed.
      */
     @Test
-    fun theOpticalLayoutIsStillUnmappedOnThisPlatform() {
-        assertFalse("Android has no v20 historical branch", 20 in MAPPED_WHOOP5_HISTORICAL_VERSIONS)
+    fun theOpticalLayoutDecodesButStillCannotStageANight() {
+        assertTrue("v20 dispatches on this platform now", 20 in MAPPED_WHOOP5_HISTORICAL_VERSIONS)
         assertEquals(
-            HistoricalLayoutSupport.UNMAPPED,
+            HistoricalLayoutSupport.DECODES_WITHOUT_NAMED_SIGNAL,
             historicalLayoutSupport(20, DeviceFamily.WHOOP5, false, false, false),
         )
     }

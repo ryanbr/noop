@@ -342,7 +342,83 @@ fun decodeHistorical(frame: ByteArray, family: DeviceFamily = DeviceFamily.WHOOP
  * so was already archived by the decode-outcome route. Add a version here only when a decoder for it
  * lands on this side. Pinned by `UnmappedHistoricalLayoutTest`.
  */
-val MAPPED_WHOOP5_HISTORICAL_VERSIONS: Set<Int> = setOf(18, 26)
+val MAPPED_WHOOP5_HISTORICAL_VERSIONS: Set<Int> = setOf(18, 20, 21, 26)
+
+/**
+ * WHOOP 5/MG historical layouts v20 (optical) and v21 (raw 6-axis IMU). Port of the Swift
+ * `decodeWhoop5HistoricalV2021`, which this platform has had the decoders for all along:
+ * [Whoop5RawOptical] and [Whoop5RawImu] existed here but were wired only to the live deep-buffer route,
+ * never to the type-47 historical dispatch, so an offloaded v20 or v21 record decoded to null.
+ *
+ * Both versions reuse the v18 record header: layout version @9, a marker byte @10 (0x81 on v20, 0x80 on
+ * v21), the monotonic record index @11 and the unix time @15.
+ *
+ * What this does NOT do is make those nights stageable. Neither layout carries a per-second heart rate
+ * or a gravity vector; they carry raw sensor channels that no engine reads, and mapping those channels
+ * to a physiological value is the open work on #1992. What it does give is the same decode both
+ * platforms have, a real unix and record index for records that previously yielded nothing at all, and
+ * the raw arrays on the device for analysis.
+ *
+ * The reject archive still keeps these records. Its decode-outcome test asks whether a record yielded a
+ * unix AND either a heart rate or gravity, not merely whether it decoded, so a record that decodes into
+ * unread channels is still archived. That ordering is deliberate: had the archive still asked "did it
+ * decode at all", this port would have silently stopped preserving the very bytes the channel mapping
+ * needs. `whoop5V20StillArchivedAfterItDecodes` pins it.
+ */
+private fun decodeWhoop5HistoricalV2021(frame: ByteArray, version: Int): Map<String, Any?>? {
+    val out = LinkedHashMap<String, Any?>()
+    out["hist_version"] = version
+    frame.histU8(10)?.let { out["layout_marker"] = it }
+    // Long, not Int, for both: these are UNSIGNED 32-bit fields and Kotlin's Int is 32-bit where Swift's
+    // is 64-bit, so narrowing makes a value with bit 31 set decode differently on the two platforms from
+    // byte-identical bytes. Same rule the v18 branch above documents at length.
+    frame.histU32(11)?.let { out["record_index"] = it }
+    frame.histU32(15)?.let { out["unix"] = it }
+
+    if (version == 21) {
+        // TWO blocks of three 100-sample i16 channels: accelerometer (@28/@228/@428) then gyroscope
+        // (@640/@840/@1040). Emitted as RAW i16 arrays with no scaling, exactly as Swift does; the
+        // physical scales (1/4096 g/LSB accel, 2000/32768 dps/LSB gyro) belong to Whoop5RawImu.decode.
+        // A channel is emitted only when all 100 samples are readable, so a truncated record yields the
+        // header fields and no half-arrays.
+        for ((name, start) in WHOOP5_V21_CHANNELS) {
+            val samples = ArrayList<Int>(100)
+            for (i in 0 until 100) {
+                val v = frame.histI16(start + i * 2) ?: break
+                samples.add(v)
+            }
+            if (samples.size == 100) out[name] = samples
+        }
+        out["sensor_channel_samples"] = 100
+        return out
+    }
+
+    // version == 20: five repeated optical-measurement blocks, each one shared header plus two channel
+    // slots. The two channels in a block are a detector/readout pair for ONE measurement configuration,
+    // not two wavelengths, and no wavelength or absolute unit is asserted here. See Whoop5RawOptical for
+    // the evidence behind the 25-sample block length and the 20-bit-in-i32 sample container.
+    val optical = Whoop5RawOptical.decode(frame) ?: return out
+    out["sensor_block_count"] = optical.blocks.size
+    var present = 0
+    for (block in optical.blocks) {
+        out["block_b${block.index}_header"] = block.rawHeader
+        out["block_b${block.index}_sample_count"] = block.sampleCount
+        if (block.sampleCount <= 0) continue
+        for ((channelIndex, channel) in block.channels.withIndex()) {
+            out["channel_b${block.index}_$channelIndex"] = channel.samples
+            present++
+        }
+    }
+    out["sensor_channel_samples"] = optical.blocks.maxOfOrNull { it.sampleCount } ?: 0
+    out["sensor_channels_present"] = present
+    return out
+}
+
+/** v21's six raw IMU channels and their absolute offsets. Twin of the Swift `channels` table. */
+private val WHOOP5_V21_CHANNELS: List<Pair<String, Int>> = listOf(
+    "accel_x" to 28, "accel_y" to 228, "accel_z" to 428,
+    "gyro_x" to 640, "gyro_y" to 840, "gyro_z" to 1040,
+)
 
 /**
  * True when [frame] is a WHOOP 5/MG type-47 record whose layout version has NO field map on this
@@ -368,11 +444,12 @@ fun isUnmappedWhoop5HistoricalRecord(frame: ByteArray): Boolean {
 private fun decodeWhoop5Historical(frame: ByteArray): Map<String, Any?>? {
     if (frame.histU8(8) != PacketType.HISTORICAL_DATA.rawValue) return null
     val version = frame.histU8(9) ?: return null
-    // One gate, one list: 18 is the only version this function maps, and v26 (handled by
-    // [decodeWhoop5HistoricalV26] from [extractHistoricalStreams]) is the only other one this platform
-    // maps at all — so [MAPPED_WHOOP5_HISTORICAL_VERSIONS] must contain exactly {18, 26}. That set is
-    // what decides whether a record gets archived raw, so the two cannot be allowed to drift;
-    // `UnmappedHistoricalLayoutTest` pins the lockstep against the decoder's actual behaviour.
+    // One gate, one list: every version this function maps must appear in
+    // [MAPPED_WHOOP5_HISTORICAL_VERSIONS], and every version in that set must be handled here or (v26)
+    // by [decodeWhoop5HistoricalV26] from [extractHistoricalStreams]. That set is what decides whether a
+    // record gets archived raw, so the two cannot be allowed to drift; `UnmappedHistoricalLayoutTest`
+    // pins the lockstep against the decoder's actual behaviour.
+    if (version == 20 || version == 21) return decodeWhoop5HistoricalV2021(frame, version)
     if (version != 18) return null
 
     val out = LinkedHashMap<String, Any?>()
