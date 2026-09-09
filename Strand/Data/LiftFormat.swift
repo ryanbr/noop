@@ -38,15 +38,28 @@ enum LiftFormat {
 
     // MARK: - Numbers
 
-    /// Drop a trailing ".0" so a whole number reads as one: 8.0 → "8", 7.5 → "7.5".
+    /// A number with up to TWO decimals and no trailing noise: 8.0 → "8", 7.5 → "7.5",
+    /// 12.25 → "12.25", 45.50 → "45.5".
     ///
-    /// Weights and RPE are both entered as decimals but are usually whole, and "8.0 × 10" in a
-    /// summary line reads like a precision the user did not type.
+    /// Weights and RPE are entered as decimals but are usually whole, and "8.0 × 10" in a summary
+    /// line reads like a precision the user did not type — so a whole number loses its ".0".
+    ///
+    /// TWO decimals, not one. Gym plates come in quarter-kilos and microplates in smaller steps, so
+    /// 12.25 kg is a real weight a user types; formatting to one decimal turned it into 12.3 and,
+    /// because the entry field reads its text back through this function, that rounded value then
+    /// replaced what they typed. One decimal was silently lossy, not merely terse.
+    ///
+    /// Always renders "." regardless of locale — `String(format:)` takes no locale here — which
+    /// matches what the rest of the Lift Log displays.
     static func trim(_ value: Double) -> String {
-        if value == value.rounded() && abs(value) < 1e9 {
-            return String(Int(value.rounded()))
+        let rounded = (value * 100).rounded() / 100
+        if rounded == rounded.rounded() && abs(rounded) < 1e9 {
+            return String(Int(rounded.rounded()))
         }
-        return String(format: "%.1f", value)
+        var text = String(format: "%.2f", rounded)
+        while text.hasSuffix("0") { text.removeLast() }
+        if text.hasSuffix(".") { text.removeLast() }
+        return text
     }
 
     /// Parse a typed number, accepting both "7.5" and the comma decimal separator "7,5" that most of
