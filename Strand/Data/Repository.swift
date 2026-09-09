@@ -1305,43 +1305,23 @@ final class Repository: ObservableObject {
         guard !sessions.isEmpty, let store = await ensureStore() else { return [:] }
         let rawIds = rawPhysiologyReadIds(store: store)
         let computedIds = rawComputedReadIds(store: store)
-
-        // ONE read per candidate device, instead of a query per session per device to resolve the owner
-        // plus one more per session to read its motion. That per-session shape cost hundreds of sequential
-        // round trips on a browsable history, all before the Sleep screen could settle. The resolution and
-        // precedence below are unchanged; only where the rows come from moved.
-        //
-        // The motion half reuses `store.sessionMotions(deviceId:sessionStarts:)`, which already exists and
-        // already chunks its IN list under SQLite's parameter ceiling. It was written for the Sleep tab's
-        // main-night group and this caller simply never adopted it.
-        //
-        // The `-noop` variants are prefetched too. `ownerComputed` appends the suffix to whichever id won,
-        // so it can name a device in NEITHER list, and the old code queried it directly. Prefetching only
-        // the two lists would silently return no motion for exactly those sessions.
-        let candidateIds = (rawIds + computedIds)
-            .flatMap { [$0, $0.hasSuffix("-noop") ? $0 : $0 + "-noop"] }
-            .reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
         let starts = sessions.map(\.startTs)
         let lo = starts.min() ?? 0
         let hi = starts.max() ?? 0
-        // `sleepSessionBounds`, not `sleepSessions`: the owner check needs two integers per block, and the
-        // fuller read selects `stagesJSON` among other columns. Fetching every night's staging blob once
-        // per candidate device, to compare a pair of timestamps, would re-read the same rows several times
-        // over on the histories this is meant to speed up. Unpaged, so a caller passing a sparse subset of
-        // a wide span cannot page short and lose the owners it dropped.
+
+        // Phase 1, ownership. `sleepSessionBounds`, not `sleepSessions`: the check needs two integers per
+        // block, and the fuller read selects `stagesJSON` among other columns, so it would haul every
+        // night's staging blob once per candidate device to compare a pair of timestamps. Unpaged, so a
+        // caller passing a sparse subset of a wide span cannot page short and lose the owners it dropped.
         var boundsByDevice: [String: [Int: Int]] = [:]   // deviceId -> startTs -> endTs
-        var motionByDevice: [String: [Int: [Double]]] = [:]
-        for id in candidateIds {
+        for id in rawIds + computedIds {
             boundsByDevice[id] = (try? await store.sleepSessionBounds(deviceId: id, from: lo, to: hi)) ?? [:]
-            motionByDevice[id] = (try? await store.sessionMotions(deviceId: id,
-                                                                  sessionStarts: starts)) ?? [:]
         }
 
-        var out: [Int: [Double]] = [:]
-        for session in sessions where out[session.startTs] == nil {
-            // CachedSleepSession has no provenance field. Re-resolve the exact visible block using the
-            // same imported-wins order as allSleepSessions, then probe its computed owner first. Matching
-            // BOTH bounds still, since a start alone can be shared by a raw row and its computed twin.
+        // Resolve each block's ordered source list, exactly as before: the imported-wins owner search,
+        // then its computed twin first and the computed ids behind it.
+        var sourcesByStart: [Int: [String]] = [:]
+        for session in sessions where sourcesByStart[session.startTs] == nil {
             var owner: String?
             for id in rawIds + computedIds {
                 if boundsByDevice[id]?[session.startTs] == session.endTs {
@@ -1350,15 +1330,35 @@ final class Repository: ObservableObject {
                 }
             }
             let ownerComputed = owner.map { $0.hasSuffix("-noop") ? $0 : $0 + "-noop" }
-            let sources = ([ownerComputed].compactMap { $0 } + computedIds).reduce(into: [String]()) {
-                if !$0.contains($1) { $0.append($1) }
+            sourcesByStart[session.startTs] = ([ownerComputed].compactMap { $0 } + computedIds)
+                .reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
+        }
+
+        // Phase 2, motion, in ROUNDS rather than all sources for all blocks.
+        //
+        // A night's motion is one value per epoch, so a night is kilobytes of JSON and a long history is
+        // tens of megabytes. Asking every computed device for every block would decode that several times
+        // over to keep one copy, which is the same trade as pulling `stagesJSON` above: fewer round trips
+        // bought with far more bytes. Round k asks each device only for the blocks whose k-th source it is
+        // and which are still unfilled, so a block is read from its second source only if its first had
+        // nothing. That is the early exit the per-session loop had, kept, with D reads per round instead
+        // of one per block. Owned blocks resolve in the first round, so the second rarely runs.
+        var out: [Int: [Double]] = [:]
+        var round = 0
+        let maxRounds = sourcesByStart.values.map(\.count).max() ?? 0
+        while round < maxRounds {
+            var wantedByDevice: [String: [Int]] = [:]
+            for (start, sources) in sourcesByStart where out[start] == nil && round < sources.count {
+                wantedByDevice[sources[round], default: []].append(start)
             }
-            for id in sources {
-                if let motion = motionByDevice[id]?[session.startTs], !motion.isEmpty {
-                    out[session.startTs] = motion
-                    break
+            if wantedByDevice.isEmpty { break }
+            for (id, wanted) in wantedByDevice {
+                let motions = (try? await store.sessionMotions(deviceId: id, sessionStarts: wanted)) ?? [:]
+                for (start, motion) in motions where out[start] == nil && !motion.isEmpty {
+                    out[start] = motion
                 }
             }
+            round += 1
         }
         return out
     }
