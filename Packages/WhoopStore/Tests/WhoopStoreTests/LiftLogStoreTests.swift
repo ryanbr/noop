@@ -408,18 +408,6 @@ final class LiftLogStoreTests: XCTestCase {
         XCTAssertTrue(never.isEmpty, "an exercise never logged has no history, and that is not an error")
     }
 
-    func testLoggedExercisesAreDistinctAndSorted() async throws {
-        let store = try await WhoopStore.inMemory()
-        _ = try await store.upsertLiftSessions([mkSession(id: "s1", startTs: 1_000)])
-        _ = try await store.upsertLiftSets([
-            mkSet(id: "a", sessionId: "s1", ord: 0, setIndex: 1, exercise: "Leg Press"),
-            mkSet(id: "b", sessionId: "s1", ord: 1, setIndex: 2, exercise: "Leg Press"),
-            mkSet(id: "c", sessionId: "s1", ord: 2, setIndex: 1, exercise: "Dead Bug"),
-        ])
-        let logged = try await store.liftExercisesLogged(deviceId: dev)
-        XCTAssertEqual(logged, ["Dead Bug", "Leg Press"])
-    }
-
     // MARK: - Muscle classification
 
     /// The token set is a stored-data contract: renaming a case would orphan every row written
@@ -540,34 +528,6 @@ final class LiftLogStoreTests: XCTestCase {
     }
 
     // MARK: - Proximity to failure, reported separately
-
-    /// An unrated set is neither counted as hard nor assumed easy — it is reported as unrated, and
-    /// left out of the mean. Guessing in either direction would be inventing data.
-    func testRpeProfileSeparatesRatedFromUnrated() async throws {
-        let store = try await WhoopStore.inMemory()
-        _ = try await store.upsertLiftSessions([mkSession(id: "s1", startTs: 1_000)])
-        _ = try await store.upsertLiftSets([
-            mkSet(id: "a", sessionId: "s1", ord: 0, setIndex: 1, rpe: 6),
-            mkSet(id: "b", sessionId: "s1", ord: 1, setIndex: 2, rpe: 8),
-            mkSet(id: "c", sessionId: "s1", ord: 2, setIndex: 3, rpe: nil),
-            mkSet(id: "warm", sessionId: "s1", ord: 3, setIndex: 4, rpe: 9, isWarmup: true),
-        ])
-        let profile = try await store.liftRpeProfile(deviceId: dev, fromTs: 0, toTs: 9_999)
-        XCTAssertEqual(profile.workingSets, 3, "the warm-up is not a working set")
-        XCTAssertEqual(profile.rated, 2)
-        XCTAssertEqual(profile.unrated, 1)
-        XCTAssertEqual(profile.meanRpe ?? 0, 7.0, accuracy: 0.0001)
-        XCTAssertEqual(profile.atOrAboveThreshold, 1)
-    }
-
-    func testRpeProfileWithNothingRatedHasNoMean() async throws {
-        let store = try await WhoopStore.inMemory()
-        _ = try await store.upsertLiftSessions([mkSession(id: "s1", startTs: 1_000)])
-        _ = try await store.upsertLiftSets([mkSet(id: "a", sessionId: "s1", ord: 0, setIndex: 1, rpe: nil)])
-        let profile = try await store.liftRpeProfile(deviceId: dev, fromTs: 0, toTs: 9_999)
-        XCTAssertNil(profile.meanRpe, "no ratings means no average, not zero")
-        XCTAssertEqual(profile.unrated, 1)
-    }
 
     // MARK: - Privacy: delete-means-gone
 

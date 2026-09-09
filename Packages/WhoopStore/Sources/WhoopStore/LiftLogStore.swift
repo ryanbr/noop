@@ -664,7 +664,7 @@ extension WhoopStore {
     /// though a hard set is the thing that drives adaptation — because the reference doses were
     /// derived from unfiltered working-set counts, and filtering here would quietly compare a
     /// smaller number against a scale built from a larger one. Proximity to failure is reported
-    /// separately by `liftRpeProfile` instead, where it can inform without corrupting the count.
+    /// separately by `LiftMetrics.rpeProfile` instead, where it can inform without corrupting the count.
     public func liftSetCounts(
         deviceId: String,
         fromTs: Int,
@@ -706,50 +706,4 @@ extension WhoopStore {
         }
     }
 
-    /// How hard the working sets in a window actually were, reported separately from the counts.
-    ///
-    /// Proximity to failure is what makes a set count biologically, but it is NOT folded into
-    /// `liftSetCounts` — see that method for why. Sets with no RPE recorded are excluded from the
-    /// average and reported as `unrated`, rather than being silently treated as easy or as hard.
-    public func liftRpeProfile(
-        deviceId: String,
-        fromTs: Int,
-        toTs: Int,
-        hardThreshold: Double = 7
-    ) async throws -> (workingSets: Int, rated: Int, unrated: Int, meanRpe: Double?, atOrAboveThreshold: Int) {
-        try syncRead { db in
-            let rows = try Row.fetchAll(db, sql: """
-                SELECT s.rpe AS rpe
-                FROM liftSet s
-                JOIN liftSession sess ON sess.id = s.sessionId
-                WHERE s.deviceId = ?
-                  AND sess.startTs >= ? AND sess.startTs <= ?
-                  AND s.isWarmup = 0
-                """, arguments: [deviceId, fromTs, toTs])
-
-            var rated: [Double] = []
-            var unrated = 0
-            for row in rows {
-                if let v: Double = row["rpe"] { rated.append(v) } else { unrated += 1 }
-            }
-            let mean = rated.isEmpty ? nil : rated.reduce(0, +) / Double(rated.count)
-            return (workingSets: rows.count,
-                    rated: rated.count,
-                    unrated: unrated,
-                    meanRpe: mean,
-                    atOrAboveThreshold: rated.filter { $0 >= hardThreshold }.count)
-        }
-    }
-
-    /// Distinct exercise names this device has ever logged, alphabetical — the suggestion list for
-    /// the program editor, built from the user's own history rather than a shipped catalogue.
-    public func liftExercisesLogged(deviceId: String) async throws -> [String] {
-        try syncRead { db in
-            try String.fetchAll(db, sql: """
-                SELECT DISTINCT exercise FROM liftSet
-                WHERE deviceId = ?
-                ORDER BY exercise ASC
-                """, arguments: [deviceId])
-        }
-    }
 }
