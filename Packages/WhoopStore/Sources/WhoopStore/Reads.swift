@@ -1,3 +1,4 @@
+import Dispatch
 import Foundation
 import GRDB
 import WhoopProtocol
@@ -112,7 +113,13 @@ extension WhoopStore {
     /// "hrSample non-empty OR ppgHrSample non-empty". OR short-circuits, so the common case is one probe.
     /// Twin of Kotlin's `WhoopDao.hasHrInWindow`.
     public func hasHrInWindow(deviceId: String, from: Int, to: Int) async throws -> Bool {
-        try syncRead { db in
+        // Counted HERE rather than at the call site, mirroring the Kotlin repository: the resolver this
+        // serves is `nonisolated static`, so it has nowhere to accumulate, and the steps loop that drives
+        // most of these runs inside a detached task. One call site each makes the count unambiguous.
+        // See `StoreProbeTally` (StrandAnalytics). Instrumentation only.
+        let probeStarted = DispatchTime.now().uptimeNanoseconds
+        defer { probeCounts.ownerHr.record(nanos: DispatchTime.now().uptimeNanoseconds &- probeStarted) }
+        return try syncRead { db in
             try Bool.fetchOne(db, sql: """
                 SELECT EXISTS(SELECT 1 FROM hrSample WHERE deviceId = ? AND ts >= ? AND ts <= ?)
                     OR EXISTS(SELECT 1 FROM ppgHrSample WHERE deviceId = ? AND ts >= ? AND ts <= ?)
@@ -129,7 +136,10 @@ extension WhoopStore {
     /// stream moves and at no other time. Same COUNT/COALESCE(MAX) shape and the same `(deviceId, ts)`
     /// index as `hrFingerprint(deviceId:from:to:)` above, and never a row fetch.
     public func gravityFingerprint(deviceId: String, from: Int, to: Int) async throws -> (count: Int, maxTs: Int) {
-        try syncRead { db in
+        // Counted for the same reason as `hasHrInWindow` above; see `StoreProbeTally`.
+        let probeStarted = DispatchTime.now().uptimeNanoseconds
+        defer { probeCounts.gravityFp.record(nanos: DispatchTime.now().uptimeNanoseconds &- probeStarted) }
+        return try syncRead { db in
             guard let row = try Row.fetchOne(db, sql: """
                 SELECT COUNT(*) AS c, COALESCE(MAX(ts), 0) AS m FROM gravitySample
                 WHERE deviceId = ? AND ts >= ? AND ts <= ?

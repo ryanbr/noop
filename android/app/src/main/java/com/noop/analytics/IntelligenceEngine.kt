@@ -493,6 +493,10 @@ object IntelligenceEngine {
             // relaunch is a repeat the process boundary hid. Nothing pass-global feeds the fold, so a
             // payload written by a previous launch is as good as one written by the previous pass; see
             // [StepsMotionCache]. Inside the lock because it writes the gate-guarded cache.
+            // Zero the per-day probe counters so the line below describes THIS pass and never accumulates
+            // across the back-to-back passes an offload storm is made of. Reset and emit both live in this
+            // wrapper, never in `analyzeRecentOnCpu`, whose ratchet margin has no room for either.
+            StoreProbeTally.reset()
             if (!stepsMotionCacheLoaded && stepsMotionCacheGet != null) {
                 stepsMotionCacheLoaded = true
                 val raw = stepsMotionCacheGet()
@@ -529,6 +533,9 @@ object IntelligenceEngine {
                     stepsMotionCacheSet(payload)
                 }
             }
+            // What the pass spent on its per-day probe queries, beside the `stepsMotion reused=N/M` line.
+            // Together they say whether a warm pass that folded nothing still went into the round trips.
+            diag(StoreProbeTally.line())
             result
         }
         diag("re-score: done — scored ${scored.size} night(s) in ${(System.nanoTime() - reScoreStart) / 1_000_000} ms (#1005)")

@@ -854,6 +854,10 @@ final class IntelligenceEngine: ObservableObject {
         let effortMethodGlobal = PuffinExperiment.effortMethod
         let dayCycleMode = DayCycleMode.persisted(UserDefaults.standard.string(forKey: DayCycleMode.storageKey))
 
+        // Zero the per-day probe counters so the line emitted after the steps phase describes THIS pass
+        // and never accumulates across the back-to-back passes an offload storm is made of. Must precede
+        // the day loop below, which is the scoring half of the owner probes. See `StoreProbeTally`.
+        _ = await store.takeProbeCounts()
         // ── #1005 BATTERY: per-day reuse cache setup (see `dayScanCache`) ────────────────────────────
         // The stager toggles are read per-day inside the loop below, but they are global (same value every
         // day); read them ONCE here too so the config signature can fold them without reaching into the
@@ -2477,6 +2481,13 @@ final class IntelligenceEngine: ObservableObject {
             UserDefaults.standard.set(stepsMotionPayload, forKey: Self.stepsMotionCacheDefaultsKey)
         }
         diagnosticSink?(stepsMotionLogLine, nil)
+        // What the pass spent on its per-day probe queries, beside the `stepsMotion reused=N/M` line above.
+        // Together they say whether a warm pass that folded nothing still went into the round trips.
+        let probeCounts = await store.takeProbeCounts()
+        diagnosticSink?(StoreProbeTally.logLine([
+            (name: "ownerHr", calls: probeCounts.ownerHr.calls, seconds: probeCounts.ownerHr.seconds),
+            (name: "gravityFp", calls: probeCounts.gravityFp.calls, seconds: probeCounts.gravityFp.seconds),
+        ]), nil)
         // #1816: persist whether the strap has banked ANY motion in the calibration scan window, so the
         // Today tile can distinguish "Need N more phone-step days" (motion exists, phone half missing)
         // from "No motion synced yet" (the motion half is the blocker, and no number of phone-step days

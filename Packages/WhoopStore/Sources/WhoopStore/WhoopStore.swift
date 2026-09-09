@@ -59,6 +59,10 @@ private actor StoreOpenGate {
 /// data or the query results.
 public actor WhoopStore {
 
+    /// Per-pass call/time counters for the two per-day PROBE reads, drained by `takeProbeCounts()`.
+    /// Instrumentation only — nothing reads them but a diagnostic line. See `StoreProbeCounts`.
+    var probeCounts = StoreProbeCounts()
+
     /// PPG waveform rows banked since its retention sweep last ran, PER DEVICE, for the same reason as
     /// `v18AuxRowsSincePrune` below: the sweep is per device, so a shared counter would let one strap
     /// spend another's budget. Separate counter from the v18 aux one because the two caps differ and a
