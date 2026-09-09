@@ -2105,6 +2105,13 @@ object IntelligenceEngine {
             val dayKey = AnalyticsEngine.dayString(dayMid, tzOffsetSeconds)
             motionWindow.add(dayKey)
             val owner = resolveDayOwner(repo, ownerSource, candidatePriorities, dayKey, dayMid, dayEnd, importedDeviceId)
+            // Unlike the Swift twin there is no soft-failure branch here, and that is deliberate rather
+            // than an omission. Swift's store reads throw and this whole block wraps them in `try?`, so it
+            // has to say what a read it could not make means: a witness it cannot read bypasses the cache
+            // in both directions, and a zero fold from a FAILED read is not cached. Kotlin's repo reads
+            // propagate, so a failure aborts the pass before anything is written, which reaches the same
+            // place by a shorter route. Adding a catch here would not add safety; it would swallow an
+            // abort and start caching zeros that only mean "we could not look".
             val fp = repo.gravityFingerprintWindow(owner, dayMid, dayEnd)
             val key = StepsMotionCache.cacheKey(owner, fp.first, fp.second)
             val cached = stepsMotionCache[dayKey]

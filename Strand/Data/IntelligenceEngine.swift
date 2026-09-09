@@ -2419,14 +2419,19 @@ final class IntelligenceEngine: ObservableObject {
                     m = cached.motion
                     motionReused += 1
                 } else {
-                    let grav = (try? await store.gravitySamples(deviceId: owner, from: dayMid, to: dayEnd,
-                                                                limit: 200_000)) ?? []
-                    m = StepsEstimateEngine.dayMotionIntensity(grav)
+                    // nil is a FAILED read; `[]` is a day that genuinely banked nothing. The old code
+                    // collapsed both to zero, which cost one pass. Caching would make it cost every pass
+                    // until that day's gravity happened to change — a transient store error turned into a
+                    // stale zero feeding the step estimate for the life of the process.
+                    let gravRead = try? await store.gravitySamples(deviceId: owner, from: dayMid, to: dayEnd,
+                                                                   limit: 200_000)
+                    m = StepsEstimateEngine.dayMotionIntensity(gravRead ?? [])
                     motionFolded += 1
-                    // A ZERO fold is cached too. Storing only the days that moved would leave every unworn
-                    // gap re-reading its whole stream on every pass to rediscover that it is empty, which is
-                    // most of the window on exactly the sparse libraries this is worst for.
-                    if let key { motionCacheLocal[dayKey] = (key: key, motion: m) }
+                    // A ZERO fold from a read that SUCCEEDED is cached. Storing only the days that moved
+                    // would leave every unworn gap re-reading its whole stream on every pass to rediscover
+                    // that it is empty, which is most of the window on the sparse libraries this is worst
+                    // for. A zero that only means "we could not look" is not cached.
+                    if let key, gravRead != nil { motionCacheLocal[dayKey] = (key: key, motion: m) }
                 }
                 // Unchanged: only a positive volume becomes a calibration/estimation input. The cache holds
                 // the fold, this holds the filter, so `motionByDay` is byte-identical to the old loop's — and
