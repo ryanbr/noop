@@ -696,6 +696,12 @@ class WhoopRepository(
     suspend fun hrFingerprintWindow(deviceId: String, from: Long, to: Long): Pair<Int, Long> =
         Pair(dao.countHrInWindow(deviceId, from, to), dao.maxHrTsInWindow(deviceId, from, to))
 
+    /** Per-day (device + window) gravity fingerprint as (count, newestTs) for the steps-calibration
+     *  motion cache. Narrower than [dayStreamFingerprint] on purpose: dayMotionIntensity folds gravity
+     *  alone, so a new HR row must not invalidate it. Mirrors Swift WhoopStore.gravityFingerprint. */
+    suspend fun gravityFingerprintWindow(deviceId: String, from: Long, to: Long): Pair<Int, Long> =
+        Pair(dao.countGravityInWindow(deviceId, from, to), dao.maxGravityTsInWindow(deviceId, from, to))
+
     /** #29 — the same per-day (device + window) witness for every OTHER stream analyzeDay scores: PPG-derived
      *  HR, R-R, respiration, SpO2, gravity, steps, skin temp and events. [hrFingerprintWindow] cannot see a
      *  channel that lands after HR, and an offload commits its channels independently, so keyed on HR alone

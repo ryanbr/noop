@@ -81,7 +81,13 @@ class IntelligenceEngineJacocoBudgetTest {
 
         val orderedOperations = listOf(
             "fitnessAgeRows" to Regex("""\bfitnessAgeRows\s*\("""),
-            "fitness diagnostic" to Regex("""\bdiag\s*\("""),
+            // Discriminating, not a bare `diag(`: the helper now emits three diagnostics, and the point of
+            // this list is that each one stays in its place relative to the reads and writes around it. A
+            // generic pattern would have to be loosened to "at least one" the moment a second landed, which
+            // is exactly the guarantee worth keeping. It discriminates by the ARGUMENT EXPRESSION, not by
+            // the message: `maskCommentsAndLiterals` has already blanked every string, so the two newer
+            // diagnostics are identifiable only because they pass a call rather than a literal.
+            "fitness diagnostic" to Regex("""\bdiag\s*\((?!\s*(?:StepsMotionCache|AnalysisPhaseTally)\b)"""),
             "Fitness upsert" to Regex(
                 """\brepo\s*\.\s*upsertMetricSeriesWithProvenance\s*\(\s*rows\s*=\s*faPts\b""",
             ),
@@ -90,6 +96,9 @@ class IntelligenceEngineJacocoBudgetTest {
             "Apple Health read" to Regex("""\brepo\s*\.\s*appleDaily\s*\(\s*WhoopRepository\s*\.\s*APPLE_HEALTH_SOURCE\b"""),
             "Health Connect read" to Regex("""\brepo\s*\.\s*appleDaily\s*\(\s*WhoopRepository\s*\.\s*HEALTH_CONNECT_SOURCE\b"""),
             "gravity samples" to Regex("""\brepo\s*\.\s*gravitySamplesForDevice\s*\("""),
+            // The motion-cache readout sits between the gravity reads it reports on and the fit that consumes
+            // them, so it names the pass that just happened rather than one still running.
+            "steps motion diagnostic" to Regex("""\bdiag\s*\(\s*StepsMotionCache\s*\.\s*logLine\s*\("""),
             "calibration" to Regex("""\bStepsEstimateEngine\s*\.\s*calibrate\s*\("""),
             "step upsert" to Regex("""\brepo\s*\.\s*upsertMetricSeries\s*\(\s*estRows\s*\)"""),
             "calibration persistence" to Regex("""\bpersistStepsCalibration\s*\("""),
@@ -113,6 +122,15 @@ class IntelligenceEngineJacocoBudgetTest {
             .toList()
         assertEquals("Expected exactly one stepsEst trace", 1, stepsEstimateTraces.size)
         assertTrue("stepsEst trace must remain after calibrationTrace", stepsEstimateTraces.single() > previous)
+
+        // The phase line closes the helper: it reports how long the helper took, so it can only be emitted
+        // once everything it times has run. Pinned last for the same reason the rest are pinned in order.
+        val phaseLine = requireExactlyOne(
+            helperCode,
+            Regex("""\bdiag\s*\(\s*AnalysisPhaseTally\s*\.\s*logLine\s*\("""),
+        )
+        assertTrue("the phase line must be emitted after every phase it times",
+            phaseLine > stepsEstimateTraces.single())
 
         val forbidden = listOf("withContext", "async", "launch", "coroutineScope", "supervisorScope")
         for (name in forbidden) {
@@ -142,10 +160,25 @@ class IntelligenceEngineJacocoBudgetTest {
         assertEquals("diag", events.first())
         assertEquals("apple:apple-health", events[1])
         assertEquals("apple:health-connect", events[2])
+        // Cold cache: every day is folded, so every day pays BOTH the witness and the read it guards.
+        assertEquals(60, events.count { it == "gravityFp" })
         assertEquals(60, events.count { it == "gravity" })
-        assertEquals("calibration", events[63])
-        assertTrue("calibration trace must follow persistence callback", events.drop(64).all { it == "trace" })
-        assertTrue("manual calibration must emit a trace", events.size > 64)
+        // Each day asks for the witness BEFORE the read it might skip; a read that came first would make
+        // the cache pointless while still passing a count.
+        assertEquals("gravityFp", events[3])
+        assertEquals("gravity", events[4])
+        // Three diagnostics now: the fitness gate first, the motion-cache readout once the reads are done,
+        // and the phase line last of all.
+        assertEquals(3, events.count { it == "diag" })
+        val calibration = events.indexOf("calibration")
+        assertTrue("calibration must follow every gravity read",
+            calibration > events.indexOfLast { it == "gravity" })
+        assertEquals("the motion readout belongs between the reads and the fit",
+            "diag", events[calibration - 1])
+        assertEquals("diag", events.last())
+        assertTrue("calibration trace must follow persistence callback",
+            events.subList(calibration + 1, events.size - 1).all { it == "trace" })
+        assertTrue("manual calibration must emit a trace", events.size > calibration + 2)
 
         val sentinel = IllegalStateException("apple read failed")
         val failureEvents = arrayListOf<String>()
@@ -162,6 +195,39 @@ class IntelligenceEngineJacocoBudgetTest {
             assertSame(sentinel, failure.cause)
         }
         assertEquals(listOf("diag", "apple:apple-health"), failureEvents)
+    }
+
+    /**
+     * The claim the motion cache makes, measured rather than asserted: a second pass over an UNCHANGED
+     * window reads the witness for every day and the gravity stream for none of them.
+     *
+     * This is the whole point of the change. The steps calibration re-folded sixty days of gravity on
+     * every pass — a read capped at STREAM_LIMIT rows per day, which does not scale with the days being
+     * re-scored — and the fold is pure over one day's gravity, so an unchanged witness means an unchanged
+     * volume. Deliberately NOT cold on the second invocation.
+     */
+    @Test
+    fun asecondPassOverUnchangedDaysReadsNoGravity() {
+        val first = arrayListOf<String>()
+        invokeExtractedBlock(
+            repo = recordingRepository(first),
+            diag = { first.add("diag") },
+            persistCalibration = { first.add("calibration") },
+            trace = { first.add("trace") },
+        )
+        assertEquals(60, first.count { it == "gravity" })
+
+        val second = arrayListOf<String>()
+        invokeExtractedBlock(
+            repo = recordingRepository(second),
+            diag = { second.add("diag") },
+            persistCalibration = { second.add("calibration") },
+            trace = { second.add("trace") },
+            coldCache = false,
+        )
+        assertEquals("an unchanged day must not be re-folded", 0, second.count { it == "gravity" })
+        // The witness is still read for every day — that is what makes the skip safe rather than a guess.
+        assertEquals(60, second.count { it == "gravityFp" })
     }
 
     private fun recordingRepository(
@@ -182,10 +248,30 @@ class IntelligenceEngineJacocoBudgetTest {
                     events.add("gravity")
                     emptyList<Any>()
                 }
+                // The motion cache's witness: a COUNT and a MAX over the same window the read walks. Both
+                // are recorded, as one event per day, so the sequence below still says exactly which reads
+                // the helper makes and in what order.
+                "countGravityInWindow" -> {
+                    events.add("gravityFp")
+                    0
+                }
+                "maxGravityTsInWindow" -> 0L
                 else -> throw UnsupportedOperationException("Extracted block must not call ${method.name}")
             }
         } as WhoopDao
         return WhoopRepository(dao)
+    }
+
+    /**
+     * The engine is a Kotlin `object`, so its steps-motion cache is process-global and OUTLIVES a test.
+     * Every invocation here starts cold unless a case is deliberately measuring the warm path, or the
+     * gravity-read count would depend on whatever ran before it in the same JVM.
+     */
+    private fun clearStepsMotionCache() {
+        val field = IntelligenceEngine::class.java.getDeclaredField("stepsMotionCache")
+        field.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        (field.get(IntelligenceEngine) as MutableMap<String, *>).clear()
     }
 
     private fun invokeExtractedBlock(
@@ -193,11 +279,13 @@ class IntelligenceEngineJacocoBudgetTest {
         diag: (String) -> Unit,
         persistCalibration: (StepsEstimateEngine.Calibration) -> Unit,
         trace: (String) -> Unit,
+        coldCache: Boolean = true,
     ) {
         val method = IntelligenceEngine::class.java.declaredMethods.single {
             it.name == "persistFitnessVitalityAndSteps"
         }
         method.isAccessible = true
+        if (coldCache) clearStepsMotionCache()
         val continuation = object : Continuation<Unit> {
             override val context = EmptyCoroutineContext
             override fun resumeWith(result: Result<Unit>) = result.getOrThrow()

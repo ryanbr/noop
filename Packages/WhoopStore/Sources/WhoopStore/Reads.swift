@@ -97,6 +97,26 @@ extension WhoopStore {
         }
     }
 
+    /// Per-day GRAVITY fingerprint: `(count, maxTs)` over one device's `gravitySample` rows in a window.
+    ///
+    /// The witness the steps-calibration motion cache reuses a day's fold against. `dayStreamFingerprint`
+    /// already computes this pair, but it computes it alongside eight other streams, so a new HR row would
+    /// invalidate a motion volume that cannot have changed. `StepsEstimateEngine.dayMotionIntensity` is a
+    /// pure fold over one day's gravity stream and nothing else, so its cache key must move when that
+    /// stream moves and at no other time. Same COUNT/COALESCE(MAX) shape and the same `(deviceId, ts)`
+    /// index as `hrFingerprint(deviceId:from:to:)` above, and never a row fetch.
+    public func gravityFingerprint(deviceId: String, from: Int, to: Int) async throws -> (count: Int, maxTs: Int) {
+        try syncRead { db in
+            guard let row = try Row.fetchOne(db, sql: """
+                SELECT COUNT(*) AS c, COALESCE(MAX(ts), 0) AS m FROM gravitySample
+                WHERE deviceId = ? AND ts >= ? AND ts <= ?
+                """, arguments: [deviceId, from, to]) else { return (0, 0) }
+            let c: Int = row["c"]
+            let m: Int = row["m"]
+            return (c, m)
+        }
+    }
+
     /// Cross-device raw-HR fingerprint: `(count, maxTs)` over EVERY `hrSample` row, no `deviceId` filter.
     /// The `analyzeRecent` re-score gate (#1392) only needs to answer "did the raw stream change AT ALL",
     /// so it must see HR that lands under ANY id — an Oura ring, an Apple Watch, or a WHOOP re-added under a

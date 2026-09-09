@@ -99,6 +99,11 @@ object IntelligenceEngine {
     private var dayScanCache = HashMap<String, CachedDayScan>()
     private var dayScanCacheConfigSig = ""
 
+    /** Per-day steps-calibration motion folds, `day -> (key, motion)`, keyed by [StepsMotionCache.cacheKey].
+     *  In-memory and per-process exactly like [dayScanCache]; see [StepsMotionCache] for why this one needs no
+     *  config signature. Pruned to the calibration window each pass so it cannot grow without bound. */
+    private var stepsMotionCache = HashMap<String, Pair<String, Double>>()
+
     /** One reused night: its per-day cache [key], the scored [res], and everything the pass-1 loop otherwise
      *  writes into function-scoped per-day maps that pass 2 reads (owner/hrRows/primary-session RHR/SpO₂
      *  candidate/HRV over-count), plus the always-on per-day [diagLines] to replay so a reused pass logs the
@@ -2003,6 +2008,11 @@ object IntelligenceEngine {
         persistStepsCalibration: (StepsEstimateEngine.Calibration) -> Unit,
         stepsTraceSink: ((String) -> Unit)?,
     ) {
+        // #1538: the pass after the day loop was never measured — the cost line brackets the day loop and is
+        // emitted the moment it returns, so the steps calibration re-folding sixty days of gravity every pass
+        // sat outside every number the pass printed. This brackets the two phases inside THIS helper; see
+        // AnalysisPhaseMarks for why Android stops here and Swift does not.
+        val postLoop = AnalysisPhaseMarks()
         // ── Fitness Age (Phase 2) , weekly, keyed to the week's Saturday ──
         val fa7 = dailies.sortedBy { it.day }.takeLast(7)
         val faRHRs = fa7.mapNotNull { it.restingHr }.map { it.toDouble() }
@@ -2049,6 +2059,7 @@ object IntelligenceEngine {
                 MetricSeriesRow(deviceId = computedId, day = satKey, key = "body_age", value = vRes.bodyAge)))
         }
 
+        postLoop.mark("weekly")
         // ── Steps ESTIMATE (WHOOP 4.0) , DAILY, keyed to each strap-only day ──
         // A WHOOP 4.0 sends no step count over BLE, so for days the phone DIDN'T also count steps we
         // estimate them: calibrate the strap's daily MOTION VOLUME against the phone's real step count on
@@ -2079,16 +2090,44 @@ object IntelligenceEngine {
         }
         // Per-day motion volume over the calibration window, read from the owner-resolved strap streams.
         // (Owner resolution mirrors the scoring loop; a single-device install resolves to importedDeviceId.)
+        //
+        // Each day is re-folded only when its own gravity witness moved. The fold is pure over that one
+        // stream, so an unchanged witness means an unchanged volume — see [StepsMotionCache]. The fingerprint
+        // is a COUNT/MAX aggregate over the same (deviceId, ts) index the read walks, so a hit replaces a
+        // read capped at STREAM_LIMIT rows with one that returns a single row.
         val motionByDay = HashMap<String, Double>()
+        var motionReused = 0
+        var motionFolded = 0
+        val motionWindow = HashSet<String>()
         for (off in 0 until stepsCalDays) {
             val dayMid = midnightLocal(nowLocalMidnight - off * SECONDS_PER_DAY, tzOffsetSeconds)
             val dayEnd = dayMid + SECONDS_PER_DAY - 1
             val dayKey = AnalyticsEngine.dayString(dayMid, tzOffsetSeconds)
+            motionWindow.add(dayKey)
             val owner = resolveDayOwner(repo, ownerSource, candidatePriorities, dayKey, dayMid, dayEnd, importedDeviceId)
-            val grav = repo.gravitySamplesForDevice(owner, dayMid, dayEnd, STREAM_LIMIT)
-            val m = StepsEstimateEngine.dayMotionIntensity(grav)
+            val fp = repo.gravityFingerprintWindow(owner, dayMid, dayEnd)
+            val key = StepsMotionCache.cacheKey(owner, fp.first, fp.second)
+            val cached = stepsMotionCache[dayKey]
+            val m: Double
+            if (cached != null && cached.first == key) {
+                m = cached.second
+                motionReused++
+            } else {
+                val grav = repo.gravitySamplesForDevice(owner, dayMid, dayEnd, STREAM_LIMIT)
+                m = StepsEstimateEngine.dayMotionIntensity(grav)
+                motionFolded++
+                // A ZERO fold is cached too. Storing only the days that moved would leave every unworn gap
+                // re-reading its whole stream on every pass to rediscover that it is empty, which is most of
+                // the window on exactly the sparse libraries this is worst for.
+                stepsMotionCache[dayKey] = key to m
+            }
+            // Unchanged: only a positive volume becomes a calibration/estimation input. The cache holds the
+            // fold, this holds the filter, so [motionByDay] is byte-identical to the old loop's — and #1816's
+            // stepsHasMotionSink, which reads its emptiness, is untouched.
             if (m > 0) motionByDay[dayKey] = m
         }
+        stepsMotionCache.keys.retainAll(motionWindow)
+        diag(StepsMotionCache.logLine(motionReused, motionFolded, stepsMotionCache.size))
         // #1816: persist whether the strap banked ANY motion in the calibration scan window, so the Today
         // tile can distinguish "Need N more phone-step days" (motion exists, phone half missing) from
         // "No motion synced yet" (the motion half is the blocker, and no number of phone-step days will
@@ -2133,6 +2172,8 @@ object IntelligenceEngine {
                 }
             }
         }
+        postLoop.mark("steps")
+        diag(AnalysisPhaseTally.logLine("persistSteps", postLoop.phases))
     }
 
     /**
