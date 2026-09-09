@@ -564,6 +564,10 @@ struct MetricDetailView: View {
     // Effort display scale (#268) — routes the Effort metric's numbers + unit; display-only, the plotted
     // series stays 0–100. Every other metric is scale-agnostic (see MetricDescriptor.format).
     @AppStorage(UnitPrefs.effortScaleKey) private var effortScaleRaw = EffortScale.hundred.rawValue
+    /// Line vs bar for the hero chart, the same preference `TrendsView` reads. This view had never
+    /// consulted it, so a chosen `bar` drew a line here while the trend chart for the SAME metric drew
+    /// bars. Display-only: nothing about the plotted series changes.
+    @AppStorage(UnitPrefs.trendChartStyleKey) private var trendChartStyleRaw = TrendChartStyle.line.rawValue
     /// #1846/#1848: which skin-temp number the explorer leads with — absent/`""` = a temperature
     /// (the default), or `SkinTempDisplay.Kind.deviation.rawValue` to lead with the ±baseline move.
     /// Same key as Today/Health/Settings; display-only, nothing stored ever changes.
@@ -1214,6 +1218,11 @@ struct MetricDetailView: View {
                 gradient: metricGradient(metric),
                 valueRange: valueRange(windowed.map(\.value)),
                 showsArea: true,
+                // The chart-style setting, the same one `TrendsView` reads. This view had never consulted
+                // it, so a chosen `bar` drew a line here while the trend chart for the SAME metric drew
+                // bars. Kotlin's twin had the mirror-image gap and #2011 made it visible by forcing bars
+                // per metric; both now follow the setting alone.
+                showsBars: TrendChartStyle(rawValue: trendChartStyleRaw) == .bar,
                 height: NoopMetrics.chartHeight,
                 valueFormat: { fmt($0) }
             )
