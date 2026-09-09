@@ -191,6 +191,33 @@ object IntelligenceEngine {
      *  consumed by pass 2's universal dayOwner emit. */
     private data class OwnerRead(val owner: String, val hrRows: Int)
 
+    /**
+     * #2013: the census beside `re-score: done`, saying what the pass is carrying rather than how many
+     * nights it visited.
+     *
+     * A day that is scored but comes back with a null metric vanishes from that metric's detail screen
+     * without a word, and the reported case looked identical to a day that was never scored at all. The
+     * split between "the pass never produced it" and "the pass produced it and it was lost downstream" is
+     * the first question in that investigation and the log could not answer it.
+     *
+     * This counts what the pass PRODUCED, taken from its own DayResult rather than from a stored row, so
+     * it answers one half of the split. If a metric matches the night count and days are still absent
+     * from the screen, the loss is downstream of here and wants its own line at the write. That is the
+     * useful outcome either way: it says which half to look in, which is what #2013 lacked.
+     *
+     * Pure so the wording is pinned without running a pass. Names the day SPAN too, since a window that
+     * quietly shrank is the other way days go missing.
+     */
+    internal fun reScoreCensusLine(scored: List<Computed>): String {
+        if (scored.isEmpty()) return "re-score census: 0 night(s), nothing to carry"
+        val days = scored.map { it.day }.sorted()
+        return "re-score census: ${scored.size} night(s) ${days.first()}..${days.last()} " +
+            "charge=${scored.count { it.recovery != null }} effort=${scored.count { it.strain != null }} " +
+            "sleep=${scored.count { it.sleepMin != null }} hrv=${scored.count { it.hrv != null }} " +
+            "rhr=${scored.count { it.rhr != null }} (a metric short of the night count is one the pass " +
+            "produced nothing for)"
+    }
+
     /** Summary of one scored day (for logging / a future on-device intelligence screen). */
     data class Computed(
         val day: String,
@@ -455,6 +482,11 @@ object IntelligenceEngine {
                 spo2CandidateDisplay, effortMethod, dayCycleMode).first
         }
         diag("re-score: done — scored ${scored.size} night(s) in ${(System.nanoTime() - reScoreStart) / 1_000_000} ms (#1005)")
+        // #2013: what the pass actually CARRIES, beside how many nights it touched. "scored N nights" is
+        // silent about a day that was scored and came back empty, which is exactly the shape reported: the
+        // detail screen omitted days the log showed being scored, and nothing in between said which half
+        // lost them. A census of the results makes that answerable from one shared log.
+        diag(reScoreCensusLine(scored))
         scored
     }
 
