@@ -702,14 +702,25 @@ final class Backfiller {
             // "doesn't decode yet" for both, which was wrong for v20 — and simply suppressing it there
             // would have dropped the half that IS true, leaving a user with unstaged nights and nothing
             // in the log saying why. See `historicalLayoutSupport` and its tests.
+            //
+            // Asked of the LAYOUT, not of one record. The conclusion is about a firmware layout, so it is
+            // taken over every record of that version in the chunk: a layout counts as carrying a signal
+            // when ANY of its records did. Judging it on whichever record happened to come first would let
+            // one thin or off-wrist v18 record condemn v18 for the rest of the session — the old form had
+            // that same hole, and it is worse now that the verdict names a specific reason.
+            var signalByVersion: [Int: Bool] = [:]
             for p in parsed {
-                guard let v = p.parsed["hist_version"]?.intValue,
-                      !loggedUnmappedVersions.contains(v) else { continue }
+                guard let v = p.parsed["hist_version"]?.intValue else { continue }
+                let carries = p.parsed["heart_rate"] != nil
+                    || p.parsed["gravity_x"] != nil
+                    || p.parsed["ppg_waveform"] != nil
+                signalByVersion[v] = (signalByVersion[v] ?? false) || carries
+            }
+            for (v, carriesSignal) in signalByVersion.sorted(by: { $0.key < $1.key }) {
+                guard !loggedUnmappedVersions.contains(v) else { continue }
                 let support = historicalLayoutSupport(
                     version: v, family: family,
-                    hasHeartRate: p.parsed["heart_rate"] != nil,
-                    hasGravity: p.parsed["gravity_x"] != nil,
-                    hasPpgWaveform: p.parsed["ppg_waveform"] != nil)
+                    hasHeartRate: carriesSignal, hasGravity: false, hasPpgWaveform: false)
                 guard support != .supported else { continue }
                 loggedUnmappedVersions.insert(v)
                 switch support {

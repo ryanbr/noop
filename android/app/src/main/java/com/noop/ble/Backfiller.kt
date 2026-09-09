@@ -458,6 +458,39 @@ class Backfiller(
                 ?.let { v ->
                     if (loggedLayoutVersions.add(v)) {
                         log("Backfill: historical records use layout v$v")
+                        // #1992: and say what that MEANS when it is not a layout NOOP can score from.
+                        // Android used to print the bare version and stop, so a user whose nights were not
+                        // staging had the fact in their log and none of the explanation, while the same
+                        // strap on iOS was told why. Asked of the LAYOUT: a layout counts as carrying a
+                        // signal when ANY of the chunk's records of that version did, so one thin record
+                        // cannot condemn it. Twin of the Swift Backfiller emit.
+                        val carriesSignal = frames.any {
+                            val d = decodeHistorical(it, family)
+                            d != null && (d["hist_version"] as? Int) == v &&
+                                (d.containsKey("heart_rate") || d.containsKey("gravity_x") ||
+                                    d.containsKey("ppg_waveform"))
+                        }
+                        when (com.noop.protocol.historicalLayoutSupport(
+                            version = v, family = family, hasHeartRate = carriesSignal,
+                            hasGravity = false, hasPpgWaveform = false,
+                        )) {
+                            com.noop.protocol.HistoricalLayoutSupport.UNMAPPED ->
+                                log(
+                                    "Historical records use firmware layout v$v, which NOOP doesn't decode yet: " +
+                                        "those records carry no heart rate or motion, so any night made only of them " +
+                                        "can't be staged from the strap. A strap emitting a mix of layouts still " +
+                                        "stages the nights it can. Please report this (issue #1992).",
+                                )
+                            com.noop.protocol.HistoricalLayoutSupport.DECODES_WITHOUT_NAMED_SIGNAL ->
+                                log(
+                                    "Historical records use firmware layout v$v. NOOP decodes it, but these records " +
+                                        "carry no per-second heart rate and no motion (they hold raw sensor channels " +
+                                        "nothing scores yet), so any night made only of them can't be staged from the " +
+                                        "strap. A strap emitting a mix of layouts still stages the nights it can. " +
+                                        "Please report this (issue #1992).",
+                                )
+                            com.noop.protocol.HistoricalLayoutSupport.SUPPORTED -> Unit
+                        }
                         firmwareLayout(v)
                         // Connection test mode: the firmware layout as a compact tagged line. A layout that
                         // decoded a signature field (heart_rate / gravity_x / ppg_waveform) is decodable.
