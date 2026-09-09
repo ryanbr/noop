@@ -188,6 +188,15 @@ struct LiftProgramImportSheet: View {
             let scoped = url.startAccessingSecurityScopedResource()
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
             do {
+                // Check the size BEFORE reading. `Data(contentsOf:)` on a picked file would otherwise
+                // pull the whole thing into memory first, which is exactly what the limit exists to
+                // prevent — and a phone is where that matters.
+                let bytes = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+                guard bytes <= LiftProgramSheetImporter.maxFileBytes else {
+                    parsed = nil
+                    failure = message(for: .tooLarge)
+                    return
+                }
                 let data = try Data(contentsOf: url)
                 parsed = try LiftProgramSheetImporter.parse(data: data)
                 failure = nil
@@ -209,6 +218,8 @@ struct LiftProgramImportSheet: View {
             return String(localized: "That sheet has no Exercise column. Use the template — the import matches on the header names.")
         case .empty:
             return String(localized: "That sheet has no exercises in it yet.")
+        case .tooLarge:
+            return String(localized: "That file is too big to be a program sheet.")
         }
     }
 

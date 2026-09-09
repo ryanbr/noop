@@ -108,12 +108,27 @@ enum XlsxSheet {
         return try? entryData(archive, path)
     }
 
+    /// Ceiling on ONE decompressed part.
+    ///
+    /// Measured on the expanded stream, not the archive, because that is the only bound that means
+    /// anything: an .xlsx is a ZIP, and a zip bomb is by definition tiny compressed and enormous
+    /// expanded, so a limit on the file's own size is trivially defeated. `DataBackup` guards its
+    /// restore the same way and for the same reason (#1807). 64 MB is orders of magnitude above any
+    /// real worksheet and still bounded.
+    static let maxPartBytes = 64 * 1024 * 1024
+
     private static func entryData(_ archive: Archive, _ path: String) throws -> Data {
         guard let entry = archive[path] else {
             throw LiftProgramSheetImporter.ImportError.unreadable
         }
         var out = Data()
-        _ = try archive.extract(entry, bufferSize: 64 * 1024, skipCRC32: true) { out.append($0) }
+        out.reserveCapacity(min(Int(entry.uncompressedSize), 1 << 20))
+        _ = try archive.extract(entry, bufferSize: 64 * 1024, skipCRC32: true) { chunk in
+            guard out.count + chunk.count <= maxPartBytes else {
+                throw LiftProgramSheetImporter.ImportError.tooLarge
+            }
+            out.append(chunk)
+        }
         return out
     }
 

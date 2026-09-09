@@ -1,6 +1,9 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "That file is too big to be a program sheet.": { "localizations": {
+      "de": {"stringUnit": {"state": "translated", "value": "Diese Datei ist zu groß für ein Programmblatt."}}, "en": {"stringUnit": {"state": "translated", "value": "That file is too big to be a program sheet."}}, "es": {"stringUnit": {"state": "translated", "value": "Ese archivo es demasiado grande para una hoja de programa."}}, "fr": {"stringUnit": {"state": "translated", "value": "Ce fichier est trop volumineux pour une feuille de programme."}}, "it": {"stringUnit": {"state": "translated", "value": "Quel file è troppo grande per un foglio di programma."}}, "pl": {"stringUnit": {"state": "translated", "value": "Ten plik jest za duży jak na arkusz programu."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Esse ficheiro é demasiado grande para uma folha de programa."}}, "ru": {"stringUnit": {"state": "translated", "value": "Этот файл слишком велик для таблицы программы."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "该文件太大，不像是计划表格。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "該檔案太大，不像是計畫表格。"}}
+    } },
     "Worth checking": { "localizations": {
       "de": {"stringUnit": {"state": "translated", "value": "Zum Prüfen"}}, "en": {"stringUnit": {"state": "translated", "value": "Worth checking"}}, "es": {"stringUnit": {"state": "translated", "value": "Conviene revisar"}}, "fr": {"stringUnit": {"state": "translated", "value": "À vérifier"}}, "it": {"stringUnit": {"state": "translated", "value": "Da controllare"}}, "pl": {"stringUnit": {"state": "translated", "value": "Warto sprawdzić"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "A verificar"}}, "ru": {"stringUnit": {"state": "translated", "value": "Стоит проверить"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "需要检查"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "需要檢查"}}
     } },

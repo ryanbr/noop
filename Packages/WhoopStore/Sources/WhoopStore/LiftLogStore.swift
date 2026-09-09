@@ -686,7 +686,16 @@ extension WhoopStore {
                 if let token: String = row["primaryMuscle"], let m = LiftMuscle(rawValue: token) {
                     direct[m, default: 0] += 1
                 }
-                for m in LiftMuscle.decodeList(row["secondaryMuscles"]) {
+                // A muscle listed BOTH as primary and as secondary is credited once, as direct.
+                // `LiftMuscle.encodeList(_:excluding:)` already strips the primary on the way in, so
+                // today no stored row needs this — but "today no row needs it" is not a guarantee,
+                // and without the guard this aggregation and `LiftMetrics.muscleCounts` (which has
+                // always had it) would report DIFFERENT numbers for the same set: the hub's weekly
+                // card and the session detail, disagreeing, with nothing to catch it. The two are
+                // pinned against each other by
+                // `LiftMetricsStoreAgreementTests.testBothImplementationsAgree…`.
+                let primary: LiftMuscle? = (row["primaryMuscle"] as String?).flatMap(LiftMuscle.init(rawValue:))
+                for m in LiftMuscle.decodeList(row["secondaryMuscles"]) where m != primary {
                     indirect[m, default: 0] += 1
                 }
             }

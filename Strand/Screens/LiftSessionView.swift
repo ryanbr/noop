@@ -531,9 +531,12 @@ struct LiftSessionView: View {
     private func loadLastTime() async {
         guard let engine, let store = await repo.storeHandle() else { return }
         var out: [String: [Int: LiftRecordedSet]] = [:]
-        for item in engine.plan {
+        // One query per DISTINCT exercise, not per plan line. A program that programs the same
+        // movement twice — or an imported one with many lines — would otherwise re-ask the store the
+        // same question, and this runs when the sheet opens.
+        for exercise in NSOrderedSet(array: engine.plan.map(\.exercise)).compactMap({ $0 as? String }) {
             let rows = (try? await store.lastLiftSets(deviceId: repo.deviceId,
-                                                      exercise: item.exercise,
+                                                      exercise: exercise,
                                                       before: engine.startTs)) ?? []
             var bySet: [Int: LiftRecordedSet] = [:]
             for r in rows where !r.isWarmup {
@@ -542,7 +545,7 @@ struct LiftSessionView: View {
                     rpe: r.rpe, isWarmup: r.isWarmup, startTs: r.startTs ?? 0,
                     endTs: r.endTs ?? 0, restSec: r.restSec)
             }
-            out[item.exercise] = bySet
+            out[exercise] = bySet
         }
         lastTime = out
         // The controller needs this too: the strap can complete a set while this sheet is minimised,
