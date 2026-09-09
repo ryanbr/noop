@@ -20,6 +20,21 @@ final class LiftSessionEngineTests: XCTestCase {
         ]
     }
 
+    /// Three exercises, so an EARLIER one can be left pending while a later one is worked.
+    private func threeExercisePlan() -> [LiftPlanItem] {
+        [
+            LiftPlanItem(exercise: "Leg press", primaryMuscle: .quads, targetSets: 3, restSec: 90),
+            LiftPlanItem(exercise: "Lying leg curl", primaryMuscle: .hamstrings, targetSets: 3, restSec: 90),
+            LiftPlanItem(exercise: "Leg extension", primaryMuscle: .quads, targetSets: 2, restSec: 60),
+        ]
+    }
+
+    /// One line carrying the targets a program actually plans.
+    private func targetedPlanItem() -> LiftPlanItem {
+        LiftPlanItem(exercise: "Leg press", primaryMuscle: .quads, targetSets: 3,
+                     restSec: 60, targetRepsLow: 10, targetWeightKg: 50)
+    }
+
     private func slot(_ e: Int, _ s: Int) -> LiftSlot { LiftSlot(exerciseIndex: e, setIndex: s) }
 
     // MARK: - The sheet
@@ -38,6 +53,128 @@ final class LiftSessionEngineTests: XCTestCase {
         XCTAssertTrue(e.sets.isEmpty)
         XCTAssertFalse(e.canUndo)
         XCTAssertEqual(e.nextPendingSlot, slot(0, 1))
+    }
+
+    // MARK: - The occupied-machine path (reported from a real session)
+
+    /// Skipping an exercise because its machine is busy must not drag the session back to it after
+    /// every set. Reported from the gym: "I switched to a different move because the machine was
+    /// occupied. When I double-tap for the next set, it reverts to the first set of the exercise I
+    /// couldn't do earlier."
+    func testFinishingASetStaysOnTheSameExerciseEvenWithAnEarlierOneSkipped() {
+        var e = LiftSessionEngine(plan: threeExercisePlan(), startTs: t0)
+
+        // Exercise 0's machine is busy — start exercise 2 instead.
+        e.start(slot(2, 1), now: t0 + 60)
+        e.advance(now: t0 + 100)                       // set done -> rest
+        XCTAssertEqual(e.stage, .resting(slot(2, 1), endsAt: t0 + 100 + 60))
+
+        e.advance(now: t0 + 160)                       // rest done -> next set
+        XCTAssertEqual(e.stage, .working(slot(2, 2)),
+                       "must continue on the machine the user is standing at, not jump back to 0")
+    }
+
+    /// And once that exercise IS finished, the skipped one is exactly what comes next — it was
+    /// deferred, not abandoned.
+    func testTheSkippedExerciseIsWhatComesNextOnceTheCurrentOneIsDone() {
+        var e = LiftSessionEngine(plan: threeExercisePlan(), startTs: t0)
+        e.start(slot(2, 1), now: t0 + 60)
+        e.advance(now: t0 + 100); e.advance(now: t0 + 160)   // set 1 done, on to set 2
+        e.advance(now: t0 + 200)                              // set 2 done -> rest
+        e.advance(now: t0 + 260)                              // rest done -> exercise 2 finished
+
+        XCTAssertEqual(e.stage, .working(slot(0, 1)),
+                       "with exercise 2 complete, the deferred exercise 0 is next")
+    }
+
+    func testSlotAfterPrefersTheSameExerciseThenFallsBackToPlanOrder() {
+        var e = LiftSessionEngine(plan: threeExercisePlan(), startTs: t0)
+        XCTAssertEqual(e.slotAfter(slot(2, 1)), slot(2, 1), "its own set is still pending")
+
+        e.start(slot(2, 1), now: t0); e.advance(now: t0 + 40)
+        XCTAssertEqual(e.slotAfter(slot(2, 1)), slot(2, 2))
+
+        e.advance(now: t0 + 100); e.advance(now: t0 + 140)   // finish exercise 2 entirely
+        XCTAssertEqual(e.slotAfter(slot(2, 2)), slot(0, 1), "exhausted -> first pending in plan order")
+    }
+
+    // MARK: - Carrying the shown numbers onto a completed set
+
+    /// A set completed with nothing typed records the numbers the sheet was showing in grey. Before
+    /// this, 19 sets from a real session saved with weight and reps NIL — the sheet displayed
+    /// "50 x 10" the whole time and stored nothing, so the session's volume was zero.
+    func testCompletingASetWithoutTypingRecordsTheProgramTarget() {
+        var e = LiftSessionEngine(plan: [targetedPlanItem()], startTs: t0)
+        e.advance(now: t0 + 10)     // warm-up -> working set 1
+        e.advance(now: t0 + 70)     // set done
+
+        let row = e.recordedSet(for: slot(0, 1))
+        XCTAssertEqual(row?.weightKg, 50)
+        XCTAssertEqual(row?.reps, 10)
+    }
+
+    /// The second set carries what the FIRST set actually was, not the plan — if you dropped to
+    /// 45 kg, set 2 follows you down rather than snapping back to the program.
+    func testASetCarriesWhatTheExerciseActuallyDidEarlierInTheSession() {
+        var e = LiftSessionEngine(plan: [targetedPlanItem()], startTs: t0)
+        e.advance(now: t0 + 10)
+        e.advance(now: t0 + 70)
+        e.updateSet(slot(0, 1), weightKg: 45, reps: 8, rpe: 9, isWarmup: false)
+        e.advance(now: t0 + 130)    // rest done -> set 2
+        e.advance(now: t0 + 190)    // set 2 done
+
+        let row = e.recordedSet(for: slot(0, 2))
+        XCTAssertEqual(row?.weightKg, 45, "the session's own history outranks the program's plan")
+        XCTAssertEqual(row?.reps, 8)
+    }
+
+    /// The store's answer sits between this session and the program target.
+    func testLastSessionIsUsedWhenTheSessionHasNoEarlierSetForTheExercise() {
+        var e = LiftSessionEngine(plan: [targetedPlanItem()], startTs: t0)
+        e.advance(now: t0 + 10)
+        e.advance(now: t0 + 70, lastSession: LiftSetCarry(weightKg: 52.5, reps: 9))
+
+        let row = e.recordedSet(for: slot(0, 1))
+        XCTAssertEqual(row?.weightKg, 52.5, "last session beats the program's target")
+        XCTAssertEqual(row?.reps, 9)
+    }
+
+    /// RPE is never carried: it is how hard a set FELT, which nothing can know in advance, and
+    /// inventing it would make the RPE card report full coverage for sets nobody rated.
+    func testRpeIsNeverCarried() {
+        var e = LiftSessionEngine(plan: [targetedPlanItem()], startTs: t0)
+        e.advance(now: t0 + 10)
+        e.advance(now: t0 + 70)
+        e.updateSet(slot(0, 1), weightKg: 50, reps: 10, rpe: 8.5, isWarmup: false)
+        e.advance(now: t0 + 130)
+        e.advance(now: t0 + 190)
+
+        XCTAssertEqual(e.recordedSet(for: slot(0, 2))?.weightKg, 50, "weight carries")
+        XCTAssertNil(e.recordedSet(for: slot(0, 2))?.rpe, "the felt effort of a set does not")
+    }
+
+    /// Nothing to carry stays nil rather than inventing a zero — a set with no plan, no history and
+    /// nothing typed genuinely has no measurement, and 0 kg would be a false one.
+    func testASetWithNothingToCarryStaysEmpty() {
+        var e = LiftSessionEngine(plan: [LiftPlanItem(exercise: "Curl", targetSets: 1)], startTs: t0)
+        e.advance(now: t0 + 10)
+        e.advance(now: t0 + 70)
+
+        XCTAssertNil(e.recordedSet(for: slot(0, 1))?.weightKg)
+        XCTAssertNil(e.recordedSet(for: slot(0, 1))?.reps)
+    }
+
+    /// A carried value is a normal entry: typing over it wins, including typing a 0 for a set that
+    /// was planned but not actually performed.
+    func testTypingZeroOverAcarriedValueSticks() {
+        var e = LiftSessionEngine(plan: [targetedPlanItem()], startTs: t0)
+        e.advance(now: t0 + 10)
+        e.advance(now: t0 + 70)
+        XCTAssertEqual(e.recordedSet(for: slot(0, 1))?.weightKg, 50)
+
+        e.updateSet(slot(0, 1), weightKg: 0, reps: 0, rpe: nil, isWarmup: false)
+        XCTAssertEqual(e.recordedSet(for: slot(0, 1))?.weightKg, 0)
+        XCTAssertEqual(e.recordedSet(for: slot(0, 1))?.reps, 0)
     }
 
     // MARK: - The default in-order path

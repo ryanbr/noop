@@ -42,6 +42,16 @@ final class LiftSessionController: ObservableObject {
     /// one would create a set nobody did. So the mark is held here and applied the instant the set is
     /// recorded. Owned by the controller rather than a view so it survives the sheet being minimised.
     @Published private(set) var pendingWarmups: Set<LiftSlot> = []
+
+    /// What the store holds for each exercise LAST session, keyed by exercise name then set number —
+    /// the middle layer of `LiftSessionEngine.carry(for:lastSession:)`.
+    ///
+    /// It lives here rather than in the sheet because the strap can advance a set while the sheet is
+    /// minimised or closed, and a set recorded from the strap must carry the same numbers the sheet
+    /// would have shown. `LiftSessionView` loads it and hands it over; until it does (a session
+    /// resumed straight into the bar after a relaunch, say) the carry falls through to the program's
+    /// target, which is the layer below.
+    private var lastSession: [String: [Int: LiftSetCarry]] = [:]
     private var ticker: AnyCancellable?
 
     /// Fires the strap buzz. Injected so the controller has no opinion about BLE and stays testable.
@@ -150,11 +160,34 @@ final class LiftSessionController: ObservableObject {
         if fromStrap { buzz(LiftSessionController.advanceConfirmBuzzes) }
 
         let stamp = Int(Date().timeIntervalSince1970)
-        engine?.advance(now: stamp)
+        engine?.advance(now: stamp, lastSession: carryFromLastSession())
         applyPendingWarmup()
         now = stamp
         warnedFor = nil
         persist()
+    }
+
+    /// Hand over what the store knows about previous sessions. Called by the sheet once it has read
+    /// it; safe to call again if it reloads.
+    func setLastSession(_ values: [String: [Int: LiftSetCarry]]) {
+        lastSession = values
+    }
+
+    /// What a slot will record (or did record) without anything typed — the sheet's grey numbers,
+    /// resolved through the same chain, for callers that only have the controller. Used by the
+    /// minimised bar, which has no access to the store's last-session values on its own.
+    func carry(for slot: LiftSlot) -> LiftSetCarry {
+        guard let engine else { return .none }
+        let exercise = engine.planItem(for: slot)?.exercise
+        let last = exercise.flatMap { lastSession[$0]?[slot.setIndex] } ?? .none
+        return engine.carry(for: slot, lastSession: last)
+    }
+
+    /// The last-session carry for the slot currently being worked, if any.
+    private func carryFromLastSession() -> LiftSetCarry {
+        guard let engine, case .working(let slot) = engine.stage,
+              let exercise = engine.planItem(for: slot)?.exercise else { return .none }
+        return lastSession[exercise]?[slot.setIndex] ?? .none
     }
 
     /// Mark a slot as a warm-up (or not). Applies immediately when the set already exists, and is
