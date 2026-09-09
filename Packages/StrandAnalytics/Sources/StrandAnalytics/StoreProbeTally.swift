@@ -8,8 +8,13 @@ import Foundation
 /// the `#1538` day-loop tally, so the remaining candidates — the sixty per-day probe queries, the one
 /// `appleDaily` read, and the in-memory calibration fit — were indistinguishable from each other.
 ///
-/// Two probes are worth counting because each has exactly ONE call site, so the counts attribute themselves
-/// with no bookkeeping at the call site and no way to drift:
+/// Three lookups are worth counting, each measured one level down so the counts attribute themselves with
+/// no bookkeeping at the call site. `gravityFp` has exactly one caller; the other two are one-sidedly
+/// looser on Swift, where `resolveDayOwner` is also reached by a manual Test Centre skin-temp backfill and
+/// can land in a concurrent pass's line. The call count is what reveals that, which is one reason it
+/// prints. See `StoreProbeCounts`.
+/// - `dayOwner`: `DeviceRegistryStore.dayOwner`, the resolver's LOCKED-override lookup, which runs on every
+///   call ahead of any presence probe.
 /// - `ownerHr`: `hasHrInWindow`, the day-owner resolver's per-candidate presence probe. Runs in BOTH the
 ///   scoring loop and the sixty-day steps loop, and is skipped entirely on a default single-strap install
 ///   (#970), so a two-strap library is the only one that pays it.

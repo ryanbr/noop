@@ -68,7 +68,7 @@ class StoreProbeTallyTest {
         StoreProbeTally.reset()
         repeat(60) { StoreProbeTally.recordGravityFp(20_000_000L) }
         assertEquals(
-            "analyzeRecent storeProbes total=1200ms ownerHr=0/0ms gravityFp=60/1200ms",
+            "analyzeRecent storeProbes total=1200ms dayOwner=0/0ms ownerHr=0/0ms gravityFp=60/1200ms",
             StoreProbeTally.line(),
         )
     }
@@ -84,7 +84,24 @@ class StoreProbeTallyTest {
         StoreProbeTally.recordOwnerHr(5_000_000L)
         StoreProbeTally.reset()
         assertEquals(
-            "analyzeRecent storeProbes total=0ms ownerHr=0/0ms gravityFp=0/0ms",
+            "analyzeRecent storeProbes total=0ms dayOwner=0/0ms ownerHr=0/0ms gravityFp=0/0ms",
+            StoreProbeTally.line(),
+        )
+    }
+
+    /**
+     * The LOCKED-override lookup is counted separately from the presence probe. They are different queries
+     * with different costs, and collapsing them is exactly what hid the lookup: the first cut counted the
+     * probe alone, reported it as nearly free, and left a warm pass with seconds unaccounted for. The Swift
+     * twin `StoreProbeCountsTests.testDayOwnerAndOwnerHrAreCountedSeparately` pins the same separation.
+     */
+    @Test
+    fun dayOwnerAndOwnerHrAreCountedSeparately() {
+        StoreProbeTally.reset()
+        repeat(81) { StoreProbeTally.recordDayOwner(20_000_000L) }
+        repeat(132) { StoreProbeTally.recordOwnerHr(1_000_000L) }
+        assertEquals(
+            "analyzeRecent storeProbes total=1752ms dayOwner=81/1620ms ownerHr=132/132ms gravityFp=0/0ms",
             StoreProbeTally.line(),
         )
     }

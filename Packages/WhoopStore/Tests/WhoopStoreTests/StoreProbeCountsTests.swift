@@ -29,16 +29,30 @@ final class StoreProbeCountsTests: XCTestCase {
         XCTAssertEqual(probe.seconds, 0)
     }
 
-    /// `takeProbeCounts()` DRAINS. A line has to describe one pass, and the passes this runs under are the
+    /// `StoreProbeRecorder.take()` DRAINS. A line has to describe one pass, and the passes this runs under are the
     /// back-to-back ones an offload storm is made of, so a read that left the counters standing would make
     /// every pass after the first report its predecessors' work as its own.
     func testTakeDrainsSoAPassCannotInheritTheLastOne() async throws {
+        _ = StoreProbeRecorder.take()
         let store = try await WhoopStore.inMemory()
         _ = try? await store.hasHrInWindow(deviceId: "d", from: 0, to: 1)
-        let first = await store.takeProbeCounts()
+        let first = StoreProbeRecorder.take()
         XCTAssertEqual(first.ownerHr.calls, 1)
-        let second = await store.takeProbeCounts()
+        let second = StoreProbeRecorder.take()
         XCTAssertEqual(second.ownerHr.calls, 0)
         XCTAssertEqual(second.ownerHr.seconds, 0)
+    }
+
+    /// The day-owner LOOKUP is counted separately from the presence probe. They are different queries with
+    /// different costs, and collapsing them is what hid the lookup in the first place.
+    func testDayOwnerAndOwnerHrAreCountedSeparately() {
+        _ = StoreProbeRecorder.take()
+        StoreProbeRecorder.record(.dayOwner, nanos: 3_000_000)
+        StoreProbeRecorder.record(.ownerHr, nanos: 1_000_000)
+        let counts = StoreProbeRecorder.take()
+        XCTAssertEqual(counts.dayOwner.calls, 1)
+        XCTAssertEqual(counts.dayOwner.nanos, 3_000_000)
+        XCTAssertEqual(counts.ownerHr.calls, 1)
+        XCTAssertEqual(counts.gravityFp.calls, 0)
     }
 }

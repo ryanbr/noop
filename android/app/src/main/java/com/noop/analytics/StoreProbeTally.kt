@@ -13,8 +13,15 @@ import kotlin.math.roundToLong
  * the #1538 day-loop tally, so the remaining candidates — the sixty per-day probe queries, the one
  * `appleDaily` read, and the in-memory calibration fit — were indistinguishable from each other.
  *
- * Two probes are worth counting because each has exactly ONE call site, so the counts attribute themselves
- * with no bookkeeping at the call site and no way to drift:
+ * These are counted one level down rather than at the call site, so the counts attribute themselves with no
+ * bookkeeping. Every one of them has exactly ONE caller here, since [IntelligenceEngine.resolveDayOwner] is
+ * private to this object, so a Kotlin line describes exactly one pass. The Swift twin is one-sidedly
+ * looser: its resolver is also called by a manual Test Centre skin-temp backfill, which can land in a
+ * concurrent pass's line. The call count is what reveals that, which is one reason it prints.
+ * - `dayOwner`: [com.noop.data.DeviceRegistry.dayOwner], the resolver's LOCKED-override lookup, which runs
+ *   on every call before any presence probe. Measured because the first cut of this instrumentation counted
+ *   the probe and not the lookup in front of it, and so reported the cheap half of owner resolution while a
+ *   warm pass still had seconds unaccounted for.
  * - `ownerHr`: [com.noop.data.WhoopRepository.hasHrInWindow], the day-owner resolver's per-candidate
  *   presence probe. Runs in BOTH the scoring loop and the sixty-day steps loop, and is skipped entirely on
  *   a default single-strap install (#970), so a two-strap library is the only one that pays it.
@@ -35,10 +42,20 @@ import kotlin.math.roundToLong
  * Instrumentation only: nothing reads these counts but the log line.
  */
 object StoreProbeTally {
+    private val dayOwnerCalls = AtomicLong()
+    private val dayOwnerNanos = AtomicLong()
     private val ownerHrCalls = AtomicLong()
     private val ownerHrNanos = AtomicLong()
     private val gravityFpCalls = AtomicLong()
     private val gravityFpNanos = AtomicLong()
+
+    /** Record one day-owner LOCKED-override lookup. Runs on every resolver call, ahead of any presence
+     *  probe, and is counted separately because the first cut of this instrumentation counted only the
+     *  probe and so reported the cheap half of owner resolution. */
+    fun recordDayOwner(nanos: Long) {
+        dayOwnerCalls.incrementAndGet()
+        dayOwnerNanos.addAndGet(nanos)
+    }
 
     /** Record one day-owner HR presence probe. Called from the repository, off the pass's hot method. */
     fun recordOwnerHr(nanos: Long) {
@@ -55,6 +72,7 @@ object StoreProbeTally {
     /** Zero the counters at the start of a pass, so a line describes ONE pass and never accumulates across
      *  the back-to-back passes an offload storm is made of. */
     fun reset() {
+        dayOwnerCalls.set(0); dayOwnerNanos.set(0)
         ownerHrCalls.set(0); ownerHrNanos.set(0)
         gravityFpCalls.set(0); gravityFpNanos.set(0)
     }
@@ -62,6 +80,7 @@ object StoreProbeTally {
     /** This pass's line, in the shared format. */
     fun line(): String = logLine(
         listOf(
+            Triple("dayOwner", dayOwnerCalls.get(), dayOwnerNanos.get() / 1_000_000_000.0),
             Triple("ownerHr", ownerHrCalls.get(), ownerHrNanos.get() / 1_000_000_000.0),
             Triple("gravityFp", gravityFpCalls.get(), gravityFpNanos.get() / 1_000_000_000.0),
         )

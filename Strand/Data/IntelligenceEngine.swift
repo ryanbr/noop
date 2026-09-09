@@ -1,3 +1,4 @@
+import Dispatch
 import Foundation
 import Combine
 import WhoopProtocol
@@ -857,7 +858,7 @@ final class IntelligenceEngine: ObservableObject {
         // Zero the per-day probe counters so the line emitted after the steps phase describes THIS pass
         // and never accumulates across the back-to-back passes an offload storm is made of. Must precede
         // the day loop below, which is the scoring half of the owner probes. See `StoreProbeTally`.
-        _ = await store.takeProbeCounts()
+        _ = StoreProbeRecorder.take()
         // ── #1005 BATTERY: per-day reuse cache setup (see `dayScanCache`) ────────────────────────────
         // The stager toggles are read per-day inside the loop below, but they are global (same value every
         // day); read them ONCE here too so the config signature can fold them without reaching into the
@@ -2483,8 +2484,9 @@ final class IntelligenceEngine: ObservableObject {
         diagnosticSink?(stepsMotionLogLine, nil)
         // What the pass spent on its per-day probe queries, beside the `stepsMotion reused=N/M` line above.
         // Together they say whether a warm pass that folded nothing still went into the round trips.
-        let probeCounts = await store.takeProbeCounts()
+        let probeCounts = StoreProbeRecorder.take()
         diagnosticSink?(StoreProbeTally.logLine([
+            (name: "dayOwner", calls: probeCounts.dayOwner.calls, seconds: probeCounts.dayOwner.seconds),
             (name: "ownerHr", calls: probeCounts.ownerHr.calls, seconds: probeCounts.ownerHr.seconds),
             (name: "gravityFp", calls: probeCounts.gravityFp.calls, seconds: probeCounts.gravityFp.seconds),
         ]), nil)
@@ -2772,9 +2774,15 @@ final class IntelligenceEngine: ObservableObject {
                                             devices: [PairedDevice], activeId: String,
                                             registry: DeviceRegistryStore,
                                             fallbackDeviceId: String) async -> String {
-        // A locked override wins outright and skips the presence checks entirely.
-        if let locked = (try? registry.dayOwner(day))?.deviceId {
-            return locked
+        // A locked override wins outright and skips the presence checks entirely. Timed because it runs on
+        // EVERY call, ahead of any presence probe, and the first cut of this instrumentation counted only
+        // the probe: that reported the cheap half of owner resolution while a warm pass still had seconds
+        // unaccounted for. See `StoreProbeRecorder`.
+        let lockedStarted = DispatchTime.now().uptimeNanoseconds
+        let lockedOwner = (try? registry.dayOwner(day))?.deviceId
+        StoreProbeRecorder.record(.dayOwner, nanos: DispatchTime.now().uptimeNanoseconds &- lockedStarted)
+        if let lockedOwner {
+            return lockedOwner
         }
         // No registry rows (shouldn't happen , v15 seeds one , but be safe): keep the legacy id.
         guard !devices.isEmpty else { return fallbackDeviceId }

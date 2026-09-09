@@ -43,4 +43,18 @@ final class StoreProbeTallyTests: XCTestCase {
         ])
         XCTAssertEqual(line, "analyzeRecent storeProbes total=0ms ownerHr=3/0ms gravityFp=1/0ms")
     }
+
+    /// The three-probe line as the engine actually renders it, pinned against the Kotlin twin's literal in
+    /// `StoreProbeTallyTest.dayOwnerAndOwnerHrAreCountedSeparately`. The shape matters as much as the
+    /// numbers: the LOOKUP and the PROBE are separate columns because collapsing them is what hid the
+    /// lookup, and `gravityFp` renders even at zero so a pass that never reached the steps loop says so.
+    func testThreeProbeLineMatchesTheKotlinTwin() {
+        let line = StoreProbeTally.logLine([
+            (name: "dayOwner", calls: 81, seconds: 1.62),
+            (name: "ownerHr", calls: 132, seconds: 0.132),
+            (name: "gravityFp", calls: 0, seconds: 0),
+        ])
+        XCTAssertEqual(line,
+                       "analyzeRecent storeProbes total=1752ms dayOwner=81/1620ms ownerHr=132/132ms gravityFp=0/0ms")
+    }
 }

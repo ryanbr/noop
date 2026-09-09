@@ -118,7 +118,7 @@ extension WhoopStore {
         // most of these runs inside a detached task. One call site each makes the count unambiguous.
         // See `StoreProbeTally` (StrandAnalytics). Instrumentation only.
         let probeStarted = DispatchTime.now().uptimeNanoseconds
-        defer { probeCounts.ownerHr.record(nanos: DispatchTime.now().uptimeNanoseconds &- probeStarted) }
+        defer { StoreProbeRecorder.record(.ownerHr, nanos: DispatchTime.now().uptimeNanoseconds &- probeStarted) }
         return try syncRead { db in
             try Bool.fetchOne(db, sql: """
                 SELECT EXISTS(SELECT 1 FROM hrSample WHERE deviceId = ? AND ts >= ? AND ts <= ?)
@@ -138,7 +138,7 @@ extension WhoopStore {
     public func gravityFingerprint(deviceId: String, from: Int, to: Int) async throws -> (count: Int, maxTs: Int) {
         // Counted for the same reason as `hasHrInWindow` above; see `StoreProbeTally`.
         let probeStarted = DispatchTime.now().uptimeNanoseconds
-        defer { probeCounts.gravityFp.record(nanos: DispatchTime.now().uptimeNanoseconds &- probeStarted) }
+        defer { StoreProbeRecorder.record(.gravityFp, nanos: DispatchTime.now().uptimeNanoseconds &- probeStarted) }
         return try syncRead { db in
             guard let row = try Row.fetchOne(db, sql: """
                 SELECT COUNT(*) AS c, COALESCE(MAX(ts), 0) AS m FROM gravitySample
