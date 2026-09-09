@@ -86,6 +86,16 @@ struct LiftRecordedSet: Equatable {
     var slot: LiftSlot { LiftSlot(exerciseIndex: exerciseIndex, setIndex: setIndex) }
 }
 
+/// What a set records when it is completed without anything typed into it.
+///
+/// Only weight and reps. RPE is deliberately absent — see `carry(for:lastSession:)`.
+struct LiftSetCarry: Equatable {
+    var weightKg: Double?
+    var reps: Int?
+
+    static let none = LiftSetCarry(weightKg: nil, reps: nil)
+}
+
 struct LiftSessionEngine: Equatable {
 
     enum Stage: Equatable {
@@ -169,8 +179,28 @@ struct LiftSessionEngine: Equatable {
 
     /// The next slot the plan would suggest — the first uncompleted one in plan order. Nil when the
     /// whole sheet is done.
+    ///
+    /// This is the SHEET's answer, used to open a session and to know when everything is done. It is
+    /// deliberately NOT what `advance` follows after a set — see `slotAfter(_:)`.
     var nextPendingSlot: LiftSlot? {
         allSlots.first { !isCompleted($0) }
+    }
+
+    /// Where the session goes after finishing `slot`: the next uncompleted set of the SAME exercise,
+    /// and only once that exercise is finished, the first uncompleted slot in plan order.
+    ///
+    /// Plan order alone is wrong, and wrong in a way that costs sets. A gym is not a queue — the
+    /// whole point of being able to start any pending set is that machines get occupied — so a user
+    /// who skips exercise 1 and starts exercise 3 has an EARLIER slot still uncompleted. Following
+    /// plan order then throws them back to the machine they just walked away from, mid-exercise,
+    /// after every single set. Reported from a real session: "when I double-tap for the next set, it
+    /// reverts to the first set of the exercise I couldn't do earlier."
+    ///
+    /// Staying on the current exercise until it is finished is also simply what lifting is: you do
+    /// your sets on the machine you are standing at. The skipped exercise is not forgotten — it is
+    /// still pending, and it is what you get once the current one is done.
+    func slotAfter(_ slot: LiftSlot) -> LiftSlot? {
+        slots(forExercise: slot.exerciseIndex).first { !isCompleted($0) } ?? nextPendingSlot
     }
 
     var allCompleted: Bool { nextPendingSlot == nil }
@@ -202,6 +232,37 @@ struct LiftSessionEngine: Equatable {
             .first
     }
 
+    /// What this slot records if the user completes it without typing: the same numbers the sheet
+    /// was already showing them in grey, in the same order of preference — this exercise earlier in
+    /// THIS session, then the same set number LAST session, then the program's target.
+    ///
+    /// The original rule was that a placeholder is never recorded, on the principle that "a number
+    /// nobody entered must never become data". A real session killed it: 19 sets were completed
+    /// against visible 50 kg x 10 placeholders and every one saved with weight and reps NIL, so the
+    /// session's volume was zero and the numbers the whole feature exists to keep were simply gone.
+    /// Silence is not the conservative choice when the alternative is losing the measurement.
+    ///
+    /// The principle survives in a stricter form: this is not an inference about what the user did,
+    /// it is the plan they were working to, committed only because they pressed "set done" against
+    /// it. The UI must therefore render a carried value as a REAL entry rather than a placeholder —
+    /// what was recorded has to be visible and correctable during the rest, which is when set entry
+    /// happens by design. A set the user did not actually do is corrected to 0, not left blank.
+    ///
+    /// RPE is NOT carried. Weight and reps are a plan, knowable in advance; RPE is how hard a set
+    /// FELT, knowable only afterwards, and carrying one forward would invent the one figure nobody
+    /// can guess for you. It would also silently corrupt the coverage the RPE card reports — every
+    /// set would read as rated, and "14 of 19 sets unrated" could never be shown again.
+    ///
+    /// `lastSession` is the one layer the engine cannot know: it comes from the store, and the
+    /// caller supplies it. Nil there simply falls through to the target.
+    func carry(for slot: LiftSlot, lastSession: LiftSetCarry) -> LiftSetCarry {
+        let previous = previousSetInSession(for: slot)
+        let item = planItem(for: slot)
+        return LiftSetCarry(
+            weightKg: previous?.weightKg ?? lastSession.weightKg ?? item?.targetWeightKg,
+            reps: previous?.reps ?? lastSession.reps ?? item?.targetRepsLow)
+    }
+
     // MARK: - Actions
 
     /// Begin a specific set. Works from any stage, which is the whole point: a machine being busy
@@ -219,7 +280,10 @@ struct LiftSessionEngine: Equatable {
     }
 
     /// The big button. Context decides what it means.
-    mutating func advance(now: Int) {
+    ///
+    /// `lastSession` is what the store holds for the slot being completed, used only as the middle
+    /// layer of `carry(for:lastSession:)`. Callers without it pass `.none`.
+    mutating func advance(now: Int, lastSession: LiftSetCarry = .none) {
         switch stage {
         case .warmup:
             guard let next = nextPendingSlot else { return }
@@ -227,9 +291,10 @@ struct LiftSessionEngine: Equatable {
 
         case .working(let slot):
             pushHistory()
+            let carried = carry(for: slot, lastSession: lastSession)
             sets.append(LiftRecordedSet(
                 exerciseIndex: slot.exerciseIndex, setIndex: slot.setIndex,
-                weightKg: nil, reps: nil, rpe: nil, isWarmup: false,
+                weightKg: carried.weightKg, reps: carried.reps, rpe: nil, isWarmup: false,
                 startTs: stageStartedAt, endTs: now, restSec: nil))
             let rest = planItem(for: slot)?.restSec ?? LiftPlanItem.defaultRestSec
             stage = .resting(slot, endsAt: now + rest)
@@ -242,7 +307,7 @@ struct LiftSessionEngine: Equatable {
             if let i = sets.firstIndex(where: { $0.slot == slot }) {
                 sets[i].restSec = max(0, now - stageStartedAt)
             }
-            if let next = nextPendingSlot {
+            if let next = slotAfter(slot) {
                 stage = .working(next)
                 stageStartedAt = now
             } else {

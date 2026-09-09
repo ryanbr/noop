@@ -248,8 +248,14 @@ struct LiftSessionView: View {
     //
     // The placeholder shows what you'd most likely repeat, in priority order: the PREVIOUS SET OF
     // THIS EXERCISE IN THIS SESSION first (set 2 almost always mirrors set 1), then the same set
-    // number last session, then the program's target. It stays a placeholder — grey, and not
-    // recorded unless the user types — because a number nobody entered must never become data.
+    // number last session, then the program's target — the same order, from the same source, as
+    // `LiftSessionEngine.carry(for:lastSession:)`.
+    //
+    // These are shown only for a set that has NOT been completed yet: a plan, not a record. Once the
+    // set is completed the carried numbers become a real entry and the binding below returns them,
+    // so the row shows what was actually logged rather than a grey suggestion of it. Keep the two
+    // chains in step — a ghost that does not match what completing the set records is worse than no
+    // ghost at all.
 
     private func ghostWeight(_ engine: LiftSessionEngine, slot: LiftSlot, item: LiftPlanItem) -> String {
         if let prev = engine.previousSetInSession(for: slot)?.weightKg { return display(prev) }
@@ -456,6 +462,11 @@ struct LiftSessionView: View {
             out[item.exercise] = bySet
         }
         lastTime = out
+        // The controller needs this too: the strap can complete a set while this sheet is minimised,
+        // and a set recorded that way must carry the same numbers the sheet was showing.
+        session.setLastSession(out.mapValues { bySet in
+            bySet.mapValues { LiftSetCarry(weightKg: $0.weightKg, reps: $0.reps) }
+        })
     }
 
     private func save() async {
