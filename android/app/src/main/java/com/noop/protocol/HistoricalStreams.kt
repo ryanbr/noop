@@ -1138,3 +1138,40 @@ fun ppgWaveformAbsolute(baseCode: Long?, deltas: List<Int>): List<Long>? {
     }
     return out
 }
+
+/** A delta at either i16 rail: the encoder clamped it, so the window reconstructs only approximately. */
+fun isSaturatedPpgDelta(delta: Int): Boolean = delta == Short.MIN_VALUE.toInt() || delta == Short.MAX_VALUE.toInt()
+
+/**
+ * The per-session v26 optical census, or null when the session carried no v26 windows (a 4.0, or a
+ * 5/MG that banked none) so a log that has nothing to say stays quiet. #2019.
+ *
+ * Three things a strap log could not previously answer, all of which decide whether the banked windows
+ * are usable for the channel-mapping work this stream exists for:
+ *
+ * - how many windows arrived at all;
+ * - how many carried the absolute base. A window without one cannot be reconstructed, ever. On a
+ *   well-formed record the base is always readable, so `withBase` below the window count means
+ *   TRUNCATED records or a firmware that does not carry it at frame-abs 23, and either is worth
+ *   knowing rather than silently banking un-reconstructable windows;
+ * - how many windows hold a SATURATED delta. Those reconstruct only approximately, and the caveat is
+ *   worthless without a way to see whether it ever fires.
+ *
+ * The base range is carried because it is the DC level over the session, which is the quantity the
+ * whole stream is banked for and the one that used to be discarded entirely.
+ *
+ * Twin of the Swift `ppgWaveformCensusLine`.
+ */
+fun ppgWaveformCensusLine(
+    windows: Int,
+    withBase: Int,
+    saturatedWindows: Int,
+    baseMin: Long?,
+    baseMax: Long?,
+): String? {
+    if (windows <= 0) return null
+    val range = if (baseMin != null && baseMax != null) " base $baseMin..$baseMax" else " base n/a"
+    val note = if (saturatedWindows > 0) " (a saturated window reconstructs only approximately)" else ""
+    return "Backfill: v26 optical census: $windows window(s), $withBase with a base, " +
+        "$saturatedWindows saturated,$range$note"
+}

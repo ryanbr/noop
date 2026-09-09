@@ -462,3 +462,38 @@ public func ppgWaveformAbsolute(baseCode: Int?, deltas: [Int]) -> [Int]? {
     }
     return out
 }
+
+/// A delta at either i16 rail: the encoder clamped it, so the window reconstructs only approximately.
+public func isSaturatedPpgDelta(_ delta: Int) -> Bool {
+    delta == Int(Int16.min) || delta == Int(Int16.max)
+}
+
+/// The per-session v26 optical census, or nil when the session carried no v26 windows (a 4.0, or a 5/MG
+/// that banked none) so a log with nothing to say stays quiet. #2019.
+///
+/// Three things a strap log could not previously answer, all of which decide whether the banked windows
+/// are usable for the channel-mapping work this stream exists for:
+///
+/// - how many windows arrived at all;
+/// - how many carried the absolute base. A window without one cannot be reconstructed, ever. On a
+///   well-formed record the base is always readable, so `withBase` below the window count means
+///   TRUNCATED records or a firmware that does not carry it at frame-abs 23, and either is worth knowing
+///   rather than silently banking un-reconstructable windows;
+/// - how many windows hold a SATURATED delta. Those reconstruct only approximately, and the caveat is
+///   worthless without a way to see whether it ever fires.
+///
+/// The base range is carried because it is the DC level over the session, which is the quantity the whole
+/// stream is banked for and the one that used to be discarded entirely.
+///
+/// Mirror EXACTLY in Kotlin (`ppgWaveformCensusLine`).
+public func ppgWaveformCensusLine(windows: Int, withBase: Int, saturatedWindows: Int,
+                                  baseMin: Int?, baseMax: Int?) -> String? {
+    guard windows > 0 else { return nil }
+    let range: String = {
+        guard let baseMin, let baseMax else { return " base n/a" }
+        return " base \(baseMin)..\(baseMax)"
+    }()
+    let note = saturatedWindows > 0 ? " (a saturated window reconstructs only approximately)" : ""
+    return "Backfill: v26 optical census: \(windows) window(s), \(withBase) with a base, "
+        + "\(saturatedWindows) saturated,\(range)\(note)"
+}

@@ -229,6 +229,18 @@ class Backfiller(
      */
     var sessionSkinTempRows = 0
         private set
+
+    /** #2019: this session's v26 optical windows, and what they carried. See [ppgWaveformCensusLine]. */
+    var sessionPpgWindows = 0
+        private set
+    var sessionPpgWithBase = 0
+        private set
+    var sessionPpgSaturated = 0
+        private set
+    var sessionPpgBaseMin: Long? = null
+        private set
+    var sessionPpgBaseMax: Long? = null
+        private set
     private val sessionNightKeys = HashSet<Long>()
     val sessionNights: Int get() = sessionNightKeys.size
 
@@ -343,6 +355,11 @@ class Backfiller(
         this.continuedAfterRows = continuedAfterRows
         isBackfilling = true
         sessionRowsPersisted = 0
+        sessionPpgWindows = 0
+        sessionPpgWithBase = 0
+        sessionPpgSaturated = 0
+        sessionPpgBaseMin = null
+        sessionPpgBaseMax = null
         sessionRrOffered = 0
         sessionRrInserted = 0
         sessionRrSumMs = 0
@@ -644,6 +661,18 @@ class Backfiller(
                 // "persisted N rows (M with motion) across K night(s)" — the win-rate signal we never logged.
                 val (rows, motion, nights) = chunkTally(counts, decoded.gravity.map { it.ts } + decoded.hr.map { it.ts })
                 sessionRowsPersisted += rows
+                // #2019: the v26 optical census, folded per chunk. Counted on what the DECODER produced
+                // rather than on what the store kept, because an un-reconstructable window is a decode
+                // fact: the base is either on the wire or it is not.
+                for (w in decoded.ppgWaveform) {
+                    sessionPpgWindows += 1
+                    w.baseCode?.let { b ->
+                        sessionPpgWithBase += 1
+                        sessionPpgBaseMin = minOf(sessionPpgBaseMin ?: b, b)
+                        sessionPpgBaseMax = maxOf(sessionPpgBaseMax ?: b, b)
+                    }
+                    if (w.samples.any { com.noop.protocol.isSaturatedPpgDelta(it) }) sessionPpgSaturated += 1
+                }
                 // #1008/#1118 census accumulation (pre-storage offered vs post-key inserted).
                 sessionRrOffered += rrCensus.intervals
                 sessionRrInserted += counts.rr

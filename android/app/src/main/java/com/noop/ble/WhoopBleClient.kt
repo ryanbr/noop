@@ -10448,6 +10448,13 @@ class WhoopBleClient(
             // #1008/#1118: the pre-storage R-R census for this offload, next to the persisted tally so one
             // line pair says what the decoder OFFERED and what the store KEPT. Twin of the Swift emit.
             backfiller.sessionRrEmissionLine()?.let { rrLine -> log(rrLine) }
+            // #2019: and the v26 optical census, in the same place, so one block says what the offload
+            // banked AND whether those optical windows can be reconstructed at all.
+            com.noop.protocol.ppgWaveformCensusLine(
+                backfiller.sessionPpgWindows, backfiller.sessionPpgWithBase,
+                backfiller.sessionPpgSaturated, backfiller.sessionPpgBaseMin,
+                backfiller.sessionPpgBaseMax,
+            )?.let { ppgLine -> log(ppgLine) }
             // #990: fold this session's drained rows into the persisted ALL-TIME tally at the single
             // summary emit point, so the Connection readout can show install-lifetime progress beside
             // the per-session count (which resets on every reconnect). Unconditional, like the summary
