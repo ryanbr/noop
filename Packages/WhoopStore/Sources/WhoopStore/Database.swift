@@ -919,6 +919,18 @@ extension WhoopStore {
             // No index: the table is capped at maxStoredMessages (40 rows), so a full scan + sort on
             // read is negligible and an index buys nothing worth the extra Room<->GRDB parity surface.
         }
+        // #2019: carry the v26 optical window's ABSOLUTE base code beside its deltas.
+        //
+        // The 25-sample window is one absolute ADC code plus 24 deltas, and only the deltas were read, so
+        // the stored `samples` blob is a derivative and the DC level was thrown away. Nullable and
+        // additive: an existing row keeps its deltas and gets a null base, which is the true statement
+        // about it. A delta series cannot be inverted without the base, so those windows have no
+        // recoverable absolute level and no backfill can invent one. Twin of Room's MIGRATION_37_38.
+        migrator.registerMigration("v44-ppg-waveform-base-code") { db in
+            try db.alter(table: "ppgWaveformSample") { t in
+                t.add(column: "baseCode", .integer)
+            }
+        }
         return migrator
     }
 }

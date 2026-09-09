@@ -534,7 +534,12 @@ private fun decodeWhoop5Historical(frame: ByteArray): Map<String, Any?>? {
  * (`burst_index`, NOT a channel id; PR#553) is carried beside the waveform
  * so durable rows retain their burst boundaries. The footer after [75] remains intentionally unmapped.
  */
-private data class V26Record(val unix: Long, val samples: List<Int>, val burstIndex: Int?)
+private data class V26Record(
+    val unix: Long,
+    val samples: List<Int>,
+    val burstIndex: Int?,
+    val baseCode: Long?,
+)
 
 private fun decodeWhoop5HistoricalV26(frame: ByteArray): V26Record? {
     if (frame.histU8(8) != PacketType.HISTORICAL_DATA.rawValue) return null
@@ -542,6 +547,14 @@ private fun decodeWhoop5HistoricalV26(frame: ByteArray): V26Record? {
     // Long, not Int — see [histU32]. This path was never actually wrong (its one consumer re-widened
     // with `and 0xFFFFFFFFL`), but carrying the reader's own type removes the mask and the trap.
     val unix = frame.histU32(15) ?: return null
+    // #2019: the ABSOLUTE optical code the 24 values below are deltas FROM. The window is 25 samples,
+    // not 24: sample 0 is this code and delta i produces sample i+1. Reading only the deltas and calling
+    // them the waveform stored a derivative as if it were a signal, and threw away the DC level, which
+    // is the half an SpO2 ratio-of-ratios needs. Verified on the captured frame in
+    // `Whoop5PpgWaveformStreamTest`: 378,307 here, a valid 20-bit code, against 24 deltas that are every
+    // one NEGATIVE, which no absolute optical reading can be. Long, not Int: unsigned 32-bit, see
+    // [histU32].
+    val baseCode = frame.histU32(23)
     val samples = ArrayList<Int>(24)
     var off = 27
     while (off < 75) {
@@ -552,7 +565,7 @@ private fun decodeWhoop5HistoricalV26(frame: ByteArray): V26Record? {
     if (samples.isEmpty()) return null
     val rawBurstIndex = frame.histU8(21)
     return V26Record(unix = unix, samples = samples,
-        burstIndex = rawBurstIndex?.takeIf { it > 0 })
+        burstIndex = rawBurstIndex?.takeIf { it > 0 }, baseCode = baseCode)
 }
 
 /**
@@ -835,7 +848,9 @@ fun extractHistoricalStreams(
                             // corrected wall-second. Guard on non-empty so a truncated frame that decoded
                             // zero samples never banks an empty row (mirrors the Swift `!samples.isEmpty`).
                             if (rec.samples.isNotEmpty()) {
-                                ppgWaveform.add(PpgWaveformRow(baseTs, rec.samples, rec.burstIndex))
+                                ppgWaveform.add(
+                                    PpgWaveformRow(baseTs, rec.samples, rec.burstIndex, rec.baseCode),
+                                )
                             }
                         }
                     }
@@ -1092,4 +1107,34 @@ private fun appendHistBattery(out: MutableList<BatteryRow>, ts: Long, p: Map<Str
     if (soc == null && mv == null) return
     val charging = p.intOrNull("battery_charging")?.let { it != 0 }
     out.add(BatteryRow(ts = ts, soc = soc, mv = mv, charging = charging))
+}
+
+/**
+ * Reconstruct a WHOOP 5/MG v26 optical window from its stored parts. #2019.
+ *
+ * The strap sends a 25-sample window as one absolute ADC code plus 24 deltas, so this is the only way to
+ * get back the signal the strap measured: `sample[0] = baseCode`, `sample[i+1] = sample[i] + delta[i]`.
+ * NOOP stores the two as they arrive rather than folding them together, because the delta blob is
+ * little-endian i16 and a real code (about 378,000 on the captured fixture) does not fit in one.
+ *
+ * Null when [baseCode] is null, which is the honest answer for a row written before the base was read:
+ * a delta series cannot be inverted without its starting point, and returning the deltas, or a window
+ * built from a fabricated zero, would present a signal nobody measured.
+ *
+ * CAVEAT: the deltas are SATURATED, clamped at the i16 bounds by the encoder, so a window containing a
+ * clamped delta reconstructs only approximately. Nothing here can detect that after the fact; a delta at
+ * exactly ±32,768 is the signal to distrust, and the captured fixture's largest magnitude is 1,833.
+ *
+ * Twin of the Swift `ppgWaveformAbsolute`.
+ */
+fun ppgWaveformAbsolute(baseCode: Long?, deltas: List<Int>): List<Long>? {
+    if (baseCode == null) return null
+    val out = ArrayList<Long>(deltas.size + 1)
+    var acc = baseCode
+    out.add(acc)
+    for (d in deltas) {
+        acc += d
+        out.add(acc)
+    }
+    return out
 }

@@ -312,7 +312,14 @@ data class PpgHrRow(val ts: Long, val bpm: Int, val conf: Double)
  * unix second, [samples] the raw i16 ADC counts (usually 24, fewer on a truncated frame). deviceId is
  * attached on insert; the samples are packed to a little-endian i16 BLOB by [StreamPersistence.packPpgSamples].
  */
-data class PpgWaveformRow(val ts: Long, val samples: List<Int>, val burstIndex: Int? = null)
+data class PpgWaveformRow(
+    val ts: Long,
+    val samples: List<Int>,
+    val burstIndex: Int? = null,
+    /** #2019: the absolute optical code [samples] are deltas from; null on a legacy row, whose absolute
+     *  level is gone for good because a delta series cannot be inverted without it. */
+    val baseCode: Long? = null,
+)
 
 /** Count of rows ACTUALLY inserted per stream (mirrors WhoopStore.insert return tuple). */
 data class InsertCounts(
@@ -612,7 +619,7 @@ class WhoopRepository(
             dao.insertPpgWaveform(
                 streams.ppgWaveform.map {
                     PpgWaveformSampleEntity(deviceId, it.ts, StreamPersistence.packPpgSamples(it.samples),
-                        it.burstIndex)
+                        it.burstIndex, it.baseCode)
                 },
             )
             // #1911 rolling retention, amortised and best-effort on exactly the same terms as the v18-aux

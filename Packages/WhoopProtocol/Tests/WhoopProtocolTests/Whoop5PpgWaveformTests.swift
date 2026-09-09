@@ -101,10 +101,35 @@ final class Whoop5PpgWaveformTests: XCTestCase {
         let f = parseFrame(bytes(v26Hex), family: .whoop5)
         let streams = extractHistoricalStreams([f], deviceClockRef: 1_780_917_232, wallClockRef: 1_780_917_232)
         XCTAssertEqual(streams.ppgWaveform,
-                       [PpgWaveformSample(ts: 1_780_917_232, samples: expectedWaveform, burstIndex: 1)])
+                       [PpgWaveformSample(ts: 1_780_917_232, samples: expectedWaveform, burstIndex: 1,
+                                          baseCode: expectedBaseCode)])
         XCTAssertTrue(streams.ppgHr.isEmpty, "a lone 1 s record is too short for a confident HR estimate")
         // Not "no rows at all" — the Backfiller's silent-data-loss diagnostic must see this as decoded.
         XCTAssertFalse(streams.isEmpty)
+    }
+
+    /// #2019: the absolute optical code the stored values are deltas FROM, at frame-abs 23. It is what
+    /// makes the window reconstructable and what used to be discarded.
+    private let expectedBaseCode = 378_307
+
+    /// The reconstruction, on the real captured window. Every absolute sample must land inside the
+    /// 20-bit ADC domain, which is the check that says the base and the deltas belong together: read as
+    /// absolute values the stored deltas are all NEGATIVE, and no optical reading can be. The excursion
+    /// is 4.2% of the base, an ordinary PPG perfusion index. Mirrored in Kotlin.
+    func testTheWindowReconstructsIntoTheOpticalDomain() {
+        let f = parseFrame(bytes(v26Hex), family: .whoop5)
+        let streams = extractHistoricalStreams([f], deviceClockRef: 1_780_917_232,
+                                               wallClockRef: 1_780_917_232)
+        let row = try! XCTUnwrap(streams.ppgWaveform.first)
+        let absolute = try! XCTUnwrap(ppgWaveformAbsolute(baseCode: row.baseCode, deltas: row.samples))
+        XCTAssertEqual(absolute.count, 25, "one absolute code plus 24 deltas is a 25-sample window")
+        XCTAssertEqual(absolute.first, expectedBaseCode)
+        XCTAssertEqual(absolute.last, 362_532)
+        XCTAssertTrue(absolute.allSatisfy { $0 >= 0 && $0 < (1 << 20) },
+                      "every sample must sit in the 20-bit ADC domain")
+        // A legacy row, whose base was never stored, is honestly unreconstructable rather than silently
+        // reconstructed from a fabricated zero.
+        XCTAssertNil(ppgWaveformAbsolute(baseCode: nil, deltas: row.samples))
     }
 
     func testExtractHistoricalStreamsCarriesEachBurstIndexWithItsWaveform() {

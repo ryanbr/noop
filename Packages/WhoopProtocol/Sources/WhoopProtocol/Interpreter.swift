@@ -643,6 +643,16 @@ private func decodeWhoop5HistoricalV26(_ frame: [UInt8], fb: FieldBuilder) {
     if let unix = readDType(frame, 15, "u32") {
         fb.add(15, 4, "unix", "time", value: .int(unix), note: "real unix seconds")
     }
+    // #2019: the ABSOLUTE optical code the 24 values below are deltas FROM. The window is 25 samples,
+    // not 24: sample 0 is this code and delta i produces sample i+1. Reading only the deltas and calling
+    // them the waveform stored a derivative as if it were a signal, and discarded the DC level, which is
+    // the half an SpO2 ratio-of-ratios needs. Verified on the captured frame in the waveform tests:
+    // 378,307 here, a valid 20-bit code, against 24 deltas that are every one NEGATIVE, which no
+    // absolute optical reading can be.
+    if let base = readDType(frame, 23, "u32") {
+        fb.add(23, 4, "ppg_base_code", "ppg", value: .int(base),
+               note: "absolute optical ADC code; ppg_waveform holds the deltas from it")
+    }
     var samples: [Int] = []
     for off in stride(from: 27, to: 75, by: 2) {
         guard let v = readI16(frame, off) else { break }
@@ -650,7 +660,7 @@ private func decodeWhoop5HistoricalV26(_ frame: [UInt8], fb: FieldBuilder) {
     }
     if !samples.isEmpty {
         fb.add(27, samples.count * 2, "ppg_waveform", "ppg", value: .intArray(samples),
-               note: "optical PPG @24 Hz, LE-i16 ADC counts")
+               note: "optical PPG DELTAS, LE-i16; absolute sample i+1 = base + running sum")
         fb.parsed["ppg_sample_count"] = .int(samples.count)
     }
     // PR#563: the remaining per-record v26 bytes, surfaced as RAW NEUTRAL fields — read off the real

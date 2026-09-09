@@ -258,7 +258,8 @@ public func extractHistoricalStreams(_ parsed: [ParsedFrame],
             if let samples = p["ppg_waveform"]?.intArrayValue, !samples.isEmpty {
                 ppgRecords.append((ts: ts, samples: samples))
                 out.ppgWaveform.append(PpgWaveformSample(ts: ts, samples: samples,
-                                                         burstIndex: p["burst_index"]?.intValue))
+                                                         burstIndex: p["burst_index"]?.intValue,
+                                                         baseCode: p["ppg_base_code"]?.intValue))
             }
             if let bpm = p["heart_rate"]?.intValue, bpm != 0 {  // skip startup hr=0
                 out.hr.append(HRSample(ts: ts, bpm: bpm))
@@ -431,5 +432,33 @@ public func extractHistoricalStreams(_ parsed: [ParsedFrame],
     out.droppedImplausible = droppedImplausible   // #547 diag count (not persisted, not encoded)
     out.droppedImplausibleOldestTs = droppedOldest   // #324 poisoned-range epoch span (diag only)
     out.droppedImplausibleNewestTs = droppedNewest
+    return out
+}
+
+/// Reconstruct a WHOOP 5/MG v26 optical window from its stored parts. #2019.
+///
+/// The strap sends a 25-sample window as one absolute ADC code plus 24 deltas, so this is the only way to
+/// get back the signal the strap measured: `sample[0] = baseCode`, `sample[i+1] = sample[i] + delta[i]`.
+/// NOOP stores the two as they arrive rather than folding them together, because the delta blob is
+/// little-endian i16 and a real code (about 378,000 on the captured fixture) does not fit in one.
+///
+/// nil when `baseCode` is nil, which is the honest answer for a row written before the base was read: a
+/// delta series cannot be inverted without its starting point, and returning the deltas, or a window
+/// built from a fabricated zero, would present a signal nobody measured.
+///
+/// CAVEAT: the deltas are SATURATED, clamped at the i16 bounds by the encoder, so a window containing a
+/// clamped delta reconstructs only approximately. Nothing here can detect that after the fact; a delta at
+/// exactly ±32,768 is the signal to distrust, and the captured fixture's largest magnitude is 1,833.
+///
+/// Mirror EXACTLY in Kotlin (`ppgWaveformAbsolute`).
+public func ppgWaveformAbsolute(baseCode: Int?, deltas: [Int]) -> [Int]? {
+    guard let baseCode else { return nil }
+    var out: [Int] = [baseCode]
+    out.reserveCapacity(deltas.count + 1)
+    var acc = baseCode
+    for d in deltas {
+        acc += d
+        out.append(acc)
+    }
     return out
 }

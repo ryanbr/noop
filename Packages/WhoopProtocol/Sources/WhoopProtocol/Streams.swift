@@ -373,12 +373,20 @@ public struct SleepStateSample: Equatable, Codable {
 /// `decodeWhoop5HistoricalV26`); a truncated frame can yield fewer than 24.
 public struct PpgWaveformSample: Equatable, Codable, Sendable {
     public let ts: Int          // wall-clock unix seconds (one record per second)
-    public let samples: [Int]   // raw i16 ADC counts @24 Hz, verbatim from `ppg_waveform` (usually 24)
+    /// The window's 24 i16 DELTAS, verbatim from `ppg_waveform`. #2019: these are NOT absolute samples.
+    /// The strap sends a 25-sample window as one absolute code plus 24 deltas; reconstruct with
+    /// `ppgWaveformAbsolute(baseCode:deltas:)`.
+    public let samples: [Int]
     public let burstIndex: Int?  // raw per-burst counter @21; nil for legacy archives
-    public init(ts: Int, samples: [Int], burstIndex: Int? = nil) {
+    /// #2019: the absolute optical ADC code `samples` are deltas from, at frame-abs 23. nil on a row
+    /// written before it was read, and that nil is TRUE rather than merely missing: a delta series
+    /// cannot be inverted without its starting point, so those windows have no recoverable level.
+    public let baseCode: Int?
+    public init(ts: Int, samples: [Int], burstIndex: Int? = nil, baseCode: Int? = nil) {
         self.ts = ts
         self.samples = samples
         self.burstIndex = burstIndex
+        self.baseCode = baseCode
     }
 }
 

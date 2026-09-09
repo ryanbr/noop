@@ -692,13 +692,26 @@ data class PpgWaveformSampleEntity(
     val ts: Long,
     val samples: ByteArray,
     val burstIndex: Int? = null,
+    /**
+     * #2019: the absolute optical ADC code that [samples] are DELTAS from. The v26 window is 25 samples
+     * encoded as this code plus 24 deltas; sample 0 is the code and delta i produces sample i+1.
+     *
+     * Stored beside the deltas rather than folded into them because [samples] is a little-endian i16 blob
+     * and a real code (about 378,000 on the captured fixture) does not fit in an i16. Keeping the wire's
+     * own shape is also the honest one: the strap sends a base and deltas.
+     *
+     * Null on a row written before this was read, and that null is TRUE rather than merely missing: the
+     * base was discarded at decode, and a delta series cannot be inverted without it, so those rows have
+     * no recoverable absolute level. Use it to tell a reconstructable window from one that never can be.
+     */
+    val baseCode: Long? = null,
 ) {
     // ByteArray needs structural equals/hashCode (the generated identity ones break round-trip asserts).
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is PpgWaveformSampleEntity) return false
         return deviceId == other.deviceId && ts == other.ts && samples.contentEquals(other.samples) &&
-            burstIndex == other.burstIndex
+            burstIndex == other.burstIndex && baseCode == other.baseCode
     }
 
     override fun hashCode(): Int {
@@ -706,6 +719,7 @@ data class PpgWaveformSampleEntity(
         result = 31 * result + ts.hashCode()
         result = 31 * result + samples.contentHashCode()
         result = 31 * result + (burstIndex ?: 0)
+        result = 31 * result + (baseCode?.hashCode() ?: 0)
         return result
     }
 }

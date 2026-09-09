@@ -360,12 +360,13 @@ extension WhoopStore {
             // `packPpgSamples`) rather than 24 scalar rows, so this insert is O(records), not O(samples).
             if !streams.ppgWaveform.isEmpty {
                 let stmt = try db.cachedStatement(sql: """
-                    INSERT INTO ppgWaveformSample (deviceId, ts, samples, burstIndex) VALUES (?, ?, ?, ?)
+                    INSERT INTO ppgWaveformSample (deviceId, ts, samples, burstIndex, baseCode)
+                    VALUES (?, ?, ?, ?, ?)
                     ON CONFLICT(deviceId, ts) DO NOTHING
                     """)
                 for s in streams.ppgWaveform {
                     try stmt.execute(arguments: [deviceId, s.ts, WhoopStore.packPpgSamples(s.samples),
-                                                 s.burstIndex])
+                                                 s.burstIndex, s.baseCode])
                     ppgWaveformWritten += 1
                 }
             }
