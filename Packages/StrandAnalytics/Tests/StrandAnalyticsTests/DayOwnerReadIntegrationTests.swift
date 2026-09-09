@@ -15,23 +15,37 @@ final class DayOwnerReadIntegrationTests: XCTestCase {
     private let day = "2026-06-15"
 
     /// Build candidates exactly as `IntelligenceEngine.resolveDayOwner` does, then resolve.
+    ///
+    /// This mirrors the SHIPPED shape, which is the only thing that makes an integration test worth
+    /// having: probe in (priority, original index) order and stop at the first candidate with data,
+    /// using the scalar `hasHrInWindow` presence check rather than fetching a row from the union read.
+    /// It used to build every candidate and hand the lot to `DayOwnerResolver.resolve`, which is what
+    /// production did before; left alone it would still have passed while quietly testing a path
+    /// nothing takes any more.
     private func resolveOwner(store: WhoopStore, registry: DeviceRegistryStore,
                               from: Int, to: Int) async throws -> String? {
         if let locked = try registry.dayOwner(day)?.deviceId { return locked }
         let activeId = try registry.activeDeviceId() ?? "my-whoop"
-        var candidates: [DayOwnerResolver.Candidate] = []
-        for d in try registry.all() where d.status != .archived {
-            let isImport = d.sourceKind == .cloudImport || d.sourceKind == .fileImport
-            // Mirrors IntelligenceEngine.resolveDayOwner: activity-file rides rank BELOW whole-day imports.
-            let priority: Int
-            if d.id == activeId { priority = 0 }
-            else if d.sourceKind == .activityFile { priority = 3 }
-            else if isImport { priority = 2 }
-            else { priority = 1 }
-            let hasData = !((try? await store.hrSamples(deviceId: d.id, from: from, to: to, limit: 1)) ?? []).isEmpty
-            candidates.append(.init(deviceId: d.id, priority: priority, hasData: hasData))
+        let ranked: [(id: String, priority: Int)] = try registry.all()
+            .filter { $0.status != .archived }
+            .map { d in
+                let isImport = d.sourceKind == .cloudImport || d.sourceKind == .fileImport
+                // Mirrors IntelligenceEngine.resolveDayOwner: activity-file rides rank BELOW whole-day
+                // imports.
+                let priority: Int
+                if d.id == activeId { priority = 0 }
+                else if d.sourceKind == .activityFile { priority = 3 }
+                else if isImport { priority = 2 }
+                else { priority = 1 }
+                return (d.id, priority)
+            }
+            .enumerated()
+            .sorted { ($0.element.priority, $0.offset) < ($1.element.priority, $1.offset) }
+            .map(\.element)
+        for c in ranked {
+            if (try? await store.hasHrInWindow(deviceId: c.id, from: from, to: to)) == true { return c.id }
         }
-        return DayOwnerResolver.resolve(day: day, lockedOwner: nil, candidates: candidates)
+        return nil
     }
 
     func testActiveStrapOwnsDayAndReadReturnsOnlyItsSamples() async throws {
