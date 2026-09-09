@@ -3202,6 +3202,12 @@ class WhoopBleClient(
                             profileStore.stepsCalibrationConfidence = cal.confidence
                             profileStore.stepsCalibrationManual = cal.manual
                         },
+                        // Persisted steps-calibration motion folds. The analytics layer is Context-free, so
+                        // the payload is read and written here; without it the sixty-day fold is re-paid in
+                        // full after every relaunch. A derived cache — a missing or unreadable payload just
+                        // re-folds (see StepsMotionCache).
+                        stepsMotionCacheGet = { NoopPrefs.stepsMotionCache(context) },
+                        stepsMotionCacheSet = { NoopPrefs.setStepsMotionCache(context, it) },
                         // Manual "Recalibrate baseline" anchor (noop.hrvBaselineEpoch, whole seconds in a
                         // Long). The analytics layer is Context-free, so read it here and thread it down so
                         // the post-backfill scoring pass honours the recalibration too — not just the UI's

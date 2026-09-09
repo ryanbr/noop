@@ -349,6 +349,7 @@ object NoopPrefs {
     const val KEY_HR_BROADCAST = "noop.hrBroadcast"
 
     const val KEY_ANALYZE_WATERMARK = "noop.analyzeWatermark"
+    const val KEY_STEPS_MOTION_CACHE = "noop.stepsMotionCache.v1"
 
     /** "Power saving" (#477): when on, NOOP stretches its periodic strap-sync cadence (15 → 45 min) while
      *  the STRAP is discharging at/below [KEY_POWER_SAVING_BATTERY_PCT].
@@ -493,6 +494,17 @@ object NoopPrefs {
 
     fun setAnalyzeWatermark(context: Context, fingerprint: String) {
         of(context).edit().putString(KEY_ANALYZE_WATERMARK, fingerprint).apply()
+    }
+
+    /** The persisted steps-calibration motion folds (see `StepsMotionCache`). A derived cache, so a missing
+     *  or unreadable payload costs one re-fold and nothing else; versioned in the key as well as in the
+     *  payload header so a format change cannot even be read. Mirrors the Swift
+     *  `analyzeRecent.stepsMotionCache.v1` UserDefaults key. */
+    fun stepsMotionCache(context: Context): String? =
+        of(context).getString(KEY_STEPS_MOTION_CACHE, null)
+
+    fun setStepsMotionCache(context: Context, payload: String) {
+        of(context).edit().putString(KEY_STEPS_MOTION_CACHE, payload).apply()
     }
 
     /** Whether NOOP should hold the strap connection open via a foreground service. Default true. */

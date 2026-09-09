@@ -99,6 +99,18 @@ object IntelligenceEngine {
     private var dayScanCache = HashMap<String, CachedDayScan>()
     private var dayScanCacheConfigSig = ""
 
+    /** Whether this process has already seeded [stepsMotionCache] from the persisted payload. The read
+     *  happens once per process, not once per pass: after the first pass the in-memory cache is at least as
+     *  fresh as the payload, so re-reading it could only ever put back what the pass just pruned. Latched
+     *  only when a store was actually consulted, so a caller that does not wire one cannot silently spend
+     *  the single load on nothing and leave the rest of the process unpersisted. */
+    private var stepsMotionCacheLoaded = false
+
+    /** The payload currently in the store, so an unchanged cache does not rewrite it. A pass that reused
+     *  every day renders the string it read, and those passes are the back-to-back ones an offload storm is
+     *  made of. Not an assumption about what the store does with an identical value: it is not asked. */
+    private var stepsMotionCachePersisted = ""
+
     /** Per-day steps-calibration motion folds, `day -> (key, motion)`, keyed by [StepsMotionCache.cacheKey].
      *  In-memory and per-process exactly like [dayScanCache]; see [StepsMotionCache] for why this one needs no
      *  config signature. Pruned to the calibration window each pass so it cannot grow without bound. */
@@ -461,6 +473,13 @@ object IntelligenceEngine {
         // and passes it down, keeping this layer Context-free. EDWARDS default = byte-identical.
         effortMethod: StrainScorer.Method = StrainScorer.Method.EDWARDS,
         dayCycleMode: DayCycleMode = DayCycleMode.SLEEP_ONSET,
+        // Persisted backing for [stepsMotionCache]. Context-free like the rest of this layer, mirroring
+        // manualStepCoefficient / persistStepsCalibration above: the Context-aware caller (AppViewModel)
+        // reads and writes SharedPreferences and passes the accessors down. The defaults are no-ops, so a
+        // caller that does not wire them keeps exactly today's per-process-only behaviour, which is what
+        // every existing test relies on. Read/written under [analyzeGate] with the cache they back.
+        stepsMotionCacheGet: (() -> String?)? = null,
+        stepsMotionCacheSet: ((String) -> Unit)? = null,
     ): List<Computed> = withContext(Dispatchers.Default) {
         // #1005: time the whole pass so a re-score STORM is visible in the strap log (the trigger lines
         // record WHY each pass runs; this records how many nights and how long — the CPU cost per run).
@@ -469,12 +488,27 @@ object IntelligenceEngine {
         // [analyzeGate]). The heavy scoring already ran off the caller's thread via withContext above; the
         // lock is held only for this engine's own passes, never across an unrelated suspension.
         val scored = analyzeGate.withLock {
+            // Seed the fold cache from storage on the first pass of the process. Without this the sixty-day
+            // fold is re-paid in full after every relaunch — the cache's whole win is a repeat, and a
+            // relaunch is a repeat the process boundary hid. Nothing pass-global feeds the fold, so a
+            // payload written by a previous launch is as good as one written by the previous pass; see
+            // [StepsMotionCache]. Inside the lock because it writes the gate-guarded cache.
+            if (!stepsMotionCacheLoaded && stepsMotionCacheGet != null) {
+                stepsMotionCacheLoaded = true
+                val raw = stepsMotionCacheGet()
+                if (raw != null) {
+                    stepsMotionCache = StepsMotionCache.deserialize(raw)
+                    // Seed the write guard with what is actually stored. A payload this build renders
+                    // identically then costs no write; one carrying a line we dropped is rewritten clean.
+                    stepsMotionCachePersisted = raw
+                }
+            }
             val (out, healed) = analyzeRecentOnCpu(repo, profile, maxDays, importedDeviceId, maxHROverride,
                 nowSeconds, ownerSource, manualStepCoefficient, persistStepsCalibration, baselineEpoch,
                 recoveryEpoch, diag, useExperimentalSleepV2, useMotionAwareWake, sleepTraceSink, recoveryTraceSink,
                 stepsTraceSink, universalSink, workoutsTraceSink, hrvTraceSink, deepHrvWindow,
                 spo2CandidateDisplay, effortMethod, dayCycleMode)
-            if (healed == 0) out
+            val result = if (healed == 0) out
             // #899 heal re-pass: the pass above deleted overlapping duplicate sleep sessions AFTER its days
             // were scored, and the read-side dedup those days consumed had no bank-recency witness (the fresh
             // detections weren't banked yet), so its survivor can differ from the heal's. ONE bounded re-pass
@@ -485,6 +519,17 @@ object IntelligenceEngine {
                 recoveryEpoch, diag, useExperimentalSleepV2, useMotionAwareWake, sleepTraceSink, recoveryTraceSink,
                 stepsTraceSink, universalSink, workoutsTraceSink, hrvTraceSink, deepHrvWindow,
                 spo2CandidateDisplay, effortMethod, dayCycleMode).first
+            // Write the pruned cache back, after the heal re-pass so the payload reflects whichever pass ran
+            // last, and only when it moved. `serialize` renders sorted, so a pass that reused every day
+            // produces the string already stored and skips the write entirely.
+            if (stepsMotionCacheSet != null) {
+                val payload = StepsMotionCache.serialize(stepsMotionCache)
+                if (payload != stepsMotionCachePersisted) {
+                    stepsMotionCachePersisted = payload
+                    stepsMotionCacheSet(payload)
+                }
+            }
+            result
         }
         diag("re-score: done — scored ${scored.size} night(s) in ${(System.nanoTime() - reScoreStart) / 1_000_000} ms (#1005)")
         // #2013: what the pass actually CARRIES, beside how many nights it touched. "scored N nights" is

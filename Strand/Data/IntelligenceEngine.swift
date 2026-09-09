@@ -64,6 +64,18 @@ final class IntelligenceEngine: ObservableObject {
     /// never crosses `.noopbak`. The engine is a single long-lived instance (AppModel), so this survives the
     /// storm's back-to-back passes the drain is made of. See `AnalyzeRecentDayCache` (StrandAnalytics).
     private var dayScanCache: [String: (key: String, scan: DayScan)] = [:]
+    /// UserDefaults key holding the persisted `stepsMotionCache` payload. Versioned in the key as well as
+    /// in the payload header so a format change cannot even be read, let alone half-parsed.
+    private static let stepsMotionCacheDefaultsKey = "analyzeRecent.stepsMotionCache.v1"
+    /// Whether this process has already seeded `stepsMotionCache` from `stepsMotionCacheDefaultsKey`. The
+    /// read happens once per process, not once per pass: after the first pass the in-memory cache is at
+    /// least as fresh as the payload, so re-reading it could only ever put back what we just pruned.
+    private var stepsMotionCacheLoaded = false
+    /// The payload currently in UserDefaults, so an unchanged cache does not rewrite it. A pass that reused
+    /// every day renders the string it read, and the passes that do so are the back-to-back ones an offload
+    /// storm is made of — writing ~4 KB on each of them to store what is already there is the cost this
+    /// avoids. Not an assumption about what the store does with an identical value: it simply is not asked.
+    private var stepsMotionCachePersisted = ""
     /// Per-day steps-calibration motion folds, `[day: (key, motion)]`, keyed by `StepsMotionCache.cacheKey`.
     /// In-memory and per-process exactly like `dayScanCache`; see `StepsMotionCache` for why this one needs
     /// no config signature. Pruned to the calibration window each pass so it cannot grow without bound.
@@ -2374,6 +2386,19 @@ final class IntelligenceEngine: ObservableObject {
         // `deviceId` (a MainActor instance `let`) to a local Sendable `String` so the @Sendable detached
         // closure captures the VALUE, never `self`, exactly as FIX 1's `ownerFallbackId`.
         let stepsFallbackId = deviceId
+        // Seed the fold cache from storage on the first pass of the process. Without this the sixty-day
+        // fold is re-paid in full after every relaunch — the cache's whole win is a repeat, and a relaunch
+        // is a repeat the process boundary hid. Nothing pass-global feeds the fold, so a payload written by
+        // a previous launch is as good as one written by the previous pass; see `StepsMotionCache`.
+        if !stepsMotionCacheLoaded {
+            stepsMotionCacheLoaded = true
+            if let raw = UserDefaults.standard.string(forKey: Self.stepsMotionCacheDefaultsKey) {
+                stepsMotionCache = StepsMotionCache.deserialize(raw)
+                // Seed the write guard with what is actually stored. A payload this build renders identically
+                // then costs no write at all; one carrying a line we dropped is rewritten clean on this pass.
+                stepsMotionCachePersisted = raw
+            }
+        }
         let inStepsMotionCache = stepsMotionCache
         let (refStepsByDay, motionByDay, updatedStepsMotionCache, stepsMotionLogLine):
             ([String: Double], [String: Double], [String: (key: String, motion: Double)], String) =
@@ -2444,6 +2469,13 @@ final class IntelligenceEngine: ObservableObject {
             return (refSteps, motion, motionCacheLocal, motionLog)
         }.value
         stepsMotionCache = updatedStepsMotionCache
+        // Write the pruned cache back, only when it moved. `serialize` renders sorted, so a pass that reused
+        // every day produces the string already stored and skips the write entirely.
+        let stepsMotionPayload = StepsMotionCache.serialize(stepsMotionCache)
+        if stepsMotionPayload != stepsMotionCachePersisted {
+            stepsMotionCachePersisted = stepsMotionPayload
+            UserDefaults.standard.set(stepsMotionPayload, forKey: Self.stepsMotionCacheDefaultsKey)
+        }
         diagnosticSink?(stepsMotionLogLine, nil)
         // #1816: persist whether the strap has banked ANY motion in the calibration scan window, so the
         // Today tile can distinguish "Need N more phone-step days" (motion exists, phone half missing)

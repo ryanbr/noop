@@ -1144,6 +1144,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                             profileStore.stepsCalibrationConfidence = cal.confidence
                             profileStore.stepsCalibrationManual = cal.manual
                         },
+                        // Persisted steps-calibration motion folds. The analytics layer is Context-free, so
+                        // the payload is read and written here; without it the sixty-day fold is re-paid in
+                        // full after every relaunch. A derived cache — a missing or unreadable payload just
+                        // re-folds (see StepsMotionCache).
+                        stepsMotionCacheGet = { NoopPrefs.stepsMotionCache(appContext) },
+                        stepsMotionCacheSet = { NoopPrefs.setStepsMotionCache(appContext, it) },
                         // Manual "Recalibrate baseline" anchor (Settings → Charge advanced). The analytics
                         // layer is Context-free, so read the epoch (whole seconds, written as a Long by the
                         // button) here and thread it down — foldHistory drops every HRV night before it.
@@ -1856,6 +1862,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     profileStore.stepsCalibrationConfidence = cal.confidence
                     profileStore.stepsCalibrationManual = cal.manual
                 },
+                // Persisted steps-calibration motion folds. The analytics layer is Context-free, so
+                // the payload is read and written here; without it the sixty-day fold is re-paid in
+                // full after every relaunch. A derived cache — a missing or unreadable payload just
+                // re-folds (see StepsMotionCache).
+                stepsMotionCacheGet = { NoopPrefs.stepsMotionCache(appContext) },
+                stepsMotionCacheSet = { NoopPrefs.setStepsMotionCache(appContext, it) },
                 baselineEpoch = NoopPrefs.of(appContext)
                     .getLong(Baselines.hrvBaselineEpochKey, 0L).toDouble(),
                 recoveryEpoch = NoopPrefs.of(appContext)

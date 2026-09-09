@@ -14,9 +14,22 @@ import Foundation
 /// there is no pass-config signature to invalidate against — the value changes exactly when that one day's
 /// gravity changes, and the key below is the whole story.
 ///
-/// Like the day-scan cache this is in-memory and per-process. It never persists, never crosses the
-/// `.noopbak` boundary, and a relaunch pays the full fold once. That is deliberate: the cost being closed is
-/// the repeat within a process, where an offload storm fires passes back to back.
+/// Unlike the day-scan cache this one PERSISTS across launches, and the paragraph above is why it can. A
+/// persisted day scan would have to carry `dayCacheConfigSig`, which folds in baselines1 and the habitual
+/// sleep terms — and `sleepConsistency` (1-CV over 28 nights) and `habitualMidsleepSec` (a circular mean)
+/// shift with ANY night moving, so it would invalidate wholesale on exactly the passes it would need to
+/// survive. Nothing pass-global reaches this fold, so the payload stays valid while gravity stands still and
+/// the sixty-day fold is paid once per install instead of once per launch: measured 32.9 s -> 3.3 s on a
+/// worn 60-day library, which the cold pass otherwise repaid after every relaunch.
+///
+/// It stays a DERIVED cache and nothing else reads it, so the whole failure surface is one re-fold: a
+/// payload that is missing, unreadable, or written by an older fold is discarded rather than repaired.
+///
+/// It still does NOT cross the `.noopbak` boundary, and must not start: the key is deliberately absent from
+/// both `BackupSettings` whitelists. A restore carries the settings and the record store, and this describes
+/// neither — it describes gravity rows AS THEY WERE ON ONE DEVICE. Shipping it to another device would be
+/// the one way to serve a fold whose key no longer witnesses anything, which is the failure every other
+/// guard here exists to prevent. A restored device simply re-folds once.
 public enum StepsMotionCache {
     /// The per-day reuse key. Reuse a cached motion volume iff this string is unchanged.
     ///
@@ -39,4 +52,54 @@ public enum StepsMotionCache {
     public static func logLine(reused: Int, folded: Int, size: Int) -> String {
         "analyzeRecent stepsMotion reused=\(reused)/\(reused + folded) size=\(size)"
     }
+
+    /// The version of the FOLD the persisted values were produced by. Bump on any change to
+    /// `StepsEstimateEngine.dayMotionIntensity` that moves what it returns for the same samples.
+    ///
+    /// In memory this could not exist: a process cannot outlive the binary that filled it, so the fold that
+    /// produced a cached value is always the fold that would reproduce it. A persisted entry outlives its
+    /// build, and `cacheKey` witnesses the INPUTS only — a day whose gravity has not moved keys identically
+    /// across an app update, so without this the old volume would be served until that day's stream happened
+    /// to change. A bump discards every entry and costs one full re-fold, once, which is the cheap side.
+    public static let foldVersion = 1
+
+    /// Render the cache for storage. Days are emitted in sorted order so an unchanged cache renders to an
+    /// identical payload and the write is a no-op rather than churn.
+    ///
+    /// One line per day, `day\tkey\tmotion`, under a header naming `foldVersion`. Tab-separated because the
+    /// key itself contains `|`; the motion is written by raw bit pattern so it round-trips exactly and
+    /// locale-free, the same reason `cacheKey` encodes the skin anchor that way.
+    public static func serialize(_ entries: [String: (key: String, motion: Double)]) -> String {
+        var out = header
+        for day in entries.keys.sorted() {
+            guard let e = entries[day] else { continue }
+            out += "\n\(day)\t\(e.key)\t\(e.motion.bitPattern)"
+        }
+        return out
+    }
+
+    /// Parse a stored payload. Returns empty on anything it cannot vouch for — a wrong/absent header (an
+    /// older `foldVersion` included), a malformed line, or an implausible entry count. Every rejection costs
+    /// one re-fold, so this discards rather than salvages: a half-trusted cache is the one failure mode that
+    /// could feed a stale volume into the calibration fit.
+    public static func deserialize(_ raw: String) -> [String: (key: String, motion: Double)] {
+        var lines = raw.split(separator: "\n", omittingEmptySubsequences: false)
+        guard lines.first == Substring(header) else { return [:] }
+        lines.removeFirst()
+        guard lines.count <= maxEntries else { return [:] }
+        var out: [String: (key: String, motion: Double)] = [:]
+        for line in lines {
+            let f = line.split(separator: "\t", omittingEmptySubsequences: false)
+            guard f.count == 3, !f[0].isEmpty, !f[1].isEmpty, let bits = UInt64(f[2]) else { continue }
+            out[String(f[0])] = (key: String(f[1]), motion: Double(bitPattern: bits))
+        }
+        return out
+    }
+
+    /// Payload header. Carries `foldVersion` so a fold change invalidates by failing the equality check.
+    private static var header: String { "stepsMotion v\(foldVersion)" }
+
+    /// Upper bound on entries a payload may declare. The writer prunes to the calibration window every pass,
+    /// so a payload far above it did not come from this cache and is not worth parsing.
+    private static let maxEntries = 512
 }
