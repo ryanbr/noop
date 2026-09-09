@@ -225,3 +225,53 @@ final class PpgWaveformCensusTests: XCTestCase {
         XCTAssertFalse(isSaturatedPpgDelta(0))
     }
 }
+
+/// #2019 follow-up: the per-burst counter is a u16, not a u8. Mirrored by the Kotlin
+/// `Whoop5BurstIndexWidthTest` against the same synthetic frames.
+final class Whoop5BurstIndexWidthTests: XCTestCase {
+
+    /// A counter past 255 is the whole reason for the width. Read as a u8 this frame reports 0, which is
+    /// the sentinel meaning "absent", so a wrapped counter would not merely be wrong, it would vanish.
+    func testACounterPastAByteSurvives() {
+        let f = v26Frame(burstLow: 0x00, burstHigh: 0x01)   // 256
+        let p = parseFrame(f, family: .whoop5)
+        XCTAssertEqual(p.parsed["burst_index"]?.intValue, 256)
+    }
+
+    /// And the two readings agree exactly below 256, which is why every fixture we hold is unmoved: our
+    /// captures carry byte 22 = 0, so they cannot tell a u16 from a u8 beside a constant zero.
+    func testTheTwoReadingsAgreeBelow256() {
+        for low in [1, 2, 65, 255] {
+            let p = parseFrame(v26Frame(burstLow: UInt8(low), burstHigh: 0), family: .whoop5)
+            XCTAssertEqual(p.parsed["burst_index"]?.intValue, low, "index \(low) must be unchanged")
+        }
+    }
+
+    /// Zero stays the absent sentinel across both bytes, so a widened read cannot invent a burst.
+    func testZeroIsStillAbsent() {
+        let p = parseFrame(v26Frame(burstLow: 0, burstHigh: 0), family: .whoop5)
+        XCTAssertNil(p.parsed["burst_index"])
+    }
+
+    /// A v26 frame with the counter bytes planted, sealed exactly as a strap seals one.
+    private func v26Frame(burstLow: UInt8, burstHigh: UInt8) -> [UInt8] {
+        var f = bytes(v26Hex)
+        f[21] = burstLow
+        f[22] = burstHigh
+        let payloadEnd = f.count - 4
+        let c = crc32(f, 8, payloadEnd)
+        for b in 0..<4 { f[payloadEnd + b] = UInt8((c >> (8 * UInt32(b))) & 0xFF) }
+        return f
+    }
+
+    private let v26Hex =
+        "aa015000010035412f1a80ad418401f0a3266aae470100c3c5050068faccfa8dfb46fc8bfd4c"
+        + "febafedafe6dff56ffd5fffbff37ff6afce5f9d7f8dffa5efc98fddbfe5afe84fe15ff5cff40"
+        + "5fb33c50080101006cb67c17"
+
+    private func bytes(_ s: String) -> [UInt8] {
+        stride(from: 0, to: s.count, by: 2).map {
+            UInt8(s[s.index(s.startIndex, offsetBy: $0)...s.index(s.startIndex, offsetBy: $0 + 1)], radix: 16)!
+        }
+    }
+}

@@ -640,7 +640,18 @@ private fun decodeWhoop5HistoricalV26(frame: ByteArray): V26Record? {
         off += 2
     }
     if (samples.isEmpty()) return null
-    val rawBurstIndex = frame.histU8(21)
+    // Sixteen bits, not eight. The field is a per-burst COUNTER and a u8 wraps the moment it passes
+    // 255; @21 has already been observed at 65 in a real capture, so wrapping is reachable rather than
+    // hypothetical, and a wrapped counter is indistinguishable from a genuine low one.
+    //
+    // The evidence for the width is the LAYOUT, not our fixtures: 21..23 counter, 23..27 the absolute
+    // base (#2019), 27..75 the 24 deltas, which accounts for every byte between the record header and
+    // the samples with nothing left over. An independent decode of this record reads the same two bytes
+    // as one u16 LE. Every v26 frame held here carries byte 22 = 0 with an index of 1, 2 or 65, so our
+    // own captures CANNOT discriminate a u16 from a u8 beside a constant zero, and this is recorded as
+    // the weaker half of the case rather than left implied. Reading it wide is the safe direction: for
+    // every index under 256 the two readings agree exactly, and above it only the wide one is right.
+    val rawBurstIndex = frame.histU16(21)
     return V26Record(unix = unix, samples = samples,
         burstIndex = rawBurstIndex?.takeIf { it > 0 }, baseCode = baseCode)
 }
