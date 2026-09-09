@@ -98,21 +98,31 @@ public enum LiftProgramSheetImporter {
 
     /// Parse a filled-in template. Detects `.xlsx` by its ZIP magic bytes, else treats it as CSV.
     public static func parse(data: Data) throws -> LiftProgramImportResult {
-        let rows: [[String: String]]
+        let candidates: [XlsxSheet.Sheet]
         if isZip(data) {
-            rows = try XlsxSheet.rows(from: data)
+            // Every sheet, in tab order — the workbook may carry instructions, notes or the user's
+            // own scratch alongside the program, and only this parser can tell which is which.
+            candidates = try XlsxSheet.sheets(from: data)
         } else {
             let table = CSVTable(data: data)
             guard !table.headers.isEmpty else { throw ImportError.unreadable }
-            rows = table.rows
+            candidates = [XlsxSheet.Sheet(headerKeys: Set(table.normalizedHeaders.filter { !$0.isEmpty }),
+                                          rows: table.rows)]
         }
-        guard !rows.isEmpty else { throw ImportError.empty }
 
-        // An exercise column is the one thing a program sheet cannot do without.
-        let present = Set(rows.flatMap { $0.keys })
-        guard !present.isDisjoint(with: exerciseKeys) else {
+        // An exercise column is the one thing a program sheet cannot do without, so it is also how a
+        // program sheet is recognised among several. First match in tab order wins.
+        //
+        // Matched on HEADERS, not on rows, so the three failures stay distinguishable: a file that is
+        // not a program sheet at all, and a correct template nobody has filled in yet, are different
+        // mistakes and deserve different advice.
+        guard let sheet = candidates.first(where: {
+            !$0.headerKeys.isDisjoint(with: exerciseKeys)
+        }) else {
             throw ImportError.missingColumns(["exercise"])
         }
+        let rows = sheet.rows
+        guard !rows.isEmpty else { throw ImportError.empty }
 
         var programs: [ImportedProgram] = []
         var indexByName: [String: Int] = [:]
