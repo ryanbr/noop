@@ -230,10 +230,11 @@ private struct BreathingContent: View {
             on ? tonePlayer.activate() : tonePlayer.deactivate()
         }
         .onAppear {
+            model.startRealtimeHR()
             controllerBox.prepare(model: model, live: live)
             if audioCues { tonePlayer.activate() }
         }
-        .onDisappear { stop(); controller.stop(); tonePlayer.deactivate() }
+        .onDisappear { model.stopRealtimeHR(); stop(); controller.stop(); tonePlayer.deactivate() }
     }
 
     // MARK: - Mode switch

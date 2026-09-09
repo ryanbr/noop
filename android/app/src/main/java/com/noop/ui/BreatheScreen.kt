@@ -241,6 +241,14 @@ fun BreatheScreen(viewModel: AppViewModel) {
     }
     val tonePlayer = remember { BreathTonePlayer(context) }
     DisposableEffect(Unit) { onDispose { tonePlayer.release() } }
+    // Keep the realtime HR stream on while this screen is visible (ref-counted in the ViewModel, so
+    // navigating to Live — which also wants it — doesn't stop it). The BPM hero + R-R readouts are
+    // live-derived and shown before a session starts, so the want is unconditional (not gated on
+    // `running`).
+    DisposableEffect(Unit) {
+        viewModel.requestRealtimeHr()
+        onDispose { viewModel.releaseRealtimeHr() }
+    }
     var phase by remember { mutableStateOf(UiPhase.Inhale) }
     var phaseLabel by remember { mutableStateOf<String?>(null) }
     var stageIndex by remember { mutableIntStateOf(0) }
