@@ -29,11 +29,15 @@ struct LiftLiveActivity: Widget {
                         .foregroundStyle(tint)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    if let bpm = context.state.bpm {
-                        Label("\(bpm)", systemImage: "heart.fill")
-                            .font(.caption)
-                            .foregroundStyle(StrandPalette.metricRose)
+                    Label {
+                        Text(context.state.bpm.map(String.init) ?? "—").monospacedDigit()
+                    } icon: {
+                        Image(systemName: "heart.fill")
                     }
+                    .font(.caption)
+                    .foregroundStyle(context.state.bpm == nil
+                                     ? StrandPalette.textTertiary
+                                     : StrandPalette.metricRose)
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     HStack {
@@ -91,14 +95,27 @@ struct LiftLiveActivity: Widget {
 
             Spacer(minLength: 8)
 
-            VStack(alignment: .trailing, spacing: 2) {
+            // Heart rate then clock, side by side — the minimised bar's layout, because this is the
+            // same bar seen from the Lock Screen. Stacking them looked misaligned:
+            // `Text(timerInterval:)` reserves width for the widest value it could show, so a
+            // trailing-aligned timer does not visually line up with the text under it.
+            //
+            // The heart rate is ALWAYS present, dash and all. A readout that vanishes when the strap
+            // stops reading is indistinguishable from a missing feature — which is exactly how it
+            // was first reported.
+            HStack(spacing: 10) {
+                Label {
+                    Text(state.bpm.map(String.init) ?? "—").monospacedDigit()
+                } icon: {
+                    Image(systemName: "heart.fill")
+                }
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(state.bpm == nil
+                                 ? StrandPalette.textTertiary
+                                 : StrandPalette.metricRose)
+
                 clock(state, tint: tint(state))
                     .font(.system(size: 22, weight: .bold, design: .rounded))
-                if let bpm = state.bpm {
-                    Label("\(bpm)", systemImage: "heart.fill")
-                        .font(.caption)
-                        .foregroundStyle(StrandPalette.metricRose)
-                }
             }
         }
         .padding()

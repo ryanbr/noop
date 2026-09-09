@@ -47,20 +47,23 @@ struct LiftSessionBar: View {
 
                     Spacer(minLength: 0)
 
-                    // Shown only when there IS a reading, unlike the sheet's control bar, which
-                    // holds a "—" so its clocks do not shift. This is a capsule with four things
-                    // already competing for it; a permanent dash would cost width and say nothing.
-                    if let bpm = model.bpm {
-                        HStack(spacing: 3) {
-                            Image(systemName: "heart.fill")
-                                .font(.system(size: 10, weight: .semibold))
-                            Text("\(bpm)")
-                                .font(StrandFont.captionNumber)
-                                .monospacedDigit()
-                        }
-                        .foregroundStyle(StrandPalette.metricRose)
-                        .accessibilityLabel(String(localized: "Heart rate \(bpm)"))
+                    // ALWAYS shown, dash included. An earlier version hid it whenever there was no
+                    // reading, to save width on a crowded capsule — and the first thing that
+                    // produced was "there is no HR in the minimised tab", because an absent readout
+                    // is indistinguishable from an absent feature. Mid-workout the difference
+                    // matters: a dash says the strap is not reading, which is something to act on.
+                    HStack(spacing: 3) {
+                        Image(systemName: "heart.fill")
+                            .font(.system(size: 10, weight: .semibold))
+                        Text(model.bpm.map(String.init) ?? "—")
+                            .font(StrandFont.captionNumber)
+                            .monospacedDigit()
                     }
+                    .foregroundStyle(model.bpm == nil
+                                     ? StrandPalette.textTertiary
+                                     : StrandPalette.metricRose)
+                    .accessibilityLabel(model.bpm.map { String(localized: "Heart rate \($0)") }
+                                        ?? String(localized: "Heart rate"))
 
                     Text(bigClock(engine))
                         .font(StrandFont.bodyNumber)
