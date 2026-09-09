@@ -676,9 +676,15 @@ private func decodeWhoop5HistoricalV26(_ frame: [UInt8], fb: FieldBuilder) {
     }
     // PR#563: the remaining per-record v26 bytes, surfaced as RAW NEUTRAL fields — read off the real
     // fixtures but with NO invented semantics (deliberately not named segment_id / signal_quality / etc.).
-    // Each is gated only to "present in range"; meaning is unpinned. The header @19/@23/@25 frame the
-    // waveform block; @75/@79/@81/@82 trail it. (`@27…@75` is the proven waveform handled above.)
-    for (name, off) in [("raw_u8_19", 19), ("raw_u8_23", 23), ("raw_u8_25", 25),
+    // Each is gated only to "present in range"; meaning is unpinned. @19 sits ahead of the waveform
+    // block and @75/@79/@81/@82 trail it. (`@27…@75` is the proven waveform handled above.)
+    //
+    // @23 and @25 USED to be here, described as framing the block. They are not: #2019 identified
+    // @23…@27 as the window's absolute optical base, which `ppg_base_code` above now carries as one u32.
+    // Leaving them would describe the same two bytes twice, once as an identified field and once as a
+    // byte whose "meaning is not pinned", and the second reading is simply no longer true. A field
+    // viewer showing both would invite someone to re-derive what has already been worked out.
+    for (name, off) in [("raw_u8_19", 19),
                         ("raw_u8_75", 75), ("raw_u8_79", 79), ("raw_u8_81", 81), ("raw_u8_82", 82)] {
         if let v = readDType(frame, off, "u8") {
             fb.add(off, 1, name, "raw", value: .int(v), note: "raw byte @\(off); meaning not pinned")

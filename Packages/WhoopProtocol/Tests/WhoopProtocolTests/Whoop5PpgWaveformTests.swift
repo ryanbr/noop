@@ -253,6 +253,16 @@ final class Whoop5BurstIndexWidthTests: XCTestCase {
         XCTAssertNil(p.parsed["burst_index"])
     }
 
+    /// The case where the two readings DISAGREE, pinned so the choice is deliberate rather than
+    /// incidental. A low byte of 0 with a high byte set reads as absent under a u8 and as 1280 under a
+    /// u16. If the high byte really is the counter's, 1280 is right and the u8 lost the burst entirely.
+    /// If it is a separate field, this is where a fabricated index would come from, which is why the
+    /// falsifiable prediction is a persisted index jumping by a multiple of 256.
+    func testTheDivergentCaseIsPinned() {
+        let p = parseFrame(v26Frame(burstLow: 0, burstHigh: 5), family: .whoop5)
+        XCTAssertEqual(p.parsed["burst_index"]?.intValue, 1280)
+    }
+
     /// A v26 frame with the counter bytes planted, sealed exactly as a strap seals one.
     private func v26Frame(burstLow: UInt8, burstHigh: UInt8) -> [UInt8] {
         var f = bytes(v26Hex)

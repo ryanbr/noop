@@ -37,6 +37,18 @@ class Whoop5BurstIndexWidthTest {
     }
 
     /**
+     * The case where the two readings DISAGREE, pinned so the choice is deliberate rather than
+     * incidental. A low byte of 0 with a high byte set reads as absent under a u8 and as 1280 under a
+     * u16. If the high byte really is the counter's, 1280 is right and the u8 lost the burst entirely.
+     * If it is a separate field, this is where a fabricated index would come from, which is why the
+     * falsifiable prediction is a persisted index jumping by a multiple of 256.
+     */
+    @Test
+    fun theDivergentCaseIsPinned() {
+        assertEquals(1280, burstIndexOf(v26Frame(0, 5)))
+    }
+
+    /**
      * v26 does NOT go through [decodeHistorical] on this platform: that function returns null for it, and
      * the layout is decoded by `decodeWhoop5HistoricalV26` from [extractHistoricalStreams] instead. The
      * burst index is only observable on the row that comes out, which is also where it is persisted from,
