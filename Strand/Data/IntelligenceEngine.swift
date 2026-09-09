@@ -2771,7 +2771,15 @@ final class IntelligenceEngine: ObservableObject {
             else if isImport { priority = 2 }
             else { priority = 1 }
             return (d.id, priority)
-        }.sorted { $0.priority < $1.priority }
+        }
+        // Sorted on (priority, ORIGINAL INDEX), not priority alone. Swift's `sorted` is not a stable sort
+        // by contract, so two candidates sharing a priority — which two non-active straps do, both being
+        // priority 1 — could come back in either order and the first-with-data probe would then pick
+        // either one. Kotlin's `sortedBy` is stable and its resolver's `minByOrNull` takes the first
+        // minimum, so leaving this to the sort would let the platforms disagree on a tie. Carrying the
+        // index makes the order total and matches Kotlin exactly.
+        .enumerated().sorted { ($0.element.priority, $0.offset) < ($1.element.priority, $1.offset) }
+        .map(\.element)
         for c in ranked {
             if (try? await store.hasHrInWindow(deviceId: c.id, from: from, to: to)) == true { return c.id }
         }

@@ -14,7 +14,9 @@ final class DayOwnerResolverEquivalenceTests: XCTestCase {
     /// The short-circuit, over a pre-computed data map so it can be compared exhaustively.
     private func shortCircuit(_ candidates: [(id: String, priority: Int)],
                               _ hasData: [String: Bool]) -> String? {
-        candidates.sorted { $0.priority < $1.priority }.first { hasData[$0.id] == true }?.id
+        candidates.enumerated()
+            .sorted { ($0.element.priority, $0.offset) < ($1.element.priority, $1.offset) }
+            .first { hasData[$0.element.id] == true }?.element.id
     }
 
     /// Every data pattern over a three-candidate set with distinct priorities. If the two ever disagree
@@ -39,6 +41,20 @@ final class DayOwnerResolverEquivalenceTests: XCTestCase {
         let reversed: [(id: String, priority: Int)] = [("import", 2), ("second", 1), ("active", 0)]
         let hasData = ["active": true, "second": true, "import": true]
         XCTAssertEqual(shortCircuit(reversed, hasData), "active")
+    }
+
+    /// TIED priorities, which two non-active straps have: both are priority 1. The answer must be the
+    /// FIRST of them in list order, deterministically, on both platforms.
+    ///
+    /// This is the case the short-circuit could have got wrong. Swift's `sorted` is not stable by
+    /// contract, so ordering on priority alone left a tie free to come back either way, while Kotlin's
+    /// `sortedBy` is stable and its resolver takes the first minimum. The probe therefore sorts on
+    /// (priority, original index), which is a total order and agrees with Kotlin by construction.
+    func testTiedPrioritiesResolveToTheFirstInListOrder() {
+        let tied: [(id: String, priority: Int)] = [("strapA", 1), ("strapB", 1)]
+        XCTAssertEqual(shortCircuit(tied, ["strapA": true, "strapB": true]), "strapA")
+        // And when the first of the tie has NO data, the second wins rather than nothing.
+        XCTAssertEqual(shortCircuit(tied, ["strapA": false, "strapB": true]), "strapB")
     }
 
     /// Nobody with data yields nobody, so the caller falls back to its own id rather than guessing.

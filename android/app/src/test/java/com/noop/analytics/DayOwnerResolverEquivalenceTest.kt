@@ -59,6 +59,33 @@ class DayOwnerResolverEquivalenceTest {
         )
     }
 
+    /**
+     * TIED priorities, which two non-active straps have: both are priority 1. The answer must be the
+     * FIRST of them in list order, deterministically, on both platforms.
+     *
+     * This is the case the short-circuit could have got wrong. Kotlin is safe by luck of the library:
+     * `sortedBy` is stable and `minByOrNull` takes the first minimum. Swift's `sorted` is NOT stable by
+     * contract, so its probe sorts on (priority, original index) to reach the same answer by
+     * construction rather than by a sort's incidental behaviour.
+     */
+    @Test
+    fun tiedPrioritiesResolveToTheFirstInListOrder() {
+        val tied = listOf("strapA" to 1, "strapB" to 1)
+        assertEquals("strapA", shortCircuit(tied, mapOf("strapA" to true, "strapB" to true)))
+        // And when the first of the tie has NO data, the second wins rather than nothing.
+        assertEquals("strapB", shortCircuit(tied, mapOf("strapA" to false, "strapB" to true)))
+        // The resolver agrees: minByOrNull returns the FIRST minimum among candidates with data.
+        assertEquals(
+            "strapA",
+            DayOwnerResolver.resolve(
+                day = "2026-09-09", lockedOwner = null,
+                candidates = tied.map { (id, p) ->
+                    DayOwnerResolver.Candidate(deviceId = id, priority = p, hasData = true)
+                },
+            ),
+        )
+    }
+
     /** Nobody with data yields nobody, so the caller falls back to its imported id rather than guessing. */
     @Test
     fun noCandidateWithDataResolvesToNothing() {
