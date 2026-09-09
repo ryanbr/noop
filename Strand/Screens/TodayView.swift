@@ -3156,7 +3156,8 @@ struct TodayView: View {
             }
             heroRingColumn(section: .effort, domain: .effort) { effortRing(d: d, diameter: ring) }
             heroRingColumn(section: .rest, domain: .rest, provenanceKey: "sleep_performance",
-                           caption: restIsPendingSync ? "Pending sync" : nil) { restRing(diameter: ring) }
+                           caption: restIsPendingSync ? "Pending sync" : nil,
+                           captionWidth: ring) { restRing(diameter: ring) }
         }
         .frame(maxWidth: .infinity, alignment: .center)
         // Zero-impact width reader: a clear background that publishes the row's width up via preference. It
@@ -3210,6 +3211,7 @@ struct TodayView: View {
     private func heroRingColumn<RingBody: View>(
         section: ScoreSection, domain: DomainTheme, provenanceKey: String? = nil,
         onRingTap: (() -> Void)? = nil, caption: String? = nil,
+        captionWidth: CGFloat = 98,
         @ViewBuilder ring: () -> RingBody
     ) -> some View {
         VStack(spacing: 8) {
@@ -3287,12 +3289,18 @@ struct TodayView: View {
             // column's badge a line lower than its neighbours'. The row is top-aligned and self-sizing
             // (#762), so a caption grows the row and leaves every ring where it was.
             if let caption {
+                // Bounded to the RING's width, not left to size itself. Unlike Android, whose three hero
+                // columns are laid out at a fixed `col` width, these columns take the width of what is in
+                // them — so an unbounded caption would widen this one on a longer translation and tip the
+                // trio off centre. Two lines at the ring's width fits the longest of them; the shrink is
+                // the same allowance the domain label above it already uses.
                 Text(caption)
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textTertiary)
-                    .lineLimit(1)
+                    .lineLimit(2)
                     .minimumScaleFactor(0.7)
                     .multilineTextAlignment(.center)
+                    .frame(maxWidth: captionWidth)
             }
         }
     }
