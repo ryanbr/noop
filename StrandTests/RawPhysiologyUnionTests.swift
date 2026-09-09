@@ -82,6 +82,37 @@ final class RawPhysiologyUnionTests: XCTestCase {
         XCTAssertEqual(motion[1_000] ?? [], [0.1, 0.2])
     }
 
+    /// The batched read resolves EVERY session, not just the first.
+    ///
+    /// The per-session shape this replaced asked the store once per session per candidate device; it now
+    /// takes one windowed read per device and resolves each block against that. The failure a batched
+    /// version can have is a partial map: a span or page bound that covers the first night and quietly
+    /// drops the rest, which looks exactly like "those nights have no motion" rather than like a bug.
+    /// Three nights spread across the window, each with its own series, so a truncation is visible.
+    @MainActor
+    func testSessionMotionsResolvesEveryNightInOneBatch() async throws {
+        let store = try await WhoopStore.inMemory()
+        let starts = [1_000, 200_000, 900_000]
+        let sessions = starts.map {
+            CachedSleepSession(startTs: $0, endTs: $0 + 4_000, efficiency: 0.9,
+                               restingHr: 52, avgHrv: 60, stagesJSON: nil)
+        }
+        _ = try await store.upsertSleepSessions(sessions, deviceId: "my-whoop")
+        _ = try await store.upsertSleepSessions(sessions, deviceId: "my-whoop-noop")
+        for (i, start) in starts.enumerated() {
+            _ = try await store.persistSessionMotion(deviceId: "my-whoop-noop", sessionStart: start,
+                                                     motionEpochs: [Double(i) + 0.5])
+        }
+        let repo = Repository(deviceId: "my-whoop")
+        repo.setStoreForTesting(store)
+
+        let motion = await repo.sessionMotions(sessions: sessions)
+        XCTAssertEqual(motion.count, starts.count, "a night dropped by the batch reads as having no motion")
+        for (i, start) in starts.enumerated() {
+            XCTAssertEqual(motion[start] ?? [], [Double(i) + 0.5], "night at \(start) got another night's series")
+        }
+    }
+
     @MainActor
     func testArchivedStrapNightsTeachHabitualMidsleep() async throws {
         let store = try await WhoopStore.inMemory()

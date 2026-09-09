@@ -1305,15 +1305,47 @@ final class Repository: ObservableObject {
         guard !sessions.isEmpty, let store = await ensureStore() else { return [:] }
         let rawIds = rawPhysiologyReadIds(store: store)
         let computedIds = rawComputedReadIds(store: store)
+
+        // ONE read per candidate device, instead of a query per session per device to resolve the owner
+        // plus one more per session to read its motion. That per-session shape cost hundreds of sequential
+        // round trips on a browsable history, all before the Sleep screen could settle. The resolution and
+        // precedence below are unchanged; only where the rows come from moved.
+        //
+        // The motion half reuses `store.sessionMotions(deviceId:sessionStarts:)`, which already exists and
+        // already chunks its IN list under SQLite's parameter ceiling. It was written for the Sleep tab's
+        // main-night group and this caller simply never adopted it.
+        //
+        // The `-noop` variants are prefetched too. `ownerComputed` appends the suffix to whichever id won,
+        // so it can name a device in NEITHER list, and the old code queried it directly. Prefetching only
+        // the two lists would silently return no motion for exactly those sessions.
+        let candidateIds = (rawIds + computedIds)
+            .flatMap { [$0, $0.hasSuffix("-noop") ? $0 : $0 + "-noop"] }
+            .reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
+        let starts = sessions.map(\.startTs)
+        let lo = starts.min() ?? 0
+        let hi = starts.max() ?? 0
+        // Generous: one device cannot hold more rows in this span than the un-deduplicated union does,
+        // and a truncated page would silently fail to resolve the owners it dropped.
+        let pageLimit = max(sessions.count * 2, 256)
+        var boundsByDevice: [String: [Int: Int]] = [:]   // deviceId -> startTs -> endTs
+        var motionByDevice: [String: [Int: [Double]]] = [:]
+        for id in candidateIds {
+            let rows = (try? await store.sleepSessions(deviceId: id, from: lo, to: hi,
+                                                       limit: pageLimit)) ?? []
+            boundsByDevice[id] = Dictionary(rows.map { ($0.startTs, $0.endTs) },
+                                            uniquingKeysWith: { first, _ in first })
+            motionByDevice[id] = (try? await store.sessionMotions(deviceId: id,
+                                                                  sessionStarts: starts)) ?? [:]
+        }
+
         var out: [Int: [Double]] = [:]
         for session in sessions where out[session.startTs] == nil {
             // CachedSleepSession has no provenance field. Re-resolve the exact visible block using the
-            // same imported-wins order as allSleepSessions, then probe its computed owner first.
+            // same imported-wins order as allSleepSessions, then probe its computed owner first. Matching
+            // BOTH bounds still, since a start alone can be shared by a raw row and its computed twin.
             var owner: String?
             for id in rawIds + computedIds {
-                let rows = (try? await store.sleepSessions(deviceId: id, from: session.startTs,
-                                                           to: session.startTs, limit: 4)) ?? []
-                if rows.contains(where: { $0.startTs == session.startTs && $0.endTs == session.endTs }) {
+                if boundsByDevice[id]?[session.startTs] == session.endTs {
                     owner = id
                     break
                 }
@@ -1323,8 +1355,7 @@ final class Repository: ObservableObject {
                 if !$0.contains($1) { $0.append($1) }
             }
             for id in sources {
-                if let motion = (try? await store.sessionMotion(deviceId: id, sessionStart: session.startTs)) ?? nil,
-                   !motion.isEmpty {
+                if let motion = motionByDevice[id]?[session.startTs], !motion.isEmpty {
                     out[session.startTs] = motion
                     break
                 }

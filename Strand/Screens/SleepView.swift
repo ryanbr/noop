@@ -66,6 +66,15 @@ struct SleepView: View {
     /// merges each day into one Night, so a split day reads as one correctly-totalled night with the
     /// gaps preserved. Oldest→newest. Falls back to `repo.sleeps` until loaded. (#170)
     @State private var allSessions: [CachedSleepSession] = []
+    /// `navDays` memoized, rebuilt where `model` is.
+    ///
+    /// Grouping calls `Calendar.startOfDay` once per session, and the browsable history is every block
+    /// ever recorded, so recomputing it per render is a per-frame pass over years of nights. Body reaches
+    /// it more than once (the wake-timestamp list, and `dayBlocks(at:)` for the source blocks), so a
+    /// scroll paid it repeatedly. Invalidated by the same two paths that rebuild `model`: `dataKey`
+    /// covers a `repo.sleeps` change, and the refresh task covers `allSessions` reloading. Nil falls back
+    /// to computing it, so a first render before either has run is correct rather than empty.
+    @State private var navDaysCache: [[CachedSleepSession]]?
 
     /// The user's LEARNED habitual midsleep (local time-of-day seconds), or nil under the cold-start
     /// threshold. Loaded from `repo.habitualMidsleepSec()` — the SAME value `AnalyticsEngine.analyzeDay`
@@ -178,6 +187,7 @@ struct SleepView: View {
             // `resolved` already drives THIS frame, so there is no flash and no extra rebuild.
             .onChangeCompat(of: key) { newKey in
                 modelKey = newKey
+                navDaysCache = SleepModel.navDays(navSessions: navSessions)
                 model = buildModel()
                 // New data invalidates a navigated offset — the same offset would silently
                 // point at a different session. Snap back to last night. (#160)
@@ -213,6 +223,7 @@ struct SleepView: View {
                 nightOffset = 0
                 navNight = nil
                 modelKey = dataKey
+                navDaysCache = SleepModel.navDays(navSessions: navSessions)
                 model = buildModel()
             }
             .sheet(item: $wakeEdit) { edit in
@@ -1777,7 +1788,7 @@ struct SleepView: View {
     /// The browsable DAY list — a thin wrapper over the shared `SleepModel.navDays`, which is the
     /// source of truth the builder and the ◀/▶ nav both read (no duplicated grouping). (#170)
     private var navDays: [[CachedSleepSession]] {
-        SleepModel.navDays(navSessions: navSessions)
+        navDaysCache ?? SleepModel.navDays(navSessions: navSessions)
     }
 
     /// The device's current UTC offset (seconds east), evaluated once per pick. Feeds the selector's
