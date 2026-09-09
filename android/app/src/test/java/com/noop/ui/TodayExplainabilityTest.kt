@@ -126,29 +126,30 @@ class TodayExplainabilityTest {
      * The flag that drives this must not be able to latch on forever, which is the failure both
      * `shouldAutoContinue` guards already exist for: a future-dated strap clock reads ahead of ANY
      * frontier, and a phantom gap advertises newer data while banking no rows. Either would pin Rest to
-     * "Pending sync" and never show a score, which is worse than the provisional number it replaces.
+     * "Pending sync" forever. Since #2012 that no longer withholds the number, so it is a stuck caption
+     * rather than a blank ring — still wrong, and still a contract the caller owes.
      * The helper itself is pure, so this pins the CONTRACT it is handed: a caller must not pass true
      * for a gap it cannot close.
      */
     @Test
-    fun restPendingSyncOnlySuppressesWhileThereIsAScoreAndTodayIsSelected() {
-        // A gap the caller has judged real: suppress.
+    fun restPendingSyncOnlyMarksWhileThereIsAScoreAndTodayIsSelected() {
+        // A gap the caller has judged real: mark the score provisional (#2012: mark, never hide).
         assertTrue(restPendingSync(restScore = 71.0, backfilling = false,
                                    historyPendingSync = true, isTodaySelected = true))
-        // No score yet: calibrating / no-data states own that, so never fabricate a suppression.
+        // No score yet: calibrating / no-data states own that, so never claim a pending score.
         assertFalse(restPendingSync(restScore = null, backfilling = true,
                                     historyPendingSync = true, isTodaySelected = true))
         // A past day is final, whatever the strap is doing now.
         assertFalse(restPendingSync(restScore = 71.0, backfilling = true,
                                     historyPendingSync = true, isTodaySelected = false))
-        // Caught up and idle: show the number.
+        // Caught up and idle: no caption. The number shows either way since #2012.
         assertFalse(restPendingSync(restScore = 71.0, backfilling = false,
                                     historyPendingSync = false, isTodaySelected = true))
     }
 
     @Test
     fun restPendingSync_backfillingWithRestScore_showsPending() {
-        // An active offload with today's Rest present → pending, not a provisional number.
+        // An active offload with today's Rest present → the score is captioned as pending.
         assertTrue(restPendingSync(restScore = 72.0, backfilling = true, historyPendingSync = false, isTodaySelected = true))
     }
 
@@ -167,7 +168,7 @@ class TodayExplainabilityTest {
 
     @Test
     fun restPendingSync_noRestScore_neverPending_evenWithSignals() {
-        // No Rest score → never pending (pending suppresses a provisional NUMBER; it does not fabricate
+        // No Rest score → never pending (pending annotates an existing NUMBER; it does not fabricate
         // one when there is none — the calibrating/no-data states already cover that).
         assertFalse(restPendingSync(restScore = null, backfilling = true, historyPendingSync = true, isTodaySelected = true))
     }

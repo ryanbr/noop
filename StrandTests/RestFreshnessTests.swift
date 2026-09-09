@@ -60,7 +60,8 @@ final class RestFreshnessTests: XCTestCase {
 
     // MARK: - #1164 Rest pending-sync (provisional before full offload)
 
-    /// An active offload (`backfilling`) with today's Rest present → pending, not a provisional number.
+    /// An active offload (`backfilling`) with today's Rest present → the score is captioned as pending.
+    /// #2012: "pending" marks the number, it does not withhold it.
     func testPendingSync_backfillingWithRestScore_showsPending() {
         XCTAssertTrue(TodayView.restPendingSync(
             restScore: 72, backfilling: true, historyPendingSync: false, isTodaySelected: true))

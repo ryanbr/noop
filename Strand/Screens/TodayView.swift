@@ -733,10 +733,14 @@ struct TodayView: View {
         return lastValue
     }
 
-    /// #1164 — should today's Rest show "Pending sync" instead of a provisional number? When the strap has
-    /// banked records not yet offloaded, the Rest score is computed from partial data and will change once
-    /// the full night lands and `analyzeRecent` re-scores it. Surfacing it as "Pending sync" rather than a
-    /// confident number that then moves reads honestly instead of as a bug.
+    /// #1164/#2012 — should today's Rest be MARKED provisional? When the strap has banked records not yet
+    /// offloaded, the Rest score is computed from partial data and may change once the full night lands and
+    /// `analyzeRecent` re-scores it. Saying so reads honestly instead of as a bug when the number moves.
+    ///
+    /// True means "caption it as pending", NOT "hide it". #2012: the number used to be withheld on both
+    /// surfaces while this was true, so a user whose night was scored saw nothing for as long as the strap
+    /// had anything left to send, which on a continuously banking strap is most of the day. A number that
+    /// may still move is not the same as no number, and it is the one the screen exists to show.
     ///
     /// Two honest signals, either of which means more data is expected:
     /// - `backfilling`: an offload is actively running right now (data is draining).
@@ -745,8 +749,8 @@ struct TodayView: View {
     ///   before the first offload starts).
     ///
     /// Only applies to TODAY (a past day's score is final — no more data is coming for it) and only when a
-    /// Rest score EXISTS (pending suppresses a provisional number; it does not fabricate one when there is
-    /// none). Pure + unit-testable. Mirror EXACTLY in Kotlin.
+    /// Rest score EXISTS (pending annotates a score; it never fabricates one where there is none). Pure +
+    /// unit-testable. Mirror EXACTLY in Kotlin.
     static func restPendingSync(restScore: Double?, backfilling: Bool,
                                 historyPendingSync: Bool, isTodaySelected: Bool) -> Bool {
         guard isTodaySelected, restScore != nil else { return false }
@@ -3257,14 +3261,6 @@ struct TodayView: View {
             .buttonStyle(.plain)
             .accessibilityLabel(onRingTap == nil ? Self.domainGuideAccessibilityLabel(domain)
                                                   : "See what shaped your Charge")
-            if let caption {
-                Text(caption)
-                    .font(StrandFont.footnote)
-                    .foregroundStyle(StrandPalette.textTertiary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                    .multilineTextAlignment(.center)
-            }
             // Component 4, the real per-day source under the ring (only when this score has a value for
             // the day AND we resolved its winner; a calibrating / empty ring shows no provenance badge).
             // Apple Watch (M1): a watch-sourced score reads "Apple Watch" with its confidence bound to the
@@ -3285,6 +3281,18 @@ struct TodayView: View {
                     SourceBadge("\(label)", tint: provenanceTint(key))
                         .accessibilityLabel("Source: \(label)")
                 }
+            }
+            // LAST in the column, below the provenance badge rather than above it. The badges sit at the
+            // same height across the three columns and a caption on one of them must not push that
+            // column's badge a line lower than its neighbours'. The row is top-aligned and self-sizing
+            // (#762), so a caption grows the row and leaves every ring where it was.
+            if let caption {
+                Text(caption)
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .multilineTextAlignment(.center)
             }
         }
     }
