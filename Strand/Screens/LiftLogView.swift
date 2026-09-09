@@ -25,6 +25,7 @@ struct LiftLogView: View {
 
     /// The program being created or edited (nil = the editor is closed).
     @State private var editing: ProgramEditTarget?
+    @State private var importing = false
     /// The live session, owned at the app root so it survives this screen going away.
     @EnvironmentObject private var session: LiftSessionController
     /// Recent finished sessions, newest first.
@@ -55,6 +56,9 @@ struct LiftLogView: View {
             LiftProgramEditorSheet(program: target.program) {
                 await load()
             }
+        }
+        .sheet(isPresented: $importing) {
+            LiftProgramImportSheet { await load() }
         }
         .sheet(item: $viewing) { target in
             LiftSessionDetailSheet(session: target.session)
@@ -108,12 +112,23 @@ struct LiftLogView: View {
                 }
             }
 
-            Button {
-                editing = ProgramEditTarget(id: "new", program: nil)
-            } label: {
-                Label("New program", systemImage: "plus")
+            HStack(spacing: 10) {
+                Button {
+                    editing = ProgramEditTarget(id: "new", program: nil)
+                } label: {
+                    Label("New program", systemImage: "plus")
+                }
+                .buttonStyle(NoopButtonStyle(.secondary))
+
+                // Filling a dozen exercise lines by hand on a phone is the most tedious thing in the
+                // feature; a spreadsheet on a computer does it in a couple of minutes.
+                Button {
+                    importing = true
+                } label: {
+                    Label("Import", systemImage: "tablecells")
+                }
+                .buttonStyle(NoopButtonStyle(.secondary))
             }
-            .buttonStyle(NoopButtonStyle(.secondary))
         }
     }
 
