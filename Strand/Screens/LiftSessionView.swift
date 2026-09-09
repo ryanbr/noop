@@ -45,6 +45,19 @@ struct LiftSessionView: View {
         case weight(LiftSlot), reps(LiftSlot), rpe(LiftSlot), sessionRpe
     }
 
+    /// What the user has TYPED into a field, held until they leave it.
+    ///
+    /// Without this a numeric field cannot accept a decimal at all. Each binding read its text back
+    /// out of the engine, so every keystroke round-tripped through `LiftFormat` and was replaced by
+    /// the canonical rendering of the parsed value. Typing "45." parsed to 45, re-rendered as "45",
+    /// and the point vanished as it was typed — then the next keystroke made "455". A user entering
+    /// 45.5 kg silently got 455 kg, which is the shape of bug this feature has to stop having.
+    ///
+    /// So while a field is focused it shows exactly what was typed; the parsed value still goes to
+    /// the engine and to disk on every keystroke, so nothing about durability changes. The draft is
+    /// dropped when focus leaves and the row goes back to the canonical formatting.
+    @State private var draft: [FocusTarget: String] = [:]
+
     private var engine: LiftSessionEngine? { session.engine }
 
     var body: some View {
@@ -69,6 +82,12 @@ struct LiftSessionView: View {
         .keyboardDoneToolbar($focused)
         .dismissesKeyboardOnTap($focused)
         .task { await loadLastTime() }
+        // Release a field's draft once the user leaves it, so the row returns to the canonical
+        // formatting ("45.50" typed becomes "45.5"). The single-argument form on purpose: the
+        // two-argument `onChange` is macOS 14+ and this file also builds for macOS 13.
+        .onChange(of: focused) { now in
+            draft = draft.filter { $0.key == now }
+        }
         .sheet(isPresented: $showingFinish) { finishSheet }
     }
 
@@ -345,30 +364,49 @@ struct LiftSessionView: View {
     // disk immediately. Typing into a set that has not been completed yet is allowed — you may want
     // to plan the next one — and is held until the set is recorded.
 
-    private func weightBinding(_ slot: LiftSlot) -> Binding<String> {
+    /// A text binding that does not fight the user while they type: reads the draft if there is one,
+    /// otherwise the canonical rendering of what is stored.
+    ///
+    /// A typed comma becomes a point on the way in. iOS's `.decimalPad` labels its separator key
+    /// from the DEVICE's region — a German or French phone offers "," and the app cannot relabel it
+    /// — so the two would otherwise disagree with the "." this screen displays everywhere else.
+    /// Normalising here means the field always reads back in the notation it shows, whichever key
+    /// the keyboard happened to offer.
+    private func fieldBinding(_ field: FocusTarget,
+                              formatted: @escaping () -> String,
+                              store: @escaping (String) -> Void) -> Binding<String> {
         Binding(
-            get: {
-                guard let kg = engine?.recordedSet(for: slot)?.weightKg else { return "" }
-                return display(kg)
-            },
-            set: { new in
-                let kg = LiftFormat.number(new).map {
-                    LiftFormat.kilograms(fromDisplay: $0, system: unitSystem)
-                }
-                write(slot) { $0.weightKg = kg }
+            get: { draft[field] ?? formatted() },
+            set: { typed in
+                let text = typed.replacingOccurrences(of: ",", with: ".")
+                draft[field] = text
+                store(text)
             })
     }
 
+    private func weightBinding(_ slot: LiftSlot) -> Binding<String> {
+        fieldBinding(.weight(slot),
+                     formatted: { engine?.recordedSet(for: slot)?.weightKg.map { display($0) } ?? "" },
+                     store: { text in
+                         let kg = LiftFormat.number(text).map {
+                             LiftFormat.kilograms(fromDisplay: $0, system: unitSystem)
+                         }
+                         write(slot) { $0.weightKg = kg }
+                     })
+    }
+
     private func repsBinding(_ slot: LiftSlot) -> Binding<String> {
-        Binding(
-            get: { engine?.recordedSet(for: slot)?.reps.map(String.init) ?? "" },
-            set: { new in write(slot) { $0.reps = Int(new.trimmingCharacters(in: .whitespaces)) } })
+        fieldBinding(.reps(slot),
+                     formatted: { engine?.recordedSet(for: slot)?.reps.map(String.init) ?? "" },
+                     store: { text in
+                         write(slot) { $0.reps = Int(text.trimmingCharacters(in: .whitespaces)) }
+                     })
     }
 
     private func rpeBinding(_ slot: LiftSlot) -> Binding<String> {
-        Binding(
-            get: { engine?.recordedSet(for: slot)?.rpe.map { LiftFormat.trim($0) } ?? "" },
-            set: { new in write(slot) { $0.rpe = LiftFormat.number(new) } })
+        fieldBinding(.rpe(slot),
+                     formatted: { engine?.recordedSet(for: slot)?.rpe.map { LiftFormat.trim($0) } ?? "" },
+                     store: { text in write(slot) { $0.rpe = LiftFormat.number(text) } })
     }
 
     /// Apply one field change to a recorded set, leaving the others as they were.
