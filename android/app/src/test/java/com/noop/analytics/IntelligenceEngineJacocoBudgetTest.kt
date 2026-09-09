@@ -208,7 +208,7 @@ class IntelligenceEngineJacocoBudgetTest {
      * volume. Deliberately NOT cold on the second invocation.
      */
     @Test
-    fun asecondPassOverUnchangedDaysReadsNoGravity() {
+    fun aSecondPassOverUnchangedDaysReadsNoGravity() {
         val first = arrayListOf<String>()
         invokeExtractedBlock(
             repo = recordingRepository(first),

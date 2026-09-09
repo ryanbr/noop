@@ -1,7 +1,11 @@
 package com.noop.analytics
 
+import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import java.nio.file.Path
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -56,5 +60,52 @@ class StepsMotionCacheTest {
         // seeing it on every pass is the symptom that the key is moving when it should not.
         assertEquals("analyzeRecent stepsMotion reused=0/60 size=60",
             StepsMotionCache.logLine(0, 60, 60))
+    }
+
+    /**
+     * The invariant the whole cache rests on, and the one that would fail SILENTLY.
+     *
+     * A day is re-folded only when its gravity witness (row count and newest timestamp) moves. That is
+     * sound only while re-offloading a second already banked cannot rewrite its vector: with
+     * `OnConflictStrategy.IGNORE` the first value stands, so an unchanged witness means an unchanged
+     * fold. Flip it to REPLACE and the values under a day change while its count and newest timestamp
+     * hold still — the cache then serves a motion volume for data it no longer describes, with no
+     * failing read anywhere to notice.
+     *
+     * Asserted against the SOURCE rather than the annotation: Room's annotations are not retained at
+     * runtime, and this module has no Robolectric or in-memory Room, so the DAO cannot be exercised in a
+     * JVM unit test. The Swift twin pins the same contract behaviourally in `GravityWitnessTests`.
+     */
+    @Test
+    fun gravityInsertsMustKeepTheFirstVectorNotTheNewest() {
+        val dao = String(Files.readAllBytes(locateDaoSource()), StandardCharsets.UTF_8)
+        val declaration = Regex("""@Insert\(onConflict = OnConflictStrategy\.(\w+)\)\s*\n\s*suspend fun insertGravity\b""")
+            .find(dao)
+        assertTrue("Could not find the insertGravity declaration in WhoopDao.kt", declaration != null)
+        assertEquals(
+            "gravitySample inserts must IGNORE a conflicting second; REPLACE would rewrite a vector " +
+                "under an unchanged StepsMotionCache witness",
+            "IGNORE",
+            declaration!!.groupValues[1],
+        )
+    }
+
+    private fun locateDaoSource(): Path {
+        val suffixes = listOf(
+            Path.of("app/src/main/java/com/noop/data/WhoopDao.kt"),
+            Path.of("src/main/java/com/noop/data/WhoopDao.kt"),
+        )
+        val matches = LinkedHashSet<Path>()
+        var directory: Path? = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize()
+        while (directory != null) {
+            for (suffix in suffixes) {
+                val candidate = directory.resolve(suffix).normalize()
+                if (Files.isRegularFile(candidate)) matches.add(candidate.toRealPath())
+            }
+            directory = directory.parent
+        }
+        assertEquals("Could not locate WhoopDao.kt from user.dir=${System.getProperty("user.dir")}: $matches",
+            1, matches.size)
+        return matches.single()
     }
 }
