@@ -137,6 +137,8 @@ struct LiftSessionView: View {
 
                 ForEach(engine.slots(forExercise: index), id: \.self) { slot in
                     setRow(engine, slot: slot, item: item)
+                    // The rest belongs BETWEEN two sets, because that is where it happens.
+                    if isRestingAfter(engine, slot: slot) { restBand(engine) }
                 }
             }
         }
@@ -178,10 +180,6 @@ struct LiftSessionView: View {
     private func setRow(_ engine: LiftSessionEngine, slot: LiftSlot, item: LiftPlanItem) -> some View {
         let recorded = engine.recordedSet(for: slot)
         let isWorking = engine.stage == .working(slot)
-        let isResting: Bool = {
-            if case .resting(let s, _) = engine.stage { return s == slot }
-            return false
-        }()
 
         return HStack(spacing: 8) {
             // The set number IS the warm-up toggle. Warm-ups are excluded from volume and from the
@@ -233,7 +231,7 @@ struct LiftSessionView: View {
         }
         .padding(.vertical, 6)
         .padding(.horizontal, 8)
-        .background(rowBackground(isWorking: isWorking, isResting: isResting, done: recorded != nil),
+        .background(rowBackground(isWorking: isWorking, done: recorded != nil),
                     in: RoundedRectangle(cornerRadius: 8, style: .continuous))
     }
 
@@ -245,12 +243,53 @@ struct LiftSessionView: View {
         session.setWarmup(slot, !session.isWarmup(slot))
     }
 
-    /// Green = working now, amber = the rest that follows it, faint = done, clear = still to come.
-    private func rowBackground(isWorking: Bool, isResting: Bool, done: Bool) -> Color {
+    /// Green = working now, faint = done, clear = still to come.
+    ///
+    /// Deliberately no amber case. Tinting the just-finished SET amber said the wrong thing: the set
+    /// is over, and what is running is the gap after it. The rest is drawn as its own band between
+    /// the two set rows instead — see `restBand`.
+    private func rowBackground(isWorking: Bool, done: Bool) -> Color {
         if isWorking { return StrandPalette.statusPositive.opacity(0.20) }
-        if isResting { return StrandPalette.metricAmber.opacity(0.20) }
         if done { return StrandPalette.surfaceRaised.opacity(0.5) }
         return .clear
+    }
+
+    private func isRestingAfter(_ engine: LiftSessionEngine, slot: LiftSlot) -> Bool {
+        if case .resting(let s, _) = engine.stage { return s == slot }
+        return false
+    }
+
+    /// The running rest, drawn as an amber band sitting BETWEEN the set that ended and the set that
+    /// follows — which is literally where a rest is.
+    ///
+    /// It replaces tinting the finished set's row amber. That read as "this set is amber" when the
+    /// set was already done, and from across a gym floor it was not obvious which gap was running.
+    /// A band in the gap is unambiguous at a glance, which is the whole requirement: you are looking
+    /// at this from a bench, not reading it.
+    ///
+    /// It carries the countdown as well as the colour. The control bar has the same number, but the
+    /// control bar is pinned to the bottom and this is where your eyes already are — and once the
+    /// sheet is scrolled to a later exercise, the band is the only thing that says which rest.
+    private func restBand(_ engine: LiftSessionEngine) -> some View {
+        let remaining = engine.restRemaining(now: session.now) ?? 0
+        return HStack(spacing: 8) {
+            Text("Rest period").strandOverline()
+                .foregroundStyle(StrandPalette.metricAmber)
+            Spacer(minLength: 0)
+            Text(LiftFormat.duration(remaining))
+                .font(StrandFont.captionNumber)
+                .monospacedDigit()
+                .foregroundStyle(StrandPalette.metricAmber)
+        }
+        .lineLimit(1)
+        .minimumScaleFactor(0.75)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .frame(maxWidth: .infinity)
+        .background(StrandPalette.metricAmber.opacity(0.22),
+                    in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .padding(.horizontal, 8)
+        .accessibilityElement(children: .combine)
     }
 
     private func numberField(slot: LiftSlot, field: FocusTarget,
@@ -405,6 +444,8 @@ struct LiftSessionView: View {
     private func clock(_ label: String, _ value: String, tint: Color) -> some View {
         VStack(alignment: .leading, spacing: 1) {
             Text(label).strandOverline()
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
             Text(value)
                 .font(StrandFont.bodyNumber)
                 .foregroundStyle(tint)
@@ -419,7 +460,10 @@ struct LiftSessionView: View {
                   LiftFormat.duration(max(0, session.now - engine.stageStartedAt)),
                   tint: StrandPalette.statusPositive)
         case .resting:
-            clock(String(localized: "Rest"),
+            // "Rest period", never "Rest": the catalog's "Rest" key is NOOP's SLEEP metric, so this
+            // label rendered as "Erholung" (recovery) in German — the exact collision CLAUDE.md and
+            // the handover brief both warn about. Reintroduced by the workout-sheet rewrite.
+            clock(String(localized: "Rest period"),
                   LiftFormat.duration(engine.restRemaining(now: session.now) ?? 0),
                   tint: StrandPalette.metricAmber)
         case .warmup, .finished:

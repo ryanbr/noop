@@ -1,6 +1,12 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Set %lld": { "localizations": {
+      "de": {"stringUnit": {"state": "translated", "value": "Satz %lld"}}, "en": {"stringUnit": {"state": "translated", "value": "Set %lld"}}, "es": {"stringUnit": {"state": "translated", "value": "Serie %lld"}}, "fr": {"stringUnit": {"state": "translated", "value": "Série %lld"}}, "it": {"stringUnit": {"state": "translated", "value": "Serie %lld"}}, "pl": {"stringUnit": {"state": "translated", "value": "Seria %lld"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Série %lld"}}, "ru": {"stringUnit": {"state": "translated", "value": "Подход %lld"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "第 %lld 组"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "第 %lld 組"}}
+    } },
+    "Heart rate %lld": { "localizations": {
+      "de": {"stringUnit": {"state": "translated", "value": "Herzfrequenz %lld"}}, "en": {"stringUnit": {"state": "translated", "value": "Heart rate %lld"}}, "es": {"stringUnit": {"state": "translated", "value": "Frecuencia cardíaca %lld"}}, "fr": {"stringUnit": {"state": "translated", "value": "Fréquence cardiaque %lld"}}, "it": {"stringUnit": {"state": "translated", "value": "Frequenza cardiaca %lld"}}, "pl": {"stringUnit": {"state": "translated", "value": "Tętno %lld"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Frequência cardíaca %lld"}}, "ru": {"stringUnit": {"state": "translated", "value": "Пульс %lld"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "心率 %lld"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "心率 %lld"}}
+    } },
     "HR": { "localizations": {
       "de": {"stringUnit": {"state": "translated", "value": "HF"}}, "en": {"stringUnit": {"state": "translated", "value": "HR"}}, "es": {"stringUnit": {"state": "translated", "value": "FC"}}, "fr": {"stringUnit": {"state": "translated", "value": "FC"}}, "it": {"stringUnit": {"state": "translated", "value": "FC"}}, "pl": {"stringUnit": {"state": "translated", "value": "HR"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "FC"}}, "ru": {"stringUnit": {"state": "translated", "value": "Пульс"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "心率"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "心率"}}
     } },

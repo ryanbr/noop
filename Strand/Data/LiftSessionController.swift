@@ -167,6 +167,85 @@ final class LiftSessionController: ObservableObject {
         persist()
     }
 
+    // MARK: - Presentation
+    //
+    // What a running session looks like, resolved ONCE here rather than in each surface that shows
+    // it. The minimised bar and the Lock Screen Live Activity display the same four things — state,
+    // exercise, numbers, clock — and they must agree, including the wording. Two copies of this
+    // drifted the moment one of them was edited.
+
+    struct Presentation: Equatable {
+        var isResting: Bool
+        /// The exercise being worked or rested from; the program's name when neither applies.
+        var exercise: String
+        /// "Set 2", "Resting after set 2", "Ready for the next set", "3 of 19 sets done".
+        var status: String
+        /// "8 x 30 kg", already unit-converted. Nil when neither reps nor weight is known.
+        var detail: String?
+        var setsDone: Int
+        var setsPlanned: Int
+        var stageStartedAt: Date
+        /// When the running rest is due to end. Nil while working.
+        var restEndsAt: Date?
+    }
+
+    func presentation(system: UnitSystem) -> Presentation? {
+        guard let engine, !engine.isFinished else { return nil }
+        let done = engine.completedWorkingSets
+        let planned = engine.plannedWorkingSets
+        let started = Date(timeIntervalSince1970: TimeInterval(engine.stageStartedAt))
+        let fallback = String(localized: "\(done) of \(planned) sets done")
+
+        guard let slot = engine.currentSlot, let item = engine.planItem(for: slot) else {
+            return Presentation(isResting: false,
+                                exercise: programName ?? String(localized: "Session"),
+                                status: fallback, detail: nil,
+                                setsDone: done, setsPlanned: planned,
+                                stageStartedAt: started, restEndsAt: nil)
+        }
+
+        let detail = setNumbers(for: slot, system: system)
+        switch engine.stage {
+        case .resting(_, let endsAt):
+            let ready = endsAt <= now
+            return Presentation(
+                isResting: true, exercise: item.exercise,
+                status: ready ? String(localized: "Ready for the next set")
+                              : String(localized: "Resting after set \(slot.setIndex)"),
+                detail: detail, setsDone: done, setsPlanned: planned,
+                stageStartedAt: started,
+                restEndsAt: Date(timeIntervalSince1970: TimeInterval(endsAt)))
+        default:
+            return Presentation(
+                isResting: false, exercise: item.exercise,
+                status: String(localized: "Set \(slot.setIndex)"),
+                detail: detail, setsDone: done, setsPlanned: planned,
+                stageStartedAt: started, restEndsAt: nil)
+        }
+    }
+
+    /// Reps x weight for a slot, as "8 x 30 kg".
+    ///
+    /// While RESTING these are what the set actually recorded; while WORKING the set does not exist
+    /// yet, so they are what completing it would record — the same numbers the sheet shows in grey.
+    func setNumbers(for slot: LiftSlot, system: UnitSystem) -> String? {
+        guard let engine else { return nil }
+        let values = engine.recordedSet(for: slot).map {
+            LiftSetCarry(weightKg: $0.weightKg, reps: $0.reps)
+        } ?? carry(for: slot)
+
+        let weight = values.weightKg.map {
+            LiftFormat.trim(LiftFormat.display(fromKilograms: $0, system: system))
+            + " " + LiftFormat.weightUnit(system)
+        }
+        switch (values.reps, weight) {
+        case (let r?, let w?): return "\(r) x \(w)"
+        case (let r?, nil):    return String(localized: "\(r) reps")
+        case (nil, let w?):    return w
+        case (nil, nil):       return nil
+        }
+    }
+
     /// Hand over what the store knows about previous sessions. Called by the sheet once it has read
     /// it; safe to call again if it reloads.
     func setLastSession(_ values: [String: [Int: LiftSetCarry]]) {
