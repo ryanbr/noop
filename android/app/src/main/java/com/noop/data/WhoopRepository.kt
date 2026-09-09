@@ -703,6 +703,11 @@ class WhoopRepository(
     suspend fun hrFingerprintWindow(deviceId: String, from: Long, to: Long): Pair<Int, Long> =
         Pair(dao.countHrInWindow(deviceId, from, to), dao.maxHrTsInWindow(deviceId, from, to))
 
+    /** Whether [deviceId] has ANY heart-rate row in the window, as a scalar EXISTS rather than a fetched
+     *  row. The day-owner resolver's per-candidate-per-day probe; see [WhoopDao.hasHrInWindow]. */
+    suspend fun hasHrInWindow(deviceId: String, from: Long, to: Long): Boolean =
+        dao.hasHrInWindow(deviceId, from, to)
+
     /** Per-day (device + window) gravity fingerprint as (count, newestTs) for the steps-calibration
      *  motion cache. Narrower than [dayStreamFingerprint] on purpose: dayMotionIntensity folds gravity
      *  alone, so a new HR row must not invalidate it. Mirrors Swift WhoopStore.gravityFingerprint. */

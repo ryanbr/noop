@@ -97,6 +97,21 @@ extension WhoopStore {
         }
     }
 
+    /// Whether `deviceId` has ANY heart-rate row in the window, as a scalar EXISTS rather than a row.
+    ///
+    /// The day-owner resolver asks this once per candidate per day, so a 60-day steps-calibration window
+    /// on a two-strap install asks it 120 times per pass. It used to be answered by fetching a `LIMIT 1`
+    /// ROW and testing the array for emptiness, which materialises a row and an `HRSample` for a question
+    /// whose answer is one bit. EXISTS stops at the first index entry and returns that bit. Same
+    /// `(deviceId, ts)` index, same semantics. Twin of Kotlin's `WhoopDao.hasHrInWindow`.
+    public func hasHrInWindow(deviceId: String, from: Int, to: Int) async throws -> Bool {
+        try syncRead { db in
+            try Bool.fetchOne(db, sql: """
+                SELECT EXISTS(SELECT 1 FROM hrSample WHERE deviceId = ? AND ts >= ? AND ts <= ?)
+                """, arguments: [deviceId, from, to]) ?? false
+        }
+    }
+
     /// Per-day GRAVITY fingerprint: `(count, maxTs)` over one device's `gravitySample` rows in a window.
     ///
     /// The witness the steps-calibration motion cache reuses a day's fold against. `dayStreamFingerprint`

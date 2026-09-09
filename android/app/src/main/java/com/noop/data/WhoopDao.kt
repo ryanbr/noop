@@ -1124,6 +1124,15 @@ interface WhoopDao : DeviceRegistryDao {
     suspend fun countHrInWindow(deviceId: String, from: Long, to: Long): Int
     @Query("SELECT COALESCE(MAX(ts), 0) FROM hrSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to")
     suspend fun maxHrTsInWindow(deviceId: String, from: Long, to: Long): Long
+    // Does this device have ANY heart-rate row in the window? A scalar EXISTS, not a row.
+    //
+    // The day-owner resolver asks this once per candidate per day, so a 60-day steps-calibration window
+    // on a two-strap install asks it 120 times per pass. It used to be answered by fetching a LIMIT 1
+    // ROW and testing the list for emptiness, which materialises a cursor and an HrSample for a question
+    // whose answer is one bit. EXISTS stops at the first index entry and returns that bit.
+    @Query("SELECT EXISTS(SELECT 1 FROM hrSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to)")
+    suspend fun hasHrInWindow(deviceId: String, from: Long, to: Long): Boolean
+
     // Per-day (device + window) GRAVITY witness for the steps-calibration motion cache. It is exactly the
     // `g` segment of DAY_STREAM_FINGERPRINT_SQL below, on its own: that one counts gravity alongside eight
     // other streams, so a new HR row would invalidate a motion volume that cannot have changed.

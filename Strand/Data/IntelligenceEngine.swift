@@ -2748,23 +2748,34 @@ final class IntelligenceEngine: ObservableObject {
             return fallbackDeviceId
         }
 
-        var candidates: [DayOwnerResolver.Candidate] = []
-        for d in liveDevices {
+        // Probe in PRIORITY ORDER and stop at the first candidate that has data.
+        //
+        // `DayOwnerResolver.resolve` is `candidates.filter(hasData).min(by: priority)`, so the winner is
+        // the lowest-priority-number candidate with data, and every probe after it cannot change the
+        // answer. Probing them anyway cost a query per candidate per day: on the 60-day steps window with
+        // two straps that is 120 per pass, and the active strap usually answers on the first.
+        // `DayOwnerResolverEquivalenceTests` pins this against the resolver itself rather than trusting
+        // the reasoning, because the two must not be allowed to drift.
+        //
+        // The probe is a scalar EXISTS now, not a fetched `LIMIT 1` row: the question is one bit, and it
+        // used to be answered by materialising a row and an `HRSample` to test an array for emptiness.
+        //
+        // #137: an activity-file ride ranks BELOW whole-day imports (priority 3 vs 2), so a full-day
+        // WHOOP CSV/cloud import keeps ownership of a day it has HR for; the ride only wins a day that
+        // nothing else covers (a strap-less day). Kotlin RegistryDayOwnerSource mirrors this ordering.
+        let ranked: [(id: String, priority: Int)] = liveDevices.map { d in
             let isImport = d.sourceKind == .cloudImport || d.sourceKind == .fileImport
-            // #137: an activity-file ride ranks BELOW whole-day imports (priority 3 vs 2), so a full-day
-            // WHOOP CSV/cloud import keeps ownership of a day it has HR for; the ride only wins a day that
-            // nothing else covers (a strap-less day). Kotlin RegistryDayOwnerSource mirrors this ordering.
             let priority: Int
             if d.id == activeId { priority = 0 }
             else if d.sourceKind == .activityFile { priority = 3 }
             else if isImport { priority = 2 }
             else { priority = 1 }
-            // Cheap presence check: a single HR row for this device in the night window is enough to
-            // mark it a candidate. (LIMIT 1 , not the full pull the caller does once an owner is chosen.)
-            let hasData = !((try? await store.hrSamples(deviceId: d.id, from: from, to: to, limit: 1)) ?? []).isEmpty
-            candidates.append(DayOwnerResolver.Candidate(deviceId: d.id, priority: priority, hasData: hasData))
+            return (d.id, priority)
+        }.sorted { $0.priority < $1.priority }
+        for c in ranked {
+            if (try? await store.hasHrInWindow(deviceId: c.id, from: from, to: to)) == true { return c.id }
         }
-        return DayOwnerResolver.resolve(day: day, lockedOwner: nil, candidates: candidates) ?? fallbackDeviceId
+        return fallbackDeviceId
     }
 
     /// The strap family that wrote `owner`'s skin-temp rows (#938), so the nightly funnel converts the raw

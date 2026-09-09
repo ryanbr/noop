@@ -2737,13 +2737,21 @@ object IntelligenceEngine {
         if (candidatePriorities.size == 1 && candidatePriorities.first().first == importedDeviceId) {
             return importedDeviceId
         }
-        val candidates = candidatePriorities.map { (id, priority) ->
-            // Cheap presence check: a single HR row for this device in the night window marks it a
-            // candidate. (LIMIT 1 , not the full pull the caller does once an owner is chosen.)
-            val hasData = repo.hrSamplesForDevice(id, from, to, 1).isNotEmpty()
-            DayOwnerResolver.Candidate(deviceId = id, priority = priority, hasData = hasData)
+        // Probe in PRIORITY ORDER and stop at the first candidate that has data.
+        //
+        // [DayOwnerResolver.resolve] is `candidates.filter { hasData }.minByOrNull { priority }`, so the
+        // winner is the lowest-priority-number candidate with data, and every probe after that one cannot
+        // change the answer. Probing them anyway cost a query per candidate per day: on the 60-day steps
+        // window with two straps that is 120 per pass, and the active strap usually answers on the first.
+        // `DayOwnerResolverEquivalenceTest` pins this against the resolver itself rather than trusting
+        // the reasoning, because the two must not be allowed to drift.
+        //
+        // The probe is a scalar EXISTS now, not a fetched LIMIT 1 row: the question is one bit, and it
+        // used to be answered by materialising a cursor and an HrSample to test a list for emptiness.
+        for ((id, _) in candidatePriorities.sortedBy { it.second }) {
+            if (repo.hasHrInWindow(id, from, to)) return id
         }
-        return DayOwnerResolver.resolve(day, lockedOwner = null, candidates = candidates) ?: importedDeviceId
+        return importedDeviceId
     }
 
     /**
