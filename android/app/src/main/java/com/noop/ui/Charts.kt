@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
@@ -115,17 +116,62 @@ internal fun pointsFor(
 ): List<Offset> {
     val clean = values.filter { it.isFinite() }
     if (clean.size < 2 || width <= 0f || height <= 0f) return emptyList()
+    val (lo, hi) = yBounds(clean, yDomain) ?: return emptyList()
+    return pointsFor(clean, width, height, topPad, bottomPad, timestamps, lo, hi)
+}
+
+/**
+ * The value range a chart plots into, shared by the series and by anything drawn ON the same scale.
+ *
+ * Extracted rather than repeated so a reference rule cannot drift from the series it annotates: a rule
+ * computed against its own bounds would sit at a plausible-looking wrong height the moment either copy
+ * changed, and nothing about the picture would say so.
+ *
+ * [values] must already be finite-filtered. Returns null when there is nothing to scale.
+ */
+internal fun yBounds(
+    values: List<Double>,
+    yDomain: ClosedFloatingPointRange<Double>?,
+): Pair<Double, Double>? {
+    if (values.isEmpty()) return null
     // A supplied domain never HIDES a reading: it widens to contain anything outside it, so anchoring can
     // only ever change the scale, never clip a value off the chart.
-    val lo = yDomain?.let { minOf(it.start, clean.min()) } ?: clean.min()
-    var hi = yDomain?.let { maxOf(it.endInclusive, clean.max()) } ?: clean.max()
+    val lo = yDomain?.let { minOf(it.start, values.min()) } ?: values.min()
+    var hi = yDomain?.let { maxOf(it.endInclusive, values.max()) } ?: values.max()
     // A series that is entirely flat AT the supplied floor would otherwise have zero span, and the
     // zero-span fallback puts a flat line mid-chart. That is right when the scale came from the data
     // (a steady 70bpm belongs in the middle) and wrong when a floor was asked for: an all-zero Effort
     // week must sit ON the floor, which is the whole property the floor exists to give. Widening by one
     // unit puts it there. Only when a domain was supplied, so auto-scaled charts keep their behaviour.
     if (yDomain != null && hi <= lo) hi = lo + 1.0
-    return pointsFor(clean, width, height, topPad, bottomPad, timestamps, lo, hi)
+    return lo to hi
+}
+
+/**
+ * The y pixel for one [value] under the same scale [pointsFor] gives the series, or null when the value
+ * falls outside the plotted range.
+ *
+ * Null rather than a clamped edge on purpose: a rule pinned to the top or bottom of the plot would read as
+ * "your baseline is the highest value here", which is a different claim from "your baseline is off this
+ * chart". Drawing nothing says the second honestly.
+ */
+internal fun yForValue(
+    value: Double,
+    values: List<Double>,
+    height: Float,
+    topPad: Float,
+    bottomPad: Float,
+    yDomain: ClosedFloatingPointRange<Double>? = null,
+): Float? {
+    if (!value.isFinite() || height <= 0f) return null
+    val clean = values.filter { it.isFinite() }
+    if (clean.size < 2) return null
+    val (lo, hi) = yBounds(clean, yDomain) ?: return null
+    if (value < lo || value > hi) return null
+    val span = hi - lo
+    val usableH = (height - topPad - bottomPad).coerceAtLeast(1f)
+    val norm = if (span > 0.0) ((value - lo) / span).toFloat() else 0.5f
+    return topPad + (1f - norm) * usableH
 }
 
 private fun pointsFor(
@@ -150,6 +196,22 @@ private fun pointsFor(
         val y = topPad + (1f - norm) * usableH
         Offset(x, y)
     }
+}
+
+/**
+ * A dashed horizontal rule at [y], for a personal-baseline reference drawn UNDER the series.
+ *
+ * Dashed and faint on purpose: it is a reference the readings are judged against, not a second series. A
+ * solid stroke at the line's own weight would read as data.
+ */
+private fun DrawScope.drawReferenceRule(y: Float, color: Color) {
+    drawLine(
+        color = color,
+        start = Offset(0f, y),
+        end = Offset(size.width, y),
+        strokeWidth = 1f,
+        pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 6f), 0f),
+    )
 }
 
 /** Draw the faint zero/empty baseline used when there is nothing to plot. */
@@ -284,6 +346,10 @@ fun LineChart(
      * Opt-in, so the dense live charts (HR at 1 Hz) are untouched, where a dot per sample would be noise.
      */
     showsPoints: Boolean = false,
+    // Optional personal-baseline reference, drawn as a dashed rule under the series. Null (the default)
+    // draws nothing, so every existing caller is byte-identical. A value outside the plotted range draws
+    // nothing either: `yForValue` returns null rather than clamping a rule to an edge it does not sit on.
+    baselineValue: Double? = null,
 ) {
     val cleanValues = remember(values) { values.filter { it.isFinite() } }
     // Timestamps filtered by the SAME finiteness cut as cleanValues so indices stay aligned;
@@ -393,6 +459,11 @@ fun LineChart(
                     val topPad = strokePx + 4f
                     val bottomPad = strokePx + 4f
                     val pts = pointsFor(cleanValues, size.width, size.height, topPad, bottomPad, yDomain, cleanTimestamps)
+                    // Same bounds as the series, through the same helper, so the rule cannot end up at a
+                    // plausible-looking wrong height if either scale ever changes.
+                    val baselineY = baselineValue?.let {
+                        yForValue(it, cleanValues, size.height, topPad, bottomPad, yDomain)
+                    }
                     if (pts.isEmpty()) {
                         onDrawBehind { drawBaseline() }
                     } else {
@@ -429,6 +500,9 @@ fun LineChart(
                         }
                         val lineStroke = Stroke(width = strokePx, cap = StrokeCap.Round, join = StrokeJoin.Round)
                         onDrawBehind {
+                            // Under the fill and the line: the rule annotates the series rather than
+                            // competing with it.
+                            if (baselineY != null) drawReferenceRule(baselineY, Palette.hairlineStrong)
                             // Soft gradient fill under the curve.
                             if (fillBrush != null) {
                                 for (path in fillPaths) drawPath(path = path, brush = fillBrush)
@@ -636,6 +710,11 @@ fun BarChart(
     // non-integer — so a metric whose headline is rounded answered "72.4" on tap against a "72" beside
     // it. Same parameter, same default, same fallback as LineChart's.
     formatValue: ((Double) -> String)? = null,
+    // Optional personal-baseline reference, drawn as a dashed rule under the bars. Mapped on the BAR
+    // scale, which is zero-based (`v / maxV`) rather than the line chart's min..max: a rule placed by the
+    // line chart's arithmetic would sit at a confidently wrong height here. Null draws nothing, and so
+    // does a value outside 0..maxV, for the same reason `yForValue` refuses to clamp one to an edge.
+    baselineValue: Double? = null,
 ) {
     val cleanValues = remember(values) { values.map { if (it.isFinite() && it > 0.0) it else 0.0 } }
     // The cleaned list flattens a non-finite value to 0.0 so it draws nothing, which is right for the
@@ -722,6 +801,9 @@ fun BarChart(
                 } else {
                     val topPad = 4f
                     val usableH = (h - topPad).coerceAtLeast(1f)
+                    val baselineY = baselineValue
+                        ?.takeIf { it.isFinite() && it >= 0.0 && it <= maxV }
+                        ?.let { h - ((it / maxV).toFloat().coerceIn(0f, 1f) * usableH) }
                     val slot = w / clean.size
                     val barWidth = (slot * 0.64f).coerceAtLeast(1f)
                     val capRadius = (barWidth / 2f)
@@ -737,6 +819,8 @@ fun BarChart(
                         bars.add(BarSeg(cx, top))
                     }
                     onDrawBehind {
+                        // Under the bars, for the same reason as the line chart's: a reference, not data.
+                        if (baselineY != null) drawReferenceRule(baselineY, Palette.hairlineStrong)
                         bars.forEachIndexed { i, seg ->
                             drawLine(
                                 color = if (selectionEnabled && i == selectedIndex) color else unselectedColor,

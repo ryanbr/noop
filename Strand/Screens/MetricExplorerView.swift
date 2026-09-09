@@ -720,6 +720,29 @@ struct MetricDetailView: View {
         }
     }
 
+    /// The personal baseline to annotate the chart with, or nil when there is not one worth drawing.
+    ///
+    /// HRV and resting HR only: both are levels whose absolute number means little without the reader's
+    /// own normal, while the daily scores are already interpretable on their own ranges and skin
+    /// temperature has its own signed-deviation view. Folded over the FULL history rather than the
+    /// visible window, because the reference is the reader's normal and does not change because they
+    /// narrowed the range. Nil until the state is TRUSTED, which is at least fourteen valid nights and
+    /// not stale: a rule folded from four would be a guess wearing the authority of a reference line.
+    ///
+    /// Same fold `VitalBands` bands against, so a reading the grid calls out of range cannot sit on the
+    /// comfortable side of the rule. Twin of Kotlin `vitalBaseline`.
+    private var personalBaseline: Double? {
+        let cfg: MetricCfg?
+        switch metric.key {
+        case "hrv": cfg = Baselines.hrvCfg
+        case "rhr": cfg = Baselines.restingHRCfg
+        default: cfg = nil
+        }
+        guard let cfg else { return nil }
+        let state = Baselines.foldHistory(series.map { $0.value }, cfg: cfg)
+        return state.trusted ? state.baseline : nil
+    }
+
     /// Padded value range so the line never sits flush against an axis.
     private func valueRange(_ windowValues: [Double]) -> ClosedRange<Double> {
         let v = windowValues
@@ -1223,6 +1246,7 @@ struct MetricDetailView: View {
                 // bars. Kotlin's twin had the mirror-image gap and #2011 made it visible by forcing bars
                 // per metric; both now follow the setting alone.
                 showsBars: TrendChartStyle(rawValue: trendChartStyleRaw) == .bar,
+                baselineValue: personalBaseline,
                 height: NoopMetrics.chartHeight,
                 valueFormat: { fmt($0) }
             )

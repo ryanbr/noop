@@ -1,5 +1,6 @@
 package com.noop.ui
 
+import com.noop.analytics.Baselines
 import com.noop.data.Vo2MaxEstimator
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -82,6 +83,34 @@ internal fun dayEpochSeconds(readings: List<VitalReading>): List<Long>? {
         out += day.toEpochDay() * 86_400L
     }
     return out
+}
+
+/**
+ * The personal baseline to annotate a vital chart with, or null when there is not one worth drawing.
+ *
+ * HRV and resting HR only. Both are LEVELS whose absolute number means little without the reader's own
+ * normal: "HRV 42" says nothing on its own, while "42, and your baseline is 54" says the thing they came
+ * to find out. The daily scores need no such reference, since 0..100 and 0..21 are already interpretable,
+ * and skin temperature already offers a signed deviation view of its own.
+ *
+ * The SAME fold the vitals grid bands against ([VitalBands.band] calls `Baselines.foldHistory` with this
+ * cfg), so a reading the grid calls out of range cannot sit on the right side of the rule on the chart
+ * next to it. One definition of "your normal" or the two surfaces will disagree in front of the reader.
+ *
+ * Null unless the state is TRUSTED, which is at least fourteen valid nights and not stale. A rule drawn
+ * from four nights would be a guess wearing the authority of a reference line, and the calibrating case
+ * is exactly when a reader is most likely to over-read it. Values arrive oldest to newest, which is what
+ * the EWMA fold expects, and what `ORDER BY day ASC` gives.
+ */
+internal fun vitalBaseline(key: String, readings: List<VitalReading>): Double? {
+    val cfgKey = when (key) {
+        "hrv" -> "hrv"
+        "rhr" -> "resting_hr"
+        else -> return null
+    }
+    val cfg = Baselines.metricCfg[cfgKey] ?: return null
+    val state = Baselines.foldHistory(readings.map { it.value }, cfg)
+    return if (state.trusted) state.baseline else null
 }
 
 /**

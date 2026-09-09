@@ -2104,6 +2104,10 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
                 // label for each, and on the ALL range that is hundreds of both. The slot count follows the
                 // RANGE rather than the metric, so a sparse series costs no more than a daily one.
                 val chartStyle = UnitPrefs.trendChartStyle(LocalContext.current)
+                // Folded over the FULL history, not the visible window: the reference is the reader's
+                // normal, which does not change because they narrowed the range to a week. Null for every
+                // metric but HRV and resting HR, and null until the baseline is trusted.
+                val baseline = remember(detail.readings, key) { vitalBaseline(key, detail.readings) }
                 val bars = remember(filteredReadings, key, chartStyle) {
                     if (vitalChartIsBars(chartStyle)) densifyByDay(filteredReadings) else null
                 }
@@ -2111,6 +2115,7 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
                 val barLabels = remember(bars) { bars?.map { shortDayLabel(it.first) } }
                 if (barValues != null && barLabels != null) {
                     BarChart(
+                        baselineValue = baseline,
                         values = barValues,
                         modifier = Modifier.height(Metrics.chartHeight),
                         color = detail.color,
@@ -2153,6 +2158,7 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
                     // Anchor the metrics whose natural range IS their interesting range, so a calm one
                     // stops being drawn as violently as a wild one.
                     yDomain = vitalChartYDomain(key),
+                    baselineValue = baseline,
                     // A daily trend has few enough readings for a marker each, and they are what say where
                     // the measurements actually are once gaps stretch the line between them.
                     showsPoints = true,
