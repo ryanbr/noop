@@ -2926,7 +2926,11 @@ public final class BLEManager: NSObject, ObservableObject {
         let newest = strapNewestTs
         let count = consecutiveAutoContinues
         Task { @MainActor in
-            let frontier = await collector?.latestHRSampleTs() ?? nil
+            // #1992: the frontier is how far we have CONSUMED the strap's history, not how far we have
+            // rows for it — see `offloadFrontier` for why the two differ and why taking the later of them
+            // can only close a gap, never open one.
+            let frontier = offloadFrontier(rowFrontier: await collector?.latestHRSampleTs() ?? nil,
+                                           consumedTo: backfiller?.lastAckedSectionUnix)
             let wallNow = Int(Date().timeIntervalSince1970)   // #928: real wall clock, at decision time
             // #1164: publish whether the strap has banked records newer than our local frontier, so the
             // Today Rest card can show "Pending sync" instead of a provisional number. Same behind check

@@ -193,6 +193,24 @@ final class Backfiller {
     /// `begin()` (it's a cross-session high-water mark, not a per-session tally).
     private(set) var lastAckedTrim: UInt32?
 
+    /// The section-end UNIX time of the last chunk this Backfiller acked: how far through the strap's
+    /// banked history we have actually CONSUMED, whatever the records in it decoded to.
+    ///
+    /// #1992: the auto-continue gate measures its backlog as `strapNewestTs - ourFrontierTs`, and the
+    /// frontier it used was the newest HR row we had persisted. A layout NOOP has no field map for is
+    /// archived and acked but becomes no rows, so on a strap whose newest records are one of those the HR
+    /// frontier can never reach `strapNewestTs`: the gap stays open, the gate keeps saying "backlog
+    /// remains", and the offload re-kicks to its cap on every connection. #1144's `persistedSensorRows`
+    /// guard does not catch it, because a strap emitting a MIX of layouts banks rows on every pass; that
+    /// guard asks whether anything landed, not whether the frontier reached the strap's newest.
+    ///
+    /// This is layout-independent by construction: it comes from the HISTORY_END metadata, not from the
+    /// sensor records, so it advances for a section of records nothing could decode. Taken at the ack,
+    /// which is the point the strap is told it may release those records, so it can only ever claim
+    /// ground that has genuinely been consumed. A cross-session high-water mark like `lastAckedTrim`, and
+    /// NOT reset in `begin()`. Mirror EXACTLY in Kotlin.
+    private(set) var lastAckedSectionUnix: Int?
+
     /// Reject frames one connection may hex-dump (#1992). Three chunks worth at the per-chunk cap:
     /// enough distinct records to triangulate field offsets (v25 was mapped from 45, spread over many
     /// logs), while leaving room in a 2000-line rolling buffer for the lines that give the dump context.
@@ -692,19 +710,23 @@ final class Backfiller {
                     spo2Dumped += 1
                 }
             }
-            // Diagnostic (#30): a historical record whose firmware version we don't have a field map for
-            // bails out of decode entirely — no HR, no R-R, no GRAVITY — so sleep (which is gravity/
+            // Diagnostic (#1992, was #30): a historical record whose firmware version we have no field map
+            // for bails out of decode entirely — no HR, no R-R, no GRAVITY — so sleep (which is gravity/
             // motion-driven) can never be computed from it, even though the offload "completes". Surface
             // each unmapped version once so the user's strap log reveals what their firmware emits.
-            // "Decoded nothing" must cover every mapped layout's signature field: v18 emits heart_rate,
-            // v25 emits gravity_x (no per-second HR — it's PPG-derived), v26 emits ppg_waveform (no HR
-            // either) — checking heart_rate alone false-flagged v25/v26 as unmapped (#156, sudden-break).
+            //
+            // The decision lives in `historicalLayoutIsUnmapped` (WhoopProtocol), which asks the 5/MG
+            // DISPATCH TABLE rather than sniffing the field names a record happened to decode. See its
+            // doc for why the field list kept going stale, and `HistoricalLayoutSupportTests` for the
+            // guard that stops it going stale again.
             for p in parsed {
                 guard let v = p.parsed["hist_version"]?.intValue,
-                      p.parsed["heart_rate"] == nil,
-                      p.parsed["gravity_x"] == nil,
-                      p.parsed["ppg_waveform"] == nil,
                       !loggedUnmappedVersions.contains(v) else { continue }
+                guard historicalLayoutIsUnmapped(
+                    version: v, family: family,
+                    hasHeartRate: p.parsed["heart_rate"] != nil,
+                    hasGravity: p.parsed["gravity_x"] != nil,
+                    hasPpgWaveform: p.parsed["ppg_waveform"] != nil) else { continue }
                 loggedUnmappedVersions.insert(v)
                 log?("Historical records use firmware layout v\(v), which NOOP doesn't decode yet: those records carry no heart rate or motion, so any night made only of them can't be staged from the strap. A strap emitting a mix of layouts still stages the nights it can. Please report this (issue #1992).")
             }
@@ -944,6 +966,10 @@ final class Backfiller {
 
         ackTrim(trim, endData)
         lastAckedTrim = trim   // #364: record the advanced cursor for the auto-continue spin-detector
+        // #1992: and how far through the strap's history that ack consumed, in TIME. Monotonic: a section
+        // arriving out of order must not walk the frontier backwards.
+        let consumedTo = Int(unix)
+        if consumedTo > 0, consumedTo > (lastAckedSectionUnix ?? 0) { lastAckedSectionUnix = consumedTo }
     }
 
     /// Called when a backfill watchdog timer fires (strap went silent mid-offload).
