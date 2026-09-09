@@ -12,11 +12,29 @@ import ZIPFoundation
 // new enters the dependency graph for this.
 enum XlsxSheet {
 
-    /// Header-keyed rows, in the same shape `CSVTable` produces, so both formats feed one parser.
-    static func rows(from data: Data) throws -> [[String: String]] {
-        let grid = try grid(from: data)
-        guard let headerRow = grid.first else { return [] }
+    /// One worksheet, reduced to what the caller needs to recognise and read it.
+    ///
+    /// Headers are kept SEPARATE from rows so an empty sheet is still identifiable. A downloaded
+    /// template that nobody has filled in has the right columns and no data, and that has to be
+    /// reported as "no exercises yet" rather than "wrong file" — the user is holding the right file.
+    struct Sheet {
+        var headerKeys: Set<String>
+        var rows: [[String: String]]
+    }
 
+    /// Every worksheet, in workbook (tab) order.
+    ///
+    /// Every sheet rather than the first, because the caller is looking for a particular KIND of
+    /// sheet and only it can recognise one. A user who reorders tabs, keeps the instructions page in
+    /// front, or pastes the data into their own workbook still gets an import; picking by position
+    /// would refuse all three.
+    static func sheets(from data: Data) throws -> [Sheet] {
+        try grids(from: data).map(headerKeyed)
+    }
+
+    /// One grid's header row applied to the rows beneath it.
+    private static func headerKeyed(_ grid: [[String]]) -> Sheet {
+        guard let headerRow = grid.first else { return Sheet(headerKeys: [], rows: []) }
         let keys = headerRow.map { HeaderNorm.normalize($0) }
         var out: [[String: String]] = []
         for cells in grid.dropFirst() {
@@ -29,34 +47,65 @@ enum XlsxSheet {
             }
             out.append(dict)
         }
-        return out
+        return Sheet(headerKeys: Set(keys.filter { !$0.isEmpty }), rows: out)
     }
 
-    /// The first worksheet as a rectangular grid of strings.
+    /// The FIRST worksheet as a rectangular grid — kept for callers that only want to look at the
+    /// leading sheet's headers.
     static func grid(from data: Data) throws -> [[String]] {
+        guard let first = try grids(from: data).first else {
+            throw LiftProgramSheetImporter.ImportError.unreadable
+        }
+        return first
+    }
+
+    /// Every worksheet as a grid of strings, in workbook (tab) order.
+    static func grids(from data: Data) throws -> [[[String]]] {
         guard let archive = try? Archive(data: data, accessMode: .read) else {
             throw LiftProgramSheetImporter.ImportError.unreadable
         }
         // Shared strings are optional: a sheet written with inline strings has no such part.
-        let shared = (try? entryData(archive, "xl/sharedStrings.xml")).map(SharedStrings.parse) ?? []
-
-        guard let sheetData = try? firstWorksheet(archive) else {
-            throw LiftProgramSheetImporter.ImportError.unreadable
+        var shared: [String] = []
+        if let pool = try? entryData(archive, "xl/sharedStrings.xml") {
+            shared = SharedStrings.parse(pool)
         }
-        return SheetParser.parse(sheetData, shared: shared)
+        let parts = worksheetPaths(archive)
+        guard !parts.isEmpty else { throw LiftProgramSheetImporter.ImportError.unreadable }
+        return parts.compactMap { path in
+            (try? entryData(archive, path)).map { SheetParser.parse($0, shared: shared) }
+        }
     }
 
-    /// The first worksheet part. Templates this reads are single-sheet, and `sheet1.xml` is what
-    /// every writer emits for one; the scan is the fallback for a file that numbered it differently.
-    private static func firstWorksheet(_ archive: Archive) throws -> Data {
-        if let d = try? entryData(archive, "xl/worksheets/sheet1.xml") { return d }
-        let names = archive.map(\.path)
+    /// Worksheet part paths in TAB order, resolved through the workbook.
+    ///
+    /// `xl/worksheets/sheet1.xml` is a stable id, not a position: a user who drags the instructions
+    /// tab in front of the data tab, or a writer that numbers parts differently, leaves `sheet1.xml`
+    /// sitting behind another sheet. So take `<sheet>` order from `xl/workbook.xml` — that IS tab
+    /// order — and map each `r:id` through `xl/_rels/workbook.xml.rels`.
+    ///
+    /// Falls back to every worksheet part sorted by name, for a file whose workbook part is missing
+    /// or unreadable. Order matters less there than not losing the data entirely.
+    private static func worksheetPaths(_ archive: Archive) -> [String] {
+        if let workbook = try? entryData(archive, "xl/workbook.xml"),
+           let rels = try? entryData(archive, "xl/_rels/workbook.xml.rels") {
+            let ids = WorkbookOrder.sheetRelationshipIds(workbook)
+            let targets = WorkbookOrder.targets(in: rels)
+            let paths = ids.compactMap { targets[$0] }.map { target -> String in
+                // Targets are written relative to the workbook part, which lives in `xl/`.
+                target.hasPrefix("/") ? String(target.dropFirst()) : "xl/" + target
+            }
+            if !paths.isEmpty { return paths }
+        }
+        return archive.map(\.path)
             .filter { $0.hasPrefix("xl/worksheets/") && $0.hasSuffix(".xml") }
             .sorted()
-        guard let first = names.first, let d = try? entryData(archive, first) else {
-            throw LiftProgramSheetImporter.ImportError.unreadable
-        }
-        return d
+    }
+
+    /// One part's raw bytes, by path. Internal, for tests that need to assert on the XML itself —
+    /// the shipped template's sheet protection is not visible through the parsed grid.
+    static func rawPart(_ data: Data, path: String) -> Data? {
+        guard let archive = try? Archive(data: data, accessMode: .read) else { return nil }
+        return try? entryData(archive, path)
     }
 
     private static func entryData(_ archive: Archive, _ path: String) throws -> Data {
@@ -66,6 +115,46 @@ enum XlsxSheet {
         var out = Data()
         _ = try archive.extract(entry, bufferSize: 64 * 1024, skipCRC32: true) { out.append($0) }
         return out
+    }
+
+    /// Reads just enough of `workbook.xml` and its rels to put the worksheets in tab order.
+    final class WorkbookOrder: NSObject, XMLParserDelegate {
+        private var ids: [String] = []
+        private var targets: [String: String] = [:]
+        private var collectingRels = false
+
+        /// `r:id` of every `<sheet>`, in document order — which is tab order.
+        static func sheetRelationshipIds(_ data: Data) -> [String] {
+            let d = WorkbookOrder()
+            let p = XMLParser(data: data)
+            p.delegate = d
+            p.parse()
+            return d.ids
+        }
+
+        /// Relationship id -> target path.
+        static func targets(in rels: Data) -> [String: String] {
+            let d = WorkbookOrder()
+            d.collectingRels = true
+            let p = XMLParser(data: rels)
+            p.delegate = d
+            p.parse()
+            return d.targets
+        }
+
+        func parser(_ parser: XMLParser, didStartElement name: String, namespaceURI: String?,
+                    qualifiedName: String?, attributes: [String: String] = [:]) {
+            if collectingRels {
+                if name == "Relationship", let id = attributes["Id"], let target = attributes["Target"] {
+                    targets[id] = target
+                }
+                return
+            }
+            // The r:id attribute arrives qualified or not depending on the writer.
+            if name == "sheet", let rid = attributes["r:id"] ?? attributes["id"] {
+                ids.append(rid)
+            }
+        }
     }
 
     /// `xl/sharedStrings.xml` — the string pool most cells point into.

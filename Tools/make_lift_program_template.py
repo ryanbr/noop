@@ -113,11 +113,22 @@ def program_sheet():
         f' sqref="E2:E{DATA_ROWS + 1}"><formula1>"{esc(listing)}"</formula1></dataValidation>'
         f'</dataValidations>')
 
-    # Protect the sheet, but let the user select and type in the unlocked data cells, and sort/filter.
+    # Sheet protection, and the attribute semantics are the opposite of what they look like.
+    #
+    # In OOXML each of these flags answers "is this operation PREVENTED", and they default to TRUE
+    # once `sheet="1"`. So an attribute set to "0" ALLOWS the thing it names. An earlier version of
+    # this file carried `insertColumns="0" deleteColumns="0"`, which permitted exactly the one edit
+    # that breaks the importer: the column mapping is by header name and position, so a column
+    # inserted in the middle silently moves reps into the weight field.
+    #
+    # Left at their default (prevented): inserting and deleting COLUMNS.
+    # Explicitly allowed: selecting cells (or the sheet is unreadable), typing into the unlocked data
+    # cells, cosmetic formatting, sorting and filtering, and inserting or deleting ROWS — a user with
+    # a long routine needs more rows, and row count is nothing the importer depends on.
     protection = ('<sheetProtection sheet="1" objects="1" scenarios="1"'
                   ' selectLockedCells="0" selectUnlockedCells="0"'
                   ' formatCells="0" formatColumns="0" formatRows="0"'
-                  ' insertColumns="0" deleteColumns="0" sort="0" autoFilter="0"/>')
+                  ' insertRows="0" deleteRows="0" sort="0" autoFilter="0"/>')
 
     return (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'

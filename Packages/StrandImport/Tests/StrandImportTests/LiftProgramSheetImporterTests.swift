@@ -110,11 +110,7 @@ final class LiftProgramSheetImporterTests: XCTestCase {
     /// The empty template in `docs/` is the file users actually download. Parsing it must not throw
     /// on its headers, and it must contain no programs — an unfilled template imports nothing.
     func testTheShippedTemplateHasTheHeadersTheImporterExpects() throws {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("docs/lift-log-program-template.xlsx")
-        let data = try Data(contentsOf: url)
+        let data = try templateData()
 
         // The header row is what the importer matches on, so it is what must not drift. (`rows`
         // is empty for an unfilled template by design — every data row is blank.)
@@ -130,6 +126,29 @@ final class LiftProgramSheetImporterTests: XCTestCase {
         XCTAssertThrowsError(try LiftProgramSheetImporter.parse(data: data)) { error in
             XCTAssertEqual(error as? LiftProgramSheetImporter.ImportError, .empty)
         }
+    }
+
+    /// `xl/worksheets/sheet1.xml` is a stable id, not a position. This fixture puts the instructions
+    /// sheet FIRST in tab order with the program data still in sheet1.xml — reading by filename would
+    /// import the instructions page as a program, or find no exercise column and refuse the file.
+    func testTheFirstTabIsFoundThroughTheWorkbookNotTheFilename() throws {
+        let r = try parse("lift_program_tabs_reordered.xlsx")
+        XCTAssertEqual(r.programs.count, 1, "the instructions tab is first; the data must still be found")
+        XCTAssertEqual(r.programs[0].lines.map(\.exercise), ["Back squat"])
+        XCTAssertEqual(r.programs[0].lines[0].targetWeightKg, 100)
+    }
+
+    /// The template must not permit the one edit that breaks the import. In OOXML these
+    /// `sheetProtection` flags answer "is this PREVENTED" and default to true, so an attribute set to
+    /// "0" ALLOWS the thing it names — an earlier template shipped `insertColumns="0"`, permitting
+    /// exactly the change that shifts reps into the weight column.
+    func testTheShippedTemplateLocksColumnEditsAndAllowsRowEdits() throws {
+        let xml = try templateSheetXml()
+        XCTAssertTrue(xml.contains("sheet=\"1\""), "the sheet must actually be protected")
+        XCTAssertFalse(xml.contains("insertColumns=\"0\""), "inserting columns must stay prevented")
+        XCTAssertFalse(xml.contains("deleteColumns=\"0\""), "deleting columns must stay prevented")
+        XCTAssertTrue(xml.contains("insertRows=\"0\""), "a long routine needs more rows")
+        XCTAssertTrue(xml.contains("selectUnlockedCells=\"0\""), "the data cells must be typable")
     }
 
     // MARK: - Refusals
@@ -164,4 +183,27 @@ final class LiftProgramSheetImporterTests: XCTestCase {
         XCTAssertEqual(r.programs[0].lines[0].primaryMuscle, .quads)
         XCTAssertEqual(r.programs[0].lines[0].targetSets, 5)
     }
+
+    // MARK: - Reaching the shipped template
+
+    /// `docs/lift-log-program-template.xlsx` — the file users actually download, read from the repo
+    /// rather than copied into the test bundle, so a stale copy cannot pass while the real one drifts.
+    private func templateData() throws -> Data {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("docs/lift-log-program-template.xlsx")
+        return try Data(contentsOf: url)
+    }
+
+    private func templateSheetXml() throws -> String {
+        let data = try templateData()
+        guard let part = XlsxSheet.rawPart(data, path: "xl/worksheets/sheet1.xml"),
+              let xml = String(data: part, encoding: .utf8) else {
+            XCTFail("the template has no first worksheet part")
+            return ""
+        }
+        return xml
+    }
 }
+
