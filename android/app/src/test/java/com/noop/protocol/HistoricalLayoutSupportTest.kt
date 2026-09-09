@@ -55,26 +55,4 @@ class HistoricalLayoutSupportTest {
             assertFalse(historicalLayoutIsUnmapped(25, DeviceFamily.WHOOP4, hr, grav, ppg))
         }
     }
-
-    /**
-     * The safety claim: the consumed marker can only ever CLOSE a gap. Whichever of the two is later wins,
-     * so a strap with genuine backlog keeps its gap and a strap whose tail merely failed to decode loses it.
-     */
-    @Test
-    fun theFrontierTakesTheLaterOfTheTwoAndNeverGoesBackwards() {
-        assertEquals(2_000L, offloadFrontier(1_000L, 2_000L))
-        assertEquals(2_000L, offloadFrontier(2_000L, 1_000L))
-        assertEquals(2_000L, offloadFrontier(2_000L, 2_000L))
-    }
-
-    /**
-     * Either half absent is the other half's answer, and both absent stays "unknown" rather than becoming a
-     * fabricated zero. A zero frontier against a real strap newest would read as an enormous backlog.
-     */
-    @Test
-    fun anAbsentHalfDoesNotBecomeZero() {
-        assertEquals(1_700_000_000L, offloadFrontier(null, 1_700_000_000L))
-        assertEquals(1_700_000_000L, offloadFrontier(1_700_000_000L, null))
-        assertNull(offloadFrontier(null, null))
-    }
 }

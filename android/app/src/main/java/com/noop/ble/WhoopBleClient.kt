@@ -10532,13 +10532,7 @@ class WhoopBleClient(
         val newest = strapNewestTs
         val count = consecutiveAutoContinues
         ioScope.launch {
-            // #1992: the frontier is how far we have CONSUMED the strap's history, not how far we have
-            // rows for it — see [offloadFrontier] for why the two differ and why taking the later of them
-            // can only close a gap, never open one.
-            val frontier = com.noop.protocol.offloadFrontier(
-                rowFrontier = runCatching { repository.latestHrSampleTs(deviceId) }.getOrNull(),
-                consumedTo = backfiller.lastAckedSectionUnix,
-            )
+            val frontier = runCatching { repository.latestHrSampleTs(deviceId) }.getOrNull()
             val wallNow = System.currentTimeMillis() / 1000L   // #928: real wall clock, at decision time
             // #1164: publish whether the strap has banked records newer than our local frontier, so the
             // Today Rest card can show "Pending sync" instead of a provisional number. Same behind check

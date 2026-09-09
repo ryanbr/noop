@@ -264,28 +264,6 @@ class Backfiller(
         private set
 
     /**
-     * The section-end UNIX time of the last chunk this Backfiller acked: how far through the strap's
-     * banked history we have actually CONSUMED, whatever the records in it decoded to.
-     *
-     * #1992: the auto-continue gate measures its backlog as `strapNewestTs - ourFrontierTs`, and the
-     * frontier it used was the newest HR row we had persisted. A layout NOOP has no field map for is
-     * archived and acked but becomes no rows, so on a strap whose newest records are one of those the HR
-     * frontier can never reach `strapNewestTs`: the gap stays open, the gate keeps saying "backlog
-     * remains", and the offload re-kicks to its cap on every connection. #1144's `persistedSensorRows`
-     * guard does not catch it, because a strap emitting a MIX of layouts banks rows on every pass; that
-     * guard asks whether anything landed, not whether the frontier reached the strap's newest.
-     *
-     * This is layout-independent by construction: it comes from the HISTORY_END metadata, not from the
-     * sensor records, so it advances for a section of records nothing could decode. Taken at the ack,
-     * which is the point the strap is told it may release those records, so it can only ever claim
-     * ground that has genuinely been consumed. A cross-session high-water mark like [lastAckedTrim], and
-     * NOT reset in [begin]. Mirrors Swift `Backfiller.lastAckedSectionUnix`.
-     */
-    @Volatile
-    var lastAckedSectionUnix: Long? = null
-        private set
-
-    /**
      * #1992: reject frames still allowed to hex-dump (see [hexDumpAllowance]).
      *
      * Deliberately NOT reset in [begin], for the same reason as [lastAckedTrim]: the thing being
@@ -759,9 +737,6 @@ class Backfiller(
 
         ackTrim(trim, endData)
         lastAckedTrim = trim   // #364: record the advanced cursor for the auto-continue spin-detector
-        // #1992: and how far through the strap's history that ack consumed, in TIME. Monotonic: a section
-        // arriving out of order must not walk the frontier backwards.
-        if (unix > 0 && unix > (lastAckedSectionUnix ?: 0L)) lastAckedSectionUnix = unix
         committed?.takeIf { !it.isEmpty }?.let(onChunkCommitted)
     }
 

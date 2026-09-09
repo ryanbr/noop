@@ -29,27 +29,3 @@ fun historicalLayoutIsUnmapped(
     DeviceFamily.WHOOP5 -> version !in MAPPED_WHOOP5_HISTORICAL_VERSIONS
     DeviceFamily.WHOOP4 -> !hasHeartRate && !hasGravity && !hasPpgWaveform
 }
-
-/**
- * The offload frontier: how far through the strap's banked history NOOP has got, as a unix time. Twin of
- * the Swift `offloadFrontier`.
- *
- * #1992. This used to be the newest HR row alone. A record in a layout with no field map on this platform
- * is archived and acked but becomes no rows, so on a strap whose NEWEST records are one of those the row
- * frontier can never reach the strap's newest banked record. The auto-continue gate measures its backlog as
- * `strapNewest - frontier`, so the gap stayed open, the gate kept answering "backlog remains", and the
- * offload re-kicked to its cap on every connection: real radio and decode cost, for records already
- * consumed.
- *
- * [consumedTo] is the section-end time of the last acked chunk, which comes from the HISTORY_END metadata
- * and is therefore independent of what the records inside it decoded to.
- *
- * Taking the LATER of the two is what makes this safe. It can only ever close a gap, never open one, so a
- * strap that genuinely has backlog is unaffected: its acked sections end behind its newest banked record by
- * definition, and the row frontier still speaks for everything that did decode.
- */
-fun offloadFrontier(rowFrontier: Long?, consumedTo: Long?): Long? = when {
-    rowFrontier == null -> consumedTo
-    consumedTo == null -> rowFrontier
-    else -> maxOf(rowFrontier, consumedTo)
-}

@@ -46,22 +46,4 @@ final class HistoricalLayoutSupportTests: XCTestCase {
                                                       hasGravity: grav, hasPpgWaveform: ppg))
         }
     }
-
-    // MARK: - offloadFrontier
-
-    /// The safety claim: the consumed marker can only ever CLOSE a gap. Whichever of the two is later wins,
-    /// so a strap with genuine backlog keeps its gap and a strap whose tail merely failed to decode loses it.
-    func testTheFrontierTakesTheLaterOfTheTwoAndNeverGoesBackwards() {
-        XCTAssertEqual(offloadFrontier(rowFrontier: 1_000, consumedTo: 2_000), 2_000)
-        XCTAssertEqual(offloadFrontier(rowFrontier: 2_000, consumedTo: 1_000), 2_000)
-        XCTAssertEqual(offloadFrontier(rowFrontier: 2_000, consumedTo: 2_000), 2_000)
-    }
-
-    /// Either half absent is the other half's answer, and both absent is still "unknown" rather than a
-    /// fabricated zero. A zero frontier against a real `strapNewest` would read as an enormous backlog.
-    func testAnAbsentHalfDoesNotBecomeZero() {
-        XCTAssertEqual(offloadFrontier(rowFrontier: nil, consumedTo: 1_700_000_000), 1_700_000_000)
-        XCTAssertEqual(offloadFrontier(rowFrontier: 1_700_000_000, consumedTo: nil), 1_700_000_000)
-        XCTAssertNil(offloadFrontier(rowFrontier: nil, consumedTo: nil))
-    }
 }
