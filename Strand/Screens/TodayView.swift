@@ -352,6 +352,11 @@ struct TodayView: View {
 
     // Today's heart rate as 5-minute bucket means (midnight → now), for the 24h trend chart.
     @State private var hrPoints: [TrendPoint] = []
+    /// The day's true lowest and highest SAMPLES, not the extremes of the plotted five-minute means.
+    /// `hrPoints` carries only each bucket's mean, so a Min/Max read off it describes the calmest and
+    /// busiest five minutes rather than the day, which is why a workout's max could exceed it (#2032).
+    @State private var hrDayMin: Double?
+    @State private var hrDayMax: Double?
 
     // The night's sleep session overlapping the HR window, shaded as a band on the HR chart and
     // used to anchor the recovery marker at wake time (WHOOP-style Overview HR annotations).
@@ -3531,9 +3536,12 @@ struct TodayView: View {
                     )
                 } footer: {
                     ChartFooter([
-                        ("Min", "\(Int((v.min() ?? 0).rounded()))"),
+                        // #2032: Min and Max come from the SAMPLES, not from the mean curve above them.
+                        // They fall back to the curve only if the extremes are somehow absent, which
+                        // cannot happen on this branch since the buckets that built `v` carry them.
+                        ("Min", "\(Int((hrDayMin ?? v.min() ?? 0).rounded()))"),
                         ("Avg", "\(Int((v.reduce(0, +) / Double(v.count)).rounded()))"),
-                        ("Max", "\(Int((v.max() ?? 0).rounded()))"),
+                        ("Max", "\(Int((hrDayMax ?? v.max() ?? 0).rounded()))"),
                     ])
                 }
                 // #829 - pinch/drag hint + Reset, OUTSIDE the card (the card force-fits its chart() closure
@@ -4842,9 +4850,13 @@ struct TodayView: View {
         let windowEndExclusive = cycleMarkers.last(where: { $0.day == nextDayKey }).map { Int($0.value) }
             ?? calendarEnd
         let windowEndInclusive = max(windowStart, windowEndExclusive - 1)
-        let hrPointsLocal = await repo.hrBuckets(from: windowStart, to: windowEndInclusive, bucketSeconds: 300)
+        let hrBucketsLocal = await repo.hrBuckets(from: windowStart, to: windowEndInclusive, bucketSeconds: 300)
+        let hrPointsLocal = hrBucketsLocal
             .map { TrendPoint(date: Date(timeIntervalSince1970: TimeInterval($0.ts)), value: $0.bpm) }
         hrPoints = hrPointsLocal
+        // The chart keeps plotting means; only the footer reads the samples behind them (#2032).
+        hrDayMin = hrBucketsLocal.map(\.minBpm).min()
+        hrDayMax = hrBucketsLocal.map(\.maxBpm).max()
 
         // #316 / @63, the selected day's representative activity class for the Steps tile icon. Reads the
         // day's step samples (now carrying `activityClass` after the v19 column) and takes the LAST non-nil

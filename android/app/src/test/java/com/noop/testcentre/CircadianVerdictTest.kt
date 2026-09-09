@@ -59,7 +59,9 @@ class CircadianVerdictTest {
      */
     @Test fun theReportedBucketFloorIsTheOneCircadianBinsFromActuallyApplies() {
         fun binsFor(n: Int) = com.noop.ui.circadianBinsFrom(
-            (0 until n).map { com.noop.data.HrBucket(bucket = it * 3600L, avgBpm = 60.0) }, 0L,
+            (0 until n).map {
+                com.noop.data.HrBucket(bucket = it * 3600L, avgBpm = 60.0, minBpm = 60.0, maxBpm = 60.0)
+            }, 0L,
         ).first
         val floor = AndroidDiagnostics.CIRCADIAN_MIN_BUCKETS
         assertTrue("one under the reported floor must still be refused", binsFor(floor - 1).isEmpty())

@@ -5997,8 +5997,13 @@ private fun HeartRateTrendCard(
     // TODAY that is the identical full-buckets list, so the default path is byte-for-byte the old one.
     val bpm = remember(winBuckets) { winBuckets.map { it.avgBpm } }
     val latest = bpm.last().roundToInt()
-    val min = bpm.min().roundToInt()
-    val max = bpm.max().roundToInt()
+    // #2032: the Min/Max READOUT reads the samples, not the mean curve. Taken from `bpm` these described
+    // the calmest and busiest five minutes, so a hard interval read lower here than in the workout that
+    // contained it, and the resting dip read higher than it was. The y-rail below stays on the means,
+    // because that is the series it labels: raw extremes there would squash the drawn curve into the
+    // middle of its own axis. Avg is left on the means deliberately, see the PR.
+    val min = remember(winBuckets) { winBuckets.minOf { it.minBpm } }.roundToInt()
+    val max = remember(winBuckets) { winBuckets.maxOf { it.maxBpm } }.roundToInt()
     val avg = bpm.average().roundToInt()
 
     // #829 - the RENDERED subset: the zoom window narrows which of the loaded buckets draw (the gesture

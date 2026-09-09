@@ -81,6 +81,15 @@ data class PpgHrSample(
 data class HrBucket(
     val bucket: Long,
     val avgBpm: Double,
+    /** The lowest and highest sample IN the bucket, not the bucket's mean.
+     *
+     *  The card plots [avgBpm], which is what makes a day read as a curve rather than a spike field, but
+     *  a Min/Max readout taken from that series describes the calmest and busiest FIVE MINUTES rather than
+     *  the day. A forty-second interval is averaged against the four minutes around it before the reader
+     *  ever sees it, which is why a workout's max could exceed the day's (#2032). Same scan, same
+     *  grouping, so carrying them costs nothing. */
+    val minBpm: Double,
+    val maxBpm: Double,
 )
 
 /** The per-day gravity witness the steps-calibration motion cache keys on: [c] rows in the window and

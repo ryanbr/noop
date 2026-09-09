@@ -9,13 +9,31 @@ import WhoopProtocol
 public struct HRBucket: Sendable, Equatable {
     public let ts: Int
     public let bpm: Double
+    /// The lowest and highest sample IN the bucket, not the bucket's mean.
+    ///
+    /// A chart plots `bpm`, which is what makes a day read as a curve rather than a spike field, but a
+    /// Min/Max readout taken from that series describes the calmest and busiest FIVE MINUTES rather than
+    /// the day. A forty-second interval is averaged against the four minutes around it before the reader
+    /// sees it, which is why a workout's max could exceed the day's (#2032). Same scan and grouping as
+    /// the mean, so carrying them costs nothing.
+    public let minBpm: Double
+    public let maxBpm: Double
     /// The WEAKEST signal confidence contributing to this bucket: 1.0 for measured `hrSample`
     /// rows, the stored autocorrelation `conf` for PPG-derived fallback rows. Lets a chart render
     /// a weak-optical stretch distinctly instead of identically to a clean measured beat. Defaults
     /// to 1.0 so existing constructors/tests are unchanged. (adopted from ryanAtriumAi #988 —
     /// purely additive surfacing; the acceptance floor itself is unchanged.)
     public let conf: Double
-    public init(ts: Int, bpm: Double, conf: Double = 1.0) { self.ts = ts; self.bpm = bpm; self.conf = conf }
+    /// `minBpm` and `maxBpm` are required rather than defaulted. A default would let a caller build a
+    /// bucket whose extremes silently equal its mean, which is precisely the shape of the bug (#2032):
+    /// a number that looks like a reading and describes something else.
+    public init(ts: Int, bpm: Double, minBpm: Double, maxBpm: Double, conf: Double = 1.0) {
+        self.ts = ts
+        self.bpm = bpm
+        self.minBpm = minBpm
+        self.maxBpm = maxBpm
+        self.conf = conf
+    }
 }
 
 /// Aggregate HR over a time window: sample count + mean/peak bpm. Result of [WhoopStore.hrWindowStats],
@@ -336,7 +354,8 @@ extension WhoopStore {
             // (conservative), and a purely-measured bucket stays 1.0. Purely additive projection:
             // the bpm aggregate and the anti-join semantics are byte-identical. (ryanAtriumAi #988)
             try Row.fetchAll(db, sql: """
-                SELECT (ts / ?) * ? AS bucket, AVG(bpm) AS avgBpm, MIN(conf) AS minConf FROM (
+                SELECT (ts / ?) * ? AS bucket, AVG(bpm) AS avgBpm, MIN(conf) AS minConf,
+                       MIN(bpm) AS minBpm, MAX(bpm) AS maxBpm FROM (
                     SELECT ts, bpm, 1.0 AS conf FROM hrSample
                     WHERE deviceId = ? AND ts >= ? AND ts <= ?
                     UNION ALL
@@ -352,7 +371,9 @@ extension WhoopStore {
                                  deviceId, from, to,
                                  deviceId, from, to,
                                  bucket])
-                .map { HRBucket(ts: $0["bucket"], bpm: $0["avgBpm"], conf: $0["minConf"] ?? 1.0) }
+                .map { HRBucket(ts: $0["bucket"], bpm: $0["avgBpm"],
+                                minBpm: $0["minBpm"], maxBpm: $0["maxBpm"],
+                                conf: $0["minConf"] ?? 1.0) }
         }
     }
 

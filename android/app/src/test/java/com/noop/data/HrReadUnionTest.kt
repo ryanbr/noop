@@ -1,7 +1,9 @@
 package com.noop.data
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertSame
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -28,7 +30,10 @@ class HrReadUnionTest {
     private fun sample(ts: Long, bpm: Int, source: String = canonical) =
         HrSample(deviceId = source, ts = ts, bpm = bpm)
 
-    private fun bucket(start: Long, avg: Double) = HrBucket(bucket = start, avgBpm = avg)
+    // A flat synthetic bucket: these tests are about which bucket WINS a union, not about the spread
+    // inside one, so the extremes equal the mean rather than inventing a range nothing here reads.
+    private fun bucket(start: Long, avg: Double) =
+        HrBucket(bucket = start, avgBpm = avg, minBpm = avg, maxBpm = avg)
 
     private fun step(ts: Long, activityClass: Int?, source: String = canonical) =
         StepSample(deviceId = source, ts = ts, counter = 0, activityClass = activityClass)
@@ -172,5 +177,39 @@ class HrReadUnionTest {
     @Test
     fun latestActivityClassEmptyUnionIsNull() {
         assertEquals(null, WhoopRepository.latestActivityClass(listOf(emptyList(), emptyList())))
+    }
+
+    // --- (d) the union carries a bucket's EXTREMES, not just its mean (#2032) ---
+
+    /**
+     * The active strap's bucket wins whole, extremes included.
+     *
+     * `mergeHrBucketsByStart` dedupes by bucket start with the first list winning, and it has always
+     * carried the winning row rather than blending values. That stayed true when the row gained its
+     * min and max, but a merge that reached inside to recombine fields would be wrong in a way nothing
+     * else here would catch: it would mix one strap's spread with another's mean.
+     */
+    @Test
+    fun aMergedBucketKeepsTheWinningStrapsExtremes() {
+        val active = listOf(HrBucket(bucket = 300L, avgBpm = 61.5, minBpm = 61.0, maxBpm = 62.0))
+        val other = listOf(HrBucket(bucket = 300L, avgBpm = 99.0, minBpm = 40.0, maxBpm = 190.0))
+        val merged = WhoopRepository.mergeHrBucketsByStart(listOf(active, other))
+        assertEquals(1, merged.size)
+        assertEquals(61.5, merged[0].avgBpm, 0.0)
+        assertEquals("the winner's own low, not the other strap's", 61.0, merged[0].minBpm, 0.0)
+        assertEquals("the winner's own peak, not the other strap's", 62.0, merged[0].maxBpm, 0.0)
+    }
+
+    /**
+     * A bucket's extremes are independent of its mean, which is the whole point of carrying them: a
+     * five-minute mean of 61.5 can hide a 62 peak, and that gap is what made a workout's max exceed the
+     * day's on the Today card.
+     */
+    @Test
+    fun aBucketsExtremesAreNotItsMean() {
+        val b = HrBucket(bucket = 0L, avgBpm = 61.5, minBpm = 61.0, maxBpm = 62.0)
+        assertNotEquals(b.avgBpm, b.maxBpm, 0.0)
+        assertTrue("the peak is at or above the mean", b.maxBpm >= b.avgBpm)
+        assertTrue("the low is at or below the mean", b.minBpm <= b.avgBpm)
     }
 }

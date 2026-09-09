@@ -412,7 +412,8 @@ interface WhoopDao : DeviceRegistryDao {
      *  selects are UNION ALL'd into one bpm stream, then bucket-averaged exactly as before. Matches
      *  the Swift hrBuckets COALESCE union. */
     @Query(
-        "SELECT (ts / :bucketSeconds) * :bucketSeconds AS bucket, AVG(bpm) AS avgBpm FROM (" +
+        "SELECT (ts / :bucketSeconds) * :bucketSeconds AS bucket, AVG(bpm) AS avgBpm, " +
+            "MIN(bpm) AS minBpm, MAX(bpm) AS maxBpm FROM (" +
             "SELECT ts, bpm FROM hrSample " +
             "WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
             "UNION ALL " +
