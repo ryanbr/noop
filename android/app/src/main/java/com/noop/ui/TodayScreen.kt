@@ -2903,13 +2903,19 @@ private fun HeroRingColumn(
             )
         }
         if (caption != null) {
-            AutoSizeValue(
+            // A plain wrapping Text, NOT AutoSizeValue: that one is maxLines = 1 with softWrap off and an
+            // ellipsis, so a longer translation would shrink to its floor and then cut itself off
+            // mid-word. Truncating its own explanation is precisely what the old in-ring overlay did and
+            // what moving the caption out here was meant to stop, so it must not come back through the
+            // component. Two lines at the column's width holds every locale we ship.
+            Text(
                 text = caption,
                 style = NoopType.footnote,
                 color = Palette.textTertiary,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = Metrics.space2),
-                minScale = 0.7f,
+                maxLines = 2,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = Metrics.space2),
             )
         }
     }
@@ -5424,7 +5430,15 @@ private fun MetricGrid(
             tint = restScore?.let { Palette.recoveryColor(it) } ?: Palette.restColor,
             frac = restScore?.let { (it / 100.0).coerceIn(0.0, 1.0) },
             spark = restSpark,
-            caption = if (restPendingSync) uiString(R.string.l10n_today_screen_strap_history_still_offloading_80140264) else null,
+            // Composed from the two shipped strings rather than a third one needing four translations.
+            // Matches the single iOS caption "Pending sync · strap history still offloading": the second
+            // half alone read as a fragment, and more so now that a real number sits above it (#2012).
+            caption = if (restPendingSync) {
+                uiString(R.string.l10n_today_screen_pending_sync_cbe01f9e) + " · " +
+                    uiString(R.string.l10n_today_screen_strap_history_still_offloading_80140264)
+            } else {
+                null
+            },
         ),
         KeyMetric.HRV to run {
             val v = d?.avgHrv ?: carriedDay?.avgHrv
