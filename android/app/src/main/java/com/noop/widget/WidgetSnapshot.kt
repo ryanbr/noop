@@ -178,6 +178,9 @@ object WidgetSnapshotStore {
 
     fun load(context: Context): WidgetSnapshot {
         val p = context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+        // Resolved ONCE. Asking twice let the two stress fields straddle midnight and disagree, the
+        // same inconsistency the Swift twin avoids by deriving both from a single value.
+        val today = java.time.LocalDate.now().toEpochDay()
         val (hr, hrStale) = HrDisplay.resolve(
             lastHr = p.getInt("hr", -1).takeIf { it > 0 },
             lastHrAtMs = p.getLong("hrAt", 0L),
@@ -203,14 +206,13 @@ object WidgetSnapshotStore {
             // uses for age: a widget read at 00:30 would otherwise show yesterday's curve as today's
             // until the first hour of the new day happens to be scorable.
             stressSeries = p.getLong(KEY_STRESS_DAY, Long.MIN_VALUE)
-                .takeIf { it == java.time.LocalDate.now().toEpochDay() }
+                .takeIf { it == today }
                 ?.let { StressTrace.decode(p.getString(KEY_STRESS, null)) }
                 ?: emptyList(),
             // Surfaced only when it IS today, so this field can never disagree with the series above:
             // a loaded snapshot reporting yesterday's day beside an emptied curve would be a trap for
             // anything that later treated the pair as writable state.
-            stressDay = p.getLong(KEY_STRESS_DAY, Long.MIN_VALUE)
-                .takeIf { it == java.time.LocalDate.now().toEpochDay() },
+            stressDay = p.getLong(KEY_STRESS_DAY, Long.MIN_VALUE).takeIf { it == today },
             updatedAtMs = p.getLong("updatedAt", 0L),
         )
     }
