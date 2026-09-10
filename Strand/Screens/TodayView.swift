@@ -2483,6 +2483,11 @@ struct TodayView: View {
     private func hostedCard(for card: HostedCard) -> some View {
         switch card {
         case .sleepMarks: SleepMarkCard()
+        case .trendHRV, .trendRestingHR, .trendEffort:
+            // The Trends charts, drawn by the tab's own ChartCard + TrendChart from the SAME resolved
+            // points. `HostedTrendData` walks the `days` already in hand, so unlike the sleep model and
+            // the stress curve there is no read behind these and nothing to gate.
+            HostedTrendCard(card: card, days: repo.days, effortScale: effortScale)
         case .stressToday:
             // READ-ONLY, like `stages`: the Stress tab keeps the interactive timeline and this mirrors
             // only the display. `DaytimeLoadLine` is the tab's OWN line, so the host cannot drift into

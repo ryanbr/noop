@@ -14,6 +14,9 @@ final class HostedCardPrefsTests: XCTestCase {
         // Byte-identical to the Kotlin `HostedCard.STRESS_TODAY`. This id rides .noopbak, so a
         // difference of one character means an Android backup restored here silently drops the card.
         XCTAssertEqual(HostedCard.stressToday.rawValue, "stress.today")
+        XCTAssertEqual(HostedCard.trendHRV.rawValue, "trends.hrv")
+        XCTAssertEqual(HostedCard.trendRestingHR.rawValue, "trends.restingHr")
+        XCTAssertEqual(HostedCard.trendEffort.rawValue, "trends.effort")
     }
 
     /// The two local-day counters have to agree, and nothing but this test can check them.
@@ -60,6 +63,11 @@ final class HostedCardPrefsTests: XCTestCase {
         // Named explicitly, as the Kotlin twin names it: the generic checks above would still pass if
         // this card were quietly pointed at the wrong tab.
         XCTAssertEqual(HostedCard.stressToday.route, .stress)
+        // The metric's own page, with the SOURCE pinned: `rhr` exists under both my-whoop and
+        // xiaomi-band, so a bare key would resolve by catalog declaration order.
+        XCTAssertEqual(HostedCard.trendHRV.route, .metricSourced(key: "hrv", source: "my-whoop"))
+        XCTAssertEqual(HostedCard.trendRestingHR.route, .metricSourced(key: "rhr", source: "my-whoop"))
+        XCTAssertEqual(HostedCard.trendEffort.route, .metricSourced(key: "strain", source: "my-whoop"))
     }
 
     /// Opt-in surface: nothing is hosted until the user adds a card.

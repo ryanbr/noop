@@ -55,6 +55,16 @@ enum HostedCard: String, CaseIterable, Identifiable {
     /// The rawValue rides `.noopbak` under `today.hostedCards`, so it is byte-identical to the Android
     /// `HostedCard.STRESS_TODAY`.
     case stressToday = "stress.today"
+    /// Trends tab · "HRV" — the trailing-month HRV trend (#today-hosted-cards). The three Trends-origin
+    /// cards render the SAME `ChartCard` + `TrendChart` pair the tab draws, from the SAME resolved
+    /// points, parameterised by which `DailyMetric` field they read.
+    ///
+    /// These rawValues ride `.noopbak` and are byte-identical to the Android `HostedCard` ids.
+    case trendHRV = "trends.hrv"
+    /// Trends tab · "Resting heart rate" — the trailing-month resting-HR trend.
+    case trendRestingHR = "trends.restingHr"
+    /// Trends tab · "Effort" — the trailing-month Effort trend, on the wearer's chosen scale (#268).
+    case trendEffort = "trends.effort"
 
     var id: String { rawValue }
 
@@ -70,6 +80,9 @@ enum HostedCard: String, CaseIterable, Identifiable {
         case .hoursVsNeeded: return String(localized: "Hours vs Needed")
         case .consistency: return String(localized: "Consistency")
         case .stressToday: return String(localized: "Stress through the day")
+        case .trendHRV: return String(localized: "Heart rate variability")
+        case .trendRestingHR: return String(localized: "Resting heart rate")
+        case .trendEffort: return String(localized: "Effort")
         }
     }
 
@@ -79,6 +92,7 @@ enum HostedCard: String, CaseIterable, Identifiable {
         switch self {
         case .sleepMarks, .asleepDuration, .stagesVsTypical, .nightDetail, .sleepDebt, .stages, .hoursVsNeeded, .consistency: return String(localized: "Sleep")
         case .stressToday: return String(localized: "Stress")
+        case .trendHRV, .trendRestingHR, .trendEffort: return String(localized: "Trends")
         }
     }
 
@@ -99,6 +113,11 @@ enum HostedCard: String, CaseIterable, Identifiable {
         case .asleepDuration, .stagesVsTypical, .nightDetail, .sleepDebt, .stages,
              .hoursVsNeeded, .consistency: return .sleep
         case .stressToday: return .stress
+        // The METRIC's own detail page rather than the Trends tab: closer to what was tapped, and the
+        // destination the Charge and Effort key tiles already use. Twin of the Kotlin `Metric` destination.
+        case .trendHRV: return .metricSourced(key: "hrv", source: "my-whoop")
+        case .trendRestingHR: return .metricSourced(key: "rhr", source: "my-whoop")
+        case .trendEffort: return .metricSourced(key: "strain", source: "my-whoop")
         }
     }
 
@@ -114,6 +133,9 @@ enum HostedCard: String, CaseIterable, Identifiable {
         case .hoursVsNeeded: return "gauge.medium"
         case .consistency: return "repeat"
         case .stressToday: return "chart.xyaxis.line"
+        case .trendHRV: return "waveform.path.ecg"
+        case .trendRestingHR: return "heart"
+        case .trendEffort: return "bolt.fill"
         }
     }
 
@@ -122,6 +144,9 @@ enum HostedCard: String, CaseIterable, Identifiable {
         switch self {
         case .sleepMarks, .asleepDuration, .stagesVsTypical, .nightDetail, .sleepDebt, .stages, .hoursVsNeeded, .consistency: return StrandPalette.restColor
         case .stressToday: return StrandPalette.stressColor
+        case .trendHRV: return StrandPalette.metricPurple
+        case .trendRestingHR: return StrandPalette.metricRose
+        case .trendEffort: return StrandPalette.effortColor
         }
     }
 
