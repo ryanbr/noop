@@ -2,6 +2,7 @@ package com.noop.ble
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -48,8 +49,25 @@ class BleStatusLabelsTest {
     fun `the disconnect reasons that matter are named`() {
         assertTrue(disconnectStatusLabel(8).contains("out of range"))
         assertTrue(disconnectStatusLabel(19).contains("STRAP terminated"))
-        assertTrue(disconnectStatusLabel(22).contains("phone terminated"))
+        // 22 deliberately no longer claims the phone hung up: it also covers an SMP refusal, which is
+        // where a 5/MG that cannot bond lands. Repinned to the honest wording rather than deleted, so
+        // the case stays guarded. See the comment on the label.
+        assertTrue(disconnectStatusLabel(22).contains("the local stack ended it"))
+        assertFalse(disconnectStatusLabel(22).contains("this phone terminated"))
         assertTrue(disconnectStatusLabel(62).contains("failed to establish"))
+    }
+
+    /**
+     * A link-end status and an ATT operation status are different enumerations that collide on small
+     * integers, and #1635 already lost effort to one rendered through the other. This pins that they
+     * disagree exactly where they must, so a future edit cannot quietly borrow the wrong names.
+     */
+    @Test
+    fun `the colliding codes are not borrowed from the operation table`() {
+        for (code in listOf(3, 5, 13, 15)) {
+            assertEquals("code $code must not borrow the ATT name", "status=$code", disconnectStatusLabel(code))
+            assertTrue("the ATT table still names $code", gattStatusLabel(code).contains("GATT_"))
+        }
     }
 
     /** 133 keeps its honesty: it is Android's catch-all, so it is not given a cause it does not have. */
