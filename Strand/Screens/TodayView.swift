@@ -3252,7 +3252,7 @@ struct TodayView: View {
             // falls back to the Health screen on an unknown key rather than failing, which is exactly why
             // they are pinned rather than trusted.
             heroRingColumn(section: .charge, domain: .charge, provenanceKey: "recovery",
-                           onRingTap: { showChargeBreakdown = true },
+                           onChevronTap: { showChargeBreakdown = true },
                            detailRoute: .metric(HeroRingMetric.charge)) {
                 chargeRing(score: score, d: d, diameter: ring)
             }
@@ -3324,34 +3324,28 @@ struct TodayView: View {
     /// ring's edge. Mirrors Android's `HeroRingColumn(caption:)`.
     private func heroRingColumn<RingBody: View>(
         section: ScoreSection, domain: DomainTheme, provenanceKey: String? = nil,
-        onRingTap: (() -> Void)? = nil, detailRoute: TabRoute? = nil, caption: String? = nil,
+        onChevronTap: (() -> Void)? = nil, detailRoute: TabRoute? = nil, caption: String? = nil,
         captionWidth: CGFloat = 98,
         @ViewBuilder ring: () -> RingBody
     ) -> some View {
         VStack(spacing: 8) {
-            // A1: when the column is tappable (Charge), wrap the ring in a button (the body is just the ring
-            // with a contentShape so the whole disc is hittable). The tappable ring carries NO in-ring cue:
-            // the single affordance is the label chevron below it (see the comment near the Button below).
-            // The non-tappable rings render unchanged.
+            // The RING opens this score's own detail, which is what the Liquid Today has done since
+            // #1995 and what Android does through its own hero keys. Here it used to be Charge alone,
+            // wired to the breakdown sheet, while Effort and Rest were not tappable at all: two of the
+            // three rings did nothing and the third went somewhere else. The chevron below keeps whatever
+            // it already opened, so this adds a destination rather than moving one.
+            //
+            // A1: the body is the ring plus a contentShape so the whole disc is hittable, and the ring
+            // carries NO in-ring cue. `.plain` is load-bearing: a bare NavigationLink applies the default
+            // link chrome and would tint the ring, the same reason `metricRow` carries a button style.
+            // Every column passes a route, so there is no untappable branch; a nil route would render a
+            // plain ring, which is what a future domain without a detail screen should get.
             if let detailRoute {
-                // The RING opens this score's own detail, which is what the Liquid Today has done since
-                // #1995 and what Android does. Here it was Charge only, wired to the breakdown sheet,
-                // while Effort and Rest were not tappable at all: two of the three rings did nothing, and
-                // the third went somewhere else. The chevron below keeps whatever it already opened, so
-                // this adds a destination rather than moving one.
                 NavigationLink(value: detailRoute) {
                     ring().contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(Self.domainDetailAccessibilityLabel(domain))
-                .accessibilityAddTraits(.isButton)
-            } else if let onRingTap {
-                Button(action: onRingTap) {
-                    ring().contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(Self.domainLabel(domain))
-                .accessibilityHint("See what shaped your Charge")
                 .accessibilityAddTraits(.isButton)
             } else {
                 ring()
@@ -3359,7 +3353,7 @@ struct TodayView: View {
             // ONE chevron affordance under every ring, so the row reads uniformly (no second cue on the
             // Charge ring). Charge's chevron opens the "what shaped it" breakdown (its richest explanation);
             // Effort / Rest open their scoring-guide section.
-            Button { if let onRingTap { onRingTap() } else { guideSection = section } } label: {
+            Button { if let onChevronTap { onChevronTap() } else { guideSection = section } } label: {
                 HStack(spacing: 3) {
                     // #937: an invisible LEADING twin of the trailing chevron. The word + chevron used to
                     // centre as ONE block, which pushed the word visibly off the ring's axis (worst on short
@@ -3387,8 +3381,8 @@ struct TodayView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(onRingTap == nil ? Self.domainGuideAccessibilityLabel(domain)
-                                                  : "See what shaped your Charge")
+            .accessibilityLabel(onChevronTap == nil ? Self.domainGuideAccessibilityLabel(domain)
+                                                     : "See what shaped your Charge")
             // Component 4, the real per-day source under the ring (only when this score has a value for
             // the day AND we resolved its winner; a calibrating / empty ring shows no provenance badge).
             // Apple Watch (M1): a watch-sourced score reads "Apple Watch" with its confidence bound to the
