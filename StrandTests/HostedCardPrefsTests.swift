@@ -57,6 +57,9 @@ final class HostedCardPrefsTests: XCTestCase {
         for card in HostedCard.allCases where card.origin == sleepOrigin && card != .sleepMarks {
             XCTAssertEqual(card.route, .sleep, "\(card.rawValue) should open Sleep")
         }
+        // Named explicitly, as the Kotlin twin names it: the generic checks above would still pass if
+        // this card were quietly pointed at the wrong tab.
+        XCTAssertEqual(HostedCard.stressToday.route, .stress)
     }
 
     /// Opt-in surface: nothing is hosted until the user adds a card.
