@@ -6465,6 +6465,12 @@ private suspend fun PointerInputScope.hrChartTransformGestures(
 // self-hides when its data is absent (no sleep, calibrating Charge, no workouts). Mirrors the macOS
 // OverviewHRChart (Packages/StrandDesign) in NOOP's own colour language. (PR #285)
 
+/** The width of the Today HR card's buckets, matching the 5-minute load its own comment describes.
+ *  Named because [hrGapSegmentIds] compares steps against it: if the load ever changes width and this
+ *  does not, every bucket reads as a gap and the line shatters, which is at least loud rather than
+ *  silent. */
+internal const val HR_CARD_BUCKET_SECONDS = 300L
+
 @Composable
 private fun OverviewHRChart(
     buckets: List<HrBucket>,
@@ -6482,6 +6488,9 @@ private fun OverviewHRChart(
 ) {
     // The line itself stays the existing shared component, unchanged, markers are a sibling overlay.
     val bucketTimestamps = remember(buckets) { buckets.map { it.bucket } }
+    val gapSegments = remember(bucketTimestamps) {
+        hrGapSegmentIds(bucketTimestamps, HR_CARD_BUCKET_SECONDS)
+    }
     val minV = bpm.min()
     val maxV = bpm.max()
     val span = (maxV - minV).takeIf { it > 0.0 } ?: 1.0
@@ -6609,6 +6618,9 @@ private fun OverviewHRChart(
             // formatter carries the unit — "14:32 · 87 bpm" instead of a bare "87".
             formatValue = { "${it.roundToInt()} bpm" },
             timestamps = bucketTimestamps,
+            // A bucket with no samples is absent from the aggregate, so without this the stroke joins
+            // the two neighbours and draws a steady climb across hours the strap recorded nothing.
+            segmentIds = gapSegments,
         )
 
         // 2) Wake divider + dashed rules + glow end-cap, drawn in one Canvas ON TOP of the line.

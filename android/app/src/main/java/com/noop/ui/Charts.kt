@@ -273,6 +273,29 @@ fun Sparkline(
 
 // MARK: - LineChart
 
+/**
+ * Segment ids for a bucketed time series, changing wherever the series SKIPS a bucket.
+ *
+ * A bucket aggregate only emits rows for buckets that had samples, so an hour the strap was off simply
+ * is not in the list. The chart spaces points by index, so those two neighbours land side by side and
+ * the stroke joins them: a straight line drawn across time where nothing was measured, reading as a
+ * steady climb the wearer never had. Feeding these ids to [LineChart] breaks the stroke there instead,
+ * the same way an estimator change already breaks the VO2max line, so a gap looks like a gap.
+ *
+ * A step of exactly one bucket is contiguous. Anything longer means at least one bucket held nothing,
+ * and that is the break. No tolerance for "just one missing": a five-minute hole is still five minutes
+ * of invention, and the stress trace made the same call when it stopped drawing through unscored hours.
+ *
+ * Byte-identical twin of Swift `hrGapSegments`.
+ */
+internal fun hrGapSegmentIds(bucketTs: List<Long>, bucketSeconds: Long): List<String> {
+    var segment = 0
+    return bucketTs.mapIndexed { i, ts ->
+        if (i > 0 && ts - bucketTs[i - 1] > bucketSeconds) segment++
+        segment.toString()
+    }
+}
+
 /** Contiguous point-index ranges for a segmented line. A null/misaligned id list preserves the classic
  *  single-line behavior. Equal ids that reappear later become a new range because only adjacency connects. */
 internal fun lineChartSegmentRanges(count: Int, segmentIds: List<String>?): List<IntRange> {

@@ -5026,8 +5026,14 @@ struct TodayView: View {
             ?? calendarEnd
         let windowEndInclusive = max(windowStart, windowEndExclusive - 1)
         let hrBucketsLocal = await repo.hrBuckets(from: windowStart, to: windowEndInclusive, bucketSeconds: 300)
-        let hrPointsLocal = hrBucketsLocal
-            .map { TrendPoint(date: Date(timeIntervalSince1970: TimeInterval($0.ts)), value: $0.bpm) }
+        // A bucket with no samples is absent from the aggregate, so without a segment break the line
+        // joins its two neighbours and draws a steady climb across hours the strap recorded nothing.
+        let hrSegments = hrGapSegments(bucketTs: hrBucketsLocal.map(\.ts), bucketSeconds: 300)
+        let hrPointsLocal = hrBucketsLocal.enumerated()
+            .map { i, b in
+                TrendPoint(date: Date(timeIntervalSince1970: TimeInterval(b.ts)), value: b.bpm,
+                           segment: hrSegments[i])
+            }
         hrPoints = hrPointsLocal
         // The chart keeps plotting means; only the footer reads the samples behind them (#2032).
         hrDayMin = hrBucketsLocal.map(\.minBpm).min()
