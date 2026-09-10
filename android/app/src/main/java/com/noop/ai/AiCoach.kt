@@ -12,6 +12,8 @@ import com.noop.data.DailyMetric
 import com.noop.data.JournalEntry
 import com.noop.data.LabMarkerRow
 import com.noop.data.WhoopRepository
+import com.noop.ingest.ActivityFileImporter
+import com.noop.ingest.LiftingImporter
 import com.noop.ui.NoopPrefs
 import com.noop.data.WorkoutRow
 import com.noop.ui.UnitFormatter
@@ -486,11 +488,21 @@ class AiCoach(
      * fields in exactly this order since it was written; Android simply never had it.
      *
      * SCOPE, deliberately the wearer's own words on the issue, "all information of your workouts, that
-     * are visible to yourself": the union here is the one the Workouts feed shows, the active strap's
-     * sessions plus Apple Health, Health Connect and imported lifting, deduped cross-source so a live
-     * recording and its thin import collapse to the richer row rather than being sent twice. Detected
-     * shadow sessions under `<id>-noop` are NOT included: a wearer can dismiss those, and a dismissed
-     * session is by definition not one they can see.
+     * are visible to yourself". So this mirrors what the Workouts screen actually lists, which
+     * `AppViewModel` assembles: the strap union, Apple Health, Health Connect, auto-detected sessions,
+     * imported activity files and imported lifting, with dismissed sessions filtered OUT and the rest
+     * deduped cross-source so a live recording and its thin import collapse to the richer row.
+     *
+     * The dismissal filter is the part that matters and the part a first pass here got wrong. Detected
+     * sessions were dropped wholesale on the reasoning that a wearer can dismiss them, which confused
+     * the category with the act: the screen shows detected sessions and hides DISMISSED ones, of any
+     * source. Dropping the category hid a strap-only wearer's auto-detected training from the coach
+     * entirely, while still sending a dismissed import. Both halves are now the screen's behaviour.
+     *
+     * One thing the screen does that this does not: `fillWorkoutHrFromStrap`, which borrows the strap's
+     * samples to fill an imported session's missing average HR. Skipped deliberately. It needs the
+     * profile and the effort method, and its absence costs a field that is simply omitted rather than a
+     * field that is wrong, which is the rule this block already follows everywhere else.
      *
      * Six sessions, thirty days. This rides inside a prompt payload, so it is a summary and not an
      * export; the day table above still carries the fourteen-day shape.
@@ -504,11 +516,16 @@ class AiCoach(
         val from = now - 30L * 86_400L
         val rows = runCatching {
             val id = activeStrapId()
+            val all = repo.workoutsUnion(id, from, now) +
+                repo.workouts("apple-health", from, now) +
+                repo.workouts("health-connect", from, now) +
+                repo.detectedWorkoutsUnion(id, from, now) +
+                repo.workouts(ActivityFileImporter.SOURCE_ID, from, now) +
+                repo.workouts(LiftingImporter.SOURCE_ID, from, now)
+            // Dismissed first, then dedup: the same order the screen uses, so a dismissed row cannot be
+            // the one a cross-source collapse decides to keep.
             WorkoutEditing.dedupCrossSource(
-                repo.workoutsUnion(id, from, now) +
-                    repo.workouts("apple-health", from, now) +
-                    repo.workouts("health-connect", from, now) +
-                    repo.workouts("lifting", from, now),
+                WorkoutEditing.filterDismissed(all, repo.dismissedDetected(id)),
             )
         }.getOrDefault(emptyList()).sortedByDescending { it.startTs }
         return formatWorkoutsBlock(rows, UnitPrefs.distanceSystem(ctx), limit)
