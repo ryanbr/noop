@@ -1,6 +1,7 @@
 package com.noop.ble
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -16,7 +17,8 @@ class ConnectionStatusLabelTest {
 
     @Test fun theReasonsAnInvestigationTurnsOnAreNamed() {
         assertTrue(connectionStatusLabel(19).contains("the strap closed the link"))
-        assertTrue(connectionStatusLabel(22).contains("this phone closed the link"))
+        // 22 is deliberately NOT named as "the phone closed it" — see the ambiguity case below.
+        assertTrue(connectionStatusLabel(22).contains("the local stack ended it"))
         assertTrue(connectionStatusLabel(8).contains("supervision timeout"))
         assertTrue(connectionStatusLabel(62).contains("never came up"))
     }
@@ -30,6 +32,16 @@ class ConnectionStatusLabelTest {
             assertEquals("code $code must not borrow the ATT name", "unmapped", conn)
             assertTrue("the ATT table still names $code", att.contains("GATT_"))
         }
+    }
+
+    @Test fun theAmbiguousLocalTeardownDoesNotClaimWeHungUp() {
+        // 22 covers our own disconnect, the bond-watchdog bounce, AND an SMP refusal that the local
+        // stack acts on. `HelloSuppression` documents the third. A 5/MG that cannot bond lands there,
+        // so naming it "this phone closed the link" would misdirect the very reports it exists for.
+        val label = connectionStatusLabel(22)
+        assertTrue(label, label.contains("SMP refusal"))
+        assertTrue(label, label.contains("bond-watchdog"))
+        assertFalse("must not claim the phone hung up", label.contains("this phone closed"))
     }
 
     @Test fun anUnknownCodeSaysSoRatherThanGuessing() {
