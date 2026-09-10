@@ -76,10 +76,16 @@ extension View {
     }
 }
 
-/// The metric keys the three hero rings route to, named rather than repeated as literals.
+/// The metric keys the hero rings and their Key-Metrics tiles route to, named rather than repeated as
+/// literals.
 ///
 /// Both Apple Today shells render those rings and both used their own copies of the strings, so the
-/// pairing lived in three places at once including the test that was meant to guard it. `TabRoute.metric`
+/// pairing lived in three places at once including the test that was meant to guard it.
+///
+/// Not every ring uses one. A ring opens the RICHEST explanation its shell has, so Charge keeps its
+/// breakdown sheet wherever that sheet exists (the classic Today, and Android) and takes a route only on
+/// the Liquid Today, which has no breakdown to offer. Effort and Rest have no breakdown anywhere, so a
+/// route is the richest thing they have and every surface uses one. `TabRoute.metric`
 /// falls back to the Health screen on a key it does not recognise, which is the reason this is worth
 /// pinning: a rename leaves the ring tappable, animating, and landing on the wrong screen with nothing
 /// logged and nothing to notice.

@@ -3247,13 +3247,19 @@ struct TodayView: View {
             // edge, INSIDE the ring frame so it adds no stacked height, keeping the #762 self-sizing row
             // untouched). It opens the Charge breakdown sheet (the existing ChargeBreakdownSection), built
             // lazily on tap. No new badge/dot/tier sits under the ring (that would re-load the #762 stack).
-            // The three keys are the ones `HeroRingDetailRouteTests` pins against `MetricCatalog`, and
-            // the same three the Liquid hero and the Key-Metrics tiles below already use. `TabRoute.metric`
-            // falls back to the Health screen on an unknown key rather than failing, which is exactly why
-            // they are pinned rather than trusted.
+            // A ring opens the RICHEST explanation this shell has for its score, which is the rule
+            // Android states outright: "Charge keeps its breakdown sheet, which is richer than a trend and
+            // has no twin on the iOS liquid Today". That clause is why the three surfaces differ, and it
+            // is not an oversight. The Liquid Today sends Charge to the trend because it has no breakdown
+            // to offer; THIS shell has one, so its Charge ring keeps it and matches Android.
+            //
+            // Effort and Rest have no breakdown on any platform, so the trend is the richest thing they
+            // have and both rings open it, exactly as Android's do. The keys are the ones
+            // `HeroRingDetailRouteTests` pins against `MetricCatalog`; `TabRoute.metric` falls back to the
+            // Health screen on an unknown key rather than failing, which is why they are pinned.
             heroRingColumn(section: .charge, domain: .charge, provenanceKey: "recovery",
-                           onChevronTap: { showChargeBreakdown = true },
-                           detailRoute: .metric(HeroRingMetric.charge)) {
+                           onRingTap: { showChargeBreakdown = true },
+                           onChevronTap: { showChargeBreakdown = true }) {
                 chargeRing(score: score, d: d, diameter: ring)
             }
             heroRingColumn(section: .effort, domain: .effort,
@@ -3324,7 +3330,8 @@ struct TodayView: View {
     /// ring's edge. Mirrors Android's `HeroRingColumn(caption:)`.
     private func heroRingColumn<RingBody: View>(
         section: ScoreSection, domain: DomainTheme, provenanceKey: String? = nil,
-        onChevronTap: (() -> Void)? = nil, detailRoute: TabRoute? = nil, caption: String? = nil,
+        onRingTap: (() -> Void)? = nil, onChevronTap: (() -> Void)? = nil,
+        detailRoute: TabRoute? = nil, caption: String? = nil,
         captionWidth: CGFloat = 98,
         @ViewBuilder ring: () -> RingBody
     ) -> some View {
@@ -3338,14 +3345,23 @@ struct TodayView: View {
             // A1: the body is the ring plus a contentShape so the whole disc is hittable, and the ring
             // carries NO in-ring cue. `.plain` is load-bearing: a bare NavigationLink applies the default
             // link chrome and would tint the ring, the same reason `metricRow` carries a button style.
-            // Every column passes a route, so there is no untappable branch; a nil route would render a
-            // plain ring, which is what a future domain without a detail screen should get.
+            // A column supplies EITHER a route (Effort, Rest) or an action (Charge, whose breakdown is a
+            // sheet rather than a destination), never both. A column with neither renders a plain ring,
+            // which is what a future domain with nothing richer to open should get.
             if let detailRoute {
                 NavigationLink(value: detailRoute) {
                     ring().contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(Self.domainDetailAccessibilityLabel(domain))
+                .accessibilityAddTraits(.isButton)
+            } else if let onRingTap {
+                Button(action: onRingTap) {
+                    ring().contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Self.domainLabel(domain))
+                .accessibilityHint("See what shaped your Charge")
                 .accessibilityAddTraits(.isButton)
             } else {
                 ring()

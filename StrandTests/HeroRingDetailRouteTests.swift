@@ -1,8 +1,13 @@
 import XCTest
 @testable import Strand
 
-/// #1995: the three hero rings tap through to their metric dossier, so the ring and the Key-Metrics tile
-/// for the same score reach the identical screen.
+/// #1995: a hero ring taps through to its metric dossier, so the ring and the Key-Metrics tile for the
+/// same score reach the identical screen.
+///
+/// Charge is the exception and it is deliberate: a ring opens the richest explanation its shell has, so
+/// Charge keeps its breakdown sheet on the classic Today and on Android and only takes a route on the
+/// Liquid Today, which has no breakdown. Its key is still pinned here because the Liquid hero and both
+/// shells' tiles resolve it.
 ///
 /// `TabRoute.metric(key)` resolves through `MetricCatalog.all` and, when a key does not match, falls back
 /// to the Health screen rather than failing. That fallback is the reason these assertions exist: rename a
