@@ -123,6 +123,11 @@ private fun CoachSetup(vm: CoachViewModel) {
     val refreshingModels by vm.refreshingModels.collectAsStateWithLifecycle()
     val customBaseUrl by vm.customBaseUrl.collectAsStateWithLifecycle()
     val customAuthHeader by vm.customAuthHeader.collectAsStateWithLifecycle()
+    // The setup card had no error line at all, so every way this screen can fail before a key is
+    // committed failed silently: a Refresh the provider turned away, a Connect to a server that wants
+    // auth. The wearer saw a button do nothing. The chat has had one since the beginning; this is the
+    // half that was missing.
+    val error by vm.error.collectAsStateWithLifecycle()
     var keyInput by remember { mutableStateOf("") }
     val isCustom = provider == AiProvider.CUSTOM
 
@@ -233,6 +238,20 @@ private fun CoachSetup(vm: CoachViewModel) {
                     label = uiString(R.string.l10n_coach_screen_save_key_f5216b3a),
                     enabled = keyInput.isNotBlank(),
                     onClick = { vm.saveKey(context, keyInput) },
+                )
+            }
+
+            // Whatever the last attempt from THIS card ran into. No repair affordance beside it:
+            // unlike the chat, the key field is already on screen, which is the whole point of the card.
+            val errorMsg = error
+            if (errorMsg != null) {
+                Text(
+                    errorMsg,
+                    style = NoopType.subhead,
+                    color = Palette.statusCritical,
+                    modifier = Modifier.semantics {
+                        contentDescription = uiString(R.string.l10n_coach_screen_coach_error_error_ad9c8c46, errorMsg)
+                    },
                 )
             }
 

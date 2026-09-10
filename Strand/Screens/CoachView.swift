@@ -517,6 +517,15 @@ struct CoachView: View {
                     Spacer()
                 }
 
+                // Whatever the last attempt from THIS card ran into. The setup card had no error line
+                // at all, so every way it can fail before a key is committed failed silently: a Refresh
+                // the provider turned away, a Connect to a server that wants auth. The wearer saw a
+                // button do nothing. No repair affordance beside it, unlike the chat: the key field is
+                // already on screen, which is the whole point of the card.
+                if let error = coach.errorText, !error.isEmpty {
+                    errorBanner(error)
+                }
+
                 Divider().overlay(StrandPalette.hairline)
                 privacyFootnote
             }

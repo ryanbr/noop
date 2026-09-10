@@ -219,6 +219,11 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
      */
     fun selectProvider(ctx: Context, p: AiProvider) {
         if (p == _provider.value) return
+        // The message names a provider ("Your OpenAI API key was rejected"), so it cannot survive
+        // switching to a different one: it would be attributing a failure to a provider that never saw
+        // the request. Harmless while nothing rendered it on this card; wrong now that something does.
+        _error.value = null
+        _keyRejected.value = false
         _provider.value = p
         AiKeyStore.saveProvider(ctx, p)
         val resolved = AiKeyStore.readModel(ctx, p)
@@ -253,6 +258,10 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
         val appCtx = ctx.applicationContext
         val p = _provider.value
         val url = _customBaseUrl.value
+        // Clear before trying, not only on success. The setup card renders this now, so without it a
+        // stale message from the previous attempt would sit under a refresh that has just succeeded.
+        _error.value = null
+        _keyRejected.value = false
         _refreshingModels.value = true
         viewModelScope.launch {
             try {

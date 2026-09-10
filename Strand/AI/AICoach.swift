@@ -204,6 +204,12 @@ final class AICoachEngine: ObservableObject {
             if !provider.modelOptions.contains(model) {
                 model = provider.defaultModel
             }
+            // The message names a provider ("That API key was rejected", after a request only THIS
+            // provider saw), so it cannot survive switching to a different one. Harmless while only the
+            // chat rendered it; wrong now that the setup card does too, which is where switching
+            // happens. Twin of the Kotlin `selectProvider`.
+            errorText = nil
+            keyRejected = false
         }
     }
     @Published var model: String {
