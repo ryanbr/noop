@@ -88,6 +88,13 @@ struct LiftProgramEditorSheet: View {
                     }
                     field("Note (optional)") {
                         TextField("Anything you want to remember", text: $note)
+                            // Capped at what the hub can actually show (two caption lines). A field
+                            // that silently discards the end is worse than one that stops.
+                            .onChange(of: note) { new in
+                                if new.count > WhoopStore.maxProgramNoteLength {
+                                    note = String(new.prefix(WhoopStore.maxProgramNoteLength))
+                                }
+                            }
                             .textFieldStyle(.plain)
                             .font(StrandFont.body)
                             .foregroundStyle(StrandPalette.textPrimary)

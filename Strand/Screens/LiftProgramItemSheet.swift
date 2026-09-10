@@ -298,6 +298,13 @@ struct LiftProgramItemSheet: View {
             SectionHeader("Technique note", overline: "In your words")
             NoopCard {
                 TextField("Slow eccentric, pause at the bottom", text: $note, axis: .vertical)
+                    // A cue read between sets, and it renders directly above the set rows — every
+                    // line pushes them down the screen.
+                    .onChange(of: note) { new in
+                        if new.count > WhoopStore.maxExerciseNoteLength {
+                            note = String(new.prefix(WhoopStore.maxExerciseNoteLength))
+                        }
+                    }
                     .textFieldStyle(.plain)
                     .font(StrandFont.body)
                     .foregroundStyle(StrandPalette.textPrimary)

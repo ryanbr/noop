@@ -30,6 +30,7 @@ struct LiftSessionView: View {
     /// What the user did for each exercise LAST session — the fallback ghost values, loaded once.
     @State private var lastTime: [String: [Int: LiftRecordedSet]] = [:]
     @State private var showingFinish = false
+    @State private var confirmingDiscard = false
     @State private var sessionRpeText = ""
     @State private var saving = false
 
@@ -146,6 +147,9 @@ struct LiftSessionView: View {
                         .font(StrandFont.footnote)
                         .foregroundStyle(StrandPalette.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
+                        // Belt and braces with the entry cap: the sets are what this screen is for,
+                        // and a note must never be able to push them off it.
+                        .lineLimit(3)
                         .padding(10)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(StrandPalette.metricAmber.opacity(0.12),
@@ -551,6 +555,32 @@ struct LiftSessionView: View {
                         .buttonStyle(.noopPrimary)
                         .frame(maxWidth: 180)
                         .disabled(saving)
+                }
+
+                // A way OUT that records nothing. Until this existed, every route off this screen
+                // saved: "Skip" skips the RPE question, not the session. A session started by a
+                // mis-tap, or to try something out, had to be saved and then lived in the history
+                // and in that day's Effort for good.
+                Button(role: .destructive) {
+                    confirmingDiscard = true
+                } label: {
+                    Label("Discard session", systemImage: "trash")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.plain)
+                .font(StrandFont.body)
+                .foregroundStyle(StrandPalette.statusCritical)
+                .padding(.top, 4)
+                .disabled(saving)
+                .confirmationDialog("Discard this session?",
+                                    isPresented: $confirmingDiscard, titleVisibility: .visible) {
+                    Button("Discard", role: .destructive) {
+                        session.discard()
+                        showingFinish = false
+                    }
+                    Button("Keep going", role: .cancel) { }
+                } message: {
+                    Text("\(engine?.completedWorkingSets ?? 0) recorded sets will be thrown away. Nothing is saved and no workout is created.")
                 }
             }
         }

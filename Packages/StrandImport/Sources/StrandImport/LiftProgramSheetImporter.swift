@@ -196,6 +196,9 @@ public enum LiftProgramSheetImporter {
                 }
             }
 
+            // Notes are capped to the same lengths the in-app editors enforce. A spreadsheet cell
+            // holds far more than a phone can show, and a note that arrives longer than the editor
+            // would ever let you type is a note you can never fully see or edit afterwards.
             let line = ImportedProgramLine(
                 exercise: exercise,
                 primaryMuscle: primary,
@@ -204,20 +207,21 @@ public enum LiftProgramSheetImporter {
                 targetReps: intValue(row, repsKeys),
                 targetWeightKg: doubleValue(row, weightKeys),
                 restSec: intValue(row, restKeys),
-                note: value(row, noteKeys)?.trimmed.nilIfEmpty)
+                note: value(row, noteKeys)?.trimmed.nilIfEmpty
+                    .map { String($0.prefix(WhoopStore.maxExerciseNoteLength)) })
 
             if let idx = indexByName[programName.lowercased()] {
                 guard programs[idx].lines.count < maxLinesPerProgram else { truncated = true; continue }
                 programs[idx].lines.append(line)
                 if programs[idx].note == nil {
-                    programs[idx].note = value(row, programNoteKeys)?.trimmed.nilIfEmpty
+                    programs[idx].note = programNote(row)
                 }
             } else {
                 guard programs.count < maxPrograms else { truncated = true; continue }
                 indexByName[programName.lowercased()] = programs.count
                 programs.append(ImportedProgram(
                     name: programName,
-                    note: value(row, programNoteKeys)?.trimmed.nilIfEmpty,
+                    note: programNote(row),
                     lines: [line]))
             }
         }
@@ -243,6 +247,11 @@ public enum LiftProgramSheetImporter {
     /// row 1, so the first data row is row 2.
     private static func rowMessage(_ i: Int, _ text: String) -> String {
         "Row \(i + 2): \(text)"
+    }
+
+    private static func programNote(_ row: [String: String]) -> String? {
+        value(row, programNoteKeys)?.trimmed.nilIfEmpty
+            .map { String($0.prefix(WhoopStore.maxProgramNoteLength)) }
     }
 
     private static func value(_ row: [String: String], _ keys: [String]) -> String? {
