@@ -1319,6 +1319,9 @@ final class Repository: ObservableObject {
         // `rawIds + computedIds` whose bounds match, then normalises it to its `-noop` twin, and
         // `computedIds` is exactly `rawIds` mapped to that suffix. So a block read under a raw id and the
         // same block read under its computed one both resolve to that one computed source either way.
+        // Disagreeing would take two DIFFERENT straps sharing a start and an end to the second, and
+        // `dedupBlocks` already collapses that pair to a single block, so the probe was picking one of
+        // them arbitrarily as well.
         //
         // `sleepSessionBounds`, not `sleepSessions`: the check needs two integers per block, and the fuller
         // read selects `stagesJSON` among other columns, so it would haul every night's staging blob once

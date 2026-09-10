@@ -47,6 +47,10 @@ public struct CachedSleepSession: Equatable, Codable {
     /// worse than saying nothing. Readers treat nil as "ask", so provenance is a shortcut where the store
     /// supplied it and never a silent wrong answer where it did not. `Codable` decodes a missing key to nil,
     /// so persisted payloads written before this field stay readable.
+    ///
+    /// The WRITE never reads it. `upsertSleepSessions` takes its device as a separate argument, so
+    /// setting this on a session being stored cannot route the row into another device's namespace,
+    /// and a row always reads back stamped with the id it was actually written under.
     public let deviceId: String?
     public init(startTs: Int, endTs: Int, efficiency: Double?, restingHr: Int?,
                 avgHrv: Double?, stagesJSON: String?, userEdited: Bool = false,

@@ -21,6 +21,17 @@ final class MetricsCacheTests: XCTestCase {
 
     // MARK: - sleep sessions
 
+    /// The same session as it reads back from `deviceId`. `sleepSessions` stamps the device it read the
+    /// row from, and a hand-built session carries no provenance, so a whole-value expectation has to
+    /// state it. The write takes its device from the `upsertSleepSessions` argument, never from this
+    /// field, so a session's `deviceId` is an output of the read and not an input to the write.
+    private func readBack(_ s: CachedSleepSession, from deviceId: String) -> CachedSleepSession {
+        CachedSleepSession(startTs: s.startTs, endTs: s.endTs, efficiency: s.efficiency,
+                           restingHr: s.restingHr, avgHrv: s.avgHrv, stagesJSON: s.stagesJSON,
+                           userEdited: s.userEdited, startTsAdjusted: s.startTsAdjusted,
+                           stagingSparse: s.stagingSparse, deviceId: deviceId)
+    }
+
     func testSleepSessionUpsertReadAndIdempotency() async throws {
         let store = try await WhoopStore.inMemory()
         let s = CachedSleepSession(startTs: 1000, endTs: 5000, efficiency: 0.92,
@@ -30,7 +41,7 @@ final class MetricsCacheTests: XCTestCase {
 
         var rows = try await store.sleepSessions(deviceId: "devA", from: 0, to: 100_000, limit: 100)
         XCTAssertEqual(rows.count, 1)
-        XCTAssertEqual(rows[0], s)
+        XCTAssertEqual(rows[0], readBack(s, from: "devA"))
 
         // Re-upsert the same natural key with updated values, stages covering their (shorter) new span
         // just as fully as before → no duplicate, value updated (an ordinary refresh, not a regression).
@@ -67,7 +78,8 @@ final class MetricsCacheTests: XCTestCase {
 
         let rows = try await store.sleepSessions(deviceId: "oura-ring", from: 0, to: 2_000_000, limit: 100)
         XCTAssertEqual(rows.count, 1)
-        XCTAssertEqual(rows[0], full, "the fuller, previously-stored night must survive untouched")
+        XCTAssertEqual(rows[0], readBack(full, from: "oura-ring"),
+                       "the fuller, previously-stored night must survive untouched")
     }
 
     /// The mirror case: a candidate that IMPROVES on a holed stored row (fills in more of the same span)
@@ -86,7 +98,8 @@ final class MetricsCacheTests: XCTestCase {
 
         let rows = try await store.sleepSessions(deviceId: "oura-ring", from: 0, to: 2_000_000, limit: 100)
         XCTAssertEqual(rows.count, 1)
-        XCTAssertEqual(rows[0], full, "a candidate that covers more of the night must still win")
+        XCTAssertEqual(rows[0], readBack(full, from: "oura-ring"),
+                       "a candidate that covers more of the night must still win")
     }
 
     /// The completeness guard must never engage for a user-edited row — `applySleepEdit`'s bounds/stages
