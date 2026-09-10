@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Same 4x2 footprint as the heart-rate widget: this is a day-long curve, so it needs horizontal room
+     far more than height, and nothing here is stacked. updatePeriodMillis is 0 because
+     WidgetSnapshotStore pushes on the app's own cadence; letting the system poll as well would wake the
+     widget on a schedule that has nothing to do with when an hour was scored, and today's stress only
+     changes once an hour at most. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/widget_stress_description"
+    android:minWidth="250dp"
+    android:minHeight="110dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:updatePeriodMillis="0"
+    android:initialLayout="@layout/glance_default_loading_layout" />

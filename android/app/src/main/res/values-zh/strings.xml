@@ -2656,6 +2656,8 @@
     <string name="l10n_hr_glance_widget_updated_time_1b5feedb">更新于 %1$s</string>
     <string name="widget_hr_name">NOOP 心率</string>
     <string name="widget_hr_description">实时心率，并显示最近三小时的曲线。</string>
+    <string name="widget_stress_name">NOOP 压力</string>
+    <string name="widget_stress_description">以逐小时曲线显示今天的压力。</string>
     <string name="l10n_today_screen_see_the_charge_trend_9dcbcff7">查看充能趋势</string>
     <string name="l10n_today_screen_every_day_s_score_over_time_a00ea7c7">每天的分数，随时间变化。</string>
     <string name="l10n_app_changelog_a_coach_that_keeps_the_thread_2ee52e0c">能接住话头的教练、主屏幕上的心率，以及不再过度断言的图表</string>

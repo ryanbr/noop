@@ -1023,6 +1023,10 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     // widget reads the anchor here (the notification's honest-null contract lives in the
                     // service), keeping the two symmetric.
                     val anchorRow = widgetAnchorRow(days, logicalKey, localKey)
+                    // #2040: today's stress curve for the stress widget. Self-gating on a cheap HR
+                    // fingerprint, so an idle tick costs one indexed COUNT and no rows; null when
+                    // there is no device to read, which leaves whatever curve is stored alone.
+                    val stressCurve = com.noop.widget.StressWidgetProducer.todayCurve(repo, activeStrapId)
                     WidgetSnapshotStore.push(
                         appContext,
                         WidgetSnapshot(
@@ -1034,6 +1038,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                             heartRate = live.heartRate,
                             batteryPct = live.batteryPct?.roundToInt(),
                             connected = live.connected,
+                            stressSeries = stressCurve?.points ?: emptyList(),
+                            stressDay = stressCurve?.epochDay,
                             updatedAtMs = System.currentTimeMillis(),
                         ),
                     )

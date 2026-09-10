@@ -305,6 +305,20 @@
                 android:resource="@xml/hr_widget_info" />
         </receiver>
 
+        <!-- Stress widget (#2040): today's intraday stress as the curve the Stress screen draws.
+             Same snapshot source as its siblings; the curve is a Bitmap because Glance cannot draw. -->
+        <receiver
+            android:name="com.noop.widget.StressWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_stress_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/stress_widget_info" />
+        </receiver>
+
         <!-- K10: Coach brief home-screen widget. Shows the stored morning brief (generated on a
              schedule by CoachBriefScheduler, K5) — never live-networked. Tap → opens the app. -->
         <receiver

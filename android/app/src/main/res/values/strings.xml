@@ -4,6 +4,8 @@
     <string name="widget_description">Today\'s Rest, Charge and Effort, with live heart rate and strap battery at a glance.</string>
     <string name="widget_hr_name">NOOP Heart Rate</string>
     <string name="widget_hr_description">Live heart rate with the last three hours as a trace.</string>
+    <string name="widget_stress_name">NOOP Stress</string>
+    <string name="widget_stress_description">Today\'s stress as an hour-by-hour curve.</string>
     <string name="widget_compact_name">NOOP Compact</string>
     <string name="widget_compact_description">Compact Rest, Charge and Effort widget, with live heart rate and strap battery.</string>
     <string name="widget_error">NOOP widget couldn\'t draw — it will recover on the next update.</string>

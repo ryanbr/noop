@@ -29,6 +29,20 @@ data class WidgetSnapshot(
      *  hands back the pruned series, so nothing that pushes a snapshot had to learn about it. Empty
      *  until a live sample lands, which is also what a fresh install and a quiet strap look like. */
     val hrSeries: List<HrPoint> = emptyList(),
+    /** Today's hourly stress curve for the stress widget (#2040), earliest to latest.
+     *
+     *  Unlike [hrSeries] this is NOT folded by the store. It arrives complete from whichever producer
+     *  scored the day, so a push either carries a whole day or says nothing about stress at all, and
+     *  `save` leaves the stored curve alone in the second case. That matters because the background
+     *  service pushes heart rate without ever scoring stress, and a naive write would blank the curve
+     *  every time the strap reported a beat. */
+    val stressSeries: List<StressPoint> = emptyList(),
+    /** Local epoch-day [stressSeries] was scored for, or null when this push carries no curve.
+     *
+     *  The nullability is the write signal, and the value is the staleness one: `load` drops a curve
+     *  from any day but today, so the widget cannot show yesterday's afternoon under today's date while
+     *  waiting for the first scorable hour after midnight. */
+    val stressDay: Long? = null,
     /** Wall-clock millis of the last push, so the widget can show honest staleness. */
     val updatedAtMs: Long = 0L,
 )
@@ -49,6 +63,12 @@ object WidgetSnapshotStore {
     /** Prefs key for the encoded heart-rate trace (#1957). Its own key so an older build, or a wipe of
      *  the trace, leaves every scalar the other widgets read untouched. */
     private const val KEY_SERIES = "hrSeries"
+
+    /** Prefs keys for the stress curve and the day it belongs to (#2040). Their own keys for the same
+     *  reason the trace has one: an older build, or a day with nothing scored, must leave every scalar
+     *  the other widgets read untouched. */
+    private const val KEY_STRESS = "stressSeries"
+    private const val KEY_STRESS_DAY = "stressDay"
 
     suspend fun push(context: Context, snap: WidgetSnapshot) {
         val app = context.applicationContext
@@ -80,7 +100,10 @@ object WidgetSnapshotStore {
         val hrIds = runCatching {
             GlanceAppWidgetManager(app).getGlanceIds(HrGlanceWidget::class.java)
         }.getOrDefault(emptyList())
-        if (standardIds.isEmpty() && compactIds.isEmpty() && hrIds.isEmpty()) {
+        val stressIds = runCatching {
+            GlanceAppWidgetManager(app).getGlanceIds(StressGlanceWidget::class.java)
+        }.getOrDefault(emptyList())
+        if (standardIds.isEmpty() && compactIds.isEmpty() && hrIds.isEmpty() && stressIds.isEmpty()) {
             // Admitted, but there is nowhere for it to go. Recorded rather than returned silently: an
             // export taken with the widget removed is half of the comparison that answers whether it
             // costs anything, and counting this as a send would have made both halves look alike.
@@ -114,6 +137,7 @@ object WidgetSnapshotStore {
         if (standardIds.isNotEmpty()) runCatching { NoopGlanceWidget().updateAll(app) }
         if (compactIds.isNotEmpty()) runCatching { NoopCompactGlanceWidget().updateAll(app) }
         if (hrIds.isNotEmpty()) runCatching { HrGlanceWidget().updateAll(app) }
+        if (stressIds.isNotEmpty()) runCatching { StressGlanceWidget().updateAll(app) }
     }
 
     fun save(context: Context, snap: WidgetSnapshot) {
@@ -142,6 +166,13 @@ object WidgetSnapshotStore {
             )
             e.putString(KEY_SERIES, HrTrace.encode(folded))
         }
+        // Stress is written only by a push that scored it. A null day means "this push says nothing
+        // about stress", which is every push from the BLE service, and overwriting on those would leave
+        // the widget blank for all the minutes between one scoring pass and the next.
+        if (snap.stressDay != null) {
+            e.putString(KEY_STRESS, StressTrace.encode(snap.stressSeries))
+                .putLong(KEY_STRESS_DAY, snap.stressDay)
+        }
         e.apply()
     }
 
@@ -168,6 +199,18 @@ object WidgetSnapshotStore {
                 HrTrace.decode(p.getString(KEY_SERIES, null)),
                 nowSec = System.currentTimeMillis() / 1000,
             ),
+            // Dropped on the way OUT when it belongs to a past day, the same discipline the trace
+            // uses for age: a widget read at 00:30 would otherwise show yesterday's curve as today's
+            // until the first hour of the new day happens to be scorable.
+            stressSeries = p.getLong(KEY_STRESS_DAY, Long.MIN_VALUE)
+                .takeIf { it == java.time.LocalDate.now().toEpochDay() }
+                ?.let { StressTrace.decode(p.getString(KEY_STRESS, null)) }
+                ?: emptyList(),
+            // Surfaced only when it IS today, so this field can never disagree with the series above:
+            // a loaded snapshot reporting yesterday's day beside an emptied curve would be a trap for
+            // anything that later treated the pair as writable state.
+            stressDay = p.getLong(KEY_STRESS_DAY, Long.MIN_VALUE)
+                .takeIf { it == java.time.LocalDate.now().toEpochDay() },
             updatedAtMs = p.getLong("updatedAt", 0L),
         )
     }
@@ -242,9 +285,14 @@ internal object RenderedGate {
     @Synchronized
     fun changed(visible: WidgetSnapshot, dark: Boolean): Boolean {
         val newest = visible.hrSeries.lastOrNull()
+        // The stress curve joins the key (#2040). Without it a pass that scored a fresh hour, and
+        // changed nothing else, would be declined here as "nothing the widgets display changed" and the
+        // curve would sit an hour behind whatever unrelated value moved next.
+        val newestStress = visible.stressSeries.lastOrNull { it.level != null }
         val key = "${visible.recoveryPct}|${visible.restPct}|${visible.effortPct}|" +
             "${visible.batteryPct}|${visible.connected}|${visible.heartRate}|" +
             "${visible.heartRateStale}|${visible.hrSeries.size}|${newest?.ts}|${newest?.bpm}|" +
+            "${visible.stressSeries.size}|${newestStress?.ts}|${newestStress?.level}|" +
             "$dark"
         val differs = key != last
         last = key
@@ -271,6 +319,13 @@ internal object PushGate {
     private fun keyOf(snap: WidgetSnapshot): String =
         // Rest + Effort join the change-key (#516) so a freshly-scored 2x2 score lands immediately, the
         // same way recovery does — not waiting out the HR refresh window.
+        // Stress is deliberately NOT in this key. Two producers push snapshots and only one of them
+        // scores stress, so keying on the curve would make the count alternate between N and 0 as the
+        // BLE service and the view model took turns, flipping the key on every push and admitting all
+        // of them — the exact throttle this gate exists to apply. [RenderedGate] covers the curve
+        // instead, and covers it better: it reads back what was STORED, so it sees the same thing
+        // whichever producer last wrote. A curve that arrives while this gate is closed waits at most
+        // HR_REFRESH_MS, against an hourly score.
         "${snap.recoveryPct}|${snap.restPct}|${snap.effortPct}|" +
             "${snap.batteryPct?.div(5)}|${snap.connected}|${snap.heartRate != null}"
 

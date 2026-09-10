@@ -2626,6 +2626,8 @@
     <string name="l10n_hr_glance_widget_updated_time_1b5feedb">Обновлено %1$s</string>
     <string name="widget_hr_name">NOOP Пульс</string>
     <string name="widget_hr_description">Пульс в реальном времени и график за последние три часа.</string>
+    <string name="widget_stress_name">NOOP Стресс</string>
+    <string name="widget_stress_description">Сегодняшний стресс в виде почасового графика.</string>
     <string name="l10n_today_screen_see_the_charge_trend_9dcbcff7">Посмотреть динамику Заряда</string>
     <string name="l10n_today_screen_every_day_s_score_over_time_a00ea7c7">Оценка за каждый день во времени.</string>
     <string name="l10n_app_changelog_a_coach_that_keeps_the_thread_2ee52e0c">Тренер, который не теряет нить, ваш пульс на главном экране и графики, которые меньше домысливают</string>
