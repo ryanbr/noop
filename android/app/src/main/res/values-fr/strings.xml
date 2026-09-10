@@ -2753,4 +2753,6 @@
     <string name="coach_key_rejected_hint">Collez la clé corrigée. Votre conversation est conservée.</string>
     <string name="coach_key_rejected_placeholder">Collez votre clé %1$s</string>
     <string name="coach_key_rejected_action">Mettre à jour la clé</string>
+    <string name="coach_consent_on">Activé : votre charge, repos, VFC et entraînements sont envoyés au fournisseur, chaque entraînement avec son sport, sa durée, sa distance et sa fréquence cardiaque.</string>
+    <string name="coach_consent_off">Désactivé : le coach répond de façon générale et n\'envoie aucune de vos données.</string>
 </resources>

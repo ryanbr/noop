@@ -210334,6 +210334,18 @@
         "ru": {"stringUnit": {"state": "translated", "value": "Открыть подробности стресса"}},
         "zh-Hans": {"stringUnit": {"state": "translated", "value": "打开压力详情"}},
         "zh-Hant": {"stringUnit": {"state": "translated", "value": "開啟壓力詳情"}}
+    } },
+    "On: your charge, rest, HRV and workouts are sent to the provider, each workout with its sport, duration, distance and heart rate." : { "localizations" : {
+        "de": {"stringUnit": {"state": "translated", "value": "An: Ladung, Erholung, HRV und Workouts gehen an den Anbieter, jedes Workout mit Sportart, Dauer, Distanz und Herzfrequenz."}},
+        "en": {"stringUnit": {"state": "translated", "value": "On: your charge, rest, HRV and workouts are sent to the provider, each workout with its sport, duration, distance and heart rate."}},
+        "es": {"stringUnit": {"state": "translated", "value": "Activado: tu carga, descanso, HRV y entrenamientos se envían al proveedor, cada entrenamiento con su deporte, duración, distancia y frecuencia cardíaca."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Activé : votre charge, repos, VFC et entraînements sont envoyés au fournisseur, chaque entraînement avec son sport, sa durée, sa distance et sa fréquence cardiaque."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Attivo: carica, riposo, HRV e allenamenti vengono inviati al provider, ogni allenamento con sport, durata, distanza e frequenza cardiaca."}},
+        "pl": {"stringUnit": {"state": "translated", "value": "Włączone: Twój ładunek, odpoczynek, HRV i treningi trafiają do dostawcy, każdy trening ze sportem, czasem, dystansem i tętnem."}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "Ligado: a tua carga, descanso, VFC e treinos são enviados ao fornecedor, cada treino com o desporto, duração, distância e frequência cardíaca."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Включено: заряд, отдых, ВСР и тренировки отправляются провайдеру, каждая тренировка с видом спорта, длительностью, дистанцией и пульсом."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "开启：你的充能、休息、HRV 和训练会发送给服务商，每次训练包含运动类型、时长、距离和心率。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "開啟：你的充能、休息、HRV 和訓練會傳送給服務商，每次訓練包含運動類型、時長、距離和心率。"}}
     } }
   },
   "version": "1.0"

@@ -2746,4 +2746,6 @@
     <string name="coach_key_rejected_hint">Cola a chave corrigida. A tua conversa é mantida.</string>
     <string name="coach_key_rejected_placeholder">Cola a tua chave %1$s</string>
     <string name="coach_key_rejected_action">Atualizar chave</string>
+    <string name="coach_consent_on">Ligado: a tua carga, descanso, VFC e treinos são enviados ao fornecedor, cada treino com o desporto, duração, distância e frequência cardíaca.</string>
+    <string name="coach_consent_off">Desligado: o coach responde de forma geral e não envia nenhuma das tuas métricas.</string>
 </resources>

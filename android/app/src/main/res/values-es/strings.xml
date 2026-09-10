@@ -2754,4 +2754,6 @@
     <string name="coach_key_rejected_hint">Pega la clave corregida. Tu conversación se conserva.</string>
     <string name="coach_key_rejected_placeholder">Pega tu clave de %1$s</string>
     <string name="coach_key_rejected_action">Actualizar clave</string>
+    <string name="coach_consent_on">Activado: tu carga, descanso, HRV y entrenamientos se envían al proveedor, cada entrenamiento con su deporte, duración, distancia y frecuencia cardíaca.</string>
+    <string name="coach_consent_off">Desactivado: el coach responde en general y no envía ninguna de tus métricas.</string>
 </resources>

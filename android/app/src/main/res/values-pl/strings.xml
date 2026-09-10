@@ -2758,4 +2758,6 @@
     <string name="coach_key_rejected_hint">Wklej poprawiony klucz. Twoja rozmowa zostanie zachowana.</string>
     <string name="coach_key_rejected_placeholder">Wklej swój klucz %1$s</string>
     <string name="coach_key_rejected_action">Zaktualizuj klucz</string>
+    <string name="coach_consent_on">Włączone: Twój ładunek, odpoczynek, HRV i treningi trafiają do dostawcy, każdy trening ze sportem, czasem, dystansem i tętnem.</string>
+    <string name="coach_consent_off">Wyłączone: coach odpowiada ogólnie i nie wysyła żadnych Twoich danych.</string>
 </resources>

@@ -366,14 +366,21 @@ private fun CoachChat(vm: CoachViewModel) {
         }
 
         // Data-access consent, off by default; no metrics are sent until this is on.
+        //
+        // The ON line NAMES what a session carries, rather than saying "workouts" and leaving the
+        // reader to guess how much that is. It used to mean a count and an effort figure; since #2033
+        // it means the sport, how long, how far and how hard, per session. That is a materially
+        // different disclosure and the toggle is the only place someone is asked to agree to it, so it
+        // says so instead of making them read a PR to find out. Localised rather than inline, which the
+        // i18n baseline also wanted: an English literal here reached every locale untranslated.
         val consent by vm.consent.collectAsStateWithLifecycle()
         NoopCard(padding = 14.dp, tint = Palette.chargeColor) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(uiString(R.string.l10n_coach_screen_let_the_coach_use_my_data_405d1188), style = NoopType.subhead, color = Palette.textPrimary)
                     Text(
-                        if (consent) "On: your recovery, sleep, HRV and workouts are shared with the provider for tailored coaching."
-                        else "Off: the coach answers generally and sends none of your metrics.",
+                        if (consent) uiString(R.string.coach_consent_on)
+                        else uiString(R.string.coach_consent_off),
                         style = NoopType.footnote, color = Palette.textTertiary,
                     )
                 }

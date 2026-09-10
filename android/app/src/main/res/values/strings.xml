@@ -2783,4 +2783,6 @@
     <string name="coach_key_rejected_hint">Paste the corrected key. Your conversation is kept.</string>
     <string name="coach_key_rejected_placeholder">Paste your %1$s key</string>
     <string name="coach_key_rejected_action">Update key</string>
+    <string name="coach_consent_on">On: your charge, rest, HRV and workouts are sent to the provider, each workout with its sport, duration, distance and heart rate.</string>
+    <string name="coach_consent_off">Off: the coach answers generally and sends none of your metrics.</string>
 </resources>

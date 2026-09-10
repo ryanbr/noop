@@ -2667,4 +2667,6 @@
     <string name="coach_key_rejected_hint">粘贴更正后的密钥。你的对话会保留。</string>
     <string name="coach_key_rejected_placeholder">粘贴你的 %1$s 密钥</string>
     <string name="coach_key_rejected_action">更新密钥</string>
+    <string name="coach_consent_on">开启：你的充能、休息、HRV 和训练会发送给服务商，每次训练包含运动类型、时长、距离和心率。</string>
+    <string name="coach_consent_off">关闭：教练只作一般性回答，不发送你的任何数据。</string>
 </resources>

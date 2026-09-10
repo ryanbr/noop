@@ -281,8 +281,12 @@ struct CoachView: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Let the coach use my data")
                         .font(StrandFont.subhead).foregroundStyle(StrandPalette.textPrimary)
+                    // The ON line NAMES what a session carries rather than saying "workouts" and
+                    // leaving the reader to guess how much that is: the sport, how long, how far and how
+                    // hard, per session. This toggle is the only place someone is asked to agree to it.
+                    // Android says the same sentence (#2033).
                     Text(coach.dataConsent
-                         ? "On: your charge, rest, HRV and workouts are shared with the provider for tailored coaching."
+                         ? "On: your charge, rest, HRV and workouts are sent to the provider, each workout with its sport, duration, distance and heart rate."
                          : "Off: the coach answers generally and sends none of your metrics.")
                         .font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
                         .fixedSize(horizontal: false, vertical: true)

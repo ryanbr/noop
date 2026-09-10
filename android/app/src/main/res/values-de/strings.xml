@@ -2767,4 +2767,6 @@
     <string name="coach_key_rejected_hint">Füge den korrigierten Schlüssel ein. Deine Unterhaltung bleibt erhalten.</string>
     <string name="coach_key_rejected_placeholder">%1$s-Schlüssel einfügen</string>
     <string name="coach_key_rejected_action">Schlüssel aktualisieren</string>
+    <string name="coach_consent_on">An: Ladung, Erholung, HRV und Workouts gehen an den Anbieter, jedes Workout mit Sportart, Dauer, Distanz und Herzfrequenz.</string>
+    <string name="coach_consent_off">Aus: Der Coach antwortet allgemein und sendet keine deiner Werte.</string>
 </resources>
