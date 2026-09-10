@@ -113,6 +113,37 @@ final class RawPhysiologyUnionTests: XCTestCase {
         }
     }
 
+    /// Provenance and the probe must agree, or the fast path is a behaviour change wearing a perf label.
+    ///
+    /// The stored block carries the device it was read from and skips the ownership probe; the same block
+    /// with that field stripped falls back to the probe. Both must resolve to the same motion. They do
+    /// because the search normalises whichever id it finds to its `-noop` twin, and the computed ids are
+    /// exactly the raw ids under that suffix, so both namespaces land on one source.
+    @MainActor
+    func testProvenanceAndTheOwnerProbeResolveTheSameMotion() async throws {
+        let store = try await WhoopStore.inMemory()
+        let session = CachedSleepSession(startTs: 1_000, endTs: 5_000, efficiency: 0.9,
+                                         restingHr: 52, avgHrv: 60, stagesJSON: nil)
+        _ = try await store.upsertSleepSessions([session], deviceId: "my-whoop")
+        _ = try await store.upsertSleepSessions([session], deviceId: "my-whoop-noop")
+        _ = try await store.persistSessionMotion(deviceId: "my-whoop-noop", sessionStart: 1_000,
+                                                 motionEpochs: [0.3, 0.4])
+        let repo = Repository(deviceId: "my-whoop")
+        repo.setStoreForTesting(store)
+
+        // As the store hands it back: provenance present, no probe.
+        let stored = try await store.sleepSessions(deviceId: "my-whoop", from: 0, to: 10_000, limit: 8)
+        XCTAssertEqual(stored.first?.deviceId, "my-whoop")
+        let viaProvenance = await repo.sessionMotions(sessions: stored)
+
+        // The same block with provenance stripped: the probe resolves it instead.
+        let viaProbe = await repo.sessionMotions(sessions: [session])
+
+        XCTAssertEqual(viaProvenance[1_000] ?? [], [0.3, 0.4])
+        XCTAssertEqual(viaProbe[1_000] ?? [], viaProvenance[1_000] ?? [],
+                       "the shortcut and the probe disagreed about the same night")
+    }
+
     @MainActor
     func testArchivedStrapNightsTeachHabitualMidsleep() async throws {
         let store = try await WhoopStore.inMemory()

@@ -211,4 +211,24 @@ final class SleepMotionStateTests: XCTestCase {
                                                         to: start + 20_000)
         XCTAssertTrue(bounds.isEmpty)
     }
+
+    /// The read stamps each block with the device it queried, and a re-keyed copy keeps it.
+    ///
+    /// This is what lets a caller skip asking the store which device owns a block. `withStartTs` is
+    /// included because it is the one place a session is rebuilt: dropping the field there would turn a
+    /// known provenance silently back into a probe, which is a performance fault with no visible symptom.
+    func testSleepSessionsCarryTheDeviceTheyWereReadFrom() async throws {
+        let store = try await storeWithSession()
+        let rows = try await store.sleepSessions(deviceId: dev, from: start - 1, to: start + 1, limit: 8)
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows.first?.deviceId, dev)
+        XCTAssertEqual(rows.first?.withStartTs(start + 60).deviceId, dev, "a re-keyed copy forgot its device")
+    }
+
+    /// A hand-built session says nothing rather than claiming a device it was never read from.
+    func testAHandBuiltSessionHasNoProvenance() {
+        let s = CachedSleepSession(startTs: start, endTs: start + 3_600, efficiency: nil,
+                                   restingHr: nil, avgHrv: nil, stagesJSON: nil)
+        XCTAssertNil(s.deviceId, "absent is the honest value; a default would be a wrong answer")
+    }
 }

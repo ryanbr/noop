@@ -1309,24 +1309,40 @@ final class Repository: ObservableObject {
         let lo = starts.min() ?? 0
         let hi = starts.max() ?? 0
 
-        // Phase 1, ownership. `sleepSessionBounds`, not `sleepSessions`: the check needs two integers per
-        // block, and the fuller read selects `stagesJSON` among other columns, so it would haul every
-        // night's staging blob once per candidate device to compare a pair of timestamps. Unpaged, so a
-        // caller passing a sparse subset of a wide span cannot page short and lose the owners it dropped.
+        // Phase 1, ownership.
+        //
+        // A block read from the store now carries the device it was read from, so most of the time there
+        // is nothing to resolve. The probe below runs only for blocks built by hand, which is tests and
+        // the importers, and the bounds read happens only if at least one such block is present.
+        //
+        // Provenance gives the SAME answer the probe does. The search takes the first id in
+        // `rawIds + computedIds` whose bounds match, then normalises it to its `-noop` twin, and
+        // `computedIds` is exactly `rawIds` mapped to that suffix. So a block read under a raw id and the
+        // same block read under its computed one both resolve to that one computed source either way.
+        //
+        // `sleepSessionBounds`, not `sleepSessions`: the check needs two integers per block, and the fuller
+        // read selects `stagesJSON` among other columns, so it would haul every night's staging blob once
+        // per candidate device to compare a pair of timestamps. Unpaged, so a caller passing a sparse
+        // subset of a wide span cannot page short and lose the owners it dropped.
         var boundsByDevice: [String: [Int: Int]] = [:]   // deviceId -> startTs -> endTs
-        for id in rawIds + computedIds {
-            boundsByDevice[id] = (try? await store.sleepSessionBounds(deviceId: id, from: lo, to: hi)) ?? [:]
+        if sessions.contains(where: { $0.deviceId == nil }) {
+            for id in rawIds + computedIds {
+                boundsByDevice[id] = (try? await store.sleepSessionBounds(deviceId: id,
+                                                                          from: lo, to: hi)) ?? [:]
+            }
         }
 
-        // Resolve each block's ordered source list, exactly as before: the imported-wins owner search,
-        // then its computed twin first and the computed ids behind it.
+        // Resolve each block's ordered source list: its own device when the read supplied one, else the
+        // imported-wins owner search, then its computed twin first and the computed ids behind it.
         var sourcesByStart: [Int: [String]] = [:]
         for session in sessions where sourcesByStart[session.startTs] == nil {
-            var owner: String?
-            for id in rawIds + computedIds {
-                if boundsByDevice[id]?[session.startTs] == session.endTs {
-                    owner = id
-                    break
+            var owner: String? = session.deviceId
+            if owner == nil {
+                for id in rawIds + computedIds {
+                    if boundsByDevice[id]?[session.startTs] == session.endTs {
+                        owner = id
+                        break
+                    }
                 }
             }
             let ownerComputed = owner.map { $0.hasSuffix("-noop") ? $0 : $0 + "-noop" }

@@ -35,14 +35,29 @@ public struct CachedSleepSession: Equatable, Codable {
     /// of presenting the short total as fact. nil for imported nights and pre-migration rows (unknown, not
     /// flagged). Set per session to the DAY's value; only NOOP-computed nights populate it. Byte-parity twin.
     public let stagingSparse: Bool?
+    /// Which device's row this is, when the read that produced it knew.
+    ///
+    /// The Kotlin `SleepSession` entity has carried `deviceId` all along; this type never did, so a caller
+    /// holding a block had no way to say where it came from and had to ask the store which device owned it,
+    /// once per block. That probe is the expensive half of the Sleep screen's load.
+    ///
+    /// Optional, and defaulted, for two reasons. Seventy-six construction sites build these by hand, and a
+    /// required field would churn every one of them to state something most of them do not know. And the
+    /// honest value for a hand-built session IS absent: claiming a device it was never read from would be
+    /// worse than saying nothing. Readers treat nil as "ask", so provenance is a shortcut where the store
+    /// supplied it and never a silent wrong answer where it did not. `Codable` decodes a missing key to nil,
+    /// so persisted payloads written before this field stay readable.
+    public let deviceId: String?
     public init(startTs: Int, endTs: Int, efficiency: Double?, restingHr: Int?,
                 avgHrv: Double?, stagesJSON: String?, userEdited: Bool = false,
-                startTsAdjusted: Int? = nil, stagingSparse: Bool? = nil) {
+                startTsAdjusted: Int? = nil, stagingSparse: Bool? = nil,
+                deviceId: String? = nil) {
         self.startTs = startTs; self.endTs = endTs
         self.efficiency = efficiency; self.restingHr = restingHr
         self.avgHrv = avgHrv; self.stagesJSON = stagesJSON
         self.userEdited = userEdited
         self.startTsAdjusted = startTsAdjusted
+        self.deviceId = deviceId
         self.stagingSparse = stagingSparse
     }
 
@@ -52,7 +67,10 @@ public struct CachedSleepSession: Equatable, Codable {
     public func withStartTs(_ newStartTs: Int) -> CachedSleepSession {
         CachedSleepSession(startTs: newStartTs, endTs: endTs, efficiency: efficiency, restingHr: restingHr,
                            avgHrv: avgHrv, stagesJSON: stagesJSON, userEdited: userEdited,
-                           startTsAdjusted: startTsAdjusted, stagingSparse: stagingSparse)
+                           startTsAdjusted: startTsAdjusted, stagingSparse: stagingSparse,
+                           // Carried: a re-keyed session is the same row from the same device, and
+                           // dropping it here would turn a known provenance back into a store probe.
+                           deviceId: deviceId)
     }
 }
 
@@ -258,7 +276,8 @@ extension WhoopStore {
             SELECT endTs, stagesJSON, userEdited FROM sleepSession WHERE deviceId = ? AND startTs = ?
             """, arguments: [deviceId, startTs]) else { return nil }
         return CachedSleepSession(startTs: startTs, endTs: row["endTs"], efficiency: nil, restingHr: nil,
-                                  avgHrv: nil, stagesJSON: row["stagesJSON"], userEdited: row["userEdited"])
+                                  avgHrv: nil, stagesJSON: row["stagesJSON"], userEdited: row["userEdited"],
+                                  deviceId: deviceId)
     }
 
     /// Hand-correct a sleep session's bed (onset) and/or wake (end) time. Sets `userEdited = 1` so the
@@ -606,7 +625,10 @@ extension WhoopStore {
                                        efficiency: $0["efficiency"], restingHr: $0["restingHr"],
                                        avgHrv: $0["avgHrv"], stagesJSON: $0["stagesJSON"],
                                        userEdited: $0["userEdited"], startTsAdjusted: $0["startTsAdjusted"],
-                                       stagingSparse: $0["stagingSparse"])
+                                       stagingSparse: $0["stagingSparse"],
+                                       // The read knows the device it queried, so every block it hands
+                                       // back carries it and no caller has to ask the store again.
+                                       deviceId: deviceId)
                 }
         }
     }
