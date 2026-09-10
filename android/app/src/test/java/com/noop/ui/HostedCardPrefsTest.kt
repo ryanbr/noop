@@ -32,6 +32,32 @@ class HostedCardPrefsTest {
         }
     }
 
+    /**
+     * Every hosted card opens the thing it mirrors, and the tap-to-log card opens nothing.
+     *
+     * Worth pinning because the failure is silent: a card wired to the wrong destination still renders,
+     * still taps, and simply lands somewhere else. Nothing about the screen looks wrong. Twin of the
+     * Swift `testEachHostedCardOpensItsOwnTab`.
+     */
+    @Test
+    fun eachHostedCardOpensItsOwnThing() {
+        // The tap-to-log card must NOT navigate: its buttons are its purpose, and a wrapper would put a
+        // second meaning behind the same press.
+        assertEquals(HostedDestination.None, HostedCard.SLEEP_MARKS.destination)
+        HostedCard.entries.filter { it != HostedCard.SLEEP_MARKS }.forEach {
+            assertTrue("${it.raw} taps through to nothing", it.destination != HostedDestination.None)
+        }
+        // Sleep-origin cards land on the Sleep tab; the trends land on their own metric page, which is
+        // where the Charge and Effort key tiles already send you.
+        HostedCard.entries.filter { it.origin == "Sleep" && it != HostedCard.SLEEP_MARKS }.forEach {
+            assertEquals("${it.raw} should open Sleep", HostedDestination.Sleep, it.destination)
+        }
+        assertEquals(HostedDestination.Stress, HostedCard.STRESS_TODAY.destination)
+        assertEquals(HostedDestination.Metric("hrv"), HostedCard.TREND_HRV.destination)
+        assertEquals(HostedDestination.Metric("rhr"), HostedCard.TREND_RESTING_HR.destination)
+        assertEquals(HostedDestination.Metric("strain"), HostedCard.TREND_EFFORT.destination)
+    }
+
     /** Opt-in surface: nothing is hosted until the user adds a card. */
     @Test
     fun default_isEmpty() {

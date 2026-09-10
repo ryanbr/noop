@@ -3518,32 +3518,19 @@ private fun HostedCardsSection(
             emptyList()
         }
     }
-    // Where a hosted card sends you when tapped: back to the thing it is a copy of.
-    //
-    // The pinned tiles above already open their screen, so a card that did nothing sat next to one that
-    // did and looked broken rather than deliberate. The trends open the METRIC's own detail page rather
-    // than the Trends tab, which is the same destination the Charge and Effort key tiles use and lands
-    // closer to what was tapped.
-    //
-    // `SLEEP_MARKS` is deliberately absent. It is the tap-to-log card, its buttons ARE its purpose, and
-    // wrapping it in a navigation target would put a second meaning behind the same press.
-    fun destination(card: HostedCard): (() -> Unit)? = when (card) {
-        HostedCard.SLEEP_MARKS -> null
-        HostedCard.STRESS_TODAY -> onOpenStress
-        HostedCard.TREND_HRV -> ({ onOpenMetric("hrv") })
-        HostedCard.TREND_RESTING_HR -> ({ onOpenMetric("rhr") })
-        HostedCard.TREND_EFFORT -> ({ onOpenMetric("strain") })
-        // Listed rather than an `else`, so a card added later cannot silently inherit "opens Sleep".
-        // Without exhaustiveness a Health-origin card would compile and quietly send you to the wrong
-        // tab; with it, the compiler asks where the new one goes.
-        HostedCard.ASLEEP_DURATION, HostedCard.STAGES_VS_TYPICAL, HostedCard.NIGHT_DETAIL,
-        HostedCard.SLEEP_DEBT, HostedCard.STAGES, HostedCard.HOURS_VS_NEEDED,
-        HostedCard.CONSISTENCY -> onOpenSleep
+    // Turning the card's own destination into the callback that reaches it. The mapping itself lives
+    // on `HostedCard` so a test can assert it; this is only the wiring, which cannot be tested and does
+    // not need to be.
+    fun opener(card: HostedCard): (() -> Unit)? = when (val d = card.destination) {
+        HostedDestination.None -> null
+        HostedDestination.Sleep -> onOpenSleep
+        HostedDestination.Stress -> onOpenStress
+        is HostedDestination.Metric -> ({ onOpenMetric(d.key) })
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.sectionGap)) {
         cards.forEach { card ->
-            val open = destination(card)
+            val open = opener(card)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()

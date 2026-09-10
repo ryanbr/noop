@@ -100,6 +100,40 @@ enum class HostedCard(
 }
 
 /**
+ * Where tapping a hosted card sends you.
+ *
+ * DATA rather than a callback, because a callback cannot live on an enum and a mapping that lives
+ * inside the composable that draws it is unreachable from any test. The failure it guards is silent: a
+ * card wired to the wrong destination still renders, still taps, and simply lands somewhere else.
+ *
+ * Twin of the Swift `HostedCard.route`.
+ */
+sealed interface HostedDestination {
+    /** Opens nothing. The tap-to-log card, whose buttons ARE its purpose. */
+    object None : HostedDestination
+    object Sleep : HostedDestination
+    object Stress : HostedDestination
+    /** A metric's own detail page, the destination the Charge and Effort key tiles already use. */
+    data class Metric(val key: String) : HostedDestination
+}
+
+/**
+ * Where each card goes. Listed rather than defaulted, so a card added later cannot silently inherit
+ * "opens Sleep": the compiler asks where the new one goes.
+ */
+val HostedCard.destination: HostedDestination
+    get() = when (this) {
+        HostedCard.SLEEP_MARKS -> HostedDestination.None
+        HostedCard.STRESS_TODAY -> HostedDestination.Stress
+        HostedCard.TREND_HRV -> HostedDestination.Metric("hrv")
+        HostedCard.TREND_RESTING_HR -> HostedDestination.Metric("rhr")
+        HostedCard.TREND_EFFORT -> HostedDestination.Metric("strain")
+        HostedCard.ASLEEP_DURATION, HostedCard.STAGES_VS_TYPICAL, HostedCard.NIGHT_DETAIL,
+        HostedCard.SLEEP_DEBT, HostedCard.STAGES, HostedCard.HOURS_VS_NEEDED,
+        HostedCard.CONSISTENCY -> HostedDestination.Sleep
+    }
+
+/**
  * The card's display title, localized. The enum's [title] field stays the English source-of-truth default
  * (used for logging/comparisons); the UI reads this so the editor shows a translated title. Enum
  * constructors can't call [stringResource], so resolution happens here at the render site. Mirrors iOS,
