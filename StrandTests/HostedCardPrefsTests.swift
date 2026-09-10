@@ -18,6 +18,24 @@ final class HostedCardPrefsTests: XCTestCase {
         }
     }
 
+    /// Every hosted card opens the tab it mirrors, and the tap-to-log card opens nothing.
+    ///
+    /// Worth pinning because the failure is silent: a card wired to the wrong route still renders, still
+    /// taps, and simply lands somewhere else. Nothing about the screen looks wrong.
+    func testEachHostedCardOpensItsOwnTab() {
+        // The tap-to-log card must NOT navigate: its buttons are its purpose, and a wrapper would put a
+        // second meaning behind the same press.
+        XCTAssertNil(HostedCard.sleepMarks.route)
+        for card in HostedCard.allCases where card != .sleepMarks {
+            XCTAssertNotNil(card.route, "\(card.rawValue) taps through to nothing")
+        }
+        // Sleep-origin cards land on the Sleep tab.
+        let sleepOrigin = String(localized: "Sleep")
+        for card in HostedCard.allCases where card.origin == sleepOrigin && card != .sleepMarks {
+            XCTAssertEqual(card.route, .sleep, "\(card.rawValue) should open Sleep")
+        }
+    }
+
     /// Opt-in surface: nothing is hosted until the user adds a card.
     func testDefaultIsEmpty() {
         XCTAssertEqual(HostedCard.defaultSelection, [])

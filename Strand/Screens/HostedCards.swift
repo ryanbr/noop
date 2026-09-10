@@ -73,6 +73,25 @@ enum HostedCard: String, CaseIterable, Identifiable {
         }
     }
 
+    /// Where tapping this card sends you: back to the tab it is a copy of.
+    ///
+    /// Declared on the CARD rather than inside the view that draws it, so it can be tested. A mapping
+    /// that lives as a private method on a `View` is unreachable from any test, and a card quietly
+    /// routing to the wrong tab is not the kind of thing anyone notices in review.
+    ///
+    /// `nil` for `sleepMarks`: it is the tap-to-log card, its buttons ARE its purpose, and wrapping it
+    /// in a navigation target would put a second meaning behind the same press.
+    ///
+    /// Listed rather than defaulted, so a card added later cannot silently inherit "opens Sleep": the
+    /// compiler asks where the new one goes.
+    var route: TabRoute? {
+        switch self {
+        case .sleepMarks: return nil
+        case .asleepDuration, .stagesVsTypical, .nightDetail, .sleepDebt, .stages,
+             .hoursVsNeeded, .consistency: return .sleep
+        }
+    }
+
     /// SF Symbol for the editor row (reuses the shared customization-icon treatment).
     var customizationIcon: String {
         switch self {
