@@ -114,7 +114,8 @@ struct HostedTrendCard: View {
         let avg = pts.isEmpty ? nil : pts.map(\.value).reduce(0, +) / Double(pts.count)
         // The unit rides with the average. The Trends tab carries it in a footer of min/mean/max, which
         // a home-screen card has no room for, so without this the number would appear bare.
-        ChartCard(title: title, subtitle: nil, trailing: avg.map { "\(fmt($0)) \(unit)" },
+        let trailing = avg.map { "\(fmt($0)) \(unit)" }
+        ChartCard(title: title, subtitle: nil, trailing: trailing,
                   height: NoopMetrics.chartHeight, tint: colour) {
             TrendChart(points: pts,
                        gradient: Gradient(colors: [colour.opacity(0.35), colour]),
@@ -127,7 +128,12 @@ struct HostedTrendCard: View {
                        showsHover: false)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(Text(title))
+        // The average goes into the spoken label, not just the visible corner. `children: .combine`
+        // merges what the card renders, and overriding that with the bare title, as this first did,
+        // silently drops the one number on the card: VoiceOver announced "Heart rate variability" and
+        // nothing else. Composed rather than interpolated into a localized string, so it needs no new
+        // catalog entry for what is a title the app already has plus a formatted value.
+        .accessibilityLabel(trailing.map { Text(title) + Text(verbatim: ", \($0)") } ?? Text(title))
     }
 
 }
