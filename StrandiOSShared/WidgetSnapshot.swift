@@ -73,12 +73,18 @@ public struct WidgetSnapshot: Codable, Equatable {
         return stressSeries
     }
 
-    /// Days since a fixed epoch on the LOCAL calendar, the platform-neutral twin of Kotlin's
-    /// `LocalDate.toEpochDay()`. Both sides only ever compare it for equality against a value the same
-    /// side produced, so what matters is that it changes exactly at local midnight.
+    /// Days since the epoch on the LOCAL calendar, the twin of Kotlin's `LocalDate.toEpochDay()`.
+    ///
+    /// Counted by the calendar rather than by dividing the day's start by 86 400. That arithmetic is
+    /// wrong on a DST day and measurably so: walking a year of local noons, `Europe/London` produces
+    /// ONE day whose number equals the previous day's, because its winter offset is UTC and a
+    /// 23-hour day then lands inside the same 86 400-second bucket. On that day the widget would have
+    /// read yesterday's curve as today's and drawn it, which is the one thing this number exists to
+    /// prevent. The calendar knows how long each local day actually was.
     public static func localDayNumber(_ date: Date, calendar: Calendar = .current) -> Int {
-        let start = calendar.startOfDay(for: date)
-        return Int((start.timeIntervalSince1970 / 86_400).rounded(.down))
+        let epoch = calendar.startOfDay(for: Date(timeIntervalSince1970: 0))
+        return calendar.dateComponents([.day], from: epoch,
+                                       to: calendar.startOfDay(for: date)).day ?? 0
     }
 
     /// App Group suite the app and widget both use. Injected from the `APP_GROUP_ID` build setting

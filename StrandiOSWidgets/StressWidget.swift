@@ -151,13 +151,22 @@ struct StressWidgetView: View {
                         .foregroundStyle(StrandPalette.textSecondary)
                 }
                 if let stats, let peak = stats.peak.level {
-                    Text("Peak \(String(format: "%.1f", peak)) · \(Date(timeIntervalSince1970: TimeInterval(stats.peak.ts)), format: .dateTime.hour().minute())")
-                        .font(.system(size: 11))
-                        .foregroundStyle(StrandPalette.textPrimary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(tense.opacity(0.18), in: Capsule())
-                        .padding(.leading, 6)
+                    // "Peak" is a catalog key the app already carries in every locale; the value and the
+                    // time are DATA, so they are formatted into a plain String and shown verbatim. That
+                    // keeps a translator's job to the word that has one, and adds no catalog entry for a
+                    // string that is otherwise punctuation.
+                    let peakTime = Date(timeIntervalSince1970: TimeInterval(stats.peak.ts))
+                        .formatted(date: .omitted, time: .shortened)
+                    HStack(spacing: 4) {
+                        Text("Peak")
+                        Text(verbatim: String(format: "%.1f", peak) + " · " + peakTime)
+                    }
+                    .font(.system(size: 11))
+                    .foregroundStyle(StrandPalette.textPrimary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(tense.opacity(0.18), in: Capsule())
+                    .padding(.leading, 6)
                 }
             }
 
@@ -186,10 +195,17 @@ struct StressWidgetView: View {
             if let updated = entry.snap?.updated, updated != .distantPast {
                 HStack {
                     Spacer()
+                    // Both halves are catalog keys the app already carries, `avg %@` and `Updated %@`,
+                    // joined by a separator with nothing in it to translate. One composite key would have
+                    // needed a new entry in ten locales to say what these two already say.
                     if let stats {
-                        Text("avg \(String(format: "%.1f", stats.mean)) · Updated \(updated, format: .dateTime.hour().minute())")
-                            .font(.system(size: 10))
-                            .foregroundStyle(StrandPalette.textSecondary)
+                        HStack(spacing: 0) {
+                            Text("avg \(String(format: "%.1f", stats.mean))")
+                            Text(verbatim: " · ")
+                            Text("Updated \(updated, format: .dateTime.hour().minute())")
+                        }
+                        .font(.system(size: 10))
+                        .foregroundStyle(StrandPalette.textSecondary)
                     } else {
                         Text("Updated \(updated, format: .dateTime.hour().minute())")
                             .font(.system(size: 10))
