@@ -86,6 +86,26 @@ import kotlin.math.roundToInt
 data class HcWritebackStatus(val code: String, val atMs: Long, val written: Int)
 
 /**
+ * Which model to remember for a strap we are connected to.
+ *
+ * POSITIVE EVIDENCE ONLY. `whoop5Detected` is set when service discovery finds the WHOOP 5 service ON
+ * THIS LINK, so a hit proves what answered. Its absence proves nothing, because a 5 whose service was
+ * not found looks identical from here to a 4.0, so a miss leaves today's behaviour exactly as it was
+ * rather than relabelling a genuine 4.0 in the other direction.
+ *
+ * It matters because `autoReconnectOnLaunch` reads the stored pair straight back into the picker, so
+ * persisting the picker's own value makes a wrong model self-perpetuating: restore stale, connect,
+ * store stale again. A field log showed the result, "Auto-reconnecting to your saved WHOOP 4.0" on an
+ * install whose active device is a 5.0 MG. The pair also feeds family selection, so a link running as
+ * WHOOP4 while talking to an MG is not merely a wrong label.
+ *
+ * The BLE client already pins its own `selectedModel` to 5/MG on this same detection. The persisted
+ * half never learned; this is that half.
+ */
+internal fun lastDeviceModelFor(detectedWhoop5: Boolean, selected: WhoopModel): WhoopModel =
+    if (detectedWhoop5) WhoopModel.WHOOP5_MG else selected
+
+/**
  * The pure half of the body-clock binning (#852): hourly HR buckets + a timezone offset -> a per-hour
  * activity profile and the number of distinct local days it spans.
  *
@@ -862,7 +882,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     reconcileStrapAlarm()
                     // Remember this strap so we can reconnect to it directly on the next launch (#67),
                     // e.g. after an APK update restarts the process.
-                    ble.lastDeviceAddress?.let { NoopPrefs.setLastDevice(appContext, it, _selectedModel.value) }
+                    //
+                    // The model stored is the one the LINK proved, not the one the picker happens to hold.
+                    // `_selectedModel` is the picker's value, and `autoReconnectOnLaunch` reads this pair
+                    // straight back into it, so a wrong model here is self-perpetuating: restore stale,
+                    // connect, store stale again. A field log showed the consequence, "Auto-reconnecting
+                    // to your saved WHOOP 4.0" on an install whose active device is a 5.0 MG with a 4.0
+                    // registered from days earlier. That pair also feeds the family selection, and a link
+                    // running as WHOOP4 while talking to an MG makes every later diagnosis nonsense.
+                    ble.lastDeviceAddress?.let {
+                        NoopPrefs.setLastDevice(
+                            appContext, it, lastDeviceModelFor(state.whoop5Detected, _selectedModel.value),
+                        )
+                    }
                 }
                 lastBonded = state.bonded
             }
