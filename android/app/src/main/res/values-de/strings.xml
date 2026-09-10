@@ -2757,6 +2757,7 @@
     <string name="widget_hr_name">NOOP Herzfrequenz</string>
     <string name="widget_hr_description">Live-Herzfrequenz mit den letzten drei Stunden als Verlauf.</string>
     <string name="widget_stress_name">NOOP Stress</string>
+    <string name="hosted_card_stress_title">Stress im Tagesverlauf</string>
     <string name="widget_stress_description">Der heutige Stress als Stundenverlauf.</string>
     <string name="l10n_today_screen_see_the_charge_trend_9dcbcff7">Ladungs-Trend ansehen</string>
     <string name="l10n_today_screen_every_day_s_score_over_time_a00ea7c7">Jeder Tageswert im Zeitverlauf.</string>

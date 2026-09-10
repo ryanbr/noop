@@ -74,7 +74,7 @@ enum class HostedCard(
      *  card hosted from a tab other than Sleep, so [localizedOrigin] gains a branch for it. Read-only,
      *  like the hosted Stages card: the Stress tab keeps the interactive timeline with its scrubbing and
      *  tooltips, and the Today host mirrors only the display. */
-    STRESS_TODAY("stress.today", "Stress", "Stress", Icons.Filled.ShowChart);
+    STRESS_TODAY("stress.today", "Stress through the day", "Stress", Icons.Filled.ShowChart);
 
     companion object {
         fun fromRaw(raw: String?): HostedCard? = entries.firstOrNull { it.raw == raw }
@@ -103,7 +103,7 @@ fun HostedCard.localizedTitle(): String = when (this) {
     HostedCard.STAGES -> stringResource(R.string.l10n_sleep_screen_stages_c1d33ad5)
     HostedCard.HOURS_VS_NEEDED -> stringResource(R.string.l10n_sleep_screen_hours_vs_needed_500a0aca)
     HostedCard.CONSISTENCY -> stringResource(R.string.l10n_sleep_screen_consistency_0ea7b95e)
-    HostedCard.STRESS_TODAY -> stringResource(R.string.l10n_stress_screen_stress_bad33342)
+    HostedCard.STRESS_TODAY -> stringResource(R.string.hosted_card_stress_title)
 }
 
 /**

@@ -613,7 +613,10 @@ internal fun StressTodayCard(points: List<StressPoint>, modifier: Modifier = Mod
     NoopCard(tint = Palette.stressColor, modifier = modifier) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Overline(uiString(R.string.l10n_stress_screen_stress_bad33342), modifier = Modifier.weight(1f))
+                // The SAME title the Customise list offers, so what you added and what appears are
+                // recognisably one thing. "Stress" alone collided with the pinned Your Cards tile,
+                // which shows a number rather than this curve.
+                Overline(uiString(R.string.hosted_card_stress_title), modifier = Modifier.weight(1f))
                 if (stats != null) {
                     val peakTenths = ((stats.peak.level ?: 0.0) * 10).roundToInt().coerceIn(0, 30)
                     Text(
