@@ -367,6 +367,12 @@ struct TodayView: View {
     // when a sleep-origin card is hosted. Twin of the LiquidTodayView `hostedSleepModel`.
     @State private var hostedSleepModel: SleepModel? = nil
 
+    // #2040: today's scored stress for the hosted curve card. Loaded only when that card is hosted, the
+    // same "hosting none pays nothing" rule the sleep model follows. `StressDayCurve` self-gates on a
+    // cheap heart-rate fingerprint, so a refresh that changed nothing costs one indexed COUNT and no
+    // rows, and the iOS widget shares the same computation rather than scoring the day twice.
+    @State private var hostedStressHours: [DaytimeStress.HourPoint] = []
+
     // TODAY's in-progress Effort (NOOP 0–100 axis), recomputed over the day's HR (local-midnight→now)
     // each load so the gauge tracks today as it accumulates rather than waiting on the heavy daily pass
     // to persist, which early in the day would otherwise surface yesterday's completed Effort or a stale
@@ -2477,6 +2483,25 @@ struct TodayView: View {
     private func hostedCard(for card: HostedCard) -> some View {
         switch card {
         case .sleepMarks: SleepMarkCard()
+        case .stressToday:
+            // READ-ONLY, like `stages`: the Stress tab keeps the interactive timeline and this mirrors
+            // only the display. `DaytimeLoadLine` is the tab's OWN line, so the host cannot drift into
+            // a second drawing of the same day.
+            NoopCard(tint: StressRamp.calm) {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("Stress through the day").strandOverline()
+                    if hostedStressHours.contains(where: { $0.level != nil }) {
+                        DaytimeLoadLine(hours: hostedStressHours)
+                    } else {
+                        // The honest blank: only waking hours score and an hour needs enough heart
+                        // rate, so early morning is empty by construction rather than by failure.
+                        Text("Calibrating")
+                            .font(StrandFont.subhead)
+                            .foregroundStyle(StrandPalette.textTertiary)
+                            .frame(maxWidth: .infinity, minHeight: 60, alignment: .center)
+                    }
+                }
+            }
         case .asleepDuration: AsleepDurationCard(data: AsleepDurationData.build(days: repo.days))
         case .stagesVsTypical:
             // Renders from the shared SleepModel built in loadAll() (same inputs as the Sleep tab). Until the
@@ -4464,6 +4489,7 @@ struct TodayView: View {
         // (before the cache-restore short-circuit below), so the card survives a tab-away/return; the gate
         // inside makes it a no-op unless a sleep card is actually hosted.
         await loadHostedSleepModel()
+        await loadHostedStress()
         // #849: a bare Today RE-MOUNT (tab-away + return, or an Apple-Health import that recreates the view)
         // re-fires this task with TodayView's `@State` reset, so the heavy history-wide pass re-ran in full
         // every time even when NOTHING in the data had changed: hundreds of redundant reads (incl. the
@@ -4509,6 +4535,22 @@ struct TodayView: View {
     /// SleepView does (`allSleepSessions` / `habitualMidsleepSec` / `sessionMotions`) and hands them to the
     /// SAME pure `SleepModel.build`, so a hosted card's numbers match the Sleep tab. Twin of the
     /// LiquidTodayView hostedSleepModel build.
+    /// #2040: today's scored stress for the hosted curve card, ONLY when that card is hosted.
+    ///
+    /// The same "hosting none pays nothing" rule the sleep model above follows. `StressDayCurve` does
+    /// the gating: it reads nothing until a cheap heart-rate fingerprint says today's heart rate moved,
+    /// and it memoises, so the iOS widget publishing from the same producer shares this computation
+    /// rather than scoring the day a second time.
+    private func loadHostedStress() async {
+        guard HostedCardPrefs.decodeEnabled(hostedCardsRaw).contains(.stressToday) else {
+            hostedStressHours = []
+            return
+        }
+        // `timeline`, not `hours`: the half-step display series, so the curve tracks the day rather
+        // than stepping through it, matching the widget and the Android card.
+        hostedStressHours = await StressDayCurve.today(repo: repo)?.result.timeline ?? []
+    }
+
     private func loadHostedSleepModel() async {
         let sleepOrigin = String(localized: "Sleep")
         guard HostedCardPrefs.decodeEnabled(hostedCardsRaw).contains(where: { $0.origin == sleepOrigin }) else {

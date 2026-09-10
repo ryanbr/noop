@@ -48,6 +48,13 @@ enum HostedCard: String, CaseIterable, Identifiable {
     /// grid; the Today host gives it a standalone card (`ConsistencyCard`) reading the SAME `consistency`
     /// metric, so the value can't diverge.
     case consistency = "sleep.consistency"
+    /// Stress tab · "Stress through the day" — today's autonomic-load curve (#2040 follow-up). The
+    /// first card hosted from a tab other than Sleep. Read-only like `stages`: the Stress tab keeps the
+    /// interactive timeline, and the Today host mirrors only the display.
+    ///
+    /// The rawValue rides `.noopbak` under `today.hostedCards`, so it is byte-identical to the Android
+    /// `HostedCard.STRESS_TODAY`.
+    case stressToday = "stress.today"
 
     var id: String { rawValue }
 
@@ -62,6 +69,7 @@ enum HostedCard: String, CaseIterable, Identifiable {
         case .stages: return String(localized: "Stages")
         case .hoursVsNeeded: return String(localized: "Hours vs Needed")
         case .consistency: return String(localized: "Consistency")
+        case .stressToday: return String(localized: "Stress through the day")
         }
     }
 
@@ -70,6 +78,7 @@ enum HostedCard: String, CaseIterable, Identifiable {
     var origin: String {
         switch self {
         case .sleepMarks, .asleepDuration, .stagesVsTypical, .nightDetail, .sleepDebt, .stages, .hoursVsNeeded, .consistency: return String(localized: "Sleep")
+        case .stressToday: return String(localized: "Stress")
         }
     }
 
@@ -89,6 +98,7 @@ enum HostedCard: String, CaseIterable, Identifiable {
         case .sleepMarks: return nil
         case .asleepDuration, .stagesVsTypical, .nightDetail, .sleepDebt, .stages,
              .hoursVsNeeded, .consistency: return .sleep
+        case .stressToday: return .stress
         }
     }
 
@@ -103,6 +113,7 @@ enum HostedCard: String, CaseIterable, Identifiable {
         case .stages: return "chart.bar.fill"
         case .hoursVsNeeded: return "gauge.medium"
         case .consistency: return "repeat"
+        case .stressToday: return "chart.xyaxis.line"
         }
     }
 
@@ -110,6 +121,7 @@ enum HostedCard: String, CaseIterable, Identifiable {
     var customizationTint: Color {
         switch self {
         case .sleepMarks, .asleepDuration, .stagesVsTypical, .nightDetail, .sleepDebt, .stages, .hoursVsNeeded, .consistency: return StrandPalette.restColor
+        case .stressToday: return StrandPalette.stressColor
         }
     }
 

@@ -1,8 +1,7 @@
-#if os(iOS)
 import Foundation
 import StrandAnalytics
 
-/// Scores today's hourly stress for the stress widget, and does it as rarely as it can get away with.
+/// Scores today's stress for the surfaces that draw it, and does it as rarely as it can get away with.
 ///
 /// Swift twin of the Kotlin `StressWidgetProducer`, and the same reasoning governs both.
 ///
@@ -18,7 +17,7 @@ import StrandAnalytics
 /// which the screen can afford on demand and a publish path cannot. Stated plainly because it is
 /// user-visible: with the personal-baseline toggle on, the widget shows the default lens while the
 /// screen shows the refined one, so the two can differ.
-enum StressWidgetCurve {
+enum StressDayCurve {
 
     /// What the last scoring saw and produced, swapped in as ONE value.
     ///
@@ -30,19 +29,24 @@ enum StressWidgetCurve {
         let count: Int
         let maxTs: Int
         let day: Int
-        let points: [StressPoint]
+        let result: DaytimeStress.Result
     }
 
     @MainActor private static var memo: Memo?
 
     /// Today's curve and the local day number it belongs to, or nil when it could not be scored.
     ///
-    /// Nil is not "today scored nothing": it means "say nothing about stress in this publish", so the
-    /// caller must carry forward whatever the previous snapshot held rather than blanking the widget.
-    /// An empty ARRAY with a day is the real "nothing scored today" answer.
+    /// Nil is not "today scored nothing": it means "say nothing about stress right now", so a caller
+    /// that persists this must carry forward what it already had rather than blanking. An EMPTY result
+    /// with a day is the real "nothing scored today" answer.
+    ///
+    /// Returns the analytics `Result` rather than any one drawing's point type, because two surfaces
+    /// read it: the iOS widget, which maps it into its own `StressPoint`, and the Today host card,
+    /// which hands `timeline` straight to `DaytimeLoadLine`. Keeping the widget's type here would have
+    /// kept this file iOS-only, and the Today card is shared with macOS.
     @MainActor
     static func today(repo: Repository, now: Date = Date(),
-                      calendar: Calendar = .current) async -> (points: [StressPoint], day: Int)? {
+                      calendar: Calendar = .current) async -> (result: DaytimeStress.Result, day: Int)? {
         let startOfDay = calendar.startOfDay(for: now)
         let from = Int(startOfDay.timeIntervalSince1970)
         let to = Int(now.timeIntervalSince1970)
@@ -53,11 +57,11 @@ enum StressWidgetCurve {
         // part of the check because a fingerprint that happened to match across midnight would otherwise
         // serve yesterday's curve as today's.
         if let memo, memo.day == day, memo.count == fingerprint.count, memo.maxTs == fingerprint.maxTs {
-            return (memo.points, day)
+            return (memo.result, day)
         }
 
         let hr = await repo.hrSamples(from: from, to: to, limit: 200_000)
-        var points: [StressPoint] = []
+        var scored: DaytimeStress.Result = .empty
         if hr.count >= DaytimeStress.minHourHRSamples {
             let rr = await repo.rrIntervals(from: from, to: to, limit: 200_000)
             // Wrist accelerometer for the motion gate, so an ambulatory hour reads as exertion rather
@@ -71,30 +75,21 @@ enum StressWidgetCurve {
             // the app becomes active and after every Health sync, which is exactly when the UI is busy.
             // The Kotlin twin gets this for free by living in a coroutine; here it has to be asked for.
             // The samples are plain value structs, so the hop retains rather than copies them.
-            points = await Task.detached(priority: .utility) {
+            // The half-step display series is asked for here (`includeTimeline`), because both readers
+            // draw a curve. Nothing downstream of this counts hours, so the overlap is free.
+            scored = await Task.detached(priority: .utility) {
                 DaytimeStress.analyze(hr: hr, rr: rr, gravity: gravity,
                                       tzOffsetSeconds: tz, mode: .dayRelative,
                                       includeTimeline: true)
-                    // The half-step display series rather than the bare hours: same scored window,
-                    // same reference, read twice as often, so the curve tracks the day instead of
-                    // stepping through it. Nothing here counts hours, so the overlap is free.
-                    .timeline
-                    .map {
-                        // `startTs` is the wall-clock bucket start with the local shift already undone,
-                        // so it is a true instant and formats correctly against the device's zone.
-                        StressPoint(ts: Int64($0.startTs), level: $0.level,
-                                    moving: $0.maskedForActivity)
-                    }
             }.value
         }
-        // Too little signal leaves `points` empty, which is a real answer about today rather than a
-        // refusal: the widget should drop yesterday's line rather than keep drawing it.
-        memo = Memo(count: fingerprint.count, maxTs: fingerprint.maxTs, day: day, points: points)
-        return (points, day)
+        // Too little signal leaves an EMPTY result, which is a real answer about today rather than a
+        // refusal: a reader should drop yesterday's line rather than keep drawing it.
+        memo = Memo(count: fingerprint.count, maxTs: fingerprint.maxTs, day: day, result: scored)
+        return (scored, day)
     }
 
     /// Drops the memo so a test starts from a known state.
     @MainActor
     static func resetForTest() { memo = nil }
 }
-#endif

@@ -11,6 +11,9 @@ final class HostedCardPrefsTests: XCTestCase {
     func testRawValuesAreTheFrozenNamespacedContract() {
         XCTAssertEqual(HostedCard.sleepMarks.rawValue, "sleep.sleepMarks")
         XCTAssertEqual(HostedCard.asleepDuration.rawValue, "sleep.asleepDuration")
+        // Byte-identical to the Kotlin `HostedCard.STRESS_TODAY`. This id rides .noopbak, so a
+        // difference of one character means an Android backup restored here silently drops the card.
+        XCTAssertEqual(HostedCard.stressToday.rawValue, "stress.today")
         // Every id must be origin-namespaced so it routes to the right provider and can't collide with a
         // Today DashboardCard id.
         for card in HostedCard.allCases {

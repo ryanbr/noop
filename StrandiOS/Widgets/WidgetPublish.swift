@@ -63,7 +63,17 @@ extension WidgetSnapshot {
         // #2040: today's stress curve. Self-gating on a cheap heart-rate fingerprint, so a publish that
         // changed nothing costs one indexed COUNT and no rows. Only the FULL path scores it; the live
         // fast path below reuses the previous snapshot and so carries the curve forward untouched.
-        let stress = await StressWidgetCurve.today(repo: model.repo)
+        let stress = await StressDayCurve.today(repo: model.repo)
+        // The widget's own point type is built HERE, at the one place that needs it: `StressPoint`
+        // lives in the iOS/widget shared sources, and the producer is now also read by the Today card,
+        // which is compiled for macOS too.
+        let stressPoints: [StressPoint]? = stress.map { scored in
+            scored.result.timeline.map {
+                // `startTs` is the wall-clock bucket start with the local shift already undone, so it
+                // is a true instant and formats correctly against the device's zone.
+                StressPoint(ts: Int64($0.startTs), level: $0.level, moving: $0.maskedForActivity)
+            }
+        }
         // Loaded ONCE for the carry-forward below. Reaching for `load()` in each of the two arguments
         // would decode the App Group blob twice on any publish that could not score, and this file
         // already went to the trouble of removing one such decode from the live path.
@@ -83,7 +93,7 @@ extension WidgetSnapshot {
             effortWhoop: effortScale == .whoop,
             // nil when the curve could not be scored at all, which must not blank a widget that already
             // has one: carry the stored values forward instead of publishing an absence.
-            stressSeries: stress?.points ?? storedStress?.stressSeries,
+            stressSeries: stressPoints ?? storedStress?.stressSeries,
             stressDay: stress?.day ?? storedStress?.stressDay
         )
         saveAndReloadIfChanged(snap)
