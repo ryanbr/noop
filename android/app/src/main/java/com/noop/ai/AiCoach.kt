@@ -514,21 +514,31 @@ class AiCoach(
     internal suspend fun recentWorkoutsBlock(ctx: Context, limit: Int = 6): String {
         val now = System.currentTimeMillis() / 1000L
         val from = now - 30L * 86_400L
-        val rows = runCatching {
-            val id = activeStrapId()
-            val all = repo.workoutsUnion(id, from, now) +
-                repo.workouts("apple-health", from, now) +
-                repo.workouts("health-connect", from, now) +
-                repo.detectedWorkoutsUnion(id, from, now) +
-                repo.workouts(ActivityFileImporter.SOURCE_ID, from, now) +
-                repo.workouts(LiftingImporter.SOURCE_ID, from, now)
-            // Dismissed first, then dedup: the same order the screen uses, so a dismissed row cannot be
-            // the one a cross-source collapse decides to keep.
-            WorkoutEditing.dedupCrossSource(
-                WorkoutEditing.filterDismissed(all, repo.dismissedDetected(id)),
-            )
-        }.getOrDefault(emptyList()).sortedByDescending { it.startTs }
+        val rows = runCatching { visibleWorkoutRows(from, now) }.getOrDefault(emptyList())
         return formatWorkoutsBlock(rows, UnitPrefs.distanceSystem(ctx), limit)
+    }
+
+    /**
+     * The sessions a wearer can see, newest first. Split out from the formatter and from the unit
+     * lookup so it has a test: the only other way in reads SharedPreferences, and this half is where the
+     * decisions live. It is also where the bug was, twice over, which is the argument for the seam.
+     *
+     * Mirrors the assembly `AppViewModel` runs for the Workouts screen. If that list gains a source,
+     * this one has to as well, or the coach quietly reasons about less than the wearer is looking at.
+     */
+    internal suspend fun visibleWorkoutRows(from: Long, to: Long): List<WorkoutRow> {
+        val id = activeStrapId()
+        val all = repo.workoutsUnion(id, from, to) +
+            repo.workouts("apple-health", from, to) +
+            repo.workouts("health-connect", from, to) +
+            repo.detectedWorkoutsUnion(id, from, to) +
+            repo.workouts(ActivityFileImporter.SOURCE_ID, from, to) +
+            repo.workouts(LiftingImporter.SOURCE_ID, from, to)
+        // Dismissed first, then dedup: the same order the screen uses, so a dismissed row cannot be the
+        // one a cross-source collapse decides to keep.
+        return WorkoutEditing.dedupCrossSource(
+            WorkoutEditing.filterDismissed(all, repo.dismissedDetected(id)),
+        ).sortedByDescending { it.startTs }
     }
 
     /**
