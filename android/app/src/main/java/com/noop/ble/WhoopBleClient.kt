@@ -4342,7 +4342,15 @@ class WhoopBleClient(
     fun send(cmd: CommandNumber, payload: ByteArray = byteArrayOf(0), withResponse: Boolean = false) {
         val ch = cmdCharacteristic
         if (gatt == null || ch == null) {
-            log("send(${cmd.name}) ignored — not connected")
+            // Two very different states read identically before this. "not connected" is only true for
+            // the first: the second is a live link whose service discovery has not yet produced the
+            // command characteristic, and calling that a disconnection sent at least one investigation
+            // looking for a dropped link that was never dropped. A diagnostic may only assert what it
+            // can attribute.
+            log(
+                "send(${cmd.name}) ignored — " +
+                    if (gatt == null) "no link" else "link up, command characteristic not ready yet",
+            )
             return
         }
         // WHOOP 5.0/MG uses puffin (CRC16) command framing, not the WHOOP4 frame. The realtime-HR toggle
@@ -10727,6 +10735,22 @@ class WhoopBleClient(
 
     @SuppressLint("MissingPermission")
     private fun handleDisconnect(status: Int) {
+        // ALWAYS-ON, and deliberately before every guard below. A link ending is rare-event evidence,
+        // which the house rule keeps out of the Test Centre gate precisely because it is what is missing
+        // when someone reports a problem without one enabled. It was missing anyway: the rich epitaph
+        // below is wrapped in `linkUpSinceMs?.let`, and this method clears that field, so a second pass
+        // for the same drop emits NOTHING. A field export with the Connection domain ON carried three
+        // connects, three reconnects and not one line saying a link had ended or why. The question "what
+        // dropped the connection" was unanswerable from a log that had been asked for specifically to
+        // answer it.
+        //
+        // Counts only: the GATT status, whether we asked for it, and whether a link had been up. No
+        // traffic figures here, because those are what the epitaph guard exists to avoid fabricating for
+        // a link that never existed.
+        log(
+            "link down: ended=" + (if (intentionalDisconnect) "intentional" else "status=$status") +
+                " (" + gattStatusLabel(status) + ") hadLink=" + (linkUpSinceMs != null),
+        )
         val helloWasUnacked = clientHelloWriteAtMs > 0L
         // #1635: a CLIENT_HELLO that was accepted by the stack and never completed leaves no trace at
         // all - the dominant shape in the field capture (14 of 16). Say so before the state is reset.
