@@ -68,6 +68,30 @@ internal fun clientHelloOutcomeLine(
  * Android-only by design: CoreBluetooth reports `didWriteValueFor` with an `Error`, not a status code,
  * which is why the outcome line takes its status pre-rendered.
  */
+/**
+ * Label for a status from `onConnectionStateChange`, which is a DIFFERENT enumeration from the ATT
+ * operation statuses [gattStatusLabel] renders.
+ *
+ * They collide on small integers and that has bitten this file before: #1635 spent effort on a
+ * diagnosis built from a connection status printed through an operation-status table, which named it
+ * confidently and wrongly. A disconnect reason of 5 is not "insufficient authentication" and 13 is not
+ * "invalid attribute length"; those are ATT codes. The connection enumeration is the HCI reason the
+ * link ended, and it is the whole point of the line that carries it.
+ *
+ * Unknown codes print bare rather than guessing, for the same reason.
+ */
+internal fun connectionStatusLabel(status: Int): String = when (status) {
+    0 -> "SUCCESS"
+    8 -> "CONN_TIMEOUT (supervision timeout: out of range, or the strap stopped answering)"
+    19 -> "TERMINATE_PEER_USER (the strap closed the link)"
+    22 -> "TERMINATE_LOCAL_HOST (this phone closed the link)"
+    34 -> "CONN_LMP_TIMEOUT"
+    62 -> "CONN_FAIL_ESTABLISH (the connection never came up)"
+    133 -> "GATT_ERROR (Android's catch-all)"
+    256 -> "CONN_CANCEL"
+    else -> "unmapped"
+}
+
 internal fun gattStatusLabel(status: Int?): String = when (status) {
     null -> "status=n/a"
     0 -> "status=GATT_SUCCESS(0)"
