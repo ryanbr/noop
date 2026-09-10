@@ -60,6 +60,10 @@ extension WidgetSnapshot {
             }
             return "\(Int(stored.rounded()))"
         }
+        // #2040: today's stress curve. Self-gating on a cheap heart-rate fingerprint, so a publish that
+        // changed nothing costs one indexed COUNT and no rows. Only the FULL path scores it; the live
+        // fast path below reuses the previous snapshot and so carries the curve forward untouched.
+        let stress = await StressWidgetCurve.today(repo: model.repo)
         let snap = WidgetSnapshot(
             recovery: day?.recovery.map { Int($0.rounded()) },
             bpm: model.bpm ?? model.live.heartRate,
@@ -72,7 +76,11 @@ extension WidgetSnapshot {
             hrv: day?.avgHrv.map { Int($0.rounded()) },
             restingHr: day?.restingHr,
             effortDisplay: effortDisplay,
-            effortWhoop: effortScale == .whoop
+            effortWhoop: effortScale == .whoop,
+            // nil when the curve could not be scored at all, which must not blank a widget that already
+            // has one: carry the stored values forward instead of publishing an absence.
+            stressSeries: stress?.points ?? load()?.stressSeries,
+            stressDay: stress?.day ?? load()?.stressDay
         )
         saveAndReloadIfChanged(snap)
     }

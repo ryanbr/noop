@@ -1,0 +1,87 @@
+#if os(iOS)
+import Foundation
+import StrandAnalytics
+
+/// Scores today's hourly stress for the stress widget, and does it as rarely as it can get away with.
+///
+/// Swift twin of the Kotlin `StressWidgetProducer`, and the same reasoning governs both.
+///
+/// THE GATE IS THE POINT. Scoring a day means reading today's heart rate, R-R and gravity, three reads
+/// bounded at 200 000 rows each, which is the work the Stress screen does when you open it. The screen
+/// does that once, on a deliberate act. A widget producer runs on the publish path, which fires when
+/// the app becomes active and after every Health sync, so nothing is read until `Repository`'s cheap
+/// heart-rate fingerprint — a COUNT and a MAX over an indexed column — says today's heart rate actually
+/// moved. A publish that changed nothing costs that one query and reuses the previous curve.
+///
+/// SCORING MODE. Always the `.dayRelative` default, never the opt-in personal-baseline lens. Resolving
+/// that mode reads fourteen trailing days of heart rate to decide whether enough worn history exists,
+/// which the screen can afford on demand and a publish path cannot. Stated plainly because it is
+/// user-visible: with the personal-baseline toggle on, the widget shows the default lens while the
+/// screen shows the refined one, so the two can differ.
+enum StressWidgetCurve {
+
+    /// What the last scoring saw and produced, swapped in as ONE value.
+    ///
+    /// Separate fields could tear: a second publish arriving between two assignments would read one
+    /// call's fingerprint beside another's points and serve a curve for a day it was not scored
+    /// against. Both callers are `@MainActor` today, so the window is narrow, but an immutable holder
+    /// closes it for free.
+    private struct Memo {
+        let count: Int
+        let maxTs: Int
+        let day: Int
+        let points: [StressPoint]
+    }
+
+    @MainActor private static var memo: Memo?
+
+    /// Today's curve and the local day number it belongs to, or nil when it could not be scored.
+    ///
+    /// Nil is not "today scored nothing": it means "say nothing about stress in this publish", so the
+    /// caller must carry forward whatever the previous snapshot held rather than blanking the widget.
+    /// An empty ARRAY with a day is the real "nothing scored today" answer.
+    @MainActor
+    static func today(repo: Repository, now: Date = Date(),
+                      calendar: Calendar = .current) async -> (points: [StressPoint], day: Int)? {
+        let startOfDay = calendar.startOfDay(for: now)
+        let from = Int(startOfDay.timeIntervalSince1970)
+        let to = Int(now.timeIntervalSince1970)
+        let day = WidgetSnapshot.localDayNumber(now, calendar: calendar)
+
+        guard let fingerprint = await repo.hrFingerprint(from: from, to: to) else { return nil }
+        // Same day, same heart rate: nothing can have changed the score, so nothing is read. The day is
+        // part of the check because a fingerprint that happened to match across midnight would otherwise
+        // serve yesterday's curve as today's.
+        if let memo, memo.day == day, memo.count == fingerprint.count, memo.maxTs == fingerprint.maxTs {
+            return (memo.points, day)
+        }
+
+        let hr = await repo.hrSamples(from: from, to: to, limit: 200_000)
+        var points: [StressPoint] = []
+        if hr.count >= DaytimeStress.minHourHRSamples {
+            let rr = await repo.rrIntervals(from: from, to: to, limit: 200_000)
+            // Wrist accelerometer for the motion gate, so an ambulatory hour reads as exertion rather
+            // than as stress. Empty on hardware or imports without gravity, which degrades to no masking
+            // exactly as the screen does.
+            let gravity = await repo.gravitySamplesUnion(from: from, to: to, limit: 200_000)
+            let tz = TimeZone.current.secondsFromGMT(for: now)
+            points = DaytimeStress.analyze(hr: hr, rr: rr, gravity: gravity,
+                                           tzOffsetSeconds: tz, mode: .dayRelative)
+                .hours
+                .map {
+                    // `startTs` is the wall-clock bucket start with the local shift already undone, so
+                    // it is a true instant and formats correctly against the device's zone.
+                    StressPoint(ts: Int64($0.startTs), level: $0.level, moving: $0.maskedForActivity)
+                }
+        }
+        // Too little signal leaves `points` empty, which is a real answer about today rather than a
+        // refusal: the widget should drop yesterday's line rather than keep drawing it.
+        memo = Memo(count: fingerprint.count, maxTs: fingerprint.maxTs, day: day, points: points)
+        return (points, day)
+    }
+
+    /// Drops the memo so a test starts from a known state.
+    @MainActor
+    static func resetForTest() { memo = nil }
+}
+#endif

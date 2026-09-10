@@ -27,11 +27,25 @@ public struct WidgetSnapshot: Codable, Equatable {
     /// Android store owning it: nothing that publishes had to learn the retention rule. Optional so a
     /// snapshot written by an older build still decodes.
     public var hrSeries: [HrPoint]?
+    /// Today's hourly stress curve for the stress widget (#2040), earliest to latest.
+    ///
+    /// Unlike `hrSeries` this is NOT folded by `save()`. It arrives complete from the publish that
+    /// scored the day, so a publish either carries a whole day or says nothing about stress at all, and
+    /// the live fast path simply carries the loaded value forward untouched. Optional so a snapshot
+    /// written by an older build still decodes.
+    public var stressSeries: [StressPoint]?
+    /// Local day number `stressSeries` was scored for, or nil when no curve has been published.
+    ///
+    /// Read back as the staleness check: a curve from any day but today is dropped rather than drawn,
+    /// so the widget cannot show yesterday's afternoon under today's date while waiting for the first
+    /// scorable hour after midnight.
+    public var stressDay: Int?
 
     public init(recovery: Int?, bpm: Int?, batteryPct: Int?, bonded: Bool, updated: Date,
                 effort: Int? = nil, rest: Int? = nil, hrv: Int? = nil, restingHr: Int? = nil,
                 effortDisplay: String? = nil, effortWhoop: Bool? = nil,
-                hrSeries: [HrPoint]? = nil) {
+                hrSeries: [HrPoint]? = nil, stressSeries: [StressPoint]? = nil,
+                stressDay: Int? = nil) {
         self.recovery = recovery
         self.bpm = bpm
         self.batteryPct = batteryPct
@@ -44,6 +58,27 @@ public struct WidgetSnapshot: Codable, Equatable {
         self.effortDisplay = effortDisplay
         self.effortWhoop = effortWhoop
         self.hrSeries = hrSeries
+        self.stressSeries = stressSeries
+        self.stressDay = stressDay
+    }
+
+    /// The curve to DRAW: what was published, unless it belongs to a day that is over.
+    ///
+    /// Resolved on read rather than cleared on write, the same discipline `HrTrace.prune` applies to
+    /// age: nothing runs at midnight to tidy the App Group, so the check has to happen where the value
+    /// is used. Calendar is injectable so a test can cross a rollover without waiting for one.
+    public func stressCurve(now: Date = Date(), calendar: Calendar = .current) -> [StressPoint] {
+        guard let stressDay, let stressSeries,
+              stressDay == WidgetSnapshot.localDayNumber(now, calendar: calendar) else { return [] }
+        return stressSeries
+    }
+
+    /// Days since a fixed epoch on the LOCAL calendar, the platform-neutral twin of Kotlin's
+    /// `LocalDate.toEpochDay()`. Both sides only ever compare it for equality against a value the same
+    /// side produced, so what matters is that it changes exactly at local midnight.
+    public static func localDayNumber(_ date: Date, calendar: Calendar = .current) -> Int {
+        let start = calendar.startOfDay(for: date)
+        return Int((start.timeIntervalSince1970 / 86_400).rounded(.down))
     }
 
     /// App Group suite the app and widget both use. Injected from the `APP_GROUP_ID` build setting
@@ -181,6 +216,12 @@ public struct WidgetSnapshot: Codable, Equatable {
             || previous.restingHr != next.restingHr
             || previous.effortDisplay != next.effortDisplay
             || previous.effortWhoop != next.effortWhoop
+            // The curve joins the comparison (#2040): a publish that scored a fresh hour and changed
+            // nothing else would otherwise be deduped away, and the widget would sit an hour behind
+            // until some unrelated field moved. The DAY joins it too, so the first publish after
+            // midnight still reaches WidgetKit even when the new day has no scored hour yet.
+            || previous.stressSeries != next.stressSeries
+            || previous.stressDay != next.stressDay
     }
 
     /// A live-only update may reuse score fields only within the same local calendar day. At rollover,
