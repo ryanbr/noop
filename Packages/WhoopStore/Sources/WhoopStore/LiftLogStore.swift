@@ -355,19 +355,20 @@ extension WhoopStore {
 
     /// How long a PROGRAM note may be.
     ///
-    /// 100 because that is what can actually be SEEN: the hub renders it under the program name at
-    /// `lineLimit(2)` in caption type, which is roughly two lines on a phone. A longer note is not
+    /// 120 because that is what can actually be SEEN: the hub renders it under the program name at
+    /// `lineLimit(3)` in caption type, in a column narrowed by the Start button — roughly three
+    /// lines on a phone. A longer note is not
     /// stored-and-shown, it is stored-and-silently-truncated, and typing into a field that quietly
     /// discards the end is worse than a field that stops.
-    public static let maxProgramNoteLength = 100
+    public static let maxProgramNoteLength = 120
 
     /// How long an EXERCISE (technique) note may be.
     ///
-    /// 140, about three lines. Longer than a program note because it is a cue you read BETWEEN sets
+    /// 200, about four lines. Longer than a program note because it is a cue you read BETWEEN sets
     /// — "slow eccentric, pause at the bottom, don't let the elbows flare" — and shorter than
     /// unlimited because it renders directly above the set rows and every line pushes them down the
-    /// screen. Three lines is roughly the point past which nobody reads it with a bar in their hands.
-    public static let maxExerciseNoteLength = 140
+    /// screen. Both are a MAXIMUM, not a target — a one-line note is usually the better note.
+    public static let maxExerciseNoteLength = 200
 
     /// Thrown when the vocabulary is full and the name is a new one.
     public struct LiftExerciseVocabularyFull: Error, Equatable {

@@ -160,7 +160,7 @@ struct LiftLogView: View {
                             Text(note)
                                 .font(StrandFont.caption)
                                 .foregroundStyle(StrandPalette.textSecondary)
-                                .lineLimit(2)
+                                .lineLimit(3)
                         }
                         Text("Tap to edit")
                             .font(StrandFont.footnote)
@@ -234,7 +234,7 @@ struct LiftLogView: View {
                         }
                         // The band is named and sourced, never phrased as a target NOOP sets for
                         // anyone: this is not a medical device and does not prescribe.
-                        Text("The bar marks about 4 sets a week — the point below which the research doesn't reliably detect growth. Above it, gains continue with strongly diminishing returns and no clear ceiling.")
+                        Text("The tick marks about 4 sets a week — the point below which the research doesn't reliably detect growth. Above it, gains continue with strongly diminishing returns and no clear ceiling, so the bar has no \"full\".")
                             .font(StrandFont.footnote)
                             .foregroundStyle(StrandPalette.textTertiary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -245,28 +245,64 @@ struct LiftLogView: View {
         }
     }
 
+    /// The span the weekly bar is drawn across.
+    ///
+    /// A DRAWING choice, not a dose. The evidence puts a floor at about 4 sets a week and identifies
+    /// NO ceiling for hypertrophy — gains continue above it with strongly diminishing returns — so
+    /// any bar maximum is arbitrary and must never be read as a target. 20 is chosen only because it
+    /// comfortably contains the range people actually train in, which puts the floor tick early on
+    /// the bar and makes a normal week read as progress rather than as "finished".
+    ///
+    /// The NUMBER beside the bar is the truth. The bar is context for it, and a count past 20 fills
+    /// the bar while the number keeps counting.
+    private static let weeklySetsBarSpan = 20.0
+
+    /// One muscle's week: the count, and where it sits relative to the evidence.
+    ///
+    /// This used to scale the bar 0...4 and turn it FULL and GREEN at four sets — so the screen said
+    /// "done" at the exact point the research says growth merely becomes *detectable*. It was telling
+    /// the user to stop at the starting line, and it contradicted the caption printed directly below
+    /// it. Now four sets is a TICK a fifth of the way along, and nothing on the bar ever reads as
+    /// complete, because nothing about the dose is.
     private func muscleBar(_ muscle: LiftMuscle, sets: Double) -> some View {
-        let fraction = LiftMetrics.ReferenceDose.fractionOfHypertrophyMinimum(sets)
-        let met = sets >= LiftMetrics.ReferenceDose.hypertrophyMinimumSetsPerWeek
+        let floor = LiftMetrics.ReferenceDose.hypertrophyMinimumSetsPerWeek
+        let atOrAboveFloor = sets >= floor
+        let fill = min(1.0, sets / Self.weeklySetsBarSpan)
+        let tick = min(1.0, floor / Self.weeklySetsBarSpan)
+
         return VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
                 Text(muscle.displayName)
                     .font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textSecondary)
                 Spacer(minLength: 0)
+                // Deliberately NOT a success colour. There is no success point to signal, and a
+                // green number is exactly what made four sets read as an achievement.
                 Text(LiftFormat.trim(sets))
                     .font(StrandFont.captionNumber)
-                    .foregroundStyle(met ? StrandPalette.statusPositive : StrandPalette.textPrimary)
+                    .foregroundStyle(StrandPalette.textPrimary)
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     Capsule().fill(StrandPalette.surfaceRaised)
                     Capsule()
-                        .fill(met ? StrandPalette.statusPositive : StrandPalette.effortColor)
-                        .frame(width: max(2, geo.size.width * fraction))
+                        // Muted below the floor — below it growth is not reliably detectable, which
+                        // is worth showing — and the ordinary accent above it. Never a "done" colour.
+                        .fill(StrandPalette.effortColor.opacity(atOrAboveFloor ? 1.0 : 0.45))
+                        .frame(width: max(2, geo.size.width * fill))
+                    // The floor, marked where it actually falls.
+                    Capsule()
+                        .fill(StrandPalette.textPrimary.opacity(0.45))
+                        .frame(width: 2)
+                        .offset(x: max(0, geo.size.width * tick - 1))
+                        .accessibilityHidden(true)
                 }
             }
             .frame(height: 6)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(atOrAboveFloor
+                                ? String(localized: "\(muscle.displayName): \(LiftFormat.trim(sets)) sets, at or above the weekly floor of \(LiftFormat.trim(floor))")
+                                : String(localized: "\(muscle.displayName): \(LiftFormat.trim(sets)) sets, below the weekly floor of \(LiftFormat.trim(floor))"))
         }
     }
 

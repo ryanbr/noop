@@ -149,7 +149,7 @@ struct LiftSessionView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         // Belt and braces with the entry cap: the sets are what this screen is for,
                         // and a note must never be able to push them off it.
-                        .lineLimit(3)
+                        .lineLimit(4)
                         .padding(10)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(StrandPalette.metricAmber.opacity(0.12),
