@@ -61,6 +61,8 @@ import com.noop.analytics.DaytimeStress
 import com.noop.analytics.HrvFreqDomain
 import com.noop.analytics.StressIndex
 import com.noop.data.DailyMetric
+import com.noop.widget.StressPoint
+import com.noop.widget.StressTrace
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -584,6 +586,148 @@ private fun StressDaytimeSection(
         if (day.sustainedHigh) SustainedBreatheCard(day, onBreathe)
     }
 }
+
+// MARK: - Today host: the intraday curve as a compact card (#2040 follow-up)
+
+/**
+ * The stress curve as a card for the Today screen, mirroring the home-screen widget.
+ *
+ * READ-ONLY on purpose. The Stress tab's own timeline is the interactive one, with scrubbing, a
+ * crosshair and per-hour tooltips; hosting that here would put two live charts on two screens fighting
+ * over the same gestures. This is the same rule the Sleep tab's hosted "Stages" card follows, where the
+ * Today host mirrors only the display.
+ *
+ * Geometry comes from [StressTrace], the same pure helper the widget draws through, so the card and the
+ * widget cannot disagree about where an hour sits, where the line breaks or which hours are high. Only
+ * the drawing differs, because Glance has to render to a Bitmap and Compose does not.
+ */
+@Composable
+internal fun StressTodayCard(points: List<StressPoint>, modifier: Modifier = Modifier) {
+    val stats = remember(points) { StressTrace.stats(points) }
+    val ticks = remember(points) { StressTrace.timeTicks(points) }
+    val textTertiary = Palette.textTertiary
+    val calm = StressRamp.CALM
+    val steady = StressRamp.STEADY
+    val tense = StressRamp.TENSE
+
+    NoopCard(tint = Palette.stressColor, modifier = modifier) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Overline(uiString(R.string.l10n_stress_screen_stress_bad33342), modifier = Modifier.weight(1f))
+                if (stats != null) {
+                    val peakTenths = ((stats.peak.level ?: 0.0) * 10).roundToInt().coerceIn(0, 30)
+                    Text(
+                        uiString(R.string.trends_peak) +
+                            " ${peakTenths / 10}.${peakTenths % 10} · ${hourLabel(peakHourOf(stats.peak))}",
+                        style = NoopType.footnote,
+                        color = Palette.textSecondary,
+                    )
+                }
+            }
+
+            if (stats == null) {
+                // The SAME "Calibrating" placeholder the pinned Today stress card already shows with no
+                // usable signal, so the two never disagree about what an unscored day looks like. Honest
+                // blank rather than a flat line at zero: only waking hours score, so this is every day's
+                // early morning as well as a day with too little signal.
+                Text(
+                    uiString(R.string.l10n_today_screen_calibrating_37c2c9bd),
+                    style = NoopType.footnote,
+                    color = textTertiary,
+                )
+            } else {
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    // The FIXED 0-3 scale down the left, as the screen and the widget both draw it. An
+                    // axis that moved with the day would make two days impossible to compare.
+                    Column(
+                        modifier = Modifier.height(Metrics.chartHeight),
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        StressTrace.levelTicks().forEach {
+                            Text(it.toString(), style = NoopType.footnote, color = textTertiary)
+                        }
+                    }
+                    Spacer(Modifier.width(6.dp))
+                    Canvas(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(Metrics.chartHeight),
+                    ) {
+                        val w = size.width
+                        val h = size.height
+                        if (w <= 0f || h <= 0f) return@Canvas
+                        val strokeW = 2.dp.toPx()
+                        // Amber at the top through green to blue at the bottom: because the domain is
+                        // fixed, vertical position IS the level, so one shader colours every run by the
+                        // score it actually carries.
+                        val gradient = Brush.verticalGradient(listOf(tense, steady, calm))
+
+                        StressTrace.segments(points, w, h).forEach { run ->
+                            if (run.isEmpty()) return@forEach
+                            if (run.size == 1) {
+                                drawCircle(color = steady, radius = strokeW,
+                                           center = Offset(run[0].x.coerceAtLeast(strokeW), run[0].y))
+                                return@forEach
+                            }
+                            val line = Path().apply {
+                                moveTo(run[0].x, run[0].y)
+                                run.drop(1).forEach { lineTo(it.x, it.y) }
+                            }
+                            // Closed PER RUN, so the fill cannot spread under an hour that was never
+                            // scored and undo the gap the broken line exists to draw.
+                            val fill = Path().apply {
+                                addPath(line)
+                                lineTo(run.last().x, h)
+                                lineTo(run[0].x, h)
+                                close()
+                            }
+                            drawPath(fill, brush = gradient, alpha = StrandAlpha.chartFillSoft)
+                            drawPath(line, brush = gradient,
+                                     style = Stroke(width = strokeW, cap = StrokeCap.Round,
+                                                    join = StrokeJoin.Round))
+                        }
+                        // Hours in the HIGH band, dotted above the line exactly as the screen marks them.
+                        StressTrace.highPoints(points, w, h).forEach {
+                            drawCircle(color = tense, radius = strokeW,
+                                       center = Offset(it.x, (it.y - strokeW * 2f).coerceAtLeast(strokeW)))
+                        }
+                        // The stretches the motion gate masked: exertion raises heart rate on its own, so
+                        // the hour is marked rather than scored.
+                        StressTrace.movingMarks(points, w).forEach {
+                            drawCircle(color = textTertiary, radius = strokeW * 0.6f,
+                                       center = Offset(it, h - strokeW))
+                        }
+                    }
+                }
+
+                if (ticks.size >= 2) {
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        ticks.forEachIndexed { i, ts ->
+                            Text(hourLabel(hourOfEpoch(ts)), style = NoopType.footnote, color = textTertiary)
+                            if (i < ticks.size - 1) Spacer(Modifier.weight(1f))
+                        }
+                    }
+                }
+
+                val avgTenths = (stats.mean * 10).roundToInt().coerceIn(0, 30)
+                Text(
+                    uiString(R.string.l10n_stress_screen_avg_a178769d) +
+                        " ${avgTenths / 10}.${avgTenths % 10}",
+                    style = NoopType.footnote,
+                    color = textTertiary,
+                )
+            }
+        }
+    }
+}
+
+/** Local hour-of-day for an epoch second, so the axis reads in the device's own clock. */
+private fun hourOfEpoch(ts: Long): Int =
+    java.time.Instant.ofEpochSecond(ts).atZone(java.time.ZoneId.systemDefault()).hour
+
+/** The peak's hour-of-day, resolved the same way. */
+private fun peakHourOf(p: StressPoint): Int = hourOfEpoch(p.ts)
 
 // MARK: - Daytime autonomic-load line (gradient, same scale as the gauge)
 //

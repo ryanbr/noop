@@ -7,6 +7,7 @@ import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.StackedBarChart
 import androidx.compose.material.icons.filled.Timeline
@@ -68,7 +69,12 @@ enum class HostedCard(
      *  honouring the imported-consistency preference) from the wearer's SleepModel (#today-hosted-cards). The
      *  Sleep tab surfaces this metric only as a StatTile in the Night-detail grid; the Today host gives it a
      *  standalone card (ConsistencyHostCard) reading the SAME metric, so the value can't diverge. */
-    CONSISTENCY("sleep.consistency", "Consistency", "Sleep", Icons.Filled.Repeat);
+    CONSISTENCY("sleep.consistency", "Consistency", "Sleep", Icons.Filled.Repeat),
+    /** Stress tab · "Stress" — today's hour-by-hour autonomic-load curve (#2040 follow-up). The FIRST
+     *  card hosted from a tab other than Sleep, so [localizedOrigin] gains a branch for it. Read-only,
+     *  like the hosted Stages card: the Stress tab keeps the interactive timeline with its scrubbing and
+     *  tooltips, and the Today host mirrors only the display. */
+    STRESS_TODAY("stress.today", "Stress", "Stress", Icons.Filled.ShowChart);
 
     companion object {
         fun fromRaw(raw: String?): HostedCard? = entries.firstOrNull { it.raw == raw }
@@ -97,6 +103,7 @@ fun HostedCard.localizedTitle(): String = when (this) {
     HostedCard.STAGES -> stringResource(R.string.l10n_sleep_screen_stages_c1d33ad5)
     HostedCard.HOURS_VS_NEEDED -> stringResource(R.string.l10n_sleep_screen_hours_vs_needed_500a0aca)
     HostedCard.CONSISTENCY -> stringResource(R.string.l10n_sleep_screen_consistency_0ea7b95e)
+    HostedCard.STRESS_TODAY -> stringResource(R.string.l10n_stress_screen_stress_bad33342)
 }
 
 /**
@@ -107,6 +114,7 @@ fun HostedCard.localizedTitle(): String = when (this) {
 @Composable
 fun HostedCard.localizedOrigin(): String = when (origin) {
     "Trends" -> stringResource(R.string.nav_trends)
+    "Stress" -> stringResource(R.string.nav_stress)
     else -> stringResource(R.string.nav_sleep)
 }
 

@@ -164,6 +164,8 @@ import com.noop.analytics.StepsEstimateEngine
 import com.noop.analytics.StrainScorer
 import com.noop.ble.WhoopModel
 import com.noop.data.DailyMetric
+import com.noop.widget.StressPoint
+import com.noop.widget.StressWidgetProducer
 import com.noop.data.HrBucket
 import com.noop.data.SleepSession
 import com.noop.data.WhoopRepository
@@ -3488,9 +3490,23 @@ private fun HostedCardsSection(cards: List<HostedCard>, days: List<DailyMetric>,
             null
         }
     }
+    // Today's stress curve, loaded only when the card is actually hosted — the same "hosting none pays
+    // nothing" rule the sleep model above follows. Routed through the SAME gated producer the stress
+    // widget publishes from, so hosting this card costs one indexed COUNT on an unchanged day and the
+    // card and the widget can never show different curves.
+    val needsStressCurve = cards.contains(HostedCard.STRESS_TODAY)
+    var stressCurve by remember { mutableStateOf<List<StressPoint>>(emptyList()) }
+    LaunchedEffect(needsStressCurve, days, viewModel.activeStrapId) {
+        stressCurve = if (needsStressCurve) {
+            StressWidgetProducer.todayCurve(viewModel.repo, viewModel.activeStrapId)?.points ?: emptyList()
+        } else {
+            emptyList()
+        }
+    }
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.sectionGap)) {
         cards.forEach { card ->
             when (card) {
+                HostedCard.STRESS_TODAY -> StressTodayCard(stressCurve)
                 HostedCard.SLEEP_MARKS -> SleepMarkCard(
                     onMark = { type ->
                         val mark = SleepMark.now(type)

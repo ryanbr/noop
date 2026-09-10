@@ -17,6 +17,9 @@ class HostedCardPrefsTest {
     fun rawValues_areTheFrozenNamespacedContract() {
         assertEquals("sleep.sleepMarks", HostedCard.SLEEP_MARKS.raw)
         assertEquals("sleep.asleepDuration", HostedCard.ASLEEP_DURATION.raw)
+        // Origin-namespaced on a tab other than Sleep, and frozen for the same reason: this id rides
+        // .noopbak, so the Swift twin has to spell it identically or a restore drops the card.
+        assertEquals("stress.today", HostedCard.STRESS_TODAY.raw)
         // Every id must be origin-namespaced so it routes to the right provider and can't collide with a
         // Today DashboardCard id.
         HostedCard.entries.forEach { card ->
