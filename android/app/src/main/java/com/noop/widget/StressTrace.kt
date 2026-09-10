@@ -1,5 +1,7 @@
 package com.noop.widget
 
+import com.noop.analytics.DaytimeStress
+
 /**
  * One hour on the widget's stress trace.
  *
@@ -127,12 +129,37 @@ object StressTrace {
                 if (run.isNotEmpty()) { out.add(run); run = ArrayList() }
                 continue
             }
-            val x = if (span <= 0f) 0f else (p.ts - t0) / span * width
-            val y = height - (level / DOMAIN_MAX).toFloat().coerceIn(0f, 1f) * height
-            run.add(Pt(x, y))
+            run.add(place(p.ts, level, t0, span, width, height))
         }
         if (run.isNotEmpty()) out.add(run)
         return out
+    }
+
+    /**
+     * The scored hours sitting in the HIGH band, as pixels, for the dots the screen puts above the line.
+     *
+     * The threshold is read from [DaytimeStress.highBandFloor] rather than restated here. It is the same
+     * cutoff the sustained-stress check uses, and a second copy of it would drift the day the band moves,
+     * leaving the widget dotting hours the app no longer calls high.
+     *
+     * Mapped through the same placement as [segments], so a dot lands exactly on its own vertex.
+     */
+    fun highPoints(series: List<StressPoint>, width: Float, height: Float): List<Pt> {
+        if (series.isEmpty() || width <= 0f || height <= 0f) return emptyList()
+        val t0 = series.first().ts
+        val span = (series.last().ts - t0).toFloat()
+        return series.mapNotNull { p ->
+            val level = p.level ?: return@mapNotNull null
+            if (level < DaytimeStress.highBandFloor) return@mapNotNull null
+            place(p.ts, level, t0, span, width, height)
+        }
+    }
+
+    /** The one placement rule, shared so a dot and its vertex cannot land apart. */
+    private fun place(ts: Long, level: Double, t0: Long, span: Float, width: Float, height: Float): Pt {
+        val x = if (span <= 0f) 0f else (ts - t0) / span * width
+        val y = height - (level / DOMAIN_MAX).toFloat().coerceIn(0f, 1f) * height
+        return Pt(x, y)
     }
 
     /**

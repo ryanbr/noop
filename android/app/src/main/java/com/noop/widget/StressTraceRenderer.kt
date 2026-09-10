@@ -36,6 +36,8 @@ internal object StressTraceRenderer {
     fun render(
         segments: List<List<StressTrace.Pt>>,
         movingMarks: List<Float>,
+        /** from [StressTrace.highPoints], the scored hours sitting in the high band */
+        highPoints: List<StressTrace.Pt>,
         widthPx: Int,
         heightPx: Int,
         calmColor: Int,
@@ -43,13 +45,16 @@ internal object StressTraceRenderer {
         tenseColor: Int,
         /** The card underneath. Drawn as the ground, because an RGB_565 bitmap has no alpha. */
         backgroundColor: Int,
+        /** Top of the area fill, already composited against the card. It fades DOWN into the card
+         *  rather than fading out, because 565 has no alpha to fade into. */
+        fillTopColor: Int,
         /** The faint marks along the base for the hours exertion masked. Already composited against
          *  the card: an RGB_565 bitmap has no alpha channel, so a translucent colour handed in here
          *  would draw at FULL strength. */
         markColor: Int,
         strokePx: Float,
     ): Bitmap? {
-        if (segments.isEmpty() && movingMarks.isEmpty()) return null
+        if (segments.isEmpty() && movingMarks.isEmpty() && highPoints.isEmpty()) return null
         // The caller sized this with the shared payload budget; re-check it rather than re-decide it.
         val w = widthPx.coerceAtLeast(1)
         val h = heightPx.coerceAtLeast(1)
@@ -97,6 +102,30 @@ internal object StressTraceRenderer {
             shader = ramp
         }
 
+        // Fill first, so every stroke sits on top of its own area rather than under the next one's.
+        // Each run is closed to the baseline SEPARATELY: one path across the whole day would span the
+        // gaps and fill under hours that were never scored, which is the thing the broken line exists
+        // to avoid saying.
+        val fill = Paint().apply {
+            isAntiAlias = true
+            isDither = true
+            shader = LinearGradient(
+                0f, 0f, 0f, chartH, fillTopColor, backgroundColor, Shader.TileMode.CLAMP,
+            )
+        }
+        for (seg in segments) {
+            if (seg.size < 2) continue
+            val area = Path()
+            seg.forEachIndexed { i, p ->
+                val (x, y) = px(p)
+                if (i == 0) area.moveTo(x, y) else area.lineTo(x, y)
+            }
+            area.lineTo(px(seg.last()).first, chartH)
+            area.lineTo(px(seg.first()).first, chartH)
+            area.close()
+            canvas.drawPath(area, fill)
+        }
+
         for (seg in segments) {
             if (seg.isEmpty()) continue
             // A run of one hour has no line to stroke, so give it a dot. Otherwise a day whose only
@@ -113,6 +142,26 @@ internal object StressTraceRenderer {
                 if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
             }
             canvas.drawPath(path, stroke)
+        }
+
+        // The high-band hours, dotted above the line as the screen marks them. Drawn after the stroke
+        // so a dot is never half-hidden under it, and in the tense colour because that is what being in
+        // that band means.
+        if (highPoints.isNotEmpty()) {
+            val dotPaint = Paint().apply {
+                isAntiAlias = true
+                color = tenseColor
+                style = Paint.Style.FILL
+            }
+            for (p in highPoints) {
+                val (x, y) = px(p)
+                canvas.drawCircle(
+                    x.coerceIn(strokePx, w - strokePx),
+                    (y - strokePx * 2f).coerceAtLeast(strokePx),
+                    strokePx * 0.9f,
+                    dotPaint,
+                )
+            }
         }
 
         if (movingMarks.isNotEmpty() && markBand > 0f) {

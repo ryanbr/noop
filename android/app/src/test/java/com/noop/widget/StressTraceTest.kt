@@ -81,6 +81,32 @@ class StressTraceTest {
         assertEquals(50f, marks.single(), 0.001f)
     }
 
+    // MARK: - the high band
+
+    @Test
+    fun `only hours at or above the high band get a dot`() {
+        val day = listOf(at(0, 1.0), at(1, 1.9), at(2, 2.0), at(3, 2.8), at(4, null))
+        val dots = StressTrace.highPoints(day, 100f, 100f)
+        // 2.0 is the floor itself, so it counts; 1.9 does not.
+        assertEquals(2, dots.size)
+    }
+
+    @Test
+    fun `a dot lands on its own vertex`() {
+        val day = listOf(at(0, 0.5), at(1, 2.5))
+        val vertex = StressTrace.segments(day, 100f, 100f).single()[1]
+        val dot = StressTrace.highPoints(day, 100f, 100f).single()
+        // The dot and the line are placed by the same rule, so a nudge to one cannot leave the other
+        // behind. The renderer lifts the dot above the stroke; the geometry must agree exactly.
+        assertEquals(vertex.x, dot.x, 0.001f)
+        assertEquals(vertex.y, dot.y, 0.001f)
+    }
+
+    @Test
+    fun `a calm day gets no dots at all`() {
+        assertTrue(StressTrace.highPoints(listOf(at(0, 0.4), at(1, 1.2)), 100f, 100f).isEmpty())
+    }
+
     // MARK: - stats
 
     @Test

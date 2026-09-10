@@ -146,7 +146,9 @@ private fun StressWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
         val stressLabel = uiString(R.string.l10n_stress_screen_stress_bad33342)
         val ofThree = uiString(R.string.l10n_stress_screen_of_3_46203495)
         val latest = snap.stressSeries.lastOrNull { it.level != null }?.level
-        val spoken = latest?.let { "$stressLabel ${formatLevel(it)} $ofThree" } ?: stressLabel
+        // Assembled by concatenation rather than as a template, so no English word is ever written
+        // here: every part comes from a resource, and the separators carry no letters to translate.
+        val spoken = latest?.let { stressLabel + " " + formatLevel(it) + " " + ofThree } ?: stressLabel
 
         Row(verticalAlignment = Alignment.Vertical.Bottom) {
             Text(
@@ -245,12 +247,17 @@ private fun StressTraceImage(
         StressTraceRenderer.render(
             segments = StressTrace.segments(snap.stressSeries, wPx.toFloat(), hPx.toFloat()),
             movingMarks = StressTrace.movingMarks(snap.stressSeries, wPx.toFloat()),
+            highPoints = StressTrace.highPoints(snap.stressSeries, wPx.toFloat(), hPx.toFloat()),
             widthPx = wPx,
             heightPx = hPx,
             calmColor = stressCalm(dark).toArgb(),
             steadyColor = stressSteady(dark).toArgb(),
             tenseColor = stressTense(dark).toArgb(),
             backgroundColor = stressSurfaceColor(dark).toArgb(),
+            // Composited for the same reason the marks are: the bitmap has no alpha channel, so the
+            // translucency has to be resolved against the card before it is handed over.
+            fillTopColor = stressSteady(dark).copy(alpha = 0.35f)
+                .compositeOver(stressSurfaceColor(dark)).toArgb(),
             // Composited against the card rather than passed as a translucent colour: the bitmap is
             // RGB_565 and has no alpha to fade into, so an alpha here would have drawn solid.
             markColor = stressTextSecondary(dark).getColor(context)
@@ -265,23 +272,10 @@ private fun StressTraceImage(
         )
     }
 
+    // Scale FIRST, then the chart: the Stress screen puts the 0-3 labels down the left edge, and a
+    // widget that mirrors a screen should not mirror it back to front. (The heart-rate widget puts its
+    // scale on the right, which is right for a trace whose numbers are read off the end.)
     Row(modifier = modifier.fillMaxWidth()) {
-        Box(modifier = GlanceModifier.fillMaxHeight().defaultWeight()) {
-            if (bmp != null) {
-                Image(
-                    provider = ImageProvider(bmp),
-                    contentDescription = null,
-                    modifier = GlanceModifier.fillMaxSize(),
-                    // FillBounds, not the default Fit: the width is drawn with headroom so it
-                    // downscales, and Fit would letterbox that headroom back into dead space.
-                    contentScale = ContentScale.FillBounds,
-                )
-            }
-        }
-        Spacer(GlanceModifier.width(6.dp))
-        // The FIXED 0-3 scale, spread across the chart's height so 3 sits level with the top of the box
-        // and 0 with the bottom. Fixed rather than derived, because that is what the domain is: a scale
-        // that moved with the day would make two days impossible to compare at a glance.
         Column(
             modifier = GlanceModifier.fillMaxHeight(),
             horizontalAlignment = Alignment.Horizontal.End,
@@ -293,6 +287,19 @@ private fun StressTraceImage(
                     style = TextStyle(color = stressTextSecondary(dark), fontSize = 10.sp),
                 )
                 if (i < ticks.size - 1) Spacer(GlanceModifier.defaultWeight())
+            }
+        }
+        Spacer(GlanceModifier.width(6.dp))
+        Box(modifier = GlanceModifier.fillMaxHeight().defaultWeight()) {
+            if (bmp != null) {
+                Image(
+                    provider = ImageProvider(bmp),
+                    contentDescription = null,
+                    modifier = GlanceModifier.fillMaxSize(),
+                    // FillBounds, not the default Fit: the width is drawn with headroom so it
+                    // downscales, and Fit would letterbox that headroom back into dead space.
+                    contentScale = ContentScale.FillBounds,
+                )
             }
         }
     }
