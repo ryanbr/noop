@@ -509,8 +509,21 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         .map { it.lastSyncAt }
         .stateIn(viewModelScope, SharingStarted.Eagerly, live.value.lastSyncAt)
 
-    /** Which strap the user is pairing — drives the scan filter in [connect]. Defaults to WHOOP 4.0. */
-    private val _selectedModel = MutableStateFlow(WhoopModel.WHOOP4)
+    /**
+     * Which strap the user is pairing — drives the scan filter in [connect].
+     *
+     * Seeded from the family service discovery actually recorded, which `WhoopBleClient.persistSelectedModel`
+     * writes for BOTH branches at the moment the WHOOP4 or WHOOP5 service is found on the link. It used
+     * to start at a hardcoded WHOOP4 and never consult that value, so an install whose only strap is a
+     * 5/MG began every process believing it had a 4.0.
+     *
+     * That is not a label. This flows into `ble.connect(...)`, which starts a SERVICE-FILTERED scan, so
+     * a wrong family makes every scan-based reconnect look for the wrong service and wait
+     * `SCAN_FALLBACK_DELAY_MS`, eight seconds, before rotating, with the strap sitting right there.
+     */
+    private val _selectedModel = MutableStateFlow(
+        resolveSelectedModel(noopApp.persistedWhoopModelOrNull(), NoopPrefs.lastDevice(appContext)?.second),
+    )
     val selectedModel: StateFlow<WhoopModel> = _selectedModel.asStateFlow()
     fun setSelectedModel(model: WhoopModel) {
         if (model == _selectedModel.value) return
@@ -1376,15 +1389,27 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      */
     private fun autoReconnectOnLaunch() {
         val saved = NoopPrefs.lastDevice(appContext) ?: return
-        // Restore the model selection whenever a strap is remembered — deliberately NOT gated on the
-        // background-connection pref, so an opted-out 5/MG user's picker and scan family still
-        // survive restarts. Only the reconnect itself respects the pref. (#78 fork)
-        _selectedModel.value = saved.second
+        // No picker restore here any more. This used to assign `_selectedModel` from `saved.second`,
+        // which is what let a wrong family survive every restart and re-store itself. `_selectedModel`
+        // is now seeded from the recorded family at construction, and this runs from the tail of the
+        // same init block, off the same two prefs, so re-deriving it here could only ever recompute the
+        // identical value. The property the old line was protecting (#78 fork) is preserved and widened:
+        // a field initializer is unconditional, so the picker and scan family now survive a restart even
+        // for a user with background connection off AND for one with no saved strap at all, which is
+        // exactly the 5/MG case, since a strap that cannot bond (#1635) never becomes the saved device
+        // and so never reached this line in the first place.
         if (!NoopPrefs.backgroundConnection(appContext)) return
         // APK updates tear down the old foreground service along with the old process. Re-promote it
         // on the first launch after update/restart before reconnecting, so the persistent notification
         // and long-lived connection both come back without the user toggling the setting again.
         WhoopConnectionService.start(appContext)
+        // The PAIR, deliberately, not the seeded picker value. `setLastDevice` writes address and family
+        // in one call, so `saved.second` describes THIS address; the recorded family describes whatever
+        // advertised last, which need not be the same strap. `reconnectToAddress` assigns the client's
+        // `selectedModel` for the whole link and service discovery never writes that back (it sets
+        // `connectedFamily` instead), so a family borrowed from the other source would stick. A household
+        // with a 4.0 and a 5/MG makes them disagree routinely: the 5/MG cannot bond (#1635) so it never
+        // becomes the saved device, while every attempt at it re-records WHOOP5_MG.
         ble.reconnectToAddress(saved.first, saved.second)
     }
 
@@ -3226,3 +3251,28 @@ internal fun elapsedClock(elapsedS: Long): String {
         java.lang.String.format(java.util.Locale.US, "%d:%02d", m, s)
     }
 }
+
+/**
+ * Which strap family the picker should sit on, given the two things the app remembers.
+ *
+ * [recorded] is what service discovery actually saw on the link — `WhoopBleClient.persistSelectedModel`
+ * writes it for BOTH the WHOOP4 and the WHOOP5 branch at the moment that family's service is found, so
+ * it is positive per-link evidence and it wins. [remembered] is the family half of the saved
+ * last-device pair, which only ever stores whatever the picker happened to hold when a strap last
+ * bonded; it is a fallback for installs that predate [recorded], not a source of truth, because reading
+ * it back into the picker lets a wrong value re-store itself on every restart.
+ *
+ * The same precedence, for the same reason, is already reasoned out in `AndroidDiagnostics.reportedModel`,
+ * which picks `detected ?: remembered` so a report cannot invent a model. Note that `NoopPrefs.lastDevice`
+ * widens a MISSING family to WHOOP4 before it ever reaches [remembered], so a null here means "no strap
+ * remembered at all", never "remembered without a family" — this function cannot recover the difference
+ * and does not try, because both land on WHOOP4 anyway.
+ *
+ * WHOOP4 remains the last resort so a fresh install behaves as it always has.
+ *
+ * Pure on purpose: both inputs are read from SharedPreferences at the call sites, and there is no
+ * Robolectric in this module, so the decision itself is only testable once it is separated from the
+ * `Context` that supplies it.
+ */
+internal fun resolveSelectedModel(recorded: WhoopModel?, remembered: WhoopModel?): WhoopModel =
+    recorded ?: remembered ?: WhoopModel.WHOOP4

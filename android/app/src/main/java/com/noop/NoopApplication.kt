@@ -187,10 +187,20 @@ class NoopApplication : Application() {
      *  "noop.selectedWhoopModel" in the shared noop_prefs store. Defaults to [WhoopModel.WHOOP4] when
      *  unset or unparseable (the historical connect() default), so a fresh install is unchanged. Used to
      *  reconnect on the right service after a WHOOP->WHOOP switch (#74). */
-    private fun persistedWhoopModel(): WhoopModel =
+    private fun persistedWhoopModel(): WhoopModel = persistedWhoopModelOrNull() ?: WhoopModel.WHOOP4
+
+    /**
+     * The persisted family, or null when nothing has been recorded yet.
+     *
+     * Split from [persistedWhoopModel] because the default it applies, WHOOP4, is indistinguishable
+     * from a genuine recorded WHOOP4, and a caller choosing between this and some other source needs to
+     * know which it got. `AppViewModel` needs exactly that: a recorded family should beat the remembered
+     * pair, while an install that predates this pref must keep falling back to it rather than being
+     * silently reset to WHOOP4.
+     */
+    internal fun persistedWhoopModelOrNull(): WhoopModel? =
         NoopPrefs.of(this).getString("noop.selectedWhoopModel", null)
             ?.let { runCatching { WhoopModel.valueOf(it) }.getOrNull() }
-            ?: WhoopModel.WHOOP4
 
     companion object {
         @Volatile private var instance: NoopApplication? = null
