@@ -5997,6 +5997,16 @@ private fun HrWindowPills(selection: HrWindow, onSelect: (HrWindow) -> Unit) {
     )
 }
 
+/** The width of the Today HR card's buckets.
+ *
+ *  ONE literal, read by the load below and by the gap test in [OverviewHRChart]. They have to agree:
+ *  [hrGapSegmentIds] calls any step wider than one bucket a gap, so a load widened to 600 against a
+ *  test still holding 300 would call EVERY step a gap and shatter the line into dots. The codebase
+ *  genuinely runs 60, 300, 3600 and a span-derived width for other charts, so the two drifting apart is
+ *  a live possibility rather than a theoretical one.
+ */
+internal const val HR_CARD_BUCKET_SECONDS = 300L
+
 @Composable
 private fun HeartRateTrendCard(
     viewModel: AppViewModel,
@@ -6063,7 +6073,9 @@ private fun HeartRateTrendCard(
         // #908: the Today HR curve reads the active strap ∪ canonical "my-whoop" union, NOT a hardcoded
         // "my-whoop". A strap re-added via the device manager banks live HR under its own fresh id, so a
         // pinned read showed the "no heart rate banked yet today" empty state. Single-WHOOP ⇒ one id ⇒ same.
-        buckets = viewModel.repo.hrBucketsUnion(viewModel.activeStrapId, start, end, 300L)
+        buckets = viewModel.repo.hrBucketsUnion(
+            viewModel.activeStrapId, start, end, HR_CARD_BUCKET_SECONDS,
+        )
         // The sleep that ended within the chart window (the night before / this morning), anchors
         // the band + the Charge-at-wake marker. A wide lower bound catches an onset before midnight.
         // Resolves the day's bridged MAIN-night span via `mainSleepSpan` (the SAME resolver the Sleep
@@ -6464,12 +6476,6 @@ private suspend fun PointerInputScope.hrChartTransformGestures(
 // time is mapped to a fractional list index by interpolating against the buckets' own timestamps, // markers then sit exactly on the rendered curve even when the strap history has gaps. Every layer
 // self-hides when its data is absent (no sleep, calibrating Charge, no workouts). Mirrors the macOS
 // OverviewHRChart (Packages/StrandDesign) in NOOP's own colour language. (PR #285)
-
-/** The width of the Today HR card's buckets, matching the 5-minute load its own comment describes.
- *  Named because [hrGapSegmentIds] compares steps against it: if the load ever changes width and this
- *  does not, every bucket reads as a gap and the line shatters, which is at least loud rather than
- *  silent. */
-internal const val HR_CARD_BUCKET_SECONDS = 300L
 
 @Composable
 private fun OverviewHRChart(
