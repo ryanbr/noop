@@ -306,6 +306,29 @@ final class LiftSessionController: ObservableObject {
         persist()
     }
 
+    /// Add one set to an exercise — the unplanned fifth set. Returns whether anything changed, which
+    /// is what tells the caller whether the program behind the session needs rewriting.
+    @discardableResult
+    func addSet(toExercise index: Int) -> Bool {
+        guard engine?.addSet(toExercise: index) == true else { return false }
+        persist()
+        return true
+    }
+
+    /// Drop the last pending set of an exercise. See `LiftSessionEngine.canRemoveSet(fromExercise:)`
+    /// for what "can" means — a completed set is never removed this way.
+    @discardableResult
+    func removeSet(fromExercise index: Int) -> Bool {
+        guard let engine, engine.canRemoveSet(fromExercise: index) else { return false }
+        let dropped = LiftSlot(exerciseIndex: index, setIndex: engine.plan[index].targetSets)
+        self.engine?.removeSet(fromExercise: index)
+        // A slot that no longer exists must not keep a warm-up mark: adding the set back would
+        // return it silently marked, from a tap the user made against a different set.
+        pendingWarmups.remove(dropped)
+        persist()
+        return true
+    }
+
     func updateSet(_ slot: LiftSlot, weightKg: Double?, reps: Int?, rpe: Double?, isWarmup: Bool) {
         engine?.updateSet(slot, weightKg: weightKg, reps: reps, rpe: rpe, isWarmup: isWarmup)
         persist()

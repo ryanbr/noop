@@ -40,6 +40,10 @@ struct LiftPlanItem: Equatable {
     /// The weight the program plans, in kilograms.
     var targetWeightKg: Double?
     var note: String?
+    /// The `liftProgramItem.id` this line was flattened from, so a set added or dropped during the
+    /// session can be written back onto the program it came from. Nil for a line with no program
+    /// behind it, and the write-back is then simply skipped.
+    var programItemId: String?
 
     /// Rest used when a program line does not specify one. Two minutes sits in the middle of the
     /// range the hypertrophy literature uses for compound work, and is only a starting value: what
@@ -55,7 +59,8 @@ struct LiftPlanItem: Equatable {
          targetRepsHigh: Int? = nil,
          targetRpe: Double? = nil,
          targetWeightKg: Double? = nil,
-         note: String? = nil) {
+         note: String? = nil,
+         programItemId: String? = nil) {
         self.exercise = exercise
         self.primaryMuscle = primaryMuscle
         self.secondaryMuscles = secondaryMuscles
@@ -66,6 +71,7 @@ struct LiftPlanItem: Equatable {
         self.targetRpe = targetRpe
         self.targetWeightKg = targetWeightKg
         self.note = note
+        self.programItemId = programItemId
     }
 }
 
@@ -109,7 +115,11 @@ struct LiftSessionEngine: Equatable {
         case finished
     }
 
-    let plan: [LiftPlanItem]
+    /// The lines being worked. MUTABLE only in one dimension: how many sets a line holds, because a
+    /// gym decides that as it goes — a fifth set on a line that planned four, or dropping the last
+    /// one when the tank is empty. Nothing else about a line can change mid-session, so the plan
+    /// stays the snapshot it was at start.
+    private(set) var plan: [LiftPlanItem]
     /// When the session began (unix seconds).
     let startTs: Int
     private(set) var stage: Stage
@@ -124,7 +134,13 @@ struct LiftSessionEngine: Equatable {
     /// hand-written inverse can.
     private var history: [Snapshot] = []
 
+    /// The plan travels in the snapshot with the stage and the sets, and is restored with them.
+    ///
+    /// It has to. Once the set count can move, a stage saved under one count is only meaningful
+    /// under that count: undoing back past a removed set would otherwise leave the session working
+    /// a slot the sheet no longer draws — and completing it would write a set nobody could see.
     private struct Snapshot: Equatable {
+        var plan: [LiftPlanItem]
         var stage: Stage
         var sets: [LiftRecordedSet]
         var stageStartedAt: Int
@@ -333,6 +349,52 @@ struct LiftSessionEngine: Equatable {
         sets[i].isWarmup = isWarmup
     }
 
+    // MARK: - Changing how many sets a line holds
+    //
+    // A program is what you INTENDED, and a gym argues with it. Five sets when the program says four
+    // is ordinary; so is stopping at three because the tank is empty. Until this existed the fifth
+    // set simply could not be recorded — the sheet drew exactly `1...targetSets` and there was no
+    // way past it — so the set was done and then lost, which is the failure this feature exists to
+    // prevent.
+
+    /// The most sets one line may hold. A bound against a stuck finger, not a recommendation: every
+    /// added set is a row on the sheet and a slot in the crash snapshot.
+    static let maxSetsPerExercise = 20
+
+    /// Append one set to an exercise's line. Returns false when the line is already at the bound, so
+    /// a caller can tell "did nothing" from "done" without re-deriving the rule.
+    @discardableResult
+    mutating func addSet(toExercise index: Int) -> Bool {
+        guard plan.indices.contains(index),
+              plan[index].targetSets < LiftSessionEngine.maxSetsPerExercise else { return false }
+        pushHistory()
+        plan[index].targetSets += 1
+        return true
+    }
+
+    /// Whether the last set of a line can be dropped.
+    ///
+    /// Only the LAST one, and only while it is still pending. Set numbers are positions — the sheet
+    /// draws `1...targetSets` — so removing from the middle would renumber every set after it and
+    /// silently re-label what was already recorded. And a completed set is DATA: dropping it here
+    /// would delete a set the user actually performed, from a button whose job is to edit a plan.
+    /// The set being worked or rested from is excluded for the same reason it cannot be renumbered:
+    /// the session is standing on it.
+    func canRemoveSet(fromExercise index: Int) -> Bool {
+        guard plan.indices.contains(index), plan[index].targetSets > 1 else { return false }
+        let last = LiftSlot(exerciseIndex: index, setIndex: plan[index].targetSets)
+        return !isCompleted(last) && currentSlot != last
+    }
+
+    /// Drop the last (pending) set of an exercise's line. Returns false when the rule above says no.
+    @discardableResult
+    mutating func removeSet(fromExercise index: Int) -> Bool {
+        guard canRemoveSet(fromExercise: index) else { return false }
+        pushHistory()
+        plan[index].targetSets -= 1
+        return true
+    }
+
     /// End the session. The rest that was running is closed out first, so its measured duration is
     /// not silently lost.
     mutating func finish(now: Int) {
@@ -348,12 +410,14 @@ struct LiftSessionEngine: Equatable {
 
     mutating func undo() {
         guard let previous = history.popLast() else { return }
+        plan = previous.plan
         stage = previous.stage
         sets = previous.sets
         stageStartedAt = previous.stageStartedAt
     }
 
     private mutating func pushHistory() {
-        history.append(Snapshot(stage: stage, sets: sets, stageStartedAt: stageStartedAt))
+        history.append(Snapshot(plan: plan, stage: stage,
+                                sets: sets, stageStartedAt: stageStartedAt))
     }
 }

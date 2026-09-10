@@ -163,9 +163,100 @@ struct LiftSessionView: View {
                     // The rest belongs BETWEEN two sets, because that is where it happens.
                     if isRestingAfter(engine, slot: slot) { restBand(engine) }
                 }
+
+                setCountRow(engine, index: index, item: item)
             }
         }
         .id(index)
+    }
+
+    /// Add one more set, or drop the last planned one — at the END of the exercise, because that is
+    /// where the question comes up: you have done what was written down and have one more in you, or
+    /// you have not. Until this existed the sheet drew exactly `1...targetSets` and the extra set was
+    /// performed and then lost.
+    ///
+    /// The geometry mirrors a set row: the minus sits in the tick column, under the checks it undoes.
+    ///
+    /// **Both buttons also rewrite the program**, which is the point rather than a side effect — a
+    /// program is a plan for NEXT time, and the sets you actually chose are the better plan. The
+    /// running session is unaffected either way; the write-back only changes what the program offers
+    /// when it is started again.
+    private func setCountRow(_ engine: LiftSessionEngine, index: Int, item: LiftPlanItem) -> some View {
+        let canAdd = item.targetSets < LiftSessionEngine.maxSetsPerExercise
+        let canRemove = engine.canRemoveSet(fromExercise: index)
+
+        return HStack(spacing: 8) {
+            Button {
+                changeSetCount { session.addSet(toExercise: index) }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "plus.circle")
+                        .font(.system(size: 17, weight: .semibold))
+                    Text("Add set").font(StrandFont.caption)
+                }
+                .foregroundStyle(canAdd ? StrandPalette.effortColor : StrandPalette.textTertiary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!canAdd)
+            .accessibilityLabel(String(localized: "Add a set to \(item.exercise)"))
+
+            Button {
+                changeSetCount { session.removeSet(fromExercise: index) }
+            } label: {
+                Image(systemName: "minus.circle")
+                    .font(.system(size: 17, weight: .semibold))
+                    // Dimmed rather than gone: the pair reads as one control, and a minus that
+                    // disappears once the last set is done looks like a feature that broke.
+                    .foregroundStyle(canRemove ? StrandPalette.textSecondary
+                                               : StrandPalette.textTertiary.opacity(0.4))
+                    .frame(width: Self.tickColumnWidth)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!canRemove)
+            .accessibilityLabel(String(localized: "Remove the last set from \(item.exercise)"))
+        }
+        .padding(.top, 2)
+        .padding(.horizontal, 8)
+    }
+
+    /// Run a change to the set count, then make the program match.
+    ///
+    /// One funnel for every path that can move a count — the two buttons and the undo — so the
+    /// program cannot be left behind by a route someone forgot about.
+    private func changeSetCount(_ change: () -> Bool) {
+        guard change() else { return }
+        Task { await writeSetCountsToProgram() }
+    }
+
+    /// Write the session's set counts back onto the program behind it.
+    ///
+    /// Re-reads the lines first and edits only `targetSets`, so a program edited elsewhere while the
+    /// session runs keeps every other change, and a line that has since been deleted is skipped
+    /// rather than resurrected. Writes nothing at all when no count actually differs — the store
+    /// call replaces the program's lines wholesale, and that is not something to do on every tap.
+    private func writeSetCountsToProgram() async {
+        guard let programId = session.programId, let plan = session.engine?.plan,
+              let store = await repo.storeHandle() else { return }
+        var wanted: [String: Int] = [:]
+        for line in plan {
+            if let id = line.programItemId { wanted[id] = line.targetSets }
+        }
+        guard !wanted.isEmpty,
+              let rows = try? await store.liftProgramItems(programId: programId) else { return }
+
+        var changed = false
+        let rewritten = rows.map { row -> LiftProgramItemRow in
+            guard let sets = wanted[row.id], row.targetSets != sets else { return row }
+            var edited = row
+            edited.targetSets = sets
+            changed = true
+            return edited
+        }
+        guard changed else { return }
+        _ = try? await store.replaceLiftProgramItems(programId: programId, items: rewritten)
     }
 
     /// Width of the set-number column, shared by the heading and every row so the number sits
@@ -433,7 +524,9 @@ struct LiftSessionView: View {
                 heartRate()
                 Spacer(minLength: 0)
                 Button {
-                    session.undo()
+                    // Through the funnel: undo restores the plan as well as the sets, so taking back
+                    // an added set has to take it back off the program too.
+                    changeSetCount { session.undo(); return true }
                 } label: {
                     Image(systemName: "arrow.uturn.backward")
                         .font(.system(size: 15, weight: .semibold))
