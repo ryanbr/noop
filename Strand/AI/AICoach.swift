@@ -108,6 +108,16 @@ enum AIKeyStore {
 
 /// User-facing failure reasons mapped to clear, non-crashing messages.
 enum AICoachError: LocalizedError {
+
+    /// Whether an HTTP status means the stored key itself was turned away, as opposed to the provider
+    /// being busy, broken, or asked for something it does not have.
+    ///
+    /// Named rather than left as two literals in two switches because it is the hinge the key-repair
+    /// affordance hangs on, and it decides what the wearer is told to go and do. Widen it and a rate
+    /// limit starts demanding a new key; narrow it and the trap this exists to remove comes straight
+    /// back. Byte-identical twin of the Kotlin `AiCoach.isKeyRejection`.
+    static func isKeyRejection(_ status: Int) -> Bool { status == 401 || status == 403 }
+
     case noKey
     case emptyQuestion
     case badKey
@@ -162,6 +172,20 @@ final class AICoachEngine: ObservableObject {
     private var conversationDay: Int?
     @Published var sending = false
     @Published var errorText: String?
+
+    /// Whether the last failure was the provider turning the stored key away, as opposed to a rate
+    /// limit, a server fault or the network.
+    ///
+    /// It exists because the rejection message tells the wearer to check their key while the screen
+    /// offers no way to reach it: the coach shows the chat as soon as ANY key is stored, and a wrong
+    /// key is still a stored key, so the only route back was a Disconnect that also throws the
+    /// conversation away. This lets the error carry the field with it.
+    ///
+    /// It QUALIFIES `errorText` rather than standing on its own, and the view reads it only inside the
+    /// branch that renders one, so it cannot leave a key editor open under no error. Assigned on every
+    /// failure, so a rejection followed by a rate limit stops claiming to be a rejection. Twin of the
+    /// Kotlin `CoachViewModel.keyRejected`.
+    @Published var keyRejected = false
 
     /// #1862: a question handed over by the Today Coach launcher sheet, for `CoachView` to send on appear.
     ///
@@ -436,6 +460,10 @@ final class AICoachEngine: ObservableObject {
             return
         }
         errorText = nil
+        // A stored key is no longer the rejected one. Deliberately leaves the transcript alone:
+        // correcting a mistyped key is not a reason to lose the conversation, which is what routing
+        // this through `disconnect` used to cost. Twin of the Kotlin `saveKey`.
+        keyRejected = false
         objectWillChange.send() // `hasKey` is computed; nudge SwiftUI to re-read it.
         // #288: do NOT auto-fetch the provider's model list on key-save. For a cloud provider that GET
         // egresses to the provider the MOMENT a key is saved (IP + request timing + key-validity) — before
@@ -518,10 +546,21 @@ final class AICoachEngine: ObservableObject {
             var merged = builtin + discovered
             if !merged.contains(model) { merged.insert(model, at: 0) }
             availableModels = merged
-        } catch {
+        } catch let e as AICoachError {
             // A switch mid-flight makes any error moot for the old provider, so don't surface it.
             guard provider == capturedProvider else { return }
+            // Typed first, because this used to report EVERY failure as a network problem, including a
+            // key the provider had just turned away. Refresh is one of the two places a wrong key shows
+            // itself, and it was the one that blamed the wrong thing: the wearer read "Network problem"
+            // and went looking at their connection. It now says what happened and, for a rejection,
+            // opens the field to fix it.
+            errorText = e.errorDescription
+            if case .badKey = e { keyRejected = true } else { keyRejected = false }
+            return
+        } catch {
+            guard provider == capturedProvider else { return }
             errorText = AICoachError.network(error.localizedDescription).errorDescription
+            keyRejected = false
             return
         }
     }
@@ -699,6 +738,8 @@ final class AICoachEngine: ObservableObject {
                 messages.remove(at: lastIdx)
             }
             errorText = e.errorDescription
+            // Typed, never text-matched: the message is localized and the case is not.
+            if case .badKey = e { keyRejected = true } else { keyRejected = false }
         } catch {
             let partial = accumulated.trimmingCharacters(in: .whitespacesAndNewlines)
             if !partial.isEmpty, let lastIdx = messages.indices.last, messages[lastIdx].role == .assistant {
@@ -710,6 +751,7 @@ final class AICoachEngine: ObservableObject {
                 messages.remove(at: lastIdx)
             }
             errorText = AICoachError.network(error.localizedDescription).errorDescription
+            keyRejected = false
         }
     }
 
@@ -763,6 +805,8 @@ final class AICoachEngine: ObservableObject {
                 )
             }
             errorText = e.errorDescription
+            // Typed, never text-matched: the message is localized and the case is not.
+            if case .badKey = e { keyRejected = true } else { keyRejected = false }
         } catch {
             let partial = accumulated.trimmingCharacters(in: .whitespacesAndNewlines)
             if partial.isEmpty {
@@ -776,6 +820,7 @@ final class AICoachEngine: ObservableObject {
                 )
             }
             errorText = AICoachError.network(error.localizedDescription).errorDescription
+            keyRejected = false
         }
     }
 

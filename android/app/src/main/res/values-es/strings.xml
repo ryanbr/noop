@@ -2751,4 +2751,7 @@
     <string name="l10n_app_changelog_a_coach_that_keeps_the_thread_2ee52e0c">Un coach que mantiene el hilo, tu frecuencia cardíaca en la pantalla de inicio y gráficos que afirman menos</string>
     <string name="charge_legacy_rr_gap_title">Los latidos anteriores no se pueden puntuar</string>
     <string name="charge_legacy_rr_gap_detail">Esta noche se registró antes de que NOOP etiquetara de qué transporte de WHOOP 5 procedía cada latido, así que sus intervalos mezclan dos unidades distintas y no hay nada guardado que permita distinguirlas. La noche permanece en tu historial y las noches registradas a partir de ahora se puntúan con normalidad.</string>
+    <string name="coach_key_rejected_hint">Pega la clave corregida. Tu conversación se conserva.</string>
+    <string name="coach_key_rejected_placeholder">Pega tu clave de %1$s</string>
+    <string name="coach_key_rejected_action">Actualizar clave</string>
 </resources>

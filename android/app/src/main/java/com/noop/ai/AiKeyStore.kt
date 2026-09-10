@@ -5,6 +5,16 @@ import android.content.SharedPreferences
 import com.noop.data.SecurePrefs
 
 /**
+ * The provider turned the stored key away (HTTP 401 or 403).
+ *
+ * Typed rather than left as a bare exception because the message it carries tells the wearer to check
+ * the key, and until the UI can recognise this case it has nowhere to send them: the coach shows the
+ * chat once ANY key is stored, and a wrong key is still a stored key. The alternative, matching on the
+ * message text, stops working in every locale but English. Twin of Swift `AICoachError.badKey`.
+ */
+class AiKeyRejectedException(message: String) : Exception(message)
+
+/**
  * Secure, at-rest-encrypted storage for the user's AI Coach API key.
  *
  * Backed by Jetpack Security `EncryptedSharedPreferences` — values are encrypted with a

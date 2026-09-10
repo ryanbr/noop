@@ -250,6 +250,8 @@ private fun CoachChat(vm: CoachViewModel) {
     val messages by vm.messages.collectAsStateWithLifecycle()
     val sending by vm.sending.collectAsStateWithLifecycle()
     val error by vm.error.collectAsStateWithLifecycle()
+    // Only ever read inside the error branch below — see CoachViewModel.keyRejected.
+    val keyRejected by vm.keyRejected.collectAsStateWithLifecycle()
     val provider by vm.provider.collectAsStateWithLifecycle()
     val model by vm.model.collectAsStateWithLifecycle()
     val suggestions by vm.suggestions.collectAsStateWithLifecycle()
@@ -259,6 +261,10 @@ private fun CoachChat(vm: CoachViewModel) {
     var input by remember { mutableStateOf(draftPrefs.getString("draft", "") ?: "") }
     // K2: confirmation gate for the destructive "Clear conversation" action.
     var showClearConfirm by remember { mutableStateOf(false) }
+    // The corrected key, typed into the editor the rejection message opens. Separate from `input` so a
+    // half-typed question is not lost while fixing the key, and cleared on save so a secret does not
+    // sit in composition state after it has been stored.
+    var keyFix by remember { mutableStateOf("") }
 
     // Refresh the contextual chips whenever the chat empties (so a fresh sync updates them) and
     // once on first show. Best-effort; the VM falls back to the generic set on any failure.
@@ -401,6 +407,32 @@ private fun CoachChat(vm: CoachViewModel) {
                 color = Palette.statusCritical,
                 modifier = Modifier.semantics { contentDescription = uiString(R.string.l10n_coach_screen_coach_error_error_ad9c8c46, errorMsg) },
             )
+            // A rejected key is the one failure the wearer can act on from here, and the message
+            // already tells them to: "Check the key and try again". Until this, the screen offered
+            // nowhere to check it. The field is rendered INSIDE the error branch, never on its own
+            // flag, so it cannot outlive the message that justifies it.
+            if (keyRejected) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        uiString(R.string.coach_key_rejected_hint),
+                        style = NoopType.footnote,
+                        color = Palette.textSecondary,
+                    )
+                    CoachKeyField(
+                        value = keyFix,
+                        onValueChange = { keyFix = it },
+                        placeholder = uiString(R.string.coach_key_rejected_placeholder, provider.displayName),
+                    )
+                    CoachPrimaryButton(
+                        label = uiString(R.string.coach_key_rejected_action),
+                        enabled = keyFix.isNotBlank(),
+                        onClick = {
+                            vm.saveKey(context, keyFix)
+                            keyFix = ""
+                        },
+                    )
+                }
+            }
         }
 
         // Input row + Send, a frosted overlay surface so the composer reads as a docked input bar.

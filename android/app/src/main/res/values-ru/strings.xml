@@ -2634,4 +2634,7 @@
     <string name="l10n_app_changelog_a_coach_that_keeps_the_thread_2ee52e0c">Тренер, который не теряет нить, ваш пульс на главном экране и графики, которые меньше домысливают</string>
     <string name="charge_legacy_rr_gap_title">Ранние удары невозможно оценить</string>
     <string name="charge_legacy_rr_gap_detail">Эта ночь была записана до того, как NOOP начал отмечать, по какому каналу WHOOP 5 пришёл каждый удар, поэтому её интервалы смешивают две разные единицы, и ничего не сохранено, что позволило бы их различить. Ночь остаётся в вашей истории, а ночи, записанные с этого момента, оцениваются как обычно.</string>
+    <string name="coach_key_rejected_hint">Вставьте исправленный ключ. Ваш разговор сохранится.</string>
+    <string name="coach_key_rejected_placeholder">Вставьте ключ %1$s</string>
+    <string name="coach_key_rejected_action">Обновить ключ</string>
 </resources>

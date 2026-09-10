@@ -210329,6 +210329,28 @@
         "ru": {"stringUnit": {"state": "translated", "value": "Эта ночь была записана до того, как NOOP начал отмечать, по какому каналу WHOOP 5 пришёл каждый удар, поэтому её интервалы смешивают две разные единицы, и ничего не сохранено, что позволило бы их различить. Ночь остаётся в вашей истории, а ночи, записанные с этого момента, оцениваются как обычно."}},
         "zh-Hans": {"stringUnit": {"state": "translated", "value": "这一夜是在 NOOP 标记每次心跳来自哪条 WHOOP 5 传输通道之前记录的，因此其间隔混合了两种不同的单位，而且没有保存任何可以区分它们的信息。该夜仍保留在你的历史记录中，从现在起记录的夜晚会正常评分。"}},
         "zh-Hant": {"stringUnit": {"state": "translated", "value": "這一夜是在 NOOP 標記每次心跳來自哪條 WHOOP 5 傳輸通道之前記錄的，因此其間隔混合了兩種不同的單位，而且沒有儲存任何可以區分它們的資訊。該夜仍保留在你的歷史記錄中，從現在起記錄的夜晚會正常評分。"}}
+    } },
+    "Paste the corrected key. Your conversation is kept." : { "localizations" : {
+        "de": {"stringUnit": {"state": "translated", "value": "Füge den korrigierten Schlüssel ein. Deine Unterhaltung bleibt erhalten."}},
+        "es": {"stringUnit": {"state": "translated", "value": "Pega la clave corregida. Tu conversación se conserva."}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Collez la clé corrigée. Votre conversation est conservée."}},
+        "it": {"stringUnit": {"state": "translated", "value": "Incolla la chiave corretta. La tua conversazione viene mantenuta."}},
+        "pl": {"stringUnit": {"state": "translated", "value": "Wklej poprawiony klucz. Twoja rozmowa zostanie zachowana."}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "Cola a chave corrigida. A tua conversa é mantida."}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Вставьте исправленный ключ. Ваш разговор сохранится."}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "粘贴更正后的密钥。你的对话会保留。"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "貼上更正後的密鑰。你的對話會保留。"}}
+    } },
+    "Corrected API key" : { "localizations" : {
+        "de": {"stringUnit": {"state": "translated", "value": "Korrigierter API-Schlüssel"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Clave de API corregida"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Clé d'API corrigée"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Chiave API corretta"}},
+        "pl": {"stringUnit": {"state": "translated", "value": "Poprawiony klucz API"}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "Chave de API corrigida"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Исправленный ключ API"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "更正后的 API 密钥"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "更正後的 API 密鑰"}}
     } }
   },
   "version": "1.0"

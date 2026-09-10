@@ -2664,4 +2664,7 @@
     <string name="l10n_app_changelog_a_coach_that_keeps_the_thread_2ee52e0c">能接住话头的教练、主屏幕上的心率，以及不再过度断言的图表</string>
     <string name="charge_legacy_rr_gap_title">早期心跳无法评分</string>
     <string name="charge_legacy_rr_gap_detail">这一夜是在 NOOP 标记每次心跳来自哪条 WHOOP 5 传输通道之前记录的，因此其间隔混合了两种不同的单位，而且没有保存任何可以区分它们的信息。该夜仍保留在你的历史记录中，从现在起记录的夜晚会正常评分。</string>
+    <string name="coach_key_rejected_hint">粘贴更正后的密钥。你的对话会保留。</string>
+    <string name="coach_key_rejected_placeholder">粘贴你的 %1$s 密钥</string>
+    <string name="coach_key_rejected_action">更新密钥</string>
 </resources>

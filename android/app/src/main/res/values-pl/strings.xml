@@ -2755,4 +2755,7 @@
     <string name="l10n_app_changelog_a_coach_that_keeps_the_thread_2ee52e0c">Trener, który nie gubi wątku, tętno na ekranie głównym i wykresy, które mniej zakładają</string>
     <string name="charge_legacy_rr_gap_title">Wcześniejszych uderzeń nie można ocenić</string>
     <string name="charge_legacy_rr_gap_detail">Ta noc została zarejestrowana, zanim NOOP zaczął oznaczać, z którego kanału WHOOP 5 pochodzi każde uderzenie, więc jej odstępy mieszają dwie różne jednostki i nic zapisanego nie pozwala ich rozróżnić. Noc pozostaje w Twojej historii, a noce zarejestrowane od teraz są oceniane normalnie.</string>
+    <string name="coach_key_rejected_hint">Wklej poprawiony klucz. Twoja rozmowa zostanie zachowana.</string>
+    <string name="coach_key_rejected_placeholder">Wklej swój klucz %1$s</string>
+    <string name="coach_key_rejected_action">Zaktualizuj klucz</string>
 </resources>

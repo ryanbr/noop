@@ -25,6 +25,10 @@ struct CoachView: View {
     @State private var draft: String = UserDefaults.standard.string(forKey: "coach.composerDraft") ?? ""
     /// Pending key text in the setup card (never persisted here, handed to `setKey`).
     @State private var keyDraft: String = ""
+    /// The corrected key, typed into the editor a rejection opens. Separate from `keyDraft` so the
+    /// setup card's own field is untouched, and cleared on save so a secret does not sit in view state
+    /// after it has been stored. Twin of the Kotlin `keyFix`.
+    @State private var keyFix: String = ""
     /// Whether the model selector is in free-text "Custom…" mode.
     @State private var customModel: Bool = false
     /// The id typed in the "Custom…" field.
@@ -78,6 +82,11 @@ struct CoachView: View {
                 transcript
                 if let error = coach.errorText, !error.isEmpty {
                     errorBanner(error)
+                    // A rejected key is the one failure the wearer can act on from here, and the
+                    // message already tells them to: "Check the key and the provider you selected".
+                    // Until this, the screen offered nowhere to check it. Rendered INSIDE the error
+                    // branch, never on its own flag, so it cannot outlive the message justifying it.
+                    if coach.keyRejected { keyRepairPanel }
                 }
                 // K7: show follow-up chips after each assistant reply (when the transcript is
                 // non-empty and the last message is from the assistant and not mid-send);
@@ -749,6 +758,48 @@ struct CoachView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Error: \(message)")
+    }
+
+    /// The inline "your key was turned away, here is the field" repair, shown under a rejection.
+    ///
+    /// Saving goes through `setKey`, which replaces the stored key and leaves the transcript alone. The
+    /// existing route was the Disconnect button, which also wipes the conversation and un-commits a
+    /// custom provider: far more than correcting a typo asks for, and named for an outcome the wearer
+    /// is trying to avoid. Twin of the Kotlin editor in `CoachChat`.
+    private var keyRepairPanel: some View {
+        StrandCard(padding: 14) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Paste the corrected key. Your conversation is kept.")
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                SecureField("Paste your \(coach.provider.displayName) API key", text: $keyFix)
+                    .textFieldStyle(.plain)
+                    .font(StrandFont.body)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 9)
+                    .background(StrandPalette.surfaceInset, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(StrandPalette.hairline, lineWidth: 1))
+                    .onSubmit(saveRepairedKey)
+                    .accessibilityLabel("Corrected API key")
+                HStack {
+                    NoopButton("Update key", systemImage: "key.fill", kind: .primary, action: saveRepairedKey)
+                        .disabled(keyFix.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    Spacer()
+                }
+            }
+        }
+    }
+
+    /// Store the corrected key and drop it from view state. `setKey` clears the error and the rejection
+    /// flag, which is what closes this panel.
+    private func saveRepairedKey() {
+        let trimmed = keyFix.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        coach.setKey(trimmed)
+        keyFix = ""
     }
 
     private var suggestionChips: some View {

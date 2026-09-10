@@ -6,6 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.noop.NoopApplication
 import com.noop.ai.AiCoach
+import com.noop.ai.AiKeyRejectedException
 import com.noop.ai.AiKeyStore
 import com.noop.ai.AiProvider
 import com.noop.ai.ChatMsg
@@ -264,8 +265,16 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
                         selectModel(appCtx, merged.first())
                     }
                 }
-            } catch (_: Exception) {
-                // Best-effort, keep whatever list we already have.
+            } catch (e: Exception) {
+                // Best-effort about the LIST: whatever we already have stays. But a key the provider
+                // turned away is not a list problem, and swallowing it left Refresh looking like it
+                // simply did nothing. Refresh is one of the two places a wrong key shows itself, so it
+                // now says so and opens the field to fix it. Every other failure stays quiet, which is
+                // what "best-effort" was protecting. Mirrors the typed catch in Swift refreshModels.
+                if (e is AiKeyRejectedException) {
+                    _error.value = e.message
+                    _keyRejected.value = true
+                }
             } finally {
                 _refreshingModels.value = false
             }
@@ -287,10 +296,32 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
 
     // MARK: - Key management
 
-    /** Save the user's API key (encrypted at rest). Blank input clears the key instead. */
+    /**
+     * Whether the last failure was the provider turning the stored key away, as opposed to a rate
+     * limit, a server fault or the network.
+     *
+     * It exists because the rejection message tells the wearer to check their key while the screen
+     * offers no way to reach it: the coach shows the chat as soon as ANY key is stored, and a wrong key
+     * is still a stored key, so the only route back was a Disconnect that also throws the conversation
+     * away. This lets the error carry the field with it.
+     *
+     * It QUALIFIES the error rather than standing on its own, and the UI reads it only inside the
+     * branch that renders one. That is deliberate: six separate paths clear the error, and a parallel
+     * flag each of them also had to reset would be one forgotten line away from leaving a key editor
+     * open under no error at all, with the seventh such path bound to forget. Assigned unconditionally
+     * on every failure, so a rejection followed by a rate limit stops claiming to be a rejection.
+     */
+    private val _keyRejected = MutableStateFlow(false)
+    val keyRejected: StateFlow<Boolean> = _keyRejected
+
+    /** Save the user's API key (encrypted at rest). Blank input clears the key instead.
+     *
+     *  Deliberately leaves the transcript alone. Correcting a mistyped key is not a reason to lose the
+     *  conversation, which is what routing this through `disconnect` used to cost. */
     fun saveKey(ctx: Context, key: String) {
         AiKeyStore.save(ctx, key)
         _error.value = null
+        _keyRejected.value = false
         _keyVersion.value += 1
         // #288: do NOT auto-fetch the provider's model list on key-save. For a cloud provider that GET hits
         // the provider the MOMENT a key is saved (leaking IP + request timing + key-validity) — before the
@@ -413,6 +444,8 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
                     _messages.value = _messages.value.filterNot { it.id == placeholderId }
                 }
                 _error.value = e.message ?: "Something went wrong. Please try again."
+                // Typed, never text-matched: the message is localized and the type is not.
+                _keyRejected.value = e is AiKeyRejectedException
             } finally {
                 _sending.value = false
                 // K2: persist once the turn is fully settled (success, mid-stream error, or empty-

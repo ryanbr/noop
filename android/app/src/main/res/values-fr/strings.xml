@@ -2750,4 +2750,7 @@
     <string name="l10n_app_changelog_a_coach_that_keeps_the_thread_2ee52e0c">Un coach qui garde le fil, votre fréquence cardiaque sur l\'écran d\'accueil, et des graphiques qui affirment moins</string>
     <string name="charge_legacy_rr_gap_title">Battements antérieurs non évaluables</string>
     <string name="charge_legacy_rr_gap_detail">Cette nuit a été enregistrée avant que NOOP n\'indique de quel transport WHOOP 5 provenait chaque battement. Ses intervalles mêlent donc deux unités différentes, sans rien d\'enregistré pour les distinguer. La nuit reste dans votre historique, et les nuits enregistrées à partir de maintenant sont évaluées normalement.</string>
+    <string name="coach_key_rejected_hint">Collez la clé corrigée. Votre conversation est conservée.</string>
+    <string name="coach_key_rejected_placeholder">Collez votre clé %1$s</string>
+    <string name="coach_key_rejected_action">Mettre à jour la clé</string>
 </resources>

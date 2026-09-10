@@ -2780,4 +2780,7 @@
     <string name="l10n_app_changelog_a_coach_that_keeps_the_thread_2ee52e0c">A coach that keeps the thread, your heart rate on the home screen, and charts that claim less</string>
     <string name="charge_legacy_rr_gap_title">Earlier beats cannot be scored</string>
     <string name="charge_legacy_rr_gap_detail">This night was recorded before NOOP labelled which WHOOP 5 transport each heartbeat came from, so its intervals mix two different units with nothing stored to tell them apart. The night stays in your history, and nights recorded from now on score normally.</string>
+    <string name="coach_key_rejected_hint">Paste the corrected key. Your conversation is kept.</string>
+    <string name="coach_key_rejected_placeholder">Paste your %1$s key</string>
+    <string name="coach_key_rejected_action">Update key</string>
 </resources>

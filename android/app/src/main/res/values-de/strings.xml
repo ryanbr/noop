@@ -2764,4 +2764,7 @@
     <string name="l10n_app_changelog_a_coach_that_keeps_the_thread_2ee52e0c">Ein Coach, der den Faden behält, deine Herzfrequenz auf dem Homescreen und Diagramme, die weniger behaupten</string>
     <string name="charge_legacy_rr_gap_title">Frühere Herzschläge nicht auswertbar</string>
     <string name="charge_legacy_rr_gap_detail">Diese Nacht wurde aufgezeichnet, bevor NOOP festhielt, über welchen WHOOP-5-Übertragungsweg jeder Herzschlag kam. Ihre Intervalle mischen deshalb zwei verschiedene Einheiten, und es ist nichts gespeichert, was sie unterscheidbar macht. Die Nacht bleibt in deinem Verlauf, und ab jetzt aufgezeichnete Nächte werden normal bewertet.</string>
+    <string name="coach_key_rejected_hint">Füge den korrigierten Schlüssel ein. Deine Unterhaltung bleibt erhalten.</string>
+    <string name="coach_key_rejected_placeholder">%1$s-Schlüssel einfügen</string>
+    <string name="coach_key_rejected_action">Schlüssel aktualisieren</string>
 </resources>

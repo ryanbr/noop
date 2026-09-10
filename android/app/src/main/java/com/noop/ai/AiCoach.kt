@@ -994,7 +994,12 @@ class AiCoach(
         }
     }
 
-    /** Map a non-2xx response to a clear, user-facing message (key, rate-limit, server). */
+    /** Map a non-2xx response to a clear, user-facing message (key, rate-limit, server).
+     *
+     *  A key rejection returns [AiKeyRejectedException] rather than a bare one, so the UI can offer the
+     *  wearer the field the message tells them to check. The message alone cannot carry that: matching
+     *  on its text would break the moment the copy is localized, which is every locale but English.
+     *  The status-to-type decision itself lives in [isKeyRejection], where a test can pin it. */
     private fun httpError(provider: AiProvider, code: Int, body: String): Exception {
         val detail = extractApiErrorMessage(body)
         val base = when (code) {
@@ -1004,7 +1009,8 @@ class AiCoach(
             400 -> "The request was rejected by ${provider.displayName} (HTTP 400)."
             else -> "${provider.displayName} returned an error (HTTP $code)."
         }
-        return Exception(if (detail != null) "$base ($detail)" else base)
+        val message = if (detail != null) "$base ($detail)" else base
+        return if (isKeyRejection(code)) AiKeyRejectedException(message) else Exception(message)
     }
 
     /** Pull the provider's error message out of an error JSON body, if present. */
@@ -1065,6 +1071,18 @@ class AiCoach(
 
     companion object {
         private val JSON = "application/json; charset=utf-8".toMediaType()
+
+        /**
+         * Whether an HTTP status means the stored key itself was turned away, as opposed to the
+         * provider being busy, broken, or asked for something it does not have.
+         *
+         * Named rather than left as two literals because it is the hinge the key-repair affordance
+         * hangs on, and it decides what the wearer is told to go and do. Widen it and a rate limit
+         * starts demanding a new key; narrow it and the trap this exists to remove comes straight
+         * back. Byte-identical twin of Swift `AICoachError.isKeyRejection`, which the two response
+         * switches in `AIProvider.swift` read.
+         */
+        internal fun isKeyRejection(code: Int): Boolean = code == 401 || code == 403
 
         /**
          * Normalise a user-entered Custom base URL: trim, drop a trailing slash, and tolerate a pasted
