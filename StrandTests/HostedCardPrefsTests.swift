@@ -14,6 +14,26 @@ final class HostedCardPrefsTests: XCTestCase {
         // Byte-identical to the Kotlin `HostedCard.STRESS_TODAY`. This id rides .noopbak, so a
         // difference of one character means an Android backup restored here silently drops the card.
         XCTAssertEqual(HostedCard.stressToday.rawValue, "stress.today")
+    }
+
+    /// The two local-day counters have to agree, and nothing but this test can check them.
+    ///
+    /// `StressDayCurve` returns the day the widget then STORES, and the widget's read path compares
+    /// that against `WidgetSnapshot.localDayNumber` to decide whether the stored curve is still today's.
+    /// They are separate copies because no module sees both: the macOS app does not compile the widget
+    /// sources, and the widget extension links no packages. This target sees both, so it is the only
+    /// place a divergence can be caught, and a divergence would silently drop a valid curve.
+    func testTheTwoLocalDayCountersAgree() {
+        var cal = Calendar(identifier: .gregorian)
+        for zone in ["Europe/London", "America/New_York", "Australia/Lord_Howe", "UTC"] {
+            cal.timeZone = TimeZone(identifier: zone)!
+            for offset in stride(from: 0, to: 400, by: 7) {
+                let d = Date(timeIntervalSince1970: 1_735_732_800 + Double(offset) * 86_400 + 43_200)
+                XCTAssertEqual(StressDayCurve.localDayNumber(d, calendar: cal),
+                               WidgetSnapshot.localDayNumber(d, calendar: cal),
+                               "\(zone) at \(d)")
+            }
+        }
         // Every id must be origin-namespaced so it routes to the right provider and can't collide with a
         // Today DashboardCard id.
         for card in HostedCard.allCases {

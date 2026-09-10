@@ -50,7 +50,7 @@ enum StressDayCurve {
         let startOfDay = calendar.startOfDay(for: now)
         let from = Int(startOfDay.timeIntervalSince1970)
         let to = Int(now.timeIntervalSince1970)
-        let day = WidgetSnapshot.localDayNumber(now, calendar: calendar)
+        let day = localDayNumber(now, calendar: calendar)
 
         guard let fingerprint = await repo.hrFingerprint(from: from, to: to) else { return nil }
         // Same day, same heart rate: nothing can have changed the score, so nothing is read. The day is
@@ -87,6 +87,25 @@ enum StressDayCurve {
         // refusal: a reader should drop yesterday's line rather than keep drawing it.
         memo = Memo(count: fingerprint.count, maxTs: fingerprint.maxTs, day: day, result: scored)
         return (scored, day)
+    }
+
+    /// Days since the epoch on the LOCAL calendar.
+    ///
+    /// RESTATED from `WidgetSnapshot.localDayNumber` rather than shared, because there is no module
+    /// both readers can see: `WidgetSnapshot` lives in the iOS/widget sources, which the macOS app does
+    /// not compile, and the widget extension links no packages, so it cannot reach this file either.
+    ///
+    /// The two MUST agree. The widget stores the day this returns and later compares it against
+    /// `WidgetSnapshot.localDayNumber` to decide whether the stored curve is still today's, so a
+    /// divergence would silently drop a valid curve. `HostedCardPrefsTests` pins them equal from the
+    /// app target, which can see both.
+    ///
+    /// Counted by the calendar rather than by dividing by 86 400, because that arithmetic is wrong on a
+    /// DST day: `Europe/London` produces one day a year whose number would equal the previous day's.
+    static func localDayNumber(_ date: Date, calendar: Calendar = .current) -> Int {
+        let epoch = calendar.startOfDay(for: Date(timeIntervalSince1970: 0))
+        return calendar.dateComponents([.day], from: epoch,
+                                       to: calendar.startOfDay(for: date)).day ?? 0
     }
 
     /// Drops the memo so a test starts from a known state.
