@@ -1923,6 +1923,7 @@
     <string name="recording_chip_detail_history_experimental">Synchronizacja historii jest eksperymentalna w wersji 5.0.</string>
     <string name="recording_chip_detail_connected_no_data">W tej sesji nie ma jeszcze tętna na żywo ani zsynchronizowanej historii.</string>
     <string name="score_state_title_calibrating">Kalibracja</string>
+    <string name="l10n_stress_glance_widget_resumes_in_the_morning_a640b49f">Wznowi się rano</string>
     <string name="score_state_title_needs_strap">Potrzebuje paska</string>
     <string name="score_state_title_last_night">Ostatnia noc · %1$s</string>
     <string name="score_state_title_latest_sleep">Ostatni sen · %1$s</string>

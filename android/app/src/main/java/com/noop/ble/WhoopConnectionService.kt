@@ -32,6 +32,7 @@ import com.noop.notif.BatteryAlertNotifier
 import com.noop.notif.IllnessAlertNotifier
 import com.noop.ui.NoopPrefs
 import com.noop.ui.appLaunchIntent
+import com.noop.widget.StressWidgetProducer
 import com.noop.widget.WidgetSnapshot
 import com.noop.widget.WidgetSnapshotStore
 import kotlinx.coroutines.CoroutineScope
@@ -198,6 +199,22 @@ class WhoopConnectionService : Service() {
 
     /** Wall-clock ms of the last [refreshHabitualMidsleep] attempt; 0 = never. */
     private var habitualMidsleepCachedAtMs: Long = 0L
+
+    /**
+     * Wall-clock ms of the last stress scoring done for the widget; 0 = never this process.
+     *
+     * The widget's stress curve used to be scored ONLY by `AppViewModel`, which runs while the app is
+     * open. `load` drops any curve that is not today's, so the widget reset to a bare dash every
+     * midnight and nothing refilled it until the app happened to be opened during waking hours. For
+     * anyone who uses the widget INSTEAD of opening the app, which is the point of a widget, it read as
+     * permanently broken.
+     *
+     * This service is the widget's heartbeat, so it scores here too. It cannot do so on every emission:
+     * this collector runs on `ble.state`, which moves at the live HR rate, while scoring reads a day of
+     * HR rows. [STRESS_RESCORE_INTERVAL_MS] is the gate, and it is matched to the data rather than to
+     * the stream, since the curve resolves to half-hours.
+     */
+    private var lastStressScoreAtMs: Long = 0L
 
     /** Smart-alarm light-sleep watcher (#207). Feeds the live HR while we're inside the wake window
      *  and, on a lighter-phase reading, advances the GUARANTEED alarm earlier. It can only ever move
@@ -448,6 +465,34 @@ class WhoopConnectionService : Service() {
                 // while the app UI is closed. Throttled + no-op without a placed widget (the store
                 // checks both); runCatching so a Glance hiccup never tears down the connection.
                 runCatching {
+                    // #2034 sibling: score today's stress HERE too, not only in the app. A null day is
+                    // the "this push says nothing about stress" signal `save` honours, so a throttled
+                    // tick leaves the stored curve alone instead of blanking it, and the widget keeps
+                    // whatever the last scoring pass produced.
+                    val nowMs = System.currentTimeMillis()
+                    val stressCurve = if (
+                        StressWidgetProducer.shouldRescore(
+                            nowMs, lastStressScoreAtMs, STRESS_RESCORE_INTERVAL_MS,
+                        )
+                    ) {
+                        // Stamped as soon as the interval elapses, BEFORE both the placement check and
+                        // the read. Two reasons, and the first is the one that bites: stamping inside
+                        // the placement branch would leave the gate permanently open for anyone WITHOUT
+                        // the widget, so `hasStressWidget` — which crosses into GlanceAppWidgetManager —
+                        // would run on every emission of a collector driven by live heart rate. The
+                        // second is that a slow or failing pass must not become a retry loop that reads
+                        // the day again on the very next sample.
+                        lastStressScoreAtMs = nowMs
+                        if (WidgetSnapshotStore.hasStressWidget(this@WhoopConnectionService)) {
+                            StressWidgetProducer.todayCurve(
+                                repo, (application as NoopApplication).activeDeviceId,
+                            )
+                        } else {
+                            null
+                        }
+                    } else {
+                        null
+                    }
                     WidgetSnapshotStore.push(
                         this@WhoopConnectionService,
                         WidgetSnapshot(
@@ -460,7 +505,9 @@ class WhoopConnectionService : Service() {
                             heartRate = state.heartRate,
                             batteryPct = state.batteryPct?.roundToInt(),
                             connected = state.connected,
-                            updatedAtMs = System.currentTimeMillis(),
+                            stressSeries = stressCurve?.points ?: emptyList(),
+                            stressDay = stressCurve?.epochDay,
+                            updatedAtMs = nowMs,
                         ),
                     )
                 }
@@ -757,6 +804,11 @@ class WhoopConnectionService : Service() {
     }
 
     companion object {
+        /** How often this service rescores the widget's stress curve. Matched to the curve's own
+         *  half-hour resolution and to the in-app analytics cadence, not to the live HR stream that
+         *  drives the collector it sits in. */
+        private const val STRESS_RESCORE_INTERVAL_MS = 15L * 60L * 1000L
+
         private const val CHANNEL_ID = "noop_strap_connection"
         private const val NOTIF_ID = 4201
         const val ACTION_STOP = "com.noop.ble.action.STOP_CONNECTION"

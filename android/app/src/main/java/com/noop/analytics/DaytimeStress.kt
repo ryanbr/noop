@@ -600,14 +600,24 @@ object DaytimeStress {
         floorDiv(localTs - phase, bucketSeconds) * bucketSeconds + phase
 
     /**
+     * Whether a LOCAL hour-of-day falls inside the waking window the timeline scores (06:00-22:00).
+     *
+     * Split out from [isWakingHour] so a caller holding a wall-clock hour rather than a bucket can ask
+     * the same question of the same constants. The stress widget needs exactly that: to say whether an
+     * empty curve means "nothing is coming until morning" or "today has not produced a scorable hour
+     * yet", it has to know the window, and reimplementing the comparison there would be a second copy
+     * of a rule whose whole point is having one.
+     */
+    internal fun isWakingHourOfDay(hourOfDay: Int): Boolean =
+        hourOfDay >= wakingStartHour && hourOfDay < wakingEndHour
+
+    /**
      * Whether a local hour-bucket start falls inside the waking window the timeline scores
      * (06:00–22:00). The single source of truth for "waking" — used both to build the calm
      * reference and to pick the hours to score, so the two can never drift apart.
      */
-    internal fun isWakingHour(bucket: Long): Boolean {
-        val hourOfDay = (floorDiv(bucket, bucketSeconds) % 24).toInt()
-        return hourOfDay >= wakingStartHour && hourOfDay < wakingEndHour
-    }
+    internal fun isWakingHour(bucket: Long): Boolean =
+        isWakingHourOfDay((floorDiv(bucket, bucketSeconds) % 24).toInt())
 
     /**
      * The day's "calm" reference for a signal: the quartile toward the calm end (lower

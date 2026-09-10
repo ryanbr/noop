@@ -1938,6 +1938,7 @@
     <string name="recording_chip_detail_history_experimental">La sincronización del historial es experimental en la 5.0.</string>
     <string name="recording_chip_detail_connected_no_data">Aún no hay frecuencia cardíaca en vivo ni historial sincronizado en esta sesión.</string>
     <string name="score_state_title_calibrating">Calibrando</string>
+    <string name="l10n_stress_glance_widget_resumes_in_the_morning_a640b49f">Se reanuda por la mañana</string>
     <string name="score_state_title_needs_strap">Necesita la banda</string>
     <string name="score_state_title_last_night">Anoche · %1$s</string>
     <string name="score_state_title_latest_sleep">Último sueño · %1$s</string>

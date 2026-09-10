@@ -48,6 +48,20 @@ internal object StressWidgetProducer {
     private var memo: Memo? = null
 
     /**
+     * Whether a background tick should rescore, given when it last did.
+     *
+     * The service's collector runs on `ble.state`, which moves at the live heart-rate rate, while
+     * scoring reads a day of heart-rate rows. The memo inside [todayCurve] cannot absorb that on its
+     * own: its fingerprint is the day's heart rate, which is exactly what changes on every one of
+     * those emissions, so a streaming strap misses the memo every time.
+     *
+     * [lastScoreAtMs] of 0 means "not yet this process", and any real wall clock is far past the
+     * interval, so the first tick after a launch always scores rather than waiting out a window.
+     */
+    fun shouldRescore(nowMs: Long, lastScoreAtMs: Long, intervalMs: Long): Boolean =
+        nowMs - lastScoreAtMs >= intervalMs
+
+    /**
      * Today's curve, recomputed only when today's heart rate has moved since the last call.
      *
      * Returns null when there is no device to read, which is the one case a caller must not treat as

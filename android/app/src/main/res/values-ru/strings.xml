@@ -1920,6 +1920,7 @@
     <string name="recording_chip_detail_history_experimental">Синхронизация истории экспериментальна на 5.0.</string>
     <string name="recording_chip_detail_connected_no_data">Пока нет ни пульса в реальном времени, ни синхронизированной истории в этой сессии.</string>
     <string name="score_state_title_calibrating">Калибровка</string>
+    <string name="l10n_stress_glance_widget_resumes_in_the_morning_a640b49f">Возобновится утром</string>
     <string name="score_state_title_needs_strap">Нужен ремешок</string>
     <string name="score_state_title_last_night">Прошлая ночь · %1$s</string>
     <string name="score_state_title_latest_sleep">Последний сон · %1$s</string>

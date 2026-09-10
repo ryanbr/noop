@@ -38,6 +38,7 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.noop.R
+import com.noop.analytics.DaytimeStress
 import com.noop.ui.MainActivity
 import com.noop.ui.uiString
 import java.text.DateFormat
@@ -146,9 +147,22 @@ private fun StressWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
         val stressLabel = uiString(R.string.l10n_stress_screen_stress_bad33342)
         val ofThree = uiString(R.string.l10n_stress_screen_of_3_46203495)
         val latest = snap.stressSeries.lastOrNull { it.level != null }?.level
+        // WHY there is no number, in words. A bare dash under a healthy-looking HR widget reads as a
+        // broken widget, and the two states behind it are different answers: outside the scored window
+        // nothing is coming until morning, whereas inside it the day simply has not produced a scorable
+        // hour yet. The Apple sheet already says "Calibrating" for the second; this says which is which.
+        // Built OUT here for the same reason `ofThree` is (#571).
+        val hourNow = java.time.LocalTime.now().hour
+        val outsideScoredWindow = !DaytimeStress.isWakingHourOfDay(hourNow)
+        val emptyReason = if (outsideScoredWindow) {
+            uiString(R.string.l10n_stress_glance_widget_resumes_in_the_morning_a640b49f)
+        } else {
+            uiString(R.string.score_state_title_calibrating)
+        }
         // Assembled by concatenation rather than as a template, so no English word is ever written
         // here: every part comes from a resource, and the separators carry no letters to translate.
-        val spoken = latest?.let { stressLabel + " " + formatLevel(it) + " " + ofThree } ?: stressLabel
+        val spoken = latest?.let { stressLabel + " " + formatLevel(it) + " " + ofThree }
+            ?: (stressLabel + " " + emptyReason)
 
         Row(verticalAlignment = Alignment.Vertical.Bottom) {
             Text(
@@ -162,6 +176,12 @@ private fun StressWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
                 Spacer(GlanceModifier.width(4.dp))
                 Text(
                     text = ofThree,
+                    style = TextStyle(color = stressTextSecondary(dark), fontSize = 12.sp),
+                )
+            } else {
+                Spacer(GlanceModifier.width(6.dp))
+                Text(
+                    text = emptyReason,
                     style = TextStyle(color = stressTextSecondary(dark), fontSize = 12.sp),
                 )
             }

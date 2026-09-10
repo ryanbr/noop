@@ -140,6 +140,18 @@ object WidgetSnapshotStore {
         if (stressIds.isNotEmpty()) runCatching { StressGlanceWidget().updateAll(app) }
     }
 
+    /**
+     * Whether a stress widget is actually on a home screen.
+     *
+     * Exposed so a producer can skip SCORING for a widget nobody has placed. [push] already declines to
+     * send in that case, but by then the work is done, and stress is the one field whose production
+     * costs a day of heart-rate rows rather than a field read.
+     */
+    suspend fun hasStressWidget(context: Context): Boolean = runCatching {
+        GlanceAppWidgetManager(context.applicationContext)
+            .getGlanceIds(StressGlanceWidget::class.java).isNotEmpty()
+    }.getOrDefault(false)
+
     fun save(context: Context, snap: WidgetSnapshot) {
         val prefs = context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
         val e = prefs.edit()

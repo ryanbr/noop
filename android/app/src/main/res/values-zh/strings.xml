@@ -1862,6 +1862,7 @@
     <string name="recording_chip_detail_history_experimental">历史同步在 5.0 上属实验性。</string>
     <string name="recording_chip_detail_connected_no_data">本次连接尚无实时心率或已同步的历史记录。</string>
     <string name="score_state_title_calibrating">校准中</string>
+    <string name="l10n_stress_glance_widget_resumes_in_the_morning_a640b49f">早晨恢复</string>
     <string name="score_state_title_needs_strap">需要手环</string>
     <string name="score_state_title_last_night">昨晚 · %1$s</string>
     <string name="score_state_title_latest_sleep">最近睡眠 · %1$s</string>

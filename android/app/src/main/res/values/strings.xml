@@ -2077,6 +2077,7 @@
     <string name="recording_chip_detail_history_experimental">History sync is experimental on 5.0.</string>
     <string name="recording_chip_detail_connected_no_data">No live heart rate or synced history yet this session.</string>
     <string name="score_state_title_calibrating">Calibrating</string>
+    <string name="l10n_stress_glance_widget_resumes_in_the_morning_a640b49f">Resumes in the morning</string>
     <string name="score_state_title_needs_strap">Needs the strap</string>
     <string name="score_state_title_last_night">Last night · %1$s</string>
     <string name="score_state_title_latest_sleep">Latest sleep · %1$s</string>
