@@ -1,5 +1,6 @@
 import StrandDesign
 import SwiftUI
+import WhoopStore
 
 /// Resolving a metric's trend points from banked days.
 ///
