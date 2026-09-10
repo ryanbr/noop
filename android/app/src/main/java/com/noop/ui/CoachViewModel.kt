@@ -347,6 +347,7 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
         // clears an already-empty list) but it would be a field claiming something untrue.
         conversationDay = null
         _error.value = null
+        _keyRejected.value = false
         _keyVersion.value += 1
     }
 
@@ -361,6 +362,7 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
         _messages.value = emptyList()
         conversationDay = null
         _error.value = null
+        _keyRejected.value = false
         _keyVersion.value += 1
     }
 

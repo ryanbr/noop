@@ -454,6 +454,13 @@ final class AICoachEngine: ObservableObject {
         // they were in the middle of disconnecting from.
         messages = []
         conversationDay = nil
+        // The error belongs to the connection being retired, so it goes with it. Kotlin has cleared it
+        // here since the method existed and this side never did: harmless while only the chat rendered
+        // an error, and a visible defect the moment the setup card does too, because the card this
+        // returns to would open carrying "That API key was rejected" above an empty key field, reading
+        // as a verdict on the key about to be typed.
+        errorText = nil
+        keyRejected = false
         objectWillChange.send()
     }
 
@@ -486,6 +493,13 @@ final class AICoachEngine: ObservableObject {
         // the credential and kept the conversation.
         messages = []
         conversationDay = nil
+        // The error belongs to the connection being retired, so it goes with it. Kotlin has cleared it
+        // here since the method existed and this side never did: harmless while only the chat rendered
+        // an error, and a visible defect the moment the setup card does too, because the card this
+        // returns to would open carrying "That API key was rejected" above an empty key field, reading
+        // as a verdict on the key about to be typed.
+        errorText = nil
+        keyRejected = false
         objectWillChange.send()
     }
 
