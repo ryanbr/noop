@@ -13,6 +13,11 @@ import com.noop.data.JournalEntry
 import com.noop.data.LabMarkerRow
 import com.noop.data.WhoopRepository
 import com.noop.ui.NoopPrefs
+import com.noop.data.WorkoutRow
+import com.noop.ui.UnitFormatter
+import com.noop.ui.UnitSystem
+import com.noop.ui.UnitPrefs
+import com.noop.ui.WorkoutEditing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -117,8 +122,13 @@ class AiCoach(
             // strongest on-device patterns + Lab Book markers. Summary text only, no raw rows, no
             // per-day series, so the anonymity / no-raw-egress posture holds. Best-effort; never blocks.
             val signals = if (includeSignals) runCatching { buildSignalsContext() }.getOrNull() else null
+            // #2033: per-session workout detail, so the coach can tell a run from a lift. Best-effort
+            // like the blocks around it; a read that throws leaves the day table standing rather than
+            // failing the send. Matches where Swift appends it in `buildFullContext`.
+            val workouts = runCatching { recentWorkoutsBlock(ctx) }.getOrNull()
             val full = buildString {
                 append(buildContext(days))
+                if (!workouts.isNullOrBlank()) append("\n\n").append(workouts)
                 if (!stress.isNullOrBlank()) append("\n\n").append(stress)
                 if (!signals.isNullOrBlank()) append("\n\n").append(signals)
             }
@@ -194,8 +204,13 @@ class AiCoach(
             val days = runCatching { repo.daysMerged(activeStrapId()) }.getOrDefault(emptyList())
             val stress = runCatching { stressLineToday() }.getOrNull()
             val signals = if (includeSignals) runCatching { buildSignalsContext() }.getOrNull() else null
+            // #2033: per-session workout detail, so the coach can tell a run from a lift. Best-effort
+            // like the blocks around it; a read that throws leaves the day table standing rather than
+            // failing the send. Matches where Swift appends it in `buildFullContext`.
+            val workouts = runCatching { recentWorkoutsBlock(ctx) }.getOrNull()
             val full = buildString {
                 append(buildContext(days))
+                if (!workouts.isNullOrBlank()) append("\n\n").append(workouts)
                 if (!stress.isNullOrBlank()) append("\n\n").append(stress)
                 if (!signals.isNullOrBlank()) append("\n\n").append(signals)
             }
@@ -460,6 +475,80 @@ class AiCoach(
 
         return sb.toString().trim()
     }
+
+    /**
+     * Recent workouts, one line PER SESSION rather than a per-day count.
+     *
+     * The day table above says a wearer did two workouts on a day and what the day's effort was. It
+     * cannot say what they did, for how long, how far, or how hard their heart worked, so the coach
+     * could not tell a run from a lift and could not help plan training around either (#2033). This is
+     * the Kotlin twin of Swift `AICoachEngine.recentWorkoutsBlock`, which has emitted exactly these
+     * fields in exactly this order since it was written; Android simply never had it.
+     *
+     * SCOPE, deliberately the wearer's own words on the issue, "all information of your workouts, that
+     * are visible to yourself": the union here is the one the Workouts feed shows, the active strap's
+     * sessions plus Apple Health, Health Connect and imported lifting, deduped cross-source so a live
+     * recording and its thin import collapse to the richer row rather than being sent twice. Detected
+     * shadow sessions under `<id>-noop` are NOT included: a wearer can dismiss those, and a dismissed
+     * session is by definition not one they can see.
+     *
+     * Six sessions, thirty days. This rides inside a prompt payload, so it is a summary and not an
+     * export; the day table above still carries the fourteen-day shape.
+     *
+     * PRIVACY: only reached under the same `consent` gate as every other figure here, and it widens
+     * what that consent covers. Aggregate counts become where and how someone exercises. That is the
+     * disclosure the Apple build has always made, and the consent copy should say so plainly.
+     */
+    internal suspend fun recentWorkoutsBlock(ctx: Context, limit: Int = 6): String {
+        val now = System.currentTimeMillis() / 1000L
+        val from = now - 30L * 86_400L
+        val rows = runCatching {
+            val id = activeStrapId()
+            WorkoutEditing.dedupCrossSource(
+                repo.workoutsUnion(id, from, now) +
+                    repo.workouts("apple-health", from, now) +
+                    repo.workouts("health-connect", from, now) +
+                    repo.workouts("lifting", from, now),
+            )
+        }.getOrDefault(emptyList()).sortedByDescending { it.startTs }
+        return formatWorkoutsBlock(rows, UnitPrefs.distanceSystem(ctx), limit)
+    }
+
+    /**
+     * The emitted text, given rows and a resolved unit system. Pure, and `internal` for the same reason
+     * Swift's `dayLine` is: without a seam the formatter has no test, because the only way in reads
+     * SharedPreferences and these run on the JVM with no Context. The reading half above is a union and
+     * a sort; every decision a reviewer would want pinned is in here.
+     *
+     * Field order and separators mirror Swift's `recentWorkoutsBlock` exactly, since both feed the same
+     * model and a wearer comparing platforms would otherwise get differently-shaped advice from
+     * identical data. A field the row does not carry is OMITTED rather than emitted as a dash: this is
+     * a prompt, and a dash invites the model to reason about a gap that is only a missing sensor.
+     */
+    internal fun formatWorkoutsBlock(
+        rows: List<WorkoutRow>,
+        distanceSystem: UnitSystem,
+        limit: Int = 6,
+    ): String {
+        if (rows.isEmpty()) return "Recent workouts: none recorded in the last 30 days."
+        val sb = StringBuilder("Recent workouts (newest first):")
+        for (w in rows.take(limit)) {
+            val parts = mutableListOf("  ${workoutDay(w.startTs)} ${w.sport}")
+            w.durationS?.let { parts.add("${(it / 60.0).roundToInt()} min") }
+            w.strain?.let { parts.add("effort ${fmt1(it)}") }
+            w.avgHr?.let { parts.add("avg HR $it") }
+            w.energyKcal?.let { parts.add("${it.roundToInt()} kcal") }
+            w.distanceM?.let { parts.add(UnitFormatter.distanceFromMeters(it, distanceSystem)) }
+            sb.append("\n").append(parts.joinToString(", "))
+        }
+        return sb.toString()
+    }
+
+    /** `yyyy-MM-dd` in the wearer's own zone, matching Swift's `dateString` for the same line. */
+    private fun workoutDay(startTs: Long): String =
+        java.time.LocalDate.ofInstant(
+            java.time.Instant.ofEpochSecond(startTs), java.time.ZoneId.systemDefault(),
+        ).toString()
 
     /**
      * SUMMARY-ONLY on-device signals context (v5): the user's strongest associations (from the same
@@ -1055,9 +1144,14 @@ class AiCoach(
         return "${(e * 100).roundToInt()}%"
     }
 
+    /** `Locale.US` is load-bearing, not tidiness. This text is a PROMPT, read by a model, not a label
+     *  read by a person: on a German or French device the default locale emits `12,4`, which Swift never
+     *  does, so the two platforms would hand the same effort figure to the same model in two notations
+     *  and one of them invites parsing as two numbers. `oneDecimal` beside it in `Units` already pins
+     *  the locale for exactly this reason. */
     private fun fmt1(v: Double): String =
         if (v == v.roundToInt().toDouble()) v.roundToInt().toString()
-        else String.format("%.1f", v)
+        else String.format(java.util.Locale.US, "%.1f", v)
 
     private inline fun avgInt(days: List<DailyMetric>, sel: (DailyMetric) -> Double?): String {
         val vals = days.mapNotNull(sel)
