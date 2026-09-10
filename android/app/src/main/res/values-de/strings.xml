@@ -1084,6 +1084,7 @@
     <string name="l10n_workouts_screen_show_more_more_remaining_remaining_d1662e67">%1$s mehr anzeigen (%2$s bleibt übrig)</string>
     <string name="l10n_workouts_screen_show_more_more_sessions_25bce755">%1$s weitere Sessions anzeigen</string>
     <string name="l10n_workouts_screen_started_faa9e7e7">Beginn</string>
+    <string name="l10n_workouts_screen_ended_90303d8d">Ende</string>
     <string name="l10n_workouts_screen_the_average_above_was_edited_the_0a7881f0">Der Durchschnitt oben wurde bearbeitet. Graph, Zonen und Anstrengung bleiben aus der aufgezeichneten Sitzung.</string>
     <string name="l10n_workouts_screen_these_sessions_have_no_sport_label_53993414">Diese Sessions haben noch kein Sportlabel. Wähle eine für die fusionierte Sitzung.</string>
     <string name="l10n_workouts_screen_this_session_s_contribution_to_the_fe40ab3d">Der Beitrag dieser Sitzung zur Tages-Anstrengung, wie während des Workouts erfasst.</string>

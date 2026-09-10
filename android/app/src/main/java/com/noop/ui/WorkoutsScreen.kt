@@ -2007,9 +2007,16 @@ private fun ManualWorkoutDialog(
     var startMillis by remember {
         mutableStateOf((editing?.startTs ?: (nowSec - 3_600)) * 1000L)
     }
+    // #2034: the END is state of record beside the start, not something re-derived from whole minutes on
+    // save. Duration stays as an input, two-way bound below, because "a 45 minute run" is how a session
+    // is often remembered; it is just no longer the thing that gets stored. A row opened only to fix its
+    // sport therefore keeps its exact span instead of snapping to the nearest minute.
+    var endMillis by remember {
+        mutableStateOf((editing?.endTs ?: (nowSec - 3_600 + 45 * 60)) * 1000L)
+    }
     var durationMin by remember {
         mutableStateOf(
-            editing?.let { (((it.durationS ?: (it.endTs - it.startTs).toDouble()) / 60).roundToInt()).coerceAtLeast(1).toString() }
+            editing?.let { WorkoutEditing.spanDurationMin(it.startTs, it.endTs).coerceAtLeast(1).toString() }
                 ?: "45",
         )
     }
@@ -2042,16 +2049,18 @@ private fun ManualWorkoutDialog(
         val distM: Double? = if (dText.isEmpty()) null else dText.toDoubleOrNull()?.let { v ->
             (if (unitSystem == UnitSystem.IMPERIAL) v / UnitFormatter.MILES_PER_KILOMETER else v) * 1000.0
         }
-        if (dur == null) return@run null
+        // A typed duration that is blank, unparseable or non-positive blocks Save. It also means the
+        // binding below did NOT move the end, so the span on screen would not be the span saved.
+        if (dur == null || dur <= 0) return@run null
         if (hrText.isNotEmpty() && hr == null) return@run null
         if (kText.isNotEmpty() && k == null) return@run null
         if (dText.isNotEmpty() && distM == null) return@run null
         // A manual workout ALWAYS lives under the strap source (where live-tracked sessions land), so
         // a "duplicate as manual" of an imported apple-health/whoop row never writes back to it.
-        val base = WorkoutEditing.buildManualRow(
+        val base = WorkoutEditing.buildManualRowFromSpan(
             deviceId = "my-whoop",
             startSeconds = (startMillis / 1000L).coerceAtMost(nowSec),
-            durationMin = dur,
+            endSeconds = endMillis / 1000L,
             sport = sport,
             avgHr = hr,
             energyKcal = k,
@@ -2089,8 +2098,43 @@ private fun ManualWorkoutDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 SportPickerField(sport, onChange = { sport = it })
-                StartTimeField(startMillis, onPick = { startMillis = it })
-                DialogField("Duration (minutes)", durationMin, onChange = { durationMin = it }, numeric = true)
+                SpanTimeField(
+                    uiString(R.string.l10n_workouts_screen_started_faa9e7e7),
+                    startMillis,
+                    // Moving the start keeps the LENGTH and carries the end with it. Computed from the
+                    // old start before it is reassigned, or the span would collapse.
+                    //
+                    // Clamped so the carried end cannot land in the future: dragging the start forward
+                    // would otherwise push the end past now and invalidate the sheet on a move that
+                    // looks entirely reasonable. Clamping the START keeps the length the user set,
+                    // where clamping the end would silently shorten the session instead.
+                    onPick = { picked ->
+                        val spanMillis = endMillis - startMillis
+                        val newStart = picked.coerceAtMost(System.currentTimeMillis() - spanMillis)
+                        endMillis = WorkoutEditing.endAfterStartMove(
+                            startMillis / 1000L, endMillis / 1000L, newStart / 1000L,
+                        ) * 1000L
+                        startMillis = newStart
+                    },
+                )
+                SpanTimeField(
+                    uiString(R.string.l10n_workouts_screen_ended_90303d8d),
+                    endMillis,
+                    onPick = { picked ->
+                        endMillis = picked
+                        durationMin = WorkoutEditing.spanDurationMin(startMillis / 1000L, picked / 1000L).toString()
+                    },
+                )
+                DialogField(
+                    "Duration (minutes)", durationMin,
+                    onChange = { typed ->
+                        durationMin = typed
+                        typed.trim().toIntOrNull()?.takeIf { it > 0 }?.let { m ->
+                            endMillis = WorkoutEditing.endForDuration(startMillis / 1000L, m) * 1000L
+                        }
+                    },
+                    numeric = true,
+                )
                 DialogField("Distance ($distUnit, optional)", distance, onChange = { distance = it }, numeric = true)
                 DialogField("Avg HR (bpm, optional)", avgHr, onChange = { avgHr = it }, numeric = true)
                 DialogField("Calories (kcal, optional)", kcal, onChange = { kcal = it }, numeric = true)
@@ -2154,16 +2198,20 @@ private fun ManualWorkoutDialog(
  * match (an exact catalogue hit, or a free-typed sport, collapses it).
  */
 /**
- * Absolute start date + time for the manual add/edit dialog — parity with the macOS/iOS sheet's
- * DatePicker (#598; the old Android sheet only took "minutes ago"). A tappable row that opens a date
- * picker, then chains to a time picker, both capped at now (you can't log a workout in the future).
+ * Absolute date + time for one end of the manual add/edit dialog's span — parity with the macOS/iOS
+ * sheet's DatePicker (#598; the old Android sheet only took "minutes ago"). A tappable row that opens a
+ * date picker, then chains to a time picker, both capped at now (you can't log a workout in the future).
+ *
+ * [caption] names which end it is, so the same picker serves Started and Ended (#2034). The cap is why
+ * the start's own handler clamps as well: this stops a FUTURE pick, not a pick that drags the carried
+ * end past now.
  */
 @Composable
-private fun StartTimeField(millis: Long, onPick: (Long) -> Unit) {
+private fun SpanTimeField(caption: String, millis: Long, onPick: (Long) -> Unit) {
     val context = LocalContext.current
     val label = remember(millis) { SimpleDateFormat("d MMM yyyy, h:mm a", Locale.US).format(java.util.Date(millis)) }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(uiString(R.string.l10n_workouts_screen_started_faa9e7e7), style = NoopType.footnote, color = Palette.textSecondary)
+        Text(caption, style = NoopType.footnote, color = Palette.textSecondary)
         Row(
             modifier = Modifier
                 .fillMaxWidth()

@@ -1049,6 +1049,7 @@
     <string name="l10n_workouts_screen_show_more_more_remaining_remaining_d1662e67">Mostrar %1$s mais (%2$s restantes)</string>
     <string name="l10n_workouts_screen_show_more_more_sessions_25bce755">Mostrar mais sessões %1$s</string>
     <string name="l10n_workouts_screen_started_faa9e7e7">Iniciado</string>
+    <string name="l10n_workouts_screen_ended_90303d8d">Terminado</string>
     <string name="l10n_workouts_screen_the_average_above_was_edited_the_0a7881f0">A média acima foi editada. O gráfico, as zonas e o esforço permanecem da sessão gravada.</string>
     <string name="l10n_workouts_screen_these_sessions_have_no_sport_label_53993414">Estas sessões ainda não têm rótulo desportivo. Escolha um para a sessão combinada.</string>
     <string name="l10n_workouts_screen_this_session_s_contribution_to_the_fe40ab3d">A contribuição desta sessão para o esforço do dia, tal como captado durante o treino.</string>

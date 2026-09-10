@@ -31,7 +31,10 @@ struct ManualWorkoutSheet: View {
 
     @State private var sport: String
     @State private var start: Date
-    @State private var durationMin: Int
+    /// #2034: the span is `start` + `end`. Duration is DERIVED (`durationBinding`), never a second stored
+    /// copy, so the two cannot drift; the row has always been stored as `startTs`/`endTs` anyway, and
+    /// routing the save through whole minutes was what silently reshaped an edited session's end.
+    @State private var end: Date
     @State private var avgHrText: String
     @State private var kcalText: String
     /// Distance as ENTERED, in the user's unit (km or mi) — converted to stored metres on save (#1195).
@@ -70,8 +73,18 @@ struct ManualWorkoutSheet: View {
         // Seeds the LOCALE-STABLE editable form, not the localized display: the field's content is
         // persisted verbatim on save, and a translated word would split cross-source dedup per language.
         _sport = State(initialValue: e.map { WorkoutSource.editableSport($0.sport) } ?? "")
-        _start = State(initialValue: e.map { Date(timeIntervalSince1970: TimeInterval($0.startTs)) } ?? Date())
-        _durationMin = State(initialValue: e.map { max(1, Int((($0.durationS ?? Double($0.endTs - $0.startTs)) / 60).rounded())) } ?? 45)
+        // A fresh add opens on a VALID 45 minute session ending now, keeping the long-standing 45 minute
+        // default length. It used to start at `Date()` with a 45 minute duration, so the implied end was
+        // always 45 minutes in the future and `buildManualRow` rejected it: the sheet opened with Save
+        // already disabled. That was invisible while the only complaint was the catch-all "Check the
+        // values and try again."; now that an end in the future says so by name, it would greet every
+        // fresh add with a red line. Anchoring to the end is also the truer default for the retroactive
+        // entry this sheet is for.
+        let defaultEnd = Date()
+        _start = State(initialValue: e.map { Date(timeIntervalSince1970: TimeInterval($0.startTs)) }
+                       ?? defaultEnd.addingTimeInterval(-45 * 60))
+        _end = State(initialValue: e.map { Date(timeIntervalSince1970: TimeInterval($0.endTs)) }
+                     ?? defaultEnd)
         _avgHrText = State(initialValue: e?.avgHr.map(String.init) ?? "")
         _kcalText = State(initialValue: e?.energyKcal.map { String(Int($0.rounded())) } ?? "")
         // Pre-fill the distance in the user's unit so an untouched edit round-trips the stored metres
@@ -142,17 +155,23 @@ struct ManualWorkoutSheet: View {
                     sportPicker
                 }
                 // Raise the Sport field above the following rows so its floating suggestion dropdown
-                // (an overlay, see `sportPicker`) draws ON TOP of Start / Duration instead of behind them.
+                // (an overlay, see `sportPicker`) draws ON TOP of Start / End / Duration, not behind them.
                 .zIndex(1)
                 field(String(localized: "Start")) {
-                    DatePicker("", selection: $start, in: ...Date(),
+                    DatePicker("", selection: startBinding, in: ...Date(),
                                displayedComponents: [.date, .hourAndMinute])
                         .labelsHidden()
                         .accessibilityLabel("Start date and time")
                 }
+                field(String(localized: "End")) {
+                    DatePicker("", selection: $end, in: ...Date(),
+                               displayedComponents: [.date, .hourAndMinute])
+                        .labelsHidden()
+                        .accessibilityLabel("End date and time")
+                }
                 field(String(localized: "Duration")) {
                     HStack(spacing: 12) {
-                        Stepper(value: $durationMin, in: 1...(24 * 60), step: 5) {
+                        Stepper(value: durationBinding, in: 1...(24 * 60), step: 5) {
                             Text(durationLabel)
                                 .font(StrandFont.number(16))
                                 .foregroundStyle(StrandPalette.effortBright)
@@ -374,7 +393,32 @@ struct ManualWorkoutSheet: View {
 
     private var inputShape: RoundedRectangle { RoundedRectangle(cornerRadius: 10, style: .continuous) }
 
+    /// Moving the START keeps the workout's LENGTH and carries the end with it, which is what correcting
+    /// "this began an hour earlier" means. Computed from the old start before it is reassigned.
+    ///
+    /// Clamped so the carried end cannot land in the future: dragging the start forward would otherwise
+    /// push the end past now and invalidate the sheet on a move that looks entirely reasonable. Clamping
+    /// the START keeps the length the user set, where clamping the end would silently shorten the session.
+    private var startBinding: Binding<Date> {
+        Binding(get: { start },
+                set: { picked in
+                    let span = end.timeIntervalSince(start)
+                    let newStart = min(picked, Date().addingTimeInterval(-span))
+                    end = WorkoutSource.endAfterStartMove(oldStart: start, oldEnd: end, newStart: newStart)
+                    start = newStart
+                })
+    }
+
+    /// Duration is a VIEW of the span, not a stored copy. Reading clamps into the Stepper's own range so
+    /// an end that is currently before the start cannot hand it an out-of-range value; the honest verdict
+    /// on that state comes from `validationNote`, not from this label. Writing moves the end.
+    private var durationBinding: Binding<Int> {
+        Binding(get: { min(24 * 60, max(1, WorkoutSource.spanDurationMin(start: start, end: end))) },
+                set: { end = WorkoutSource.endForDuration(start: start, durationMin: $0) })
+    }
+
     private var durationLabel: String {
+        let durationMin = durationBinding.wrappedValue
         let h = durationMin / 60, m = durationMin % 60
         if h > 0 && m > 0 { return "\(h)h \(m)m" }
         if h > 0 { return "\(h)h" }
@@ -401,9 +445,9 @@ struct ManualWorkoutSheet: View {
         if !avgHrText.trimmingCharacters(in: .whitespaces).isEmpty && avgHr == nil { return nil }
         if !kcalText.trimmingCharacters(in: .whitespaces).isEmpty && kcal == nil { return nil }
         if !distanceText.trimmingCharacters(in: .whitespaces).isEmpty && distanceMeters == nil { return nil }
-        guard let base = WorkoutSource.buildManualRow(start: start, durationMin: durationMin,
-                                                      sport: sport, avgHr: avgHr, energyKcal: kcal,
-                                                      distanceM: distanceMeters)
+        guard let base = WorkoutSource.buildManualRowFromSpan(start: start, end: end,
+                                                              sport: sport, avgHr: avgHr, energyKcal: kcal,
+                                                              distanceM: distanceMeters)
         else { return nil }
         // Carry over captured-but-unexposed fields when editing an existing strap session.
         return WorkoutSource.preservingCaptured(base, from: editing)
@@ -424,6 +468,9 @@ struct ManualWorkoutSheet: View {
         guard builtRow == nil else { return nil }
         if sport.trimmingCharacters(in: .whitespaces).isEmpty { return String(localized: "Enter a sport.") }
         if start > Date() { return String(localized: "Start can't be in the future.") }
+        // The failure this feature introduces, so it gets its own line rather than the catch-all below.
+        if end <= start { return String(localized: "End must be after the start.") }
+        if end > Date() { return String(localized: "End can't be in the future.") }
         if !avgHrText.trimmingCharacters(in: .whitespaces).isEmpty, avgHr == nil || !(25...250).contains(avgHr ?? -1) {
             return String(localized: "Average HR must be 25-250 bpm.")
         }

@@ -1026,6 +1026,7 @@
     <string name="l10n_workouts_screen_show_more_more_remaining_remaining_d1662e67">展开更多 %1$s 条记录 (还剩 %2$s 条)</string>
     <string name="l10n_workouts_screen_show_more_more_sessions_25bce755">展开更多 %1$s 次运动记录</string>
     <string name="l10n_workouts_screen_started_faa9e7e7">开始时间</string>
+    <string name="l10n_workouts_screen_ended_90303d8d">结束时间</string>
     <string name="l10n_workouts_screen_the_average_above_was_edited_the_0a7881f0">上方的平均值已被手动修改。不过图表、心率区间以及负荷分数仍将沿用实际记录的会话数据。</string>
     <string name="l10n_workouts_screen_these_sessions_have_no_sport_label_53993414">这些运动记录还没有打上项目标签。请为合并后的记录选一个标签吧。</string>
     <string name="l10n_workouts_screen_this_session_s_contribution_to_the_fe40ab3d">本次运动在发生期间积累的负荷，将直接计入您全天的总负荷(Effort)中。</string>

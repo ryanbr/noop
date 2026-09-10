@@ -376,11 +376,97 @@ object WorkoutEditing {
         return captured && built.avgHr != old.avgHr
     }
 
+    /** The span cap a manual workout may cover, shared by both builders and the sheet's binding. */
+    const val MAX_MANUAL_SPAN_SECONDS: Long = 24L * 60L * 60L
+
+    /**
+     * The end a given duration implies. The sheet uses this when the user types a duration, so a typed
+     * duration and a picked end produce byte-identical rows.
+     */
+    fun endForDuration(startSeconds: Long, durationMin: Int): Long =
+        startSeconds + durationMin.toLong() * 60L
+
+    /**
+     * Whole minutes in a span, for the duration field's DISPLAY.
+     *
+     * Rounds, so a stored 45m17s bout reads as "45". That rounding is display-only now: the sheet keeps
+     * the exact end as its state of record and saves that, where it previously round-tripped the span
+     * through this number and wrote the rounded end back. Editing a detected workout's sport therefore
+     * no longer shortens it by up to 30 seconds.
+     */
+    fun spanDurationMin(startSeconds: Long, endSeconds: Long): Int =
+        Math.round((endSeconds - startSeconds) / 60.0).toInt()
+
+    /**
+     * Where the end lands when the START moves.
+     *
+     * Moving the start keeps the workout the same LENGTH rather than pinning the end, which is what a
+     * user correcting "this began an hour earlier than I said" means. Pinning the end instead would
+     * silently restretch the duration on every start correction.
+     */
+    fun endAfterStartMove(oldStartSeconds: Long, oldEndSeconds: Long, newStartSeconds: Long): Long =
+        newStartSeconds + (oldEndSeconds - oldStartSeconds)
+
+    /**
+     * Build a retroactive manual workout from an explicit SPAN.
+     *
+     * The row has always been stored as `startTs`/`endTs`, so this is the shape the storage already
+     * speaks; [buildManualRow] is the duration-shaped front door that delegates here (#2034). Split out
+     * so the sheet can offer an end time without the value making a lossy round trip through whole
+     * minutes.
+     *
+     * Validation is the duration form's, re-expressed: a span must be positive, at most
+     * [MAX_MANUAL_SPAN_SECONDS], and must not end in the future.
+     *
+     * @param nowSeconds wall-clock now (unix seconds); injectable for tests.
+     */
+    fun buildManualRowFromSpan(
+        deviceId: String,
+        startSeconds: Long,
+        endSeconds: Long,
+        sport: String,
+        avgHr: Int?,
+        energyKcal: Double?,
+        nowSeconds: Long = System.currentTimeMillis() / 1000L,
+        distanceM: Double? = null,
+    ): WorkoutRow? {
+        val trimmed = sport.trim()
+        if (trimmed.isEmpty() || startSeconds <= 0 || startSeconds > nowSeconds) return null
+        if (endSeconds <= startSeconds) return null
+        val spanSeconds = endSeconds - startSeconds
+        if (spanSeconds > MAX_MANUAL_SPAN_SECONDS) return null
+        if (endSeconds > nowSeconds) return null
+        if (avgHr != null && avgHr !in 25..250) return null
+        if (energyKcal != null && (energyKcal < 0 || energyKcal > 20_000)) return null
+        // Distance 0-1000 km (#1195): rejects a negative or absurd manual entry. 1000 km comfortably
+        // covers any single session (an Ironman bike is 180 km, an ultra 160 km).
+        if (distanceM != null && (distanceM < 0 || distanceM > 1_000_000)) return null
+        return WorkoutRow(
+            deviceId = deviceId,
+            startTs = startSeconds,
+            endTs = endSeconds,
+            sport = trimmed,
+            source = "manual",
+            durationS = spanSeconds.toDouble(),
+            energyKcal = energyKcal,
+            avgHr = avgHr,
+            maxHr = null,
+            strain = null,
+            distanceM = distanceM,
+            zonesJSON = null,
+            notes = null,
+            routePolyline = null,
+        )
+    }
+
     /**
      * Build a retroactive manual workout (source "manual", written under the strap [deviceId] by the
      * caller — where live sessions land). Returns null when the input can't make an honest row.
      * strain/zones stay null: with no captured HR window an APPROXIMATE strain is never fabricated.
      * Mirrors macOS WorkoutSource.buildManualRow validation bound-for-bound.
+     *
+     * The duration-shaped front door. Delegates to [buildManualRowFromSpan] so the two entry points
+     * cannot drift; it keeps the whole-minute bounds and the overflow guard, which only this shape needs.
      *
      * @param startSeconds workout start, unix seconds.
      * @param nowSeconds wall-clock now (unix seconds); injectable for tests.
@@ -398,34 +484,20 @@ object WorkoutEditing {
         distanceM: Double? = null,
     ): WorkoutRow? {
         if (durationMin <= 0 || durationMin > 24 * 60) return null
-        val trimmed = sport.trim()
-        if (trimmed.isEmpty() || startSeconds > nowSeconds || startSeconds <= 0) return null
-        if (avgHr != null && avgHr !in 25..250) return null
-        if (energyKcal != null && (energyKcal < 0 || energyKcal > 20_000)) return null
-        // Distance 0–1000 km (#1195): rejects a negative or absurd manual entry. 1000 km comfortably
-        // covers any single session (an Ironman bike is 180 km, an ultra 160 km).
-        if (distanceM != null && (distanceM < 0 || distanceM > 1_000_000)) return null
         val durationSeconds = durationMin.toLong() * 60L
         // Keep both the addition and the future-end check overflow-safe. A valid start can be close to
-        // Long.MAX_VALUE in a boundary test even though production timestamps are much smaller.
+        // Long.MAX_VALUE in a boundary test even though production timestamps are much smaller. Checked
+        // HERE rather than in the span form, which takes an end that has already been computed.
         if (durationSeconds > Long.MAX_VALUE - startSeconds) return null
-        val endSeconds = startSeconds + durationSeconds
-        if (endSeconds > nowSeconds) return null
-        return WorkoutRow(
+        return buildManualRowFromSpan(
             deviceId = deviceId,
-            startTs = startSeconds,
-            endTs = endSeconds,
-            sport = trimmed,
-            source = "manual",
-            durationS = durationSeconds.toDouble(),
-            energyKcal = energyKcal,
+            startSeconds = startSeconds,
+            endSeconds = startSeconds + durationSeconds,
+            sport = sport,
             avgHr = avgHr,
-            maxHr = null,
-            strain = null,
+            energyKcal = energyKcal,
+            nowSeconds = nowSeconds,
             distanceM = distanceM,
-            zonesJSON = null,
-            notes = null,
-            routePolyline = null,
         )
     }
 
