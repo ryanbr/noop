@@ -18,6 +18,8 @@ import WhoopStore
 
 struct LiftSessionDetailSheet: View {
     let session: LiftSessionRow
+    /// Called after the session is deleted, so the hub can reload its list.
+    var onDeleted: () async -> Void = {}
 
     @EnvironmentObject var repo: Repository
     @Environment(\.dismiss) private var dismiss
@@ -28,6 +30,8 @@ struct LiftSessionDetailSheet: View {
     /// Previous performance per exercise, for the "vs last time" comparison.
     @State private var previousVolume: [String: Double] = [:]
     @State private var loaded = false
+    @State private var confirmingDelete = false
+    @State private var deleting = false
 
     @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
     private var unitSystem: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .metric }
@@ -48,6 +52,7 @@ struct LiftSessionDetailSheet: View {
                     muscleSection
                     rpeSection
                     footnote
+                    deleteSection
                 }
             }
         }
@@ -58,6 +63,46 @@ struct LiftSessionDetailSheet: View {
         #endif
         .background(StrandPalette.surfaceBase)
         .task { await load() }
+    }
+
+    /// Remove a session that should not have been recorded — a mis-tap, or a test.
+    ///
+    /// Deletes the paired `workout` row TOO. A lift session writes one so the training lands in
+    /// Workouts and Today like any other, and the analytics engine fills its strain from the heart
+    /// rate measured over that window. Leaving it behind would keep the day's Effort inflated by a
+    /// session the user just said did not happen — which is worse than not being able to delete at
+    /// all, because it would look like the delete worked.
+    private var deleteSection: some View {
+        Button(role: .destructive) {
+            confirmingDelete = true
+        } label: {
+            Label("Delete session", systemImage: "trash")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.plain)
+        .font(StrandFont.body)
+        .foregroundStyle(StrandPalette.statusCritical)
+        .padding(.top, NoopMetrics.gap)
+        .disabled(deleting)
+        .confirmationDialog("Delete this session?",
+                            isPresented: $confirmingDelete, titleVisibility: .visible) {
+            Button("Delete", role: .destructive) { Task { await deleteSession() } }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("\(sets.count) recorded sets will be removed, and so will the workout this session created. This cannot be undone.")
+        }
+    }
+
+    private func deleteSession() async {
+        guard !deleting, let store = await repo.storeHandle() else { return }
+        deleting = true
+        defer { deleting = false }
+
+        _ = try? await store.deleteLiftSession(id: session.id)   // cascades to its sets
+        if let workout { await repo.deleteWorkout(workout) }
+
+        await onDeleted()
+        dismiss()
     }
 
     private var subtitle: LocalizedStringKey {

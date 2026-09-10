@@ -61,7 +61,7 @@ struct LiftLogView: View {
             LiftProgramImportSheet { await load() }
         }
         .sheet(item: $viewing) { target in
-            LiftSessionDetailSheet(session: target.session)
+            LiftSessionDetailSheet(session: target.session) { await load() }
         }
     }
 
