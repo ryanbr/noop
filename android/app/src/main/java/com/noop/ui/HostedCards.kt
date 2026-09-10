@@ -7,6 +7,9 @@ import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.StackedBarChart
@@ -74,7 +77,16 @@ enum class HostedCard(
      *  card hosted from a tab other than Sleep, so [localizedOrigin] gains a branch for it. Read-only,
      *  like the hosted Stages card: the Stress tab keeps the interactive timeline with its scrubbing and
      *  tooltips, and the Today host mirrors only the display. */
-    STRESS_TODAY("stress.today", "Stress through the day", "Stress", Icons.Filled.ShowChart);
+    STRESS_TODAY("stress.today", "Stress through the day", "Stress", Icons.Filled.ShowChart),
+    /** Trends tab · "HRV" — the trailing-month HRV trend (#today-hosted-cards). The first of the
+     *  Trends-origin cards, all three of which render the SAME `MetricTrendCard` the Trends tab draws,
+     *  parameterised by which `DailyMetric` field they read. */
+    TREND_HRV("trends.hrv", "HRV", "Trends", Icons.Filled.MonitorHeart),
+    /** Trends tab · "Resting heart rate" — the trailing-month resting-HR trend. */
+    TREND_RESTING_HR("trends.restingHr", "Resting heart rate", "Trends", Icons.Filled.Favorite),
+    /** Trends tab · "Effort" — the trailing-month Effort trend, displayed on the wearer's chosen
+     *  Effort scale exactly as the Trends tab shows it (#268). */
+    TREND_EFFORT("trends.effort", "Effort", "Trends", Icons.Filled.Bolt);
 
     companion object {
         fun fromRaw(raw: String?): HostedCard? = entries.firstOrNull { it.raw == raw }
@@ -104,6 +116,11 @@ fun HostedCard.localizedTitle(): String = when (this) {
     HostedCard.HOURS_VS_NEEDED -> stringResource(R.string.l10n_sleep_screen_hours_vs_needed_500a0aca)
     HostedCard.CONSISTENCY -> stringResource(R.string.l10n_sleep_screen_consistency_0ea7b95e)
     HostedCard.STRESS_TODAY -> stringResource(R.string.hosted_card_stress_title)
+    // The SAME titles the Trends tab gives these charts, so a hosted card is recognisably the card it
+    // came from rather than a second name for the same thing.
+    HostedCard.TREND_HRV -> stringResource(R.string.trends_hrv_full)
+    HostedCard.TREND_RESTING_HR -> stringResource(R.string.trends_resting_hr_full)
+    HostedCard.TREND_EFFORT -> stringResource(R.string.trends_effort)
 }
 
 /**

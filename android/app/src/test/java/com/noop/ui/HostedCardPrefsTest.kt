@@ -20,6 +20,11 @@ class HostedCardPrefsTest {
         // Origin-namespaced on a tab other than Sleep, and frozen for the same reason: this id rides
         // .noopbak, so the Swift twin has to spell it identically or a restore drops the card.
         assertEquals("stress.today", HostedCard.STRESS_TODAY.raw)
+        // Trends-origin ids, frozen for the same reason: they ride .noopbak, so the Swift twin has to
+        // spell each one identically or a restore silently drops that card from the selection.
+        assertEquals("trends.hrv", HostedCard.TREND_HRV.raw)
+        assertEquals("trends.restingHr", HostedCard.TREND_RESTING_HR.raw)
+        assertEquals("trends.effort", HostedCard.TREND_EFFORT.raw)
         // Every id must be origin-namespaced so it routes to the right provider and can't collide with a
         // Today DashboardCard id.
         HostedCard.entries.forEach { card ->

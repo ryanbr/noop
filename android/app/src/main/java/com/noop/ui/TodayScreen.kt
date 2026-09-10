@@ -1732,6 +1732,7 @@ fun TodayScreen(
                         // #today-hosted-cards: the Trends/Sleep cards the user pulled into Today, in
                         // arranged order. Each is the SAME card its home tab renders (a mirror).
                         TodaySection.ADDED_CARDS -> HostedCardsSection(
+                            effortScale = effortScale,
                             cards = enabledHostedCards,
                             days = days,
                             viewModel = viewModel,
@@ -3472,7 +3473,15 @@ private fun TodayEditAction(
  * confirmation toast). Renders nothing when [cards] is empty. Twin of the iOS `hostedCardsSection`.
  */
 @Composable
-private fun HostedCardsSection(cards: List<HostedCard>, days: List<DailyMetric>, viewModel: AppViewModel) {
+private fun HostedCardsSection(
+    cards: List<HostedCard>,
+    days: List<DailyMetric>,
+    viewModel: AppViewModel,
+    // Passed in rather than read here: Today already resolved it once for its own tiles, and reading
+    // SharedPreferences per hosted card per recomposition would put a synchronous file read on the
+    // composition path of a screen that recomposes often.
+    effortScale: EffortScale,
+) {
     if (cards.isEmpty()) return
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -3507,6 +3516,10 @@ private fun HostedCardsSection(cards: List<HostedCard>, days: List<DailyMetric>,
         cards.forEach { card ->
             when (card) {
                 HostedCard.STRESS_TODAY -> StressTodayCard(stressCurve)
+                // The Trends-origin trends. `resolveMetric` walks the `days` already in hand, so these
+                // need no model build and no gate, unlike the sleep and stress cards above.
+                HostedCard.TREND_HRV, HostedCard.TREND_RESTING_HR, HostedCard.TREND_EFFORT ->
+                    TrendHostCard(card, days, effortScale)
                 HostedCard.SLEEP_MARKS -> SleepMarkCard(
                     onMark = { type ->
                         val mark = SleepMark.now(type)
