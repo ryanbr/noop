@@ -34,6 +34,20 @@ public enum DaytimeStress {
     public static let minHourHRSamples: Int = 300
     /// Bucket width for the timeline, in seconds (one hour).
     public static let bucketSeconds: Int = 3_600
+    /// How far the DISPLAY timeline slides its window between points.
+    ///
+    /// The scored unit stays a full `bucketSeconds` hour. This only decides how often that hour is
+    /// re-read, so a half-step gives two points an hour, each still an hour of data, rather than
+    /// half-hours of thinner data. Shrinking `bucketSeconds` itself would have been a scoring change
+    /// wearing a display change's clothes: the calm reference is a quartile ACROSS buckets, the
+    /// post-exercise shadow looks back exactly one bucket, and `sustainedHours` counts them.
+    ///
+    /// Half rather than a quarter because adjacent points then share half their samples instead of
+    /// three quarters. The curve is smoother either way, and a denser line invites the reader to see
+    /// detail it cannot resolve: a 30-minute spike still moves an hour's worth of weight, just sooner.
+    /// Half is the least overlap that still doubles the resolution, and it keeps every on-the-hour
+    /// point exactly where the hourly pass put it. Byte-twin of the Kotlin `timelineStepSeconds`.
+    public static let timelineStepSeconds: Int = 1_800
     /// Band floor for "high" on the shared 0–3 scale (matches StressBand .high).
     public static let highBandFloor: Double = 2.0
     /// Consecutive most-recent covered hours that must all be HIGH to flag sustained stress.
@@ -215,10 +229,22 @@ public enum DaytimeStress {
         /// day-wide) and false for `.empty`.
         public let hrOnlyFallback: Bool
 
+        /// DISPLAY-ONLY sliding read of the same day: `hours` plus a point every
+        /// `timelineStepSeconds`, each still scored over a full `bucketSeconds` window against the
+        /// SAME reference `hours` used. Defaults to `hours` so a caller that never asked for it, and
+        /// every existing test, sees exactly what it saw before.
+        ///
+        /// Deliberately NOT the input to anything that counts hours. `sustainedHigh`,
+        /// `highStressMinutes`, `dayMean` and `peak` all stay on the non-overlapping `hours`, because
+        /// overlapping windows would count the same minute more than once.
+        public let timeline: [HourPoint]
+
         public init(hours: [HourPoint], sustainedHigh: Bool, sustainedRun: Int,
                     dayMean: Double?, peak: HourPoint?, activityMaskedHours: Int = 0,
-                    highStressMinutes: Int = 0, hrOnlyFallback: Bool = false) {
+                    highStressMinutes: Int = 0, hrOnlyFallback: Bool = false,
+                    timeline: [HourPoint]? = nil) {
             self.hours = hours
+            self.timeline = timeline ?? hours
             self.sustainedHigh = sustainedHigh
             self.sustainedRun = sustainedRun
             self.dayMean = dayMean
@@ -283,6 +309,15 @@ public enum DaytimeStress {
         let ratio = 3.0 / band - 1.0
         guard ratio > 0, marginBPM > 0 else { return max(marginBPM, 1e-9) }
         return marginBPM / (-log(ratio))
+    }
+
+    /// The bucket a local timestamp falls in for a grid offset by `phase`.
+    ///
+    /// `phase = 0` is the on-the-hour grid every existing reading uses. `phase = timelineStepSeconds`
+    /// is the same grid slid forward, so its windows straddle the hour boundaries rather than
+    /// replacing them.
+    private static func bucketOf(_ localTs: Int, phase: Int) -> Int {
+        floorDiv(localTs - phase, bucketSeconds) * bucketSeconds + phase
     }
 
     // MARK: - Public API
@@ -356,53 +391,63 @@ public enum DaytimeStress {
 
         // 1) Bucket HR + R-R into LOCAL hour-of-day buckets, keyed by the bucket start
         //    (floored to the hour on the local clock).
-        var hrByBucket: [Int: [Double]] = [:]
-        for s in hr {
-            let local = s.ts + tzOffsetSeconds
-            let bucket = floorDiv(local, bucketSeconds) * bucketSeconds
-            hrByBucket[bucket, default: []].append(Double(s.bpm))
+        func hrBuckets(_ phase: Int) -> [Int: [Double]] {
+            var m: [Int: [Double]] = [:]
+            for s in hr { m[bucketOf(s.ts + tzOffsetSeconds, phase: phase), default: []].append(Double(s.bpm)) }
+            return m
         }
-        var rrByBucket: [Int: [Double]] = [:]
-        for s in rr {
-            let local = s.ts + tzOffsetSeconds
-            let bucket = floorDiv(local, bucketSeconds) * bucketSeconds
-            rrByBucket[bucket, default: []].append(Double(s.rrMs))
+        func rrBuckets(_ phase: Int) -> [Int: [Double]] {
+            var m: [Int: [Double]] = [:]
+            for s in rr { m[bucketOf(s.ts + tzOffsetSeconds, phase: phase), default: []].append(Double(s.rrMs)) }
+            return m
         }
+        let hrByBucket = hrBuckets(0)
+        let rrByBucket = rrBuckets(0)
 
         // 2) Per-hour mean HR + RMSSD (RMSSD via the shared HRV cleaner, so ectopic
         //    beats can't fabricate variability). An hour with < minHourHRSamples HR is
         //    left unscored (noData) — never invented.
         struct HourAgg { let bucket: Int; let meanHR: Double?; let rmssd: Double?; let nHR: Int }
-        let orderedBuckets = hrByBucket.keys.sorted()
-        var aggs: [HourAgg] = []
-        aggs.reserveCapacity(orderedBuckets.count)
-        for b in orderedBuckets {
-            let hrs = hrByBucket[b] ?? []
-            let mHR = hrs.count >= minHourHRSamples ? mean(hrs) : nil
-            let rrRes = HRVAnalyzer.analyze(rawRR: rrByBucket[b] ?? [])
-            aggs.append(HourAgg(bucket: b, meanHR: mHR, rmssd: rrRes.rmssd, nHR: hrs.count))
+        func aggregate(_ hrGrid: [Int: [Double]], _ rrGrid: [Int: [Double]]) -> [HourAgg] {
+            let ordered = hrGrid.keys.sorted()
+            var out: [HourAgg] = []
+            out.reserveCapacity(ordered.count)
+            for b in ordered {
+                let hrs = hrGrid[b] ?? []
+                let mHR = hrs.count >= minHourHRSamples ? mean(hrs) : nil
+                let rrRes = HRVAnalyzer.analyze(rawRR: rrGrid[b] ?? [])
+                out.append(HourAgg(bucket: b, meanHR: mHR, rmssd: rrRes.rmssd, nHR: hrs.count))
+            }
+            return out
         }
+        let aggs = aggregate(hrByBucket, rrByBucket)
 
         // 2b) Motion gate: bucket the day's gravity-derived activity by the SAME local hour and mark
         //     each hour AMBULATORY when at least `activityMaskFraction` of its records clear the
         //     calibrated walk floor (`WorkoutDetector.motionThreshold`) — reusing the exact activity
         //     series `SedentaryDetector` / `WorkoutDetector` already trust. Empty gravity → no active
         //     buckets → nothing masked below (byte-identical to the pre-motion behaviour).
-        var activeFracByBucket: [Int: Double] = [:]
-        if !gravity.isEmpty {
+        // Derived ONCE and re-bucketed per grid. `activitySeries` walks the whole day's gravity, so
+        // recomputing it for the second grid would have doubled the most expensive part of the motion
+        // gate to answer the same question about the same samples.
+        let activity = gravity.isEmpty ? [] : WorkoutDetector.activitySeries(gravity)
+        func activeFractions(_ phase: Int) -> [Int: Double] {
+            var out: [Int: Double] = [:]
+            guard !activity.isEmpty else { return out }
             var counts: [Int: (active: Int, total: Int)] = [:]
-            for p in WorkoutDetector.activitySeries(gravity) {
-                let local = p.ts + tzOffsetSeconds
-                let bucket = floorDiv(local, bucketSeconds) * bucketSeconds
+            for p in activity {
+                let bucket = bucketOf(p.ts + tzOffsetSeconds, phase: phase)
                 var e = counts[bucket] ?? (0, 0)
                 e.total += 1
                 if p.intensity > WorkoutDetector.motionThreshold { e.active += 1 }
                 counts[bucket] = e
             }
             for (b, e) in counts where e.total > 0 {
-                activeFracByBucket[b] = Double(e.active) / Double(e.total)
+                out[b] = Double(e.active) / Double(e.total)
             }
+            return out
         }
+        let activeFracByBucket = activeFractions(0)
         func isAmbulatory(_ bucket: Int) -> Bool {
             (activeFracByBucket[bucket] ?? 0) >= activityMaskFraction
         }
@@ -473,9 +518,18 @@ public enum DaytimeStress {
         }
 
         // 4) Score each waking-hour bucket on the shared 0–3 curve.
-        var points: [HourPoint] = []
-        points.reserveCapacity(aggs.count)
-        for a in aggs {
+        //
+        // Written against a supplied bucket grid so the SAME expression scores the on-the-hour pass
+        // and the half-step display pass. One copy, so the two can never drift into scoring the same
+        // hour differently — which is the whole reason the sliding read reuses the references
+        // computed above rather than deriving its own.
+        func scoreGrid(_ gridAggs: [HourAgg], _ activeFrac: [Int: Double]) -> [HourPoint] {
+            func ambulatory(_ bucket: Int) -> Bool {
+                (activeFrac[bucket] ?? 0) >= activityMaskFraction
+            }
+            var points: [HourPoint] = []
+            points.reserveCapacity(gridAggs.count)
+            for a in gridAggs {
             guard isWakingHour(a.bucket) else { continue }
             let hourOfDay = floorDiv(a.bucket, bucketSeconds) % 24
             // The wall-clock bucket start (undo the local shift applied above).
@@ -486,9 +540,9 @@ public enum DaytimeStress {
             // genuine cardiac recovery (a following hour already back at baseline scores normally).
             // Only meaningful when the hour actually HAD a reading to withhold — a no-HR hour is plain
             // `.noData`, not "masked".
-            let shadow = isAmbulatory(a.bucket - bucketSeconds)
+            let shadow = ambulatory(a.bucket - bucketSeconds)
                 && a.meanHR != nil && refHR != nil && a.meanHR! > refHR! + postActivityShadowBPM
-            let masked = a.meanHR != nil && (isAmbulatory(a.bucket) || shadow)
+            let masked = a.meanHR != nil && (ambulatory(a.bucket) || shadow)
             // Score only when at least one signal is present AND HR cleared the count gate AND the
             // hour was not motion-masked (HR is the always-available anchor; RMSSD enriches it).
             let level: Double? = (a.meanHR != nil && !masked)
@@ -498,8 +552,23 @@ public enum DaytimeStress {
             points.append(HourPoint(hour: hourOfDay, startTs: wallStart,
                                     level: level, meanHR: a.meanHR, rmssd: a.rmssd,
                                     maskedForActivity: masked))
+            }
+            return points
         }
+        let points = scoreGrid(aggs, activeFracByBucket)
         let activityMaskedHours = points.reduce(0) { $0 + ($1.maskedForActivity ? 1 : 0) }
+
+        // 4b) The half-step DISPLAY timeline: the same hour-long window re-read every
+        //     `timelineStepSeconds`, scored against the SAME references, and merged with the
+        //     on-the-hour points. Every hourly point survives untouched; only the straddling
+        //     midpoints are new, so the curve still passes through exactly the values scored above.
+        //     Nothing that counts hours reads this — see `Result.timeline`.
+        let timeline: [HourPoint] = {
+            guard timelineStepSeconds > 0, timelineStepSeconds < bucketSeconds else { return points }
+            let midAggs = aggregate(hrBuckets(timelineStepSeconds), rrBuckets(timelineStepSeconds))
+            return (points + scoreGrid(midAggs, activeFractions(timelineStepSeconds)))
+                .sorted { $0.startTs < $1.startTs }
+        }()
 
         let scored = points.compactMap { p -> (HourPoint, Double)? in p.level.map { (p, $0) } }
         guard !scored.isEmpty else {
@@ -510,7 +579,7 @@ public enum DaytimeStress {
             return points.isEmpty ? .empty
                 : Result(hours: points, sustainedHigh: false, sustainedRun: 0,
                          dayMean: nil, peak: nil, activityMaskedHours: activityMaskedHours,
-                         highStressMinutes: 0, hrOnlyFallback: hrOnlyFallback)
+                         highStressMinutes: 0, hrOnlyFallback: hrOnlyFallback, timeline: timeline)
         }
 
         // 5) Sustained-high flag: walk back from the latest SCORED hour while each is HIGH.
@@ -531,7 +600,8 @@ public enum DaytimeStress {
 
         return Result(hours: points, sustainedHigh: sustained, sustainedRun: run,
                       dayMean: dayMean, peak: peak, activityMaskedHours: activityMaskedHours,
-                      highStressMinutes: highStressMinutes, hrOnlyFallback: hrOnlyFallback)
+                      highStressMinutes: highStressMinutes, hrOnlyFallback: hrOnlyFallback,
+                      timeline: timeline)
     }
 
     // MARK: - Helpers

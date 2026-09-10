@@ -74,7 +74,10 @@ enum StressWidgetCurve {
             points = await Task.detached(priority: .utility) {
                 DaytimeStress.analyze(hr: hr, rr: rr, gravity: gravity,
                                       tzOffsetSeconds: tz, mode: .dayRelative)
-                    .hours
+                    // The half-step display series rather than the bare hours: same scored window,
+                    // same reference, read twice as often, so the curve tracks the day instead of
+                    // stepping through it. Nothing here counts hours, so the overlap is free.
+                    .timeline
                     .map {
                         // `startTs` is the wall-clock bucket start with the local shift already undone,
                         // so it is a true instant and formats correctly against the device's zone.
