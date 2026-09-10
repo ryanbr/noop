@@ -1,6 +1,5 @@
 import XCTest
 import StrandAnalytics
-@testable import NOOP
 
 /// The stress widget's pure half, and the parity that keeps it honest.
 ///
