@@ -347,6 +347,14 @@ object DaytimeStress {
         gravity: List<GravitySample> = emptyList(),
         tzOffsetSeconds: Long = 0L,
         mode: ScoringMode = ScoringMode.DayRelative,
+        /**
+         * Also compute [Result.timeline], the sliding read is OPT-IN because half the callers do not want it.
+
+     The Stress screen reads `hours` and draws its own interactive timeline; making it pay for a
+     second pass of bucketing and one RMSSD per extra window, on the screen that already does three
+     200 000-row reads, would be cost for nothing. The widget and the Today card ask for it.
+         */
+        includeTimeline: Boolean = false,
     ): Result {
         if (hr.isEmpty()) return Result.EMPTY
 
@@ -528,7 +536,7 @@ object DaytimeStress {
         //     on-the-hour points. Every hourly point survives untouched; only the straddling
         //     midpoints are new, so the curve still passes through exactly the values scored above.
         //     Nothing that counts hours reads this — see [Result.timeline].
-        val timeline = if (timelineStepSeconds in 1 until bucketSeconds) {
+        val timeline = if (includeTimeline && timelineStepSeconds in 1 until bucketSeconds) {
             val midAggs = aggregate(hrBuckets(timelineStepSeconds), rrBuckets(timelineStepSeconds))
             (points + scoreGrid(midAggs, activeFractions(timelineStepSeconds)))
                 .sortedBy { it.startTs }

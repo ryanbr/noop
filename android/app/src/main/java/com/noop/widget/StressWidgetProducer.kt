@@ -87,6 +87,7 @@ internal object StressWidgetProducer {
                     zone.rules.getOffset(Instant.ofEpochSecond(nowSeconds)).totalSeconds.toLong()
                 DaytimeStress.analyze(
                     hr, rr, gravity, tzOffsetSeconds, DaytimeStress.ScoringMode.DayRelative,
+                    includeTimeline = true,
                     // The half-step display series rather than the bare hours: same scored window,
                     // same reference, read twice as often, so the curve tracks the day instead of
                     // stepping through it. Nothing here counts hours, so the overlap is free.

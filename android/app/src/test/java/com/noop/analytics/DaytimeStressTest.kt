@@ -40,7 +40,7 @@ class DaytimeStressTest {
         val hr = ArrayList<HrSample>()
         val rr = ArrayList<RrInterval>()
         for (h in 7..11) { hr += hourHr(h, 60 + (h - 7) * 4); rr += hourRrVariable(h, 900, 20) }
-        val res = DaytimeStress.analyze(hr, rr)
+        val res = DaytimeStress.analyze(hr, rr, includeTimeline = true)
 
         fun render(points: List<DaytimeStress.HourPoint>) = points.joinToString(" ") {
             "${it.startTs}:" + (it.level?.let { l -> String.format(java.util.Locale.US, "%.6f", l) } ?: "nil")
@@ -61,6 +61,18 @@ class DaytimeStressTest {
         assertEquals(39600L, res.peak?.startTs)
     }
 
+    @Test
+    fun theSlidingReadIsOptIn() {
+        val hr = ArrayList<HrSample>()
+        val rr = ArrayList<RrInterval>()
+        for (h in 7..11) { hr += hourHr(h, 60 + (h - 7) * 4); rr += hourRrVariable(h, 900, 20) }
+        // The Stress screen reads `hours` and draws its own timeline, so it must not pay for a second
+        // pass of bucketing and an RMSSD per extra window. Default off means `timeline` IS `hours`.
+        val plain = DaytimeStress.analyze(hr, rr)
+        assertEquals(plain.hours, plain.timeline)
+        assertTrue(DaytimeStress.analyze(hr, rr, includeTimeline = true).timeline.size > plain.hours.size)
+    }
+
     // MARK: - the half-step display timeline
 
     /** A plain worn morning: several waking hours of steady HR with a little R-R jitter. */
@@ -77,7 +89,7 @@ class DaytimeStressTest {
     @Test
     fun timeline_keepsEveryHourlyPointExactlyAsScored() {
         val (hr, rr) = wornMorning()
-        val res = DaytimeStress.analyze(hr, rr)
+        val res = DaytimeStress.analyze(hr, rr, includeTimeline = true)
         // The sliding read must not restate the hours it slides between: a point on the hour has to
         // carry the same level it carried before this existed, or the curve would disagree with every
         // other surface that reads `hours`.
@@ -94,7 +106,7 @@ class DaytimeStressTest {
     @Test
     fun timeline_addsTheStraddlingMidpointsAndNothingElse() {
         val (hr, rr) = wornMorning()
-        val res = DaytimeStress.analyze(hr, rr)
+        val res = DaytimeStress.analyze(hr, rr, includeTimeline = true)
         assertTrue("timeline should be denser than the hourly pass",
                    res.timeline.size > res.hours.size)
         val hourly = res.hours.map { it.startTs }.toSet()
@@ -113,7 +125,7 @@ class DaytimeStressTest {
     @Test
     fun hourCountingIgnoresTheSlidingRead() {
         val (hr, rr) = wornMorning()
-        val res = DaytimeStress.analyze(hr, rr)
+        val res = DaytimeStress.analyze(hr, rr, includeTimeline = true)
         // Overlapping windows would count the same minute twice, so the minute total stays on the
         // non-overlapping hours. This is the assertion that fails first if someone later points
         // `highStressMinutes` at the denser series.
@@ -130,7 +142,7 @@ class DaytimeStressTest {
         val hr = ArrayList<HrSample>()
         val rr = ArrayList<RrInterval>()
         for (h in 8..12) { hr += hourHr(h, 66); rr += hourRrVariable(h, 900, 20) }
-        val res = DaytimeStress.analyze(hr, rr)
+        val res = DaytimeStress.analyze(hr, rr, includeTimeline = true)
         val levels = res.timeline.mapNotNull { it.level }.distinct()
         assertTrue("a flat day should not zigzag, got $levels", levels.size <= 1)
     }

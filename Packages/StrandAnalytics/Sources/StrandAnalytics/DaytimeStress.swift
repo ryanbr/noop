@@ -337,10 +337,16 @@ public enum DaytimeStress {
     ///     opt-in: existing callers that don't pass `mode` keep the exact prior behaviour.
     ///
     /// Returns `.empty` when there isn't a single hour with enough HR to score.
+    ///   - includeTimeline: also compute `Result.timeline`, the sliding read is OPT-IN because half the callers do not want it.
+
+    ///     The Stress screen reads `hours` and draws its own interactive timeline; making it pay for a
+    ///     second pass of bucketing and one RMSSD per extra window, on the screen that already does three
+    ///     200 000-row reads, would be cost for nothing. The widget and the Today card ask for it.
     public static func analyze(hr: [HRSample], rr: [RRInterval],
                                gravity: [GravitySample] = [],
                                tzOffsetSeconds: Int = 0,
-                               mode: ScoringMode = .dayRelative) -> Result {
+                               mode: ScoringMode = .dayRelative,
+                               includeTimeline: Bool = false) -> Result {
         // v7.0.2 perf (#707): buckets the day's full HR + R-R streams into per-hour aggregates and runs an
         // RMSSD per hour — invoked from the Stress view, so a `body` re-evaluation re-buckets the whole day.
         // Memoize on the streams' fingerprint + tz offset + scoring mode; result is a small `Result`, raw
@@ -363,15 +369,19 @@ public enum DaytimeStress {
                 Int(($0.x * 128).rounded()) &+ Int(($0.y * 128).rounded()) &* 257
                     &+ Int(($0.z * 128).rounded()) &* 66_049
             }),
-            tz: tzOffsetSeconds, mode: modeKey)
+            // The flag is part of the KEY, not just the call. Without it a screen read (false)
+            // would seed the cache with a hourly-only result and the next widget read (true) would be
+            // handed it, silently losing the sliding series with nothing to show why.
+            tz: tzOffsetSeconds, mode: modeKey, includeTimeline: includeTimeline)
         return analyzeCache.value(key) {
-            analyzeUncached(hr: hr, rr: rr, gravity: gravity, tzOffsetSeconds: tzOffsetSeconds, mode: mode)
+            analyzeUncached(hr: hr, rr: rr, gravity: gravity, tzOffsetSeconds: tzOffsetSeconds,
+                            mode: mode, includeTimeline: includeTimeline)
         }
     }
 
     private struct StressKey: Hashable {
         let hr: StreamFingerprint; let rr: StreamFingerprint; let gravity: StreamFingerprint
-        let tz: Int; let mode: ModeKey
+        let tz: Int; let mode: ModeKey; let includeTimeline: Bool
     }
 
     /// Hashable fingerprint of `ScoringMode` for the memo cache — `BaselineState` itself isn't
@@ -386,7 +396,8 @@ public enum DaytimeStress {
 
     private static func analyzeUncached(hr: [HRSample], rr: [RRInterval],
                                         gravity: [GravitySample],
-                                        tzOffsetSeconds: Int, mode: ScoringMode) -> Result {
+                                        tzOffsetSeconds: Int, mode: ScoringMode,
+                                        includeTimeline: Bool) -> Result {
         guard !hr.isEmpty else { return .empty }
 
         // 1) Bucket HR + R-R into LOCAL hour-of-day buckets, keyed by the bucket start
@@ -564,7 +575,8 @@ public enum DaytimeStress {
         //     midpoints are new, so the curve still passes through exactly the values scored above.
         //     Nothing that counts hours reads this — see `Result.timeline`.
         let timeline: [HourPoint] = {
-            guard timelineStepSeconds > 0, timelineStepSeconds < bucketSeconds else { return points }
+            guard includeTimeline,
+                  timelineStepSeconds > 0, timelineStepSeconds < bucketSeconds else { return points }
             let midAggs = aggregate(hrBuckets(timelineStepSeconds), rrBuckets(timelineStepSeconds))
             return (points + scoreGrid(midAggs, activeFractions(timelineStepSeconds)))
                 .sorted { $0.startTs < $1.startTs }
