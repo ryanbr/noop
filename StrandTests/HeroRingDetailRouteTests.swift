@@ -9,8 +9,10 @@ import XCTest
 /// catalog key and the ring would keep working, keep animating, and quietly land on the wrong screen. No
 /// crash, no log, nothing to notice. Pinning the three keys here turns that into a build failure.
 ///
-/// The Key-Metrics tiles below the rings pass these same three keys, so this also guards the pair from
-/// drifting apart.
+/// The Liquid Key-Metrics tiles below the rings resolve their own destination through the same catalog
+/// on the same three keys, so this guards the pair from drifting apart. They read the constants rather
+/// than their own copies, which is what makes that true rather than merely intended: a private list here
+/// would have kept passing while either shell was renamed out from under it.
 final class HeroRingDetailRouteTests: XCTestCase {
 
     /// Charge, Effort and Rest, in the order the hero row renders them.

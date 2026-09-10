@@ -87,6 +87,14 @@ extension View {
 /// Twin of Android's `HERO_CHARGE_METRIC_KEY` and friends, with ONE deliberate difference: Rest routes on
 /// `sleep_performance` here and on `rest` there, because the two platforms' detail screens resolve
 /// different key spaces. Making them agree would break the Android side, not fix anything here.
+///
+/// SCOPE, since the same three strings appear elsewhere meaning something else. These are CATALOG keys,
+/// resolved through `MetricCatalog`. The Liquid Key-Metrics tiles take them too, because that parameter
+/// resolves the tile's destination through the same catalog, which is the pairing the hero-ring test
+/// exists to guard. What does NOT belong here is the series key space: `exploreSeries(key:)`,
+/// `resolvedSeries(key:)`, `sparks[...]` and the classic hero's `provenanceKey` happen to spell two of
+/// these the same way while asking a different question. Android's `rest` against `sleep_performance` is
+/// the standing proof that two key spaces looking alike is not the same as being one.
 enum HeroRingMetric {
     static let charge = "recovery"
     static let effort = "strain"
