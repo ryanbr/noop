@@ -2545,9 +2545,9 @@
     <string name="ground_truth_duration_size">%1$s · IMU %2$s</string>
     <string name="ground_truth_last_exported">上次导出：%1$s · 仍可再次导出</string>
     <string name="ground_truth_coverage">%1$d/%2$d 秒 · %3$.1f%% · 缺少 %4$d 秒%5$s</string>
-    <string name="ground_truth_coverage_startup"> · 启动 %1$d 秒</string>
+    <string name="ground_truth_coverage_startup">" · 启动 %1$d 秒"</string>
     <string name="ground_truth_marker_row">%1$s · %2$s%3$s</string>
-    <string name="ground_truth_marker_note_suffix"> · %1$s</string>
+    <string name="ground_truth_marker_note_suffix">" · %1$s"</string>
     <string name="raw_diag_title">5/MG 协议诊断</string>
     <string name="raw_diag_protocol_probes">协议探测</string>
     <string name="raw_diag_broadcast_hr">从手环广播心率</string>
@@ -2612,7 +2612,7 @@
     <string name="coach_clear_conversation_message">这会从此设备删除已保存的对话。教练记录是你自己的笔记，而非医疗建议。</string>
     <string name="coach_clear_action">清除</string>
     <string name="coach_token_estimate">~%1$d 个 token</string>
-    <string name="coach_token_warning"> · 可能超出小型上下文窗口</string>
+    <string name="coach_token_warning">" · 可能超出小型上下文窗口"</string>
     <string name="coach_morning_brief">晨间简报</string>
     <string name="coach_morning_brief_desc">一条本地通知，包含今天的准备状态和训练计划，每天早晨在设备上生成。</string>
     <string name="coach_morning_brief_off">关闭：不会按计划生成或发送任何内容。</string>

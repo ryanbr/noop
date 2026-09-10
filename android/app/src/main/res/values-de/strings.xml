@@ -2395,7 +2395,7 @@
     <string name="today_hr_a11y_sleep_band">Schlafbereich %1$s</string>
     <string name="today_hr_a11y_charge_at_wake">%1$d Prozent Energie beim Aufwachen</string>
     <string name="today_hr_a11y_effort_now">%1$s Belastung jetzt</string>
-    <string name="today_a11y_separator">, </string>
+    <string name="today_a11y_separator">,</string>
     <string name="today_steps_activity_still">Still</string>
     <string name="today_steps_activity_walking">Gehen</string>
     <string name="today_steps_activity_running">Laufen</string>
@@ -2649,9 +2649,9 @@
     <string name="ground_truth_duration_size">%1$s · IMU %2$s</string>
     <string name="ground_truth_last_exported">Zuletzt exportiert: %1$s · weiterer Export möglich</string>
     <string name="ground_truth_coverage">%1$d/%2$d s · %3$.1f%% · %4$d s fehlen%5$s</string>
-    <string name="ground_truth_coverage_startup"> · %1$d s Anlauf</string>
+    <string name="ground_truth_coverage_startup">" · %1$d s Anlauf"</string>
     <string name="ground_truth_marker_row">%1$s · %2$s%3$s</string>
-    <string name="ground_truth_marker_note_suffix"> · %1$s</string>
+    <string name="ground_truth_marker_note_suffix">" · %1$s"</string>
     <string name="ground_truth_marker_times">Marker %1$s · Jetzt %2$s</string>
     <string name="ground_truth_marker_now_button">0</string>
     <string name="raw_diag_title">5/MG-Protokolldiagnose</string>
@@ -2716,7 +2716,7 @@
     <string name="coach_clear_conversation_message">Dies löscht die gespeicherte Unterhaltung von diesem Gerät. Der Coach-Verlauf sind deine eigenen Notizen, kein medizinischer Rat.</string>
     <string name="coach_clear_action">Löschen</string>
     <string name="coach_token_estimate">~%1$d Token</string>
-    <string name="coach_token_warning"> · kann kleine Kontextfenster überschreiten</string>
+    <string name="coach_token_warning">" · kann kleine Kontextfenster überschreiten"</string>
     <string name="coach_morning_brief">Morgenbrief</string>
     <string name="coach_morning_brief_desc">Eine lokale Benachrichtigung mit heutiger Bereitschaft + Trainingsplan, jeden Morgen auf dem Gerät erstellt.</string>
     <string name="coach_morning_brief_off">Aus: Es wird nichts generiert oder nach Zeitplan gesendet.</string>

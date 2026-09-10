@@ -639,7 +639,7 @@ private fun DeliveryNote() {
             )
             Text(
                 uiString(R.string.l10n_notifications_settings_screen_wrist_delivery_needs_notification_access_so_2a14e784) +
-                    "you. Nothing leaves this device. Your choices are saved now and apply " +
+                    " you. Nothing leaves this device. Your choices are saved now and apply " +
                     "automatically once access is granted.",
                 style = NoopType.footnote,
                 color = Palette.textSecondary,

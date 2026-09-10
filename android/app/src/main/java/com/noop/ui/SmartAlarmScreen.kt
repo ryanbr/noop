@@ -127,7 +127,7 @@ fun SmartAlarmScreen(vm: AppViewModel) {
                 RowDividerLocal()
                 Text(
                     uiString(R.string.l10n_smart_alarm_screen_noop_doesn_t_have_permission_to_5b67cef0) +
-                        "Tap to allow it in system settings.",
+                        " Tap to allow it in system settings.",
                     style = NoopType.footnote,
                     color = Palette.statusWarning,
                     modifier = Modifier
@@ -292,7 +292,7 @@ private fun StrapAlarmCard(vm: AppViewModel) {
                 if (live.whoop5Detected && !experimentalOn) {
                     Text(
                         uiString(R.string.l10n_smart_alarm_screen_your_whoop_5_mg_won_t_75029bae) +
-                            "Experimental). Right now your wake time is saved but the strap is NOT armed.",
+                            " Experimental). Right now your wake time is saved but the strap is NOT armed.",
                         style = NoopType.footnote, color = Palette.statusWarning,
                     )
                 } else if (live.whoop5Detected) {
@@ -430,14 +430,14 @@ private fun ExplanationCard() {
             }
             Text(
                 uiString(R.string.l10n_smart_alarm_screen_while_you_re_inside_the_window_8700ca3b) +
-                    "sleep sits near your nightly low and stays steady; when your heart rate lifts above " +
+                    " sleep sits near your nightly low and stays steady; when your heart rate lifts above " +
                     "that (a sign you're sleeping more lightly or starting to stir), NOOP wakes you a " +
                     "little early so you come up from a lighter phase.",
                 style = NoopType.footnote, color = Palette.textSecondary,
             )
             Text(
                 uiString(R.string.l10n_smart_alarm_screen_this_is_a_coarse_cue_from_d6bbabe7) +
-                    "isn't streaming (Bluetooth off, not worn, app killed), no early wake happens and the " +
+                    " isn't streaming (Bluetooth off, not worn, app killed), no early wake happens and the " +
                     "guaranteed alarm at the window's end still wakes you.",
                 style = NoopType.footnote, color = Palette.textTertiary,
             )

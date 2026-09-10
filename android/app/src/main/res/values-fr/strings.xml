@@ -12,7 +12,7 @@
 
     <!-- #453 generated Compose literal migration -->
     <string name="l10n_add_device_wizard_0123456789abcdef0123456789abcdef_b1775a78">0123456789abcdef0123456789abcdef</string>
-    <string name="l10n_add_device_wizard_a_whoop_strap_bonds_to_a_d39bdf4a">Un bracelet WHOOP se lie à un seul appareil. Alors qu\'il est connecté à NOOP il ne va pas diffuser </string>
+    <string name="l10n_add_device_wizard_a_whoop_strap_bonds_to_a_d39bdf4a">Un bracelet WHOOP se lie à un seul appareil. Alors qu\'il est connecté à NOOP il ne va pas diffuser</string>
     <string name="l10n_add_device_wizard_add_61cc55aa">Ajouter</string>
     <string name="l10n_add_device_wizard_advanced_i_already_have_my_ring_e87b9b49">Avancé : j\'ai déjà la clé de mon anneau</string>
     <string name="l10n_add_device_wizard_beta_is_an_on_device_estimate_128563e0">Beta. * est une estimation sur l\'appareil. La température de la peau est une tendance versus votre propre base, étapes</string>
@@ -258,7 +258,7 @@
     <string name="l10n_data_sources_screen_whoop_history_db101974">WHOOP Historique</string>
     <string name="l10n_data_sources_screen_whoop_strap_live_ble_217f7df6">Bracelet WHOOP (BLE en direct)</string>
     <string name="l10n_data_sources_screen_workout_file_gpx_tcx_fit_5469c068">Fichier d\'entraînement (GPX / TCX / FIT)</string>
-    <string name="l10n_data_sources_screen_write_the_metrics_noop_computes_from_439940c2">Écrire les métriques que NOOP calcule à partir de votre bracelet (resting HR, HRV, SpO2, </string>
+    <string name="l10n_data_sources_screen_write_the_metrics_noop_computes_from_439940c2">Écrire les métriques que NOOP calcule à partir de votre bracelet (resting HR, HRV, SpO2,</string>
     <string name="l10n_data_sources_screen_xiaomi_mi_band_edeab3bc">Bande Xiaomi Mi</string>
     <string name="l10n_devices_screen_add_a_device_f90866b8">Ajouter un appareil</string>
     <string name="l10n_devices_screen_battery_4a9be042">Batterie</string>
@@ -305,7 +305,7 @@
     <string name="l10n_devices_screen_the_whoop_4_0_reboot_frame_690a8ff2">Le cadre de redémarrage WHOOP 4.0 n\'est pas confirmé – un redémarrage normal est ignoré (#235).</string>
     <string name="l10n_devices_screen_waiting_for_the_straps_reply_5a06e7ac">En attente de la réponse du bracelet…</string>
     <string name="l10n_devices_screen_whoop_4_0_reboot_probe_b51fb50f">Sonde de redémarrage WHOOP 4.0</string>
-    <string name="l10n_devices_screen_whoop_is_noop_s_primary_fully_1c9e67fd">WHOOP est le bracelet principal et entièrement pris en charge par NOOP. D\'autres bracelets de fréquence cardiaque sont un ajout précoce, </string>
+    <string name="l10n_devices_screen_whoop_is_noop_s_primary_fully_1c9e67fd">WHOOP est le bracelet principal et entièrement pris en charge par NOOP. D\'autres bracelets de fréquence cardiaque sont un ajout précoce,</string>
     <string name="l10n_devices_screen_you_removed_your_active_strap_choose_2ac91d48">Vous avez retiré votre bracelet actif. Choisissez quelle bande associée fournit vos données en direct, ou n\'en laissez aucune active et associez-en une plus tard.</string>
     <string name="l10n_fused_record_screen_contrib_source_displayname_fusionformat_value_contrib_d182dd7f">%1$s, %2$s</string>
     <string name="l10n_fused_record_screen_done_e9b450d1">Terminé</string>
@@ -430,7 +430,7 @@
     <string name="l10n_intelligence_screen_how_this_works_b895a8c3">Comment ça fonctionne</string>
     <string name="l10n_intelligence_screen_intelligence_c698f940">Intelligence</string>
     <string name="l10n_intelligence_screen_no_scored_days_in_this_window_03f1165b">Aucun jour noté dans cette fenêtre. Élargissez la plage ou importez plus d\'historique.</string>
-    <string name="l10n_intelligence_screen_no_scored_days_yet_sync_your_cdd47684">Pas encore de jours notés. Synchronisez votre bracelet pour recueillir des flux bruts. L\'effort et le repos sont </string>
+    <string name="l10n_intelligence_screen_no_scored_days_yet_sync_your_cdd47684">Pas encore de jours notés. Synchronisez votre bracelet pour recueillir des flux bruts. L\'effort et le repos sont</string>
     <string name="l10n_intelligence_screen_you_ll_likely_wake_around_charge_ed3abe2e">Vous vous réveillerez probablement autour de %1$s ± %2$s Chargez si vous dormez environ</string>
     <string name="l10n_intervals_screen_bond_your_strap_on_the_live_d799cbc2">Associez votre bracelet sur l\'écran En direct pour ressentir les transitions sans les mains.</string>
     <string name="l10n_intervals_screen_interval_timer_1d703deb">Minuteur d\'intervalle</string>
@@ -587,7 +587,7 @@
     <string name="l10n_onboarding_screen_import_whoop_export_zip_16f4176b">Importation d\'exportation WHOOP (.zip)</string>
     <string name="l10n_onboarding_screen_light_a36ef8ab">Léger</string>
     <string name="l10n_onboarding_screen_make_it_yours_54135155">Faites-le vôtre</string>
-    <string name="l10n_onboarding_screen_no_whoop_you_can_still_continue_ec58d88d">Pas de WHOOP ? Vous pouvez continuer. Associez un bracelet de fréquence cardiaque (Polar, Wahoo, Coospo, Garmin HRM...) </string>
+    <string name="l10n_onboarding_screen_no_whoop_you_can_still_continue_ec58d88d">Pas de WHOOP ? Vous pouvez continuer. Associez un bracelet de fréquence cardiaque (Polar, Wahoo, Coospo, Garmin HRM...)</string>
     <string name="l10n_onboarding_screen_nothing_leaves_your_phone_502d5d0c">Rien ne laisse ton téléphone</string>
     <string name="l10n_onboarding_screen_onboardingprogress_6e1e5c29">à bord Progrès accomplis</string>
     <string name="l10n_onboarding_screen_own_your_data_offline_997fe15e">Vos données vous appartiennent, hors ligne</string>
@@ -710,14 +710,14 @@
     <string name="smart_alarm_check_strap_alarm_help">La réponse du bracelet apparaît dans le journal et l’export de diagnostic, avec les octets bruts reçus.</string>
     <string name="l10n_smart_alarm_screen_the_earliest_noop_will_wake_you_b641a2d4">Le premier NOOP vous réveillera.</string>
     <string name="l10n_smart_alarm_screen_the_guaranteed_alarm_fires_this_long_b0c51052">L\'alarme garantie tire aussi longtemps après votre plus jeune heure.</string>
-    <string name="l10n_smart_alarm_screen_this_is_a_coarse_cue_from_d6bbabe7">Il s\'agit d\'un signal grossier de la fréquence cardiaque, et non d\'une lecture clinique au stade du sommeil. Si le bracelet </string>
+    <string name="l10n_smart_alarm_screen_this_is_a_coarse_cue_from_d6bbabe7">Il s\'agit d\'un signal grossier de la fréquence cardiaque, et non d\'une lecture clinique au stade du sommeil. Si le bracelet</string>
     <string name="l10n_smart_alarm_screen_turn_on_the_smart_alarm_to_65700430">Activez l\'alarme intelligente pour vous réveiller dans une fenêtre que vous choisissez.</string>
     <string name="l10n_smart_alarm_screen_wake_alarm_37af3ecf">Réveillez l\'alarme</string>
     <string name="l10n_smart_alarm_screen_wake_at_49089991">Réveil à</string>
     <string name="l10n_smart_alarm_screen_wake_me_no_earlier_than_67411622">Réveille-moi pas plus tôt</string>
     <string name="l10n_smart_alarm_screen_wake_me_with_a_smart_alarm_bbbd082d">Réveille-moi avec une alarme intelligente</string>
     <string name="l10n_smart_alarm_screen_wake_me_with_a_strap_buzz_1681ba1d">Me réveiller avec une vibration du bracelet</string>
-    <string name="l10n_smart_alarm_screen_while_you_re_inside_the_window_8700ca3b">Pendant que vous êtes à l\'intérieur de la fenêtre, NOOP surveille votre fréquence cardiaque en direct depuis le bracelet. profond </string>
+    <string name="l10n_smart_alarm_screen_while_you_re_inside_the_window_8700ca3b">Pendant que vous êtes à l\'intérieur de la fenêtre, NOOP surveille votre fréquence cardiaque en direct depuis le bracelet. profond</string>
     <string name="l10n_smart_alarm_screen_wind_down_nudge_5ca87a0f">Rappel de détente</string>
     <string name="l10n_smart_alarm_screen_window_length_46179fcb">Longueur de la fenêtre</string>
     <string name="l10n_smart_alarm_screen_windowminutes_min_bd89fd82">%1$s min</string>
@@ -733,7 +733,7 @@
     <string name="l10n_steps_calibration_screen_noop_estimates_your_steps_from_your_d569bc31">NOOP estime vos pas à partir du mouvement de votre WHOOP, calibré sur le nombre de pas de votre téléphone. C\'est une estimation, pas un podomètre. Un WHOOP 4.0 ne transmet pas de pas.</string>
     <string name="l10n_steps_calibration_screen_not_calibrated_yet_30abe0d0">Pas encore calibré</string>
     <string name="l10n_steps_calibration_screen_on_the_days_your_phone_also_2f65a14c">Les jours où votre téléphone a également compté les étapes, NOOP apprend combien votre carte de mouvement à</string>
-    <string name="l10n_steps_calibration_screen_open_noop_near_your_strap_and_e08ddd6d">Ouvrez NOOP près de votre bracelet et laissez-le rattraper (une synchronisation d\'historique complète peut prendre un certain temps sur </string>
+    <string name="l10n_steps_calibration_screen_open_noop_near_your_strap_and_e08ddd6d">Ouvrez NOOP près de votre bracelet et laissez-le rattraper (une synchronisation d\'historique complète peut prendre un certain temps sur</string>
     <string name="l10n_steps_calibration_screen_override_the_automatic_fit_with_your_36a7b6fa">Surpasser l\'ajustement automatique avec votre propre valeur de pas par mouvement. Utile si votre téléphone</string>
     <string name="l10n_steps_calibration_screen_phone_77064d52">Téléphone</string>
     <string name="l10n_steps_calibration_screen_shortday_row_day_estimated_row_estimated_f2d71597">%1$s: étapes %2$s estimées, téléphone %3$s</string>
@@ -741,7 +741,7 @@
     <string name="l10n_steps_calibration_screen_takes_effect_on_the_next_analytics_13205327">Prend effet lors de la prochaine analyse (après la prochaine synchronisation).</string>
     <string name="l10n_steps_calibration_screen_these_are_the_days_where_your_ae5c9c2c">Ce sont les jours où votre téléphone a aussi compté les pas, afin que NOOP apprenne comment votre mouvement se traduit en pas. Ou définissez le coefficient manuellement ci-dessous.</string>
     <string name="l10n_steps_calibration_screen_these_days_are_excluded_from_the_6bedabbf">Ces jours sont exclus de l\'estimation (le comptage réel de votre téléphone est affiché à la place). Ils figurent ici uniquement pour que vous puissiez juger de la précision de l\'estimation.</string>
-    <string name="l10n_steps_calibration_screen_we_re_not_seeing_any_motion_6ac8e092">On ne voit aucun mouvement de votre bracelet. Les étapes sont estimées à partir de votre WHOOP </string>
+    <string name="l10n_steps_calibration_screen_we_re_not_seeing_any_motion_6ac8e092">On ne voit aucun mouvement de votre bracelet. Les étapes sont estimées à partir de votre WHOOP</string>
     <string name="l10n_steps_calibration_screen_whoop_4_0_motion_steps_a63239dc">WHOOP 4.0 · mouvement → pas</string>
     <string name="l10n_strand_components_next_day_38f859dd">Jour suivant</string>
     <string name="l10n_strand_components_previous_day_e2b6b0a1">Jour précédent</string>
@@ -1251,7 +1251,7 @@
     <string name="l10n_how_noop_works_screen_how_your_sleep_is_sorted_6a8e82e0">Comment votre sommeil est classé</string>
     <string name="l10n_how_noop_works_screen_what_recording_means_b896c422">Ce que signifie « enregistrement »</string>
     <string name="l10n_how_noop_works_screen_where_your_numbers_come_from_e169963a">D\'où viennent vos chiffres</string>
-    <string name="l10n_hrv_snapshot_screen_a_60_second_snapshot_of_your_35f03f7c">Un instantané de 60 secondes de vos intervalles beat-to-beat (R-R) du bracelet, nettoyé </string>
+    <string name="l10n_hrv_snapshot_screen_a_60_second_snapshot_of_your_35f03f7c">Un instantané de 60 secondes de vos intervalles beat-to-beat (R-R) du bracelet, nettoyé</string>
     <string name="l10n_hrv_snapshot_screen_close_hrv_reading_a29a99a1">Fermer la lecture de VFC</string>
     <string name="l10n_hrv_snapshot_screen_hrv_reading_a2cf71f3">Mesure de VFC</string>
     <string name="l10n_insights_screen_charge_d4e1aee4">Charge</string>
@@ -1392,7 +1392,7 @@
     <string name="l10n_settings_screen_records_the_raw_frames_of_each_98a284df">Enregistre les images brutes de chaque synchronisation d\'historique 5/MG dans un fichier sur ce téléphone, de sorte que vous pouvez les partager et aider NOOP à apprendre à décoder 5/MG sommeil, récupération et tension. Le fichier contient des cadres biométriques bruts (fréquence cardiaque, R-R, température de la peau, mouvement) et le propre texte de diagnostic du bracelet. Rien ne quitte le téléphone à moins que vous le partagiez. Arrêt par défaut.</string>
     <string name="l10n_settings_screen_remove_photo_c8f5eda8">Supprimer la photo</string>
     <string name="l10n_settings_screen_rename_d3f4cb89">Renommer</string>
-    <string name="l10n_settings_screen_rename_your_strap_s_bluetooth_name_6032668b">Renommer le nom Bluetooth de votre bracelet, utile pour un bracelet d\'occasion. Le bracelet </string>
+    <string name="l10n_settings_screen_rename_your_strap_s_bluetooth_name_6032668b">Renommer le nom Bluetooth de votre bracelet, utile pour un bracelet d\'occasion. Le bracelet</string>
     <string name="l10n_settings_screen_restarts_the_roughly_4_night_build_84f9f8d0">Relance la montée en charge d\'environ 4 nuits pour la Charge et votre ligne de base de VFC à partir de cette nuit. Utilisez cette option si une mauvaise première semaine a faussé votre ligne de base. Votre historique reste intact.</string>
     <string name="l10n_settings_screen_reviews_each_scored_wake_block_for_537924ea">Revues chaque bloc de réveil marqué pour de vraies preuves de se lever (</string>
     <string name="l10n_settings_screen_rhythm_experimental_12d357da">Rythme (expérimental)</string>
@@ -1560,7 +1560,7 @@
     <string name="l10n_trends_explore_screen_resting_hr_26677094">FC au repos</string>
     <string name="l10n_trends_explore_screen_sleep_3cac34e6">Sommeil</string>
     <string name="l10n_trends_explore_screen_sleep_efficiency_b4b5c293">Efficacité du sommeil</string>
-    <string name="l10n_trends_report_a_clean_shareable_one_page_pdf_a3c4f889">Un PDF d\'une page propre et partageable de votre récupération, sommeil, VFC, fréquence cardiaque au repos </string>
+    <string name="l10n_trends_report_a_clean_shareable_one_page_pdf_a3c4f889">Un PDF d\'une page propre et partageable de votre récupération, sommeil, VFC, fréquence cardiaque au repos</string>
     <string name="l10n_trends_report_export_pdf_3dd7d56a">Exporter en PDF</string>
     <string name="l10n_trends_report_the_share_sheet_can_save_the_ecddbca7">La feuille de partage peut enregistrer le PDF dans des fichiers, ou l\'envoyer sur.</string>
     <string name="l10n_trends_report_trends_report_pdf_481e8a5f">Rapport sur les tendances (PDF)</string>
@@ -2381,7 +2381,7 @@
     <string name="today_hr_a11y_sleep_band">plage de sommeil %1$s</string>
     <string name="today_hr_a11y_charge_at_wake">Énergie au réveil : %1$d pour cent</string>
     <string name="today_hr_a11y_effort_now">Effort actuel : %1$s</string>
-    <string name="today_a11y_separator">, </string>
+    <string name="today_a11y_separator">,</string>
     <string name="today_steps_activity_still">Immobile</string>
     <string name="today_steps_activity_walking">Marche</string>
     <string name="today_steps_activity_running">Course</string>
@@ -2618,7 +2618,7 @@
     <string name="ground_truth_sensors_behind">Capteurs 1 Hz décodés : retard de %1$s</string>
     <string name="ground_truth_sensors_none">Capteurs 1 Hz décodés : aucun</string>
     <string name="ground_truth_realtime_imu">IMU en temps réel : %1$s ; %2$d paquets/%3$d octets%4$s</string>
-    <string name="ground_truth_realtime_last"> ; dernier il y a %1$s</string>
+    <string name="ground_truth_realtime_last">" ; dernier il y a %1$s"</string>
     <string name="ground_truth_add_marker">Ajouter un repère</string>
     <string name="ground_truth_edit_marker">Modifier le repère</string>
     <string name="ground_truth_marker_moment">Moment</string>
@@ -2635,9 +2635,9 @@
     <string name="ground_truth_duration_size">%1$s · IMU %2$s</string>
     <string name="ground_truth_last_exported">Dernier export : %1$s · nouvel export possible</string>
     <string name="ground_truth_coverage">%1$d/%2$d s · %3$.1f%% · %4$d s manquantes%5$s</string>
-    <string name="ground_truth_coverage_startup"> · %1$d s de démarrage</string>
+    <string name="ground_truth_coverage_startup">" · %1$d s de démarrage"</string>
     <string name="ground_truth_marker_row">%1$s · %2$s%3$s</string>
-    <string name="ground_truth_marker_note_suffix"> · %1$s</string>
+    <string name="ground_truth_marker_note_suffix">" · %1$s"</string>
     <string name="raw_diag_title">Diagnostics du protocole 5/MG</string>
     <string name="raw_diag_protocol_probes">Sondes de protocole</string>
     <string name="raw_diag_broadcast_hr">Diffuser la fréquence cardiaque du bracelet</string>
@@ -2702,7 +2702,7 @@
     <string name="coach_clear_conversation_message">"Ceci efface la conversation enregistrée de cet appareil. L'historique du Coach est constitué de vos propres notes, pas d'un avis médical."</string>
     <string name="coach_clear_action">Effacer</string>
     <string name="coach_token_estimate">~%1$d jetons</string>
-    <string name="coach_token_warning"> · peut dépasser les petites fenêtres de contexte</string>
+    <string name="coach_token_warning">" · peut dépasser les petites fenêtres de contexte"</string>
     <string name="coach_morning_brief">Brief matinal</string>
     <string name="coach_morning_brief_desc">"Une notification locale avec la préparation + le plan d'entraînement du jour, générée sur l'appareil chaque matin."</string>
     <string name="coach_morning_brief_off">"Désactivé : rien n'est généré ni envoyé selon un calendrier."</string>
@@ -2714,7 +2714,7 @@
     <string name="coach_listening">Écoute…</string>
     <string name="coach_generating">Génération…</string>
     <string name="coach_generate_now">Générer maintenant</string>
-    <string name="coach_status_suffix"> : %1$s</string>
+    <string name="coach_status_suffix">" : %1$s"</string>
     <string name="coach_no_reply">(pas de réponse)</string>
     <string name="coach_stream_interrupted">%1$s\n\n*(flux interrompu)*</string>
     <string name="coach_today_brief_format">Brief du jour\n\n%1$s</string>

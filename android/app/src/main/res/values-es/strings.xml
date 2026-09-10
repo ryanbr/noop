@@ -2382,7 +2382,7 @@
     <string name="today_hr_a11y_sleep_band">franja de sueño %1$s</string>
     <string name="today_hr_a11y_charge_at_wake">Carga al despertar: %1$d por ciento</string>
     <string name="today_hr_a11y_effort_now">Esfuerzo actual: %1$s</string>
-    <string name="today_a11y_separator">, </string>
+    <string name="today_a11y_separator">,</string>
     <string name="today_steps_activity_still">Quieto</string>
     <string name="today_steps_activity_walking">Caminando</string>
     <string name="today_steps_activity_running">Corriendo</string>
@@ -2636,9 +2636,9 @@
     <string name="ground_truth_duration_size">%1$s · IMU %2$s</string>
     <string name="ground_truth_last_exported">Última exportación: %1$s · se puede volver a exportar</string>
     <string name="ground_truth_coverage">%1$d/%2$d s · %3$.1f%% · faltan %4$d s%5$s</string>
-    <string name="ground_truth_coverage_startup"> · %1$d s de inicio</string>
+    <string name="ground_truth_coverage_startup">" · %1$d s de inicio"</string>
     <string name="ground_truth_marker_row">%1$s · %2$s%3$s</string>
-    <string name="ground_truth_marker_note_suffix"> · %1$s</string>
+    <string name="ground_truth_marker_note_suffix">" · %1$s"</string>
     <string name="raw_diag_title">Diagnóstico del protocolo 5/MG</string>
     <string name="raw_diag_protocol_probes">Sondas de protocolo</string>
     <string name="raw_diag_broadcast_hr">Transmitir frecuencia cardíaca desde la pulsera</string>
@@ -2703,7 +2703,7 @@
     <string name="coach_clear_conversation_message">Esto borra la conversación guardada de este dispositivo. El historial del Coach son tus propias notas, no consejo médico.</string>
     <string name="coach_clear_action">Borrar</string>
     <string name="coach_token_estimate">~%1$d tokens</string>
-    <string name="coach_token_warning"> · puede superar ventanas de contexto pequeñas</string>
+    <string name="coach_token_warning">" · puede superar ventanas de contexto pequeñas"</string>
     <string name="coach_morning_brief">Resumen matutino</string>
     <string name="coach_morning_brief_desc">Una notificación local con la preparación + plan de entrenamiento de hoy, generada en el dispositivo cada mañana.</string>
     <string name="coach_morning_brief_off">Desactivado: no se genera ni se envía nada según un horario.</string>

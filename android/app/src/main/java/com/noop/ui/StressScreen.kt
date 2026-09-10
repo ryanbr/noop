@@ -568,7 +568,7 @@ private fun StressDaytimeSection(
 
                 Text(
                     uiString(R.string.l10n_stress_screen_the_line_traces_your_autonomic_load_804f4028) +
-                        "against your own calm hours today (the same 0-3 proxy as the score " +
+                        " against your own calm hours today (the same 0-3 proxy as the score " +
                         "above, read hour by hour). Hours without enough data are skipped.",
                     style = NoopType.footnote,
                     color = Palette.textTertiary,
@@ -1049,7 +1049,7 @@ private fun StressTrendSection(model: StressModel, modifier: Modifier = Modifier
                             )
                         }
                         Text(
-                            uiString(R.string.l10n_stress_screen_avg_a178769d) + String.format(Locale.US, "%.1f", avg),
+                            uiString(R.string.l10n_stress_screen_avg_a178769d) + " " + String.format(Locale.US, "%.1f", avg),
                             style = NoopType.captionNumber,
                             color = Palette.textSecondary,
                         )
@@ -1133,7 +1133,7 @@ private fun StressMethodologyCard(model: StressModel, modifier: Modifier = Modif
             )
             Text(
                 uiString(R.string.l10n_stress_screen_we_compare_today_s_resting_heart_a9cd0955) +
-                    "baseline. A higher-than-usual resting HR and a lower-than-usual HRV " +
+                    " baseline. A higher-than-usual resting HR and a lower-than-usual HRV " +
                     "both push the score up, classic signs the body is activated. The " +
                     "combined shift is mapped onto a 0-3 scale: 0 is calm, 1.5 sits at " +
                     "your baseline, 3 is highly activated.",

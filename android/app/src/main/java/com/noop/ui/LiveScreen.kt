@@ -541,7 +541,7 @@ fun LiveScreen(viewModel: AppViewModel, onManageDevices: () -> Unit = {}) {
             if (selectedModel == WhoopModel.WHOOP5_MG) {
                 Text(
                     uiString(R.string.l10n_live_screen_whoop_5_0_mg_pairs_with_b93143f2) +
-                        "the official WHOOP app and fully close that app, then Connect again.",
+                        " the official WHOOP app and fully close that app, then Connect again.",
                     style = NoopType.footnote,
                     color = Palette.textSecondary,
                     modifier = Modifier.fillMaxWidth().padding(top = 6.dp),

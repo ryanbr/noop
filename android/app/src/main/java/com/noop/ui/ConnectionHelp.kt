@@ -69,7 +69,7 @@ fun ConnectionHelp(viewModel: AppViewModel, modifier: Modifier = Modifier) {
                 Text(uiString(R.string.l10n_connection_help_whoop_5_mg_experimental_109076ae), style = NoopType.headline, color = Palette.textPrimary)
                 Text(
                     uiString(R.string.l10n_connection_help_your_strap_is_connected_and_we_8ab98ac6) +
-                        "heart rate from the standard profile. This isn't verified on 5/MG hardware yet, so " +
+                        " heart rate from the standard profile. This isn't verified on 5/MG hardware yet, so " +
                         "HR may or may not appear, and deeper metrics (recovery, strain, sleep) aren't " +
                         "decoded for 5/MG yet. Nothing's wrong with your strap - WHOOP 4.0 is fully supported.",
                     style = NoopType.footnote,

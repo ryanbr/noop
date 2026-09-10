@@ -206,7 +206,7 @@ fun CycleAwarenessOptInCard(onEnable: () -> Unit) {
             }
             Text(
                 uiString(R.string.l10n_skin_temp_cards_screen_noop_can_read_a_coarse_menstrual_c79e4b85) +
-                    "entirely on your device. It is awareness only: not contraception, not a fertility " +
+                    " entirely on your device. It is awareness only: not contraception, not a fertility " +
                     "predictor, not a medical service.",
                 style = NoopType.subhead,
                 color = Palette.textSecondary,

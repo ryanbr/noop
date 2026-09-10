@@ -2374,7 +2374,7 @@
     <string name="today_hr_a11y_sleep_band">pasmo snu %1$s</string>
     <string name="today_hr_a11y_charge_at_wake">Energia po przebudzeniu: %1$d procent</string>
     <string name="today_hr_a11y_effort_now">Aktualny wysiłek: %1$s</string>
-    <string name="today_a11y_separator">, </string>
+    <string name="today_a11y_separator">,</string>
     <string name="today_steps_activity_still">Bez ruchu</string>
     <string name="today_steps_activity_walking">Chód</string>
     <string name="today_steps_activity_running">Bieg</string>
@@ -2640,9 +2640,9 @@
     <string name="ground_truth_duration_size">%1$s · IMU %2$s</string>
     <string name="ground_truth_last_exported">Ostatni eksport: %1$s · można eksportować ponownie</string>
     <string name="ground_truth_coverage">%1$d/%2$d s · %3$.1f%% · brak %4$d s%5$s</string>
-    <string name="ground_truth_coverage_startup"> · rozruch %1$d s</string>
+    <string name="ground_truth_coverage_startup">" · rozruch %1$d s"</string>
     <string name="ground_truth_marker_row">%1$s · %2$s%3$s</string>
-    <string name="ground_truth_marker_note_suffix"> · %1$s</string>
+    <string name="ground_truth_marker_note_suffix">" · %1$s"</string>
     <string name="raw_diag_title">Diagnostyka protokołu 5/MG</string>
     <string name="raw_diag_protocol_probes">Testy protokołu</string>
     <string name="raw_diag_broadcast_hr">Transmituj tętno z opaski</string>
@@ -2707,7 +2707,7 @@
     <string name="coach_clear_conversation_message">To usuwa zapisaną rozmowę z tego urządzenia. Historia Trenera to twoje własne notatki, a nie porada medyczna.</string>
     <string name="coach_clear_action">Wyczyść</string>
     <string name="coach_token_estimate">~%1$d tokenów</string>
-    <string name="coach_token_warning"> · może przekroczyć małe okna kontekstu</string>
+    <string name="coach_token_warning">" · może przekroczyć małe okna kontekstu"</string>
     <string name="coach_morning_brief">Poranne podsumowanie</string>
     <string name="coach_morning_brief_desc">Lokalne powiadomienie z dzisiejszą gotowością + planem treningu, generowane na urządzeniu każdego ranka.</string>
     <string name="coach_morning_brief_off">Wyłączone: nic nie jest generowane ani wysyłane według harmonogramu.</string>

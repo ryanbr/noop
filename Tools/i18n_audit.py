@@ -504,6 +504,32 @@ def android_strings_xml_gaps() -> dict[str, set[str]]:
     return gaps
 
 
+ANDROID_STRING_PATTERN = re.compile(r'<string name="([^"]+)"[^>]*>(.*?)</string>', re.S)
+
+
+def android_edge_whitespace() -> dict[str, list[str]]:
+    """Resource keys whose value starts or ends in whitespace, per locale directory.
+
+    AAPT2 trims leading and trailing whitespace from an unquoted string resource, so that
+    whitespace never reaches the device. Copy that leans on it renders two words run together
+    (the caption that read "scoredagainst your own calm hours today"). A resource that really
+    does need an edge space has to be wrapped in double quotes, which this check honours; the
+    reliable fix for a split sentence is to keep the joining space in the code instead.
+    """
+    out: dict[str, list[str]] = {}
+    for path in sorted((ROOT / "android/app/src/main/res").glob("values*/strings.xml")):
+        offenders = [
+            key
+            for key, value in (
+                (m.group(1), m.group(2)) for m in ANDROID_STRING_PATTERN.finditer(path.read_text(encoding="utf-8"))
+            )
+            if value != value.strip() and not value.strip().startswith('"')
+        ]
+        if offenders:
+            out[path.parent.name] = offenders
+    return out
+
+
 ANDROID_FORMAT_PATTERN = re.compile(r"%[1-9]\d*\$[-+0 #,(]*\d*(?:\.\d+)?([sdif])")
 
 
@@ -1124,6 +1150,15 @@ def ci_check(base_ref: str) -> int:
             locale_dir = ANDROID_LOCALE_DIRS[lang]
             print(f"FAIL {locale_dir}/strings.xml has {len(format_gaps)} format mismatch(es): {format_gaps[:30]}")
 
+    edge = android_edge_whitespace()
+    if edge:
+        failed = True
+        for locale_dir, keys in edge.items():
+            print(f"FAIL {locale_dir}/strings.xml has {len(keys)} string(s) whose edge whitespace "
+                  f"AAPT2 strips: {sorted(keys)[:30]}")
+    else:
+        print("  OK no string resource leans on edge whitespace")
+
     print("\n--- Apple: no NEW un-extracted UI copy, and complete focus locales ---")
     ios_literals, _source_gaps = scan_ios()
     ios_found = {(p, lit) for p, _line, lit in ios_literals}
@@ -1296,6 +1331,16 @@ def main() -> int:
                 print(f"  {rel}:{line_no}: {literal!r}")
             if len(findings) > 25:
                 print(f"  ... and {len(findings) - 25} more (use --full)")
+
+        print("\n=== Android: string resources leaning on stripped edge whitespace ===")
+        edge = android_edge_whitespace()
+        if not edge:
+            print("  none")
+        for locale_dir, keys in edge.items():
+            print(f"  {locale_dir}: {len(keys)} string(s)")
+            if args.full:
+                for k in sorted(keys):
+                    print(f"    {k}")
 
         print("\n=== Android: values-<locale>/strings.xml key gaps ===")
         gaps = android_strings_xml_gaps()

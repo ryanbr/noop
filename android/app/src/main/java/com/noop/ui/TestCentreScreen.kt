@@ -1162,7 +1162,7 @@ private fun ReportReviewDialog(
                     // ships a report a maintainer can't act on. Twin of the Swift review-sheet warning.
                     Text(
                         uiString(R.string.l10n_test_centre_screen_heads_up_this_test_mode_is_8b82ed69) +
-                            "useful report, turn the mode on, reproduce the problem while wearing the " +
+                            " useful report, turn the mode on, reproduce the problem while wearing the " +
                             "strap, then report again.",
                         style = NoopType.footnote, color = Palette.statusWarning,
                         modifier = Modifier.padding(bottom = 8.dp),

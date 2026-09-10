@@ -2017,7 +2017,7 @@ fun SettingsScreen(
                         Text(uiString(R.string.l10n_settings_screen_strap_name_350de547), style = NoopType.subhead, color = Palette.textPrimary)
                         Text(
                             uiString(R.string.l10n_settings_screen_rename_your_strap_s_bluetooth_name_6032668b) +
-                                "reboots to apply, then reconnects with the new name.",
+                                " reboots to apply, then reconnects with the new name.",
                             style = NoopType.footnote,
                             color = Palette.textTertiary,
                         )
@@ -2338,7 +2338,7 @@ fun SettingsScreen(
                             )
                             Text(
                                 uiString(R.string.l10n_settings_screen_runs_the_continuous_hrv_stream_only_3fed47c5) +
-                                "Note: continuous background HRV capture (including daytime naps) is paused outside this window. " +
+                                " Note: continuous background HRV capture (including daytime naps) is paused outside this window. " +
                                 "For on-demand daytime HRV readings (including naps), use the \"Take an HRV reading\" button on the Live screen.",
                                 style = NoopType.footnote,
                                 color = Palette.textTertiary,
@@ -2930,7 +2930,7 @@ fun SettingsScreen(
                 }
                 Text(
                     uiString(R.string.l10n_settings_screen_a_transparent_cardiorespiratory_recipe_that_recovers_eebe00c2) +
-                        "V1 staging, and is now the default. It only changes how already-detected nights are " +
+                        " V1 staging, and is now the default. It only changes how already-detected nights are " +
                         "split into stages (detection and scores are unchanged); turn it off to fall back to " +
                         "V1. Takes effect on the next nights staged.",
                     style = NoopType.caption,
@@ -2969,7 +2969,7 @@ fun SettingsScreen(
                 }
                 Text(
                     uiString(R.string.l10n_settings_screen_reviews_each_scored_wake_block_for_537924ea) +
-                        "change in body position) instead of just a heart-rate rise. A wake block with no " +
+                        " change in body position) instead of just a heart-rate rise. A wake block with no " +
                         "locomotion and a stable posture -- a hot night, a brief turn-over -- is folded back " +
                         "into light sleep; a real get-up is left alone. Self-checks how much motion detail " +
                         "your strap actually recorded and stays off on a night that's too sparse to trust " +
@@ -3510,7 +3510,7 @@ fun SettingsScreen(
                     icon = Icons.Filled.Info,
                     iconTint = Palette.textTertiary,
                     text = uiString(R.string.l10n_settings_screen_importing_overwrites_everything_currently_on_this_297b76ae) +
-                        "Export CSV writes a WHOOP-format zip of your days, sleeps, workouts and journal that re-imports into NOOP on Android or Mac. On-device computed rows are marked APPROXIMATE in its Source column; the .noopbak backup stays the lossless restore path.",
+                        " Export CSV writes a WHOOP-format zip of your days, sleeps, workouts and journal that re-imports into NOOP on Android or Mac. On-device computed rows are marked APPROXIMATE in its Source column; the .noopbak backup stays the lossless restore path.",
                 )
 
                 // #644: .noopbak is a plain ZIP, not an encrypted container — anyone who gets the file
