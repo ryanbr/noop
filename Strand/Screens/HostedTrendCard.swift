@@ -42,6 +42,22 @@ enum HostedTrendData {
         return days.filter { $0.day >= cutoff }
     }
 
+    /// The plotted y-range: the data's own span with a little air, the fixed fallback when there is no
+    /// data at all, and a unit either side of a single repeated value so one flat line does not map onto
+    /// a zero-width range.
+    ///
+    /// Shared with the tab for the same reason the windowing is. A card that padded by a different
+    /// fraction would plot the SAME points at a visibly different height from the chart it mirrors,
+    /// which is exactly the drift hosting is meant to avoid.
+    static func valueRange(_ pts: [TrendPoint], fallback: ClosedRange<Double>,
+                           pad: Double = 0.12) -> ClosedRange<Double> {
+        let vals = pts.map(\.value)
+        guard let lo = vals.min(), let hi = vals.max() else { return fallback }
+        if hi <= lo { return (lo - 1)...(hi + 1) }
+        let span = hi - lo
+        return (lo - span * pad)...(hi + span * pad)
+    }
+
     private static func points(_ days: [DailyMetric], _ value: (DailyMetric) -> Double?) -> [TrendPoint] {
         days.compactMap { d in
             guard let v = value(d), let dt = dayParser.date(from: d.day) else { return nil }
@@ -102,7 +118,7 @@ struct HostedTrendCard: View {
                   height: NoopMetrics.chartHeight, tint: colour) {
             TrendChart(points: pts,
                        gradient: Gradient(colors: [colour.opacity(0.35), colour]),
-                       valueRange: valueRange(pts, fallback: fallback),
+                       valueRange: HostedTrendData.valueRange(pts, fallback: fallback),
                        showsArea: true,
                        // Hover OFF. The card sits inside a NavigationLink, so a scrubbing gesture here
                        // would compete with the tap that opens the metric — the same conflict that
@@ -114,14 +130,4 @@ struct HostedTrendCard: View {
         .accessibilityLabel(Text(title))
     }
 
-    /// The plotted range: the data's own span with a little air, or a sensible fixed window when the
-    /// card has too little to imply one. Without the fallback a single point would map onto a
-    /// zero-width range and land wherever the divide happened to put it.
-    private func valueRange(_ pts: [TrendPoint], fallback: ClosedRange<Double>) -> ClosedRange<Double> {
-        guard let lo = pts.map(\.value).min(), let hi = pts.map(\.value).max(), hi > lo else {
-            return fallback
-        }
-        let pad = (hi - lo) * 0.1
-        return (lo - pad)...(hi + pad)
-    }
 }

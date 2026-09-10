@@ -94,22 +94,6 @@ struct TrendsView: View {
     /// (issue #23). Empty short windows auto-widen (see `resolve`), so old imports surface under a
     /// wider range / All history instead of masquerading as recent. `.all` returns everything.
     /// ISO yyyy-MM-dd compares chronologically.
-    private func days(for r: Range) -> [DailyMetric] {
-        guard let n = r.days else { return repo.days }
-        let cutoffKey = Repository.localDayKey(Calendar.current.date(byAdding: .day, value: -(n - 1), to: Date()) ?? Date())
-        return repo.days.filter { $0.day >= cutoffKey }
-    }
-
-    /// Build trend points from a metric accessor over a day slice.
-    private func points(_ days: ArraySlice<DailyMetric>, _ value: (DailyMetric) -> Double?) -> [TrendPoint] {
-        days.compactMap { d in
-            guard let v = value(d), let dt = date(d.day) else { return nil }
-            return TrendPoint(date: dt, value: v)
-        }
-    }
-    private func points(_ days: [DailyMetric], _ value: (DailyMetric) -> Double?) -> [TrendPoint] {
-        points(days[...], value)
-    }
 
     // MARK: Resolved metric (memoized per body)
     //
@@ -156,11 +140,7 @@ struct TrendsView: View {
 
     /// A padded value range for a series so the line isn't flat against the axis.
     private func valueRange(_ pts: [TrendPoint], fallback: ClosedRange<Double>, pad: Double = 0.12) -> ClosedRange<Double> {
-        let vals = pts.map(\.value)
-        guard let lo = vals.min(), let hi = vals.max() else { return fallback }
-        if hi <= lo { return (lo - 1)...(hi + 1) }
-        let span = hi - lo
-        return (lo - span * pad)...(hi + span * pad)
+        HostedTrendData.valueRange(pts, fallback: fallback, pad: pad)
     }
 
     private func mean(_ pts: [TrendPoint]) -> Double? {
