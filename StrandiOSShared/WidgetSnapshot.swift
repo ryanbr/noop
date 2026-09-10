@@ -21,10 +21,31 @@ public struct WidgetSnapshot: Codable, Equatable {
     public var effortDisplay: String?
     /// True when `effortDisplay` is on WHOOP's 0–21 axis; false/nil means 0–100. Accessibility only.
     public var effortWhoop: Bool?
+    /// The last `HrTrace.windowSec` of heart rate, one point per minute, for the trace widget (#1957).
+    ///
+    /// Folded in by `save()` rather than by the callers that build a snapshot, which is the twin of the
+    /// Android store owning it: nothing that publishes had to learn the retention rule. Optional so a
+    /// snapshot written by an older build still decodes.
+    public var hrSeries: [HrPoint]?
+    /// Today's hourly stress curve for the stress widget (#2040), earliest to latest.
+    ///
+    /// Unlike `hrSeries` this is NOT folded by `save()`. It arrives complete from the publish that
+    /// scored the day, so a publish either carries a whole day or says nothing about stress at all, and
+    /// the live fast path simply carries the loaded value forward untouched. Optional so a snapshot
+    /// written by an older build still decodes.
+    public var stressSeries: [StressPoint]?
+    /// Local day number `stressSeries` was scored for, or nil when no curve has been published.
+    ///
+    /// Read back as the staleness check: a curve from any day but today is dropped rather than drawn,
+    /// so the widget cannot show yesterday's afternoon under today's date while waiting for the first
+    /// scorable hour after midnight.
+    public var stressDay: Int?
 
     public init(recovery: Int?, bpm: Int?, batteryPct: Int?, bonded: Bool, updated: Date,
                 effort: Int? = nil, rest: Int? = nil, hrv: Int? = nil, restingHr: Int? = nil,
-                effortDisplay: String? = nil, effortWhoop: Bool? = nil) {
+                effortDisplay: String? = nil, effortWhoop: Bool? = nil,
+                hrSeries: [HrPoint]? = nil, stressSeries: [StressPoint]? = nil,
+                stressDay: Int? = nil) {
         self.recovery = recovery
         self.bpm = bpm
         self.batteryPct = batteryPct
@@ -36,6 +57,34 @@ public struct WidgetSnapshot: Codable, Equatable {
         self.restingHr = restingHr
         self.effortDisplay = effortDisplay
         self.effortWhoop = effortWhoop
+        self.hrSeries = hrSeries
+        self.stressSeries = stressSeries
+        self.stressDay = stressDay
+    }
+
+    /// The curve to DRAW: what was published, unless it belongs to a day that is over.
+    ///
+    /// Resolved on read rather than cleared on write, the same discipline `HrTrace.prune` applies to
+    /// age: nothing runs at midnight to tidy the App Group, so the check has to happen where the value
+    /// is used. Calendar is injectable so a test can cross a rollover without waiting for one.
+    public func stressCurve(now: Date = Date(), calendar: Calendar = .current) -> [StressPoint] {
+        guard let stressDay, let stressSeries,
+              stressDay == WidgetSnapshot.localDayNumber(now, calendar: calendar) else { return [] }
+        return stressSeries
+    }
+
+    /// Days since the epoch on the LOCAL calendar, the twin of Kotlin's `LocalDate.toEpochDay()`.
+    ///
+    /// Counted by the calendar rather than by dividing the day's start by 86 400. That arithmetic is
+    /// wrong on a DST day and measurably so: walking a year of local noons, `Europe/London` produces
+    /// ONE day whose number equals the previous day's, because its winter offset is UTC and a
+    /// 23-hour day then lands inside the same 86 400-second bucket. On that day the widget would have
+    /// read yesterday's curve as today's and drawn it, which is the one thing this number exists to
+    /// prevent. The calendar knows how long each local day actually was.
+    public static func localDayNumber(_ date: Date, calendar: Calendar = .current) -> Int {
+        let epoch = calendar.startOfDay(for: Date(timeIntervalSince1970: 0))
+        return calendar.dateComponents([.day], from: epoch,
+                                       to: calendar.startOfDay(for: date)).day ?? 0
     }
 
     /// App Group suite the app and widget both use. Injected from the `APP_GROUP_ID` build setting
@@ -113,11 +162,45 @@ public struct WidgetSnapshot: Codable, Equatable {
         return snap
     }
 
-    /// Persist this snapshot into the shared suite.
+    /// Persist this snapshot into the shared suite, folding the live bpm into the trace on the way.
+    ///
+    /// The fold happens HERE, not in the callers that build a snapshot, so nothing that publishes has to
+    /// know the retention rule — the twin of the Android store owning it. A snapshot with no bpm leaves
+    /// the stored trace alone rather than truncating it, so a quiet strap does not erase the history the
+    /// widget is drawing.
     public func save() {
-        guard let defaults = UserDefaults(suiteName: WidgetSnapshot.suiteName),
-              let data = try? JSONEncoder().encode(self) else { return }
+        save(previousSeries: WidgetSnapshot.load()?.hrSeries ?? [])
+    }
+
+    /// As `save()`, for a caller that already holds the stored snapshot.
+    ///
+    /// The publish path loads `previous` to decide whether anything changed, and `save()` was then
+    /// decoding the same App Group blob a second time just to reach the trace. Handing the series in
+    /// costs the caller nothing and removes a full JSON decode from every publish.
+    public func save(previousSeries: [HrPoint]) {
+        guard let defaults = UserDefaults(suiteName: WidgetSnapshot.suiteName) else { return }
+        var toStore = self
+        let previous = previousSeries
+        let nowSec = Int64(updated.timeIntervalSince1970)
+        toStore.hrSeries = bpm.map { HrTrace.append(previous, ts: nowSec, bpm: $0, nowSec: nowSec) }
+            ?? HrTrace.prune(previous, nowSec: nowSec)
+        guard let data = try? JSONEncoder().encode(toStore) else { return }
         defaults.set(data, forKey: WidgetSnapshot.storageKey)
+    }
+
+    /// Does the TRACE need a point, even though nothing the header renders has changed?
+    ///
+    /// `renderedContentChanged` compares bpm, not history, so a steady heart — the ordinary case at rest
+    /// — produced no publish and therefore no new trace point. The trace would stop advancing while the
+    /// strap streamed happily, and pruning would eventually empty it. Android does not have this problem
+    /// because its PushGate re-admits an unchanged key once a minute; this is that rule.
+    ///
+    /// Keyed on the BUCKET rather than elapsed seconds, so it asks for a write exactly when
+    /// `HrTrace.append` would actually record one, and never more often.
+    static func traceNeedsPoint(previous: WidgetSnapshot?, bpm: Int?, now: Date) -> Bool {
+        guard let bpm, bpm > 0 else { return false }
+        guard let last = previous?.hrSeries?.last else { return true }
+        return Int64(now.timeIntervalSince1970) / HrTrace.bucketSec > last.ts / HrTrace.bucketSec
     }
 
     /// Whether publishing `next` would change anything the widget actually renders. `updated` is
@@ -139,6 +222,12 @@ public struct WidgetSnapshot: Codable, Equatable {
             || previous.restingHr != next.restingHr
             || previous.effortDisplay != next.effortDisplay
             || previous.effortWhoop != next.effortWhoop
+            // The curve joins the comparison (#2040): a publish that scored a fresh hour and changed
+            // nothing else would otherwise be deduped away, and the widget would sit an hour behind
+            // until some unrelated field moved. The DAY joins it too, so the first publish after
+            // midnight still reaches WidgetKit even when the new day has no scored hour yet.
+            || previous.stressSeries != next.stressSeries
+            || previous.stressDay != next.stressDay
     }
 
     /// A live-only update may reuse score fields only within the same local calendar day. At rollover,

@@ -137,8 +137,42 @@ struct Night {
 /// `SleepModel.build(_:)` and read by the subviews, so full passes over the day rows / sleep sessions
 /// and the Night.intervals reconstruction no longer run on every render.
 struct SleepModel {
-    /// (latest, typical mean, full history) per metric — mirrors SleepView's per-tile series.
-    typealias Metric = (latest: Double?, typical: Double?, series: [Double])
+    /// (latest, latestDay, typical mean, full history) per metric — mirrors SleepView's per-tile series.
+    /// `latestDay` is the yyyy-MM-dd the `latest` value was carried from (nil when there is no latest
+    /// value, or when the latest value IS today's). #1946: a carried prior-day value is stamped with its
+    /// day so it is not passed off as tonight's read.
+    typealias Metric = (latest: Double?, latestDay: String?, typical: Double?, series: [Double])
+
+    /// #1946: the caption for a metric tile whose `latest` value was carried from a prior day.
+    /// Returns nil when the value is NOT carried (today's own, or no value) so the caller falls through
+    /// to the normal "vs typical" caption. When carried, returns "Carried · <date>" so a prior night's
+    /// number is never passed off as tonight's read. Pure + unit-testable. Mirror EXACTLY in Kotlin.
+    static func carriedMetricCaption(latestDay: String?, latest: Double?) -> String? {
+        guard let latestDay, latest != nil else { return nil }
+        return String(localized: "Carried · \(Self.shortDayLabel(latestDay))")
+    }
+
+    /// "12 Jul" for a "yyyy-MM-dd" key — the SAME format `TodayView.carriedCaption` uses for the
+    /// recovery carry stamp, so a carried Rest on Today and a carried metric on Sleep read identically.
+    static func shortDayLabel(_ key: String) -> String {
+        guard let date = dayKeyParser.date(from: key) else { return key }
+        return Self.shortDayFormatter.string(from: date)
+    }
+
+    private static let dayKeyParser: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = TimeZone(identifier: "UTC")
+        return f
+    }()
+
+    private static let shortDayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = AppLanguage.activeLocale
+        f.setLocalizedDateFormatFromTemplate("dMMM")
+        return f
+    }()
 
     let night: Night
     /// Stage intervals for the hypnogram — computed once (Night.intervals is a computed
@@ -365,7 +399,11 @@ extension SleepModel {
         // `BodyVitalSigns.logicalDayKey` rather than `Repository.logicalDayKey`: same 04:00 boundary,
         // but self-contained, so this stays pure and independent of the @MainActor Repository.
         let fresh = Baselines.freshestCarried(points, todayKey: BodyVitalSigns.logicalDayKey(now))
-        return (fresh?.value, mean(series), series)
+        // #1946: track the day the carried value came from so the tile can stamp it. nil when there is
+        // no carried value, or when the carried value IS today's own (no stamp needed for today's read).
+        let todayKey = BodyVitalSigns.logicalDayKey(now)
+        let latestDay = (fresh != nil && fresh!.day != todayKey) ? fresh!.day : nil
+        return (fresh?.value, latestDay, mean(series), series)
     }
 
     /// Sleep performance %: the imported WHOOP figure when the export carried one for that day;
@@ -392,7 +430,7 @@ extension SleepModel {
         let imported = importedSleep
         if let lastDay = days.last?.day, imported[lastDay]?.consistencyPct != nil {
             let series = days.compactMap { imported[$0.day]?.consistencyPct }
-            return (series.last, mean(series), series)
+            return (series.last, nil, mean(series), series)
         }
         let cal = Calendar.current
         func bedMinutes(_ s: CachedSleepSession) -> Double {
@@ -403,7 +441,7 @@ extension SleepModel {
             return m
         }
         let mins = sleeps.map(bedMinutes)
-        guard mins.count >= 3 else { return (nil, nil, []) }
+        guard mins.count >= 3 else { return (nil, nil, nil, []) }
         var scores: [Double] = []
         for i in mins.indices {
             let lo = Swift.max(0, i - 13)
@@ -414,7 +452,7 @@ extension SleepModel {
             let sd = variance.squareRoot()
             scores.append(Swift.max(0, Swift.min(100, 100 * (1 - sd / 120))))
         }
-        return (scores.last, mean(scores), scores)
+        return (scores.last, nil, mean(scores), scores)
     }
 
     /// Hours vs needed % = asleep / need. The imported sleep_need_min wins per day; else the
@@ -459,7 +497,7 @@ extension SleepModel {
             needHours: need / 60.0,
             importedDebtMin: importedDebt
         ).map(\.value)
-        return (series.last, mean(series), series)
+        return (series.last, nil, mean(series), series)
     }
 
     // MARK: Trend points

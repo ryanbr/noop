@@ -130,4 +130,45 @@ final class BackupSyncTests: XCTestCase {
         let out = BackupSync.restorablesNewestFirst([z, a]) { _ in sameMs }
         XCTAssertEqual(out.map(\.name), [a, z])
     }
+
+    // MARK: - Folder identity (#52): "Saving to:" has to say WHICH folder
+
+    func testTrailSlicesAfterTheICloudSyncRoot() {
+        // macOS shape: merely filtering out the tilde component would leave "Mobile Documents › NOOP".
+        XCTAssertEqual(
+            FolderBackup.folderTrail(path: "/Users/x/Library/Mobile Documents/com~apple~CloudDocs/NOOP"),
+            "NOOP")
+        // iOS shape, two components deep.
+        XCTAssertEqual(
+            FolderBackup.folderTrail(
+                path: "/private/var/mobile/Library/Mobile Documents/com~apple~CloudDocs/Backups/NOOP"),
+            "Backups › NOOP")
+        // A per-app ubiquity container is a sync root too.
+        XCTAssertEqual(
+            FolderBackup.folderTrail(path: "/var/mobile/Library/Mobile Documents/iCloud~com~foo~bar/Documents/B"),
+            "Documents › B")
+    }
+
+    func testTrailIsEmptyAtTheSyncRootItself() {
+        // Nothing below the root: `folderLabel` must fall back to naming the place, not emit a dangling "›".
+        XCTAssertEqual(
+            FolderBackup.folderTrail(path: "/private/var/mobile/Library/Mobile Documents/com~apple~CloudDocs"),
+            "")
+    }
+
+    func testTrailKeepsTwoComponentsOutsideICloud() {
+        // The #52 internal fallback and an external cloud folder both stay identifiable.
+        XCTAssertEqual(
+            FolderBackup.folderTrail(path: "/var/mobile/Containers/Data/Application/9F3A-UUID/Documents/Backups"),
+            "Documents › Backups")
+        XCTAssertEqual(
+            FolderBackup.folderTrail(path: "/private/var/mobile/Containers/Shared/AppGroup/U/Dropbox/NoopBackups"),
+            "Dropbox › NoopBackups")
+    }
+
+    func testICloudPathRuleMatchesTheDiagnosticsSignal() {
+        // One definition: the screen and `restoreListHealth`'s dump must never disagree.
+        XCTAssertTrue(FolderBackup.isICloudPath("/Users/x/Library/Mobile Documents/com~apple~CloudDocs/NOOP"))
+        XCTAssertFalse(FolderBackup.isICloudPath("/var/mobile/Containers/Data/Application/U/Documents/Backups"))
+    }
 }

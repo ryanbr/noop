@@ -308,7 +308,7 @@ object Framing {
         // worn frames; see the Swift Whoop5RealtimeTests vector). Other types stay envelope-only until
         // their per-type 5.0 offsets are confirmed on hardware — we don't invent offsets.
         when (name) {
-            "REALTIME_DATA" -> decodeRealtimeWhoop5(frame, parsed)
+            "REALTIME_DATA" -> decodeRealtimeWhoop5(frame, parsed, minOf(frame.size, (check.length ?: 0) + 4))
             "METADATA" -> decodeMetadataWhoop5(frame, parsed)
             "EVENT" -> decodeEventWhoop5(frame, parsed)
             "COMMAND_RESPONSE" -> decodeCommandResponseWhoop5(frame, parsed)
@@ -445,18 +445,25 @@ object Framing {
      * subseconds@14 (u16), heart_rate@16 (u8), rr_count@17, rr@18.. (u16). Mirrors the Swift
      * parseFrameWhoop5 realtime decode and is covered by the same real-frame test vector.
      */
-    private fun decodeRealtimeWhoop5(frame: ByteArray, parsed: MutableMap<String, Any?>) {
+    private fun decodeRealtimeWhoop5(frame: ByteArray, parsed: MutableMap<String, Any?>, payloadEnd: Int) {
         frame.u32(10)?.let { parsed["timestamp"] = it.toInt() }
         frame.u16(14)?.let { parsed["subseconds"] = it }
         frame.u8(16)?.let { parsed["heart_rate"] = it }
         val rrn = frame.u8(17) ?: 0
         parsed["rr_count"] = rrn
         val rrs = ArrayList<Int>()
+        val rawTicks = ArrayList<Int>()
         for (i in 0 until rrn) {
+            if (18 + i * 2 + 2 > payloadEnd) break
             val v = frame.u16(18 + i * 2)
-            if (v != null && v > 0) rrs.add(v)   // drop 0 ms placeholders, matching 4.0 / Swift
+            if (v != null && v > 0) {
+                rawTicks.add(v)
+                rrs.add(Whoop5RR.milliseconds(v))
+            }
         }
         parsed["rr_intervals"] = rrs
+        parsed["rr_raw_ticks"] = rawTicks
+        parsed["rr_source_channel"] = RrSourceChannel.WHOOP5_REALTIME.code
     }
 
     // MARK: - per-type decoders (Whoop 4.0). Ported from PostHooks.swift + the static field specs.

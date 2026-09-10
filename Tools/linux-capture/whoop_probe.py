@@ -16,6 +16,7 @@ import time
 
 from bleak import BleakClient, BleakScanner
 
+from capture_io import configure_utf8_stdio
 import whoop_frame as wf
 
 WHOOP4 = {
@@ -147,4 +148,5 @@ def main():
 
 
 if __name__ == "__main__":
+    configure_utf8_stdio()
     main()

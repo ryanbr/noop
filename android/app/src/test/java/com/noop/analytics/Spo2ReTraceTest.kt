@@ -39,7 +39,32 @@ class Spo2ReTraceTest {
         assertTrue(line, line.contains("v=null"))
     }
 
-    @Test fun sampleCapBoundedAtEight() {
-        assertEquals(8, Spo2ReTrace.MAX_SAMPLES)
+    @Test fun sampleCapBounded() {
+        assertEquals(12, Spo2ReTrace.MAX_SAMPLES)
+    }
+
+    /** The per-layout cap is what stops one dominant layout spending the whole session budget, and it
+     *  only does that if it is strictly smaller than the session cap. */
+    @Test fun perVersionCapIsBoundedAndSmallerThanTheSessionCap() {
+        assertEquals(3, Spo2ReTrace.MAX_PER_VERSION)
+        assertTrue(Spo2ReTrace.MAX_PER_VERSION < Spo2ReTrace.MAX_SAMPLES)
+    }
+
+    /** The session cap has to leave room for more than one layout, or stratifying changes nothing:
+     *  a 5/MG emits v18 alongside v20/v21/v26 and every one of them needs samples. */
+    @Test fun sessionCapCoversSeveralDistinctLayouts() {
+        assertTrue(Spo2ReTrace.MAX_SAMPLES / Spo2ReTrace.MAX_PER_VERSION >= 4)
+    }
+
+    /**
+     * The examine budget is what keeps the search bounded now that a per-version cap can hold dumps back
+     * indefinitely. Without it the loop's only stop condition counts dumps, so a single-layout strap
+     * re-decodes every frame of every chunk for the whole offload to rediscover a version at cap.
+     */
+    @Test
+    fun `the examine budget bounds the search independently of the dump budget`() {
+        assertTrue(Spo2ReTrace.MAX_EXAMINED > Spo2ReTrace.MAX_SAMPLES)
+        // Enough frames to sweep several chunks, so a layout at a few percent of traffic is still found.
+        assertTrue(Spo2ReTrace.MAX_EXAMINED >= 256)
     }
 }

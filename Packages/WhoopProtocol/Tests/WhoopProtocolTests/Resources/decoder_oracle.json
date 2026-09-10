@@ -58,7 +58,7 @@
       "skin_temp_raw": 5, "sleep_state": 2, "spo2_ir": 1, "spo2_red": 1, "status_word": 1,
       "status_word_1": 2, "status_word_2": 2, "step_cadence": 1, "step_motion_counter": 1,
       "temp_aux_1_raw": 2, "temp_aux_2_raw": 2, "unix": 15, "unknown_f32_113": 1,
-      "wake_quality": 2
+      "wake_quality": 2, "rr_raw_ticks": 4, "rr_source_channel": 4
     },
     "derived_fields": ["gravity_mag"],
     "frames": [
@@ -166,7 +166,10 @@
         "unix": 1780916150,
         "heart_rate": 102,
         "rr_count": 2,
-        "rr_intervals": [602, 613],
+        "rr_intervals": [
+          588,
+          599
+        ],
         "skin_temp_raw": 3057,
         "step_motion_counter": 50,
         "motion_wear_quality": 0,
@@ -187,7 +190,12 @@
         "temp_aux_2_raw": 265,
         "unknown_f32_113": -5.2307,
         "gravity_mag": 1.0,
-        "dynamic_acceleration": 0.00916
+        "dynamic_acceleration": 0.00916,
+        "rr_raw_ticks": [
+          602,
+          613
+        ],
+        "rr_source_channel": 5
       }
     },
     {
@@ -200,8 +208,14 @@
         "unix": 1780916152,
         "heart_rate": 101,
         "rr_count": 1,
-        "rr_intervals": [595],
-        "dynamic_acceleration": 0.010708
+        "rr_intervals": [
+          581
+        ],
+        "dynamic_acceleration": 0.010708,
+        "rr_raw_ticks": [
+          595
+        ],
+        "rr_source_channel": 5
       }
     },
     {
@@ -304,7 +318,15 @@
         "unix": 1780916150,
         "heart_rate": 102,
         "rr_count": 2,
-        "rr_intervals": [602, 613]
+        "rr_intervals": [
+          588,
+          599
+        ],
+        "rr_raw_ticks": [
+          602,
+          613
+        ],
+        "rr_source_channel": 5
       }
     },
     {
@@ -375,7 +397,15 @@
         "record_index": 25443699,
         "heart_rate": 102,
         "rr_count": 2,
-        "rr_intervals": [602, 613]
+        "rr_intervals": [
+          588,
+          599
+        ],
+        "rr_raw_ticks": [
+          602,
+          613
+        ],
+        "rr_source_channel": 5
       }
     }
   ],

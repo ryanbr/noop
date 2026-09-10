@@ -56,6 +56,46 @@ class SmartAlarmStore(private val prefs: SharedPreferences) {
             .putStringSet(KEY_WEEKDAYS, v.filter { it in 1..7 }.map { it.toString() }.toSet())
             .apply()
 
+    /**
+     * PER-DAY wake times (#1858): `Calendar.DAY_OF_WEEK` → earliest-wake minutes, for the days that
+     * differ from [targetMinutes].
+     *
+     * A sparse OVERRIDE map, not a full schedule: absent days fall back to [targetMinutes], so an install
+     * that never sets one behaves exactly as before and there is nothing to migrate. Reported as
+     * "04:45 three days a week and 03:30 on two others" — a shape the single-time model could not express
+     * at all, so the honest answer to that user was "the app cannot do this", not "you set it up wrong".
+     *
+     * Keyed on the day the HARD DEADLINE lands on — the morning you are actually woken — matching
+     * [weekdays] and what a person means by "Monday at 04:45". Stored as `day:minutes` strings so the
+     * whole map lives in one SharedPreferences key with no serialiser; entries outside 1..7 or outside a
+     * valid minute-of-day are dropped on read, so a corrupted value can never schedule a bogus time.
+     */
+    var targetOverrides: Map<Int, Int>
+        get() = prefs.getStringSet(KEY_TARGET_OVERRIDES, emptySet())
+            .orEmpty()
+            .mapNotNull { entry ->
+                val parts = entry.split(':')
+                val day = parts.getOrNull(0)?.toIntOrNull()
+                val minutes = parts.getOrNull(1)?.toIntOrNull()
+                if (day != null && minutes != null && day in 1..7 && minutes in 0 until MINUTES_PER_DAY) {
+                    day to minutes
+                } else {
+                    null
+                }
+            }
+            .toMap()
+        set(v) = prefs.edit()
+            .putStringSet(
+                KEY_TARGET_OVERRIDES,
+                v.filter { (d, m) -> d in 1..7 && m in 0 until MINUTES_PER_DAY }
+                    .map { (d, m) -> "$d:$m" }
+                    .toSet(),
+            )
+            .apply()
+
+    /** The earliest-wake minute for [dayOfWeek] — its override, else the single [targetMinutes]. */
+    fun targetFor(dayOfWeek: Int): Int = targetOverrides[dayOfWeek] ?: targetMinutes
+
     /** The wall-clock epoch (ms) of the currently-scheduled HARD deadline, or 0 if none. Persisted so
      *  the boot receiver can re-arm the exact alarm after a restart without recomputing intent. */
     var scheduledDeadlineMs: Long
@@ -73,6 +113,7 @@ class SmartAlarmStore(private val prefs: SharedPreferences) {
         private const val KEY_TARGET = "alarm.targetMinutes"
         private const val KEY_WINDOW = "alarm.windowMinutes"
         private const val KEY_WEEKDAYS = "alarm.weekdays"
+        private const val KEY_TARGET_OVERRIDES = "alarm.targetOverrides"
         private const val KEY_DEADLINE_MS = "alarm.scheduledDeadlineMs"
         private const val KEY_WINDOW_START_MS = "alarm.scheduledWindowStartMs"
 

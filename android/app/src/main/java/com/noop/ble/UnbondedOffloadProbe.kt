@@ -51,6 +51,7 @@ internal fun shouldProbeUnbondedOffload(
     alreadyProbedThisLink: Boolean,
     previouslyRefused: Boolean,
     silentLinksSoFar: Int,
+    inconclusiveLinksSoFar: Int = 0,
 ): Boolean {
     if (!isWhoop5) return false
     if (!optedIn) return false
@@ -62,9 +63,88 @@ internal fun shouldProbeUnbondedOffload(
     // eleven weeks. Only the stable no-hello link can answer this question.
     if (helloWrittenThisLink) return false
     if (alreadyProbedThisLink) return false
-    if (previouslyRefused) return false
-    return unbondedProbeStillWorthAsking(silentLinksSoFar)
+    return !unbondedProbeRetired(previouslyRefused, silentLinksSoFar, inconclusiveLinksSoFar)
 }
+
+/**
+ * Why the unbonded-offload probe did NOT run on this link, or null when it will.
+ *
+ * [beginUnbondedOffloadProbe] returns SILENTLY when [shouldProbeUnbondedOffload] says no, and that
+ * silence is unreadable. A 5/MG log then shows the four puffin notify chars DISCOVERED, one standard-HR
+ * subscribe, and nothing further — which looks identical whether the app declined to ask or the strap
+ * refused. Those have opposite meanings for #1635: one is a setting, the other is the answer.
+ *
+ * Names the reason in the SAME ORDER the gate tests them, so the reason printed is the one that actually
+ * decided rather than the first one that happens to be true. Returns null exactly when the gate returns
+ * true, and the tests pin that agreement exhaustively over every input, so a new condition added to one
+ * cannot outlive the other.
+ *
+ * The consequence clause is appended only for an unbonded 5/MG, because that is the only case where the
+ * puffin chars go unsubscribed: a bonded strap reaches them through the ordinary handshake.
+ */
+internal fun unbondedProbeSkippedLine(
+    isWhoop5: Boolean,
+    optedIn: Boolean,
+    bonded: Boolean,
+    helloWrittenThisLink: Boolean,
+    alreadyProbedThisLink: Boolean,
+    previouslyRefused: Boolean,
+    silentLinksSoFar: Int,
+    inconclusiveLinksSoFar: Int = 0,
+): String? {
+    val why = when {
+        !isWhoop5 -> "not a WHOOP 5/MG"
+        !optedIn -> "the unbonded-offload experiment is off"
+        bonded -> "this strap bonded, so the ordinary post-hello handshake reaches the offload"
+        helloWrittenThisLink ->
+            "a CLIENT_HELLO went out on this link, so a refusal here could not be attributed to the strap"
+        alreadyProbedThisLink -> "already probed on this link"
+        unbondedProbeRetired(previouslyRefused, silentLinksSoFar, inconclusiveLinksSoFar) ->
+            when {
+                previouslyRefused -> "retired for this strap: a refusal is latched"
+                !unbondedProbeStillWorthAsking(silentLinksSoFar) ->
+                    "retired for this strap: the silent-link budget is spent"
+                else -> "retired for this strap: the inconclusive-link budget is spent (our own stack" +
+                    " tore down every probe link, so the question was never asked of the strap)"
+            }
+        else -> return null
+    }
+    val consequence = if (isWhoop5 && !bonded) {
+        " The puffin notify chars stay unsubscribed on this link, so neither the historical offload nor a" +
+            " realtime IMU producer can reach us here."
+    } else {
+        ""
+    }
+    return "unbonded probe skipped — $why.$consequence"
+}
+
+/**
+ * Has the probe stopped asking — for good, on this device?
+ *
+ * True on a latched refusal (the strap's verdict) or once the silent-link budget is spent. Extracted
+ * because TWO decisions depend on it and they were only wired to one: the probe retires itself correctly,
+ * while the handshake skip that exists TO SERVE it kept applying forever.
+ *
+ * What happens to a stranded strap once this is fixed, since "it starts writing helloes again" deserves an
+ * answer rather than a shrug: it resumes the ordinary handshake, a #1635 strap refuses it, and
+ * [BondRefusalGiveUp] latches `helloSuppressed` after its 5-refusal threshold — settling at the designed
+ * "Live HR, not fully paired" end state. Bounded, and strictly better than the state it replaces, which
+ * had no bond, no offload AND no probe.
+ *
+ * That asymmetry strands the strap. With the hello skipped `didBond` can never become true, so the
+ * ordinary offload gate can never open — and once the probe has retired there is nothing left the skip is
+ * buying. A field log shows the end state plainly: the hello skipped on every connect, no probe lines at
+ * all, `didBond=false` and `Backfill: deferred` nine times across sixteen hours. The strap could neither
+ * bond nor sync, in service of a question that had already stopped being asked.
+ */
+internal fun unbondedProbeRetired(
+    previouslyRefused: Boolean,
+    silentLinksSoFar: Int,
+    inconclusiveLinksSoFar: Int = 0,
+): Boolean =
+    previouslyRefused
+        || !unbondedProbeStillWorthAsking(silentLinksSoFar)
+        || !unbondedProbeStillWorthAskingInconclusive(inconclusiveLinksSoFar)
 
 /**
  * How many links may end in SILENCE before the probe retires itself.
@@ -86,12 +166,40 @@ internal fun shouldProbeUnbondedOffload(
  */
 internal const val UNBONDED_PROBE_MAX_SILENT_LINKS = 3
 
+/**
+ * How many CONSECUTIVE LOCAL TEARDOWNS may end a probe before it retires itself.
+ *
+ * #1804: a local teardown (status=22) is inconclusive about the strap — our own stack ended the
+ * link, not the strap — so it does NOT charge the silence budget. But inconclusive cannot mean
+ * unbounded: the probe re-runs on every reconnect, and on the strap this fix was written for
+ * EVERY attempt was a local teardown. Without a cap the probe re-runs indefinitely on precisely
+ * the device the fix was written for, with no path to a conclusion.
+ *
+ * The cap is LARGER than the silence budget because inconclusive is genuinely weaker evidence
+ * than silence: a silent link at least proved the subscriptions were accepted, while a local
+ * teardown proved nothing about the strap at all. If our stack tears the link down every time,
+ * the probe cannot complete regardless of what the strap would have said, and that is worth
+ * recording and stopping on too.
+ *
+ * Like the silence budget, cleared by a genuine answer and by turning the experiment off and on.
+ */
+internal const val UNBONDED_PROBE_MAX_INCONCLUSIVE_LINKS = 6
+
 /** Has the probe any budget left after [silentLinksSoFar] links that ended without an answer — whether
  *  they subscribed and stayed quiet, or were torn down while being asked? */
 internal fun unbondedProbeStillWorthAsking(
     silentLinksSoFar: Int,
     cap: Int = UNBONDED_PROBE_MAX_SILENT_LINKS,
 ): Boolean = silentLinksSoFar < cap
+
+/** Has the probe any inconclusive budget left after [inconclusiveLinksSoFar] links ended in a
+ *  LOCAL teardown (status=22)? #1804: a local teardown is weaker than silence, so it gets its own
+ *  larger cap — but it is still bounded, so a strap whose every link is torn down locally does not
+ *  retry forever. */
+internal fun unbondedProbeStillWorthAskingInconclusive(
+    inconclusiveLinksSoFar: Int,
+    cap: Int = UNBONDED_PROBE_MAX_INCONCLUSIVE_LINKS,
+): Boolean = inconclusiveLinksSoFar < cap
 
 /**
  * The line printed when the probe retires, so the log says why it stopped rather than leaving a reader to
@@ -142,7 +250,13 @@ internal fun unbondedProbeSupersedesHandshake(
     isWhoop5: Boolean,
     appLevelBonded: Boolean,
     userInitiated: Boolean,
-): Boolean = optedIn && isWhoop5 && !appLevelBonded && !userInitiated
+    /**
+     * The probe has stopped asking ([unbondedProbeRetired]) — so skipping the hello now buys nothing and
+     * costs the strap its bond and its offload. Suppressing the handshake is only defensible while
+     * something is using the link it creates.
+     */
+    probeRetired: Boolean,
+): Boolean = optedIn && isWhoop5 && !appLevelBonded && !userInitiated && !probeRetired
 
 /**
  * Said once per superseded connect, because a hello that is absent looks identical to one that failed
@@ -196,6 +310,17 @@ internal const val UNBONDED_PROBE_SILENT_LINKS_KEY_PREFIX = "noop.unbondedOffloa
 internal fun unbondedProbeSilentLinksPrefKey(peripheralId: String?): String? =
     peripheralId?.trim()?.takeIf { it.isNotEmpty() }
         ?.let { UNBONDED_PROBE_SILENT_LINKS_KEY_PREFIX + it.lowercase() }
+
+/** Prefix of every persisted inconclusive budget, cleared alongside the silence budget when the
+ *  experiment is re-armed. #1804: a local teardown charges this instead of the silence budget, and
+ *  it has its own larger cap ([UNBONDED_PROBE_MAX_INCONCLUSIVE_LINKS]). */
+internal const val UNBONDED_PROBE_INCONCLUSIVE_LINKS_KEY_PREFIX = "noop.unbondedOffloadInconclusiveLinks."
+
+/** Persisted key for "how many probe links on this strap ended in a LOCAL teardown (status=22)" —
+ *  the inconclusive budget of [UNBONDED_PROBE_MAX_INCONCLUSIVE_LINKS], per device. */
+internal fun unbondedProbeInconclusiveLinksPrefKey(peripheralId: String?): String? =
+    peripheralId?.trim()?.takeIf { it.isNotEmpty() }
+        ?.let { UNBONDED_PROBE_INCONCLUSIVE_LINKS_KEY_PREFIX + it.lowercase() }
 
 /**
  * What a frame arriving on a puffin notify characteristic proves about an unbonded link.
@@ -287,6 +412,10 @@ internal fun puffinSubscribeRefusedLine(uuid: String, status: String): String =
  *
  * Charged to the silence budget, because "the link will not survive being asked" is a stronger reason to
  * stop asking than a strap that merely stayed quiet.
+ *
+ * #1804: this line is now ONLY for strap-side drops (GATT_CONN_TIMEOUT, supervision timeout). A LOCAL
+ * teardown (status=22) is handled by [unbondedProbeLinkLostLocalTeardownLine] instead, which does NOT
+ * charge the budget — a local teardown is our own stack ending the link, not a strap verdict.
  */
 internal fun unbondedProbeLinkLostLine(
     uptimeMs: Long,
@@ -310,11 +439,71 @@ internal fun unbondedProbeLinkLostLine(
  *
  * It still spends a budget attempt, because an inconclusive link is not a reason to retry forever — that
  * is the hole this exists to close, and leaving stage 2 uncounted would reopen it one stage later.
+ *
+ * #1804: this line is now ONLY for strap-side drops. A LOCAL teardown (status=22) is handled by
+ * [unbondedProbeLinkLostLocalTeardownLine] instead, which does NOT charge the budget.
  */
 internal fun unbondedProbeLinkLostAskingLine(uptimeMs: Long, waitedMs: Long): String =
     "Unbonded offload probe: the link dropped ${uptimeMs}ms into this connect, ${waitedMs}ms after" +
         " GET_CLOCK went out. The subscribes had landed, so the transport was open and the strap was still" +
         " inside its window to answer — this link settles nothing either way (#1635)."
+
+/**
+ * #1804: was the probe's link lost by US or by the strap?
+ *
+ * A local teardown (`GATT_CONN_TERMINATE_LOCAL_HOST`, status 22) is OUR stack ending the link — it is
+ * not a strap verdict, and counting it as one is the defect this exists to close. The field capture
+ * that surfaced this had three probe attempts end at 10776/10761/10787 ms — a 30 ms spread that is a
+ * timer, not a radio event — with `status=22` and `via=unknown` on every one. The probe concluded
+ * the strap refuses the offload unbonded from a link OUR side tore down, and latched it permanently.
+ *
+ * Only a strap-side drop (`GATT_CONN_TIMEOUT`, supervision timeout) or an ATT error is an answer
+ * about the strap. A local teardown is inconclusive: it must not consume a budget attempt and must
+ * not advance the silence counter.
+ *
+ * Pure so the classification is unit-testable without a BLE stack, like every other judgement in
+ * this file. The status constants are kept as raw ints here (matching `WhoopBleClient`'s private
+ * constants) so this file does not depend on `BluetoothGatt` and can run under plain JVM tests.
+ */
+internal fun unbondedProbeLinkLostIsLocalTeardown(
+    status: Int,
+): Boolean {
+    // GATT_CONN_TERMINATE_LOCAL_HOST = 0x16 = 22. Any local teardown, whether we know which path
+    // did it or not, is inconclusive about the strap. `via=unknown` is the case the field capture
+    // surfaced; `via=bondWatchdog` etc. are known local paths and equally not strap verdicts.
+    //
+    // The origin is NOT a parameter here: it does not affect the verdict, and a parameter that
+    // cannot change the answer invites the next reader to believe it can. The origin IS carried by
+    // `unbondedProbeLinkLostLocalTeardownLine`, which is where it is actually used.
+    return status == 22
+}
+
+/**
+ * #1804: the line for a probe link lost to a LOCAL teardown, which is inconclusive about the strap.
+ *
+ * Distinct from [unbondedProbeLinkLostLine] (stage 1, strap-side drop — carries the CLIENT_HELLO
+ * signature) and [unbondedProbeLinkLostAskingLine] (stage 2, strap-side drop — carries no finding).
+ * This one carries no finding EITHER way and does NOT charge the silence budget, because the link
+ * was ended by our own stack, not by the strap. Charging the SILENCE budget would spend it on a
+ * question that was never asked of the strap, which is exactly the false negative that latched the
+ * probe permanently on the reporting install.
+ *
+ * It DOES charge the INCONCLUSIVE budget ([UNBONDED_PROBE_MAX_INCONCLUSIVE_LINKS]), which has its
+ * own larger cap. A local teardown is weaker evidence than silence, but it cannot be unbounded: on
+ * the strap this fix was written for, EVERY attempt was a local teardown, and without a cap the
+ * probe would re-run indefinitely with no path to a conclusion.
+ */
+internal fun unbondedProbeLinkLostLocalTeardownLine(
+    uptimeMs: Long,
+    stage: Int,
+    localTeardownOrigin: String?,
+): String {
+    val stageDesc = if (stage == 1) "while subscribing the puffin notify chars" else "after GET_CLOCK went out"
+    val origin = localTeardownOrigin ?: "unknown"
+    return "Unbonded offload probe: the link was terminated locally ${uptimeMs}ms into this connect" +
+        " $stageDesc (via=$origin). A local teardown is not a strap verdict, so this link is" +
+        " inconclusive and does not consume a silence-budget attempt (#1804, #1635)."
+}
 
 /**
  * How many times the probe may stand aside for the DIS chain before going anyway.

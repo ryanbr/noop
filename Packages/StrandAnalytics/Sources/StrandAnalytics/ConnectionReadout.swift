@@ -302,6 +302,56 @@ public enum ConnectionReadout {
         return line
     }
 
+    /// #1635: what a finished link actually stored, split by PATH.
+    ///
+    /// The epitaph counts frames, which is right for a silent strap and wrong for one talking over only
+    /// part of its surface: an unbonded 5/MG streams heart rate and R-R all night while nothing
+    /// bond-gated lands, and the epitaph reports hundreds of healthy inbound frames.
+    ///
+    /// The split must be by PATH, not by stream. The realtime decoder produces only hr, rr, events and
+    /// battery; gravity, respiratory, skin temperature, SpO2 and steps arrive solely through the
+    /// historical decoder behind the offload. A live-only tally therefore printed "nothing banked live
+    /// for: gravity, resp, …" on EVERY link, bonded or not — a constant dressed as a finding.
+    ///
+    /// The offload is where the bond shows: an unbonded strap defers backfill entirely, so `offload none`
+    /// is the real signal and a healthy sync fills it.
+    ///
+    /// Battery is absent on purpose — it rides the standard 0x2A19 profile and banks with or without the
+    /// bond. `offloadSteps` is optional: a platform that cannot measure a stream omits it rather than
+    /// reporting a zero that reads as a fault. Counts are rows ACCEPTED. Pure, total and clamped.
+    /// Twin of the Kotlin formatter.
+    public static func linkBankedSummary(liveHr: Int, liveRr: Int, offloadChunks: Int,
+                                         offloadHr: Int, offloadRr: Int, offloadGravity: Int,
+                                         offloadResp: Int, offloadSkinTemp: Int, offloadSpo2: Int,
+                                         offloadSteps: Int?) -> String {
+        let live = "live hr=\(max(0, liveHr)) rr=\(max(0, liveRr))"
+        var raw: [(String, Int)] = [
+            ("hr", offloadHr), ("rr", offloadRr), ("gravity", offloadGravity), ("resp", offloadResp),
+            ("skinTemp", offloadSkinTemp), ("spo2", offloadSpo2),
+        ]
+        if let offloadSteps { raw.append(("steps", offloadSteps)) }
+        let offload = raw.map { ($0.0, max(0, $0.1)) }
+        let total = offload.reduce(0) { $0 + $1.1 }
+        // Three states, reported as FACTS rather than verdicts. "No chunks" is not evidence of a fault on
+        // its own: a short or command-only link never reaches backfill, and the reason is already logged
+        // beside it. The epitaph supplies the uptime a reader needs to weigh it.
+        //
+        // "Never ran" and "ran with nothing new" are still DIFFERENT. Rows are counted as ACCEPTED, so
+        // a reconnect re-offloading already-stored records banks zero while the strap plainly handed its
+        // history over. Only the first case speaks to the bond.
+        if (max(0, offloadChunks)) == 0 {
+            return "banked this link: \(live) | offload none"
+        }
+        if total == 0 {
+            return "banked this link: \(live) | offload ran \(max(0, offloadChunks)) chunk(s), no new rows"
+        }
+        let body = offload.map { "\($0.0)=\($0.1)" }.joined(separator: " ")
+        let empty = offload.filter { $0.1 == 0 }.map { $0.0 }
+        if empty.isEmpty { return "banked this link: \(live) | offload \(body)" }
+        return "banked this link: \(live) | offload \(body)"
+            + " - nothing banked from the offload for: \(empty.joined(separator: ", "))"
+    }
+
     /// #987: freshness label for the "last frame" readout row: how long ago the most recent strap frame
     /// was routed ("12s ago"), or "no frames yet" before the first one. `nowUnix` injected for testability.
     public static func lastFrameLabel(lastFrameUnix: Int?, nowUnix: Int) -> String {

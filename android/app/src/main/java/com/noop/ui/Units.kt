@@ -8,19 +8,20 @@ import kotlin.math.roundToInt
 //
 // NOOP stores EVERYTHING in SI (km, kg, cm, °C) — the importers normalise on the way in, so this is a
 // purely cosmetic, display-only layer. There is no data migration and nothing in Room changes when the
-// user flips this. One Metric/Imperial switch for length+mass with a SEPARATE temperature override,
-// because plenty of people think in kg/cm but still read body temperature in °F (and vice versa).
+// user flips this. Body measurements and exercise distance each have their own Metric/Imperial choice,
+// with a SEPARATE temperature override, because regional conventions commonly mix pounds with kilometres
+// (or kg/cm with °F).
 // Default is Metric — most of the world, and it matches what we store.
 //
 // Persisted via NoopPrefs (SharedPreferences), the same mechanism every other Android preference uses.
 // This mirrors the macOS Units.swift + @AppStorage side exactly.
 
-/** Length+mass unit system. Temperature has its own override (see [UnitPrefs.temperature]). */
+/** A Metric/Imperial display choice. Body measurements and exercise distance persist separate values. */
 enum class UnitSystem(val raw: String) {
     METRIC("metric"),
     IMPERIAL("imperial");
 
-    /** Pairs temperature with the length/mass choice when no explicit override is set. */
+    /** Pairs temperature with the body-measurement choice when no explicit override is set. */
     val temperatureMatching: TemperatureUnit
         get() = if (this == IMPERIAL) TemperatureUnit.FAHRENHEIT else TemperatureUnit.CELSIUS
 
@@ -148,14 +149,23 @@ enum class SleepChartStyle(val raw: String) {
 enum class SleepStagePalette { NOOP, OURA, GARMIN }
 
 /**
- * Reads the two unit preferences from [NoopPrefs] and resolves the "match the system" default for
- * temperature. SharedPreferences isn't reactive, so Compose screens read these once into remembered
- * state (exactly like the other toggles) and re-read on a recomposition triggered by the Settings write.
+ * Reads the display preferences and resolves backwards-compatible fallbacks. SharedPreferences isn't
+ * reactive, so Compose screens read these once into remembered state (exactly like other toggles).
  */
 object UnitPrefs {
-    /** The length/mass system (default Metric). */
+    /** Body measurement system (default Metric); retains the original combined preference key. */
     fun system(context: Context): UnitSystem =
         UnitSystem.fromRaw(NoopPrefs.of(context).getString(NoopPrefs.KEY_UNIT_SYSTEM, null))
+
+    /** Exercise distance + pace. Unset/unknown follows the original combined preference. */
+    fun distanceSystem(context: Context): UnitSystem = resolveDistance(
+        system(context),
+        NoopPrefs.of(context).getString(NoopPrefs.KEY_DISTANCE_UNIT_SYSTEM, null),
+    )
+
+    /** Pure resolver shared with tests and Apple: an explicit valid value wins, otherwise legacy wins. */
+    fun resolveDistance(system: UnitSystem, override: String?): UnitSystem =
+        UnitSystem.entries.firstOrNull { it.raw == override } ?: system
 
     /**
      * Which skin-temp number the cards LEAD with (#1846). Absolute by default — a temperature is what a
@@ -168,7 +178,7 @@ object UnitPrefs {
             NoopPrefs.of(context).getString(NoopPrefs.KEY_SKIN_TEMP_DISPLAY, null),
         ) ?: com.noop.analytics.SkinTempDisplay.Kind.ABSOLUTE
 
-    /** The resolved temperature unit, applying the "match the length/mass system" default. */
+    /** The resolved temperature unit, following body measurements by default. */
     fun temperature(context: Context): TemperatureUnit {
         val override = TemperatureUnit.fromRaw(
             NoopPrefs.of(context).getString(NoopPrefs.KEY_TEMPERATURE_UNIT, null),
@@ -299,6 +309,15 @@ object UnitFormatter {
 
     /** Unit label only, for sites that format the number separately. "km" / "mi". */
     fun distanceUnit(system: UnitSystem): String = if (system == UnitSystem.IMPERIAL) "mi" else "km"
+
+    /** Format speed stored in kilometres/hour in the exercise-distance system. */
+    fun speedFromKilometersPerHour(kmh: Double?, system: UnitSystem): String? {
+        if (kmh == null || !kmh.isFinite() || kmh < 0) return null
+        return when (system) {
+            UnitSystem.METRIC -> oneDecimal(kmh) + " km/h"
+            UnitSystem.IMPERIAL -> oneDecimal(kmToMiles(kmh)) + " mph"
+        }
+    }
 
     // MARK: Mass (stored kg)
 

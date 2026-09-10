@@ -91,7 +91,8 @@ object RecoveryDrivers {
      * @param resp tonight's respiration (rpm); null drops the resp row.
      * @param hrvBaseline HRV baseline (required; an unusable one yields an empty list, matching the
      *   recovery cold-start gate).
-     * @param rhrBaseline resting-HR baseline; null drops the RHR row.
+     * @param rhrBaseline resting-HR baseline; null drops the RHR row, and an UNUSABLE one (#1988) is
+     *   treated as null, so a synthetic cold-start midpoint never scores a row.
      * @param respBaseline respiration baseline; null drops the resp row.
      * @param sleepPerf rest-quality proxy in 0..1 (Rest composite / 100, or efficiency); null drops the
      *   Sleep row.
@@ -110,9 +111,15 @@ object RecoveryDrivers {
     ): List<ChargeDriver> {
         // No score => no real contributions to attribute (cold-start). recovery(...) enforces the usable
         // gate; mirror it so a nil headline never yields fabricated driver rows.
+        // #1988: the ROW is built from this baseline directly (its z, its mean, its verdict), not only
+        // through recovery(...), so gating the scorer alone would emit an RHR row scored against the
+        // synthetic midpoint while the headline excluded it. Normalised once here so every use below,
+        // score and row alike, sees the same thing. Named rather than shadowing the parameter, which
+        // would warn.
+        val rhrB = rhrBaseline?.takeIf { it.usable }
         val full = RecoveryScorer.recovery(
             hrv = hrv, rhr = rhr, resp = resp,
-            hrvBaseline = hrvBaseline, rhrBaseline = rhrBaseline,
+            hrvBaseline = hrvBaseline, rhrBaseline = rhrB,
             respBaseline = respBaseline, sleepPerf = sleepPerf, skinTempDev = skinTempDev,
         ) ?: return emptyList()
 
@@ -133,7 +140,7 @@ object RecoveryDrivers {
         // the full, unguarded HRV penalty. The verdict merely NAMES the detected pattern so the UI can
         // surface it while real firings accumulate. See the header in RecoveryScorer.kt.
         val hrvZFull = RecoveryScorer.zScore(hrv, hrvBaseline.baseline, hrvBaseline.spread)
-        val rhrZFull: Double? = rhrBaseline?.let { RecoveryScorer.zScore(it.baseline, rhr, it.spread) }
+        val rhrZFull: Double? = rhrB?.let { RecoveryScorer.zScore(it.baseline, rhr, it.spread) }
         val hrvSaturationDetected =
             RecoveryScorer.parasympatheticSaturation(hrvZ = hrvZFull, rhrZ = rhrZFull).active
 
@@ -149,7 +156,7 @@ object RecoveryDrivers {
                 deltaPoints = points(
                     RecoveryScorer.recovery(
                         hrv = hrvBaseline.baseline, rhr = rhr, resp = resp,
-                        hrvBaseline = hrvBaseline, rhrBaseline = rhrBaseline,
+                        hrvBaseline = hrvBaseline, rhrBaseline = rhrB,
                         respBaseline = respBaseline, sleepPerf = sleepPerf, skinTempDev = skinTempDev,
                     ),
                 ),
@@ -164,21 +171,21 @@ object RecoveryDrivers {
             ),
         )
         // Resting HR (lower vs baseline supports recovery). Neutral = resting HR at the baseline mean.
-        if (rhrBaseline != null) {
+        if (rhrB != null) {
             drivers.add(
                 ChargeDriver(
                     label = ChargeDriverLabel.RESTING_HEART_RATE,
                     deltaPoints = points(
                         RecoveryScorer.recovery(
-                            hrv = hrv, rhr = rhrBaseline.baseline, resp = resp,
-                            hrvBaseline = hrvBaseline, rhrBaseline = rhrBaseline,
+                            hrv = hrv, rhr = rhrB.baseline, resp = resp,
+                            hrvBaseline = hrvBaseline, rhrBaseline = rhrB,
                             respBaseline = respBaseline, sleepPerf = sleepPerf, skinTempDev = skinTempDev,
                         ),
                     ),
                     value = rhr,
-                    baseline = rhrBaseline.baseline,
+                    baseline = rhrB.baseline,
                     unit = ChargeDriverUnit.BEATS_PER_MINUTE,
-                    verdict = rhrVerdict(value = rhr, baseline = rhrBaseline.baseline),
+                    verdict = rhrVerdict(value = rhr, baseline = rhrB.baseline),
                 ),
             )
         }
@@ -190,7 +197,7 @@ object RecoveryDrivers {
                     deltaPoints = points(
                         RecoveryScorer.recovery(
                             hrv = hrv, rhr = rhr, resp = resp,
-                            hrvBaseline = hrvBaseline, rhrBaseline = rhrBaseline,
+                            hrvBaseline = hrvBaseline, rhrBaseline = rhrB,
                             respBaseline = respBaseline, sleepPerf = RecoveryScorer.sleepPerfCenter,
                             skinTempDev = skinTempDev,
                         ),
@@ -210,7 +217,7 @@ object RecoveryDrivers {
                     deltaPoints = points(
                         RecoveryScorer.recovery(
                             hrv = hrv, rhr = rhr, resp = respBaseline.baseline,
-                            hrvBaseline = hrvBaseline, rhrBaseline = rhrBaseline,
+                            hrvBaseline = hrvBaseline, rhrBaseline = rhrB,
                             respBaseline = respBaseline, sleepPerf = sleepPerf, skinTempDev = skinTempDev,
                         ),
                     ),
@@ -230,7 +237,7 @@ object RecoveryDrivers {
                     deltaPoints = points(
                         RecoveryScorer.recovery(
                             hrv = hrv, rhr = rhr, resp = resp,
-                            hrvBaseline = hrvBaseline, rhrBaseline = rhrBaseline,
+                            hrvBaseline = hrvBaseline, rhrBaseline = rhrB,
                             respBaseline = respBaseline, sleepPerf = sleepPerf, skinTempDev = 0.0,
                         ),
                     ),

@@ -33,10 +33,10 @@ enum class StandardHrContact(val storageValue: String) {
 data class HrSample(val ts: Int, val bpm: Int)
 
 /**
- * WHICH sensor channel produced an R-R interval (#1071).
+ * The sensor channel or transport that produced an R-R interval.
  *
- * A WHOOP strap has ONE beat source, so its rows carry no channel (null) and nothing here changes for
- * them. An Oura ring has more than one: the green-quality tag (0x80) and the SpO2 tag (0x6E) both
+ * WHOOP 5 exposes one beat train over several labelled transports. WHOOP 4 and legacy rows keep null.
+ * An Oura ring has more than one optical channel: the green-quality tag (0x80) and the SpO2 tag (0x6E) both
  * decode to R-R and both were stored, so the table held roughly TWO complete copies of every night —
  * not duplicate rows to de-duplicate, but the SAME heartbeats measured twice. Labelling the channel is
  * what lets scoring read one copy while both stay on disk as each other's cross-check.
@@ -72,7 +72,15 @@ enum class RrSourceChannel(val code: Int) {
      * Labelling only — both are read exactly as before.
      */
     IBI_BARE(4),
+    /** WHOOP 5 v18 history, converted from wire ticks to milliseconds. */
+    WHOOP5_HISTORICAL(5),
+    /** WHOOP 5 type-40 live transport, converted from wire ticks to milliseconds. */
+    WHOOP5_REALTIME(6),
+    /** WHOOP 5 standard BLE 0x2A37, already converted to milliseconds. */
+    WHOOP5_STANDARD(7),
     ;
+
+    val isWhoop5Transport: Boolean get() = code in 5..7
 
     companion object {
         /** The channel with this durable storage [code], or null for an unknown/absent one. */
@@ -320,7 +328,8 @@ fun extractStreams(parsed: List<ParsedFrame>, deviceClockRef: Int, wallClockRef:
                     p.intOrNull("heart_rate")?.let { bpm -> out.hr.add(HrSample(ts, bpm)) }
                     // Drop RR rows when timestamp is absent (a ts-less RR row is unstorable).
                     p.intArrayOrNull("rr_intervals")?.let { rrs ->
-                        for (rr in rrs) out.rr.add(RrInterval(ts, rr))
+                        val source = RrSourceChannel.fromCode(p.intOrNull("rr_source_channel"))
+                        for (rr in rrs) out.rr.add(RrInterval(ts, rr, source))
                     }
                 }
             }

@@ -1,4 +1,5 @@
 import XCTest
+import StrandAnalytics
 @testable import Strand
 
 /// Pins the "HR tracked but no sleep" diagnostic (#1244). When a day clears the >=200-HR gate yet the
@@ -18,20 +19,20 @@ final class IntelligenceSleepDetectNoNightTests: XCTestCase {
         // gate the night → nothing stages. `window=54h` is the past-day span (30 h back → next midnight).
         let line = IE.sleepDetectNoNightLogLine(
             day: "2026-08-11", hrCount: 41230, rrCount: 0, respCount: 880,
-            gravCount: 0, stepCount: 12, providedCount: 0, windowHours: 54)
+            gravCount: 0, stepCount: 12, providedCount: 0, windowHours: 54, skinCount: 0)
         XCTAssertEqual(line,
             "sleep-detect day=2026-08-11 NO-NIGHT hr=41230 rr=0 resp=880 "
             // reason=no-motion is the point of this fixture: grav=0 means the stager has no HR-only
             // fallback, so no quantity of HR could have staged a night. That is a strap capability limit,
             // and it wants a different follow-up from a night that had motion and still staged nothing.
-            + "grav=0 steps=12 provided=0 window=54h reason=no-motion")
+            + "grav=0 skin=0 steps=12 provided=0 window=54h reason=no-motion")
     }
 
     func testTodayWindowIs48h() {
         // Today's read caps at dayStart+18h (vs a past day's next-midnight), so the whole span is 48 h.
         let line = IE.sleepDetectNoNightLogLine(
             day: "2026-08-12", hrCount: 5000, rrCount: 900, respCount: 300,
-            gravCount: 4, stepCount: 0, providedCount: 0, windowHours: 48)
+            gravCount: 4, stepCount: 0, providedCount: 0, windowHours: 48, skinCount: 0)
         XCTAssertTrue(line.contains("window=48h"), line)
         // The other branch: motion WAS present and staging still produced nothing, which is the case
         // worth investigating rather than a capability limit.
@@ -42,7 +43,65 @@ final class IntelligenceSleepDetectNoNightTests: XCTestCase {
         // House style: never an em-dash in shared text.
         let line = IE.sleepDetectNoNightLogLine(
             day: "2026-08-11", hrCount: 1, rrCount: 1, respCount: 1,
-            gravCount: 1, stepCount: 1, providedCount: 1, windowHours: 54)
+            gravCount: 1, stepCount: 1, providedCount: 1, windowHours: 54, skinCount: 1)
         XCTAssertFalse(line.contains("—"))
     }
+
+    /// The signal this line was missing. Gravity is a PLAIN read with no truncation counter, so a night
+    /// clipped of its newest motion staged badly and said nothing about why — and `grav=192698` reads as
+    /// healthy until you know it is 96% of a cap. A read that comes back AT the limit is truncated, which
+    /// is what `full.count >= limit` means everywhere else here.
+    func testAStreamAtItsReadCapIsNamed() {
+        let line = IntelligenceEngine.sleepDetectNoNightLogLine(
+            day: "2026-09-06", hrCount: 1000, rrCount: 1000, respCount: 0,
+            gravCount: StreamReadCap.gravity, stepCount: 0, providedCount: 0, windowHours: 54, skinCount: 0)
+        XCTAssertTrue(line.contains("atCap=grav"), line)
+    }
+
+    /// HR and R-R at their caps produce NO marker, and that is deliberate rather than an oversight.
+    ///
+    /// Both arrive through `SlidingStreamWindow.rows`, which returns a SLICE of a read spanning more than
+    /// this night, so a truncated spliced window still hands back a count under the cap — the marker would
+    /// miss the very case it claims to catch. Their exact truncation count is printed once per pass by
+    /// `WindowedStreamPlan.logLine` instead. Pinned so the omission is not "fixed" back in.
+    func testHrAndRrAtTheirCapsCarryNoMarker() {
+        let line = IntelligenceEngine.sleepDetectNoNightLogLine(
+            day: "2026-09-06", hrCount: StreamReadCap.hr, rrCount: StreamReadCap.rr, respCount: 0,
+            gravCount: 10, stepCount: 0, providedCount: 0, windowHours: 54, skinCount: 0)
+        XCTAssertFalse(line.contains("atCap"), line)
+    }
+
+    /// A healthy night says nothing extra — the marker only appears when something actually clipped.
+    func testANightUnderTheCapsCarriesNoMarker() {
+        let line = IntelligenceEngine.sleepDetectNoNightLogLine(
+            day: "2026-09-06", hrCount: 192_698, rrCount: 136_285, respCount: 0,
+            gravCount: 192_698, stepCount: 0, providedCount: 0, windowHours: 54, skinCount: 0)
+        XCTAssertFalse(line.contains("atCap"), line)
+    }
+
+    /// The field capture that motivated the caps: 192,698 gravity rows was 96% of the OLD 200,000 limit
+    /// and silent. Under the caps this ships with, the same night is comfortably clear.
+    func testTheMeasuredFieldNightIsClearOfTheCaps() {
+        XCTAssertLessThan(192_698, StreamReadCap.gravity)
+    }
+
+    /// The count that could not be measured. Skin temp only appears in a Test Centre "Night" line, which
+    /// fires when a session EXISTS — so on the nights being triaged, the ones with no sleep at all, its
+    /// volume was invisible.
+    func testTheLineReportsTheSkinSampleCount() {
+        let line = IntelligenceEngine.sleepDetectNoNightLogLine(
+            day: "2026-09-06", hrCount: 1000, rrCount: 900, respCount: 0, gravCount: 0,
+            stepCount: 0, providedCount: 0, windowHours: 54, skinCount: 4242)
+        XCTAssertTrue(line.contains("skin=4242"), line)
+    }
+
+    /// Skin is the stream whose density was never measured, and it was the one `atCap` did not cover
+    /// when the marker was first written — so a clipped skin read printed a bare count and no warning.
+    func testSkinAtItsReadCapIsNamed() {
+        let line = IntelligenceEngine.sleepDetectNoNightLogLine(
+            day: "2026-09-06", hrCount: 10, rrCount: 10, respCount: 0, gravCount: 10,
+            stepCount: 0, providedCount: 0, windowHours: 54, skinCount: StreamReadCap.skin)
+        XCTAssertTrue(line.contains("atCap=skin"), line)
+    }
+
 }

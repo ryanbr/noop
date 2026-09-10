@@ -588,7 +588,9 @@ final class SourceCoordinator: ObservableObject {
     }
 
     /// A device is WHOOP when its brand is "WHOOP" (the seeded `my-whoop` row's brand).
-    static func isWhoop(_ device: PairedDevice) -> Bool {
-        device.id == "my-whoop" || device.brand.caseInsensitiveCompare("WHOOP") == .orderedSame
-    }
+    ///
+    /// #1881 gave the BLE engine the same question to answer, so the rule now lives in ONE place
+    /// (`SourceIdentity`, beside `PairedDevice`) and this delegates. Two spellings of "is this a WHOOP"
+    /// that could disagree is precisely how a strap's samples end up filed under a ring.
+    static func isWhoop(_ device: PairedDevice) -> Bool { SourceIdentity.isWhoop(device) }
 }

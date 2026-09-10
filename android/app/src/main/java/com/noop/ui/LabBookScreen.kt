@@ -228,7 +228,7 @@ fun LabBookScreen(vm: AppViewModel) {
                 }
                 Text(
                     uiString(R.string.l10n_lab_book_screen_bring_in_a_markers_csv_date_1090bec2) +
-                        "fold onto your existing markers; anything else comes in as a custom marker. " +
+                        " fold onto your existing markers; anything else comes in as a custom marker. " +
                         "Rows that can't be read are skipped and counted, never guessed. Everything " +
                         "you import stays on this phone.",
                     style = NoopType.subhead,
@@ -261,7 +261,7 @@ fun LabBookScreen(vm: AppViewModel) {
                         Text(uiString(R.string.l10n_lab_book_screen_keep_your_own_numbers_here_1ca6c8ed), style = NoopType.headline, color = Palette.textPrimary)
                         Text(
                             uiString(R.string.l10n_lab_book_screen_type_in_a_blood_pressure_reading_c276d418) +
-                                "It stays on this phone, and over time you'll see how it lines up with your sleep, " +
+                                " It stays on this phone, and over time you'll see how it lines up with your sleep, " +
                                 "heart rate and recovery.",
                             style = NoopType.subhead,
                             color = Palette.textSecondary,
@@ -289,7 +289,7 @@ fun LabBookScreen(vm: AppViewModel) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
                 uiString(R.string.l10n_lab_book_screen_lab_book_is_a_private_notebook_d07380ca) +
-                    "you enter. It doesn't test, read, diagnose, or advise. Your records never leave this phone; " +
+                    " you enter. It doesn't test, read, diagnose, or advise. Your records never leave this phone; " +
                     "there's no account or cloud, so it isn't \"HIPAA-covered.\" Always rely on your doctor or " +
                     "pharmacist to interpret results.",
                 style = NoopType.footnote,
@@ -493,7 +493,7 @@ private fun CorrelationResult(
     when {
         signal == null -> Text(
             uiString(R.string.l10n_lab_book_screen_pick_a_wearable_signal_resting_hr_8d8b01a2) +
-                "marker. NOOP averages the signal over the ${window.phrase} before each reading.",
+                " marker. NOOP averages the signal over the ${window.phrase} before each reading.",
             style = NoopType.subhead,
             color = Palette.textTertiary,
         )

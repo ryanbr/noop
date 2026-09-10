@@ -343,4 +343,41 @@ final class BackfillerSessionTallyTests: XCTestCase {
         XCTAssertFalse(line.contains("should start banking again"), line)
         XCTAssertFalse(line.contains("\u{2014}"))
     }
+
+    // ---- #1754: two distinct empty-offload banners ------------------------------------------
+
+    /// The no-flash-cursor banner (trim=0xFFFFFFFF) names the clock/charge cause — the existing copy,
+    /// now a named constant so the caller's branch reads as a choice between two states.
+    func testNoFlashCursorBannerNamesClockAndCharge() {
+        let line = Backfiller.noFlashCursorBanner
+        XCTAssertTrue(line.contains("no stored history to hand over"), line)
+        XCTAssertTrue(line.contains("clock has lost sync"), line)
+        XCTAssertTrue(line.contains("Fully charge it to 100%"), line)
+        XCTAssertFalse(line.contains("sensor front-end"), line)
+    }
+
+    /// The no-sensor-records banner (valid trim, advancing write pointer, zero rows) does NOT name
+    /// the clock — it points at the sensor front-end or power state, and asks for a strap log rather
+    /// than promising that charging will fix it.
+    func testNoSensorRecordsBannerDoesNotBlameTheClock() {
+        let line = Backfiller.noSensorRecordsBanner
+        XCTAssertTrue(line.contains("no sensor records"), line)
+        XCTAssertTrue(line.contains("flash cursor is valid and advancing"), line)
+        XCTAssertTrue(line.contains("not a clock problem"), line)
+        XCTAssertTrue(line.contains("sensor front-end or power"), line)
+        XCTAssertFalse(line.contains("clock has lost sync"), line)
+        XCTAssertFalse(line.contains("Fully charge it to 100%"), line)
+    }
+
+    /// The two banners must be distinct strings — a caller choosing between them must not get the
+    /// same copy for both states.
+    func testTheTwoBannersAreDistinct() {
+        XCTAssertNotEqual(Backfiller.noFlashCursorBanner, Backfiller.noSensorRecordsBanner)
+    }
+
+    /// No em-dash in either banner (project rule).
+    func testNoEmDashInEitherBanner() {
+        XCTAssertFalse(Backfiller.noFlashCursorBanner.contains("\u{2014}"))
+        XCTAssertFalse(Backfiller.noSensorRecordsBanner.contains("\u{2014}"))
+    }
 }

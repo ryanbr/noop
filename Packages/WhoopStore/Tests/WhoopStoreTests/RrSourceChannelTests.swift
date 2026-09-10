@@ -54,7 +54,7 @@ final class RrSourceChannelTests: XCTestCase {
     /// The two enums are pinned to the same raw values on purpose: they are one durable storage code
     /// split across two packages only because `OuraProtocol` does not depend on `WhoopProtocol`.
     func testTheTwoChannelEnumsAgreeCaseForCaseAndCodeForCode() {
-        XCTAssertEqual(OuraIBIChannel.allCases.count, RRSourceChannel.allCases.count)
+        XCTAssertEqual(OuraIBIChannel.allCases.count, RRSourceChannel.allCases.filter { !$0.isWhoop5Transport }.count)
         for c in OuraIBIChannel.allCases {
             let mapped = OuraStreamMapping.rrChannel(c)
             XCTAssertEqual(mapped?.rawValue, c.rawValue,

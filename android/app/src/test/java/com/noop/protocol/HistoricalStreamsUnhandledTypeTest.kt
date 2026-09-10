@@ -65,6 +65,46 @@ class HistoricalStreamsUnhandledTypeTest {
         assertTrue("it still yields no rows — this is a census, not a decoder", b.isEmpty)
     }
 
+    /**
+     * #891: the census names a type; the SAMPLE carries the bytes that earned the name. Without it the
+     * strap log asks a reporter to open an issue about a record that exists nowhere else - the else
+     * branch drops the frame and the reject archive only ever holds type-47.
+     */
+    @Test
+    fun unmappedTypeCarriesItsBytes() {
+        val t = PacketType.HISTORICAL_IMU_DATA_STREAM.rawValue
+        val f = frameOfType(t)
+        val b = extract(listOf(f))
+        val expected = f.joinToString("") { "%02x".format(it) }
+        assertEquals(expected, b.unhandledPacketSamples["HISTORICAL_IMU_DATA_STREAM"])
+    }
+
+    /**
+     * The sample is the FIRST frame of that type and only that one. A 30k-record offload of one unmapped
+     * type must cost exactly one dump, which is the same reason the census logs on first sighting.
+     */
+    @Test
+    fun onlyTheFirstFrameOfATypeIsSampled() {
+        val t = PacketType.HISTORICAL_IMU_DATA_STREAM.rawValue
+        val first = frameOfType(t)
+        val b = extract(listOf(first, frameOfType(t), frameOfType(t)))
+        assertEquals(3, b.unhandledPacketTypes["HISTORICAL_IMU_DATA_STREAM"])
+        assertEquals(1, b.unhandledPacketSamples.size)
+        assertEquals(first.joinToString("") { "%02x".format(it) },
+            b.unhandledPacketSamples["HISTORICAL_IMU_DATA_STREAM"])
+    }
+
+    /**
+     * The excluded-by-design types must not be sampled either. Counting them was already rejected as
+     * crying wolf; dumping their bytes into every healthy sync would be strictly worse.
+     */
+    @Test
+    fun expectedUnhandledTypesAreNotSampled() {
+        val b = extract(listOf(frameOfType(PacketType.CONSOLE_LOGS.rawValue),
+                               frameOfType(PacketType.METADATA.rawValue)))
+        assertTrue(b.unhandledPacketSamples.toString(), b.unhandledPacketSamples.isEmpty())
+    }
+
     /** Distinct unhandled types are tallied separately, so a report can name each. */
     @Test
     fun distinctTypesAreTalliedSeparately() {

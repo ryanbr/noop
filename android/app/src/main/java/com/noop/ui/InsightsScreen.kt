@@ -757,7 +757,7 @@ private fun BehaviourSection(
             NoopCard {
                 Text(
                     uiString(R.string.l10n_insights_screen_not_enough_overlap_between_your_journal_0ebdd7a2) +
-                        "${outcome.outcomeName.lowercase(Locale.US)} to measure an effect yet. " +
+                        " ${outcome.outcomeName.lowercase(Locale.US)} to measure an effect yet. " +
                         "Keep logging. Effects need days both with and without each behaviour.",
                     style = NoopType.subhead,
                     color = Palette.textTertiary,
@@ -987,7 +987,7 @@ private fun ExperimentSetupCard(
                 Spacer(Modifier.height(4.dp))
                 Text(
                     uiString(R.string.l10n_insights_screen_pick_one_behaviour_you_log_one_bd34090e) +
-                        "compares the days you log the behaviour against your behaviour-free " +
+                        " compares the days you log the behaviour against your behaviour-free " +
                         "days before the start.",
                     style = NoopType.subhead,
                     color = Palette.textSecondary,

@@ -56,6 +56,16 @@ final class ProfileStore: ObservableObject {
     @Published var stepsCalibrationManual: Bool { didSet { d.set(stepsCalibrationManual, forKey: K.stepsManualFlag) } }
     /// User-set manual coefficient. 0 = auto-fit (nil to the engine); > 0 = manual override.
     @Published var stepsManualCoefficient: Double { didSet { d.set(max(0, stepsManualCoefficient), forKey: K.stepsManualCoeff) } }
+    /// #1816: true when the strap has banked ANY motion (gravity samples → `dayMotionIntensity > 0`)
+    /// in the calibration scan window. Written by `IntelligenceEngine` on every analytics pass so it
+    /// tracks a fresh strap's first sync without a separate query. The Today tile reads this to decide
+    /// whether "Need N more days where your phone also counted steps" is the honest caption or a lie:
+    /// a step estimate is `motion * coefficient`, so with the motion half missing neither the estimate
+    /// nor the fit moves however many phone-counted days the user collects. The caption that names only
+    /// the phone half is actively misleading — it sent a field reporter to enter Apple Health steps by
+    /// hand expecting calibration to start, which it cannot without strap motion. Twin of Android's
+    /// `ProfileStore.stepsHasBankedMotion`.
+    @Published var stepsHasBankedMotion: Bool { didSet { d.set(stepsHasBankedMotion, forKey: K.stepsHasMotion) } }
 
     // ── Profile picture (optional, on-device only) ──────────────────────────────────────────────
     /// The user's chosen profile photo as JPEG bytes, or nil for the default SF-Symbol fallback.
@@ -85,6 +95,7 @@ final class ProfileStore: ObservableObject {
         static let stepsConfidence = "profile.stepsCalibrationConfidence"
         static let stepsManualFlag = "profile.stepsCalibrationManual"
         static let stepsManualCoeff = "profile.stepsManualCoefficient"
+        static let stepsHasMotion = "profile.stepsHasBankedMotion"
         static let avatar = "profile.avatarImageData"
     }
 
@@ -124,6 +135,7 @@ final class ProfileStore: ObservableObject {
         stepsCalibrationConfidence = d.object(forKey: K.stepsConfidence) as? Double ?? 0
         stepsCalibrationManual = d.object(forKey: K.stepsManualFlag) as? Bool ?? false
         stepsManualCoefficient = max(0, d.object(forKey: K.stepsManualCoeff) as? Double ?? 0)
+        stepsHasBankedMotion = d.object(forKey: K.stepsHasMotion) as? Bool ?? false
         avatarImageData = d.data(forKey: K.avatar)
     }
 

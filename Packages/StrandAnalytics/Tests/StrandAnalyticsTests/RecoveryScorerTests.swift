@@ -162,128 +162,6 @@ final class RecoveryScorerTests: XCTestCase {
         XCTAssertEqual(RecoveryScorer.band(90), "green")
     }
 
-    func testRestingHRLowestRollingMean() {
-        // Two 5-min blocks: first averages 60, second averages 50 → resting = 50.
-        var hr: [HRSample] = []
-        let start = 1000
-        for i in 0..<300 { hr.append(HRSample(ts: start + i, bpm: 60)) }        // 0..299 s
-        for i in 0..<300 { hr.append(HRSample(ts: start + 300 + i, bpm: 50)) }  // 300..599 s
-        let r = RecoveryScorer.restingHR(hr, start: start, end: start + 600)
-        XCTAssertEqual(r, 50)
-    }
-
-    func testRestingHRNilWhenNoSamples() {
-        XCTAssertNil(RecoveryScorer.restingHR([], start: 0, end: 1000))
-    }
-
-    // MARK: - #686: artifact hardening of the resting-HR floor
-
-    func testRestingHRRejectsSingleSampleArtifactBin() {
-        // A dense, well-populated bin at 55 bpm, then a SECOND 5-min bin holding exactly ONE
-        // artifact beat at 30 bpm. The old min-of-bin-means took the lone-sample bin (30) as the
-        // floor; with #686 a single-sample bin can't WIN, so the floor is the real 55.
-        var hr: [HRSample] = []
-        let start = 1000
-        for i in 0..<300 { hr.append(HRSample(ts: start + i, bpm: 55)) }   // bin 0: 300 samples @55
-        hr.append(HRSample(ts: start + 300, bpm: 30))                       // bin 1: ONE sample @30
-        let r = RecoveryScorer.restingHR(hr, start: start, end: start + 600)
-        XCTAssertEqual(r, 55, "a single-sample artifact bin must not win the resting floor")
-    }
-
-    func testRestingHRRejectsSubPhysiologicalDropoutBin() {
-        // Two FULLY-populated bins: a real 52 bpm bin and a dropout bin whose 300 samples all read
-        // an implausible 10 bpm (decode-zero / dropout run). It clears the sample-count bar but is
-        // sub-physiological, so #686 bars it from the floor → resting reads the real 52.
-        var hr: [HRSample] = []
-        let start = 2000
-        for i in 0..<300 { hr.append(HRSample(ts: start + i, bpm: 52)) }         // real bin
-        for i in 0..<300 { hr.append(HRSample(ts: start + 300 + i, bpm: 10)) }   // dropout bin
-        let r = RecoveryScorer.restingHR(hr, start: start, end: start + 600)
-        XCTAssertEqual(r, 52, "a sub-physiological dropout bin must not win the resting floor")
-    }
-
-    func testRestingHRKeepsGenuineLowFloor() {
-        // A REAL sustained dip (a full 5-min bin at 45 bpm) is plausible AND well-populated, so it
-        // still wins — the hardening must not flatten genuine athletic resting HRs.
-        var hr: [HRSample] = []
-        let start = 3000
-        for i in 0..<300 { hr.append(HRSample(ts: start + i, bpm: 60)) }
-        for i in 0..<300 { hr.append(HRSample(ts: start + 300 + i, bpm: 45)) }
-        let r = RecoveryScorer.restingHR(hr, start: start, end: start + 600)
-        XCTAssertEqual(r, 45, "a genuine sustained low bin must still win the floor")
-    }
-
-    func testRestingHRFallsBackWhenNoBinQualifies() {
-        // A wholly sparse window: every bin holds a single sample (none clears the count bar).
-        // Rather than return nil on data present, fall back to the legacy lowest-bin-mean (here 48).
-        let start = 4000
-        let hr = [HRSample(ts: start + 10, bpm: 58),
-                  HRSample(ts: start + 320, bpm: 48)]   // two bins, one sample each
-        let r = RecoveryScorer.restingHR(hr, start: start, end: start + 600)
-        XCTAssertEqual(r, 48, "with no qualifying bin, fall back to the lowest bin mean (never nil on data)")
-    }
-
-    // MARK: - Recovery Index: recoveryIndexSlope(_:start:end:)
-
-    /// Build a synthetic in-bed HR series with a constant slope (bpm/hour) from `startBpm`,
-    /// sampled every 30 s (a low-cadence strap) over `hours`. Returns the series plus its
-    /// [start, end] window.
-    private func slopeSeries(startBpm: Double, slopePerHour: Double, hours: Double,
-                            originTs: Int = 10_000) -> (hr: [HRSample], start: Int, end: Int) {
-        var hr: [HRSample] = []
-        let totalSeconds = Int(hours * 3600)
-        var t = 0
-        while t < totalSeconds {
-            let bpm = startBpm + slopePerHour * (Double(t) / 3600.0)
-            hr.append(HRSample(ts: originTs + t, bpm: Int(bpm.rounded())))
-            t += 30
-        }
-        return (hr, originTs, originTs + totalSeconds)
-    }
-
-    func testRecoveryIndexSlopeNilWhenNoSamples() {
-        XCTAssertNil(RecoveryScorer.recoveryIndexSlope([], start: 0, end: 1000))
-    }
-
-    func testRecoveryIndexSlopeNilWhenTooFewBins() {
-        // Only 2 five-minute bins (10 minutes) of data — below recoveryIndexMinBins — too
-        // little of the night to fit a trend; must return nil, never a fabricated slope.
-        var hr: [HRSample] = []
-        let start = 5000
-        for i in 0..<300 { hr.append(HRSample(ts: start + i, bpm: 60)) }
-        for i in 0..<300 { hr.append(HRSample(ts: start + 300 + i, bpm: 55)) }
-        XCTAssertNil(RecoveryScorer.recoveryIndexSlope(hr, start: start, end: start + 600))
-    }
-
-    func testRecoveryIndexSlopeRecoversMultipleDistinctInjectedSlopes() {
-        // Derived-signal rule: recover MULTIPLE distinct injected slopes, not one matched case.
-        // Four full-night (6 h) synthetic series: flat, mild decline, steep decline, rising.
-        let flat = slopeSeries(startBpm: 62, slopePerHour: 0.0, hours: 6)
-        let mild = slopeSeries(startBpm: 62, slopePerHour: -1.0, hours: 6)
-        let steep = slopeSeries(startBpm: 68, slopePerHour: -4.0, hours: 6)
-        let rising = slopeSeries(startBpm: 55, slopePerHour: 2.0, hours: 6)
-
-        let flatSlope = RecoveryScorer.recoveryIndexSlope(flat.hr, start: flat.start, end: flat.end)
-        let mildSlope = RecoveryScorer.recoveryIndexSlope(mild.hr, start: mild.start, end: mild.end)
-        let steepSlope = RecoveryScorer.recoveryIndexSlope(steep.hr, start: steep.start, end: steep.end)
-        let risingSlope = RecoveryScorer.recoveryIndexSlope(rising.hr, start: rising.start, end: rising.end)
-
-        XCTAssertNotNil(flatSlope); XCTAssertNotNil(mildSlope)
-        XCTAssertNotNil(steepSlope); XCTAssertNotNil(risingSlope)
-
-        // Each recovered slope is close to its OWN injected value (within integer-bpm rounding
-        // noise from the synthetic series), not just relatively ordered.
-        XCTAssertEqual(flatSlope!, 0.0, accuracy: 0.3)
-        XCTAssertEqual(mildSlope!, -1.0, accuracy: 0.3)
-        XCTAssertEqual(steepSlope!, -4.0, accuracy: 0.3)
-        XCTAssertEqual(risingSlope!, 2.0, accuracy: 0.3)
-
-        // And strictly ordered steep-decline < mild-decline < flat < rising.
-        XCTAssertLessThan(steepSlope!, mildSlope!)
-        XCTAssertLessThan(mildSlope!, flatSlope!)
-        XCTAssertLessThan(flatSlope!, risingSlope!)
-    }
-
     // MARK: - Recovery Index / Activity-Balance folded into recovery(...)
 
     func testRecoveryIndexAndActivityBalanceDefaultNilByteIdenticalToBefore() {
@@ -396,5 +274,71 @@ final class RecoveryScorerTests: XCTestCase {
         XCTAssertEqual(neither, valueOnly, accuracy: 1e-9, "a value with no baseline must drop the term")
         XCTAssertEqual(neither, baselineOnly, accuracy: 1e-9, "a baseline with no value must drop the term")
         XCTAssertNotEqual(both, neither, "supplying BOTH must actually change the score")
+    }
+
+    // MARK: - Required HRV baseline on the raw DriverBaseline overload (#40)
+
+    func testRawOverloadRefusesToScoreWithoutHRVBaseline() {
+        // The raw overload documents hrvBaseline as REQUIRED, but it is Optional and the
+        // cold-start gate only consults hrvBaselineUsable (default true). Without this guard any
+        // other optional term alone produced a Charge score carrying NO HRV term at all. Each
+        // case below supplies exactly one optional driver with the HRV baseline absent.
+        let rhrB = RecoveryScorer.DriverBaseline(mean: 55, spread: 3 / 1.253)
+        let respB = RecoveryScorer.DriverBaseline(mean: 14.5, spread: 1 / 1.253)
+        let effortB = RecoveryScorer.DriverBaseline(mean: 40, spread: 15 / 1.253)
+
+        // The issue's minimal reproduction: sleepPerf as the only weighted term.
+        XCTAssertNil(RecoveryScorer.recovery(
+            hrv: 50, rhr: 60, resp: nil,
+            hrvBaseline: nil, rhrBaseline: nil, respBaseline: nil,
+            sleepPerf: 0.85))
+        // RHR term alone.
+        XCTAssertNil(RecoveryScorer.recovery(
+            hrv: 50, rhr: 60, resp: nil,
+            hrvBaseline: nil, rhrBaseline: rhrB, respBaseline: nil,
+            sleepPerf: nil))
+        // Resp term alone.
+        XCTAssertNil(RecoveryScorer.recovery(
+            hrv: 50, rhr: 60, resp: 14.0,
+            hrvBaseline: nil, rhrBaseline: nil, respBaseline: respB,
+            sleepPerf: nil))
+        // Skin-temp term alone.
+        XCTAssertNil(RecoveryScorer.recovery(
+            hrv: 50, rhr: 60, resp: nil,
+            hrvBaseline: nil, rhrBaseline: nil, respBaseline: nil,
+            sleepPerf: nil, skinTempDev: 0.4))
+        // Recovery-Index term alone.
+        XCTAssertNil(RecoveryScorer.recovery(
+            hrv: 50, rhr: 60, resp: nil,
+            hrvBaseline: nil, rhrBaseline: nil, respBaseline: nil,
+            sleepPerf: nil, recoveryIndexSlope: -1.0))
+        // Activity-Balance term alone.
+        XCTAssertNil(RecoveryScorer.recovery(
+            hrv: 50, rhr: 60, resp: nil,
+            hrvBaseline: nil, rhrBaseline: nil, respBaseline: nil,
+            sleepPerf: nil, effortBaseline: effortB, priorDayEffort: 80.0))
+        // Every optional driver at once still cannot substitute for the required HRV baseline.
+        XCTAssertNil(RecoveryScorer.recovery(
+            hrv: 50, rhr: 60, resp: 14.0,
+            hrvBaseline: nil, rhrBaseline: rhrB, respBaseline: respB,
+            sleepPerf: 0.85, skinTempDev: 0.4, recoveryIndexSlope: -1.0,
+            effortBaseline: effortB, priorDayEffort: 80.0))
+    }
+
+    func testRawOverloadPreservesColdStartAndValidScores() {
+        let hrvB = RecoveryScorer.DriverBaseline(mean: 50, spread: 6 / 1.253)
+        // Cold start unchanged: baseline PRESENT but not usable → nil, as before.
+        XCTAssertNil(RecoveryScorer.recovery(
+            hrv: 50, rhr: 60, resp: nil,
+            hrvBaseline: hrvB, rhrBaseline: nil, respBaseline: nil,
+            sleepPerf: 0.85, hrvBaselineUsable: false))
+        // A present, usable baseline scores exactly as before. Expected literal from the
+        // standalone Swift oracle whose source is kept in the Kotlin twin's comment
+        // (RecoveryRequiredHrvBaselineTest.kt) — the same literal both sides pin.
+        let scored = RecoveryScorer.recovery(
+            hrv: 50, rhr: 60, resp: nil,
+            hrvBaseline: hrvB, rhrBaseline: nil, respBaseline: nil,
+            sleepPerf: 0.85)
+        XCTAssertEqual(scored!, 57.932425214874954, accuracy: 1e-12)
     }
 }

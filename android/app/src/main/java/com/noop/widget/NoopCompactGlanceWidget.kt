@@ -45,16 +45,7 @@ class NoopCompactGlanceWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val snap = runCatching { WidgetSnapshotStore.load(context) }.getOrDefault(WidgetSnapshot())
-        val dark = runCatching {
-            when (context.getSharedPreferences("noop_prefs", Context.MODE_PRIVATE)
-                .getString("theme.appearance", "system")) {
-                "light" -> false
-                "dark" -> true
-                else -> (context.resources.configuration.uiMode and
-                    android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
-                    android.content.res.Configuration.UI_MODE_NIGHT_YES
-            }
-        }.getOrDefault(true)
+        val dark = WidgetTheme.isDark(context)
         provideContent { CompactWidgetContent(snap, dark) }
     }
 

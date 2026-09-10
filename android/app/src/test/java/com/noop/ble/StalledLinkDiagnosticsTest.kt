@@ -155,6 +155,81 @@ class StalledLinkDiagnosticsTest {
         assertTrue(backfillDeferredLine("WHOOP5", false, false, true, 1, 0L).contains("sinceConnect=0s"))
     }
 
+    // ---- #1802: unbonded-offload probe discoverability ---------------------------------------
+
+    /**
+     * The structural-unreachable case with the probe NOT opted in and NOT retired is the one where the
+     * hint matters most: the diagnostic reads as hopeless, but the probe can test exactly this state.
+     * The line must name the toggle and say what it does, without promising an answer.
+     */
+    @Test
+    fun `the unreachable case names the probe toggle when not opted in`() {
+        val line = backfillDeferredLine(
+            "WHOOP5", false, false, true, 3, 42_000L,
+            unbondedProbeOptedIn = false, unbondedProbeRetired = false,
+        )
+        assertTrue(line, line.contains("Try history sync without pairing"))
+        assertTrue(line, line.contains("Test Centre"))
+        assertTrue(line, line.contains("SET_CLOCK"))
+    }
+
+    /**
+     * When the probe IS opted in, its own lines report what it found — the deferral line must not
+     * duplicate that. The hint is only for the user who has NOT turned it on.
+     */
+    @Test
+    fun `the probe hint is suppressed when the probe is opted in`() {
+        val line = backfillDeferredLine(
+            "WHOOP5", false, false, true, 3, 42_000L,
+            unbondedProbeOptedIn = true, unbondedProbeRetired = false,
+        )
+        assertFalse(line, line.contains("Try history sync without pairing"))
+    }
+
+    /**
+     * When the probe has retired (latched refusal or spent silence budget), the hint says so and
+     * points at the off/on retry — #1804 fixed a false negative that could have latched it.
+     */
+    @Test
+    fun `the probe hint names the retry path when retired`() {
+        val line = backfillDeferredLine(
+            "WHOOP5", false, false, true, 3, 42_000L,
+            unbondedProbeOptedIn = false, unbondedProbeRetired = true,
+        )
+        assertTrue(line, line.contains("retired"))
+        assertTrue(line, line.contains("turn it off and on"))
+        assertTrue(line, line.contains("#1804"))
+    }
+
+    /**
+     * The probe hint must NOT appear on the non-unreachable cases — a WHOOP4 or a hello that was
+     * written and went unanswered is a different problem with a different fix.
+     */
+    @Test
+    fun `the probe hint only appears on the structural-unreachable case`() {
+        // WHOOP4: no probe, no hint
+        assertFalse(backfillDeferredLine(
+            "WHOOP4", false, false, false, 1, 5_000L,
+            unbondedProbeOptedIn = false, unbondedProbeRetired = false,
+        ).contains("Try history sync without pairing"))
+        // Hello written but unanswered: different problem
+        assertFalse(backfillDeferredLine(
+            "WHOOP5", false, true, true, 3, 42_000L,
+            unbondedProbeOptedIn = false, unbondedProbeRetired = false,
+        ).contains("Try history sync without pairing"))
+    }
+
+    /**
+     * The default values (not opted in, not retired) preserve the old behaviour for callers that
+     * have not been updated — the hint appears on the unreachable case.
+     */
+    @Test
+    fun `default probe params preserve the old unreachable behaviour plus the hint`() {
+        val line = backfillDeferredLine("WHOOP5", false, false, true, 3, 42_000L)
+        assertTrue(line, line.contains("No hello was written"))
+        assertTrue(line, line.contains("Try history sync without pairing"))
+    }
+
     // ---- liveInsertFailedLine -----------------------------------------------------------------
 
     /**

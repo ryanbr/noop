@@ -163,6 +163,11 @@ class PuffinExperiment(private val prefs: SharedPreferences) {
                 prefs.all.keys
                     .filter { it.startsWith(UNBONDED_PROBE_SILENT_LINKS_KEY_PREFIX) }
                     .forEach { e.remove(it) }
+                // #1804: clear the inconclusive budget too, so re-arming gives the probe a fresh
+                // start on a strap whose every link was torn down locally.
+                prefs.all.keys
+                    .filter { it.startsWith(UNBONDED_PROBE_INCONCLUSIVE_LINKS_KEY_PREFIX) }
+                    .forEach { e.remove(it) }
             }
             e.apply()
         }
@@ -188,6 +193,31 @@ class PuffinExperiment(private val prefs: SharedPreferences) {
     fun setUnbondedProbeSilentLinks(peripheralId: String?, value: Int) {
         runCatching {
             unbondedProbeSilentLinksPrefKey(peripheralId)?.let {
+                prefs.edit().putInt(it, value).apply()
+            }
+        }
+    }
+
+    /**
+     * The probe's persisted inconclusive budget for one strap — links that ended in a LOCAL teardown
+     * (status=22), capped by [UNBONDED_PROBE_MAX_INCONCLUSIVE_LINKS].
+     *
+     * #1804: a local teardown is inconclusive about the strap (our own stack ended the link), so it
+     * does NOT charge the silence budget. But it charges THIS budget, so a strap whose every link is
+     * torn down locally does not retry forever. Larger cap than the silence budget because
+     * inconclusive is genuinely weaker evidence than silence.
+     *
+     * Lives HERE for the same reason the silence budget does: the switch's setter clears these by
+     * prefix and can only sweep its own prefs file.
+     */
+    fun unbondedProbeInconclusiveLinks(peripheralId: String?): Int = runCatching {
+        unbondedProbeInconclusiveLinksPrefKey(peripheralId)?.let { prefs.getInt(it, 0) } ?: 0
+    }.getOrDefault(0)
+
+    /** Record the inconclusive budget. A null address is a no-op, as the read is. */
+    fun setUnbondedProbeInconclusiveLinks(peripheralId: String?, value: Int) {
+        runCatching {
+            unbondedProbeInconclusiveLinksPrefKey(peripheralId)?.let {
                 prefs.edit().putInt(it, value).apply()
             }
         }

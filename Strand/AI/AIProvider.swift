@@ -1,4 +1,5 @@
 import Foundation
+import StrandAnalytics
 
 // MARK: - Provider enum
 
@@ -227,6 +228,65 @@ protocol AIProviderClient {
 
     /// Fetch the provider's live model list and return plain model ids.
     func fetchModels(key: String, session: URLSession) async throws -> [String]
+
+    /// Stream a chat turn, calling `onDelta` for each text chunk as it arrives. The concatenated
+    /// deltas must equal the text that `send` would return for the same inputs (byte-parity with
+    /// the non-streamed path). The default implementation falls back to `send` + a single delta,
+    /// so providers without streaming still work. K1.
+    func stream(
+        key: String,
+        model: String,
+        systemPrompt: String,
+        messages: [(role: ChatMessage.Role, content: String)],
+        session: URLSession,
+        onDelta: (String) -> Void
+    ) async throws
+
+    /// K11: Stream a chat turn with an optional inline image (base64 PNG). Only Gemini implements
+    /// this; the default implementation ignores the image and calls `stream`. This keeps the
+    /// multimodal path opt-in without changing every provider's `stream` signature.
+    func streamWithImage(
+        key: String,
+        model: String,
+        systemPrompt: String,
+        messages: [(role: ChatMessage.Role, content: String)],
+        inlineImage: String?,
+        session: URLSession,
+        onDelta: (String) -> Void
+    ) async throws
+}
+
+extension AIProviderClient {
+    /// K11: Default — ignore the image, delegate to `stream`. Providers without multimodal support
+    /// (OpenAI, Anthropic, Custom) use this; only Gemini overrides it.
+    func streamWithImage(
+        key: String,
+        model: String,
+        systemPrompt: String,
+        messages: [(role: ChatMessage.Role, content: String)],
+        inlineImage: String?,
+        session: URLSession,
+        onDelta: (String) -> Void
+    ) async throws {
+        try await stream(key: key, model: model, systemPrompt: systemPrompt,
+                         messages: messages, session: session, onDelta: onDelta)
+    }
+}
+
+extension AIProviderClient {
+    /// Default: fall back to the non-streaming `send` and emit the full reply as one delta.
+    func stream(
+        key: String,
+        model: String,
+        systemPrompt: String,
+        messages: [(role: ChatMessage.Role, content: String)],
+        session: URLSession,
+        onDelta: (String) -> Void
+    ) async throws {
+        let reply = try await send(key: key, model: model, systemPrompt: systemPrompt,
+                                    messages: messages, session: session)
+        onDelta(reply)
+    }
 }
 
 // MARK: - Shared HTTP helpers
@@ -282,4 +342,46 @@ func emptyReplyError(_ json: [String: Any]) -> AICoachError {
     }
     return .emptyReply("The provider returned an empty reply. If you set a custom model by hand, check "
         + "that the model name is one the provider actually offers.")
+}
+
+// MARK: - SSE streaming helper (K1)
+
+/// Execute a streaming SSE request, map HTTP status codes to `AICoachError`, and call `onLine`
+/// for each `data:` payload line (prefix stripped, blank/comment/non-data lines filtered). The
+/// caller's `onLine` closure uses the pure `SseDeltas` functions to extract the per-provider text
+/// delta. Throws on HTTP errors (same mapping as `performRequest`). K1.
+func performStreamingRequest(
+    _ req: URLRequest,
+    session: URLSession,
+    onLine: (String) -> Void
+) async throws {
+    let bytes: (URLSession.AsyncBytes, URLResponse)
+    do {
+        bytes = try await session.bytes(for: req)
+    } catch {
+        throw AICoachError.network(error.localizedDescription)
+    }
+
+    guard let http = bytes.1 as? HTTPURLResponse else {
+        throw AICoachError.network("no HTTP response")
+    }
+
+    switch http.statusCode {
+    case 200...299:
+        // Read line-by-line from the SSE byte stream. `URLSession.AsyncBytes` splits on \n.
+        for try await line in bytes.0.lines {
+            if let payload = SseDeltas.dataPayload(fromLine: line) {
+                onLine(payload)
+            }
+        }
+    case 401, 403:
+        throw AICoachError.badKey
+    case 429:
+        throw AICoachError.rateLimited
+    default:
+        // For non-200, the body is a (non-streaming) error JSON — collect it and surface the message.
+        var body = ""
+        for try await line in bytes.0.lines { body += line }
+        throw AICoachError.server(http.statusCode, providerErrorMessage(from: Data(body.utf8)))
+    }
 }

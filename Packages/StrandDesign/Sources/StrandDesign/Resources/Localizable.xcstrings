@@ -2308,6 +2308,12 @@
             "state": "translated",
             "value": "51 bpm"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "51 уд/мин"
+          }
         }
       }
     },
@@ -2341,6 +2347,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "7h 42m śpi · 92% ewydajność"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "7 ч 42 мин сна · эффективность 92%"
           }
         }
       }
@@ -2376,6 +2388,12 @@
             "state": "translated",
             "value": "87% · streaming"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "87% · передача"
+          }
         }
       }
     },
@@ -2397,6 +2415,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ajouter"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Добавить"
           }
         },
         "zh-Hans": {
@@ -2450,6 +2474,12 @@
             "state": "translated",
             "value": "Przyjęte przez NoopButtonStyle"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Применяется через NoopButtonStyle"
+          }
         }
       }
     },
@@ -2483,6 +2513,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tylko bar"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Только полоса"
           }
         }
       }
@@ -2518,6 +2554,12 @@
             "state": "translated",
             "value": "Body / Regular 15 — wątek o Tobie, przeczytaj w całości."
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Body / Regular 15 — нить о вас, прочитанная целиком."
+          }
         }
       }
     },
@@ -2552,6 +2594,12 @@
             "state": "translated",
             "value": "PODLICZANIE WYNIKÓW"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ОЦЕНКА С ОТСЧЁТОМ"
+          }
         }
       }
     },
@@ -2585,6 +2633,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Spokojna noc"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Спокойная ночь"
           }
         }
       }
@@ -2654,6 +2708,12 @@
             "state": "translated",
             "value": "Karta %lld"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Карточка %lld"
+          }
         }
       }
     },
@@ -2675,6 +2735,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Terminé"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Готово"
           }
         },
         "zh-Hans": {
@@ -2762,6 +2828,12 @@
             "state": "translated",
             "value": "HRV (ms) — 30 dni"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ВСР (мс) — 30 дней"
+          }
         }
       }
     },
@@ -2830,6 +2902,12 @@
             "state": "translated",
             "value": "Tętno, 24 godziny"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пульс, 24 часа"
+          }
         }
       }
     },
@@ -2863,6 +2941,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Najedź kursorem na zespół: nazwa sceny, początek i koniec zegara oraz czas trwania."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Наведите на полосу: название стадии, время начала и конца и длительность."
           }
         }
       }
@@ -2898,6 +2982,12 @@
             "state": "translated",
             "value": "Najedź kursorem na komórkę: pierścień + data, wynik i podpowiedź dotycząca stanu odzyskiwania."
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Наведите на ячейку: кольцо и дата, оценка и подсказка о состоянии восстановления."
+          }
         }
       }
     },
@@ -2931,6 +3021,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Najedź kursorem na wskaźnik obciążenia i podpowiedzi dotyczącego słowa ładowania."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Наведите на индикатор, чтобы увидеть подсказку с нагрузкой и её словесной оценкой."
           }
         }
       }
@@ -2966,6 +3062,12 @@
             "state": "translated",
             "value": "Najedź kursorem na pierścień, aby odzyskać + podpowiedź ze słowem stanu."
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Наведите на кольцо, чтобы увидеть подсказку с восстановлением и его словесной оценкой."
+          }
         }
       }
     },
@@ -2999,6 +3101,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Najedź kursorem na dowolną linię przebiegu, aby odczytać dokładną próbkę pod kursorem."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Наведите на любой мини-график, чтобы прочитать точное значение под курсором."
           }
         }
       }
@@ -3034,6 +3142,12 @@
             "state": "translated",
             "value": "Najedź kursorem na karty, aby zobaczyć windę."
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Наведите на карточки, чтобы увидеть подъём."
+          }
         }
       }
     },
@@ -3067,6 +3181,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Najedź kursorem na linię: celownik + kropka + podpowiedź z datą/wartością."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Наведите на линию: перекрестие, точка и подсказка с датой и значением."
           }
         }
       }
@@ -3102,6 +3222,12 @@
             "state": "translated",
             "value": "Najedź kursorem, aby przeczytać HRV każdego dnia w ms."
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Наведите, чтобы прочитать ВСР каждого дня в мс."
+          }
         }
       }
     },
@@ -3135,6 +3261,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "W karcie"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "В карточке"
           }
         }
       }
@@ -3170,6 +3302,12 @@
             "state": "translated",
             "value": "Ubiegłej nocy"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Последняя ночь"
+          }
         }
       }
     },
@@ -3203,6 +3341,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ruch podczas snu"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Движение во сне"
           }
         }
       }
@@ -3272,6 +3416,12 @@
             "state": "translated",
             "value": "Przegląd HR"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пульс, обзор"
+          }
         }
       }
     },
@@ -3305,6 +3455,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "GRADIDENT ODZYSKU"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ГРАДИЕНТ ВОССТАНОВЛЕНИЯ"
           }
         }
       }
@@ -3340,6 +3496,12 @@
             "state": "translated",
             "value": "Regeneracja — 30 dni"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Восстановление — 30 дней"
+          }
         }
       }
     },
@@ -3373,6 +3535,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Regeneracja — ubiegły rok"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Восстановление — за прошлый год"
           }
         }
       }
@@ -3408,6 +3576,12 @@
             "state": "translated",
             "value": "Zmniejsz ruch renderuje statycznie w ostatniej klatce."
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "При включённом «Уменьшении движения» отображается статичный последний кадр."
+          }
         }
       }
     },
@@ -3429,6 +3603,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Supprimer"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Удалить"
           }
         },
         "zh-Hans": {
@@ -3482,6 +3662,12 @@
             "state": "translated",
             "value": "Odtwórz ponownie"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Повторить появление"
+          }
         }
       }
     },
@@ -3503,6 +3689,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "FC au repos"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пульс в покое"
           }
         },
         "zh-Hans": {
@@ -3556,6 +3748,12 @@
             "state": "translated",
             "value": "Niespokojna noc"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Беспокойная ночь"
+          }
         }
       }
     },
@@ -3589,6 +3787,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Rzuć numerem"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Прокрутить число"
           }
         }
       }
@@ -3624,6 +3828,12 @@
             "state": "translated",
             "value": "MIĘKKIE PRZEJŚCIE KARTY"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "МЯГКИЙ ПЕРЕХОД КАРТОЧКИ"
+          }
         }
       }
     },
@@ -3657,6 +3867,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "WYGLĄDAJĄ ZNACZNIE"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ПОСЛЕДОВАТЕЛЬНОЕ ПОЯВЛЕНИЕ"
           }
         }
       }
@@ -3692,6 +3908,12 @@
             "state": "translated",
             "value": "RAMPA OBCIĄŻENIA"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "НАРАСТАНИЕ НАГРУЗКИ"
+          }
         }
       }
     },
@@ -3713,6 +3935,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Enregistrer"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохранить"
           }
         },
         "zh-Hans": {
@@ -3766,6 +3994,12 @@
             "state": "translated",
             "value": "Liczba segmentów i wysokości"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Количество и высота сегментов"
+          }
         }
       }
     },
@@ -3800,6 +4034,12 @@
             "state": "translated",
             "value": "Wydajność snu"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Качество сна"
+          }
         }
       }
     },
@@ -3833,6 +4073,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Etapy snu"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Стадии сна"
           }
         }
       }
@@ -3970,6 +4216,12 @@
             "state": "translated",
             "value": "Przełącz delikatną wiosnę"
           }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Переключить мягкую пружину"
+          }
         }
       }
     },
@@ -4003,6 +4255,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Wartości"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Значения"
           }
         }
       }
@@ -4071,6 +4329,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "godzina %lld"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "час %lld"
           }
         }
       }

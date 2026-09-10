@@ -4,7 +4,7 @@
 # tolerance in LANGS, which is why they are at 100%.
 
 Packages/StrandDesign/Sources/StrandDesign/Resources/Localizable.xcstrings:it 81
-Packages/StrandDesign/Sources/StrandDesign/Resources/Localizable.xcstrings:ru 54
+Packages/StrandDesign/Sources/StrandDesign/Resources/Localizable.xcstrings:ru 10
 Packages/StrandDesign/Sources/StrandDesign/Resources/Localizable.xcstrings:zh-Hans 75
 Packages/StrandDesign/Sources/StrandDesign/Resources/Localizable.xcstrings:zh-Hant 81
 NOOPWatch/Localizable.xcstrings:it 0
@@ -15,7 +15,8 @@ NOOPWatchComplications/Localizable.xcstrings:it 25
 NOOPWatchComplications/Localizable.xcstrings:zh-Hans 25
 NOOPWatchComplications/Localizable.xcstrings:zh-Hant 25
 Strand/Resources/Localizable.xcstrings:it 179
-Strand/Resources/Localizable.xcstrings:ru 156
+Strand/Resources/Localizable.xcstrings:ru 1
 Strand/Resources/Localizable.xcstrings:zh-Hans 129
 Strand/Resources/Localizable.xcstrings:zh-Hant 179
+values-ru/strings.xml 121
 values-zh/strings.xml 49

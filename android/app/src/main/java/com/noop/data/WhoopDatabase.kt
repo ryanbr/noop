@@ -52,8 +52,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         PpgWaveformSampleEntity::class,
         V18AuxSampleEntity::class,
         AppleStepHour::class,
+        CoachMessageRow::class,
     ],
-    version = 35,
+    version = 39,
     // #775: ON so Room's KSP processor writes the generated schema (every table's exact `CREATE TABLE`,
     // columns in declaration order with affinity/NOT NULL/default, PK and indices) as JSON. That export
     // is what lets a plain JVM test — no device, no Robolectric — read Android's REAL schema and compare
@@ -73,7 +74,7 @@ abstract class WhoopDatabase : RoomDatabase() {
         const val DB_NAME = "noop_whoop.db"
         /** Room schema version — MUST equal the `@Database(version = …)` above. Surfaced in the backup
          *  manifest (#1410) so an export states its schema. Bump both together on a migration. */
-        const val SCHEMA_VERSION = 35
+        const val SCHEMA_VERSION = 39
 
         @Volatile
         private var instance: WhoopDatabase? = null
@@ -547,6 +548,12 @@ abstract class WhoopDatabase : RoomDatabase() {
          * BLOB (2 bytes/sample, little-endian i16, [StreamPersistence.packPpgSamples]) rather than 24 scalar
          * rows.
          *
+         * Retention: `ppgWaveformSample` is CAPPED at [WhoopRepository.PPG_WAVEFORM_RETENTION_ROWS] rolling
+         * rows per device (#1911), the same shape `v18AuxSample` uses. The cap is NEWEST-N ROWS and never an
+         * age cutoff: v26 seconds are spread thin over months for a sporadic wearer, so dropping by
+         * wall-clock age would empty the table for exactly the user a future re-analysis needs most, and a
+         * waveform has no aggregate that survives it. Swift twin: the `v27-ppg-waveform` migration note.
+         *
          * CREATE TABLE only (no existing data touched), so already-offloaded raw streams survive. The SQL MUST
          * match Room's generated schema for [PpgWaveformSampleEntity] exactly: deviceId TEXT NOT NULL, ts
          * INTEGER NOT NULL, samples BLOB NOT NULL (all Kotlin non-null, no SQL DEFAULT), composite PRIMARY KEY
@@ -928,6 +935,68 @@ abstract class WhoopDatabase : RoomDatabase() {
         }
 
         /**
+         * v35 -> v36: ADDITIVE, adds `dailyMetric.sleepHrOnly` (nullable INTEGER) so the Recovery Vitals
+         * card can say why HRV and resting HR are blank on a night staged from heart rate alone, rather
+         * than showing a bare "No data" that is indistinguishable from a failed sync (#1801). Nullable
+         * with no default and no backfill: existing rows stay null and read as "not known", which is
+         * honest — the flag is only knowable from a re-score, and a re-score writes it.
+         *
+         * Exposed as a constant so the migration test can pin its SHAPE without Room-testing, the same
+         * way [DAILY_SKIN_TEMP_ABSOLUTE_MIGRATION_SQL] is.
+         */
+        internal val DAILY_SLEEP_HR_ONLY_MIGRATION_SQL: List<String> = listOf(
+            "ALTER TABLE `dailyMetric` ADD COLUMN `sleepHrOnly` INTEGER",
+        )
+
+        internal val MIGRATION_35_36 = object : Migration(35, 36) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                for (stmt in DAILY_SLEEP_HR_ONLY_MIGRATION_SQL) db.execSQL(stmt)
+            }
+        }
+
+        /**
+         * #2019: carry the v26 optical window's ABSOLUTE base code beside its deltas.
+         *
+         * The 25-sample window is one absolute ADC code plus 24 deltas, and only the deltas were read,
+         * so the stored `samples` blob is a derivative and the DC level was thrown away. Nullable and
+         * additive: an existing row keeps its deltas and gets a null base, which is the true statement
+         * about it. A delta series cannot be inverted without the base, so those windows have no
+         * recoverable absolute level and no backfill can invent one.
+         */
+        internal val MIGRATION_37_38 = object : Migration(37, 38) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `ppgWaveformSample` ADD COLUMN `baseCode` INTEGER")
+            }
+        }
+
+        /** PRD-K2: persisted Coach conversation history (schema v37). Swift twin: WhoopStore
+         *  Database.swift `v43-coach-messages` migration. Column order matches [CoachMessageRow]
+         *  field declaration order so Room's generated `CREATE TABLE` shape agrees. */
+        internal val MIGRATION_36_37 = object : Migration(36, 37) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """CREATE TABLE IF NOT EXISTS `coachMessage` (
+                        `id` TEXT NOT NULL,
+                        `role` TEXT NOT NULL,
+                        `text` TEXT NOT NULL,
+                        `provider` TEXT NOT NULL,
+                        `createdAt` INTEGER NOT NULL,
+                        `orderIndex` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )"""
+                )
+            }
+        }
+
+        /** Covers the source-promotion cache witnesses. Twin of GRDB v45-rr-source-index. */
+        internal const val RR_SOURCE_INDEX_SQL =
+            "CREATE INDEX IF NOT EXISTS rrInterval_source_suspect ON rrInterval(srcChannel, tsSuspect)"
+
+        internal val MIGRATION_38_39 = object : Migration(38, 39) {
+            override fun migrate(db: SupportSQLiteDatabase) { db.execSQL(RR_SOURCE_INDEX_SQL) }
+        }
+
+        /**
          * Every migration the builder registers, as a VALUE rather than an argument list.
          *
          * It was previously spelled inline in `addMigrations(...)`, which meant nothing could check it. A
@@ -952,9 +1021,9 @@ abstract class WhoopDatabase : RoomDatabase() {
             MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22,
             MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26,
             MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30,
-            MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35,
+            MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36,
+            MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39,
         )
-
 
         private fun build(appContext: Context): WhoopDatabase =
             Room.databaseBuilder(appContext, WhoopDatabase::class.java, DB_NAME)

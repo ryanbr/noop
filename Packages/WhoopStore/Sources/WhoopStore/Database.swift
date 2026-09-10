@@ -538,12 +538,20 @@ extension WhoopStore {
         // That keeps a v26-heavy night to roughly the same order of magnitude as ONE extra per-second
         // stream (≈50 bytes/row), not 24x that. Additive only, a NEW table, no existing row touched.
         //
-        // Retention: no pruning, matching every other durable per-second table (hrSample, spo2Sample, …
-        // are never pruned either) — this is decoded biometric history, not the transient raw outbox.
-        // `PrunePolicy`'s ~50 MB cap governs ONLY `rawBatch` (raw, pre-decode frames kept for re-decode /
-        // re-sync); it is untouched by and unrelated to this table. Growth here is bounded by how much
-        // v26 data a strap actually emits (firmware chooses v26 vs v18 per second, not every night is
-        // v26-heavy), not by an artificial cap.
+        // Retention: CAPPED at `WhoopStore.ppgWaveformRetentionRows` newest rows per device (#1911), swept
+        // amortised on insert exactly like `v18AuxSample`. This table is the ONE exception to "no durable
+        // per-second table is pruned" (hrSample, spo2Sample, … are still never pruned), because it is the
+        // only one storing a blob rather than a scalar: ~120 B/row against ~30 B. It is the worst ROW, not
+        // the biggest table — v26 runs only in optical windows (~28,800 rows/day) where `rrInterval` banks
+        // ~100,000/day, so most of #1911's ~93 MB/day is still unbounded elsewhere. `PrunePolicy`'s
+        // ~50 MB cap governs ONLY `rawBatch` (raw, pre-decode frames kept for re-decode / re-sync); it is
+        // untouched by and unrelated to this table.
+        //
+        // The cap is NEWEST-N-ROWS, not an age-based drop, and that distinction is load-bearing for the
+        // consumer note below: a sporadic wearer's v26 seconds are spread thin over months, so deleting by
+        // wall-clock age would empty the table for exactly the user a future estimator needs most, while
+        // newest-N always leaves a full working set. See `ppgWaveformRetentionRows` for the byte maths and
+        // for why #1911's "diagnostic-only, drop after the hot window" framing was not followed.
         //
         // CONSUMER STATUS — deliberately none, and stated here so nobody has to re-derive it. The writer is
         // live on both platforms (offload + archive replay + the Android capture importer), but the reader
@@ -882,6 +890,51 @@ extension WhoopStore {
         // Retire the bounded, write-only legacy cache. Session-owned IMU now lives in the file-backed store.
         migrator.registerMigration("v41-drop-raw-imu-sample") { db in
             try db.drop(table: "rawImuSample")
+        }
+        // Whether every sleep session that day was staged from heart rate alone (#1801). The Kotlin twin
+        // is `DailyMetric.sleepHrOnly`, added by Room MIGRATION_35_36; the shared schema oracle pins the
+        // two shapes together, so this exists here even while only Android reads it — a column present on
+        // one side and absent on the other is the drift #775 tracks, and stagingSparse set the precedent
+        // for carrying a staging-quality flag on both.
+        migrator.registerMigration("v42-daily-sleep-hr-only") { db in
+            try db.alter(table: "dailyMetric") { t in
+                t.add(column: "sleepHrOnly", .boolean)
+            }
+        }
+        // PRD-K2: persist the Coach conversation on-device so it survives relaunch. One row per chat
+        // turn; `orderIndex` is a monotonically-increasing counter (not `createdAt`, which two
+        // streamed turns can share to the second) so replay order is exact. `provider` isn't filtered
+        // on for v1 (a conversation is a conversation across a provider switch) but is carried so a
+        // future per-provider view/filter doesn't need another migration. Never added to the
+        // `.noopbak` backup whitelist (a separate, deliberate decision — CLAUDE.md's backup contract).
+        migrator.registerMigration("v43-coach-messages") { db in
+            try db.create(table: "coachMessage", options: [.ifNotExists]) { t in
+                t.column("id", .text).primaryKey()
+                t.column("role", .text).notNull()       // "user" | "assistant"
+                t.column("text", .text).notNull()
+                t.column("provider", .text).notNull()
+                t.column("createdAt", .integer).notNull()
+                t.column("orderIndex", .integer).notNull()
+            }
+            // No index: the table is capped at maxStoredMessages (40 rows), so a full scan + sort on
+            // read is negligible and an index buys nothing worth the extra Room<->GRDB parity surface.
+        }
+        // #2019: carry the v26 optical window's ABSOLUTE base code beside its deltas.
+        //
+        // The 25-sample window is one absolute ADC code plus 24 deltas, and only the deltas were read, so
+        // the stored `samples` blob is a derivative and the DC level was thrown away. Nullable and
+        // additive: an existing row keeps its deltas and gets a null base, which is the true statement
+        // about it. A delta series cannot be inverted without the base, so those windows have no
+        // recoverable absolute level and no backfill can invent one. Twin of Room's MIGRATION_37_38.
+        migrator.registerMigration("v44-ppg-waveform-base-code") { db in
+            try db.alter(table: "ppgWaveformSample") { t in
+                t.add(column: "baseCode", .integer)
+            }
+        }
+        // Source promotions change scoring without adding rows. Cover their cache witnesses so
+        // legacy/non-WHOOP installs do not scan the entire R-R table on every analysis tick.
+        migrator.registerMigration("v45-rr-source-index") { db in
+            try db.create(index: "rrInterval_source_suspect", on: "rrInterval", columns: ["srcChannel", "tsSuspect"])
         }
         return migrator
     }

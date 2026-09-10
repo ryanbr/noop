@@ -963,7 +963,7 @@ private fun SummarySection(
 ) {
     // Imperial/Metric display preference (D#103). Distances are stored in metres; the toggle re-labels
     // them. Read here so a change recomposes the tiles. Display-only — nothing stored changes.
-    val unitSystem = UnitPrefs.system(LocalContext.current)
+    val unitSystem = UnitPrefs.distanceSystem(LocalContext.current)
     val totalCount = rows.size
     val totalTimeH = rows.mapNotNull { it.durationS }.sum() / 3600.0
     val totalKcal = rows.mapNotNull { it.energyKcal }.sum()
@@ -1550,7 +1550,7 @@ internal fun WorkoutDetailSheet(vm: AppViewModel, row: WorkoutRow, onDismiss: ()
             if (row.maxHr != null) DetailRow("Max HR", "${row.maxHr} bpm")
             if (row.energyKcal != null) DetailRow("Calories", "${grouped(row.energyKcal)} kcal")
             if (row.distanceM != null) {
-                val unitSystem = UnitPrefs.system(LocalContext.current)
+                val unitSystem = UnitPrefs.distanceSystem(LocalContext.current)
                 DetailRow("Distance", UnitFormatter.distanceFromKilometers(row.distanceM / 1000.0, unitSystem))
             }
             steps?.let { DetailRow("Steps", "${grouped(it.toDouble())} steps") }  // #398, on-foot sports
@@ -2043,7 +2043,7 @@ private fun ManualWorkoutDialog(
     // #1195: distance as ENTERED, in the user's unit (km/mi), converted to stored metres on save. Pre-fill
     // in that unit so an untouched edit round-trips the stored value. Period decimal (Locale.US) to match
     // toDoubleOrNull parsing, exactly as the macOS ManualWorkoutSheet does.
-    val unitSystem = UnitPrefs.system(LocalContext.current)
+    val unitSystem = UnitPrefs.distanceSystem(LocalContext.current)
     val distUnit = if (unitSystem == UnitSystem.IMPERIAL) "mi" else "km"
     var distance by remember {
         mutableStateOf(

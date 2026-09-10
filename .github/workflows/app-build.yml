@@ -13,6 +13,18 @@ on:
     branches: [main]
     paths:
       - 'Strand/**'
+      # The app-target TESTS, not just the sources they cover. The `Test Strand` step below runs
+      # StrandTests, but a PR touching only those tests matched nothing here, so it built and ran
+      # nothing: one that failed to compile, or simply failed, merged unverified and went red on the
+      # next unrelated PR that happened to touch `Strand/**`, mis-attributing the breakage to whoever
+      # that was.
+      #
+      # This is the only test directory that needs naming, and the reason is layout rather than
+      # oversight: Android's tests sit under `android/**` and the package suites under `Packages/**`,
+      # both already inside their subject's glob, while StrandTests is a SIBLING of `Strand/` instead
+      # of part of it. `project.yml` does not cover it either — the target takes
+      # `sources: [StrandTests]`, a directory, so adding a test file changes no other tracked path.
+      - 'StrandTests/**'
       - 'StrandiOS/**'
       - 'StrandiOSShared/**'
       - 'StrandiOSWidgets/**'

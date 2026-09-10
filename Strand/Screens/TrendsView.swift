@@ -94,22 +94,6 @@ struct TrendsView: View {
     /// (issue #23). Empty short windows auto-widen (see `resolve`), so old imports surface under a
     /// wider range / All history instead of masquerading as recent. `.all` returns everything.
     /// ISO yyyy-MM-dd compares chronologically.
-    private func days(for r: Range) -> [DailyMetric] {
-        guard let n = r.days else { return repo.days }
-        let cutoffKey = Repository.localDayKey(Calendar.current.date(byAdding: .day, value: -(n - 1), to: Date()) ?? Date())
-        return repo.days.filter { $0.day >= cutoffKey }
-    }
-
-    /// Build trend points from a metric accessor over a day slice.
-    private func points(_ days: ArraySlice<DailyMetric>, _ value: (DailyMetric) -> Double?) -> [TrendPoint] {
-        days.compactMap { d in
-            guard let v = value(d), let dt = date(d.day) else { return nil }
-            return TrendPoint(date: dt, value: v)
-        }
-    }
-    private func points(_ days: [DailyMetric], _ value: (DailyMetric) -> Double?) -> [TrendPoint] {
-        points(days[...], value)
-    }
 
     // MARK: Resolved metric (memoized per body)
     //
@@ -132,17 +116,13 @@ struct TrendsView: View {
     private func resolve(_ value: (DailyMetric) -> Double?) -> ResolvedMetric {
         // Find the smallest range ≥ selected whose window has ≥1 point, keeping
         // that window's points so we don't re-filter to read them back.
-        for r in range.widening {
-            let pts = points(days(for: r), value)
-            if !pts.isEmpty {
-                return ResolvedMetric(points: pts, effective: r,
-                                      widened: r != range, caption: caption(count: pts.count, eff: r))
-            }
-        }
-        // No range held data: fall back to ALL (matches effectiveRange()).
-        let pts = points(days(for: .all), value)
-        return ResolvedMetric(points: pts, effective: .all,
-                              widened: .all != range, caption: caption(count: pts.count, eff: .all))
+        // The windowing lives in `HostedTrendData` so the Today host cards resolve EXACTLY as this tab
+        // does. Shared rather than copied: the widening fallback is what a wearer with two weeks of
+        // history depends on, and a second implementation would drift the moment either side was tuned.
+        let r = HostedTrendData.resolve(days: repo.days, selected: range, value: value)
+        return ResolvedMetric(points: r.points, effective: r.effective,
+                              widened: r.effective != range,
+                              caption: caption(count: r.points.count, eff: r.effective))
     }
 
     /// Caption text from an already-resolved count + effective range. Mirrors
@@ -160,11 +140,7 @@ struct TrendsView: View {
 
     /// A padded value range for a series so the line isn't flat against the axis.
     private func valueRange(_ pts: [TrendPoint], fallback: ClosedRange<Double>, pad: Double = 0.12) -> ClosedRange<Double> {
-        let vals = pts.map(\.value)
-        guard let lo = vals.min(), let hi = vals.max() else { return fallback }
-        if hi <= lo { return (lo - 1)...(hi + 1) }
-        let span = hi - lo
-        return (lo - span * pad)...(hi + span * pad)
+        HostedTrendData.valueRange(pts, fallback: fallback, pad: pad)
     }
 
     private func mean(_ pts: [TrendPoint]) -> Double? {

@@ -84,5 +84,41 @@ enum ClientHelloOutcome {
         return "CLIENT_HELLO outcome: completion from \(whereFrom)\(st) with NO hello outstanding — not a bond,"
             + " so the link stays unbonded (#1635)"
     }
+
+    /// The shortest an ATT round trip can plausibly take, in milliseconds.
+    ///
+    /// BLE's minimum connection interval is 7.5ms. A peripheral may answer inside the same connection
+    /// event, so this is not a hard floor and is NOT used to reject anything — it decides only whether
+    /// the log points the reader at the timing. It earns its place from the field distribution, which is
+    /// starkly bimodal: across 41 captures every hello either "completed" in 0, 4, 5 or 7ms, or produced
+    /// no callback at all about 3150ms later. Nothing in between, and 0ms cannot be a round trip at all.
+    ///
+    /// Byte-identical to the Android twin `MIN_PLAUSIBLE_ATT_ROUND_TRIP_MS`.
+    static let minPlausibleAttRoundTripMs = 8
+
+    /// #1883: a timing tell for Apple, where CoreBluetooth exposes no link-encryption state.
+    ///
+    /// On Android, `helloCompletionProvesEncryptedBond(osBonded) = osBonded` — only the OS bond state
+    /// attests encryption. CoreBluetooth exposes no bond state at all, so Apple has nothing to supply
+    /// for that check. The gap is real: a completion that is faster than one connection interval did
+    /// NOT come from the strap, and that is exactly the signature of #1635's false bond — a
+    /// `DISABLE_ALARM` completion misread as a hello ack because it arrived in 5ms.
+    ///
+    /// This line does NOT change any behavior. The bond still proceeds, the handshake still runs, and
+    /// `encryptedBond` is still set — because on Apple there is no alternative source of truth, and
+    /// refusing to bond would break every strap that genuinely bonds. The line only says what is
+    /// UNKNOWN: that the completion was suspiciously fast and the link's encryption state cannot be
+    /// verified on this platform. It is the diagnostic the issue's direction 2 asks for, and it is the
+    /// one that would have made #1635 visible on Apple instead of only on Android.
+    ///
+    /// Pure. No Kotlin twin — this is Apple-only by design (Android has `helloAckedWithoutEncryptionLine`
+    /// for the case where the OS bond state IS available and disagrees).
+    static func unverifiedBondTimingLine(elapsedMs: Int) -> String? {
+        guard elapsedMs < minPlausibleAttRoundTripMs else { return nil }
+        return "CLIENT_HELLO outcome: acked after \(elapsedMs)ms — under one BLE connection interval,"
+            + " so the callback most likely came from the local stack rather than the strap. CoreBluetooth"
+            + " exposes no link-encryption state, so the bond is UNVERIFIED on this platform (#1883, #1635)."
+            + " The handshake proceeds because there is no alternative source of truth on Apple."
+    }
 }
 

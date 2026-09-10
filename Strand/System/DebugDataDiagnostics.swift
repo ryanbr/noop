@@ -36,7 +36,7 @@ enum DebugDataDiagnostics {
     /// strap simply not worn for two days would be reported as incapable of motion — the opposite kind of
     /// wrong from the one this line exists to prevent. Over a window of actual wear, delivered and capable
     /// are the same thing; the label keeps that assumption visible instead of implied.
-    /// The label is padded to 13 like every other in this block ("Model:", "Data write:"), and the window
+    /// The label is padded to 13 like every other in this block ("Model:", "Offload:"), and the window
     /// rides the VALUE. "Provides(48h):" is 15 and overhung the column in a report that is aligned by hand
     /// and read by eye.
     /// Byte-identical to the Kotlin `AndroidDiagnostics.strapProvidesLine`.
@@ -85,12 +85,26 @@ enum DebugDataDiagnostics {
         let okAt = d.double(forKey: "sync.lastWriteOkAt")
         let stalledAt = d.double(forKey: "sync.lastWriteStalledAt")
         let restoreAt = d.double(forKey: "backup.lastRestoreAt")
-        lines.append("Data write:  \(okAt > 0 ? "rows last landed \(relTime(now - okAt))" : "no rows ever persisted")")
+        // "Offload:", not "Data write:". The stamp is written ONLY when a backfill session persists
+        // rows, so it says nothing about live streaming, and the old label read as "this app has stored
+        // nothing from your strap" on a strap that offloads nothing but streams happily. Twin of the
+        // Kotlin change.
+        lines.append("Offload:     " + (okAt > 0
+            ? "rows last landed \(relTime(now - okAt))"
+            : "no history rows ever persisted (live HR/R-R are not counted here)"))
         if stalledAt > 0, stalledAt >= okAt {
             lines.append("             ⚠ history NOT persisting — last offload STALLED \(relTime(now - stalledAt)) "
                 + "(if you restored a backup, fully restart the app — #57)")
         }
         if restoreAt > 0 { lines.append("Last restore: \(relTime(now - restoreAt))") }
+        #if os(iOS)
+        // What the home-screen widgets cost. Reported unconditionally, including the no-publish case,
+        // because the absence of widget activity is itself the answer to a drain report.
+        //
+        // iOS only: `WidgetTelemetry` lives in StrandiOSShared, which project.yml deliberately keeps
+        // OUT of the macOS application module. macOS has no home-screen widget to account for.
+        lines.append(WidgetTelemetry.snapshot().render())
+        #endif
         #if os(iOS)
         // #52: iOS Backup & Sync folder-picker health. When users report "won't let me pick a folder",
         // this pins the failure stage: "cancelled"/"never used" ⇒ the picker's Open button never fired
@@ -132,7 +146,7 @@ enum DebugDataDiagnostics {
         // EXISTS seeks, not counts — see WhoopStore.streamPresence for why that distinction matters on a
         // table holding ~190k motion rows a night.
         //
-        // HERE and not in strapStateLines() beside `Data write:`, where it belongs by subject: that
+        // HERE and not in strapStateLines() beside `Offload:`, where it belongs by subject: that
         // function is synchronous and holds neither `repo` nor a store handle. The first attempt put it
         // there and would not have compiled — in a file the comment below already notes needs macOS to
         // build, which is exactly why it went unnoticed locally. Appended first so the output order is

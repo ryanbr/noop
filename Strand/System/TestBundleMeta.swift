@@ -32,9 +32,14 @@ struct TestBundleMeta: Codable {
     /// db_bytes plus per-table row counts plus the raw-capture footprint (#590 asked us to surface this).
     struct Storage: Codable {
         let dbBytes: Int; let rows: [String: Int]; let rawCaptureBytes: Int
+        /// #1911: estimated payload bytes per table, keyed as `rows` is. Rows alone cannot say which table
+        /// holds a large store — `ppgWaveformSample`'s rows carry a BLOB, so it is exactly where a row
+        /// model misleads. A sampled payload estimate with no index or page overhead, so read it as a
+        /// lower bound to compare against `db_bytes`, never as a second file size.
+        let rowBytes: [String: Int]
         enum CodingKeys: String, CodingKey {
             case rows
-            case dbBytes = "db_bytes", rawCaptureBytes = "raw_capture_bytes"
+            case dbBytes = "db_bytes", rawCaptureBytes = "raw_capture_bytes", rowBytes = "row_bytes"
         }
     }
 

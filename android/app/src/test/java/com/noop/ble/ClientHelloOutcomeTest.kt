@@ -63,9 +63,9 @@ class ClientHelloOutcomeTest {
         // The bug this guards: writeStatusLabel maps BluetoothStatusCodes (writeCharacteristic's return
         // value), a DIFFERENT enumeration that collides on small integers. Rendering a callback status
         // through it names the wrong error confidently.
-        assertEquals("status=GATT_INSUFFICIENT_AUTHENTICATION(5)", gattWriteStatusLabel(5))
-        assertEquals("status=GATT_INSUFFICIENT_ENCRYPTION(15)", gattWriteStatusLabel(15))
-        assertEquals("status=GATT_SUCCESS(0)", gattWriteStatusLabel(0))
+        assertEquals("status=GATT_INSUFFICIENT_AUTHENTICATION(5)", gattStatusLabel(5))
+        assertEquals("status=GATT_INSUFFICIENT_ENCRYPTION(15)", gattStatusLabel(15))
+        assertEquals("status=GATT_SUCCESS(0)", gattStatusLabel(0))
     }
 
     @Test
@@ -75,14 +75,14 @@ class ClientHelloOutcomeTest {
         for (code in listOf(1, 2, 3)) {
             assertTrue(
                 "code $code should not share a label across the two domains",
-                gattWriteStatusLabel(code) != WhoopBleClient.writeStatusLabel(code),
+                gattStatusLabel(code) != WhoopBleClient.writeStatusLabel(code),
             )
         }
     }
 
     @Test
     fun `an unknown code is a bare number rather than a guess`() {
-        assertEquals("status=99", gattWriteStatusLabel(99))
-        assertEquals("status=n/a", gattWriteStatusLabel(null))
+        assertEquals("status=99", gattStatusLabel(99))
+        assertEquals("status=n/a", gattStatusLabel(null))
     }
 }

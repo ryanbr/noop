@@ -65,6 +65,50 @@ final class RawPhysiologyUnionTests: XCTestCase {
     }
 
     @MainActor
+    func testHrvTimelineRejectsAmbiguousLegacyAfterWhoop5RePairing() async throws {
+        let store = try await WhoopStore.inMemory()
+        let registry = DeviceRegistryStore(dbQueue: store.registryWriter)
+        try registry.add(PairedDevice(id: "new-five", brand: "WHOOP", model: "WHOOP 5.0",
+            sourceKind: .liveBLE, capabilities: [.hrv], status: .active, addedAt: 1, lastSeenAt: 1))
+        let base = 1_780_000_000
+        _ = try await store.insert(Streams(rr: (0..<600).map {
+            RRInterval(ts: base + $0, rrMs: 900 + ($0 % 2 == 0 ? 8 : -8))
+        }), deviceId: "my-whoop")
+        let repo = Repository(deviceId: "new-five")
+        repo.setStoreForTesting(store)
+        let guarded = await repo.timelineSeries(metric: .hrv, from: base, to: base + 600, targetPoints: 600)
+        XCTAssertTrue(guarded.points.isEmpty)
+        try registry.setModel("my-whoop", model: "4.0")
+        let knownFour = await repo.timelineSeries(metric: .hrv, from: base, to: base + 600, targetPoints: 600)
+        XCTAssertFalse(knownFour.points.isEmpty)
+    }
+
+    @MainActor
+    func testWhoop5SwitchKeepsOlderPhysicalOwnersAndCapturedBeatOrder() async throws {
+        let store = try await WhoopStore.inMemory()
+        let registry = DeviceRegistryStore(dbQueue: store.registryWriter)
+        for (id, model) in [("my-whoop", "WHOOP"), ("old-four", "4.0"), ("old-five", "5.0"), ("new-five", "5.0")] {
+            try registry.add(PairedDevice(id: id, brand: "WHOOP", model: model,
+                sourceKind: .liveBLE, capabilities: [.hrv], status: .archived, addedAt: 1, lastSeenAt: 1))
+        }
+        _ = try await store.insert(Streams(rr: [RRInterval(ts: 90, rrMs: 1024)]), deviceId: "my-whoop")
+        _ = try await store.insert(Streams(rr: [RRInterval(ts: 100, rrMs: 810)]), deviceId: "old-four")
+        _ = try await store.insert(Streams(rr: [900, 700, 900, 800].map {
+            RRInterval(ts: 200, rrMs: $0, srcChannel: .whoop5Historical)
+        }), deviceId: "old-five")
+        _ = try await store.insert(Streams(rr: [RRInterval(ts: 300, rrMs: 850, srcChannel: .whoop5Standard)]),
+                                   deviceId: "new-five")
+        let repo = Repository(deviceId: "new-five")
+        repo.setStoreForTesting(store)
+        var rows = await repo.rrIntervals(from: 0, to: 1000)
+        XCTAssertEqual(rows.map(\.rrMs), [810, 900, 700, 900, 800, 850])
+        // A confirmed WHOOP 4 canonical history keeps its original millisecond policy.
+        try registry.setModel("my-whoop", model: "4.0")
+        rows = await repo.rrIntervals(from: 0, to: 1000)
+        XCTAssertEqual(rows.first?.rrMs, 1024)
+    }
+
+    @MainActor
     func testSessionMotionUsesHistoricalOwnerBeforeCurrentActiveComputedSource() async throws {
         let store = try await WhoopStore.inMemory()
         let session = CachedSleepSession(startTs: 1_000, endTs: 5_000, efficiency: 0.9,
@@ -80,6 +124,68 @@ final class RawPhysiologyUnionTests: XCTestCase {
         repo.setStoreForTesting(store)
         let motion = await repo.sessionMotions(sessions: [session])
         XCTAssertEqual(motion[1_000] ?? [], [0.1, 0.2])
+    }
+
+    /// The batched read resolves EVERY session, not just the first.
+    ///
+    /// The per-session shape this replaced asked the store once per session per candidate device; it now
+    /// takes one windowed read per device and resolves each block against that. The failure a batched
+    /// version can have is a partial map: a span or page bound that covers the first night and quietly
+    /// drops the rest, which looks exactly like "those nights have no motion" rather than like a bug.
+    /// Three nights spread across the window, each with its own series, so a truncation is visible.
+    @MainActor
+    func testSessionMotionsResolvesEveryNightInOneBatch() async throws {
+        let store = try await WhoopStore.inMemory()
+        let starts = [1_000, 200_000, 900_000]
+        let sessions = starts.map {
+            CachedSleepSession(startTs: $0, endTs: $0 + 4_000, efficiency: 0.9,
+                               restingHr: 52, avgHrv: 60, stagesJSON: nil)
+        }
+        _ = try await store.upsertSleepSessions(sessions, deviceId: "my-whoop")
+        _ = try await store.upsertSleepSessions(sessions, deviceId: "my-whoop-noop")
+        for (i, start) in starts.enumerated() {
+            _ = try await store.persistSessionMotion(deviceId: "my-whoop-noop", sessionStart: start,
+                                                     motionEpochs: [Double(i) + 0.5])
+        }
+        let repo = Repository(deviceId: "my-whoop")
+        repo.setStoreForTesting(store)
+
+        let motion = await repo.sessionMotions(sessions: sessions)
+        XCTAssertEqual(motion.count, starts.count, "a night dropped by the batch reads as having no motion")
+        for (i, start) in starts.enumerated() {
+            XCTAssertEqual(motion[start] ?? [], [Double(i) + 0.5], "night at \(start) got another night's series")
+        }
+    }
+
+    /// Provenance and the probe must agree, or the fast path is a behaviour change wearing a perf label.
+    ///
+    /// The stored block carries the device it was read from and skips the ownership probe; the same block
+    /// with that field stripped falls back to the probe. Both must resolve to the same motion. They do
+    /// because the search normalises whichever id it finds to its `-noop` twin, and the computed ids are
+    /// exactly the raw ids under that suffix, so both namespaces land on one source.
+    @MainActor
+    func testProvenanceAndTheOwnerProbeResolveTheSameMotion() async throws {
+        let store = try await WhoopStore.inMemory()
+        let session = CachedSleepSession(startTs: 1_000, endTs: 5_000, efficiency: 0.9,
+                                         restingHr: 52, avgHrv: 60, stagesJSON: nil)
+        _ = try await store.upsertSleepSessions([session], deviceId: "my-whoop")
+        _ = try await store.upsertSleepSessions([session], deviceId: "my-whoop-noop")
+        _ = try await store.persistSessionMotion(deviceId: "my-whoop-noop", sessionStart: 1_000,
+                                                 motionEpochs: [0.3, 0.4])
+        let repo = Repository(deviceId: "my-whoop")
+        repo.setStoreForTesting(store)
+
+        // As the store hands it back: provenance present, no probe.
+        let stored = try await store.sleepSessions(deviceId: "my-whoop", from: 0, to: 10_000, limit: 8)
+        XCTAssertEqual(stored.first?.deviceId, "my-whoop")
+        let viaProvenance = await repo.sessionMotions(sessions: stored)
+
+        // The same block with provenance stripped: the probe resolves it instead.
+        let viaProbe = await repo.sessionMotions(sessions: [session])
+
+        XCTAssertEqual(viaProvenance[1_000] ?? [], [0.3, 0.4])
+        XCTAssertEqual(viaProbe[1_000] ?? [], viaProvenance[1_000] ?? [],
+                       "the shortcut and the probe disagreed about the same night")
     }
 
     @MainActor

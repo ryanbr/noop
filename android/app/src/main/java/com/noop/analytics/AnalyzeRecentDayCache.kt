@@ -35,6 +35,15 @@ object AnalyzeRecentDayCache {
      *   a 4.0 and a 5/MG): when a day's resolved owner flips between straps, keying on the owner makes the
      *   reuse invalidate **explicitly**, rather than relying on two different devices never producing an
      *   identical `count`+`maxTs` for the same window.
+     * - [streams]: the opaque per-day witness of every OTHER scored stream — PPG-derived HR, R-R,
+     *   respiration, SpO2, gravity, steps, skin temp and events (`WhoopRepository.dayStreamFingerprint`).
+     *   #29: a history offload does not commit its channels together, and an offloaded HR row duplicating a
+     *   live one is ignored on conflict, so a night can be scored from HR alone and then gain its R-R with
+     *   [hrCount]/[hrMaxTs] completely unmoved. Keyed on HR alone this said "reuse", and the HRV-less scan
+     *   was re-served for the rest of the process, a user-initiated refresh included, since a forced pass
+     *   only bypasses the whole-pass watermark gate. That gate had already been widened to every stream
+     *   (`analysisFingerprint`, v2); this is the same widening at day granularity, which is where the reuse
+     *   decision is actually made.
      *
      * Inputs that feed `analyzeDay` but are pass-global rather than per-day (profile, baselines1, sleep need
      * / consistency, habitual midsleep, tz, stager toggles) are NOT in this key — the engine drops the whole
@@ -42,6 +51,7 @@ object AnalyzeRecentDayCache {
      */
     fun cacheKey(
         owner: String, hrCount: Int, hrMaxTs: Long, skinAnchorRaw: Double?,
+        streams: String,
         // #1575: whether this day is the one that emits the PER-WINDOW HRV detail (`dayStart ==
         // nowLocalMidnight`). Now that trace lines are recorded and replayed, this has to invalidate:
         // the night cached as "today" with its detailed trace becomes an ordinary night after midnight,
@@ -52,6 +62,6 @@ object AnalyzeRecentDayCache {
         hrvWindowDetail: Boolean,
     ): String {
         val anchor = skinAnchorRaw?.toRawBits()?.toString() ?: "nil"
-        return "$owner|$hrCount:$hrMaxTs:$anchor:${if (hrvWindowDetail) "d" else "s"}"
+        return "$owner|$hrCount:$hrMaxTs:$anchor:${if (hrvWindowDetail) "d" else "s"}|$streams"
     }
 }

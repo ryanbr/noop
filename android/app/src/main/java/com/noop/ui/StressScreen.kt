@@ -61,6 +61,8 @@ import com.noop.analytics.DaytimeStress
 import com.noop.analytics.HrvFreqDomain
 import com.noop.analytics.StressIndex
 import com.noop.data.DailyMetric
+import com.noop.widget.StressPoint
+import com.noop.widget.StressTrace
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -568,7 +570,7 @@ private fun StressDaytimeSection(
 
                 Text(
                     uiString(R.string.l10n_stress_screen_the_line_traces_your_autonomic_load_804f4028) +
-                        "against your own calm hours today (the same 0-3 proxy as the score " +
+                        " against your own calm hours today (the same 0-3 proxy as the score " +
                         "above, read hour by hour). Hours without enough data are skipped.",
                     style = NoopType.footnote,
                     color = Palette.textTertiary,
@@ -584,6 +586,175 @@ private fun StressDaytimeSection(
         if (day.sustainedHigh) SustainedBreatheCard(day, onBreathe)
     }
 }
+
+// MARK: - Today host: the intraday curve as a compact card (#2040 follow-up)
+
+/**
+ * The stress curve as a card for the Today screen, mirroring the home-screen widget.
+ *
+ * READ-ONLY on purpose. The Stress tab's own timeline is the interactive one, with scrubbing, a
+ * crosshair and per-hour tooltips; hosting that here would put two live charts on two screens fighting
+ * over the same gestures. This is the same rule the Sleep tab's hosted "Stages" card follows, where the
+ * Today host mirrors only the display.
+ *
+ * Geometry comes from [StressTrace], the same pure helper the widget draws through, so the card and the
+ * widget cannot disagree about where an hour sits, where the line breaks or which hours are high. Only
+ * the drawing differs, because Glance has to render to a Bitmap and Compose does not.
+ */
+@Composable
+internal fun StressTodayCard(points: List<StressPoint>, modifier: Modifier = Modifier) {
+    val stats = remember(points) { StressTrace.stats(points) }
+    val ticks = remember(points) { StressTrace.timeTicks(points) }
+    val textTertiary = Palette.textTertiary
+    val calm = StressRamp.CALM
+    val steady = StressRamp.STEADY
+    val tense = StressRamp.TENSE
+
+    NoopCard(tint = Palette.stressColor, modifier = modifier) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // The SAME title the Customise list offers, so what you added and what appears are
+                // recognisably one thing. "Stress" alone collided with the pinned Your Cards tile,
+                // which shows a number rather than this curve.
+                Overline(uiString(R.string.hosted_card_stress_title), modifier = Modifier.weight(1f))
+                if (stats != null) {
+                    val peakTenths = ((stats.peak.level ?: 0.0) * 10).roundToInt().coerceIn(0, 30)
+                    Text(
+                        uiString(R.string.trends_peak) +
+                            " ${peakTenths / 10}.${peakTenths % 10} · ${pointTimeLabel(stats.peak.ts)}",
+                        style = NoopType.footnote,
+                        color = Palette.textSecondary,
+                    )
+                }
+            }
+
+            if (stats == null) {
+                // The SAME "Calibrating" placeholder the pinned Today stress card already shows with no
+                // usable signal, so the two never disagree about what an unscored day looks like. Honest
+                // blank rather than a flat line at zero: only waking hours score, so this is every day's
+                // early morning as well as a day with too little signal.
+                Text(
+                    uiString(R.string.l10n_today_screen_calibrating_37c2c9bd),
+                    style = NoopType.footnote,
+                    color = textTertiary,
+                )
+            } else {
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    // The FIXED 0-3 scale down the left, as the screen and the widget both draw it. An
+                    // axis that moved with the day would make two days impossible to compare.
+                    Column(
+                        // Marked decorative: read aloud, "3 2 1 0" is four bare numbers with nothing to
+                        // say what they measure. The peak and average beside the chart carry the reading,
+                        // and the axis is only meaningful to someone who can see what it annotates.
+                        // Glance could not do this for the widget; Compose can.
+                        modifier = Modifier
+                            .height(Metrics.chartHeight)
+                            .clearAndSetSemantics { },
+                        horizontalAlignment = Alignment.End,
+                        verticalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        StressTrace.levelTicks().forEach {
+                            Text(it.toString(), style = NoopType.footnote, color = textTertiary)
+                        }
+                    }
+                    Spacer(Modifier.width(6.dp))
+                    Canvas(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(Metrics.chartHeight),
+                    ) {
+                        val w = size.width
+                        val h = size.height
+                        if (w <= 0f || h <= 0f) return@Canvas
+                        val strokeW = 2.dp.toPx()
+                        // Reserve the bottom strip for the movement marks, and build the geometry AT the
+                        // reduced height rather than scaling it afterwards. A calm hour sits at the very
+                        // bottom of a fixed domain, so without the strip its line and the marks share a
+                        // row and read as one thing. (The widget carves the same band out of its bitmap;
+                        // computing against `chartH` here is the same idea without the second mapping
+                        // that had to be got right there.)
+                        val hasMarks = points.any { it.moving }
+                        val markBand = if (hasMarks) (strokeW * 2.5f).coerceAtMost(h / 6f) else 0f
+                        val chartH = (h - markBand).coerceAtLeast(1f)
+                        // Amber at the top through green to blue at the bottom: because the domain is
+                        // fixed, vertical position IS the level, so one shader colours every run by the
+                        // score it actually carries.
+                        val gradient = Brush.verticalGradient(listOf(tense, steady, calm),
+                                                              startY = 0f, endY = chartH)
+
+                        StressTrace.segments(points, w, chartH).forEach { run ->
+                            if (run.isEmpty()) return@forEach
+                            if (run.size == 1) {
+                                // Brushed, not a flat colour: the dot has to carry the level the same way
+                                // the line does, or a lone HIGH hour would draw the calm-day green.
+                                drawCircle(brush = gradient, radius = strokeW,
+                                           center = Offset(run[0].x.coerceAtLeast(strokeW), run[0].y))
+                                return@forEach
+                            }
+                            val line = Path().apply {
+                                moveTo(run[0].x, run[0].y)
+                                run.drop(1).forEach { lineTo(it.x, it.y) }
+                            }
+                            // Closed PER RUN, so the fill cannot spread under an hour that was never
+                            // scored and undo the gap the broken line exists to draw.
+                            val fill = Path().apply {
+                                addPath(line)
+                                lineTo(run.last().x, chartH)
+                                lineTo(run[0].x, chartH)
+                                close()
+                            }
+                            drawPath(fill, brush = gradient, alpha = StrandAlpha.chartFillSoft)
+                            drawPath(line, brush = gradient,
+                                     style = Stroke(width = strokeW, cap = StrokeCap.Round,
+                                                    join = StrokeJoin.Round))
+                        }
+                        // Hours in the HIGH band, dotted above the line exactly as the screen marks them.
+                        StressTrace.highPoints(points, w, chartH).forEach {
+                            drawCircle(color = tense, radius = strokeW,
+                                       center = Offset(it.x, (it.y - strokeW * 2f).coerceAtLeast(strokeW)))
+                        }
+                        // The stretches the motion gate masked: exertion raises heart rate on its own, so
+                        // the hour is marked rather than scored.
+                        StressTrace.movingMarks(points, w).forEach {
+                            drawCircle(color = textTertiary, radius = strokeW * 0.6f,
+                                       center = Offset(it, h - markBand / 2f))
+                        }
+                    }
+                }
+
+                if (ticks.size >= 2) {
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        ticks.forEachIndexed { i, ts ->
+                            Text(pointTimeLabel(ts), style = NoopType.footnote, color = textTertiary)
+                            if (i < ticks.size - 1) Spacer(Modifier.weight(1f))
+                        }
+                    }
+                }
+
+                val avgTenths = (stats.mean * 10).roundToInt().coerceIn(0, 30)
+                Text(
+                    uiString(R.string.l10n_stress_screen_avg_a178769d) +
+                        " ${avgTenths / 10}.${avgTenths % 10}",
+                    style = NoopType.footnote,
+                    color = textTertiary,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * A point's clock time, in the device's own short format.
+ *
+ * NOT [hourLabel]: that renders an hour-of-day and nothing finer, which was correct while every point
+ * sat on the hour. The timeline now reads its window every half hour, so a peak at 09:30 would have
+ * been labelled "9 am" and an axis tick at 06:30 "6 am" — wrong by up to half an hour, and silently,
+ * since the number beside it would still be the right one. The widget formats the timestamp for the
+ * same reason.
+ */
+private fun pointTimeLabel(ts: Long): String =
+    java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT)
+        .format(java.util.Date(ts * 1_000L))
 
 // MARK: - Daytime autonomic-load line (gradient, same scale as the gauge)
 //
@@ -1049,7 +1220,7 @@ private fun StressTrendSection(model: StressModel, modifier: Modifier = Modifier
                             )
                         }
                         Text(
-                            uiString(R.string.l10n_stress_screen_avg_a178769d) + String.format(Locale.US, "%.1f", avg),
+                            uiString(R.string.l10n_stress_screen_avg_a178769d) + " " + String.format(Locale.US, "%.1f", avg),
                             style = NoopType.captionNumber,
                             color = Palette.textSecondary,
                         )
@@ -1133,7 +1304,7 @@ private fun StressMethodologyCard(model: StressModel, modifier: Modifier = Modif
             )
             Text(
                 uiString(R.string.l10n_stress_screen_we_compare_today_s_resting_heart_a9cd0955) +
-                    "baseline. A higher-than-usual resting HR and a lower-than-usual HRV " +
+                    " baseline. A higher-than-usual resting HR and a lower-than-usual HRV " +
                     "both push the score up, classic signs the body is activated. The " +
                     "combined shift is mapped onto a 0-3 scale: 0 is calm, 1.5 sits at " +
                     "your baseline, 3 is highly activated.",

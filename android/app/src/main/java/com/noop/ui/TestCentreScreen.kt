@@ -493,6 +493,10 @@ private suspend fun buildPending(
         if (f.exists()) dbBytes += f.length()
     }
     val rows = vm.repo.storageRowCounts()
+    // #1911: bytes beside the counts, reusing the counts just read rather than a second COUNT(*) pass over
+    // thirteen tables - each is a full scan on the large stores this report is pulled from.
+    val rowBytes = com.noop.data.StorageFootprint(
+        com.noop.data.WhoopDatabase.get(context)).byteEstimates(rows)
     var rawBytes = 0L
     for (name in listOf(
         com.noop.ble.WhoopBleClient.WHOOP5_CAPTURE_FILE,
@@ -506,6 +510,7 @@ private suspend fun buildPending(
             dbBytes = dbBytes.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
             rows = rows,
             rawCaptureBytes = rawBytes.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+            rowBytes = rowBytes,
         )
     } else {
         null
@@ -1157,7 +1162,7 @@ private fun ReportReviewDialog(
                     // ships a report a maintainer can't act on. Twin of the Swift review-sheet warning.
                     Text(
                         uiString(R.string.l10n_test_centre_screen_heads_up_this_test_mode_is_8b82ed69) +
-                            "useful report, turn the mode on, reproduce the problem while wearing the " +
+                            " useful report, turn the mode on, reproduce the problem while wearing the " +
                             "strap, then report again.",
                         style = NoopType.footnote, color = Palette.statusWarning,
                         modifier = Modifier.padding(bottom = 8.dp),

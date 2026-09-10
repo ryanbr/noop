@@ -21,6 +21,7 @@ extension WidgetSnapshot {
     /// the rollover yet always describes today.
     @MainActor
     static func publish(from model: AppModel) async {
+        await refreshWidgetPresence()
         let days = model.repo.days
         let now = Date()
         // The recovery-derived anchor: today's row when it's scored, else the freshest STRICTLY-PRIOR
@@ -59,6 +60,24 @@ extension WidgetSnapshot {
             }
             return "\(Int(stored.rounded()))"
         }
+        // #2040: today's stress curve. Self-gating on a cheap heart-rate fingerprint, so a publish that
+        // changed nothing costs one indexed COUNT and no rows. Only the FULL path scores it; the live
+        // fast path below reuses the previous snapshot and so carries the curve forward untouched.
+        let stress = await StressDayCurve.today(repo: model.repo)
+        // The widget's own point type is built HERE, at the one place that needs it: `StressPoint`
+        // lives in the iOS/widget shared sources, and the producer is now also read by the Today card,
+        // which is compiled for macOS too.
+        let stressPoints: [StressPoint]? = stress.map { scored in
+            scored.result.timeline.map {
+                // `startTs` is the wall-clock bucket start with the local shift already undone, so it
+                // is a true instant and formats correctly against the device's zone.
+                StressPoint(ts: Int64($0.startTs), level: $0.level, moving: $0.maskedForActivity)
+            }
+        }
+        // Loaded ONCE for the carry-forward below. Reaching for `load()` in each of the two arguments
+        // would decode the App Group blob twice on any publish that could not score, and this file
+        // already went to the trouble of removing one such decode from the live path.
+        let storedStress: WidgetSnapshot? = stress == nil ? load() : nil
         let snap = WidgetSnapshot(
             recovery: day?.recovery.map { Int($0.rounded()) },
             bpm: model.bpm ?? model.live.heartRate,
@@ -71,7 +90,11 @@ extension WidgetSnapshot {
             hrv: day?.avgHrv.map { Int($0.rounded()) },
             restingHr: day?.restingHr,
             effortDisplay: effortDisplay,
-            effortWhoop: effortScale == .whoop
+            effortWhoop: effortScale == .whoop,
+            // nil when the curve could not be scored at all, which must not blank a widget that already
+            // has one: carry the stored values forward instead of publishing an absence.
+            stressSeries: stressPoints ?? storedStress?.stressSeries,
+            stressDay: stress?.day ?? storedStress?.stressDay
         )
         saveAndReloadIfChanged(snap)
     }
@@ -110,13 +133,57 @@ extension WidgetSnapshot {
     private static func saveAndReloadIfChanged(_ snap: WidgetSnapshot, previous: WidgetSnapshot? = nil) {
         let previous = previous ?? load()
         if renderedContentChanged(from: previous, to: snap) {
-            snap.save()
+            snap.save(previousSeries: previous?.hrSeries ?? [])
             WidgetCenter.shared.reloadAllTimelines()
+            // Android skips the update entirely when no widget is placed; WidgetKit offers no
+            // synchronous way to know, so the reload still goes out and is instead recorded honestly.
+            // Counting it as a reload would make a widget-removed export read exactly like a
+            // widget-installed one, which is half the comparison the counters exist for.
+            if WidgetTelemetry.widgetsInstalled {
+                WidgetTelemetry.noteReloaded()
+            } else {
+                WidgetTelemetry.noteNoWidget()
+            }
+        } else if WidgetSnapshot.traceNeedsPoint(previous: previous, bpm: snap.bpm, now: snap.updated) {
+            // A steady heart changes nothing the header renders, so the branch above declines — but the
+            // TRACE still wants this minute's point, or it stops advancing at rest and prunes to empty
+            // (#1957). Persist without a reload: the point is for the next timeline WidgetKit builds,
+            // and spending a reload a minute is exactly what the dedup above exists to avoid.
+            snap.save(previousSeries: previous?.hrSeries ?? [])
+            WidgetTelemetry.noteDeclined()
         } else if liveUpdateRequiresFullBuild(previous: previous, now: snap.updated) {
             // The rollover's visible values can legitimately match yesterday's. Persist the fresh day
             // stamp once without spending a redundant WidgetKit reload, so later live ticks stay fast.
-            snap.save()
+            snap.save(previousSeries: previous?.hrSeries ?? [])
+            WidgetTelemetry.noteDeclined()
+        } else {
+            // Nothing at all to do. Counted rather than left as a silent fall-through: an outcome that
+            // records nothing is exactly how the Android counters came to report publishes that never
+            // went anywhere as if they had.
+            WidgetTelemetry.noteDeclined()
         }
+    }
+
+    /// Ask WidgetKit whether any widget is actually installed, and remember the answer.
+    ///
+    /// Only on the full publish path: it is already `async`, and the once-a-minute live path has no
+    /// `await` to spend on an XPC round trip it does not need. The answer changes when a user adds or
+    /// removes a widget, which is exactly when the app is being foregrounded anyway, so a value from
+    /// the last full publish is fresh enough for a diagnostic.
+    ///
+    /// A failure leaves the previous answer in place rather than guessing, and "never asked" counts as
+    /// installed — over-reporting reloads is the safe direction for a figure meant to show a cost.
+    @MainActor
+    private static func refreshWidgetPresence() async {
+        let installed: Bool? = await withCheckedContinuation { continuation in
+            WidgetCenter.shared.getCurrentConfigurations { result in
+                switch result {
+                case .success(let widgets): continuation.resume(returning: !widgets.isEmpty)
+                case .failure: continuation.resume(returning: nil)
+                }
+            }
+        }
+        if let installed { WidgetTelemetry.noteWidgetsInstalled(installed) }
     }
 
     /// #114/#169: HR is the ONE high-frequency widget-publish trigger — `model.bpm` moves every few
@@ -133,8 +200,12 @@ extension WidgetSnapshot {
         /// True (and stamps `now`) when at least `interval` has elapsed since the last HR-driven publish;
         /// false to skip this HR change. The first call always admits (`.distantPast`).
         static func admit(now: Date = Date()) -> Bool {
-            guard now.timeIntervalSince(lastPublishedAt) >= interval else { return false }
+            guard now.timeIntervalSince(lastPublishedAt) >= interval else {
+                WidgetTelemetry.noteGated(now: now)
+                return false
+            }
             lastPublishedAt = now
+            WidgetTelemetry.noteAdmitted(now: now)
             return true
         }
     }

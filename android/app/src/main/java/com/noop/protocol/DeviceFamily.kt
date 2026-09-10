@@ -80,6 +80,16 @@ enum class DeviceFamily {
         }
 
     companion object {
+        /** Positive registry evidence; unlike the skin-compatible fallback, unknown is not WHOOP 5. */
+        fun confirmedRegistryFamily(model: String?, brand: String?): DeviceFamily? {
+            if (!brand.isNullOrEmpty() && !brand.equals("WHOOP", ignoreCase = true)) return null
+            return when (model?.lowercase(java.util.Locale.ROOT)) {
+                "4.0", "whoop 4.0" -> WHOOP4
+                "5.0", "5.0 mg", "whoop 5.0", "whoop 5.0 / mg", "mg", "whoop5" -> WHOOP5
+                else -> null
+            }
+        }
+
         /**
          * Resolve a device-registry `model` label to the strap family that wrote its rows (#171).
          *

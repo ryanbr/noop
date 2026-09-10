@@ -126,7 +126,7 @@ fun InsightsHubScreen(vm: AppViewModel) {
                 Overline("How to read this", color = Palette.textTertiary)
                 Text(
                     uiString(R.string.l10n_insights_hub_screen_everything_here_is_a_pattern_in_ed2162a6) +
-                        "effect size and confidence, never a cause or a diagnosis. Population patterns " +
+                        " effect size and confidence, never a cause or a diagnosis. Population patterns " +
                         "are shown as “typical” and are always overridden by your own data once " +
                         "you have enough of it. Approximations, not WHOOP’s scores; not a medical device.",
                     style = NoopType.footnote,
@@ -164,7 +164,7 @@ private fun MoversSection(
             NoopCard {
                 Text(
                     uiString(R.string.l10n_insights_hub_screen_not_enough_overlap_between_your_journal_0ebdd7a2) +
-                        "${outcome.outcomeName.lowercase(Locale.US)} yet. Keep logging. Each behaviour " +
+                        " ${outcome.outcomeName.lowercase(Locale.US)} yet. Keep logging. Each behaviour " +
                         "needs days both with and without it before NOOP can read its effect.",
                     style = NoopType.subhead,
                     color = Palette.textTertiary,
@@ -272,7 +272,7 @@ private fun DoseSection(cards: List<DoseCardData>) {
             NoopCard {
                 Text(
                     uiString(R.string.l10n_insights_hub_screen_log_alcohol_or_late_caffeine_with_dec9dadf) +
-                        "how much each extra unit tends to move your numbers. Until then it shows " +
+                        " how much each extra unit tends to move your numbers. Until then it shows " +
                         "typical patterns, clearly labelled as not yet yours.",
                     style = NoopType.subhead,
                     color = Palette.textSecondary,

@@ -13,7 +13,8 @@ import org.junit.Test
  */
 class StepsCounterTest {
 
-    private fun step(ts: Long, counter: Int) = StepSample(deviceId = "my-whoop", ts = ts, counter = counter)
+    private fun step(ts: Long, counter: Int, activityClass: Int? = null) =
+        StepSample(deviceId = "my-whoop", ts = ts, counter = counter, activityClass = activityClass)
 
     @Test fun sumsPositiveConsecutiveDeltas() {
         // counters 100 -> 150 -> 220 => deltas 50 + 70 = 120
@@ -48,7 +49,35 @@ class StepsCounterTest {
 
     @Test fun maxStepDeltaBoundaryIsExclusive() {
         // Exactly MAX_STEP_DELTA (512) is dropped; 511 counts.
-        assertNull(StepsCounter.stepsInWindow(listOf(step(0, 0), step(60, 512))))
-        assertEquals(511, StepsCounter.stepsInWindow(listOf(step(0, 0), step(60, 511))))
+        assertNull(StepsCounter.stepsInWindow(listOf(step(0, 0), step(128, 512))))
+        assertEquals(511, StepsCounter.stepsInWindow(listOf(step(0, 0), step(128, 511))))
+    }
+
+    @Test fun rejectsPhysicallyImpossibleOneSecondSpikeButAllowsSameTicksAcrossTime() {
+        // Four ticks/second (240/min) remains available for a hard sprint. Seven ticks in one second is
+        // the observed household outlier and cannot be real gait; the same seven ticks across two seconds
+        // can be a small history hole and must remain recoverable.
+        assertNull(StepsCounter.stepsInWindow(listOf(step(0, 100), step(1, 107))))
+        assertEquals(7, StepsCounter.stepsInWindow(listOf(step(0, 100), step(2, 107))))
+        assertEquals(4, StepsCounter.stepsInWindow(listOf(step(0, 100), step(1, 104))))
+    }
+
+    @Test fun classedStreamCountsOnlyWalkAndRunDeltas() {
+        // Attribute each counter delta to the later sample, matching the strap's per-record class.
+        // still: +10 ignored; walk: +20; run: +15; unknown: +25 ignored => 35 locomotion ticks.
+        assertEquals(35, StepsCounter.stepsInWindow(listOf(
+            step(0, 100, 0),
+            step(10, 110, 0),
+            step(20, 130, 1),
+            step(30, 145, 2),
+            step(40, 170, null),
+        )))
+    }
+
+    @Test fun legacyUnclassedStreamKeepsCounterFallback() {
+        // Rows written before activityClass existed must retain their historical estimate.
+        assertEquals(70, StepsCounter.stepsInWindow(listOf(
+            step(0, 100), step(10, 140), step(20, 170),
+        )))
     }
 }

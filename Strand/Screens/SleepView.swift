@@ -66,6 +66,15 @@ struct SleepView: View {
     /// merges each day into one Night, so a split day reads as one correctly-totalled night with the
     /// gaps preserved. Oldest→newest. Falls back to `repo.sleeps` until loaded. (#170)
     @State private var allSessions: [CachedSleepSession] = []
+    /// `navDays` memoized, rebuilt where `model` is.
+    ///
+    /// Grouping calls `Calendar.startOfDay` once per session, and the browsable history is every block
+    /// ever recorded, so recomputing it per render is a per-frame pass over years of nights. Body reaches
+    /// it more than once (the wake-timestamp list, and `dayBlocks(at:)` for the source blocks), so a
+    /// scroll paid it repeatedly. Invalidated by the same two paths that rebuild `model`: `dataKey`
+    /// covers a `repo.sleeps` change, and the refresh task covers `allSessions` reloading. Nil falls back
+    /// to computing it, so a first render before either has run is correct rather than empty.
+    @State private var navDaysCache: [[CachedSleepSession]]?
 
     /// The user's LEARNED habitual midsleep (local time-of-day seconds), or nil under the cold-start
     /// threshold. Loaded from `repo.habitualMidsleepSec()` — the SAME value `AnalyticsEngine.analyzeDay`
@@ -178,6 +187,7 @@ struct SleepView: View {
             // `resolved` already drives THIS frame, so there is no flash and no extra rebuild.
             .onChangeCompat(of: key) { newKey in
                 modelKey = newKey
+                navDaysCache = SleepModel.navDays(navSessions: navSessions)
                 model = buildModel()
                 // New data invalidates a navigated offset — the same offset would silently
                 // point at a different session. Snap back to last night. (#160)
@@ -213,6 +223,7 @@ struct SleepView: View {
                 nightOffset = 0
                 navNight = nil
                 modelKey = dataKey
+                navDaysCache = SleepModel.navDays(navSessions: navSessions)
                 model = buildModel()
             }
             .sheet(item: $wakeEdit) { edit in
@@ -361,22 +372,25 @@ struct SleepView: View {
         return n == 0 ? "Last night" : (n == 1 ? "1 night ago" : "\(n) nights ago")
     }
 
-    /// #1311: how many CALENDAR nights back the carousel night at `offset` is from the newest recorded
-    /// night. The ◀/▶ carousel steps by RECORDED night (`navDays`, newest-first), so a night with no
-    /// data (strap off-body) is a gap the flat index can't see — labelling by index makes two nights
-    /// either side of a skipped night read as consecutive and desyncs the "N nights ago" labels (and the
-    /// Rest value they name). Uses the same local start-of-day `navDays` is grouped by; falls back to the
-    /// raw index if it can't resolve. 0 = last night. Mirrors Android SleepHeroLogic.calendarNightsAgo.
-    private func nightsAgo(_ offset: Int) -> Int {
-        let days = navDays
-        guard offset >= 0, offset < days.count,
-              let newestTs = days.first?.first?.endTs, let shownTs = days[offset].first?.endTs
-        else { return offset }
-        let cal = Calendar.current
-        let shown = cal.startOfDay(for: Date(timeIntervalSince1970: TimeInterval(shownTs)))
-        let newest = cal.startOfDay(for: Date(timeIntervalSince1970: TimeInterval(newestTs)))
-        let d = cal.dateComponents([.day], from: shown, to: newest).day ?? offset
-        return d >= 0 ? d : offset
+    /// #1311: how many nights back the carousel night at `offset` is, counted in CALENDAR nights rather
+    /// than carousel index. The ◀/▶ carousel steps by RECORDED night (`navDays`, newest-first), so a
+    /// night with no data (strap off-body) is a gap the flat index can't see — labelling by index makes
+    /// two nights either side of a skipped night read as consecutive and desyncs the "N nights ago"
+    /// labels (and the Rest value they name).
+    ///
+    /// Counted FROM TODAY, not from the newest recorded night.
+    ///
+    /// Delegates to `SleepNightLabel.nightsAgo`, which is where this logic is tested. It lived inline
+    /// and private here, which is why the newest-anchored defect went uncaught on this platform.
+    /// Kotlin twin: `calendarNightsAgo`.
+    private func nightsAgo(_ offset: Int, now: Date = Date()) -> Int {
+        SleepNightLabel.nightsAgo(
+            // Optional per entry, NOT `?? 0`: a day group with no session must fall back to the offset
+            // the way the Kotlin twin does. Zero would be 1970 and would read as ~20,000 nights ago.
+            wakeTimestamps: navDays.map { $0.first.map { s in Int(s.endTs) } },
+            offset: offset,
+            today: Repository.logicalDay(now)
+        )
     }
 
     /// The night the Rest hero reflects: the ◀/▶-navigated night while browsing (falling back to
@@ -1774,7 +1788,7 @@ struct SleepView: View {
     /// The browsable DAY list — a thin wrapper over the shared `SleepModel.navDays`, which is the
     /// source of truth the builder and the ◀/▶ nav both read (no duplicated grouping). (#170)
     private var navDays: [[CachedSleepSession]] {
-        SleepModel.navDays(navSessions: navSessions)
+        navDaysCache ?? SleepModel.navDays(navSessions: navSessions)
     }
 
     /// The device's current UTC offset (seconds east), evaluated once per pick. Feeds the selector's

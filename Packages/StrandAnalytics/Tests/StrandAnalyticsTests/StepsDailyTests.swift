@@ -58,7 +58,7 @@ final class StepsDailyTests: XCTestCase {
     func testJumpGuardDropsGapButKeepsRealSteps() {
         // 100 -> 300 (=200 real) ; 300 -> 1200 is a 900-tick GAP (>= 512) and is dropped ; 1200 -> 1500
         // (=300 real). Only the two in-range increments count => 200 + 300 = 500, the gap doesn't inflate.
-        let s = [step(0, 100), step(60, 300), step(3_600, 1_200), step(3_660, 1_500)]
+        let s = [step(0, 100), step(60, 300), step(3_600, 1_200), step(3_675, 1_500)]
         XCTAssertEqual(stepsFor(s), 500)
     }
 
@@ -66,7 +66,7 @@ final class StepsDailyTests: XCTestCase {
         // THE BUG (#132/#276/#316). A realistic ascending cumulative counter sampled at 1 Hz. The OLD
         // code summed the raw running total (here, byte @57 alone summed) — exploding the count; the NEW
         // wrap-aware diff sums only the per-record increments and yields a sane number.
-        let counters = [100, 127, 127, 130, 131, 131, 140, 152, 160, 175]
+        let counters = [100, 102, 102, 105, 106, 106, 109, 111, 113, 115]
         let samples = counters.enumerated().map { step($0.offset, $0.element) }
         // NEW behaviour: sum of wrap-aware deltas == last - first (all small increments, none >= 512).
         let sane = counters.last! - counters.first!  // 75

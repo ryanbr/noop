@@ -2,6 +2,7 @@ package com.noop.protocol
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -110,14 +111,13 @@ class UnmappedHistoricalLayoutTest {
     /**
      * The mapped versions ARE recognised as mapped (the other direction of the lockstep).
      *
-     * ⚠️ This set is {18, 26}, NOT the Swift `[18, 20, 21, 26]`. Swift dispatches v20 (raw optical) and
-     * v21 (raw 6-axis IMU) through `decodeWhoop5HistoricalV2021`; the Kotlin historical path has no such
-     * branch — `Whoop5RawOptical`/`Whoop5RawImu` are wired to the LIVE deep-buffer route, not to the
-     * type-47 historical dispatch. Claiming 20/21 here would assert a field map Android does not have.
-     * Update BOTH this assertion and the constant when a v20/v21 historical decoder lands on this side.
+     * This set is now {18, 20, 21, 26}, matching Swift. v20 (raw optical) and v21 (raw 6-axis IMU) were
+     * the long-standing gap: `Whoop5RawOptical`/`Whoop5RawImu` existed on this side but were wired only
+     * to the LIVE deep-buffer route, never to the type-47 historical dispatch, so an offloaded record in
+     * either layout decoded to null. `decodeWhoop5HistoricalV2021` closes that.
      */
     @Test fun mappedVersionsAreNotTreatedAsUnmapped() {
-        assertEquals(setOf(18, 26), MAPPED_WHOOP5_HISTORICAL_VERSIONS)
+        assertEquals(setOf(18, 20, 21, 26), MAPPED_WHOOP5_HISTORICAL_VERSIONS)
         for (v in MAPPED_WHOOP5_HISTORICAL_VERSIONS) {
             assertFalse(
                 "v$v has a field map and must not be archived on layout grounds",
@@ -155,4 +155,130 @@ class UnmappedHistoricalLayoutTest {
             isUnmappedWhoop5HistoricalRecord(bytes(v24Hex)),
         )
     }
+    // MARK: - v20 / v21 historical dispatch (ported from Swift)
+
+    /**
+     * The guard the archive-filter change was landed for.
+     *
+     * v20 now DECODES on this platform, so it is no longer archived by the unmapped-layout rule and no
+     * longer archived for failing to decode. It must still reach the archive, because the record yields
+     * no heart rate and no gravity: those bytes are the input for working out what the optical channels
+     * mean, and the strap frees them on the next trim ack. Had the filter still asked "did it decode at
+     * all", this port would have silently stopped collecting them, on the only platform collecting them.
+     */
+    @Test
+    fun whoop5V20StillArchivedAfterItDecodes() {
+        val frame = whoop5FrameWithVersion(20)
+        val decoded = decodeHistorical(frame, DeviceFamily.WHOOP5)
+        assertNotNull("v20 must decode now that the dispatch exists", decoded)
+        assertNull("v20 carries no per-second heart rate", decoded!!["heart_rate"])
+        assertNull("v20 carries no gravity vector", decoded["gravity_x"])
+        assertEquals(
+            "a v20 record that decodes into unread channels must still be archived",
+            1,
+            rejectedHistoricalRecords(listOf(frame), DeviceFamily.WHOOP5).size,
+        )
+    }
+
+    /** v21 is the same story: it decodes, carries no scoreable signal, and is still archived. */
+    @Test
+    fun whoop5V21StillArchivedAfterItDecodes() {
+        val frame = whoop5FrameWithVersion(21)
+        val decoded = decodeHistorical(frame, DeviceFamily.WHOOP5)
+        assertNotNull(decoded)
+        assertNull(decoded!!["heart_rate"])
+        assertEquals(1, rejectedHistoricalRecords(listOf(frame), DeviceFamily.WHOOP5).size)
+    }
+
+    /**
+     * Both layouts reuse the v18 record header, so the fields that make a record identifiable at all
+     * decode even when its body does not: the layout marker, the monotonic record index and the unix.
+     * A v20/v21 record used to yield NOTHING, not even a timestamp.
+     */
+    @Test
+    fun whoop5V2021ReadTheSharedRecordHeader() {
+        for (v in listOf(20, 21)) {
+            val d = decodeHistorical(whoop5FrameWithVersion(v), DeviceFamily.WHOOP5)!!
+            assertEquals("hist_version", v, d["hist_version"])
+            assertNotNull("v$v must carry the shared-header unix", d["unix"])
+            assertNotNull("v$v must carry the shared-header record index", d["record_index"])
+            // Long, not Int, on both: an unsigned 32-bit field narrowed to Kotlin's 32-bit Int decodes
+            // differently from Swift's 64-bit Int for the same bytes once bit 31 is set.
+            assertTrue("unix must stay in the unsigned domain", d["unix"] is Long)
+            assertTrue("record_index must stay in the unsigned domain", d["record_index"] is Long)
+        }
+    }
+
+    /**
+     * A body too short for the channel arrays yields the header and NO half-filled channels. The Swift
+     * twin breaks out of a channel the moment a sample is unreadable and emits it only at a full 100, so
+     * a truncated record cannot produce an array that looks complete.
+     */
+    @Test
+    fun whoop5V21EmitsNoPartialChannels() {
+        val d = decodeHistorical(whoop5FrameWithVersion(21), DeviceFamily.WHOOP5)!!
+        for (name in listOf("accel_x", "accel_y", "accel_z", "gyro_x", "gyro_y", "gyro_z")) {
+            assertNull("$name must be absent rather than partial on a short record", d[name])
+        }
+    }
+
+    /**
+     * The v20 OPTICAL body, end to end through the historical dispatch, on a real-shaped 2140-byte
+     * frame. The tests above use a short v18-derived frame, on which `Whoop5RawOptical.decode` refuses
+     * and only the shared header decodes, so without this the optical branch this port exists for would
+     * be entirely unexercised. `decode` requires the frame to BE the 2140-byte buffer, CRC-sealed, with
+     * the record class and layout version in place, so the fixture has to be sealed exactly as a strap
+     * seals one.
+     */
+    @Test
+    fun whoop5V20DecodesItsOpticalBlocksThroughTheHistoricalDispatch() {
+        val frame = sealedV20Frame(sampleCount = 3, firstSample = 0x00012345)
+        val d = decodeHistorical(frame, DeviceFamily.WHOOP5)
+        assertNotNull("a sealed v20 buffer must decode", d)
+        assertEquals(20, d!!["hist_version"])
+        assertEquals(Whoop5RawOptical.BLOCK_COUNT, d["sensor_block_count"])
+        assertEquals(3, d["block_b0_sample_count"])
+        assertEquals("the widest block's sample count", 3, d["sensor_channel_samples"])
+        // Two channel slots per block, emitted only for blocks whose sample count is non-zero.
+        assertEquals(2, d["sensor_channels_present"])
+        @Suppress("UNCHECKED_CAST")
+        val ch = d["channel_b0_0"] as List<Int>
+        assertEquals(3, ch.size)
+        assertEquals("raw signed i32 sample, no masking or scaling applied", 0x00012345, ch[0])
+        assertNotNull("the block's raw header is carried too", d["block_b0_header"])
+        // And it is still archived: it decoded, but it carries no heart rate and no gravity.
+        assertEquals(1, rejectedHistoricalRecords(listOf(frame), DeviceFamily.WHOOP5).size)
+    }
+
+    /**
+     * A 2140-byte v20 buffer with block 0 given [sampleCount] samples, the first of them [firstSample],
+     * sealed with both checksums. Mirrors the builder in `Whoop5RawOpticalTest`, which is private there.
+     */
+    private fun sealedV20Frame(sampleCount: Int, firstSample: Int): ByteArray {
+        val f = ByteArray(Whoop5RawOptical.BUFFER_LENGTH)
+        f[0] = 0xAA.toByte()
+        f[1] = 0x01
+        f[2] = 0x54            // declared length 2132 = 2140 - 8
+        f[3] = 0x08
+        f[4] = 0x01
+        f[8] = Whoop5RawOptical.RECORD_CLASS.toByte()
+        f[9] = Whoop5RawOptical.LAYOUT_VERSION.toByte()
+        f[10] = 0x81.toByte()  // v20's layout marker
+        // record_index @11 and unix @15, both u32 LE, so the shared header has real values to read.
+        for ((off, v) in listOf(11 to 0x0000_2233L, 15 to 0x6600_0000L)) {
+            for (b in 0 until 4) f[off + b] = ((v shr (8 * b)) and 0xFF).toByte()
+        }
+        val blockStart = Whoop5RawOptical.BLOCK_START
+        f[blockStart] = sampleCount.toByte()
+        val sampleStart = blockStart + Whoop5RawOptical.HEADER_LENGTH
+        for (b in 0 until 4) f[sampleStart + b] = ((firstSample shr (8 * b)) and 0xFF).toByte()
+        val headerCrc = Crc.crc16Modbus(f, 0, 6)
+        f[6] = (headerCrc and 0xFF).toByte()
+        f[7] = ((headerCrc shr 8) and 0xFF).toByte()
+        val end = Whoop5RawOptical.CHECKSUM_OFFSET
+        val payloadCrc = Crc.crc32(f, 8, end)
+        for (i in 0 until 4) f[end + i] = ((payloadCrc shr (8 * i)) and 0xFF).toByte()
+        return f
+    }
+
 }

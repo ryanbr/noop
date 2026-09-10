@@ -107,4 +107,18 @@ final class CollectorStandardHRContactTests: XCTestCase {
             )
         ])
     }
+
+    func testRrFamilyIsCapturedAtIngressAndSurvivesRetry() async {
+        let store = CaptureStore()
+        let collector = Collector(store: store, deviceId: "strap")
+        collector.ingestStandardHR(hr: 60, rr: [1000], family: .whoop5, at: 100)
+        collector.ingestStandardHR(hr: 60, rr: [1001], family: .whoop4, at: 101)
+        collector.ingestStandardHR(hr: 60, rr: [1002], at: 102)
+        store.failNextInsert = true
+        await collector.flushStandardHR()
+        XCTAssertTrue(store.inserted.isEmpty)
+        await collector.flushStandardHR()
+        XCTAssertEqual(store.inserted.flatMap(\.rr).map(\.srcChannel), [.whoop5Standard, nil, nil])
+        XCTAssertEqual(store.inserted.flatMap(\.rr).map(\.rrMs), [1000, 1001, 1002])
+    }
 }

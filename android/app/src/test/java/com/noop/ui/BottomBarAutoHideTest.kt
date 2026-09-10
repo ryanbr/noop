@@ -48,4 +48,39 @@ class BottomBarAutoHideTest {
         assertEquals(1f, barCollapseFraction(hidden = true, reduceMotion = false), 0f)
         assertEquals(0f, barCollapseFraction(hidden = false, reduceMotion = false), 0f)
     }
+
+    /**
+     * The pin beats auto-hide. Reaching the transparency slider means scrolling DOWN, which auto-hide
+     * reads as "hide the bar" - so without this the control's live preview was invisible at exactly the
+     * moment it exists for, and touching a slider does not scroll, so nothing brought the bar back.
+     */
+    @Test
+    fun `a pinned preview keeps the bar visible while scrolling down`() {
+        assertTrue(shouldHideBar(autoHide = true, overlay = true, scrollingDown = true))
+        assertFalse(shouldHideBar(autoHide = true, overlay = true, scrollingDown = true, pinned = true))
+    }
+
+    /** The pin only ever SHOWS the bar; it can never hide one that would otherwise be up. */
+    @Test
+    fun `pinning never hides a bar that would be visible`() {
+        for (auto in listOf(true, false)) {
+            for (overlay in listOf(true, false)) {
+                for (down in listOf(true, false)) {
+                    val unpinned = shouldHideBar(auto, overlay, down, pinned = false)
+                    val pinned = shouldHideBar(auto, overlay, down, pinned = true)
+                    assertFalse("pinned must never hide more than unpinned", pinned && !unpinned)
+                }
+            }
+        }
+    }
+
+    /** The default argument keeps every existing caller and case unchanged. */
+    @Test
+    fun `omitting the pin matches the old behaviour`() {
+        assertEquals(
+            shouldHideBar(autoHide = true, overlay = true, scrollingDown = true, pinned = false),
+            shouldHideBar(autoHide = true, overlay = true, scrollingDown = true),
+        )
+    }
+
 }

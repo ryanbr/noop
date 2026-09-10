@@ -2,6 +2,11 @@ import Foundation
 import GRDB
 import WhoopProtocol
 
+private struct RRBatchSecond: Hashable {
+    let ts: Int
+    let transport: Int
+}
+
 extension WhoopStore {
     /// Deterministic JSON for an event payload (sorted keys so the same payload always
     /// serializes byte-identically, important for the natural-key dedupe and parity).
@@ -58,6 +63,53 @@ extension WhoopStore {
         return out
     }
 
+    /// Rolling retention for the v27 PPG waveform table (twin of Kotlin `PPG_WAVEFORM_RETENTION_ROWS`),
+    /// added for #1911. This table was previously the only UNBOUNDED blob table, and it carries by far the
+    /// largest PER-ROW cost of any decoded stream: ~120 B against ~30 B for a scalar row.
+    ///
+    /// It is NOT the store's fastest-growing table, and this note must not be read as saying so. v26 runs
+    /// only in optical windows, roughly 28,800 rows/day by #1911's own figures, where `rrInterval` banks
+    /// ~100,000/day and remains the higher-volume table by bytes. Capping this one bounds the worst row,
+    /// not the bulk of #1911's ~93 MB/day.
+    ///
+    /// **A NEWEST-N-ROWS CAP, DELIBERATELY NOT A TIME-WINDOW DROP.** #1911 proposes "dropped after the hot
+    /// window", justifying it as "diagnostic-only". That justification is wrong, and the migration note on
+    /// `ppgWaveformSample` in `Database.swift` is the authority: these rows are kept precisely so a better
+    /// estimator, HRV-from-PPG, or a waveform viewer can later run over the ORIGINAL samples rather than
+    /// the derived bpm. Deleting by wall-clock age would empty the table for exactly the user a future
+    /// estimator needs most — a sporadic wearer, whose v26 seconds are spread thin over months — and a
+    /// waveform, unlike an HR series, has no aggregate that survives it. Newest-N instead bounds the bytes
+    /// while ALWAYS leaving a full working set to analyse, which is the same trade `v18AuxRetentionRows`
+    /// below makes for the same reason.
+    ///
+    /// 604,800 = 7 × 86,400, matching the aux cap's "a week of strap-seconds" semantic and #1911's own
+    /// 7-day hot window. The ceiling is larger than the aux table's because the row is: ~120 B/row (a 48 B
+    /// packed-i16 blob for 24 samples, plus row and primary-key-index overhead) puts it at **~70 MB per
+    /// device**, against ~50 MB for aux. That is the bound worth quoting; the wall-clock
+    /// span is longer than the arithmetic suggests, because v26 only runs in optical windows. At #1911's
+    /// ~28,800 rows/day the cap holds about **three weeks** of typical wear, and proportionally more for a
+    /// sporadic wearer, which is exactly the population an age-based cutoff would have emptied. Retuning is
+    /// a one-constant change with no migration once a device `row_bytes` measurement lands, and RELAXING a
+    /// cap is always cheaper than imposing one on a user with a year of history.
+    public static let ppgWaveformRetentionRows = 604_800
+
+    /// Rows to bank before sweeping `ppgWaveformSample` again, same amortisation as
+    /// `v18AuxPruneEveryRows` below and the same magnitude for the same reason: the sweep walks up to
+    /// `ppgWaveformRetentionRows` index entries, so running it per insert batch is the cost. The table may
+    /// sit this many rows (plus the crossing batch) above the cap in exchange, roughly a MB against its
+    /// ~70 MB bound.
+    ///
+    /// WHAT THIS BUDGET DOES NOT GUARANTEE, and the reason the cap above is stated as a size rather than a
+    /// "hard ceiling": the counter is in-memory and per store instance, so a process restart resets it.
+    /// The sweep is the ONLY thing enforcing retention on this table — `Collector.prune` covers the raw
+    /// outbox alone, and the `*ByTs` deletes belong to `TimestampHeal`, not to retention — so a store that
+    /// never banks this many rows in one process lifetime never sweeps at all. It is not a concern for the
+    /// normal shape (the budget accumulates across every batch of a session, and one night's offload banks
+    /// ~28,800 rows, crossing it twice over), but a store fed only short bursts between app kills can drift
+    /// above the cap indefinitely. `v18AuxPruneEveryRows` below has the identical property; a sweep forced
+    /// once per session would close it for both, and belongs in a change that covers both.
+    public static let ppgWaveformPruneEveryRows = 10_000
+
     /// v31 rolling retention for the v18 aux-slot table (twin of Kotlin `V18_AUX_RETENTION_ROWS`).
     ///
     /// Raw instrumentation must be capped rather than unbounded. Nothing reads these rows yet, so a cap is far
@@ -109,7 +161,9 @@ extension WhoopStore {
             spo2: Int, skinTemp: Int, resp: Int, gravity: Int) {
         try await insert(streams, deviceId: deviceId,
                          v18AuxRetentionRows: WhoopStore.v18AuxRetentionRows,
-                         v18AuxPruneEveryRows: WhoopStore.v18AuxPruneEveryRows)
+                         v18AuxPruneEveryRows: WhoopStore.v18AuxPruneEveryRows,
+                         ppgWaveformRetentionRows: WhoopStore.ppgWaveformRetentionRows,
+                         ppgWaveformPruneEveryRows: WhoopStore.ppgWaveformPruneEveryRows)
     }
 
     /// `insert(_:deviceId:)` with the v31 aux-table cap made explicit. Internal and a SEPARATE overload
@@ -117,13 +171,21 @@ extension WhoopStore {
     /// require `insert(_:deviceId:)` exactly, and a Swift witness must match the requirement's parameter
     /// list — a default argument does not satisfy it. Exists so a test can prove the rolling delete with a
     /// small cap instead of writing 600k rows; every production caller goes through the wrapper above.
+    ///
+    /// The two v18-aux caps are required because eleven existing call sites already pass them; the two
+    /// ppg-waveform caps added for #1911 are DEFAULTED so those same call sites keep compiling untouched.
+    /// A default is fine on this overload (unlike the public entry point, per the note above) because
+    /// nothing witnesses it against a protocol requirement.
     @discardableResult
     func insert(_ streams: Streams, deviceId: String, v18AuxRetentionRows: Int,
-                v18AuxPruneEveryRows: Int) async throws
+                v18AuxPruneEveryRows: Int,
+                ppgWaveformRetentionRows: Int = WhoopStore.ppgWaveformRetentionRows,
+                ppgWaveformPruneEveryRows: Int = WhoopStore.ppgWaveformPruneEveryRows) async throws
         -> (hr: Int, rr: Int, events: Int, battery: Int,
             spo2: Int, skinTemp: Int, resp: Int, gravity: Int) {
         // Banked rows, accumulated across batches so the sweep does not run on every one.
         var v18Written = 0
+        var ppgWaveformWritten = 0
         let result: (Int, Int, Int, Int, Int, Int, Int, Int) = try syncWrite { db in
             var hr = 0, rr = 0, ev = 0, bat = 0
             var spo2 = 0, skin = 0, resp = 0, grav = 0
@@ -161,24 +223,41 @@ extension WhoopStore {
                 // DO NOTHING keeps the first row. The historical path delivers a second atomically.
                 // Twin of Kotlin assignRrSeq.
                 //
-                // v32 (#1071): `srcChannel` is the sensor channel that measured the beat, carried from the
-                // decoder that produced it. NULL for every WHOOP row (one beat source — there is no channel
-                // to name, and that is honest rather than a placeholder) and for any source that does not
-                // report one. Like `ord` it is OUTSIDE the key: two channels measuring the same beat can
+                // `srcChannel` carries Oura optical channels or WHOOP 5 transport provenance. WHOOP 4
+                // and legacy rows stay NULL. Like `ord` it is OUTSIDE the key: two observations of a beat can
                 // yield the same (ts, rrMs), and keying on the label would store both — which is precisely
-                // the double-count this fixes. `DO NOTHING` therefore keeps whichever arrived first and the
-                // second channel's copy of THAT exact beat is dropped at insert; the read filter is what
-                // separates the streams in general.
-                var seqByTsRr: [Int: [Int: Int]] = [:]
-                var ordByTs: [Int: Int] = [:]
+                // the double-count this fixes. A collision never inserts another beat. A newly observed
+                // canonical WHOOP 5 transport can promote the existing source and order below; the read
+                // filter separates sources across the full requested interval.
+                let promote = try db.cachedStatement(sql: """
+                    UPDATE rrInterval SET srcChannel = :source, ord = :ord
+                    WHERE deviceId = :device AND ts = :ts AND rrMs = :rr AND seq = :seq
+                    AND ((:source = 5 AND (srcChannel IS NULL OR srcChannel IN (6, 7)))
+                      OR (:source = 7 AND (srcChannel IS NULL OR srcChannel = 6)))
+                    """)
+                var seqByTsRr: [RRBatchSecond: [Int: Int]] = [:]
+                var ordByTs: [RRBatchSecond: Int] = [:]
                 for r in streams.rr {
-                    let seq = seqByTsRr[r.ts]?[r.rrMs] ?? 0
-                    seqByTsRr[r.ts, default: [:]][r.rrMs] = seq + 1
-                    let ord = ordByTs[r.ts] ?? 0
-                    ordByTs[r.ts] = ord + 1
+                    // A second's native historical array is atomic. A standard packet in the same
+                    // batch must not change its order or the occurrence number of an equal interval.
+                    let key = RRBatchSecond(ts: r.ts,
+                        transport: r.srcChannel?.isWhoop5Transport == true ? r.srcChannel!.rawValue : 0)
+                    let seq = seqByTsRr[key]?[r.rrMs] ?? 0
+                    seqByTsRr[key, default: [:]][r.rrMs] = seq + 1
+                    let ord = ordByTs[key] ?? 0
+                    ordByTs[key] = ord + 1
                     try stmt.execute(arguments: [deviceId, r.ts, r.rrMs, seq, ord,
                                                  r.srcChannel?.rawValue])
-                    rr += db.changesCount
+                    let inserted = db.changesCount
+                    rr += inserted
+                    if inserted == 0, let source = r.srcChannel,
+                       source == .whoop5Historical || source == .whoop5Standard {
+                        // Canonical precedence is history > standard > native/legacy. The winning
+                        // observation supplies its order; values/keys and Oura labels remain intact.
+                        // Cache fingerprints witness both canonical-source counts independently of inserts.
+                        try promote.execute(arguments: ["source": source.rawValue, "ord": ord,
+                            "device": deviceId, "ts": r.ts, "rr": r.rrMs, "seq": seq])
+                    }
                 }
             }
             if !streams.events.isEmpty {
@@ -258,9 +337,15 @@ extension WhoopStore {
                     INSERT INTO stepSample (deviceId, ts, counter, activityClass) VALUES (?, ?, ?, ?)
                     ON CONFLICT(deviceId, ts) DO NOTHING
                     """)
+                var insertedSteps = 0
+                var insertedStepTimestamps: [Int] = []
                 for s in streams.steps {
                     try stmt.execute(arguments: [deviceId, s.ts, s.counter, s.activityClass])
+                    let inserted = db.changesCount
+                    insertedSteps += inserted
+                    if inserted > 0 { insertedStepTimestamps.append(s.ts) }
                 }
+                stepDataRevision.record(deviceId: deviceId, insertedTimestamps: insertedStepTimestamps)
             }
             // Band sleep_state (#175). Persist-only, same as steps — the strap's OWN @81 high-nibble state
             // (0 wake/1 still/2 asleep/3 up), decoded and streamed but dropped at storage until now. Keyed by
@@ -297,12 +382,14 @@ extension WhoopStore {
             // `packPpgSamples`) rather than 24 scalar rows, so this insert is O(records), not O(samples).
             if !streams.ppgWaveform.isEmpty {
                 let stmt = try db.cachedStatement(sql: """
-                    INSERT INTO ppgWaveformSample (deviceId, ts, samples, burstIndex) VALUES (?, ?, ?, ?)
+                    INSERT INTO ppgWaveformSample (deviceId, ts, samples, burstIndex, baseCode)
+                    VALUES (?, ?, ?, ?, ?)
                     ON CONFLICT(deviceId, ts) DO NOTHING
                     """)
                 for s in streams.ppgWaveform {
                     try stmt.execute(arguments: [deviceId, s.ts, WhoopStore.packPpgSamples(s.samples),
-                                                 s.burstIndex])
+                                                 s.burstIndex, s.baseCode])
+                    ppgWaveformWritten += 1
                 }
             }
             // Every remaining v18 slot (v31), one compact blob per strap-second. Persist-only, same as
@@ -345,6 +432,25 @@ extension WhoopStore {
                        """, arguments: [deviceId, deviceId, v18AuxRetentionRows])
                }) != nil {
                 v18AuxRowsSincePrune[deviceId] = 0
+            }
+        }
+        // #1911 rolling retention for the waveform blobs, amortised and best-effort on exactly the same
+        // terms as the aux sweep above (see `ppgWaveformRetentionRows` for why this is a newest-N cap and
+        // not an age-based drop). Its own counter and its own transaction: a batch routinely writes one of
+        // these two tables and not the other, and a failed sweep here must not fail an insert whose rows
+        // are already committed — leaving the budget unspent simply retries on the next batch.
+        if ppgWaveformWritten > 0 {
+            let banked = (ppgWaveformRowsSincePrune[deviceId] ?? 0) + ppgWaveformWritten
+            ppgWaveformRowsSincePrune[deviceId] = banked
+            if banked >= ppgWaveformPruneEveryRows,
+               (try? syncWrite { db in
+                   try db.execute(sql: """
+                       DELETE FROM ppgWaveformSample WHERE deviceId = ? AND ts < (
+                           SELECT MIN(ts) FROM (
+                               SELECT ts FROM ppgWaveformSample WHERE deviceId = ? ORDER BY ts DESC LIMIT ?))
+                       """, arguments: [deviceId, deviceId, ppgWaveformRetentionRows])
+               }) != nil {
+                ppgWaveformRowsSincePrune[deviceId] = 0
             }
         }
         return result
@@ -607,13 +713,18 @@ extension WhoopStore {
         -> [PpgWaveformSample] {
         try syncRead { db in
             try Row.fetchAll(db, sql: """
-                SELECT ts, samples, burstIndex FROM ppgWaveformSample
+                SELECT ts, samples, burstIndex, baseCode FROM ppgWaveformSample
                 WHERE deviceId = ? AND ts >= ? AND ts <= ?
                 ORDER BY ts LIMIT ?
                 """, arguments: [deviceId, from, to, limit])
+                // #2019: baseCode is SELECTed explicitly. This projection names its columns, so a new one
+                // is invisible to it until it is listed — the write would have banked the base and every
+                // read would have handed back nil, which is the same answer a legacy row gives and would
+                // have looked like the column doing nothing.
                 .map { PpgWaveformSample(ts: $0["ts"],
                                          samples: WhoopStore.unpackPpgSamples($0["samples"]),
-                                         burstIndex: $0["burstIndex"]) }
+                                         burstIndex: $0["burstIndex"],
+                                         baseCode: $0["baseCode"]) }
         }
     }
 

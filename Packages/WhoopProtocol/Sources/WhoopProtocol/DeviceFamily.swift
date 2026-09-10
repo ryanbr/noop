@@ -135,6 +135,17 @@ public func whoopGattScanDecision(
 }
 
 public extension DeviceFamily {
+    /// Positive registry evidence for unit/source decisions. Legacy "WHOOP" identifies no generation.
+    /// Unlike `forRegistryModel`, this must never infer WHOOP 5 from an unspecified model.
+    static func confirmedRegistryFamily(model: String?, brand: String?) -> DeviceFamily? {
+        if let brand, !brand.isEmpty, brand.caseInsensitiveCompare("WHOOP") != .orderedSame { return nil }
+        switch model?.lowercased() {
+        case "4.0", "whoop 4.0": return .whoop4
+        case "5.0", "5.0 mg", "whoop 5.0", "whoop 5.0 / mg", "mg", "whoop5": return .whoop5
+        default: return nil
+        }
+    }
+
     /// Resolve a device-registry `model` label to the strap family that wrote its rows (#171).
     ///
     /// The registry holds several historical spellings for the same hardware: the Add-Device wizard

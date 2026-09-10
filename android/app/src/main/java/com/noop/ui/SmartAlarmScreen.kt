@@ -61,6 +61,7 @@ fun SmartAlarmScreen(vm: AppViewModel) {
     val targetMinutes by vm.phoneAlarmTargetMinutes.collectAsStateWithLifecycle()
     val windowMinutes by vm.phoneAlarmWindowMinutes.collectAsStateWithLifecycle()
     val phoneAlarmWeekdays by vm.phoneAlarmWeekdays.collectAsStateWithLifecycle()
+    val phoneAlarmDayOverrides by vm.phoneAlarmDayOverrides.collectAsStateWithLifecycle()
     val buzzWhoop4 by vm.buzzWhoop4Enabled.collectAsStateWithLifecycle()
     // #536: the hint adapts to bond state — the strap can only be armed when a WHOOP 4.0 is connected.
     val liveState = vm.live.collectAsStateWithLifecycle().value
@@ -84,7 +85,23 @@ fun SmartAlarmScreen(vm: AppViewModel) {
         subtitle = "Your wake window, the strap wake-alarm, and the evening wind-down reminder, in one place.",
     ) {
         // The guaranteed-wake card always shows so the safety promise is the first thing read.
-        item { WindowCard(enabled = enabled, targetMinutes = targetMinutes, windowMinutes = windowMinutes) }
+        item {
+            // #1858: the card names a specific time ("a backup alarm is set for 04:45"), so with per-day
+            // wake times it has to show the NEXT one rather than the default — on a day whose time was
+            // moved, the default is simply the wrong number, and this card is the one thing on the screen
+            // that makes a promise. Falls back to the default when no day is reachable.
+            val nextTargetMinutes = remember(
+                targetMinutes, windowMinutes, phoneAlarmWeekdays, phoneAlarmDayOverrides,
+            ) {
+                com.noop.alarm.SmartAlarmScheduler.nextWindowStartMinutes(
+                    now = java.util.Calendar.getInstance(),
+                    weekdays = phoneAlarmWeekdays,
+                    windowMinutes = windowMinutes,
+                    defaultTarget = targetMinutes,
+                ) { phoneAlarmDayOverrides[it] ?: targetMinutes }
+            }
+            WindowCard(enabled = enabled, targetMinutes = nextTargetMinutes, windowMinutes = windowMinutes)
+        }
 
         item {
         AlarmSettingsCard {
@@ -110,7 +127,7 @@ fun SmartAlarmScreen(vm: AppViewModel) {
                 RowDividerLocal()
                 Text(
                     uiString(R.string.l10n_smart_alarm_screen_noop_doesn_t_have_permission_to_5b67cef0) +
-                        "Tap to allow it in system settings.",
+                        " Tap to allow it in system settings.",
                     style = NoopType.footnote,
                     color = Palette.statusWarning,
                     modifier = Modifier
@@ -163,6 +180,18 @@ fun SmartAlarmScreen(vm: AppViewModel) {
                     onToggle = { dow ->
                         vm.setPhoneAlarmWeekdays(toggledSmartAlarmWeekday(dow, phoneAlarmWeekdays))
                     },
+                )
+                RowDividerLocal()
+                // #1858: per-day wake times, the SAME picker and the same contract the strap alarm below
+                // has had since #554. Both alarms sit on this one screen, so one of them supporting a
+                // different time on different days and the other not is read as the feature being broken —
+                // which is exactly how it was reported ("I want 04:45 on three days and 03:30 on two
+                // others… the smart alarm basically never works").
+                AlarmDayOverridePicker(
+                    defaultMinutes = targetMinutes,
+                    enabledDays = phoneAlarmWeekdays,
+                    overrides = phoneAlarmDayOverrides,
+                    onSetOverride = { dow, minutes -> vm.setPhoneAlarmDayOverride(dow, minutes) },
                 )
             }
 
@@ -263,7 +292,7 @@ private fun StrapAlarmCard(vm: AppViewModel) {
                 if (live.whoop5Detected && !experimentalOn) {
                     Text(
                         uiString(R.string.l10n_smart_alarm_screen_your_whoop_5_mg_won_t_75029bae) +
-                            "Experimental). Right now your wake time is saved but the strap is NOT armed.",
+                            " Experimental). Right now your wake time is saved but the strap is NOT armed.",
                         style = NoopType.footnote, color = Palette.statusWarning,
                     )
                 } else if (live.whoop5Detected) {
@@ -401,14 +430,14 @@ private fun ExplanationCard() {
             }
             Text(
                 uiString(R.string.l10n_smart_alarm_screen_while_you_re_inside_the_window_8700ca3b) +
-                    "sleep sits near your nightly low and stays steady; when your heart rate lifts above " +
+                    " sleep sits near your nightly low and stays steady; when your heart rate lifts above " +
                     "that (a sign you're sleeping more lightly or starting to stir), NOOP wakes you a " +
                     "little early so you come up from a lighter phase.",
                 style = NoopType.footnote, color = Palette.textSecondary,
             )
             Text(
                 uiString(R.string.l10n_smart_alarm_screen_this_is_a_coarse_cue_from_d6bbabe7) +
-                    "isn't streaming (Bluetooth off, not worn, app killed), no early wake happens and the " +
+                    " isn't streaming (Bluetooth off, not worn, app killed), no early wake happens and the " +
                     "guaranteed alarm at the window's end still wakes you.",
                 style = NoopType.footnote, color = Palette.textTertiary,
             )

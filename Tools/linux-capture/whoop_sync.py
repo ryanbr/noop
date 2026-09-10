@@ -61,8 +61,9 @@ import subprocess
 import sys
 import time
 
-import whoop_frame as wf
 import decode_features
+import whoop_frame as wf
+from capture_io import configure_utf8_stdio
 
 # `bleak` is imported lazily inside the BLE functions (run/_acquire) so this module's frame helpers,
 # Family, and WhoopDB can be imported and unit-tested with no third-party deps (like test_whoop_frame).
@@ -202,11 +203,24 @@ class WhoopDB:
     def __init__(self, path):
         os.makedirs(os.path.dirname(os.path.abspath(path)) or ".", exist_ok=True)
         self.db = sqlite3.connect(path, check_same_thread=False)
-        self.db.executescript(SCHEMA)
-        decode_features.apply_schema(self.db)
-        self.db.execute("PRAGMA journal_mode=WAL")
-        self.db.execute("PRAGMA synchronous=FULL")
-        self.db.commit()
+        try:
+            self.db.executescript(SCHEMA)
+            decode_features.apply_schema(self.db)
+            self.db.execute("PRAGMA journal_mode=WAL")
+            self.db.execute("PRAGMA synchronous=FULL")
+            self.db.commit()
+        except BaseException:
+            self.db.close()
+            raise
+
+    def close(self):
+        self.db.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.close()
 
     def upsert_device(self, address, name=None, subject=None, model=None):
         address = address.upper()
@@ -280,7 +294,7 @@ class WhoopDB:
         recs = [{"hex": h, "char": c, "ts_ms": (rm or 0), "hr": hr} for h, c, rm, hr in rows]
         os.makedirs(os.path.dirname(os.path.abspath(out_path)) or ".", exist_ok=True)
         tmp = out_path + ".tmp"
-        with open(tmp, "w") as f:
+        with open(tmp, "w", encoding="utf-8") as f:
             json.dump(recs, f, indent=1)
         os.replace(tmp, out_path)
         return len(recs)
@@ -681,14 +695,17 @@ async def _realtime_session(client, s, db, fam, args, stop_all, deadline):
     return outcome["v"], s.committed - start
 
 
-async def run_realtime(args):
+async def run_realtime(args, db):
+    return await _run_realtime(args, db)
+
+
+async def _run_realtime(args, db):
     """Capture the live realtime stream (HR + R-R + IMU) into the durable store, reconnecting on drops
     until --duration elapses, then decode → feat_rr so HRV/RSA can run. The realtime counterpart of the
     offload `run()`; reuses the same _acquire + MTU-negotiated reconnect loop + WhoopDB."""
     from bleak import BleakClient
     from bleak.exc import BleakError
     fam = Family(args.model)
-    db = WhoopDB(args.db)
     if not args.no_clock_check:
         await preflight_clock(fam, args)
     dev = await _acquire(args.address, tries=args.tries)
@@ -751,11 +768,14 @@ async def run_realtime(args):
         print(f"  decode skipped ({e}); run `whoop_sync.py decode --db {args.db}`.", flush=True)
 
 
-async def run(args):
+async def run(args, db):
+    return await _run(args, db)
+
+
+async def _run(args, db):
     from bleak import BleakClient
     from bleak.exc import BleakError
     fam = Family(args.model)
-    db = WhoopDB(args.db)
     if not args.no_clock_check:
         await preflight_clock(fam, args)
     dev = await _acquire(args.address, tries=args.tries)
@@ -781,7 +801,7 @@ async def run(args):
         s.emit = sys.stdout
         sys.stdout = sys.stderr               # subsequent print() diagnostics → stderr
     elif emit_target:
-        s.emit = open(emit_target, "w")
+        s.emit = open(emit_target, "w", encoding="utf-8")
     if s.emit is not None:
         s.emit.write(json.dumps({"_header": {"device_id": did, "address": info[0],
                                              "name": info[1], "model": args.model}}) + "\n")
@@ -980,48 +1000,55 @@ def main():
 
     if cmd == "sync":
         try:
-            asyncio.run(run(args))
+            with WhoopDB(args.db) as db:
+                asyncio.run(run(args, db))
         except KeyboardInterrupt:
             pass
     elif cmd == "realtime":
         try:
-            asyncio.run(run_realtime(args))
+            with WhoopDB(args.db) as db:
+                asyncio.run(run_realtime(args, db))
         except KeyboardInterrupt:
             pass
     elif cmd == "export":
-        db = WhoopDB(args.db); did = _need_device(db, args.address)
-        since = _parse_time(args.since) if args.since else None
-        print(f"exported {db.export_json(did, args.out, args.only_type, since)} frames → {args.out}")
+        with WhoopDB(args.db) as db:
+            did = _need_device(db, args.address)
+            since = _parse_time(args.since) if args.since else None
+            print(f"exported {db.export_json(did, args.out, args.only_type, since)} frames → {args.out}")
     elif cmd == "status":
-        db = WhoopDB(args.db); did = _need_device(db, args.address)
-        info = db.device_info(did); st = db.state(did); cov = db.coverage(did)
-        print(f"db: {args.db}")
-        print(f"  device: {info[0]} name={info[1]!r} subject={info[2]!r} model={info[3]}")
-        print(f"  cursor last_trim={st.get('last_trim','?')} history_complete={st.get('history_complete','0')}")
-        print(f"  coverage: {_fmt(cov[0])} → {_fmt(cov[1])}  ({cov[2] or 0} type-47)")
-        print(f"  counts by type: {db.counts(did)}")
-        labs = db.labels(did)
-        print(f"  labels ({len(labs)}):")
-        for s_, e_, a_, n_ in labs:
-            print(f"    {a_:12s} {_fmt(s_)} → {_fmt(e_)}  {n_ or ''}")
+        with WhoopDB(args.db) as db:
+            did = _need_device(db, args.address)
+            info = db.device_info(did); st = db.state(did); cov = db.coverage(did)
+            print(f"db: {args.db}")
+            print(f"  device: {info[0]} name={info[1]!r} subject={info[2]!r} model={info[3]}")
+            print(f"  cursor last_trim={st.get('last_trim','?')} history_complete={st.get('history_complete','0')}")
+            print(f"  coverage: {_fmt(cov[0])} → {_fmt(cov[1])}  ({cov[2] or 0} type-47)")
+            print(f"  counts by type: {db.counts(did)}")
+            labs = db.labels(did)
+            print(f"  labels ({len(labs)}):")
+            for s_, e_, a_, n_ in labs:
+                print(f"    {a_:12s} {_fmt(s_)} → {_fmt(e_)}  {n_ or ''}")
     elif cmd == "devices":
-        db = WhoopDB(args.db)
-        print(f"db: {args.db}")
-        for did, addr, nm, subj, mdl, n47, mn, mx in db.list_devices():
-            print(f"  [{did}] {addr} name={nm!r} subject={subj!r} model={mdl}  "
-                  f"{n47} type-47  {_fmt(mn)}→{_fmt(mx)}")
+        with WhoopDB(args.db) as db:
+            print(f"db: {args.db}")
+            for did, addr, nm, subj, mdl, n47, mn, mx in db.list_devices():
+                print(f"  [{did}] {addr} name={nm!r} subject={subj!r} model={mdl}  "
+                      f"{n47} type-47  {_fmt(mn)}→{_fmt(mx)}")
     elif cmd == "label":
-        db = WhoopDB(args.db); did = _need_device(db, args.address)
-        s_, e_ = _parse_time(args.start), _parse_time(args.end)
-        db.add_label(did, s_, e_, args.activity, args.note)
-        print(f"labeled {args.activity}: {_fmt(s_)} → {_fmt(e_)} for device {db.device_info(did)[0]}")
+        with WhoopDB(args.db) as db:
+            did = _need_device(db, args.address)
+            s_, e_ = _parse_time(args.start), _parse_time(args.end)
+            db.add_label(did, s_, e_, args.activity, args.note)
+            print(f"labeled {args.activity}: {_fmt(s_)} → {_fmt(e_)} for device {db.device_info(did)[0]}")
     elif cmd == "decode":
-        db = WhoopDB(args.db); did = _need_device(db, args.address)
-        res = decode_features.decode_new(db, did, full=args.full)
-        print(f"decode: {res['frames']} frames → feat_second updated "
-              f"({res['decoded']} decoded, {res['skipped']} skipped); "
-              f"cursor last_decoded_frame_id={res['cursor']}")
+        with WhoopDB(args.db) as db:
+            did = _need_device(db, args.address)
+            res = decode_features.decode_new(db, did, full=args.full)
+            print(f"decode: {res['frames']} frames → feat_second updated "
+                  f"({res['decoded']} decoded, {res['skipped']} skipped); "
+                  f"cursor last_decoded_frame_id={res['cursor']}")
 
 
 if __name__ == "__main__":
+    configure_utf8_stdio()
     main()

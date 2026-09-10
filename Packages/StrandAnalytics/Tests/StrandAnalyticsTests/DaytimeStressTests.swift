@@ -10,6 +10,105 @@ final class DaytimeStressTests: XCTestCase {
         return (0..<n).map { HRSample(ts: base + $0, bpm: bpm) }
     }
 
+    func testTheSlidingReadIsOptIn() {
+        let (hr, rr) = wornMorning()
+        // The Stress screen reads `hours` and draws its own timeline, so it must not pay for a second
+        // pass of bucketing and an RMSSD per extra window. Default off means `timeline` IS `hours`.
+        let plain = DaytimeStress.analyze(hr: hr, rr: rr)
+        XCTAssertEqual(plain.timeline, plain.hours)
+        XCTAssertGreaterThan(
+            DaytimeStress.analyze(hr: hr, rr: rr, includeTimeline: true).timeline.count,
+            plain.hours.count)
+    }
+
+    // MARK: - the half-step display timeline
+
+    /// A plain worn morning: several waking hours of steady HR with a little R-R jitter.
+    private func wornMorning() -> ([HRSample], [RRInterval]) {
+        var hr: [HRSample] = []
+        var rr: [RRInterval] = []
+        for h in 7...11 {
+            hr += hourHR(h, bpm: 60 + (h - 7) * 4)
+            rr += hourRRVariable(h, rrMs: 900, jitter: 20)
+        }
+        return (hr, rr)
+    }
+
+    func testTimelineKeepsEveryHourlyPointExactlyAsScored() {
+        let (hr, rr) = wornMorning()
+        let res = DaytimeStress.analyze(hr: hr, rr: rr, includeTimeline: true)
+        // The sliding read must not restate the hours it slides between: a point on the hour has to
+        // carry the same level it carried before this existed, or the curve would disagree with every
+        // other surface that reads `hours`.
+        let byStart = Dictionary(uniqueKeysWithValues: res.timeline.map { ($0.startTs, $0) })
+        XCTAssertFalse(res.hours.isEmpty)
+        for h in res.hours {
+            XCTAssertEqual(byStart[h.startTs]?.level, h.level, "hour \(h.startTs) restated")
+            XCTAssertEqual(byStart[h.startTs]?.maskedForActivity, h.maskedForActivity)
+        }
+    }
+
+    func testTimelineAddsTheStraddlingMidpointsAndNothingElse() {
+        let (hr, rr) = wornMorning()
+        let res = DaytimeStress.analyze(hr: hr, rr: rr, includeTimeline: true)
+        XCTAssertGreaterThan(res.timeline.count, res.hours.count)
+        let hourly = Set(res.hours.map(\.startTs))
+        let extras = res.timeline.filter { !hourly.contains($0.startTs) }
+        XCTAssertFalse(extras.isEmpty)
+        // Every added point sits exactly half a window off the hour, which is what "slid" means. A
+        // point anywhere else would mean the grid, not the phase, had moved.
+        for e in extras {
+            let offset = ((e.startTs % DaytimeStress.bucketSeconds) + DaytimeStress.bucketSeconds)
+                % DaytimeStress.bucketSeconds
+            XCTAssertEqual(offset, DaytimeStress.timelineStepSeconds)
+        }
+        XCTAssertEqual(res.timeline.map(\.startTs), res.timeline.map(\.startTs).sorted())
+    }
+
+    func testHourCountingIgnoresTheSlidingRead() {
+        let (hr, rr) = wornMorning()
+        let res = DaytimeStress.analyze(hr: hr, rr: rr, includeTimeline: true)
+        // Overlapping windows would count the same minute twice, so the minute total stays on the
+        // non-overlapping hours. This is the assertion that fails first if someone later points
+        // `highStressMinutes` at the denser series.
+        let highHours = res.hours.filter { ($0.level ?? 0) >= DaytimeStress.highBandFloor }.count
+        XCTAssertEqual(res.highStressMinutes, highHours * 60)
+        XCTAssertEqual(res.activityMaskedHours, res.hours.filter(\.maskedForActivity).count)
+    }
+
+    func testASteadyDayScoresItsMidpointsLikeItsHours() {
+        // Same HR every hour: with one shared reference the midpoints must land on the same level as
+        // the hours they straddle. If the sliding pass ever derived its OWN calm reference, this is
+        // where it would show up, as a curve that zigzags between two scales rather than tracking one.
+        var hr: [HRSample] = []
+        var rr: [RRInterval] = []
+        for h in 8...12 { hr += hourHR(h, bpm: 66); rr += hourRRVariable(h, rrMs: 900, jitter: 20) }
+        let res = DaytimeStress.analyze(hr: hr, rr: rr, includeTimeline: true)
+        let levels = Set(res.timeline.compactMap { $0.level.map { String(format: "%.6f", $0) } })
+        XCTAssertLessThanOrEqual(levels.count, 1, "a flat day should not zigzag, got \(levels)")
+    }
+
+    func testTimelineMatchesTheKotlinTwinValueForValue() {
+        // The other half of the oracle. The Kotlin `DaytimeStressTest` asserts these same literals for
+        // this same scenario, so a change landing on ONE platform moves one of the two and fails here
+        // or there. An oracle only guards the direction it is written in.
+        let (hr, rr) = wornMorning()
+        let res = DaytimeStress.analyze(hr: hr, rr: rr, includeTimeline: true)
+        func render(_ points: [DaytimeStress.HourPoint]) -> String {
+            points.map { "\($0.startTs):" + ($0.level.map { String(format: "%.6f", $0) } ?? "nil") }
+                .joined(separator: " ")
+        }
+        XCTAssertEqual(render(res.hours),
+                       "25200:0.990715 28800:1.500000 32400:2.009285 36000:2.413289 39600:2.678875")
+        XCTAssertEqual(render(res.timeline),
+                       "23400:0.990715 25200:0.990715 27000:1.500000 28800:1.500000 30600:2.009285 "
+                       + "32400:2.009285 34200:2.413289 36000:2.413289 37800:2.678875 39600:2.678875")
+        XCTAssertEqual(res.highStressMinutes, 180)
+        XCTAssertTrue(res.sustainedHigh)
+        XCTAssertEqual(res.sustainedRun, 3)
+        XCTAssertEqual(res.peak?.startTs, 39600)
+    }
+
     func testEmptyWhenNoHR() {
         XCTAssertEqual(DaytimeStress.analyze(hr: [], rr: []), .empty)
     }

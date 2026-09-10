@@ -218,7 +218,7 @@ public enum TrainingLoadEngine {
                                      configuration: Configuration = .standard) -> Result {
         let baseOrdinal = dayOrdinal("2000-01-01")!
         let days = loads.enumerated().map { offset, load in
-            DailyLoad(day: dayString(ordinal: baseOrdinal + offset), load: load)
+            DailyLoad(day: LocalCalendarDate(daysSinceEpoch: baseOrdinal + offset).key, load: load)
         }
         return evaluate(days: days, configuration: configuration)
     }
@@ -251,20 +251,6 @@ public enum TrainingLoadEngine {
         let dayOfYear = (153 * shiftedMonth + 2) / 5 + day - 1
         let dayOfEra = yearOfEra * 365 + yearOfEra / 4 - yearOfEra / 100 + dayOfYear
         return era * 146_097 + dayOfEra - 719_468
-    }
-
-    private static func dayString(ordinal: Int) -> String {
-        let z = ordinal + 719_468
-        let era = floorDiv(z, 146_097)
-        let dayOfEra = z - era * 146_097
-        let yearOfEra = (dayOfEra - dayOfEra / 1_460 + dayOfEra / 36_524 - dayOfEra / 146_096) / 365
-        var year = yearOfEra + era * 400
-        let dayOfYear = dayOfEra - (365 * yearOfEra + yearOfEra / 4 - yearOfEra / 100)
-        let monthPrime = (5 * dayOfYear + 2) / 153
-        let day = dayOfYear - (153 * monthPrime + 2) / 5 + 1
-        let month = monthPrime + (monthPrime < 10 ? 3 : -9)
-        year += month <= 2 ? 1 : 0
-        return String(format: "%04d-%02d-%02d", year, month, day)
     }
 
     private static func isLeapYear(_ year: Int) -> Bool {

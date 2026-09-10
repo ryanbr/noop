@@ -254,9 +254,27 @@ enum RouteStore {
     /// route has no usable polyline (so we never store an empty placeholder — honest "no route").
     static func store(_ route: WorkoutRoute, startTs: Int, sport: String,
                       into defaults: UserDefaults = .standard) {
-        guard !route.polyline.isEmpty else { return }
+        storeAll([(route, startTs, sport)], into: defaults)
+    }
+
+    /// Persist MANY routes in one blob rewrite.
+    ///
+    /// `store` reads, decodes, mutates, re-encodes and writes the whole map. That is right for the
+    /// recorder, which calls it once when a workout ends. An IMPORT calls it per workout, and the map is
+    /// capped at [maxRoutes], so N imported routes cost N full decode/encode cycles of a map that grows
+    /// to 400 entries: at roughly 7 KB per polyline (an hour at 1 Hz) a 500-workout first import churns
+    /// on the order of a gigabyte of JSON through `UserDefaults`, on a phone. Batching makes it one pass.
+    ///
+    /// Eviction is unchanged and applied ONCE after the whole batch, so an import that overflows the cap
+    /// drops the oldest by `startTs` exactly as a sequence of single stores would have — and since
+    /// imported history is older than anything recorded since, a large import evicts its own oldest
+    /// entries rather than the routes this device recorded.
+    static func storeAll(_ entries: [(route: WorkoutRoute, startTs: Int, sport: String)],
+                         into defaults: UserDefaults = .standard) {
+        let usable = entries.filter { !$0.route.polyline.isEmpty }
+        guard !usable.isEmpty else { return }
         var map = loadMap(from: defaults)
-        map[key(startTs: startTs, sport: sport)] = route
+        for e in usable { map[key(startTs: e.startTs, sport: e.sport)] = e.route }
         if map.count > maxRoutes {
             // Keys lead with the startTs, so a lexicographic sort by the numeric prefix evicts the oldest.
             let ordered = map.keys.sorted { lhs, rhs in

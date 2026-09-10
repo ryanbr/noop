@@ -76,7 +76,15 @@ class SlidingStreamWindow<T>(
      * The result is byte-for-byte what a direct `read(owner, from, to)` would have returned — that is the
      * whole contract, and the reason every case the planner cannot prove falls back to exactly that call.
      */
-    suspend fun rows(owner: String, from: Long, to: Long): List<T> {
+    suspend fun rows(owner: String, from: Long, to: Long, allowReuse: Boolean = true): List<T> {
+        // Range-dependent transport selection cannot safely reuse a slice or independently read head.
+        if (!allowReuse) {
+            failedRead()
+            val full = read(owner, from, to) ?: return emptyList()
+            rowsRead += full.size
+            if (full.size >= limit) truncatedReads++
+            return full
+        }
         val plan = WindowedStreamPlan.plan(this.owner, this.from, this.to, truncated, owner, from, to)
         val result: List<T>
         val nowTruncated: Boolean

@@ -127,6 +127,23 @@ final class ScoreInputProvenanceStoreTests: XCTestCase {
         XCTAssertEqual(estimator, Vo2MaxEstimator.nes.rawValue)
     }
 
+    func testMarkerRewriteSpansComputedOwnerNamespaces() async throws {
+        let store = try await WhoopStore.inMemory()
+        let day = "2026-07-24"
+        _ = try await store.upsertMetricSeries([.init(day: day, key: "day_cycle_onset_ts", value: 1)],
+                                               deviceId: "old-noop")
+        try await store.persistComputedScores(
+            dailyMetrics: [makeDaily(day: day, recovery: nil, strain: nil)], metricPoints: [], provenance: [],
+            deviceId: "active-noop", from: day, to: day,
+            replaceMetricKeys: ["day_cycle_onset_ts"],
+            additionalMetricPoints: [.init(deviceId: "old-noop",
+                point: .init(day: day, key: "day_cycle_onset_ts", value: 2))],
+            replaceMetricSourceIds: ["old-noop"])
+        let old = try await store.metricSeries(deviceId: "old-noop", key: "day_cycle_onset_ts",
+                                               from: day, to: day)
+        XCTAssertEqual(old.map(\.value), [2])
+    }
+
     private func makeDaily(day: String, recovery: Double?, strain: Double?) -> DailyMetric {
         DailyMetric(
             day: day,

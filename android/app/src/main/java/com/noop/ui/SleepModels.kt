@@ -1,5 +1,6 @@
 package com.noop.ui
 
+import com.noop.R
 import com.noop.analytics.SleepDebtLedger
 import com.noop.data.SleepSession
 
@@ -17,12 +18,45 @@ internal data class Stages(
     val asleep: Double get() = light + deep + rem
 }
 
-/** (latest, typical mean, full history) per metric — mirrors the macOS Metric tuple. */
+/** (latest, latestDay, typical mean, full history) per metric — mirrors the macOS Metric tuple.
+ *  `latestDay` is the yyyy-MM-dd the `latest` value was carried from (null when there is no latest
+ *  value, or when the latest value IS today's). #1946: a carried prior-day value is stamped with its
+ *  day so it is not passed off as tonight's read. */
 internal data class Metric(
     val latest: Double?,
+    val latestDay: String?,
     val typical: Double?,
     val series: List<Double>,
-)
+) {
+
+    companion object {
+        /** #1946: the caption for a metric tile whose `latest` value was carried from a prior day.
+         *  Returns null when the value is NOT carried (today's own, or no value) so the caller falls
+         *  through to the normal "vs typical" caption. When carried, returns a [DisplayText.Resource]
+         *  so the string lives in `strings.xml` where the i18n audit and the locale files can see it
+         *  — matching [carriedCaption] in TodayScoring, which solved the same problem for the Today
+         *  carry stamp. Mirror EXACTLY in Swift. */
+        fun carriedMetricCaption(latestDay: String?, latest: Double?): DisplayText? {
+            if (latestDay == null || latest == null) return null
+            return DisplayText.Resource(
+                R.string.sleep_carried_metric_caption,
+                listOf(shortDayLabel(latestDay)),
+            )
+        }
+
+        /** "12 Jul" for a "yyyy-MM-dd" key — the SAME format the Today carry stamp uses, so a carried
+         *  Rest on Today and a carried metric on Sleep read identically. */
+        private val dayKeyParser = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).apply {
+            timeZone = java.util.TimeZone.getTimeZone("UTC")
+        }
+
+        fun shortDayLabel(key: String): String {
+            val date = runCatching { dayKeyParser.parse(key) }.getOrNull() ?: return key
+            val f = java.text.SimpleDateFormat("d MMM", java.util.Locale.getDefault())
+            return f.format(date)
+        }
+    }
+}
 
 /** Export-verbatim per-day sleep figures (metricSeries keys mirroring macOS WhoopImporter). */
 internal data class ImportedSleepSeries(

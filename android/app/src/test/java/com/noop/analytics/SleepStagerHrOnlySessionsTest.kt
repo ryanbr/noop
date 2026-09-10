@@ -3,12 +3,13 @@ package com.noop.analytics
 import com.noop.data.HrSample
 import com.noop.data.RrInterval
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Whole HR-only sessions (#1801), and the display-only guarantee that rides on them.
+ * Whole HR-only sessions (#1801), and the physiology they report (#1884).
  *
  * The night is synthetic: a slow HR drift well under the window median, so the spine puts it in the
  * sleep band. That is enough to exercise assembly and the null contract; it is NOT a claim that the
@@ -54,16 +55,39 @@ class SleepStagerHrOnlySessionsTest {
     }
 
     /**
-     * The display-only guarantee at its source. restingHR and avgHRV are the two values Charge and the
-     * baselines fold in, and a baseline is the one thing a false positive cannot be unwound from.
+     * #1884 reversed the null contract this used to pin, so the reasoning is worth keeping beside it.
+     *
+     * #1801 withheld restingHR and avgHRV here on the grounds that a baseline is the one thing a false
+     * positive cannot be unwound from. What the field logs showed is that the withholding was the more
+     * damaging error: the values are MEASURED, not inferred. The bounds are what heart rate infers —
+     * which is why the session still marks itself `hrOnly` — but each RMSSD is computed over its own
+     * 5-minute window, so fuzzy bounds change WHICH windows are included, not whether any one of them
+     * is valid. Resting HR is HR-derived, and an HR-only night is precisely the night with plenty of HR.
+     *
+     * The marker travels with the session, so a consumer that wants to weigh these down still can.
      */
     @Test
-    fun `an HR-only session withholds resting HR and HRV and marks itself`() {
+    fun `an HR-only session reports measured resting HR and HRV and still marks itself`() {
         val (hr, rr) = window()
         val s = SleepStager.hrOnlySessions(hr, rr, emptyList()).first()
-        assertTrue("must be flagged hrOnly", s.hrOnly)
-        assertNull("restingHR must stay null", s.restingHR)
-        assertNull("avgHRV must stay null", s.avgHRV)
+        assertTrue("must still be flagged hrOnly", s.hrOnly)
+        assertNotNull("restingHR is HR-derived and must be reported", s.restingHR)
+        assertNotNull("avgHRV must be reported when R-R is present", s.avgHRV)
+    }
+
+    /**
+     * The honest boundary of the change: reporting is driven by whether the INPUT exists, not by the
+     * `hrOnly` flag. With no R-R there is nothing to compute an RMSSD from, so HRV is still absent —
+     * and resting HR, which needs only HR, is still reported. A regression that re-blanked HRV wholesale
+     * would pass the test above if it also happened to blank on missing R-R; this separates them.
+     */
+    @Test
+    fun `an HR-only session without R-R still reports resting HR`() {
+        val (hr, _) = window()
+        val s = SleepStager.hrOnlySessions(hr, emptyList(), emptyList()).first()
+        assertTrue("must still be flagged hrOnly", s.hrOnly)
+        assertNotNull("restingHR needs only HR", s.restingHR)
+        assertNull("no R-R means no RMSSD to report", s.avgHRV)
     }
 
     /** A stretch below the minimum-duration gate is not a night. */

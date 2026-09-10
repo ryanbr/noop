@@ -268,7 +268,16 @@ public struct WhoopExportImporter {
             r.recoveryScore    = row.double("recovery_score_pct")
             r.restingHeartRate = row.double("resting_heart_rate_bpm", "resting_heart_rate")
             r.hrvMs            = row.double("heart_rate_variability_ms", "heart_rate_variability_rmssd_ms")
-            r.skinTempCelsius  = row.double("skin_temp_celsius", "skin_temp_f")
+            // #1849: a Fahrenheit WHOOP export ships `skin_temp_f`, NOT `skin_temp_celsius`. Treating
+            // the two as aliases stored the °F value unconverted (92.3 °F → 92.3 in a °C column),
+            // which read as a lethal fever and poisoned the baseline. Read each as its OWN key and
+            // convert the Fahrenheit value on the way in. `skin_temp_celsius` wins when both are
+            // present (a Celsius export is the canonical form).
+            if let c = row.double("skin_temp_celsius") {
+                r.skinTempCelsius = c
+            } else if let f = row.double("skin_temp_f") {
+                r.skinTempCelsius = (f - 32.0) * 5.0 / 9.0
+            }
             r.bloodOxygenPct   = row.double("blood_oxygen_pct", "blood_oxygen_pct_pct")
             r.dayStrain        = row.double("day_strain")
             r.energyKcal       = row.double("energy_burned_cal")  // CSV "(cal)" == kcal

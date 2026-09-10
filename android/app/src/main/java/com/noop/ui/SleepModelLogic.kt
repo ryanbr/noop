@@ -217,7 +217,7 @@ internal fun buildSleepModel(
         val lastDay = days.lastOrNull()?.day
         if (lastDay != null && imported.consistency[lastDay] != null) {
             val series = days.mapNotNull { imported.consistency[it.day] }
-            Metric(series.lastOrNull(), mean(series), series)
+            Metric(series.lastOrNull(), null, mean(series), series)
         } else {
             consistencySeries(sessions)
         }
@@ -240,7 +240,7 @@ internal fun buildSleepModel(
     ).toMap()
     val sleepDebt = run {
         val series = days.mapNotNull { localDebtByDay[it.day] }
-        Metric(series.lastOrNull(), mean(series), series)
+        Metric(series.lastOrNull(), null, mean(series), series)
     }
 
     // Trend set = the most-recent nights with data (asleep totals, full history — latest-anchored,
@@ -398,7 +398,11 @@ private fun metric(
         transform(d)?.takeIf { it.isFinite() }?.let { d.day to it }
     }
     val series = points.map { it.second }
-    return Metric(Baselines.freshestCarried(points, todayKey)?.second, mean(series), series)
+    val fresh = Baselines.freshestCarried(points, todayKey)
+    // #1946: track the day the carried value came from so the tile can stamp it. null when there is
+    // no carried value, or when the carried value IS today's own (no stamp needed for today's read).
+    val latestDay = if (fresh != null && fresh.first != todayKey) fresh.first else null
+    return Metric(fresh?.second, latestDay, mean(series), series)
 }
 
 /**
@@ -421,7 +425,7 @@ internal fun consistencySeries(sessions: List<SleepSession>): Metric {
         return m
     }
     val mins = sessions.sortedBy { it.startTs }.map { bedMinutes(it.effectiveStartTs) }
-    if (mins.size < 3) return Metric(null, null, emptyList())
+    if (mins.size < 3) return Metric(null, null, null, emptyList())
     val scores = ArrayList<Double>()
     for (i in mins.indices) {
         val lo = max(0, i - 13)
@@ -433,7 +437,7 @@ internal fun consistencySeries(sessions: List<SleepSession>): Metric {
         // 120 min of onset SD maps to a 0 score; tighter routines climb to 100.
         scores.add((100.0 * (1.0 - sd / 120.0)).coerceIn(0.0, 100.0))
     }
-    return Metric(scores.lastOrNull(), mean(scores), scores)
+    return Metric(scores.lastOrNull(), null, mean(scores), scores)
 }
 
 private fun mean(vals: List<Double>): Double? = if (vals.isEmpty()) null else vals.sum() / vals.size

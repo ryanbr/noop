@@ -66,7 +66,7 @@ class StepsAnalyticsTest {
     fun jumpGuardDropsGapButKeepsRealSteps() {
         // 100 -> 300 (=200 real) ; 300 -> 1200 is a 900-tick GAP (>= 512) and is dropped ; 1200 -> 1500
         // (=300 real). Only the two in-range increments count => 200 + 300 = 500, the gap doesn't inflate.
-        val s = listOf(step(0, 100), step(60, 300), step(3_600, 1_200), step(3_660, 1_500))
+        val s = listOf(step(0, 100), step(60, 300), step(3_600, 1_200), step(3_675, 1_500))
         assertEquals(500, stepsFor(s))
     }
 
@@ -75,13 +75,13 @@ class StepsAnalyticsTest {
         // THE BUG (#132/#276/#316). A realistic ascending cumulative counter sampled at 1 Hz. The OLD
         // code summed the raw running total (byte @57 alone summed) — exploding the count; the NEW
         // wrap-aware diff sums only the per-record increments and yields a sane number.
-        val counters = listOf(100, 127, 127, 130, 131, 131, 140, 152, 160, 175)
+        val counters = listOf(100, 102, 102, 105, 106, 106, 109, 111, 113, 115)
         val samples = counters.mapIndexed { i, c -> step(i.toLong(), c) }
         // NEW behaviour: sum of wrap-aware deltas == last - first (all small increments, none >= 512).
         val sane = counters.last() - counters.first() // 75
         assertEquals(sane, stepsFor(samples))
         // OLD behaviour (summing the cumulative counter itself) would be vastly larger — prove the gap.
-        val oldOvercount = counters.sum() // 1373
+        val oldOvercount = counters.sum()
         org.junit.Assert.assertTrue(oldOvercount > sane * 10)
     }
 

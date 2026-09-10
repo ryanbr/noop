@@ -1,4 +1,5 @@
 import Foundation
+import StrandAnalytics
 
 /// A generic OpenAI-compatible provider pointed at a user-set base URL — e.g. a local LLM server such
 /// as Ollama, LM Studio or llama.cpp (`http://localhost:11434/v1`), or any self-hosted gateway. Speaks
@@ -28,6 +29,42 @@ struct CustomClient: AIProviderClient {
                 return try await chat(key: key, model: model, wire: wire, modernParams: true, session: session)
             }
             throw AICoachError.server(code, detail)
+        }
+    }
+
+    /// K1: Stream via `stream: true` (most local OpenAI-compatible servers support it). Same body
+    /// as `send`'s standard-params path, with `stream: true`. SSE parsing via `SseDeltas.openAiDelta`.
+    /// The modern-params retry on 400 is NOT streamed (rare path; falls back to `send`'s retry).
+    func stream(
+        key: String,
+        model: String,
+        systemPrompt: String,
+        messages: [(role: ChatMessage.Role, content: String)],
+        session: URLSession,
+        onDelta: (String) -> Void
+    ) async throws {
+        try AIProvider.guardCustomBaseURL()   // #321: reject a public cleartext Custom URL before egress
+        var wire: [[String: Any]] = [["role": "system", "content": systemPrompt]]
+        for m in messages { wire.append(["role": m.role.rawValue, "content": m.content]) }
+
+        let body: [String: Any] = [
+            "model": model,
+            "messages": wire,
+            "temperature": 0.6,
+            "max_tokens": 4096,
+            "stream": true
+        ]
+
+        var req = URLRequest(url: AIProvider.custom.endpoint)
+        req.httpMethod = "POST"
+        AIProvider.applyCustomAuthHeader(key, to: &req)
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        try await performStreamingRequest(req, session: session) { payload in
+            if let delta = SseDeltas.openAiDelta(payload) {
+                onDelta(delta)
+            }
         }
     }
 

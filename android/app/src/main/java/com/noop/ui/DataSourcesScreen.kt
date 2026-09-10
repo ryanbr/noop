@@ -519,7 +519,7 @@ fun DataSourcesScreen(vm: AppViewModel) {
                         Text(uiString(R.string.l10n_data_sources_screen_auto_sync_periodically_5f3041e8), style = NoopType.subhead, color = Palette.textPrimary)
                         Text(
                             uiString(R.string.l10n_data_sources_screen_re_pull_new_health_connect_data_3e9c3914) +
-                                "time you open NOOP, if it's been longer than the interval below. " +
+                                " time you open NOOP, if it's been longer than the interval below. " +
                                 "Read-only; never overwrites strap data.",
                             style = NoopType.footnote,
                             color = Palette.textTertiary,
@@ -559,7 +559,7 @@ fun DataSourcesScreen(vm: AppViewModel) {
                         )
                     }
                     Text(
-                        uiString(R.string.l10n_data_sources_screen_last_sync_b793ffab) + if (hcLastSync == 0L) "not yet"
+                        uiString(R.string.l10n_data_sources_screen_last_sync_b793ffab) + " " + if (hcLastSync == 0L) "not yet"
                         else DateUtils.getRelativeTimeSpanString(hcLastSync).toString(),
                         style = NoopType.footnote,
                         color = Palette.textTertiary,
@@ -576,7 +576,7 @@ fun DataSourcesScreen(vm: AppViewModel) {
                         Text(uiString(R.string.l10n_data_sources_screen_share_back_to_health_connect_1d578f4a), style = NoopType.subhead, color = Palette.textPrimary)
                         Text(
                             uiString(R.string.l10n_data_sources_screen_write_the_metrics_noop_computes_from_439940c2) +
-                                "respiratory rate, heart rate, steps, active energy and sleep) into " +
+                                " respiratory rate, heart rate, steps, active energy and sleep) into " +
                                 "Health Connect so other apps can use them. Only NOOP's own values are " +
                                 "shared. Imported data is never echoed back.",
                             style = NoopType.footnote,

@@ -19,7 +19,7 @@ final class CaptureCompletenessTests: XCTestCase {
     [import] import stage=sleep rowsIn=10 rowsOut=10
     [steps] stepsRaw day=2026-06-28 counterSamples=4 deltas kept=3 dropped=0
     [battery] bank soc=82.0 t=1700000000s
-    [recovery] charge term hrv z=0.20 w=0.40 (higher HRV is better)
+    [recovery] charge day=2026-06-28 term hrv z=0.20 w=0.40 (higher HRV is better)
     [hrv] hrv rmssd=42.10ms sdnn=55.00ms meanNN=900.00ms
     [universal] dayOwner day=2026-06-28 readId=my-whoop writeActiveId=my-whoop hrRows=120 provenance=measured
     """
@@ -126,9 +126,16 @@ final class CaptureCompletenessTests: XCTestCase {
     }
 
     func testTokenMapMatchesEmitterTokensExactly() {
-        // Guard against a silent emitter rename: each token must be the verbatim leading text the live
-        // emitter writes. These literals mirror the *Trace files (verified at authoring time).
-        XCTAssertEqual(CaptureCompleteness.expectedTokens(for: .recovery).first, "charge term")
+        // Guard against a silent emitter rename: each token must be the verbatim leading text that
+        // reaches the REPORT.
+        //
+        // "mirror the *Trace files" is how the recovery token came to be wrong for as long as it was.
+        // RecoveryScorer+Trace really does write "charge term ...", but IntelligenceEngine re-emits
+        // every one of those lines as `charge day=<day> ` + the body before it is logged, so the
+        // literal this guard was protecting could not occur in a single report. A token has to mirror
+        // the END of the pipeline, not the start, or a guard like this passes while the thing it
+        // guards is dead.
+        XCTAssertEqual(CaptureCompleteness.expectedTokens(for: .recovery).first, "charge day=")
         XCTAssertTrue(CaptureCompleteness.expectedTokens(for: .hrv).contains("hrv rmssd="))
         XCTAssertTrue(CaptureCompleteness.expectedTokens(for: .steps).contains("stepsRaw"))
         XCTAssertTrue(CaptureCompleteness.expectedTokens(for: .universal).contains("dayOwner "))

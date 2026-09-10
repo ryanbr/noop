@@ -2,6 +2,8 @@ package com.noop.protocol
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -70,5 +72,103 @@ class BatteryPackInfoTest {
         assertNull(info.serial)
         assertNull(BatteryPackInfo.decodeExtended(bytes(attachedHex)))   // 151 frame is not a 98 response
         assertNull(BatteryPackInfo.decode(bytes(attachedHex))!!.voltageMv) // 5/MG decode never fills voltage
+    }
+
+    /**
+     * The gauge must be sanity-checked before it is shown. These offsets are an unvalidated candidate
+     * re-derived from two captures; a wrong one does not fail, it renders a confident wrong number — the
+     * failure this project treats as worse than a blank. A percentage outside 0..100 means the offset
+     * moved, so the caller renders nothing.
+     */
+    @Test
+    fun `an out-of-range charge is not displayable`() {
+        val absurd = BatteryPackInfo.Info(present = true, socPct = 2488.1, serial = "P", btAddr = "aa")
+        assertFalse(absurd.displayable)
+        val negative = BatteryPackInfo.Info(present = true, socPct = -1.0, serial = "P", btAddr = "aa")
+        assertFalse(negative.displayable)
+    }
+
+    /** A plausible gauge on an attached pack is the one case that shows. */
+    @Test
+    fun `an in-range charge on an attached pack is displayable`() {
+        assertTrue(BatteryPackInfo.Info(present = true, socPct = 73.4, serial = "P", btAddr = "aa").displayable)
+        assertTrue(BatteryPackInfo.Info(present = true, socPct = 0.0, serial = "P", btAddr = "aa").displayable)
+        assertTrue(BatteryPackInfo.Info(present = true, socPct = 100.0, serial = "P", btAddr = "aa").displayable)
+    }
+
+    /** A removed pack must clear the card, never hold the last reading. */
+    @Test
+    fun `an absent pack is never displayable`() {
+        assertFalse(BatteryPackInfo.Info(present = false, socPct = null, serial = null, btAddr = null).displayable)
+        // Even if a stale charge rides along, absence wins.
+        assertFalse(BatteryPackInfo.Info(present = false, socPct = 80.0, serial = null, btAddr = null).displayable)
+    }
+
+    /**
+     * The router branch that decodes this reply matches on the command NAME
+     * (`respCmd.startsWith("GET_BATTERY_PACK_INFO(")`), which comes from this lookup table. A rename or a
+     * removal there would not fail to compile — the branch would simply stop matching and the whole
+     * feature would go quiet, with the decoder back to having no caller. Pin the string.
+     */
+    @Test
+    fun `command 151 resolves to the name the router matches on`() {
+        assertEquals("GET_BATTERY_PACK_INFO", com.noop.protocol.CommandNames.byRaw[151])
+        assertTrue(com.noop.protocol.CommandNames.label(151).startsWith("GET_BATTERY_PACK_INFO("))
+    }
+
+    /**
+     * `displayable` is about a CHARGE percentage, and the 4.0 path carries a voltage instead — so it is
+     * always false there, correctly. Pinned because the name is generic enough that a future 4.0 voltage
+     * card might reach for this gate and get a permanent no.
+     */
+    @Test
+    fun `the 4-0 voltage path is never displayable`() {
+        val v = BatteryPackInfo.Info(present = true, socPct = null, serial = null, btAddr = null,
+                                     voltageMv = 3_900)
+        assertFalse(v.displayable)
+    }
+
+    /**
+     * REAL HARDWARE vectors: the pack record as the strap actually delivers it — the payload of the
+     * uncatalogued pushed event 109, captured from a WHOOP MG on fw 50.39.1.0 (2026-09-01). Command 151
+     * answers FAILURE(0) on this firmware whatever you send it, so the event is the transport the
+     * feature runs on; these two frames are what proves the field offsets on MG hardware.
+     */
+    private val packEvent569 = "f5481c000100005e005301574242354150303030303030310000003902010c00"
+    private val packEvent567 = "1e451c000100005e005301574242354150303030303030310000003702010c00"
+
+    @Test fun pushedPackEventCarriesTheSameRecordAsTheCommandReply() {
+        val a = BatteryPackInfo.decodeEventPayload(bytes(packEvent569))!!
+        assertEquals(true, a.present)
+        assertEquals("WBB5AP0000001", a.serial)
+        assertEquals("00005e005301", a.btAddr)
+        assertEquals(56.9, a.socPct!!, 1e-9)
+        assertNull(a.voltageMv)                       // the event never carries a voltage
+    }
+
+    /**
+     * The SoC field TRACKS A VARYING INPUT rather than merely looking plausible once: these two records
+     * are minutes apart while the pack drains into the strap, and the value falls. A single reading
+     * cannot tell tenths-of-a-percent from mAh; a falling pair in the physically correct direction, both
+     * within 0..100 when read as tenths, is what settles the unit.
+     */
+    @Test fun packSocFallsAsThePackDrainsIntoTheStrap() {
+        val first = BatteryPackInfo.decodeEventPayload(bytes(packEvent569))!!.socPct!!
+        val later = BatteryPackInfo.decodeEventPayload(bytes(packEvent567))!!.socPct!!
+        assertEquals(56.9, first, 1e-9)
+        assertEquals(56.7, later, 1e-9)
+        assertTrue("pack SoC must fall while discharging into the strap", later < first)
+        assertTrue("read as tenths-of-a-percent both samples are a real percentage", first <= 100.0 && later >= 0.0)
+    }
+
+    /** The command path and the event path must agree field-for-field — they share [decodeRecord], and a
+     *  refactor that let them drift would silently give the Devices card two different pack readings. */
+    @Test fun commandAndEventPathsShareOneRecordDecoder() {
+        val viaCommand = BatteryPackInfo.decode(bytes(attachedHex))!!
+        val viaRecord = BatteryPackInfo.decodeRecord(bytes(attachedHex), 14)!!   // cmdOff 10 + 4
+        assertEquals(viaCommand.present, viaRecord.present)
+        assertEquals(viaCommand.serial, viaRecord.serial)
+        assertEquals(viaCommand.btAddr, viaRecord.btAddr)
+        assertEquals(viaCommand.socPct!!, viaRecord.socPct!!, 1e-9)
     }
 }

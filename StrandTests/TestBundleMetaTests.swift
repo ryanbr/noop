@@ -15,7 +15,8 @@ final class TestBundleMetaTests: XCTestCase {
             profileStartedAt: "2026-06-26T07:12:00Z",
             questionnaire: ["naps": "no"],
             build: .init(channel: "AltStore", signed: false),
-            storage: .init(dbBytes: 1024, rows: ["sleep_sessions": 12], rawCaptureBytes: 2048),
+            storage: .init(dbBytes: 1024, rows: ["sleep_sessions": 12], rawCaptureBytes: 2048,
+                           rowBytes: ["sleep_sessions": 4096]),
             redaction: "v2",
             truncated: false)
     }

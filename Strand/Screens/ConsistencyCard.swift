@@ -31,7 +31,8 @@ struct ConsistencyCard: View {
             StatTile(
                 label: "Consistency",
                 value: pctValue(cons.latest),
-                caption: vsTypical(cons.latest, cons.typical, suffix: "%"),
+                caption: tileCaption(latestDay: cons.latestDay, latest: cons.latest,
+                                     typical: cons.typical, suffix: "%"),
                 accent: cons.latest.map { StrandPalette.recoveryColor($0) } ?? StrandPalette.textPrimary,
                 sparkline: spark(cons.series),
                 sparkColor: StrandPalette.metricCyan)
@@ -43,6 +44,15 @@ struct ConsistencyCard: View {
 
     private func pctValue(_ v: Double?) -> String {
         v.map { "\(Int($0.rounded()))%" } ?? "—"
+    }
+
+    /// #1946: a carried prior-day value is stamped "Carried · <date>" instead of "vs typical".
+    private func tileCaption(latestDay: String?, latest: Double?, typical: Double?,
+                             suffix: String, decimals: Int = 0) -> String {
+        if let carried = SleepModel.carriedMetricCaption(latestDay: latestDay, latest: latest) {
+            return carried
+        }
+        return vsTypical(latest, typical, suffix: suffix, decimals: decimals)
     }
 
     /// "+12% vs typical" — the latest-vs-mean caption the metric tile carries.

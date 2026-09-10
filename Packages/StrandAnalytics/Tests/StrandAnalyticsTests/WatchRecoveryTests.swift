@@ -93,6 +93,89 @@ final class WatchRecoveryTests: XCTestCase {
         XCTAssertLessThanOrEqual(out.recovery!, 70)
     }
 
+    // MARK: - Week gate counts ACCEPTED nights, not raw entries (fork issue #62)
+
+    // Seven RAW history entries of which only four are physiologically valid must NOT clear the
+    // week gate: `minBaselineNights` means nights the baseline ACCEPTED (`nValid`), so the rejected
+    // -1 / 0 / 999 readings can't buy a score a week early.
+    func testSevenRawNightsWithFourValidCalibrates() {
+        let out = WatchRecovery.compute(todaySDNN: 45.0, todayRHR: nil,
+                                        sdnnHistory: [45, 46, 47, 48, -1, 0, 999], rhrHistory: [])
+        XCTAssertNil(out.recovery)
+        XCTAssertEqual(out.confidence, .calibrating)
+    }
+
+    // Seven raw entries of which only three are valid: below the baseline's own seed gate too.
+    func testSevenRawNightsWithThreeValidCalibrates() {
+        let out = WatchRecovery.compute(todaySDNN: 45.0, todayRHR: nil,
+                                        sdnnHistory: [45, 46, 47, -1, 0, 999, 1000], rhrHistory: [])
+        XCTAssertNil(out.recovery)
+        XCTAssertEqual(out.confidence, .calibrating)
+    }
+
+    // Six raw entries, all six valid → still one accepted night short of the gate.
+    func testSixRawNightsWithSixValidCalibrates() {
+        let out = WatchRecovery.compute(todaySDNN: 45.0, todayRHR: nil,
+                                        sdnnHistory: [45, 46, 47, 48, 45, 46], rhrHistory: [])
+        XCTAssertNil(out.recovery)
+        XCTAssertEqual(out.confidence, .calibrating)
+    }
+
+    // Nine raw entries of which exactly seven are valid → the gate is met by accepted nights.
+    func testNineRawNightsWithSevenValidScores() {
+        let out = WatchRecovery.compute(todaySDNN: 45.0, todayRHR: nil,
+                                        sdnnHistory: [45, 46, 47, 48, 45, 46, 47, -1, 999],
+                                        rhrHistory: [])
+        XCTAssertNotNil(out.recovery)
+        XCTAssertNotEqual(out.confidence, .calibrating)
+    }
+
+    // MARK: - RHR term needs a USABLE RHR baseline (fork issue #61)
+
+    // An empty RHR history yields `foldHistory`'s synthetic midpoint baseline (75 bpm), which must
+    // never score today's reading: with no usable RHR baseline the result is the documented
+    // HRV-only path, exactly as if today's RHR were missing.
+    func testEmptyRHRHistoryScoresLikeMissingRHR() {
+        let hist = Array(repeating: 45.0, count: 7)
+        let withRHR = WatchRecovery.compute(todaySDNN: 45.0, todayRHR: 52,
+                                            sdnnHistory: hist, rhrHistory: [])
+        let hrvOnly = WatchRecovery.compute(todaySDNN: 45.0, todayRHR: nil,
+                                            sdnnHistory: hist, rhrHistory: [])
+        XCTAssertNotNil(withRHR.recovery)
+        XCTAssertNotNil(hrvOnly.recovery)
+        XCTAssertEqual(withRHR.recovery!, hrvOnly.recovery!, accuracy: 1e-12)
+        // The same literal the Kotlin twin pins, so the oracle guards BOTH directions: a Swift-side
+        // drift would break here rather than silently diverging from Android.
+        XCTAssertEqual(withRHR.recovery!, 57.932425214874954, accuracy: 1e-12)
+    }
+
+    // An RHR history that is entirely out of physiological range accepts no night at all, so its
+    // baseline is the same synthetic midpoint — likewise dropped.
+    func testUnusableRHRHistoryScoresLikeMissingRHR() {
+        let hist = Array(repeating: 45.0, count: 7)
+        let junk = Array(repeating: 300.0, count: 7)   // above restingHRCfg.maxVal (120)
+        let withRHR = WatchRecovery.compute(todaySDNN: 45.0, todayRHR: 52,
+                                            sdnnHistory: hist, rhrHistory: junk)
+        let hrvOnly = WatchRecovery.compute(todaySDNN: 45.0, todayRHR: nil,
+                                            sdnnHistory: hist, rhrHistory: junk)
+        XCTAssertNotNil(withRHR.recovery)
+        XCTAssertEqual(withRHR.recovery!, hrvOnly.recovery!, accuracy: 1e-12)
+    }
+
+    // Once the RHR baseline IS usable (≥ Baselines.minNightsSeed accepted nights) the term returns:
+    // a resting HR above baseline must pull the score below the HRV-only number.
+    func testUsableRHRHistoryStillContributes() {
+        let hist = Array(repeating: 45.0, count: 7)
+        let rhrHist = Array(repeating: 52.0, count: 4)   // exactly the seed gate → provisional
+        let withRHR = WatchRecovery.compute(todaySDNN: 45.0, todayRHR: 62,
+                                            sdnnHistory: hist, rhrHistory: rhrHist)
+        let hrvOnly = WatchRecovery.compute(todaySDNN: 45.0, todayRHR: nil,
+                                            sdnnHistory: hist, rhrHistory: rhrHist)
+        XCTAssertNotNil(withRHR.recovery)
+        XCTAssertNotNil(hrvOnly.recovery)
+        XCTAssertLessThan(withRHR.recovery!, hrvOnly.recovery! - 1.0)
+    }
+
     // Watch recovery is on the SAME scale as strap recovery: feeding identical at-baseline inputs
     // to RecoveryScorer directly (HRV + RHR terms only) reproduces WatchRecovery's number.
     func testSameScaleAsStrapRecovery() {

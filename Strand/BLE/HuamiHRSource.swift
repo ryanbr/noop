@@ -230,7 +230,7 @@ extension HuamiHRSource: @preconcurrency CBCentralManagerDelegate {
         let id = peripheral.identifier
         let firstSight = seenPeripherals[id] == nil
         seenPeripherals[id] = peripheral
-        if firstSight { log("Huami: found \(name) (\(id)) rssi \(RSSI.intValue)") }
+        if firstSight { log("Huami: found \(LiveState.logSafeDeviceName(name)) (\(id)) rssi \(RSSI.intValue)") }
         let dev = DiscoveredDevice(id: id, name: name.isEmpty ? brand.displayBrand : name, rssi: RSSI.intValue)
         if let idx = discovered.firstIndex(where: { $0.id == id }) {
             discovered[idx] = dev

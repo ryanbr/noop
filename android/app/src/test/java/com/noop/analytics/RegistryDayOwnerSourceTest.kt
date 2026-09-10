@@ -215,15 +215,17 @@ class RegistryDayOwnerSourceTest {
     }
 
     @Test
-    fun archivedDeviceIsNotACandidate() = runBlocking {
+    fun archivedDeviceRemainsALowestPriorityHistoricalCandidate() = runBlocking {
         val dao = FakeDao().apply {
             devices["my-whoop"] = device("my-whoop", "WHOOP", SourceKind.liveBLE, DeviceStatus.active)
             devices["old"] = device("old", "Polar", SourceKind.liveBLE, DeviceStatus.archived)
         }
         val src = RegistryDayOwnerSource(registry(dao))
-        val ids = src.candidatePriorities().map { it.first }
-        assertEquals(listOf("my-whoop"), ids) // archived 'old' excluded
-        // With only the active strap and it having NO data, there is no owner (honest gap).
-        assertNull(resolveWith(src, "2026-06-15", mapOf("my-whoop" to false)))
+        val priorities = src.candidatePriorities().toMap()
+        assertEquals(0, priorities["my-whoop"])
+        assertEquals(4, priorities["old"])
+        // Archived history fills only an otherwise uncovered day; live/current sources always win.
+        assertEquals("old", resolveWith(src, "2026-06-15", mapOf("my-whoop" to false, "old" to true)))
+        assertEquals("my-whoop", resolveWith(src, "2026-06-15", mapOf("my-whoop" to true, "old" to true)))
     }
 }

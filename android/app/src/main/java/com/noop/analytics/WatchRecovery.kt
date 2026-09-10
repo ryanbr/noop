@@ -18,7 +18,7 @@ package com.noop.analytics
  * here, so RecoveryScorer renormalises the remaining HRV + RHR weights. The HRV term stays dominant.
  *
  * Honesty rule: return null recovery + CALIBRATING when today's HRV is missing, OR the HRV baseline isn't
- * usable yet, OR there are fewer than [minBaselineNights] nights of history. We NEVER fabricate a number to
+ * usable yet, OR the baseline has accepted fewer than [minBaselineNights] nights. We NEVER fabricate a number to
  * fill a sparse week. Confidence comes from the existing [ScoreConfidence.forCharge].
  */
 object WatchRecovery {
@@ -27,7 +27,8 @@ object WatchRecovery {
     data class Result(val recovery: Double?, val confidence: ScoreConfidence)
 
     /**
-     * Minimum nights of HRV history before we score recovery from a daily-aggregate source. Sits ABOVE the
+     * Minimum VALID nights (nights the baseline accepted, `BaselineState.nValid`) before we score recovery
+     * from a daily-aggregate source — not raw history entries. Sits ABOVE the
      * baseline's own seed gate (4) deliberately: a strap user crosses the seed faster on dense data, but a
      * sparse daily HRV deserves a longer warm-up before we trust it. Mirrors the Swift constant.
      */
@@ -37,7 +38,8 @@ object WatchRecovery {
      * Compute recovery/Charge from a daily HRV + resting HR vs the person's own baseline.
      *
      * @param todayHrv today's HRV reading (ms), or null if the source logged none.
-     * @param todayRhr today's resting HR (bpm), or null to drop the RHR term.
+     * @param todayRhr today's resting HR (bpm), or null to drop the RHR term. The term is also dropped when
+     *   [rhrHistory] has not yet produced a usable RHR baseline.
      * @param hrvHistory ordered nightly HRV values (oldest -> newest), the baseline input.
      * @param rhrHistory ordered nightly resting-HR values (oldest -> newest).
      */
@@ -58,19 +60,27 @@ object WatchRecovery {
 
         // Honesty gate: no number unless we have today's HRV, a usable baseline, AND at least a week of
         // nights. Any miss -> null recovery + calibrating, never a fabricated value.
-        if (todayHrv == null || !hrvBase.usable || hrvHistory.size < minBaselineNights) {
+        // The week is counted in nights the baseline ACCEPTED (nValid), not in raw history entries: a
+        // physiologically implausible reading is skip-and-held by [Baselines.update] and contributes
+        // nothing to the baseline, so counting it would let rejected values buy a score a week early.
+        if (todayHrv == null || !hrvBase.usable || hrvBase.nValid < minBaselineNights) {
             return Result(recovery = null, confidence = ScoreConfidence.CALIBRATING)
         }
 
         // Reuse the canonical Charge engine. Drop the resp / sleep / skin-temp terms (the daily aggregate
-        // doesn't carry them here) -> RecoveryScorer renormalises to HRV + RHR. RHR is optional: a missing
-        // resting HR today passes the at-baseline value (z~0, neutral term) and drops the RHR term entirely.
+        // doesn't carry them here) -> RecoveryScorer renormalises to HRV + RHR. RHR is optional: the term
+        // needs BOTH today's reading AND a usable personal RHR baseline. An empty or all-implausible RHR
+        // history folds to foldHistory's synthetic midpoint (the config's min/max mean, e.g. 75 bpm), which
+        // is nobody's resting HR — scoring against it would move Charge on a fabricated baseline. Mirrors
+        // the `usable ? state : nil` gate the macOS Charge driver breakdown applies (Swift TodayView /
+        // CoupledView); without a usable RHR baseline we fall back to the HRV-only path, exactly as when
+        // today's reading is missing.
         val recovery = RecoveryScorer.recovery(
             hrv = todayHrv,
             rhr = todayRhr?.toDouble() ?: rhrBase.baseline,
             resp = null,
             hrvBaseline = hrvBase,
-            rhrBaseline = if (todayRhr != null) rhrBase else null,
+            rhrBaseline = if (todayRhr != null && rhrBase.usable) rhrBase else null,
             respBaseline = null,
             sleepPerf = null,
         ) ?: return Result(recovery = null, confidence = ScoreConfidence.CALIBRATING)

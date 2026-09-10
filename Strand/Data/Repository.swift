@@ -360,6 +360,13 @@ final class Repository: ObservableObject {
                 out.append(beat)
             }
         }
+        if out.contains(where: { $0.srcChannel?.isWhoop5Transport == true }) {
+            // Retain the selected stream's emission order within a second. Value sorting corrupts
+            // successive differences; original offsets also keep owner precedence deterministic.
+            return out.enumerated().sorted {
+                $0.element.ts != $1.element.ts ? $0.element.ts < $1.element.ts : $0.offset < $1.offset
+            }.map(\.element)
+        }
         return out.sorted {
             if $0.ts != $1.ts { return $0.ts < $1.ts }
             if $0.seq != $1.seq { return $0.seq < $1.seq }
@@ -403,7 +410,11 @@ final class Repository: ObservableObject {
             spo2Ir: rawSpo2FromFiller ? filler.spo2Ir : winner.spo2Ir,
             // Strap-only, like raw SpO2: an imported winner carries no absolute skin temp, so take the
             // filler's rather than let the union blank a value the strap did record (#1636).
-            skinTempC: winner.skinTempC ?? filler.skinTempC
+            skinTempC: winner.skinTempC ?? filler.skinTempC,
+            // Part of the SLEEP GROUP, not an independent column (#1801): it describes how the stage
+            // figures above were derived, so it has to come from whichever row supplied them. A plain
+            // `winner ?? filler` would caption the winner's own hypnogram with the filler's staging.
+            sleepHrOnly: sleepFromFiller ? filler.sleepHrOnly : winner.sleepHrOnly
         )
     }
 
@@ -1139,17 +1150,40 @@ final class Repository: ObservableObject {
         return byTs.values.sorted { $0.ts < $1.ts }
     }
 
+    /// Cheap change-detector over a window of heart rate: a COUNT and a MAX on an indexed column, no
+    /// rows and no decode.
+    ///
+    /// Exists for the stress widget (#2040), whose producer must not read a day's streams on a periodic
+    /// tick just to discover nothing moved. Unions the same ids the reads above do, so a change under
+    /// either source is seen; nil when there is no store yet, which a caller treats as "cannot tell"
+    /// rather than as "unchanged". Twin of Kotlin's `hrFingerprintWindow`.
+    func hrFingerprint(from: Int, to: Int) async -> (count: Int, maxTs: Int)? {
+        guard let store = await ensureStore() else { return nil }
+        var count = 0
+        var maxTs = 0
+        for id in rawPhysiologyReadIds(store: store) {
+            guard let fp = try? await store.hrFingerprint(deviceId: id, from: from, to: to) else { continue }
+            count += fp.count
+            maxTs = max(maxTs, fp.maxTs)
+        }
+        return (count, maxTs)
+    }
+
     /// R-R beats across the active physical WHOOP and canonical history. Exact duplicates are removed
     /// active-first, while same-timestamp distinct beats remain intact.
     func rrIntervals(from: Int, to: Int, limit: Int = 8000) async -> [RRInterval] {
         guard let store = await ensureStore() else { return [] }
+        // Keep each physical strap's independently filtered history after a device switch. Only the
+        // ambiguous canonical alias inherits WHOOP 5's unit guard; a confirmed WHOOP 4 keeps its policy.
+        let activeWhoop5 = (try? await store.isWhoop5RRSource(deviceId: deviceId)) == true
         let ids = rawPhysiologyReadIds(store: store)
         guard ids.count != 1 else {
             return (try? await store.rrIntervals(deviceId: deviceId, from: from, to: to, limit: limit)) ?? []
         }
         var lists: [[RRInterval]] = []
         for id in ids {
-            lists.append((try? await store.rrIntervals(deviceId: id, from: from, to: to, limit: limit)) ?? [])
+            lists.append((try? await store.rrIntervals(deviceId: id, from: from, to: to, limit: limit,
+                unlabelledAliasOfWhoop5: activeWhoop5 && id == Self.whoopSource)) ?? [])
         }
         return Self.mergeRRByIdentity(lists)
     }
@@ -1301,30 +1335,79 @@ final class Repository: ObservableObject {
         guard !sessions.isEmpty, let store = await ensureStore() else { return [:] }
         let rawIds = rawPhysiologyReadIds(store: store)
         let computedIds = rawComputedReadIds(store: store)
-        var out: [Int: [Double]] = [:]
-        for session in sessions where out[session.startTs] == nil {
-            // CachedSleepSession has no provenance field. Re-resolve the exact visible block using the
-            // same imported-wins order as allSleepSessions, then probe its computed owner first.
-            var owner: String?
+        let starts = sessions.map(\.startTs)
+        let lo = starts.min() ?? 0
+        let hi = starts.max() ?? 0
+
+        // Phase 1, ownership.
+        //
+        // A block read from the store now carries the device it was read from, so most of the time there
+        // is nothing to resolve. The probe below runs only for blocks built by hand, which is tests and
+        // the importers, and the bounds read happens only if at least one such block is present.
+        //
+        // Provenance gives the SAME answer the probe does. The search takes the first id in
+        // `rawIds + computedIds` whose bounds match, then normalises it to its `-noop` twin, and
+        // `computedIds` is exactly `rawIds` mapped to that suffix. So a block read under a raw id and the
+        // same block read under its computed one both resolve to that one computed source either way.
+        // Disagreeing would take two DIFFERENT straps sharing a start and an end to the second, and
+        // `dedupBlocks` already collapses that pair to a single block, so the probe was picking one of
+        // them arbitrarily as well.
+        //
+        // `sleepSessionBounds`, not `sleepSessions`: the check needs two integers per block, and the fuller
+        // read selects `stagesJSON` among other columns, so it would haul every night's staging blob once
+        // per candidate device to compare a pair of timestamps. Unpaged, so a caller passing a sparse
+        // subset of a wide span cannot page short and lose the owners it dropped.
+        var boundsByDevice: [String: [Int: Int]] = [:]   // deviceId -> startTs -> endTs
+        if sessions.contains(where: { $0.deviceId == nil }) {
             for id in rawIds + computedIds {
-                let rows = (try? await store.sleepSessions(deviceId: id, from: session.startTs,
-                                                           to: session.startTs, limit: 4)) ?? []
-                if rows.contains(where: { $0.startTs == session.startTs && $0.endTs == session.endTs }) {
-                    owner = id
-                    break
+                boundsByDevice[id] = (try? await store.sleepSessionBounds(deviceId: id,
+                                                                          from: lo, to: hi)) ?? [:]
+            }
+        }
+
+        // Resolve each block's ordered source list: its own device when the read supplied one, else the
+        // imported-wins owner search, then its computed twin first and the computed ids behind it.
+        var sourcesByStart: [Int: [String]] = [:]
+        for session in sessions where sourcesByStart[session.startTs] == nil {
+            var owner: String? = session.deviceId
+            if owner == nil {
+                for id in rawIds + computedIds {
+                    if boundsByDevice[id]?[session.startTs] == session.endTs {
+                        owner = id
+                        break
+                    }
                 }
             }
             let ownerComputed = owner.map { $0.hasSuffix("-noop") ? $0 : $0 + "-noop" }
-            let sources = ([ownerComputed].compactMap { $0 } + computedIds).reduce(into: [String]()) {
-                if !$0.contains($1) { $0.append($1) }
+            sourcesByStart[session.startTs] = ([ownerComputed].compactMap { $0 } + computedIds)
+                .reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
+        }
+
+        // Phase 2, motion, in ROUNDS rather than all sources for all blocks.
+        //
+        // A night's motion is one value per epoch, so a night is kilobytes of JSON and a long history is
+        // tens of megabytes. Asking every computed device for every block would decode that several times
+        // over to keep one copy, which is the same trade as pulling `stagesJSON` above: fewer round trips
+        // bought with far more bytes. Round k asks each device only for the blocks whose k-th source it is
+        // and which are still unfilled, so a block is read from its second source only if its first had
+        // nothing. That is the early exit the per-session loop had, kept, with D reads per round instead
+        // of one per block. Owned blocks resolve in the first round, so the second rarely runs.
+        var out: [Int: [Double]] = [:]
+        var round = 0
+        let maxRounds = sourcesByStart.values.map(\.count).max() ?? 0
+        while round < maxRounds {
+            var wantedByDevice: [String: [Int]] = [:]
+            for (start, sources) in sourcesByStart where out[start] == nil && round < sources.count {
+                wantedByDevice[sources[round], default: []].append(start)
             }
-            for id in sources {
-                if let motion = (try? await store.sessionMotion(deviceId: id, sessionStart: session.startTs)) ?? nil,
-                   !motion.isEmpty {
-                    out[session.startTs] = motion
-                    break
+            if wantedByDevice.isEmpty { break }
+            for (id, wanted) in wantedByDevice {
+                let motions = (try? await store.sessionMotions(deviceId: id, sessionStarts: wanted)) ?? [:]
+                for (start, motion) in motions where out[start] == nil && !motion.isEmpty {
+                    out[start] = motion
                 }
             }
+            round += 1
         }
         return out
     }
@@ -1940,7 +2023,9 @@ final class Repository: ObservableObject {
             // rather than a noisy spike. The `to - from` span chooses the window width: a 2-min rMSSD for a
             // zoomed-in look, widening with the visible span so a day-scale view stays readable. The thinning
             // stride keeps a 1 Hz R-R stream from emitting a point per beat.
-            let rr = (try? await store.rrIntervals(deviceId: source, from: from, to: to, limit: 200_000)) ?? []
+            let activeWhoop5 = (try? await store.isWhoop5RRSource(deviceId: deviceId)) ?? true
+            let rr = (try? await store.rrIntervals(deviceId: source, from: from, to: to, limit: 200_000,
+                unlabelledAliasOfWhoop5: activeWhoop5 && source == Self.whoopSource)) ?? []
             let window = Self.hrvRollingWindowSec(spanSeconds: to - from)
             // rollingRmssd + the map over its output run OFF the main actor (mirrors the HR branch's
             // Task.detached in `timelineSeries`): only the already-read Sendable `rr` rows cross in.
@@ -2590,13 +2675,16 @@ final class Repository: ObservableObject {
         guard let store = await ensureStore() else { return [] }
         let now = Int(Date().timeIntervalSince1970)
         let lo = now - days * 86_400, hi = now + 86_400
-        // UNION the active strap + canonical (and their computed siblings) so workouts banked under the
-        // canonical "my-whoop" before a re-add still show, alongside the re-added strap's live workouts.
+        // UNION every registered WHOOP + canonical (and computed siblings) so workouts banked before a
+        // re-add remain visible alongside every retained strap's live workouts.
         // De-dup identical same-source rows that appear under both union ids by natural key (the cross-SOURCE
         // dedup below only collapses strap-vs-Apple twins, not a row present in two strap namespaces).
         var rows: [WorkoutRow] = []
-        for id in importedReadIds { rows += (try? await store.workouts(deviceId: id, from: lo, to: hi, limit: 5000)) ?? [] }
-        for id in computedReadIds { rows += (try? await store.workouts(deviceId: id, from: lo, to: hi, limit: 5000)) ?? [] }
+        let rawIds = rawPhysiologyReadIds(store: store)
+        for id in rawIds { rows += (try? await store.workouts(deviceId: id, from: lo, to: hi, limit: 5000)) ?? [] }
+        for id in rawIds.map({ $0.hasSuffix("-noop") ? $0 : $0 + "-noop" }) {
+            rows += (try? await store.workouts(deviceId: id, from: lo, to: hi, limit: 5000)) ?? []
+        }
         rows += (try? await store.workouts(deviceId: "apple-health", from: lo, to: hi, limit: 5000)) ?? []
         // Imported lifting sessions (Hevy / Liftosaur) live under their own "lifting" source.
         rows += (try? await store.workouts(deviceId: "lifting", from: lo, to: hi, limit: 5000)) ?? []
@@ -3208,7 +3296,11 @@ final class Repository: ObservableObject {
     }
 }
 
-private extension DailyMetric {
+// `internal`, not `private`: `DailySkinTempAbsoluteCarryTests` exercises these two directly, and a
+// `private` extension is invisible even to `@testable import`. They stayed private because the tests
+// that call them have never compiled (StrandTests runs only in the on-demand app-build), so nothing
+// ever demanded the wider access. Still confined to this module.
+extension DailyMetric {
     /// A copy of self where every nil field is backfilled from `fallback`. Used by the field-by-field
     /// daily merge so an imported export keeps its own values while a computed row fills the gaps it
     /// doesn't carry (e.g. on-device Charge / skin-temp deviation / activity totals).
@@ -3238,7 +3330,10 @@ private extension DailyMetric {
             avgSdnn: avgSdnn ?? fallback.avgSdnn,
             // On-device only (imports never carry it), so an imported row's nil is backfilled from the
             // computed fallback — otherwise the night's absolute would be lost. (#1636)
-            skinTempC: skinTempC ?? fallback.skinTempC
+            skinTempC: skinTempC ?? fallback.skinTempC,
+            // Same shape, same reason (#1801): only a scoring pass knows how the night was staged, so an
+            // imported row's nil takes the computed answer rather than erasing it.
+            sleepHrOnly: sleepHrOnly ?? fallback.sleepHrOnly
         )
     }
 
@@ -3268,7 +3363,11 @@ private extension DailyMetric {
             spo2Red: spo2Red,   // non-sleep field: preserved as-is (#93)
             spo2Ir: spo2Ir,
             avgSdnn: avgSdnn,   // non-sleep (HRV) field: preserved as-is
-            skinTempC: skinTempC // non-sleep (thermal) field: preserved as-is (#1636)
+            skinTempC: skinTempC, // non-sleep (thermal) field: preserved as-is (#1636)
+            // MOVES with the sleep columns, unlike the others here: it describes how the very stage
+            // figures being taken were derived, so leaving `self`'s behind would caption the source's
+            // hypnogram with the import's staging — and an import's is always nil. (#1801)
+            sleepHrOnly: source.sleepHrOnly
         )
     }
 }

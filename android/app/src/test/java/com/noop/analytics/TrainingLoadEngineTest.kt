@@ -149,4 +149,27 @@ class TrainingLoadEngineTest {
         assertEquals(30.0, result.ctl!!, 1e-12)
         assertEquals(30.0, result.atl!!, 1e-12)
     }
+
+    /**
+     * Pins the synthetic day labels `evaluateDense` hands out, which issue #71 moved off a private
+     * Gregorian formatter onto the shared `LocalCalendarDate`.
+     *
+     * The expected literals below are the VERBATIM stdout of the Swift twin compiled standalone
+     * (`swiftc -O twin.swift`), not values re-derived here — that is what makes this an oracle rather
+     * than a second opinion. Swift twin:
+     * `TrainingLoadEngineTests.testDenseDayLabelsCrossLeapDayAndYearBoundary`.
+     */
+    @Test
+    fun denseDayLabelsCrossLeapDayAndYearBoundary() {
+        val result = TrainingLoadEngine.evaluateDense(List(367) { 30.0 })
+        assertEquals("2000-01-01", result.startDay)
+        assertEquals("2001-01-01", result.endDay)
+        // Points begin at the last priming day (offset 6), so offset N is points[N - 6].
+        assertEquals("2000-01-07", result.points.first().day)
+        assertEquals("2000-02-28", result.points[52].day)
+        assertEquals("2000-02-29", result.points[53].day)
+        assertEquals("2000-03-01", result.points[54].day)
+        assertEquals("2000-12-31", result.points[359].day)
+        assertEquals("2001-01-01", result.points.last().day)
+    }
 }

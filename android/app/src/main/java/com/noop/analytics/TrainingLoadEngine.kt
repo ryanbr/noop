@@ -163,7 +163,9 @@ object TrainingLoadEngine {
     /** Convenience for dense load arrays. Day labels are synthetic but deterministic; math is identical. */
     fun evaluateDense(loads: List<Double>, configuration: Configuration = standard): Result {
         val baseOrdinal = dayOrdinal("2000-01-01")!!
-        val days = loads.mapIndexed { index, load -> DailyLoad(dayString(baseOrdinal + index), load) }
+        val days = loads.mapIndexed { index, load ->
+            DailyLoad(LocalCalendarDate(daysSinceEpoch = baseOrdinal + index).key, load)
+        }
         return evaluate(days, configuration = configuration)
     }
 
@@ -193,20 +195,6 @@ object TrainingLoadEngine {
         val dayOfYear = (153 * shiftedMonth + 2) / 5 + day - 1
         val dayOfEra = yearOfEra * 365 + yearOfEra / 4 - yearOfEra / 100 + dayOfYear
         return era * 146_097 + dayOfEra - 719_468
-    }
-
-    private fun dayString(ordinal: Int): String {
-        val z = ordinal + 719_468
-        val era = floorDiv(z, 146_097)
-        val dayOfEra = z - era * 146_097
-        val yearOfEra = (dayOfEra - dayOfEra / 1_460 + dayOfEra / 36_524 - dayOfEra / 146_096) / 365
-        var year = yearOfEra + era * 400
-        val dayOfYear = dayOfEra - (365 * yearOfEra + yearOfEra / 4 - yearOfEra / 100)
-        val monthPrime = (5 * dayOfYear + 2) / 153
-        val day = dayOfYear - (153 * monthPrime + 2) / 5 + 1
-        val month = monthPrime + if (monthPrime < 10) 3 else -9
-        if (month <= 2) year += 1
-        return "%04d-%02d-%02d".format(java.util.Locale.US, year, month, day)
     }
 
     private fun isLeapYear(year: Int) = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)

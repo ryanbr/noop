@@ -130,7 +130,7 @@ private fun IntroCard() {
             Text(uiString(R.string.l10n_whoop_model_comparison_screen_both_straps_are_supported_8545557a), style = NoopType.headline, color = Palette.textPrimary)
             Text(
                 uiString(R.string.l10n_whoop_model_comparison_screen_noop_pairs_with_the_whoop_4_599b088c) +
-                    "heart rate, your scores, buzzing the strap), but a few firmware features differ. Here's " +
+                    " heart rate, your scores, buzzing the strap), but a few firmware features differ. Here's " +
                     "what each can do, and why.",
                 style = NoopType.subhead,
                 color = Palette.textSecondary,
@@ -196,7 +196,7 @@ private fun ReassuranceCard() {
             Text(uiString(R.string.l10n_whoop_model_comparison_screen_on_a_whoop_4_0_32a5968d), style = NoopType.headline, color = Palette.textPrimary)
             Text(
                 uiString(R.string.l10n_whoop_model_comparison_screen_you_re_not_missing_the_broadcast_1d2fa907) +
-                    "Zwift, Peloton or a Garmin, open Data Sources and turn on \"Broadcast heart rate\": " +
+                    " Zwift, Peloton or a Garmin, open Data Sources and turn on \"Broadcast heart rate\": " +
                     "your phone becomes a standard Bluetooth HR sensor using your strap's live reading. The " +
                     "firmware-only flag a 5/MG has just does the same job from the strap instead of the phone.",
                 style = NoopType.subhead,

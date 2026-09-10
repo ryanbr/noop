@@ -827,9 +827,11 @@ private struct FitnessAgeSection: View {
                 HStack(alignment: .center, spacing: NoopMetrics.space5) {
                     // The signature liquid gauge anchors the hero: a vessel tinted to the Charge world,
                     // filled by how young the fitness age reads (younger = fuller), with the age counting
-                    // up over it. Same HeroScoreCell idiom as Today; taps fall through to the trend button.
+                    // up over it. Same HeroScoreCell idiom as Today. tapPassesThrough is what actually makes
+                    // taps reach the trend Button: a plain splash gesture on the vessel swallows them.
                     ZStack {
-                        LiquidVessel(value: fitnessAgeFraction(age), tint: StrandPalette.chargeColor, animated: true)
+                        LiquidVessel(value: fitnessAgeFraction(age), tint: StrandPalette.chargeColor,
+                                     animated: true, tapPassesThrough: true)
                             .frame(width: 96, height: 96)
                         CountUpNumber(value: Double(shown), font: StrandFont.rounded(30))
                             .foregroundStyle(.white)

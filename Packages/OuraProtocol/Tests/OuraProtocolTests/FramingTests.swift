@@ -219,22 +219,54 @@ final class FramingTests: XCTestCase {
     // MARK: - 0x13 -> anchor tick disambiguation (OuraDriver.syncTimeAnchorCandidate)
 
     func testSyncTimeAnchorCandidateResolvesUnit() {
-        // The 2026-07-13 shape: cursor banked at 4_413_933 (last night's log end); ~11 h later the
-        // ring's clock is ~4.81M ticks. A raw-ticks response fits the [cursor, cursor+7d] window and
+        // The 2026-07-13 shape: floor banked at 4_413_933 (last night's log end); ~11 h later the
+        // ring's clock is ~4.81M ticks. A raw-ticks response fits the [floor, floor+45d] window and
         // the seconds x10 reading does not -> unambiguous ticks.
-        XCTAssertEqual(OuraDriver.syncTimeAnchorCandidate(responseValue: 4_810_000, historyCursor: 4_413_933),
+        XCTAssertEqual(OuraDriver.syncTimeAnchorCandidate(responseValue: 4_810_000, lowerBoundTicks: 4_413_933),
                        4_810_000)
         // A seconds-unit response (481_000 s = 4.81M ticks) only fits when multiplied x10.
-        XCTAssertEqual(OuraDriver.syncTimeAnchorCandidate(responseValue: 481_000, historyCursor: 4_413_933),
+        XCTAssertEqual(OuraDriver.syncTimeAnchorCandidate(responseValue: 481_000, lowerBoundTicks: 4_413_933),
                        4_810_000)
-        // Below the cursor in both readings (ring reboot / stale value) -> nil.
-        XCTAssertNil(OuraDriver.syncTimeAnchorCandidate(responseValue: 100_000, historyCursor: 4_413_933))
-        // Beyond cursor+7d in both readings -> nil.
-        XCTAssertNil(OuraDriver.syncTimeAnchorCandidate(responseValue: 40_000_000, historyCursor: 4_413_933))
-        // A fresh/reset cursor gives no reference -> nil (never guess on a full pull).
-        XCTAssertNil(OuraDriver.syncTimeAnchorCandidate(responseValue: 4_810_000, historyCursor: 0))
-        // Ambiguity guard: BOTH readings inside the window -> nil.
-        XCTAssertNil(OuraDriver.syncTimeAnchorCandidate(responseValue: 150_000, historyCursor: 140_000))
+        // Below the floor in both readings (ring reboot / stale value) -> nil.
+        XCTAssertNil(OuraDriver.syncTimeAnchorCandidate(responseValue: 100_000, lowerBoundTicks: 4_413_933))
+        // Beyond floor+45d in both readings -> nil.
+        XCTAssertNil(OuraDriver.syncTimeAnchorCandidate(responseValue: 50_000_000, lowerBoundTicks: 4_413_933))
+        // No reference at all -> nil (never guess).
+        XCTAssertNil(OuraDriver.syncTimeAnchorCandidate(responseValue: 4_810_000, lowerBoundTicks: 0))
+        // Ambiguity guard: BOTH readings inside the window -> nil. Reachable only while the floor is
+        // under window/9 (~5 days of ring clock), i.e. a barely-run ring.
+        XCTAssertNil(OuraDriver.syncTimeAnchorCandidate(responseValue: 150_000, lowerBoundTicks: 140_000))
+    }
+
+    /// Regression from the 2026-09-02/03 iOS captures. The ring's 0x13 reply reads 0x0218767f =
+    /// 35_157_631 ticks while the persisted resume cursor sits at 28_073_725 — 8.20 days behind. Under the
+    /// old 7-day window neither reading fit, so no anchor was adopted; with no anchor the drain-end commit
+    /// could not advance the cursor (`resumeCursorAtDrainEnd(resolvesUnderAnchor: false)` returns it
+    /// unchanged), so the cursor stayed stale and the gap only grew — a permanent loop, one full re-serve
+    /// of the same window per launch. The widened window resolves it, unambiguously.
+    func testSyncTimeAnchorCandidateAcceptsAStaleCursorFromTheCaptures() {
+        let staleCursor: UInt32 = 28_073_725          // banked 2026-08-26 02:49:56 by the 300 s guard
+        for reply: UInt32 in [0x0218767f, 0x02187ce8, 0x02189fce] {   // the three 09-03 launches
+            XCTAssertEqual(OuraDriver.syncTimeAnchorCandidate(responseValue: reply,
+                                                              lowerBoundTicks: staleCursor),
+                           reply, "0x\(String(reply, radix: 16)) must resolve as raw ticks")
+        }
+        // The old 7-day window is what excluded it: 28_073_725 + 6_048_000 = 34_121_725 < 35_157_631.
+        XCTAssertGreaterThan(OuraDriver.syncTimeAnchorWindowTicks, 35_157_631 - Int64(staleCursor),
+                             "the window must cover the observed 8.2-day staleness")
+    }
+
+    /// The other half of the deadlock: on a fresh pair / post-reboot reset the cursor is 0, so it
+    /// can never be the reference. The drain's `maxSeenRingTime` can — it counts EVERY history record's
+    /// envelope time and needs no anchor to read — so the caller retries the parked reply against it.
+    func testSyncTimeAnchorCandidateResolvesAgainstSeenRingTimeWhenCursorIsZero() {
+        let reply: UInt32 = 0x0211dbd0                // 34_724_816 — the 2026-09-02 capture, cursor 0
+        XCTAssertNil(OuraDriver.syncTimeAnchorCandidate(responseValue: reply, lowerBoundTicks: 0))
+        // First batch of a full pull lands the ring's OLDEST banked record (~14 days back).
+        let oldestBanked: UInt32 = 34_724_816 - 12_096_000
+        XCTAssertEqual(OuraDriver.syncTimeAnchorCandidate(responseValue: reply,
+                                                          lowerBoundTicks: oldestBanked),
+                       reply)
     }
 
     func testAdoptSyncTimeAnchorResolvesHistoryTimes() {

@@ -7,6 +7,10 @@ import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.MonitorHeart
+import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.StackedBarChart
 import androidx.compose.material.icons.filled.Timeline
@@ -68,7 +72,21 @@ enum class HostedCard(
      *  honouring the imported-consistency preference) from the wearer's SleepModel (#today-hosted-cards). The
      *  Sleep tab surfaces this metric only as a StatTile in the Night-detail grid; the Today host gives it a
      *  standalone card (ConsistencyHostCard) reading the SAME metric, so the value can't diverge. */
-    CONSISTENCY("sleep.consistency", "Consistency", "Sleep", Icons.Filled.Repeat);
+    CONSISTENCY("sleep.consistency", "Consistency", "Sleep", Icons.Filled.Repeat),
+    /** Stress tab · "Stress" — today's hour-by-hour autonomic-load curve (#2040 follow-up). The FIRST
+     *  card hosted from a tab other than Sleep, so [localizedOrigin] gains a branch for it. Read-only,
+     *  like the hosted Stages card: the Stress tab keeps the interactive timeline with its scrubbing and
+     *  tooltips, and the Today host mirrors only the display. */
+    STRESS_TODAY("stress.today", "Stress through the day", "Stress", Icons.Filled.ShowChart),
+    /** Trends tab · "HRV" — the trailing-month HRV trend (#today-hosted-cards). The first of the
+     *  Trends-origin cards, all three of which render the SAME `MetricTrendCard` the Trends tab draws,
+     *  parameterised by which `DailyMetric` field they read. */
+    TREND_HRV("trends.hrv", "HRV", "Trends", Icons.Filled.MonitorHeart),
+    /** Trends tab · "Resting heart rate" — the trailing-month resting-HR trend. */
+    TREND_RESTING_HR("trends.restingHr", "Resting heart rate", "Trends", Icons.Filled.Favorite),
+    /** Trends tab · "Effort" — the trailing-month Effort trend, displayed on the wearer's chosen
+     *  Effort scale exactly as the Trends tab shows it (#268). */
+    TREND_EFFORT("trends.effort", "Effort", "Trends", Icons.Filled.Bolt);
 
     companion object {
         fun fromRaw(raw: String?): HostedCard? = entries.firstOrNull { it.raw == raw }
@@ -80,6 +98,40 @@ enum class HostedCard(
         val canonicalOrder: List<HostedCard> = entries.toList()
     }
 }
+
+/**
+ * Where tapping a hosted card sends you.
+ *
+ * DATA rather than a callback, because a callback cannot live on an enum and a mapping that lives
+ * inside the composable that draws it is unreachable from any test. The failure it guards is silent: a
+ * card wired to the wrong destination still renders, still taps, and simply lands somewhere else.
+ *
+ * Twin of the Swift `HostedCard.route`.
+ */
+sealed interface HostedDestination {
+    /** Opens nothing. The tap-to-log card, whose buttons ARE its purpose. */
+    object None : HostedDestination
+    object Sleep : HostedDestination
+    object Stress : HostedDestination
+    /** A metric's own detail page, the destination the Charge and Effort key tiles already use. */
+    data class Metric(val key: String) : HostedDestination
+}
+
+/**
+ * Where each card goes. Listed rather than defaulted, so a card added later cannot silently inherit
+ * "opens Sleep": the compiler asks where the new one goes.
+ */
+val HostedCard.destination: HostedDestination
+    get() = when (this) {
+        HostedCard.SLEEP_MARKS -> HostedDestination.None
+        HostedCard.STRESS_TODAY -> HostedDestination.Stress
+        HostedCard.TREND_HRV -> HostedDestination.Metric("hrv")
+        HostedCard.TREND_RESTING_HR -> HostedDestination.Metric("rhr")
+        HostedCard.TREND_EFFORT -> HostedDestination.Metric("strain")
+        HostedCard.ASLEEP_DURATION, HostedCard.STAGES_VS_TYPICAL, HostedCard.NIGHT_DETAIL,
+        HostedCard.SLEEP_DEBT, HostedCard.STAGES, HostedCard.HOURS_VS_NEEDED,
+        HostedCard.CONSISTENCY -> HostedDestination.Sleep
+    }
 
 /**
  * The card's display title, localized. The enum's [title] field stays the English source-of-truth default
@@ -97,6 +149,12 @@ fun HostedCard.localizedTitle(): String = when (this) {
     HostedCard.STAGES -> stringResource(R.string.l10n_sleep_screen_stages_c1d33ad5)
     HostedCard.HOURS_VS_NEEDED -> stringResource(R.string.l10n_sleep_screen_hours_vs_needed_500a0aca)
     HostedCard.CONSISTENCY -> stringResource(R.string.l10n_sleep_screen_consistency_0ea7b95e)
+    HostedCard.STRESS_TODAY -> stringResource(R.string.hosted_card_stress_title)
+    // The SAME titles the Trends tab gives these charts, so a hosted card is recognisably the card it
+    // came from rather than a second name for the same thing.
+    HostedCard.TREND_HRV -> stringResource(R.string.trends_hrv_full)
+    HostedCard.TREND_RESTING_HR -> stringResource(R.string.trends_resting_hr_full)
+    HostedCard.TREND_EFFORT -> stringResource(R.string.trends_effort)
 }
 
 /**
@@ -107,6 +165,7 @@ fun HostedCard.localizedTitle(): String = when (this) {
 @Composable
 fun HostedCard.localizedOrigin(): String = when (origin) {
     "Trends" -> stringResource(R.string.nav_trends)
+    "Stress" -> stringResource(R.string.nav_stress)
     else -> stringResource(R.string.nav_sleep)
 }
 

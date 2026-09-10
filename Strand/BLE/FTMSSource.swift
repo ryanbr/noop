@@ -200,7 +200,7 @@ extension FTMSSource: @preconcurrency CBCentralManagerDelegate {
         seenPeripherals[id] = peripheral
         let advName = advertisementData[CBAdvertisementDataLocalNameKey] as? String
         let name = advName ?? peripheral.name ?? "Gym Equipment"
-        if firstSight { log("FTMS: found \(name) (\(id)) rssi \(RSSI.intValue)") }
+        if firstSight { log("FTMS: found \(LiveState.logSafeDeviceName(name)) (\(id)) rssi \(RSSI.intValue)") }
         let machine = DiscoveredMachine(id: id, name: name, rssi: RSSI.intValue)
         if let idx = discovered.firstIndex(where: { $0.id == id }) {
             discovered[idx] = machine

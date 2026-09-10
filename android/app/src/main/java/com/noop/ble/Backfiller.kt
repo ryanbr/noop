@@ -1,6 +1,7 @@
 package com.noop.ble
 
 import android.content.Context
+import android.content.SharedPreferences
 import com.noop.data.DynAccelDiag
 import com.noop.data.InsertCounts
 import com.noop.data.StreamBatch
@@ -15,6 +16,7 @@ import com.noop.protocol.decodeHistorical
 import com.noop.protocol.extractHistoricalStreams
 import com.noop.protocol.isEmptyRecordFrame
 import com.noop.protocol.rejectedHistoricalRecords
+import java.io.IOException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -63,6 +65,14 @@ class Backfiller(
      * HISTORY_END metadata.data[10:18]) the high-freq-sync ack form requires.
      */
     private val ackTrim: (trim: Long, endData: ByteArray) -> Unit,
+    /**
+     * #1635: what one offload chunk actually stored, handed up so the client can tally it per LINK and
+     * name it beside the link epitaph. The offload is the ONLY path that banks gravity, respiratory,
+     * skin temperature, SpO2 and steps — the realtime decoder yields hr/rr/events/battery and nothing
+     * else — so a link summary that omitted this could not distinguish an unbonded strap, which defers
+     * backfill entirely, from a healthy one. Defaulted so existing constructions are unchanged.
+     */
+    private val onBankedOffload: (counts: InsertCounts) -> Unit = {},
     /**
      * Fires after a chunk's decoded rows are durably committed AND acked — i.e. real new data just
      * landed. Lets the client schedule on-device scoring right away instead of leaving fresh history
@@ -219,6 +229,18 @@ class Backfiller(
      */
     var sessionSkinTempRows = 0
         private set
+
+    /** #2019: this session's v26 optical windows, and what they carried. See [ppgWaveformCensusLine]. */
+    var sessionPpgWindows = 0
+        private set
+    var sessionPpgWithBase = 0
+        private set
+    var sessionPpgSaturated = 0
+        private set
+    var sessionPpgBaseMin: Long? = null
+        private set
+    var sessionPpgBaseMax: Long? = null
+        private set
     private val sessionNightKeys = HashSet<Long>()
     val sessionNights: Int get() = sessionNightKeys.size
 
@@ -227,6 +249,12 @@ class Backfiller(
      * sentinel: it has no banked history to offload (a clock/charge state, not a decode bug).
      */
     private var loggedNoCursor = false
+
+    /** #1754: whether THIS session saw the trim=0xFFFFFFFF "no valid flash cursor" sentinel. Exposed so
+     *  the empty-offload banner can distinguish the clock/charge state (no cursor — the existing copy is
+     *  correct) from a strap that has a valid, advancing flash cursor but banks no sensor records (NOT a
+     *  clock problem — points at the sensor front-end or power). Read-only from outside. */
+    val sawNoFlashCursor: Boolean get() = loggedNoCursor
 
     /**
      * #773: logged once per session the first time a HISTORY_END's own timestamp is dated implausibly far
@@ -248,6 +276,19 @@ class Backfiller(
         private set
 
     /**
+     * #1992: reject frames still allowed to hex-dump (see [hexDumpAllowance]).
+     *
+     * Deliberately NOT reset in [begin], for the same reason as [lastAckedTrim]: the thing being
+     * protected is the ROLLING LOG, which belongs to the process, not to one offload session. The
+     * auto-continue re-kicks up to 24 sessions per connection, so a per-session budget would allow
+     * 24 x 24 frames and flood the buffer exactly as before, which is the shape the reporter hit.
+     */
+    private var rejectHexBudget: Int = REJECT_HEX_DUMP_BUDGET
+    /** Reject frames seen this session, so the suppression line can say what it stopped showing. */
+    private var rejectFramesSeen: Int = 0
+    private var rejectHexSuppressedNoted: Boolean = false
+
+    /**
      * Distinct historical record-layout versions logged this session. Before this, only the unmapped/
      * reject path surfaced a version, so a HEALTHY log never revealed which layout the strap emits
      * (v24/v25 on 4.0, v18/v26 on 5/MG) — exactly the firmware→layout signal triage needs. Reset in
@@ -261,6 +302,16 @@ class Backfiller(
     /** SpO2 RE dump (PR #945, reimplemented): how many full-record dumps this session emitted, bounded by
      *  [com.noop.analytics.Spo2ReTrace.MAX_SAMPLES]. Session-scoped so the cap spans chunks; reset in begin. */
     private var spo2Dumped = 0
+
+    /** SpO2 RE dump: how many records this session dumped for each layout version, so one layout cannot
+     *  spend the whole session budget. Key -1 buckets a record whose `hist_version` did not decode.
+     *  Session-scoped alongside [spo2Dumped]; reset in begin. Twin of the Swift `spo2DumpedByVersion`. */
+    private val spo2DumpedByVersion = HashMap<Int, Int>()
+
+    /** SpO2 RE dump: records EXAMINED this session, bounded by [com.noop.analytics.Spo2ReTrace.MAX_EXAMINED].
+     *  Counts the decode attempts the search costs, which the dump counter stopped bounding once the
+     *  per-version cap could hold dumps back indefinitely. Reset in begin. Twin of Swift `spo2Examined`. */
+    private var spo2Examined = 0
 
     /**
      * #547: logged once per session the first time the #547 ingest gate drops an implausible-timestamp
@@ -304,6 +355,11 @@ class Backfiller(
         this.continuedAfterRows = continuedAfterRows
         isBackfilling = true
         sessionRowsPersisted = 0
+        sessionPpgWindows = 0
+        sessionPpgWithBase = 0
+        sessionPpgSaturated = 0
+        sessionPpgBaseMin = null
+        sessionPpgBaseMax = null
         sessionRrOffered = 0
         sessionRrInserted = 0
         sessionRrSumMs = 0
@@ -321,6 +377,8 @@ class Backfiller(
         loggedLayoutVersions.clear()
         chunkIndex = 0
         spo2Dumped = 0
+        spo2DumpedByVersion.clear()
+        spo2Examined = 0
         loggedImplausibleClock = false
         sessionDroppedImplausible = 0
         sessionUnhandledPacketTypes.clear()   // #891: a second offload must re-log its first sighting
@@ -413,24 +471,60 @@ class Backfiller(
             // reject path logged a version before, so a healthy sync never revealed v24/v25 (4.0) or
             // v18/v26 (5/MG). Sample the chunk's first genuine record (null ⇒ console/CRC-fail); log
             // each distinct layout once per session.
-            frames.firstNotNullOfOrNull { decodeHistorical(it, family)?.get("hist_version") as? Int }
-                ?.let { v ->
-                    if (loggedLayoutVersions.add(v)) {
-                        log("Backfill: historical records use layout v$v")
-                        firmwareLayout(v)
-                        // Connection test mode: the firmware layout as a compact tagged line. A layout that
-                        // decoded a signature field (heart_rate / gravity_x / ppg_waveform) is decodable.
-                        // Gated zero-cost. Twin of the Swift Backfiller emit.
-                        emitConnection {
-                            val decodable = frames.any {
-                                val d = decodeHistorical(it, family)
-                                d != null && (d.containsKey("heart_rate") || d.containsKey("gravity_x") ||
-                                    d.containsKey("ppg_waveform"))
-                            }
-                            com.noop.analytics.ConnectionTrace.firmwareLine(v, decodable)
-                        }
-                    }
+            // EVERY distinct layout in the chunk, not just the first record's. The comment above says
+            // "log each distinct layout once per session" and the old form did not do that: it sampled the
+            // first decodable record and stopped, so a strap emitting v18 AND an unscoreable layout logged
+            // only the v18 and never mentioned the other one. That is precisely the mixed-layout strap the
+            // guidance below exists for. Swift reads its already-parsed frames for this and pays nothing;
+            // here it costs one decode pass over the chunk, beside the one `extractHistoricalStreams` just
+            // did, which is immaterial next to the transfer that delivered the chunk.
+            val layoutsInChunk = LinkedHashMap<Int, Boolean>()   // version -> any record carried a signal
+            for (f in frames) {
+                val d = decodeHistorical(f, family) ?: continue
+                val v = d["hist_version"] as? Int ?: continue
+                val carries = d.containsKey("heart_rate") || d.containsKey("gravity_x") ||
+                    d.containsKey("ppg_waveform")
+                layoutsInChunk[v] = (layoutsInChunk[v] ?: false) || carries
+            }
+            // `firmwareLayout` sets ONE state value and the connection trace names ONE layout, so both stay
+            // bound to the chunk's first version exactly as before; only the logging widened.
+            val firstLayout = layoutsInChunk.keys.firstOrNull()
+            for ((v, carriesSignal) in layoutsInChunk) {
+                if (!loggedLayoutVersions.add(v)) continue
+                log("Backfill: historical records use layout v$v")
+                // #1992: and say what that MEANS when it is not a layout NOOP can score from. Android used
+                // to print the bare version and stop, so a user whose nights were not staging had the fact
+                // in their log and none of the explanation, while the same strap on iOS was told why.
+                // Asked of the LAYOUT: it counts as carrying a signal when ANY of the chunk's records of
+                // that version did, so one thin record cannot condemn it. Twin of the Swift emit.
+                when (com.noop.protocol.historicalLayoutSupport(
+                    version = v, family = family, hasHeartRate = carriesSignal,
+                    hasGravity = false, hasPpgWaveform = false,
+                )) {
+                    com.noop.protocol.HistoricalLayoutSupport.UNMAPPED ->
+                        log(
+                            "Historical records use firmware layout v$v, which NOOP doesn't decode yet: " +
+                                "those records carry no heart rate or motion, so any night made only of them " +
+                                "can't be staged from the strap. A strap emitting a mix of layouts still " +
+                                "stages the nights it can. Please report this (issue #1992).",
+                        )
+                    com.noop.protocol.HistoricalLayoutSupport.DECODES_WITHOUT_NAMED_SIGNAL ->
+                        log(
+                            "Historical records use firmware layout v$v. NOOP decodes it, but these records " +
+                                "carry no per-second heart rate and no motion (they hold raw sensor channels " +
+                                "nothing scores yet), so any night made only of them can't be staged from the " +
+                                "strap. A strap emitting a mix of layouts still stages the nights it can. " +
+                                "Please report this (issue #1992).",
+                        )
+                    com.noop.protocol.HistoricalLayoutSupport.SUPPORTED -> Unit
                 }
+                if (v == firstLayout) {
+                    firmwareLayout(v)
+                    // Connection test mode: the firmware layout as a compact tagged line. Gated zero-cost.
+                    // Twin of the Swift Backfiller emit.
+                    emitConnection { com.noop.analytics.ConnectionTrace.firmwareLine(v, carriesSignal) }
+                }
+            }
             // SpO2 RE dump (PR #945, reimplemented): while the Connection test mode is on, dump a few FULL
             // historical records + their mapped raw SpO2 channels so an offline pass can tell whether the
             // strap banks a COMPUTED SpO2 (a byte tracking the WHOOP app's nightly %) vs only the raw
@@ -440,13 +534,25 @@ class Backfiller(
             // the strap's type-50 console frames carry no record bytes to correlate. Records dump whether
             // or not they carry SpO2 channels, so "nothing banked" is provable too. Never a user-facing
             // number (never-fabricate; the #194 lesson). Twin of the Swift Backfiller emit.
-            if (spo2Dumped < com.noop.analytics.Spo2ReTrace.MAX_SAMPLES && connectionActive()) {
+            if (spo2Dumped < com.noop.analytics.Spo2ReTrace.MAX_SAMPLES &&
+                spo2Examined < com.noop.analytics.Spo2ReTrace.MAX_EXAMINED &&
+                connectionActive()
+            ) {
                 for (f in frames) {
                     if (spo2Dumped >= com.noop.analytics.Spo2ReTrace.MAX_SAMPLES) break
+                    // The decode below is a SECOND decode of a frame the extractor already decoded, so the
+                    // search has to be bounded by what it examines and not only by what it dumps.
+                    if (spo2Examined >= com.noop.analytics.Spo2ReTrace.MAX_EXAMINED) break
+                    spo2Examined++
                     val d = decodeHistorical(f, family) ?: continue
                     // `as? Long`, not `as? Int`: the decoder carries unix in the unsigned domain, so an
                     // Int cast would miss on EVERY record and silently stop the dump. See `histU32`.
                     val recUnix = d["unix"] as? Long ?: continue
+                    // Stratify by layout: without this the first chunk's dominant layout eats the whole
+                    // budget and the rare, still-unmapped one never gets a single frame. See MAX_PER_VERSION.
+                    val ver = d["hist_version"] as? Int ?: -1
+                    val dumpedForVer = spo2DumpedByVersion[ver] ?: 0
+                    if (dumpedForVer >= com.noop.analytics.Spo2ReTrace.MAX_PER_VERSION) continue
                     connectionLog(
                         com.noop.analytics.Spo2ReTrace.recordLine(
                             frame = f,
@@ -457,6 +563,7 @@ class Backfiller(
                             skinRaw = d["skin_temp_raw"] as? Int,
                         ),
                     )
+                    spo2DumpedByVersion[ver] = dumpedForVer + 1
                     spo2Dumped++
                 }
             }
@@ -499,6 +606,13 @@ class Backfiller(
                             "you recognise, this is a firmware record type NOOP has never mapped: please " +
                             "report it on #891 with the strap model and firmware build.",
                     )
+                    // #891: and the bytes, so the report is actionable. Without this the line above asks a
+                    // reporter to raise an issue about a record that exists nowhere else: the else branch
+                    // drops the frame and the reject archive only ever holds type-47. First sighting only,
+                    // so a long offload of one unmapped type still costs exactly one dump.
+                    decoded.unhandledPacketSamples[typeName]?.let { hex ->
+                        log(unmappedTypeDumpLine(typeName, hex))
+                    }
                 }
             }
             // #324: the strap RTC-state events (RTC_LOST / BOOT / SET_RTC) the #547 gate dropped for a bad
@@ -538,7 +652,10 @@ class Backfiller(
                 // records run ~84 B and the truncated tail is exactly where the unmapped motion/HR
                 // fields sit), and sample a few more so one log carries enough records to triangulate
                 // offsets. These only ever fire for unmapped firmware.
-                val sample = rejected.take(8)
+                rejectFramesSeen += rejected.size
+                // #1992: spend from a SESSION budget, not a fresh 8 per chunk. See [hexDumpAllowance].
+                val allowance = hexDumpAllowance(rejected.size, rejectHexBudget)
+                val sample = rejected.take(allowance)
                 var emptySkipped = 0
                 sample.forEachIndexed { i, f ->
                     // #1007: an all-zero frame has no record layout to map, so its hex dump is pure log
@@ -546,9 +663,20 @@ class Backfiller(
                     if (isEmptyRecordFrame(f)) { emptySkipped++; return@forEachIndexed }
                     val hex = f.joinToString("") { "%02x".format(it) }
                     log("Backfill: rejected frame[$i] ${f.size}B: $hex")
+                    rejectHexBudget--
                 }
                 if (emptySkipped > 0) {
                     log("Backfill: #1007 $emptySkipped/${sample.size} sampled frame(s) all-zero (empty payload) - hex dump skipped")
+                }
+                // Say ONCE that the sample is capped, so a reader knows the dump is a sample rather than
+                // everything the strap sent, and where the rest lives.
+                if (rejectHexBudget <= 0 && !rejectHexSuppressedNoted) {
+                    rejectHexSuppressedNoted = true
+                    log(
+                        "Backfill: hex dumps capped at $REJECT_HEX_DUMP_BUDGET frame(s) while this connection lasts " +
+                            "($rejectFramesSeen reject frame(s) seen so far); the complete records are in the " +
+                            "reject archive. Sample is enough to map a layout (#1992)",
+                    )
                 }
             }
             // Commit the decoded rows FIRST (durable) — BEFORE the reject archive (#1006, matching the
@@ -563,11 +691,24 @@ class Backfiller(
                 // key has already absorbed part of it.
                 val rrCensus = com.noop.analytics.RrEmissionStats.compute(decoded.rr.map { it.ts.toInt() to it.rrMs })
                 val counts = repository.insert(decoded, deviceId)
+                onBankedOffload(counts)
                 committed = decoded
                 // Success-side observability (#150): tally what actually persisted so the session can emit
                 // "persisted N rows (M with motion) across K night(s)" — the win-rate signal we never logged.
                 val (rows, motion, nights) = chunkTally(counts, decoded.gravity.map { it.ts } + decoded.hr.map { it.ts })
                 sessionRowsPersisted += rows
+                // #2019: the v26 optical census, folded per chunk. Counted on what the DECODER produced
+                // rather than on what the store kept, because an un-reconstructable window is a decode
+                // fact: the base is either on the wire or it is not.
+                for (w in decoded.ppgWaveform) {
+                    sessionPpgWindows += 1
+                    w.baseCode?.let { b ->
+                        sessionPpgWithBase += 1
+                        sessionPpgBaseMin = minOf(sessionPpgBaseMin ?: b, b)
+                        sessionPpgBaseMax = maxOf(sessionPpgBaseMax ?: b, b)
+                    }
+                    if (w.samples.any { com.noop.protocol.isSaturatedPpgDelta(it) }) sessionPpgSaturated += 1
+                }
                 // #1008/#1118 census accumulation (pre-storage offered vs post-key inserted).
                 sessionRrOffered += rrCensus.intervals
                 sessionRrInserted += counts.rr
@@ -704,6 +845,38 @@ class Backfiller(
     }
 
     companion object {
+        /**
+         * Reject frames one connection may hex-dump (#1992). Three chunks worth at the per-chunk
+         * cap: enough distinct records to triangulate field offsets (v25 was mapped from 45, spread
+         * across many logs), while leaving room in a 2000-line rolling buffer for the lines that
+         * give the dump its context. The complete records are always in the reject archive.
+         */
+        internal const val REJECT_HEX_DUMP_BUDGET = 24
+
+        /**
+         * #891: the dump line for the first frame of an unmapped packet type. Byte-identical to the Swift
+         * `Backfiller.unmappedTypeDumpLine`; [hex] is the FULL frame, so the length is derived from it
+         * rather than passed separately and able to disagree with the bytes beside it.
+         */
+        internal fun unmappedTypeDumpLine(typeName: String, hex: String): String =
+            "Backfill: unmapped type $typeName first frame ${hex.length / 2}B: $hex"
+
+        /**
+         * How many reject frames this chunk may hex-dump, given what the session has already spent (#1992).
+         *
+         * The dump is the only channel carrying an unmapped layout's raw bytes to someone who can map it,
+         * and it was bounded PER CHUNK with no session budget. On the straps it exists for that defeats
+         * itself: a strap rejecting ~25 records per chunk, across many chunks and many sessions per
+         * connection, emits 8 long hex lines each time, floods the 2000-line rolling log, and evicts its own
+         * earlier dumps along with the context needed to read them. A session budget keeps a usable sample
+         * rather than a flood that rolls itself away.
+         *
+         * Pure, so the arithmetic is testable without constructing a Backfiller (which needs a repository
+         * over a 152-method DAO). Swift twin: `hexDumpAllowance`.
+         */
+        internal fun hexDumpAllowance(rejectedCount: Int, budgetRemaining: Int, perChunkCap: Int = 8): Int =
+            maxOf(0, minOf(rejectedCount, perChunkCap, budgetRemaining))
+
         /** Cursor name for the strap's safe-trim watermark. Matches the Swift `setCursor("strap_trim", ...)`. */
         const val STRAP_TRIM_CURSOR = "strap_trim"
 
@@ -863,6 +1036,24 @@ class Backfiller(
                 "so if that does not help, try Restart strap in Devices, then forget and re-pair. If the " +
                 "official WHOOP app is missing these days too, the strap is the cause and not NOOP."
         }
+
+        /** #1754: the banner for an empty offload whose flash cursor is VALID and ADVANCING — the strap
+         *  is writing pages but banking no sensor records, so the clock/charge advice does not apply. The
+         *  cause points at the sensor front-end or power state, not the RTC. Byte-identical to the Swift
+         *  twin (`Backfiller.noSensorRecordsBanner`). No em-dash (project rule). */
+        val noSensorRecordsBanner =
+            "Synced, but your strap handed over no sensor records - only its diagnostic output. The " +
+                "strap's flash cursor is valid and advancing, so this is not a clock problem; it points " +
+                "at the sensor front-end or power state. If this persists across reconnects, please " +
+                "share a strap log so the cause can be identified."
+
+        /** #1754: the banner for an empty offload whose flash cursor is the 0xFFFFFFFF sentinel — the
+         *  strap has no banked history at all, the clock/charge advice IS correct. Byte-identical to the
+         *  Swift twin (`Backfiller.noFlashCursorBanner`). */
+        val noFlashCursorBanner =
+            "Synced, but your strap had no stored history to hand over - only its diagnostic output. " +
+                "This usually means its clock has lost sync, so it isn't saving data to flash. Fully " +
+                "charge it to 100%, then reconnect, and it should start banking again."
     }
 }
 
@@ -901,13 +1092,22 @@ interface TrimCursorStore {
 }
 
 /** Default [TrimCursorStore] backed by a private SharedPreferences file. */
-class PrefsTrimCursorStore(context: Context) : TrimCursorStore {
-    private val prefs = context.applicationContext
-        .getSharedPreferences("noop_backfill_cursors", Context.MODE_PRIVATE)
+class PrefsTrimCursorStore(private val prefs: SharedPreferences) : TrimCursorStore {
+
+    /** Production entry point: the app's private cursor prefs file. */
+    constructor(context: Context) : this(
+        context.applicationContext.getSharedPreferences("noop_backfill_cursors", Context.MODE_PRIVATE),
+    )
 
     override suspend fun set(name: String, value: Long) {
         // commit() (synchronous) so durability is established before we ack the strap.
-        prefs.edit().putLong(name, value).commit()
+        // #8: commit() reports a FAILED write (full storage, unwritable prefs file) by RETURNING
+        // false — it does not throw. Discarding that result made a failed persist look identical to
+        // a successful one, so the caller's try/catch never fired and the strap got acked without a
+        // durable cursor. Surface it as the throw that guard already handles by HOLDING the ack.
+        if (!prefs.edit().putLong(name, value).commit()) {
+            throw IOException("SharedPreferences.commit() returned false for cursor '$name'=$value")
+        }
     }
 
     override suspend fun get(name: String): Long? =

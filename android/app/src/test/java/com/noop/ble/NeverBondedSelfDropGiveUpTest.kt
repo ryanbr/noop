@@ -179,4 +179,49 @@ class NeverBondedSelfDropGiveUpTest {
             )
         )
     }
+
+    // --- #1997: a held link still bounds the loop, and only the explanation changes ---
+
+    /**
+     * The shape from the report: the MTU exchange is refused, so the link sits at the 23-byte default, and
+     * not one frame arrives. Both halves are required. A refused exchange on a link that still carried
+     * traffic is a different story, and a silent link that negotiated its MTU fine is the #1809 shape,
+     * which this must not claim.
+     */
+    @Test
+    fun `a held link is the OS signal AND no traffic`() {
+        assertTrue(WhoopBleClient.heldLinkWithoutTraffic(aclHeld = true, inboundFrames = 0))
+        assertFalse(WhoopBleClient.heldLinkWithoutTraffic(aclHeld = true, inboundFrames = 6))
+    }
+
+    /**
+     * The narrowing that matters, and the reason it was added. A refused exchange with no traffic ALSO
+     * describes a stale pairing, where the right advice is the opposite: re-pair. The #1997 reporter
+     * turned out to be exactly that, with no official WHOOP app installed and a bond that had gone stale.
+     * Without the OS actually reporting the connection held, this must not claim it.
+     */
+    @Test
+    fun `a stale pairing is not mistaken for a held connection`() {
+        assertFalse(WhoopBleClient.heldLinkWithoutTraffic(aclHeld = false, inboundFrames = 0))
+    }
+
+    /**
+     * The correction that matters: a held link STILL counts toward the give-up.
+     *
+     * The first version of this fix excluded it, on the reasoning that nothing was exchanged for the strap
+     * to refuse. That was wrong in a way only reachable by asking what else would stop the loop:
+     * CLIENT_HELLO is 5/MG only, so on the reporter's WHOOP 4.0 the other give-up never fires, and
+     * excluding these links would leave the connect-drop-retry cycle unbounded, draining both batteries.
+     * That is exactly what #982 exists to prevent. The pause is correct; only the guide was wrong.
+     */
+    @Test
+    fun `a held link still counts, so the retry loop stays bounded`() {
+        assertTrue(
+            WhoopBleClient.shouldCountNeverBondedSelfDrop(
+                wasConnected = true, didBond = false, intentionalDisconnect = false,
+                staleDirectBond = false, status = 0, alreadyPausedForBondLoop = false,
+                helloSuppressed = false,
+            ),
+        )
+    }
 }

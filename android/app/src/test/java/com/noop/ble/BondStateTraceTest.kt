@@ -3,6 +3,7 @@ package com.noop.ble
 import android.bluetooth.BluetoothDevice
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -154,5 +155,96 @@ class BondStateTraceTest {
         val line = bondStatePollLine(android.bluetooth.BluetoothDevice.BOND_BONDING, sawTransitionLine = true)
         assertFalse(line.contains("missed it"))
         assertTrue(bondStatePollLine(android.bluetooth.BluetoothDevice.BOND_BONDED, true).contains("paired"))
+    }
+
+    // --- #1635: WHY a bond ended, not just that it did ---
+
+    /**
+     * The reason rides the failure line. "Refused authentication" and "nobody answered" and "the link
+     * went away" are three different findings, and the transition alone renders all three identically.
+     */
+    @Test
+    fun `a failed pairing names the OS reason when there is one`() {
+        assertEquals(
+            "bond state: BOND_BONDING -> BOND_NONE device=FD:D4:F7:24:53:4A 3158ms after CLIENT_HELLO" +
+                " — pairing did NOT complete, reason=AUTH_FAILED(1)",
+            bondStateTraceLine(BluetoothDevice.BOND_BONDING, BluetoothDevice.BOND_NONE,
+                "FD:D4:F7:24:53:4A", 3158, reason = 1),
+        )
+    }
+
+    /**
+     * The OTHER way a bond ends: one that EXISTED and then went away. Scoping the reason to the failed
+     * pairing would have left this as a bare state change with no explanation, and it is exactly where
+     * REMOVED and REMOTE_DEVICE_DOWN show up.
+     */
+    @Test
+    fun `a bond that existed and then ended is explained too`() {
+        assertEquals(
+            "bond state: BOND_BONDED -> BOND_NONE device=AA:BB — the bond ended, reason=REMOTE_DEVICE_DOWN(4)",
+            bondStateTraceLine(BluetoothDevice.BOND_BONDED, BluetoothDevice.BOND_NONE,
+                "AA:BB", null, reason = 4),
+        )
+    }
+
+    /** It says the bond ended, not that it was "removed": the code supplies the cause, the line does not. */
+    @Test
+    fun `a bond ending without a reason still says the bond ended`() {
+        val line = bondStateTraceLine(BluetoothDevice.BOND_BONDED, BluetoothDevice.BOND_NONE,
+            "AA:BB", null, reason = NO_BOND_REASON)
+        assertTrue(line, line.endsWith("— the bond ended"))
+        assertFalse(line, line.contains("reason="))
+    }
+
+    /**
+     * A stack that supplies nothing gets the wording it had before. `getIntExtra` returns -1 when the
+     * extra is absent, and "reason=n/a" would say less than silence while changing every failure line
+     * anyone has ever pattern-matched on.
+     */
+    @Test
+    fun `an absent reason leaves the failure line exactly as it was`() {
+        val was = "bond state: BOND_BONDING -> BOND_NONE device=AA:BB 10ms after CLIENT_HELLO" +
+            " — pairing did NOT complete"
+        assertEquals(was, bondStateTraceLine(BluetoothDevice.BOND_BONDING, BluetoothDevice.BOND_NONE,
+            "AA:BB", 10, reason = null))
+        assertEquals(was, bondStateTraceLine(BluetoothDevice.BOND_BONDING, BluetoothDevice.BOND_NONE,
+            "AA:BB", 10, reason = NO_BOND_REASON))
+    }
+
+    /** A successful pairing has no reason to give, so one is never appended even if the OS sent a value. */
+    @Test
+    fun `a successful pairing never carries a reason`() {
+        val line = bondStateTraceLine(BluetoothDevice.BOND_BONDING, BluetoothDevice.BOND_BONDED,
+            "AA:BB", 900, reason = 1)
+        assertTrue(line, line.endsWith("— paired"))
+        assertFalse(line, line.contains("reason="))
+    }
+
+    /**
+     * Every code AOSP defines is named. Pinned as a set so adding one cannot silently leave a hole, and
+     * so the two that matter most for #1635 - refused vs timed out - are provably distinguishable.
+     */
+    @Test
+    fun `the defined unbond reasons are all named`() {
+        assertEquals("reason=AUTH_FAILED(1)", bondFailureReasonLabel(1))
+        assertEquals("reason=AUTH_REJECTED(2)", bondFailureReasonLabel(2))
+        assertEquals("reason=AUTH_CANCELED(3)", bondFailureReasonLabel(3))
+        assertEquals("reason=REMOTE_DEVICE_DOWN(4)", bondFailureReasonLabel(4))
+        assertEquals("reason=DISCOVERY_IN_PROGRESS(5)", bondFailureReasonLabel(5))
+        assertEquals("reason=AUTH_TIMEOUT(6)", bondFailureReasonLabel(6))
+        assertEquals("reason=REPEATED_ATTEMPTS(7)", bondFailureReasonLabel(7))
+        assertEquals("reason=REMOTE_AUTH_CANCELED(8)", bondFailureReasonLabel(8))
+        assertEquals("reason=REMOVED(9)", bondFailureReasonLabel(9))
+        assertNotEquals(bondFailureReasonLabel(1), bondFailureReasonLabel(6))
+    }
+
+    /**
+     * An undefined value prints as itself rather than as a guess - the same discipline
+     * `gattStatusLabel` applies to GATT codes, and vendor stacks do emit values AOSP does not define.
+     */
+    @Test
+    fun `an unknown reason is not given an invented name`() {
+        assertEquals("reason=42", bondFailureReasonLabel(42))
+        assertEquals("reason=0", bondFailureReasonLabel(0))
     }
 }

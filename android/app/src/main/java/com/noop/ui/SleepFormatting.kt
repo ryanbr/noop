@@ -24,6 +24,25 @@ internal fun vsTypical(latest: Double?, typical: Double?, suffix: String, decima
     return "$sign$num$suffix vs typical"
 }
 
+/** #1946: a carried prior-day value is stamped "Carried · <date>" instead of "vs typical", so it is
+ *  never passed off as tonight's read. Falls through to [vsTypical] when the value is today's own
+ *  (or there is no value). Mirror EXACTLY in Swift. */
+internal fun tileCaption(
+    latestDay: String?, latest: Double?, typical: Double?,
+    suffix: String, decimals: Int = 0,
+): String {
+    Metric.carriedMetricCaption(latestDay, latest)?.let { caption ->
+        // Resolve the DisplayText.Resource here so tileCaption stays String-returning for the
+        // SparkTile call sites. uiString reads the process Application resources, so this is
+        // locale-aware without being a @Composable.
+        return when (caption) {
+            is DisplayText.Resource -> uiString(caption.id, *caption.args.toTypedArray())
+            is DisplayText.Dynamic -> caption.value
+        }
+    }
+    return vsTypical(latest, typical, suffix, decimals)
+}
+
 internal fun debtCaption(debt: Double?): String {
     if (debt == null) return "vs need"
     return if (debt < SleepDebt.ON_TARGET_BAND_MIN) "On target" else "Below need"

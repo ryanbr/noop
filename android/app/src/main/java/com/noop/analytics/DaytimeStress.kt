@@ -45,6 +45,22 @@ object DaytimeStress {
     const val minHourHrSamples: Int = 300
     /** Bucket width for the timeline, in seconds (one hour). */
     const val bucketSeconds: Long = 3_600L
+    /**
+     * How far the DISPLAY timeline slides its window between points.
+     *
+     * The scored unit stays a full [bucketSeconds] hour. This only decides how often that hour is
+     * re-read, so a half-step gives two points an hour, each still an hour of data, rather than
+     * half-hours of thinner data. Shrinking [bucketSeconds] itself would have been a scoring change
+     * wearing a display change's clothes: the calm reference is a quartile ACROSS buckets, the
+     * post-exercise shadow looks back exactly one bucket, and [sustainedHours] counts them.
+     *
+     * Half rather than a quarter because adjacent points then share half their samples instead of
+     * three quarters. The curve is smoother either way, and a denser line invites the reader to see
+     * detail it cannot resolve: a 30-minute spike still moves an hour's worth of weight, just sooner.
+     * Half is the least overlap that still doubles the resolution, and it keeps every on-the-hour
+     * point exactly where the hourly pass put it.
+     */
+    const val timelineStepSeconds: Long = 1_800L
     /** Band floor for "high" on the shared 0–3 scale (matches StressBand.High). */
     const val highBandFloor: Double = 2.0
     /** Consecutive most-recent covered hours that must all be HIGH to flag sustained stress. */
@@ -232,6 +248,17 @@ object DaytimeStress {
          * [rawScore], not flagged day-wide) and false for [EMPTY].
          */
         val hrOnlyFallback: Boolean = false,
+        /**
+         * DISPLAY-ONLY sliding read of the same day: [hours] plus a point every
+         * [timelineStepSeconds], each still scored over a full [bucketSeconds] window against the
+         * SAME reference [hours] used. Defaults to [hours] so a caller that never asked for it, and
+         * every existing test, sees exactly what it saw before.
+         *
+         * Deliberately NOT the input to anything that counts hours. [sustainedHigh],
+         * [highStressMinutes], [dayMean] and [peak] all stay on the non-overlapping [hours], because
+         * overlapping windows would count the same minute more than once.
+         */
+        val timeline: List<HourPoint> = hours,
     ) {
         /** The scored hours only (level non-null), in time order. */
         val scored: List<HourPoint> get() = hours.filter { it.level != null }
@@ -320,58 +347,81 @@ object DaytimeStress {
         gravity: List<GravitySample> = emptyList(),
         tzOffsetSeconds: Long = 0L,
         mode: ScoringMode = ScoringMode.DayRelative,
+        /**
+         * Also compute [Result.timeline], the sliding read is OPT-IN because half the callers do not want it.
+
+     The Stress screen reads `hours` and draws its own interactive timeline; making it pay for a
+     second pass of bucketing and one RMSSD per extra window, on the screen that already does three
+     200 000-row reads, would be cost for nothing. The widget and the Today card ask for it.
+         */
+        includeTimeline: Boolean = false,
     ): Result {
         if (hr.isEmpty()) return Result.EMPTY
 
         // 1) Bucket HR + R-R into LOCAL hour-of-day buckets, keyed by the bucket start
         //    (floored to the hour on the local clock).
-        val hrByBucket = HashMap<Long, MutableList<Double>>()
-        for (s in hr) {
-            val localTs = s.ts + tzOffsetSeconds
-            val bucket = floorDiv(localTs, bucketSeconds) * bucketSeconds
-            hrByBucket.getOrPut(bucket) { ArrayList() }.add(s.bpm.toDouble())
+        fun hrBuckets(phase: Long): HashMap<Long, MutableList<Double>> {
+            val m = HashMap<Long, MutableList<Double>>()
+            for (s in hr) m.getOrPut(bucketOf(s.ts + tzOffsetSeconds, phase)) { ArrayList() }
+                .add(s.bpm.toDouble())
+            return m
         }
-        val rrByBucket = HashMap<Long, MutableList<Double>>()
-        for (s in rr) {
-            val localTs = s.ts + tzOffsetSeconds
-            val bucket = floorDiv(localTs, bucketSeconds) * bucketSeconds
-            rrByBucket.getOrPut(bucket) { ArrayList() }.add(s.rrMs.toDouble())
+        fun rrBuckets(phase: Long): HashMap<Long, MutableList<Double>> {
+            val m = HashMap<Long, MutableList<Double>>()
+            for (s in rr) m.getOrPut(bucketOf(s.ts + tzOffsetSeconds, phase)) { ArrayList() }
+                .add(s.rrMs.toDouble())
+            return m
         }
+        val hrByBucket = hrBuckets(0L)
+        val rrByBucket = rrBuckets(0L)
 
         // 2) Per-hour mean HR + RMSSD (RMSSD via the shared HRV cleaner, so ectopic beats
         //    can't fabricate variability). An hour with < minHourHrSamples HR is left
         //    unscored (null level) — never invented.
         data class HourAgg(val bucket: Long, val meanHr: Double?, val rmssd: Double?)
-        val orderedBuckets = hrByBucket.keys.sorted()
-        val aggs = ArrayList<HourAgg>(orderedBuckets.size)
-        for (b in orderedBuckets) {
-            val hrs = hrByBucket[b] ?: emptyList<Double>()
-            val mHr = if (hrs.size >= minHourHrSamples) mean(hrs) else null
-            val rrRes = HrvAnalyzer.analyzeRaw(rrByBucket[b] ?: emptyList())
-            aggs.add(HourAgg(b, mHr, rrRes.rmssd))
+        fun aggregate(
+            hrGrid: Map<Long, MutableList<Double>>,
+            rrGrid: Map<Long, MutableList<Double>>,
+        ): List<HourAgg> {
+            val ordered = hrGrid.keys.sorted()
+            val out = ArrayList<HourAgg>(ordered.size)
+            for (b in ordered) {
+                val hrs = hrGrid[b] ?: emptyList<Double>()
+                val mHr = if (hrs.size >= minHourHrSamples) mean(hrs) else null
+                val rrRes = HrvAnalyzer.analyzeRaw(rrGrid[b] ?: emptyList())
+                out.add(HourAgg(b, mHr, rrRes.rmssd))
+            }
+            return out
         }
+        val aggs = aggregate(hrByBucket, rrByBucket)
 
         // 2b) Motion gate: bucket the day's gravity-derived activity by the SAME local hour and mark
         //     each hour AMBULATORY when at least [activityMaskFraction] of its records clear the
         //     calibrated walk floor ([WorkoutDetector.motionThreshold]) — reusing the exact activity
         //     series SedentaryDetector / WorkoutDetector already trust. Empty gravity → no active
         //     buckets → nothing masked below (byte-identical to the pre-motion behaviour).
-        val activeFracByBucket = HashMap<Long, Double>()
-        if (gravity.isNotEmpty()) {
+        // Derived ONCE and re-bucketed per grid. `activitySeries` walks the whole day's gravity, so
+        // recomputing it for the second grid would have doubled the most expensive part of the motion
+        // gate to answer the same question about the same samples.
+        val activity = if (gravity.isEmpty()) emptyList() else WorkoutDetector.activitySeries(gravity)
+        fun activeFractions(phase: Long): HashMap<Long, Double> {
+            val out = HashMap<Long, Double>()
+            if (activity.isEmpty()) return out
             val activeCounts = HashMap<Long, Int>()
             val totalCounts = HashMap<Long, Int>()
-            for (p in WorkoutDetector.activitySeries(gravity)) {
-                val localTs = p.ts + tzOffsetSeconds
-                val bucket = floorDiv(localTs, bucketSeconds) * bucketSeconds
+            for (p in activity) {
+                val bucket = bucketOf(p.ts + tzOffsetSeconds, phase)
                 totalCounts[bucket] = (totalCounts[bucket] ?: 0) + 1
                 if (p.intensity > WorkoutDetector.motionThreshold) {
                     activeCounts[bucket] = (activeCounts[bucket] ?: 0) + 1
                 }
             }
             for ((b, total) in totalCounts) {
-                if (total > 0) activeFracByBucket[b] = (activeCounts[b] ?: 0).toDouble() / total
+                if (total > 0) out[b] = (activeCounts[b] ?: 0).toDouble() / total
             }
+            return out
         }
+        val activeFracByBucket = activeFractions(0L)
         fun isAmbulatory(bucket: Long): Boolean =
             (activeFracByBucket[bucket] ?: 0.0) >= activityMaskFraction
 
@@ -443,31 +493,56 @@ object DaytimeStress {
         }
 
         // 4) Score each waking-hour bucket on the shared 0–3 curve.
-        val points = ArrayList<HourPoint>(aggs.size)
-        for (a in aggs) {
-            if (!isWakingHour(a.bucket)) continue
-            val hourOfDay = (floorDiv(a.bucket, bucketSeconds) % 24).toInt()
-            // The wall-clock bucket start (undo the local shift applied above).
-            val wallStart = a.bucket - tzOffsetSeconds
-            // Motion gate: an AMBULATORY hour — or the post-exercise shadow hour whose HR has not
-            // yet recovered to the calm reference — is EXERTION, so its elevated HR is masked out of
-            // the score instead of read as stress. The shadow is gated on refHr so it self-limits to
-            // genuine cardiac recovery (a following hour already back at baseline scores normally).
-            // Only meaningful when the hour actually HAD a reading to withhold — a no-HR hour is
-            // plain no-data, not "masked".
-            val shadow = isAmbulatory(a.bucket - bucketSeconds) &&
-                a.meanHr != null && refHr != null && a.meanHr > refHr + postActivityShadowBpm
-            val masked = a.meanHr != null && (isAmbulatory(a.bucket) || shadow)
-            // Score only when HR cleared the count gate AND the hour was not motion-masked (HR is
-            // the always-available anchor; RMSSD enriches it when beats allow).
-            val level: Double? = if (a.meanHr != null && !masked) {
-                squash(rawScore(a.meanHr, refHr, sdHr, a.rmssd, refRmssd, sdRmssd))
-            } else {
-                null
+        //
+        // Written against a supplied bucket grid so the SAME expression scores the on-the-hour pass
+        // and the half-step display pass. One copy, so the two can never drift into scoring the same
+        // hour differently — which is the whole reason the sliding read reuses the references
+        // computed above rather than deriving its own.
+        fun scoreGrid(gridAggs: List<HourAgg>, activeFrac: Map<Long, Double>): List<HourPoint> {
+            fun ambulatory(bucket: Long): Boolean =
+                (activeFrac[bucket] ?: 0.0) >= activityMaskFraction
+            val out = ArrayList<HourPoint>(gridAggs.size)
+            for (a in gridAggs) {
+                if (!isWakingHour(a.bucket)) continue
+                val hourOfDay = (floorDiv(a.bucket, bucketSeconds) % 24).toInt()
+                // The wall-clock bucket start (undo the local shift applied above).
+                val wallStart = a.bucket - tzOffsetSeconds
+                // Motion gate: an AMBULATORY hour — or the post-exercise shadow hour whose HR has not
+                // yet recovered to the calm reference — is EXERTION, so its elevated HR is masked out
+                // of the score instead of read as stress. The shadow is gated on refHr so it
+                // self-limits to genuine cardiac recovery (a following hour already back at baseline
+                // scores normally). Only meaningful when the hour actually HAD a reading to withhold
+                // — a no-HR hour is plain no-data, not "masked". The look-back is one FULL window on
+                // either grid, so the half-step pass shadows the same hour of exertion.
+                val shadow = ambulatory(a.bucket - bucketSeconds) &&
+                    a.meanHr != null && refHr != null && a.meanHr > refHr + postActivityShadowBpm
+                val masked = a.meanHr != null && (ambulatory(a.bucket) || shadow)
+                // Score only when HR cleared the count gate AND the hour was not motion-masked (HR is
+                // the always-available anchor; RMSSD enriches it when beats allow).
+                val level: Double? = if (a.meanHr != null && !masked) {
+                    squash(rawScore(a.meanHr, refHr, sdHr, a.rmssd, refRmssd, sdRmssd))
+                } else {
+                    null
+                }
+                out.add(HourPoint(hourOfDay, wallStart, level, a.meanHr, a.rmssd, masked))
             }
-            points.add(HourPoint(hourOfDay, wallStart, level, a.meanHr, a.rmssd, masked))
+            return out
         }
+        val points = scoreGrid(aggs, activeFracByBucket)
         val activityMaskedHours = points.count { it.maskedForActivity }
+
+        // 4b) The half-step DISPLAY timeline: the same hour-long window re-read every
+        //     [timelineStepSeconds], scored against the SAME references, and merged with the
+        //     on-the-hour points. Every hourly point survives untouched; only the straddling
+        //     midpoints are new, so the curve still passes through exactly the values scored above.
+        //     Nothing that counts hours reads this — see [Result.timeline].
+        val timeline = if (includeTimeline && timelineStepSeconds in 1 until bucketSeconds) {
+            val midAggs = aggregate(hrBuckets(timelineStepSeconds), rrBuckets(timelineStepSeconds))
+            (points + scoreGrid(midAggs, activeFractions(timelineStepSeconds)))
+                .sortedBy { it.startTs }
+        } else {
+            points
+        }
 
         val scored = points.mapNotNull { p -> p.level?.let { p to it } }
         if (scored.isEmpty()) {
@@ -478,7 +553,7 @@ object DaytimeStress {
             return if (points.isEmpty()) Result.EMPTY
             else Result(points, sustainedHigh = false, sustainedRun = 0, dayMean = null, peak = null,
                 activityMaskedHours = activityMaskedHours,
-                highStressMinutes = 0, hrOnlyFallback = hrOnlyFallback)
+                highStressMinutes = 0, hrOnlyFallback = hrOnlyFallback, timeline = timeline)
         }
 
         // 5) Sustained-high flag: walk back from the latest SCORED hour while each is HIGH.
@@ -497,6 +572,7 @@ object DaytimeStress {
         val highStressMinutes = scored.count { it.second >= highBandFloor } * (bucketSeconds / 60L).toInt()
 
         return Result(points, sustained, run, dayMean, peak,
+            timeline = timeline,
             activityMaskedHours = activityMaskedHours,
             highStressMinutes = highStressMinutes, hrOnlyFallback = hrOnlyFallback)
     }
@@ -512,6 +588,16 @@ object DaytimeStress {
         val r = a % b
         return if (r != 0L && (r < 0L) != (b < 0L)) q - 1 else q
     }
+
+    /**
+     * The bucket a local timestamp falls in for a grid offset by [phase].
+     *
+     * `phase = 0` is the on-the-hour grid every existing reading uses. `phase = timelineStepSeconds`
+     * is the same grid slid forward, so its windows straddle the hour boundaries rather than
+     * replacing them.
+     */
+    private fun bucketOf(localTs: Long, phase: Long): Long =
+        floorDiv(localTs - phase, bucketSeconds) * bucketSeconds + phase
 
     /**
      * Whether a local hour-bucket start falls inside the waking window the timeline scores

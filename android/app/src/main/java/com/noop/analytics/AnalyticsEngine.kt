@@ -138,6 +138,13 @@ object AnalyticsEngine {
      * back to 0 — an empty 1970 window no real sample matches — rather than throwing, so a single bad key can
      * never take down a whole scoring pass. Byte-identical twin of the Swift `AnalyticsEngine.dayStartUtcSeconds`
      * (locked cross-platform by AnalyticsEngineDayBoundsTest / AnalyticsEngineDayBoundsTests).
+     *
+     * This is a UTC midnight that callers pair with one captured offset and fixed 86,400-second blocks, so
+     * every boundary beyond a clock change sits an hour from the local midnight it names. [LocalDayWindows]
+     * is the zone-rule-correct primitive built to replace that, and is deliberately called by nothing yet.
+     * This function remains the shipped answer until a switch-over lands; the two disagree by an hour on
+     * the far side of a transition, and `LocalDayWindowsTest` pins both answers so the difference is
+     * visible rather than discovered.
      */
     fun dayStartUtcSeconds(day: String): Long =
         runCatching { LocalDate.parse(day).atStartOfDay(ZoneOffset.UTC).toEpochSecond() }.getOrDefault(0L)
@@ -443,10 +450,12 @@ object AnalyticsEngine {
         } else {
             val rrSorted = rr.sortedBy { it.ts }
             val enrichedProvided = providedSleep.map { s ->
-                // #1801: an HR-only night keeps its NULL restingHR/avgHRV. This is the ONE call site that
-                // can undo the display-only guarantee — enriching here would hand Charge and the baselines
-                // exactly the two values that decision withholds, silently and by default.
-                if (s.hrOnly || (s.restingHR != null && s.avgHRV != null)) s
+                // #1884: no HR-only special case any more. This used to short-circuit on `s.hrOnly` to
+                // preserve #1801's display-only guarantee, which withheld both values. Now that an HR-only
+                // session reports what it measured, that clause is not merely redundant — an HR-only night
+                // that measured a resting HR but no HRV (no R-R banked) would take the short-circuit and
+                // skip the fill every other session gets. The rule is uniform: fill what is missing.
+                if (s.restingHR != null && s.avgHRV != null) s
                 else s.copy(
                     restingHR = s.restingHR ?: SleepStager.sessionRestingHR(s.start, s.end, hr),
                     avgHRV = s.avgHRV ?: SleepStager.sessionAvgHRV(s.start, s.end, rrSorted),
@@ -550,17 +559,23 @@ object AnalyticsEngine {
         // negligible shift. The Rest/sleep-quality term is main-night; the recovery physiology is
         // day-best-resting, night-dominated. Mirrors the Swift note in AnalyticsEngine.swift.
         // Daily resting HR = lowest per-session resting HR across matched sessions.
-        // #1801: the sessions whose PHYSIOLOGY may be folded into the day's aggregates. An HR-only night
-        // is excluded — it may describe its own duration, stages and Rest, but resting HR, HRV and SDNN
-        // are what Charge and the baselines are built from, and a baseline is the one thing a false
-        // positive cannot be unwound from.
+        // #1801/#1884: the sessions whose PHYSIOLOGY is folded into the day's aggregates. Motion-backed
+        // sessions are PREFERRED; an HR-only night is used only when the day has no other kind.
         //
-        // Named once rather than filtered at each use, because the null restingHR/avgHRV an HR-only
-        // session carries only protects the aggregates that READ those fields. The deep-window HRV pool
-        // and the SDNN index below re-derive from `rr` over the session's own stages and would have
-        // folded one in regardless — which is precisely the "one forgotten call site" a scattered filter
-        // invites.
-        val physiologySessions = matched.filter { !it.hrOnly }
+        // #1801 excluded HR-only nights outright, reasoning that a baseline is the one thing a false positive
+        // cannot be unwound from. #1884 narrowed that rather than reversing it: only the session BOUNDS are
+        // inferred from heart rate — each RMSSD is measured over its own 5-minute window — so excluding the
+        // night discarded a real 22-25ms HRV and left Charge with NO input instead of a slightly fuzzy one, on
+        // every scoring pass in the field log. Preferring keeps the original protection exactly where it earned its keep (a mixed
+        // day still ignores the HR-only night outright) and gives it up only where the alternative was
+        // nothing at all. The night still travels marked `hrOnly` for any consumer that wants to weigh it
+        // down; what it no longer gets is a silent delete.
+        //
+        // Named once rather than filtered at each use: the deep-window HRV pool and the SDNN index below
+        // re-derive from `rr` over each session's own stages instead of reading restingHR/avgHRV, so the
+        // only way to scope them is through the session set itself — which is precisely the "one forgotten
+        // call site" a scattered filter invites.
+        val physiologySessions = matched.filter { !it.hrOnly }.ifEmpty { matched }
         val restingHRDaily: Int? = physiologySessions.mapNotNull { it.restingHR }.minOrNull()
         // Daily avg HRV = in-bed-weighted mean of per-session avg HRV.
         val avgHRVDaily: Double? = if (deepHrvWindow) {
@@ -870,6 +885,15 @@ object AnalyticsEngine {
             disturbances = if (matched.isEmpty()) null else disturbances,
             restingHr = restingHRDaily,
             avgHrv = avgHRVDaily,
+            // "Every session this day was staged from heart rate alone."
+            //
+            // #1884: read from the SESSIONS' own marker, NOT from `physiologySessions.isEmpty()`. Those
+            // two were equivalent while the set was `matched` minus the HR-only ones, so an all-HR-only
+            // night emptied it. They are NOT equivalent now that the set FALLS BACK to `matched`: it can
+            // never be empty when `matched` is not, which would have pinned this flag to false forever
+            // and silently retired the #1879 note. Deriving it from `hrOnly` states what the flag has
+            // always meant and is independent of how the physiology set is chosen.
+            sleepHrOnly = if (matched.isEmpty()) null else matched.all { it.hrOnly },
             recovery = recovery,
             strain = strain,
             exerciseCount = workouts.size,

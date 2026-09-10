@@ -15,23 +15,35 @@ import kotlin.math.abs
 object RecoveryScorerTrace {
 
     /**
-     * Trace numbers use nearest rounding with half-ties away from zero on both platforms.
+     * Trace numbers use nearest rounding with half-ties away from zero on both platforms. Twin of the
+     * Swift RecoveryScorer.traceRound2, which is the contract this reproduces.
      *
      * Round the MAGNITUDE and reapply the sign, rather than branching on `scaled < 0.0`. Two traps sit
      * here, and Swift's `.rounded(.toNearestOrAwayFromZero)` avoids both for free:
      *
-     *  * Math.round returns a Long, which has no negative zero, so negating it before the division
-     *    collapses -0.0 to +0.0 for any value that rounds to zero;
+     *  * a Long has no negative zero, so negating a rounded Long before the division collapses -0.0 to
+     *    +0.0 for any value that rounds to zero;
      *  * `-0.0 < 0.0` is FALSE, so a sign test cannot even route an exact -0.0 to a negating branch —
      *    and -0.0 is reachable here, since a skin-temp deviation of exactly 0.0 gives z = -|dev| = -0.0.
      *
      * These values are interpolated straight into the trace, so either trap printed `z=0.0` on Android
      * against `z=-0.0` on Apple. copySign carries the IEEE sign bit itself and handles both (#1437
      * follow-up).
+     *
+     * The rounding itself stays in the DOUBLE domain, because Math.round returns a Long and therefore
+     * SATURATES: |x * 100| >= 2^63 came back as Long.MAX_VALUE, so 1e20 rendered as 9.223372036854776e16
+     * where Swift kept 1e20 (#47). rint is half-to-EVEN, so an exact tie (the fraction is exactly 0.5,
+     * only possible below 2^52, where floor is exact) is stepped up by hand to reach half-away-from-zero;
+     * `floor(m + 0.5)` is not usable for that, since m + 0.5 is itself rounded and would push
+     * 0.49999999999999994 up to 1. Nothing is clamped: any finite input round-trips, and a non-finite one
+     * (or a finite one whose x * 100 overflows) passes through as the matching infinity or NaN.
      */
-    private fun r2(x: Double): Double {
+    internal fun r2(x: Double): Double {
         val scaled = x * 100.0
-        return Math.copySign(Math.round(abs(scaled)) / 100.0, scaled)
+        val magnitude = abs(scaled)
+        val floored = Math.floor(magnitude)
+        val rounded = if (magnitude - floored == 0.5) floored + 1.0 else Math.rint(magnitude)
+        return Math.copySign(rounded / 100.0, scaled)
     }
 
     /**
@@ -58,10 +70,16 @@ object RecoveryScorerTrace {
         val lines = ArrayList<String>()
         val nilTerms = ArrayList<String>()
 
+        // #1988: the trace reads this baseline DIRECTLY for its own `charge baseline rhr` line, its
+        // rhrZ and the saturation guard, not only through recovery(). recovery() now drops an
+        // unusable one, so without the same gate here the trace would list an rhr term the score
+        // did not use, which is precisely the divergence the line below promises cannot happen.
+        val rhrB = rhrBaseline?.takeIf { it.usable }
+
         // The score the dashboard reads, verbatim, so the trace cannot diverge from it.
         val score = RecoveryScorer.recovery(
             hrv = hrv, rhr = rhr, resp = resp,
-            hrvBaseline = hrvBaseline, rhrBaseline = rhrBaseline,
+            hrvBaseline = hrvBaseline, rhrBaseline = rhrB,
             respBaseline = respBaseline, sleepPerf = sleepPerf, skinTempDev = skinTempDev,
         )
 
@@ -80,7 +98,7 @@ object RecoveryScorerTrace {
             "charge baseline hrv mean=${r2(hrvBaseline.baseline)} spread=${r2(hrvBaseline.spread)} " +
                 "nValid=${hrvBaseline.nValid} status=${hrvBaseline.status.raw}",
         )
-        rhrBaseline?.let { b ->
+        rhrB?.let { b ->
             lines.add(
                 "charge baseline rhr mean=${r2(b.baseline)} spread=${r2(b.spread)} " +
                     "nValid=${b.nValid} status=${b.status.raw}",
@@ -99,7 +117,7 @@ object RecoveryScorerTrace {
         // Resting-HR z, computed up front so the saturation guard can read the HRV<->RHR coupling before
         // the HRV term is built. null when there is no RHR baseline. Numerically identical to the z
         // recovery() builds for the RHR term (same expression, same inputs).
-        val rhrZForGuard: Double? = rhrBaseline?.let { RecoveryScorer.zScore(it.baseline, rhr, it.spread) }
+        val rhrZForGuard: Double? = rhrB?.let { RecoveryScorer.zScore(it.baseline, rhr, it.spread) }
 
         // L9: every WEIGHT / SCALE / centre constant goes through r2() too (not just the z-scores), so a
         // future non-round weight (e.g. 0.333) renders identically on Swift and Kotlin and the parity

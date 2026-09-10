@@ -100,21 +100,82 @@ class FramingTest {
         assertNull(OuraFraming.parseSyncTimeResponse(bytes("4beda900")))
     }
 
+    /**
+     * Parity oracle for [OuraDriver.syncTimeAnchorCandidate] (2026-09-02/03 captures). Expected values are the VERBATIM
+     * stdout of the shipped Swift twin compiled standalone (`swiftc -O twin.swift main.swift`), one
+     * `responseValue / lowerBoundTicks / result` row per line — not values read off the Kotlin. The
+     * spread covers the shipped unit cases, the 2026-09-02/03 capture values behind this fix, both halves
+     * of the cursor↔anchor deadlock, the exact window edges, the ambiguity band around the 9× boundary,
+     * and the UInt32 ceiling. Guards the Kotlin direction only; the Swift test in FramingTests.swift is
+     * what stops Swift drifting.
+     */
     @Test
-    fun testSyncTimeAnchorCandidateResolvesUnit() {
-        // The 2026-07-13 shape: cursor banked at 4_413_933; ~11 h later the ring's clock is ~4.81M
-        // ticks. A raw-ticks response fits [cursor, cursor+7d] and the seconds x10 reading does not.
-        assertEquals(4_810_000L, OuraDriver.syncTimeAnchorCandidate(4_810_000L, 4_413_933L))
-        // A seconds-unit response (481_000 s = 4.81M ticks) only fits when multiplied x10.
-        assertEquals(4_810_000L, OuraDriver.syncTimeAnchorCandidate(481_000L, 4_413_933L))
-        // Below the cursor in both readings (ring reboot / stale value) -> null.
-        assertNull(OuraDriver.syncTimeAnchorCandidate(100_000L, 4_413_933L))
-        // Beyond cursor+7d in both readings -> null.
-        assertNull(OuraDriver.syncTimeAnchorCandidate(40_000_000L, 4_413_933L))
-        // A fresh/reset cursor gives no reference -> null (never guess on a full pull).
-        assertNull(OuraDriver.syncTimeAnchorCandidate(4_810_000L, 0L))
-        // Ambiguity guard: BOTH readings inside the window -> null.
-        assertNull(OuraDriver.syncTimeAnchorCandidate(150_000L, 140_000L))
+    fun testSyncTimeAnchorCandidateMatchesTheSwiftOracle() {
+        // responseValue, lowerBoundTicks, expected (null = no unambiguous reading)
+        val oracle: List<Triple<Long, Long, Long?>> = listOf(
+            Triple(4_810_000L, 4_413_933L, 4_810_000L),
+            Triple(481_000L, 4_413_933L, 4_810_000L),
+            Triple(100_000L, 4_413_933L, null),
+            Triple(50_000_000L, 4_413_933L, null),
+            Triple(4_810_000L, 0L, null),
+            Triple(150_000L, 140_000L, null),
+            Triple(35_157_631L, 28_073_725L, 35_157_631L),
+            Triple(35_159_272L, 28_073_725L, 35_159_272L),
+            Triple(35_168_206L, 28_073_725L, 35_168_206L),
+            Triple(34_724_816L, 0L, null),
+            Triple(34_749_048L, 0L, null),
+            Triple(34_776_653L, 0L, null),
+            Triple(34_724_816L, 22_628_816L, 34_724_816L),
+            Triple(34_749_048L, 22_628_816L, 34_749_048L),
+            Triple(34_776_653L, 22_628_816L, 34_776_653L),
+            Triple(28_073_725L, 28_073_725L, 28_073_725L),
+            Triple(66_953_725L, 28_073_725L, 66_953_725L),
+            Triple(66_953_726L, 28_073_725L, null),
+            Triple(28_073_724L, 28_073_725L, null),
+            Triple(500_000L, 400_000L, null),
+            Triple(4_320_000L, 4_320_000L, null),
+            Triple(4_320_001L, 4_320_001L, 4_320_001L),
+            Triple(4_294_967_295L, 4_294_000_000L, 4_294_967_295L),
+            Triple(500_000_000L, 100_000_000L, null),
+        )
+        for ((value, lowerBound, expected) in oracle) {
+            assertEquals(
+                "syncTimeAnchorCandidate($value, $lowerBound)",
+                expected,
+                OuraDriver.syncTimeAnchorCandidate(value, lowerBound),
+            )
+        }
+    }
+
+    /**
+     * Stated as the behaviour rather than the table: the 2026-09-03 capture's 0x13 reply
+     * (0x0218767f = 35_157_631) against the frozen resume cursor 28_073_725, which trails it by 8.20
+     * days. Under the old 7-day window neither reading fit, so no anchor was adopted; with no anchor the
+     * drain-end commit could not advance the cursor, so the cursor stayed stale and the gap only grew —
+     * a permanent loop, one full re-serve of the same window per launch.
+     */
+    @Test
+    fun testSyncTimeAnchorCandidateAcceptsAStaleCursor() {
+        val staleCursor = 28_073_725L
+        assertEquals(35_157_631L, OuraDriver.syncTimeAnchorCandidate(0x0218767fL, staleCursor))
+        // The old 7-day window is what excluded it: 28_073_725 + 6_048_000 = 34_121_725 < 35_157_631.
+        assertTrue(
+            "the window must cover the observed 8.2-day staleness",
+            OuraDriver.SYNC_TIME_ANCHOR_WINDOW_TICKS > 35_157_631L - staleCursor,
+        )
+    }
+
+    /**
+     * The other half of the deadlock: on a fresh pair / post-reboot reset the cursor is 0, so it
+     * can never be the reference. The drain's maxSeenRingTime can — it counts EVERY history record's
+     * envelope time and needs no anchor to read — so the caller retries the parked reply against it.
+     */
+    @Test
+    fun testSyncTimeAnchorCandidateResolvesAgainstSeenRingTimeWhenCursorIsZero() {
+        val reply = 0x0211dbd0L                 // 34_724_816 — the 2026-09-02 capture, cursor 0
+        assertNull(OuraDriver.syncTimeAnchorCandidate(reply, 0L))
+        // First batch of a full pull lands the ring's OLDEST banked record (~14 days back).
+        assertEquals(reply, OuraDriver.syncTimeAnchorCandidate(reply, 34_724_816L - 12_096_000L))
     }
 
     @Test

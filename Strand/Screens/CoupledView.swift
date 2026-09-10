@@ -46,9 +46,7 @@ struct CoupledView: View {
     /// the cold-start threshold, which keeps the broad overnight-band bonus.
     @State private var habitualMidsleepSec: Int? = nil
 
-    /// #614: TODAY's workout count from the SAME deduped/dismissed-filtered list the Workouts screen shows
-    /// (`repo.workoutRows`), not `DailyMetric.exerciseCount` (strap-DETECTED only — a Health-Connect import
-    /// with auto-detect off read as 0 while the Workouts screen showed it). Loaded in `.task`.
+    /// Today's all-source workout count materialized onto the same physiological cycle as the other cards.
     @State private var workoutsToday: Int = 0
 
     /// The day the coupled read describes, today's resolved row (the same `resolveToday` #304/#144 boundary
@@ -159,14 +157,7 @@ struct CoupledView: View {
         // bed→wake span below resolves identically (#294). Re-runs on a sync/import refresh.
         .task(id: repo.refreshSeq) {
             habitualMidsleepSec = await repo.habitualMidsleepSec()
-            // #614: count TODAY's workouts by their START's logical day (the SAME 04:00-rollover key
-            // DailyMetric.day uses), so the Coupled stat equals the Workouts overview for today.
-            let key = todayKey
-            // A short window is enough to count today's rows (the cross-source dedup is local to the set),
-            // and avoids loading the full history just for one number.
-            workoutsToday = await repo.workoutRows(days: 2).filter {
-                Repository.logicalDayKey(Date(timeIntervalSince1970: TimeInterval($0.startTs))) == key
-            }.count
+            workoutsToday = day?.exerciseCount ?? 0
         }
     }
 
@@ -339,7 +330,7 @@ struct CoupledView: View {
                                  caloriesText,
                                  tint: StrandPalette.metricAmber)
                         heroStat(String(localized: "Workouts"),
-                                 "\(workoutsToday)",   // #614: real workout count (all sources), not exerciseCount
+                                 "\(workoutsToday)",
                                  tint: StrandPalette.textPrimary)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -417,8 +408,11 @@ struct CoupledView: View {
                         // Left: the SLEEP PERFORMANCE % as the liquid vessel (Rest world), with the score
                         // counting up over the fluid. Empty vessel when there's no scored performance.
                         ZStack {
+                            // heroCard opts its vessel out of hit testing so the Button owns the tap;
+                            // this ring keeps its splash instead and lets the NavigationLink run alongside.
                             LiquidVessel(value: sleepPerformance.map { max(0, min(1, $0 / 100)) },
-                                         tint: StrandPalette.restColor, animated: false)
+                                         tint: StrandPalette.restColor, animated: false,
+                                         tapPassesThrough: true)
                                 .frame(width: 88, height: 88)
                             if let p = sleepPerformance {
                                 CountUpText(value: p,
@@ -540,21 +534,8 @@ struct CoupledView: View {
     /// sheet's inline confidence fold re-folded the full `repo.days` history four times per body eval of
     /// the open sheet; one call now folds each series exactly once, guards before any fold.
     private func chargeBreakdown() -> (drivers: [ChargeDriver], confidence: ScoreConfidence)? {
-        guard let row = breakdownRow, let hrv = row.avgHrv, let rhr = row.restingHr else { return nil }
-        let hrvBase = Baselines.foldHistory(repo.days.map(\.avgHrv), cfg: Baselines.hrvCfg)
-        guard hrvBase.usable else { return nil }
-        let rhrBase = Baselines.foldHistory(repo.days.map { $0.restingHr.map(Double.init) },
-                                            cfg: Baselines.restingHRCfg)
-        let respBase = Baselines.foldHistory(repo.days.map(\.respRateBpm), cfg: Baselines.respCfg)
-        // Rest-quality term = the same sleep performance the sleep row shows, ÷100 (AnalyticsEngine's form).
-        let sleepPerf = sleepPerformance.map { $0 / 100.0 }
-        let drivers = RecoveryScorer.chargeDrivers(
-            hrv: hrv, rhr: Double(rhr), resp: row.respRateBpm,
-            hrvBaseline: hrvBase,
-            rhrBaseline: rhrBase.usable ? rhrBase : nil,
-            respBaseline: respBase.usable ? respBase : nil,
-            sleepPerf: sleepPerf, skinTempDev: row.skinTempDevC)
-        return (drivers, ScoreConfidence.charge(recovery: row.recovery, hrvBaseline: hrvBase))
+        guard let row = breakdownRow else { return nil }
+        return ChargeBreakdownWiring.breakdown(days: repo.days, row: row, sleepPerfPercent: sleepPerformance)
     }
 
     @ViewBuilder

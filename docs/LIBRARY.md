@@ -352,7 +352,7 @@ targets: [
 | Type | Entry points |
 |---|---|
 | `HRVAnalyzer` | `analyze(_:windowStart:windowEnd:)` and `analyze(rawRR:)` → `HRVResult` (RMSSD, SDNN, meanNN, pNN50). Range filter [300, 2000] ms + Malik 20%-local-median ectopic rejection; needs ≥ 20 clean beats. |
-| `RecoveryScorer` | `restingHR(_:start:end:)`; `recovery(...)` → 0–100 (HRV-dominant z-score + logistic composite); `band(_:)` → `"red"`/`"yellow"`/`"green"`. |
+| `RecoveryScorer` | `recovery(...)` → 0–100 (HRV-dominant z-score + logistic composite); `band(_:)` → `"red"`/`"yellow"`/`"green"`. |
 | `StrainScorer` | `strain(_:maxHR:restingHR:method:sex:denominator:)` → 0–21 (Edwards/Banister TRIMP, log-mapped); `tanakaHRmax(age:)`, `estimateHRmax(_:age:)`, `trimpToStrain(_:)`. |
 | `HRZones` | `zones(age:maxHROverride:)` → `HRZoneSet`; `timeInZone(_:zoneSet:)` → `TimeInZone`. |
 | `Baselines` | `update(_:value:cfg:)` → `BaselineState` (Winsorized-EWMA personal baselines + `BaselineStatus`); standard `metricCfg` for HRV / resting HR / resp / skin temp. |

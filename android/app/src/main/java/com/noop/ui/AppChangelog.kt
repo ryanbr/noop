@@ -26,7 +26,7 @@ object AppChangelog {
      * Bump this when you add a release below. The "What's New" sheet shows automatically when the
      * stored last-seen version is behind this. (Decoupled from the bundle version on purpose.)
      */
-    const val CURRENT_VERSION = "11.1.0"
+    const val CURRENT_VERSION = "11.5.0"
 
     data class Release(
         val version: String,
@@ -37,6 +37,23 @@ object AppChangelog {
 
     /** Newest first. */
     val releases: List<Release> = listOf(
+        Release(
+            version = "11.5.0",
+            title = uiString(R.string.l10n_app_changelog_a_coach_that_keeps_the_thread_2ee52e0c),
+            date = "September 2026",
+            items = listOf(
+                "**A coach you can hold a conversation with (#1862, thanks @kggreco11).** Replies stream in as they are written rather than arriving in one lump, the conversation is kept between sessions, and it can speak and be spoken to. A morning brief sums up the night behind you. There are widgets and Siri shortcuts, and an optional Today launcher card that stays off until you turn it on.",
+                "**Your heart rate on the home screen (#1957).** A widget showing live bpm with the recent trace behind it, on both platforms, laid out by your launcher rather than fighting it.",
+                "**Charts that claim less (#2007, #2011, #2027, #2028).** Points are spaced by date, so a week you did not wear the strap takes the width it actually spans instead of closing up. Daily scores draw as bars, because a line between two days asserts the value travelled through everything in between and it did not. The Line and Bars setting now applies to the detail charts as well as Trends, and HRV and Resting HR carry a dashed rule at your own baseline, so a number means something without you having to remember what is normal for you.",
+                "**Skin temperature reads as a temperature (#1845, #622 thanks @bartmuskala, #111 thanks @whisp0).** The Health screen and the explorer now lead with the measured value, with a Settings choice if you prefer the difference from your baseline, and it applies across the whole window rather than only the newest night. A Fahrenheit import is converted on the way in instead of being filed as Celsius.",
+                "**Sleep that survives a broken night (#1937 thanks @bartmuskala, #1855 thanks @AussieFries).** A night chopped into fragments too short to count on their own is bridged into the night it was, instead of scoring as nothing. Drag across the filled hypnogram to read the clock time under your finger. A night measured from heart rate alone now reports the HRV it actually measured, and the night label counts from today rather than from the newest record you happen to hold.",
+                "**Steps that know when you were asleep (#1572).** The step count and the day boundary now follow your own sleep rather than midnight, so a late night stops splitting one day's activity across two.",
+                "**A wake time for each day of the week (#1859).** Set Saturday later than Tuesday. The per-day override drives the strap alarm and the backup notification, not just the phone.",
+                "**Re-scores that take a fraction of the time (#1538 thanks @justinjor-bit).** The steps calibration no longer re-reads sixty days of movement on every pass, and what it learns now survives a restart. On a worn library that phase went from roughly thirty-three seconds to under three.",
+                "**A strap log that reports instead of assuming (#1997 thanks @semoi, #1881 thanks @pipiche38).** A connection your phone is already holding is no longer read as the strap refusing to pair, the strap you selected is the one that gets connected and credited, and a bond that ends now says why in language that reads the same in every locale. Serial numbers are masked wherever a log can be shared.",
+                "**Russian, German that speaks to you as du, and smaller corrections.** Routes now import from Apple Health and Health Connect (#1205). The battery pack reports its own charge without overriding the strap gauge (#1935, thanks @Zebsi235). Body measurements and exercise distance carry separate unit preferences (#1913, thanks @kavemang), and the readings table prints each unit once (#1942, thanks @Geg0r).",
+            ),
+        ),
         Release(
             version = "11.1.0",
             title = uiString(R.string.l10n_app_changelog_choose_a_12_hour_clock_sleep_8a19db5c),

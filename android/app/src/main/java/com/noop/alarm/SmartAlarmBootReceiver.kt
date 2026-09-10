@@ -27,8 +27,12 @@ class SmartAlarmBootReceiver : BroadcastReceiver() {
                 runCatching {
                     val wind = WindDownStore.from(context)
                     if (wind.enabled) {
-                        val wake = SmartAlarmStore.from(context).targetMinutes
-                        WindDownScheduler.schedule(context, wind, wake)
+                        val alarm = SmartAlarmStore.from(context)
+                        // #1858: the per-day overrides go through here too. This is the ONE call site that
+                        // reschedules without a user action, so dropping them here does not fail loudly —
+                        // it quietly collapses seven weekday nudges back to one daily nudge on the default
+                        // wake time, and stays that way until the user next edits a setting.
+                        WindDownScheduler.schedule(context, wind, alarm.targetMinutes, alarm.targetOverrides)
                     }
                 }
             }

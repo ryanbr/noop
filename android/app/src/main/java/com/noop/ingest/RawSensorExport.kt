@@ -77,7 +77,7 @@ object RawSensorExport {
         counts["hr"] = hr.size
         for (s in hr) rows += LineRow(s.ts, line("hr", s.ts, 0 to n(s.bpm)))
 
-        val rr = repo.rrIntervalsForDevice(deviceId, from, to, limit)
+        val rr = repo.rawRrIntervalsForDevice(deviceId, from, to, limit)
         counts["rr"] = rr.size
         for (s in rr) rows += LineRow(s.ts, line("rr", s.ts, 1 to n(s.rrMs)))
 

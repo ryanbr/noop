@@ -6,16 +6,63 @@ Stdlib only; synthetic planted captures — no personal health data.
 
 from __future__ import annotations
 
+import builtins
+import io
 import json
 import os
 import sqlite3
 import struct
 import tempfile
 import unittest
+from unittest import mock
 from datetime import datetime, timezone
 
 import validate_spo2_candidate as vs
 from test_whoop_activity import make_v18
+
+
+class EncodingPortabilityTests(unittest.TestCase):
+    """Exercise Windows-like non-UTF-8 defaults without requiring a Windows host."""
+
+    def test_capture_json_is_read_as_utf8_under_cp1252_default(self):
+        with tempfile.TemporaryDirectory() as td:
+            path = os.path.join(td, "capture.json")
+            expected = [{"hex": "aa", "device": "München"}]
+            with builtins.open(path, "w", encoding="utf-8") as f:
+                json.dump(expected, f, ensure_ascii=False)
+
+            real_open = builtins.open
+
+            def cp1252_default_open(*args, **kwargs):
+                mode = args[1] if len(args) > 1 else kwargs.get("mode", "r")
+                if "b" not in mode and "encoding" not in kwargs:
+                    kwargs["encoding"] = "cp1252"
+                return real_open(*args, **kwargs)
+
+            with mock.patch("builtins.open", side_effect=cp1252_default_open):
+                self.assertEqual(vs.load_frame_records(path), expected)
+
+    def test_postable_summary_prints_to_cp1252_console(self):
+        result = {
+            "device": "strap-a",
+            "classification": "feature_absent",
+            "paired_nights": 0,
+            "r": None,
+            "mae": None,
+            "bias": None,
+            "best_specificity_offset": None,
+            "duty": None,
+            "median_window_coverage": None,
+            "checklist": {"pass": False},
+        }
+        raw = io.BytesIO()
+        console = io.TextIOWrapper(raw, encoding="cp1252")
+        with mock.patch.object(vs.sys, "stdout", console):
+            vs.configure_utf8_stdio()
+            print(vs.format_postable([result]))
+            console.flush()
+        self.assertEqual(console.encoding, "utf-8")
+        self.assertIn("need ≥5 paired nights".encode(), raw.getvalue())
 
 
 def _utc(y, m, d, hh=0, mm=0, ss=0) -> int:
@@ -102,7 +149,7 @@ def _write_export(folder: str, nights: list[tuple[str, float, int, int]]) -> str
         s0 = datetime.fromtimestamp(t0, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         s1 = datetime.fromtimestamp(t1, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
         lines.append(f"{start},,{spo2:.2f},{s0},{s1}\n")
-    with open(path, "w") as f:
+    with open(path, "w", encoding="utf-8") as f:
         f.writelines(lines)
     return folder
 
@@ -136,7 +183,7 @@ class PlantedValidationTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as td:
             cap = os.path.join(td, "capture.json")
-            with open(cap, "w") as f:
+            with open(cap, "w", encoding="utf-8") as f:
                 json.dump(frames, f)
             exp = _write_export(td, exports)
             res = vs.validate_device(cap, exp, device="planted-a")
@@ -154,11 +201,11 @@ class PlantedValidationTests(unittest.TestCase):
         frames = _plant_night(t0, t1, 97)
         with tempfile.TemporaryDirectory() as td:
             cap = os.path.join(td, "capture.json")
-            with open(cap, "w") as f:
+            with open(cap, "w", encoding="utf-8") as f:
                 json.dump(frames, f)
             # Export row with empty SpO₂ — must not pair.
             path = os.path.join(td, "physiological_cycles.csv")
-            with open(path, "w") as f:
+            with open(path, "w", encoding="utf-8") as f:
                 f.write(
                     "Cycle start time,Blood oxygen %,Sleep onset,Wake onset\n"
                     "2026-06-10 23:00:00,,"
@@ -182,7 +229,7 @@ class PlantedValidationTests(unittest.TestCase):
             rec["hex"] = bytes(f).hex()
         with tempfile.TemporaryDirectory() as td:
             cap = os.path.join(td, "capture.json")
-            with open(cap, "w") as f:
+            with open(cap, "w", encoding="utf-8") as f:
                 json.dump(frames, f)
             start = datetime.fromtimestamp(t0, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
             exp = _write_export(td, [(start, 97.0, t0, t1)])
@@ -204,7 +251,7 @@ class PlantedValidationTests(unittest.TestCase):
             exports.append((start, float(spo2), t0, t1))
         with tempfile.TemporaryDirectory() as td:
             cap = os.path.join(td, "capture.json")
-            with open(cap, "w") as f:
+            with open(cap, "w", encoding="utf-8") as f:
                 json.dump(frames, f)
             exp = _write_export(td, exports)
             res = vs.validate_device(cap, exp, device="spec")
@@ -222,7 +269,7 @@ class PlantedValidationTests(unittest.TestCase):
             exports.append((start, float(spo2), t0, t1))
         with tempfile.TemporaryDirectory() as td:
             cap = os.path.join(td, "capture.json")
-            with open(cap, "w") as f:
+            with open(cap, "w", encoding="utf-8") as f:
                 json.dump(frames, f)
             exp = _write_export(td, exports)
             res = vs.validate_device(cap, exp, device="post")
@@ -248,7 +295,7 @@ class MultiDeviceBatchTests(unittest.TestCase):
                 )
                 exports.append((start, float(spo2), t0, t1))
             cap = os.path.join(td, f"{label}.json")
-            with open(cap, "w") as f:
+            with open(cap, "w", encoding="utf-8") as f:
                 json.dump(frames, f)
             exp_dir = os.path.join(td, label)
             os.makedirs(exp_dir)
@@ -259,7 +306,7 @@ class MultiDeviceBatchTests(unittest.TestCase):
             a = make_device(td, "strap-a", [95, 96, 97, 98, 94, 99])
             b = make_device(td, "strap-b", [93, 94, 95, 96, 97, 98])
             batch = os.path.join(td, "devices.json")
-            with open(batch, "w") as f:
+            with open(batch, "w", encoding="utf-8") as f:
                 json.dump([a, b], f)
             rc = vs.main(["--batch", batch, "--postable"])
             self.assertEqual(rc, 0)
@@ -307,7 +354,7 @@ class LoadFrameRecordsTest(unittest.TestCase):
 
     def test_json_captures_still_load_unchanged(self):
         path = tempfile.mktemp(suffix=".json")
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8") as f:
             json.dump([{"hex": make_v18(sleep_state=2, aux_byte_82=94).hex()}], f)
         self.addCleanup(lambda: os.path.exists(path) and os.unlink(path))
         self.assertFalse(vs.looks_like_sqlite(path))
@@ -471,7 +518,7 @@ class WindowCoverageTests(unittest.TestCase):
         frames = [f for f in self.frames if _unix_of(f) < self.t0 + 3600]
         with tempfile.TemporaryDirectory() as td:
             cap = os.path.join(td, "capture.json")
-            with open(cap, "w") as fh:
+            with open(cap, "w", encoding="utf-8") as fh:
                 json.dump(frames, fh)
             start = datetime.fromtimestamp(self.t0, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
             exp = _write_export(td, [(start, 96.0, self.t0, self.t1)])
@@ -534,7 +581,7 @@ class VarianceFloorTests(unittest.TestCase):
             start = datetime.fromtimestamp(t0, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
             exports.append((start, float(spo2), t0, t1))
         cap = os.path.join(td, "capture.json")
-        with open(cap, "w") as f:
+        with open(cap, "w", encoding="utf-8") as f:
             json.dump(frames, f)
         return cap, _write_export(td, exports)
 
@@ -568,7 +615,7 @@ class VarianceFloorTests(unittest.TestCase):
             exports.append((start, float(spo2), t0, t1))
         with tempfile.TemporaryDirectory() as td:
             cap = os.path.join(td, "capture.json")
-            with open(cap, "w") as f:
+            with open(cap, "w", encoding="utf-8") as f:
                 json.dump(frames, f)
             res = vs.validate_device(cap, _write_export(td, exports), device="flat82")
         self.assertEqual(res["inband_distinct_82"], 2)
@@ -601,7 +648,7 @@ class FeatureAbsentClassificationTests(unittest.TestCase):
             for i in range(n_records)
         ]
         cap = os.path.join(td, f"{label}.json")
-        with open(cap, "w") as f:
+        with open(cap, "w", encoding="utf-8") as f:
             json.dump(frames, f)
         exp_dir = os.path.join(td, label)
         os.makedirs(exp_dir)
@@ -639,7 +686,7 @@ class FeatureAbsentClassificationTests(unittest.TestCase):
                 start = datetime.fromtimestamp(t0, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
                 exports.append((start, float(spo2), t0, t1))
             cap = os.path.join(td, f"{label}.json")
-            with open(cap, "w") as f:
+            with open(cap, "w", encoding="utf-8") as f:
                 json.dump(frames, f)
             exp_dir = os.path.join(td, label)
             os.makedirs(exp_dir)
@@ -692,7 +739,7 @@ class FeatureAbsentClassificationTests(unittest.TestCase):
                 start = datetime.fromtimestamp(t0, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
                 nights.append((start, 95.0, t0, t1))
             cap = os.path.join(td, "aliased.json")
-            with open(cap, "w") as f:
+            with open(cap, "w", encoding="utf-8") as f:
                 json.dump(frames, f)
             res = vs.validate_device(cap, _write_export(td, nights), device="aliased")
         self.assertEqual(res["duty"]["n_nonzero"], 0)      # the strap works; the capture missed it
@@ -710,7 +757,7 @@ class FeatureAbsentClassificationTests(unittest.TestCase):
                 {"hex": make_v18(unix=u, sleep_state=2, hr=52, aux_byte_82=0).hex()} for u in stamps
             ]
             cap = os.path.join(td, "sparse.json")
-            with open(cap, "w") as f:
+            with open(cap, "w", encoding="utf-8") as f:
                 json.dump(frames, f)
             exp_dir = os.path.join(td, "sparse")
             os.makedirs(exp_dir)
@@ -727,7 +774,7 @@ class FeatureAbsentClassificationTests(unittest.TestCase):
             {"hex": make_v18(unix=u, sleep_state=st, hr=52, aux_byte_82=0).hex()} for u, st in stamps
         ]
         cap = os.path.join(td, f"{label}.json")
-        with open(cap, "w") as f:
+        with open(cap, "w", encoding="utf-8") as f:
             json.dump(frames, f)
         exp_dir = os.path.join(td, label)
         os.makedirs(exp_dir)
@@ -789,7 +836,7 @@ class FeatureAbsentClassificationTests(unittest.TestCase):
                 start = datetime.fromtimestamp(t0, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
                 nights.append((start, float(s), t0, t1))
             cap = os.path.join(td, "vals.json")
-            with open(cap, "w") as f:
+            with open(cap, "w", encoding="utf-8") as f:
                 json.dump(frames, f)
             res = vs.validate_device(cap, _write_export(td, nights), device="vals")
         blob = vs.format_postable([res])
@@ -886,7 +933,7 @@ class AppDbReaderTests(unittest.TestCase):
             app = _write_app_db(td, [(1700000000, 96, 2)])
             self.assertTrue(vs.looks_like_app_db(app))
             cap = os.path.join(td, "cap.json")
-            with open(cap, "w") as f:
+            with open(cap, "w", encoding="utf-8") as f:
                 json.dump([], f)
             self.assertFalse(vs.looks_like_app_db(cap))
 
@@ -975,6 +1022,6 @@ class AppDbReaderTests(unittest.TestCase):
                 frames.append({"hex": make_v18(t0 + k * 60, aux_byte_82=int(round(spo2)),
                                                sleep_state=vs.SLEEP_ASLEEP).hex()})
         cap = os.path.join(td, "cap.json")
-        with open(cap, "w") as f:
+        with open(cap, "w", encoding="utf-8") as f:
             json.dump(frames, f)
         return {"capture": cap, "export": _write_export(td, nights)}

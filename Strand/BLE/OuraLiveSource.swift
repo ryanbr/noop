@@ -245,6 +245,13 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     private var loggedFirstTemp = false
     /// Logs the FIRST SpO2 sample decoded this session only. Twin of `loggedFirstTemp`.
     private var loggedFirstSpo2 = false
+    /// The 0x13 SyncTime reply parked because nothing yet available could disambiguate its unit (ticks vs
+    /// seconds x10): the resume cursor was 0 (fresh pair / post-reboot full pull) or so stale the ring's
+    /// clock had run past the window. Retried against the drain's `maxSeenRingTime` as the first batch
+    /// lands (2026-09-02/03 captures). The ORIGINAL receipt wall-clock is carried along, because THAT is the instant the
+    /// ring's counter pairs with - re-stamping at retry time would skew the anchor by the drain's latency.
+    private var pendingSyncTime: (deviceTimestamp: UInt32, status: UInt8, receivedAt: Int64)?
+
     /// Logs the FIRST ring-time -> UTC anchor of this session only (s5.5); reset on stop/disconnect.
     private var loggedAnchor = false
     /// Tier-B (UNVERIFIED) kinds ("activity" / "real_steps" / "sleep_summary" / "spo2_smoothed") already
@@ -1328,6 +1335,7 @@ public final class OuraLiveSource: NSObject, ObservableObject {
         loggedFirstTemp = false
         loggedFirstSpo2 = false
         loggedAnchor = false
+        pendingSyncTime = nil
         loggedTierBKinds.removeAll()
         loggedFeatureStatuses.removeAll()
         loggedProductInfo.removeAll()
@@ -1565,6 +1573,10 @@ public final class OuraLiveSource: NSObject, ObservableObject {
                 drain.noteSeenRingTime(rt)
             }
         }
+        // The drain now has a ring-time reference that needs no anchor, so a 0x13 reply parked at connect
+        // may be resolvable. Retry BEFORE `ingest`, so this batch anchors straight away instead of parking
+        // into `pendingAnchorEvents` and being drained a moment later (2026-09-02/03 captures).
+        retryPendingSyncTimeAnchor()
         if pendingContinuation { restartBatchQuietTimer() }
         ingest(events)
     }
@@ -2277,6 +2289,7 @@ extension OuraLiveSource: @preconcurrency CBCentralManagerDelegate {
         loggedFirstTemp = false
         loggedFirstSpo2 = false
         loggedAnchor = false
+        pendingSyncTime = nil
         loggedTierBKinds.removeAll()
         loggedFeatureStatuses.removeAll()
         loggedProductInfo.removeAll()
@@ -2362,6 +2375,7 @@ extension OuraLiveSource: @preconcurrency CBCentralManagerDelegate {
         loggedFirstTemp = false
         loggedFirstSpo2 = false
         loggedAnchor = false
+        pendingSyncTime = nil
         loggedTierBKinds.removeAll()
         loggedFeatureStatuses.removeAll()
         loggedProductInfo.removeAll()
@@ -2547,28 +2561,56 @@ extension OuraLiveSource: @preconcurrency CBPeripheralDelegate {
         ingestHistory(driver.ingest(notification: bytes, reassembler: reassembler))
     }
 
+    /// The ring-time floor the 0x13 unit test disambiguates against: the persisted resume cursor, or the
+    /// largest envelope ring-time this drain has seen when that is further along. `maxSeenRingTime` is the
+    /// half that breaks the deadlock (2026-09-02/03 captures) — it counts EVERY history record, anchored or not, so it is
+    /// readable with no anchor, whereas the cursor can only advance once an anchor exists.
+    private var syncTimeAnchorLowerBound: UInt32 {
+        max(historyCursor, drain.maxSeenRingTime)
+    }
+
+    /// Try to turn a 0x13 SyncTime reply into this session's UTC anchor, returning whether it stuck.
+    /// `receivedAt` is the host wall-clock at the moment the reply ARRIVED (not now), since that is the
+    /// instant the ring's counter pairs with. Shared by the at-connect attempt and the retry.
+    private func adoptSyncTimeAnchor(deviceTimestamp: UInt32, status: UInt8, receivedAt: Int64, source: String) -> Bool {
+        guard let driver else { return false }
+        guard let rt = OuraDriver.syncTimeAnchorCandidate(responseValue: deviceTimestamp,
+                                                          lowerBoundTicks: syncTimeAnchorLowerBound),
+              driver.adoptSyncTimeAnchor(ringTimestamp: rt, unixSeconds: receivedAt) else { return false }
+        let unit = rt == deviceTimestamp ? "ticks" : "seconds x10"
+        let raw = String(format: "0x%08x", deviceTimestamp)
+        if !loggedAnchor {
+            loggedAnchor = true
+            log("Oura: UTC anchor from SyncTime response (0x13) \(source) - device rt \(rt) [\(unit), raw \(raw), status \(status)] = its receipt time; no 0x42 needed this session")
+        }
+        drainPendingAnchorEvents()
+        drainPendingHypnogramBursts()
+        return true
+    }
+
     /// Anchor from the 0x13 SyncTime response (ringverse BLE.md `13 05 <device_ts:4LE> <status:1>`):
     /// the ring's clock counter at the moment it processed our SyncTime, paired with the host wall-clock
-    /// at receipt. The tick unit is disambiguated against the persisted resume cursor
-    /// (OuraDriver.syncTimeAnchorCandidate — raw ticks vs seconds×10, exactly one must be plausible);
-    /// no unambiguous reading → log the raw value for investigation and adopt NOTHING (an honest missing
-    /// anchor beats a guessed one). On success everything parked while unanchored resolves immediately.
+    /// at receipt. The tick unit is disambiguated against a known-earlier ring-time
+    /// (OuraDriver.syncTimeAnchorCandidate — raw ticks vs seconds×10, exactly one must be plausible).
+    /// At connect the only reference is the resume cursor, which is 0 on a fresh pair and may be far
+    /// staler than the ring's clock; rather than discard the reply, PARK it and retry once history starts
+    /// landing (2026-09-02/03 captures). Still adopts NOTHING on ambiguity — an honest missing anchor beats a guessed one.
     private func handleSyncTimeResponse(_ resp: (deviceTimestamp: UInt32, status: UInt8)) {
-        guard let driver else { return }
         let now = Int64(Date().timeIntervalSince1970)
+        if adoptSyncTimeAnchor(deviceTimestamp: resp.deviceTimestamp, status: resp.status,
+                               receivedAt: now, source: "at connect") { return }
+        pendingSyncTime = (resp.deviceTimestamp, resp.status, now)
         let raw = String(format: "0x%08x", resp.deviceTimestamp)
-        if let rt = OuraDriver.syncTimeAnchorCandidate(responseValue: resp.deviceTimestamp,
-                                                       historyCursor: historyCursor),
-           driver.adoptSyncTimeAnchor(ringTimestamp: rt, unixSeconds: now) {
-            let unit = rt == resp.deviceTimestamp ? "ticks" : "seconds x10"
-            if !loggedAnchor {
-                loggedAnchor = true
-                log("Oura: UTC anchor from SyncTime response (0x13) - device rt \(rt) [\(unit), raw \(raw), status \(resp.status)] = now; no 0x42 needed this session")
-            }
-            drainPendingAnchorEvents()
-            drainPendingHypnogramBursts()
-        } else {
-            log("Oura: SyncTime response (0x13) raw \(raw) status \(resp.status) - no unambiguous tick reading vs cursor \(historyCursor); anchor NOT adopted (investigation)")
+        log("Oura: SyncTime response (0x13) raw \(raw) status \(resp.status) - no unambiguous tick reading vs ring-time floor \(syncTimeAnchorLowerBound); parked, retrying as history lands (investigation)")
+    }
+
+    /// Retry a parked 0x13 reply now that the drain has seen real ring-times. Silent on failure (the
+    /// parked reply simply waits for a better floor); one line on success, from `adoptSyncTimeAnchor`.
+    private func retryPendingSyncTimeAnchor() {
+        guard let parked = pendingSyncTime, drain.maxSeenRingTime > 0 else { return }
+        if adoptSyncTimeAnchor(deviceTimestamp: parked.deviceTimestamp, status: parked.status,
+                               receivedAt: parked.receivedAt, source: "resolved against history") {
+            pendingSyncTime = nil
         }
     }
 

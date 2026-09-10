@@ -139,7 +139,9 @@ final class PuffinDeepBufferLog {
         guard !disabled, Self.isDeepBuffer(frame), isEnabled else { return }
         let tsMs = Int(Date().timeIntervalSince1970 * 1000)
         let strapTs = Self.strapTs(frame).map { String($0) } ?? "null"
-        let hex = frame.map { String(format: "%02x", $0) }.joined()
+        // Fast encoder: this runs once per captured frame for a whole offload, and a deep-buffer frame
+        // is 2140 bytes, so the per-byte String(format:) it replaced bridged to NSString 2140 times.
+        let hex = frame.hexLower
         // #423/#455: run the raw-IMU decoder on the 1244-B buffer so every captured IMU frame carries
         // its decoded activity summary (cadence/energy/jerk/gyro) inline beside the raw hex. This is the
         // first CALLER of `Whoop5RawImu.decode` outside its own tests — it exercises the decoder on real

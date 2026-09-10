@@ -400,7 +400,7 @@ public func frame(seq: UInt8, payload: [UInt8] = [0x00]) -> [UInt8] {
 | 23 | `HISTORICAL_DATA_RESULT` | `[0x01] + end_data(8)` | ack a `HISTORY_END` chunk / advance trim |
 | 26 | `GET_BATTERY_LEVEL` | `[0x00]` | battery percent; also the **bond** write |
 | 34 | `GET_DATA_RANGE` | `[0x00]` | strap's stored oldest/newest record range; #689 also logs a diagnostic ring-buffer page backlog — see below |
-| 35 | `GET_HELLO_HARVARD` | `[0x00]` | identity/version hello |
+| 35 | `GET_HELLO_HARVARD` | `[0x00]` | identity/version hello; the response carries the 4.0 strap serial — see below |
 | 39 / 40 | `SET_LED_DRIVE` / `GET_LED_DRIVE` | — | optical LED drive (research) |
 | 41 / 42 | `SET_TIA_GAIN` / `GET_TIA_GAIN` | — | optical front-end gain (research) |
 | 43 / 44 | `SET_BIAS_OFFSET` / `GET_BIAS_OFFSET` | — | optical bias (research) |
@@ -954,3 +954,27 @@ is deliberately **not** duplicated here — one table, one place to keep correct
 *Reverse-engineering credit: `johnmiddleton12/my-whoop` (WHOOP 4.0) and `b-nnett/goose`
 (WHOOP 5.0). This is an independent interoperability project for the user's own device and data;
 it is not affiliated with WHOOP and is not a medical device.*
+
+### `GET_HELLO_HARVARD` (35) response — the WHOOP 4.0 serial
+
+A 4.0 exposes no DIS Serial Number String (`0x2A25`), so this response is the only place its stable
+serial appears. In the captures on record the response payload (sliced past `SOF+len+crc8` and
+`[type,seq,cmd,origin_seq,result]`, i.e. from byte 9 of the frame) is **131 bytes** and carries two
+alphanumeric runs:
+
+| payload offset | length | what |
+|---|---|---|
+| 14 | 9 | **strap serial** — the stable per-device id (`Whoop4HelloSerial`) |
+| 24 | 54 | **device key** — a secret; never read it, never log it, never let it become an id |
+
+`Whoop4HelloSerial` reads a FIXED 9-byte window at offset 14 for exactly this reason: a scanning
+"longest alnum run" could drift onto the key as payloads vary, and a fixed window cannot.
+
+**Provenance, because it changes how much this should be trusted:** the offsets come from a single
+capture, not from documentation. They are corroborated only in the sense that two independent places in
+the codebase record the same layout — which is one observation written down twice, not two
+observations. Treat a strap that stops adopting as evidence the field moved, rather than assuming the
+table is wrong about the shape. This is why the 4.0 adoption path waits for the same value on two
+separate hellos before acting on it (`RepeatedSerialGate`), where a 5/MG adopts its spec-defined DIS
+serial on first read.
+

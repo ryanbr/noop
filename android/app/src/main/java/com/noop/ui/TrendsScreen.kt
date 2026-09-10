@@ -955,6 +955,53 @@ private fun prettyAxisDate(day: String?): String =
             .getOrDefault(it)
     }.orEmpty()
 
+/**
+ * One Trends metric trend, rendered as a Today host card (#today-hosted-cards).
+ *
+ * Renders the SAME [MetricTrendCard] the Trends tab draws, so the hosted copy cannot drift into a
+ * second chart of the same numbers. What it does NOT carry is the range selector: a home-screen card
+ * has nowhere to put one and no obvious place to persist a per-card choice, so it takes a fixed
+ * trailing month and keeps the tab's widening fallback for a wearer whose history is shorter than
+ * that. The Trends tab remains where you change the window.
+ *
+ * Costs nothing to host. [resolveMetric] is a pure walk over the `days` list Today already holds, so
+ * unlike the sleep model or the stress curve there is no read behind this and nothing to gate.
+ */
+@Composable
+internal fun TrendHostCard(card: HostedCard, days: List<DailyMetric>, effortScale: EffortScale) {
+    val range = TrendsRange.Month
+    when (card) {
+        HostedCard.TREND_HRV -> MetricTrendCard(
+            title = stringResource(R.string.trends_hrv_full), unit = "ms",
+            color = Palette.metricPurple,
+            higherIsBetter = true,
+            resolved = remember(days) { resolveMetric(days, range) { it.avgHrv } },
+            fmt = { "${it.roundToInt()}" },
+        )
+        HostedCard.TREND_RESTING_HR -> MetricTrendCard(
+            title = stringResource(R.string.trends_resting_hr_full), unit = "bpm",
+            color = Palette.metricRose,
+            higherIsBetter = false,
+            resolved = remember(days) { resolveMetric(days, range) { it.restingHr?.toDouble() } },
+            fmt = { "${it.roundToInt()}" },
+        )
+        HostedCard.TREND_EFFORT -> MetricTrendCard(
+            // Plotted values stay on the stored 0-100 scale (line shape unchanged); only the displayed
+            // numbers and unit follow the Effort-scale toggle, converted inside `fmt`, exactly as the
+            // Trends tab does it (#268).
+            title = stringResource(R.string.trends_effort),
+            unit = "/ ${UnitFormatter.effortScaleMax(effortScale)}",
+            color = Palette.effortColor,
+            tint = Palette.effortColor,
+            tipColor = Palette.effortBright,
+            higherIsBetter = null,
+            resolved = remember(days) { resolveMetric(days, range) { it.strain } },
+            fmt = { UnitFormatter.effortDisplay(it, effortScale) },
+        )
+        else -> Unit
+    }
+}
+
 /** A labelled metric-trend card built from a [ResolvedMetric] with mean / min / max. */
 @Composable
 private fun MetricTrendCard(

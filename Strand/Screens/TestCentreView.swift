@@ -30,6 +30,11 @@ struct TestCentreView: View {
     @State private var infoMessage = ""
     @State private var showInfo = false
 
+    // #1853: skin-temp absolute backfill (on-demand, diagnostic-first). Runs the walker that fills
+    // `skinTempC` for nights outside the 21-night rescore window. In-progress flag + last result line.
+    @State private var skinTempBackfillRunning = false
+    @State private var skinTempBackfillStatus: String?
+
     // Section 3: scheduled daily auto-export, the same ScheduledDebugExport store the Settings card uses.
     @State private var debugExportOn = ScheduledDebugExport.isEnabled
     @State private var debugExportMinutes = ScheduledDebugExport.timeMinutes
@@ -277,6 +282,25 @@ struct TestCentreView: View {
 
                 Divider().overlay(StrandPalette.hairline)
 
+                // #1853: skin-temp absolute backfill (on-demand, diagnostic-first). Fills `skinTempC`
+                // for nights outside the 21-night rescore window that never got an absolute. Fill-only:
+                // it can only fill a NULL, never overwrite a measured value or touch the deviation.
+                NoopButton("Backfill skin-temp absolutes", systemImage: "thermometer.medium",
+                           kind: .secondary) {
+                    runSkinTempBackfill()
+                }
+                .disabled(skinTempBackfillRunning)
+                Text("Re-derives the absolute °C for nights the 21-night rescore window never reaches, using the same funnel as the scoring pass. Fill-only: it never overwrites a measured value. Watch the strap log for the result.")
+                    .font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let status = skinTempBackfillStatus {
+                    Text(status)
+                        .font(StrandFont.caption).foregroundStyle(StrandPalette.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Divider().overlay(StrandPalette.hairline)
+
                 // Environment dump: the IOSDiagnostics-backed block exportableLogText already carries,
                 // surfaced as a copyable readout (spec section 3.4).
                 NoopButton("Copy environment dump", systemImage: "info.circle", kind: .secondary) {
@@ -520,6 +544,37 @@ struct TestCentreView: View {
             ? String(localized: "Removed \(removed) file(s).")
             : String(localized: "No scheduled exports to clear.")
         showInfo = true
+    }
+
+    /// #1853: run the skin-temp absolute backfill on demand (diagnostic-first trigger). The walker
+    /// resolves the WHOOP 4.0 window anchor from the current scoring window, pages through the
+    /// candidate nights, and fills each NULL `skinTempC`. The result is logged to the strap log and
+    /// shown under the button so the user sees exactly what filled, declined, and had no raw data.
+    private func runSkinTempBackfill() {
+        guard !skinTempBackfillRunning else { return }
+        skinTempBackfillRunning = true
+        skinTempBackfillStatus = String(localized: "Backfilling…")
+        Task { @MainActor in
+            guard let store = await model.repo.storeHandle() else {
+                skinTempBackfillStatus = String(localized: "No on-device store yet.")
+                skinTempBackfillRunning = false
+                return
+            }
+            let walker = SkinTempBackfillWalker(store: store)
+            let result = await walker.runBackfill()
+            let anchorNote = result.windowAnchorRaw != nil
+                ? "anchor from current window"
+                : "no 4.0 anchor (5/MG or too few worn samples)"
+            let endNote = result.reachedEnd ? "reached end" : "hit page budget"
+            let line = "skin-temp backfill (#1853): filled \(result.filledCount), " +
+                       "declined \(result.declinedCount), no raw data \(result.noRawDataCount) " +
+                       "(\(anchorNote), \(endNote))"
+            live.append(log: line)
+            skinTempBackfillStatus = line
+            skinTempBackfillRunning = false
+            // Refresh so the newly-filled absolutes show in the charts/explorer.
+            await model.repo.refresh()
+        }
     }
 
     private var debugExportTimeBinding: Binding<Date> {

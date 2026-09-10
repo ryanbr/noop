@@ -27,6 +27,7 @@ import sqlite3
 from collections import Counter
 from statistics import median, pstdev
 
+from capture_io import configure_utf8_stdio
 
 # ---------------------------------------------------------------- validated DSP (pure)
 
@@ -159,7 +160,13 @@ def main():
     args = ap.parse_args()
     # Read-only: open the DB in immutable/ro mode so this analysis tool can never write to whoop.db.
     con = sqlite3.connect(f"file:{args.db}?mode=ro", uri=True)
+    try:
+        return _run(args, con)
+    finally:
+        con.close()
 
+
+def _run(args, con):
     windows = [(args.start, args.end)] if args.start and args.end else _covered_windows(con, args.device, args.channel)
     if not windows:
         print("no PPG-covered windows (need v26 optical bursts in feat_ppg for this device)")
@@ -179,4 +186,5 @@ def main():
 
 
 if __name__ == "__main__":
+    configure_utf8_stdio()
     raise SystemExit(main())

@@ -152,4 +152,22 @@ final class TrainingLoadEngineTests: XCTestCase {
         XCTAssertEqual(result.ctl!, 30, accuracy: 1e-12)
         XCTAssertEqual(result.atl!, 30, accuracy: 1e-12)
     }
+
+    /// Pins the synthetic day labels `evaluateDense` hands out, which issue #71 moved off a private
+    /// Gregorian formatter onto the shared `LocalCalendarDate`. The literals are the verbatim stdout of
+    /// the pre-move formatter compiled standalone (`swiftc -O`), so a label that shifts by a day around
+    /// the leap day or the year boundary fails here instead of surfacing as two disagreeing platforms.
+    /// Kotlin twin: `TrainingLoadEngineTest.denseDayLabelsCrossLeapDayAndYearBoundary`.
+    func testDenseDayLabelsCrossLeapDayAndYearBoundary() {
+        let result = TrainingLoadEngine.evaluateDense(Array(repeating: 30, count: 367))
+        XCTAssertEqual(result.startDay, "2000-01-01")
+        XCTAssertEqual(result.endDay, "2001-01-01")
+        // Points begin at the last priming day (offset 6), so offset N is points[N - 6].
+        XCTAssertEqual(result.points.first?.day, "2000-01-07")
+        XCTAssertEqual(result.points[52].day, "2000-02-28")
+        XCTAssertEqual(result.points[53].day, "2000-02-29")
+        XCTAssertEqual(result.points[54].day, "2000-03-01")
+        XCTAssertEqual(result.points[359].day, "2000-12-31")
+        XCTAssertEqual(result.points.last?.day, "2001-01-01")
+    }
 }

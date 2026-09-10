@@ -246,17 +246,34 @@ public final class OuraDriver {
         return Int(seconds)
     }
 
+    /// How far the ring's clock may run AHEAD of `lowerBoundTicks` and still be recognised. The bound is a
+    /// stale resume cursor or the oldest ring-time a drain has seen, either of which can trail the ring's
+    /// clock by the ring's whole banked depth (~14 days) plus however long the cursor has been stuck — the
+    /// original 7-day window silently excluded exactly that case: in the 2026-09-02/03 iOS captures an
+    /// 8.2-day-stale cursor could never be re-anchored, so it could never advance, so the staleness only
+    /// grew — one full re-serve of the same window per launch, forever. Widening costs no
+    /// honesty: both readings fit the window only when `window >= 9 × lowerBound`, i.e. a ring under ~5
+    /// days of clock — and that case still resolves to nil below, exactly as before.
+    public static let syncTimeAnchorWindowTicks: Int64 = 38_880_000   // 45 days of 100 ms ticks
+
     /// Resolve the 0x13 SyncTime-response device timestamp into ring TICKS, or nil when no unambiguous
     /// reading exists. ringverse BLE.md labels the field "seconds" but the ring's record clock runs in
     /// 100 ms ticks, so both readings are tried: the raw value (already ticks) and value×10 (seconds→
-    /// ticks). The ring's clock at connect must sit shortly AFTER where the last drain ended, so a
-    /// candidate is plausible iff it falls in `[historyCursor, historyCursor + 7 days]`; exactly one
-    /// must fit (ambiguity or a fresh/reset cursor → nil → the caller logs raw instead of guessing).
+    /// ticks). The ring's clock at connect must sit AFTER any ring-time we already know about, so a
+    /// candidate is plausible iff it falls in `[lowerBoundTicks, lowerBoundTicks +
+    /// syncTimeAnchorWindowTicks]`; exactly one must fit (ambiguity or no reference at all → nil → the
+    /// caller logs raw instead of guessing).
+    ///
+    /// `lowerBoundTicks` is any ring-time known to precede the ring's clock NOW: the persisted resume
+    /// cursor at connect, or — when that is 0 (fresh pair / post-reboot reset) or too stale — the largest
+    /// envelope ring-time the drain has actually seen (`OuraHistoryDrain.maxSeenRingTime`), which needs no
+    /// anchor to read and so breaks the cursor↔anchor deadlock (2026-09-02/03 captures).
+    ///
     /// Pure and testable; the honest-data invariant is "no anchor beats a wrong anchor".
-    public static func syncTimeAnchorCandidate(responseValue: UInt32, historyCursor: UInt32) -> UInt32? {
-        guard historyCursor > 0 else { return nil }
-        let lower = Int64(historyCursor)
-        let upper = lower + 6_048_000   // 7 days of 100 ms ticks
+    public static func syncTimeAnchorCandidate(responseValue: UInt32, lowerBoundTicks: UInt32) -> UInt32? {
+        guard lowerBoundTicks > 0 else { return nil }
+        let lower = Int64(lowerBoundTicks)
+        let upper = lower + syncTimeAnchorWindowTicks
         let readings = [Int64(responseValue), Int64(responseValue) * 10]
         let fits = readings.filter { $0 >= lower && $0 <= upper && $0 <= Int64(UInt32.max) }
         guard fits.count == 1 else { return nil }

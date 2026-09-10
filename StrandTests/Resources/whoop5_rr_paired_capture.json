@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "device_family": "whoop5",
+  "firmware": "50.41.1.0",
+  "provenance": "Paired notifications from one observed WHOOP 5 link. Firmware came from that link metadata.",
+  "redaction": "Re-encoded frames: only RR count and RR word bytes retain captured values. Identity and original times are omitted; timestamps, HR and other payload fields are synthetic; checksums are recomputed. This is paired RR evidence, not an unmodified capture.",
+  "cases": [
+    {
+      "name": "type40-paired-multiple-rr",
+      "kind": "type40",
+      "native_hex": "aa011800010022e1280000f1536500003c029a03070300000000000037a122dc",
+      "standard_hex": "103c9a030703",
+      "rr_count": 2,
+      "pairing": {
+        "same_physical_owner": true,
+        "standard_minus_native_arrival_ms": 0
+      }
+    },
+    {
+      "name": "v18-paired-multiple-rr",
+      "kind": "v18",
+      "native_hex": "aa01740001003fb12f12000000000000f153650000003c02b903b5030000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000686695b9",
+      "standard_hex": "103cb903b503",
+      "rr_count": 2,
+      "pairing": {
+        "same_physical_owner": true,
+        "standard_host_second_minus_native_second": 2
+      }
+    }
+  ]
+}

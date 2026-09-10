@@ -14,6 +14,7 @@ final class OnboardingUnitsPickerTests: XCTestCase {
     /// or the choice made in onboarding wouldn't reach the Weight/Height display.
     func testUnitSystemKeyIsTheSharedAppStorageKey() {
         XCTAssertEqual(UnitPrefs.systemKey, "units.system")
+        XCTAssertEqual(UnitPrefs.distanceSystemKey, "units.distance")
     }
 
     /// The picker tags are the `UnitSystem` rawValues; they must round-trip through the same initializer

@@ -63,7 +63,16 @@ public final class SlidingStreamWindow<T> {
     ///
     /// The result is byte-for-byte what a direct `read(owner, from, to)` would have returned — that is the
     /// whole contract, and the reason every case the planner cannot prove falls back to exactly that call.
-    public func rows(owner: String, from: Int, to: Int) async -> [T] {
+    public func rows(owner: String, from: Int, to: Int, allowReuse: Bool = true) async -> [T] {
+        // A range-dependent source choice is not composable: a slice or extension may select another
+        // transport. Read the whole interval and retain no buffer, while keeping cost/truncation truthful.
+        if !allowReuse {
+            _ = failedRead()
+            guard let full = await read(owner, from, to) else { return [] }
+            rowsRead += full.count
+            if full.count >= limit { truncatedReads += 1 }
+            return full
+        }
         let plan = WindowedStreamPlan.plan(cachedOwner: self.owner, cachedFrom: self.from,
                                            cachedTo: self.to, cachedTruncated: truncated,
                                            owner: owner, from: from, to: to)

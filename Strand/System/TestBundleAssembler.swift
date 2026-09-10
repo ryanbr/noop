@@ -228,7 +228,7 @@ enum TestBundleAssembler {
             profileStartedAt: started,
             questionnaire: TestCentre.answers(profile),
             build: buildProvenance(),
-            storage: storage ?? TestBundleMeta.Storage(dbBytes: 0, rows: [:], rawCaptureBytes: 0),
+            storage: storage ?? TestBundleMeta.Storage(dbBytes: 0, rows: [:], rawCaptureBytes: 0, rowBytes: [:]),
             redaction: redactionVersion,
             truncated: truncated,
             captureCheck: checks)

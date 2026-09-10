@@ -17,11 +17,11 @@ configFiles:
   Release: Config/BundleId.xcconfig
 settings:
   base:
-    MARKETING_VERSION: "11.1.1"
+    MARKETING_VERSION: "11.5.0"
     # iOS build number (CFBundleVersion). GLOBAL so the iOS app AND its widget extension inherit the
     # SAME value — they must match or iOS warns "extension version must match parent app" (#416).
     # macOS sets its own CFBundleVersion on the Strand target and is unaffected by this.
-    CURRENT_PROJECT_VERSION: "310"
+    CURRENT_PROJECT_VERSION: "361"
     SWIFT_VERSION: "5.0"
     # Emit localizable strings so Xcode auto-extracts every LocalizedStringKey into the
     # String Catalog on build (the English (US) base entries).
@@ -164,6 +164,18 @@ targets:
       # Compile the exact cross-target snapshot source into the test bundle so the AltStore App Group
       # resolver is covered without adding this iOS/widget-only type to the macOS application module.
       - StrandiOSShared/WidgetSnapshot.swift
+      # Same reasoning for the heart-rate trace: the pure half of the widget is where every decision
+      # worth testing lives, and it is iOS/widget-only, so it is compiled into the test bundle rather
+      # than added to the macOS app.
+      - StrandiOSShared/HrTrace.swift
+      # And the stress curve's pure half, for the same reason (#2040) — plus one test this file is the
+      # only place that can run: the widget extension links no packages, so `StressTrace.highBandFloor`
+      # has to restate the analytics constant, and only the app target can see BOTH and assert they
+      # still agree.
+      - StrandiOSShared/StressTrace.swift
+      # And the widget cost counters, for the same reason again: pure, iOS-only, and the arithmetic is
+      # exactly the part that has been wrong twice on the Android side.
+      - StrandiOSShared/WidgetTelemetry.swift
     # Same wrapper as the app target, so the OURA_CLOUD_IMPORT-gated Oura tests compile exactly
     # when the app's Oura lane does (flag + creds both come from the untracked OuraSecrets.xcconfig).
     configFiles:
@@ -285,6 +297,12 @@ targets:
         NSHealthShareUsageDescription: "NOOP reads your own Apple Health data on-device to compute recovery, strain, and sleep. Nothing leaves your device."
         NSHealthUpdateUsageDescription: "NOOP writes the metrics it computes from your strap back into Apple Health, on-device and only when you allow it."
         NSMotionUsageDescription: "NOOP reads your iPhone's step count for a walking or running workout to show steps in the activity summary. It stays on your device. Nothing leaves it."
+        # K4: Coach voice input. Speech is transcribed ON-DEVICE ONLY (requiresOnDeviceRecognition);
+        # the mic button is disabled where the locale doesn't support that, never falls back to
+        # server transcription. Only the resulting TEXT reaches the provider, via the same channel
+        # a typed question already uses.
+        NSSpeechRecognitionUsageDescription: "NOOP transcribes your question on-device so you can ask the coach out loud instead of typing. Audio never leaves your iPhone."
+        NSMicrophoneUsageDescription: "NOOP uses the microphone to let you ask the coach a question by voice. The audio is transcribed on-device and never leaves your iPhone."
         # #187: the opt-in AI Coach's "Custom (OpenAI-compatible)" provider can point at a LOCAL LLM on
         # the LAN (Ollama / LM Studio at http://192.168.x.x:11434). ATS blocks cleartext by default;
         # NSAllowsLocalNetworking exempts loopback/.local/private-LAN hosts ONLY — public HTTPS endpoints

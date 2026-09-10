@@ -242,7 +242,7 @@ def run_whoop_decode(frames_json, binary=None):
     binary = binary or find_whoop_decode()
     fd, path = tempfile.mkstemp(suffix=".json")
     try:
-        with os.fdopen(fd, "w") as f:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(frames_json, f)
         r = subprocess.run([binary, "--json", "--family", "auto", path],
                            capture_output=True, text=True)

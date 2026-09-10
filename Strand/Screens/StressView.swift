@@ -964,15 +964,14 @@ struct DaytimeLoadLine: View {
         GeometryReader { geo in
             let w = geo.size.width
             let h = geo.size.height
-            let n = max(hours.count, 1)
-            // x for an hour index; y maps a 0–3 level into the chart (0 at bottom).
-            // (closures, not `func` — a `@ViewBuilder` closure can't contain declarations)
-            let x: (Int) -> CGFloat = { i in n <= 1 ? w / 2 : w * CGFloat(i) / CGFloat(n - 1) }
+            // y maps a 0–3 level into the chart (0 at bottom), for the baseline rule below. The x
+            // placement moved into `scoredRuns`, which needs it per point anyway.
+            // (a closure, not a `func` — a `@ViewBuilder` closure can't contain declarations)
             let y: (Double) -> CGFloat = { level in h - h * CGFloat(min(max(level / 3.0, 0), 1)) }
 
-            let pts: [(CGFloat, CGFloat)] = hours.enumerated().compactMap { i, p in
-                p.level.map { (x(i), y($0)) }
-            }
+            // Contiguous runs of scored hours. Built in a method, not here: this is a
+            // `@ViewBuilder` closure and cannot hold statements.
+            let runs = scoredRuns(width: w, height: h)
 
             ZStack {
                 // Baseline (1.5 of 3) reference line.
@@ -983,31 +982,44 @@ struct DaytimeLoadLine: View {
                 }
                 .stroke(StrandPalette.hairline, style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
 
-                if pts.count >= 2 {
-                    // Soft area fill under the curve — a calm WHOOP-blue wash (no gold).
-                    areaPath(pts, width: w, height: h)
-                        .fill(
-                            LinearGradient(
-                                gradient: Gradient(colors: [
-                                    StressRamp.calm.opacity(0.22),
-                                    StressRamp.calm.opacity(0.02),
-                                ]),
-                                startPoint: .top, endPoint: .bottom
+                // The ramp runs DOWN the chart, not across the day.
+                //
+                // It used to be `.leading` to `.trailing`, which painted the stress band colours along
+                // the x-axis: a calm 9pm hour rendered amber and a tense 7am one blue, so the colour
+                // said nothing about the score while looking exactly as though it did. Because y maps
+                // the 0-3 level onto the chart, a vertical ramp makes vertical position the level, which
+                // is what the Kotlin twin does and what the legend claims. Amber at the top, blue at the
+                // bottom: `StressRamp.gradient` runs calm-first, so it is reversed here.
+                let levelRamp = LinearGradient(
+                    gradient: Gradient(colors: Array(StressRamp.stops.map(\.color).reversed())),
+                    startPoint: .top, endPoint: .bottom
+                )
+                ForEach(Array(runs.enumerated()), id: \.offset) { _, seg in
+                    if seg.count >= 2 {
+                        // Closed PER RUN, so the wash cannot spread under an hour that was never scored
+                        // and undo the gap the broken line just drew.
+                        areaPath(seg, width: w, height: h)
+                            .fill(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [
+                                        StressRamp.calm.opacity(0.22),
+                                        StressRamp.calm.opacity(0.02),
+                                    ]),
+                                    startPoint: .top, endPoint: .bottom
+                                )
                             )
-                        )
-                    // The gradient line itself (blue→green→amber, left→right).
-                    linePath(pts)
-                        .stroke(
-                            LinearGradient(gradient: StressRamp.gradient,
-                                           startPoint: .leading, endPoint: .trailing),
-                            style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round)
-                        )
-                } else if let only = pts.first {
-                    // A single scored hour: a lone dot rather than a line.
-                    Circle()
-                        .fill(StressRamp.color(1.5))
-                        .frame(width: 6, height: 6)
-                        .position(x: only.0, y: only.1)
+                        linePath(seg)
+                            .stroke(levelRamp,
+                                    style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                    } else if let only = seg.first {
+                        // A run of one scored hour: a dot rather than a line. Coloured by the level it
+                        // actually carries — it used to be hardcoded to the mid colour, so a lone HIGH
+                        // hour drew as an ordinary one.
+                        Circle()
+                            .fill(StressRamp.color(level(at: only.1, height: h)))
+                            .frame(width: 6, height: 6)
+                            .position(x: only.0, y: only.1)
+                    }
                 }
             }
         }
@@ -1015,6 +1027,36 @@ struct DaytimeLoadLine: View {
         .frame(maxWidth: .infinity)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilitySummary)
+    }
+
+    /// CONTIGUOUS RUNS of scored hours, in chart coordinates.
+    ///
+    /// The old path `compactMap`-ed the unscored hours away and stroked a smooth curve through whatever
+    /// was left, which draws a reading straight across an hour that has none — the one thing the caption
+    /// promises it will not do. Splitting into runs lets each be stroked and filled separately, so a
+    /// hole in the day stays a hole. The Kotlin twin has always broken the line here.
+    private func scoredRuns(width w: CGFloat, height h: CGFloat) -> [[(CGFloat, CGFloat)]] {
+        let n = max(hours.count, 1)
+        var out: [[(CGFloat, CGFloat)]] = []
+        var run: [(CGFloat, CGFloat)] = []
+        for (i, p) in hours.enumerated() {
+            guard let level = p.level else {
+                if !run.isEmpty { out.append(run); run = [] }
+                continue
+            }
+            let px = n <= 1 ? w / 2 : w * CGFloat(i) / CGFloat(n - 1)
+            let py = h - h * CGFloat(min(max(level / 3.0, 0), 1))
+            run.append((px, py))
+        }
+        if !run.isEmpty { out.append(run) }
+        return out
+    }
+
+    /// The 0-3 level a chart y-position represents: the inverse of the `y` mapping above, so a lone
+    /// point can be coloured by what it actually reads rather than by a fixed guess.
+    private func level(at yPos: CGFloat, height: CGFloat) -> Double {
+        guard height > 0 else { return 0 }
+        return Double((height - yPos) / height) * 3.0
     }
 
     /// A smooth (Catmull-Rom-ish) stroke through the scored points.

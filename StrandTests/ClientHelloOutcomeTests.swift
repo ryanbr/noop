@@ -68,5 +68,39 @@ final class ClientHelloOutcomeTests: XCTestCase {
         XCTAssertFalse(ClientHelloOutcome.isAck(
             isHelloChar: true, helloOutstanding: true, alreadyBonded: false, isWhoop5: false))
     }
+
+    // MARK: - #1883: Apple bond timing tell
+
+    /// A completion faster than one connection interval did not come from the strap — that is the
+    /// signature of #1635's false bond. The line must name it as UNVERIFIED and reference both issues.
+    func testSuspiciouslyFastCompletionFlagsUnverifiedBond() {
+        let line = ClientHelloOutcome.unverifiedBondTimingLine(elapsedMs: 5)
+        XCTAssertNotNil(line)
+        XCTAssertTrue(line!.contains("acked after 5ms"), line!)
+        XCTAssertTrue(line!.contains("under one BLE connection interval"), line!)
+        XCTAssertTrue(line!.contains("UNVERIFIED"), line!)
+        XCTAssertTrue(line!.contains("#1883"), line!)
+        XCTAssertTrue(line!.contains("#1635"), line!)
+    }
+
+    /// A completion at or above the threshold is plausible and returns nil — no diagnostic line.
+    func testPlausibleCompletionReturnsNil() {
+        XCTAssertNil(ClientHelloOutcome.unverifiedBondTimingLine(elapsedMs: 8))
+        XCTAssertNil(ClientHelloOutcome.unverifiedBondTimingLine(elapsedMs: 120))
+        XCTAssertNil(ClientHelloOutcome.unverifiedBondTimingLine(elapsedMs: 3150))
+    }
+
+    /// The threshold matches the Android twin (MIN_PLAUSIBLE_ATT_ROUND_TRIP_MS = 8).
+    func testThresholdMatchesAndroidTwin() {
+        XCTAssertEqual(ClientHelloOutcome.minPlausibleAttRoundTripMs, 8)
+    }
+
+    /// A 0ms completion is the most suspicious — it cannot be a round trip at all.
+    func testZeroMsCompletionFlagsUnverifiedBond() {
+        let line = ClientHelloOutcome.unverifiedBondTimingLine(elapsedMs: 0)
+        XCTAssertNotNil(line)
+        XCTAssertTrue(line!.contains("acked after 0ms"), line!)
+        XCTAssertTrue(line!.contains("UNVERIFIED"), line!)
+    }
 }
 

@@ -2,6 +2,7 @@ package com.noop.alarm
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -55,6 +56,30 @@ class SleepWindowWatcherTest {
         assertFalse(w.shouldWake(120))
         repeat(6) { assertFalse(w.shouldWake(48)) }
         assertTrue(w.shouldWake(55))   // 55 is +7 over the real trough of 48
+    }
+
+    @Test fun diagnosticsReportWhatTheDetectorActuallySaw() {
+        // #1858: these accessors exist so an exported strap log can tell "no live HR all night" apart
+        // from "HR arrived and the heuristic still never fired". They must REPORT state, never change
+        // a decision — so the assertions here pin the reported values against a known feed.
+        val w = watcher()
+        assertNull(w.trough)
+        assertEquals(0, w.samples)
+        assertFalse(w.hasFired)
+
+        // The reported failure shape: awake for the whole window, every reading above the ceiling.
+        // No trough is ever established, which is exactly what shouldWake refuses to fire on.
+        repeat(6) { assertFalse(w.shouldWake(110)) }
+        assertNull(w.trough)
+        assertEquals(6, w.samples)      // HR WAS arriving - the log must be able to say so
+        assertFalse(w.hasFired)
+
+        // A sleeping feed establishes a trough and fires; the accessors follow.
+        val w2 = watcher()
+        repeat(6) { w2.shouldWake(50) }
+        assertEquals(50, w2.trough)
+        assertTrue(w2.shouldWake(58))
+        assertTrue(w2.hasFired)
     }
 
     @Test fun resetClearsState() {

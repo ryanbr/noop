@@ -342,7 +342,83 @@ fun decodeHistorical(frame: ByteArray, family: DeviceFamily = DeviceFamily.WHOOP
  * so was already archived by the decode-outcome route. Add a version here only when a decoder for it
  * lands on this side. Pinned by `UnmappedHistoricalLayoutTest`.
  */
-val MAPPED_WHOOP5_HISTORICAL_VERSIONS: Set<Int> = setOf(18, 26)
+val MAPPED_WHOOP5_HISTORICAL_VERSIONS: Set<Int> = setOf(18, 20, 21, 26)
+
+/**
+ * WHOOP 5/MG historical layouts v20 (optical) and v21 (raw 6-axis IMU). Port of the Swift
+ * `decodeWhoop5HistoricalV2021`, which this platform has had the decoders for all along:
+ * [Whoop5RawOptical] and [Whoop5RawImu] existed here but were wired only to the live deep-buffer route,
+ * never to the type-47 historical dispatch, so an offloaded v20 or v21 record decoded to null.
+ *
+ * Both versions reuse the v18 record header: layout version @9, a marker byte @10 (0x81 on v20, 0x80 on
+ * v21), the monotonic record index @11 and the unix time @15.
+ *
+ * What this does NOT do is make those nights stageable. Neither layout carries a per-second heart rate
+ * or a gravity vector; they carry raw sensor channels that no engine reads, and mapping those channels
+ * to a physiological value is the open work on #1992. What it does give is the same decode both
+ * platforms have, a real unix and record index for records that previously yielded nothing at all, and
+ * the raw arrays on the device for analysis.
+ *
+ * The reject archive still keeps these records. Its decode-outcome test asks whether a record yielded a
+ * unix AND either a heart rate or gravity, not merely whether it decoded, so a record that decodes into
+ * unread channels is still archived. That ordering is deliberate: had the archive still asked "did it
+ * decode at all", this port would have silently stopped preserving the very bytes the channel mapping
+ * needs. `whoop5V20StillArchivedAfterItDecodes` pins it.
+ */
+private fun decodeWhoop5HistoricalV2021(frame: ByteArray, version: Int): Map<String, Any?>? {
+    val out = LinkedHashMap<String, Any?>()
+    out["hist_version"] = version
+    frame.histU8(10)?.let { out["layout_marker"] = it }
+    // Long, not Int, for both: these are UNSIGNED 32-bit fields and Kotlin's Int is 32-bit where Swift's
+    // is 64-bit, so narrowing makes a value with bit 31 set decode differently on the two platforms from
+    // byte-identical bytes. Same rule the v18 branch above documents at length.
+    frame.histU32(11)?.let { out["record_index"] = it }
+    frame.histU32(15)?.let { out["unix"] = it }
+
+    if (version == 21) {
+        // TWO blocks of three 100-sample i16 channels: accelerometer (@28/@228/@428) then gyroscope
+        // (@640/@840/@1040). Emitted as RAW i16 arrays with no scaling, exactly as Swift does; the
+        // physical scales (1/4096 g/LSB accel, 2000/32768 dps/LSB gyro) belong to Whoop5RawImu.decode.
+        // A channel is emitted only when all 100 samples are readable, so a truncated record yields the
+        // header fields and no half-arrays.
+        for ((name, start) in WHOOP5_V21_CHANNELS) {
+            val samples = ArrayList<Int>(100)
+            for (i in 0 until 100) {
+                val v = frame.histI16(start + i * 2) ?: break
+                samples.add(v)
+            }
+            if (samples.size == 100) out[name] = samples
+        }
+        out["sensor_channel_samples"] = 100
+        return out
+    }
+
+    // version == 20: five repeated optical-measurement blocks, each one shared header plus two channel
+    // slots. The two channels in a block are a detector/readout pair for ONE measurement configuration,
+    // not two wavelengths, and no wavelength or absolute unit is asserted here. See Whoop5RawOptical for
+    // the evidence behind the 25-sample block length and the 20-bit-in-i32 sample container.
+    val optical = Whoop5RawOptical.decode(frame) ?: return out
+    out["sensor_block_count"] = optical.blocks.size
+    var present = 0
+    for (block in optical.blocks) {
+        out["block_b${block.index}_header"] = block.rawHeader
+        out["block_b${block.index}_sample_count"] = block.sampleCount
+        if (block.sampleCount <= 0) continue
+        for ((channelIndex, channel) in block.channels.withIndex()) {
+            out["channel_b${block.index}_$channelIndex"] = channel.samples
+            present++
+        }
+    }
+    out["sensor_channel_samples"] = optical.blocks.maxOfOrNull { it.sampleCount } ?: 0
+    out["sensor_channels_present"] = present
+    return out
+}
+
+/** v21's six raw IMU channels and their absolute offsets. Twin of the Swift `channels` table. */
+private val WHOOP5_V21_CHANNELS: List<Pair<String, Int>> = listOf(
+    "accel_x" to 28, "accel_y" to 228, "accel_z" to 428,
+    "gyro_x" to 640, "gyro_y" to 840, "gyro_z" to 1040,
+)
 
 /**
  * True when [frame] is a WHOOP 5/MG type-47 record whose layout version has NO field map on this
@@ -368,11 +444,12 @@ fun isUnmappedWhoop5HistoricalRecord(frame: ByteArray): Boolean {
 private fun decodeWhoop5Historical(frame: ByteArray): Map<String, Any?>? {
     if (frame.histU8(8) != PacketType.HISTORICAL_DATA.rawValue) return null
     val version = frame.histU8(9) ?: return null
-    // One gate, one list: 18 is the only version this function maps, and v26 (handled by
-    // [decodeWhoop5HistoricalV26] from [extractHistoricalStreams]) is the only other one this platform
-    // maps at all — so [MAPPED_WHOOP5_HISTORICAL_VERSIONS] must contain exactly {18, 26}. That set is
-    // what decides whether a record gets archived raw, so the two cannot be allowed to drift;
-    // `UnmappedHistoricalLayoutTest` pins the lockstep against the decoder's actual behaviour.
+    // One gate, one list: every version this function maps must appear in
+    // [MAPPED_WHOOP5_HISTORICAL_VERSIONS], and every version in that set must be handled here or (v26)
+    // by [decodeWhoop5HistoricalV26] from [extractHistoricalStreams]. That set is what decides whether a
+    // record gets archived raw, so the two cannot be allowed to drift; `UnmappedHistoricalLayoutTest`
+    // pins the lockstep against the decoder's actual behaviour.
+    if (version == 20 || version == 21) return decodeWhoop5HistoricalV2021(frame, version)
     if (version != 18) return null
 
     val out = LinkedHashMap<String, Any?>()
@@ -394,11 +471,19 @@ private fun decodeWhoop5Historical(frame: ByteArray): Map<String, Any?>? {
     val rrn = frame.histU8(23) ?: 0
     out["rr_count"] = rrn
     val rrVals = ArrayList<Int>()
+    val rawTicks = ArrayList<Int>()
+    val payloadEnd = minOf(frame.size, (frame.histU16(2) ?: 0) + 4)
     for (i in 0 until minOf(rrn, 4)) {
+        if (24 + i * 2 + 2 > payloadEnd) break
         val v = frame.histU16(24 + i * 2)
-        if (v != null && v != 0) rrVals.add(v)
+        if (v != null && v != 0) {
+            rawTicks.add(v)
+            rrVals.add(Whoop5RR.milliseconds(v))
+        }
     }
     out["rr_intervals"] = rrVals
+    out["rr_raw_ticks"] = rawTicks
+    out["rr_source_channel"] = RrSourceChannel.WHOOP5_HISTORICAL.code
     // Bytes adjacent to the HR/R-R fields: @36 is a FLAG byte and @37 a duplicate heart rate — not the
     // two halves of one fixed-point HR; the others are carried raw (meaning not pinned).
     frame.histU8(33)?.let { out["cardiac_flags"] = it }
@@ -534,7 +619,12 @@ private fun decodeWhoop5Historical(frame: ByteArray): Map<String, Any?>? {
  * (`burst_index`, NOT a channel id; PR#553) is carried beside the waveform
  * so durable rows retain their burst boundaries. The footer after [75] remains intentionally unmapped.
  */
-private data class V26Record(val unix: Long, val samples: List<Int>, val burstIndex: Int?)
+private data class V26Record(
+    val unix: Long,
+    val samples: List<Int>,
+    val burstIndex: Int?,
+    val baseCode: Long?,
+)
 
 private fun decodeWhoop5HistoricalV26(frame: ByteArray): V26Record? {
     if (frame.histU8(8) != PacketType.HISTORICAL_DATA.rawValue) return null
@@ -542,6 +632,14 @@ private fun decodeWhoop5HistoricalV26(frame: ByteArray): V26Record? {
     // Long, not Int — see [histU32]. This path was never actually wrong (its one consumer re-widened
     // with `and 0xFFFFFFFFL`), but carrying the reader's own type removes the mask and the trap.
     val unix = frame.histU32(15) ?: return null
+    // #2019: the ABSOLUTE optical code the 24 values below are deltas FROM. The window is 25 samples,
+    // not 24: sample 0 is this code and delta i produces sample i+1. Reading only the deltas and calling
+    // them the waveform stored a derivative as if it were a signal, and threw away the DC level, which
+    // is the half an SpO2 ratio-of-ratios needs. Verified on the captured frame in
+    // `Whoop5PpgWaveformStreamTest`: 378,307 here, a valid 20-bit code, against 24 deltas that are every
+    // one NEGATIVE, which no absolute optical reading can be. Long, not Int: unsigned 32-bit, see
+    // [histU32].
+    val baseCode = frame.histU32(23)
     val samples = ArrayList<Int>(24)
     var off = 27
     while (off < 75) {
@@ -550,9 +648,20 @@ private fun decodeWhoop5HistoricalV26(frame: ByteArray): V26Record? {
         off += 2
     }
     if (samples.isEmpty()) return null
-    val rawBurstIndex = frame.histU8(21)
+    // Sixteen bits, not eight. The field is a per-burst COUNTER and a u8 wraps the moment it passes
+    // 255; @21 has already been observed at 65 in a real capture, so wrapping is reachable rather than
+    // hypothetical, and a wrapped counter is indistinguishable from a genuine low one.
+    //
+    // The evidence for the width is the LAYOUT, not our fixtures: 21..23 counter, 23..27 the absolute
+    // base (#2019), 27..75 the 24 deltas, which accounts for every byte between the record header and
+    // the samples with nothing left over. An independent decode of this record reads the same two bytes
+    // as one u16 LE. Every v26 frame held here carries byte 22 = 0 with an index of 1, 2 or 65, so our
+    // own captures CANNOT discriminate a u16 from a u8 beside a constant zero, and this is recorded as
+    // the weaker half of the case rather than left implied. Reading it wide is the safe direction: for
+    // every index under 256 the two readings agree exactly, and above it only the wide one is right.
+    val rawBurstIndex = frame.histU16(21)
     return V26Record(unix = unix, samples = samples,
-        burstIndex = rawBurstIndex?.takeIf { it > 0 })
+        burstIndex = rawBurstIndex?.takeIf { it > 0 }, baseCode = baseCode)
 }
 
 /**
@@ -610,7 +719,19 @@ fun rejectedHistoricalRecords(
         // an unmapped layout the v24-fallback plausibility gate rejected. This is precisely what
         // [extractHistoricalStreams] drops (`decodeHistorical(...) ?: continue`), so the rejected set
         // matches the silently-lost set exactly.
-        decodeHistorical(frame, family) == null
+        // DECODE OUTCOME: archive unless the record yielded something SCOREABLE, not merely something.
+        //
+        // This used to be `decodeHistorical(...) == null` — did it decode at all. That is the same wrong
+        // question the unmapped-layout rule above exists to replace, one step further down: a record that
+        // decodes into channels no engine reads is not data NOOP has kept, it is data NOOP has looked at
+        // and dropped, and the strap frees it on the very next trim ack. Today the two questions give the
+        // same answer here, because every layout mapped on this platform either yields a heart rate (v18)
+        // or is short-circuited above as having its own durable stream (v26). They stop agreeing the
+        // moment a layout is mapped whose records carry neither, which is exactly what porting the 5/MG
+        // optical (v20) and raw IMU (v21) decoders would do: without this, that port would silently stop
+        // archiving the very bytes needed to work out what those channels mean. Twin of the Swift tail.
+        val decoded = decodeHistorical(frame, family) ?: return@filter true
+        decoded["unix"] == null || (decoded["heart_rate"] == null && decoded["gravity_x"] == null)
     }
 }
 
@@ -715,6 +836,10 @@ fun extractHistoricalStreams(
     var droppedImplausible = 0
     // #891: packet types that reach the `else` branch and are dropped. See StreamBatch.unhandledPacketTypes.
     val unhandledTypes = mutableMapOf<String, Int>()
+    // #891: the FIRST frame seen for each of those types, as full hex. The census says a type exists;
+    // without its bytes the strap log asks a reporter to open an issue about a record nobody can then
+    // map. One frame per type per batch is enough to place the fields and keeps the log bounded.
+    val unhandledSamples = mutableMapOf<String, String>()
     // #324: oldest/newest own-timestamp among the dropped records (the poisoned-range epoch span), and the
     // dropped RTC-state events (RTC_LOST / BOOT / SET_RTC) — the ground truth that the clock reset. Declared
     // before correctedWall so the local function can capture them (Kotlin: no forward reference to locals).
@@ -831,7 +956,9 @@ fun extractHistoricalStreams(
                             // corrected wall-second. Guard on non-empty so a truncated frame that decoded
                             // zero samples never banks an empty row (mirrors the Swift `!samples.isEmpty`).
                             if (rec.samples.isNotEmpty()) {
-                                ppgWaveform.add(PpgWaveformRow(baseTs, rec.samples, rec.burstIndex))
+                                ppgWaveform.add(
+                                    PpgWaveformRow(baseTs, rec.samples, rec.burstIndex, rec.baseCode),
+                                )
                             }
                         }
                     }
@@ -851,7 +978,9 @@ fun extractHistoricalStreams(
                 p.intOrNull("heart_rate")?.let { bpm -> if (bpm != 0) hr.add(HrRow(ts, bpm)) }
 
                 @Suppress("UNCHECKED_CAST")
-                (p["rr_intervals"] as? List<Int>)?.forEach { rrMs -> rr.add(RrRow(ts, rrMs)) }
+                (p["rr_intervals"] as? List<Int>)?.forEach { rrMs ->
+                    rr.add(RrRow(ts, rrMs, RrSourceChannel.fromCode(p.intOrNull("rr_source_channel"))))
+                }
 
                 p.intOrNull("spo2_red")?.let { red ->
                     spo2.add(Spo2Row(ts, red = red, ir = p.intOrNull("spo2_ir") ?: 0))
@@ -1045,6 +1174,10 @@ fun extractHistoricalStreams(
                     val parsed = Framing.parseFrame(frame, family)
                     if (parsed.ok && parsed.crcOk != false) {
                         unhandledTypes[name] = (unhandledTypes[name] ?: 0) + 1
+                        // No prefix cap: an unmapped layout's interesting fields are as likely to sit in
+                        // the tail as the head, and a truncated sample is the one shape that looks like
+                        // evidence without being any.
+                        unhandledSamples.getOrPut(name) { frame.joinToString("") { b -> "%02x".format(b) } }
                     }
                 }
             }
@@ -1064,6 +1197,7 @@ fun extractHistoricalStreams(
         ppgWaveform = ppgWaveform,
         v18Aux = v18Aux,
         unhandledPacketTypes = unhandledTypes,   // #891 diag census (not persisted)
+        unhandledPacketSamples = unhandledSamples,   // #891 one frame per unmapped type (not persisted)
         droppedImplausibleTs = droppedImplausible,
         droppedImplausibleOldestTs = droppedOldest,   // #324 poisoned-range epoch span (diag only)
         droppedImplausibleNewestTs = droppedNewest,
@@ -1083,4 +1217,71 @@ private fun appendHistBattery(out: MutableList<BatteryRow>, ts: Long, p: Map<Str
     if (soc == null && mv == null) return
     val charging = p.intOrNull("battery_charging")?.let { it != 0 }
     out.add(BatteryRow(ts = ts, soc = soc, mv = mv, charging = charging))
+}
+
+/**
+ * Reconstruct a WHOOP 5/MG v26 optical window from its stored parts. #2019.
+ *
+ * The strap sends a 25-sample window as one absolute ADC code plus 24 deltas, so this is the only way to
+ * get back the signal the strap measured: `sample[0] = baseCode`, `sample[i+1] = sample[i] + delta[i]`.
+ * NOOP stores the two as they arrive rather than folding them together, because the delta blob is
+ * little-endian i16 and a real code (about 378,000 on the captured fixture) does not fit in one.
+ *
+ * Null when [baseCode] is null, which is the honest answer for a row written before the base was read:
+ * a delta series cannot be inverted without its starting point, and returning the deltas, or a window
+ * built from a fabricated zero, would present a signal nobody measured.
+ *
+ * CAVEAT: the deltas are SATURATED, clamped at the i16 bounds by the encoder, so a window containing a
+ * clamped delta reconstructs only approximately. Nothing here can detect that after the fact; a delta at
+ * exactly ±32,768 is the signal to distrust, and the captured fixture's largest magnitude is 1,833.
+ *
+ * Twin of the Swift `ppgWaveformAbsolute`.
+ */
+fun ppgWaveformAbsolute(baseCode: Long?, deltas: List<Int>): List<Long>? {
+    if (baseCode == null) return null
+    val out = ArrayList<Long>(deltas.size + 1)
+    var acc = baseCode
+    out.add(acc)
+    for (d in deltas) {
+        acc += d
+        out.add(acc)
+    }
+    return out
+}
+
+/** A delta at either i16 rail: the encoder clamped it, so the window reconstructs only approximately. */
+fun isSaturatedPpgDelta(delta: Int): Boolean = delta == Short.MIN_VALUE.toInt() || delta == Short.MAX_VALUE.toInt()
+
+/**
+ * The per-session v26 optical census, or null when the session carried no v26 windows (a 4.0, or a
+ * 5/MG that banked none) so a log that has nothing to say stays quiet. #2019.
+ *
+ * Three things a strap log could not previously answer, all of which decide whether the banked windows
+ * are usable for the channel-mapping work this stream exists for:
+ *
+ * - how many windows arrived at all;
+ * - how many carried the absolute base. A window without one cannot be reconstructed, ever. On a
+ *   well-formed record the base is always readable, so `withBase` below the window count means
+ *   TRUNCATED records or a firmware that does not carry it at frame-abs 23, and either is worth
+ *   knowing rather than silently banking un-reconstructable windows;
+ * - how many windows hold a SATURATED delta. Those reconstruct only approximately, and the caveat is
+ *   worthless without a way to see whether it ever fires.
+ *
+ * The base range is carried because it is the DC level over the session, which is the quantity the
+ * whole stream is banked for and the one that used to be discarded entirely.
+ *
+ * Twin of the Swift `ppgWaveformCensusLine`.
+ */
+fun ppgWaveformCensusLine(
+    windows: Int,
+    withBase: Int,
+    saturatedWindows: Int,
+    baseMin: Long?,
+    baseMax: Long?,
+): String? {
+    if (windows <= 0) return null
+    val range = if (baseMin != null && baseMax != null) " base $baseMin..$baseMax" else " base n/a"
+    val note = if (saturatedWindows > 0) " (a saturated window reconstructs only approximately)" else ""
+    return "Backfill: v26 optical census: $windows window(s), $withBase with a base, " +
+        "$saturatedWindows saturated,$range$note"
 }

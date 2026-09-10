@@ -70,6 +70,14 @@ class UnitFormatterTest {
         assertEquals("7.7 mi", UnitFormatter.distanceFromKilometers(12.4, UnitSystem.IMPERIAL))
     }
 
+    @Test
+    fun speedFollowsExerciseDistanceSystem() {
+        assertEquals("10.0 km/h", UnitFormatter.speedFromKilometersPerHour(10.0, UnitSystem.METRIC))
+        assertEquals("6.2 mph", UnitFormatter.speedFromKilometersPerHour(10.0, UnitSystem.IMPERIAL))
+        assertEquals(null, UnitFormatter.speedFromKilometersPerHour(null, UnitSystem.METRIC))
+        assertEquals(null, UnitFormatter.speedFromKilometersPerHour(-1.0, UnitSystem.IMPERIAL))
+    }
+
     // --- Mass formatting ---
 
     @Test
@@ -129,6 +137,15 @@ class UnitFormatterTest {
         // Explicit override wins regardless of the system.
         assertEquals(TemperatureUnit.CELSIUS, UnitPrefs.resolveTemperature(UnitSystem.IMPERIAL, "celsius"))
         assertEquals(TemperatureUnit.FAHRENHEIT, UnitPrefs.resolveTemperature(UnitSystem.METRIC, "fahrenheit"))
+    }
+
+    @Test
+    fun distanceSystemFallsBackToLegacyPreference() {
+        assertEquals(UnitSystem.METRIC, UnitPrefs.resolveDistance(UnitSystem.METRIC, null))
+        assertEquals(UnitSystem.IMPERIAL, UnitPrefs.resolveDistance(UnitSystem.IMPERIAL, ""))
+        assertEquals(UnitSystem.METRIC, UnitPrefs.resolveDistance(UnitSystem.IMPERIAL, "metric"))
+        assertEquals(UnitSystem.IMPERIAL, UnitPrefs.resolveDistance(UnitSystem.METRIC, "imperial"))
+        assertEquals(UnitSystem.IMPERIAL, UnitPrefs.resolveDistance(UnitSystem.IMPERIAL, "unknown"))
     }
 
     // --- Unit labels ---

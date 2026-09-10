@@ -171,7 +171,7 @@ fun MindSection(vm: AppViewModel) {
                     } else if (lines.isEmpty()) {
                         Text(
                             uiString(R.string.l10n_mind_section_not_enough_overlapping_history_to_correlate_d36b91f9) +
-                                "body metrics yet.",
+                                " body metrics yet.",
                             style = NoopType.footnote,
                             color = Palette.textTertiary,
                         )

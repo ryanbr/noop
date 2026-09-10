@@ -61,7 +61,7 @@ class CsvLoadingTests(unittest.TestCase):
             "2026-07-14 23:51:24,97.29,34.40\n"
         )
         folder = tempfile.mkdtemp()
-        with open(os.path.join(folder, "physiological_cycles.csv"), "w") as f:
+        with open(os.path.join(folder, "physiological_cycles.csv"), "w", encoding="utf-8") as f:
             f.write(cycles)
         rows = cg.load_ground_truth(folder)
         truth = cg.truth_values(rows)
@@ -72,9 +72,9 @@ class CsvLoadingTests(unittest.TestCase):
         cycles = "Startzeit des Zyklus,Herzfrequenzvariabilität (ms)\n2026-06-20 00:24:31,92\n"
         sleep = "Startzeit des Zyklus,Atemfrequenz (Atemzüge/Min.)\n2026-06-20 00:24:31,14.6\n"
         folder = tempfile.mkdtemp()
-        with open(os.path.join(folder, "physiologische_zyklen.csv"), "w") as f:
+        with open(os.path.join(folder, "physiologische_zyklen.csv"), "w", encoding="utf-8") as f:
             f.write(cycles)
-        with open(os.path.join(folder, "Schlaf.csv"), "w") as f:
+        with open(os.path.join(folder, "Schlaf.csv"), "w", encoding="utf-8") as f:
             f.write(sleep)
         rows = cg.load_ground_truth(folder)
         self.assertEqual(len(rows), 1)

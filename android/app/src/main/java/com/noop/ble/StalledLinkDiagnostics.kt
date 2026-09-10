@@ -87,6 +87,13 @@ internal fun helloDeferredByExplicitBondLine(
  * [helloEverWrittenThisLink] earns its place by distinguishing the two ways to arrive here that need
  * opposite fixes — a hello that was written and went unanswered (a strap or timing problem) from one that
  * was never written at all (a local decision, and the one this log's field capture actually hit).
+ *
+ * #1802: when the structural-unreachable case applies AND the unbonded-offload probe is available but not
+ * opted in, the line names the one action that exists — the "Try history sync without pairing" toggle in
+ * Test Centre. The probe was written for precisely this strap in precisely this state, and its stage 3 is
+ * SET_CLOCK, the thing the structural claim says never runs. Without this hint the diagnostic reads as
+ * hopeless when it is not. The probe stays opt-in and self-limiting; this is about discoverability, not
+ * about running it automatically.
  */
 internal fun backfillDeferredLine(
     family: String?,
@@ -95,6 +102,8 @@ internal fun backfillDeferredLine(
     explicitBondRequestedThisLink: Boolean,
     deferralsThisLink: Int,
     msSinceConnect: Long,
+    unbondedProbeOptedIn: Boolean = false,
+    unbondedProbeRetired: Boolean = false,
 ): String {
     val since = if (msSinceConnect >= 0L) "${msSinceConnect / 1000}s" else "?"
     // NULL means service discovery has not established the family yet. `connectedFamily` defaults to
@@ -105,10 +114,26 @@ internal fun backfillDeferredLine(
     val why = if (family == "WHOOP5" && !didBond && !helloEverWrittenThisLink) {
         // A structural claim, not a guess about the strap: didBond is set only by the hello's own ack,
         // so no hello written means this gate cannot open on this link no matter what the strap does.
-        " No hello was written on this link, so didBond cannot become true and this gate cannot open" +
-            " for the rest of it. SET_CLOCK rides the same handshake tail, and an un-clocked 5/MG is" +
-            " hardware-known not to persist sensor data to flash (#78 fork) — so there may also be" +
-            " nothing banked to offload."
+        val base = " No hello was written on this link, so didBond cannot become true and this gate" +
+            " cannot open for the rest of it. SET_CLOCK rides the same handshake tail, and an un-clocked" +
+            " 5/MG is hardware-known not to persist sensor data to flash (#78 fork) — so there may also" +
+            " be nothing banked to offload."
+        // #1802: name the unbonded-offload probe when it is the one action that exists for this state.
+        // The probe's stage 3 is SET_CLOCK — the thing the structural claim above says never runs — and
+        // it is designed for precisely this strap. Without this hint the diagnostic reads as hopeless
+        // when it is not. NOT a recommendation to run it automatically: the probe is opt-in and
+        // self-limiting, and #1804 showed a local teardown can produce a false negative, so the hint
+        // says where the toggle is rather than promising an answer.
+        val probe = when {
+            unbondedProbeOptedIn -> ""  // the probe is on — its own lines say what it found
+            unbondedProbeRetired -> " The \"Try history sync without pairing\" experiment has retired for" +
+                " this strap — turn it off and on in Test Centre to retry (#1804 fixed a false negative" +
+                " that could have latched it)."
+            else -> " The \"Try history sync without pairing\" experiment in Test Centre can test whether" +
+                " the offload works without a bond — its stage 3 is SET_CLOCK, the thing this gate" +
+                " blocks (#1635, #1802)."
+        }
+        base + probe
     } else {
         ""
     }

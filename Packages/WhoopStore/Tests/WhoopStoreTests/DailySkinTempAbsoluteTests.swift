@@ -70,4 +70,58 @@ final class DailySkinTempAbsoluteTests: XCTestCase {
         XCTAssertEqual(try XCTUnwrap(rows.first?.skinTempC), 34.4, accuracy: 0.001,
                        "a re-score must be able to correct the stored absolute")
     }
+
+    // MARK: - #1853: fill-only write (`fillSkinTempC`)
+
+    /// The fill-only write fills a NULL `skinTempC` and touches NOTHING else — the deviation, recovery,
+    /// HRV, and every other scored field stay exactly as the scoring pass left them. This is the
+    /// non-negotiable: a single-column write that can only fill a NULL, never an upsert of a rebuilt row.
+    func testFillSkinTempC_fillsNullAndTouchesNothingElse() async throws {
+        let store = try await WhoopStore.inMemory()
+        // A scored night with a deviation but no absolute — the backfill's exact candidate.
+        let d = DailyMetric(day: "2026-08-14", totalSleepMin: 415, efficiency: 0.9,
+                            deepMin: 88, remMin: 108, lightMin: 219, disturbances: 2,
+                            restingHr: 50, avgHrv: 62.0, recovery: 0.06, strain: 10.5,
+                            exerciseCount: 1, spo2Pct: 96.2, skinTempDevC: 0.52, respRateBpm: 14.7,
+                            steps: 7_900, activeKcalEst: 2_180.0, avgSdnn: 88.4, skinTempC: nil)
+        try await store.upsertDailyMetrics([d], deviceId: "devA")
+
+        let filled = try await store.fillSkinTempC(deviceId: "devA", day: "2026-08-14", skinTempC: 34.6)
+        XCTAssertEqual(filled, 1, "exactly one row filled")
+
+        let rows = try await store.dailyMetrics(deviceId: "devA", from: "2026-08-14", to: "2026-08-14")
+        let row = try XCTUnwrap(rows.first)
+        XCTAssertEqual(try XCTUnwrap(row.skinTempC), 34.6, accuracy: 0.001, "the absolute was filled")
+        // Every other field is untouched — the fill-only write touched one column.
+        XCTAssertEqual(try XCTUnwrap(row.skinTempDevC), 0.52, accuracy: 0.001, "deviation untouched")
+        XCTAssertEqual(try XCTUnwrap(row.recovery), 0.06, accuracy: 0.001, "recovery untouched")
+        XCTAssertEqual(try XCTUnwrap(row.avgHrv), 62.0, accuracy: 0.001, "HRV untouched")
+        XCTAssertEqual(try XCTUnwrap(row.restingHr), 50, "resting HR untouched")
+        XCTAssertEqual(try XCTUnwrap(row.totalSleepMin), 415, accuracy: 0.001, "sleep untouched")
+    }
+
+    /// The fill-only write REFUSES to overwrite a measured value. A night that already has an absolute
+    /// is left alone — the backfill must never clobber a value the scoring pass stored.
+    func testFillSkinTempC_refusesToOverwriteAnExistingAbsolute() async throws {
+        let store = try await WhoopStore.inMemory()
+        let d = DailyMetric(day: "2026-08-14", totalSleepMin: 415, efficiency: 0.9,
+                            deepMin: 88, remMin: 108, lightMin: 219, disturbances: 2,
+                            restingHr: 50, avgHrv: 62.0, recovery: 0.06, strain: 10.5,
+                            exerciseCount: 1, skinTempDevC: 0.52, skinTempC: 33.9)
+        try await store.upsertDailyMetrics([d], deviceId: "devA")
+
+        let filled = try await store.fillSkinTempC(deviceId: "devA", day: "2026-08-14", skinTempC: 34.6)
+        XCTAssertEqual(filled, 0, "an existing absolute must NOT be overwritten")
+
+        let rows = try await store.dailyMetrics(deviceId: "devA", from: "2026-08-14", to: "2026-08-14")
+        XCTAssertEqual(try XCTUnwrap(rows.first?.skinTempC), 33.9, accuracy: 0.001,
+                       "the original measured value survives")
+    }
+
+    /// The fill-only write is a no-op when the row doesn't exist (no orphan rows created).
+    func testFillSkinTempC_noOpWhenRowDoesNotExist() async throws {
+        let store = try await WhoopStore.inMemory()
+        let filled = try await store.fillSkinTempC(deviceId: "devA", day: "2026-08-14", skinTempC: 34.6)
+        XCTAssertEqual(filled, 0, "no row to fill — no orphan created")
+    }
 }

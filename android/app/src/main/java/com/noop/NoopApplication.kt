@@ -6,6 +6,7 @@ import androidx.annotation.PluralsRes
 import androidx.annotation.StringRes
 import android.util.Log
 import com.noop.ble.SourceCoordinator
+import com.noop.ble.SourceIdentity
 import com.noop.ble.WhoopBleClient
 import com.noop.ble.WhoopModel
 import com.noop.data.DeviceRegistry
@@ -95,16 +96,39 @@ class NoopApplication : Application() {
         if (newId.isNotEmpty() && newId != activeDeviceId) activeDeviceId = newId
     }
 
+    /**
+     * The id the BLE client should stamp WHOOP samples with at startup (#1881).
+     *
+     * [activeDeviceId] answers "which device did the user select", which is NOT the same question once a
+     * non-WHOOP device can be active: handing it to the client made every WHOOP live sample and historical
+     * chunk persist under, say, an Oura ring. `adoptSourceIdentity` corrects the id when a strap actually
+     * connects, but not for the window between construction and that connect, so the wrong value must not
+     * be adopted in the first place.
+     *
+     * Fail-open: an unreadable registry or an unclassifiable row keeps today's behaviour. Only a
+     * POSITIVELY non-WHOOP active device falls back to the legacy id. Swift twin: `BLEManager.bootstrapStore`.
+     */
+    private fun whoopStartupDeviceId(): String {
+        val id = activeDeviceId
+        val rows = runCatching { runBlocking { deviceRegistry.all() } }.getOrNull() ?: return id
+        val row = rows.firstOrNull { it.id == id } ?: return id
+        return if (SourceIdentity.isWhoop(row)) id else WhoopBleClient.DEFAULT_DEVICE_ID
+    }
+
     /** Process-wide BLE client. Owns the GATT connection and outlives any single Activity/ViewModel. */
     val ble: WhoopBleClient by lazy {
+        val startupId = whoopStartupDeviceId()
         WhoopBleClient(
             applicationContext,
             repository = repository,
-            deviceId = activeDeviceId,
+            deviceId = startupId,
             successfulOffloadSink = {
                 SelfHostedPushScheduler.enqueueAfterSuccessfulOffload(applicationContext)
             },
         ).apply {
+            // #1881: the same fact seeds the connect gate, closing the launch race where the radio can
+            // reach the WHOOP flow before SourceCoordinator has wired up and asserted it.
+            if (startupId != activeDeviceId) setWhoopIsActiveDevice(false)
             // Apply the persisted "Debug logging" preference at the composition root so the low-level
             // client never has to read the UI/prefs layer. Default OFF — see WhoopBleClient.debugLogcat.
             debugLogcat = NoopPrefs.debugLogging(applicationContext)
@@ -139,8 +163,12 @@ class NoopApplication : Application() {
             // path (status=133 on an OS-bonded strap). Mirrors macOS AppModel.scan() reading the persisted
             // "selectedWhoopModel". Same-strap switches now adopt in place (no reconnect) via the
             // coordinator, so this only fires for a genuinely different WHOOP.
-            startWhoop = { ble.connect(persistedWhoopModel()) },
-            stopWhoop = { ble.disconnect() },
+            // #1881: the flag rides the SAME two closures, so it inherits the coordinator's semantics
+            // exactly. `stopWhoop` alone was edge-triggered: it dropped the link once and nothing stopped
+            // `onBluetoothRadioOn` bringing it straight back — every Bluetooth toggle reached it, and it
+            // clears `intentionalDisconnect` before reconnecting. Swift twin: AppModel.wireSourceCoordinator.
+            startWhoop = { ble.setWhoopIsActiveDevice(true); ble.connect(persistedWhoopModel()) },
+            stopWhoop = { ble.setWhoopIsActiveDevice(false); ble.disconnect() },
             // Multi-WHOOP (MW-2/MW-3): pin the connection to the active WHOOP's persisted address and
             // re-attribute live samples to it on a WHOOP→WHOOP switch. Both inert on the single-WHOOP
             // path — the coordinator only invokes them for a non-legacy WHOOP / a non-null peripheralId.

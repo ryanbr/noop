@@ -55,16 +55,7 @@ class NoopGlanceWidget : GlanceAppWidget() {
         // Follow the app's Light/Dark/System theme (read straight from noop_prefs; the widget runs in a
         // separate process so it can't see the in-app snapshot state). System resolves off the device's
         // night-mode config. Any failure degrades to dark (the historical default).
-        val dark = runCatching {
-            when (context.getSharedPreferences("noop_prefs", Context.MODE_PRIVATE)
-                .getString("theme.appearance", "system")) {
-                "light" -> false
-                "dark" -> true
-                else -> (context.resources.configuration.uiMode and
-                    android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
-                    android.content.res.Configuration.UI_MODE_NIGHT_YES
-            }
-        }.getOrDefault(true)
+        val dark = WidgetTheme.isDark(context)
         provideContent { WidgetContent(snap, dark) }
     }
 

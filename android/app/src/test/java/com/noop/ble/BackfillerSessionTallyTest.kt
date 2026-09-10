@@ -3,6 +3,7 @@ package com.noop.ble
 import com.noop.data.InsertCounts
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -189,6 +190,47 @@ class BackfillerSessionTallyTest {
         assertTrue(line.contains("clock (RTC) is corrupt"))
         assertTrue(line.contains("Fully charge"))
         assertFalse(line.contains("\u2014"))
+    }
+
+    // ---- #1754: two distinct empty-offload banners ------------------------------------------
+
+    /**
+     * The no-flash-cursor banner (trim=0xFFFFFFFF) names the clock/charge cause — the existing copy,
+     * now a named constant so the caller's branch reads as a choice between two states.
+     */
+    @Test fun noFlashCursorBannerNamesClockAndCharge() {
+        val line = Backfiller.noFlashCursorBanner
+        assertTrue(line, line.contains("no stored history to hand over"))
+        assertTrue(line, line.contains("clock has lost sync"))
+        assertTrue(line, line.contains("Fully charge it to 100%"))
+        assertFalse(line, line.contains("sensor front-end"))
+    }
+
+    /**
+     * The no-sensor-records banner (valid trim, advancing write pointer, zero rows) does NOT name the
+     * clock — it points at the sensor front-end or power state, and asks for a strap log rather than
+     * promising that charging will fix it.
+     */
+    @Test fun noSensorRecordsBannerDoesNotBlameTheClock() {
+        val line = Backfiller.noSensorRecordsBanner
+        assertTrue(line, line.contains("no sensor records"))
+        assertTrue(line, line.contains("flash cursor is valid and advancing"))
+        assertTrue(line, line.contains("not a clock problem"))
+        assertTrue(line, line.contains("sensor front-end or power"))
+        assertFalse(line, line.contains("clock has lost sync"))
+        assertFalse(line, line.contains("Fully charge it to 100%"))
+    }
+
+    /** The two banners must be distinct strings — a caller choosing between them must not get the same
+     *  copy for both states. */
+    @Test fun theTwoBannersAreDistinct() {
+        assertNotEquals(Backfiller.noFlashCursorBanner, Backfiller.noSensorRecordsBanner)
+    }
+
+    /** No em-dash in either banner (project rule). */
+    @Test fun noEmDashInEitherBanner() {
+        assertFalse(Backfiller.noFlashCursorBanner.contains("\u2014"))
+        assertFalse(Backfiller.noSensorRecordsBanner.contains("\u2014"))
     }
 
     // ---- #1 records-bearing 0xFFFFFFFF END must NOT false-alarm "no banked history" ----

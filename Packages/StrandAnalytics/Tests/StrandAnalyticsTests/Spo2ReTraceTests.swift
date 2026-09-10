@@ -31,7 +31,20 @@ final class Spo2ReTraceTests: XCTestCase {
         XCTAssertTrue(line.contains("v=null"), line)
     }
 
-    func testSampleCapBoundedAtEight() {
-        XCTAssertEqual(Spo2ReTrace.maxSamples, 8)
+    func testSampleCapBounded() {
+        XCTAssertEqual(Spo2ReTrace.maxSamples, 12)
+    }
+
+    /// The per-layout cap is what stops one dominant layout spending the whole session budget, and it
+    /// only does that if it is strictly smaller than the session cap.
+    func testPerVersionCapIsBoundedAndSmallerThanTheSessionCap() {
+        XCTAssertEqual(Spo2ReTrace.maxPerVersion, 3)
+        XCTAssertLessThan(Spo2ReTrace.maxPerVersion, Spo2ReTrace.maxSamples)
+    }
+
+    /// The session cap has to leave room for more than one layout, or stratifying changes nothing:
+    /// a 5/MG emits v18 alongside v20/v21/v26 and every one of them needs samples.
+    func testSessionCapCoversSeveralDistinctLayouts() {
+        XCTAssertGreaterThanOrEqual(Spo2ReTrace.maxSamples / Spo2ReTrace.maxPerVersion, 4)
     }
 }

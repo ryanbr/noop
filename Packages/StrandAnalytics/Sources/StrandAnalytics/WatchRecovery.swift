@@ -21,8 +21,8 @@ import Foundation
 // dominant driver either way.
 //
 // The hard honesty rule: we return nil recovery + `.calibrating` when today's SDNN is
-// missing, OR the SDNN baseline isn't usable yet, OR we have fewer than `minBaselineNights`
-// nights of history. We NEVER fabricate a number to fill a sparse week. Confidence comes
+// missing, OR the SDNN baseline isn't usable yet, OR the baseline has accepted fewer than
+// `minBaselineNights` nights. We NEVER fabricate a number to fill a sparse week. Confidence comes
 // straight from the existing `ScoreConfidence.charge(recovery:hrvBaseline:)`, so the watch
 // "calibrating → building → solid" arc is the same one the strap uses.
 public enum WatchRecovery {
@@ -41,7 +41,8 @@ public enum WatchRecovery {
         }
     }
 
-    /// Minimum nights of SDNN history before we'll score recovery from the watch. The spec's
+    /// Minimum VALID nights (nights the baseline accepted, `BaselineState.nValid`) before we'll score
+    /// recovery from the watch — not raw history entries. The spec's
     /// honesty stance is to keep recovery "calibrating" for about a week of nights rather than
     /// ship a misleading number off a thin baseline. This sits ABOVE the baseline's own seed
     /// gate (`Baselines.minNightsSeed` = 4) deliberately: a strap user crosses the seed faster
@@ -52,7 +53,8 @@ public enum WatchRecovery {
     ///
     /// - Parameters:
     ///   - todaySDNN: today's HRV SDNN reading (ms), or nil if the watch logged none.
-    ///   - todayRHR:  today's resting HR (bpm), or nil to drop the RHR term.
+    ///   - todayRHR:  today's resting HR (bpm), or nil to drop the RHR term. The term is also
+    ///     dropped when `rhrHistory` has not yet produced a usable RHR baseline.
     ///   - sdnnHistory: ordered nightly SDNN values (oldest → newest), the baseline input.
     ///   - rhrHistory:  ordered nightly resting-HR values (oldest → newest).
     /// - Returns: a `Result` with recovery in [0,100] and a confidence tier, or nil recovery +
@@ -71,21 +73,29 @@ public enum WatchRecovery {
 
         // Honesty gate: no number unless we have today's SDNN, a usable baseline, AND at least a
         // week of nights. Any miss → nil recovery + calibrating, never a fabricated value.
+        // The week is counted in nights the baseline ACCEPTED (`nValid`), not in raw history entries:
+        // a physiologically implausible reading is skip-and-held by `Baselines.update` and contributes
+        // nothing to the baseline, so counting it would let rejected values buy a score a week early.
         guard let sdnn = todaySDNN,
               hrvBase.usable,
-              sdnnHistory.count >= minBaselineNights else {
+              hrvBase.nValid >= minBaselineNights else {
             return Result(recovery: nil, confidence: .calibrating)
         }
 
         // Reuse the canonical Charge engine. Drop the resp / sleep / skin-temp terms (the watch
         // daily aggregate doesn't carry them here) — RecoveryScorer renormalises to HRV + RHR.
-        // RHR is optional: when the watch logged no resting HR today we pass the HRV-only path.
+        // RHR is optional: the term needs BOTH today's reading AND a usable personal RHR baseline.
+        // An empty or all-implausible RHR history folds to `foldHistory`'s synthetic midpoint (the
+        // config's min/max mean, e.g. 75 bpm), which is nobody's resting HR — scoring against it would
+        // move Charge on a fabricated baseline. Same `usable ? state : nil` gate the strap Charge
+        // surfaces already apply (TodayView / CoupledView); without a usable RHR baseline we fall back
+        // to the documented HRV-only path, exactly as when today's reading is missing.
         let recovery = RecoveryScorer.recovery(
             hrv: sdnn,
             rhr: todayRHR.map(Double.init) ?? rhrBase.baseline,   // missing RHR → at-baseline (z≈0, neutral term)
             resp: nil,
             hrvBaseline: hrvBase,
-            rhrBaseline: todayRHR != nil ? rhrBase : nil,          // drop the RHR term entirely if no reading
+            rhrBaseline: (todayRHR != nil && rhrBase.usable) ? rhrBase : nil,
             respBaseline: nil,
             sleepPerf: nil
         )

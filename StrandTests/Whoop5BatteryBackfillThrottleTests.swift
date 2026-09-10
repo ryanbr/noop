@@ -119,4 +119,24 @@ final class Whoop5BatteryBackfillThrottleTests: XCTestCase {
         // The first read of a connection still always fires, charging or not.
         XCTAssertTrue(BLEManager.shouldPollWhoop5Battery(lastReadAt: nil, now: now, charging: false))
     }
+
+    // MARK: - #1953: unbonded 5/MG battery read parity
+
+    /// #1953: an unbonded 5/MG (the #1635 suppressed-hello case) gets a periodic 0x2A19 battery read on
+    /// Android's `keepAliveFire` but not on iOS — the tick runs (via `keepAliveMayRun`'s
+    /// `bonded && .whoop5` branch) but the read lives inside `enableLiveNotifications`, which is
+    /// `didBond`-gated. The fix reuses THIS throttle on the unbonded path so the two platforms read at
+    /// the same cadence without doubling the rate on a bonded strap. These pin the throttle's contract
+    /// for that new caller: the gate is the same, only the call site differs.
+    func testUnbondedBatteryReadUsesSameThrottle() {
+        // First read of a connection — always fires, bonded or not.
+        XCTAssertTrue(BLEManager.shouldPollWhoop5Battery(lastReadAt: nil))
+        // Under the floor — blocked, so an unbonded 5/MG is not re-read every 30 s tick.
+        let now = Date()
+        let last = now.addingTimeInterval(-29)
+        XCTAssertFalse(BLEManager.shouldPollWhoop5Battery(lastReadAt: last, now: now))
+        // At the floor — fires, matching Android's ~60 s cadence.
+        let last2 = now.addingTimeInterval(-BLEManager.whoop5BatteryReadMinIntervalSeconds)
+        XCTAssertTrue(BLEManager.shouldPollWhoop5Battery(lastReadAt: last2, now: now))
+    }
 }

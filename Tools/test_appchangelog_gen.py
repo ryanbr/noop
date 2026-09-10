@@ -164,6 +164,32 @@ class LocaleTargetTests(unittest.TestCase):
             self.assertTrue((ROOT / "android/app/src/main/res" / d / "strings.xml").is_file(),
                             f"{loc} -> {d}/strings.xml is missing")
 
+    def test_locale_dirs_match_the_res_directories(self):
+        """And the OTHER direction, which is the one that has actually gone wrong twice.
+
+        The test above only asserts that every entry points at a real directory, so ADDING a locale
+        breaks nothing: `title_locales` for it is accepted, silently dropped, and those readers get the
+        English card. Polish shipped in #1250 and was noticed at v10.1.0; Russian shipped in #1872 and
+        would have repeated it in the release that introduced Russian.
+
+        Only language directories count. Android config qualifiers (`values-night`, `values-w600dp`)
+        live beside them and are not locales, so the match is on a language tag shape rather than on
+        "anything after the dash".
+        """
+        res = ROOT / "android/app/src/main/res"
+        on_disk = {
+            d.name for d in res.iterdir()
+            if d.is_dir() and re.fullmatch(r"values-[a-z]{2}(-r[A-Z]{2})?", d.name)
+            and (d / "strings.xml").is_file()
+        }
+        declared = {d for loc, d in acg.LOCALE_DIRS.items() if loc != "en"}
+        missing = sorted(on_disk - declared)
+        self.assertEqual(
+            [], missing,
+            f"locale dir(s) with no LOCALE_DIRS entry: {missing}. A `title_locales` entry for them "
+            f"would be accepted and dropped, and those readers would see the English card.",
+        )
+
     def test_english_source_is_the_values_dir(self):
         self.assertEqual("values", acg.LOCALE_DIRS["en"])
 

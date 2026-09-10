@@ -26,6 +26,8 @@ import struct
 import sys
 from collections import Counter
 
+from capture_io import configure_utf8_stdio
+
 WAVE_START, WAVE_END = 27, 75          # 24 LE-i16 samples per record
 SAMPLE_RATE_HZ = 24                     # 24 samples/record, 1 record/second
 
@@ -56,7 +58,8 @@ def acf(x, lag):
 
 def main():
     path = sys.argv[1] if len(sys.argv) > 1 else "capture_hist_ack.json"
-    frames = [bytes.fromhex(c["hex"]) for c in json.load(open(path))]
+    with open(path, encoding="utf-8") as f:
+        frames = [bytes.fromhex(c["hex"]) for c in json.load(f)]
     v26 = [r for r in frames if len(r) == 88 and r[8] == 47 and r[9] == 26]
     v18 = [r for r in frames if len(r) == 124 and r[8] == 47 and r[9] == 18]
     if not v26:
@@ -102,4 +105,5 @@ def main():
 
 
 if __name__ == "__main__":
+    configure_utf8_stdio()
     main()

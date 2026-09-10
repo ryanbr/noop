@@ -170,4 +170,65 @@ final class SleepMotionStateTests: XCTestCase {
         let states = try await store.sessionSleepState(deviceId: dev, sessionStart: start)
         XCTAssertEqual(states, [1, 2])
     }
+
+    // MARK: - session bounds
+
+    /// The bounds read is device-scoped, window-scoped, and returns EVERY row in the window.
+    ///
+    /// It exists so a caller resolving which device owns a block does not have to pull `stagesJSON` for
+    /// every night to compare two integers. The failure it can have is a partial map, which reads to the
+    /// caller as "that device does not own this block" and silently sends it to the wrong motion source,
+    /// so the count is asserted alongside the values.
+    func testSleepSessionBoundsIsDeviceAndWindowScoped() async throws {
+        let store = try await WhoopStore.inMemory()
+        let starts = [start, start + 86_400, start + 2 * 86_400]
+        try await store.upsertSleepSessions(starts.map {
+            CachedSleepSession(startTs: $0, endTs: $0 + 7 * 3_600, efficiency: 0.9,
+                               restingHr: 52, avgHrv: 70, stagesJSON: "[]")
+        }, deviceId: dev)
+        // A decoy on another device at the SAME starts: bounds must never blend the two.
+        try await store.upsertSleepSessions(starts.map {
+            CachedSleepSession(startTs: $0, endTs: $0 + 99, efficiency: 0.5,
+                               restingHr: 60, avgHrv: 40, stagesJSON: "[]")
+        }, deviceId: "other")
+
+        let bounds = try await store.sleepSessionBounds(deviceId: dev, from: start,
+                                                        to: start + 2 * 86_400)
+        XCTAssertEqual(bounds.count, starts.count, "a dropped row reads as an unowned block")
+        for s in starts {
+            XCTAssertEqual(bounds[s], s + 7 * 3_600, "start \(s) got the other device's end")
+        }
+
+        // Window-scoped: a start past `to` is absent rather than clamped in.
+        let narrow = try await store.sleepSessionBounds(deviceId: dev, from: start, to: start)
+        XCTAssertEqual(narrow, [start: start + 7 * 3_600])
+    }
+
+    /// An empty window is an empty map, not a fabricated entry.
+    func testSleepSessionBoundsOnAnEmptyWindowIsEmpty() async throws {
+        let store = try await storeWithSession()
+        let bounds = try await store.sleepSessionBounds(deviceId: dev, from: start + 10_000,
+                                                        to: start + 20_000)
+        XCTAssertTrue(bounds.isEmpty)
+    }
+
+    /// The read stamps each block with the device it queried, and a re-keyed copy keeps it.
+    ///
+    /// This is what lets a caller skip asking the store which device owns a block. `withStartTs` is
+    /// included because it is the one place a session is rebuilt: dropping the field there would turn a
+    /// known provenance silently back into a probe, which is a performance fault with no visible symptom.
+    func testSleepSessionsCarryTheDeviceTheyWereReadFrom() async throws {
+        let store = try await storeWithSession()
+        let rows = try await store.sleepSessions(deviceId: dev, from: start - 1, to: start + 1, limit: 8)
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows.first?.deviceId, dev)
+        XCTAssertEqual(rows.first?.withStartTs(start + 60).deviceId, dev, "a re-keyed copy forgot its device")
+    }
+
+    /// A hand-built session says nothing rather than claiming a device it was never read from.
+    func testAHandBuiltSessionHasNoProvenance() {
+        let s = CachedSleepSession(startTs: start, endTs: start + 3_600, efficiency: nil,
+                                   restingHr: nil, avgHrv: nil, stagesJSON: nil)
+        XCTAssertNil(s.deviceId, "absent is the honest value; a default would be a wrong answer")
+    }
 }

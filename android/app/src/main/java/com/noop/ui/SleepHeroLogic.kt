@@ -24,24 +24,43 @@ internal fun nightRelativeLabel(offset: Int): String = when (offset) {
 }
 
 /**
- * How many CALENDAR nights back the carousel night at [offset] is from the newest recorded night.
+ * How many nights back the carousel night at [offset] is FROM TODAY.
  * The ◀/▶ carousel steps by RECORDED night ([navDays], newest-first), so a night with no data (strap
  * off-body) is a gap the flat index can't see — labelling by index makes two nights either side of a
  * skipped night read as consecutive and desyncs the "N nights ago" labels (#1311). This restores the
  * true calendar distance from each night's local wake-day (the same key navDays is grouped by), so the
  * label — and the Rest value it names — line up with the night actually shown. Falls back to the raw
- * index if a day can't be read. 0 = last night. Mirrors iOS SleepView.nightsAgo.
+ * index if a day can't be read. 0 = last night.
+ *
+ * Measured from TODAY, not from the newest recorded night. Anchoring on the newest record made offset 0
+ * always land on zero, so the hero read "Last night" over a night that could be days old: a reporter
+ * whose newest night was Saturday saw it titled "Last night" on Monday and read it as bad processing,
+ * which is what sent that investigation into the sleep stager instead of into this label. The stager
+ * question was real and separate; this line was simply lying about which night it was showing.
+ *
+ * [today] is injected for deterministic tests and defaults to the logical day.
  */
 internal fun calendarNightsAgo(
     navDays: List<List<SleepSession>>, offset: Int, zone: java.util.TimeZone,
+    today: java.time.LocalDate = logicalDayNow(zone.toZoneId()),
 ): Int {
     if (offset < 0 || offset >= navDays.size) return offset
-    val newestTs = navDays.firstOrNull()?.firstOrNull()?.endTs ?: return offset
     val shownTs = navDays[offset].firstOrNull()?.endTs ?: return offset
     val z = zone.toZoneId()
+    // The shown night keeps its CALENDAR wake-date, because that is the key navDays groups by
+    // (`localDayString(endTs)`). Rolling this side too would let two distinct carousel entries collapse
+    // onto one label: a night ending 07:00 and the next ending 02:00 are separate groups but the same
+    // logical day, and both would print the same "nights ago".
+    //
+    // Only TODAY is rolled, which is what the small hours need: at 02:00 the night that ended
+    // yesterday morning is still "Last night", because the logical day has not turned over yet.
     val shown = java.time.Instant.ofEpochSecond(shownTs).atZone(z).toLocalDate()
-    val newest = java.time.Instant.ofEpochSecond(newestTs).atZone(z).toLocalDate()
-    val d = java.time.temporal.ChronoUnit.DAYS.between(shown, newest).toInt()
+    val d = java.time.temporal.ChronoUnit.DAYS.between(shown, today).toInt()
+    // A NEGATIVE distance is normal here, not just the clock-skew guard it looks like: between waking
+    // before 04:00 and the roll, the night's calendar date is already tomorrow relative to the logical
+    // day. Wake at 02:00 and check the tab at 03:00 and `shown` is the 7th while `today` is still the
+    // 6th. Falling back to the offset is the RIGHT answer for that (offset 0 is "Last night", which it
+    // is), so this branch carries a real case and must not be narrowed to an error path.
     return if (d >= 0) d else offset
 }
 

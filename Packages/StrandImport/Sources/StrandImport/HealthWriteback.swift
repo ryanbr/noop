@@ -154,4 +154,70 @@ public enum HealthWriteback {
         }
         return out
     }
+
+    // MARK: - Apple Health external UUID keys (#1503)
+
+    /// The deterministic `HKMetadataKeyExternalUUID` for a NOOP-written Apple Health record.
+    ///
+    /// The key is a natural key — `noop:<kind>:<identity>` — with NO device-id segment. The previous
+    /// scheme embedded the active strap id (`noop:<deviceId>:<kind>:<identity>`), which is NOT durable:
+    /// a re-pair or serial-based identification changes it, and every record written under the old id
+    /// becomes unreachable to the delete-then-write reconciliation (the delete predicate is built from
+    /// the id that is active NOW). The stranded records stay in Apple Health permanently as duplicates.
+    ///
+    /// Dropping the id segment matches the Android twin (`HealthConnectWriter.clientRecordId` carries
+    /// no device id — `noop-workout-<startTs>`) and makes the key mean what it is: a natural key over
+    /// the record's own identity, stable across strap lifecycle changes.
+    ///
+    /// `kind` is the metric's `HKQuantityTypeIdentifier.rawValue` for vitals, `"sleep"` for sleep
+    /// sessions, or `"workout"` for workouts. `identity` is the day key ("yyyy-MM-dd") for vitals or
+    /// the unix-second start timestamp for sleep/workout.
+    public static func appleHealthExternalUUID(kind: String, identity: String) -> String {
+        "noop:\(kind):\(identity)"
+    }
+
+    /// The vitals key: `noop:<metricId>:<day>`.
+    public static func appleHealthVitalKey(metricId: String, day: String) -> String {
+        appleHealthExternalUUID(kind: metricId, identity: day)
+    }
+
+    /// The sleep key: `noop:sleep:<startTs>`.
+    public static func appleHealthSleepKey(startTs: Int) -> String {
+        appleHealthExternalUUID(kind: "sleep", identity: "\(startTs)")
+    }
+
+    /// The workout key: `noop:workout:<startTs>`.
+    public static func appleHealthWorkoutKey(startTs: Int) -> String {
+        appleHealthExternalUUID(kind: "workout", identity: "\(startTs)")
+    }
+
+    // MARK: - #1503 stranded-records sweep completion tracking
+    //
+    // The one-off sweep that clears Apple Health records written under the OLD device-id-keyed
+    // scheme must be PER-TYPE, not a single boolean. A single flag set unconditionally loses the
+    // migration permanently when authorization is partial (sleep granted, workouts declined) or
+    // when a `deleteObjects` call fails — both of which read as "already done" and leave the
+    // stranded records unreachable forever. Per-type tracking lets an install that could not
+    // complete the sweep finish it later, once the missing authorization arrives or the failing
+    // delete succeeds on a retry.
+    //
+    // These pure helpers model the decision so it is unit-testable without HealthKit (HealthKit
+    // itself can't run under `swift test`). The app-target migration (`HealthKitBridge`) loads the
+    // already-swept set from UserDefaults, computes the types to attempt, attempts each delete, and
+    // records only the types whose delete SUCCEEDED back into the swept set.
+
+    /// The type ids that should be attempted this run: authorized for sharing but not yet swept.
+    /// A type that was declined (absent from `authorized`) is never attempted and never marked
+    /// swept, so a later grant still gets swept. A type whose delete failed (not in `swept`) is
+    /// retried on the next write-back run.
+    public static func strandedSweepPending(swept: Set<String>, authorized: Set<String>) -> Set<String> {
+        authorized.subtracting(swept)
+    }
+
+    /// The new swept set after this run: the union of previously swept types and the types whose
+    /// delete SUCCEEDED this run. A type whose delete threw (absent from `succeededThisRun`) is NOT
+    /// marked swept, so it is retried next run rather than silently abandoned.
+    public static func strandedSweepResult(swept: Set<String>, succeededThisRun: Set<String>) -> Set<String> {
+        swept.union(succeededThisRun)
+    }
 }

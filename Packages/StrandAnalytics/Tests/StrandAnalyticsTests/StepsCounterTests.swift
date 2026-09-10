@@ -8,7 +8,9 @@ import WhoopProtocol
 /// the caller's `stepTicksPerStep` calibration). Mirrors the Android StepsCounterTest vectors value-for-value.
 final class StepsCounterTests: XCTestCase {
 
-    private func step(_ ts: Int, _ counter: Int) -> StepSample { StepSample(ts: ts, counter: counter) }
+    private func step(_ ts: Int, _ counter: Int, _ activityClass: Int? = nil) -> StepSample {
+        StepSample(ts: ts, counter: counter, activityClass: activityClass)
+    }
 
     func testSumsPositiveConsecutiveDeltas() {
         // counters 100 -> 150 -> 220 => deltas 50 + 70 = 120
@@ -44,7 +46,32 @@ final class StepsCounterTests: XCTestCase {
 
     func testMaxStepDeltaBoundaryIsExclusive() {
         // Exactly maxStepDelta (512) is dropped; 511 counts.
-        XCTAssertEqual(StepsCounter.stepsInWindow([step(0, 0), step(60, 512)]), nil)   // 512 dropped => no movement
-        XCTAssertEqual(StepsCounter.stepsInWindow([step(0, 0), step(60, 511)]), 511)   // 511 kept
+        XCTAssertEqual(StepsCounter.stepsInWindow([step(0, 0), step(128, 512)]), nil)   // absolute guard
+        XCTAssertEqual(StepsCounter.stepsInWindow([step(0, 0), step(128, 511)]), 511)
+    }
+
+    func testRejectsPhysicallyImpossibleOneSecondSpikeButAllowsSameTicksAcrossTime() {
+        XCTAssertNil(StepsCounter.stepsInWindow([step(0, 100), step(1, 107)]))
+        XCTAssertEqual(StepsCounter.stepsInWindow([step(0, 100), step(2, 107)]), 7)
+        XCTAssertEqual(StepsCounter.stepsInWindow([step(0, 100), step(1, 104)]), 4)
+    }
+
+    func testClassedStreamCountsOnlyWalkAndRunDeltas() {
+        // Attribute each counter delta to the later sample, matching the strap's per-record class.
+        // still: +10 ignored; walk: +20; run: +15; unknown: +25 ignored => 35 locomotion ticks.
+        XCTAssertEqual(StepsCounter.stepsInWindow([
+            step(0, 100, 0),
+            step(10, 110, 0),
+            step(20, 130, 1),
+            step(30, 145, 2),
+            step(40, 170, nil),
+        ]), 35)
+    }
+
+    func testLegacyUnclassedStreamKeepsCounterFallback() {
+        // Rows written before activityClass existed must retain their historical estimate.
+        XCTAssertEqual(StepsCounter.stepsInWindow([
+            step(0, 100), step(10, 140), step(20, 170),
+        ]), 70)
     }
 }

@@ -77,7 +77,10 @@ class SleepStagerTraceTest {
         assertEquals(untraced, traced)
     }
 
-    @Test fun denseNightHasNoSparseBridgeLine() {
+    @Test fun denseNightWithAQualifyingRunHasNoSparseBridgeLine() {
+        // The line follows the bridge being ENABLED, not density: since #1937 a dense night whose runs
+        // are all under minSleepMin enables it too. This night is dense AND its single run clears the
+        // floor, so neither gate opens.
         val start = refMidnight + 2 * 3600
         val dur = 90 * 60
         val lines = ArrayList<String>()

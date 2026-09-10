@@ -1,5 +1,6 @@
 package com.noop.analytics
 
+import com.noop.data.DailyMetric
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -276,4 +277,76 @@ class RecoveryDriversTest {
             rhrBaseline = null, respBaseline = null, sleepPerf = 0.9,
         ))
     }
+
+    @Test fun pass2SkinTempDeviationBeforeRecoveryScoring() {
+        val daily = recoveryDailyFixture()
+        val baselines = ProfileBaselines(
+            hrv = recoveryBaseline(50.0, 6.0), skinTemp = recoveryBaseline(34.5, 0.4),
+        )
+        val withoutSkin = expectedRecovery(daily, baselines, null)
+
+        for ((nightly, deviation) in listOf(34.804 to 0.3, 34.196 to -0.3)) {
+            val result = IntelligenceEngine.recomputeRecoveryDaily(daily, nightly, baselines)
+            val expected = requireNotNull(expectedRecovery(daily, baselines, deviation))
+            assertTrue("Fixture must distinguish a missing temperature term", expected != withoutSkin)
+            assertEquals(expected, result.recovery)
+            assertEquals(deviation, result.skinTempDevC)
+            assertEquals(nightly, result.skinTempC)
+            // Undo only the three intended substitutions; every other daily field must survive.
+            assertEquals(daily, result.copy(
+                recovery = daily.recovery, skinTempDevC = daily.skinTempDevC, skinTempC = daily.skinTempC,
+            ))
+        }
+    }
+
+    @Test fun pass2MissingOrUnusableSkinBaselineClearsStaleDeviation() {
+        val daily = recoveryDailyFixture().copy(recovery = 99.0, skinTempDevC = 9.0, skinTempC = 36.0)
+        val usable = recoveryBaseline(34.5, 0.4)
+        val cases = listOf(
+            null to usable, 34.8 to null,
+            34.8 to recoveryBaseline(34.5, 0.4, BaselineStatus.CALIBRATING),
+            34.8 to recoveryBaseline(34.5, 0.4, BaselineStatus.STALE),
+        )
+        for ((nightly, skinBaseline) in cases) {
+            val baselines = ProfileBaselines(hrv = recoveryBaseline(50.0, 6.0), skinTemp = skinBaseline)
+            val result = IntelligenceEngine.recomputeRecoveryDaily(daily, nightly, baselines)
+            assertNull(result.skinTempDevC)
+            assertEquals(nightly, result.skinTempC)
+            assertEquals(expectedRecovery(daily, baselines, null), result.recovery)
+        }
+    }
+
+    @Test fun pass2SkinTemperatureDoesNotBypassHrvColdStart() {
+        for (hrv in listOf(null, recoveryBaseline(50.0, 6.0, BaselineStatus.CALIBRATING))) {
+            val result = IntelligenceEngine.recomputeRecoveryDaily(
+                recoveryDailyFixture(), 34.8,
+                ProfileBaselines(hrv = hrv, skinTemp = recoveryBaseline(34.5, 0.4)),
+            )
+            assertNull(result.recovery)
+            assertEquals(0.3, result.skinTempDevC)
+        }
+    }
+
+    private fun recoveryBaseline(
+        mean: Double, spread: Double, status: BaselineStatus = BaselineStatus.TRUSTED,
+    ) = BaselineState(
+        baseline = mean, spread = spread, nValid = if (status == BaselineStatus.CALIBRATING) 3 else 14,
+        nightsSinceUpdate = if (status == BaselineStatus.STALE) 15 else 0, status = status,
+    )
+
+    private fun recoveryDailyFixture() = DailyMetric(
+        deviceId = "test-noop", day = "2026-09-09", totalSleepMin = 420.0, efficiency = 0.85,
+        deepMin = 80.0, remMin = 90.0, lightMin = 250.0, disturbances = 2,
+        restingHr = 58, avgHrv = 48.0, recovery = 99.0, strain = 61.0, exerciseCount = 2,
+        spo2Pct = 97.0, skinTempDevC = null, respRateBpm = 15.0, steps = 42, activeKcalEst = 1_840.0,
+        spo2Red = 100, spo2Ir = 200, avgSdnn = 44.0, skinTempC = null, sleepHrOnly = true,
+    )
+
+    private fun expectedRecovery(daily: DailyMetric, baselines: ProfileBaselines, skinDev: Double?) =
+        RecoveryScorer.recovery(
+            hrv = 48.0, rhr = 58.0, resp = 15.0, hrvBaseline = baselines.hrv!!, rhrBaseline = null,
+            respBaseline = null,
+            sleepPerf = RestScorer.restFromDaily(daily)?.let { it / 100.0 } ?: daily.efficiency,
+            skinTempDev = skinDev,
+        )
 }

@@ -1,9 +1,12 @@
 package com.noop.ai
 
 import android.content.Context
+import com.noop.analytics.CoachSuggestions
 import com.noop.analytics.EffectRanker
 import com.noop.analytics.LabMarkerCategory
 import com.noop.analytics.MarkerCatalog
+import com.noop.analytics.SseDeltas
+import com.noop.analytics.SseProvider
 import com.noop.analytics.StressIndex
 import com.noop.data.DailyMetric
 import com.noop.data.JournalEntry
@@ -49,6 +52,10 @@ class AiCoach(
      *  `AICoach.journalEntries()`. Daily metrics, R-R and Lab Book markers read the active strap via
      *  [activeStrapId]. */
     private val deviceId = "my-whoop"
+
+    // K13: cached summary of the dropped middle turns, regenerated when the dropped set changes.
+    @Volatile private var droppedSummary: String? = null
+    @Volatile private var droppedSummaryKey: List<String> = emptyList()
 
     /** The source id native (in-app) journal answers are stored under (matches the UI's
      *  JOURNAL_DEVICE_ID); used for the opt-in on-device-signals context only. */
@@ -127,24 +134,90 @@ class AiCoach(
         // Slide a window over a long conversation so the history can't crowd out the reply on a
         // small local context window (e.g. Ollama's 2048-token default). The first user turn carries
         // the data context, so it is always kept; the middle is dropped, the recent tail retained.
+        // K13: summarize the dropped middle so the model retains context continuity (best-effort).
         val grounded = trimmedHistory(groundedFull, MAX_HISTORY_TURNS)
+        val groundedWithSummary = injectDroppedSummary(grounded, groundedFull)
 
         when (provider) {
             AiProvider.OPENAI ->
-                callOpenAiCompatible(provider, provider.endpoint, model, key, grounded, systemPrompt)
+                callOpenAiCompatible(provider, provider.endpoint, model, key, groundedWithSummary, systemPrompt)
             AiProvider.ANTHROPIC ->
-                callAnthropic(provider, model, key!!, grounded, systemPrompt)
+                callAnthropic(provider, model, key!!, groundedWithSummary, systemPrompt)
             AiProvider.GEMINI ->
-                callGemini(provider, model, key!!, grounded, systemPrompt)
+                callGemini(provider, model, key!!, groundedWithSummary, systemPrompt)
             AiProvider.CUSTOM ->
                 callOpenAiCompatible(
                     provider,
                     customChatUrl(customBaseUrl),
                     model,
                     key,
-                    grounded,
+                    groundedWithSummary,
                     systemPrompt,
                     customAuthHeader,
+                )
+        }
+    }
+
+    /**
+     * K1: Stream the conversation to [provider] using [model], calling [onDelta] for each text
+     * chunk as it arrives. Same context injection, consent gating, and error mapping as [chat];
+     * streaming changes transport, not payload. The concatenated deltas are byte-identical to
+     * what [chat] would return (parity pin in `SseDeltasTest`). Runs on [Dispatchers.IO].
+     *
+     * On error mid-stream, throws — the caller keeps the partial text and appends an interrupted
+     * marker. Never crashes; the ViewModel maps exceptions to a visible error.
+     */
+    suspend fun chatStream(
+        ctx: Context,
+        history: List<ChatMsg>,
+        provider: AiProvider,
+        model: String,
+        consent: Boolean = false,
+        customBaseUrl: String = "",
+        customAuthHeader: CustomAiAuthHeader = CustomAiAuthHeader.BEARER,
+        includeSignals: Boolean = false,
+        onDelta: (String) -> Unit,
+    ): Unit = withContext(Dispatchers.IO) {
+        val key = AiKeyStore.read(ctx, provider)
+        if (key == null && provider != AiProvider.CUSTOM) {
+            throw Exception("No API key set. Add your ${provider.displayName} key to use the coach.")
+        }
+        if (provider == AiProvider.CUSTOM) {
+            require(customBaseUrl.isNotBlank()) { "Set your server URL first." }
+            require(model.isNotBlank()) { "Pick a model your server serves." }
+        }
+
+        require(history.isNotEmpty()) { "Ask a question first." }
+        require(history.last().role == "user") { "The last message must be your question." }
+
+        val groundedFull = if (consent) {
+            val days = runCatching { repo.daysMerged(activeStrapId()) }.getOrDefault(emptyList())
+            val stress = runCatching { stressLineToday() }.getOrNull()
+            val signals = if (includeSignals) runCatching { buildSignalsContext() }.getOrNull() else null
+            val full = buildString {
+                append(buildContext(days))
+                if (!stress.isNullOrBlank()) append("\n\n").append(stress)
+                if (!signals.isNullOrBlank()) append("\n\n").append(signals)
+            }
+            injectContext(history, full)
+        } else {
+            injectContext(history, NO_CONSENT_NOTE)
+        }
+
+        val systemPrompt = resolveSystemPrompt(ctx)
+        val grounded = trimmedHistory(groundedFull, MAX_HISTORY_TURNS)
+        val groundedWithSummary = injectDroppedSummary(grounded, groundedFull)
+
+        when (provider) {
+            AiProvider.OPENAI ->
+                callOpenAiCompatibleStream(provider, provider.endpoint, model, key, groundedWithSummary, systemPrompt, onDelta)
+            AiProvider.ANTHROPIC ->
+                callAnthropicStream(provider, model, key!!, groundedWithSummary, systemPrompt, onDelta)
+            AiProvider.GEMINI ->
+                callGeminiStream(provider, model, key!!, groundedWithSummary, systemPrompt, onDelta)
+            AiProvider.CUSTOM ->
+                callOpenAiCompatibleStream(
+                    provider, customChatUrl(customBaseUrl), model, key, groundedWithSummary, systemPrompt, onDelta, customAuthHeader,
                 )
         }
     }
@@ -219,6 +292,85 @@ class AiCoach(
 
             parseOpenAiCompatibleModels(provider, text)
         }.getOrDefault(emptyList())
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // K5: scheduled morning-brief generation (headless, no chat UI involved)
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * K5: generate today's coaching brief with NO chat transcript involved — used by the scheduled
+     * morning-brief notification ([com.noop.notif.CoachBriefWorker]), which runs headless (no
+     * Activity/ViewModel) and must not touch [CoachViewModel]'s in-memory messages. Non-streaming (a
+     * WorkManager worker has no UI to stream into). Triple-gated: a saved key (or a committed Custom
+     * server), [consent], and the brief instruction shared with the Swift twin. Returns null on any
+     * failure (no key, no consent, network, rate limit, empty reply) — the caller treats null as
+     * "brief unavailable"; never throws.
+     */
+    suspend fun generateBrief(
+        ctx: Context,
+        provider: AiProvider,
+        model: String,
+        consent: Boolean,
+        customBaseUrl: String = "",
+        customAuthHeader: CustomAiAuthHeader = CustomAiAuthHeader.BEARER,
+        includeSignals: Boolean = false,
+    ): String? {
+        if (!consent) return null
+        val key = AiKeyStore.read(ctx, provider)
+        if (key == null && provider != AiProvider.CUSTOM) return null
+        if (provider == AiProvider.CUSTOM && (customBaseUrl.isBlank() || model.isBlank())) return null
+        return runCatching {
+            val history = listOf(ChatMsg(role = "user", text = BRIEF_INSTRUCTION))
+            chat(ctx, history, provider, model, consent, customBaseUrl, customAuthHeader, includeSignals)
+                .trim()
+                .ifBlank { null }
+        }.getOrNull()
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Contextual suggestion chips
+    // ---------------------------------------------------------------------------------------
+
+    /**
+     * Contextual suggestion chips for the composer, derived from today's bands via
+     * [CoachSuggestions]. Reads only on-device `daysMerged` (the same merged read the context
+     * builder uses, so a live strap's scores under "my-whoop-noop" are not missed); pure,
+     * byte-identical to the Swift twin `AICoachEngine.suggestions`. Returns the stable generic
+     * fallback when there is no usable data. Best-effort: a repo failure yields the fallback,
+     * never throws.
+     */
+    suspend fun suggestions(): List<String> = withContext(Dispatchers.IO) {
+        val days = runCatching { repo.daysMerged(activeStrapId()) }.getOrDefault(emptyList())
+        CoachSuggestions.suggestions(days.lastOrNull(), days)
+    }
+
+    // K7: Follow-up suggestion chips shown after each assistant reply. These are generic
+    // conversational follow-ups (not data-derived) so the user can dig deeper without typing.
+    // Byte-identical to the Swift twin's `AICoachEngine.followUpSuggestions`.
+    val followUpSuggestions: List<String> = listOf(
+        "Tell me more about that",
+        "What should I do next?",
+        "How does today compare to this week?",
+        "Give me a specific action plan",
+    )
+
+    // K13: Inject the cached summary of the dropped middle into the first user turn of the
+    // windowed history, so the model sees continuity instead of a gap. Best-effort: when no
+    // summary is cached, returns the windowed list unchanged (the old gap behaviour).
+    private fun injectDroppedSummary(
+        windowed: List<ChatMsg>,
+        full: List<ChatMsg>,
+    ): List<ChatMsg> {
+        val summary = droppedSummary ?: return windowed
+        if (windowed.isEmpty()) return windowed
+        // Only inject when the window actually dropped messages (the full list is longer).
+        if (full.size <= MAX_HISTORY_TURNS + 1) return windowed
+        val firstUserIdx = windowed.indexOfFirst { it.role == "user" }
+        if (firstUserIdx < 0) return windowed
+        val first = windowed[firstUserIdx]
+        val annotated = first.copy(text = "$summary\n\n---\n\n${first.text}")
+        return windowed.toMutableList().also { it[firstUserIdx] = annotated }
     }
 
     // ---------------------------------------------------------------------------------------
@@ -666,6 +818,151 @@ class AiCoach(
     }
 
     // ---------------------------------------------------------------------------------------
+    // K1: Streaming provider calls (SSE via OkHttp BufferedSource)
+    // ---------------------------------------------------------------------------------------
+
+    /** Stream an OpenAI-compatible chat (OpenAI + Custom). Same body as [callOpenAiCompatible]'s
+     *  standard-params path, with `stream: true`. SSE parsed via [SseDeltas.openAiDelta]. */
+    private fun callOpenAiCompatibleStream(
+        provider: AiProvider,
+        url: String,
+        model: String,
+        key: String?,
+        history: List<ChatMsg>,
+        systemPrompt: String,
+        onDelta: (String) -> Unit,
+        customAuthHeader: CustomAiAuthHeader = CustomAiAuthHeader.BEARER,
+    ) {
+        val messages = JSONArray()
+        messages.put(JSONObject().put("role", "system").put("content", systemPrompt))
+        for (m in history) messages.put(JSONObject().put("role", m.role).put("content", m.text))
+
+        val body = JSONObject()
+            .put("model", model)
+            .put("messages", messages)
+            .put("temperature", 0.6)
+            .put("max_tokens", 4096)
+            .put("stream", true)
+            .toString()
+
+        val builder = Request.Builder().url(url).addHeader("Content-Type", "application/json")
+            .post(body.toRequestBody(JSON))
+        when (provider) {
+            AiProvider.CUSTOM -> applyCustomAuthHeader(builder, key, customAuthHeader)
+            else -> if (!key.isNullOrBlank()) builder.addHeader("Authorization", "Bearer $key")
+        }
+        executeStreaming(builder.build(), provider, onDelta) { payload -> SseDeltas.openAiDelta(payload) }
+    }
+
+    /** Stream an Anthropic chat. Same body as [callAnthropic], with `stream: true`. SSE parsed
+     *  via [SseDeltas.anthropicDelta]. */
+    private fun callAnthropicStream(
+        provider: AiProvider,
+        model: String,
+        key: String,
+        history: List<ChatMsg>,
+        systemPrompt: String,
+        onDelta: (String) -> Unit,
+    ) {
+        val messages = JSONArray()
+        for (m in history) messages.put(JSONObject().put("role", m.role).put("content", m.text))
+
+        val body = JSONObject()
+            .put("model", model)
+            .put("max_tokens", 4096)
+            .put("system", systemPrompt)
+            .put("messages", messages)
+            .put("stream", true)
+            .toString()
+
+        val request = Request.Builder().url(provider.endpoint)
+            .addHeader("x-api-key", key)
+            .addHeader("anthropic-version", "2023-06-01")
+            .addHeader("content-type", "application/json")
+            .post(body.toRequestBody(JSON))
+            .build()
+
+        executeStreaming(request, provider, onDelta) { payload -> SseDeltas.anthropicDelta(payload) }
+    }
+
+    /** Stream a Gemini chat via `:streamGenerateContent?alt=sse`. Same body as [callGemini].
+     *  SSE parsed via [SseDeltas.geminiDelta]. */
+    private fun callGeminiStream(
+        provider: AiProvider,
+        model: String,
+        key: String,
+        history: List<ChatMsg>,
+        systemPrompt: String,
+        onDelta: (String) -> Unit,
+    ) {
+        val contents = JSONArray()
+        for (m in history) {
+            contents.put(
+                JSONObject()
+                    .put("role", if (m.role == "assistant") "model" else "user")
+                    .put("parts", JSONArray().put(JSONObject().put("text", m.text))),
+            )
+        }
+
+        val body = JSONObject()
+            .put("system_instruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", systemPrompt))))
+            .put("contents", contents)
+            .put("generationConfig", JSONObject().put("temperature", 0.6).put("maxOutputTokens", 4096))
+            .toString()
+
+        val request = Request.Builder()
+            .url("${provider.endpoint}/$model:streamGenerateContent?alt=sse")
+            .addHeader("x-goog-api-key", key)
+            .addHeader("content-type", "application/json")
+            .post(body.toRequestBody(JSON))
+            .build()
+
+        executeStreaming(request, provider, onDelta) { payload -> SseDeltas.geminiDelta(payload) }
+    }
+
+    /** Execute a streaming SSE request, reading the body line-by-line. For each `data:` payload
+     *  line, calls [extractDelta] to get the text chunk and passes it to [onDelta]. Same HTTP
+     *  error mapping as [execute]. K1. */
+    private fun executeStreaming(
+        request: Request,
+        provider: AiProvider,
+        onDelta: (String) -> Unit,
+        extractDelta: (String) -> String?,
+    ) {
+        try {
+            http.newCall(request).execute().use { resp ->
+                if (resp.code !in 200..299) {
+                    val body = resp.body?.string().orEmpty()
+                    throw httpError(provider, resp.code, body)
+                }
+                val source = resp.body?.source()
+                    ?: throw Exception("The provider returned an empty streaming response.")
+                while (!source.exhausted()) {
+                    val line = source.readUtf8Line() ?: break
+                    val payload = SseDeltas.dataPayload(fromLine = line) ?: continue
+                    val delta = extractDelta(payload) ?: continue
+                    onDelta(delta)
+                }
+            }
+        } catch (e: java.net.UnknownHostException) {
+            throw Exception("No internet connection. The coach needs a connection to reach the provider.")
+        } catch (e: java.net.SocketTimeoutException) {
+            throw Exception("The request timed out. Please check your connection and try again.")
+        } catch (e: javax.net.ssl.SSLException) {
+            throw Exception("A secure connection to the provider could not be established.")
+        } catch (e: java.io.IOException) {
+            val msg = e.message.orEmpty()
+            if (msg.contains("Cleartext", ignoreCase = true) && msg.contains("not permitted", ignoreCase = true)) {
+                throw Exception(
+                    "Plain http:// is blocked for that host. Use localhost, 127.0.0.1, 10.0.2.2, " +
+                        "a .local hostname, or switch the server to https://."
+                )
+            }
+            throw Exception(msg.ifBlank { "A network error occurred while streaming the reply." })
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------
     // HTTP / error plumbing
     // ---------------------------------------------------------------------------------------
 
@@ -957,6 +1254,16 @@ class AiCoach(
         const val NO_CONSENT_NOTE =
             "NOTE: The user has not granted access to their biometric data. Coach generally and " +
                 "encourage them to enable \"Let the coach use my data\" for tailored guidance."
+
+        /**
+         * K5: the brief instruction shared by [generateBrief] (headless, scheduled) — byte-identical to
+         * the Swift twin's `AICoachEngine.briefInstruction` so a brief reads the same on both platforms.
+         */
+        const val BRIEF_INSTRUCTION =
+            "Based on the data above, give me TODAY'S coaching brief in three short parts: " +
+                "(1) my readiness in one line, citing charge, HRV and rest; " +
+                "(2) exactly what training to do today and what to avoid; " +
+                "(3) one specific thing to improve my charge. Be punchy and motivating."
 
         /**
          * The system prompt actually sent: the user's edited override from [NoopPrefs] when it is

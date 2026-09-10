@@ -515,6 +515,32 @@ def android_strings_xml_gaps(read: Reader | None = None) -> dict[str, set[str]]:
     return gaps
 
 
+ANDROID_STRING_PATTERN = re.compile(r'<string name="([^"]+)"[^>]*>(.*?)</string>', re.S)
+
+
+def android_edge_whitespace() -> dict[str, list[str]]:
+    """Resource keys whose value starts or ends in whitespace, per locale directory.
+
+    AAPT2 trims leading and trailing whitespace from an unquoted string resource, so that
+    whitespace never reaches the device. Copy that leans on it renders two words run together
+    (the caption that read "scoredagainst your own calm hours today"). A resource that really
+    does need an edge space has to be wrapped in double quotes, which this check honours; the
+    reliable fix for a split sentence is to keep the joining space in the code instead.
+    """
+    out: dict[str, list[str]] = {}
+    for path in sorted((ROOT / "android/app/src/main/res").glob("values*/strings.xml")):
+        offenders = [
+            key
+            for key, value in (
+                (m.group(1), m.group(2)) for m in ANDROID_STRING_PATTERN.finditer(path.read_text(encoding="utf-8"))
+            )
+            if value != value.strip() and not value.strip().startswith('"')
+        ]
+        if offenders:
+            out[path.parent.name] = offenders
+    return out
+
+
 ANDROID_FORMAT_PATTERN = re.compile(r"%[1-9]\d*\$[-+0 #,(]*\d*(?:\.\d+)?([sdif])")
 
 
@@ -941,13 +967,33 @@ ECHO_BASELINE_PATH = ROOT / "Tools/i18n_echo_baseline.txt"
 FORMAT_SPECIFIER_PATTERN = re.compile(r"%(?:\d+\$)?[@#0\-+ ]*[\d.]*(?:ll|l|h)?[@dfsu]|%%")
 
 
+# Multi-word product names that travel verbatim into Latin-script locales. The two-word floor below
+# already lets a ONE-word brand through ("HRV", "Strava"); it cannot see a two-word one, so "iCloud
+# Drive" repeated verbatim in German reads as an untranslated echo when it is the correct rendering.
+# Only strings that are ENTIRELY brand are exempted (see `_is_pure_brand_phrase`), so "Apple Health
+# sync" stays gated on its translatable word. CJK locales that DO translate these are unaffected —
+# they differ from the source, so they were never counted as echoes in the first place.
+BRAND_PHRASES = ("iCloud Drive",)
+
+
+def _is_pure_brand_phrase(text: str) -> bool:
+    """Whether a string is nothing but brand names, placeholders and punctuation."""
+    stripped = FORMAT_SPECIFIER_PATTERN.sub(" ", text)
+    for brand in BRAND_PHRASES:
+        stripped = stripped.replace(brand, " ")
+    return not re.search(r"[^\W\d_]{2,}", stripped, flags=re.UNICODE)
+
+
 def _has_translatable_words(text: str) -> bool:
     """Whether a string carries enough real words that an identical translation is suspicious.
 
     Strips format specifiers first: "%@ · n = %lld" / "%1$s: %2$s" are placeholders and punctuation
     with nothing to translate, so a locale repeating them verbatim is CORRECT, not a gap. Two words is
     the floor — one word is very often a term that legitimately travels ("HRV", "Yoga", a brand name).
+    A string that is entirely a multi-word brand is the same case one size up (see [BRAND_PHRASES]).
     """
+    if _is_pure_brand_phrase(text):
+        return False
     stripped = FORMAT_SPECIFIER_PATTERN.sub(" ", text)
     return len(re.findall(r"[^\W\d_]{2,}", stripped, flags=re.UNICODE)) >= 2
 
@@ -1194,6 +1240,15 @@ def ci_check(base_ref: str) -> int:
             locale_dir = ANDROID_LOCALE_DIRS[lang]
             print(f"FAIL {locale_dir}/strings.xml has {len(new_fmt)} new format mismatch(es): {new_fmt[:30]}")
 
+    edge = android_edge_whitespace()
+    if edge:
+        failed = True
+        for locale_dir, keys in edge.items():
+            print(f"FAIL {locale_dir}/strings.xml has {len(keys)} string(s) whose edge whitespace "
+                  f"AAPT2 strips: {sorted(keys)[:30]}")
+    else:
+        print("  OK no string resource leans on edge whitespace")
+
     print(f"\n--- Apple: no new un-extracted UI copy or focus-locale gaps vs {base_ref} ---")
     cur_ios, _cur_ios_lang_gaps = scan_ios()
     ios_found = {(p, lit) for p, _line, lit in cur_ios}
@@ -1373,6 +1428,16 @@ def main() -> int:
                 print(f"  {rel}:{line_no}: {literal!r}")
             if len(findings) > 25:
                 print(f"  ... and {len(findings) - 25} more (use --full)")
+
+        print("\n=== Android: string resources leaning on stripped edge whitespace ===")
+        edge = android_edge_whitespace()
+        if not edge:
+            print("  none")
+        for locale_dir, keys in edge.items():
+            print(f"  {locale_dir}: {len(keys)} string(s)")
+            if args.full:
+                for k in sorted(keys):
+                    print(f"    {k}")
 
         print("\n=== Android: values-<locale>/strings.xml key gaps ===")
         gaps = android_strings_xml_gaps()

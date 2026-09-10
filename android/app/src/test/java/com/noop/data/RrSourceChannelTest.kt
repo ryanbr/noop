@@ -164,7 +164,7 @@ class RrSourceChannelTest {
      */
     @Test
     fun theTwoChannelEnumsAgreeCaseForCaseAndCodeForCode() {
-        assertEquals(OuraIbiChannel.entries.size, RrSourceChannel.entries.size)
+        assertEquals(OuraIbiChannel.entries.size, RrSourceChannel.entries.count { !it.isWhoop5Transport })
         for (c in OuraIbiChannel.entries) {
             assertEquals(
                 "$c must map to the SAME durable storage code on both sides",
@@ -290,6 +290,7 @@ class RrSourceChannelTest {
         val annotationStart = src.lastIndexOf("@Query(", decl)
         assertTrue("no @Query above rrIntervals", annotationStart > 0)
         val block = src.substring(annotationStart, decl)
+        if (block.contains("@Query(RR_INTERVALS_SQL)")) return RR_INTERVALS_SQL
         return Regex("\"([^\"]*)\"").findAll(block).joinToString("") { it.groupValues[1] }
     }
 }

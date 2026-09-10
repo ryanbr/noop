@@ -75,6 +75,7 @@ final class BackupSyncRoundTripTests: XCTestCase {
             "profile.heightCm": 168.0,
             "profile.hrMax": 191,
             "units.system": "imperial",
+            "units.distance": "metric",
         ])
 
         // Restore into a throwaway DB path AND a suite-scoped defaults (never the runner's real domain).
@@ -93,6 +94,7 @@ final class BackupSyncRoundTripTests: XCTestCase {
         XCTAssertEqual(defaults.object(forKey: "profile.hrMaxOverride") as? Int, 191,
                        "Canonical profile.hrMax lands on ProfileStore's profile.hrMaxOverride key")
         XCTAssertEqual(defaults.string(forKey: "units.system"), "imperial")
+        XCTAssertEqual(defaults.string(forKey: "units.distance"), "metric")
     }
 
     func testLegacySingleEntryZipStillRestoresAndAppliesNoSettings() throws {

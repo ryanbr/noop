@@ -1,5 +1,6 @@
 package com.noop.ui
 
+import com.noop.analytics.Baselines
 import com.noop.data.Vo2MaxEstimator
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -34,6 +35,131 @@ internal const val SPO2_CANDIDATE_ATTRIBUTION_SOURCE = "spo2-candidate-estimate"
  *  the method implied by today's profile because the waist measurement may have changed after scoring. */
 internal fun vo2MaxAttributionSource(estimator: Vo2MaxEstimator?): String =
     VO2_MAX_ATTRIBUTION_PREFIX + (estimator?.provenanceId ?: "unknown")
+
+/**
+ * The y-domain a metric should be drawn against, or null to scale to the data.
+ *
+ * Auto-scaling makes a calm metric look exactly as violent as a wild one: Rest moving 46..93 on a 0..100
+ * scale fills the same full height as Effort moving 0..42, and one low day rewrites the whole shape. For a
+ * metric whose natural range IS its interesting range, anchoring is what makes the height mean something.
+ *
+ * Deliberately a small allow-list rather than "percentages get 0..100". Blood oxygen is a percentage whose
+ * real movement lives in 90..100, so anchoring it to the nominal range would flatten the signal into a line
+ * at the top: strictly worse than auto-scaling. Resting HR, HRV and skin temperature have no fixed range at
+ * all.
+ *
+ * Effort is 0..100 here whatever the user's display scale says. The readings store the RAW 0-100 composite
+ * and only `format()` converts to the 0..21 reading, so the chart plots the stored value. Taking the domain
+ * from the display scale would have squashed every Effort chart on a WHOOP-scale install into the bottom
+ * fifth of its height.
+ */
+internal fun vitalChartYDomain(key: String): ClosedFloatingPointRange<Double>? =
+    when (key) {
+        // "rest", NOT "sleep_performance": that is the SERIES name this detail reads underneath, and it is
+        // never a detail key on Android. Writing the series name here compiled, passed a test asserting it,
+        // and left the Rest chart auto-scaling exactly as before.
+        // A ZERO-WIDTH domain at 0, not 0..100. The chart widens a domain to contain the data, so this
+        // pins the FLOOR at zero while the ceiling follows the readings.
+        //
+        // Anchoring at 100 was the first attempt and it overcorrected: Effort peaks in the low forties, so
+        // the top ~58% of the chart sat permanently empty, and Rest at 46..93 wasted the bottom half. A
+        // zero floor keeps what actually mattered, that heights stay comparable and a 0.0 day reads as the
+        // floor rather than as the middle, without spending most of the height on range nobody reaches.
+        "recovery", "rest", "strain" -> 0.0..0.0
+        else -> null
+    }
+
+/**
+ * Per-reading epoch seconds from the day keys, or null when any day fails to parse.
+ *
+ * All-or-nothing on purpose: a partially-parsed list would position some points by time and the rest by a
+ * fallback, which is a worse lie than either rule applied consistently. Returning null makes the chart use
+ * index spacing, exactly as before.
+ */
+internal fun dayEpochSeconds(readings: List<VitalReading>): List<Long>? {
+    val out = ArrayList<Long>(readings.size)
+    for (r in readings) {
+        val day = runCatching { java.time.LocalDate.parse(r.day) }.getOrNull() ?: return null
+        out += day.toEpochDay() * 86_400L
+    }
+    return out
+}
+
+/**
+ * The personal baseline to annotate a vital chart with, or null when there is not one worth drawing.
+ *
+ * HRV and resting HR only. Both are LEVELS whose absolute number means little without the reader's own
+ * normal: "HRV 42" says nothing on its own, while "42, and your baseline is 54" says the thing they came
+ * to find out. The daily scores need no such reference, since 0..100 and 0..21 are already interpretable,
+ * and skin temperature already offers a signed deviation view of its own.
+ *
+ * The SAME fold the vitals grid bands against ([VitalBands.band] calls `Baselines.foldHistory` with this
+ * cfg), so a reading the grid calls out of range cannot sit on the right side of the rule on the chart
+ * next to it. One definition of "your normal" or the two surfaces will disagree in front of the reader.
+ *
+ * Null unless the state is TRUSTED, which is at least fourteen valid nights and not stale. A rule drawn
+ * from four nights would be a guess wearing the authority of a reference line, and the calibrating case
+ * is exactly when a reader is most likely to over-read it. Values arrive oldest to newest, which is what
+ * the EWMA fold expects, and what `ORDER BY day ASC` gives.
+ */
+internal fun vitalBaseline(key: String, readings: List<VitalReading>): Double? {
+    val cfgKey = when (key) {
+        "hrv" -> "hrv"
+        "rhr" -> "resting_hr"
+        else -> return null
+    }
+    val cfg = Baselines.metricCfg[cfgKey] ?: return null
+    val state = Baselines.foldHistory(readings.map { it.value }, cfg)
+    return if (state.trusted) state.baseline else null
+}
+
+/**
+ * Whether this screen draws BARS rather than a line: the user's chart-style setting, and nothing else.
+ *
+ * #2011 chose bars per METRIC instead, forcing them for the daily scores because a line asserts continuity
+ * between points and a daily score never travelled between its readings. The reasoning holds, but the rule
+ * did not: this screen had never consulted the setting at all, so the override made a chosen `LINE` draw
+ * bars anyway. It also left the inverse broken in the other direction, where a chosen `BAR` still got lines
+ * here for every metric outside those three.
+ *
+ * The setting is the setting. Trends already applies it to every metric ([TrendsScreen] reads the same
+ * preference), so a detail chart reached from a Today ring now agrees with the trend chart for the same
+ * metric rather than contradicting it.
+ *
+ * That leaves #2011's argument attached to the DEFAULT rather than to an override, which is where it can be
+ * acted on visibly: if bars really are the honest shape for a daily score, the default belongs on bars, in
+ * the picker, where the setting and the chart say the same thing. Overriding a user silently is not the
+ * same claim and should not be made on its behalf.
+ */
+internal fun vitalChartIsBars(style: TrendChartStyle): Boolean = style == TrendChartStyle.BAR
+
+/**
+ * One slot per DAY across the window, rather than one per reading.
+ *
+ * Bars are laid out evenly across their slots, so giving every day a slot is what positions them by date:
+ * a missing day becomes an empty slot of the right width, with no separate spacing machinery. Days with no
+ * reading carry NaN, which the bar chart already treats as nothing to draw.
+ *
+ * Returns null when a day key fails to parse, so the caller falls back to the per-reading form rather than
+ * silently dropping readings into the wrong slots.
+ */
+internal fun densifyByDay(readings: List<VitalReading>): List<Pair<String, Double>>? {
+    if (readings.isEmpty()) return emptyList()
+    val byDay = LinkedHashMap<java.time.LocalDate, Double>()
+    for (r in readings) {
+        val day = runCatching { java.time.LocalDate.parse(r.day) }.getOrNull() ?: return null
+        byDay[day] = r.value
+    }
+    val first = byDay.keys.min()
+    val last = byDay.keys.max()
+    val out = ArrayList<Pair<String, Double>>()
+    var day = first
+    while (!day.isAfter(last)) {
+        out += day.toString() to (byDay[day] ?: Double.NaN)
+        day = day.plusDays(1)
+    }
+    return out
+}
 
 /** Sequential ids for a method-aware trend. Nes → Uth → Nes becomes three segments rather than joining
  *  the non-adjacent Nes runs across an incompatible estimator. */

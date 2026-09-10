@@ -164,7 +164,9 @@ struct RawHistoryArchive {
         // Build the new JSONL lines (each newline-terminated). The version that drives floor-aware
         // retention (#344) is re-derived per line from the stored frame inside `evictLines`.
         let newLines: [String] = frames.map { f in
-            let hex = f.map { String(format: "%02x", $0) }.joined()
+            // Fast encoder: one line per REJECTED frame, which on an unmapped-layout strap is every
+            // frame of every chunk.
+            let hex = f.hexLower
             // Hand-built JSON: the only dynamic field is hex (always [0-9a-f]) so no escaping is
             // needed, and this avoids a JSONEncoder allocation per frame on the offload hot path.
             return "{\"capturedAtMs\":\(capturedAtMs),\"trim\":\(Int(trim)),"

@@ -69,6 +69,9 @@ internal fun recoveryChargeDrivers(
     val ordered = days.sortedBy { it.day }
     val hrvBase = Baselines.foldHistory(ordered.map { it.avgHrv }, Baselines.hrvCfg)
     if (!hrvBase.usable) return emptyList()
+    // Passed on ungated, unlike respBase below, and that is deliberate since #1988: chargeDrivers
+    // gates this one itself, for its score AND for the row it builds from the baseline directly.
+    // Gating again here would be harmless but would suggest the callee does not, which it does.
     val rhrBase = Baselines.foldHistory(ordered.map { it.restingHr?.toDouble() }, Baselines.restingHRCfg)
     val respBase = Baselines.foldHistory(ordered.map { it.respRateBpm }, Baselines.respCfg).takeIf { it.usable }
 
@@ -285,6 +288,36 @@ internal fun scoreStateForToday(
     // "Latest sleep" so a weeks-old import is never passed off as "Last night".
     carriedDay != null -> ScoreState.CarriedLastNight(lastChargeDateLabel(carriedDay.day), isCarryStale(carriedDay.day, today))
     else -> ScoreState.NeedsStrap
+}
+
+/**
+ * #1164/#2012 — should today's Rest be MARKED provisional? When the strap has banked records not yet
+ * offloaded, the Rest score is computed from partial data and may change once the full night lands and
+ * `analyzeRecent` re-scores it. Saying so reads honestly instead of as a bug when the number moves.
+ *
+ * True means "caption it as pending", NOT "hide it". #2012: the number used to be withheld on both
+ * surfaces while this was true, so a user whose night was scored saw nothing for as long as the strap
+ * had anything left to send, which on a continuously banking strap is most of the day. A number that
+ * may still move is not the same as no number, and it is the one the screen exists to show.
+ *
+ * Two honest signals, either of which means more data is expected:
+ * - [backfilling]: an offload is actively running right now (data is draining).
+ * - [historyPendingSync]: the strap reports banked records newer than our local frontier (the strap has
+ *   data we haven't ingested yet, even when no offload is running — e.g. right after connect, before
+ *   the first offload starts).
+ *
+ * Only applies to TODAY (a past day's score is final — no more data is coming for it) and only when a
+ * Rest score EXISTS (pending annotates a score; it never fabricates one where there is none). Pure +
+ * unit-tested. Mirror EXACTLY of Swift `TodayView.restPendingSync`.
+ */
+internal fun restPendingSync(
+    restScore: Double?,
+    backfilling: Boolean,
+    historyPendingSync: Boolean,
+    isTodaySelected: Boolean,
+): Boolean {
+    if (!isTodaySelected || restScore == null) return false
+    return backfilling || historyPendingSync
 }
 
 /**

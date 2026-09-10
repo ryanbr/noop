@@ -72,4 +72,43 @@ final class TodayVitalCardTests: XCTestCase {
         let days = [day("2026-08-13", resp: 15.0)]
         XCTAssertNil(Repository.lastRespDay(days: days, todayKey: "2026-08-13"))
     }
+
+    // MARK: Steps calibration caption (#1816)
+
+    /// With no coefficient and no motion, the caption must say "No motion synced yet" — NOT the
+    /// phone-step-days countdown, because the motion half is the blocker and no number of phone-step
+    /// days will move the estimate or the fit. The old caption sent a field reporter to enter Apple
+    /// Health steps by hand expecting calibration to start, which it cannot without strap motion.
+    func testStepsCaptionNoMotionSaysNoMotionNotPhoneDays() {
+        let caption = TodayView.stepsCalibrationCaption(coefficient: 0, manualCoefficient: 0,
+                                                        hasBankedMotion: false, sampleDays: 0)
+        XCTAssertEqual(caption, "No motion synced yet")
+    }
+
+    /// With no coefficient but motion HAS been banked, the caption returns the engine's
+    /// needsMoreDays headline — the phone half is genuinely the missing half now.
+    func testStepsCaptionWithMotionReturnsPhoneDaysCountdown() {
+        let caption = TodayView.stepsCalibrationCaption(coefficient: 0, manualCoefficient: 0,
+                                                        hasBankedMotion: true, sampleDays: 0)
+        XCTAssertNotNil(caption)
+        XCTAssertNotEqual(caption, "No motion synced yet",
+                          "with motion banked, the phone-step-days countdown is the honest message")
+    }
+
+    /// Once a coefficient exists (auto or manual), the caption is nil — a blank day is just a quiet
+    /// one below the motion floor, not a missing input, and there is nothing for the user to go do.
+    func testStepsCaptionNilOnceCalibrated() {
+        XCTAssertNil(TodayView.stepsCalibrationCaption(coefficient: 1.5, manualCoefficient: 0,
+                                                       hasBankedMotion: false, sampleDays: 3))
+        XCTAssertNil(TodayView.stepsCalibrationCaption(coefficient: 0, manualCoefficient: 2.0,
+                                                       hasBankedMotion: false, sampleDays: 0))
+    }
+
+    /// The no-motion message takes precedence over the phone-step-days countdown even when some
+    /// sample days have been recorded, because the motion half is still the blocker.
+    func testStepsCaptionNoMotionPrecedenceOverSampleDays() {
+        let caption = TodayView.stepsCalibrationCaption(coefficient: 0, manualCoefficient: 0,
+                                                        hasBankedMotion: false, sampleDays: 2)
+        XCTAssertEqual(caption, "No motion synced yet")
+    }
 }

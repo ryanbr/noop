@@ -94,12 +94,20 @@ class BondRefusalGiveUp(
          * write is not evidence the strap is held by the official app, and the epitaph that asserts that is
          * reserved for an actual auth refusal. Says what was observed and what the user still gets.
          *
+         * #1635 follow-up: it used to end "Tap Connect to try the handshake again", which framed a strap
+         * that REFUSES pairing as a retryable failure. A field report read all of this and still asked how
+         * to fix it, so the ending now leads with pairing mode (reported once on #1635, hedged) and keeps
+         * Connect as the follow-up. It also no longer claims HRV and resting heart rate are unavailable:
+         * since #1884 an HR-only night reports both.
+         *
          * Pure; no em-dash. Byte-identical to the Swift `BondRefusalGiveUp.helloSuppressedHint`.
          */
         fun helloSuppressedHint(): String =
-            "The secure handshake with your strap never completes, and the attempt itself is what drops " +
-                "the link. NOOP has switched it off for this strap so live heart rate keeps streaming. " +
-                "History sync stays unavailable until it pairs. Tap Connect to try the handshake again."
+            "The secure handshake with your strap never completes, and the attempt itself is what drops t" +
+            "he link. NOOP has switched it off for this strap so live heart rate keeps streaming. History" +
+            " sync stays unavailable until it pairs, and so do motion, skin temperature, SpO₂ and respira" +
+            "tory rate, so sleep is staged from heart rate alone. Some straps have paired again after bei" +
+            "ng put in pairing mode. Tap until the LEDs flash blue, then tap Connect."
 
         /**
          * #1635: the log epitaph for the suppression path.
@@ -133,6 +141,70 @@ class BondRefusalGiveUp(
                 "strap does not answer, and the link drops a few seconds later. Auto-reconnect is paused " +
                 "so it stops draining both batteries. Tap Connect to try again, and if it keeps happening " +
                 "please share your strap log."
+
+        /**
+         * #1997: the three inputs the guide choice turns on, logged at the pause.
+         *
+         * The held-link branch is now deliberately conservative: it fires only when the OS itself reports
+         * the connection still held. Nothing in the field log that prompted it actually shows that signal
+         * on the silent links, because those took the give-up path, which prints no ACL marker. So the
+         * branch may be right and may simply never fire, and without this line the next log would not say
+         * which.
+         *
+         * The counters ship rather than just the behaviour, for the same reason the windowed-read ones do.
+         *
+         * [held] is PASSED IN rather than re-derived here. Restating `heldLinkWithoutTraffic`'s rule in a
+         * second file would let the line report a verdict the code did not reach the moment either copy
+         * changed. The caller evaluates the predicate once and hands the answer to both this and the guide,
+         * so all three cannot disagree.
+         */
+        fun heldLinkDiagLine(aclHeld: Boolean, inboundFrames: Int, held: Boolean): String =
+            "held-link check: aclHeld=$aclHeld inbound=$inboundFrames -> ${if (held) "held" else "not held"}"
+
+        /**
+         * #1997: which reconnect guide the never-bonded pause should show.
+         *
+         * Pure so the SELECTION is pinned and not just the two texts. Testing a predicate and a string
+         * separately proves neither is wired to the other, and an inline `if` in a BLE callback cannot be
+         * reached from a JVM test at all. Same shape as the other decisions in this file.
+         */
+        fun reconnectGuideFor(heldLink: Boolean): String =
+            if (heldLink) heldLinkGuide() else stalePairingGuide()
+
+        /**
+         * The long-standing guide: a stale pairing, or the official app holding the strap. Correct advice
+         * when the strap really is refusing, and the default whenever there is no evidence of a held link.
+         */
+        fun stalePairingGuide(): String =
+            """
+            Your strap connects but never finishes pairing with NOOP, so it drops and retries in a loop. This is almost always a stale Bluetooth pairing, usually after a WHOOP firmware update, or the official WHOOP app holding the strap. NOOP works fine once it's re-paired:
+
+            1. Quit the official WHOOP app (or turn off Bluetooth on that phone).
+            2. Open Settings → Bluetooth, find your WHOOP, and Forget / Unpair it.
+            3. Tap the band repeatedly until its LEDs flash blue (pairing mode).
+            4. Come back here and tap Connect.
+            """.trimIndent()
+
+        /**
+         * #1997: the reconnect GUIDE for a held link, replacing the re-pair steps for this state only.
+         *
+         * The re-pair guide's four steps are the right advice when a stale pairing is the cause. They are
+         * actively harmful here: nothing was exchanged for the strap to refuse, so forgetting the pairing
+         * and re-pairing changes nothing, and the reporter was doing it several times a day.
+         *
+         * Auto-reconnect still pauses, which is what stops both batteries draining on a retry loop. Only
+         * the explanation and the actions change.
+         */
+        fun heldLinkGuide(): String =
+            """
+            Your phone is still holding a Bluetooth connection to your strap, and your strap is not
+            answering on it: the connection size negotiation is refused and no data arrives. Re-pairing
+            will not change this, so it is not worth doing.
+
+            1. Turn Bluetooth off and back on. That releases the held connection.
+            2. If you have the official WHOOP app installed, quit it too. A strap talks to one phone at a time.
+            3. Come back here and tap Connect.
+            """.trimIndent()
 
         /**
          * #750: a short OPAQUE token for the epitaph, derived from the strap's device id.

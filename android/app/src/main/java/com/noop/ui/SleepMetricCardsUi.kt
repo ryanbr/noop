@@ -72,7 +72,7 @@ private fun MetricGrid(m: SleepModel, onMetricClick: (String) -> Unit = {}) {
             SparkTile(
                 mod, "Rest",
                 value = pctValue(m.performance.latest),
-                caption = vsTypical(m.performance.latest, m.performance.typical, "%"),
+                caption = tileCaption(m.performance.latestDay, m.performance.latest, m.performance.typical, "%"),
                 accent = m.performance.latest?.let { Palette.recoveryColor(it) } ?: Palette.textPrimary,
                 spark = m.performance.series, sparkColor = Palette.restColor,
                 onClick = { onMetricClick("performance") },
@@ -82,7 +82,7 @@ private fun MetricGrid(m: SleepModel, onMetricClick: (String) -> Unit = {}) {
             SparkTile(
                 mod, "Efficiency",
                 value = pctValue(m.efficiency.latest),
-                caption = vsTypical(m.efficiency.latest, m.efficiency.typical, "%"),
+                caption = tileCaption(m.efficiency.latestDay, m.efficiency.latest, m.efficiency.typical, "%"),
                 accent = Palette.statusPositive,
                 spark = m.efficiency.series, sparkColor = Palette.statusPositive,
                 onClick = { onMetricClick("efficiency") },
@@ -92,7 +92,7 @@ private fun MetricGrid(m: SleepModel, onMetricClick: (String) -> Unit = {}) {
             SparkTile(
                 mod, "Consistency",
                 value = pctValue(m.consistency.latest),
-                caption = vsTypical(m.consistency.latest, m.consistency.typical, "%"),
+                caption = tileCaption(m.consistency.latestDay, m.consistency.latest, m.consistency.typical, "%"),
                 accent = m.consistency.latest?.let { Palette.recoveryColor(it) } ?: Palette.textPrimary,
                 spark = m.consistency.series, sparkColor = Palette.metricCyan,
                 onClick = { onMetricClick("consistency") },
@@ -102,7 +102,7 @@ private fun MetricGrid(m: SleepModel, onMetricClick: (String) -> Unit = {}) {
             SparkTile(
                 mod, "Hours vs Needed",
                 value = pctValue(m.hoursVsNeeded.latest),
-                caption = vsTypical(m.hoursVsNeeded.latest, m.hoursVsNeeded.typical, "%"),
+                caption = tileCaption(m.hoursVsNeeded.latestDay, m.hoursVsNeeded.latest, m.hoursVsNeeded.typical, "%"),
                 accent = m.hoursVsNeeded.latest?.let { Palette.recoveryColor(minOf(100.0, it)) } ?: Palette.textPrimary,
                 spark = m.hoursVsNeeded.series, sparkColor = Palette.restColor,
                 onClick = { onMetricClick("hours_vs_needed") },
@@ -112,7 +112,7 @@ private fun MetricGrid(m: SleepModel, onMetricClick: (String) -> Unit = {}) {
             SparkTile(
                 mod, "Restorative",
                 value = pctValue(m.restorative.latest),
-                caption = vsTypical(m.restorative.latest, m.restorative.typical, "%"),
+                caption = tileCaption(m.restorative.latestDay, m.restorative.latest, m.restorative.typical, "%"),
                 accent = Palette.sleepREM,
                 spark = m.restorative.series, sparkColor = Palette.sleepREM,
                 onClick = { onMetricClick("restorative") },
@@ -122,7 +122,7 @@ private fun MetricGrid(m: SleepModel, onMetricClick: (String) -> Unit = {}) {
             SparkTile(
                 mod, "Respiratory",
                 value = m.respiratory.latest?.let { String.format(Locale.US, "%.1f", it) } ?: "—",
-                caption = vsTypical(m.respiratory.latest, m.respiratory.typical, " rpm", decimals = 1),
+                caption = tileCaption(m.respiratory.latestDay, m.respiratory.latest, m.respiratory.typical, " rpm", decimals = 1),
                 accent = Palette.metricPurple,
                 spark = m.respiratory.series, sparkColor = Palette.metricPurple,
                 onClick = { onMetricClick("respiratory") },

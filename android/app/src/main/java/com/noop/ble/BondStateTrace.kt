@@ -11,6 +11,44 @@ internal fun bondStateName(state: Int): String = when (state) {
 }
 
 /**
+ * The `ACTION_BOND_STATE_CHANGED` extra carrying WHY a bond ended, and the values it takes.
+ *
+ * Both the extra and the `UNBOND_REASON_*` constants are `@hide` in AOSP, so they are mirrored here as
+ * literals rather than referenced. That is the same trade the GATT status constants in `WhoopBleClient`
+ * already make; the values have been stable across every release that ships this broadcast, and a
+ * hidden-API reference would not compile.
+ */
+internal const val EXTRA_BOND_REASON = "android.bluetooth.device.extra.REASON"
+
+/** What `getIntExtra` returns when the OS supplied no reason. Not a code the broadcast ever sends. */
+internal const val NO_BOND_REASON = -1
+
+/**
+ * A `BluetoothDevice.UNBOND_REASON_*` value, named.
+ *
+ * Deliberately mirrors [gattStatusLabel]: name the codes that answer the question and leave
+ * anything else as a bare number. A confidently wrong name in the line whose whole job is explaining a
+ * pairing failure is worse than no name, and this broadcast's vendor stacks do emit values AOSP does
+ * not define.
+ *
+ * The distinction this exists to preserve: AUTH_FAILED ("the strap refused authentication") and
+ * AUTH_TIMEOUT ("nobody answered") and REMOTE_DEVICE_DOWN ("the link went away") are three different
+ * findings for #1635, and a trace that only says "pairing did NOT complete" cannot tell them apart.
+ */
+internal fun bondFailureReasonLabel(reason: Int): String = when (reason) {
+    1 -> "reason=AUTH_FAILED(1)"
+    2 -> "reason=AUTH_REJECTED(2)"
+    3 -> "reason=AUTH_CANCELED(3)"
+    4 -> "reason=REMOTE_DEVICE_DOWN(4)"
+    5 -> "reason=DISCOVERY_IN_PROGRESS(5)"
+    6 -> "reason=AUTH_TIMEOUT(6)"
+    7 -> "reason=REPEATED_ATTEMPTS(7)"
+    8 -> "reason=REMOTE_AUTH_CANCELED(8)"
+    9 -> "reason=REMOVED(9)"
+    else -> "reason=$reason"
+}
+
+/**
  * One line per OS bond-state transition, with how long after the CLIENT_HELLO write it happened.
  *
  * NOOP has never observed `ACTION_BOND_STATE_CHANGED`, so the OS pairing flow has been invisible. That
@@ -31,6 +69,15 @@ internal fun bondStateName(state: Int): String = when (state) {
  * (another app, another device) then carries no elapsed time rather than a misleading one measured from
  * a write it has nothing to do with.
  *
+ * [reason] is the OS's own `UNBOND_REASON_*` for a bond that ENDED, and is the difference between
+ * "the strap refused authentication" and "nobody answered in time" - two findings this line previously
+ * rendered identically as "pairing did NOT complete".
+ *
+ * Appended ONLY to a failed transition that actually carries one. A successful pairing has no reason to
+ * give, the broadcast leaves the extra absent on transitions INTO bonding, and a stack that supplies
+ * nothing gets the wording it had before rather than a "reason=n/a" that says less than silence. The
+ * existing failure line is therefore unchanged whenever there is no new information to add.
+ *
  * Pure so the wording is unit-tested without a radio. Android-only: CoreBluetooth performs pairing
  * opaquely and exposes no equivalent transition, so there is nothing to twin.
  */
@@ -40,12 +87,21 @@ internal fun bondStateTraceLine(
     address: String?,
     sinceMs: Long?,
     sinceLabel: String = "CLIENT_HELLO",
+    reason: Int? = null,
 ): String {
     val who = address?.takeIf { it.isNotBlank() } ?: "unknown"
     val since = sinceMs?.let { " ${it}ms after $sinceLabel" } ?: ""
+    // A bond ends two ways, and BOTH carry a reason. Scoping this to the failed-pairing transition would
+    // have left the other one, a bond that EXISTED and then went away, as a bare state change with no
+    // explanation - which is where REMOVED and REMOTE_DEVICE_DOWN actually show up.
+    val why = reason?.takeIf { it != NO_BOND_REASON }?.let { ", " + bondFailureReasonLabel(it) } ?: ""
     val note = when {
         previous == BluetoothDevice.BOND_BONDING && current == BluetoothDevice.BOND_NONE ->
-            " — pairing did NOT complete"
+            " — pairing did NOT complete$why"
+        // "ended" rather than "was removed": the transition says the bond is gone, the reason code says
+        // why, and naming a cause here would be the line concluding rather than observing.
+        previous == BluetoothDevice.BOND_BONDED && current == BluetoothDevice.BOND_NONE ->
+            " — the bond ended$why"
         current == BluetoothDevice.BOND_BONDED -> " — paired"
         else -> ""
     }

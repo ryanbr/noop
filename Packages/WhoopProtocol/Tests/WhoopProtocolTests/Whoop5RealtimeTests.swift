@@ -18,7 +18,7 @@ final class Whoop5RealtimeTests: XCTestCase {
         return out
     }
 
-    /// A real type-40 REALTIME_DATA frame: hr=98, rr=[603,587] ms, unix ts=1780916382.
+    /// A real type-40 REALTIME_DATA frame: hr=98, rr=[603,587] ticks → [589,573] ms, unix ts=1780916382.
     private let realtimeHex =
         "aa011800010022e128029ea0266aae4762025b024b020000000001005ed515dc"
 
@@ -33,7 +33,7 @@ final class Whoop5RealtimeTests: XCTestCase {
         XCTAssertEqual(f.parsed["timestamp"]?.intValue, 1780916382)
         XCTAssertEqual(f.parsed["heart_rate"]?.intValue, 98)
         XCTAssertEqual(f.parsed["rr_count"]?.intValue, 2)
-        XCTAssertEqual(f.parsed["rr_intervals"]?.intArrayValue, [603, 587])
+        XCTAssertEqual(f.parsed["rr_intervals"]?.intArrayValue, [589, 573])
     }
 
     func testHeartRateFieldIsAtOffset16() {

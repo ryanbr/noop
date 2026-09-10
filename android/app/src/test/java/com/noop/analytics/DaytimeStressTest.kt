@@ -31,6 +31,123 @@ class DaytimeStressTest {
     }
 
     @Test
+    fun timeline_matchesTheSwiftTwinValueForValue() {
+        // ORACLE. These literals are the stdout of `DaytimeStress.swift` compiled standalone with
+        // swiftc -O and run over this exact scenario (hours 7..11, HR 60/64/68/72/76, R-R 900±20, no
+        // gravity). Reading the two implementations side by side does not catch what this does: the
+        // sliding pass has to bucket on a shifted grid AND reuse the hourly references, and either
+        // half drifting would move these numbers on one platform only.
+        val hr = ArrayList<HrSample>()
+        val rr = ArrayList<RrInterval>()
+        for (h in 7..11) { hr += hourHr(h, 60 + (h - 7) * 4); rr += hourRrVariable(h, 900, 20) }
+        val res = DaytimeStress.analyze(hr, rr, includeTimeline = true)
+
+        fun render(points: List<DaytimeStress.HourPoint>) = points.joinToString(" ") {
+            "${it.startTs}:" + (it.level?.let { l -> String.format(java.util.Locale.US, "%.6f", l) } ?: "nil")
+        }
+        assertEquals(
+            "25200:0.990715 28800:1.500000 32400:2.009285 36000:2.413289 39600:2.678875",
+            render(res.hours),
+        )
+        assertEquals(
+            "23400:0.990715 25200:0.990715 27000:1.500000 28800:1.500000 30600:2.009285 " +
+                "32400:2.009285 34200:2.413289 36000:2.413289 37800:2.678875 39600:2.678875",
+            render(res.timeline),
+        )
+        // The day-level figures the twin reports for the same input, all still hourly-derived.
+        assertEquals(180, res.highStressMinutes)
+        assertTrue(res.sustainedHigh)
+        assertEquals(3, res.sustainedRun)
+        assertEquals(39600L, res.peak?.startTs)
+    }
+
+    @Test
+    fun theSlidingReadIsOptIn() {
+        val hr = ArrayList<HrSample>()
+        val rr = ArrayList<RrInterval>()
+        for (h in 7..11) { hr += hourHr(h, 60 + (h - 7) * 4); rr += hourRrVariable(h, 900, 20) }
+        // The Stress screen reads `hours` and draws its own timeline, so it must not pay for a second
+        // pass of bucketing and an RMSSD per extra window. Default off means `timeline` IS `hours`.
+        val plain = DaytimeStress.analyze(hr, rr)
+        assertEquals(plain.hours, plain.timeline)
+        assertTrue(DaytimeStress.analyze(hr, rr, includeTimeline = true).timeline.size > plain.hours.size)
+    }
+
+    // MARK: - the half-step display timeline
+
+    /** A plain worn morning: several waking hours of steady HR with a little R-R jitter. */
+    private fun wornMorning(): Pair<List<HrSample>, List<RrInterval>> {
+        val hr = ArrayList<HrSample>()
+        val rr = ArrayList<RrInterval>()
+        for (h in 7..11) {
+            hr += hourHr(h, 60 + (h - 7) * 4)
+            rr += hourRrVariable(h, 900, 20)
+        }
+        return hr to rr
+    }
+
+    @Test
+    fun timeline_keepsEveryHourlyPointExactlyAsScored() {
+        val (hr, rr) = wornMorning()
+        val res = DaytimeStress.analyze(hr, rr, includeTimeline = true)
+        // The sliding read must not restate the hours it slides between: a point on the hour has to
+        // carry the same level it carried before this existed, or the curve would disagree with every
+        // other surface that reads `hours`.
+        val byStart = res.timeline.associateBy { it.startTs }
+        assertTrue(res.hours.isNotEmpty())
+        for (h in res.hours) {
+            val t = byStart[h.startTs]
+            assertNotNull("hourly point missing from the timeline: ${h.startTs}", t)
+            assertEquals(h.level, t!!.level)
+            assertEquals(h.maskedForActivity, t.maskedForActivity)
+        }
+    }
+
+    @Test
+    fun timeline_addsTheStraddlingMidpointsAndNothingElse() {
+        val (hr, rr) = wornMorning()
+        val res = DaytimeStress.analyze(hr, rr, includeTimeline = true)
+        assertTrue("timeline should be denser than the hourly pass",
+                   res.timeline.size > res.hours.size)
+        val hourly = res.hours.map { it.startTs }.toSet()
+        val extras = res.timeline.filter { it.startTs !in hourly }
+        assertTrue("the sliding read should add points", extras.isNotEmpty())
+        // Every added point sits exactly half a window off the hour, which is what "slid" means. A
+        // point anywhere else would mean the grid, not the phase, had moved.
+        for (e in extras) {
+            assertEquals(DaytimeStress.timelineStepSeconds,
+                         Math.floorMod(e.startTs, DaytimeStress.bucketSeconds))
+        }
+        // Ascending, so a chart can draw it without sorting.
+        assertEquals(res.timeline.map { it.startTs }.sorted(), res.timeline.map { it.startTs })
+    }
+
+    @Test
+    fun hourCountingIgnoresTheSlidingRead() {
+        val (hr, rr) = wornMorning()
+        val res = DaytimeStress.analyze(hr, rr, includeTimeline = true)
+        // Overlapping windows would count the same minute twice, so the minute total stays on the
+        // non-overlapping hours. This is the assertion that fails first if someone later points
+        // `highStressMinutes` at the denser series.
+        val highHours = res.hours.count { (it.level ?: 0.0) >= DaytimeStress.highBandFloor }
+        assertEquals(highHours * 60, res.highStressMinutes)
+        assertEquals(res.hours.count { it.maskedForActivity }, res.activityMaskedHours)
+    }
+
+    @Test
+    fun aSteadyDayScoresItsMidpointsLikeItsHours() {
+        // Same HR every hour: with one shared reference the midpoints must land on the same level as
+        // the hours they straddle. If the sliding pass ever derived its OWN calm reference, this is
+        // where it would show up, as a curve that zigzags between two scales rather than tracking one.
+        val hr = ArrayList<HrSample>()
+        val rr = ArrayList<RrInterval>()
+        for (h in 8..12) { hr += hourHr(h, 66); rr += hourRrVariable(h, 900, 20) }
+        val res = DaytimeStress.analyze(hr, rr, includeTimeline = true)
+        val levels = res.timeline.mapNotNull { it.level }.distinct()
+        assertTrue("a flat day should not zigzag, got $levels", levels.size <= 1)
+    }
+
+    @Test
     fun sleepHoursInTheWindow_doNotShiftTheWakingTimeline() {
         // Regression (#357): the calm reference is built from the WAKING hours that are actually
         // scored, not the whole 24 h. The analysis window always starts at local midnight, so the

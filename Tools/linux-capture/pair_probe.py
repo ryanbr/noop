@@ -2,6 +2,7 @@
 Usage: python3 pair_probe.py <MAC>   (or set WHOOP_MAC). Use on a strap you own; phone BT off."""
 import asyncio, os, sys, time
 from bleak import BleakClient, BleakScanner
+from capture_io import configure_utf8_stdio
 MAC = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("WHOOP_MAC", "")
 if not MAC:
     sys.exit("usage: python3 pair_probe.py <MAC>   (or export WHOOP_MAC=AA:BB:CC:DD:EE:FF)")
@@ -50,4 +51,5 @@ async def main():
     except Exception as e:
         log(f"connect FAILED: {type(e).__name__}: {str(e)[:110]}")
 
+configure_utf8_stdio()
 asyncio.run(main())

@@ -34,7 +34,9 @@ class ReportCompletenessContractTest {
         assertEquals("import parser=", ReportCompleteness.killerTokens[TestDomain.IMPORT])
         assertEquals("stepsEst ", ReportCompleteness.killerTokens[TestDomain.STEPS])
         assertEquals("battery series=", ReportCompleteness.killerTokens[TestDomain.BATTERY])
-        assertEquals("charge score=", ReportCompleteness.killerTokens[TestDomain.RECOVERY])
+        // "charge day=", not "charge score=": the engine re-emits every recovery trace line with a day
+        // prefix, so the old token could never match and this domain read MISSING on every capture.
+        assertEquals("charge day=", ReportCompleteness.killerTokens[TestDomain.RECOVERY])
         assertEquals("hrv rmssd=", ReportCompleteness.killerTokens[TestDomain.HRV])
         assertEquals(10, ReportCompleteness.killerTokens.size)
         // No Phase-3 token claims (we never report MISSING for a trace we never promised to emit).
@@ -268,5 +270,117 @@ class ReportCompletenessContractTest {
         // And it satisfies a Connection-active completeness check end-to-end.
         val s = ReportCompleteness.statuses(asShipped, active = setOf(TestDomain.CONNECTION))
         assertEquals(ReportCompleteness.Status.PRESENT, s[TestDomain.CONNECTION])
+    }
+
+    /**
+     * The recovery token could never match. Every trace line is re-emitted by
+     * `IntelligenceEngine.recoveryTraceLines` as `charge day=<day> ` + the body, so the bare
+     * "charge score=" this used to look for does not occur in any report, and the domain read MISSING
+     * on every capture carrying a perfectly healthy trace. Two real bundles held 1020 and 816 of these.
+     */
+    @Test
+    fun theRecoveryTokenMatchesTheLineTheEngineActuallyEmits() {
+        val real = "[recovery] charge day=2026-08-31 term hrv z=0.58 w=0.55 (higher HRV is better)\n" +
+            "[recovery] charge day=2026-08-31 score=77.12 band=green (logistic k=1.6 z0=-0.2)"
+        assertEquals(
+            ReportCompleteness.Status.PRESENT,
+            ReportCompleteness.statuses(real, setOf(TestDomain.RECOVERY))[TestDomain.RECOVERY],
+        )
+        // The nilScore variant is the same trace running, and must count too.
+        val nilScore = "[recovery] charge day=2026-09-07 nilScore reason=missingInput (hrv/rhr required)"
+        assertEquals(
+            ReportCompleteness.Status.PRESENT,
+            ReportCompleteness.statuses(nilScore, setOf(TestDomain.RECOVERY))[TestDomain.RECOVERY],
+        )
+    }
+
+    /** A report with no recovery trace at all must still read MISSING. */
+    @Test
+    fun theRecoveryTokenStillReportsAGenuinelyAbsentTrace() {
+        assertEquals(
+            ReportCompleteness.Status.MISSING,
+            ReportCompleteness.statuses("nothing here", setOf(TestDomain.RECOVERY))[TestDomain.RECOVERY],
+        )
+    }
+
+    /**
+     * A capture younger than a scoring pass cannot evidence one, whatever its tokens say. A sleep
+     * bundle arrived with a nine-second profile and no `[sleep]` lines at all, and this section told
+     * the reporter it was "complete", which is why they sent it.
+     */
+    @Test
+    fun aProfileTooYoungToHoldAPassSaysSoEvenWhenEveryTokenIsPresent() {
+        val full = "charge day=2026-09-07 score=1"
+        val short = ReportCompleteness.captureCheckSection(
+            full, setOf(TestDomain.RECOVERY), profileRanSeconds = 9,
+        )
+        assertTrue(short, short.contains("complete: all active traces present"))
+        assertTrue(short, short.contains("TOO SHORT"))
+        assertTrue(short, short.contains("9s"))
+    }
+
+    /**
+     * The short-profile note goes AFTER the verdict, deliberately.
+     *
+     * Three tests above assert the section ENDS with the verdict line, and that invariant now holds
+     * only while no duration is passed. Keeping the note last is the right trade: it is the line that
+     * invalidates the verdict a reader has just been given, so burying it above would put the weaker
+     * statement in the more prominent place. Pinned here so the change of shape is a decision on the
+     * record rather than something a future endsWith assertion discovers.
+     */
+    @Test
+    fun theShortProfileNoteFollowsTheVerdictRatherThanReplacingIt() {
+        val line = ReportCompleteness.captureCheckSection(
+            "charge day=2026-09-07 score=1", setOf(TestDomain.RECOVERY), profileRanSeconds = 9,
+        )
+        val verdict = line.indexOf("complete: all active traces present")
+        val note = line.indexOf("TOO SHORT")
+        assertTrue(line, verdict in 0 until note)
+        assertTrue("the note is the footer when it fires", line.trimEnd().endsWith("export again."))
+    }
+
+    /** Past the threshold it says nothing extra. */
+    @Test
+    fun aLongEnoughProfileAddsNoWarning() {
+        val ok = ReportCompleteness.captureCheckSection(
+            "charge day=2026-09-07 score=1", setOf(TestDomain.RECOVERY), 600,
+        )
+        assertFalse(ok, ok.contains("TOO SHORT"))
+    }
+
+    /**
+     * An unknown start time must not manufacture a warning: guessing from a missing timestamp would be
+     * its own false signal, and this section exists to stop those.
+     */
+    @Test
+    fun anUnknownProfileAgeSaysNothing() {
+        val unknown = ReportCompleteness.captureCheckSection(
+            "charge day=2026-09-07 score=1", setOf(TestDomain.RECOVERY), null,
+        )
+        assertFalse(unknown, unknown.contains("TOO SHORT"))
+    }
+
+    /**
+     * A clock moved backwards between starting the profile and exporting yields a negative age, and
+     * "the profile ran -412s before this export" is a worse line than saying nothing. A nonsense age
+     * is unknown, and unknown says nothing.
+     */
+    @Test
+    fun aNegativeProfileAgeSaysNothingRatherThanPrintingNonsense() {
+        val line = ReportCompleteness.captureCheckSection(
+            "charge day=2026-09-07 score=1", setOf(TestDomain.RECOVERY), profileRanSeconds = -412,
+        )
+        assertFalse(line, line.contains("TOO SHORT"))
+        assertFalse(line, line.contains("-412"))
+    }
+
+    /** Exactly at the threshold is long enough; the warning is for what falls short of it. */
+    @Test
+    fun theThresholdItselfIsLongEnough() {
+        val line = ReportCompleteness.captureCheckSection(
+            "charge day=2026-09-07 score=1", setOf(TestDomain.RECOVERY),
+            ReportCompleteness.MIN_PROFILE_SECONDS,
+        )
+        assertFalse(line, line.contains("TOO SHORT"))
     }
 }

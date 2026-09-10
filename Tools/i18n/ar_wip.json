@@ -1,0 +1,4634 @@
+{
+ "_note": "WORK IN PROGRESS - machine-translated Arabic for Android, NOT a shipping locale. Each entry stores the ENGLISH SOURCE alongside the Arabic on purpose: 856 of these 1147 keys embed a sha1 of the English text, so editing that copy changes the key and would silently orphan the translation. Re-match on 'en' if a key no longer resolves. The stored 'en' is the RAW value from values/strings.xml, so it keeps that file's backslash escapes (69 entries contain \\' for an apostrophe); re-match with the same extraction rather than against rendered text.",
+ "_status": {
+  "translated": 1147,
+  "still_to_translate": 1312,
+  "untranslatable_english_fallback": 121,
+  "base_english_strings": 2581
+ },
+ "_glossary": {
+  "Charge": "الشحن",
+  "Effort": "الجهد",
+  "Rest": "الراحة",
+  "Recovery": "التعافي",
+  "Strain": "الإجهاد",
+  "Sleep": "النوم",
+  "Readiness": "الجاهزية",
+  "HRV": "تقلب النبض",
+  "heart rate": "معدل النبض",
+  "bpm": "نبضة/دقيقة",
+  "strap": "السوار",
+  "baseline": "خط الأساس",
+  "Workout": "تمرين",
+  "Workouts": "التمارين",
+  "Steps": "الخطوات",
+  "Calories": "السعرات",
+  "Today": "اليوم",
+  "Trends": "الاتجاهات",
+  "Insights": "الرؤى",
+  "Journal": "اليوميات",
+  "Settings": "الإعدادات",
+  "Sleep Debt": "دين النوم",
+  "Nap": "قيلولة",
+  "Battery": "البطارية",
+  "Live": "مباشر",
+  "Devices": "الأجهزة",
+  "Automations": "الأتمتة",
+  "Stress": "التوتر",
+  "Breathe": "التنفس",
+  "Hydration": "الترطيب",
+  "Coach": "المدرب الذكي",
+  "Explore": "استكشاف"
+ },
+ "strings": {
+  "action_breathe": {
+   "en": "Breathe",
+   "ar": "التنفس"
+  },
+  "action_live_hr": {
+   "en": "Live HR",
+   "ar": "النبض المباشر"
+  },
+  "action_log_journal": {
+   "en": "Log journal",
+   "ar": "تسجيل اليوميات"
+  },
+  "action_start_workout": {
+   "en": "Start workout",
+   "ar": "بدء تمرين"
+  },
+  "battery_bedtime_body": {
+   "en": "%1$s of recording left, but tonight needs about %2$s. Charge before bed.",
+   "ar": "يتبقى %1$s من التسجيل، لكن الليلة تحتاج نحو %2$s. اشحن السوار قبل النوم."
+  },
+  "battery_bedtime_title": {
+   "en": "Won\\'t last the night",
+   "ar": "لن يكفي طوال الليل"
+  },
+  "battery_channel_desc": {
+   "en": "Alerts when the strap battery is low or fully charged.",
+   "ar": "تنبيهات عند انخفاض بطارية السوار أو اكتمال شحنها."
+  },
+  "battery_channel_name": {
+   "en": "Battery alerts",
+   "ar": "تنبيهات البطارية"
+  },
+  "battery_critical_body": {
+   "en": "%1$d%% left. The strap stops recording near 10%% — it won\\'t capture tonight unless you charge it.",
+   "ar": "يتبقى %1$d%%. يتوقف السوار عن التسجيل قرب 10%% — ولن يسجّل هذه الليلة ما لم تشحنه."
+  },
+  "battery_critical_title": {
+   "en": "Charge your WHOOP now",
+   "ar": "اشحن WHOOP الآن"
+  },
+  "battery_full_body": {
+   "en": "Your WHOOP is at 100%.",
+   "ar": "شحن WHOOP بلغ 100%."
+  },
+  "battery_full_title": {
+   "en": "Strap fully charged",
+   "ar": "اكتمل شحن السوار"
+  },
+  "battery_low_body": {
+   "en": "Recharge your WHOOP before tonight.",
+   "ar": "أعد شحن WHOOP قبل الليلة."
+  },
+  "battery_low_title": {
+   "en": "Low battery",
+   "ar": "البطارية منخفضة"
+  },
+  "battery_runtime_body": {
+   "en": "%1$s left on your WHOOP — recharge tonight.",
+   "ar": "يتبقى %1$s في WHOOP — أعد شحنه الليلة."
+  },
+  "battery_runtime_title": {
+   "en": "Strap battery low",
+   "ar": "بطارية السوار منخفضة"
+  },
+  "breath_presence_intro_body": {
+   "en": "Consciously Connected Breathing (CCB): inhale and exhale in one continuous loop with no hold at the top or bottom. Find a comfortable rhythm — connectedness matters more than intensity. Typical practice is about 15 minutes, twice daily. Regular is the sustainable starter tempo; Mid is a quicker start for later rounds; Punching Through is only when you need to push through drowsiness or stuckness (not a beginner default).",
+   "ar": "التنفس المتصل الواعي (CCB): شهيق وزفير في حلقة متصلة واحدة دون حبس في الأعلى أو الأسفل. اعثر على إيقاع مريح — الاتصال أهم من الشدة. الممارسة المعتادة نحو 15 دقيقة مرتين يوميًا. «العادي» هو الإيقاع المستدام للبداية؛ و«المتوسط» بداية أسرع للجولات اللاحقة؛ و«الاختراق» فقط عند الحاجة إلى تجاوز النعاس أو الجمود (ليس الخيار الافتراضي للمبتدئين)."
+  },
+  "breath_presence_intro_title": {
+   "en": "The Presence Process",
+   "ar": "عملية الحضور"
+  },
+  "breath_proto_bhastrika_caution": {
+   "en": "Stop if dizzy. Avoid with high blood pressure, pregnancy, or recent surgery unless cleared by a clinician.",
+   "ar": "توقف عند الشعور بالدوار. تجنّبه مع ارتفاع ضغط الدم أو الحمل أو بعد جراحة حديثة ما لم يأذن الطبيب."
+  },
+  "breath_proto_bhastrika_edu": {
+   "en": "Bhastrika (bellows): forceful 1-second nasal inhale and exhale. Energising and intense. Keep rounds short and rest between them.",
+   "ar": "باستريكا (المنفاخ): شهيق وزفير أنفي قوي لمدة ثانية واحدة. منشّط وشديد. أبقِ الجولات قصيرة مع راحة بينها."
+  },
+  "breath_proto_bhastrika_session_hint": {
+   "en": "Short rounds only.",
+   "ar": "جولات قصيرة فقط."
+  },
+  "breath_proto_bhastrika_subtitle": {
+   "en": "Forceful 1s in · 1s out",
+   "ar": "قوي · ثانية شهيق · ثانية زفير"
+  },
+  "breath_proto_box_4_4_4_4_edu": {
+   "en": "Box (square) breathing: inhale, hold, exhale, hold — each for 4 seconds. A structured rhythm often used for focus and settling under stress. Sit comfortably and keep the counts even.",
+   "ar": "التنفس المربّع: شهيق، حبس، زفير، حبس — أربع ثوانٍ لكل مرحلة. إيقاع منظم يُستخدم غالبًا للتركيز والتهدئة تحت الضغط. اجلس مرتاحًا وحافظ على تساوي العدّات."
+  },
+  "breath_proto_box_4_4_4_4_session_hint": {
+   "en": "About 5 minutes per session; repeat as needed.",
+   "ar": "نحو 5 دقائق لكل جلسة؛ كرّرها حسب الحاجة."
+  },
+  "breath_proto_box_4_4_4_4_subtitle": {
+   "en": "Square breath · steady focus",
+   "ar": "نفَس مربّع · تركيز ثابت"
+  },
+  "breath_proto_buteyko_caution": {
+   "en": "Stay in a comfortable range; never force breath holds.",
+   "ar": "ابقَ ضمن نطاق مريح؛ لا تُجبر حبس النفس أبدًا."
+  },
+  "breath_proto_buteyko_edu": {
+   "en": "Buteyko-style reduced breathing: small nasal inhale (~2.5s), relaxed nasal exhale (~3.5s), short comfortable hold (~3.5s). Keep it quiet and light — not a big gasp.",
+   "ar": "تنفس مخفَّض بأسلوب بوتيكو: شهيق أنفي صغير (~2.5 ث)، زفير أنفي مسترخٍ (~3.5 ث)، ثم حبس قصير مريح (~3.5 ث). أبقِه هادئًا وخفيفًا — لا شهقة كبيرة."
+  },
+  "breath_proto_buteyko_reduced_caution": {
+   "en": "Never push into panic or strong air hunger.",
+   "ar": "لا تدفع نفسك إلى الذعر أو الجوع الشديد للهواء."
+  },
+  "breath_proto_buteyko_reduced_edu": {
+   "en": "Reduced Buteyko-style: ~2s gentle inhale, ~3s exhale, then a 3–5s hold with mild air hunger only. Stay relaxed in the face and shoulders.",
+   "ar": "بوتيكو المخفَّض: شهيق لطيف ~2 ث، زفير ~3 ث، ثم حبس 3–5 ث مع جوع خفيف للهواء فقط. أبقِ الوجه والكتفين مسترخيين."
+  },
+  "breath_proto_buteyko_reduced_session_hint": {
+   "en": "15–20 minutes if comfortable.",
+   "ar": "15–20 دقيقة إن كان مريحًا."
+  },
+  "breath_proto_buteyko_reduced_subtitle": {
+   "en": "Lighter · longer soft hold",
+   "ar": "أخف · حبس ليّن أطول"
+  },
+  "breath_proto_buteyko_reduced_title": {
+   "en": "Buteyko Reduced",
+   "ar": "بوتيكو المخفَّض"
+  },
+  "breath_proto_buteyko_session_hint": {
+   "en": "3–20 minutes, as comfortable.",
+   "ar": "3–20 دقيقة، حسب الراحة."
+  },
+  "breath_proto_buteyko_subtitle": {
+   "en": "Gentle nasal · light air hunger",
+   "ar": "أنفي لطيف · جوع خفيف للهواء"
+  },
+  "breath_proto_buteyko_title": {
+   "en": "Buteyko",
+   "ar": "بوتيكو"
+  },
+  "breath_proto_coherence_5_5_edu": {
+   "en": "Equal inhale and exhale at about 5.5 breaths per minute — a common coherence / resonance starting point. Steady, balanced pacing for settling heart-rate variability during a session.",
+   "ar": "شهيق وزفير متساويان عند نحو 5.5 نفَس في الدقيقة — نقطة انطلاق شائعة للاتساق والرنين. إيقاع ثابت متوازن لتهدئة تقلب النبض خلال الجلسة."
+  },
+  "breath_proto_coherence_5_5_session_hint": {
+   "en": "Try about 10 minutes.",
+   "ar": "جرّب نحو 10 دقائق."
+  },
+  "breath_proto_coherence_5_5_subtitle": {
+   "en": "Equal breath · ~5.5 br/min coherence",
+   "ar": "نفَس متساوٍ · اتساق ~5.5 نفَس/دقيقة"
+  },
+  "breath_proto_coherence_5_5_title": {
+   "en": "Coherence 5.5",
+   "ar": "الاتساق 5.5"
+  },
+  "breath_proto_coherent_6_6_edu": {
+   "en": "Coherent breathing at six seconds in and six seconds out (~5 breaths per minute). A slow equal pace aimed at calm and HRV-friendly rhythm — estimate only, not a clinical reading.",
+   "ar": "تنفس متسق بست ثوانٍ شهيقًا وست ثوانٍ زفيرًا (~5 أنفاس في الدقيقة). إيقاع بطيء متساوٍ يهدف إلى الهدوء وإيقاع ملائم لتقلب النبض — تقدير فقط وليس قراءة سريرية."
+  },
+  "breath_proto_coherent_6_6_session_hint": {
+   "en": "Start around 10 minutes.",
+   "ar": "ابدأ بنحو 10 دقائق."
+  },
+  "breath_proto_coherent_6_6_subtitle": {
+   "en": "6s in · 6s out · ~5 br/min",
+   "ar": "6 ث شهيق · 6 ث زفير · ~5 نفَس/دقيقة"
+  },
+  "breath_proto_coherent_6_6_title": {
+   "en": "Coherent 6-6",
+   "ar": "المتسق 6-6"
+  },
+  "breath_proto_deep_4_2_6_edu": {
+   "en": "Deep breathing with a short pause: inhale 4s, hold 2s, exhale 6s. Breathe through the nose when you can, fill the lungs without forcing, and let the longer exhale slow you down.",
+   "ar": "تنفس عميق مع وقفة قصيرة: شهيق 4 ث، حبس ثانيتان، زفير 6 ث. تنفّس عبر الأنف متى استطعت، واملأ الرئتين دون إجهاد، ودع الزفير الأطول يبطئك."
+  },
+  "breath_proto_deep_4_2_6_session_hint": {
+   "en": "5–10 minutes daily is a common starting point.",
+   "ar": "5–10 دقائق يوميًا نقطة انطلاق شائعة."
+  },
+  "breath_proto_deep_4_2_6_subtitle": {
+   "en": "Slow inhale · soft hold · long exhale",
+   "ar": "شهيق بطيء · حبس ليّن · زفير طويل"
+  },
+  "breath_proto_deep_4_2_6_title": {
+   "en": "Deep Breathing",
+   "ar": "التنفس العميق"
+  },
+  "breath_proto_diaphragmatic_4_2_6_edu": {
+   "en": "Diaphragmatic (belly) breathing: expand the abdomen on the inhale more than the chest, optional short hold, then gently contract on the exhale. Same 4–2–6 timing as deep breathing, with attention on the diaphragm.",
+   "ar": "التنفس الحجابي (البطني): وسّع البطن مع الشهيق أكثر من الصدر، مع حبس قصير اختياري، ثم اسحبه بلطف مع الزفير. التوقيت نفسه 4–2–6 كالتنفس العميق، مع تركيز على الحجاب الحاجز."
+  },
+  "breath_proto_diaphragmatic_4_2_6_session_hint": {
+   "en": "5–10 minutes daily.",
+   "ar": "5–10 دقائق يوميًا."
+  },
+  "breath_proto_diaphragmatic_4_2_6_subtitle": {
+   "en": "Belly breath · soft pause",
+   "ar": "نفَس بطني · وقفة ليّنة"
+  },
+  "breath_proto_diaphragmatic_4_2_6_title": {
+   "en": "Diaphragmatic",
+   "ar": "حجابي"
+  },
+  "breath_proto_four_seven_eight_caution": {
+   "en": "If you feel dizzy or uncomfortable, stop and breathe normally.",
+   "ar": "إذا شعرت بدوار أو انزعاج، توقف وتنفّس بشكل طبيعي."
+  },
+  "breath_proto_four_seven_eight_edu": {
+   "en": "Classic 4-7-8: quiet nasal inhale for 4, hold for 7, long mouth exhale for 8. Often used to wind down. Start with a few cycles; stop if you feel light-headed.",
+   "ar": "الكلاسيكي 4-7-8: شهيق أنفي هادئ لأربع، حبس لسبع، زفير فموي طويل لثمان. يُستخدم غالبًا للاسترخاء. ابدأ بدورات قليلة؛ وتوقف إن شعرت بخفة في الرأس."
+  },
+  "breath_proto_four_seven_eight_session_hint": {
+   "en": "A few minutes is enough; build gradually.",
+   "ar": "بضع دقائق تكفي؛ زدها تدريجيًا."
+  },
+  "breath_proto_four_seven_eight_subtitle": {
+   "en": "Inhale 4 · hold 7 · exhale 8",
+   "ar": "شهيق 4 · حبس 7 · زفير 8"
+  },
+  "breath_proto_holotropic_caution": {
+   "en": "Not for DIY high-intensity sessions if you have trauma history, cardiovascular issues, or pregnancy without professional guidance.",
+   "ar": "غير مناسب لجلسات مكثفة ذاتية إن كان لديك تاريخ صدمة أو مشكلات قلبية وعائية أو حمل، دون إشراف مختص."
+  },
+  "breath_proto_holotropic_edu": {
+   "en": "Holotropic-style work is continuous, often rapid connected breathing in a supported setting. NOOP only offers a session timer and education — not an auto-pacer — because intensity varies widely and is normally facilitated.",
+   "ar": "العمل بأسلوب الهولوتروبيك تنفس متصل مستمر وسريع غالبًا في بيئة مدعومة. يقدّم NOOP مؤقّت جلسة وشرحًا فقط — لا ضابط إيقاع تلقائي — لأن الشدة تتفاوت كثيرًا وتُدار عادة بإشراف."
+  },
+  "breath_proto_holotropic_session_hint": {
+   "en": "Traditional sessions are long; use a short timer here as a check-in only.",
+   "ar": "الجلسات التقليدية طويلة؛ استخدم مؤقّتًا قصيرًا هنا للمتابعة فقط."
+  },
+  "breath_proto_holotropic_subtitle": {
+   "en": "Guided · continuous connected",
+   "ar": "موجّه · متصل مستمر"
+  },
+  "breath_proto_holotropic_title": {
+   "en": "Holotropic",
+   "ar": "هولوتروبيك"
+  },
+  "breath_proto_kapalabhati_caution": {
+   "en": "Skip if pregnant, dizzy, or have uncontrolled hypertension. Stop if strained.",
+   "ar": "تجنّبه أثناء الحمل أو عند الدوار أو مع ارتفاع ضغط غير منضبط. توقف عند الإجهاد."
+  },
+  "breath_proto_kapalabhati_edu": {
+   "en": "Kapalabhati uses rapid, active belly exhales with passive inhales. Timing varies by person — this mode gives you a timer and coaching text only, not a forced metronome. Practice seated, short rounds, rest between.",
+   "ar": "كابالاباتي يستخدم زفيرًا بطنيًا سريعًا نشطًا مع شهيق سلبي. يختلف التوقيت من شخص لآخر — يمنحك هذا الوضع مؤقّتًا ونصًا إرشاديًا فقط، لا إيقاعًا إجباريًا. مارسه جالسًا، بجولات قصيرة وراحة بينها."
+  },
+  "breath_proto_kapalabhati_session_hint": {
+   "en": "Short rounds (about 30–60s) with rests.",
+   "ar": "جولات قصيرة (نحو 30–60 ثانية) مع راحة."
+  },
+  "breath_proto_kapalabhati_subtitle": {
+   "en": "Guided · rapid belly pulses",
+   "ar": "موجّه · نبضات بطنية سريعة"
+  },
+  "breath_proto_kapalabhati_title": {
+   "en": "Kapalabhati",
+   "ar": "كابالاباتي"
+  },
+  "breath_proto_nadi_shodhana_edu": {
+   "en": "Alternate-nostril breathing: inhale left, hold, exhale right, inhale right, hold, exhale left — about 4 seconds each step. Use a finger to gently close one nostril at a time. Labels cue which side; go at a calm pace.",
+   "ar": "التنفس بالمنخرين بالتناوب: شهيق يسار، حبس، زفير يمين، شهيق يمين، حبس، زفير يسار — نحو 4 ثوانٍ لكل خطوة. استخدم إصبعًا لإغلاق منخر واحد برفق في كل مرة. تشير التسميات إلى الجهة؛ حافظ على وتيرة هادئة."
+  },
+  "breath_proto_nadi_shodhana_session_hint": {
+   "en": "5–10 minutes.",
+   "ar": "5–10 دقائق."
+  },
+  "breath_proto_nadi_shodhana_subtitle": {
+   "en": "Nadi Shodhana · left/right cycle",
+   "ar": "نادي شودانا · دورة يسار/يمين"
+  },
+  "breath_proto_nadi_shodhana_title": {
+   "en": "Alternate Nostril",
+   "ar": "تناوب المنخرين"
+  },
+  "breath_proto_presence_mid_edu": {
+   "en": "Mid session tempo (~2.4s / 2.4s) is a starting pace for later passes through the procedure; once settled you may slow deeper or switch to Punching Through.",
+   "ar": "إيقاع الجلسة المتوسط (~2.4 ث / 2.4 ث) وتيرة انطلاق للمرات اللاحقة من العملية؛ وبعد الاستقرار يمكنك التباطؤ أعمق أو الانتقال إلى «الاختراق»."
+  },
+  "breath_proto_presence_mid_session_hint": {
+   "en": "15 minutes once you are using Mid as your starter.",
+   "ar": "15 دقيقة متى صار «المتوسط» بدايتك."
+  },
+  "breath_proto_presence_mid_subtitle": {
+   "en": "CCB · ~2.4s / 2.4s · ~12.4 br/min",
+   "ar": "‏CCB · ~2.4 ث / 2.4 ث · ~12.4 نفَس/دقيقة"
+  },
+  "breath_proto_presence_mid_title": {
+   "en": "Presence Mid",
+   "ar": "الحضور المتوسط"
+  },
+  "breath_proto_presence_punching_caution": {
+   "en": "Not recommended as a beginner default unless the goal is to overcome drowsiness.",
+   "ar": "لا يُنصح به كخيار افتراضي للمبتدئين إلا إذا كان الهدف تجاوز النعاس."
+  },
+  "breath_proto_presence_punching_edu": {
+   "en": "Punching Through (~1.9s / 1.9s) is for sleepiness or feeling stuck — not the beginner default. After you are “in it”, you may return to a slower, deeper connected breath.",
+   "ar": "«الاختراق» (~1.9 ث / 1.9 ث) للنعاس أو الشعور بالجمود — وليس الخيار الافتراضي للمبتدئين. بعد أن تدخل في الحالة، يمكنك العودة إلى نفَس متصل أبطأ وأعمق."
+  },
+  "breath_proto_presence_punching_session_hint": {
+   "en": "Up to 15 minutes; ease off if strained.",
+   "ar": "حتى 15 دقيقة؛ خفّف عند الإجهاد."
+  },
+  "breath_proto_presence_punching_subtitle": {
+   "en": "CCB · ~1.9s / 1.9s · push-through",
+   "ar": "‏CCB · ~1.9 ث / 1.9 ث · اختراق"
+  },
+  "breath_proto_presence_punching_title": {
+   "en": "Presence Punching",
+   "ar": "حضور الاختراق"
+  },
+  "breath_proto_presence_regular_edu": {
+   "en": "Regular tempo (~3.8s in / 3.8s out) is the default sustainable pace for a first pass and for staying the full 15 minutes.",
+   "ar": "الإيقاع العادي (~3.8 ث شهيق / 3.8 ث زفير) هو الوتيرة المستدامة الافتراضية للمرة الأولى وللبقاء طوال الخمس عشرة دقيقة."
+  },
+  "breath_proto_presence_regular_session_hint": {
+   "en": "15 minutes, twice daily (Presence Process frame).",
+   "ar": "15 دقيقة مرتين يوميًا (إطار عملية الحضور)."
+  },
+  "breath_proto_presence_regular_subtitle": {
+   "en": "CCB · ~3.8s / 3.8s · ~7.8 br/min",
+   "ar": "‏CCB · ~3.8 ث / 3.8 ث · ~7.8 نفَس/دقيقة"
+  },
+  "breath_proto_presence_regular_title": {
+   "en": "Presence Regular",
+   "ar": "الحضور العادي"
+  },
+  "breath_proto_qigong_edu": {
+   "en": "Gentle Qi Gong-style pacing: inhale ~4.5s, optional short hold, exhale ~4.5s, optional short hold. Soft belly focus; no force.",
+   "ar": "إيقاع لطيف بأسلوب تشي غونغ: شهيق ~4.5 ث، حبس قصير اختياري، زفير ~4.5 ث، حبس قصير اختياري. تركيز بطني ليّن؛ دون إجبار."
+  },
+  "breath_proto_qigong_session_hint": {
+   "en": "15–30 minutes is traditional; start shorter.",
+   "ar": "15–30 دقيقة تقليديًا؛ ابدأ بأقصر."
+  },
+  "breath_proto_qigong_subtitle": {
+   "en": "Slow in · soft holds · slow out",
+   "ar": "شهيق بطيء · حبس ليّن · زفير بطيء"
+  },
+  "breath_proto_qigong_title": {
+   "en": "Qi Gong Breath",
+   "ar": "نفَس تشي غونغ"
+  },
+  "breath_proto_relax_4_6_edu": {
+   "en": "A simple calming pace: inhale for 4 seconds, exhale for 6. The longer exhale tends to favour a rest-and-digest feel. Use it when you want an easy downshift without holds.",
+   "ar": "وتيرة تهدئة بسيطة: شهيق 4 ثوانٍ، زفير 6. الزفير الأطول يميل إلى تعزيز إحساس الراحة والهضم. استخدمها حين تريد تهدئة سهلة دون حبس."
+  },
+  "breath_proto_relax_4_6_session_hint": {
+   "en": "Try 5–10 minutes.",
+   "ar": "جرّب 5–10 دقائق."
+  },
+  "breath_proto_relax_4_6_subtitle": {
+   "en": "Long exhale · downshift to rest",
+   "ar": "زفير طويل · تهدئة نحو الراحة"
+  },
+  "breath_proto_relax_4_6_title": {
+   "en": "Relax 4-6",
+   "ar": "استرخاء 4-6"
+  },
+  "breath_proto_shamanic_caution": {
+   "en": "Prefer guided settings for intense practice.",
+   "ar": "يُفضَّل الإعداد الموجّه للممارسة المكثفة."
+  },
+  "breath_proto_shamanic_edu": {
+   "en": "Shamanic-style rhythmic breathing is context-dependent and often facilitated. Use this as a quiet timer with education only — set your own safe intensity.",
+   "ar": "التنفس الإيقاعي بأسلوب شاماني يعتمد على السياق ويُدار عادة بإشراف. استخدم هذا كمؤقّت هادئ مع شرح فقط — واضبط شدة آمنة بنفسك."
+  },
+  "breath_proto_shamanic_session_hint": {
+   "en": "Pick a length that feels safe.",
+   "ar": "اختر مدة تشعر أنها آمنة."
+  },
+  "breath_proto_shamanic_subtitle": {
+   "en": "Guided · rhythmic rapid",
+   "ar": "موجّه · إيقاعي سريع"
+  },
+  "breath_proto_shamanic_title": {
+   "en": "Shamanic Breath",
+   "ar": "نفَس شاماني"
+  },
+  "breath_proto_soma_edu": {
+   "en": "Simple rhythmic connected pacing at 2 seconds in and 2 seconds out — useful when you want a steady musical-feel loop without holds.",
+   "ar": "إيقاع متصل بسيط بثانيتين شهيقًا وثانيتين زفيرًا — مفيد حين تريد حلقة ثابتة ذات إحساس موسيقي دون حبس."
+  },
+  "breath_proto_soma_session_hint": {
+   "en": "Often 20+ minutes; pick a length that fits.",
+   "ar": "غالبًا 20 دقيقة أو أكثر؛ اختر مدة تناسبك."
+  },
+  "breath_proto_soma_subtitle": {
+   "en": "2s in · 2s out · rhythmic",
+   "ar": "ثانيتان شهيق · ثانيتان زفير · إيقاعي"
+  },
+  "breath_proto_tummo_caution": {
+   "en": "Advanced. Avoid if pregnant, cardiovascular issues, or unwell. Not medical advice.",
+   "ar": "متقدّم. تجنّبه أثناء الحمل أو مع مشكلات قلبية وعائية أو عند التوعك. ليس نصيحة طبية."
+  },
+  "breath_proto_tummo_edu": {
+   "en": "A paced Tummo-inspired cycle using mid-range timings: short forced exhale, empty hold, slow inhale, full hold, slow exhale. Advanced and intense — keep sessions short and stop if strained.",
+   "ar": "دورة مستوحاة من التومو بتوقيتات متوسطة: زفير قسري قصير، حبس فارغ، شهيق بطيء، حبس ممتلئ، زفير بطيء. متقدّمة وشديدة — أبقِ الجلسات قصيرة وتوقف عند الإجهاد."
+  },
+  "breath_proto_tummo_session_hint": {
+   "en": "5–10 minutes unless experienced.",
+   "ar": "5–10 دقائق ما لم تكن متمرسًا."
+  },
+  "breath_proto_tummo_subtitle": {
+   "en": "Forced exhale · holds · slow in/out",
+   "ar": "زفير قسري · حبس · شهيق/زفير بطيء"
+  },
+  "breath_proto_tummo_title": {
+   "en": "Tummo",
+   "ar": "تومو"
+  },
+  "breath_proto_ujjayi_edu": {
+   "en": "Ujjayi (ocean) breath: slightly constrict the throat so the breath sounds like distant waves. Equal slow inhale and exhale through the nose (~4.5s each).",
+   "ar": "نفَس أوجايي (المحيط): ضيّق الحلق قليلًا حتى يبدو النفَس كأمواج بعيدة. شهيق وزفير بطيئان متساويان عبر الأنف (~4.5 ث لكل منهما)."
+  },
+  "breath_proto_ujjayi_session_hint": {
+   "en": "5–15 minutes.",
+   "ar": "5–15 دقيقة."
+  },
+  "breath_proto_ujjayi_subtitle": {
+   "en": "Ocean breath · soft throat",
+   "ar": "نفَس المحيط · حلق ليّن"
+  },
+  "breath_proto_ujjayi_title": {
+   "en": "Ujjayi",
+   "ar": "أوجايي"
+  },
+  "breath_proto_wim_hof_caution": {
+   "en": "Never practice in water or while driving. Stop if dizzy. Not medical advice.",
+   "ar": "لا تمارسه أبدًا في الماء أو أثناء القيادة. توقف عند الدوار. ليس نصيحة طبية."
+  },
+  "breath_proto_wim_hof_edu": {
+   "en": "Wim Hof–style rounds typically use ~30 deeper breaths, then an empty hold, then a recovery inhale hold (~15s). Because holds and intensity are personal, this entry is guided: follow a trusted protocol you already know; NOOP times the session and shows reminders — it does not force breath holds.",
+   "ar": "جولات بأسلوب فيم هوف تستخدم عادة نحو 30 نفَسًا أعمق، ثم حبسًا فارغًا، ثم حبس شهيق للتعافي (~15 ث). ولأن الحبس والشدة أمران شخصيان، هذا المدخل موجّه: اتبع بروتوكولًا موثوقًا تعرفه؛ يوقّت NOOP الجلسة ويعرض التذكيرات — ولا يفرض حبس النفس."
+  },
+  "breath_proto_wim_hof_session_hint": {
+   "en": "About 15 minutes for a few rounds.",
+   "ar": "نحو 15 دقيقة لبضع جولات."
+  },
+  "breath_proto_wim_hof_subtitle": {
+   "en": "Guided · rounds + holds",
+   "ar": "موجّه · جولات + حبس"
+  },
+  "breath_proto_wim_hof_title": {
+   "en": "Wim Hof",
+   "ar": "فيم هوف"
+  },
+  "breath_stage_belly_in": {
+   "en": "Belly in",
+   "ar": "البطن للداخل"
+  },
+  "breath_stage_belly_out": {
+   "en": "Belly out",
+   "ar": "البطن للخارج"
+  },
+  "breath_stage_exhale_left": {
+   "en": "Exhale left",
+   "ar": "زفير يسار"
+  },
+  "breath_stage_exhale_right": {
+   "en": "Exhale right",
+   "ar": "زفير يمين"
+  },
+  "breath_stage_force_out": {
+   "en": "Force out",
+   "ar": "زفير قسري"
+  },
+  "breath_stage_hold_empty": {
+   "en": "Hold empty",
+   "ar": "حبس فارغ"
+  },
+  "breath_stage_hold_full": {
+   "en": "Hold full",
+   "ar": "حبس ممتلئ"
+  },
+  "breath_stage_inhale_left": {
+   "en": "Inhale left",
+   "ar": "شهيق يسار"
+  },
+  "breath_stage_inhale_right": {
+   "en": "Inhale right",
+   "ar": "شهيق يمين"
+  },
+  "crash_recovery_body": {
+   "en": "The last crash is shown below. You can copy it for a bug report, then try opening the app again.",
+   "ar": "يظهر آخر تعطل أدناه. يمكنك نسخه لتقرير خطأ، ثم محاولة فتح التطبيق مرة أخرى."
+  },
+  "crash_recovery_continue": {
+   "en": "Try opening NOOP",
+   "ar": "محاولة فتح NOOP"
+  },
+  "crash_recovery_copy": {
+   "en": "Copy error",
+   "ar": "نسخ الخطأ"
+  },
+  "crash_recovery_title": {
+   "en": "NOOP stopped unexpectedly",
+   "ar": "توقف NOOP بشكل غير متوقع"
+  },
+  "cycle_day_range": {
+   "en": "· ~day %1$d–%2$d",
+   "ar": "· ~اليوم %1$d–%2$d"
+  },
+  "cycle_day_single": {
+   "en": "· ~day %1$d",
+   "ar": "· ~اليوم %1$d"
+  },
+  "cycle_home_description": {
+   "en": "Log period starts locally and use them to anchor optional cycle estimates.",
+   "ar": "سجّل بدايات الدورة محليًا واستخدمها كمرجع لتقديرات الدورة الاختيارية."
+  },
+  "cycle_home_latest": {
+   "en": "Latest period start",
+   "ar": "آخر بداية دورة"
+  },
+  "cycle_home_learning": {
+   "en": "Learning your pattern",
+   "ar": "جارٍ تعلّم نمطك"
+  },
+  "cycle_home_log_today": {
+   "en": "Log today",
+   "ar": "تسجيل اليوم"
+  },
+  "cycle_home_logged_today": {
+   "en": "Logged today",
+   "ar": "سُجِّل اليوم"
+  },
+  "cycle_home_open": {
+   "en": "Open tracker",
+   "ar": "فتح المتتبّع"
+  },
+  "cycle_home_private": {
+   "en": "Private, on-device tracking",
+   "ar": "تتبّع خاص على الجهاز"
+  },
+  "cycle_home_setup": {
+   "en": "Set up cycle tracking",
+   "ar": "إعداد تتبّع الدورة"
+  },
+  "cycle_home_title": {
+   "en": "Menstrual Cycle",
+   "ar": "الدورة الشهرية"
+  },
+  "cycle_phase_follicular": {
+   "en": "Follicular",
+   "ar": "الطور الجريبي"
+  },
+  "cycle_phase_learning": {
+   "en": "Learning your pattern",
+   "ar": "جارٍ تعلّم نمطك"
+  },
+  "cycle_phase_luteal": {
+   "en": "Luteal",
+   "ar": "الطور الأصفري"
+  },
+  "cycle_phase_mid_cycle": {
+   "en": "Mid-cycle shift",
+   "ar": "تحوّل منتصف الدورة"
+  },
+  "cycle_phase_unclear": {
+   "en": "No clear pattern",
+   "ar": "لا نمط واضح"
+  },
+  "cycle_tracker_already_logged": {
+   "en": "Already logged",
+   "ar": "مُسجَّل بالفعل"
+  },
+  "cycle_tracker_anchor_help": {
+   "en": "This optional date anchors cycle day 1 and is checked against your nightly temperature pattern.",
+   "ar": "هذا التاريخ الاختياري يحدّد اليوم الأول من الدورة ويُقارن بنمط حرارتك الليلية."
+  },
+  "cycle_tracker_cancel": {
+   "en": "Cancel",
+   "ar": "إلغاء"
+  },
+  "cycle_tracker_current_estimate": {
+   "en": "Current estimate",
+   "ar": "التقدير الحالي"
+  },
+  "cycle_tracker_day_range": {
+   "en": "~day %1$d–%2$d",
+   "ar": "~اليوم %1$d–%2$d"
+  },
+  "cycle_tracker_day_single": {
+   "en": "~day %1$d",
+   "ar": "~اليوم %1$d"
+  },
+  "cycle_tracker_delete_all": {
+   "en": "Delete all",
+   "ar": "حذف الكل"
+  },
+  "cycle_tracker_delete_day": {
+   "en": "Delete %1$s",
+   "ar": "حذف %1$s"
+  },
+  "cycle_tracker_delete_message": {
+   "en": "This permanently removes the on-device period-start history. Sensor history is not changed.",
+   "ar": "يزيل هذا نهائيًا سجل بدايات الدورة المخزّن على الجهاز. لا يتغير سجل المستشعرات."
+  },
+  "cycle_tracker_delete_title": {
+   "en": "Delete all logged period starts?",
+   "ar": "حذف كل بدايات الدورة المسجّلة؟"
+  },
+  "cycle_tracker_done": {
+   "en": "Done",
+   "ar": "تم"
+  },
+  "cycle_tracker_empty": {
+   "en": "No period starts logged yet.",
+   "ar": "لم تُسجَّل أي بدايات دورة بعد."
+  },
+  "cycle_tracker_likely_window": {
+   "en": "Likely period window: %1$s–%2$s. This is a range, not a fixed date.",
+   "ar": "نافذة الدورة المرجّحة: %1$s–%2$s. هذا نطاق وليس تاريخًا محددًا."
+  },
+  "cycle_tracker_log_action": {
+   "en": "Log period start",
+   "ar": "تسجيل بداية دورة"
+  },
+  "cycle_tracker_log_heading": {
+   "en": "Log a period start",
+   "ar": "سجّل بداية دورة"
+  },
+  "cycle_tracker_logged_starts": {
+   "en": "Logged starts",
+   "ar": "البدايات المسجّلة"
+  },
+  "cycle_tracker_privacy": {
+   "en": "This never leaves your device unless you export a backup yourself.",
+   "ar": "لا يغادر هذا جهازك أبدًا ما لم تُصدّر نسخة احتياطية بنفسك."
+  },
+  "cycle_tracker_title": {
+   "en": "Cycle tracker",
+   "ar": "متتبّع الدورة"
+  },
+  "deep_timeline_title": {
+   "en": "Deep Timeline",
+   "ar": "الجدول الزمني العميق"
+  },
+  "explore_all_history": {
+   "en": "all history",
+   "ar": "كل السجل"
+  },
+  "explore_average": {
+   "en": "Average",
+   "ar": "المتوسط"
+  },
+  "explore_category_charge": {
+   "en": "Charge",
+   "ar": "الشحن"
+  },
+  "explore_category_effort": {
+   "en": "Effort",
+   "ar": "الجهد"
+  },
+  "explore_category_health": {
+   "en": "Health",
+   "ar": "الصحة"
+  },
+  "explore_category_heart": {
+   "en": "Heart",
+   "ar": "القلب"
+  },
+  "explore_category_mind": {
+   "en": "Mind",
+   "ar": "الذهن"
+  },
+  "explore_category_nutrition": {
+   "en": "Nutrition",
+   "ar": "التغذية"
+  },
+  "explore_category_rest": {
+   "en": "Rest",
+   "ar": "الراحة"
+  },
+  "explore_chart_points": {
+   "en": "Points",
+   "ar": "النقاط"
+  },
+  "explore_chart_window": {
+   "en": "Window",
+   "ar": "النافذة"
+  },
+  "explore_deep_timeline_hint": {
+   "en": "Every second of your day, zoomable.",
+   "ar": "كل ثانية من يومك، قابلة للتكبير."
+  },
+  "explore_delta_vs_prev": {
+   "en": "Δ vs prev",
+   "ar": "Δ مقارنة بالسابق"
+  },
+  "explore_description_charge": {
+   "en": "How recovered you are, led by HRV versus your personal baseline.",
+   "ar": "مدى تعافيك، يقوده تقلب النبض مقارنةً بخط الأساس الخاص بك."
+  },
+  "explore_description_effort": {
+   "en": "Cardiovascular load for the day, on a 0-100 scale (was 0-21).",
+   "ar": "الحمل القلبي الوعائي لليوم، على مقياس 0-100 (كان 0-21)."
+  },
+  "explore_description_rest": {
+   "en": "How restorative your sleep was: duration, efficiency, deep+REM, timing.",
+   "ar": "مدى استعادة نومك: المدة، والكفاءة، والنوم العميق وREM، والتوقيت."
+  },
+  "explore_empty_metric": {
+   "en": "No %1$s recorded yet. Sync your strap to populate this trend.",
+   "ar": "لم يُسجَّل %1$s بعد. زامن سوارك لتعبئة هذا الاتجاه."
+  },
+  "explore_import_body": {
+   "en": "Import your history first. A WHOOP export in Data Sources fills every metric you can explore here in about a minute.",
+   "ar": "استورد سجلك أولًا. ملف تصدير WHOOP في «مصادر البيانات» يملأ كل مقياس يمكنك استكشافه هنا في نحو دقيقة."
+  },
+  "explore_import_title": {
+   "en": "Import your history first",
+   "ar": "استورد سجلك أولًا"
+  },
+  "explore_latest": {
+   "en": "Latest",
+   "ar": "الأحدث"
+  },
+  "explore_max": {
+   "en": "Max",
+   "ar": "الأقصى"
+  },
+  "explore_metric_average_heart_rate": {
+   "en": "Average Heart Rate",
+   "ar": "متوسط معدل النبض"
+  },
+  "explore_metric_calories_in": {
+   "en": "Calories In",
+   "ar": "السعرات المتناولة"
+  },
+  "explore_metric_carbs": {
+   "en": "Carbs",
+   "ar": "الكربوهيدرات"
+  },
+  "explore_metric_fat": {
+   "en": "Fat",
+   "ar": "الدهون"
+  },
+  "explore_metric_max_heart_rate": {
+   "en": "Max Heart Rate",
+   "ar": "أقصى معدل نبض"
+  },
+  "explore_metric_mood": {
+   "en": "Mood",
+   "ar": "المزاج"
+  },
+  "explore_metric_protein": {
+   "en": "Protein",
+   "ar": "البروتين"
+  },
+  "explore_min": {
+   "en": "Min",
+   "ar": "الأدنى"
+  },
+  "explore_n_pts": {
+   "en": "%1$d pts",
+   "ar": "%1$d نقطة"
+  },
+  "explore_no_prior_window": {
+   "en": "no prior %1$s",
+   "ar": "لا %1$s سابقة"
+  },
+  "explore_over_visible_window": {
+   "en": "Over the visible window",
+   "ar": "خلال النافذة الظاهرة"
+  },
+  "explore_pick_metric": {
+   "en": "Pick metric",
+   "ar": "اختر مقياسًا"
+  },
+  "explore_single_reading": {
+   "en": "Only one reading in range — widen the window to see a trend.",
+   "ar": "قراءة واحدة فقط في النطاق — وسّع النافذة لرؤية اتجاه."
+  },
+  "explore_subtitle": {
+   "en": "Every signal, one tap deep.",
+   "ar": "كل إشارة، على بُعد نقرة واحدة."
+  },
+  "explore_summary": {
+   "en": "Summary",
+   "ar": "الملخص"
+  },
+  "explore_vs_prev_window": {
+   "en": "vs prev %1$s",
+   "ar": "مقارنةً بـ %1$s السابقة"
+  },
+  "fast_history_sync": {
+   "en": "Faster history sync (experimental)",
+   "ar": "مزامنة سجل أسرع (تجريبي)"
+  },
+  "fast_history_sync_desc": {
+   "en": "Ask Android for a faster Bluetooth link while your strap hands over its stored history, so a big backlog catches up sooner. Only during the sync itself — your live heart rate and the overnight stream are untouched. New and unproven: if it doesn\\'t help, or costs more battery than it\\'s worth, turn it back off and say so on the issue tracker.",
+   "ar": "يطلب من Android اتصال Bluetooth أسرع بينما يسلّم سوارك سجله المخزّن، حتى يلحق التراكم الكبير أسرع. أثناء المزامنة نفسها فقط — لا يتأثر نبضك المباشر ولا البث الليلي. جديدة وغير مثبتة: إن لم تساعد أو كلّفت بطارية أكثر مما تستحق، أعد إيقافها وأخبرنا في متتبّع المشكلات."
+  },
+  "fast_link_phy": {
+   "en": "Faster Bluetooth link (experimental)",
+   "ar": "اتصال Bluetooth أسرع (تجريبي)"
+  },
+  "fast_link_phy_desc": {
+   "en": "Ask for a faster Bluetooth radio mode while your strap hands over its stored history. Sends the same data in less airtime, so it may sync sooner and use a little less strap battery — but your strap has to support it, and it trades some range for speed. New and unproven: if syncing gets flaky when your phone is further away, turn it back off.",
+   "ar": "يطلب وضع راديو Bluetooth أسرع بينما يسلّم سوارك سجله المخزّن. يرسل البيانات نفسها في وقت بث أقل، فقد تتم المزامنة أسرع وتوفّر قليلًا من بطارية السوار — لكن على سوارك أن يدعمه، وهو يقايض بعض المدى بالسرعة. جديدة وغير مثبتة: إن صارت المزامنة غير مستقرة حين يبتعد هاتفك، أعد إيقافها."
+  },
+  "fgs_action_disconnect": {
+   "en": "Disconnect",
+   "ar": "قطع الاتصال"
+  },
+  "fgs_channel_desc": {
+   "en": "Shown while NOOP keeps your WHOOP connected in the background.",
+   "ar": "يظهر بينما يُبقي NOOP اتصال WHOOP في الخلفية."
+  },
+  "fgs_channel_name": {
+   "en": "Strap connection",
+   "ar": "اتصال السوار"
+  },
+  "fgs_detail_battery": {
+   "en": "Strap %1$d%%",
+   "ar": "السوار %1$d%%"
+  },
+  "fgs_detail_keeping_link": {
+   "en": "Keeping the link open",
+   "ar": "إبقاء الاتصال مفتوحًا"
+  },
+  "fgs_detail_recovery": {
+   "en": "Recovery %1$d%%",
+   "ar": "التعافي %1$d%%"
+  },
+  "fgs_detail_streaming": {
+   "en": "Streaming in the background",
+   "ar": "بث في الخلفية"
+  },
+  "fgs_title_connected": {
+   "en": "Connected to your WHOOP",
+   "ar": "متصل بـ WHOOP"
+  },
+  "fgs_title_reconnecting": {
+   "en": "Reconnecting to your WHOOP…",
+   "ar": "إعادة الاتصال بـ WHOOP…"
+  },
+  "fgs_title_syncing": {
+   "en": "Syncing strap history…",
+   "ar": "مزامنة سجل السوار…"
+  },
+  "ground_truth_add_historical": {
+   "en": "Add past time window",
+   "ar": "إضافة نافذة زمنية سابقة"
+  },
+  "ground_truth_add_marker": {
+   "en": "Add marker",
+   "ar": "إضافة علامة"
+  },
+  "ground_truth_band_connected_paired": {
+   "en": "Band: connected + paired",
+   "ar": "السوار: متصل + مقترن"
+  },
+  "ground_truth_band_connected_pairing": {
+   "en": "Band: connected; pairing",
+   "ar": "السوار: متصل؛ جارٍ الاقتران"
+  },
+  "ground_truth_band_disconnected": {
+   "en": "Band: disconnected",
+   "ar": "السوار: غير متصل"
+  },
+  "ground_truth_band_searching": {
+   "en": "Band: disconnected; searching",
+   "ar": "السوار: غير متصل؛ جارٍ البحث"
+  },
+  "ground_truth_cancel": {
+   "en": "Cancel",
+   "ar": "إلغاء"
+  },
+  "ground_truth_capture_status": {
+   "en": "Capture status",
+   "ar": "حالة التسجيل"
+  },
+  "ground_truth_comment": {
+   "en": "Session comment",
+   "ar": "تعليق الجلسة"
+  },
+  "ground_truth_coverage": {
+   "en": "%1$d/%2$d s · %3$.1f%% · %4$d s missing%5$s",
+   "ar": "%1$d/%2$d ث · %3$.1f%% · %4$d ث مفقودة%5$s"
+  },
+  "ground_truth_coverage_startup": {
+   "en": " · %1$d s startup",
+   "ar": " · %1$d ث بدء"
+  },
+  "ground_truth_delete_all": {
+   "en": "Delete all sessions",
+   "ar": "حذف كل الجلسات"
+  },
+  "ground_truth_delete_all_message": {
+   "en": "All %1$d recorded sessions and their captured raw data will be deleted permanently.",
+   "ar": "ستُحذف نهائيًا كل الجلسات المسجّلة البالغة %1$d وبياناتها الخام."
+  },
+  "ground_truth_delete_all_title": {
+   "en": "Delete all sessions?",
+   "ar": "حذف كل الجلسات؟"
+  },
+  "ground_truth_delete_confirm": {
+   "en": "Delete",
+   "ar": "حذف"
+  },
+  "ground_truth_delete_session": {
+   "en": "Delete session",
+   "ar": "حذف الجلسة"
+  },
+  "ground_truth_delete_session_message": {
+   "en": "The session %1$s and its captured raw data will be deleted permanently.",
+   "ar": "ستُحذف الجلسة %1$s وبياناتها الخام نهائيًا."
+  },
+  "ground_truth_delete_session_title": {
+   "en": "Delete this session?",
+   "ar": "حذف هذه الجلسة؟"
+  },
+  "ground_truth_edit_end": {
+   "en": "Edit end",
+   "ar": "تعديل النهاية"
+  },
+  "ground_truth_edit_marker": {
+   "en": "Edit marker",
+   "ar": "تعديل العلامة"
+  },
+  "ground_truth_edit_start": {
+   "en": "Edit start",
+   "ar": "تعديل البداية"
+  },
+  "ground_truth_export": {
+   "en": "Export session",
+   "ar": "تصدير الجلسة"
+  },
+  "ground_truth_export_failed": {
+   "en": "Couldn’t export session: %1$s",
+   "ar": "تعذّر تصدير الجلسة: %1$s"
+  },
+  "ground_truth_exporting": {
+   "en": "Building export…",
+   "ar": "جارٍ إنشاء التصدير…"
+  },
+  "ground_truth_history_completed": {
+   "en": "History sync completed: %1$s",
+   "ar": "اكتملت مزامنة السجل: %1$s"
+  },
+  "ground_truth_history_none": {
+   "en": "History sync: no completed sync recorded",
+   "ar": "مزامنة السجل: لا توجد مزامنة مكتملة مسجّلة"
+  },
+  "ground_truth_history_running": {
+   "en": "History sync: running (%1$d chunks)",
+   "ar": "مزامنة السجل: جارية (%1$d أجزاء)"
+  },
+  "ground_truth_last_exported": {
+   "en": "Last exported %1$s · export remains available",
+   "ar": "آخر تصدير %1$s · التصدير ما زال متاحًا"
+  },
+  "ground_truth_legacy_no_sensors": {
+   "en": "Legacy session: event export is available, but its strap cannot be identified for sensor export.",
+   "ar": "جلسة قديمة: تصدير الأحداث متاح، لكن يتعذّر تحديد سوارها لتصدير المستشعرات."
+  },
+  "ground_truth_marker_end": {
+   "en": "End",
+   "ar": "نهاية"
+  },
+  "ground_truth_marker_issue": {
+   "en": "Issue",
+   "ar": "مشكلة"
+  },
+  "ground_truth_marker_moment": {
+   "en": "Moment",
+   "ar": "لحظة"
+  },
+  "ground_truth_marker_note": {
+   "en": "Marker note",
+   "ar": "ملاحظة العلامة"
+  },
+  "ground_truth_marker_start": {
+   "en": "Start",
+   "ar": "بداية"
+  },
+  "ground_truth_marker_times": {
+   "en": "Marker %1$s · Now %2$s",
+   "ar": "العلامة %1$s · الآن %2$s"
+  },
+  "ground_truth_no_sessions": {
+   "en": "No sessions recorded yet.",
+   "ar": "لم تُسجَّل أي جلسات بعد."
+  },
+  "ground_truth_open": {
+   "en": "Open raw-data collector",
+   "ar": "فتح جامع البيانات الخام"
+  },
+  "ground_truth_ready_complete": {
+   "en": "Ready to export · complete",
+   "ar": "جاهز للتصدير · مكتمل"
+  },
+  "ground_truth_ready_missing": {
+   "en": "Ready with %1$d s missing · history may repair it",
+   "ar": "جاهز مع %1$d ث مفقودة · قد يصلحها السجل"
+  },
+  "ground_truth_ready_no_imu": {
+   "en": "Ready without IMU data",
+   "ar": "جاهز دون بيانات IMU"
+  },
+  "ground_truth_realtime_imu": {
+   "en": "Realtime IMU: %1$s; %2$d packets / %3$d bytes%4$s",
+   "ar": "‏IMU مباشر: %1$s؛ %2$d حزمة / %3$d بايت%4$s"
+  },
+  "ground_truth_realtime_last": {
+   "en": "; last %1$s ago",
+   "ar": "؛ آخرها قبل %1$s"
+  },
+  "ground_truth_recording": {
+   "en": "Recording · %1$s",
+   "ar": "تسجيل · %1$s"
+  },
+  "ground_truth_save": {
+   "en": "Save",
+   "ar": "حفظ"
+  },
+  "ground_truth_sensors_behind": {
+   "en": "Decoded 1 Hz sensors: %1$s behind",
+   "ar": "مستشعرات 1 هرتز المفكوكة: متأخرة %1$s"
+  },
+  "ground_truth_sensors_none": {
+   "en": "Decoded 1 Hz sensors: none",
+   "ar": "مستشعرات 1 هرتز المفكوكة: لا شيء"
+  },
+  "ground_truth_sessions": {
+   "en": "Recorded sessions",
+   "ar": "الجلسات المسجّلة"
+  },
+  "ground_truth_start": {
+   "en": "Start raw-data session",
+   "ar": "بدء جلسة بيانات خام"
+  },
+  "ground_truth_stop": {
+   "en": "Stop session",
+   "ar": "إيقاف الجلسة"
+  },
+  "ground_truth_subtitle": {
+   "en": "Record a bounded 100 Hz motion session, recover Bluetooth gaps from strap history, and export the complete timeline.",
+   "ar": "سجّل جلسة حركة محدودة بتردد 100 هرتز، واسترجع فجوات Bluetooth من سجل السوار، وصدّر الجدول الزمني الكامل."
+  },
+  "ground_truth_test_centre_desc": {
+   "en": "Record, annotate, recover, and export a bounded 5/MG 100 Hz motion capture.",
+   "ar": "تسجيل وتوصيف واسترجاع وتصدير التقاط حركة محدود بتردد 100 هرتز لـ 5/MG."
+  },
+  "ground_truth_title": {
+   "en": "5/MG Raw Data Collector",
+   "ar": "جامع البيانات الخام 5/MG"
+  },
+  "ground_truth_waiting_history": {
+   "en": "Waiting for history through %1$s",
+   "ar": "في انتظار السجل حتى %1$s"
+  },
+  "ground_truth_waiting_imu": {
+   "en": "waiting for IMU",
+   "ar": "في انتظار IMU"
+  },
+  "haptics_breathing_label": {
+   "en": "Breathing pacer",
+   "ar": "موجّه إيقاع التنفس"
+  },
+  "haptics_intervals_label": {
+   "en": "Interval timer",
+   "ar": "مؤقّت الفترات"
+  },
+  "haptics_live_session_label": {
+   "en": "Live Session cues",
+   "ar": "تنبيهات الجلسة المباشرة"
+  },
+  "haptics_section_title": {
+   "en": "Haptics",
+   "ar": "الاهتزاز"
+  },
+  "haptics_workout_label": {
+   "en": "Workout start & end",
+   "ar": "بداية التمرين ونهايته"
+  },
+  "health_connect_categories_detail": {
+   "en": "Select the Health Connect categories to import. You can change this later.",
+   "ar": "اختر فئات Health Connect المراد استيرادها. يمكنك تغيير ذلك لاحقًا."
+  },
+  "health_connect_categories_title": {
+   "en": "Choose what NOOP can read",
+   "ar": "اختر ما يمكن لـ NOOP قراءته"
+  },
+  "health_connect_category_activity": {
+   "en": "Activity",
+   "ar": "النشاط"
+  },
+  "health_connect_category_activity_detail": {
+   "en": "Steps, calories, workouts, distance, and VO₂ max",
+   "ar": "الخطوات والسعرات والتمارين والمسافة وVO₂ max"
+  },
+  "health_connect_category_body_composition": {
+   "en": "Body composition",
+   "ar": "تركيب الجسم"
+  },
+  "health_connect_category_body_composition_detail": {
+   "en": "Weight, body fat, and lean mass",
+   "ar": "الوزن ونسبة الدهون والكتلة الصافية"
+  },
+  "health_connect_category_recovery": {
+   "en": "Recovery & wellness",
+   "ar": "التعافي والعافية"
+  },
+  "health_connect_category_recovery_detail": {
+   "en": "Heart rate, HRV, sleep, SpO₂, breathing, and hydration",
+   "ar": "معدل النبض وتقلب النبض والنوم وSpO₂ والتنفس والترطيب"
+  },
+  "illness_alert_title": {
+   "en": "Early warning: take it easy",
+   "ar": "إنذار مبكر: خفّف من نشاطك"
+  },
+  "inactivity_title": {
+   "en": "Move reminder",
+   "ar": "تذكير بالحركة"
+  },
+  "intervals_range_step": {
+   "en": "%1$s – %2$s%3$s · step %4$d",
+   "ar": "%1$s – %2$s%3$s · خطوة %4$d"
+  },
+  "keep_alive_needed_vendor": {
+   "en": "Your phone (%1$s) can stop background apps to save battery, which can make NOOP miss overnight sleep and recovery data. Tap Allow to whitelist NOOP.\\n\\nAndroid will ask “Stop optimising battery usage?” and warn that NOOP may drain your battery — that\\'s its standard wording for any app allowed to run in the background. Tap Allow. The battery goes on the overnight sync you already switched on above; this only stops Android cutting it short.",
+   "ar": "قد يوقف هاتفك (%1$s) التطبيقات العاملة في الخلفية لتوفير البطارية، مما قد يجعل NOOP يفوّت بيانات النوم والتعافي الليلية. اضغط «سماح» لإضافة NOOP إلى الاستثناءات.\\n\\nسيسأل Android «إيقاف تحسين استخدام البطارية؟» وينبّه إلى أن NOOP قد يستنزف البطارية — وهذه صياغته المعتادة لأي تطبيق يُسمح له بالعمل في الخلفية. اضغط «سماح». تُستهلك البطارية في المزامنة الليلية التي فعّلتها بالفعل أعلاه؛ وهذا يمنع Android فقط من قطعها."
+  },
+  "l10n_add_device_wizard_a_whoop_strap_bonds_to_a_d39bdf4a": {
+   "en": "A WHOOP strap bonds to a single device. While it\\'s connected to NOOP it won\\'t stream ",
+   "ar": "يقترن سوار WHOOP بجهاز واحد فقط. وأثناء اتصاله بـ NOOP لن يبثّ "
+  },
+  "l10n_add_device_wizard_add_61cc55aa": {
+   "en": "Add",
+   "ar": "إضافة"
+  },
+  "l10n_add_device_wizard_advanced_i_already_have_my_ring_e87b9b49": {
+   "en": "Advanced: I already have my ring\\'s key",
+   "ar": "متقدّم: لديّ مفتاح خاتمي بالفعل"
+  },
+  "l10n_add_device_wizard_back_b52b36b7": {
+   "en": "Back",
+   "ar": "رجوع"
+  },
+  "l10n_add_device_wizard_beta_is_an_on_device_estimate_128563e0": {
+   "en": "Beta. * is an on-device estimate. Skin temp is a trend versus your own baseline, steps ",
+   "ar": "إصدار تجريبي. * تقدير على الجهاز. حرارة الجلد اتجاه مقارنةً بخط الأساس الخاص بك، والخطوات "
+  },
+  "l10n_add_device_wizard_both_noop_and_the_oura_app_4f219db3": {
+   "en": "Both NOOP and the Oura app can use a ring you own by key, but only one can hold the Bluetooth link at a time.",
+   "ar": "يمكن لكل من NOOP وتطبيق Oura استخدام خاتم تملكه عبر المفتاح، لكن واحدًا فقط يمكنه الاحتفاظ باتصال Bluetooth في كل مرة."
+  },
+  "l10n_add_device_wizard_cancel_77dfd213": {
+   "en": "Cancel",
+   "ar": "إلغاء"
+  },
+  "l10n_add_device_wizard_close_bbfa773e": {
+   "en": "Close",
+   "ar": "إغلاق"
+  },
+  "l10n_add_device_wizard_connect_to_this_ring_02b9442b": {
+   "en": "Connect to this ring",
+   "ar": "الاتصال بهذا الخاتم"
+  },
+  "l10n_add_device_wizard_continue_2e026239": {
+   "en": "Continue",
+   "ar": "متابعة"
+  },
+  "l10n_add_device_wizard_device_name_79d7a157": {
+   "en": "Device name",
+   "ar": "اسم الجهاز"
+  },
+  "l10n_add_device_wizard_experimental_best_effort_support_we_re_db288aa8": {
+   "en": "Experimental, best-effort support. We\\'re still testing these, so they might not connect on every device. They never make up data, and they\\'ll tell you honestly when live isn\\'t possible.",
+   "ar": "دعم تجريبي بأفضل جهد ممكن. ما زلنا نختبرها، لذا قد لا تتصل على كل جهاز. لا تختلق البيانات أبدًا، وستخبرك بصدق حين يتعذّر البث المباشر."
+  },
+  "l10n_add_device_wizard_i_understand_this_disconnects_the_ring_66bbb125": {
+   "en": "I understand this disconnects the ring from Oura and that NOOP cannot undo it for me. To go back to Oura I would factory-reset the ring again and set it up in the Oura app.",
+   "ar": "أفهم أن هذا يفصل الخاتم عن Oura وأن NOOP لا يستطيع التراجع عن ذلك نيابةً عني. وللعودة إلى Oura سأعيد ضبط الخاتم لإعدادات المصنع وأعدّه في تطبيق Oura."
+  },
+  "l10n_add_device_wizard_i_understand_this_disconnects_the_ring_ccbb3225": {
+   "en": "I understand this disconnects the ring from Oura and that NOOP cannot undo it for me.",
+   "ar": "أفهم أن هذا يفصل الخاتم عن Oura وأن NOOP لا يستطيع التراجع عن ذلك نيابةً عني."
+  },
+  "l10n_add_device_wizard_installing_noop_s_key_and_confirming_aab5cf61": {
+   "en": "Installing NOOP\\'s key and confirming the ring answers only to NOOP. Keep the ring close and do not open the Oura app.",
+   "ar": "جارٍ تثبيت مفتاح NOOP والتأكد من أن الخاتم يستجيب لـ NOOP وحده. أبقِ الخاتم قريبًا ولا تفتح تطبيق Oura."
+  },
+  "l10n_add_device_wizard_keep_the_oura_app_instead_import_60d70411": {
+   "en": "Keep the Oura app instead (import a file)",
+   "ar": "الإبقاء على تطبيق Oura بدلًا من ذلك (استيراد ملف)"
+  },
+  "l10n_add_device_wizard_make_active_75690bb8": {
+   "en": "Make active",
+   "ar": "تعيينه نشطًا"
+  },
+  "l10n_add_device_wizard_make_confirmname_your_active_device_now_90ceb73e": {
+   "en": "Make %1$s your active device now? It will provide your live data. You can change ",
+   "ar": "تعيين %1$s جهازك النشط الآن؟ سيوفّر بياناتك المباشرة. يمكنك التغيير "
+  },
+  "l10n_add_device_wizard_make_sure_it_s_awake_and_8c40e59f": {
+   "en": "Make sure it\\'s awake and not connected elsewhere.",
+   "ar": "تأكد من أنه مستيقظ وغير متصل بمكان آخر."
+  },
+  "l10n_add_device_wizard_make_this_your_active_device_b425485c": {
+   "en": "Make this your active device?",
+   "ar": "تعيين هذا جهازك النشط؟"
+  },
+  "l10n_add_device_wizard_name_signal_signalbars_level_rssi_of_6aa514f6": {
+   "en": "%1$s, signal %2$s of 4",
+   "ar": "%1$s، الإشارة %2$s من 4"
+  },
+  "l10n_add_device_wizard_noop_stores_this_key_only_on_eae4e63f": {
+   "en": "NOOP stores this key only on this device, in the same place it stores your paired bands.",
+   "ar": "يخزّن NOOP هذا المفتاح على هذا الجهاز فقط، في المكان نفسه الذي يخزّن فيه أساورك المقترنة."
+  },
+  "l10n_add_device_wizard_noop_will_install_its_own_key_d3f6321e": {
+   "en": "NOOP will install its own key on the ring and become its owner. The Oura app will no longer control this ring. This is intended and it cannot be undone from NOOP.",
+   "ar": "سيثبّت NOOP مفتاحه الخاص على الخاتم ويصبح مالكه. لن يتحكم تطبيق Oura بهذا الخاتم بعد الآن. هذا مقصود ولا يمكن التراجع عنه من NOOP."
+  },
+  "l10n_add_device_wizard_not_now_e4571490": {
+   "en": "Not now",
+   "ar": "ليس الآن"
+  },
+  "l10n_add_device_wizard_not_showing_up_make_sure_you_60a8a61b": {
+   "en": "Not showing up? Make sure you reset the ring in the Oura app and force-quit it, then tap Rescan. A ring still owned by Oura will not list here.",
+   "ar": "لا يظهر؟ تأكد من إعادة ضبط الخاتم في تطبيق Oura وإغلاق التطبيق تمامًا، ثم اضغط «إعادة البحث». الخاتم الذي ما زالت Oura تملكه لن يظهر هنا."
+  },
+  "l10n_add_device_wizard_one_phone_at_a_time_cff4ff44": {
+   "en": "One phone at a time",
+   "ar": "هاتف واحد في كل مرة"
+  },
+  "l10n_add_device_wizard_oura_ring_e3431536": {
+   "en": "Oura ring",
+   "ar": "خاتم Oura"
+  },
+  "l10n_add_device_wizard_rescan_84661f6a": {
+   "en": "Rescan",
+   "ar": "إعادة البحث"
+  },
+  "l10n_add_device_wizard_ring_key_32_hex_characters_28cb7e4a": {
+   "en": "Ring key, 32 hex characters",
+   "ar": "مفتاح الخاتم، 32 رمزًا ست عشريًا"
+  },
+  "l10n_add_device_wizard_scan_28cba55d": {
+   "en": "Scan",
+   "ar": "بحث"
+  },
+  "l10n_add_device_wizard_scan_for_type_title_be2c98fb": {
+   "en": "Scan for %1$s",
+   "ar": "البحث عن %1$s"
+  },
+  "l10n_add_device_wizard_scan_for_your_ring_e92b3a3b": {
+   "en": "Scan for your ring",
+   "ar": "ابحث عن خاتمك"
+  },
+  "l10n_add_device_wizard_searching_1a6a5ba8": {
+   "en": "Searching…",
+   "ar": "جارٍ البحث…"
+  },
+  "l10n_add_device_wizard_take_over_2c7f5505": {
+   "en": "Take over",
+   "ar": "الاستحواذ"
+  },
+  "l10n_add_device_wizard_take_over_this_ring_cc79ef5e": {
+   "en": "Take over this ring?",
+   "ar": "الاستحواذ على هذا الخاتم؟"
+  },
+  "l10n_add_device_wizard_take_over_this_ring_f199dc22": {
+   "en": "Take over this ring",
+   "ar": "الاستحواذ على هذا الخاتم"
+  },
+  "l10n_add_device_wizard_taking_over_your_ring_b64a3852": {
+   "en": "Taking over your ring",
+   "ar": "جارٍ الاستحواذ على خاتمك"
+  },
+  "l10n_add_device_wizard_that_is_not_a_32_character_d42ca20d": {
+   "en": "That is not a 32-character hex key.",
+   "ar": "هذا ليس مفتاحًا ست عشريًا من 32 رمزًا."
+  },
+  "l10n_add_device_wizard_the_ring_is_not_bricked_to_5efd1b3d": {
+   "en": "The ring is not bricked. To go back to where you started, factory-reset it again and set it ",
+   "ar": "الخاتم ليس معطلًا. وللعودة إلى ما كنت عليه، أعد ضبطه لإعدادات المصنع مرة أخرى وأعدّه "
+  },
+  "l10n_add_device_wizard_try_again_042c862e": {
+   "en": "Try again",
+   "ar": "إعادة المحاولة"
+  },
+  "l10n_add_device_wizard_use_file_import_0e092cb4": {
+   "en": "Use file import",
+   "ar": "استخدام استيراد ملف"
+  },
+  "l10n_add_device_wizard_we_could_not_take_over_this_fec1ce93": {
+   "en": "We could not take over this ring.",
+   "ar": "تعذّر الاستحواذ على هذا الخاتم."
+  },
+  "l10n_add_device_wizard_whoop_5_0_mg_support_is_e452e686": {
+   "en": "WHOOP 5.0 / MG support is newer and still experimental in NOOP.",
+   "ar": "دعم WHOOP 5.0 / MG أحدث وما زال تجريبيًا في NOOP."
+  },
+  "l10n_add_device_wizard_whoop_is_noop_s_primary_fully_ac6fa33b": {
+   "en": "WHOOP is NOOP\\'s primary, fully-supported band. Other heart-rate straps stream live heart rate and HRV, but not WHOOP\\'s deeper sleep and recovery data.",
+   "ar": "‏WHOOP هو السوار الأساسي المدعوم بالكامل في NOOP. الأساور الأخرى تبثّ معدل النبض وتقلب النبض مباشرةً، لكن دون بيانات النوم والتعافي الأعمق الخاصة بـ WHOOP."
+  },
+  "l10n_app_changelog_5_mg_bonding_on_android_health_c94c46ac": {
+   "en": "5/MG bonding on Android + Health Monitor fix",
+   "ar": "اقتران 5/MG على Android + إصلاح Health Monitor"
+  },
+  "l10n_app_changelog_a_beautiful_new_look_aa8c910c": {
+   "en": "A beautiful new look",
+   "ar": "مظهر جديد جميل"
+  },
+  "l10n_app_changelog_a_big_bug_fix_sweep_with_65335764": {
+   "en": "A big bug-fix sweep, with the Test Centre to back it up",
+   "ar": "موجة كبيرة من إصلاح الأخطاء، بدعم من مركز الاختبار"
+  },
+  "l10n_app_changelog_a_big_one_smarter_sleep_naps_8d7745c6": {
+   "en": "A big one: smarter sleep, naps, more devices, and a load of fixes",
+   "ar": "تحديث كبير: نوم أذكى، وقيلولات، وأجهزة أكثر، وكثير من الإصلاحات"
+  },
+  "l10n_app_changelog_a_bolder_today_screen_4efe8215": {
+   "en": "A bolder Today screen",
+   "ar": "شاشة «اليوم» أكثر جرأة"
+  },
+  "l10n_app_changelog_a_calmer_today_your_charge_explained_e4174303": {
+   "en": "A calmer Today, your Charge explained, and new HRV science under the hood",
+   "ar": "«اليوم» أهدأ، وشرح للشحن، وعلم جديد لتقلب النبض تحت الغطاء"
+  },
+  "l10n_app_changelog_a_cleaner_home_refreshed_design_a_8c91c06b": {
+   "en": "A cleaner home - refreshed design, a new inbox, your photo",
+   "ar": "شاشة رئيسية أنظف — تصميم محدّث، وصندوق وارد جديد، وصورتك"
+  },
+  "l10n_app_changelog_a_fresh_look_new_gold_on_6f379935": {
+   "en": "A fresh look - new gold-on-navy icon",
+   "ar": "مظهر جديد — أيقونة ذهبية على أزرق داكن"
+  },
+  "l10n_app_changelog_a_quick_fix_9cd2b7de": {
+   "en": "A quick fix",
+   "ar": "إصلاح سريع"
+  },
+  "l10n_app_changelog_a_round_of_fixes_reconnect_exports_7700d972": {
+   "en": "A round of fixes - reconnect, exports & Health setup",
+   "ar": "جولة إصلاحات — إعادة الاتصال والتصدير وإعداد Health"
+  },
+  "l10n_app_changelog_a_round_of_fixes_steps_insights_8f8e6010": {
+   "en": "A round of fixes - steps, Insights & Health setup",
+   "ar": "جولة إصلاحات — الخطوات والرؤى وإعداد Health"
+  },
+  "l10n_app_changelog_a_round_of_look_and_feel_196f6ef3": {
+   "en": "A round of look-and-feel polish",
+   "ar": "جولة تحسينات للمظهر والإحساس"
+  },
+  "l10n_app_changelog_a_small_honest_ask_32f2ec41": {
+   "en": "A small, honest ask",
+   "ar": "طلب صغير وصادق"
+  },
+  "l10n_app_changelog_a_smart_wake_alarm_live_workout_0ef814cc": {
+   "en": "A smart wake alarm, live workout mode, an editable Today, and lifting imports",
+   "ar": "منبّه استيقاظ ذكي، ووضع تمرين مباشر، و«اليوم» قابل للتحرير، واستيراد تمارين القوة"
+  },
+  "l10n_app_changelog_a_smoother_dashboard_on_big_histories_3e3a8dea": {
+   "en": "A smoother dashboard on big histories, and a clearer Smart Alarm",
+   "ar": "لوحة أكثر سلاسة مع السجلات الكبيرة، ومنبّه ذكي أوضح"
+  },
+  "l10n_app_changelog_a_sync_chip_on_today_clearer_37682fc9": {
+   "en": "A sync chip on Today, clearer strap-clock warnings, and complete German",
+   "ar": "مؤشر مزامنة في «اليوم»، وتحذيرات أوضح لساعة السوار، وألمانية كاملة"
+  },
+  "l10n_app_changelog_a_whole_new_look_titanium_gold_b40e0108": {
+   "en": "A whole new look - \"Titanium & Gold\"",
+   "ar": "مظهر جديد كليًا — «التيتانيوم والذهب»"
+  },
+  "l10n_app_changelog_a_whoop_5_that_stays_connected_7b490eee": {
+   "en": "A WHOOP 5 that stays connected, your body clock on the Sleep screen, and a Journal that knows No from nothing",
+   "ar": "‏WHOOP 5 يبقى متصلًا، وساعتك البيولوجية في شاشة النوم، ويوميات تميّز «لا» عن الفراغ"
+  },
+  "l10n_app_changelog_a_whoop_style_today_chart_clearer_9bdd13ff": {
+   "en": "A WHOOP-style Today chart, clearer sleep times - and a big iPhone update",
+   "ar": "رسم «اليوم» بأسلوب WHOOP، وأوقات نوم أوضح — وتحديث كبير لـ iPhone"
+  },
+  "l10n_app_changelog_accuracy_reliability_accessibility_a_big_community_43c3787d": {
+   "en": "Accuracy, reliability & accessibility - a big community-fixes wave",
+   "ar": "الدقة والموثوقية وإمكانية الوصول — موجة كبيرة من إصلاحات المجتمع"
+  },
+  "l10n_app_changelog_an_effort_scale_you_choose_a_a7c2478d": {
+   "en": "An Effort scale you choose, a ring that gets to sleep, and far fewer wasted re-scores",
+   "ar": "مقياس جهد تختاره، وخاتم ينام، وإعادة احتساب مهدرة أقل بكثير"
+  },
+  "l10n_app_changelog_android_bottom_tab_bar_99b41cad": {
+   "en": "Android: bottom tab bar",
+   "ar": "‏Android: شريط تبويبات سفلي"
+  },
+  "l10n_app_changelog_android_faster_sync_skin_temp_sync_4f774d79": {
+   "en": "Android: faster sync, skin temp, sync status, alarm groundwork",
+   "ar": "‏Android: مزامنة أسرع، وحرارة الجلد، وحالة المزامنة، وأساس المنبّه"
+  },
+  "l10n_app_changelog_android_gps_route_distance_fix_817a80d6": {
+   "en": "Android GPS route distance fix",
+   "ar": "إصلاح مسافة مسار GPS على Android"
+  },
+  "l10n_app_changelog_android_home_screen_widget_98b0782a": {
+   "en": "Android home-screen widget",
+   "ar": "أداة الشاشة الرئيسية على Android"
+  },
+  "l10n_app_changelog_android_notification_recovery_fix_widget_armour_b84839c6": {
+   "en": "Android: notification recovery fix + widget armour",
+   "ar": "‏Android: إصلاح استرداد الإشعارات + تحصين الأداة"
+  },
+  "l10n_app_changelog_android_reconnect_guide_a_startup_crash_9900dd7a": {
+   "en": "Android reconnect guide + a startup-crash fix",
+   "ar": "دليل إعادة الاتصال على Android + إصلاح تعطل عند الإقلاع"
+  },
+  "l10n_app_changelog_android_reliable_reconnect_after_a_dropout_c96cb4c0": {
+   "en": "Android: reliable reconnect after a dropout",
+   "ar": "‏Android: إعادة اتصال موثوقة بعد الانقطاع"
+  },
+  "l10n_app_changelog_android_share_back_to_health_connect_4d87898e": {
+   "en": "Android: share back to Health Connect",
+   "ar": "‏Android: المشاركة العكسية إلى Health Connect"
+  },
+  "l10n_app_changelog_android_the_widget_now_actually_updates_dc770011": {
+   "en": "Android: the widget now actually updates",
+   "ar": "‏Android: الأداة تتحدّث فعلًا الآن"
+  },
+  "l10n_app_changelog_android_today_clearer_empty_states_39ad5d2c": {
+   "en": "Android Today: clearer empty states",
+   "ar": "«اليوم» على Android: حالات فارغة أوضح"
+  },
+  "l10n_app_changelog_android_whoop_4_on_newer_firmware_383314db": {
+   "en": "Android: WHOOP 4 on newer firmware now records data",
+   "ar": "‏Android: WHOOP 4 على البرامج الثابتة الأحدث يسجّل البيانات الآن"
+  },
+  "l10n_app_changelog_apple_health_export_sleep_nights_recovered_1fc04ee2": {
+   "en": "Apple Health export, sleep nights recovered, and imported-ride Effort",
+   "ar": "التصدير إلى Apple Health، واسترجاع ليالي النوم، وجهد الرحلات المستوردة"
+  },
+  "l10n_app_changelog_auto_sync_health_connect_android_698f0129": {
+   "en": "Auto-sync Health Connect (Android)",
+   "ar": "مزامنة تلقائية لـ Health Connect (Android)"
+  },
+  "l10n_app_changelog_background_gps_sleep_time_editing_log_7baa5d7a": {
+   "en": "Background GPS, sleep-time editing, log-ahead, and a sharper Rest tile",
+   "ar": "‏GPS في الخلفية، وتحرير أوقات النوم، والتسجيل المسبق، وبطاقة راحة أوضح"
+  },
+  "l10n_app_changelog_backup_controls_and_a_lighter_app_a08f0fe4": {
+   "en": "Backup controls, and a lighter app",
+   "ar": "عناصر تحكم بالنسخ الاحتياطي، وتطبيق أخف"
+  },
+  "l10n_app_changelog_backup_restore_fixed_plus_appearance_controls_d0b9c0fe": {
+   "en": "Backup restore fixed, plus appearance controls",
+   "ar": "إصلاح استعادة النسخة الاحتياطية، مع عناصر تحكم بالمظهر"
+  },
+  "l10n_app_changelog_backup_restore_the_wrong_day_fix_ecbfd90d": {
+   "en": "Backup & Restore, the wrong-day fix, and a smarter Test Centre",
+   "ar": "النسخ الاحتياطي والاستعادة، وإصلاح اليوم الخاطئ، ومركز اختبار أذكى"
+  },
+  "l10n_app_changelog_battery_refresh_on_whoop_5_0_0304ac74": {
+   "en": "Battery refresh on WHOOP 5.0/MG (Mac + Android)",
+   "ar": "تحديث البطارية على WHOOP 5.0/MG (Mac + Android)"
+  },
+  "l10n_app_changelog_battery_responsiveness_smarter_sync_lighter_notification_e6949f3c": {
+   "en": "Battery + responsiveness: smarter sync, lighter notification",
+   "ar": "البطارية والاستجابة: مزامنة أذكى، وإشعار أخف"
+  },
+  "l10n_app_changelog_battery_saver_quiets_the_gauges_translated_bdbe8650": {
+   "en": "Battery saver quiets the gauges, translated Android notifications, and instant chart loads",
+   "ar": "موفّر البطارية يهدّئ المؤشرات، وإشعارات Android مترجمة، وتحميل فوري للرسوم"
+  },
+  "l10n_app_changelog_better_diagnostics_for_newer_strap_firmware_a7ef4187": {
+   "en": "Better diagnostics for newer strap firmware - so we can decode it",
+   "ar": "تشخيصات أفضل للبرامج الثابتة الأحدث للسوار — حتى نتمكن من فكّ ترميزها"
+  },
+  "l10n_app_changelog_better_strap_log_diagnostics_122f820c": {
+   "en": "Better strap-log diagnostics",
+   "ar": "تشخيصات أفضل لسجل السوار"
+  },
+  "l10n_app_changelog_big_fix_wave_clock_reconnect_local_a2959a50": {
+   "en": "Big fix wave - clock, reconnect, local LLM, Explore, weight and more",
+   "ar": "موجة إصلاحات كبيرة — الساعة، وإعادة الاتصال، ونموذج لغوي محلي، والاستكشاف، والوزن وغيرها"
+  },
+  "l10n_app_changelog_bluetooth_stream_apple_health_sync_fixes_78e16558": {
+   "en": "Bluetooth stream + Apple Health sync fixes",
+   "ar": "إصلاحات بث Bluetooth ومزامنة Apple Health"
+  },
+  "l10n_app_changelog_board_sweep_battery_days_left_browse_8b78e0b6": {
+   "en": "Board Sweep: battery days-left, browse past weeks, breathing cues, and a pile of fixes",
+   "ar": "تنظيف اللوحة: أيام البطارية المتبقية، وتصفح الأسابيع الماضية، وتنبيهات التنفس، وكومة إصلاحات"
+  },
+  "l10n_app_changelog_broadcast_your_heart_rate_to_garmin_338605c5": {
+   "en": "Broadcast your heart rate to Garmin, Zwift and gym kit",
+   "ar": "بثّ معدل نبضك إلى Garmin وZwift وأجهزة النادي"
+  },
+  "l10n_app_changelog_browse_past_nights_smarter_coach_workout_9fc9bfd2": {
+   "en": "Browse past nights, smarter Coach, workout times, battery & more",
+   "ar": "تصفح الليالي الماضية، ومدرب أذكى، وأوقات التمارين، والبطارية وغيرها"
+  },
+  "l10n_app_changelog_browse_the_last_few_days_interactive_a13e7b2a": {
+   "en": "Browse the last few days, interactive charts, and a Vital Signs screen (Android)",
+   "ar": "تصفح الأيام القليلة الماضية، ورسوم تفاعلية، وشاشة العلامات الحيوية (Android)"
+  },
+  "l10n_app_changelog_bug_fix_sweep_steps_sleep_export_50c60c51": {
+   "en": "Bug-fix sweep: steps, sleep export, and a battery-saving reconnect fix",
+   "ar": "موجة إصلاحات: الخطوات، وتصدير النوم، وإصلاح إعادة اتصال موفّر للبطارية"
+  },
+  "l10n_app_changelog_bug_fixes_effort_the_widget_s_6b807b50": {
+   "en": "Bug fixes: Effort, the widget\\'s day, and Oura reconnect",
+   "ar": "إصلاحات: الجهد، ويوم الأداة، وإعادة اتصال Oura"
+  },
+  "l10n_app_changelog_buzz_whoop_4_in_the_smart_4d17676a": {
+   "en": "Buzz WHOOP 4 in the Smart Alarm",
+   "ar": "اهتزاز WHOOP 4 في المنبّه الذكي"
+  },
+  "l10n_app_changelog_charge_effort_rest_noop_s_own_8c323656": {
+   "en": "Charge, Effort & Rest - NOOP\\'s own scores, out of 100",
+   "ar": "الشحن والجهد والراحة — درجات NOOP الخاصة من 100"
+  },
+  "l10n_app_changelog_charge_shows_calibrating_instead_of_no_51a000e9": {
+   "en": "Charge shows \"Calibrating\" instead of \"No data\" for new straps",
+   "ar": "الشحن يعرض «جارٍ المعايرة» بدلًا من «لا بيانات» للأساور الجديدة"
+  },
+  "l10n_app_changelog_check_for_updates_736b9062": {
+   "en": "Check for updates",
+   "ar": "التحقق من التحديثات"
+  },
+  "l10n_app_changelog_choose_a_12_hour_clock_sleep_8a19db5c": {
+   "en": "Choose a 12-hour clock, sleep from straps that bank no motion, and a strap log that stops guessing",
+   "ar": "اختيار نظام 12 ساعة، ونوم من أساور لا تخزّن حركة، وسجل سوار يتوقف عن التخمين"
+  },
+  "l10n_app_changelog_classic_chart_colours_a_throwback_toggle_e8150db5": {
+   "en": "Classic chart colours - a throwback toggle",
+   "ar": "ألوان الرسوم الكلاسيكية — مفتاح للعودة إلى الماضي"
+  },
+  "l10n_app_changelog_cleaner_live_status_better_sync_diagnostics_00ad8d26": {
+   "en": "Cleaner Live status + better sync diagnostics",
+   "ar": "حالة مباشرة أنظف + تشخيصات مزامنة أفضل"
+  },
+  "l10n_app_changelog_cleaner_score_rings_a_few_fixes_7094ae7b": {
+   "en": "Cleaner score rings + a few fixes",
+   "ar": "حلقات درجات أنظف + بعض الإصلاحات"
+  },
+  "l10n_app_changelog_clearer_answers_when_your_strap_isn_154c8923": {
+   "en": "Clearer answers when your strap isn\\'t banking history",
+   "ar": "إجابات أوضح حين لا يخزّن سوارك السجل"
+  },
+  "l10n_app_changelog_clearer_labels_a_journal_fix_and_96b91b2a": {
+   "en": "Clearer labels, a journal fix, and steadier sleeping heart rate",
+   "ar": "تسميات أوضح، وإصلاح لليوميات، ومعدل نبض أثناء النوم أكثر ثباتًا"
+  },
+  "l10n_app_changelog_clearer_pairing_guidance_for_whoop_5_91a7736b": {
+   "en": "Clearer pairing guidance for WHOOP 5.0/MG",
+   "ar": "إرشادات اقتران أوضح لـ WHOOP 5.0/MG"
+  },
+  "l10n_app_changelog_clearer_sync_status_6431bf19": {
+   "en": "Clearer sync status",
+   "ar": "حالة مزامنة أوضح"
+  },
+  "l10n_app_changelog_clearer_sync_status_a_responsive_compare_ee8925d0": {
+   "en": "Clearer sync status + a responsive Compare screen",
+   "ar": "حالة مزامنة أوضح + شاشة مقارنة متجاوبة"
+  },
+  "l10n_app_changelog_connect_a_heart_rate_strap_early_f12c6ba9": {
+   "en": "Connect a heart-rate strap (early access)",
+   "ar": "توصيل سوار لقياس النبض (وصول مبكر)"
+  },
+  "l10n_app_changelog_connection_sleep_fixes_a_focused_tune_69b01439": {
+   "en": "Connection & sleep fixes - a focused tune-up",
+   "ar": "إصلاحات الاتصال والنوم — ضبط مركّز"
+  },
+  "l10n_app_changelog_continuous_hrv_capture_sharper_overnight_hrv_9a9ec94b": {
+   "en": "Continuous HRV capture - sharper overnight HRV, recovery and sleep",
+   "ar": "التقاط مستمر لتقلب النبض — تقلب نبض وتعافٍ ونوم أدق ليلًا"
+  },
+  "l10n_app_changelog_continuous_workouts_no_longer_split_plus_4db70213": {
+   "en": "Continuous workouts no longer split, plus delete a sleep session",
+   "ar": "التمارين المتصلة لم تعد تنقسم، مع إمكانية حذف جلسة نوم"
+  },
+  "l10n_app_changelog_coupled_view_workouts_rebuilt_journal_numbers_b347f97e": {
+   "en": "Coupled view, workouts rebuilt, journal numbers",
+   "ar": "العرض المزدوج، وإعادة بناء التمارين، وأرقام اليوميات"
+  },
+  "l10n_app_changelog_cross_platform_parity_android_now_scores_86654a6c": {
+   "en": "Cross-platform parity - Android now scores identically to macOS & iOS",
+   "ar": "تكافؤ عبر المنصات — Android يحتسب الآن بشكل مطابق لـ macOS وiOS"
+  },
+  "l10n_app_changelog_date_fixes_ui_polish_clearer_diagnostics_61058e74": {
+   "en": "Date fixes, UI polish & clearer diagnostics",
+   "ar": "إصلاحات التواريخ، وتحسينات الواجهة، وتشخيصات أوضح"
+  },
+  "l10n_app_changelog_date_hygiene_fix_for_straps_with_dc559c6f": {
+   "en": "Date-hygiene fix for straps with a bad clock",
+   "ar": "إصلاح صحة التواريخ للأساور ذات الساعة الخاطئة"
+  },
+  "l10n_app_changelog_deep_history_backlog_drains_without_manual_bb716532": {
+   "en": "Deep history backlog drains without manual taps",
+   "ar": "تراكم السجل العميق يُفرَّغ دون نقرات يدوية"
+  },
+  "l10n_app_changelog_deep_sleep_no_longer_reads_0_80ce3558": {
+   "en": "Deep sleep no longer reads 0 minutes, and a smarter AI Coach",
+   "ar": "النوم العميق لم يعد يظهر 0 دقيقة، ومدرب ذكي أفضل"
+  },
+  "l10n_app_changelog_deep_sleep_that_happens_later_in_702efdf1": {
+   "en": "Deep sleep that happens later in the night no longer reads 0 minutes",
+   "ar": "النوم العميق في وقت متأخر من الليل لم يعد يظهر 0 دقيقة"
+  },
+  "l10n_app_changelog_deep_timeline_you_can_scroll_through_7c04c040": {
+   "en": "Deep Timeline you can scroll through days, faster manual workouts, and a storage clean-up",
+   "ar": "جدول زمني عميق يمكنك تمريره عبر الأيام، وتمارين يدوية أسرع، وتنظيف للتخزين"
+  },
+  "l10n_app_changelog_delete_a_sleep_swipe_to_mark_7083b34d": {
+   "en": "Delete a sleep, swipe to mark read",
+   "ar": "حذف نوم، والسحب للتعليم كمقروء"
+  },
+  "l10n_app_changelog_design_polish_cross_platform_parity_caa8e2c4": {
+   "en": "Design polish & cross-platform parity",
+   "ar": "تحسينات التصميم والتكافؤ عبر المنصات"
+  },
+  "l10n_app_changelog_dynamic_island_toggle_now_actually_turns_df387ee6": {
+   "en": "Dynamic Island toggle now actually turns it off",
+   "ar": "مفتاح Dynamic Island يوقفه فعلًا الآن"
+  },
+  "l10n_app_changelog_editable_naps_a_richer_trends_report_471c1a69": {
+   "en": "Editable naps, a richer Trends report, and better debug export",
+   "ar": "قيلولات قابلة للتحرير، وتقرير اتجاهات أغنى، وتصدير تصحيح أفضل"
+  },
+  "l10n_app_changelog_effort_explains_a_calm_day_zero_08bd9936": {
+   "en": "Effort explains a calm-day zero - and scores on the 5.0/MG",
+   "ar": "الجهد يفسّر صفر اليوم الهادئ — ويحتسب على 5.0/MG"
+  },
+  "l10n_app_changelog_effort_scale_fix_for_imported_data_aad0344d": {
+   "en": "Effort scale fix for imported data",
+   "ar": "إصلاح مقياس الجهد للبيانات المستوردة"
+  },
+  "l10n_app_changelog_estimated_steps_for_your_whoop_4_e961cade": {
+   "en": "Estimated steps for your WHOOP 4.0",
+   "ar": "خطوات تقديرية لـ WHOOP 4.0"
+  },
+  "l10n_app_changelog_everything_a_whole_new_look_hydration_0f648fc3": {
+   "en": "Everything: a whole new look, hydration, automatic workout detection, and smarter sleep",
+   "ar": "كل شيء: مظهر جديد كليًا، والترطيب، والكشف التلقائي عن التمارين، ونوم أذكى"
+  },
+  "l10n_app_changelog_everything_stays_on_your_device_575125e9": {
+   "en": "Everything stays on your device",
+   "ar": "كل شيء يبقى على جهازك"
+  },
+  "l10n_app_changelog_experimental_unlocking_whoop_5_0_mg_d665f836": {
+   "en": "Experimental: unlocking WHOOP 5.0/MG deep data",
+   "ar": "تجريبي: فتح البيانات العميقة لـ WHOOP 5.0/MG"
+  },
+  "l10n_app_changelog_export_your_raw_sensor_data_csv_59cfa009": {
+   "en": "Export your raw sensor data (CSV)",
+   "ar": "تصدير بيانات المستشعرات الخام (CSV)"
+  },
+  "l10n_app_changelog_faster_and_fewer_sharp_edges_6bbd66c7": {
+   "en": "Faster, and fewer sharp edges",
+   "ar": "أسرع، وحواف حادة أقل"
+  },
+  "l10n_app_changelog_faster_smoother_more_languages_and_a_6a8c8837": {
+   "en": "Faster, smoother, more languages, and a big pile of fixes",
+   "ar": "أسرع وأكثر سلاسة، ولغات أكثر، وكومة كبيرة من الإصلاحات"
+  },
+  "l10n_app_changelog_fewer_false_daytime_sleeps_an_android_6bf9029e": {
+   "en": "Fewer false daytime sleeps + an Android sync button",
+   "ar": "نوم نهاري كاذب أقل + زر مزامنة على Android"
+  },
+  "l10n_app_changelog_find_your_strap_log_in_settings_99105f3a": {
+   "en": "Find your strap log in Settings (macOS)",
+   "ar": "اعثر على سجل سوارك في الإعدادات (macOS)"
+  },
+  "l10n_app_changelog_first_release_d5545946": {
+   "en": "First release",
+   "ar": "الإصدار الأول"
+  },
+  "l10n_app_changelog_first_run_terms_acknowledgment_an_explore_081534f5": {
+   "en": "First-run terms acknowledgment + an Explore chart fix",
+   "ar": "إقرار بالشروط عند أول تشغيل + إصلاح رسم الاستكشاف"
+  },
+  "l10n_app_changelog_fix_a_night_with_a_brief_538bfa1d": {
+   "en": "Fix: a night with a brief wake-up showed as separate naps",
+   "ar": "إصلاح: ليلة بها استيقاظ قصير كانت تظهر كقيلولات منفصلة"
+  },
+  "l10n_app_changelog_fix_app_crashing_won_t_open_d4b0acce": {
+   "en": "Fix: app crashing / won\\'t open when Bluetooth is on",
+   "ar": "إصلاح: تعطل التطبيق / عدم فتحه عند تشغيل Bluetooth"
+  },
+  "l10n_app_changelog_fix_bonded_but_no_live_data_fbab40a4": {
+   "en": "Fix: bonded but no live data (Android)",
+   "ar": "إصلاح: مقترن لكن دون بيانات مباشرة (Android)"
+  },
+  "l10n_app_changelog_fix_connecting_a_polar_h10_or_bf013d57": {
+   "en": "Fix: connecting a Polar H10 or other heart-rate strap",
+   "ar": "إصلاح: توصيل Polar H10 أو أساور نبض أخرى"
+  },
+  "l10n_app_changelog_fix_imported_phone_steps_were_being_7c152d2b": {
+   "en": "Fix: imported phone steps were being double-counted",
+   "ar": "إصلاح: خطوات الهاتف المستوردة كانت تُحتسب مرتين"
+  },
+  "l10n_app_changelog_fix_the_android_freeze_after_a_bf7f8d81": {
+   "en": "Fix the Android freeze after a few nights of data",
+   "ar": "إصلاح تجمّد Android بعد بضع ليالٍ من البيانات"
+  },
+  "l10n_app_changelog_fix_your_day_now_follows_your_e772176e": {
+   "en": "Fix: your day now follows your timezone, not UTC",
+   "ar": "إصلاح: يومك يتبع الآن منطقتك الزمنية لا UTC"
+  },
+  "l10n_app_changelog_fixed_imported_data_and_strap_sync_18350836": {
+   "en": "Fixed: imported data and strap sync getting stuck on iOS",
+   "ar": "تم الإصلاح: تعليق البيانات المستوردة ومزامنة السوار على iOS"
+  },
+  "l10n_app_changelog_fixed_iphone_import_and_a_stuck_38876ee9": {
+   "en": "Fixed: iPhone import, and a stuck store now self-heals",
+   "ar": "تم الإصلاح: استيراد iPhone، والمخزن المتوقف يعالج نفسه الآن"
+  },
+  "l10n_app_changelog_fixes_a_false_pairing_refused_warning_7023464e": {
+   "en": "Fixes a false \"pairing refused\" warning (Mac)",
+   "ar": "يصلح تحذير «رُفض الاقتران» الخاطئ (Mac)"
+  },
+  "l10n_app_changelog_fixes_the_experimental_sleep_toggle_now_fc281b7d": {
+   "en": "Fixes: the experimental sleep toggle now works, steps calibration, manual workouts on WHOOP 5/MG, and a sane HRV reading",
+   "ar": "إصلاحات: مفتاح النوم التجريبي يعمل الآن، ومعايرة الخطوات، والتمارين اليدوية على WHOOP 5/MG، وقراءة معقولة لتقلب النبض"
+  },
+  "l10n_app_changelog_fixes_the_insights_tab_crash_plus_042d1702": {
+   "en": "Fixes the Insights-tab crash, plus more accurate HRV",
+   "ar": "يصلح تعطل تبويب الرؤى، مع تقلب نبض أدق"
+  },
+  "l10n_app_changelog_french_whoop_exports_now_import_db598ea4": {
+   "en": "French WHOOP exports now import",
+   "ar": "ملفات تصدير WHOOP الفرنسية تُستورد الآن"
+  },
+  "l10n_app_changelog_german_french_spanish_pull_to_sync_1109bda2": {
+   "en": "German, French & Spanish, pull-to-sync on Today, and a wave of polish",
+   "ar": "الألمانية والفرنسية والإسبانية، والسحب للمزامنة في «اليوم»، وموجة تحسينات"
+  },
+  "l10n_app_changelog_gps_tracked_workouts_android_1cf07bd1": {
+   "en": "GPS-tracked workouts (Android)",
+   "ar": "تمارين متتبَّعة بـ GPS (Android)"
+  },
+  "l10n_app_changelog_gps_workout_crash_fix_android_698ee690": {
+   "en": "GPS workout crash fix (Android)",
+   "ar": "إصلاح تعطل تمرين GPS (Android)"
+  },
+  "l10n_app_changelog_hand_correct_your_sleep_times_smaller_6154b854": {
+   "en": "Hand-correct your sleep times + smaller backups",
+   "ar": "تصحيح أوقات نومك يدويًا + نسخ احتياطية أصغر"
+  },
+  "l10n_app_changelog_health_connect_correct_labels_workout_types_fd2fcc34": {
+   "en": "Health Connect: correct labels + workout types (Android)",
+   "ar": "‏Health Connect: تسميات صحيحة + أنواع التمارين (Android)"
+  },
+  "l10n_app_changelog_health_connect_shows_as_health_connect_39b3cbcb": {
+   "en": "Health Connect shows as Health Connect",
+   "ar": "‏Health Connect يظهر باسم Health Connect"
+  },
+  "l10n_app_changelog_history_dates_fixed_for_revived_straps_0ec4e53a": {
+   "en": "History dates fixed for revived straps, gestures during sync, clearer pairing",
+   "ar": "إصلاح تواريخ السجل للأساور المستعادة، والإيماءات أثناء المزامنة، واقتران أوضح"
+  },
+  "l10n_app_changelog_honest_labelling_for_whoop_5_mg_8c650225": {
+   "en": "Honest labelling for WHOOP 5/MG deep-data diagnostics",
+   "ar": "تسميات صادقة لتشخيصات البيانات العميقة لـ WHOOP 5/MG"
+  },
+  "l10n_app_changelog_hotfix_making_a_heart_rate_strap_09f87c0a": {
+   "en": "Hotfix - making a heart-rate strap active no longer crashes",
+   "ar": "إصلاح عاجل — تعيين سوار نبض نشطًا لم يعد يسبب تعطلًا"
+  },
+  "l10n_app_changelog_hr_from_the_optical_waveform_an_b8874b42": {
+   "en": "HR from the optical waveform, an early-morning day rollover, and clearer terms",
+   "ar": "معدل النبض من الموجة الضوئية، وانتقال اليوم في الصباح الباكر، وشروط أوضح"
+  },
+  "l10n_app_changelog_hrv_accuracy_fix_oura_sleep_and_4ed31e39": {
+   "en": "HRV accuracy fix, Oura sleep and motion, richer 5/MG decoding, and a stoppable sync",
+   "ar": "إصلاح دقة تقلب النبض، ونوم وحركة Oura، وفكّ ترميز أغنى لـ 5/MG، ومزامنة قابلة للإيقاف"
+  },
+  "l10n_app_changelog_hrv_that_reads_true_and_a_2b09fa43": {
+   "en": "HRV that reads true, and a tidier workout list",
+   "ar": "تقلب نبض يقرأ الحقيقة، وقائمة تمارين أكثر ترتيبًا"
+  },
+  "l10n_app_changelog_import_fixes_both_sources_all_data_92cfed50": {
+   "en": "Import fixes - both sources, all data types",
+   "ar": "إصلاحات الاستيراد — كلا المصدرين، وكل أنواع البيانات"
+  },
+  "l10n_app_changelog_import_polish_mac_whoop_5_optical_5067d90c": {
+   "en": "Import polish (Mac) + WHOOP 5 optical decode",
+   "ar": "تحسينات الاستيراد (Mac) + فكّ الترميز الضوئي لـ WHOOP 5"
+  },
+  "l10n_app_changelog_independent_and_experimental_f9b65317": {
+   "en": "Independent, and experimental",
+   "ar": "مستقل وتجريبي"
+  },
+  "l10n_app_changelog_ios_is_now_a_direct_download_fab6ed69": {
+   "en": "iOS is now a direct download - no Mac or Xcode needed",
+   "ar": "‏iOS صار تنزيلًا مباشرًا — دون حاجة إلى Mac أو Xcode"
+  },
+  "l10n_app_changelog_iphone_button_label_polish_64244980": {
+   "en": "iPhone button-label polish",
+   "ar": "تحسين تسميات أزرار iPhone"
+  },
+  "l10n_app_changelog_iphone_hotfix_sideloading_works_again_7b90c265": {
+   "en": "iPhone hotfix: sideloading works again",
+   "ar": "إصلاح عاجل لـ iPhone: التثبيت الجانبي يعمل مجددًا"
+  },
+  "l10n_app_changelog_iphone_import_handle_icloud_and_large_2d60298a": {
+   "en": "iPhone import: handle iCloud and large export files",
+   "ar": "استيراد iPhone: التعامل مع iCloud وملفات التصدير الكبيرة"
+  },
+  "l10n_app_changelog_iphone_polish_accessibility_99bba695": {
+   "en": "iPhone polish + accessibility",
+   "ar": "تحسينات iPhone + إمكانية الوصول"
+  },
+  "l10n_app_changelog_iphone_polish_what_s_new_fits_1dad9b15": {
+   "en": "iPhone polish: What\\'s New fits, Today cards align",
+   "ar": "تحسينات iPhone: «ما الجديد» يتّسع، وبطاقات «اليوم» تصطف"
+  },
+  "l10n_app_changelog_iphone_smoother_scrolling_753e0b0d": {
+   "en": "iPhone: smoother scrolling",
+   "ar": "‏iPhone: تمرير أكثر سلاسة"
+  },
+  "l10n_app_changelog_iphone_workouts_table_fits_the_screen_156a691c": {
+   "en": "iPhone Workouts table fits the screen",
+   "ar": "جدول التمارين على iPhone يتّسع للشاشة"
+  },
+  "l10n_app_changelog_journal_logging_an_imperial_metric_units_a507a5d2": {
+   "en": "Journal logging + an Imperial/Metric units toggle",
+   "ar": "تسجيل اليوميات + مفتاح الوحدات الإمبراطورية/المترية"
+  },
+  "l10n_app_changelog_large_apple_health_imports_no_longer_830fa786": {
+   "en": "Large Apple Health imports no longer crash (iPhone/Mac)",
+   "ar": "عمليات استيراد Apple Health الكبيرة لم تعد تسبب تعطلًا (iPhone/Mac)"
+  },
+  "l10n_app_changelog_last_workouts_tile_fix_301180af": {
+   "en": "Last Workouts tile fix",
+   "ar": "إصلاح بطاقة آخر التمارين"
+  },
+  "l10n_app_changelog_light_theme_noop_in_warm_paper_d5b9f463": {
+   "en": "Light theme - NOOP in warm paper & gold",
+   "ar": "السمة الفاتحة — NOOP بورق دافئ وذهب"
+  },
+  "l10n_app_changelog_light_theme_polish_5add98b2": {
+   "en": "Light theme polish",
+   "ar": "تحسينات السمة الفاتحة"
+  },
+  "l10n_app_changelog_light_theme_tuning_2bbad1f7": {
+   "en": "Light theme tuning",
+   "ar": "ضبط السمة الفاتحة"
+  },
+  "l10n_app_changelog_live_heart_rate_lands_on_today_5cac8768": {
+   "en": "Live heart rate lands on today\\'s chart even when the strap\\'s clock is off (Android)",
+   "ar": "النبض المباشر يظهر في رسم اليوم حتى لو كانت ساعة السوار خاطئة (Android)"
+  },
+  "l10n_app_changelog_live_heart_rate_that_doesn_t_b6b4ca9a": {
+   "en": "Live heart rate that doesn\\'t freeze",
+   "ar": "نبض مباشر لا يتجمّد"
+  },
+  "l10n_app_changelog_local_oura_ring_support_use_your_e928e3c6": {
+   "en": "Local Oura ring support: use your Oura ring with no Oura app (beta)",
+   "ar": "دعم محلي لخاتم Oura: استخدم خاتمك دون تطبيق Oura (تجريبي)"
+  },
+  "l10n_app_changelog_mac_recovery_builds_from_your_strap_883d49ee": {
+   "en": "Mac: recovery builds from your strap alone",
+   "ar": "‏Mac: التعافي يُحتسب من سوارك وحده"
+  },
+  "l10n_app_changelog_mac_strap_computed_nights_show_in_b0a3ac91": {
+   "en": "Mac: strap-computed nights show in Sleep",
+   "ar": "‏Mac: الليالي المحتسبة من السوار تظهر في «النوم»"
+  },
+  "l10n_app_changelog_make_noop_yours_theme_colours_and_6bdef2a7": {
+   "en": "Make NOOP yours — theme colours and custom backgrounds, forty more sports with GPS routes, and a calorie heatmap",
+   "ar": "اجعل NOOP لك — ألوان السمة والخلفيات المخصصة، وأربعون رياضة إضافية بمسارات GPS، وخريطة حرارية للسعرات"
+  },
+  "l10n_app_changelog_manage_several_whoop_straps_and_see_8d9b6a84": {
+   "en": "Manage several WHOOP straps - and see what each band does",
+   "ar": "إدارة عدة أساور WHOOP — ومعرفة ما يفعله كل سوار"
+  },
+  "l10n_app_changelog_manual_workouts_edit_dismiss_auto_detected_95ed45b6": {
+   "en": "Manual workouts, edit/dismiss auto-detected ones, and CSV export",
+   "ar": "تمارين يدوية، وتحرير/تجاهل المكتشفة تلقائيًا، وتصدير CSV"
+  },
+  "l10n_app_changelog_manual_workouts_on_whoop_5_0_72908a88": {
+   "en": "Manual workouts on WHOOP 5.0/MG get their calories and strain back",
+   "ar": "التمارين اليدوية على WHOOP 5.0/MG تستعيد سعراتها وإجهادها"
+  },
+  "l10n_app_changelog_mi_band_import_a_big_whoop_eb5382db": {
+   "en": "Mi Band import + a big WHOOP 4.0 sleep fix",
+   "ar": "استيراد Mi Band + إصلاح كبير لنوم WHOOP 4.0"
+  },
+  "l10n_app_changelog_mind_a_daily_mood_check_in_982fdd16": {
+   "en": "Mind - a daily mood check-in - and nutrition import",
+   "ar": "«الذهن» — تسجيل يومي للمزاج — واستيراد التغذية"
+  },
+  "l10n_app_changelog_more_quick_relabel_sports_ba93c38b": {
+   "en": "More quick-relabel sports",
+   "ar": "رياضات أكثر لإعادة التسمية السريعة"
+  },
+  "l10n_app_changelog_more_realistic_calories_import_chart_fixes_d3d56a9e": {
+   "en": "More realistic calories + import & chart fixes",
+   "ar": "سعرات أكثر واقعية + إصلاحات الاستيراد والرسوم"
+  },
+  "l10n_app_changelog_more_reliable_bluetooth_on_newer_android_c7e641dc": {
+   "en": "More reliable Bluetooth on newer Android phones",
+   "ar": "‏Bluetooth أكثر موثوقية على هواتف Android الأحدث"
+  },
+  "l10n_app_changelog_more_tab_icons_stop_flickering_colour_3de3de9f": {
+   "en": "More-tab icons stop flickering colour",
+   "ar": "أيقونات تبويب «المزيد» توقفت عن وميض اللون"
+  },
+  "l10n_app_changelog_new_a_guide_to_how_your_7afbd7f4": {
+   "en": "New: a guide to how your Charge, Effort and Rest scores work",
+   "ar": "جديد: دليل لكيفية عمل درجات الشحن والجهد والراحة"
+  },
+  "l10n_app_changelog_new_first_run_onboarding_mac_android_243bc0ad": {
+   "en": "New first-run onboarding (Mac + Android)",
+   "ar": "تهيئة جديدة عند أول تشغيل (Mac + Android)"
+  },
+  "l10n_app_changelog_new_use_an_apple_watch_with_4c2c29a6": {
+   "en": "New: use an Apple Watch with NOOP",
+   "ar": "جديد: استخدام Apple Watch مع NOOP"
+  },
+  "l10n_app_changelog_new_week_in_review_a_live_c1457e40": {
+   "en": "New: Week in review, a live body console, fresher charts and more",
+   "ar": "جديد: مراجعة الأسبوع، ولوحة جسد مباشرة، ورسوم أحدث وغيرها"
+  },
+  "l10n_app_changelog_no_more_hr_spike_when_you_7dc052ba": {
+   "en": "No more HR spike when you reopen the app",
+   "ar": "لا مزيد من قفزة النبض عند إعادة فتح التطبيق"
+  },
+  "l10n_app_changelog_noop_grows_up_it_s_not_823bf2e7": {
+   "en": "NOOP grows up: it\\'s not just for WHOOP anymore",
+   "ar": "‏NOOP يكبر: لم يعد لـ WHOOP فقط"
+  },
+  "l10n_app_changelog_noop_has_a_new_home_01b87522": {
+   "en": "NOOP has a new home",
+   "ar": "لـ NOOP بيت جديد"
+  },
+  "l10n_app_changelog_noop_now_tells_you_when_your_af259fbb": {
+   "en": "NOOP now tells you when your strap isn\\'t saving history - and how to fix it",
+   "ar": "‏NOOP يخبرك الآن حين لا يحفظ سوارك السجل — وكيف تصلح ذلك"
+  },
+  "l10n_app_changelog_on_demand_hrv_a_haptic_clock_50376585": {
+   "en": "On-demand HRV, a haptic clock, sleep marks & more",
+   "ar": "تقلب نبض عند الطلب، وساعة اهتزازية، وعلامات نوم وغيرها"
+  },
+  "l10n_app_changelog_oneplus_pairing_fix_f731fcb2": {
+   "en": "OnePlus pairing fix",
+   "ar": "إصلاح اقتران OnePlus"
+  },
+  "l10n_app_changelog_open_a_workout_see_what_it_a40fd8a4": {
+   "en": "Open a workout, see what it costs you, and share your trends",
+   "ar": "افتح تمرينًا، وانظر ما يكلّفك، وشارك اتجاهاتك"
+  },
+  "l10n_app_changelog_optimal_strain_alerts_faster_history_sync_6488a27a": {
+   "en": "Optimal-strain alerts, faster history sync, and a wave of accuracy fixes",
+   "ar": "تنبيهات الإجهاد الأمثل، ومزامنة سجل أسرع، وموجة إصلاحات للدقة"
+  },
+  "l10n_app_changelog_optional_inactivity_nudge_3f4ca05a": {
+   "en": "Optional inactivity nudge",
+   "ar": "تنبيه اختياري للخمول"
+  },
+  "l10n_app_changelog_personal_vital_baselines_mac_analytics_parity_744972d1": {
+   "en": "Personal vital baselines + Mac analytics parity",
+   "ar": "خطوط أساس شخصية للعلامات الحيوية + تكافؤ تحليلات Mac"
+  },
+  "l10n_app_changelog_personalized_heart_rate_zones_compare_and_8d89ee2a": {
+   "en": "Personalized heart-rate zones, compare and switch between straps, and more honest HRV, sleep and Oura reads",
+   "ar": "مناطق نبض مخصصة، ومقارنة الأساور والتبديل بينها، وقراءات أصدق لتقلب النبض والنوم وOura"
+  },
+  "l10n_app_changelog_polish_matched_to_the_iphone_mac_cc34126b": {
+   "en": "Polish - matched to the iPhone & Mac design",
+   "ar": "تحسينات — متوائمة مع تصميم iPhone وMac"
+  },
+  "l10n_app_changelog_power_saving_that_protects_your_strap_57a32503": {
+   "en": "Power saving that protects your strap, a Gemini-powered coach on Android, and richer metric detail",
+   "ar": "توفير طاقة يحمي سوارك، ومدرب مدعوم بـ Gemini على Android، وتفاصيل مقاييس أغنى"
+  },
+  "l10n_app_changelog_raw_spo_honest_units_and_a_55e83a59": {
+   "en": "Raw SpO₂, honest units, and a lighter app",
+   "ar": "‏SpO₂ الخام، ووحدات صادقة، وتطبيق أخف"
+  },
+  "l10n_app_changelog_re_scan_actually_scans_on_android_22198c8c": {
+   "en": "Re-scan actually scans on Android",
+   "ar": "إعادة البحث تبحث فعلًا على Android"
+  },
+  "l10n_app_changelog_readiness_and_the_start_of_whoop_167f38c5": {
+   "en": "Readiness, and the start of WHOOP 5/MG",
+   "ar": "الجاهزية، وبداية دعم WHOOP 5/MG"
+  },
+  "l10n_app_changelog_readiness_shows_its_evidence_and_a_90cf0076": {
+   "en": "Readiness shows its evidence, and a Health Connect distance fix",
+   "ar": "الجاهزية تعرض أدلتها، وإصلاح مسافة Health Connect"
+  },
+  "l10n_app_changelog_reading_more_from_your_whoop_5_1412164a": {
+   "en": "Reading more from your WHOOP 5.0 (Mac)",
+   "ar": "قراءة المزيد من WHOOP 5.0 (Mac)"
+  },
+  "l10n_app_changelog_reconnect_help_for_whoop_5_0_acc779b6": {
+   "en": "Reconnect help for WHOOP 5.0 / MG after a firmware update",
+   "ar": "مساعدة إعادة الاتصال لـ WHOOP 5.0 / MG بعد تحديث البرنامج الثابت"
+  },
+  "l10n_app_changelog_reconnects_automatically_after_an_update_android_b4965179": {
+   "en": "Reconnects automatically after an update (Android)",
+   "ar": "إعادة اتصال تلقائية بعد التحديث (Android)"
+  },
+  "l10n_app_changelog_recovery_builds_from_your_strap_alone_d83dbd67": {
+   "en": "Recovery builds from your strap alone (Android)",
+   "ar": "التعافي يُحتسب من سوارك وحده (Android)"
+  },
+  "l10n_app_changelog_respiratory_rate_skin_temp_in_the_bfe3f4f9": {
+   "en": "Respiratory rate & skin temp in the Trends report",
+   "ar": "معدل التنفس وحرارة الجلد في تقرير الاتجاهات"
+  },
+  "l10n_app_changelog_restart_your_strap_lighter_on_battery_2ccbef88": {
+   "en": "Restart your strap, lighter on battery, and Health Connect on Android 13",
+   "ar": "إعادة تشغيل سوارك، واستهلاك بطارية أقل، وHealth Connect على Android 13"
+  },
+  "l10n_app_changelog_robust_apple_health_import_marginal_radio_27d78c57": {
+   "en": "Robust Apple Health import, marginal-radio HR mode, live HR graph",
+   "ar": "استيراد قوي من Apple Health، ووضع نبض للإشارة الضعيفة، ورسم نبض مباشر"
+  },
+  "l10n_app_changelog_round_rings_73de603c": {
+   "en": "Round rings",
+   "ar": "حلقات دائرية"
+  },
+  "l10n_app_changelog_run_the_ai_coach_on_your_8ac2b395": {
+   "en": "Run the AI Coach on your own model - including fully local",
+   "ar": "شغّل المدرب الذكي على نموذجك الخاص — بما في ذلك محلي بالكامل"
+  },
+  "l10n_app_changelog_scores_live_from_the_strap_9d5d8ae2": {
+   "en": "Scores live from the strap",
+   "ar": "درجات مباشرة من السوار"
+  },
+  "l10n_app_changelog_security_reliability_hardening_b3c9a976": {
+   "en": "Security & reliability hardening",
+   "ar": "تعزيز الأمان والموثوقية"
+  },
+  "l10n_app_changelog_see_everything_the_deep_timeline_a_dbfe539a": {
+   "en": "See Everything: the Deep Timeline, a sleep movement graph, and a big board-clear",
+   "ar": "شاهد كل شيء: الجدول الزمني العميق، ورسم حركة النوم، وتنظيف كبير للوحة"
+  },
+  "l10n_app_changelog_share_strap_logs_and_a_worn_b5aae860": {
+   "en": "Share strap logs, and a worn-status fix",
+   "ar": "مشاركة سجلات السوار، وإصلاح حالة الارتداء"
+  },
+  "l10n_app_changelog_shortcuts_export_duplicates_fixed_nutrition_mood_a5dcdc11": {
+   "en": "Shortcuts-export duplicates fixed; nutrition & mood reach Android charts",
+   "ar": "إصلاح تكرار تصدير الاختصارات؛ والتغذية والمزاج يصلان إلى رسوم Android"
+  },
+  "l10n_app_changelog_shortcuts_on_mac_recovery_in_the_dbcef46a": {
+   "en": "Shortcuts on Mac, recovery in the Android notification",
+   "ar": "الاختصارات على Mac، والتعافي في إشعار Android"
+  },
+  "l10n_app_changelog_skin_temperature_unblocked_on_mac_ios_9cb6276c": {
+   "en": "Skin temperature unblocked on Mac/iOS, plus export fixes",
+   "ar": "حرارة الجلد متاحة على Mac/iOS، مع إصلاحات التصدير"
+  },
+  "l10n_app_changelog_sleep_and_recovery_for_whoop_4_c8f44a56": {
+   "en": "Sleep and recovery for WHOOP 4.0 straps on the firmware we couldn\\'t read",
+   "ar": "النوم والتعافي لأساور WHOOP 4.0 على البرنامج الثابت الذي تعذّرت قراءته"
+  },
+  "l10n_app_changelog_sleep_charge_and_workouts_cleaned_up_e21a5381": {
+   "en": "Sleep, Charge and workouts, cleaned up",
+   "ar": "النوم والشحن والتمارين، بعد تنظيفها"
+  },
+  "l10n_app_changelog_sleep_debt_daytime_stress_a_recovery_a92853f3": {
+   "en": "Sleep-debt, daytime stress, a recovery forecast, and day-by-day navigation",
+   "ar": "دين النوم، وتوتر النهار، وتوقّع التعافي، والتنقل يومًا بيوم"
+  },
+  "l10n_app_changelog_sleep_figures_hr_zones_charging_calibration_b209b698": {
+   "en": "Sleep figures, HR zones, charging & calibration - a big community-driven update",
+   "ar": "أرقام النوم، ومناطق النبض، والشحن والمعايرة — تحديث كبير بقيادة المجتمع"
+  },
+  "l10n_app_changelog_sleep_fix_for_whoop_4_0_c7a1b13d": {
+   "en": "Sleep fix for WHOOP 4.0 + accurate WHOOP 5/MG steps",
+   "ar": "إصلاح النوم لـ WHOOP 4.0 + خطوات دقيقة لـ WHOOP 5/MG"
+  },
+  "l10n_app_changelog_sleep_from_whoop_4_on_more_efe5fd60": {
+   "en": "Sleep from WHOOP 4 on more firmware (Mac)",
+   "ar": "النوم من WHOOP 4 على مزيد من البرامج الثابتة (Mac)"
+  },
+  "l10n_app_changelog_sleep_keep_real_nights_when_the_0acb206a": {
+   "en": "Sleep: keep real nights when the strap comes off",
+   "ar": "النوم: الاحتفاظ بالليالي الحقيقية عند خلع السوار"
+  },
+  "l10n_app_changelog_sleep_properly_sorted_and_an_app_f5e348f0": {
+   "en": "Sleep, properly sorted, and an app that explains itself",
+   "ar": "النوم، مرتَّب كما يجب، وتطبيق يشرح نفسه"
+  },
+  "l10n_app_changelog_sleep_stages_heal_themselves_after_a_e64a730f": {
+   "en": "Sleep stages heal themselves after a sync",
+   "ar": "مراحل النوم تصحّح نفسها بعد المزامنة"
+  },
+  "l10n_app_changelog_sleep_that_was_stuck_in_the_1b6d1307": {
+   "en": "Sleep that was stuck in the archive comes back",
+   "ar": "النوم العالق في الأرشيف يعود"
+  },
+  "l10n_app_changelog_smart_alarm_actually_works_on_android_c9bbf50a": {
+   "en": "Smart alarm actually works on Android",
+   "ar": "المنبّه الذكي يعمل فعلًا على Android"
+  },
+  "l10n_app_changelog_smart_alarm_the_time_you_set_6f5d260e": {
+   "en": "Smart alarm: the time you set is the time that fires",
+   "ar": "المنبّه الذكي: الوقت الذي تضبطه هو الوقت الذي يرنّ فيه"
+  },
+  "l10n_app_changelog_smoother_an_oura_live_hr_fix_e820bfb4": {
+   "en": "Smoother, an Oura live-HR fix, and a big pile of improvements",
+   "ar": "أكثر سلاسة، وإصلاح نبض Oura المباشر، وكومة كبيرة من التحسينات"
+  },
+  "l10n_app_changelog_smoother_during_long_history_syncs_mac_b31b616c": {
+   "en": "Smoother during long history syncs (Mac)",
+   "ar": "أكثر سلاسة أثناء مزامنات السجل الطويلة (Mac)"
+  },
+  "l10n_app_changelog_smoother_explore_charts_and_a_clearer_9598655d": {
+   "en": "Smoother Explore charts, and a clearer way to connect a WHOOP 5.0/MG",
+   "ar": "رسوم استكشاف أكثر سلاسة، وطريقة أوضح لتوصيل WHOOP 5.0/MG"
+  },
+  "l10n_app_changelog_spanish_whoop_exports_now_import_6351a8c6": {
+   "en": "Spanish WHOOP exports now import",
+   "ar": "ملفات تصدير WHOOP الإسبانية تُستورد الآن"
+  },
+  "l10n_app_changelog_split_sleep_every_block_counted_one_3106596d": {
+   "en": "Split sleep: every block counted, one night per day",
+   "ar": "النوم المجزّأ: احتساب كل كتلة، وليلة واحدة لكل يوم"
+  },
+  "l10n_app_changelog_stability_polish_for_v5_7393eaf0": {
+   "en": "Stability & polish for v5",
+   "ar": "استقرار وتحسينات للإصدار 5"
+  },
+  "l10n_app_changelog_start_a_workout_from_the_workouts_3c882d79": {
+   "en": "Start a workout from the Workouts screen, and an honest Smart-alarm note",
+   "ar": "بدء تمرين من شاشة التمارين، وملاحظة صادقة عن المنبّه الذكي"
+  },
+  "l10n_app_changelog_stays_connected_in_the_background_a6b0a94e": {
+   "en": "Stays connected in the background",
+   "ar": "يبقى متصلًا في الخلفية"
+  },
+  "l10n_app_changelog_steadier_bluetooth_on_congested_android_phones_699ad7d3": {
+   "en": "Steadier Bluetooth on congested Android phones",
+   "ar": "‏Bluetooth أكثر ثباتًا على هواتف Android المزدحمة"
+  },
+  "l10n_app_changelog_steadier_connections_fixes_and_a_nicer_fe1afd7d": {
+   "en": "Steadier connections, fixes, and a nicer sleep view",
+   "ar": "اتصالات أكثر ثباتًا، وإصلاحات، وعرض نوم أجمل"
+  },
+  "l10n_app_changelog_steadier_heart_rate_a_stack_of_e6026074": {
+   "en": "Steadier heart rate + a stack of fixes",
+   "ar": "نبض أكثر ثباتًا + مجموعة إصلاحات"
+  },
+  "l10n_app_changelog_stop_losing_strap_history_we_can_0598d11a": {
+   "en": "Stop losing strap history we can\\'t yet decode - plus a board of fixes",
+   "ar": "التوقف عن فقدان سجل السوار الذي لا نستطيع فكّ ترميزه بعد — مع لوحة إصلاحات"
+  },
+  "l10n_app_changelog_strap_battery_alerts_11f79bda": {
+   "en": "Strap battery alerts",
+   "ar": "تنبيهات بطارية السوار"
+  },
+  "l10n_app_changelog_strap_log_export_on_mac_a_e15f6b60": {
+   "en": "Strap-log export on Mac + a Health Monitor fix",
+   "ar": "تصدير سجل السوار على Mac + إصلاح Health Monitor"
+  },
+  "l10n_app_changelog_strap_log_stays_off_the_system_b8ce2ff5": {
+   "en": "Strap log stays off the system log (Android)",
+   "ar": "سجل السوار لم يعد يظهر في سجل النظام (Android)"
+  },
+  "l10n_app_changelog_switch_between_your_whoop_4_and_f5036092": {
+   "en": "Switch between your WHOOP 4 and 5.0 (Mac + Android)",
+   "ar": "التبديل بين WHOOP 4 و5.0 (Mac + Android)"
+  },
+  "l10n_app_changelog_switching_between_whoop_straps_now_actually_8428faaa": {
+   "en": "Switching between WHOOP straps now actually switches",
+   "ar": "التبديل بين أساور WHOOP يبدّل فعلًا الآن"
+  },
+  "l10n_app_changelog_sync_diagnostics_surfacing_silently_dropped_history_9fe62836": {
+   "en": "Sync diagnostics: surfacing silently-dropped history",
+   "ar": "تشخيصات المزامنة: إظهار السجل المفقود بصمت"
+  },
+  "l10n_app_changelog_sync_visibility_a_sharper_stress_timeline_37e1e6d6": {
+   "en": "Sync visibility + a sharper Stress timeline",
+   "ar": "وضوح المزامنة + جدول زمني أدق للتوتر"
+  },
+  "l10n_app_changelog_the_archived_sleep_recovery_now_reaches_cf4bb3ef": {
+   "en": "The archived-sleep recovery now reaches Android too",
+   "ar": "استرجاع النوم المؤرشف وصل إلى Android أيضًا"
+  },
+  "l10n_app_changelog_the_everything_update_5e08d257": {
+   "en": "The everything update",
+   "ar": "تحديث كل شيء"
+  },
+  "l10n_app_changelog_the_new_look_everywhere_plus_sleep_5793dddf": {
+   "en": "The new look everywhere - plus sleep, Effort & Bluetooth fixes",
+   "ar": "المظهر الجديد في كل مكان — مع إصلاحات النوم والجهد وBluetooth"
+  },
+  "l10n_app_changelog_the_new_today_screen_comes_to_69dfab3d": {
+   "en": "The new Today screen comes to Android",
+   "ar": "شاشة «اليوم» الجديدة تصل إلى Android"
+  },
+  "l10n_app_changelog_the_smoothness_release_faster_everywhere_plus_baf8a7fc": {
+   "en": "The smoothness release: faster everywhere, plus a sleep memory fix",
+   "ar": "إصدار السلاسة: أسرع في كل مكان، مع إصلاح ذاكرة النوم"
+  },
+  "l10n_app_changelog_the_test_centre_help_us_fix_af39aa17": {
+   "en": "The Test Centre: help us fix YOUR specific problem",
+   "ar": "مركز الاختبار: ساعدنا في إصلاح مشكلتك أنت تحديدًا"
+  },
+  "l10n_app_changelog_tidier_today_gauges_5d1fe894": {
+   "en": "Tidier Today gauges",
+   "ar": "مؤشرات «اليوم» أكثر ترتيبًا"
+  },
+  "l10n_app_changelog_tidier_today_hero_strap_renaming_smarter_34493c9c": {
+   "en": "Tidier Today hero, strap renaming, smarter journal",
+   "ar": "صدارة «اليوم» أكثر ترتيبًا، وإعادة تسمية السوار، ويوميات أذكى"
+  },
+  "l10n_app_changelog_tidier_workout_names_correct_rest_duration_135cf67f": {
+   "en": "Tidier workout names, correct Rest duration",
+   "ar": "أسماء تمارين أكثر ترتيبًا، ومدة راحة صحيحة"
+  },
+  "l10n_app_changelog_tidy_your_journal_remove_and_hide_aa1c0b94": {
+   "en": "Tidy your journal - remove and hide questions",
+   "ar": "رتّب يومياتك — احذف الأسئلة وأخفِها"
+  },
+  "l10n_app_changelog_times_follow_your_12_24_hour_9c552783": {
+   "en": "Times follow your 12-/24-hour setting",
+   "ar": "الأوقات تتبع إعداد 12/24 ساعة لديك"
+  },
+  "l10n_app_changelog_today_header_date_fix_west_of_e5e7422d": {
+   "en": "Today header date fix (west-of-UTC)",
+   "ar": "إصلاح تاريخ رأس «اليوم» (غرب UTC)"
+  },
+  "l10n_app_changelog_today_reflects_today_not_stale_imports_1a341a21": {
+   "en": "Today reflects today (not stale imports)",
+   "ar": "«اليوم» يعكس اليوم (لا عمليات استيراد قديمة)"
+  },
+  "l10n_app_changelog_today_s_effort_goes_live_plus_5f810b61": {
+   "en": "Today\\'s Effort goes live - plus sleep & alarm honesty",
+   "ar": "جهد اليوم يصبح مباشرًا — مع صدق في النوم والمنبّه"
+  },
+  "l10n_app_changelog_today_s_effort_no_longer_drops_f49a3428": {
+   "en": "Today\\'s Effort no longer drops to zero",
+   "ar": "جهد اليوم لم يعد يهبط إلى الصفر"
+  },
+  "l10n_app_changelog_today_tiles_no_longer_cut_their_3c167cc1": {
+   "en": "Today tiles no longer cut their value to \"10…\"",
+   "ar": "بطاقات «اليوم» لم تعد تقتطع قيمتها إلى «10…»"
+  },
+  "l10n_app_changelog_today_tiles_no_longer_truncate_their_2959ce81": {
+   "en": "Today tiles no longer truncate their value (Android)",
+   "ar": "بطاقات «اليوم» لم تعد تقتطع قيمتها (Android)"
+  },
+  "l10n_app_changelog_today_trends_stay_within_their_window_ba2e4c57": {
+   "en": "Today trends stay within their window (Mac)",
+   "ar": "اتجاهات «اليوم» تبقى ضمن نافذتها (Mac)"
+  },
+  "l10n_app_changelog_toggle_the_live_hr_dynamic_island_d3bd70cb": {
+   "en": "Toggle the live-HR Dynamic Island",
+   "ar": "مفتاح Dynamic Island للنبض المباشر"
+  },
+  "l10n_app_changelog_track_a_workout_manually_2eb43402": {
+   "en": "Track a workout manually",
+   "ar": "تتبّع تمرين يدويًا"
+  },
+  "l10n_app_changelog_training_load_a_vo_max_without_f9205a67": {
+   "en": "Training load, a VO₂max without a tape measure, and far less battery spent re-scoring",
+   "ar": "حمل التدريب، وVO₂max دون شريط قياس، وبطارية أقل بكثير في إعادة الاحتساب"
+  },
+  "l10n_app_changelog_trends_report_explains_its_scores_e338d1ee": {
+   "en": "Trends report explains its scores",
+   "ar": "تقرير الاتجاهات يشرح درجاته"
+  },
+  "l10n_app_changelog_true_battery_a_sync_indicator_and_89037fc3": {
+   "en": "True battery %, a sync indicator, and HR on imported workouts",
+   "ar": "نسبة بطارية حقيقية %، ومؤشر مزامنة، ونبض في التمارين المستوردة"
+  },
+  "l10n_app_changelog_two_quick_fixes_the_blue_titanium_4c021d78": {
+   "en": "Two quick fixes: the Blue Titanium icon, and Mac \"Your Cards\"",
+   "ar": "إصلاحان سريعان: أيقونة Blue Titanium، و«بطاقاتك» على Mac"
+  },
+  "l10n_app_changelog_under_the_hood_current_api_migration_672da037": {
+   "en": "Under-the-hood: current-API migration (no behaviour change)",
+   "ar": "تحت الغطاء: الانتقال إلى واجهات البرمجة الحالية (دون تغيير في السلوك)"
+  },
+  "l10n_app_changelog_universal_mac_build_iphone_import_fix_363425a0": {
+   "en": "Universal Mac build + iPhone import fix",
+   "ar": "إصدار Mac شامل + إصلاح استيراد iPhone"
+  },
+  "l10n_app_changelog_update_check_shows_what_s_new_6779c2e3": {
+   "en": "Update check shows what\\'s new",
+   "ar": "التحقق من التحديثات يعرض ما الجديد"
+  },
+  "l10n_app_changelog_updates_check_github_again_1e00ced1": {
+   "en": "Updates check GitHub again",
+   "ar": "التحديثات تتحقق من GitHub مجددًا"
+  },
+  "l10n_app_changelog_v5_the_raw_signal_release_noop_c109e3f2": {
+   "en": "v5 - the raw-signal release: NOOP reads the signal, on your device, free",
+   "ar": "الإصدار 5 — إصدار الإشارة الخام: NOOP يقرأ الإشارة، على جهازك، مجانًا"
+  },
+  "l10n_app_changelog_water_and_caffeine_from_apple_health_5123b6b0": {
+   "en": "Water and caffeine from Apple Health, a sharper Effort score, and an Oura resting-heart-rate fix",
+   "ar": "الماء والكافيين من Apple Health، ودرجة جهد أدق، وإصلاح نبض الراحة في Oura"
+  },
+  "l10n_app_changelog_week_in_review_is_honest_about_4c225bd3": {
+   "en": "Week in Review is honest about a half-finished week",
+   "ar": "مراجعة الأسبوع صادقة بشأن أسبوع غير مكتمل"
+  },
+  "l10n_app_changelog_whoop_4_0_is_the_supported_16893d9d": {
+   "en": "WHOOP 4.0 is the supported path",
+   "ar": "‏WHOOP 4.0 هو المسار المدعوم"
+  },
+  "l10n_app_changelog_whoop_5_0_history_decoding_comes_a8848386": {
+   "en": "WHOOP 5.0 history decoding comes to Android",
+   "ar": "فكّ ترميز سجل WHOOP 5.0 يصل إلى Android"
+  },
+  "l10n_app_changelog_whoop_5_0_mg_buzz_the_c1ab45a8": {
+   "en": "WHOOP 5.0/MG buzz - the real command (matched byte-for-byte)",
+   "ar": "اهتزاز WHOOP 5.0/MG — الأمر الحقيقي (مطابق بايت ببايت)"
+  },
+  "l10n_app_changelog_whoop_5_0_mg_buzz_trying_98373c44": {
+   "en": "WHOOP 5.0/MG buzz - trying the right command (experimental)",
+   "ar": "اهتزاز WHOOP 5.0/MG — تجربة الأمر الصحيح (تجريبي)"
+  },
+  "l10n_app_changelog_whoop_5_0_mg_history_download_36cc4425": {
+   "en": "WHOOP 5.0/MG history download (experimental) + pairing help (Mac)",
+   "ar": "تنزيل سجل WHOOP 5.0/MG (تجريبي) + مساعدة الاقتران (Mac)"
+  },
+  "l10n_app_changelog_whoop_5_0_mg_history_offload_76f5af44": {
+   "en": "WHOOP 5.0/MG history offload (Android)",
+   "ar": "تفريغ سجل WHOOP 5.0/MG (Android)"
+  },
+  "l10n_app_changelog_whoop_5_mg_deep_data_live_2612bf3d": {
+   "en": "WHOOP 5/MG deep data: live confirmation it\\'s working",
+   "ar": "البيانات العميقة لـ WHOOP 5/MG: تأكيد مباشر أنها تعمل"
+  },
+  "l10n_app_changelog_whoop_5_mg_deep_sync_decode_652c34d2": {
+   "en": "WHOOP 5/MG deep-sync decode + sleep & workout fixes",
+   "ar": "فكّ ترميز المزامنة العميقة لـ WHOOP 5/MG + إصلاحات النوم والتمارين"
+  },
+  "l10n_app_changelog_whoop_5_mg_frame_capture_mac_9e84ee52": {
+   "en": "WHOOP 5/MG frame capture (Mac)",
+   "ar": "التقاط إطارات WHOOP 5/MG (Mac)"
+  },
+  "l10n_app_changelog_whoop_5_mg_heart_rate_on_11816e98": {
+   "en": "WHOOP 5/MG heart rate on Android",
+   "ar": "نبض WHOOP 5/MG على Android"
+  },
+  "l10n_app_changelog_whoop_5_mg_heart_rate_on_b66c6752": {
+   "en": "WHOOP 5/MG heart rate on Mac + a Readiness fix",
+   "ar": "نبض WHOOP 5/MG على Mac + إصلاح الجاهزية"
+  },
+  "l10n_app_changelog_whoop_5_mg_history_the_missing_b4d5db99": {
+   "en": "WHOOP 5/MG history: the missing clock",
+   "ar": "سجل WHOOP 5/MG: الساعة المفقودة"
+  },
+  "l10n_app_changelog_whoop_5_mg_secure_pairing_fix_ed6550f3": {
+   "en": "WHOOP 5/MG: secure-pairing fix",
+   "ar": "‏WHOOP 5/MG: إصلاح الاقتران الآمن"
+  },
+  "l10n_app_changelog_whoop_5_mg_the_buzz_works_a0308753": {
+   "en": "WHOOP 5/MG: the buzz works",
+   "ar": "‏WHOOP 5/MG: الاهتزاز يعمل"
+  },
+  "l10n_app_changelog_whoop_style_hrv_warm_ups_counted_199aaa42": {
+   "en": "WHOOP-style HRV, warm-ups counted, and clearer cards",
+   "ar": "تقلب نبض بأسلوب WHOOP، واحتساب الإحماء، وبطاقات أوضح"
+  },
+  "l10n_app_changelog_widgets_stop_inventing_numbers_naps_count_4f7491bb": {
+   "en": "Widgets stop inventing numbers, naps count toward sleep debt, and the Android status chips speak your language",
+   "ar": "الأدوات تتوقف عن اختلاق الأرقام، والقيلولات تُحتسب في دين النوم، ومؤشرات Android تتحدث لغتك"
+  },
+  "l10n_app_changelog_workout_calories_for_manual_sessions_and_5d61f59a": {
+   "en": "Workout calories - for manual sessions and Health Connect imports",
+   "ar": "سعرات التمرين — للجلسات اليدوية وعمليات استيراد Health Connect"
+  },
+  "l10n_app_changelog_workout_display_fixes_255b56e8": {
+   "en": "Workout display fixes",
+   "ar": "إصلاحات عرض التمارين"
+  },
+  "l10n_app_changelog_workouts_correct_source_pill_for_health_787243ea": {
+   "en": "Workouts: correct source pill for Health Connect (Android)",
+   "ar": "التمارين: مؤشر مصدر صحيح لـ Health Connect (Android)"
+  },
+  "l10n_app_changelog_workouts_header_layout_fix_phone_fa23fbec": {
+   "en": "Workouts header layout fix (phone)",
+   "ar": "إصلاح تخطيط رأس «التمارين» (الهاتف)"
+  },
+  "l10n_app_changelog_wrist_alerts_for_incoming_calls_android_9bf80a06": {
+   "en": "Wrist alerts for incoming calls (Android)",
+   "ar": "تنبيهات المعصم للمكالمات الواردة (Android)"
+  },
+  "l10n_app_changelog_wrist_alerts_work_on_android_09e544a9": {
+   "en": "Wrist alerts work on Android",
+   "ar": "تنبيهات المعصم تعمل على Android"
+  },
+  "l10n_app_changelog_your_fitness_age_vitality_body_age_8e9867fb": {
+   "en": "Your Fitness Age, Vitality & Body Age",
+   "ar": "عمرك اللياقي، والحيوية، وعمر الجسد"
+  },
+  "l10n_app_changelog_your_imported_steps_now_show_on_d79f0b36": {
+   "en": "Your imported steps now show on the Today screen (Android)",
+   "ar": "خطواتك المستوردة تظهر الآن في شاشة «اليوم» (Android)"
+  },
+  "l10n_app_changelog_your_macos_data_is_back_and_e5e3e3bd": {
+   "en": "Your macOS data is back — and full French",
+   "ar": "بيانات macOS عادت — وفرنسية كاملة"
+  },
+  "l10n_app_changelog_your_scores_build_over_a_few_41388c54": {
+   "en": "Your scores build over a few nights",
+   "ar": "درجاتك تتكوّن عبر بضع ليالٍ"
+  },
+  "l10n_app_changelog_your_whole_day_s_heart_rate_e57593f8": {
+   "en": "Your whole day\\'s heart rate, on the dashboard",
+   "ar": "نبض يومك كاملًا، على اللوحة"
+  },
+  "l10n_app_changelog_your_whoop_journal_in_insights_clearer_88f5e21b": {
+   "en": "Your WHOOP journal in Insights, clearer metric taps",
+   "ar": "يوميات WHOOP في الرؤى، ونقرات مقاييس أوضح"
+  },
+  "l10n_app_root_more_4bab2d8f": {
+   "en": "More",
+   "ar": "المزيد"
+  },
+  "l10n_app_root_this_section_is_on_the_way_ca7c4a32": {
+   "en": "This section is on the way.",
+   "ar": "هذا القسم قادم قريبًا."
+  },
+  "l10n_app_root_updates_c76d1807": {
+   "en": "Updates",
+   "ar": "التحديثات"
+  },
+  "l10n_apple_health_screen_no_readings_recorded_05018b26": {
+   "en": "No readings recorded.",
+   "ar": "لا قراءات مسجّلة."
+  },
+  "l10n_apple_health_screen_nothing_imported_yet_f457cdbe": {
+   "en": "Nothing imported yet",
+   "ar": "لم يُستورد شيء بعد"
+  },
+  "l10n_apple_health_screen_reading_your_apple_health_history_1a3bf76d": {
+   "en": "Reading your Apple Health history…",
+   "ar": "جارٍ قراءة سجل Apple Health…"
+  },
+  "l10n_auto_workout_nudge_dismiss_this_workout_suggestion_52ace8f3": {
+   "en": "Dismiss this workout suggestion",
+   "ar": "تجاهل اقتراح التمرين هذا"
+  },
+  "l10n_auto_workout_nudge_looks_like_a_workout_e745e403": {
+   "en": "Looks like a workout",
+   "ar": "يبدو أنه تمرين"
+  },
+  "l10n_auto_workout_nudge_not_a_workout_15c5f784": {
+   "en": "Not a workout",
+   "ar": "ليس تمرينًا"
+  },
+  "l10n_auto_workout_nudge_save_it_01d23661": {
+   "en": "Save it",
+   "ar": "احفظه"
+  },
+  "l10n_automations_screen_automations_82542d6d": {
+   "en": "Automations",
+   "ar": "الأتمتة"
+  },
+  "l10n_automations_screen_battery_alerts_f3679d60": {
+   "en": "Battery alerts",
+   "ar": "تنبيهات البطارية"
+  },
+  "l10n_automations_screen_buzz_strength_e895f99e": {
+   "en": "Buzz strength",
+   "ar": "قوة الاهتزاز"
+  },
+  "l10n_automations_screen_choose_double_tap_action_6ac9a313": {
+   "en": "Choose double-tap action",
+   "ar": "اختر إجراء النقر المزدوج"
+  },
+  "l10n_automations_screen_detect_short_naps_bbfd136d": {
+   "en": "Detect short naps",
+   "ar": "اكتشاف القيلولات القصيرة"
+  },
+  "l10n_automations_screen_double_tap_8d2f1646": {
+   "en": "Double-tap",
+   "ar": "نقر مزدوج"
+  },
+  "l10n_automations_screen_each_day_uses_the_time_above_f9bc9ce3": {
+   "en": "Each day uses the time above unless you set a different one here.",
+   "ar": "يستخدم كل يوم الوقت أعلاه ما لم تضبط وقتًا مختلفًا هنا."
+  },
+  "l10n_automations_screen_enable_inactivity_reminder_468c3017": {
+   "en": "Enable inactivity reminder",
+   "ar": "تفعيل تذكير الخمول"
+  },
+  "l10n_automations_screen_from_3f66052a": {
+   "en": "From",
+   "ar": "من"
+  },
+  "l10n_automations_screen_haptic_coaching_e2fab286": {
+   "en": "Haptic coaching",
+   "ar": "إرشاد بالاهتزاز"
+  },
+  "l10n_automations_screen_hr_zone_coaching_9306e6e1": {
+   "en": "HR-zone coaching",
+   "ar": "إرشاد مناطق النبض"
+  },
+  "l10n_automations_screen_illness_early_warning_453ab477": {
+   "en": "Illness early-warning",
+   "ar": "إنذار مبكر بالمرض"
+  },
+  "l10n_automations_screen_inactivity_reminder_ca49b1ba": {
+   "en": "Inactivity reminder",
+   "ar": "تذكير الخمول"
+  },
+  "l10n_automations_screen_nap_detection_ca2dedf5": {
+   "en": "Nap detection",
+   "ar": "اكتشاف القيلولة"
+  },
+  "l10n_automations_screen_no_naps_to_review_detected_naps_2e82e9fc": {
+   "en": "No naps to review. Detected naps show up here after a history sync.",
+   "ar": "لا قيلولات للمراجعة. تظهر القيلولات المكتشفة هنا بعد مزامنة السجل."
+  },
+  "l10n_automations_screen_notifications_are_off_so_this_can_b3dba7ee": {
+   "en": "Notifications are off, so this can\\'t buzz yet. Turn on the master switch in ",
+   "ar": "الإشعارات مغلقة، لذا لا يمكن أن يهتز هذا بعد. فعّل المفتاح الرئيسي في "
+  },
+  "l10n_automations_screen_notify_on_low_and_full_battery_d1903bb8": {
+   "en": "Notify on low and full battery",
+   "ar": "تنبيه عند انخفاض البطارية واكتمالها"
+  },
+  "l10n_automations_screen_only_during_active_hours_29c53fc9": {
+   "en": "Only during active hours",
+   "ar": "أثناء ساعات النشاط فقط"
+  },
+  "l10n_automations_screen_per_day_wake_time_873c81e1": {
+   "en": "Per-day wake time",
+   "ar": "وقت الاستيقاظ لكل يوم"
+  },
+  "l10n_automations_screen_predictive_runtime_warning_4d85f5a6": {
+   "en": "Predictive runtime warning",
+   "ar": "تحذير تنبؤي بمدة التشغيل"
+  },
+  "l10n_automations_screen_re_nudge_every_646023cd": {
+   "en": "Re-nudge every",
+   "ar": "إعادة التذكير كل"
+  },
+  "l10n_automations_screen_recovery_buzz_1abc9a51": {
+   "en": "Recovery buzz",
+   "ar": "اهتزاز التعافي"
+  },
+  "l10n_automations_screen_reset_44c57abd": {
+   "en": "Reset",
+   "ar": "إعادة تعيين"
+  },
+  "l10n_automations_screen_sitting_for_e464c472": {
+   "en": "Sitting for",
+   "ar": "الجلوس لمدة"
+  },
+  "l10n_automations_screen_test_action_266df314": {
+   "en": "Test action",
+   "ar": "اختبار الإجراء"
+  },
+  "l10n_automations_screen_watch_for_early_illness_signs_4c22e127": {
+   "en": "Watch for early-illness signs",
+   "ar": "مراقبة علامات المرض المبكرة"
+  },
+  "l10n_automations_screen_when_i_double_tap_a1f1e04d": {
+   "en": "When I double-tap",
+   "ar": "عند النقر المزدوج"
+  },
+  "l10n_backup_sync_screen_auto_backup_hasn_t_run_in_e3cd484e": {
+   "en": "Auto-backup hasn\\'t run in a few days. Check the backup folder is still available — a moved or disconnected cloud folder stops backups silently.",
+   "ar": "لم يعمل النسخ الاحتياطي التلقائي منذ عدة أيام. تأكد من أن مجلد النسخ ما زال متاحًا — فالمجلد السحابي المنقول أو غير المتصل يوقف النسخ بصمت."
+  },
+  "l10n_backup_sync_screen_backup_folder_2a33df93": {
+   "en": "Backup folder",
+   "ar": "مجلد النسخ الاحتياطي"
+  },
+  "l10n_backup_sync_screen_backup_sync_81758ffa": {
+   "en": "Backup & Sync",
+   "ar": "النسخ الاحتياطي والمزامنة"
+  },
+  "l10n_backup_sync_screen_backup_time_81557aaa": {
+   "en": "Backup time",
+   "ar": "وقت النسخ الاحتياطي"
+  },
+  "l10n_backup_sync_screen_cancel_77dfd213": {
+   "en": "Cancel",
+   "ar": "إلغاء"
+  },
+  "l10n_backup_sync_screen_choose_a_backup_2fbfb0d6": {
+   "en": "Choose a backup",
+   "ar": "اختر نسخة احتياطية"
+  },
+  "l10n_backup_sync_screen_daily_auto_backup_e5627357": {
+   "en": "Daily auto-backup",
+   "ar": "نسخ احتياطي تلقائي يومي"
+  },
+  "l10n_backup_sync_screen_keep_last_snapshots_cd5c9ea9": {
+   "en": "Keep last snapshots",
+   "ar": "الاحتفاظ بآخر النسخ"
+  },
+  "l10n_backup_sync_screen_newest_first_restoring_replaces_this_device_97dbcd8b": {
+   "en": "Newest first. Restoring replaces this device\\'s data.",
+   "ar": "الأحدث أولًا. الاستعادة تستبدل بيانات هذا الجهاز."
+  },
+  "l10n_backup_sync_screen_older_backups_beyond_this_many_are_00b7daa6": {
+   "en": "Older backups beyond this many are pruned, oldest first (≈ that many days of ",
+   "ar": "تُحذف النسخ الأقدم بعد هذا العدد، بدءًا من الأقدم (≈ هذا العدد من الأيام من "
+  },
+  "l10n_backup_sync_screen_replace_a7cf7b25": {
+   "en": "Replace",
+   "ar": "استبدال"
+  },
+  "l10n_backup_sync_screen_replace_all_current_data_e9244799": {
+   "en": "Replace all current data?",
+   "ar": "استبدال كل البيانات الحالية؟"
+  },
+  "l10n_backup_sync_screen_replace_all_current_data_with_label_b7799a16": {
+   "en": "Replace all current data with %1$s? This cannot be undone.",
+   "ar": "استبدال كل البيانات الحالية بـ %1$s؟ لا يمكن التراجع عن ذلك."
+  },
+  "l10n_backup_sync_screen_replace_this_device_s_data_with_b8679c51": {
+   "en": "Replace this device\\'s data with one of your backups. This overwrites current data, ",
+   "ar": "استبدل بيانات هذا الجهاز بإحدى نسخك الاحتياطية. يستبدل هذا البيانات الحالية، "
+  },
+  "l10n_backup_sync_screen_restore_3cbe6d6b": {
+   "en": "Restore",
+   "ar": "استعادة"
+  },
+  "l10n_backup_sync_screen_restore_from_a_backup_c28917c6": {
+   "en": "Restore from a backup…",
+   "ar": "الاستعادة من نسخة احتياطية…"
+  },
+  "l10n_backup_sync_screen_roughly_when_the_daily_backup_runs_71de04e1": {
+   "en": "Roughly when the daily backup runs (best-effort — the system may slide it a little).",
+   "ar": "تقريبًا متى يعمل النسخ اليومي (بأفضل جهد — قد يؤجّله النظام قليلًا)."
+  },
+  "l10n_backup_sync_screen_these_backups_are_unencrypted_too_if_53e70fe8": {
+   "en": "These backups are unencrypted too. If this folder syncs to Drive, Dropbox or iCloud, the readable file goes there as well — only point it at a service you trust.",
+   "ar": "هذه النسخ غير مشفّرة أيضًا. إذا كان هذا المجلد يتزامن مع Drive أو Dropbox أو iCloud، فسينتقل الملف المقروء إلى هناك كذلك — فوجّهه إلى خدمة تثق بها فقط."
+  },
+  "l10n_backup_sync_screen_tip_a_desktop_drive_dropbox_app_2eaff1e3": {
+   "en": "Tip: a desktop Drive / Dropbox app auto-syncs a chosen folder. On the phone, save to a ",
+   "ar": "نصيحة: تطبيق Drive / Dropbox على سطح المكتب يزامن مجلدًا تختاره تلقائيًا. على الهاتف، احفظ في "
+  },
+  "l10n_backup_sync_screen_writes_a_fresh_dated_backup_to_bd964fc5": {
+   "en": "Writes a fresh dated backup to your folder once a day at the time below, keeping ",
+   "ar": "يكتب نسخة احتياطية جديدة مؤرخة في مجلدك مرة يوميًا في الوقت أدناه، مع الاحتفاظ بـ "
+  },
+  "l10n_body_clock_dial_card_1_s_earlier_than_your_body_68877f50": {
+   "en": "%1$s earlier than your body clock",
+   "ar": "أبكر بـ %1$s من ساعتك البيولوجية"
+  },
+  "l10n_body_clock_dial_card_1_s_later_than_your_body_50b7d966": {
+   "en": "%1$s later than your body clock",
+   "ar": "أمتأخر بـ %1$s عن ساعتك البيولوجية"
+  },
+  "l10n_body_clock_dial_card_body_clock_b0b9b988": {
+   "en": "Body clock",
+   "ar": "الساعة البيولوجية"
+  },
+  "l10n_body_clock_dial_card_body_clock_dial_03cdbc31": {
+   "en": "Body clock dial",
+   "ar": "قرص الساعة البيولوجية"
+  },
+  "l10n_body_clock_dial_card_evening_type_3e1ce111": {
+   "en": "Evening type",
+   "ar": "نمط مسائي"
+  },
+  "l10n_body_clock_dial_card_in_sync_with_your_body_clock_4b5181c8": {
+   "en": "In sync with your body clock",
+   "ar": "متوافق مع ساعتك البيولوجية"
+  },
+  "l10n_body_clock_dial_card_intermediate_type_a7b6b74c": {
+   "en": "Intermediate type",
+   "ar": "نمط متوسط"
+  },
+  "l10n_body_clock_dial_card_last_night_6eaba4dd": {
+   "en": "Last night",
+   "ar": "الليلة الماضية"
+  },
+  "l10n_body_clock_dial_card_last_night_against_your_clock_9183a37c": {
+   "en": "Last night against your clock",
+   "ar": "الليلة الماضية مقابل ساعتك"
+  },
+  "l10n_body_clock_dial_card_morning_type_289dd7bf": {
+   "en": "Morning type",
+   "ar": "نمط صباحي"
+  },
+  "l10n_body_clock_dial_card_your_clock_1b91f5ee": {
+   "en": "Your clock",
+   "ar": "ساعتك"
+  },
+  "l10n_breathe_screen_a_relaxation_rhythm_not_cardiac_control_5c2f10a8": {
+   "en": "A relaxation rhythm, not cardiac control. It never paces below a safe rate and you can stop anytime. If your heart rate doesn\\'t settle, we\\'ll say so plainly.",
+   "ar": "إيقاع للاسترخاء، لا تحكّم في القلب. لا يهبط بالإيقاع دون معدل آمن ويمكنك التوقف في أي وقت. وإذا لم يهدأ نبضك، سنقول ذلك بوضوح."
+  },
+  "l10n_breathe_screen_about_pace_o3p4q5r6": {
+   "en": "About this pace",
+   "ar": "عن هذا الإيقاع"
+  },
+  "l10n_breathe_screen_audio_cues_74430aec": {
+   "en": "Audio cues",
+   "ar": "تنبيهات صوتية"
+  },
+  "l10n_breathe_screen_breathcount_breaths_ce036831": {
+   "en": "%1$s breaths",
+   "ar": "%1$s نفَس"
+  },
+  "l10n_breathe_screen_breathe_282be568": {
+   "en": "Breathe",
+   "ar": "التنفس"
+  },
+  "l10n_breathe_screen_breathe_in_a5b6c7d8": {
+   "en": "Breathe in…",
+   "ar": "شهيق…"
+  },
+  "l10n_breathe_screen_breathe_now_98d6c341": {
+   "en": "Breathe now",
+   "ar": "تنفّس الآن"
+  },
+  "l10n_breathe_screen_breathe_out_e9f0a1b2": {
+   "en": "Breathe out…",
+   "ar": "زفير…"
+  },
+  "l10n_breathe_screen_calm_me_3_min_11250c77": {
+   "en": "Calm me · 3 min",
+   "ar": "هدّئني · 3 دقائق"
+  },
+  "l10n_breathe_screen_calm_me_a1b2c3d4": {
+   "en": "Calm me",
+   "ar": "هدّئني"
+  },
+  "l10n_breathe_screen_connect_your_strap_calm_me_is_71314744": {
+   "en": "Connect your strap. Calm me is a felt rhythm on the wrist, so it needs a bonded connection.",
+   "ar": "وصّل سوارك. «هدّئني» إيقاع محسوس على المعصم، لذا يحتاج إلى اتصال مقترن."
+  },
+  "l10n_breathe_screen_connect_your_strap_for_haptic_guidance_65660684": {
+   "en": "Connect your strap for haptic guidance. You\\'ll feel one pulse on the inhale, two on the exhale, so you can breathe with your eyes closed.",
+   "ar": "وصّل سوارك للإرشاد بالاهتزاز. ستشعر بنبضة واحدة عند الشهيق ونبضتين عند الزفير، لتتنفس وعيناك مغمضتان."
+  },
+  "l10n_breathe_screen_disclaimer_w1x2y3z4": {
+   "en": "Estimate only — not medical advice. Stop if you feel unwell.",
+   "ar": "تقدير فقط — ليس نصيحة طبية. توقف إذا شعرت بتوعك."
+  },
+  "l10n_breathe_screen_done_s7t8u9v0": {
+   "en": "Done",
+   "ar": "تم"
+  },
+  "l10n_breathe_screen_estimate_from_ppg_derived_r_r_9c92fbae": {
+   "en": "Estimate from PPG-derived R-R: relaxation guidance, not a clinical reading. Your pace drifts, so we date it and you can re-measure anytime.",
+   "ar": "تقدير من فترات R-R المشتقة من PPG: إرشاد للاسترخاء وليس قراءة سريرية. إيقاعك يتغير، لذا نؤرّخه ويمكنك إعادة القياس متى شئت."
+  },
+  "l10n_breathe_screen_estimate_only_a_higher_rmssd_while_bfd71bb8": {
+   "en": "Estimate only: a higher RMSSD while paced usually means your parasympathetic \"rest\" branch is engaging. It is not a clinical reading; trends over a session matter more than any single number.",
+   "ar": "تقدير فقط: ارتفاع RMSSD أثناء الإيقاع يعني عادةً أن فرعك السمبثاوي المسؤول عن «الراحة» يعمل. ليست قراءة سريرية؛ والاتجاهات عبر الجلسة أهم من أي رقم منفرد."
+  },
+  "l10n_breathe_screen_everyone_has_a_breathing_pace_usually_ad6ea0b4": {
+   "en": "Everyone has a breathing pace (usually between 4.5 and 7 breaths a minute) where the heart\\'s rhythm swings the most with each breath. We pace you through a few candidate paces, measure how your HRV responds, and lock the one that resonates best for you.",
+   "ar": "لكل شخص إيقاع تنفس (عادة بين 4.5 و7 أنفاس في الدقيقة) يتأرجح عنده إيقاع القلب أكثر ما يمكن مع كل نفَس. نمرّ بك عبر عدة إيقاعات مرشّحة، ونقيس استجابة تقلب النبض لديك، ونثبّت الإيقاع الأكثر رنينًا لك."
+  },
+  "l10n_breathe_screen_follow_cue_c3d4e5f6": {
+   "en": "Follow the cue…",
+   "ar": "اتبع الإشارة…"
+  },
+  "l10n_breathe_screen_full_sweep_13_min_08e01d2c": {
+   "en": "Full sweep · ~13 min",
+   "ar": "مسح كامل · ~13 دقيقة"
+  },
+  "l10n_breathe_screen_guided_k9l0m1n2": {
+   "en": "Guided",
+   "ar": "موجّه"
+  },
+  "l10n_breathe_screen_guided_timer_g7h8i9j0": {
+   "en": "Guided timer",
+   "ar": "مؤقّت موجّه"
+  },
+  "l10n_breathe_screen_heart_rate_410aa15c": {
+   "en": "Heart rate",
+   "ar": "معدل النبض"
+  },
+  "l10n_breathe_screen_hold_g5h6i7j8": {
+   "en": "Hold…",
+   "ar": "احبس…"
+  },
+  "l10n_breathe_screen_hrv_rmssd_51014f87": {
+   "en": "HRV (RMSSD)",
+   "ar": "تقلب النبض (RMSSD)"
+  },
+  "l10n_breathe_screen_locked_formatday_datems_paces_drift_re_8ebec15b": {
+   "en": "Locked %1$s · paces drift, re-measure anytime.",
+   "ar": "مثبّت %1$s · الإيقاعات تتغير، أعد القياس متى شئت."
+  },
+  "l10n_breathe_screen_locked_formatday_datems_switch_to_breathe_3efc52c6": {
+   "en": "Locked %1$s. Switch to Breathe to use it, or re-measure above.",
+   "ar": "مثبّت %1$s. انتقل إلى «التنفس» لاستخدامه، أو أعد القياس أعلاه."
+  },
+  "l10n_breathe_screen_locked_pace_o5p6q7r8": {
+   "en": "Your locked pace · %1$.1f br/min",
+   "ar": "إيقاعك المثبّت · %1$.1f نفَس/دقيقة"
+  },
+  "l10n_breathe_screen_not_enough_clean_beat_data_to_865a1260": {
+   "en": "Not enough clean beat data to lock a pace today. Try again rested, sitting still with the strap snug. For now we\\'ll pace you at 5.5 br/min (coherence).",
+   "ar": "لا توجد بيانات نبض نظيفة كافية لتثبيت إيقاع اليوم. حاول مجددًا وأنت مرتاح، جالسًا دون حركة والسوار محكم. وحاليًا سنضبط إيقاعك على 5.5 نفَس/دقيقة (الاتساق)."
+  },
+  "l10n_breathe_screen_not_now_e4571490": {
+   "en": "Not now",
+   "ar": "ليس الآن"
+  },
+  "l10n_breathe_screen_pace_7a9a6226": {
+   "en": "Pace",
+   "ar": "الإيقاع"
+  },
+  "l10n_breathe_screen_protocol_info_c1d2e3f4": {
+   "en": "Protocol info",
+   "ar": "معلومات البروتوكول"
+  },
+  "l10n_breathe_screen_quick_sweep_7_min_5d58f88d": {
+   "en": "Quick sweep · ~7 min",
+   "ar": "مسح سريع · ~7 دقائق"
+  },
+  "l10n_breathe_screen_relaxation_guidance_from_your_own_numbers_16ee0ba1": {
+   "en": "Relaxation guidance from your own numbers: not a health alert, and not a diagnosis. Trends matter more than any single number.",
+   "ar": "إرشاد للاسترخاء من أرقامك أنت: ليس تنبيهًا صحيًا ولا تشخيصًا. الاتجاهات أهم من أي رقم منفرد."
+  },
+  "l10n_breathe_screen_resonance_edu_s9t0u1v2": {
+   "en": "Your locked resonance pace from the Resonance sweep.",
+   "ar": "إيقاع الرنين المثبّت من مسح الرنين."
+  },
+  "l10n_breathe_screen_resonance_k1l2m3n4": {
+   "en": "Resonance",
+   "ar": "الرنين"
+  },
+  "l10n_breathe_screen_session_10_min_a3b4c5d6": {
+   "en": "10 min",
+   "ar": "10 دقائق"
+  },
+  "l10n_breathe_screen_session_15_min_e7f8a9b0": {
+   "en": "15 min",
+   "ar": "15 دقيقة"
+  },
+  "l10n_breathe_screen_session_5_min_c9d0e1f2": {
+   "en": "5 min",
+   "ar": "5 دقائق"
+  },
+  "l10n_breathe_screen_session_length_a1b2c3d4": {
+   "en": "Session length",
+   "ar": "مدة الجلسة"
+  },
+  "l10n_breathe_screen_session_open_e5f6a7b8": {
+   "en": "Open",
+   "ar": "فتح"
+  },
+  "l10n_breathe_screen_sign_kotlin_math_abs_trend_hrv_e9362899": {
+   "en": "%1$s%2$s%% HRV",
+   "ar": "%1$s%2$s%% تقلب النبض"
+  },
+  "l10n_breathe_screen_sit_still_and_breathe_with_the_b7c53c40": {
+   "en": "Sit still and breathe with the buzz. You can stop anytime; a stopped sweep won\\'t lock a pace.",
+   "ar": "اجلس دون حركة وتنفّس مع الاهتزاز. يمكنك التوقف في أي وقت؛ والمسح المتوقف لن يثبّت إيقاعًا."
+  },
+  "l10n_breathe_screen_soft_tone_on_each_phase_honours_2a02c284": {
+   "en": "Soft tone on each phase · honours silent mode",
+   "ar": "نغمة خفيفة عند كل مرحلة · تحترم الوضع الصامت"
+  },
+  "l10n_breathe_screen_started_at_it_bpm_the_rhythm_dda6a573": {
+   "en": "Started at %1$s bpm · the rhythm trails your heart down.",
+   "ar": "بدأنا عند %1$s نبضة/دقيقة · الإيقاع يتبع هبوط قلبك."
+  },
+  "l10n_breathe_screen_stop_9e253470": {
+   "en": "Stop",
+   "ar": "إيقاف"
+  },
+  "l10n_breathe_screen_stop_sweep_55299cf9": {
+   "en": "Stop sweep",
+   "ar": "إيقاف المسح"
+  },
+  "l10n_breathe_screen_test_buzz_deeab5ae": {
+   "en": "Test buzz",
+   "ar": "اختبار الاهتزاز"
+  },
+  "l10n_breathe_screen_that_s_normal_a_paced_breath_72e2d011": {
+   "en": "That\\'s normal. A paced breath often settles things when a metronome alone doesn\\'t.",
+   "ar": "هذا طبيعي. النفَس المنتظم غالبًا ما يهدّئ حين لا يفلح المترونوم وحده."
+  },
+  "l10n_breathe_screen_the_strap_buzzes_a_gentle_rhythm_eb5c6a65": {
+   "en": "The strap buzzes a gentle rhythm just below your current heart rate, a felt metronome to relax toward. It trails your heart down rather than yanking it, and stops on its own.",
+   "ar": "يهتز السوار بإيقاع لطيف أقل قليلًا من معدل نبضك الحالي، كمترونوم محسوس تسترخي نحوه. يتبع هبوط قلبك بدل أن يجذبه، ويتوقف من تلقاء نفسه."
+  },
+  "l10n_breathe_screen_turn_off_8807c2b3": {
+   "en": "Turn off",
+   "ar": "إيقاف"
+  },
+  "l10n_breathe_screen_waiting_for_a_resting_heart_rate_980cedbf": {
+   "en": "Waiting for a resting heart rate. Start a live reading first, or come back when you\\'re still.",
+   "ar": "في انتظار معدل نبض في الراحة. ابدأ قراءة مباشرة أولًا، أو عد حين تكون ساكنًا."
+  },
+  "l10n_breathe_screen_your_hrv_dipped_while_you_were_231d3c7a": {
+   "en": "Your HRV dipped while you were still. Want a minute to breathe?",
+   "ar": "انخفض تقلب نبضك بينما كنت ساكنًا. أتريد دقيقة للتنفس؟"
+  },
+  "l10n_caffeine_log_after_your_clocklabel_cutoffminutes_cutoff_may_3c023900": {
+   "en": "After your %1$s cutoff - may still be active at bed.",
+   "ar": "بعد حدّك %1$s — قد يظل فعّالًا عند النوم."
+  },
+  "l10n_caffeine_log_amount_in_mg_optional_f0749888": {
+   "en": "Amount in mg (optional)",
+   "ar": "الكمية بالمليغرام (اختياري)"
+  },
+  "l10n_caffeine_log_bedtime_e3cb8bd6": {
+   "en": "Bedtime",
+   "ar": "وقت النوم"
+  },
+  "l10n_caffeine_log_caffeine_22859fa3": {
+   "en": "Caffeine",
+   "ar": "الكافيين"
+  },
+  "l10n_caffeine_log_flag_drinks_late_enough_to_still_af311272": {
+   "en": "Flag drinks late enough to still be active at bedtime.",
+   "ar": "تمييز المشروبات المتأخرة بما يكفي لتظل فعّالة عند النوم."
+  },
+  "l10n_caffeine_log_had_it_8576ac66": {
+   "en": "Had it",
+   "ar": "تناولته"
+  },
+  "l10n_caffeine_log_have_your_last_caffeine_by_about_16b09033": {
+   "en": "Have your last caffeine by about %1$s to clear most of it ",
+   "ar": "تناول آخر كافيين قبل %1$s تقريبًا ليزول معظمه "
+  },
+  "l10n_caffeine_log_late_caffeine_nudge_6b2ff690": {
+   "en": "Late-caffeine nudge",
+   "ar": "تنبيه الكافيين المتأخر"
+  },
+  "l10n_caffeine_log_log_a_coffee_tea_or_energy_982bde5b": {
+   "en": "Log a coffee, tea, or energy drink and NOOP shows a rough estimate of how much may still be active. It\\'s a guide based on a typical 5 to 6 hour half-life, not a measurement.",
+   "ar": "سجّل قهوة أو شايًا أو مشروب طاقة، ويعرض NOOP تقديرًا تقريبيًا لما قد يظل فعّالًا. إنه دليل مبني على عمر نصف نموذجي من 5 إلى 6 ساعات، وليس قياسًا."
+  },
+  "l10n_caffeine_log_logged_today_0071a46c": {
+   "en": "Logged today",
+   "ar": "سُجِّل اليوم"
+  },
+  "l10n_caffeine_log_remove_e963907d": {
+   "en": "Remove",
+   "ar": "إزالة"
+  },
+  "l10n_coach_screen_api_key_hidden_f3cde531": {
+   "en": "API key (hidden)",
+   "ar": "مفتاح API (مخفي)"
+  },
+  "l10n_coach_screen_ask_anything_about_your_recent_recovery_e6c287ca": {
+   "en": "Ask anything about your recent recovery, strain, sleep or HRV.",
+   "ar": "اسأل عن أي شيء يخص تعافيك أو إجهادك أو نومك أو تقلب نبضك مؤخرًا."
+  },
+  "l10n_coach_screen_ask_your_coach_b1577d4c": {
+   "en": "Ask your coach…",
+   "ar": "اسأل مدربك…"
+  },
+  "l10n_coach_screen_cancel_77dfd213": {
+   "en": "Cancel",
+   "ar": "إلغاء"
+  },
+  "l10n_coach_screen_coach_b32c9ad3": {
+   "en": "Coach",
+   "ar": "المدرب الذكي"
+  },
+  "l10n_coach_screen_coach_error_error_ad9c8c46": {
+   "en": "Coach error: %1$s",
+   "ar": "خطأ في المدرب الذكي: %1$s"
+  },
+  "l10n_coach_screen_coach_instructions_28a07975": {
+   "en": "Coach instructions",
+   "ar": "تعليمات المدرب الذكي"
+  },
+  "l10n_coach_screen_coach_instructions_editor_b8f3ad31": {
+   "en": "Coach instructions editor",
+   "ar": "محرّر تعليمات المدرب الذكي"
+  },
+  "l10n_coach_screen_coach_is_thinking_aaf91547": {
+   "en": "Coach is thinking",
+   "ar": "المدرب الذكي يفكر"
+  },
+  "l10n_coach_screen_connect_a_provider_6967f288": {
+   "en": "Connect a provider",
+   "ar": "وصّل مزوّدًا"
+  },
+  "l10n_coach_screen_connect_b65463cb": {
+   "en": "Connect",
+   "ar": "توصيل"
+  },
+  "l10n_coach_screen_custom_dce04fd3": {
+   "en": "Custom…",
+   "ar": "مخصص…"
+  },
+  "l10n_coach_screen_custom_model_2e3bedea": {
+   "en": "Custom model",
+   "ar": "نموذج مخصص"
+  },
+  "l10n_coach_screen_custom_model_id_6ffe2740": {
+   "en": "Custom model id",
+   "ar": "معرّف نموذج مخصص"
+  },
+  "l10n_coach_screen_disconnect_ed28e068": {
+   "en": "Disconnect",
+   "ar": "قطع الاتصال"
+  },
+  "l10n_coach_screen_disconnect_provider_fa13625c": {
+   "en": "Disconnect provider",
+   "ar": "قطع الاتصال بالمزوّد"
+  },
+  "l10n_coach_screen_e_g_gpt_4o_1da2e4d2": {
+   "en": "e.g. gpt-4o",
+   "ar": "مثال: gpt-4o"
+  },
+  "l10n_coach_screen_enter_any_model_id_the_provider_dce4bbcb": {
+   "en": "Enter any model id the provider accepts.",
+   "ar": "أدخل أي معرّف نموذج يقبله المزوّد."
+  },
+  "l10n_coach_screen_fetch_models_from_provider_6654e1a0": {
+   "en": "Fetch models from provider",
+   "ar": "جلب النماذج من المزوّد"
+  },
+  "l10n_coach_screen_key_header_3f2a9b10": {
+   "en": "Key header",
+   "ar": "ترويسة المفتاح"
+  },
+  "l10n_coach_screen_let_the_coach_use_my_data_405d1188": {
+   "en": "Let the coach use my data",
+   "ar": "السماح للمدرب باستخدام بياناتي"
+  },
+  "l10n_coach_screen_model_selected_tap_to_change_043056c1": {
+   "en": "Model: %1$s. Tap to change.",
+   "ar": "النموذج: %1$s. اضغط للتغيير."
+  },
+  "l10n_coach_screen_reset_to_default_39c90eb7": {
+   "en": "Reset to default",
+   "ar": "إعادة إلى الافتراضي"
+  },
+  "l10n_coach_screen_save_key_f5216b3a": {
+   "en": "Save key",
+   "ar": "حفظ المفتاح"
+  },
+  "l10n_coach_screen_send_message_c70a890d": {
+   "en": "Send message",
+   "ar": "إرسال رسالة"
+  },
+  "l10n_coach_screen_server_url_1d5d1eff": {
+   "en": "Server URL",
+   "ar": "عنوان الخادم"
+  },
+  "l10n_coach_screen_suggested_prompt_prompt_379c0b15": {
+   "en": "Suggested prompt: %1$s",
+   "ar": "طلب مقترح: %1$s"
+  },
+  "l10n_coach_screen_thinking_a60d9c9c": {
+   "en": "Thinking…",
+   "ar": "يفكر…"
+  },
+  "l10n_coach_screen_use_bearer_for_most_local_servers_4429ab64": {
+   "en": "Use Bearer for most local servers; use x-api-key for gateways that require the key in that header.",
+   "ar": "استخدم Bearer لمعظم الخوادم المحلية؛ واستخدم x-api-key للبوابات التي تتطلب المفتاح في تلك الترويسة."
+  },
+  "l10n_coach_screen_use_model_8d558ce2": {
+   "en": "Use model",
+   "ar": "استخدام النموذج"
+  },
+  "l10n_compare_screen_add_a_metric_to_compare_e6a7c9f1": {
+   "en": "Add a metric to compare",
+   "ar": "أضف مقياسًا للمقارنة"
+  },
+  "l10n_compare_screen_compare_8d105cf4": {
+   "en": "Compare",
+   "ar": "مقارنة"
+  },
+  "l10n_compare_screen_compare_needs_at_least_two_metrics_2bfe1fad": {
+   "en": "Compare needs at least two metrics with history",
+   "ar": "المقارنة تحتاج إلى مقياسين على الأقل لهما سجل"
+  },
+  "l10n_compare_screen_not_enough_overlapping_days_between_these_44563110": {
+   "en": "Not enough overlapping days between these metrics in %1$s. Widen the range.",
+   "ar": "لا توجد أيام متداخلة كافية بين هذه المقاييس في %1$s. وسّع النطاق."
+  },
+  "l10n_compare_screen_nothing_selected_yet_60968db6": {
+   "en": "Nothing selected yet.",
+   "ar": "لم يُختر شيء بعد."
+  },
+  "l10n_compare_screen_p_n_overlapping_days_strengthword_p_8a8f56c7": {
+   "en": "%1$s overlapping days · %2$s %3$s correlation",
+   "ar": "%1$s يوم متداخل · ارتباط %2$s %3$s"
+  },
+  "l10n_compare_screen_remove_title_ddb5361c": {
+   "en": "Remove %1$s",
+   "ar": "إزالة %1$s"
+  },
+  "l10n_components_chunks_chunks_pulled_cec186cf": {
+   "en": "%1$s chunks pulled",
+   "ar": "تم سحب %1$s جزء"
+  },
+  "l10n_components_decrease_accessibility_df5f1511": {
+   "en": "Decrease %1$s",
+   "ar": "إنقاص %1$s"
+  },
+  "l10n_components_increase_accessibility_0949c0e9": {
+   "en": "Increase %1$s",
+   "ar": "زيادة %1$s"
+  },
+  "l10n_connection_help_allow_nearby_devices_f7c74880": {
+   "en": "Allow Nearby devices",
+   "ar": "السماح بالأجهزة القريبة"
+  },
+  "l10n_connection_help_charge_it_and_put_it_on_31b04814": {
+   "en": "Charge it and put it on",
+   "ar": "اشحنه وارتدِه"
+  },
+  "l10n_connection_help_close_the_official_whoop_app_768d7d17": {
+   "en": "Close the official WHOOP app",
+   "ar": "أغلق تطبيق WHOOP الرسمي"
+  },
+  "l10n_connection_help_try_connecting_now_41769900": {
+   "en": "Try connecting now",
+   "ar": "جرّب الاتصال الآن"
+  },
+  "l10n_connection_help_turn_bluetooth_on_75868e97": {
+   "en": "Turn Bluetooth on",
+   "ar": "شغّل Bluetooth"
+  },
+  "l10n_connection_help_whoop_5_mg_experimental_109076ae": {
+   "en": "WHOOP 5 / MG (experimental)",
+   "ar": "‏WHOOP 5 / MG (تجريبي)"
+  },
+  "l10n_connection_help_won_t_connect_run_through_these_cfef82f3": {
+   "en": "Won\\'t connect? Run through these",
+   "ar": "لا يتصل؟ راجع هذه الخطوات"
+  },
+  "l10n_connection_help_your_strap_is_connected_and_we_8ab98ac6": {
+   "en": "Your strap is connected and we\\'re trying an experimental handshake to bring up live ",
+   "ar": "سوارك متصل ونحن نجرّب مصافحة تجريبية لتشغيل البث المباشر "
+  },
+  "l10n_coupled_screen_calibrating_calibrationnights_of_baselines_minnightsseed_nights_1a7e8f8e": {
+   "en": "Calibrating, %1$s of %2$s nights",
+   "ar": "جارٍ المعايرة، %1$s من %2$s ليلة"
+  },
+  "l10n_coupled_screen_day_987b9ced": {
+   "en": "Day",
+   "ar": "اليوم"
+  },
+  "l10n_coupled_screen_hoursminutes_asleepmin_slept_732a5b21": {
+   "en": "%1$s slept",
+   "ar": "%1$s نوم"
+  },
+  "l10n_coupled_screen_hoursminutes_needmin_needed_7fc1eb15": {
+   "en": "%1$s needed",
+   "ar": "%1$s مطلوب"
+  },
+  "l10n_coupled_screen_no_effort_yet_f622f99d": {
+   "en": "No effort yet",
+   "ar": "لا جهد بعد"
+  },
+  "l10n_coupled_screen_no_sleep_tracked_last_night_cd0dd79e": {
+   "en": "No sleep tracked last night",
+   "ar": "لم يُسجَّل نوم الليلة الماضية"
+  },
+  "l10n_coupled_screen_recovery_b668d988": {
+   "en": "RECOVERY",
+   "ar": "التعافي"
+  },
+  "l10n_coupled_screen_sleep_performance_4611539f": {
+   "en": "SLEEP PERFORMANCE",
+   "ar": "أداء النوم"
+  },
+  "l10n_data_sources_screen_acts_as_a_standard_bluetooth_heart_f8d13439": {
+   "en": "Acts as a standard Bluetooth heart-rate strap. Pair NOOP from your treadmill, bike or app to see your strap\\'s heart rate there.",
+   "ar": "يعمل كسوار نبض Bluetooth قياسي. اقترن بـ NOOP من جهاز المشي أو الدراجة أو التطبيق لرؤية نبض سوارك هناك."
+  },
+  "l10n_data_sources_screen_auto_sync_health_connect_periodically_6f3f4d92": {
+   "en": "Auto-sync Health Connect periodically",
+   "ar": "مزامنة Health Connect تلقائيًا بشكل دوري"
+  },
+  "l10n_data_sources_screen_auto_sync_periodically_5f3041e8": {
+   "en": "Auto-sync periodically",
+   "ar": "مزامنة تلقائية دورية"
+  },
+  "l10n_data_sources_screen_broadcast_heart_rate_as_a_bluetooth_6a44fdb4": {
+   "en": "Broadcast heart rate as a Bluetooth sensor",
+   "ar": "بثّ معدل النبض كمستشعر Bluetooth"
+  },
+  "l10n_data_sources_screen_broadcast_hr_from_this_phone_10e5605c": {
+   "en": "Broadcast HR from this phone",
+   "ar": "بثّ النبض من هذا الهاتف"
+  },
+  "l10n_data_sources_screen_broadcast_hr_is_on_your_strap_0ad5368a": {
+   "en": "Broadcast HR is ON. This phone is advertising heart rate continuously, which keeps its Bluetooth radio active and drains the battery faster. Turn it off when you\\'re not using it with another device.",
+   "ar": "بثّ النبض مُفعَّل. يبثّ هذا الهاتف معدل النبض باستمرار، مما يبقي راديو Bluetooth نشطًا ويستنزف البطارية أسرع. أوقفه حين لا تستخدمه مع جهاز آخر."
+  },
+  "l10n_data_sources_screen_cancel_77dfd213": {
+   "en": "Cancel",
+   "ar": "إلغاء"
+  },
+  "l10n_data_sources_screen_data_sources_5e43d6bb": {
+   "en": "Data Sources",
+   "ar": "مصادر البيانات"
+  },
+  "l10n_data_sources_screen_every_3560d90b": {
+   "en": "Every",
+   "ar": "كل"
+  },
+  "l10n_data_sources_screen_import_apple_health_export_533fca27": {
+   "en": "Import Apple Health export…",
+   "ar": "استيراد ملف تصدير Apple Health…"
+  },
+  "l10n_data_sources_screen_import_from_health_connect_35d55e21": {
+   "en": "Import from Health Connect",
+   "ar": "الاستيراد من Health Connect"
+  },
+  "l10n_data_sources_screen_import_lifting_log_8fac7b68": {
+   "en": "Import lifting log…",
+   "ar": "استيراد سجل تمارين القوة…"
+  },
+  "l10n_data_sources_screen_import_mi_band_export_e587801c": {
+   "en": "Import Mi Band export…",
+   "ar": "استيراد ملف تصدير Mi Band…"
+  },
+  "l10n_data_sources_screen_import_nutrition_csv_2c748273": {
+   "en": "Import nutrition CSV…",
+   "ar": "استيراد تغذية CSV…"
+  },
+  "l10n_data_sources_screen_import_wearable_export_0545c430": {
+   "en": "Import wearable export…",
+   "ar": "استيراد ملف تصدير جهاز ملبوس…"
+  },
+  "l10n_data_sources_screen_import_whoop_export_zip_16f4176b": {
+   "en": "Import WHOOP export (.zip)",
+   "ar": "استيراد ملف تصدير WHOOP‏ (.zip)"
+  },
+  "l10n_data_sources_screen_import_workout_file_a3a28e06": {
+   "en": "Import workout file…",
+   "ar": "استيراد ملف تمرين…"
+  },
+  "l10n_data_sources_screen_imported_434eb26f": {
+   "en": "Imported",
+   "ar": "مستورد"
+  },
+  "l10n_data_sources_screen_last_share_didn_t_finish_noop_0d6c27f0": {
+   "en": "Last share didn’t finish — NOOP will retry automatically.",
+   "ar": "لم تكتمل آخر مشاركة — سيعيد NOOP المحاولة تلقائيًا."
+  },
+  "l10n_data_sources_screen_last_shared_6bf8389c": {
+   "en": "\"Last shared \"",
+   "ar": "\"آخر مشاركة \""
+  },
+  "l10n_data_sources_screen_last_sync_b793ffab": {
+   "en": "Last sync: ",
+   "ar": "آخر مزامنة: "
+  },
+  "l10n_data_sources_screen_lifting_log_hevy_liftosaur_11df48df": {
+   "en": "Lifting log (Hevy / Liftosaur)",
+   "ar": "سجل تمارين القوة (Hevy / Liftosaur)"
+  },
+  "l10n_data_sources_screen_nutrition_csv_1c1315d9": {
+   "en": "Nutrition (CSV)",
+   "ar": "التغذية (CSV)"
+  },
+  "l10n_data_sources_screen_off_e3de5ab0": {
+   "en": "Off",
+   "ar": "مغلق"
+  },
+  "l10n_data_sources_screen_oura_fitbit_garmin_export_7b21682f": {
+   "en": "Oura / Fitbit / Garmin export",
+   "ar": "تصدير Oura / Fitbit / Garmin"
+  },
+  "l10n_data_sources_screen_re_pull_new_health_connect_data_3e9c3914": {
+   "en": "Re-pull new Health Connect data (e.g. Samsung Health → Health Connect) each ",
+   "ar": "إعادة سحب بيانات Health Connect الجديدة (مثل Samsung Health ← Health Connect) كل "
+  },
+  "l10n_data_sources_screen_remove_apple_health_imported_data_5f878502": {
+   "en": "Remove Apple Health imported data?",
+   "ar": "إزالة البيانات المستوردة من Apple Health؟"
+  },
+  "l10n_data_sources_screen_remove_e963907d": {
+   "en": "Remove",
+   "ar": "إزالة"
+  },
+  "l10n_data_sources_screen_remove_imported_data_813e4695": {
+   "en": "Remove imported data",
+   "ar": "إزالة البيانات المستوردة"
+  },
+  "l10n_data_sources_screen_share_back_to_health_connect_1d578f4a": {
+   "en": "Share back to Health Connect",
+   "ar": "المشاركة العكسية إلى Health Connect"
+  },
+  "l10n_data_sources_screen_share_computed_metrics_back_to_health_c11f5d70": {
+   "en": "Share computed metrics back to Health Connect",
+   "ar": "مشاركة المقاييس المحتسبة عكسيًا إلى Health Connect"
+  },
+  "l10n_data_sources_screen_sharing_paused_health_connect_permission_was_e8950315": {
+   "en": "Sharing paused — Health Connect permission was revoked. Tap to re-grant.",
+   "ar": "تم إيقاف المشاركة مؤقتًا — سُحب إذن Health Connect. اضغط لمنحه مجددًا."
+  },
+  "l10n_data_sources_screen_this_permanently_deletes_everything_imported_from_f42e760e": {
+   "en": "This permanently deletes everything imported from Apple Health: heart rate, HRV, sleep, steps, workouts and more. Your live strap data is untouched. This can\\'t be undone.",
+   "ar": "يحذف هذا نهائيًا كل ما استُورد من Apple Health: معدل النبض وتقلب النبض والنوم والخطوات والتمارين وغيرها. لا تتأثر بيانات سوارك المباشرة. لا يمكن التراجع عن ذلك."
+  },
+  "l10n_data_sources_screen_whoop_history_db101974": {
+   "en": "WHOOP History",
+   "ar": "سجل WHOOP"
+  },
+  "l10n_data_sources_screen_whoop_strap_live_ble_217f7df6": {
+   "en": "WHOOP Strap (Live BLE)",
+   "ar": "سوار WHOOP (BLE مباشر)"
+  },
+  "l10n_data_sources_screen_workout_file_gpx_tcx_fit_5469c068": {
+   "en": "Workout file (GPX / TCX / FIT)",
+   "ar": "ملف تمرين (GPX / TCX / FIT)"
+  },
+  "l10n_data_sources_screen_write_the_metrics_noop_computes_from_439940c2": {
+   "en": "Write the metrics NOOP computes from your strap (resting HR, HRV, SpO₂, ",
+   "ar": "كتابة المقاييس التي يحتسبها NOOP من سوارك (نبض الراحة، وتقلب النبض، وSpO₂، "
+  },
+  "l10n_devices_screen_add_a_device_f90866b8": {
+   "en": "Add a device",
+   "ar": "إضافة جهاز"
+  },
+  "l10n_devices_screen_battery_4a9be042": {
+   "en": "Battery",
+   "ar": "البطارية"
+  },
+  "l10n_devices_screen_battery_clamped_2494c8c9": {
+   "en": "Battery %1$s%%",
+   "ar": "البطارية %1$s%%"
+  },
+  "l10n_devices_screen_battery_info_probe_592_re_1dbd4c0f": {
+   "en": "Battery-info probe (#592 RE)…",
+   "ar": "فحص معلومات البطارية (#592 RE)…"
+  },
+  "l10n_devices_screen_battery_info_probe_result_592_b97c0bb8": {
+   "en": "Battery-info probe result (#592)",
+   "ar": "نتيجة فحص البطارية (#592)"
+  },
+  "l10n_devices_screen_battery_probe_explainer_2858bb6a": {
+   "en": "Two independent protocol tables disagree on the extended-battery opcode (98 vs 87). This sends the curated read-only 98 and dumps the strap\\'s full raw reply to the strap log. A battery-style payload confirms 98 on your firmware; a short stub means it stays ambiguous. Nothing is written to the strap. Please export and share the strap log afterwards.",
+   "ar": "تختلف جدولان مستقلان للبروتوكول حول رمز البطارية الممتد (98 مقابل 87). يرسل هذا الأمر 98 للقراءة فقط ويكتب رد السوار الخام الكامل في سجل السوار. الرد بصيغة بطارية يؤكد 98 على برنامجك الثابت؛ والرد المختصر يعني بقاء الأمر ملتبسًا. لا يُكتب شيء على السوار. يُرجى تصدير سجل السوار ومشاركته بعد ذلك."
+  },
+  "l10n_devices_screen_body_location_probe_690_re_7def8c39": {
+   "en": "Body-location probe (#690 RE)…",
+   "ar": "فحص موضع الجسم (#690 RE)…"
+  },
+  "l10n_devices_screen_body_location_probe_explainer_a9363239": {
+   "en": "Sends the read-only body-location command (0x54) and dumps the strap\\'s full raw reply to the strap log, decoding the record (revision / location / confidence / status) on WHOOP 4.0. Nothing is written to the strap, and it never changes wear detection or scoring.",
+   "ar": "يرسل أمر موضع الجسم للقراءة فقط (0x54) ويكتب رد السوار الخام الكامل في السجل، مع فكّ ترميز السجل (المراجعة / الموضع / الثقة / الحالة) على WHOOP 4.0. لا يُكتب شيء على السوار، ولا يغيّر أبدًا كشف الارتداء أو الدرجات."
+  },
+  "l10n_devices_screen_body_location_probe_result_690_60c5ee79": {
+   "en": "Body-location probe result (#690)",
+   "ar": "نتيجة فحص موضع الجسم (#690)"
+  },
+  "l10n_devices_screen_cancel_77dfd213": {
+   "en": "Cancel",
+   "ar": "إلغاء"
+  },
+  "l10n_devices_screen_close_bbfa773e": {
+   "en": "Close",
+   "ar": "إغلاق"
+  },
+  "l10n_devices_screen_copy_af74f7c5": {
+   "en": "Copy",
+   "ar": "نسخ"
+  },
+  "l10n_devices_screen_delete_all_of_this_device_s_754cde90": {
+   "en": "Delete all of this device\\'s data?",
+   "ar": "حذف كل بيانات هذا الجهاز؟"
+  },
+  "l10n_devices_screen_delete_this_device_s_data_3cae7a2a": {
+   "en": "Delete this device\\'s data…",
+   "ar": "حذف بيانات هذا الجهاز…"
+  },
+  "l10n_devices_screen_device_actions_for_displayname_device_160eb3de": {
+   "en": "Device actions for %1$s",
+   "ar": "إجراءات الجهاز لـ %1$s"
+  },
+  "l10n_devices_screen_device_config_probe_explainer_dd23169f": {
+   "en": "Asks the strap for config VALUES: GET_DEVICE_CONFIG_VALUE (0x79) and GET_FF_VALUE (0x80), one key per round-trip. Both commands may simply not exist in this firmware — finding that out is the point. Read-only — no value is written, and the SET commands are never sent from this probe. The result is shown here and written to the strap log.",
+   "ar": "يطلب من السوار قيم الإعدادات: GET_DEVICE_CONFIG_VALUE (0x79) وGET_FF_VALUE (0x80)، مفتاح واحد لكل دورة. قد لا يكون الأمران موجودين أصلًا في هذا البرنامج الثابت — ومعرفة ذلك هي الهدف. للقراءة فقط — لا تُكتب أي قيمة، ولا تُرسل أوامر الضبط أبدًا من هذا الفحص. تُعرض النتيجة هنا وتُكتب في سجل السوار."
+  },
+  "l10n_devices_screen_device_config_read_probe_103_re_837f46de": {
+   "en": "Device-config read probe (#103 RE)…",
+   "ar": "فحص قراءة إعدادات الجهاز (#103 RE)…"
+  },
+  "l10n_devices_screen_device_config_read_probe_result_103_67d02ec9": {
+   "en": "Device-config read probe result (#103)",
+   "ar": "نتيجة فحص قراءة إعدادات الجهاز (#103)"
+  },
+  "l10n_devices_screen_device_name_79d7a157": {
+   "en": "Device name",
+   "ar": "اسم الجهاز"
+  },
+  "l10n_devices_screen_devices_df485c87": {
+   "en": "Devices",
+   "ar": "الأجهزة"
+  },
+  "l10n_devices_screen_disconnect_ed28e068": {
+   "en": "Disconnect",
+   "ar": "قطع الاتصال"
+  },
+  "l10n_devices_screen_feature_flag_probe_761_re_21241d68": {
+   "en": "Feature-flag probe (#761 RE)…",
+   "ar": "فحص أعلام الميزات (#761 RE)…"
+  },
+  "l10n_devices_screen_feature_flag_probe_explainer_58eec30f": {
+   "en": "Asks the strap to list the feature-flag NAMES its own firmware knows: START_FF_KEY_EXCHANGE (0x75) then SEND_NEXT_FF (0x76) until the strap says it\\'s done. Read-only — no flag value is written, and the SET commands are never sent from this probe. The list is shown here and written to the strap log.",
+   "ar": "يطلب من السوار سرد أسماء أعلام الميزات التي يعرفها برنامجه الثابت: START_FF_KEY_EXCHANGE (0x75) ثم SEND_NEXT_FF (0x76) حتى يعلن السوار الانتهاء. للقراءة فقط — لا تُكتب أي قيمة علم، ولا تُرسل أوامر الضبط أبدًا من هذا الفحص. تُعرض القائمة هنا وتُكتب في سجل السوار."
+  },
+  "l10n_devices_screen_feature_flag_probe_result_761_c50ef4d4": {
+   "en": "Feature-flag probe result (#761)",
+   "ar": "نتيجة فحص أعلام الميزات (#761)"
+  },
+  "l10n_devices_screen_forget_device_926e503d": {
+   "en": "Forget device",
+   "ar": "نسيان الجهاز"
+  },
+  "l10n_devices_screen_forget_device_d6eb6209": {
+   "en": "Forget device…",
+   "ar": "نسيان الجهاز…"
+  },
+  "l10n_devices_screen_forget_this_device_8dbbc3f3": {
+   "en": "Forget this device?",
+   "ar": "نسيان هذا الجهاز؟"
+  },
+  "l10n_devices_screen_getting_your_devices_ready_bd391949": {
+   "en": "Getting your devices ready",
+   "ar": "جارٍ تجهيز أجهزتك"
+  },
+  "l10n_devices_screen_give_device_brand_device_model_a_7a15585c": {
+   "en": "Give %1$s %2$s a name you\\'ll recognise.",
+   "ar": "امنح %1$s %2$s اسمًا تتعرف عليه."
+  },
+  "l10n_devices_screen_leave_none_active_b5c858cb": {
+   "en": "Leave none active",
+   "ar": "عدم تفعيل أي جهاز"
+  },
+  "l10n_devices_screen_make_active_75690bb8": {
+   "en": "Make active",
+   "ar": "تعيينه نشطًا"
+  },
+  "l10n_devices_screen_make_this_your_active_strap_fea6bebd": {
+   "en": "Make this your active strap?",
+   "ar": "تعيين هذا سوارك النشط؟"
+  },
+  "l10n_devices_screen_name_709a2322": {
+   "en": "Name",
+   "ar": "الاسم"
+  },
+  "l10n_devices_screen_noop_removes_this_device_503aff9e": {
+   "en": "NOOP removes this device from your list and deletes its recorded data here. You can re-pair the strap to pull its recent history back.",
+   "ar": "يزيل NOOP هذا الجهاز من قائمتك ويحذف بياناته المسجّلة هنا. يمكنك إعادة اقتران السوار لسحب سجله الأخير مرة أخرى."
+  },
+  "l10n_devices_screen_pack_voltage_9af3c3ff": {
+   "en": "%1$.2f V",
+   "ar": "%1$.2f فولت"
+  },
+  "l10n_devices_screen_paired_locally_noop_owns_this_ring_30c16190": {
+   "en": "Paired locally. NOOP owns this ring while it holds the key. If you reset it again or set it up in the Oura app, NOOP no longer owns it and you would re-add it to take it over.",
+   "ar": "مقترن محليًا. يملك NOOP هذا الخاتم ما دام يحتفظ بالمفتاح. وإذا أعدت ضبطه أو أعددته في تطبيق Oura، فلن يعود NOOP مالكًا له وستحتاج إلى إعادة إضافته للاستحواذ عليه."
+  },
+  "l10n_devices_screen_pick_a_new_active_strap_edd73542": {
+   "en": "Pick a new active strap",
+   "ar": "اختر سوارًا نشطًا جديدًا"
+  },
+  "l10n_devices_screen_reboot_probe_4_0_re_828b3916": {
+   "en": "Reboot probe (4.0 RE)…",
+   "ar": "فحص إعادة التشغيل (4.0 RE)…"
+  },
+  "l10n_devices_screen_reconnect_6988b16a": {
+   "en": "Reconnect",
+   "ar": "إعادة الاتصال"
+  },
+  "l10n_devices_screen_remove_e963907d": {
+   "en": "Remove",
+   "ar": "إزالة"
+  },
+  "l10n_devices_screen_remove_this_device_dd9dbda9": {
+   "en": "Remove this device?",
+   "ar": "إزالة هذا الجهاز؟"
+  },
+  "l10n_devices_screen_rename_d3f4cb89": {
+   "en": "Rename",
+   "ar": "إعادة تسمية"
+  },
+  "l10n_devices_screen_rename_device_ee233604": {
+   "en": "Rename device",
+   "ar": "إعادة تسمية الجهاز"
+  },
+  "l10n_devices_screen_restart_strap_c976cd6c": {
+   "en": "Restart strap…",
+   "ar": "إعادة تشغيل السوار…"
+  },
+  "l10n_devices_screen_restart_this_strap_50fc481b": {
+   "en": "Restart this strap?",
+   "ar": "إعادة تشغيل هذا السوار؟"
+  },
+  "l10n_devices_screen_save_efc007a3": {
+   "en": "Save",
+   "ar": "حفظ"
+  },
+  "l10n_devices_screen_send_probe_read_only_36b318bc": {
+   "en": "Send probe (read-only)",
+   "ar": "إرسال الفحص (للقراءة فقط)"
+  },
+  "l10n_devices_screen_stop_sync_4a1f2b6e": {
+   "en": "Stop sync",
+   "ar": "إيقاف المزامنة"
+  },
+  "l10n_devices_screen_the_whoop_4_0_reboot_frame_690a8ff2": {
+   "en": "The WHOOP 4.0 reboot frame isn\\'t confirmed — a normal Restart is ignored (#235). ",
+   "ar": "إطار إعادة تشغيل WHOOP 4.0 غير مؤكد — وإعادة التشغيل العادية تُتجاهل (#235). "
+  },
+  "l10n_devices_screen_waiting_for_the_straps_reply_5a06e7ac": {
+   "en": "Waiting for the strap\\'s reply…",
+   "ar": "في انتظار رد السوار…"
+  },
+  "l10n_devices_screen_whoop_4_0_reboot_probe_b51fb50f": {
+   "en": "WHOOP 4.0 reboot probe",
+   "ar": "فحص إعادة تشغيل WHOOP 4.0"
+  },
+  "l10n_devices_screen_whoop_is_noop_s_primary_fully_1c9e67fd": {
+   "en": "WHOOP is NOOP\\'s primary, fully-supported band. Other heart-rate straps are an early, ",
+   "ar": "‏WHOOP هو السوار الأساسي المدعوم بالكامل في NOOP. أساور النبض الأخرى في مرحلة مبكرة، "
+  },
+  "l10n_devices_screen_you_removed_your_active_strap_choose_2ac91d48": {
+   "en": "You removed your active strap. Choose which paired band provides your live data, or leave none active and pair one later.",
+   "ar": "لقد أزلت سوارك النشط. اختر السوار المقترن الذي يوفّر بياناتك المباشرة، أو اترك الجميع غير نشط واقترن بواحد لاحقًا."
+  },
+  "l10n_fused_record_screen_done_e9b450d1": {
+   "en": "Done",
+   "ar": "تم"
+  },
+  "l10n_fused_record_screen_fused_on_devicenoun_nothing_leaves_it_8a1e6a3d": {
+   "en": "Fused on %1$s. Nothing leaves it: no account, no cloud.",
+   "ar": "مدمج على %1$s. لا شيء يغادره: بلا حساب وبلا سحابة."
+  },
+  "l10n_fused_record_screen_noop_picks_the_best_sourced_number_5e48b86a": {
+   "en": "NOOP picks the best-sourced number and shows you where each came from. It\\'s for wellness and curiosity. It doesn\\'t diagnose or replace medical advice.",
+   "ar": "يختار NOOP الرقم من أفضل مصدر ويعرض لك مصدر كل رقم. الغرض منه العافية والفضول. لا يشخّص ولا يحل محل الاستشارة الطبية."
+  },
+  "l10n_fused_record_screen_noop_shows_the_winner_source_displayname_4a3892cc": {
+   "en": "NOOP shows the %1$s reading because it %2$s for this metric: a higher-trust source here, not a verdict that the others are wrong.",
+   "ar": "يعرض NOOP قراءة %1$s لأنها %2$s لهذا المقياس: مصدر أعلى ثقة هنا، لا حكمًا بأن البقية خاطئة."
+  },
+  "l10n_fused_record_screen_nothing_to_fuse_yet_30789c4e": {
+   "en": "Nothing to fuse yet",
+   "ar": "لا شيء لدمجه بعد"
+  },
+  "l10n_fused_record_screen_other_source_displayname_agrees_fusionformat_value_78e29c2a": {
+   "en": "%1$s agrees: %2$s",
+   "ar": "%1$s يتفق: %2$s"
+  },
+  "l10n_fused_record_screen_your_bands_report_different_numbers_here_03d20d81": {
+   "en": "Your bands report different numbers. Here\\'s every source, and the one NOOP is using.",
+   "ar": "أساورك تسجّل أرقامًا مختلفة. إليك كل المصادر، والمصدر الذي يستخدمه NOOP."
+  },
+  "l10n_fused_record_screen_your_data_fused_a740fd4a": {
+   "en": "Your Data, Fused",
+   "ar": "بياناتك، مدمجة"
+  },
+  "l10n_health_screen_5_yr_a_fitness_comparison_not_418aa11d": {
+   "en": "± 5 yr · a fitness comparison, not a biological age",
+   "ar": "± 5 سنوات · مقارنة لياقة، لا عمر بيولوجي"
+  },
+  "l10n_health_screen_a_wellness_estimate_from_your_habits_d00f36de": {
+   "en": "A wellness estimate from your habits, not a clinical biological age.",
+   "ar": "تقدير للعافية من عاداتك، لا عمر بيولوجي سريري."
+  },
+  "l10n_health_screen_active_energy_2d3288f9": {
+   "en": "Active Energy",
+   "ar": "الطاقة النشطة"
+  },
+  "l10n_health_screen_add_your_waist_for_a_more_accurate_vo_max_829f5e1e": {
+   "en": "Add your waist for a more accurate VO₂max",
+   "ar": "أضف محيط خصرك لتقدير VO₂max أدق"
+  },
+  "l10n_health_screen_as_of_latest_first_726f20bb": {
+   "en": "as of %1$s",
+   "ar": "حتى %1$s"
+  },
+  "l10n_health_screen_as_of_one_first_2b409612": {
+   "en": "as of %1$s",
+   "ar": "حتى %1$s"
+  },
+  "l10n_health_screen_baselines_learned_on_device_over_14_c107f375": {
+   "en": "Baselines learned on-device over 14 days. Bars read each signal against a ",
+   "ar": "خطوط الأساس مُتعلَّمة على الجهاز خلال 14 يومًا. تقرأ الأشرطة كل إشارة مقابل "
+  },
+  "l10n_health_screen_blood_o_9bf5ed9b": {
+   "en": "Blood O₂",
+   "ar": "أكسجين الدم"
+  },
+  "l10n_health_screen_blood_oxygen_a8ad9ff5": {
+   "en": "Blood Oxygen",
+   "ar": "أكسجين الدم"
+  },
+  "l10n_health_screen_cycle_phase_body_clock_and_illness_59e2d9a4": {
+   "en": "Cycle phase, body-clock and illness heads-up are approximations computed on your device from ",
+   "ar": "طور الدورة والساعة البيولوجية والإنذار بالمرض تقديرات محتسبة على جهازك من "
+  },
+  "l10n_health_screen_date_eb9a4bc1": {
+   "en": "Date",
+   "ar": "التاريخ"
+  },
+  "l10n_health_screen_drives_your_fitness_age_9d0d1219": {
+   "en": "Drives your Fitness Age",
+   "ar": "يحدّد عمرك اللياقي"
+  },
+  "l10n_health_screen_effort_8c974bc6": {
+   "en": "Effort",
+   "ar": "الجهد"
+  },
+  "l10n_health_screen_fitness_age_12383b4a": {
+   "en": "Fitness Age",
+   "ar": "العمر اللياقي"
+  },
+  "l10n_health_screen_fix_in_settings_d7472915": {
+   "en": "Fix in Settings",
+   "ar": "إصلاح في الإعدادات"
+  },
+  "l10n_health_screen_health_monitor_c4abc3fc": {
+   "en": "Health Monitor",
+   "ar": "مراقب الصحة"
+  },
+  "l10n_health_screen_heart_rate_dde6e8f7": {
+   "en": "Heart Rate",
+   "ar": "معدل النبض"
+  },
+  "l10n_health_screen_heart_rate_variability_20f0069e": {
+   "en": "Heart Rate Variability",
+   "ar": "تقلب معدل النبض"
+  },
+  "l10n_health_screen_helping_most_best_label_edee8773": {
+   "en": "Helping most: %1$s",
+   "ar": "الأكثر مساعدة: %1$s"
+  },
+  "l10n_health_screen_history_synced_8339779d": {
+   "en": "History synced",
+   "ar": "تمت مزامنة السجل"
+  },
+  "l10n_health_screen_holding_you_back_worst_label_863a1809": {
+   "en": "Holding you back: %1$s",
+   "ar": "ما يعيقك: %1$s"
+  },
+  "l10n_health_screen_how_accurate_is_this_dae653a8": {
+   "en": "How accurate is this?",
+   "ar": "ما مدى دقة هذا؟"
+  },
+  "l10n_health_screen_how_accurate_is_this_fitness_age_935c9a6d": {
+   "en": "How accurate is this Fitness Age?",
+   "ar": "ما مدى دقة العمر اللياقي هذا؟"
+  },
+  "l10n_health_screen_it_compares_your_resting_heart_rate_e83e00f5": {
+   "en": "It compares your resting heart rate and recent activity against people your age. ",
+   "ar": "يقارن نبضك في الراحة ونشاطك الأخير بأشخاص في عمرك. "
+  },
+  "l10n_health_screen_lab_book_f966c140": {
+   "en": "Lab Book",
+   "ar": "دفتر المختبر"
+  },
+  "l10n_health_screen_loading_33ce4174": {
+   "en": "Loading…",
+   "ar": "جارٍ التحميل…"
+  },
+  "l10n_health_screen_longer_ranges_unlock_as_more_history_d7da5fee": {
+   "en": "Longer ranges unlock as more history builds.",
+   "ar": "تُفتح النطاقات الأطول كلما تراكم السجل."
+  },
+  "l10n_health_screen_no_biometrics_yet_7c594a6c": {
+   "en": "No biometrics yet",
+   "ar": "لا قياسات حيوية بعد"
+  },
+  "l10n_health_screen_no_blood_oxygen_percentage_from_a_1d3d383e": {
+   "en": "No blood oxygen percentage from a WHOOP 4.0",
+   "ar": "لا نسبة أكسجين دم من WHOOP 4.0"
+  },
+  "l10n_health_screen_no_measured_temperature_for_these_nights_showing_the_differe_69d4efae": {
+   "en": "No measured temperature for these nights — showing the difference from your baseline. A sync re-scores recent nights and fills it in.",
+   "ar": "لا حرارة مقيسة لهذه الليالي — يُعرض الفارق عن خط أساسك. المزامنة تعيد احتساب الليالي الأخيرة وتملأه."
+  },
+  "l10n_health_screen_no_spo_import_or_health_value_408f8c55": {
+   "en": "No SpO₂ import or Health value",
+   "ar": "لا استيراد SpO₂ ولا قيمة من Health"
+  },
+  "l10n_health_screen_no_strap_connected_fb37b99e": {
+   "en": "No strap connected",
+   "ar": "لا سوار متصل"
+  },
+  "l10n_health_screen_not_enough_history_in_this_range_2da72f80": {
+   "en": "Not enough history in this range",
+   "ar": "لا يوجد سجل كافٍ في هذا النطاق"
+  },
+  "l10n_health_screen_not_enough_history_yet_0e2f93b6": {
+   "en": "Not enough history yet",
+   "ar": "لا يوجد سجل كافٍ بعد"
+  },
+  "l10n_health_screen_one_reading_so_far_your_trend_eaad57f2": {
+   "en": "One reading so far — your trend chart fills in here once a second ",
+   "ar": "قراءة واحدة حتى الآن — يمتلئ رسم اتجاهك هنا بمجرد وجود قراءة ثانية "
+  },
+  "l10n_health_screen_only_nights_with_a_measured_temperature_are_shown_the_others_b6f7c45b": {
+   "en": "Only nights with a measured temperature are shown; the others recorded a baseline difference only.",
+   "ar": "تُعرض فقط الليالي ذات الحرارة المقيسة؛ أما البقية فسجّلت فارقًا عن خط الأساس فحسب."
+  },
+  "l10n_health_screen_out_of_100_da0953a8": {
+   "en": "out of 100",
+   "ar": "من 100"
+  },
+  "l10n_health_screen_raw_counts_only_needs_an_import_d0e33552": {
+   "en": "Raw counts only — needs an import",
+   "ar": "أعداد خام فقط — يحتاج إلى استيراد"
+  },
+  "l10n_health_screen_raw_spo_ccfe80c1": {
+   "en": "Raw SpO₂",
+   "ar": "‏SpO₂ الخام"
+  },
+  "l10n_health_screen_recovery_ea924f72": {
+   "en": "Recovery",
+   "ar": "التعافي"
+  },
+  "l10n_health_screen_refresh_fitness_age_now_85fc516f": {
+   "en": "Refresh Fitness Age now",
+   "ar": "تحديث العمر اللياقي الآن"
+  },
+  "l10n_health_screen_resp_rate_1c48dbd8": {
+   "en": "Resp Rate",
+   "ar": "معدل التنفس"
+  },
+  "l10n_health_screen_respiratory_1cd8c175": {
+   "en": "Respiratory",
+   "ar": "التنفسي"
+  },
+  "l10n_health_screen_respiratory_rate_3fbb532f": {
+   "en": "Respiratory Rate",
+   "ar": "معدل التنفس"
+  },
+  "l10n_health_screen_rest_b79e5f48": {
+   "en": "Rest",
+   "ar": "الراحة"
+  },
+  "l10n_health_screen_resting_heart_rate_9700f4d8": {
+   "en": "Resting Heart Rate",
+   "ar": "معدل النبض في الراحة"
+  },
+  "l10n_health_screen_resting_hr_26677094": {
+   "en": "Resting HR",
+   "ar": "نبض الراحة"
+  },
+  "l10n_health_screen_sharpens_your_vo_max_c9d52991": {
+   "en": "Sharpens your VO₂max",
+   "ar": "يحسّن دقة VO₂max لديك"
+  },
+  "l10n_health_screen_skin_temp_a4affc5a": {
+   "en": "Skin Temp",
+   "ar": "حرارة الجلد"
+  },
+  "l10n_health_screen_skin_temperature_f59127f6": {
+   "en": "Skin Temperature",
+   "ar": "حرارة الجلد"
+  },
+  "l10n_health_screen_sleep_3cac34e6": {
+   "en": "Sleep",
+   "ar": "النوم"
+  },
+  "l10n_health_screen_source_6da13add": {
+   "en": "Source",
+   "ar": "المصدر"
+  },
+  "l10n_health_screen_spo_respiratory_rate_and_skin_temperature_0ae0ad8f": {
+   "en": "SpO₂, respiratory rate and skin temperature are sleep-window ",
+   "ar": "‏SpO₂ ومعدل التنفس وحرارة الجلد قياسات نافذة النوم "
+  },
+  "l10n_health_screen_steps_cdde4f20": {
+   "en": "Steps",
+   "ar": "الخطوات"
+  },
+  "l10n_health_screen_the_blood_oxygen_estimate_is_turned_4c403ab2": {
+   "en": "The blood oxygen estimate is turned off",
+   "ar": "تقدير أكسجين الدم مُعطَّل"
+  },
+  "l10n_health_screen_this_vital_needs_at_least_two_0e41b8b0": {
+   "en": "This vital needs at least two historical readings before NOOP can chart it.",
+   "ar": "يحتاج هذا المؤشر إلى قراءتين تاريخيتين على الأقل قبل أن يتمكن NOOP من رسمه."
+  },
+  "l10n_health_screen_value_8dce170d": {
+   "en": "Value",
+   "ar": "القيمة"
+  },
+  "l10n_health_screen_vital_signs_e7d9e1b1": {
+   "en": "Vital Signs",
+   "ar": "العلامات الحيوية"
+  },
+  "l10n_health_screen_vitality_be320b06": {
+   "en": "Vitality",
+   "ar": "الحيوية"
+  },
+  "l10n_health_screen_weight_height_and_waist_add_a_fd2699f5": {
+   "en": "Weight, height and waist add a VO₂max estimate. They don\\'t change the Fitness Age itself.",
+   "ar": "الوزن والطول ومحيط الخصر تضيف تقديرًا لـ VO₂max. وهي لا تغيّر العمر اللياقي نفسه."
+  },
+  "l10n_health_screen_your_data_fused_a740fd4a": {
+   "en": "Your Data, Fused",
+   "ar": "بياناتك، مدمجة"
+  },
+  "l10n_health_screen_your_strap_banks_the_raw_optical_b52a0f80": {
+   "en": "Your strap banks the raw optical channels, but NOOP does not turn them into a blood oxygen percentage, so this stays empty however long you wear it. Import a WHOOP export in Data Sources to fill it from your account history.",
+   "ar": "يخزّن سوارك القنوات الضوئية الخام، لكن NOOP لا يحوّلها إلى نسبة أكسجين في الدم، لذا يبقى هذا فارغًا مهما طال ارتداؤك له. استورد ملف تصدير WHOOP في «مصادر البيانات» لملئه من سجل حسابك."
+  },
+  "l10n_health_screen_your_strap_reports_a_blood_oxygen_349fe34a": {
+   "en": "Your strap reports a blood oxygen estimate, but it is unverified and off by default. Turn on the strap estimate in Settings to see it, or import a WHOOP export in Data Sources for the calibrated value.",
+   "ar": "يسجّل سوارك تقديرًا لأكسجين الدم، لكنه غير متحقق منه ومعطّل افتراضيًا. فعّل تقدير السوار في الإعدادات لرؤيته، أو استورد ملف تصدير WHOOP في «مصادر البيانات» للقيمة المعايرة."
+  },
+  "l10n_how_noop_works_screen_close_bbfa773e": {
+   "en": "Close",
+   "ar": "إغلاق"
+  },
+  "l10n_how_noop_works_screen_got_it_5b8027fa": {
+   "en": "Got it",
+   "ar": "فهمت"
+  },
+  "l10n_how_noop_works_screen_how_noop_works_3396b27a": {
+   "en": "How NOOP works",
+   "ar": "كيف يعمل NOOP"
+  },
+  "l10n_how_noop_works_screen_how_your_scores_are_computed_1b2d6c30": {
+   "en": "How your scores are computed",
+   "ar": "كيف تُحتسب درجاتك"
+  },
+  "l10n_how_noop_works_screen_how_your_scores_work_21a0e2be": {
+   "en": "How your scores work",
+   "ar": "كيف تعمل درجاتك"
+  },
+  "l10n_how_noop_works_screen_how_your_sleep_is_sorted_6a8e82e0": {
+   "en": "How your sleep is sorted",
+   "ar": "كيف يُصنَّف نومك"
+  },
+  "l10n_how_noop_works_screen_noop_never_makes_up_a_number_da29aca5": {
+   "en": "NOOP never makes up a number. When it can\\'t compute one honestly it tells you what\\'s missing and what to do, rather than showing a fake value.",
+   "ar": "لا يختلق NOOP رقمًا أبدًا. وحين يتعذّر احتسابه بصدق، يخبرك بما ينقص وما ينبغي فعله، بدلًا من عرض قيمة زائفة."
+  },
+  "l10n_how_noop_works_screen_noop_never_shows_you_a_number_d1db9958": {
+   "en": "NOOP never shows you a number it had to make up. If a score isn\\'t ready, ",
+   "ar": "لا يعرض NOOP أبدًا رقمًا اضطر لاختلاقه. وإذا لم تكن الدرجة جاهزة، "
+  },
+  "l10n_how_noop_works_screen_sleep_scores_recording_where_your_numbers_1b3e981f": {
+   "en": "Sleep · scores · recording · where your numbers come from",
+   "ar": "النوم · الدرجات · التسجيل · من أين تأتي أرقامك"
+  },
+  "l10n_how_noop_works_screen_what_recording_means_b896c422": {
+   "en": "What \"recording\" means",
+   "ar": "ماذا يعني «التسجيل»"
+  },
+  "l10n_how_noop_works_screen_where_your_numbers_come_from_e169963a": {
+   "en": "Where your numbers come from",
+   "ar": "من أين تأتي أرقامك"
+  },
+  "l10n_hrv_snapshot_screen_a_60_second_snapshot_of_your_35f03f7c": {
+   "en": "A 60-second snapshot of your beat-to-beat (R-R) intervals from the strap, cleaned ",
+   "ar": "لقطة مدتها 60 ثانية لفترات ما بين النبضات (R-R) من السوار، بعد تنظيفها "
+  },
+  "l10n_hrv_snapshot_screen_an_hrv_reading_needs_the_live_11b70bff": {
+   "en": "An HRV reading needs the live R-R stream. Open the Live screen and connect your strap, then come back.",
+   "ar": "تحتاج قراءة تقلب النبض إلى بث R-R المباشر. افتح شاشة «مباشر» ووصّل سوارك، ثم عد."
+  },
+  "l10n_hrv_snapshot_screen_beats_12aafda0": {
+   "en": "Beats",
+   "ar": "النبضات"
+  },
+  "l10n_hrv_snapshot_screen_close_hrv_reading_a29a99a1": {
+   "en": "Close HRV reading",
+   "ar": "إغلاق قراءة تقلب النبض"
+  },
+  "l10n_hrv_snapshot_screen_hrv_reading_a2cf71f3": {
+   "en": "HRV Reading",
+   "ar": "قراءة تقلب النبض"
+  },
+  "l10n_hrv_snapshot_screen_mean_hr_6c9272dd": {
+   "en": "Mean HR",
+   "ar": "متوسط النبض"
+  },
+  "l10n_hrv_snapshot_screen_not_enough_clean_beats_sit_still_0893e6c2": {
+   "en": "Not enough clean beats - sit still and try again. %1$s of ",
+   "ar": "لا توجد نبضات نظيفة كافية — اجلس دون حركة وحاول مجددًا. %1$s من "
+  },
+  "l10n_hydration_screen_a_simple_goal_that_adjusts_to_723dc08a": {
+   "en": "A simple goal that adjusts to your effort. General wellness guidance, not medical advice.",
+   "ar": "هدف بسيط يتكيّف مع مجهودك. إرشاد عام للعافية، لا نصيحة طبية."
+  },
+  "l10n_hydration_screen_bottle_3b8ac6c7": {
+   "en": "Bottle",
+   "ar": "زجاجة"
+  },
+  "l10n_hydration_screen_cancel_77dfd213": {
+   "en": "Cancel",
+   "ar": "إلغاء"
+  },
+  "l10n_hydration_screen_clear_today_1be870ea": {
+   "en": "Clear today",
+   "ar": "مسح اليوم"
+  },
+  "l10n_hydration_screen_cup_04b95071": {
+   "en": "Cup",
+   "ar": "كوب"
+  },
+  "l10n_hydration_screen_custom_amount_f7219236": {
+   "en": "Custom amount",
+   "ar": "كمية مخصصة"
+  },
+  "l10n_hydration_screen_enter_any_amount_from_1_to_a85a639e": {
+   "en": "Enter any amount from 1 to %1$s ml.",
+   "ar": "أدخل أي كمية من 1 إلى %1$s مل."
+  },
+  "l10n_hydration_screen_from_health_connect_4ad037a3": {
+   "en": "From Health Connect",
+   "ar": "من Health Connect"
+  },
+  "l10n_hydration_screen_hydration_bdfb040f": {
+   "en": "Hydration",
+   "ar": "الترطيب"
+  },
+  "l10n_hydration_screen_kotlin_math_min_100_fraction_100_416d2889": {
+   "en": "%1$s percent of today\\'s goal",
+   "ar": "%1$s بالمئة من هدف اليوم"
+  },
+  "l10n_hydration_screen_kotlin_math_min_100_fraction_100_72f2dfde": {
+   "en": "%1$s%% of today\\'s goal",
+   "ar": "%1$s%% من هدف اليوم"
+  },
+  "l10n_hydration_screen_log_8bf95ea3": {
+   "en": "Log",
+   "ar": "تسجيل"
+  },
+  "l10n_hydration_screen_logged_today_0071a46c": {
+   "en": "Logged today",
+   "ar": "سُجِّل اليوم"
+  },
+  "l10n_hydration_screen_millilitres_ml_0fb0d2a4": {
+   "en": "Millilitres (ml)",
+   "ar": "مليلتر (مل)"
+  },
+  "l10n_hydration_screen_no_drinks_logged_yet_tap_sip_cc0d2f72": {
+   "en": "No drinks logged yet. Tap Sip, Cup or Bottle to start.",
+   "ar": "لم تُسجَّل مشروبات بعد. اضغط «رشفة» أو «كوب» أو «زجاجة» للبدء."
+  },
+  "l10n_hydration_screen_no_history_yet_933f417e": {
+   "en": "No history yet.",
+   "ar": "لا سجل بعد."
+  },
+  "l10n_hydration_screen_sip_78cca3e8": {
+   "en": "Sip",
+   "ar": "رشفة"
+  },
+  "l10n_hydration_screen_sip_hydrationgoal_sip_ml_ml_cup_287647f5": {
+   "en": "Sip %1$s ml · Cup %2$s ml · Bottle %3$s ml",
+   "ar": "رشفة %1$s مل · كوب %2$s مل · زجاجة %3$s مل"
+  },
+  "l10n_hydration_screen_totalml_toint_ml_522b262a": {
+   "en": "%1$s ml",
+   "ar": "%1$s مل"
+  },
+  "l10n_hydration_screen_undo_last_last_ml_330befc5": {
+   "en": "Undo last (%1$s ml)",
+   "ar": "تراجع عن الأخير (%1$s مل)"
+  },
+  "l10n_insights_hub_screen_dose_here_is_timing_later_in_1b1e9326": {
+   "en": "“Dose” here is timing (later in the day = stronger), not milligrams.",
+   "ar": "«الجرعة» هنا تعني التوقيت (كلما تأخر اليوم كان الأثر أقوى)، لا المليغرامات."
+  },
+  "l10n_insights_hub_screen_everything_here_is_a_pattern_in_ed2162a6": {
+   "en": "Everything here is a pattern in your own logged days: an association with an ",
+   "ar": "كل ما هنا نمط في أيامك المسجّلة أنت: ارتباط مع "
+  },
+  "l10n_insights_hub_screen_insights_b4510362": {
+   "en": "Insights",
+   "ar": "الرؤى"
+  },
+  "l10n_insights_hub_screen_log_alcohol_or_late_caffeine_with_dec9dadf": {
+   "en": "Log alcohol or late caffeine with an amount and NOOP fits a personal dose curve: ",
+   "ar": "سجّل الكحول أو الكافيين المتأخر مع الكمية، ويضبط NOOP منحنى جرعة شخصيًا: "
+  },
+  "l10n_insights_hub_screen_not_enough_overlap_between_your_journal_0ebdd7a2": {
+   "en": "Not enough overlap between your journal answers and ",
+   "ar": "لا يوجد تداخل كافٍ بين إجاباتك في اليوميات و"
+  },
+  "l10n_insights_hub_screen_per_extra_card_unitnoun_a92a5e91": {
+   "en": "Per extra %1$s",
+   "ar": "لكل %1$s إضافي"
+  },
+  "l10n_insights_hub_screen_reading_your_journal_and_outcomes_4a59af69": {
+   "en": "Reading your journal and outcomes…",
+   "ar": "جارٍ قراءة يومياتك ونتائجك…"
+  },
+  "l10n_insights_hub_screen_tomorrow_s_card_outcomename_ad70b7f9": {
+   "en": "Tomorrow’s %1$s",
+   "ar": "%1$s غدًا"
+  },
+  "l10n_insights_hub_screen_with_564f8c6e": {
+   "en": "With",
+   "ar": "مع"
+  },
+  "l10n_insights_hub_screen_without_cb735356": {
+   "en": "Without",
+   "ar": "بدون"
+  },
+  "l10n_insights_screen_baseline_e6ab7982": {
+   "en": "Baseline",
+   "ar": "خط الأساس"
+  },
+  "l10n_insights_screen_bounce_back_be2d66a4": {
+   "en": "Bounce back",
+   "ar": "سرعة التعافي"
+  },
+  "l10n_insights_screen_change_64fbd995": {
+   "en": "Change",
+   "ar": "التغيّر"
+  },
+  "l10n_insights_screen_charge_d4e1aee4": {
+   "en": "Charge",
+   "ar": "الشحن"
+  },
+  "l10n_insights_screen_compliance_68f0ae49": {
+   "en": "Compliance",
+   "ar": "الالتزام"
+  },
+  "l10n_insights_screen_end_a2bb9d34": {
+   "en": "End",
+   "ar": "إنهاء"
+  },
+  "l10n_insights_screen_end_experiment_0ed6d57f": {
+   "en": "End experiment",
+   "ar": "إنهاء التجربة"
+  },
+  "l10n_insights_screen_experiment_behaviour_selection_bcb29b58": {
+   "en": "Experiment behaviour: %1$s",
+   "ar": "سلوك التجربة: %1$s"
+  },
+  "l10n_insights_screen_experiment_progress_snapshot_dayselapsed_of_snapshot_ff62b228": {
+   "en": "Experiment progress %1$s of %2$s days",
+   "ar": "تقدّم التجربة %1$s من %2$s يوم"
+  },
+  "l10n_insights_screen_insights_b4510362": {
+   "en": "Insights",
+   "ar": "الرؤى"
+  },
+  "l10n_insights_screen_insights_read_your_journal_and_outcomes_6ec8aaf9": {
+   "en": "Insights read your journal and outcomes",
+   "ar": "الرؤى تقرأ يومياتك ونتائجك"
+  },
+  "l10n_insights_screen_intervention_e9b90c40": {
+   "en": "Intervention",
+   "ar": "التدخّل"
+  },
+  "l10n_insights_screen_log_at_least_one_behaviour_above_cf7c65a6": {
+   "en": "Log at least one behaviour above before starting an experiment.",
+   "ar": "سجّل سلوكًا واحدًا على الأقل أعلاه قبل بدء تجربة."
+  },
+  "l10n_insights_screen_mark_done_0911cce7": {
+   "en": "Mark done",
+   "ar": "وضع علامة تم"
+  },
+  "l10n_insights_screen_mark_done_today_471eb94a": {
+   "en": "Mark done today",
+   "ar": "وضع علامة تم اليوم"
+  },
+  "l10n_insights_screen_next_morning_61d1ea83": {
+   "en": "Next morning",
+   "ar": "صباح اليوم التالي"
+  },
+  "l10n_insights_screen_not_enough_overlap_between_your_journal_0ebdd7a2": {
+   "en": "Not enough overlap between your journal answers and ",
+   "ar": "لا يوجد تداخل كافٍ بين إجاباتك في اليوميات و"
+  },
+  "l10n_insights_screen_not_enough_overlapping_history_to_correlate_a552dbd4": {
+   "en": "Not enough overlapping history to correlate your metrics yet.",
+   "ar": "لا يوجد سجل متداخل كافٍ لربط مقاييسك بعد."
+  },
+  "l10n_insights_screen_pick_one_behaviour_you_log_one_bd34090e": {
+   "en": "Pick one behaviour you log, one outcome, and a short window. NOOP ",
+   "ar": "اختر سلوكًا واحدًا تسجّله، ونتيجة واحدة، ونافذة قصيرة. وNOOP "
+  },
+  "l10n_insights_screen_pre_filled_from_last_night_tap_ce81097c": {
+   "en": "Pre-filled from last night. Tap to confirm or change.",
+   "ar": "مملوء من الليلة الماضية. اضغط للتأكيد أو التغيير."
+  },
+  "l10n_insights_screen_ranked_lag_aware_which_of_your_e0e91b39": {
+   "en": "Ranked, lag-aware: which of your habits actually move your Charge, plus your personal alcohol/caffeine dose-response.",
+   "ar": "مرتَّب ومراعٍ للتأخير: أي عاداتك تحرّك شحنك فعلًا، مع استجابة الجرعة الشخصية للكحول/الكافيين."
+  },
+  "l10n_insights_screen_reading_your_journal_and_outcomes_4a59af69": {
+   "en": "Reading your journal and outcomes…",
+   "ar": "جارٍ قراءة يومياتك ونتائجك…"
+  },
+  "l10n_insights_screen_rest_b79e5f48": {
+   "en": "Rest",
+   "ar": "الراحة"
+  },
+  "l10n_insights_screen_rest_baseline_b3ac52a5": {
+   "en": "Rest baseline",
+   "ar": "خط أساس الراحة"
+  },
+  "l10n_insights_screen_rhr_04edf9b3": {
+   "en": "RHR",
+   "ar": "نبض الراحة"
+  },
+  "l10n_insights_screen_run_a_clean_personal_test_4da69781": {
+   "en": "Run a clean personal test",
+   "ar": "أجرِ اختبارًا شخصيًا نظيفًا"
+  },
+  "l10n_insights_screen_sessions_e11e37a9": {
+   "en": "Sessions",
+   "ar": "الجلسات"
+  },
+  "l10n_insights_screen_skip_3da47453": {
+   "en": "Skip",
+   "ar": "تخطٍ"
+  },
+  "l10n_insights_screen_skip_today_ed6a16a5": {
+   "en": "Skip today",
+   "ar": "تخطي اليوم"
+  },
+  "l10n_insights_screen_snapshot_dayselapsed_of_snapshot_durationdays_days_9a611f12": {
+   "en": "%1$s of %2$s days",
+   "ar": "%1$s من %2$s يوم"
+  },
+  "l10n_insights_screen_start_experiment_45a4b379": {
+   "en": "Start experiment",
+   "ar": "بدء التجربة"
+  },
+  "l10n_insights_screen_started_snapshot_startday_testing_snapshot_outcome_1839ef40": {
+   "en": "Started %1$s · testing %2$s",
+   "ar": "بدأت %1$s · نختبر %2$s"
+  },
+  "l10n_insights_screen_tag_a_few_sessions_of_the_97927401": {
+   "en": "Tag a few sessions of the same activity and NOOP will learn its personal recovery cost.",
+   "ar": "وسم بضع جلسات للنشاط نفسه وسيتعلّم NOOP تكلفتها الشخصية على التعافي."
+  },
+  "l10n_insights_screen_what_moves_you_ranked_patterns_in_7d89e628": {
+   "en": "What moves you. Ranked patterns in your own data, and your dose-response.",
+   "ar": "ما الذي يحرّكك. أنماط مرتَّبة في بياناتك أنت، واستجابتك للجرعة."
+  },
+  "l10n_insights_screen_with_564f8c6e": {
+   "en": "With",
+   "ar": "مع"
+  },
+  "l10n_insights_screen_without_cb735356": {
+   "en": "Without",
+   "ar": "بدون"
+  },
+  "l10n_intelligence_screen_0_unitformatter_effortscalemax_effortscale_scale_b5c43f56": {
+   "en": "0 - %1$s scale",
+   "ar": "مقياس 0 – %1$s"
+  },
+  "l10n_intelligence_screen_by_day_2e5d14ca": {
+   "en": "By Day",
+   "ar": "حسب اليوم"
+  },
+  "l10n_intelligence_screen_charge_weighs_your_heart_rate_variability_026745e6": {
+   "en": "Charge weighs your heart-rate variability against your personal baseline ",
+   "ar": "يوازن الشحن تقلب نبضك مقابل خط أساسك الشخصي "
+  },
+  "l10n_intelligence_screen_effort_8c974bc6": {
+   "en": "Effort",
+   "ar": "الجهد"
+  },
+  "l10n_intelligence_screen_estimate_from_today_s_effort_your_667d7560": {
+   "en": "Estimate from today\\'s effort, your typical sleep and your %1$s-night ",
+   "ar": "تقدير من جهد اليوم، ونومك المعتاد، و%1$s ليلة "
+  },
+  "l10n_intelligence_screen_how_this_works_b895a8c3": {
+   "en": "How this works",
+   "ar": "كيف يعمل هذا"
+  },
+  "l10n_intelligence_screen_intelligence_c698f940": {
+   "en": "Intelligence",
+   "ar": "الذكاء"
+  },
+  "l10n_intelligence_screen_no_scored_days_in_this_window_03f1165b": {
+   "en": "No scored days in this window. Widen the range or import more history.",
+   "ar": "لا أيام محتسبة في هذه النافذة. وسّع النطاق أو استورد سجلًا أكثر."
+  },
+  "l10n_intelligence_screen_no_scored_days_yet_sync_your_cdd47684": {
+   "en": "No scored days yet. Sync your strap to collect raw streams. Effort and Rest are ",
+   "ar": "لا أيام محتسبة بعد. زامن سوارك لجمع البيانات الخام. الجهد والراحة "
+  },
+  "l10n_intelligence_screen_you_ll_likely_wake_around_charge_ed3abe2e": {
+   "en": "You\\'ll likely wake around %1$s ± %2$s Charge if you sleep about ",
+   "ar": "من المرجّح أن تستيقظ بشحن نحو %1$s ± %2$s إذا نمت قرابة "
+  },
+  "l10n_intervals_screen_bond_your_strap_on_the_live_d799cbc2": {
+   "en": "Bond your strap on the Live screen to feel the transitions hands-free.",
+   "ar": "اقترن بسوارك من شاشة «مباشر» لتشعر بالانتقالات دون استخدام يديك."
+  },
+  "l10n_intervals_screen_interval_timer_1d703deb": {
+   "en": "Interval Timer",
+   "ar": "مؤقّت الفترات"
+  },
+  "l10n_intervals_screen_pause_to_change_work_rest_or_f54f9cc5": {
+   "en": "Pause to change work, rest, or rounds.",
+   "ar": "أوقف مؤقتًا لتغيير العمل أو الراحة أو الجولات."
+  },
+  "l10n_intervals_screen_reset_44c57abd": {
+   "en": "Reset",
+   "ar": "إعادة تعيين"
+  },
+  "l10n_intervals_screen_rest_b79e5f48": {
+   "en": "Rest",
+   "ar": "راحة"
+  },
+  "l10n_intervals_screen_rounds_ceeac4ac": {
+   "en": "Rounds",
+   "ar": "الجولات"
+  },
+  "l10n_intervals_screen_work_00040bab": {
+   "en": "Work",
+   "ar": "عمل"
+  },
+  "l10n_journal_log_add_a_custom_item_0dbd8f7c": {
+   "en": "Add a custom item…",
+   "ar": "إضافة عنصر مخصص…"
+  },
+  "l10n_journal_log_cancel_77dfd213": {
+   "en": "Cancel",
+   "ar": "إلغاء"
+  },
+  "l10n_journal_log_display_name_c7874aaa": {
+   "en": "Display name",
+   "ar": "الاسم المعروض"
+  },
+  "l10n_journal_log_group_995a11e5": {
+   "en": "Group…",
+   "ar": "مجموعة…"
+  },
+  "l10n_journal_log_group_group_title_1f88621e": {
+   "en": "Group: %1$s",
+   "ar": "المجموعة: %1$s"
+  },
+  "l10n_journal_log_history_stays_under_the_original_question_dc91ce89": {
+   "en": "History stays under the original question so WHOOP imports still line up.",
+   "ar": "يبقى السجل تحت السؤال الأصلي حتى تظل عمليات استيراد WHOOP متوافقة."
+  },
+  "l10n_journal_log_journal_57d7f743": {
+   "en": "Journal",
+   "ar": "اليوميات"
+  },
+  "l10n_journal_log_rename_94ac9a58": {
+   "en": "Rename…",
+   "ar": "إعادة تسمية…"
+  },
+  "l10n_journal_log_rename_item_3d21d6ca": {
+   "en": "Rename item",
+   "ar": "إعادة تسمية العنصر"
+  },
+  "l10n_journal_log_save_efc007a3": {
+   "en": "Save",
+   "ar": "حفظ"
+  },
+  "l10n_journal_reminder_journal_57d7f743": {
+   "en": "Journal",
+   "ar": "اليوميات"
+  },
+  "l10n_journal_reminder_journal_reminder_0fdc0d9c": {
+   "en": "Journal reminder",
+   "ar": "تذكير اليوميات"
+  },
+  "l10n_journal_reminder_log_today_s_journal_cb33be3e": {
+   "en": "Log today\\'s journal",
+   "ar": "سجّل يوميات اليوم"
+  },
+  "l10n_journal_reminder_logged_today_0071a46c": {
+   "en": "Logged today",
+   "ar": "سُجِّل اليوم"
+  },
+  "l10n_journal_reminder_open_journal_bbd88cc1": {
+   "en": "Open journal",
+   "ar": "فتح اليوميات"
+  },
+  "l10n_journal_reminder_show_a_today_card_reminding_you_to_log_your_journal_8228bc77": {
+   "en": "Show a Today card reminding you to log your journal",
+   "ar": "عرض بطاقة في «اليوم» تذكّرك بتسجيل يومياتك"
+  },
+  "l10n_journal_reminder_tap_a_day_to_catch_up_10d16728": {
+   "en": "Tap a day to catch up",
+   "ar": "اضغط على يوم لتعويض ما فاتك"
+  },
+  "l10n_lab_book_screen_a_private_notebook_not_a_medical_f63242cb": {
+   "en": "A private notebook, not a medical service.",
+   "ar": "دفتر خاص، لا خدمة طبية."
+  },
+  "l10n_lab_book_screen_about_lab_book_37bf2691": {
+   "en": "About Lab Book",
+   "ar": "عن دفتر المختبر"
+  },
+  "l10n_lab_book_screen_all_stays_on_this_phone_nothing_9a966c1c": {
+   "en": "All stays on this phone. Nothing is sent anywhere.",
+   "ar": "كل شيء يبقى على هذا الهاتف. لا يُرسل شيء إلى أي مكان."
+  },
+  "l10n_lab_book_screen_bring_in_a_markers_csv_date_1090bec2": {
+   "en": "Bring in a markers CSV (date, marker, value, unit). Names that match the catalog ",
+   "ar": "استورد ملف CSV للمؤشرات (التاريخ، المؤشر، القيمة، الوحدة). الأسماء المطابقة للفهرس "
+  },
+  "l10n_lab_book_screen_choose_a_wearable_signal_to_compare_05a4b2bc": {
+   "en": "Choose a wearable signal to compare",
+   "ar": "اختر إشارة من الجهاز الملبوس للمقارنة"
+  },
+  "l10n_lab_book_screen_clear_719ea396": {
+   "en": "Clear",
+   "ar": "مسح"
+  },
+  "l10n_lab_book_screen_delete_this_reading_b5c92bda": {
+   "en": "Delete this reading",
+   "ar": "حذف هذه القراءة"
+  },
+  "l10n_lab_book_screen_import_readings_7ad0d28f": {
+   "en": "Import readings",
+   "ar": "استيراد قراءات"
+  },
+  "l10n_lab_book_screen_it_s_a_notebook_not_a_45835e98": {
+   "en": "It\\'s a notebook, not a lab. NOOP lines up the numbers you enter. It doesn\\'t test, read, or judge them. Not medical advice.",
+   "ar": "إنه دفتر، لا مختبر. يرتّب NOOP الأرقام التي تدخلها. لا يجري تحاليل ولا يقرأها ولا يحكم عليها. وليس نصيحة طبية."
+  },
+  "l10n_lab_book_screen_keep_your_own_numbers_here_1ca6c8ed": {
+   "en": "Keep your own numbers here",
+   "ar": "احتفظ بأرقامك هنا"
+  },
+  "l10n_lab_book_screen_lab_book_f966c140": {
+   "en": "Lab Book",
+   "ar": "دفتر المختبر"
+  },
+  "l10n_lab_book_screen_lab_book_is_a_private_notebook_d07380ca": {
+   "en": "Lab Book is a private notebook, not a medical service. NOOP stores and lines up the numbers ",
+   "ar": "دفتر المختبر دفتر خاص، لا خدمة طبية. يخزّن NOOP الأرقام ويرتّبها "
+  },
+  "l10n_lab_book_screen_lining_them_up_c59ee297": {
+   "en": "Lining them up…",
+   "ar": "جارٍ ترتيبها…"
+  },
+  "l10n_lab_book_screen_n_readings_line_up_but_there_27bfb506": {
+   "en": "%1$s readings line up, but there isn\\'t enough variation to compute a relationship.",
+   "ar": "%1$s قراءة مرتَّبة، لكن التباين غير كافٍ لحساب علاقة."
+  },
+  "l10n_lab_book_screen_n_readings_used_strengthword_r_directionword_298baf9e": {
+   "en": "%1$s readings used · %2$s %3$s association. This is your own data ",
+   "ar": "%1$s قراءة مستخدمة · ارتباط %2$s %3$s. هذه بياناتك أنت "
+  },
+  "l10n_lab_book_screen_pick_a_wearable_signal_resting_hr_8d8b01a2": {
+   "en": "Pick a wearable signal (resting HR, HRV, sleep, Charge, weight…) to line it up against this ",
+   "ar": "اختر إشارة من الجهاز الملبوس (نبض الراحة، تقلب النبض، النوم، الشحن، الوزن…) لترتيبها مقابل هذا "
+  },
+  "l10n_lab_book_screen_read_the_full_lab_book_note_3a250750": {
+   "en": "Read the full Lab Book note",
+   "ar": "اقرأ ملاحظة دفتر المختبر كاملة"
+  },
+  "l10n_lab_book_screen_read_the_full_note_3fd0e4d1": {
+   "en": "Read the full note",
+   "ar": "اقرأ الملاحظة كاملة"
+  },
+  "l10n_lab_book_screen_reading_your_logbook_e31992b0": {
+   "en": "Reading your logbook…",
+   "ar": "جارٍ قراءة دفترك…"
+  },
+  "l10n_lab_book_screen_these_are_your_own_numbers_shown_7667508d": {
+   "en": "These are your own numbers shown back to you. NOOP doesn\\'t decide whether any value is normal, high or low.",
+   "ar": "هذه أرقامك أنت معروضة عليك. ولا يقرر NOOP ما إذا كانت أي قيمة طبيعية أو مرتفعة أو منخفضة."
+  },
+  "l10n_lab_book_screen_type_in_a_blood_pressure_reading_c276d418": {
+   "en": "Type in a blood-pressure reading or a cholesterol value from your last appointment. ",
+   "ar": "أدخل قراءة ضغط دم أو قيمة كوليسترول من موعدك الأخير. "
+  },
+  "l10n_lab_book_screen_what_lab_book_is_and_isn_f28686df": {
+   "en": "What Lab Book is (and isn\\'t)",
+   "ar": "ما هو دفتر المختبر (وما ليس هو)"
+  },
+  "l10n_live_screen_avg_cdc93143": {
+   "en": "Avg",
+   "ar": "متوسط"
+  },
+  "l10n_live_screen_buzz_edbd47b2": {
+   "en": "Buzz",
+   "ar": "اهتزاز"
+  },
+  "l10n_live_screen_can_t_connect_your_strap_s_cf78be83": {
+   "en": "Can\\'t connect - your strap\\'s pairing was reset",
+   "ar": "تعذّر الاتصال — أُعيد ضبط اقتران سوارك"
+  },
+  "l10n_live_screen_charging_5f99fe21": {
+   "en": "Charging",
+   "ar": "قيد الشحن"
+  },
+  "l10n_live_screen_distance_42320809": {
+   "en": "Distance",
+   "ar": "المسافة"
+  },
+  "l10n_live_screen_effort_8c974bc6": {
+   "en": "Effort",
+   "ar": "الجهد"
+  },
+  "l10n_live_screen_end_a2bb9d34": {
+   "en": "End",
+   "ar": "إنهاء"
+  },
+  "l10n_live_screen_end_workout_3e8d6238": {
+   "en": "End workout",
+   "ar": "إنهاء التمرين"
+  },
+  "l10n_live_screen_history_synced_relativeago_at_0ece753a": {
+   "en": "History synced %1$s",
+   "ar": "تمت مزامنة السجل %1$s"
+  },
+  "l10n_live_screen_hr_f187928f": {
+   "en": "HR",
+   "ar": "النبض"
+  },
+  "l10n_live_screen_live_body_console_54838e06": {
+   "en": "Live Body Console",
+   "ar": "لوحة الجسد المباشرة"
+  },
+  "l10n_live_screen_manage_devices_e5c277ff": {
+   "en": "Manage devices",
+   "ar": "إدارة الأجهزة"
+  },
+  "l10n_live_screen_max_hr_6acd9e07": {
+   "en": "Max HR",
+   "ar": "أقصى نبض"
+  },
+  "l10n_live_screen_pace_7a9a6226": {
+   "en": "Pace",
+   "ar": "الوتيرة"
+  },
+  "l10n_live_screen_peak_c83dbbd3": {
+   "en": "Peak",
+   "ar": "الذروة"
+  },
+  "l10n_live_screen_refresh_56e3badc": {
+   "en": "Refresh",
+   "ar": "تحديث"
+  },
+  "l10n_live_screen_rmssd_roundtoint_ms_9e6c0887": {
+   "en": "%1$s ms",
+   "ar": "%1$s مللي ثانية"
+  },
+  "l10n_live_screen_scan_and_connect_to_start_a_3e27b47b": {
+   "en": "Scan and connect to start a live stream.",
+   "ar": "ابحث واتصل لبدء بث مباشر."
+  },
+  "l10n_live_screen_session_f7f1997c": {
+   "en": "Session",
+   "ar": "جلسة"
+  },
+  "l10n_live_screen_signal_trust_4a91fe00": {
+   "en": "Signal Trust",
+   "ar": "موثوقية الإشارة"
+  },
+  "l10n_live_screen_start_a_live_stream_419bf5aa": {
+   "en": "Start a live stream",
+   "ar": "بدء بث مباشر"
+  },
+  "l10n_live_screen_start_workout_d0f3f2cd": {
+   "en": "Start workout",
+   "ar": "بدء تمرين"
+  },
+  "l10n_live_screen_strap_02b88eeb": {
+   "en": "Strap",
+   "ar": "السوار"
+  },
+  "l10n_live_screen_take_an_hrv_reading_20ecb2d2": {
+   "en": "Take an HRV reading",
+   "ar": "إجراء قراءة لتقلب النبض"
+  },
+  "l10n_live_screen_top_zone_282d0f66": {
+   "en": "Top zone",
+   "ar": "المنطقة العليا"
+  },
+  "l10n_live_screen_whoop_5_0_mg_pairs_with_b93143f2": {
+   "en": "WHOOP 5.0/MG pairs with one app at a time. If a scan finds nothing, unpair it in ",
+   "ar": "يقترن WHOOP 5.0/MG بتطبيق واحد في كل مرة. إذا لم يجد البحث شيئًا، فألغِ اقترانه في "
+  },
+  "l10n_live_screen_zone_zone_b8e9c0f9": {
+   "en": "ZONE %1$s",
+   "ar": "المنطقة %1$s"
+  },
+  "l10n_live_session_screen_above_6370c271": {
+   "en": "Above",
+   "ar": "أعلى"
+  },
+  "l10n_live_session_screen_below_5ba07a31": {
+   "en": "Below",
+   "ar": "أدنى"
+  },
+  "l10n_live_session_screen_done_e9b450d1": {
+   "en": "Done",
+   "ar": "تم"
+  },
+  "l10n_live_session_screen_end_session_8c0f4c33": {
+   "en": "End session",
+   "ar": "إنهاء الجلسة"
+  },
+  "l10n_live_session_screen_guarded_for_elapsedclock_snap_elapsedsec_tolong_a61f2d32": {
+   "en": "Guarded for %1$s",
+   "ar": "تحت الحماية %1$s"
+  },
+  "l10n_live_session_screen_in_band_2c23d86e": {
+   "en": "In band",
+   "ar": "ضمن النطاق"
+  },
+  "l10n_live_session_screen_live_session_73c925a5": {
+   "en": "Live Session",
+   "ar": "جلسة مباشرة"
+  },
+  "l10n_live_session_screen_session_ring_statelabel_long_press_to_42ac1b3b": {
+   "en": "Session ring. %1$s. Long-press to show heart rate.",
+   "ar": "حلقة الجلسة. %1$s. اضغط مطولًا لعرض معدل النبض."
+  },
+  "l10n_live_session_screen_session_summary_f9418e16": {
+   "en": "Session summary",
+   "ar": "ملخص الجلسة"
+  },
+  "l10n_live_session_screen_the_strap_signal_was_gone_for_57a2fead": {
+   "en": "The strap signal was gone for 10 minutes, so the session ended itself.",
+   "ar": "انقطعت إشارة السوار لعشر دقائق، فأنهت الجلسة نفسها."
+  },
+  "l10n_live_workout_screen_avg_cdc93143": {
+   "en": "Avg",
+   "ar": "متوسط"
+  },
+  "l10n_live_workout_screen_cadence_68af11f0": {
+   "en": "Cadence",
+   "ar": "الإيقاع"
+  },
+  "l10n_live_workout_screen_cancel_77dfd213": {
+   "en": "Cancel",
+   "ar": "إلغاء"
+  },
+  "l10n_live_workout_screen_effort_8c974bc6": {
+   "en": "Effort",
+   "ar": "الجهد"
+  },
+  "l10n_live_workout_screen_end_this_workout_4869c76a": {
+   "en": "End this workout?",
+   "ar": "إنهاء هذا التمرين؟"
+  },
+  "l10n_live_workout_screen_end_workout_3e8d6238": {
+   "en": "End workout",
+   "ar": "إنهاء التمرين"
+  },
+  "l10n_live_workout_screen_of_c5e92da0": {
+   "en": "of %1$d",
+   "ar": "من %1$d"
+  },
+  "l10n_live_workout_screen_peak_c83dbbd3": {
+   "en": "Peak",
+   "ar": "الذروة"
+  },
+  "l10n_live_workout_screen_power_7548ab52": {
+   "en": "Power",
+   "ar": "القدرة"
+  },
+  "l10n_live_workout_screen_speed_2d2cb022": {
+   "en": "Speed",
+   "ar": "السرعة"
+  },
+  "l10n_live_workout_screen_this_stops_recording_and_saves_what_3e17a23e": {
+   "en": "This stops recording and saves what\\'s captured so far. It can\\'t be resumed.",
+   "ar": "يوقف هذا التسجيل ويحفظ ما التُقط حتى الآن. ولا يمكن استئنافه."
+  },
+  "l10n_live_workout_screen_z_z_d3991a28": {
+   "en": "Z%1$s",
+   "ar": "م%1$s"
+  },
+  "l10n_marker_editor_screen_add_a_reading_ed7708ee": {
+   "en": "Add a reading",
+   "ar": "إضافة قراءة"
+  },
+  "l10n_marker_editor_screen_date_taken_76edfcab": {
+   "en": "Date taken",
+   "ar": "تاريخ القياس"
+  },
+  "l10n_marker_editor_screen_entered_together_stored_as_two_markers_af8f3ba0": {
+   "en": "Entered together; stored as two markers so each lines up cleanly against your signals.",
+   "ar": "أُدخلا معًا؛ ويُخزَّنان كمؤشرين لينتظم كل منهما بوضوح مقابل إشاراتك."
+  },
+  "l10n_marker_editor_screen_lab_book_keeps_your_own_numbers_9085ce2c": {
+   "en": "Lab Book keeps your own numbers - it doesn\\'t test, read, or judge them, and it\\'s not medical ",
+   "ar": "يحتفظ دفتر المختبر بأرقامك أنت — لا يجري تحاليل ولا يقرأها ولا يحكم عليها، وليس طبيًا "
+  },
+  "l10n_marker_editor_screen_no_match_add_it_as_a_ad5c59ec": {
+   "en": "No match. Add it as a custom marker below.",
+   "ar": "لا تطابق. أضفه كمؤشر مخصص أدناه."
+  },
+  "l10n_marker_editor_screen_noop_never_fills_this_in_it_7be9653b": {
+   "en": "NOOP never fills this in - it only shows back exactly what you type from your own report.",
+   "ar": "لا يملأ NOOP هذا أبدًا — بل يعرض بالضبط ما تدخله من تقريرك أنت."
+  },
+  "l10n_marker_editor_screen_search_markers_103981e0": {
+   "en": "Search markers",
+   "ar": "البحث في المؤشرات"
+  }
+ },
+ "_glossary_note": "Terminology anchor, not a literal expectation. Arabic inflects - the definite article, prepositions and verb forms all alter the stored surface form - so a plain substring check will under-report these terms. Keep the terms, or change them everywhere at once."
+}

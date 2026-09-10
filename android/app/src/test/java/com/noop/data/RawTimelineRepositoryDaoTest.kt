@@ -246,5 +246,12 @@ class RawTimelineRepositoryDaoTest {
         Proxy.newProxyInstance(
             WhoopDao::class.java.classLoader,
             arrayOf(WhoopDao::class.java),
-        ) { _, method, args -> call(method.name, args ?: emptyArray()) } as WhoopDao
+        ) { _, method, args ->
+            // These fixtures predate transport labels and exercise the legacy alias-union contract.
+            when (method.name) {
+                "pairedDevice", "activeDeviceId" -> null
+                "hasWhoop5RrSource" -> false
+                else -> call(method.name, args ?: emptyArray())
+            }
+        } as WhoopDao
 }

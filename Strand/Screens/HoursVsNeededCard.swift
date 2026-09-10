@@ -30,7 +30,8 @@ struct HoursVsNeededCard: View {
             StatTile(
                 label: "Hours vs Needed",
                 value: pctValue(need.latest),
-                caption: vsTypical(need.latest, need.typical, suffix: "%"),
+                caption: tileCaption(latestDay: need.latestDay, latest: need.latest,
+                                     typical: need.typical, suffix: "%"),
                 accent: need.latest.map { StrandPalette.recoveryColor(min(100, $0)) } ?? StrandPalette.textPrimary,
                 sparkline: spark(need.series),
                 sparkColor: StrandPalette.restColor)
@@ -42,6 +43,15 @@ struct HoursVsNeededCard: View {
 
     private func pctValue(_ v: Double?) -> String {
         v.map { "\(Int($0.rounded()))%" } ?? "—"
+    }
+
+    /// #1946: a carried prior-day value is stamped "Carried · <date>" instead of "vs typical".
+    private func tileCaption(latestDay: String?, latest: Double?, typical: Double?,
+                             suffix: String, decimals: Int = 0) -> String {
+        if let carried = SleepModel.carriedMetricCaption(latestDay: latestDay, latest: latest) {
+            return carried
+        }
+        return vsTypical(latest, typical, suffix: suffix, decimals: decimals)
     }
 
     /// "+12% vs typical" — the latest-vs-mean caption the metric tile carries.

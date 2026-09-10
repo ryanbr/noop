@@ -386,7 +386,7 @@ class StandardHrSource(
             val firstSight = seen.put(address, device) == null   // null → not seen before this scan
             val name = result.scanRecord?.deviceName ?: runCatching { device.name }.getOrNull()
                 ?: "Heart Rate Strap"
-            if (firstSight) log("HR-strap: found $name ($address) rssi ${result.rssi}")
+            if (firstSight) log("HR-strap: found ${logSafeDeviceName(name)} ($address) rssi ${result.rssi}")
             val strap = DiscoveredStrap(address = address, name = name, rssi = result.rssi)
             _discovered.value = upsertByProximity(_discovered.value, strap)
             // Replay a connect intent that arrived before the device was discovered.

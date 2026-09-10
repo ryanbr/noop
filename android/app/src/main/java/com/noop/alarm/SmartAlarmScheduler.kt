@@ -50,28 +50,29 @@ object SmartAlarmScheduler {
     fun arm(context: Context, store: SmartAlarmStore, afterFire: Boolean = false): Long? {
         if (!canScheduleExact(context)) return null
 
-        val deadlineMin = (store.targetMinutes + store.windowMinutes)
-        // The window's hard edge can roll past midnight (e.g. 23:50 + 30). Compute the next wall-clock
-        // occurrence of that absolute minute-of-day, then derive the window-start from it so the two
-        // edges stay on the same night even across the midnight boundary.
+        // #1858: the deadline minute is per-day now, so the DAY is chosen first and its own target read
+        // from it. The window start is still derived from the deadline, so the two edges stay on the same
+        // night even when the window opens the previous evening.
         val weekdays = store.weekdays
-        val deadline = nextOccurrence(deadlineMin % SmartAlarmStore.MINUTES_PER_DAY, weekdays)
-        // Re-arm after a fire (audit): when the smart alarm fires EARLY on a light-sleep phase (e.g. 06:35
-        // for a 07:00 deadline), the deadline's next occurrence is still TODAY 07:00 — so a plain re-arm
-        // scheduled a second guaranteed wake the SAME morning, waking the user again. We just woke them
-        // today, so the next wake must be tomorrow: push a same-day deadline forward one day.
-        if (afterFire) {
-            val now = Calendar.getInstance()
-            val sameDay = deadline.get(Calendar.YEAR) == now.get(Calendar.YEAR) &&
-                deadline.get(Calendar.DAY_OF_YEAR) == now.get(Calendar.DAY_OF_YEAR)
-            if (sameDay) {
-                deadline.add(Calendar.DAY_OF_YEAR, 1)
-                // …and that push can land on a day the alarm is switched off, so re-apply the weekday
-                // filter. Without this, re-arming after a Saturday fire would schedule Sunday even with
-                // Sunday deselected — the one path that reaches a disabled day, because it moves the
-                // deadline AFTER nextOccurrence already filtered it.
-                advanceToEnabledDay(deadline, weekdays)
-            }
+        val deadline = nextDeadline(
+            now = Calendar.getInstance(),
+            weekdays = weekdays,
+            windowMinutes = store.windowMinutes,
+            afterFire = afterFire,
+        ) { store.targetFor(it) } ?: run {
+            // No day is reachable, so there IS no next wake — clear the persisted edges rather than
+            // leaving the previous ones behind. The watcher reads exactly those two fields to decide it is
+            // inside a wake window, so a stale pair is a phantom window: it would keep feeding HR to the
+            // detector and could advance an alarm that no longer exists.
+            //
+            // Deliberately NOT the same as the `canScheduleExact` bail above. There the intent still
+            // stands and the OS is only refusing right now, so the stored edges must survive for
+            // `rearmPersisted` to retry. Here there is nothing to retry.
+            //
+            // `SmartAlarmStore.weekdays` filters to 1..7, so this is unreachable through the store today;
+            // the guard is for the caller that forgets, on a path where the failure is silent.
+            cancel(context, store)
+            return null
         }
         val windowStartMs = deadline.timeInMillis - store.windowMinutes.toLong() * 60_000L
 
@@ -155,35 +156,80 @@ object SmartAlarmScheduler {
         )
     }
 
-    /** The next wall-clock occurrence (today or tomorrow) of an absolute minute-of-day. */
-    private fun nextOccurrence(minuteOfDay: Int, weekdays: Set<Int> = emptySet()): Calendar =
-        Calendar.getInstance().apply {
-            set(Calendar.HOUR_OF_DAY, minuteOfDay / 60)
-            set(Calendar.MINUTE, minuteOfDay % 60)
-            set(Calendar.SECOND, 0)
-            set(Calendar.MILLISECOND, 0)
-            if (timeInMillis <= System.currentTimeMillis()) add(Calendar.DAY_OF_YEAR, 1)
-            advanceToEnabledDay(this, weekdays)
-        }
+    /**
+     * The EARLIEST-wake minute of the next scheduled window (#1858) — what the guarantee card names.
+     *
+     * The card promises a specific time ("a backup alarm is set for 04:45"), so once wake times vary by
+     * day it has to show the next one rather than the default; on a moved day the default is simply the
+     * wrong number. DERIVED from [nextDeadline] rather than recomputed, so the card and the alarm cannot
+     * disagree — two independent time computations drifting apart is the failure this change already had
+     * to fix in two other places.
+     *
+     * Falls back to [defaultTarget] when no day is reachable, so the card degrades to the previous
+     * behaviour rather than blanking. Pure but for the clock, so it is testable without Compose.
+     */
+    internal fun nextWindowStartMinutes(
+        now: Calendar,
+        weekdays: Set<Int>,
+        windowMinutes: Int,
+        defaultTarget: Int,
+        targetForDay: (Int) -> Int,
+    ): Int {
+        val deadline = nextDeadline(now, weekdays, windowMinutes, afterFire = false, targetForDay)
+            ?: return defaultTarget
+        val deadlineMin = deadline.get(Calendar.HOUR_OF_DAY) * 60 + deadline.get(Calendar.MINUTE)
+        return (deadlineMin - windowMinutes + SmartAlarmStore.MINUTES_PER_DAY) %
+            SmartAlarmStore.MINUTES_PER_DAY
+    }
 
     /**
-     * Roll `cal` forward until it lands on a day the alarm is allowed to fire on.
+     * The next hard-deadline instant, honouring PER-DAY wake times (#1858).
      *
-     * EMPTY [weekdays] means every day, so this is a no-op — that is the pre-weekday behaviour and the
-     * default for every existing install, which is why the whole feature can ship without a migration.
+     * Replaces the old "find the next occurrence of one minute-of-day, then roll to an enabled day":
+     * with per-day targets the deadline minute is no longer a single number, so the day must be chosen
+     * FIRST and its own target read from it.
      *
-     * The 7-iteration bound is a guard, not an expectation: [SmartAlarmStore.weekdays] already filters
-     * to 1..7, so a non-empty set always contains a reachable day and the loop exits in at most six
-     * steps. If a future caller ever passes an unreachable set, this returns the unshifted day rather
-     * than spinning — a wrong-day alarm is recoverable, a hung scheduler on the safety-critical path is
-     * not. Kept `internal` so the day-selection can be unit-tested without an AlarmManager.
+     * Walks candidate days forward from today. For each day the alarm is allowed to fire on, the deadline
+     * is that day's own `target + window`, and the first such instant strictly in the future wins. The
+     * weekday tested is therefore still the day the DEADLINE lands on — the morning you are actually
+     * woken — which is what [SmartAlarmStore.weekdays] has always meant and what a person means by
+     * "Monday at 04:45".
+     *
+     * `target + window` can roll past midnight (23:50 + 30). Taking it modulo the day places the deadline
+     * on the enabled day itself and lets the WINDOW START fall on the previous evening, which is the same
+     * relationship the single-time version produced.
+     *
+     * [afterFire] skips today outright. When the smart logic fires early — 04:35 for an 04:45 deadline —
+     * today's deadline is still ahead, and re-arming onto it would wake the user a second time the same
+     * morning. Skipping the day is a cleaner statement of that than adjusting a date afterwards, and it
+     * cannot land on a disabled day because the loop only ever considers enabled ones.
+     *
+     * Pure but for the clock passed in, so every one of those cases is unit-testable without an
+     * AlarmManager. Returns null only if no day is reachable, which [SmartAlarmStore.weekdays]'s 1..7
+     * filter already prevents.
      */
-    internal fun advanceToEnabledDay(cal: Calendar, weekdays: Set<Int>) {
-        if (weekdays.isEmpty()) return
-        var guard = 0
-        while (cal.get(Calendar.DAY_OF_WEEK) !in weekdays && guard < 7) {
-            cal.add(Calendar.DAY_OF_YEAR, 1)
-            guard++
+    internal fun nextDeadline(
+        now: Calendar,
+        weekdays: Set<Int>,
+        windowMinutes: Int,
+        afterFire: Boolean = false,
+        targetForDay: (Int) -> Int,
+    ): Calendar? {
+        for (offset in 0..7) {
+            if (afterFire && offset == 0) continue
+            val candidate = (now.clone() as Calendar).apply {
+                add(Calendar.DAY_OF_YEAR, offset)
+            }
+            val dow = candidate.get(Calendar.DAY_OF_WEEK)
+            if (weekdays.isNotEmpty() && dow !in weekdays) continue
+            val deadlineMin =
+                (targetForDay(dow) + windowMinutes) % SmartAlarmStore.MINUTES_PER_DAY
+            candidate.set(Calendar.HOUR_OF_DAY, deadlineMin / 60)
+            candidate.set(Calendar.MINUTE, deadlineMin % 60)
+            candidate.set(Calendar.SECOND, 0)
+            candidate.set(Calendar.MILLISECOND, 0)
+            if (candidate.timeInMillis > now.timeInMillis) return candidate
         }
+        return null
     }
 }

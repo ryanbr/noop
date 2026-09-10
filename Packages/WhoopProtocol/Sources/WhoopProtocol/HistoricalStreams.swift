@@ -258,13 +258,15 @@ public func extractHistoricalStreams(_ parsed: [ParsedFrame],
             if let samples = p["ppg_waveform"]?.intArrayValue, !samples.isEmpty {
                 ppgRecords.append((ts: ts, samples: samples))
                 out.ppgWaveform.append(PpgWaveformSample(ts: ts, samples: samples,
-                                                         burstIndex: p["burst_index"]?.intValue))
+                                                         burstIndex: p["burst_index"]?.intValue,
+                                                         baseCode: p["ppg_base_code"]?.intValue))
             }
             if let bpm = p["heart_rate"]?.intValue, bpm != 0 {  // skip startup hr=0
                 out.hr.append(HRSample(ts: ts, bpm: bpm))
             }
             if let rrs = p["rr_intervals"]?.intArrayValue {
-                for rr in rrs { out.rr.append(RRInterval(ts: ts, rrMs: rr)) }
+                let source = p["rr_source_channel"]?.intValue.flatMap(RRSourceChannel.init(rawValue:))
+                for rr in rrs { out.rr.append(RRInterval(ts: ts, rrMs: rr, srcChannel: source)) }
             }
             if let red = p["spo2_red"]?.intValue {
                 out.spo2.append(SpO2Sample(ts: ts, red: red, ir: p["spo2_ir"]?.intValue ?? 0))
@@ -432,4 +434,67 @@ public func extractHistoricalStreams(_ parsed: [ParsedFrame],
     out.droppedImplausibleOldestTs = droppedOldest   // #324 poisoned-range epoch span (diag only)
     out.droppedImplausibleNewestTs = droppedNewest
     return out
+}
+
+/// Reconstruct a WHOOP 5/MG v26 optical window from its stored parts. #2019.
+///
+/// The strap sends a 25-sample window as one absolute ADC code plus 24 deltas, so this is the only way to
+/// get back the signal the strap measured: `sample[0] = baseCode`, `sample[i+1] = sample[i] + delta[i]`.
+/// NOOP stores the two as they arrive rather than folding them together, because the delta blob is
+/// little-endian i16 and a real code (about 378,000 on the captured fixture) does not fit in one.
+///
+/// nil when `baseCode` is nil, which is the honest answer for a row written before the base was read: a
+/// delta series cannot be inverted without its starting point, and returning the deltas, or a window
+/// built from a fabricated zero, would present a signal nobody measured.
+///
+/// CAVEAT: the deltas are SATURATED, clamped at the i16 bounds by the encoder, so a window containing a
+/// clamped delta reconstructs only approximately. Nothing here can detect that after the fact; a delta at
+/// exactly ±32,768 is the signal to distrust, and the captured fixture's largest magnitude is 1,833.
+///
+/// Mirror EXACTLY in Kotlin (`ppgWaveformAbsolute`).
+public func ppgWaveformAbsolute(baseCode: Int?, deltas: [Int]) -> [Int]? {
+    guard let baseCode else { return nil }
+    var out: [Int] = [baseCode]
+    out.reserveCapacity(deltas.count + 1)
+    var acc = baseCode
+    for d in deltas {
+        acc += d
+        out.append(acc)
+    }
+    return out
+}
+
+/// A delta at either i16 rail: the encoder clamped it, so the window reconstructs only approximately.
+public func isSaturatedPpgDelta(_ delta: Int) -> Bool {
+    delta == Int(Int16.min) || delta == Int(Int16.max)
+}
+
+/// The per-session v26 optical census, or nil when the session carried no v26 windows (a 4.0, or a 5/MG
+/// that banked none) so a log with nothing to say stays quiet. #2019.
+///
+/// Three things a strap log could not previously answer, all of which decide whether the banked windows
+/// are usable for the channel-mapping work this stream exists for:
+///
+/// - how many windows arrived at all;
+/// - how many carried the absolute base. A window without one cannot be reconstructed, ever. On a
+///   well-formed record the base is always readable, so `withBase` below the window count means
+///   TRUNCATED records or a firmware that does not carry it at frame-abs 23, and either is worth knowing
+///   rather than silently banking un-reconstructable windows;
+/// - how many windows hold a SATURATED delta. Those reconstruct only approximately, and the caveat is
+///   worthless without a way to see whether it ever fires.
+///
+/// The base range is carried because it is the DC level over the session, which is the quantity the whole
+/// stream is banked for and the one that used to be discarded entirely.
+///
+/// Mirror EXACTLY in Kotlin (`ppgWaveformCensusLine`).
+public func ppgWaveformCensusLine(windows: Int, withBase: Int, saturatedWindows: Int,
+                                  baseMin: Int?, baseMax: Int?) -> String? {
+    guard windows > 0 else { return nil }
+    let range: String = {
+        guard let baseMin, let baseMax else { return " base n/a" }
+        return " base \(baseMin)..\(baseMax)"
+    }()
+    let note = saturatedWindows > 0 ? " (a saturated window reconstructs only approximately)" : ""
+    return "Backfill: v26 optical census: \(windows) window(s), \(withBase) with a base, "
+        + "\(saturatedWindows) saturated,\(range)\(note)"
 }

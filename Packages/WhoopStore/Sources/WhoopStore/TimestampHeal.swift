@@ -52,12 +52,13 @@ extension WhoopStore {
             // legacy-rows gap rather than an ongoing one (the #547 ingest gate now rejects an implausible
             // ts before it is banked), which is exactly why it went unnoticed. Guarded by the same
             // out-of-bounds predicate as everything else — a plausible row is never touched.
-            let rawTables = ["hrSample", "rrInterval", "event", "battery",
-                             "spo2Sample", "skinTempSample", "respSample",
-                             "gravitySample", "stepSample", "ppgHrSample",
-                             "sleepStateSample", "ppgWaveformSample", "v18AuxSample"]
+            // The SAME list the storage footprint reports, rather than a third copy of it. This one was
+            // called canonical while `storageStats` kept its own and the Apple probe a shorter one again,
+            // and that drift is not hypothetical: `storageStats`' comment records its old fixed sum
+            // omitting six of these tables. One list means a stream added later is healed AND counted AND
+            // named in the breakdown, or none of the three - never silently one of them.
             var rawDeleted = 0
-            for table in rawTables {
+            for (_, table) in WhoopStore.rawTableKeys {
                 try db.execute(sql: "DELETE FROM \(table) WHERE ts < ? OR ts > ?",
                                arguments: [lo, hi])
                 rawDeleted += db.changesCount

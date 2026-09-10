@@ -121,4 +121,23 @@ final class SlidingStreamWindowTests: XCTestCase {
         let next = await w.rows(owner: "owner", from: from - day, to: to - day)
         XCTAssertEqual(next, direct(from - day, to - day))
     }
+
+    func testDisabledReuseSelectsSourceAcrossTheWholeRequestedWindow() async {
+        for historySecond in [250, 50] {
+            let direct: (Int, Int) -> [Int] = { from, to in
+                if (from...to).contains(historySecond) { return [historySecond] }
+                return Array(from...to).filter { $0 % 10 == 0 }
+            }
+            let w = SlidingStreamWindow<Int>(tsOf: { $0 }, limit: 1000) { _, f, t in direct(f, t) }
+            var expectedRowsRead = 0
+            for (from, to) in [(100, 300), (0, 200), (0, 300)] {
+                let expected = direct(from, to)
+                let actual = await w.rows(owner: "whoop5", from: from, to: to, allowReuse: false)
+                XCTAssertEqual(actual, expected)
+                expectedRowsRead += expected.count
+            }
+            XCTAssertEqual(w.rowsRead, expectedRowsRead)
+            XCTAssertEqual(w.rowsServed, 0)
+        }
+    }
 }

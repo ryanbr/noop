@@ -76,6 +76,13 @@ final class UnitFormatterTests: XCTestCase {
         XCTAssertEqual(UnitFormatter.distanceFromKilometers(12.4, system: .imperial), "7.7 mi")
     }
 
+    func testSpeedFollowsExerciseDistanceSystem() {
+        XCTAssertEqual(UnitFormatter.speedFromKilometersPerHour(10, system: .metric), "10.0 km/h")
+        XCTAssertEqual(UnitFormatter.speedFromKilometersPerHour(10, system: .imperial), "6.2 mph")
+        XCTAssertNil(UnitFormatter.speedFromKilometersPerHour(nil, system: .metric))
+        XCTAssertNil(UnitFormatter.speedFromKilometersPerHour(-1, system: .imperial))
+    }
+
     // MARK: - Mass formatting
 
     func testMassFromKilograms() {
@@ -196,6 +203,14 @@ final class UnitFormatterTests: XCTestCase {
         // Explicit override wins regardless of the system.
         XCTAssertEqual(UnitPrefs.resolveTemperature(system: .imperial, override: "celsius"), .celsius)
         XCTAssertEqual(UnitPrefs.resolveTemperature(system: .metric, override: "fahrenheit"), .fahrenheit)
+    }
+
+    func testDistanceSystemFallsBackToLegacyPreference() {
+        XCTAssertEqual(UnitPrefs.resolveDistance(system: .metric, override: ""), .metric)
+        XCTAssertEqual(UnitPrefs.resolveDistance(system: .imperial, override: ""), .imperial)
+        XCTAssertEqual(UnitPrefs.resolveDistance(system: .imperial, override: "metric"), .metric)
+        XCTAssertEqual(UnitPrefs.resolveDistance(system: .metric, override: "imperial"), .imperial)
+        XCTAssertEqual(UnitPrefs.resolveDistance(system: .imperial, override: "unknown"), .imperial)
     }
 
     // MARK: - Unit labels

@@ -705,7 +705,7 @@ fun TrendsReportExportSection(vm: AppViewModel, modifier: Modifier = Modifier) {
             Text(uiString(R.string.l10n_trends_report_trends_report_pdf_481e8a5f), style = NoopType.title2, color = Palette.textPrimary)
             Text(
                 uiString(R.string.l10n_trends_report_a_clean_shareable_one_page_pdf_a3c4f889) +
-                    "and strain over a date range. Built and saved on your phone - nothing leaves the device.",
+                    " and strain over a date range. Built and saved on your phone - nothing leaves the device.",
                 style = NoopType.subhead,
                 color = Palette.textSecondary,
             )

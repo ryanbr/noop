@@ -143,4 +143,20 @@ class SlidingStreamWindowTest {
         val next = w.rows("owner", from - day, to - day)
         assertEquals(direct(from - day, to - day), next)
     }
+
+    @Test fun disabledReuseSelectsSourceAcrossTheWholeRequestedWindow() = runBlocking {
+        for (historySecond in listOf(250L, 50L)) {
+            fun direct(from: Long, to: Long): List<Long> = if (historySecond in from..to)
+                listOf(historySecond) else (from..to).filter { it % 10 == 0L }
+            val w = SlidingStreamWindow<Long>({ it }, 1000) { _, f, t -> direct(f, t) }
+            var expectedRowsRead = 0L
+            for ((from, to) in listOf(100L to 300L, 0L to 200L, 0L to 300L)) {
+                val expected = direct(from, to)
+                assertEquals(expected, w.rows("whoop5", from, to, allowReuse = false))
+                expectedRowsRead += expected.size
+            }
+            assertEquals(expectedRowsRead, w.rowsRead)
+            assertEquals(0L, w.rowsServed)
+        }
+    }
 }

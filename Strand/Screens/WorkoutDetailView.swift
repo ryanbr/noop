@@ -35,7 +35,12 @@ struct WorkoutDetailView: View {
     @Environment(\.dismiss) private var dismiss
 
     @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
-    private var unitSystem: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .metric }
+    @AppStorage(UnitPrefs.distanceSystemKey) private var distanceSystemRaw = ""
+    private var distanceUnitSystem: UnitSystem {
+        UnitPrefs.resolveDistance(
+            system: UnitSystem(rawValue: unitSystemRaw) ?? .metric,
+            override: distanceSystemRaw)
+    }
 
     @AppStorage(UnitPrefs.effortScaleKey) private var effortScaleRaw = EffortScale.hundred.rawValue
     private var effortScale: EffortScale { UnitPrefs.resolveEffortScale(effortScaleRaw) }
@@ -280,7 +285,7 @@ struct WorkoutDetailView: View {
     @ViewBuilder private var routeCard: some View {
         if route.count >= 2 {
             VStack(alignment: .leading, spacing: NoopMetrics.gap) {
-                SectionHeader("Route", overline: "Recorded on device",
+                SectionHeader("Route", overline: routeOriginLabel,
                               trailing: distanceLabel(row.distanceM))
                 NoopCard(padding: 0, tint: StrandPalette.effortColor) {
                     VStack(alignment: .leading, spacing: 0) {
@@ -298,7 +303,7 @@ struct WorkoutDetailView: View {
                         .padding(NoopMetrics.cardPadding)
                     }
                 }
-                Text("Your GPS route for this session, recorded and stored on your device. Nothing leaves your phone.")
+                Text(routeDescription)
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -361,17 +366,40 @@ struct WorkoutDetailView: View {
         let secs = row.durationS ?? Double(row.endTs - row.startTs)
         guard secs > 0 else { return "–" }
         let km = m / 1000.0
-        let (perUnit, label): (Double, String) = unitSystem == .imperial
-            ? (km * UnitFormatter.milesPerKilometer, "/mi")
-            : (km, "/km")
-        guard perUnit > 0 else { return "–" }
-        let secsPerUnit = Int((secs / perUnit).rounded())
-        return "\(secsPerUnit / 60):\(String(format: "%02d", secsPerUnit % 60)) \(label)"
+        return UnitFormatter.paceFromSecPerKm(secs / km, system: distanceUnitSystem)
     }
 
     private var routeAccessibilityLabel: String {
         let dist = distanceLabel(row.distanceM)
         return String(localized: "Map of your \(WorkoutSource.displaySport(row.sport)) route, \(dist).")
+    }
+
+    /// #1205: the route card's overline and description must be honest about where the route came
+    /// from. An on-device recorded route says "Recorded on device"; an imported route (Apple Health
+    /// or Health Connect) says "Imported from Apple Health" / "Imported" so the user is not told
+    /// their phone recorded GPS data that actually came from another app.
+    private var routeOriginLabel: LocalizedStringKey {
+        switch WorkoutSource.classify(row.source) {
+        // "Imported" rather than naming the app: every string here is one the catalog already carries in
+        // all nine locales, so the honesty fix ships translated on day one. A source-specific variant
+        // ("Imported from Apple Health") would be a NEW key, and nothing catches a missing entry: the i18n
+        // audit checks locale coverage OF catalog entries, not that a `String(localized:)` literal has one.
+        // It would have read English on every non-English device while the gate stayed green.
+        case .apple, .whoop, .lifting, .activityFile: return "Imported"
+        case .detected, .manual: return "Recorded on device"
+        }
+    }
+
+    private var routeDescription: String {
+        switch WorkoutSource.classify(row.source) {
+        // Same rule as the overline: both of these are existing catalog keys with all nine locales. The
+        // imported line carries the privacy claim without the "recorded on your device" the original
+        // string opens with, which is the part that was untrue for a route another app collected.
+        case .apple, .whoop, .lifting, .activityFile:
+            return String(localized: "This stays on your device. It is never uploaded, never synced, never shared.")
+        case .detected, .manual:
+            return String(localized: "Your GPS route for this session, recorded and stored on your device. Nothing leaves your phone.")
+        }
     }
 
     // MARK: - HR curve
@@ -598,7 +626,7 @@ struct WorkoutDetailView: View {
     }
     private func distanceLabel(_ m: Double?) -> String {
         guard let m, m > 0 else { return "–" }
-        return UnitFormatter.distanceFromMeters(m, system: unitSystem)
+        return UnitFormatter.distanceFromMeters(m, system: distanceUnitSystem)
     }
     private func grouped(_ v: Double) -> String {
         Self.intFmt.string(from: NSNumber(value: Int(v.rounded()))) ?? "\(Int(v.rounded()))"

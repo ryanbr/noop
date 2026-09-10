@@ -12,6 +12,17 @@ final class SleepDeleteUndoStoreTests: XCTestCase {
     private let computed = "my-whoop-noop"
     private let imported = "my-whoop"
 
+    /// The same session as it reads back from `deviceId`. `sleepSessions` stamps the device it read the
+    /// row from, and a hand-built session carries no provenance, so a whole-value expectation has to
+    /// state it. The write takes its device from the `upsertSleepSessions` argument, never from this
+    /// field, so a session's `deviceId` is an output of the read and not an input to the write.
+    private func readBack(_ s: CachedSleepSession, from deviceId: String) -> CachedSleepSession {
+        CachedSleepSession(startTs: s.startTs, endTs: s.endTs, efficiency: s.efficiency,
+                           restingHr: s.restingHr, avgHrv: s.avgHrv, stagesJSON: s.stagesJSON,
+                           userEdited: s.userEdited, startTsAdjusted: s.startTsAdjusted,
+                           stagingSparse: s.stagingSparse, deviceId: deviceId)
+    }
+
     private func session(start: Int, end: Int, edited: Bool = false, stages: String? = "[]",
                          startAdjusted: Int? = nil) -> CachedSleepSession {
         CachedSleepSession(startTs: start, endTs: end, efficiency: 0.9, restingHr: 50,
@@ -35,7 +46,7 @@ final class SleepDeleteUndoStoreTests: XCTestCase {
 
         let computedRows = try await store.sleepSessions(deviceId: computed, from: 0, to: 100_000, limit: 100)
         let importedRows = try await store.sleepSessions(deviceId: imported, from: 0, to: 100_000, limit: 100)
-        XCTAssertEqual(computedRows, [row], "restored verbatim into computed")
+        XCTAssertEqual(computedRows, [readBack(row, from: computed)], "restored verbatim into computed")
         XCTAssertTrue(importedRows.isEmpty, "undo never leaks into the imported namespace")
     }
 
@@ -55,7 +66,7 @@ final class SleepDeleteUndoStoreTests: XCTestCase {
 
         let computedRows = try await store.sleepSessions(deviceId: computed, from: 0, to: 100_000, limit: 100)
         let importedRows = try await store.sleepSessions(deviceId: imported, from: 0, to: 100_000, limit: 100)
-        XCTAssertEqual(importedRows, [row], "restored verbatim into imported")
+        XCTAssertEqual(importedRows, [readBack(row, from: imported)], "restored verbatim into imported")
         XCTAssertTrue(computedRows.isEmpty, "an imported night must never resurrect as a computed twin")
     }
 

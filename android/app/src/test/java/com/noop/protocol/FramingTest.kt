@@ -425,7 +425,7 @@ class FramingTest {
         ByteArray(s.length / 2) { ((s[it * 2].digitToInt(16) shl 4) or s[it * 2 + 1].digitToInt(16)).toByte() }
 
     /** A real type-40 REALTIME_DATA frame from a worn WHOOP 5 (same vector as the Swift
-     *  Whoop5RealtimeTests): hr=98, rr=[603,587] ms, ts=1780916382. HR matched the 0x2A37 profile. */
+     *  Whoop5RealtimeTests): hr=98, rr=[603,587] ticks → [589,573] ms, ts=1780916382. HR matched the 0x2A37 profile. */
     private val whoop5RealtimeHex =
         "aa011800010022e128029ea0266aae4762025b024b020000000001005ed515dc"
 
@@ -438,7 +438,7 @@ class FramingTest {
         assertEquals(98, f.parsed["heart_rate"])          // 4.0 @12 → 5.0 @16
         assertEquals(1780916382, f.parsed["timestamp"])   // 4.0 @6  → 5.0 @10
         @Suppress("UNCHECKED_CAST")
-        assertEquals(listOf(603, 587), f.parsed["rr_intervals"] as List<Int>)
+        assertEquals(listOf(589, 573), f.parsed["rr_intervals"] as List<Int>)
     }
 
     @Test

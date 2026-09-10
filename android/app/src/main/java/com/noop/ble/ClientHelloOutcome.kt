@@ -60,10 +60,15 @@ internal fun clientHelloOutcomeLine(
  * bond" (the pair [BondRefusalGiveUp] already keys on), and 133 is the catch-all Android returns for a
  * link that went away underneath the operation.
  *
+ * Named for GATT statuses generally, not just writes: the same integers arrive from service discovery,
+ * a CCCD write and a characteristic read, and they mean the same thing in each. A DISCONNECT status is
+ * NOT this space (see [disconnectStatusLabel]) - 8 there is an HCI link-supervision timeout, not a GATT
+ * code, and running one through the other's table is how a number acquires a name from the wrong space.
+ *
  * Android-only by design: CoreBluetooth reports `didWriteValueFor` with an `Error`, not a status code,
  * which is why the outcome line takes its status pre-rendered.
  */
-internal fun gattWriteStatusLabel(status: Int?): String = when (status) {
+internal fun gattStatusLabel(status: Int?): String = when (status) {
     null -> "status=n/a"
     0 -> "status=GATT_SUCCESS(0)"
     3 -> "status=GATT_WRITE_NOT_PERMITTED(3)"

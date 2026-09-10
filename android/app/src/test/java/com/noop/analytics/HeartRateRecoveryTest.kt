@@ -16,6 +16,11 @@ class HeartRateRecoveryTest {
         return values.mapIndexed { i, bpm -> HrSample("strap", target - values.size / 2 + i, bpm) }
     }
 
+    private fun result(eligibilitySamples: List<HrSample>): HeartRateRecovery.Result? =
+        HeartRateRecovery.calculate(
+            eligibilitySamples + window(1, listOf(140, 140, 140)), end - 300, end, 200.0,
+        )
+
     @Test
     fun calculatesOneTwoAndFiveMinuteDropsFromRobustReadings() {
         val samples = denseEligible() +
@@ -40,6 +45,57 @@ class HeartRateRecoveryTest {
     fun rejectsDisconnectedHighIntensityFragments() {
         val sparse = (end - 300..end step 15).map { HrSample("strap", it, 170) }
         assertNull(HeartRateRecovery.calculate(sparse + window(1, listOf(140, 140, 140)), end - 300, end, 200.0))
+    }
+
+    @Test
+    fun rejectsThreeSeparatedFortySecondHighIntensityRuns() {
+        val samples = listOf(
+            HrSample("strap", end - 140, 170), HrSample("strap", end - 130, 170),
+            HrSample("strap", end - 120, 170), HrSample("strap", end - 110, 170),
+            HrSample("strap", end - 100, 120),
+            HrSample("strap", end - 90, 170), HrSample("strap", end - 80, 170),
+            HrSample("strap", end - 70, 170), HrSample("strap", end - 60, 170),
+            HrSample("strap", end - 50, 120),
+            HrSample("strap", end - 40, 170), HrSample("strap", end - 30, 170),
+            HrSample("strap", end - 20, 170), HrSample("strap", end - 10, 170),
+            HrSample("strap", end, 120),
+        )
+
+        assertNull(result(samples))
+    }
+
+    @Test
+    fun gapExactlyAtCapUsesLeftSampleAndExactMinimumIsAccepted() {
+        val samples = (end - 120..end - 10 step 10).map { HrSample("strap", it, 170) } +
+            HrSample("strap", end, 120)
+
+        assertEquals(HeartRateRecovery.Result(170, 30, null, null), result(samples))
+    }
+
+    @Test
+    fun gapOverCapResetsTheQualifyingRun() {
+        val beforeGap = (end - 180..end - 110 step 10).map { HrSample("strap", it, 170) }
+        val afterGap = (end - 99..end - 9 step 10).map { HrSample("strap", it, 170) } +
+            HrSample("strap", end, 170)
+
+        assertNull(result(beforeGap + afterGap))
+    }
+
+    @Test
+    fun belowThresholdIntervalResetsTheQualifyingRun() {
+        val samples = (end - 130..end step 10).map { ts ->
+            HrSample("strap", ts, if (ts == end - 60) 120 else 170)
+        }
+
+        assertNull(result(samples))
+    }
+
+    @Test
+    fun duplicateTimestampDoesNotBreakAnOtherwiseContinuousRun() {
+        val samples = (end - 120..end step 10).map { HrSample("strap", it, 170) } +
+            HrSample("strap", end - 60, 120)
+
+        assertEquals(HeartRateRecovery.Result(170, 30, null, null), result(samples))
     }
 
     @Test

@@ -45,6 +45,13 @@ public struct TrendChart: View {
     /// filled `BarMark` per (down-sampled) sample. Display-only — the plotted series is identical; only
     /// the mark geometry changes. Default false (the classic line). `showsArea` is ignored in bar mode.
     public var showsBars: Bool
+
+    /// Optional personal-baseline reference, drawn as a dashed rule UNDER the series.
+    ///
+    /// A reference the readings are judged against, not a second series, so it is dashed and faint. Nil
+    /// (the default) draws nothing, and the rule rides the chart's own y domain, so a value outside the
+    /// plotted range simply falls off it rather than being clamped to an edge it does not sit on.
+    public var baselineValue: Double?
     public var height: CGFloat
     /// Whether hovering reveals a crosshair + tooltip for the nearest point.
     public var showsHover: Bool
@@ -79,6 +86,7 @@ public struct TrendChart: View {
         valueRange: ClosedRange<Double> = 0...100,
         showsArea: Bool = true,
         showsBars: Bool = false,
+        baselineValue: Double? = nil,
         height: CGFloat = 220,
         showsHover: Bool = true,
         valueFormat: @escaping (Double) -> String = { String(Int($0.rounded())) },
@@ -93,6 +101,7 @@ public struct TrendChart: View {
         self.valueRange = valueRange
         self.showsArea = showsArea
         self.showsBars = showsBars
+        self.baselineValue = baselineValue
         self.height = height
         self.showsHover = showsHover
         self.valueFormat = valueFormat
@@ -182,6 +191,11 @@ public struct TrendChart: View {
 
     public var body: some View {
         Chart {
+            if let baselineValue {
+                RuleMark(y: .value("Baseline", baselineValue))
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 4]))
+                    .foregroundStyle(.secondary.opacity(0.45))
+            }
             if showsBars {
                 // Bar mode: one value-ramp-filled BarMark per (down-sampled) sample, from the baseline.
                 // The line, area and point marks are all replaced. The same `displayPoints` feed it, so a

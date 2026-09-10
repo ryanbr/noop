@@ -10,18 +10,17 @@ import com.noop.protocol.DeviceFamily
  * with the per-day owner-resolution inputs so a day is scored from exactly ONE device (invariant I2),
  * without giving the pure-JVM engine a Room dependency.
  *
- * Priorities mirror the Swift IntelligenceEngine.resolveDayOwner exactly:
- *   0 = the active strap, 1 = other live (BLE/historyBLE) straps, 2 = imports (cloud/file). Lower wins.
- * Archived devices are excluded. With only the seeded active 'my-whoop' row paired (the default and
- * every single-WHOOP install), the sole candidate is priority 0, so the engine resolves to "my-whoop"
- * for every day and the reads stay byte-identical to the single-source path.
+ * Priorities mirror the Swift IntelligenceEngine.resolveDayOwner for current sources, with priority 4
+ * reserved for archived devices. Archived rows remain read-only historical candidates so removing and
+ * later re-adding a strap cannot erase its earlier physiological boundary/coverage; every current live,
+ * import, and activity source still wins an overlap. With only the seeded active 'my-whoop' row paired
+ * (the default and every single-WHOOP install), the sole candidate is priority 0, so reads stay identical.
  */
 class RegistryDayOwnerSource(private val registry: DeviceRegistry) : IntelligenceEngine.DayOwnerSource {
 
     override suspend fun candidatePriorities(): List<Pair<String, Int>> {
         val activeId = registry.activeDeviceId()
         return registry.all()
-            .filter { it.status != DeviceStatus.archived.name }
             .map { d ->
                 val isImport = d.sourceKind == SourceKind.cloudImport.name ||
                     d.sourceKind == SourceKind.fileImport.name
@@ -30,6 +29,7 @@ class RegistryDayOwnerSource(private val registry: DeviceRegistry) : Intelligenc
                 // wins a day nothing else covers. Mirrors Swift IntelligenceEngine.resolveDayOwner.
                 val priority = when {
                     d.id == activeId -> 0
+                    d.status == DeviceStatus.archived.name -> 4
                     d.sourceKind == SourceKind.activityFile.name -> 3
                     isImport -> 2
                     else -> 1

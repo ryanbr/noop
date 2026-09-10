@@ -22,14 +22,14 @@ class IntelligenceSleepDetectNoNightTest {
         // gate the night → nothing stages. window=54h is the past-day span (30 h back → next midnight).
         val line = IntelligenceEngine.sleepDetectNoNightLogLine(
             day = "2026-08-11", hrCount = 41230, rrCount = 0, respCount = 880,
-            gravCount = 0, stepCount = 12, providedCount = 0, windowHours = 54,
+            gravCount = 0, stepCount = 12, providedCount = 0, windowHours = 54, skinCount = 0,
         )
         assertEquals(
             // reason=no-motion is the point of this fixture: grav=0 means the stager has no HR-only
             // fallback, so no quantity of HR could have staged a night. That is a strap capability limit,
             // and it wants a different follow-up from a night that had motion and still staged nothing.
             "sleep-detect day=2026-08-11 NO-NIGHT hr=41230 rr=0 resp=880 " +
-                "grav=0 steps=12 provided=0 window=54h reason=no-motion",
+                "grav=0 skin=0 steps=12 provided=0 window=54h reason=no-motion",
             line,
         )
     }
@@ -39,7 +39,7 @@ class IntelligenceSleepDetectNoNightTest {
         // Today's read caps at dayStart+18h (vs a past day's next-midnight), so the whole span is 48 h.
         val line = IntelligenceEngine.sleepDetectNoNightLogLine(
             day = "2026-08-12", hrCount = 5000, rrCount = 900, respCount = 300,
-            gravCount = 4, stepCount = 0, providedCount = 0, windowHours = 48,
+            gravCount = 4, stepCount = 0, providedCount = 0, windowHours = 48, skinCount = 0,
         )
         assertTrue(line, line.contains("window=48h"))
         // The other branch: motion WAS present and staging still produced nothing, which is the case
@@ -52,8 +52,83 @@ class IntelligenceSleepDetectNoNightTest {
         // House style: never an em-dash in shared text.
         val line = IntelligenceEngine.sleepDetectNoNightLogLine(
             day = "2026-08-11", hrCount = 1, rrCount = 1, respCount = 1,
-            gravCount = 1, stepCount = 1, providedCount = 1, windowHours = 54,
+            gravCount = 1, stepCount = 1, providedCount = 1, windowHours = 54, skinCount = 1,
         )
         assertFalse(line.contains("—"))
     }
+
+    /**
+     * The signal this line was missing. Gravity is a PLAIN read with no truncation counter, so a night
+     * clipped of its newest motion staged badly and said nothing about why - and `grav=192698` reads as
+     * healthy until you know it is 96% of a cap. A read that comes back AT the limit is truncated, which
+     * is what `full.count >= limit` means everywhere else here.
+     */
+    @Test fun `a stream at its read cap is named`() {
+        val line = IntelligenceEngine.sleepDetectNoNightLogLine(
+            day = "2026-09-06", hrCount = 1000, rrCount = 1000, respCount = 0,
+            gravCount = StreamReadCap.GRAVITY, stepCount = 0, providedCount = 0, windowHours = 54, skinCount = 0,
+        )
+        assertTrue(line, line.contains("atCap=grav"))
+    }
+
+    /**
+     * HR and R-R at their caps produce NO marker, and that is deliberate rather than an oversight.
+     *
+     * Both arrive through `SlidingStreamWindow.rows`, which returns a SLICE of a read spanning more than
+     * this night, so a truncated spliced window still hands back a count under the cap - the marker would
+     * miss the very case it claims to catch. Their exact truncation count is printed once per pass by
+     * `WindowedStreamPlan.logLine` instead. Pinned so the omission is not "fixed" back in.
+     */
+    @Test fun `hr and rr at their caps carry no marker`() {
+        val line = IntelligenceEngine.sleepDetectNoNightLogLine(
+            day = "2026-09-06", hrCount = StreamReadCap.HR, rrCount = StreamReadCap.RR, respCount = 0,
+            gravCount = 10, stepCount = 0, providedCount = 0, windowHours = 54, skinCount = 0,
+        )
+        assertFalse(line, line.contains("atCap"))
+    }
+
+    /** A healthy night says nothing extra - the marker only appears when something actually clipped. */
+    @Test fun `a night under the caps carries no marker`() {
+        val line = IntelligenceEngine.sleepDetectNoNightLogLine(
+            day = "2026-09-06", hrCount = 192_698, rrCount = 136_285, respCount = 0,
+            gravCount = 192_698, stepCount = 0, providedCount = 0, windowHours = 54, skinCount = 0,
+        )
+        assertFalse(line, line.contains("atCap"))
+    }
+
+    /**
+     * The field capture that motivated the caps: 192,698 gravity rows was 96% of the OLD 200,000 limit
+     * and silent. Under the caps this ships with, the same night is comfortably clear - so a marker
+     * appearing now means a genuinely denser night, not the old ceiling.
+     */
+    @Test fun `the measured field night is clear of the caps`() {
+        assertTrue(192_698 < StreamReadCap.GRAVITY)
+    }
+
+    /**
+     * The count that could not be measured. Skin temp only appears in a Test Centre "Night" line, which
+     * fires when a session EXISTS - so on the nights being triaged, the ones with no sleep at all, its
+     * volume was invisible. It rides in the record that carries gravity, so whether it is dense or sparse
+     * decides whether its own 21-day anchor scan is anywhere near a cap; nobody could say which.
+     */
+    @Test fun `the line reports the skin sample count`() {
+        val line = IntelligenceEngine.sleepDetectNoNightLogLine(
+            day = "2026-09-06", hrCount = 1000, rrCount = 900, respCount = 0, gravCount = 0,
+            stepCount = 0, providedCount = 0, windowHours = 54, skinCount = 4242,
+        )
+        assertTrue(line, line.contains("skin=4242"))
+    }
+
+    /**
+     * Skin is the stream whose density was never measured, and it was the one `atCap` did not cover
+     * when the marker was first written — so a clipped skin read printed a bare count and no warning.
+     */
+    @Test fun `skin at its read cap is named`() {
+        val line = IntelligenceEngine.sleepDetectNoNightLogLine(
+            day = "2026-09-06", hrCount = 10, rrCount = 10, respCount = 0, gravCount = 10,
+            stepCount = 0, providedCount = 0, windowHours = 54, skinCount = StreamReadCap.SKIN,
+        )
+        assertTrue(line, line.contains("atCap=skin"))
+    }
+
 }

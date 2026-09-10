@@ -231,5 +231,13 @@ class DeviceRegistry(
         dao.setDayOwner(DayOwnershipRow(day = day, deviceId = deviceId, locked = locked))
 
     /** The owner override for a day, or null if none. */
-    suspend fun dayOwner(day: String): DayOwnershipRow? = dao.dayOwner(day)
+    suspend fun dayOwner(day: String): DayOwnershipRow? {
+        // Timed here rather than at the call site, matching the other per-day probes: the resolver that
+        // drives these sits inside `analyzeRecentOnCpu`, which has no ratchet margin for a stopwatch.
+        // See StoreProbeTally. Instrumentation only.
+        val started = System.nanoTime()
+        val row = dao.dayOwner(day)
+        com.noop.analytics.StoreProbeTally.recordDayOwner(System.nanoTime() - started)
+        return row
+    }
 }

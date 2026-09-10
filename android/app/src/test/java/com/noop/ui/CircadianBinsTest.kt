@@ -18,7 +18,9 @@ class CircadianBinsTest {
 
     /** One bucket per hour for [hours] consecutive hours from [startTs], all at [bpm]. */
     private fun series(startTs: Long, hours: Int, bpm: Double = 60.0) =
-        (0 until hours).map { HrBucket(bucket = startTs + it * 3_600L, avgBpm = bpm) }
+        (0 until hours).map {
+            HrBucket(bucket = startTs + it * 3_600L, avgBpm = bpm, minBpm = bpm, maxBpm = bpm)
+        }
 
     @Test fun underTwentyFourBucketsIsRefused() {
         val (bins, days) = circadianBinsFrom(series(0, 23), tzOffsetSeconds = 0)
@@ -65,7 +67,9 @@ class CircadianBinsTest {
     @Test fun onlyPopulatedHoursBecomeBins() {
         // 30 buckets all landing in the same 6 local hours (one per hour across 5 days).
         val sparse = (0 until 5).flatMap { d ->
-            (0 until 6).map { h -> HrBucket(bucket = d * 86_400L + h * 3_600L, avgBpm = 55.0) }
+            (0 until 6).map { h ->
+                HrBucket(bucket = d * 86_400L + h * 3_600L, avgBpm = 55.0, minBpm = 55.0, maxBpm = 55.0)
+            }
         }
         val (bins, days) = circadianBinsFrom(sparse, tzOffsetSeconds = 0)
         assertEquals(6, bins.size)

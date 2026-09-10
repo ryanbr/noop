@@ -5,21 +5,21 @@ import StrandAnalytics
 //
 // NOOP stores EVERYTHING in SI (km, kg, cm, °C) — the importers normalise on the way in, so this is a
 // purely cosmetic, display-only layer. There is no data migration and nothing on disk changes when the
-// user flips this. We keep one Metric/Imperial switch for length+mass with a SEPARATE temperature
-// override, because plenty of people think in kg/cm but still read body temperature in °F (and vice
-// versa). Default is Metric — most of the world, and it matches what we store.
+// user flips this. Body measurements and exercise distance each have their own Metric/Imperial choice,
+// with a SEPARATE temperature override, because regional conventions commonly mix pounds with kilometres
+// (or kg/cm with °F). Default is Metric — most of the world, and it matches what we store.
 //
 // Persisted via @AppStorage (UserDefaults), the same mechanism every other macOS NOOP preference uses.
 // The Android side mirrors this exactly in Units.kt + NoopPrefs.
 
-/// The length+mass unit system. Temperature has its own override (see `UnitPrefs.temperature`).
+/// A Metric/Imperial display choice. Body measurements and exercise distance persist separate values.
 enum UnitSystem: String, CaseIterable, Identifiable {
     case metric
     case imperial
     var id: String { rawValue }
 
-    /// "follow the system" pairs temperature with the length/mass choice; an explicit case lets the
-    /// user pin °C or °F independently of whether distances are in km or miles.
+    /// "Follow body measurements" pairs temperature with the body choice; an explicit case lets the
+    /// user pin °C or °F independently.
     var temperatureMatching: TemperatureUnit { self == .imperial ? .fahrenheit : .celsius }
 }
 
@@ -79,11 +79,14 @@ enum HrvWindow: String, CaseIterable, Identifiable {
     var label: String { self == .deep ? "Deep sleep" : "Whole night" }
 }
 
-/// UserDefaults keys for the two unit preferences. Public-ish (internal) so `SettingsView`'s
-/// `@AppStorage(UnitPrefs.systemKey)` and the formatter read the SAME key — no drift.
+/// UserDefaults keys and backwards-compatible preference resolution.
 enum UnitPrefs {
+    /// The original combined preference now owns body measurements. Keeping its key preserves every
+    /// existing user's kg/cm or lb/ft-in choice without a migration.
     static let systemKey = "units.system"
-    /// Temperature override. Empty string = "match the length/mass system" (the default).
+    /// Exercise distance + pace. Empty/unset follows `systemKey`, preserving the pre-#1913 behaviour.
+    static let distanceSystemKey = "units.distance"
+    /// Temperature override. Empty string = "follow body measurements" (the default).
     static let temperatureKey = "units.temperature"
 
     /// #1846: which skin-temp number the cards lead with — absent/`""` = a temperature (the default), or
@@ -121,11 +124,16 @@ enum UnitPrefs {
             ? true : UserDefaults.standard.bool(forKey: liveActivityKey)
     }
 
-    /// Resolve the stored raw values into a concrete temperature unit, applying the
-    /// "match the system" default when no explicit override is set.
+    /// Resolve temperature, following body measurements when no explicit override is set.
     static func resolveTemperature(system: UnitSystem, override raw: String) -> TemperatureUnit {
         if let explicit = TemperatureUnit(rawValue: raw) { return explicit }
         return system.temperatureMatching
+    }
+
+    /// Resolve the exercise-distance system. Existing installs have no distance key, so an empty or
+    /// unknown value follows the original combined preference until the user chooses independently.
+    static func resolveDistance(system: UnitSystem, override raw: String) -> UnitSystem {
+        UnitSystem(rawValue: raw) ?? system
     }
 
     /// Resolve the stored Effort-scale raw value, defaulting to NOOP's native 0–100 axis.
@@ -199,6 +207,15 @@ enum UnitFormatter {
     /// Unit label only, for sites that format the number separately. "km" / "mi".
     static func distanceUnit(_ system: UnitSystem) -> String {
         system == .imperial ? "mi" : "km"
+    }
+
+    /// Format speed stored in kilometres/hour in the exercise-distance system.
+    static func speedFromKilometersPerHour(_ kmh: Double?, system: UnitSystem) -> String? {
+        guard let kmh, kmh.isFinite, kmh >= 0 else { return nil }
+        switch system {
+        case .metric:   return oneDecimal(kmh) + " km/h"
+        case .imperial: return oneDecimal(kmToMiles(kmh)) + " mph"
+        }
     }
 
     // MARK: Mass (stored kg)

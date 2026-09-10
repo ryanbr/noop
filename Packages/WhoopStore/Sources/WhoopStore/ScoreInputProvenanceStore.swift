@@ -1,6 +1,12 @@
 import Foundation
 import GRDB
 
+public struct SourcedMetricPoint: Sendable {
+    public let deviceId: String
+    public let point: MetricPoint
+    public init(deviceId: String, point: MetricPoint) { self.deviceId = deviceId; self.point = point }
+}
+
 /// Provenance for one persisted NOOP-computed score. `sourceId` normally names the input provider;
 /// `vo2max_est` uses the estimator id because the method is the provenance users need for that series.
 /// Natural key: (computed device namespace, day, metric key).
@@ -37,7 +43,10 @@ extension WhoopStore {
         provenance: [ScoreInputProvenanceRow],
         deviceId: String,
         from: String,
-        to: String
+        to: String,
+        replaceMetricKeys: [String] = [],
+        additionalMetricPoints: [SourcedMetricPoint] = [],
+        replaceMetricSourceIds: [String] = []
     ) async throws {
         // #1196: an empty scoring pass must not destructively rewrite the window — with no daily rows to
         // write, the provenance wide-delete below would blank the window's attribution while a degenerate
@@ -47,7 +56,16 @@ extension WhoopStore {
         guard !dailyMetrics.isEmpty else { return }
         try syncWrite { db in
             _ = try Self.upsertDailyMetrics(dailyMetrics, deviceId: deviceId, in: db)
+            for source in Set(replaceMetricSourceIds + [deviceId]) {
+                for key in replaceMetricKeys {
+                    try db.execute(sql: "DELETE FROM metricSeries WHERE deviceId = ? AND key = ? AND day >= ? AND day <= ?",
+                                   arguments: [source, key, from, to])
+                }
+            }
             _ = try Self.upsertMetricSeries(metricPoints, deviceId: deviceId, in: db)
+            for group in Dictionary(grouping: additionalMetricPoints, by: \.deviceId) {
+                _ = try Self.upsertMetricSeries(group.value.map(\.point), deviceId: group.key, in: db)
+            }
 
             // Weekly VO₂max provenance is owned by `persistMetricSeriesWithProvenance` below, not this
             // daily scoring window. Preserve it or every normal 21-day re-score erases the prior two

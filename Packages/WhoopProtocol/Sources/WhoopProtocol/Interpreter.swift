@@ -289,14 +289,20 @@ private func parseFrameWhoop5(_ frame: [UInt8], collectFields: Bool) -> ParsedFr
             // intervals @14+delta…), the same shape as 4.0 shifted by +4.
             let rrn = readDType(frame, 13 + delta, "u8") ?? 0
             var rrs: [Int] = []
+            var rawTicks: [Int] = []
             for i in 0..<rrn {
                 let off = 14 + delta + i * 2
+                guard off + 2 <= (payloadEnd ?? 0) else { break }
                 if let v = readDType(frame, off, "u16"), v > 0 {
-                    fb.add(off, 2, "rr[\(i)]", "rr", value: .int(v), note: "ms")
-                    rrs.append(v)
+                    let ms = Whoop5RR.milliseconds(ticks: UInt16(v))
+                    fb.add(off, 2, "rr[\(i)]", "rr", value: .int(ms), note: "ms from 1/1024 s ticks")
+                    rawTicks.append(v)
+                    rrs.append(ms)
                 }
             }
             fb.parsed["rr_intervals"] = .intArray(rrs)
+            fb.parsed["rr_raw_ticks"] = .intArray(rawTicks)
+            fb.parsed["rr_source_channel"] = .int(RRSourceChannel.whoop5Realtime.rawValue)
         } else if spec!.post == "historical_data" {
             decodeWhoop5Historical(frame, fb: fb, payloadEnd: payloadEnd)
         } else if spec!.post == "metadata" {
@@ -405,14 +411,20 @@ private func decodeWhoop5Historical(_ frame: [UInt8], fb: FieldBuilder, payloadE
     let rrn = readDType(frame, 23, "u8") ?? 0
     fb.add(23, 1, "rr_count", "rr", value: .int(rrn))
     var rrs: [Int] = []
+    var rawTicks: [Int] = []
     for i in 0..<min(rrn, 4) {
         let off = 24 + i * 2
+        guard off + 2 <= (payloadEnd ?? 0) else { break }
         if let v = readDType(frame, off, "u16"), v > 0 {
-            fb.add(off, 2, "rr[\(i)]", "rr", value: .int(v), note: "ms")
-            rrs.append(v)
+            let ms = Whoop5RR.milliseconds(ticks: UInt16(v))
+            fb.add(off, 2, "rr[\(i)]", "rr", value: .int(ms), note: "ms from 1/1024 s ticks")
+            rawTicks.append(v)
+            rrs.append(ms)
         }
     }
     fb.parsed["rr_intervals"] = .intArray(rrs)
+    fb.parsed["rr_raw_ticks"] = .intArray(rawTicks)
+    fb.parsed["rr_source_channel"] = .int(RRSourceChannel.whoop5Historical.rawValue)
     // Bytes adjacent to the HR/R-R fields, read off real frames: @36 is a FLAG byte and @37 a duplicate
     // heart rate — not the two halves of one fixed-point HR (see below); the others are raw.
     if let v = readDType(frame, 33, "u8") {
@@ -630,9 +642,20 @@ private func decodeWhoop5HistoricalV26(_ frame: [UInt8], fb: FieldBuilder) {
     // 2 — but a later capture read 65, far outside any 26-channel sweep, so @21 is not a stable channel id.
     // Re-surfaced as the neutral `burst_index` (gated bi > 0, the observed always-set sentinel) with NO
     // channel/LED semantics claimed; the physical optical-channel mapping is unproven and left unasserted.
-    if let bi = readDType(frame, 21, "u8"), bi > 0 {
-        fb.add(21, 1, "burst_index", "ppg", value: .int(bi),
-               note: "per-burst counter (raw); NOT a channel id")
+    // Sixteen bits, not eight. The field is a per-burst COUNTER and a u8 wraps the moment it passes 255;
+    // @21 has already been observed at 65 (see above), so wrapping is reachable rather than hypothetical,
+    // and a wrapped counter is indistinguishable from a genuine low one.
+    //
+    // The evidence for the width is the LAYOUT, not our fixtures: 21..23 counter, 23..27 the absolute
+    // base (#2019), 27..75 the 24 deltas, which accounts for every byte between the record header and the
+    // samples with nothing left over. An independent decode of this record reads the same two bytes as one
+    // u16 LE. Every v26 frame held here carries byte 22 = 0, so our own captures CANNOT discriminate a u16
+    // from a u8 beside a constant zero, and that is recorded as the weaker half of the case rather than
+    // left implied. Reading it wide is the safe direction: under 256 the two readings agree exactly, and
+    // above it only the wide one is right.
+    if let bi = readDType(frame, 21, "u16"), bi > 0 {
+        fb.add(21, 2, "burst_index", "ppg", value: .int(bi),
+               note: "per-burst counter (raw, u16 LE); NOT a channel id")
     }
     // record_index@11 (PR#563): the same monotonic lifetime per-record counter the v18/v20/v21 records
     // carry at @11 — +1 per record, independent of unix (advances across gaps). The only @11+ v26 field
@@ -643,6 +666,16 @@ private func decodeWhoop5HistoricalV26(_ frame: [UInt8], fb: FieldBuilder) {
     if let unix = readDType(frame, 15, "u32") {
         fb.add(15, 4, "unix", "time", value: .int(unix), note: "real unix seconds")
     }
+    // #2019: the ABSOLUTE optical code the 24 values below are deltas FROM. The window is 25 samples,
+    // not 24: sample 0 is this code and delta i produces sample i+1. Reading only the deltas and calling
+    // them the waveform stored a derivative as if it were a signal, and discarded the DC level, which is
+    // the half an SpO2 ratio-of-ratios needs. Verified on the captured frame in the waveform tests:
+    // 378,307 here, a valid 20-bit code, against 24 deltas that are every one NEGATIVE, which no
+    // absolute optical reading can be.
+    if let base = readDType(frame, 23, "u32") {
+        fb.add(23, 4, "ppg_base_code", "ppg", value: .int(base),
+               note: "absolute optical ADC code; ppg_waveform holds the deltas from it")
+    }
     var samples: [Int] = []
     for off in stride(from: 27, to: 75, by: 2) {
         guard let v = readI16(frame, off) else { break }
@@ -650,14 +683,20 @@ private func decodeWhoop5HistoricalV26(_ frame: [UInt8], fb: FieldBuilder) {
     }
     if !samples.isEmpty {
         fb.add(27, samples.count * 2, "ppg_waveform", "ppg", value: .intArray(samples),
-               note: "optical PPG @24 Hz, LE-i16 ADC counts")
+               note: "optical PPG DELTAS, LE-i16; absolute sample i+1 = base + running sum")
         fb.parsed["ppg_sample_count"] = .int(samples.count)
     }
     // PR#563: the remaining per-record v26 bytes, surfaced as RAW NEUTRAL fields — read off the real
     // fixtures but with NO invented semantics (deliberately not named segment_id / signal_quality / etc.).
-    // Each is gated only to "present in range"; meaning is unpinned. The header @19/@23/@25 frame the
-    // waveform block; @75/@79/@81/@82 trail it. (`@27…@75` is the proven waveform handled above.)
-    for (name, off) in [("raw_u8_19", 19), ("raw_u8_23", 23), ("raw_u8_25", 25),
+    // Each is gated only to "present in range"; meaning is unpinned. @19 sits ahead of the waveform
+    // block and @75/@79/@81/@82 trail it. (`@27…@75` is the proven waveform handled above.)
+    //
+    // @23 and @25 USED to be here, described as framing the block. They are not: #2019 identified
+    // @23…@27 as the window's absolute optical base, which `ppg_base_code` above now carries as one u32.
+    // Leaving them would describe the same two bytes twice, once as an identified field and once as a
+    // byte whose "meaning is not pinned", and the second reading is simply no longer true. A field
+    // viewer showing both would invite someone to re-derive what has already been worked out.
+    for (name, off) in [("raw_u8_19", 19),
                         ("raw_u8_75", 75), ("raw_u8_79", 79), ("raw_u8_81", 81), ("raw_u8_82", 82)] {
         if let v = readDType(frame, off, "u8") {
             fb.add(off, 1, name, "raw", value: .int(v), note: "raw byte @\(off); meaning not pinned")

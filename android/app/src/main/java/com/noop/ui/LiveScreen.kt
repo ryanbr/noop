@@ -106,10 +106,9 @@ fun LiveScreen(viewModel: AppViewModel, onManageDevices: () -> Unit = {}) {
     val activeWorkout by viewModel.activeWorkout.collectAsStateWithLifecycle()
     val lastWorkout by viewModel.lastWorkout.collectAsStateWithLifecycle()
 
-    // Imperial/Metric display preference (D#103). Live distance/pace are computed from metres + sec/km
-    // and re-labelled here. Display-only.
+    // Exercise-distance preference (#1913). Stored workout data remains SI.
     val context = LocalContext.current
-    val unitSystem = UnitPrefs.system(context)
+    val unitSystem = UnitPrefs.distanceSystem(context)
     // Effort display scale (#268) — routes the live + saved workout Effort read-outs. Display-only.
     val effortScale = UnitPrefs.effortScale(context)
     // Same day-cycle gate as the liquid Today (LiquidScreenSky.kt): the time-of-day sky settles behind the
@@ -542,7 +541,7 @@ fun LiveScreen(viewModel: AppViewModel, onManageDevices: () -> Unit = {}) {
             if (selectedModel == WhoopModel.WHOOP5_MG) {
                 Text(
                     uiString(R.string.l10n_live_screen_whoop_5_0_mg_pairs_with_b93143f2) +
-                        "the official WHOOP app and fully close that app, then Connect again.",
+                        " the official WHOOP app and fully close that app, then Connect again.",
                     style = NoopType.footnote,
                     color = Palette.textSecondary,
                     modifier = Modifier.fillMaxWidth().padding(top = 6.dp),

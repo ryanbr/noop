@@ -282,6 +282,65 @@ object ConnectionReadout {
         return line
     }
 
+    /**
+     * #1635: what a finished link actually stored, split by PATH.
+     *
+     * The epitaph counts frames. That is right for a silent strap and wrong for one talking over only part
+     * of its surface: an unbonded 5/MG streams heart rate and R-R all night while nothing bond-gated
+     * lands, and the epitaph reports hundreds of healthy inbound frames.
+     *
+     * The split has to be by PATH, not by stream, and an earlier live-only version of this line got that
+     * wrong. `extractStreams` — the realtime decoder — produces only hr, rr, events and battery. Gravity,
+     * respiratory, skin temperature, SpO2 and steps come exclusively from the historical decoder behind
+     * the offload. A live-only tally therefore printed "nothing banked live for: gravity, resp, …" on
+     * EVERY link, bonded or not: a constant wearing the costume of a finding.
+     *
+     * So both paths are counted and named. The offload is where the bond shows: an unbonded strap defers
+     * backfill entirely, so `offload none` is the real signal, and a healthy sync fills it.
+     *
+     * Battery is absent on purpose. It rides the standard 0x2A19 profile, so it banks with or without the
+     * bond and answers nothing here. [offloadSteps] is nullable for the same reason it is on Apple: a
+     * platform that cannot measure a stream omits it rather than reporting a zero that reads as a fault.
+     *
+     * Counts are rows ACCEPTED, so a re-offload of already-stored records reads zero — correct, since the
+     * question is what the database gained. Pure, total and clamped: it runs on the teardown path, where
+     * throwing would cost the report it exists to produce. Twin of the Swift formatter.
+     */
+    fun linkBankedSummary(
+        liveHr: Int, liveRr: Int, offloadChunks: Int,
+        offloadHr: Int, offloadRr: Int, offloadGravity: Int, offloadResp: Int,
+        offloadSkinTemp: Int, offloadSpo2: Int, offloadSteps: Int?,
+    ): String {
+        val live = "live hr=${maxOf(0, liveHr)} rr=${maxOf(0, liveRr)}"
+        val offload = (listOf(
+            "hr" to offloadHr, "rr" to offloadRr, "gravity" to offloadGravity, "resp" to offloadResp,
+            "skinTemp" to offloadSkinTemp, "spo2" to offloadSpo2,
+        ) + listOfNotNull(offloadSteps?.let { "steps" to it })).map { (k, v) -> k to maxOf(0, v) }
+        val offloadTotal = offload.sumOf { it.second }
+        // Three distinguishable states, reported as FACTS rather than verdicts. "No chunks" is not
+        // evidence of a fault on its own: a short or command-only link never reaches backfill, and the
+        // reason it was skipped is already logged next to it ("Backfill: deferred — connect handshake not
+        // done yet (didBond=…)"). Editorialising here — an earlier draft said "offload did NOT run on this
+        // link" — reads as an accusation on a healthy 16-second connect. The epitaph above supplies the
+        // uptime a reader needs to weigh it.
+        //
+        // "Never ran" and "ran with nothing new" are still DIFFERENT and must not share a sentence.
+        // Rows are counted as ACCEPTED, so a reconnect that re-offloads already-stored records banks zero
+        // while the strap plainly handed its history over — `classifyCompletedOffload` already treats that
+        // as `bankedSensorRecords`, not a fault. Only the first case speaks to the bond.
+        if (maxOf(0, offloadChunks) == 0) {
+            return "banked this link: $live | offload none"
+        }
+        if (offloadTotal == 0) {
+            return "banked this link: $live | offload ran ${maxOf(0, offloadChunks)} chunk(s), no new rows"
+        }
+        val body = offload.joinToString(" ") { (k, v) -> "$k=$v" }
+        val empty = offload.filter { it.second == 0 }.map { it.first }
+        if (empty.isEmpty()) return "banked this link: $live | offload $body"
+        return "banked this link: $live | offload $body - nothing banked from the offload for: " +
+            empty.joinToString(", ")
+    }
+
     /** #987: freshness label for the "last frame" readout row ("12s ago" / "no frames yet"). [nowUnix]
      *  injected for testability. Twin of the Swift labeller. */
     fun lastFrameLabel(lastFrameUnix: Long?, nowUnix: Long): String {

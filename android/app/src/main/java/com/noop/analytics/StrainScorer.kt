@@ -340,7 +340,8 @@ object StrainScorer {
 
     /**
      * Map accumulated TRIMP onto [0, 100] via 100 × ln(TRIMP+1) / ln(D), 2 dp.
-     * TRIMP ≤ 0 → 0.
+     * TRIMP ≤ 0 → 0, and D ≤ 1 (or NaN) → 0, being outside the map's domain. The output is
+     * unbounded as D → 1⁺ — an upper clamp is tracked separately.
      *
      * The default D is **Edwards'**. A Banister TRIMP passed here without an explicit denominator is
      * scored against the wrong ceiling and reads low — prefer [strain], which resolves the method's own
@@ -348,8 +349,22 @@ object StrainScorer {
      */
     fun trimpToStrain(trimp: Double, denominator: Double = strainDenominator): Double {
         if (trimp <= 0) return 0.0
+        // D ≤ 1 (and NaN) is outside the map's domain: ln(1) = 0 divides to ±∞, ln(D) < 0 below 1
+        // flips the sign, and ln(D) is NaN at or below 0. Out-of-domain D is no score, like
+        // TRIMP ≤ 0 — before this guard D = 1 returned a saturated 9.2e16 here and +Inf on Swift
+        // for the same input (the denominator-domain fix). The default 7201 is unaffected.
+        if (!(denominator > 1)) return 0.0
         val value = maxStrain * ln(trimp + 1.0) / ln(denominator)
-        return (value * 100).roundToLong() / 100.0
+        val scaled = value * 100
+        // Round in Double space: roundToLong() clips anything past Long.MAX_VALUE, which Swift's
+        // .rounded() does not, so a D just above 1 still disagreed across platforms (the
+        // denominator-domain fix). Above 2^53 every Double is already an integer, so passing it
+        // through IS the rounded value.
+        // Keep this comparison in this direction: abs(NaN) < 2^53 is false, so NaN intentionally
+        // takes the pass-through; reversing it to `>= 2^53` would send NaN through `roundToLong()`,
+        // collapse it to 0.0, and break parity with Swift.
+        val rounded = if (abs(scaled) < 9007199254740992.0) scaled.roundToLong().toDouble() else scaled
+        return rounded / 100.0
     }
 
     // ---- Denominator calibration ----
