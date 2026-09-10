@@ -1733,6 +1733,9 @@ fun TodayScreen(
                         // arranged order. Each is the SAME card its home tab renders (a mirror).
                         TodaySection.ADDED_CARDS -> HostedCardsSection(
                             effortScale = effortScale,
+                            onOpenStress = onOpenStress,
+                            onOpenSleep = onOpenSleep,
+                            onOpenMetric = onOpenMetric,
                             cards = enabledHostedCards,
                             days = days,
                             viewModel = viewModel,
@@ -3481,6 +3484,9 @@ private fun HostedCardsSection(
     // SharedPreferences per hosted card per recomposition would put a synchronous file read on the
     // composition path of a screen that recomposes often.
     effortScale: EffortScale,
+    onOpenStress: () -> Unit,
+    onOpenSleep: () -> Unit,
+    onOpenMetric: (String) -> Unit,
 ) {
     if (cards.isEmpty()) return
     val context = LocalContext.current
@@ -3512,8 +3518,32 @@ private fun HostedCardsSection(
             emptyList()
         }
     }
+    // Where a hosted card sends you when tapped: back to the thing it is a copy of.
+    //
+    // The pinned tiles above already open their screen, so a card that did nothing sat next to one that
+    // did and looked broken rather than deliberate. The trends open the METRIC's own detail page rather
+    // than the Trends tab, which is the same destination the Charge and Effort key tiles use and lands
+    // closer to what was tapped.
+    //
+    // `SLEEP_MARKS` is deliberately absent. It is the tap-to-log card, its buttons ARE its purpose, and
+    // wrapping it in a navigation target would put a second meaning behind the same press.
+    fun destination(card: HostedCard): (() -> Unit)? = when (card) {
+        HostedCard.SLEEP_MARKS -> null
+        HostedCard.STRESS_TODAY -> onOpenStress
+        HostedCard.TREND_HRV -> ({ onOpenMetric("hrv") })
+        HostedCard.TREND_RESTING_HR -> ({ onOpenMetric("rhr") })
+        HostedCard.TREND_EFFORT -> ({ onOpenMetric("strain") })
+        else -> onOpenSleep
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.sectionGap)) {
         cards.forEach { card ->
+            val open = destination(card)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(if (open != null) Modifier.clickable(onClick = open) else Modifier),
+            ) {
             when (card) {
                 HostedCard.STRESS_TODAY -> StressTodayCard(stressCurve)
                 // The Trends-origin trends. `resolveMetric` walks the `days` already in hand, so these
@@ -3567,6 +3597,7 @@ private fun HostedCardsSection(
                 // ConsistencyHostCard. Null until the async build lands / no stage data — the slot renders
                 // nothing this frame, matching the Sleep tab's null-model guard.
                 HostedCard.CONSISTENCY -> hostedSleepModel?.let { ConsistencyHostCard(it) }
+            }
             }
         }
     }
