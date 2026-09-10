@@ -65,14 +65,23 @@ enum StressWidgetCurve {
             // exactly as the screen does.
             let gravity = await repo.gravitySamplesUnion(from: from, to: to, limit: 200_000)
             let tz = TimeZone.current.secondsFromGMT(for: now)
-            points = DaytimeStress.analyze(hr: hr, rr: rr, gravity: gravity,
-                                           tzOffsetSeconds: tz, mode: .dayRelative)
-                .hours
-                .map {
-                    // `startTs` is the wall-clock bucket start with the local shift already undone, so
-                    // it is a true instant and formats correctly against the device's zone.
-                    StressPoint(ts: Int64($0.startTs), level: $0.level, moving: $0.maskedForActivity)
-                }
+            // Scored OFF the main actor. `Repository` is `@MainActor`, so without this hop a day's worth
+            // of hours would be bucketed and averaged on the main thread — and unlike the Stress screen,
+            // which does this because the user asked for it and is waiting, this runs unprompted when
+            // the app becomes active and after every Health sync, which is exactly when the UI is busy.
+            // The Kotlin twin gets this for free by living in a coroutine; here it has to be asked for.
+            // The samples are plain value structs, so the hop retains rather than copies them.
+            points = await Task.detached(priority: .utility) {
+                DaytimeStress.analyze(hr: hr, rr: rr, gravity: gravity,
+                                      tzOffsetSeconds: tz, mode: .dayRelative)
+                    .hours
+                    .map {
+                        // `startTs` is the wall-clock bucket start with the local shift already undone,
+                        // so it is a true instant and formats correctly against the device's zone.
+                        StressPoint(ts: Int64($0.startTs), level: $0.level,
+                                    moving: $0.maskedForActivity)
+                    }
+            }.value
         }
         // Too little signal leaves `points` empty, which is a real answer about today rather than a
         // refusal: the widget should drop yesterday's line rather than keep drawing it.
