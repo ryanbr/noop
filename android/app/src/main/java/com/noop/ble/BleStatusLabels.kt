@@ -55,7 +55,14 @@ internal fun disconnectStatusLabel(status: Int): String = when (status) {
     0 -> "status=0 (clean)"
     8 -> "status=8 (link supervision timeout - the strap went out of range or stopped responding)"
     19 -> "status=19 (the STRAP terminated the connection)"
-    22 -> "status=22 (this phone terminated the connection)"
+    // NOT simply "this phone hung up", however much the name suggests it. `HelloSuppression` records
+    // why: 22 covers our own `gatt.disconnect()` and the bond-watchdog bounce, AND an SMP refusal,
+    // where the strap answers a write with Insufficient Authentication, the local stack tries to
+    // elevate security, the strap refuses, and the stack tears the ACL down. Not our teardown, same
+    // code. That third case is exactly where a 5 or MG which cannot bond lands, so the old wording
+    // told those wearers their phone had hung up on a strap that was refusing them.
+    22 -> "status=22 (the local stack ended it: our own teardown, a bond-watchdog bounce, or an SMP " +
+        "refusal after the strap challenged a write)"
     62 -> "status=62 (connection failed to establish)"
     133 -> "status=133 (GATT_ERROR, Android's catch-all - no specific cause reported)"
     else -> "status=$status"

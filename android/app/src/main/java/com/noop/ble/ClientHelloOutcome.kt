@@ -46,37 +46,6 @@ internal fun clientHelloOutcomeLine(
 }
 
 /**
- * Label for a status from `onConnectionStateChange`, which is a DIFFERENT enumeration from the ATT
- * operation statuses [gattStatusLabel] renders.
- *
- * They collide on small integers and that has bitten this file before: #1635 spent effort on a
- * diagnosis built from a connection status printed through an operation-status table, which named it
- * confidently and wrongly. A disconnect reason of 5 is not "insufficient authentication" and 13 is not
- * "invalid attribute length"; those are ATT codes. The connection enumeration is the HCI reason the
- * link ended, and it is the whole point of the line that carries it.
- *
- * Unknown codes print bare rather than guessing, for the same reason.
- */
-internal fun connectionStatusLabel(status: Int): String = when (status) {
-    0 -> "SUCCESS"
-    8 -> "CONN_TIMEOUT (supervision timeout: out of range, or the strap stopped answering)"
-    19 -> "TERMINATE_PEER_USER (the strap closed the link)"
-    // NOT simply "we hung up", however much the name suggests it. `HelloSuppression` records why:
-    // this status covers our own `gatt.disconnect()` and the bond-watchdog bounce, AND an SMP refusal,
-    // where the strap answers a write with Insufficient Authentication, the local stack tries to
-    // elevate security, the strap refuses, and the stack tears the ACL down. Not our teardown, same
-    // code. Claiming the first would misname exactly the case a 5/MG that cannot bond lands in.
-    // `ended=intentional` on the same line is what separates a deliberate teardown from both.
-    22 -> "TERMINATE_LOCAL_HOST (the local stack ended it: our own teardown, a bond-watchdog bounce, " +
-        "or an SMP refusal after the strap challenged a write)"
-    34 -> "CONN_LMP_TIMEOUT"
-    62 -> "CONN_FAIL_ESTABLISH (the connection never came up)"
-    133 -> "GATT_ERROR (Android's catch-all)"
-    256 -> "CONN_CANCEL"
-    else -> "unmapped"
-}
-
-/**
  * A `BluetoothGatt.GATT_*` status from `onCharacteristicWrite`, labelled.
  *
  * NOT [WhoopBleClient.writeStatusLabel], which maps `BluetoothStatusCodes` — the return value of

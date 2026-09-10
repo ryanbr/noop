@@ -10749,7 +10749,7 @@ class WhoopBleClient(
         // a link that never existed.
         log(
             "link down: ended=" + (if (intentionalDisconnect) "intentional" else "status=$status") +
-                " (" + connectionStatusLabel(status) + ") hadLink=" + (linkUpSinceMs != null),
+                " " + disconnectStatusLabel(status) + " hadLink=" + (linkUpSinceMs != null),
         )
         val helloWasUnacked = clientHelloWriteAtMs > 0L
         // #1635: a CLIENT_HELLO that was accepted by the stack and never completed leaves no trace at
