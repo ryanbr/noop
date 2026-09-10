@@ -2461,9 +2461,33 @@ struct TodayView: View {
         if selectedDayOffset == 0 && !cards.isEmpty {
             VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
                 ForEach(cards) { card in
-                    hostedCard(for: card)
+                    if let route = hostedRoute(card) {
+                        NavigationLink(value: route) { hostedCard(for: card) }
+                            .buttonStyle(.plain)
+                    } else {
+                        hostedCard(for: card)
+                    }
                 }
             }
+        }
+    }
+
+    /// Where a hosted card sends you when tapped: back to the tab it is a copy of.
+    ///
+    /// The pinned dashboard rows above already push their route, so a hosted card that did nothing sat
+    /// beside one that did and read as broken rather than deliberate. Every hosted card had been inert
+    /// since the mechanism shipped.
+    ///
+    /// `sleepMarks` is deliberately absent. It is the tap-to-log card, its buttons ARE its purpose, and
+    /// wrapping it in a navigation target would put a second meaning behind the same press.
+    ///
+    /// Listed rather than defaulted, so a card added later cannot silently inherit "opens Sleep": the
+    /// compiler asks where the new one goes. Twin of the Kotlin `destination` map.
+    private func hostedRoute(_ card: HostedCard) -> TabRoute? {
+        switch card {
+        case .sleepMarks: return nil
+        case .asleepDuration, .stagesVsTypical, .nightDetail, .sleepDebt, .stages,
+             .hoursVsNeeded, .consistency: return .sleep
         }
     }
 
