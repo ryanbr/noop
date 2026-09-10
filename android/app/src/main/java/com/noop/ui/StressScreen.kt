@@ -640,7 +640,13 @@ internal fun StressTodayCard(points: List<StressPoint>, modifier: Modifier = Mod
                     // The FIXED 0-3 scale down the left, as the screen and the widget both draw it. An
                     // axis that moved with the day would make two days impossible to compare.
                     Column(
-                        modifier = Modifier.height(Metrics.chartHeight),
+                        // Marked decorative: read aloud, "3 2 1 0" is four bare numbers with nothing to
+                        // say what they measure. The peak and average beside the chart carry the reading,
+                        // and the axis is only meaningful to someone who can see what it annotates.
+                        // Glance could not do this for the widget; Compose can.
+                        modifier = Modifier
+                            .height(Metrics.chartHeight)
+                            .clearAndSetSemantics { },
                         horizontalAlignment = Alignment.End,
                         verticalArrangement = Arrangement.SpaceBetween,
                     ) {
@@ -658,15 +664,27 @@ internal fun StressTodayCard(points: List<StressPoint>, modifier: Modifier = Mod
                         val h = size.height
                         if (w <= 0f || h <= 0f) return@Canvas
                         val strokeW = 2.dp.toPx()
+                        // Reserve the bottom strip for the movement marks, and build the geometry AT the
+                        // reduced height rather than scaling it afterwards. A calm hour sits at the very
+                        // bottom of a fixed domain, so without the strip its line and the marks share a
+                        // row and read as one thing. (The widget carves the same band out of its bitmap;
+                        // computing against `chartH` here is the same idea without the second mapping
+                        // that had to be got right there.)
+                        val hasMarks = points.any { it.moving }
+                        val markBand = if (hasMarks) (strokeW * 2.5f).coerceAtMost(h / 6f) else 0f
+                        val chartH = (h - markBand).coerceAtLeast(1f)
                         // Amber at the top through green to blue at the bottom: because the domain is
                         // fixed, vertical position IS the level, so one shader colours every run by the
                         // score it actually carries.
-                        val gradient = Brush.verticalGradient(listOf(tense, steady, calm))
+                        val gradient = Brush.verticalGradient(listOf(tense, steady, calm),
+                                                              startY = 0f, endY = chartH)
 
-                        StressTrace.segments(points, w, h).forEach { run ->
+                        StressTrace.segments(points, w, chartH).forEach { run ->
                             if (run.isEmpty()) return@forEach
                             if (run.size == 1) {
-                                drawCircle(color = steady, radius = strokeW,
+                                // Brushed, not a flat colour: the dot has to carry the level the same way
+                                // the line does, or a lone HIGH hour would draw the calm-day green.
+                                drawCircle(brush = gradient, radius = strokeW,
                                            center = Offset(run[0].x.coerceAtLeast(strokeW), run[0].y))
                                 return@forEach
                             }
@@ -678,8 +696,8 @@ internal fun StressTodayCard(points: List<StressPoint>, modifier: Modifier = Mod
                             // scored and undo the gap the broken line exists to draw.
                             val fill = Path().apply {
                                 addPath(line)
-                                lineTo(run.last().x, h)
-                                lineTo(run[0].x, h)
+                                lineTo(run.last().x, chartH)
+                                lineTo(run[0].x, chartH)
                                 close()
                             }
                             drawPath(fill, brush = gradient, alpha = StrandAlpha.chartFillSoft)
@@ -688,7 +706,7 @@ internal fun StressTodayCard(points: List<StressPoint>, modifier: Modifier = Mod
                                                     join = StrokeJoin.Round))
                         }
                         // Hours in the HIGH band, dotted above the line exactly as the screen marks them.
-                        StressTrace.highPoints(points, w, h).forEach {
+                        StressTrace.highPoints(points, w, chartH).forEach {
                             drawCircle(color = tense, radius = strokeW,
                                        center = Offset(it.x, (it.y - strokeW * 2f).coerceAtLeast(strokeW)))
                         }
@@ -696,7 +714,7 @@ internal fun StressTodayCard(points: List<StressPoint>, modifier: Modifier = Mod
                         // the hour is marked rather than scored.
                         StressTrace.movingMarks(points, w).forEach {
                             drawCircle(color = textTertiary, radius = strokeW * 0.6f,
-                                       center = Offset(it, h - strokeW))
+                                       center = Offset(it, h - markBand / 2f))
                         }
                     }
                 }
