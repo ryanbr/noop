@@ -3247,12 +3247,19 @@ struct TodayView: View {
             // edge, INSIDE the ring frame so it adds no stacked height, keeping the #762 self-sizing row
             // untouched). It opens the Charge breakdown sheet (the existing ChargeBreakdownSection), built
             // lazily on tap. No new badge/dot/tier sits under the ring (that would re-load the #762 stack).
+            // The three keys are the ones `HeroRingDetailRouteTests` pins against `MetricCatalog`, and
+            // the same three the Liquid hero and the Key-Metrics tiles below already use. `TabRoute.metric`
+            // falls back to the Health screen on an unknown key rather than failing, which is exactly why
+            // they are pinned rather than trusted.
             heroRingColumn(section: .charge, domain: .charge, provenanceKey: "recovery",
-                           onRingTap: { showChargeBreakdown = true }) {
+                           onRingTap: { showChargeBreakdown = true },
+                           detailRoute: .metric(HeroRingMetric.charge)) {
                 chargeRing(score: score, d: d, diameter: ring)
             }
-            heroRingColumn(section: .effort, domain: .effort) { effortRing(d: d, diameter: ring) }
+            heroRingColumn(section: .effort, domain: .effort,
+                           detailRoute: .metric(HeroRingMetric.effort)) { effortRing(d: d, diameter: ring) }
             heroRingColumn(section: .rest, domain: .rest, provenanceKey: "sleep_performance",
+                           detailRoute: .metric(HeroRingMetric.rest),
                            caption: restIsPendingSync ? "Pending sync" : nil,
                            captionWidth: ring) { restRing(diameter: ring) }
         }
@@ -3284,6 +3291,16 @@ struct TodayView: View {
 
     /// The VoiceOver label for a hero ring's "how this score is calculated" button, with the domain word
     /// interpolated from a localized literal (so the spoken sentence is translated, not half-English).
+    private static func domainDetailAccessibilityLabel(_ domain: DomainTheme) -> LocalizedStringKey {
+        switch domain {
+        case .charge: return "Open your Charge detail"
+        case .effort: return "Open your Effort detail"
+        case .rest:   return "Open your Rest detail"
+        case .stress: return "Open your Stress detail"
+        }
+    }
+
+    /// The VoiceOver label for a hero ring's "how this score is calculated" chevron.
     private static func domainGuideAccessibilityLabel(_ domain: DomainTheme) -> LocalizedStringKey {
         switch domain {
         case .charge: return "How Charge is calculated"
@@ -3307,7 +3324,7 @@ struct TodayView: View {
     /// ring's edge. Mirrors Android's `HeroRingColumn(caption:)`.
     private func heroRingColumn<RingBody: View>(
         section: ScoreSection, domain: DomainTheme, provenanceKey: String? = nil,
-        onRingTap: (() -> Void)? = nil, caption: String? = nil,
+        onRingTap: (() -> Void)? = nil, detailRoute: TabRoute? = nil, caption: String? = nil,
         captionWidth: CGFloat = 98,
         @ViewBuilder ring: () -> RingBody
     ) -> some View {
@@ -3316,7 +3333,19 @@ struct TodayView: View {
             // with a contentShape so the whole disc is hittable). The tappable ring carries NO in-ring cue:
             // the single affordance is the label chevron below it (see the comment near the Button below).
             // The non-tappable rings render unchanged.
-            if let onRingTap {
+            if let detailRoute {
+                // The RING opens this score's own detail, which is what the Liquid Today has done since
+                // #1995 and what Android does. Here it was Charge only, wired to the breakdown sheet,
+                // while Effort and Rest were not tappable at all: two of the three rings did nothing, and
+                // the third went somewhere else. The chevron below keeps whatever it already opened, so
+                // this adds a destination rather than moving one.
+                NavigationLink(value: detailRoute) {
+                    ring().contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Self.domainDetailAccessibilityLabel(domain))
+                .accessibilityAddTraits(.isButton)
+            } else if let onRingTap {
                 Button(action: onRingTap) {
                     ring().contentShape(Rectangle())
                 }

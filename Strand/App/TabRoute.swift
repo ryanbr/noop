@@ -75,3 +75,23 @@ extension View {
         }
     }
 }
+
+/// The metric keys the three hero rings route to, named rather than repeated as literals.
+///
+/// Both Apple Today shells render those rings and both used their own copies of the strings, so the
+/// pairing lived in three places at once including the test that was meant to guard it. `TabRoute.metric`
+/// falls back to the Health screen on a key it does not recognise, which is the reason this is worth
+/// pinning: a rename leaves the ring tappable, animating, and landing on the wrong screen with nothing
+/// logged and nothing to notice.
+///
+/// Twin of Android's `HERO_CHARGE_METRIC_KEY` and friends, with ONE deliberate difference: Rest routes on
+/// `sleep_performance` here and on `rest` there, because the two platforms' detail screens resolve
+/// different key spaces. Making them agree would break the Android side, not fix anything here.
+enum HeroRingMetric {
+    static let charge = "recovery"
+    static let effort = "strain"
+    static let rest = "sleep_performance"
+
+    /// Charge, Effort, Rest, in the order the hero row renders them.
+    static let all = [charge, effort, rest]
+}

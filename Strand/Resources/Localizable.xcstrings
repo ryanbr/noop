@@ -210286,6 +210286,54 @@
         "ru": {"stringUnit": {"state": "translated", "value": "Исправленный ключ API"}},
         "zh-Hans": {"stringUnit": {"state": "translated", "value": "更正后的 API 密钥"}},
         "zh-Hant": {"stringUnit": {"state": "translated", "value": "更正後的 API 密鑰"}}
+    } },
+    "Open your Charge detail" : { "localizations" : {
+        "de": {"stringUnit": {"state": "translated", "value": "Ladung im Detail öffnen"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Open your Charge detail"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Abre el detalle de Carga"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Ouvrir le détail de la charge"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Apri il dettaglio della carica"}},
+        "pl": {"stringUnit": {"state": "translated", "value": "Otwórz szczegóły Ładunku"}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "Abrir o detalhe da carga"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Открыть подробности заряда"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "打开充能详情"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "開啟充能詳情"}}
+    } },
+    "Open your Effort detail" : { "localizations" : {
+        "de": {"stringUnit": {"state": "translated", "value": "Belastung im Detail öffnen"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Open your Effort detail"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Abre el detalle de Esfuerzo"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Ouvrir le détail de l'effort"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Apri il dettaglio dello sforzo"}},
+        "pl": {"stringUnit": {"state": "translated", "value": "Otwórz szczegóły Wysiłku"}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "Abrir o detalhe do esforço"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Открыть подробности усилия"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "打开消耗详情"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "開啟消耗詳情"}}
+    } },
+    "Open your Rest detail" : { "localizations" : {
+        "de": {"stringUnit": {"state": "translated", "value": "Erholung im Detail öffnen"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Open your Rest detail"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Abre el detalle de Descanso"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Ouvrir le détail du repos"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Apri il dettaglio del riposo"}},
+        "pl": {"stringUnit": {"state": "translated", "value": "Otwórz szczegóły Odpoczynku"}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "Abrir o detalhe do descanso"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Открыть подробности отдыха"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "打开休息详情"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "開啟休息詳情"}}
+    } },
+    "Open your Stress detail" : { "localizations" : {
+        "de": {"stringUnit": {"state": "translated", "value": "Stress im Detail öffnen"}},
+        "en": {"stringUnit": {"state": "translated", "value": "Open your Stress detail"}},
+        "es": {"stringUnit": {"state": "translated", "value": "Abre el detalle de Estrés"}},
+        "fr": {"stringUnit": {"state": "translated", "value": "Ouvrir le détail du stress"}},
+        "it": {"stringUnit": {"state": "translated", "value": "Apri il dettaglio dello stress"}},
+        "pl": {"stringUnit": {"state": "translated", "value": "Otwórz szczegóły Stresu"}},
+        "pt-PT": {"stringUnit": {"state": "translated", "value": "Abrir o detalhe do stress"}},
+        "ru": {"stringUnit": {"state": "translated", "value": "Открыть подробности стресса"}},
+        "zh-Hans": {"stringUnit": {"state": "translated", "value": "打开压力详情"}},
+        "zh-Hant": {"stringUnit": {"state": "translated", "value": "開啟壓力詳情"}}
     } }
   },
   "version": "1.0"

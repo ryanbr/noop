@@ -14,7 +14,22 @@ import XCTest
 final class HeroRingDetailRouteTests: XCTestCase {
 
     /// Charge, Effort and Rest, in the order the hero row renders them.
-    private let heroKeys = ["recovery", "strain", "sleep_performance"]
+    ///
+    /// Read from the production constants rather than restated here. A private copy would have kept
+    /// passing while a shell was renamed out from under it, which is the one failure this file exists to
+    /// catch; the literals below pin that the constants themselves still say what the catalog expects.
+    private let heroKeys = HeroRingMetric.all
+
+    /// The constants' VALUES, pinned separately from their resolution. Reading the production list is
+    /// what ties the test to the shells; this is what stops the list itself drifting silently, and it is
+    /// where the Apple/Android divergence is recorded: Rest routes on `sleep_performance` here and on
+    /// `rest` there, because the two platforms' detail screens resolve different key spaces.
+    func testHeroRingKeysAreTheExpectedThree() {
+        XCTAssertEqual(HeroRingMetric.charge, "recovery")
+        XCTAssertEqual(HeroRingMetric.effort, "strain")
+        XCTAssertEqual(HeroRingMetric.rest, "sleep_performance")
+        XCTAssertEqual(HeroRingMetric.all, ["recovery", "strain", "sleep_performance"])
+    }
 
     func testEveryHeroRingKeyResolvesToACatalogMetric() {
         for key in heroKeys {
