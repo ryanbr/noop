@@ -202,7 +202,10 @@ struct LiftLogView: View {
                                 targetRepsHigh: item.targetRepsHigh,
                                 targetRpe: item.targetRpe,
                                 targetWeightKg: item.targetWeightKg,
-                                note: item.note)
+                                note: item.note,
+                                // Carried so a set added or dropped mid-session can be written back
+                                // onto the line it came from, and be there next time.
+                                programItemId: item.id)
         }
         // Refuse to start a second session over a running one: two live sessions would both claim
         // the strap gesture and both write the in-flight snapshot.

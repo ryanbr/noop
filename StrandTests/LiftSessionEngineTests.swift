@@ -479,6 +479,128 @@ final class LiftSessionEngineTests: XCTestCase {
         XCTAssertEqual(e.sets[0].weightKg, 30)
     }
 
+    // MARK: - Adding and dropping a set mid-session
+    //
+    // A program is what you INTENDED. Five sets when it says four is ordinary, and so is stopping at
+    // three — and before this the fifth set was performed and then simply lost, because the sheet
+    // drew exactly `1...targetSets`.
+
+    func testAnAddedSetBecomesATappableRowAndCountsTowardThePlan() {
+        var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
+        XCTAssertEqual(e.plannedWorkingSets, 3)
+        XCTAssertTrue(e.addSet(toExercise: 0))
+        XCTAssertEqual(e.slots(forExercise: 0), [slot(0, 1), slot(0, 2), slot(0, 3)])
+        XCTAssertEqual(e.plannedWorkingSets, 4)
+        XCTAssertFalse(e.allCompleted)
+    }
+
+    /// The whole point: the extra set has to be recordable, with its own numbers.
+    func testAnExtraSetIsWhereTheSessionGoesNextAndRecordsWhatItWasDoing() {
+        var e = LiftSessionEngine(plan: [LiftPlanItem(exercise: "Curl", targetSets: 1, restSec: 60)],
+                                  startTs: t0)
+        e.advance(now: t0)                                        // set 1
+        e.advance(now: t0 + 40)                                   // set 1 done, resting
+        XCTAssertTrue(e.allCompleted, "the plan is finished, as written")
+
+        e.addSet(toExercise: 0)
+        XCTAssertFalse(e.allCompleted, "and now it is not — there is one more to do")
+        e.advance(now: t0 + 160)                                  // out of the rest, into set 2
+        XCTAssertEqual(e.stage, .working(slot(0, 2)))
+        e.advance(now: t0 + 200, lastSession: LiftSetCarry(weightKg: 20, reps: 12))
+        XCTAssertEqual(e.sets.count, 2)
+        XCTAssertEqual(e.sets.last?.setIndex, 2)
+        XCTAssertEqual(e.sets.last?.weightKg, 20, "an added set carries like any other")
+    }
+
+    func testAddingSetsStopsAtTheBound() {
+        var e = LiftSessionEngine(plan: [LiftPlanItem(exercise: "Curl", targetSets: 1)], startTs: t0)
+        while e.addSet(toExercise: 0) { }
+        XCTAssertEqual(e.slots(forExercise: 0).count, LiftSessionEngine.maxSetsPerExercise)
+        XCTAssertFalse(e.addSet(toExercise: 0), "a stuck finger cannot grow the sheet without end")
+    }
+
+    func testAddingASetToALineThatIsNotThereDoesNothing() {
+        var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
+        XCTAssertFalse(e.addSet(toExercise: 99))
+        XCTAssertEqual(e.plannedWorkingSets, 3)
+    }
+
+    func testDroppingTheLastSetTakesItOffTheSheet() {
+        var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
+        XCTAssertTrue(e.canRemoveSet(fromExercise: 0))
+        XCTAssertTrue(e.removeSet(fromExercise: 0))
+        XCTAssertEqual(e.slots(forExercise: 0), [slot(0, 1)])
+        XCTAssertEqual(e.plannedWorkingSets, 2)
+    }
+
+    /// The minus edits a PLAN. A completed set is data — deleting it from here would throw away a
+    /// set that was actually performed.
+    func testACompletedSetIsNeverDroppedByTheMinus() {
+        var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
+        e.start(slot(0, 2), now: t0)
+        e.advance(now: t0 + 40)                                   // set 2 recorded
+        // Move the session OFF that set, so the only thing protecting it is that it was performed.
+        e.start(slot(1, 1), now: t0 + 100)
+        XCTAssertNotEqual(e.currentSlot, slot(0, 2))
+        XCTAssertTrue(e.isCompleted(slot(0, 2)))
+
+        XCTAssertFalse(e.canRemoveSet(fromExercise: 0))
+        XCTAssertFalse(e.removeSet(fromExercise: 0))
+        XCTAssertEqual(e.slots(forExercise: 0).count, 2, "what was logged stays on the sheet")
+        XCTAssertEqual(e.sets.count, 1, "and stays recorded")
+    }
+
+    func testTheSetTheSessionIsStandingOnIsNeverDropped() {
+        var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
+        e.start(slot(0, 2), now: t0)
+        XCTAssertEqual(e.stage, .working(slot(0, 2)))
+        XCTAssertFalse(e.canRemoveSet(fromExercise: 0))
+        XCTAssertEqual(e.slots(forExercise: 0).count, 2)
+    }
+
+    func testTheLastRemainingSetIsNeverDropped() {
+        var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
+        XCTAssertFalse(e.canRemoveSet(fromExercise: 1), "a line with one set has nothing to give up")
+        XCTAssertFalse(e.removeSet(fromExercise: 1))
+        XCTAssertEqual(e.slots(forExercise: 1), [slot(1, 1)])
+    }
+
+    func testUndoTakesBackAnAddedSet() {
+        var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
+        e.addSet(toExercise: 0)
+        XCTAssertEqual(e.plannedWorkingSets, 4)
+        e.undo()
+        XCTAssertEqual(e.plannedWorkingSets, 3, "undo takes back the plan change, not only sets")
+        XCTAssertEqual(e.slots(forExercise: 0), [slot(0, 1), slot(0, 2)])
+    }
+
+    func testUndoPutsADroppedSetBack() {
+        var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
+        e.removeSet(fromExercise: 0)
+        e.undo()
+        XCTAssertEqual(e.slots(forExercise: 0), [slot(0, 1), slot(0, 2)])
+    }
+
+    /// The reason the plan travels in the undo snapshot at all.
+    ///
+    /// Start the last set, walk away to another exercise (which leaves it pending), drop it, then
+    /// undo back past the drop. Without the plan in the snapshot the stage would be restored onto a
+    /// slot the sheet no longer draws — and completing it would write a set nobody could see.
+    func testUndoingPastADroppedSetCannotStrandTheSessionOnASlotThatIsGone() {
+        var e = LiftSessionEngine(plan: threeExercisePlan(), startTs: t0)
+        e.start(slot(0, 3), now: t0)                              // the last set of exercise 0
+        e.start(slot(1, 1), now: t0 + 30)                         // machine busy: move on, 0/3 pending
+        XCTAssertTrue(e.removeSet(fromExercise: 0))
+        XCTAssertEqual(e.slots(forExercise: 0).count, 2)
+
+        e.undo()                                                  // back past the drop
+        XCTAssertEqual(e.slots(forExercise: 0).count, 3, "the slot the stage refers to is back")
+        e.undo()                                                  // back onto that very slot
+        XCTAssertEqual(e.stage, .working(slot(0, 3)))
+        XCTAssertTrue(e.allSlots.contains(slot(0, 3)),
+                      "the session is never left working a set the sheet does not draw")
+    }
+
     // MARK: - Degenerate plans
 
     func testALineWithNoTargetStillGetsOneTappableSet() {

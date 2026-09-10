@@ -39,6 +39,10 @@ enum LiftSessionPersistence {
             var targetRpe: Double?
             var targetWeightKg: Double?
             var note: String?
+            /// The program line this was flattened from. Absent from a snapshot written before the
+            /// set count could be changed mid-session, which decodes to nil and simply skips the
+            /// write-back — the session itself is unaffected.
+            var programItemId: String?
         }
 
         /// The stage as a flat, forward-compatible record rather than an encoded enum: a persisted
@@ -123,7 +127,8 @@ enum LiftSessionPersistence {
                                   targetRepsHigh: $0.targetRepsHigh,
                                   targetRpe: $0.targetRpe,
                                   targetWeightKg: $0.targetWeightKg,
-                                  note: $0.note)
+                                  note: $0.note,
+                                  programItemId: $0.programItemId)
             },
             stage: box(engine.stage),
             sets: engine.sets.map {
@@ -149,7 +154,8 @@ enum LiftSessionPersistence {
                          targetRepsHigh: $0.targetRepsHigh,
                          targetRpe: $0.targetRpe,
                          targetWeightKg: $0.targetWeightKg,
-                         note: $0.note)
+                         note: $0.note,
+                         programItemId: $0.programItemId)
         }
         let sets = s.sets.map {
             LiftRecordedSet(exerciseIndex: $0.exerciseIndex, setIndex: $0.setIndex,
