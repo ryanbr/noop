@@ -3533,7 +3533,12 @@ private fun HostedCardsSection(
         HostedCard.TREND_HRV -> ({ onOpenMetric("hrv") })
         HostedCard.TREND_RESTING_HR -> ({ onOpenMetric("rhr") })
         HostedCard.TREND_EFFORT -> ({ onOpenMetric("strain") })
-        else -> onOpenSleep
+        // Listed rather than an `else`, so a card added later cannot silently inherit "opens Sleep".
+        // Without exhaustiveness a Health-origin card would compile and quietly send you to the wrong
+        // tab; with it, the compiler asks where the new one goes.
+        HostedCard.ASLEEP_DURATION, HostedCard.STAGES_VS_TYPICAL, HostedCard.NIGHT_DETAIL,
+        HostedCard.SLEEP_DEBT, HostedCard.STAGES, HostedCard.HOURS_VS_NEEDED,
+        HostedCard.CONSISTENCY -> onOpenSleep
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.sectionGap)) {
@@ -3542,6 +3547,12 @@ private fun HostedCardsSection(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
+                    // Clipped to the card's own radius BEFORE the click. `NoopCard` clips itself, but
+                    // the ripple draws on this wrapper, so without matching the shape here it would wash
+                    // square corners over a rounded card. `Metrics.cardRadius` is the right figure
+                    // because every hosted card renders through `NoopCard`: the 26dp liquid-hero
+                    // surface `ChartCard` can wear is hero-only, and none of these opt into it.
+                    .clip(RoundedCornerShape(Metrics.cardRadius))
                     .then(if (open != null) Modifier.clickable(onClick = open) else Modifier),
             ) {
             when (card) {
