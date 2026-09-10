@@ -21,8 +21,8 @@ enum StressDayCurve {
 
     /// What the last scoring saw and produced, swapped in as ONE value.
     ///
-    /// Separate fields could tear: a second publish arriving between two assignments would read one
-    /// call's fingerprint beside another's points and serve a curve for a day it was not scored
+    /// Separate fields could tear: a second call arriving between two assignments would read one
+    /// call's fingerprint beside another's result and serve a curve for a day it was not scored
     /// against. Both callers are `@MainActor` today, so the window is narrow, but an immutable holder
     /// closes it for free.
     private struct Memo {
