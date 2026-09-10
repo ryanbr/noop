@@ -618,7 +618,7 @@ internal fun StressTodayCard(points: List<StressPoint>, modifier: Modifier = Mod
                     val peakTenths = ((stats.peak.level ?: 0.0) * 10).roundToInt().coerceIn(0, 30)
                     Text(
                         uiString(R.string.trends_peak) +
-                            " ${peakTenths / 10}.${peakTenths % 10} · ${hourLabel(peakHourOf(stats.peak))}",
+                            " ${peakTenths / 10}.${peakTenths % 10} · ${pointTimeLabel(stats.peak.ts)}",
                         style = NoopType.footnote,
                         color = Palette.textSecondary,
                     )
@@ -704,7 +704,7 @@ internal fun StressTodayCard(points: List<StressPoint>, modifier: Modifier = Mod
                 if (ticks.size >= 2) {
                     Row(modifier = Modifier.fillMaxWidth()) {
                         ticks.forEachIndexed { i, ts ->
-                            Text(hourLabel(hourOfEpoch(ts)), style = NoopType.footnote, color = textTertiary)
+                            Text(pointTimeLabel(ts), style = NoopType.footnote, color = textTertiary)
                             if (i < ticks.size - 1) Spacer(Modifier.weight(1f))
                         }
                     }
@@ -722,12 +722,18 @@ internal fun StressTodayCard(points: List<StressPoint>, modifier: Modifier = Mod
     }
 }
 
-/** Local hour-of-day for an epoch second, so the axis reads in the device's own clock. */
-private fun hourOfEpoch(ts: Long): Int =
-    java.time.Instant.ofEpochSecond(ts).atZone(java.time.ZoneId.systemDefault()).hour
-
-/** The peak's hour-of-day, resolved the same way. */
-private fun peakHourOf(p: StressPoint): Int = hourOfEpoch(p.ts)
+/**
+ * A point's clock time, in the device's own short format.
+ *
+ * NOT [hourLabel]: that renders an hour-of-day and nothing finer, which was correct while every point
+ * sat on the hour. The timeline now reads its window every half hour, so a peak at 09:30 would have
+ * been labelled "9 am" and an axis tick at 06:30 "6 am" — wrong by up to half an hour, and silently,
+ * since the number beside it would still be the right one. The widget formats the timestamp for the
+ * same reason.
+ */
+private fun pointTimeLabel(ts: Long): String =
+    java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT)
+        .format(java.util.Date(ts * 1_000L))
 
 // MARK: - Daytime autonomic-load line (gradient, same scale as the gauge)
 //
