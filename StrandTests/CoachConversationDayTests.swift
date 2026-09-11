@@ -117,4 +117,44 @@ final class CoachConversationDayTests: XCTestCase {
         let earlier = lateEvening.addingTimeInterval(-3_600)
         XCTAssertEqual(AICoachEngine.localEpochDay(earlier, calendar: la), d0)
     }
+
+    // MARK: - #2087: recovering a RESTORED transcript's day from its rows
+
+    /// `conversationDay` lives in memory, so a process restart brought it back nil, and
+    /// `isStaleConversation` treats nil as "never stale" BY DESIGN (nothing sent yet cannot be). So a
+    /// conversation restored from any previous day was never retired, by `send` or by anything else,
+    /// and the scheduled brief, which only surfaces onto an EMPTY transcript, could never appear again
+    /// after the first day. The day has to come back from the stored rows' `createdAt`.
+    ///
+    /// Twin of the Kotlin `a transcript written last night is stale after local midnight`.
+    func testATranscriptWrittenLastNightIsStaleAfterLocalMidnight() {
+        // A row written at 23:00 UTC on the 10th, the way a late-evening turn is stored.
+        var comps = DateComponents()
+        comps.year = 2026; comps.month = 9; comps.day = 10; comps.hour = 23
+        let createdAt = Int(utc.date(from: comps)!.timeIntervalSince1970)
+
+        let lastDay = AICoachEngine.localEpochDay(Date(timeIntervalSince1970: TimeInterval(createdAt)),
+                                                  calendar: utc)
+        XCTAssertEqual(lastDay, day(2026, 9, 10))
+        XCTAssertTrue(AICoachEngine.isStaleConversation(lastEpochDay: lastDay,
+                                                        todayEpochDay: day(2026, 9, 11)))
+        XCTAssertFalse(AICoachEngine.isStaleConversation(lastEpochDay: lastDay,
+                                                         todayEpochDay: day(2026, 9, 10)))
+    }
+
+    /// The newest row decides the day, not the oldest: a conversation started yesterday and continued
+    /// past midnight belongs to today, and must NOT be retired out from under the user.
+    func testTheNewestRowDecidesTheTranscriptDay() {
+        func at(_ y: Int, _ m: Int, _ d: Int, _ h: Int) -> Int {
+            var c = DateComponents(); c.year = y; c.month = m; c.day = d; c.hour = h
+            return Int(utc.date(from: c)!.timeIntervalSince1970)
+        }
+        let rows = [at(2026, 9, 10, 23), at(2026, 9, 11, 0)]
+        let newest = rows.max()!
+        let lastDay = AICoachEngine.localEpochDay(Date(timeIntervalSince1970: TimeInterval(newest)),
+                                                  calendar: utc)
+        XCTAssertEqual(lastDay, day(2026, 9, 11))
+        XCTAssertFalse(AICoachEngine.isStaleConversation(lastEpochDay: lastDay,
+                                                         todayEpochDay: day(2026, 9, 11)))
+    }
 }

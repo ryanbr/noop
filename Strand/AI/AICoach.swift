@@ -616,11 +616,23 @@ final class AICoachEngine: ObservableObject {
         didLoadPersistedMessages = true
         guard messages.isEmpty, let store = await repo.storeHandle() else { return }
         guard let rows = try? await store.coachMessages(), !rows.isEmpty else { return }
+        // Recover the day this transcript was last written on FROM THE ROWS. `conversationDay` lives in
+        // memory, so a process restart brought it back nil, and `isStaleConversation(nil, ...)` is false
+        // by design (nothing sent yet is never stale), which meant a restored conversation from any
+        // previous day was never retired, by `send` or by anything else (#2087).
+        let newest = rows.map(\.createdAt).max() ?? 0
+        let lastDay = Self.localEpochDay(Date(timeIntervalSince1970: TimeInterval(newest)))
+        // Retire by NOT restoring. The next append replaces the stored rows wholesale, so nothing is
+        // deleted here and a transcript is never destroyed by merely opening the screen.
+        guard !Self.isStaleConversation(lastEpochDay: lastDay, todayEpochDay: Self.localEpochDay()) else {
+            return
+        }
         messages = rows
             .sorted { $0.orderIndex < $1.orderIndex }
             .map { ChatMessage(id: UUID(uuidString: $0.id) ?? UUID(),
                                 role: ChatMessage.Role(rawValue: $0.role) ?? .user,
                                 text: $0.text) }
+        conversationDay = lastDay
     }
 
     /// Replace the ENTIRE persisted conversation with the current in-memory `messages`. Called once

@@ -150,7 +150,11 @@ struct CoachView: View {
         // transcript genuinely empty.
         .task {
             await coach.loadPersistedMessagesIfNeeded()
-            if let stored = CoachBriefScheduler.consumeStoredBrief() {
+            // Gated on the transcript BEFORE consuming. `consumeStoredBrief()` clears the unconsumed
+            // flag, and `surfaceScheduledBrief` then drops the text if a transcript exists, so a brief
+            // that arrived on a day with a conversation already open was consumed and thrown away, gone
+            // for good. Android checked first and so only ever failed to SHOW it (#2087).
+            if coach.messages.isEmpty, let stored = CoachBriefScheduler.consumeStoredBrief() {
                 coach.surfaceScheduledBrief(stored)
             }
             CoachBriefScheduler.activateIfEnabled { await coach.generateBrief() }

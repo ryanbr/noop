@@ -20,7 +20,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -482,8 +484,17 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
         if (_messages.value.isNotEmpty()) return
         val rows = runCatching { coachDao.coachMessages() }.getOrDefault(emptyList())
         if (rows.isEmpty()) return
+        // Recover the day this transcript was last written on FROM THE ROWS. [conversationDay] lives in
+        // memory, so a process restart brought it back null, and `isStaleConversation(null, ...)` is
+        // false by design (nothing sent yet is never stale) — which meant a restored conversation from
+        // any previous day was never retired, by [send] or by anything else (#2087).
+        val lastDay = localEpochDay(rows.maxOf { it.createdAt })
+        // Retire by NOT restoring. The next append replaces the stored rows wholesale, so nothing is
+        // deleted here and a transcript is never destroyed by merely opening the screen.
+        if (isStaleConversation(lastDay, LocalDate.now().toEpochDay())) return
         _messages.value = rows.sortedBy { it.orderIndex }
             .map { ChatMsg(id = it.id, role = it.role, text = it.text) }
+        conversationDay = lastDay
     }
 
     /** Replace the ENTIRE persisted conversation with the current in-memory [_messages]. Called once
@@ -623,6 +634,17 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
          * what's sent. (parity with Swift `maxStoredMessages`)
          */
         private const val MAX_STORED_MESSAGES = 40
+
+        /**
+         * The LOCAL epoch day an epoch-SECONDS instant falls on: the same value
+         * `LocalDate.now().toEpochDay()` yields for "now", for a stored row's `createdAt`.
+         *
+         * Zone is injectable so the rule is pinned without depending on the machine's, and the
+         * conversion goes through the calendar rather than dividing by 86 400, because a local day is
+         * not always 86 400 seconds. Twin of Swift `AICoachEngine.localEpochDay(_:calendar:)`.
+         */
+        internal fun localEpochDay(epochSeconds: Long, zone: ZoneId = ZoneId.systemDefault()): Long =
+            Instant.ofEpochSecond(epochSeconds).atZone(zone).toLocalDate().toEpochDay()
 
         /**
          * True when a transcript last written on [lastEpochDay] should be retired before a question
