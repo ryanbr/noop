@@ -4,6 +4,7 @@ import WhoopProtocol
 import WhoopStore
 import StrandAnalytics
 import StrandImport
+import OuraProtocol
 #if os(iOS)
 import UserNotifications
 #endif
@@ -571,6 +572,7 @@ final class AppModel: ObservableObject {
             registry?.setActive(serialId)
         }
         self.sourceCoordinator = coordinator
+        bindOuraFeatureStatusMirror()
         // #814 READ SPINE (HIGH-1): drive the read side off the registry's `activeDeviceId` for the WHOLE
         // session, exactly as SourceCoordinator drives the WRITE side off the SAME publisher. A Devices-
         // screen switch/remove/re-add calls `registry.setActive` DIRECTLY (NOT through `registerDevice`), so
@@ -1164,6 +1166,27 @@ final class AppModel: ObservableObject {
     /// Combine subscriptions mirroring the live Oura source's `adoptPhase` / `needsPairing` into the two
     /// published properties above. Re-bound whenever the active Oura source changes.
     private var ouraAdoptCancellables = Set<AnyCancellable>()
+
+    /// The most recent `feature status` read-back per feature id (0x04 SpO2, 0x0b real-steps, 0x03
+    /// exercise-HR, 0x0d CVA-PPG), mirrored off the live Oura source so Test Centre's enable/disable
+    /// rows can show the ring's own current state instead of being log-only. Bound once, right after
+    /// `sourceCoordinator` is set (below) — unlike `ouraAdoptPhase` above, this isn't scoped to the
+    /// adopt wizard, so it needs to be live for any paired ring, not just one mid-adopt.
+    @Published private(set) var ouraFeatureStatuses: [Int: OuraFeatureStatus] = [:]
+    private var ouraFeatureStatusCancellable: AnyCancellable?
+
+    /// (Re)bind the feature-status mirror to whichever `OuraLiveSource` the coordinator has live, and
+    /// every later swap — same `flatMap`-over-`$ouraSource` shape as `bindOuraAdoptMirror` below.
+    private func bindOuraFeatureStatusMirror() {
+        guard let coordinator = sourceCoordinator else { return }
+        ouraFeatureStatusCancellable = coordinator.$ouraSource
+            .flatMap { source -> AnyPublisher<[Int: OuraFeatureStatus], Never> in
+                source?.$featureStatuses.eraseToAnyPublisher()
+                    ?? Just([:]).eraseToAnyPublisher()
+            }
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in self?.ouraFeatureStatuses = $0 }
+    }
 
     /// Take over a factory-reset Oura ring: grant the coordinator explicit adopt consent for THIS ring (so
     /// its live session may run the one-time key install, s3.2), register it active (which starts that live

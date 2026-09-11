@@ -1226,7 +1226,17 @@ NOOP ships a **read-only** probe that asks the ring to report a feature's own st
 
 - **Shipped probes:** `spo2_status` (`2f 02 20 04`) and `realsteps_status` (`2f 02 20 0b`), sent once after `get_battery` on each connect; logged once per feature, never stored or scored.
 - **All-zero = server-gated OFF.** A gated/unavailable feature reads back `mode=0 status=0 state=0 subscription=0`. Contrast the *streaming* daytime-HR (`0x02`), which reads `mode=1 status=0x11 state=2` — so **all-zero mode/status/state is the gated signature**, not `subscription==0` alone (daytime-HR is `subscription=0` yet active).
-- **2026-07-20 Gen 3 capture:** both SpO2 (`0x04`) and real_steps (`0x0b`) returned all-zero — confirming §7.1 on live hardware. No local `setFeatureMode` can flip these; the gate is the Oura cloud `ClientConfiguration`, not the ring or NOOP.
+- **2026-07-20 Gen 3 capture:** both SpO2 (`0x04`) and real_steps (`0x0b`) returned all-zero — confirming §7.1 on live hardware. **Correction (2026-09-11): the claim that formerly stood here — "no local `setFeatureMode` can flip these" — was never actually tested.** NOOP has only ever sent the read probe (`2f 02 20 <id>`); it has never sent the enable write (`2f 03 22 <id> <mode>`), so the ring's response to that write on a gate-OFF NOOP ring is genuinely unknown, not confirmed-impossible. See §7.5 for the contradicting evidence.
+
+### 7.5 Local `setFeatureMode` enable — reported to bypass the account gate for some features (UNVALIDATED, not sent by NOOP) [open_oura-feat]
+
+`docs/ring-features.md` [open_oura-feat] reports that, on a **consumer Ring 5** with `real_steps`/`exercise_hr`/`cva_ppg`/`experimental` all reading server-gated OFF, sending the write `2f 03 22 <id> 01` (mode → automatic) directly over BLE — **with no paid membership and no server-side entitlement change** — returned success and the features stayed AUTOMATIC (verified there with a follow-up `feature-status` read). Only `research_data` (`0x01`) was rejected outright, and `raw_data` (`0x12`) accepted the mode write but its RData sampler still refused to configure (`INVALID_SUBTAG`) — so the local write does not universally defeat every entitlement, but it worked for 4 of the 5 features NOOP's §3.7 Advanced-key/paid-membership path was written to unlock.
+
+**What this does and doesn't tell us:**
+- It contradicts the §7.4 claim above at least for `real_steps`/`exercise_hr`/`cva_ppg`/`experimental` — the gate for those is not purely an Oura-cloud `ClientConfiguration` check; the ring itself will honor a local mode write regardless.
+- **SpO2 (`0x04`) is not covered by this evidence.** On the source ring, SpO2 already read AUTOMATIC by default before any write was sent — the experiment never demonstrated forcing SpO2 from a gate-OFF state, which is the case NOOP's own 2026-07-20 capture is actually in. Whether `2f 03 22 04 01` flips a gate-OFF SpO2 ring is untested by both projects.
+- The wire bytes (`2f 03 22 <id> <mode>` → `2f 03 23 <id> <status>`) are independently verifiable over BLE and are already cited into §7.1 from [ring4-ble]/[open_oura-feat]; only the *outcome of actually sending it on a gated ring* is new here. The *rationale* `ring-features.md` gives for why this works (`FeatureDefinitions.*` server-flag names, the `b0.smali` enable sequence) is attributed there to decompiled-app analysis and is cited here as background only — NOOP implements neither that code nor those literals.
+- **UNVALIDATED, not wired into NOOP**, and NOOP still does not send this write (§7.4 remains a read-only probe). Confirming this on NOOP's own hardware — including whether it moves a gate-OFF SpO2 ring — is open work; see the Test Centre proposal tracked alongside this doc.
 
 ---
 

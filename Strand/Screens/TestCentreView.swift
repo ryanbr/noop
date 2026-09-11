@@ -2,6 +2,7 @@ import SwiftUI
 import StrandDesign
 import StrandAnalytics
 import StrandImport
+import OuraProtocol
 import PolarProtocol
 import WhoopStore
 import WhoopProtocol
@@ -68,6 +69,78 @@ struct TestCentreView: View {
     @AppStorage(AppModel.ouraOnsetKeyingKey) private var ouraOnsetKeying = false
     private var ouraPaired: Bool { model.deviceRegistry?.devices.contains { $0.brand == "Oura" } ?? false }
 
+    /// The profile the 0x20 write experiment prefills from. Values are OVERRIDABLE in the field below:
+    /// the encoding is unverified, so the point is to try 175 (cm) and then 1750 (mm) without a rebuild.
+    @EnvironmentObject var profile: ProfileStore
+
+    // 0x20 user-info write EXPERIMENT (see OuraUserInfoWrite). Nothing here fires automatically.
+    @State private var userInfoField: OuraUserInfoField = .height
+    @State private var userInfoValueText = ""
+    @State private var userInfoRawHex = ""
+    @State private var showUserInfoConfirm = false
+
+    /// The value bytes the current selection would send, or nil when the entry is not usable yet.
+    /// Raw-hex mode is how the date-of-birth (age) path is probed: there is no age setter and no capture
+    /// pins the 9-byte type-5 layout, so a guess must be typed deliberately, never offered as "Age".
+    private var userInfoValueBytes: [UInt8]? {
+        if userInfoField == .dateOfBirth {
+            let cleaned = userInfoRawHex.filter { !$0.isWhitespace }
+            guard cleaned.count == userInfoField.valueByteCount * 2 else { return nil }
+            var out: [UInt8] = []
+            var idx = cleaned.startIndex
+            while idx < cleaned.endIndex {
+                let next = cleaned.index(idx, offsetBy: 2)
+                guard let b = UInt8(cleaned[idx..<next], radix: 16) else { return nil }
+                out.append(b); idx = next
+            }
+            return out
+        }
+        guard let n = UInt32(userInfoValueText.trimmingCharacters(in: .whitespaces)) else { return nil }
+        return try? OuraUserInfoWrite.encodeLE(n, width: userInfoField.valueByteCount)
+    }
+
+    /// The exact frame that would go on the wire, so it can be read BEFORE sending.
+    private var userInfoFramePreview: String {
+        guard let v = userInfoValueBytes, let cmd = try? OuraUserInfoWrite.command(userInfoField, value: v) else {
+            return "enter a value"
+        }
+        return cmd.bytes.map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// Prefill from the NOOP profile when the field changes. Sex maps through the 0x5c gender code.
+    private func prefillUserInfoValue() {
+        switch userInfoField {
+        case .height: userInfoValueText = String(Int(profile.heightCm.rounded()))
+        case .weight: userInfoValueText = String(Int(profile.weightKg.rounded()))
+        case .gender: userInfoValueText = String(OuraUserInfoWrite.genderCode(forSex: profile.sex))
+        case .unit:   userInfoValueText = "0"
+        case .dateOfBirth: userInfoValueText = ""
+        }
+    }
+
+    // Feature-mode write EXPERIMENT (see OuraCommands.setFeatureMode, OURA_PROTOCOL.md s7.5). Nothing
+    // here fires automatically. Scoped to SpO2 / real-steps / exercise-HR / CVA-PPG-sampler — the
+    // features [open_oura-feat]'s local-write evidence actually covers — and mode off/automatic only,
+    // the only mode value that evidence covers. Daytime HR and resting HR are deliberately excluded:
+    // daytime HR already has its own dedicated live-HR enable path (different mode value, 0x03
+    // connected_live, wired into wear detection — don't duplicate it here), and resting HR has no
+    // app-level toggle at all per OURA_PROTOCOL.md s7.1 (firmware-computed, no SetFeatureMode target).
+    //
+    // One Enable/Disable button PER feature (not a shared feature+mode picker pair): the combined
+    // picker made it easy to write the wrong feature by forgetting the other picker was still on its
+    // last selection. A disable round-trip (Off, confirm the ring actually reports off, then Automatic
+    // to restore) is also the only test available on a ring whose features are already
+    // account-unlocked, since a plain enable is a no-op there (2026-09-11 hardware run).
+    private struct PendingFeatureWrite: Identifiable {
+        let feature: UInt8
+        let mode: UInt8
+        var id: String { "\(feature)-\(mode)" }
+        var framePreview: String {
+            OuraCommands.setFeatureMode(feature, mode: mode).bytes.map { String(format: "%02x", $0) }.joined()
+        }
+    }
+    @State private var pendingFeatureWrite: PendingFeatureWrite?
+
     // Section 4: Experimental algorithms. Bound to the SAME PuffinExperiment keys the Android card writes, so
     // the platforms stay in lockstep. The PPG-HR sub-lag interpolation variant and the HRV-readiness readout,
     // both default OFF.
@@ -93,6 +166,7 @@ struct TestCentreView: View {
                 diagnosticToolsCard.staggeredAppear(index: 1)
                 if is5MG { rawDataCollectorCard.staggeredAppear(index: 2) }
                 if is5MG { fiveMGProtocolDiagnosticsCard.staggeredAppear(index: 3) }
+                if ouraPaired { ouraCard.staggeredAppear(index: 2) }
                 exportCard.staggeredAppear(index: 2)
                 experimentalAlgorithmsCard.staggeredAppear(index: 3)
             }
@@ -321,22 +395,207 @@ struct TestCentreView: View {
                     }
                     .tint(StrandPalette.accent)
                 }
-
-                // #1284 residual 3: experimental Oura onset keying, only when an Oura ring is paired.
-                if ouraPaired {
-                    Divider().overlay(StrandPalette.hairline)
-                    Toggle(isOn: $ouraOnsetKeying) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Oura onset keying (experimental)").font(StrandFont.body)
-                            Text("Keys each Oura sleep night on its stable 0x49 onset and suppresses duplicate re-serves at the source, instead of the shipped end-anchored persist (#1284). Off by default — a hardware-validation toggle. Watch the strap log for \u{201C}onset-key(#1284)\u{201D} lines.")
-                                .font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                    }
-                    .tint(StrandPalette.accent)
-                }
             }
         }
+    }
+
+    // MARK: - Section 2b: Oura (consolidated; only when an Oura ring is paired)
+
+    @ViewBuilder private var ouraCard: some View {
+        NoopCard {
+            VStack(alignment: .leading, spacing: NoopMetrics.space3) {
+                Text("OURA")
+                    .font(StrandFont.overline).tracking(StrandFont.overlineTracking)
+                    .foregroundStyle(StrandPalette.textSecondary)
+
+                // #1284 residual 3: experimental Oura onset keying.
+                Toggle(isOn: $ouraOnsetKeying) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Oura onset keying (experimental)").font(StrandFont.body)
+                        Text("Keys each Oura sleep night on its stable 0x49 onset and suppresses duplicate re-serves at the source, instead of the shipped end-anchored persist (#1284). Off by default — a hardware-validation toggle. Watch the strap log for \u{201C}onset-key(#1284)\u{201D} lines.")
+                            .font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .tint(StrandPalette.accent)
+
+                Divider().overlay(StrandPalette.hairline)
+                ouraUserInfoWriteBlock
+
+                Divider().overlay(StrandPalette.hairline)
+                ouraEnableFeatureBlock
+            }
+        }
+    }
+
+    /// The 0x20 user-info WRITE experiment. EXPERIMENTAL, manual, one field at a time.
+    ///
+    /// This is the only control in NOOP that writes user data to a ring. It exists to answer one
+    /// question: does a 0x20 write change what tag 0x5c reports? Nothing calls it automatically, and
+    /// deliberately NOT on connect: the value encoding is unverified, an automatic write would destroy
+    /// the clean before-state the readout depends on, and the connect/bond window is the app's most
+    /// fragile path (#1635). Read the strap log for the WRITE line, the 0x20 ACK, and the next 0x5c.
+    @ViewBuilder
+    private var ouraUserInfoWriteBlock: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Oura user-info write (experimental)").font(StrandFont.body)
+            Text("Writes one 0x20 user-info field to the ring and logs what comes back. The ring reports 0x5c as firmware defaults (40 y, 75 kg, sex unset, 176 cm) even though your Oura app profile is correct, and the Oura app never writes it. Whether 0x20 lands in 0x5c is UNKNOWN, and so is the value encoding: try 175 for cm, then 1750 for mm. Age has no setter, only date-of-birth, whose 9-byte layout is unknown, so it is raw hex only. Tested only on Gen 3 so far — Gen 5 validation is open.")
+                .font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Picker("Field", selection: $userInfoField) {
+                Text("Height").tag(OuraUserInfoField.height)
+                Text("Sex").tag(OuraUserInfoField.gender)
+                Text("Weight").tag(OuraUserInfoField.weight)
+                Text("DOB (raw)").tag(OuraUserInfoField.dateOfBirth)
+            }
+            .pickerStyle(.segmented)
+            .onChange(of: userInfoField) { _ in prefillUserInfoValue() }
+
+            if userInfoField == .dateOfBirth {
+                TextField("18 hex chars (9 bytes)", text: $userInfoRawHex)
+                    .font(StrandFont.body).textFieldStyle(.roundedBorder)
+            } else {
+                TextField("value", text: $userInfoValueText)
+                    .font(StrandFont.body).textFieldStyle(.roundedBorder)
+            }
+
+            Text("Frame: \(userInfoFramePreview)")
+                .font(StrandFont.caption).foregroundStyle(StrandPalette.textSecondary)
+
+            HStack(spacing: 12) {
+                Button("Write to ring") { showUserInfoConfirm = true }
+                    .disabled(userInfoValueBytes == nil)
+                Button("Write zeros") {
+                    _ = model.sourceCoordinator?.ouraSource?.writeUserInfo(
+                        field: userInfoField,
+                        value: [UInt8](repeating: 0, count: userInfoField.valueByteCount))
+                }
+            }
+            .font(StrandFont.body).tint(StrandPalette.accent)
+        }
+        .onAppear { if userInfoValueText.isEmpty { prefillUserInfoValue() } }
+        .alert("Write to the ring?", isPresented: $showUserInfoConfirm) {
+            Button("Cancel", role: .cancel) { }
+            Button("Write", role: .destructive) {
+                guard let v = userInfoValueBytes else { return }
+                if model.sourceCoordinator?.ouraSource?.writeUserInfo(field: userInfoField, value: v) != true {
+                    infoTitle = "Not written"
+                    infoMessage = "No connected Oura ring. Connect the ring, then try again."
+                    showInfo = true
+                }
+            }
+        } message: {
+            Text("Sends \(userInfoFramePreview) to the ring. This changes ring-side config. Restore with the firmware default (height 176, weight 75, sex 2) or write zeros.")
+        }
+    }
+
+    /// The `SetFeatureMode` WRITE experiment (`2f 03 22 <id> <mode>`) — hardware-CONFIRMED 2026-09-11:
+    /// disabling then re-enabling SpO2 flipped `mode` `1→0→1`, reproduced both directions on a real
+    /// Gen 3 ring. `docs/OURA_PROTOCOL.md` s7.5 still marks the account-gate-bypass claim itself
+    /// unvalidated (this ring was already cloud-entitled), but the write mechanism itself is proven.
+    /// Scoped to SpO2 / real-steps / exercise-HR / CVA-PPG-sampler, mode off/automatic only — daytime
+    /// HR and resting HR are deliberately excluded (see the state-var comment above).
+    ///
+    /// Each row shows the ring's OWN last-known status live (mirrored via `AppModel.ouraFeatureStatuses`
+    /// off `OuraLiveSource.featureStatuses`) — originally log-only, changed after the same hardware run
+    /// made clear that reading the strap log for every check was the wrong tradeoff for a control meant
+    /// to be poked repeatedly. The strap log still carries the WRITE line and the 0x23 ACK either way.
+    ///
+    /// One Enable/Disable button PER feature — see the state-var comment above for why this replaced
+    /// a shared feature+mode picker pair.
+    @ViewBuilder
+    private var ouraEnableFeatureBlock: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Oura feature enable (experimental)").font(StrandFont.body)
+            Text("Enables or disables SpO2, real-steps, exercise HR, or the CVA PPG sampler directly via SetFeatureMode, then re-reads the feature's status. Unvalidated on NOOP's own hardware (OURA_PROTOCOL.md \u{00A7}7.5) — a third-party report is what these buttons exist to test. Daytime HR and resting HR are deliberately not offered here: daytime HR has its own dedicated live-HR path, and resting HR has no app-level toggle at all.")
+                .font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            ouraFeatureEnableRow(label: "SpO2", feature: OuraCommands.featureSpO2)
+            ouraFeatureEnableRow(label: "Real steps", feature: OuraCommands.featureRealSteps)
+            ouraFeatureEnableRow(label: "Exercise HR", feature: OuraCommands.featureExerciseHR)
+            ouraFeatureEnableRow(label: "CVA PPG sampler", feature: OuraCommands.featureCvaPpg)
+        }
+        .alert("Write to the ring?", isPresented: Binding(
+            get: { pendingFeatureWrite != nil },
+            set: { if !$0 { pendingFeatureWrite = nil } }
+        ), presenting: pendingFeatureWrite) { pending in
+            Button("Cancel", role: .cancel) { }
+            Button("Write", role: .destructive) {
+                if model.sourceCoordinator?.ouraSource?.writeFeatureMode(feature: pending.feature, mode: pending.mode) != true {
+                    infoTitle = "Not written"
+                    infoMessage = "No connected Oura ring. Connect the ring, then try again."
+                    showInfo = true
+                }
+            }
+        } message: { pending in
+            Text("Sends \(pending.framePreview) to the ring. Unvalidated on NOOP's own hardware (OURA_PROTOCOL.md \u{00A7}7.5). Watch the strap log for the follow-up feature-status read.")
+        }
+    }
+
+    @ViewBuilder
+    private func ouraFeatureEnableRow(label: LocalizedStringKey, feature: UInt8) -> some View {
+        HStack(spacing: 12) {
+            Text(label).font(StrandFont.body)
+            Spacer()
+            Text(ouraFeatureStatusLabel(feature))
+                .font(StrandFont.caption)
+                .foregroundStyle(ouraFeatureStatusIsOn(feature) ? StrandPalette.statusPositive : StrandPalette.textTertiary)
+            Button("Enable") { pendingFeatureWrite = PendingFeatureWrite(feature: feature, mode: 0x01) }
+            Button("Disable") { pendingFeatureWrite = PendingFeatureWrite(feature: feature, mode: 0x00) }
+        }
+        .tint(StrandPalette.accent)
+    }
+
+    /// The ring's own last-known status for this feature, mirrored live off `OuraLiveSource` (never a
+    /// guess from what we last SENT — see the 2026-09-11 hardware run where a self-induced disable had
+    /// to be told apart from a genuine cloud gate). "Unknown" until the connect-time auto-probe (SpO2/
+    /// real-steps) or an explicit Enable/Disable has produced at least one read-back this connection.
+    /// `mode` is what Enable/Disable actually controls, so it drives BOTH the primary label and the
+    /// color — a real 2026-09-11 hardware run showed SpO2 correctly enabled (`mode=automatic`) read as
+    /// "still off" because the label led with `status` instead, and `status=0`'s word ("off") sat right
+    /// next to the Enable/Disable buttons, reading as a second, contradicting toggle. `status` is real
+    /// and worth showing (SpO2 samples periodically, not continuously, so `status=0` "idle" is its
+    /// NORMAL resting state even while enabled) but only as a silent-by-default qualifier, in vocabulary
+    /// that cannot be mistaken for another on/off switch — "active"/"searching"/etc, never "on"/"off".
+    private func ouraFeatureStatusLabel(_ feature: UInt8) -> String {
+        guard let st = model.ouraFeatureStatuses[Int(feature)] else { return String(localized: "Unknown") }
+        let mode = ouraFeatureModeLabel(st.mode)
+        guard let qualifier = ouraFeatureStatusQualifier(st.status) else { return mode }
+        return "\(mode) \u{00B7} \(qualifier)"
+    }
+
+    private func ouraFeatureModeLabel(_ mode: Int) -> String {
+        switch mode {
+        case 0: return String(localized: "Off")
+        case 1: return String(localized: "Automatic")
+        case 2: return String(localized: "Requested")
+        case 3: return String(localized: "Connected live")
+        default: return String(localized: "Unknown")
+        }
+    }
+
+    /// nil for status=0 ("idle") — the expected resting state for an ENABLED feature between samples,
+    /// not worth a qualifier every time. Non-nil only when the ring reports something beyond that.
+    private func ouraFeatureStatusQualifier(_ status: Int) -> String? {
+        switch status {
+        case 0: return nil
+        case 1: return String(localized: "active")
+        case 2: return String(localized: "searching")
+        case 3: return String(localized: "no PPG")
+        case 4: return String(localized: "cold")
+        case 5: return String(localized: "movement")
+        case 6: return String(localized: "identifying")
+        default: return String(localized: "unknown")
+        }
+    }
+
+    /// Colors the row on `mode` (what Enable/Disable controls), not `status` (a transient sampling
+    /// detail) — see the doc comment on `ouraFeatureStatusLabel` for why conflating the two misled a
+    /// real hardware test into reading a correctly-enabled SpO2 as still off.
+    private func ouraFeatureStatusIsOn(_ feature: UInt8) -> Bool {
+        model.ouraFeatureStatuses[Int(feature)]?.mode == 1
     }
 
     // MARK: - Section 3: Export and auto-export (manual Report + scheduled export)

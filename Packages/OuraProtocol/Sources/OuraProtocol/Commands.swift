@@ -27,6 +27,14 @@ public enum OuraCommands {
     // client asks or whether that client is cloud-authenticated. Do not assume "off for NOOP" without
     // checking a live read.
     public static let featureRealSteps: UInt8 = 0x0B
+    // The exercise-HR (AWHR) feature id — data arrives as `0x73`/`0x74`. Server-flag-gated per
+    // OURA_PROTOCOL.md s7.1 [ring4-ble]. Per s7.5, open_oura reports this one respects a local
+    // `setFeatureMode` write on a consumer ring.
+    public static let featureExerciseHR: UInt8 = 0x03
+    // The CVA PPG sampler feature id — feeds `0x81` raw PPG. Server-flag-gated per OURA_PROTOCOL.md
+    // s7.1 [ring4-ble]. Per s7.5, open_oura reports this one respects a local `setFeatureMode` write
+    // on a consumer ring.
+    public static let featureCvaPpg: UInt8 = 0x0D
 
     // MARK: - Pre-auth / identity (unauthenticated OK)
 
@@ -159,6 +167,24 @@ public enum OuraCommands {
     /// enables anything, never writes a mode. [open_oura-feat]
     public static func realStepsReadStatus() -> OuraCommand {
         OuraCommand(label: "realsteps_status", bytes: [0x2F, 0x02, 0x20, featureRealSteps])
+    }
+
+    // MARK: - Feature-mode write (s7.5; UNVALIDATED, opt-in only)
+
+    /// Read any feature's status: `2f 02 20 <id>` — same read verb as `spo2ReadStatus`/
+    /// `realStepsReadStatus`, generalized so the feature-mode write below can re-probe after writing.
+    public static func featureReadStatus(_ feature: UInt8) -> OuraCommand {
+        OuraCommand(label: "feature_status_\(String(feature, radix: 16))", bytes: [0x2F, 0x02, 0x20, feature])
+    }
+
+    /// Write a feature's MODE: `2f 03 22 <id> <mode>`. UNVALIDATED on NOOP's own hardware — see
+    /// OURA_PROTOCOL.md s7.5: [open_oura-feat] reports this write bypassing the account gate for
+    /// several features on a consumer ring, tested there only with mode=0x01 (automatic); mode=0x00
+    /// ("off") always reverts. Gated to Test Centre / explicit user action only — nothing in
+    /// `OuraDriver`'s own flow produces this call.
+    public static func setFeatureMode(_ feature: UInt8, mode: UInt8) -> OuraCommand {
+        OuraCommand(label: "EXPERIMENT_set_feature_\(String(feature, radix: 16))_mode\(mode)",
+                    bytes: [0x2F, 0x03, 0x22, feature, mode])
     }
 
     /// The ordered live-HR enable triplet (read, enable, subscribe). The driver gates each on its ACK.

@@ -112,6 +112,12 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     /// The live adopt outcome (see `AdoptPhase`). The wizard observes this to leave its Adopting step. Reset
     /// to `.idle` on every connect/stop/disconnect so a stale outcome never drives a transition.
     @Published public private(set) var adoptPhase: AdoptPhase = .idle
+    /// The most recent `feature status` read-back per feature id, keyed by `OuraFeatureStatus.feature`.
+    /// Updated on EVERY status frame received, independent of `loggedFeatureStatuses`'s once-per-
+    /// connection log dedup — Test Centre's enable/disable rows read this to show the ring's current
+    /// state, and a UI readout must never go stale just because the log line already printed once.
+    /// Cleared on `stop()` so a previously-paired ring's readings never bleed into a different one.
+    @Published public private(set) var featureStatuses: [Int: OuraFeatureStatus] = [:]
 
     // MARK: - BLE UUIDs (from the platform-pure OuraGatt facts)
 
@@ -321,6 +327,13 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     /// Feature ids whose status we have already logged this session (SpO2 0x04 / real_steps 0x0b), so the
     /// read-only feature-status diagnostic prints once per feature, not on every reconnect.
     private var loggedFeatureStatuses: Set<Int> = []
+    /// Feature ids the EXPERIMENTAL feature-mode write (`writeFeatureMode`) most recently set to mode=0
+    /// this connection. `logFeatureStatus`'s all-zero "server-gated off" label predates that write
+    /// existing — it can no longer assume all-zero means the cloud never enabled the feature, since a
+    /// self-induced disable now produces the identical bit pattern. Real-hardware confirmed 2026-09-11:
+    /// disabling SpO2 flipped mode 1→0 and the very next read logged "cloud never enabled it", which was
+    /// false — we had just enabled-then-disabled it ourselves seconds earlier.
+    private var manuallyDisabledFeatures: Set<Int> = []
     /// Product-info replies already logged this session, keyed by op+body so the #771/#772 serial/hardware
     /// capture prints each DISTINCT reply once — get_serial and get_hardware both answer under op 0x19, so a
     /// per-op guard would swallow the second (observed on-device: only the serial reached the log). Distinct
@@ -389,6 +402,17 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     /// ring sent, so after a full connect a hole in a decoded file can be pinned as a decode drop vs ring-side.
     /// No dedup (a re-serve is still evidence the ring re-sent it); the offline reframer collapses duplicates.
     private let rawDump: OuraRawDump?
+
+    // MARK: - 0x20 user-info write EXPERIMENT (default-off, Test Centre only)
+
+    /// The most recent `0x5c` `user_information` record this connection has seen, so a later one can be
+    /// reported as changed or unchanged rather than just printed. Never persisted, never scored.
+    private var lastUserInfoRecord: OuraUserInfoRecord?
+    /// The last `0x20` write this connection sent, if any: the field, the value bytes, and when. Set by
+    /// `writeUserInfo` and read only to caption the ack and the next `0x5c` — so the log can say which
+    /// record is the first one AFTER a write instead of leaving the reader to line up timestamps.
+    private var lastUserInfoWrite: (field: OuraUserInfoField, valueHex: String, at: Date)?
+
     /// Cached local-day formatter (the 0x50 stream is high-volume; avoid building one per record).
     private static let activityDayFormatter: DateFormatter = {
         let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd"; return f   // local time zone by default
@@ -1397,6 +1421,8 @@ public final class OuraLiveSource: NSObject, ObservableObject {
         pendingSyncTime = nil
         loggedTierBKinds.removeAll()
         loggedFeatureStatuses.removeAll()
+        manuallyDisabledFeatures.removeAll()
+        featureStatuses.removeAll()
         loggedProductInfo.removeAll()
         greenIbiAmpCount = 0
         greenIbiAmpLengths.removeAll()
@@ -1441,6 +1467,86 @@ public final class OuraLiveSource: NSObject, ObservableObject {
             log("Oura: -> \(cmd.label)")
             peripheral.writeValue(Data(cmd.bytes), for: writeCharacteristic, type: .withoutResponse)
         }
+    }
+
+    // MARK: - 0x20 user-info write EXPERIMENT
+
+    /// Log every `0x5c` `user_information` record the ring sends. ALWAYS-ON: `0x5c` is rare (at most one
+    /// per full drain, and zero in some), so this costs nothing when nothing happens and is the only
+    /// readout the write experiment has. Nothing here persists, scores, or acts on the values.
+    ///
+    /// Field names are [open_oura-evt]'s INFERENCE (`_status: inferred`), so the raw four bytes are
+    /// printed first and the named split second — if the inference is wrong, the log still carries the
+    /// evidence to re-derive it.
+    private func observeUserInfoRecords(in bytes: [UInt8]) {
+        for rec in scanOuraUserInfoRecords(tlvBytes: bytes) {
+            let changed = lastUserInfoRecord.map { $0.raw != rec.raw } ?? false
+            let sinceWrite = lastUserInfoWrite.map {
+                " | FIRST 0x5c since our \($0.field.label)=\($0.valueHex) write \(Int(Date().timeIntervalSince($0.at)))s ago"
+            } ?? ""
+            log("Oura: 0x5c user_information raw=\(rec.rawHex) rt=\(rec.ringTimestamp)"
+                + (rec.isFirmwareDefault ? " (FIRMWARE DEFAULTS)" : " (NOT the firmware defaults)")
+                + (changed ? " CHANGED from \(lastUserInfoRecord?.rawHex ?? "?")" : "")
+                + " | inferred [open_oura-evt]: age=\(rec.ageYears) weight=\(rec.weightKg)kg"
+                + " sex=\(rec.sexCode) height=\(rec.heightCm)cm" + sinceWrite)
+            lastUserInfoRecord = rec
+            // One readout per write is the experiment; keep the marker so a SECOND 0x5c in the same
+            // connection is not also captioned as "the first since the write".
+            if !sinceWrite.isEmpty { lastUserInfoWrite = nil }
+        }
+    }
+
+    /// Send one `0x20` user-info write. EXPERIMENT ONLY — reachable exclusively from the Test Centre
+    /// action; nothing in the connect flow or `OuraDriver` calls it, and it is never sent automatically.
+    ///
+    /// Returns false (and writes nothing) if the link is not ready, so the caller can say so rather than
+    /// silently appearing to have written. The value bytes are logged verbatim: this is a write to the
+    /// ring's own config, and a strap log that does not say exactly what went out is useless afterwards.
+    @discardableResult
+    func writeUserInfo(field: OuraUserInfoField, value: [UInt8]) -> Bool {
+        guard peripheral != nil, writeCharacteristic != nil else {
+            log("Oura: 0x20 user-info write SKIPPED - no connected ring / write characteristic")
+            return false
+        }
+        guard let cmd = try? OuraUserInfoWrite.command(field, value: value) else {
+            log("Oura: 0x20 user-info write REFUSED - \(value.count)B value, field \(field.label) wants \(field.valueByteCount)B")
+            return false
+        }
+        let valueHex = value.map { String(format: "%02x", $0) }.joined()
+        let frameHex = cmd.bytes.map { String(format: "%02x", $0) }.joined()
+        log("Oura: 0x20 user-info WRITE field=\(field.label) value=\(valueHex) frame=\(frameHex)"
+            + " - EXPERIMENT; last 0x5c seen this connection: \(lastUserInfoRecord?.rawHex ?? "none")")
+        lastUserInfoWrite = (field: field, valueHex: valueHex, at: Date())
+        write([cmd])
+        return true
+    }
+
+    /// Send one `2f 03 22 <id> <mode>` feature-mode write. EXPERIMENT ONLY — reachable exclusively from
+    /// the Test Centre "OURA" section; nothing in the connect flow or `OuraDriver` calls it, and it is
+    /// never sent automatically. UNVALIDATED per OURA_PROTOCOL.md s7.5.
+    ///
+    /// Clears any already-logged status for this feature first, so the read-status probe this method
+    /// also sends is guaranteed to log a fresh line — the connect-time SpO2/real_steps auto-probe (or an
+    /// earlier manual call) may have already consumed `logFeatureStatus`'s once-per-connection dedup for
+    /// this exact feature id.
+    @discardableResult
+    func writeFeatureMode(feature: UInt8, mode: UInt8) -> Bool {
+        guard peripheral != nil, writeCharacteristic != nil else {
+            log("Oura: feature-mode write SKIPPED - no connected ring / write characteristic")
+            return false
+        }
+        let cmd = OuraCommands.setFeatureMode(feature, mode: mode)
+        let frameHex = cmd.bytes.map { String(format: "%02x", $0) }.joined()
+        log("Oura: feature-mode WRITE feature=0x\(String(feature, radix: 16)) mode=\(mode) frame=\(frameHex)"
+            + " - EXPERIMENT, unvalidated on NOOP hardware (OURA_PROTOCOL.md s7.5)")
+        loggedFeatureStatuses.remove(Int(feature))
+        if mode == 0x00 {
+            manuallyDisabledFeatures.insert(Int(feature))
+        } else {
+            manuallyDisabledFeatures.remove(Int(feature))
+        }
+        write([cmd, OuraCommands.featureReadStatus(feature)])
+        return true
     }
 
     /// Advance the driver with a transition and write whatever it asks for next.
@@ -2056,19 +2162,34 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     /// cannot enable these offline (server ClientConfiguration gate), so a `subscription == 0` here is the
     /// honest "not a bug, it's a gate" reading. Never scored, never stored.
     private func logFeatureStatus(_ st: OuraFeatureStatus) {
+        featureStatuses[st.feature] = st
         guard loggedFeatureStatuses.insert(st.feature).inserted else { return }
         let name: String
         switch UInt8(truncatingIfNeeded: st.feature) {
         case OuraCommands.featureSpO2:      name = "SpO2 (0x04)"
         case OuraCommands.featureRealSteps: name = "real_steps (0x0b)"
         case OuraCommands.featureDaytimeHR: name = "daytime-HR (0x02)"
+        case OuraCommands.featureExerciseHR: name = "exercise-HR (0x03)"
+        case OuraCommands.featureCvaPpg:     name = "cva-ppg (0x0d)"
         default:                            name = "0x\(String(st.feature, radix: 16))"
         }
         // A gated/unavailable feature reports ALL-ZERO (mode/status/state); the streaming daytime-HR, by
         // contrast, reads mode=1 status=0x11 state=2. Flag the all-zero case as the honest "cloud never
         // enabled it" — NOT `subscription==0` alone, since daytime-HR is subscription=0 yet active.
+        //
+        // BUT all-zero is no longer proof of that: `writeFeatureMode` (s7.5) can now produce the exact
+        // same bit pattern locally. Real-hardware confirmed 2026-09-11 — disabling SpO2 flipped mode 1→0,
+        // and the unqualified "cloud never enabled it" claim below would have been false on that very
+        // read. Only make the cloud-gate claim when nothing local produced this state.
         let off = st.mode == 0 && st.status == 0 && st.state == 0
-        let gate = off ? " - INACTIVE (server-gated off; the cloud never enabled it, not emitted offline)" : ""
+        let gate: String
+        if off && manuallyDisabledFeatures.contains(st.feature) {
+            gate = " - OFF (matches the manual disable just sent this connection; not evidence of a cloud gate either way)"
+        } else if off {
+            gate = " - INACTIVE (server-gated off; the cloud never enabled it, not emitted offline)"
+        } else {
+            gate = ""
+        }
         // Name the enum fields so the log reads plainly (OURA_PROTOCOL.md s7.1 [ring4-ble]) — e.g. a gated
         // feature prints `mode=0 (off) … subscription=0 (off)`, the active daytime-HR `mode=1 (automatic)`.
         log("Oura: feature status \(name) mode=\(st.mode) (\(Self.featureModeName(st.mode))) status=\(st.status) state=\(st.state) subscription=\(st.subscription) (\(Self.subscriptionName(st.subscription)))\(gate)")
@@ -2355,6 +2476,7 @@ extension OuraLiveSource: @preconcurrency CBCentralManagerDelegate {
         pendingSyncTime = nil
         loggedTierBKinds.removeAll()
         loggedFeatureStatuses.removeAll()
+        manuallyDisabledFeatures.removeAll()
         loggedProductInfo.removeAll()
         greenIbiAmpCount = 0
         greenIbiAmpLengths.removeAll()
@@ -2441,6 +2563,7 @@ extension OuraLiveSource: @preconcurrency CBCentralManagerDelegate {
         pendingSyncTime = nil
         loggedTierBKinds.removeAll()
         loggedFeatureStatuses.removeAll()
+        manuallyDisabledFeatures.removeAll()
         loggedProductInfo.removeAll()
         greenIbiAmpCount = 0
         greenIbiAmpLengths.removeAll()
@@ -2571,6 +2694,20 @@ extension OuraLiveSource: @preconcurrency CBPeripheralDelegate {
            let resp = OuraFraming.parseSyncTimeResponse(syncFrame.body) {
             handleSyncTimeResponse(resp)
         }
+        // The `0x21` user-info reply (`21 02 <type> <result>`) to a `0x20` write — EXPERIMENT ONLY, and
+        // peeked the same non-destructive way as the 0x11/0x13/0x0D frames above (op 0x21 is below the
+        // event-tag range >= 0x41, so it round-trips through the TLV decoder as a harmless unknown-tag
+        // no-op). ALWAYS-ON rather than Test-Centre-gated: a 0x21 can only appear if this build wrote a
+        // 0x20, which nothing but an explicit Test Centre action does, so it costs nothing when nothing
+        // happens and is exactly the evidence that is missing otherwise. Reports only what the ring said
+        // — `result` is the ring accepting the WRITE, and says nothing about whether 0x5c moved.
+        if let ackFrame = frames.first(where: { $0.op == 0x21 }),
+           let ack = parseOuraUserInfoAck([ackFrame.op, UInt8(ackFrame.body.count)] + ackFrame.body) {
+            let sent = lastUserInfoWrite.map { " (we wrote \($0.field.label)=\($0.valueHex) \(Int(Date().timeIntervalSince($0.at)))s ago)" } ?? " (no 0x20 write recorded this connection)"
+            log("Oura: 0x20 user-info ACK field=\(ack.field.label) result=\(ack.result)"
+                + (ack.isSuccess ? " (accepted)" : " (REFUSED)") + sent
+                + " - ring accepted the write only; whether 0x5c changes is a separate read")
+        }
         // The `0x0D` GetBattery response is ALSO an outer frame (never a TLV record, s6.10), detected the
         // same non-destructive way as the 0x11 summary: its op is below the event-tag range (>= 0x41), so
         // it round-trips safely through the TLV decoder as an "unknown tag" no-op if left unfiltered. Routed
@@ -2622,6 +2759,7 @@ extension OuraLiveSource: @preconcurrency CBPeripheralDelegate {
                 if !dumpBytes.isEmpty {
                     rawDump?.record(bytes: dumpBytes)
                 }
+                observeUserInfoRecords(in: tlvBytes)
                 ingestHistory(driver.ingest(notification: tlvBytes, reassembler: reassembler))
             }
             return
@@ -2634,6 +2772,7 @@ extension OuraLiveSource: @preconcurrency CBPeripheralDelegate {
         if !dumpBytes.isEmpty {
             rawDump?.record(bytes: dumpBytes)
         }
+        observeUserInfoRecords(in: bytes)
         ingestHistory(driver.ingest(notification: bytes, reassembler: reassembler))
     }
 

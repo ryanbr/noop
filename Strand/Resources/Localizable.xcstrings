@@ -210533,6 +210533,180 @@
         "zh-Hans": {"stringUnit": {"state": "translated", "value": "打开趋势和读数"}},
         "zh-Hant": {"stringUnit": {"state": "translated", "value": "開啟趨勢與讀數"}}
     } },
+    "CVA PPG sampler" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CVA-PPG-Sampler"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Muestreador CVA PPG"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Échantillonneur CVA PPG"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Campionatore CVA PPG"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Próbkownik CVA PPG"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Amostrador CVA PPG"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сэмплер CVA PPG"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CVA PPG 采样器"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CVA PPG 取樣器"
+          }
+        }
+      }
+    },
+    "Disable" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deaktivieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desactivar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Désactiver"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disattiva"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wyłącz"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desativar"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отключить"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "停用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "停用"
+          }
+        }
+      }
+    },
+    "DOB (raw)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Geburtsdatum (roh)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fecha de nacimiento (bruto)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Date de naissance (brute)"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Data di nascita (grezza)"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Data urodzenia (surowe dane)"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Data de nascimento (em bruto)"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Дата рождения (необработанная)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出生日期（原始）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出生日期（原始）"
+          }
+        }
+      }
+    },
     "Earlier beats cannot be scored" : { "localizations" : {
         "de": {"stringUnit": {"state": "translated", "value": "Frühere Herzschläge nicht auswertbar"}},
         "es": {"stringUnit": {"state": "translated", "value": "Los latidos anteriores no se pueden puntuar"}},
@@ -210544,6 +210718,876 @@
         "zh-Hans": {"stringUnit": {"state": "translated", "value": "早期心跳无法评分"}},
         "zh-Hant": {"stringUnit": {"state": "translated", "value": "早期心跳無法評分"}}
     } },
+    "Enable" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktivieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activer"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Attiva"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Włącz"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ativar"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Включить"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "启用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "啟用"
+          }
+        }
+      }
+    },
+    "Enables or disables SpO2 or real-steps directly via SetFeatureMode, then re-reads the feature's status. Unvalidated on NOOP's own hardware (OURA_PROTOCOL.md §7.5) — a third-party report is what these buttons exist to test." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktiviert oder deaktiviert SpO2 oder Echte Schritte direkt per SetFeatureMode und liest danach den Funktionsstatus erneut. Auf NOOPs eigener Hardware nicht validiert (OURA_PROTOCOL.md §7.5) — diese Buttons dienen dazu, einen Bericht eines Drittanbieters zu testen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activa o desactiva SpO2 o pasos reales directamente mediante SetFeatureMode y luego vuelve a leer el estado de la función. Sin validar en el hardware propio de NOOP (OURA_PROTOCOL.md §7.5); estos botones existen para probar un informe de terceros."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Active ou désactive la SpO2 ou les pas réels directement via SetFeatureMode, puis relit le statut de la fonctionnalité. Non validé sur le matériel propre de NOOP (OURA_PROTOCOL.md §7.5) — ces boutons servent à tester un rapport d'un tiers."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Attiva o disattiva SpO2 o passi reali direttamente tramite SetFeatureMode, quindi rilegge lo stato della funzione. Non convalidato sull'hardware proprio di NOOP (OURA_PROTOCOL.md §7.5): questi pulsanti servono a verificare una segnalazione di terze parti."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Włącza lub wyłącza SpO2 albo rzeczywiste kroki bezpośrednio przez SetFeatureMode, a następnie ponownie odczytuje stan funkcji. Niezweryfikowane na własnym sprzęcie NOOP (OURA_PROTOCOL.md §7.5) — te przyciski służą do sprawdzenia doniesienia strony trzeciej."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ativa ou desativa SpO2 ou passos reais diretamente através de SetFeatureMode e depois volta a ler o estado da funcionalidade. Não validado no hardware próprio da NOOP (OURA_PROTOCOL.md §7.5) — estes botões existem para testar um relatório de terceiros."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Включает или отключает SpO2 либо реальные шаги напрямую через SetFeatureMode, затем повторно считывает статус функции. Не проверено на собственном оборудовании NOOP (OURA_PROTOCOL.md §7.5) — эти кнопки существуют для проверки стороннего отчёта."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过 SetFeatureMode 直接启用或停用血氧（SpO2）或真实步数，然后重新读取该功能的状态。尚未在 NOOP 自己的硬件上验证（OURA_PROTOCOL.md §7.5）——这些按钮的作用就是测试第三方的报告。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過 SetFeatureMode 直接啟用或停用血氧（SpO2）或真實步數，然後重新讀取該功能的狀態。尚未在 NOOP 自己的硬體上驗證（OURA_PROTOCOL.md §7.5）——這些按鈕的作用就是測試第三方的報告。"
+          }
+        }
+      }
+    },
+    "Enables or disables SpO2, real-steps, exercise HR, or the CVA PPG sampler directly via SetFeatureMode, then re-reads the feature's status. Unvalidated on NOOP's own hardware (OURA_PROTOCOL.md §7.5) — a third-party report is what these buttons exist to test. Daytime HR and resting HR are deliberately not offered here: daytime HR has its own dedicated live-HR path, and resting HR has no app-level toggle at all." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktiviert oder deaktiviert SpO2, Echte Schritte, Trainings-HF oder den CVA-PPG-Sampler direkt per SetFeatureMode und liest danach den Funktionsstatus erneut. Auf NOOPs eigener Hardware nicht validiert (OURA_PROTOCOL.md §7.5) — diese Buttons dienen dazu, einen Bericht eines Drittanbieters zu testen. Tages-HF und Ruhe-HF werden hier bewusst nicht angeboten: Tages-HF hat einen eigenen Live-HF-Pfad, und Ruhe-HF hat überhaupt keinen App-seitigen Schalter."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activa o desactiva SpO2, pasos reales, FC de ejercicio o el muestreador CVA PPG directamente mediante SetFeatureMode y luego vuelve a leer el estado de la función. Sin validar en el hardware propio de NOOP (OURA_PROTOCOL.md §7.5); estos botones existen para probar un informe de terceros. La FC diurna y la FC en reposo no se ofrecen aquí a propósito: la FC diurna tiene su propia ruta de FC en vivo, y la FC en reposo no tiene ningún interruptor a nivel de la app."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Active ou désactive la SpO2, les pas réels, la FC d'exercice ou l'échantillonneur CVA PPG directement via SetFeatureMode, puis relit le statut de la fonctionnalité. Non validé sur le matériel propre de NOOP (OURA_PROTOCOL.md §7.5) — ces boutons servent à tester un rapport d'un tiers. La FC diurne et la FC au repos ne sont volontairement pas proposées ici : la FC diurne dispose de son propre chemin de FC en direct, et la FC au repos n'a aucun interrupteur côté appli."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Attiva o disattiva SpO2, passi reali, FC da esercizio o il campionatore CVA PPG direttamente tramite SetFeatureMode, quindi rilegge lo stato della funzione. Non convalidato sull'hardware proprio di NOOP (OURA_PROTOCOL.md §7.5): questi pulsanti servono a verificare una segnalazione di terze parti. La FC diurna e la FC a riposo non sono offerte qui di proposito: la FC diurna ha un proprio percorso HR live dedicato, e la FC a riposo non ha alcun interruttore lato app."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Włącza lub wyłącza SpO2, rzeczywiste kroki, tętno wysiłkowe albo próbkownik CVA PPG bezpośrednio przez SetFeatureMode, a następnie ponownie odczytuje stan funkcji. Niezweryfikowane na własnym sprzęcie NOOP (OURA_PROTOCOL.md §7.5) — te przyciski służą do sprawdzenia doniesienia strony trzeciej. Tętno dzienne i spoczynkowe są tutaj celowo pominięte: tętno dzienne ma własną, dedykowaną ścieżkę na żywo, a tętno spoczynkowe nie ma w ogóle przełącznika po stronie aplikacji."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ativa ou desativa SpO2, passos reais, FC de exercício ou o amostrador CVA PPG diretamente através de SetFeatureMode e depois volta a ler o estado da funcionalidade. Não validado no hardware próprio da NOOP (OURA_PROTOCOL.md §7.5) — estes botões existem para testar um relatório de terceiros. A FC diurna e a FC em repouso não são propositadamente oferecidas aqui: a FC diurna tem o seu próprio percurso de FC em direto, e a FC em repouso não tem qualquer interruptor ao nível da app."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Включает или отключает SpO2, реальные шаги, ЧСС при нагрузке или сэмплер CVA PPG напрямую через SetFeatureMode, затем повторно считывает статус функции. Не проверено на собственном оборудовании NOOP (OURA_PROTOCOL.md §7.5) — эти кнопки существуют для проверки стороннего отчёта. Дневной ЧСС и ЧСС покоя здесь намеренно не предлагаются: у дневного ЧСС есть собственный выделенный путь в реальном времени, а у ЧСС покоя вообще нет переключателя на уровне приложения."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "通过 SetFeatureMode 直接启用或停用血氧（SpO2）、真实步数、运动心率或 CVA PPG 采样器，然后重新读取该功能的状态。尚未在 NOOP 自己的硬件上验证（OURA_PROTOCOL.md §7.5）——这些按钮的作用就是测试第三方的报告。此处特意不提供日间心率和静息心率：日间心率有自己专用的实时心率通路，而静息心率完全没有应用层开关。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過 SetFeatureMode 直接啟用或停用血氧（SpO2）、真實步數、運動心率或 CVA PPG 取樣器，然後重新讀取該功能的狀態。尚未在 NOOP 自己的硬體上驗證（OURA_PROTOCOL.md §7.5）——這些按鈕的作用就是測試第三方的報告。此處特意不提供日間心率和靜息心率：日間心率有自己專用的即時心率路徑，而靜息心率完全沒有應用程式層級的開關。"
+          }
+        }
+      }
+    },
+    "Exercise HR" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trainings-HF"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FC de ejercicio"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FC d'exercice"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FC da esercizio"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tętno wysiłkowe"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "FC de exercício"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ЧСС при нагрузке"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运动心率"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "運動心率"
+          }
+        }
+      }
+    },
+    "Field" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feld"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Campo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Champ"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Campo"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pole"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Campo"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Поле"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "字段"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "欄位"
+          }
+        }
+      }
+    },
+    "Frame: %@" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frame: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trama: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trame : %@"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frame: %@"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rama: %@"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frame: %@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Кадр: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "帧：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "幀：%@"
+          }
+        }
+      }
+    },
+    "Mode" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mode"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modalità"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tryb"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modo"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Режим"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模式"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "模式"
+          }
+        }
+      }
+    },
+    "OURA" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OURA"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OURA"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OURA"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OURA"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OURA"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OURA"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OURA"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OURA"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OURA"
+          }
+        }
+      }
+    },
+    "Oura feature enable (experimental)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oura-Funktion aktivieren (experimentell)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activación de funciones de Oura (experimental)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Activation de fonctionnalité Oura (expérimental)"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Attivazione funzione Oura (sperimentale)"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Włączanie funkcji Oura (eksperymentalne)"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ativação de funcionalidade Oura (experimental)"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Включение функции Oura (экспериментально)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oura 功能启用（实验性）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oura 功能啟用（實驗性）"
+          }
+        }
+      }
+    },
+    "Oura user-info write (experimental)" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oura-Nutzerinfo-Schreiben (experimentell)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escritura de información de usuario de Oura (experimental)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Écriture des infos utilisateur Oura (expérimental)"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scrittura informazioni utente Oura (sperimentale)"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zapis danych użytkownika Oura (eksperymentalne)"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escrita de informação de utilizador Oura (experimental)"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Запись данных пользователя Oura (экспериментально)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oura 用户信息写入（实验性）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oura 使用者資訊寫入（實驗性）"
+          }
+        }
+      }
+    },
+    "Real steps" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Echte Schritte"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pasos reales"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pas réels"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passi reali"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rzeczywiste kroki"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passos reais"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Реальные шаги"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "真实步数"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "真實步數"
+          }
+        }
+      }
+    },
+    "Sends %@ to the ring. This changes ring-side config. Restore with the firmware default (height 176, weight 75, sex 2) or write zeros." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sendet %@ an den Ring. Dies ändert die Konfiguration im Ring. Mit dem Firmware-Standard (Größe 176, Gewicht 75, Geschlecht 2) oder durch Schreiben von Nullen wiederherstellen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Envía %@ al anillo. Esto cambia la configuración del anillo. Restaura con el valor predeterminado de fábrica (altura 176, peso 75, sexo 2) o escribiendo ceros."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Envoie %@ à la bague. Cela modifie la configuration côté bague. Restaurez avec la valeur par défaut du firmware (taille 176, poids 75, sexe 2) ou en écrivant des zéros."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invia %@ all'anello. Questo modifica la configurazione lato anello. Ripristina con il valore predefinito del firmware (altezza 176, peso 75, sesso 2) oppure scrivendo zeri."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wysyła %@ do pierścienia. Zmienia to konfigurację po stronie pierścienia. Przywróć wartość domyślną z firmware'u (wzrost 176, waga 75, płeć 2) lub zapisz zera."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Envia %@ para o anel. Isto altera a configuração do anel. Restaure com o valor predefinido do firmware (altura 176, peso 75, sexo 2) ou escrevendo zeros."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отправляет %@ на кольцо. Это изменяет конфигурацию на стороне кольца. Восстановите значение по умолчанию из прошивки (рост 176, вес 75, пол 2) или запишите нули."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "向戒指发送 %@。这会更改戒指端的配置。可通过恢复固件默认值（身高 176、体重 75、性别 2）或写入零值来还原。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "向戒指傳送 %@。這會變更戒指端的設定。可透過還原韌體預設值（身高 176、體重 75、性別 2）或寫入零值來復原。"
+          }
+        }
+      }
+    },
+    "Sends %@ to the ring. Unvalidated on NOOP's own hardware (OURA_PROTOCOL.md §7.5). Mode 0x00 always reverts. Watch the strap log for the follow-up feature-status read." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sendet %@ an den Ring. Auf NOOPs eigener Hardware nicht validiert (OURA_PROTOCOL.md §7.5). Modus 0x00 stellt immer den ursprünglichen Zustand wieder her. Achte im Strap-Log auf das anschließende Feature-Status-Lesen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Envía %@ al anillo. Sin validar en el hardware propio de NOOP (OURA_PROTOCOL.md §7.5). El modo 0x00 siempre revierte el cambio. Consulta el registro de la correa para ver la lectura de estado de función posterior."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Envoie %@ à la bague. Non validé sur le matériel propre de NOOP (OURA_PROTOCOL.md §7.5). Le mode 0x00 revient toujours à l'état initial. Consultez le journal du bracelet pour la lecture de statut de fonctionnalité qui suit."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invia %@ all'anello. Non convalidato sull'hardware proprio di NOOP (OURA_PROTOCOL.md §7.5). La modalità 0x00 ripristina sempre lo stato precedente. Controlla il log del cinturino per la successiva lettura dello stato della funzione."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wysyła %@ do pierścienia. Niezweryfikowane na własnym sprzęcie NOOP (OURA_PROTOCOL.md §7.5). Tryb 0x00 zawsze przywraca poprzedni stan. Sprawdź dziennik opaski, aby zobaczyć kolejny odczyt stanu funkcji."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Envia %@ para o anel. Não validado no hardware próprio da NOOP (OURA_PROTOCOL.md §7.5). O modo 0x00 reverte sempre. Consulte o registo da pulseira para a leitura de estado da funcionalidade que se segue."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отправляет %@ на кольцо. Не проверено на собственном оборудовании NOOP (OURA_PROTOCOL.md §7.5). Режим 0x00 всегда возвращает исходное состояние. Смотрите журнал ремешка, чтобы увидеть последующее чтение статуса функции."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "向戒指发送 %@。尚未在 NOOP 自己的硬件上验证（OURA_PROTOCOL.md §7.5）。模式 0x00 总是可以还原。请查看表带日志中随后的功能状态读取记录。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "向戒指傳送 %@。尚未在 NOOP 自己的硬體上驗證（OURA_PROTOCOL.md §7.5）。模式 0x00 一律可以復原。請查看錶帶記錄中隨後的功能狀態讀取。"
+          }
+        }
+      }
+    },
+    "Sends %@ to the ring. Unvalidated on NOOP's own hardware (OURA_PROTOCOL.md §7.5). Watch the strap log for the follow-up feature-status read." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sendet %@ an den Ring. Auf NOOPs eigener Hardware nicht validiert (OURA_PROTOCOL.md §7.5). Achte im Strap-Log auf das anschließende Feature-Status-Lesen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Envía %@ al anillo. Sin validar en el hardware propio de NOOP (OURA_PROTOCOL.md §7.5). Consulta el registro de la correa para ver la lectura de estado de función posterior."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Envoie %@ à la bague. Non validé sur le matériel propre de NOOP (OURA_PROTOCOL.md §7.5). Consultez le journal du bracelet pour la lecture de statut de fonctionnalité qui suit."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invia %@ all'anello. Non convalidato sull'hardware proprio di NOOP (OURA_PROTOCOL.md §7.5). Controlla il log del cinturino per la successiva lettura dello stato della funzione."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wysyła %@ do pierścienia. Niezweryfikowane na własnym sprzęcie NOOP (OURA_PROTOCOL.md §7.5). Sprawdź dziennik opaski, aby zobaczyć kolejny odczyt stanu funkcji."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Envia %@ para o anel. Não validado no hardware próprio da NOOP (OURA_PROTOCOL.md §7.5). Consulte o registo da pulseira para a leitura de estado da funcionalidade que se segue."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отправляет %@ на кольцо. Не проверено на собственном оборудовании NOOP (OURA_PROTOCOL.md §7.5). Смотрите журнал ремешка, чтобы увидеть последующее чтение статуса функции."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "向戒指发送 %@。尚未在 NOOP 自己的硬件上验证（OURA_PROTOCOL.md §7.5）。请查看表带日志中随后的功能状态读取记录。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "向戒指傳送 %@。尚未在 NOOP 自己的硬體上驗證（OURA_PROTOCOL.md §7.5）。請查看錶帶記錄中隨後的功能狀態讀取。"
+          }
+        }
+      }
+    },
+    "Sends a SetFeatureMode write for SpO2 or real-steps, then re-reads the feature's status. Unvalidated on NOOP's own hardware (OURA_PROTOCOL.md §7.5) — a third-party report is what this button exists to test. Mode “off” always reverts." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sendet einen SetFeatureMode-Schreibbefehl für SpO2 oder Echte Schritte und liest den Funktionsstatus danach erneut. Auf NOOPs eigener Hardware nicht validiert (OURA_PROTOCOL.md §7.5) — dieser Button dient dazu, einen Bericht eines Drittanbieters zu testen. Modus „aus“ stellt immer den ursprünglichen Zustand wieder her."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Envía una escritura SetFeatureMode para SpO2 o pasos reales y vuelve a leer el estado de la función. Sin validar en el hardware propio de NOOP (OURA_PROTOCOL.md §7.5); este botón existe para probar un informe de terceros. El modo \"desactivado\" siempre revierte el cambio."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Envoie une écriture SetFeatureMode pour la SpO2 ou les pas réels, puis relit le statut de la fonctionnalité. Non validé sur le matériel propre de NOOP (OURA_PROTOCOL.md §7.5) — ce bouton sert à tester un rapport d'un tiers. Le mode « désactivé » revient toujours à l'état initial."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invia una scrittura SetFeatureMode per SpO2 o passi reali, quindi rilegge lo stato della funzione. Non convalidato sull'hardware proprio di NOOP (OURA_PROTOCOL.md §7.5): questo pulsante serve a verificare una segnalazione di terze parti. La modalità \"off\" ripristina sempre lo stato precedente."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wysyła zapis SetFeatureMode dla SpO2 lub rzeczywistych kroków, a następnie ponownie odczytuje stan funkcji. Niezweryfikowane na własnym sprzęcie NOOP (OURA_PROTOCOL.md §7.5) — ten przycisk służy do sprawdzenia doniesienia strony trzeciej. Tryb „off” zawsze przywraca poprzedni stan."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Envia uma escrita SetFeatureMode para SpO2 ou passos reais e volta a ler o estado da funcionalidade. Não validado no hardware próprio da NOOP (OURA_PROTOCOL.md §7.5) — este botão existe para testar um relatório de terceiros. O modo \"desligado\" reverte sempre."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Отправляет запись SetFeatureMode для SpO2 или реальных шагов, затем повторно считывает статус функции. Не проверено на собственном оборудовании NOOP (OURA_PROTOCOL.md §7.5) — эта кнопка существует для проверки стороннего отчёта. Режим «выкл.» всегда возвращает исходное состояние."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "发送针对血氧（SpO2）或真实步数的 SetFeatureMode 写入，然后重新读取该功能的状态。尚未在 NOOP 自己的硬件上验证（OURA_PROTOCOL.md §7.5）——此按钮的作用就是测试第三方的报告。“关闭”模式总是可以还原。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "傳送針對血氧（SpO2）或真實步數的 SetFeatureMode 寫入，然後重新讀取該功能的狀態。尚未在 NOOP 自己的硬體上驗證（OURA_PROTOCOL.md §7.5）——此按鈕的作用就是測試第三方的報告。「關閉」模式一律可以復原。"
+          }
+        }
+      }
+    },
     "This night was recorded before NOOP labelled which WHOOP 5 transport each heartbeat came from, so its intervals mix two different units with nothing stored to tell them apart. The night stays in your history, and nights recorded from now on score normally." : { "localizations" : {
         "de": {"stringUnit": {"state": "translated", "value": "Diese Nacht wurde aufgezeichnet, bevor NOOP festhielt, über welchen WHOOP-5-Übertragungsweg jeder Herzschlag kam. Ihre Intervalle mischen deshalb zwei verschiedene Einheiten, und es ist nichts gespeichert, was sie unterscheidbar macht. Die Nacht bleibt in deinem Verlauf, und ab jetzt aufgezeichnete Nächte werden normal bewertet."}},
         "es": {"stringUnit": {"state": "translated", "value": "Esta noche se registró antes de que NOOP etiquetara de qué transporte de WHOOP 5 procedía cada latido, así que sus intervalos mezclan dos unidades distintas y no hay nada guardado que permita distinguirlas. La noche permanece en tu historial y las noches registradas a partir de ahora se puntúan con normalidad."}},
@@ -210625,6 +211669,296 @@
         "zh-Hans": {"stringUnit": {"state": "translated", "value": "打开压力详情"}},
         "zh-Hant": {"stringUnit": {"state": "translated", "value": "開啟壓力詳情"}}
     } },
+    "Write" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schreiben"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escribir"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Écrire"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scrivi"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zapisz"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escrever"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Записать"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "写入"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "寫入"
+          }
+        }
+      }
+    },
+    "Write to ring" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An den Ring schreiben"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escribir en el anillo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Écrire dans la bague"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scrivi sull'anello"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zapisz do pierścienia"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escrever no anel"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Записать в кольцо"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "写入戒指"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "寫入戒指"
+          }
+        }
+      }
+    },
+    "Write to the ring?" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "An den Ring schreiben?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Escribir en el anillo?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Écrire dans la bague ?"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scrivere sull'anello?"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zapisać do pierścienia?"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escrever no anel?"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Записать в кольцо?"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "写入戒指？"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "寫入戒指？"
+          }
+        }
+      }
+    },
+    "Write zeros" : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nullen schreiben"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escribir ceros"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Écrire des zéros"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scrivi zeri"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zapisz zera"
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escrever zeros"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Записать нули"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "写入零值"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "寫入零值"
+          }
+        }
+      }
+    },
+    "Writes one 0x20 user-info field to the ring and logs what comes back. The ring reports 0x5c as firmware defaults (40 y, 75 kg, sex unset, 176 cm) even though your Oura app profile is correct, and the Oura app never writes it. Whether 0x20 lands in 0x5c is UNKNOWN, and so is the value encoding: try 175 for cm, then 1750 for mm. Age has no setter, only date-of-birth, whose 9-byte layout is unknown, so it is raw hex only. Tested only on Gen 3 so far — Gen 5 validation is open." : {
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schreibt ein 0x20-Nutzerinfo-Feld an den Ring und protokolliert die Antwort. Der Ring meldet bei 0x5c die Firmware-Standardwerte (40 J, 75 kg, Geschlecht nicht gesetzt, 176 cm), obwohl dein Oura-App-Profil korrekt ist, und die Oura-App schreibt es nie. Ob 0x20 tatsächlich in 0x5c landet, ist UNBEKANNT, ebenso die Werte-Kodierung: versuche 175 für cm, dann 1750 für mm. Für das Alter gibt es keinen Setter, nur das Geburtsdatum, dessen 9-Byte-Layout unbekannt ist, also nur als Roh-Hex. Bisher nur auf Gen 3 getestet — die Validierung für Gen 5 steht noch aus."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escribe un campo de información de usuario 0x20 en el anillo y registra la respuesta. El anillo informa en 0x5c los valores predeterminados de fábrica (40 años, 75 kg, sexo sin definir, 176 cm) aunque el perfil de tu app Oura sea correcto, y la app Oura nunca lo escribe. Se DESCONOCE si 0x20 llega a 0x5c, al igual que la codificación del valor: prueba 175 para cm, luego 1750 para mm. La edad no tiene un método de escritura, solo la fecha de nacimiento, cuyo formato de 9 bytes es desconocido, así que solo se admite en hexadecimal bruto. Probado solo en Gen 3 por ahora; la validación en Gen 5 sigue pendiente."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Écrit un champ d'informations utilisateur 0x20 dans la bague et journalise la réponse. La bague indique dans 0x5c les valeurs par défaut du firmware (40 ans, 75 kg, sexe non défini, 176 cm) même si le profil de votre appli Oura est correct, et l'appli Oura ne l'écrit jamais. On ignore si 0x20 se répercute dans 0x5c, tout comme l'encodage de la valeur : essayez 175 pour les cm, puis 1750 pour les mm. L'âge n'a pas de méthode d'écriture, seulement la date de naissance, dont la structure sur 9 octets est inconnue, donc en hexadécimal brut uniquement. Testé pour l'instant uniquement sur la Gen 3 — la validation sur la Gen 5 reste à faire."
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Scrive un campo informazioni utente 0x20 sull'anello e registra la risposta. L'anello riporta in 0x5c i valori predefiniti del firmware (40 anni, 75 kg, sesso non impostato, 176 cm) anche se il profilo della tua app Oura è corretto, e l'app Oura non lo scrive mai. Non è NOTO se 0x20 arrivi effettivamente a 0x5c, così come non è nota la codifica del valore: prova 175 per i cm, poi 1750 per i mm. L'età non ha un setter, solo la data di nascita, il cui layout a 9 byte è sconosciuto, quindi va inserita solo come esadecimale grezzo. Finora testato solo su Gen 3 — la convalida su Gen 5 è ancora aperta."
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zapisuje jedno pole informacji o użytkowniku 0x20 do pierścienia i rejestruje odpowiedź. Pierścień zgłasza w 0x5c wartości domyślne z firmware'u (40 lat, 75 kg, płeć nieustawiona, 176 cm), mimo że profil w aplikacji Oura jest poprawny, a aplikacja Oura nigdy go nie zapisuje. Czy 0x20 trafia do 0x5c, NIE WIADOMO, podobnie jak kodowanie wartości: spróbuj 175 dla cm, potem 1750 dla mm. Wiek nie ma settera, jest tylko data urodzenia, której 9-bajtowy układ jest nieznany, więc tylko surowy hex. Do tej pory testowane tylko na Gen 3 — walidacja na Gen 5 pozostaje otwarta."
+          }
+        },
+        "pt-PT" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escreve um campo de informação de utilizador 0x20 no anel e regista o que é devolvido. O anel comunica em 0x5c os valores predefinidos do firmware (40 anos, 75 kg, sexo não definido, 176 cm) mesmo que o perfil da sua app Oura esteja correto, e a app Oura nunca o escreve. Se 0x20 chega a 0x5c é DESCONHECIDO, tal como a codificação do valor: experimente 175 para cm, depois 1750 para mm. A idade não tem escrita própria, apenas a data de nascimento, cujo esquema de 9 bytes é desconhecido, por isso é só em hexadecimal em bruto. Testado apenas em Gen 3 até agora — a validação em Gen 5 está em aberto."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Записывает одно поле пользовательской информации 0x20 на кольцо и регистрирует ответ. Кольцо сообщает в 0x5c значения по умолчанию из прошивки (40 лет, 75 кг, пол не задан, 176 см), даже если профиль в приложении Oura указан верно, а приложение Oura никогда его не записывает. НЕИЗВЕСТНО, попадает ли 0x20 в 0x5c, как и кодировка значения: попробуйте 175 для см, затем 1750 для мм. У возраста нет метода записи, есть только дата рождения, 9-байтовый формат которой неизвестен, поэтому только необработанный hex. Пока проверено только на Gen 3 — проверка на Gen 5 ещё предстоит."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "向戒指写入一个 0x20 用户信息字段并记录返回内容。即使你的 Oura App 中的个人资料是正确的，戒指在 0x5c 中报告的仍是固件默认值（40 岁、75 公斤、性别未设置、176 厘米），且 Oura App 从不写入该字段。0x20 是否真的写入了 0x5c 尚不清楚，数值的编码方式也不清楚：先尝试厘米值 175，再尝试毫米值 1750。年龄没有写入方式，只能通过出生日期写入，其 9 字节的结构尚不清楚，因此只能使用原始十六进制。目前仅在 Gen 3 上测试过——Gen 5 的验证仍待完成。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "向戒指寫入一個 0x20 使用者資訊欄位並記錄傳回內容。即使你的 Oura App 中的個人資料正確無誤，戒指在 0x5c 中回報的仍是韌體預設值（40 歲、75 公斤、性別未設定、176 公分），且 Oura App 從不寫入該欄位。0x20 是否真的寫入了 0x5c 目前尚不清楚，數值的編碼方式也不清楚：先嘗試公分值 175，再嘗試公釐值 1750。年齡沒有寫入方式，只能透過出生日期寫入，其 9 位元組的結構尚不清楚，因此只能使用原始十六進位。目前僅在 Gen 3 上測試過——Gen 5 的驗證仍待完成。"
+          }
+        }
+      }
+    },
     "On: your charge, rest, HRV and workouts are sent to the provider, each workout with its sport, duration, distance and heart rate." : { "localizations" : {
         "de": {"stringUnit": {"state": "translated", "value": "An: Ladung, Erholung, HRV und Workouts gehen an den Anbieter, jedes Workout mit Sportart, Dauer, Distanz und Herzfrequenz."}},
         "en": {"stringUnit": {"state": "translated", "value": "On: your charge, rest, HRV and workouts are sent to the provider, each workout with its sport, duration, distance and heart rate."}},
