@@ -143,6 +143,17 @@ public final class OuraLiveSource: NSObject, ObservableObject {
         (8...24).contains(s.count) && s.allSatisfy { $0.isLetter || $0.isNumber }
     }
 
+    /// Re-encode outer frames for the raw diagnostics sidecar, dropping `productInfoResponseOps` —
+    /// a GetProductInfo reply's body IS the ring's serial/hardware string in plain ASCII, and the
+    /// sidecar's redaction pass only ever masks the JSON envelope's `deviceId`, never bytes inside a
+    /// frame body. Found via a #2075 reporter's attachment, whose `oura-raw.jsonl` carried a stable
+    /// 16-digit identifier this way, unredacted, into a public issue. Never touches decode: only what
+    /// `rawDump?.record` sees changes.
+    nonisolated static func rawDumpBytes(_ frames: [OuraOuterFrame]) -> [UInt8] {
+        frames.filter { !productInfoResponseOps.contains($0.op) }
+              .flatMap { [$0.op, UInt8($0.body.count)] + $0.body }
+    }
+
     /// Local-time formatter for logging a decoded date/time next to a raw ring-tick cursor value, so a
     /// number like "1178203" reads as an actual date instead of an opaque tick count. Logging only.
     private static let cursorDateFormatter: DateFormatter = {
@@ -2552,16 +2563,22 @@ extension OuraLiveSource: @preconcurrency CBPeripheralDelegate {
             }
             // Any non-secure outer frames in the same notification are TLV records; fall through to decode.
             // The 0x25 ack (if any) is consumed above, so it never reaches here.
-            let tlvBytes = frames.filter { $0.op != OuraFraming.secureSessionOp && $0.op != Self.setAuthKeyRespOp }
-                                 .flatMap { [$0.op, UInt8($0.body.count)] + $0.body }
+            let nonSecureFrames = frames.filter { $0.op != OuraFraming.secureSessionOp && $0.op != Self.setAuthKeyRespOp }
+            let tlvBytes = nonSecureFrames.flatMap { [$0.op, UInt8($0.body.count)] + $0.body }
             if !tlvBytes.isEmpty {
-                rawDump?.record(bytes: tlvBytes)
+                let dumpBytes = Self.rawDumpBytes(nonSecureFrames)
+                if !dumpBytes.isEmpty {
+                    rawDump?.record(bytes: dumpBytes)
+                }
                 ingestHistory(driver.ingest(notification: tlvBytes, reassembler: reassembler))
             }
             return
         }
         // No secure frame in this notification: treat the whole value as TLV record bytes.
-        rawDump?.record(bytes: bytes)
+        let dumpBytes = Self.rawDumpBytes(frames)
+        if !dumpBytes.isEmpty {
+            rawDump?.record(bytes: dumpBytes)
+        }
         ingestHistory(driver.ingest(notification: bytes, reassembler: reassembler))
     }
 
