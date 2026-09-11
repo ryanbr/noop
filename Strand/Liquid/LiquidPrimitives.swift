@@ -191,12 +191,15 @@ enum LiquidRender {
         func px(_ i: Int) -> Double { pad + Double(i) * (w - 2 * pad) / Double(n - 1) }
         func py(_ v: Double) -> Double { h - pad - (v - mn) / span * (h - 2 * pad) }
         func appendRun(_ p: inout Path, _ lo: Int, _ hi: Int) {
-            // A lone bucket between two gaps is real data. A bare `move` strokes nothing, so give the round
-            // cap a zero-length line to draw: without it an isolated reading would silently vanish, which
-            // is the same class of lie as the joined line this change removes.
+            // A lone bucket between two gaps is real data, and it has to draw as something. A bare `move`
+            // strokes nothing at all, and a ZERO-length line is at the mercy of whether the renderer keeps
+            // a degenerate subpath alive for its round cap. Give it a hair of width instead, so the cap has
+            // something to round and the reading is a dot rather than a coin flip. Losing it would be the
+            // same class of lie as the joined line this change removes: data on screen that is not there.
             guard hi > lo else {
-                p.move(to: CGPoint(x: px(lo), y: py(values[lo])))
-                p.addLine(to: CGPoint(x: px(lo), y: py(values[lo])))
+                let x = px(lo), y = py(values[lo])
+                p.move(to: CGPoint(x: x - 0.6, y: y))
+                p.addLine(to: CGPoint(x: x + 0.6, y: y))
                 return
             }
             p.move(to: CGPoint(x: px(lo), y: py(values[lo])))
@@ -206,11 +209,14 @@ enum LiquidRender {
             }
             p.addLine(to: CGPoint(x: px(hi), y: py(values[hi])))
         }
+        // Resolved ONCE, outside `curve()`. That closure is called twice per frame and this runs inside a
+        // 60fps TimelineView, so leaving the walk in there re-split the whole series 120 times a second for
+        // an answer that cannot change between strokes.
+        // One run when nothing says otherwise, and that run is the exact path this drew before.
+        var runs: [ClosedRange<Int>] = [0...(n - 1)]
+        if let segs = segments, segs.count == n { runs = hrGapRuns(segments: segs) }
         func curve() -> Path {
             var p = Path()
-            // One run when nothing says otherwise, and that run is the exact path this drew before.
-            var runs: [ClosedRange<Int>] = [0...(n - 1)]
-            if let segs = segments, segs.count == n { runs = hrGapRuns(segments: segs) }
             for r in runs { appendRun(&p, r.lowerBound, r.upperBound) }
             return p
         }
