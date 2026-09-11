@@ -62,12 +62,6 @@ internal object HrTraceRenderer {
         val usableH = (h - strokePx).coerceAtLeast(1f)
         fun px(p: HrTrace.Pt) = p.x to (inset + p.y / h * usableH)
 
-        val line = Path()
-        points.forEachIndexed { i, p ->
-            val (x, y) = px(p)
-            if (i == 0) line.moveTo(x, y) else line.lineTo(x, y)
-        }
-
         // A single point has no line to stroke, so give it a dot — otherwise a widget placed this
         // minute renders as an empty chart, which reads as "no data" rather than "one reading".
         if (points.size == 1) {
@@ -79,11 +73,38 @@ internal object HrTraceRenderer {
             return bmp
         }
 
+        // Draw a run at a time, lifting the pen across the gaps. x is mapped by TIME, so a gap already
+        // occupies its true width; it was only the line drawn across it that was never measured.
+        val line = Path()
+        val fill = Path()
+        for (r in HrTrace.runs(points)) {
+            val (x0, y0) = px(points[r.first])
+            if (r.first == r.last) {
+                // A lone reading between two gaps has no segment to stroke, so give it a hair of width
+                // and let the round cap render it as the dot it is rather than dropping it silently.
+                // Held a full dot inside the bitmap: the likeliest lone run of all is the NEWEST reading
+                // after a long disconnect, which sits exactly on the right edge.
+                val dx = x0.coerceIn(strokePx, (w.toFloat() - strokePx).coerceAtLeast(strokePx))
+                line.moveTo(dx - inset, y0)
+                line.lineTo(dx + inset, y0)
+            } else {
+                line.moveTo(x0, y0)
+                for (i in (r.first + 1)..r.last) {
+                    val (x, y) = px(points[i])
+                    line.lineTo(x, y)
+                }
+            }
+            // Each run closes its own area, so the gradient stops at the gap along with the line.
+            fill.moveTo(x0, h.toFloat())
+            for (i in r) {
+                val (x, y) = px(points[i])
+                fill.lineTo(x, y)
+            }
+            fill.lineTo(px(points[r.last]).first, h.toFloat())
+            fill.close()
+        }
+
         // Fill first, so the stroke sits on top of its own gradient rather than under it.
-        val fill = Path(line)
-        fill.lineTo(points.last().x, h.toFloat())
-        fill.lineTo(points.first().x, h.toFloat())
-        fill.close()
         canvas.drawPath(fill, Paint().apply {
             isAntiAlias = true
             isDither = true   // 565 bands a smooth ramp without it

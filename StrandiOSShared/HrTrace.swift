@@ -37,6 +37,13 @@ public enum HrTrace {
     /// behind a trace a few hundred points wide, which costs space and buys nothing the eye resolves.
     public static let bucketSec: Int64 = 60
 
+    /// What counts as a GAP: nothing recorded for five minutes. Deliberately more forgiving than the
+    /// Today chart's "more than one bucket", because that chart reads a fixed DB grid where a missing
+    /// bucket really is missing data, while this series only gains a point when the app publishes one.
+    /// Background scheduling routinely skips a minute, and at a one-bucket threshold that jitter would
+    /// shatter an ordinary trace into dots — far worse than the joined-across-a-gap line being fixed.
+    public static let gapSec: Int64 = 5 * bucketSec
+
     /// Hard cap, so a clock jump backwards cannot grow the series without bound.
     public static let maxPoints = 200
 
@@ -83,9 +90,37 @@ public enum HrTrace {
     }
 
     /// A point in the trace's drawing box, origin top-left.
+    ///
+    /// `startsRun` means LIFT THE PEN before this point: nothing was recorded for `gapSec` before it.
+    /// The trace joined every point unconditionally, and because x is mapped by TIME rather than by
+    /// index, a 90-minute disconnect inside the 3-hour window drew as one confident diagonal across
+    /// half the widget. The gap was already the right width; it was the line across it that was never
+    /// measured: the same defect #2082 describes on the Today sparkline, on a second surface.
     public struct Pt: Equatable {
         public let x: CGFloat
         public let y: CGFloat
+        public let startsRun: Bool
+
+        public init(x: CGFloat, y: CGFloat, startsRun: Bool = false) {
+            self.x = x
+            self.y = y
+            self.startsRun = startsRun
+        }
+    }
+
+    /// The trace split into runs of consecutive readings: each range is a stretch the strap recorded
+    /// without a break, and the pen lifts between one run and the next. A series with no gaps is one
+    /// run, which is the common case and draws exactly as it always did.
+    public static func runs(_ points: [Pt]) -> [ClosedRange<Int>] {
+        guard !points.isEmpty else { return [] }
+        var out: [ClosedRange<Int>] = []
+        var start = 0
+        for i in 1..<points.count where points[i].startsRun {
+            out.append(start...(i - 1))
+            start = i
+        }
+        out.append(start...(points.count - 1))
+        return out
     }
 
     /// The trace as coordinates inside a `width` x `height` box.
@@ -110,10 +145,10 @@ public enum HrTrace {
             if p.bpm > hi { hi = p.bpm }
         }
         let range = CGFloat(hi - lo)
-        return series.map { p in
+        return series.enumerated().map { i, p in
             let x = span <= 0 ? 0 : CGFloat(p.ts - t0) / span * width
             let y = range <= 0 ? height / 2 : height - CGFloat(p.bpm - lo) / range * height
-            return Pt(x: x, y: y)
+            return Pt(x: x, y: y, startsRun: i > 0 && p.ts - series[i - 1].ts > gapSec)
         }
     }
 

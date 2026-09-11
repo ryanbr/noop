@@ -58,12 +58,37 @@ private struct HrTraceShape: Shape {
             path.addEllipse(in: CGRect(x: max(first.x, r) - r, y: first.y - r, width: r * 2, height: r * 2))
             return path
         }
-        path.move(to: CGPoint(x: first.x, y: first.y))
-        for p in pts.dropFirst() { path.addLine(to: CGPoint(x: p.x, y: p.y)) }
-        if filled {
-            path.addLine(to: CGPoint(x: pts[pts.count - 1].x, y: rect.maxY))
-            path.addLine(to: CGPoint(x: first.x, y: rect.maxY))
-            path.closeSubpath()
+        // Draw a run at a time, lifting the pen across the gaps. x is mapped by TIME, so a gap already
+        // occupies its true width; it was only the line drawn across it that was never measured.
+        for run in HrTrace.runs(pts) {
+            let head = pts[run.lowerBound]
+            guard run.lowerBound != run.upperBound else {
+                // A lone reading between two gaps is not a line either, and gets the same dot the
+                // single-point series above does.
+                if !filled {
+                    // Held a full dot inside the box: the likeliest lone run of all is the NEWEST
+                    // reading after a long disconnect, which sits exactly on the right edge.
+                    let dot: CGFloat = 2.5
+                    let cx = min(max(head.x, dot), max(rect.maxX - dot, dot))
+                    path.addEllipse(in: CGRect(x: cx - dot, y: head.y - dot,
+                                               width: dot * 2, height: dot * 2))
+                }
+                continue
+            }
+            // Each run closes its own area, so the gradient stops at the gap along with the line.
+            if filled {
+                path.move(to: CGPoint(x: head.x, y: rect.maxY))
+                path.addLine(to: CGPoint(x: head.x, y: head.y))
+            } else {
+                path.move(to: CGPoint(x: head.x, y: head.y))
+            }
+            for i in (run.lowerBound + 1)...run.upperBound {
+                path.addLine(to: CGPoint(x: pts[i].x, y: pts[i].y))
+            }
+            if filled {
+                path.addLine(to: CGPoint(x: pts[run.upperBound].x, y: rect.maxY))
+                path.closeSubpath()
+            }
         }
         return path
     }

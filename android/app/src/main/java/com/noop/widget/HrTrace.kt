@@ -24,6 +24,13 @@ object HrTrace {
      *  a trace 300 pixels wide, which costs prefs space and buys nothing the eye can resolve. */
     const val BUCKET_SEC: Long = 60
 
+    /** What counts as a GAP: nothing recorded for five minutes. Deliberately more forgiving than the
+     *  Today chart's "more than one bucket", because that chart reads a fixed DB grid where a missing
+     *  bucket really is missing data, while this series only gains a point when the app publishes one.
+     *  Background scheduling routinely skips a minute, and at a one-bucket threshold that jitter would
+     *  shatter an ordinary trace into dots — far worse than the joined-across-a-gap line being fixed. */
+    const val GAP_SEC: Long = 5 * BUCKET_SEC
+
     /** Hard cap, so a clock jump backwards cannot grow the series without bound. WINDOW_SEC/BUCKET_SEC
      *  is 180; the slack absorbs a boundary point without letting the list run away. */
     const val MAX_POINTS: Int = 200
@@ -161,8 +168,31 @@ object HrTrace {
      */
     const val WIDTH_HEADROOM: Float = 2f
 
-    /** A point in the trace's pixel box, origin top-left, as the renderer wants it. */
-    data class Pt(val x: Float, val y: Float)
+    /** A point in the trace's pixel box, origin top-left, as the renderer wants it.
+     *
+     *  [startsRun] means LIFT THE PEN before this point: nothing was recorded for [GAP_SEC] before it.
+     *  The renderer joined every point unconditionally, and because x is mapped by TIME rather than by
+     *  index, a 90-minute disconnect inside the 3-hour window drew as one confident diagonal across
+     *  half the widget. The gap was already the right width; it was the line across it that was never
+     *  measured: the same defect #2082 describes on the Today sparkline, on a second surface. */
+    data class Pt(val x: Float, val y: Float, val startsRun: Boolean = false)
+
+    /** The trace split into runs of consecutive readings: each range is a stretch the strap recorded
+     *  without a break, and the pen lifts between one run and the next. A series with no gaps is one
+     *  run, which is the common case and draws exactly as it always did. */
+    fun runs(points: List<Pt>): List<IntRange> {
+        if (points.isEmpty()) return emptyList()
+        val out = mutableListOf<IntRange>()
+        var start = 0
+        for (i in 1 until points.size) {
+            if (points[i].startsRun) {
+                out.add(start..(i - 1))
+                start = i
+            }
+        }
+        out.add(start..(points.size - 1))
+        return out
+    }
 
     /**
      * The trace as pixels inside a `width` x `height` box.
@@ -189,10 +219,10 @@ object HrTrace {
             if (p.bpm > hi) hi = p.bpm
         }
         val range = (hi - lo).toFloat()
-        return series.map { p ->
+        return series.mapIndexed { i, p ->
             val x = if (span <= 0f) 0f else (p.ts - t0) / span * width
             val y = if (range <= 0f) height / 2f else height - (p.bpm - lo) / range * height
-            Pt(x, y)
+            Pt(x, y, startsRun = i > 0 && p.ts - series[i - 1].ts > GAP_SEC)
         }
     }
 
