@@ -319,8 +319,14 @@ fun DevicesScreen(
                 // macOS pairs this with a "last frame" half that Android cannot show yet: it has no
                 // lastFrameAtUnix to read. That belongs with the other ConnectionReadout functions this
                 // platform computes and does not surface, not smuggled in here.
-                liveClockLine = clockState?.first?.let { "Clock latched: ${it.value}" },
-                liveClockWarning = clockState?.second,
+                // ACTIVE card only, like liveHistoryLayout above. clockState describes the ONE strap the
+                // link belongs to, so on a two-strap install an ungated line would have printed the
+                // active strap's verdict on the inactive strap's card, which is a diagnostic answering
+                // for a device it never observed.
+                liveClockLine = if (device.status == DeviceStatus.active.name)
+                    clockState?.first?.let { "Clock latched: ${it.value}" } else null,
+                liveClockWarning = if (device.status == DeviceStatus.active.name)
+                    clockState?.second else null,
                 onMakeActive = { switchTarget = device },
                 onRename = { renameTarget = device },
                 onRemove = { removeTarget = device },
