@@ -5166,8 +5166,7 @@ private fun RecoveryContributorsSection(day: DailyMetric?, carriedDay: DailyMetr
                 color = Palette.sleepDeep,
             )
             Text(
-                uiString(R.string.l10n_today_screen_baselines_learned_on_device_over_14_359f6812) +
-                    " signal against a typical adult range, not medical advice.",
+                uiString(R.string.today_recovery_vitals_explanation),
                 style = NoopType.footnote,
                 color = Palette.textTertiary,
             )

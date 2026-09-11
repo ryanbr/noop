@@ -2174,6 +2174,7 @@
     <string name="today_section_menstrual_cycle">Ciclo menstrual</string>
     <string name="today_section_journal">Diario</string>
     <string name="today_section_added_cards">Tarjetas añadidas</string>
+    <string name="today_recovery_vitals_explanation">Las referencias se aprenden en el dispositivo durante 14 días. Cada barra muestra una estimación de una señal frente al intervalo típico de un adulto; no es consejo médico.</string>
     <string name="today_hr_window_today">Hoy</string>
     <string name="today_hr_window_24h">24 h</string>
     <string name="today_hr_window_12h">12 h</string>

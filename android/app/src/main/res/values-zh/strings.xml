@@ -2674,4 +2674,5 @@
     <string name="coach_consent_on">开启：你的充能、休息、HRV 和训练会发送给服务商，每次训练包含运动类型、时长、距离和心率。</string>
     <string name="coach_consent_off">关闭：教练只作一般性回答，不发送你的任何数据。</string>
     <string name="l10n_app_changelog_a_today_screen_you_arrange_yourself_6194ccd0">可自行编排的「今天」页面、主屏幕上的压力曲线，以及会自我校验的备份</string>
+    <string name="today_recovery_vitals_explanation">设备会在 14 天内学习基准值。每个条形图表示一项信号相对于典型成人范围的近似读数；这些信息不构成医疗建议。</string>
 </resources>

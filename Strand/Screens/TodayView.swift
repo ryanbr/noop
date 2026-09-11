@@ -5653,7 +5653,7 @@ private struct RecordingStatusLight: View {
     private var syncingAccessibilityLabel: String {
         let n = live.syncChunksThisSession
         return n > 0
-            ? String(localized: "Syncing strap history, chunk \(n)")
+            ? String(localized: "Syncing strap history, \(n) chunks")
             : String(localized: "Syncing strap history")
     }
 }

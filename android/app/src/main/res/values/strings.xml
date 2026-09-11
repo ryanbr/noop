@@ -2295,6 +2295,7 @@
     <string name="today_section_menstrual_cycle">Menstrual Cycle</string>
     <string name="today_section_journal">Journal</string>
     <string name="today_section_added_cards">Added Cards</string>
+    <string name="today_recovery_vitals_explanation">Baselines are learned on-device over 14 days. Each bar is an approximate reading of one signal against a typical adult range, not medical advice.</string>
     <string name="today_hr_window_today">Today</string>
     <string name="today_hr_window_24h">24h</string>
     <string name="today_hr_window_12h">12h</string>

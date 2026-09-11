@@ -1,6 +1,186 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "%lld added": { "localizations": {
+      "de": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld hinzugefügt" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld hinzugefügt" } }
+      } } },
+      "en": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld added" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld added" } }
+      } } },
+      "es": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld añadida" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld añadidas" } }
+      } } },
+      "fr": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld ajoutée" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld ajoutées" } }
+      } } },
+      "pt-PT": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld adicionado" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld adicionados" } }
+      } } },
+      "it": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld elemento aggiunto" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld elementi aggiunti" } }
+      } } },
+      "pl": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld dodany element" } },
+        "few": { "stringUnit": { "state": "translated", "value": "%lld dodane elementy" } },
+        "many": { "stringUnit": { "state": "translated", "value": "%lld dodanych elementów" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld dodanego elementu" } }
+      } } },
+      "ru": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld элемент добавлен" } },
+        "few": { "stringUnit": { "state": "translated", "value": "%lld элемента добавлено" } },
+        "many": { "stringUnit": { "state": "translated", "value": "%lld элементов добавлено" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld элемента добавлено" } }
+      } } },
+      "zh-Hans": { "variations": { "plural": {
+        "other": { "stringUnit": { "state": "translated", "value": "已添加 %lld 项" } }
+      } } },
+      "zh-Hant": { "variations": { "plural": {
+        "other": { "stringUnit": { "state": "translated", "value": "已加入 %lld 項" } }
+      } } }
+    } },
+    "%lld cards shown": { "localizations": {
+      "de": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld Karte angezeigt" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld Karten angezeigt" } }
+      } } },
+      "en": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld card shown" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld cards shown" } }
+      } } },
+      "es": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld tarjeta mostrada" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld tarjetas mostradas" } }
+      } } },
+      "fr": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld carte affichée" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld cartes affichées" } }
+      } } },
+      "pt-PT": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld cartão apresentado" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld cartões apresentados" } }
+      } } },
+      "it": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld scheda mostrata" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld schede mostrate" } }
+      } } },
+      "pl": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld karta wyświetlana" } },
+        "few": { "stringUnit": { "state": "translated", "value": "%lld karty wyświetlane" } },
+        "many": { "stringUnit": { "state": "translated", "value": "%lld kart wyświetlanych" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld karty wyświetlanej" } }
+      } } },
+      "ru": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld карточка показана" } },
+        "few": { "stringUnit": { "state": "translated", "value": "%lld карточки показаны" } },
+        "many": { "stringUnit": { "state": "translated", "value": "%lld карточек показано" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld карточки показано" } }
+      } } },
+      "zh-Hans": { "variations": { "plural": {
+        "other": { "stringUnit": { "state": "translated", "value": "已显示 %lld 张卡片" } }
+      } } },
+      "zh-Hant": { "variations": { "plural": {
+        "other": { "stringUnit": { "state": "translated", "value": "已顯示 %lld 張卡片" } }
+      } } }
+    } },
+    "%lld metrics shown": { "localizations": {
+      "de": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld Messwert angezeigt" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld Messwerte angezeigt" } }
+      } } },
+      "en": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld metric shown" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld metrics shown" } }
+      } } },
+      "es": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld métrica mostrada" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld métricas mostradas" } }
+      } } },
+      "fr": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld mesure affichée" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld mesures affichées" } }
+      } } },
+      "pt-PT": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld métrica apresentada" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld métricas apresentadas" } }
+      } } },
+      "it": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld metrica mostrata" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld metriche mostrate" } }
+      } } },
+      "pl": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld wskaźnik wyświetlany" } },
+        "few": { "stringUnit": { "state": "translated", "value": "%lld wskaźniki wyświetlane" } },
+        "many": { "stringUnit": { "state": "translated", "value": "%lld wskaźników wyświetlanych" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld wskaźnika wyświetlanego" } }
+      } } },
+      "ru": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld показатель отображается" } },
+        "few": { "stringUnit": { "state": "translated", "value": "%lld показателя отображаются" } },
+        "many": { "stringUnit": { "state": "translated", "value": "%lld показателей отображаются" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld показателя отображается" } }
+      } } },
+      "zh-Hans": { "variations": { "plural": {
+        "other": { "stringUnit": { "state": "translated", "value": "已显示 %lld 项指标" } }
+      } } },
+      "zh-Hant": { "variations": { "plural": {
+        "other": { "stringUnit": { "state": "translated", "value": "已顯示 %lld 項指標" } }
+      } } }
+    } },
+    "Added to Today": { "localizations": {
+      "de": { "stringUnit": { "state": "translated", "value": "Zu „Heute“ hinzugefügt" } },
+      "en": { "stringUnit": { "state": "translated", "value": "Added to Today" } },
+      "es": { "stringUnit": { "state": "translated", "value": "Añadidas a Hoy" } },
+      "fr": { "stringUnit": { "state": "translated", "value": "Ajoutées à Aujourd’hui" } },
+      "pt-PT": { "stringUnit": { "state": "translated", "value": "Adicionados a Hoje" } }
+      ,"it": { "stringUnit": { "state": "translated", "value": "Aggiunti a Oggi" } }
+      ,"pl": { "stringUnit": { "state": "translated", "value": "Dodane do widoku Dzisiaj" } }
+      ,"ru": { "stringUnit": { "state": "translated", "value": "Добавлено в раздел «Сегодня»" } }
+      ,"zh-Hans": { "stringUnit": { "state": "translated", "value": "已添加到“今天”" } }
+      ,"zh-Hant": { "stringUnit": { "state": "translated", "value": "已加入「今天」" } }
+    } },
+    "Available": { "localizations": {
+      "de": { "stringUnit": { "state": "translated", "value": "Verfügbar" } },
+      "en": { "stringUnit": { "state": "translated", "value": "Available" } },
+      "es": { "stringUnit": { "state": "translated", "value": "Disponibles" } },
+      "fr": { "stringUnit": { "state": "translated", "value": "Disponibles" } },
+      "pt-PT": { "stringUnit": { "state": "translated", "value": "Disponíveis" } }
+      ,"it": { "stringUnit": { "state": "translated", "value": "Disponibili" } }
+      ,"pl": { "stringUnit": { "state": "translated", "value": "Dostępne" } }
+      ,"ru": { "stringUnit": { "state": "translated", "value": "Доступные" } }
+      ,"zh-Hans": { "stringUnit": { "state": "translated", "value": "可用" } }
+      ,"zh-Hant": { "stringUnit": { "state": "translated", "value": "可用" } }
+    } },
+    "None added yet": { "localizations": {
+      "de": { "stringUnit": { "state": "translated", "value": "Noch keine hinzugefügt" } },
+      "en": { "stringUnit": { "state": "translated", "value": "None added yet" } },
+      "es": { "stringUnit": { "state": "translated", "value": "Aún no se ha añadido ninguna" } },
+      "fr": { "stringUnit": { "state": "translated", "value": "Aucune carte ajoutée" } },
+      "pt-PT": { "stringUnit": { "state": "translated", "value": "Ainda não foi adicionado nenhum" } }
+      ,"it": { "stringUnit": { "state": "translated", "value": "Nessun elemento ancora aggiunto" } }
+      ,"pl": { "stringUnit": { "state": "translated", "value": "Nie dodano jeszcze żadnych elementów" } }
+      ,"ru": { "stringUnit": { "state": "translated", "value": "Пока ничего не добавлено" } }
+      ,"zh-Hans": { "stringUnit": { "state": "translated", "value": "尚未添加任何项目" } }
+      ,"zh-Hant": { "stringUnit": { "state": "translated", "value": "尚未加入任何項目" } }
+    } },
+    "Shown on Today": { "localizations": {
+      "de": { "stringUnit": { "state": "translated", "value": "Auf „Heute“ angezeigt" } },
+      "en": { "stringUnit": { "state": "translated", "value": "Shown on Today" } },
+      "es": { "stringUnit": { "state": "translated", "value": "Mostradas en Hoy" } },
+      "fr": { "stringUnit": { "state": "translated", "value": "Affichées dans Aujourd’hui" } },
+      "pt-PT": { "stringUnit": { "state": "translated", "value": "Apresentados em Hoje" } }
+      ,"it": { "stringUnit": { "state": "translated", "value": "Mostrati in Oggi" } }
+      ,"pl": { "stringUnit": { "state": "translated", "value": "Wyświetlane w widoku Dzisiaj" } }
+      ,"ru": { "stringUnit": { "state": "translated", "value": "Показано в разделе «Сегодня»" } }
+      ,"zh-Hans": { "stringUnit": { "state": "translated", "value": "显示在“今天”中" } }
+      ,"zh-Hant": { "stringUnit": { "state": "translated", "value": "顯示於「今天」" } }
+    } },
     "Heart rate, no reading": { "localizations": {
       "de": { "stringUnit": { "state": "translated", "value": "Herzfrequenz, keine Messung" } }, "en": { "stringUnit": { "state": "translated", "value": "Heart rate, no reading" } }, "es": { "stringUnit": { "state": "translated", "value": "Frecuencia cardíaca, sin lectura" } }, "fr": { "stringUnit": { "state": "translated", "value": "Fréquence cardiaque, aucune mesure" } }, "it": { "stringUnit": { "state": "translated", "value": "Frequenza cardiaca, nessuna lettura" } }, "pl": { "stringUnit": { "state": "translated", "value": "Tętno, brak odczytu" } }, "pt-PT": { "stringUnit": { "state": "translated", "value": "Frequência cardíaca, sem leitura" } }, "ru": { "stringUnit": { "state": "translated", "value": "Пульс, нет данных" } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "心率，无读数" } }, "zh-Hant": { "stringUnit": { "state": "translated", "value": "心率，無讀數" } }
     } },
@@ -8392,7 +8572,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "%lld Chunks"
+            "value": "%lld Datenblöcke"
           }
         },
         "es": {
@@ -8450,7 +8630,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "%lld Chunks geladen"
+            "value": "%lld Datenblöcke übertragen"
           }
         },
         "es": {
@@ -12930,8 +13110,8 @@
     "%lld workouts": {
       "localizations": {
         "de": { "variations": { "plural": {
-          "one": { "stringUnit": { "state": "translated", "value": "%lld Workout" } },
-          "other": { "stringUnit": { "state": "translated", "value": "%lld Workouts" } }
+          "one": { "stringUnit": { "state": "translated", "value": "%lld Training" } },
+          "other": { "stringUnit": { "state": "translated", "value": "%lld Trainings" } }
         } } },
         "en": { "variations": { "plural": {
           "one": { "stringUnit": { "state": "translated", "value": "%lld workout" } },
@@ -41462,7 +41642,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kalibrierung"
+            "value": "Wird kalibriert …"
           }
         },
         "en": {
@@ -58114,7 +58294,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Detaillierte Fliesen"
+            "value": "Detaillierte Kacheln"
           }
         },
         "es": {
@@ -72843,7 +73023,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Guten Nachmittag"
+            "value": "Guten Tag"
           }
         },
         "es": {
@@ -79070,7 +79250,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Stunden vs. Bedarf"
+            "value": "Schlafdauer im Vergleich zum Bedarf"
           }
         },
         "en": {
@@ -81073,7 +81253,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Flüssigkeit"
+            "value": "Flüssigkeitszufuhr"
           }
         },
         "en": {
@@ -86941,7 +87121,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kernmetriken"
+            "value": "Wichtige Messwerte"
           }
         },
         "en": {
@@ -89499,7 +89679,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aktuellste"
+            "value": "Zuletzt"
           }
         },
         "en": {
@@ -89563,7 +89743,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Neueste Workouts"
+            "value": "Neueste Trainings"
           }
         },
         "en": {
@@ -99789,7 +99969,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Meist über dem Zielbereich - härter, als dein heutiger Charge-Wert tragen konnte."
+            "value": "Meist über dem Zielbereich - härter, als dein heutiger Energiewert tragen konnte."
           }
         },
         "es": {
@@ -105431,7 +105611,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Heute ist kein Charge-Wert erfasst, daher wählt dein Zielbereich einen vorsichtigen Mittelweg: %lld–%lld bpm."
+            "value": "Heute ist kein Energiewert erfasst, daher wählt dein Zielbereich einen vorsichtigen Mittelweg: %lld–%lld bpm."
           }
         },
         "es": {
@@ -109450,7 +109630,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Noch keine Workouts"
+            "value": "Noch keine Trainings"
           }
         },
         "es": {
@@ -110816,7 +110996,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Noch nicht genug Nächte."
+            "value": "Noch nicht genügend Nächte erfasst."
           }
         },
         "en": {
@@ -126413,7 +126593,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Readiness: %@"
+            "value": "Bereitschaft: %@"
           }
         },
         "es": {
@@ -126471,7 +126651,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Readiness: %1$@. %2$@"
+            "value": "Bereitschaft: %1$@. %2$@"
           }
         },
         "en": {
@@ -127319,7 +127499,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lesungen"
+            "value": "Messwerte"
           }
         },
         "es": {
@@ -134970,7 +135150,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zurück zum Workout"
+            "value": "Zurück zum Training"
           }
         },
         "es": {
@@ -137812,7 +137992,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "SYNTHESE"
+            "value": "ZUSAMMENFASSUNG"
           }
         },
         "es": {
@@ -143716,7 +143896,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Stilles Strap-Coaching anhand deiner heutigen Charge."
+            "value": "Stilles Strap-Coaching anhand deiner heutigen Energie."
           }
         },
         "es": {
@@ -146370,7 +146550,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Schlafdefizit-Bilanz"
+            "value": "Schlafdefizit"
           }
         },
         "es": {
@@ -147936,7 +148116,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Squarer-Kacheln mit einem Trendgraphen unter der Bar."
+            "value": "Größere Kacheln mit einem Trenddiagramm unter dem Balken."
           }
         },
         "es": {
@@ -148110,7 +148290,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Phasen vs. typisch"
+            "value": "Schlafphasen im Vergleich zum Üblichen"
           }
         },
         "en": {
@@ -148586,7 +148766,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Starte eine Live-Session. Beta. Stilles Strap-Coaching gegen deinen heutigen Charge-Wert."
+            "value": "Live-Training starten. Beta. Stilles Strap-Coaching anhand deiner heutigen Energie."
           }
         },
         "es": {
@@ -149282,7 +149462,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sitzung starten"
+            "value": "Training starten"
           }
         },
         "en": {
@@ -155064,7 +155244,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Synchronisiert aus"
+            "value": "Synchronisiert von"
           }
         },
         "es": {
@@ -155122,7 +155302,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Synchronisiert aus: %@"
+            "value": "Synchronisiert von: %@"
           }
         },
         "es": {
@@ -155180,7 +155360,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Synchronisiert"
+            "value": "Wird synchronisiert …"
           }
         },
         "es": {
@@ -155305,13 +155485,13 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "Verlaufssynchronisierung des Straps läuft, %lld Chunk"
+                  "value": "Verlaufssynchronisierung des Straps läuft, %lld Datenblock"
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "Verlaufssynchronisierung des Straps läuft, %lld Chunks"
+                  "value": "Verlaufssynchronisierung des Straps läuft, %lld Datenblöcke"
                 }
               }
             }
@@ -155467,6 +155647,20 @@
             "value": "Synchronizowanie historii pasków, fragmenty %lld"
           }
         }
+      }
+    },
+    "Pending sync · strap history still offloading": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Synchronisierung ausstehend · Strap-Verlauf wird noch übertragen" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Pending sync · strap history still offloading" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Sincronización pendiente · el historial de la correa aún se está transfiriendo" } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Synchronisation en attente · l’historique du bracelet est toujours en cours de transfert" } },
+        "it": { "stringUnit": { "state": "translated", "value": "Sincronizzazione in sospeso · trasferimento della cronologia del cinturino ancora in corso" } },
+        "pl": { "stringUnit": { "state": "translated", "value": "Synchronizacja oczekuje · historia opaski jest nadal przesyłana" } },
+        "pt-PT": { "stringUnit": { "state": "translated", "value": "Sincronização pendente · o histórico da pulseira ainda está a ser transferido" } },
+        "ru": { "stringUnit": { "state": "translated", "value": "Ожидание синхронизации · история ремешка ещё передаётся" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "等待同步 · 表带历史记录仍在传输" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "等待同步 · 錶帶歷史記錄仍在傳輸" } }
       }
     },
     "Pending sync": {
@@ -155782,7 +155976,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Synthese"
+            "value": "Zusammenfassung"
           }
         },
         "es": {
@@ -170844,7 +171038,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "WORKOUT LÄUFT"
+            "value": "TRAINING LÄUFT"
           }
         },
         "es": {
@@ -177765,7 +177959,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Workouts"
+            "value": "Trainings"
           }
         },
         "en": {
@@ -182056,7 +182250,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Deine Werte stimmen überein und deine Belastung ist gedeckt. Eine härtere Einheit ist heute gut abgesichert."
+            "value": "Deine Signale passen zusammen und dein Körper verkraftet die Belastung. Heute spricht nichts gegen eine härtere Einheit."
           }
         },
         "es": {

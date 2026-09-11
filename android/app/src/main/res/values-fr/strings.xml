@@ -2173,6 +2173,7 @@
     <string name="today_section_menstrual_cycle">Cycle menstruel</string>
     <string name="today_section_journal">Journal de bord</string>
     <string name="today_section_added_cards">Cartes ajoutées</string>
+    <string name="today_recovery_vitals_explanation">Les valeurs de référence sont apprises sur l’appareil pendant 14 jours. Chaque barre donne une estimation d’un signal par rapport à la plage habituelle d’un adulte ; il ne s’agit pas d’un avis médical.</string>
     <string name="today_hr_window_today">Aujourd’hui</string>
     <string name="today_hr_window_24h">24 h</string>
     <string name="today_hr_window_12h">12 h</string>
