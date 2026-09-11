@@ -196,6 +196,13 @@ object BackupSync {
             DataBackup.exportTo(context, fileUri)
             fileUri
         }.getOrElse {
+            // Deleting here on an UNVERIFIABLE verdict is DELIBERATE, and is the opposite of what the
+            // manual export does with the same verdict. The two contexts want opposite answers: a file
+            // the user chose the location for is theirs to keep and inspect, and they are told so, while
+            // a file in THIS folder silently becomes `latest` in a rotation whose older snapshots are
+            // still intact, with nobody watching to notice it was never confirmed. A snapshot that was
+            // never read back is not one to hand the restore path by default; the next run writes
+            // another.
             runCatching { DocumentsContract.deleteDocument(resolver, fileUri) }
             null
         }
