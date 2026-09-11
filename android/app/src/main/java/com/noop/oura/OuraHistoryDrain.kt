@@ -114,11 +114,19 @@ class OuraHistoryDrain {
     /**
      * The cursor to persist at drain end, given the current cursor and whether [maxStoredRingTime]
      * resolves under the CURRENT anchor. A reboot ([sawPreResumeData]) resets to 0 (honest full pull
-     * next connect); otherwise the cursor advances to [maxStoredRingTime] only if it moved forward AND
-     * resolves. Unchanged in every other case.
+     * next connect) UNLESS [anchorConfirmsContinuity] says the ring's own clock never paused (#2097) —
+     * in that case the stale replay came from something other than a power-cycle (observed: a second
+     * BLE client serving the ring in between), so it is treated like ordinary stale data: discarded,
+     * cursor left to the same forward-only-if-resolving rule as any other drain. Otherwise the cursor
+     * advances to [maxStoredRingTime] only if it moved forward AND resolves; unchanged in every other
+     * case.
      */
-    fun resumeCursorAtDrainEnd(currentCursor: Long, resolvesUnderAnchor: Boolean): Long {
-        if (sawPreResumeData) return 0
+    fun resumeCursorAtDrainEnd(
+        currentCursor: Long,
+        resolvesUnderAnchor: Boolean,
+        anchorConfirmsContinuity: Boolean = false,
+    ): Long {
+        if (sawPreResumeData && !anchorConfirmsContinuity) return 0
         if (maxStoredRingTime > currentCursor && resolvesUnderAnchor) return maxStoredRingTime
         return currentCursor
     }
@@ -145,5 +153,56 @@ class OuraHistoryDrain {
          */
         fun sanitizeLoadedCursor(persisted: Long): Long =
             if (persisted in 0..MAX_PLAUSIBLE_RESUME_TICKS) persisted else 0
+
+        /** The ring's clock tick rate (OURA_PROTOCOL.md s5.5: 100 ms/tick by default). Used only by
+         *  [anchorsAreContinuous], never by ring-time -> UTC conversion (that stays in [OuraDriver]). */
+        const val RING_TICKS_PER_SECOND = 10.0
+
+        /**
+         * Ordinary jitter tolerance for [anchorsAreContinuous] (#2097): how far the ring's clock may
+         * appear to fall behind wall-clock across a gap before it counts as a real power-cycle pause
+         * rather than anchor-receipt latency noise (BLE round-trip variance on the two receipt
+         * timestamps). A genuine power-cycle pause is measured in minutes (13m41s observed on one
+         * dead-battery reboot) — nowhere close to this margin, so it stays generous without risking a
+         * false "continuous" read.
+         */
+        const val ANCHOR_CONTINUITY_MAX_PAUSE_SECONDS = 20.0
+
+        /** Minimum wall-clock gap [anchorsAreContinuous] will judge; below this a few seconds of
+         *  receipt-latency noise would dominate the rate measurement, so it declines rather than
+         *  guessing. */
+        const val ANCHOR_CONTINUITY_MIN_GAP_SECONDS = 30.0
+
+        /**
+         * Whether two `0x13 SyncTime` anchors observed across a connect-to-connect gap are consistent
+         * with the ring's clock having ticked continuously the whole time — i.e. NOT a genuine
+         * power-cycle (#2097). Byte-identical twin of Swift's `OuraHistoryDrain.anchorsAreContinuous`.
+         *
+         * [sawPreResumeData] alone cannot tell a real ring reboot from a second BLE client (e.g. the
+         * Oura app) having served the ring in between and left our resume cursor looking stale: both
+         * produce the identical "a stored sample is older than where we sought" signature. But a real
+         * power-cycle does not reset the ring's free-running tick counter toward zero — it PAUSES it
+         * while the ring is off (measured: a dead-battery reboot lost 13m41s of ticks against
+         * wall-clock) — so comparing elapsed ring-ticks against elapsed wall-clock across the gap
+         * distinguishes the two: continuous ticking means nothing paused the ring's clock.
+         *
+         * Declines to judge (returns `false`, the safe default that keeps the "treat as reboot"
+         * behavior) when the gap is too short to measure meaningfully, or when [current] somehow
+         * precedes [previous] in ring-ticks (never observed; not a continuity claim either way).
+         */
+        fun anchorsAreContinuous(
+            previousRingTicks: Long,
+            previousUnixSeconds: Long,
+            currentRingTicks: Long,
+            currentUnixSeconds: Long,
+        ): Boolean {
+            val wallDelta = (currentUnixSeconds - previousUnixSeconds).toDouble()
+            if (wallDelta < ANCHOR_CONTINUITY_MIN_GAP_SECONDS || currentRingTicks < previousRingTicks) {
+                return false
+            }
+            val ringSeconds = (currentRingTicks - previousRingTicks).toDouble() / RING_TICKS_PER_SECOND
+            val fellBehindBy = wallDelta - ringSeconds
+            return fellBehindBy <= ANCHOR_CONTINUITY_MAX_PAUSE_SECONDS
+        }
     }
 }

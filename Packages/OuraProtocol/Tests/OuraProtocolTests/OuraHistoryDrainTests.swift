@@ -104,6 +104,74 @@ final class OuraHistoryDrainTests: XCTestCase {
                        "a reboot forces 0 (full pull) even if a forward sample also arrived")
     }
 
+    // MARK: #2097 - a SyncTime anchor confirming clock continuity overrides the reboot reset
+
+    func testAnchorConfirmsContinuityKeepsCursorInsteadOfFullReset() {
+        var d = OuraHistoryDrain()
+        d.noteStoredRingTime(500, resumeCursorAtFetchStart: 1000) // stale sample -> sawPreResumeData
+        XCTAssertTrue(d.sawPreResumeData)
+        XCTAssertEqual(d.resumeCursorAtDrainEnd(currentCursor: 1000, resolvesUnderAnchor: true,
+                                                 anchorConfirmsContinuity: true), 1000,
+                       "continuity confirmed (#2097): not a reboot - discard the stale replay, keep the cursor")
+    }
+
+    func testAnchorConfirmsContinuityStillAdvancesOnRealForwardProgress() {
+        var d = OuraHistoryDrain()
+        d.noteStoredRingTime(3_453_828, resumeCursorAtFetchStart: 1000) // forward...
+        d.noteStoredRingTime(500, resumeCursorAtFetchStart: 1000)       // ...plus a stale replay
+        XCTAssertTrue(d.sawPreResumeData)
+        XCTAssertEqual(d.resumeCursorAtDrainEnd(currentCursor: 1000, resolvesUnderAnchor: true,
+                                                 anchorConfirmsContinuity: true), 3_453_828,
+                       "continuity confirmed: genuine forward progress still commits normally")
+    }
+
+    func testAnchorContinuityDefaultsToOldRebootBehaviorWhenOmitted() {
+        var d = OuraHistoryDrain()
+        d.noteStoredRingTime(500, resumeCursorAtFetchStart: 1000)
+        XCTAssertEqual(d.resumeCursorAtDrainEnd(currentCursor: 1000, resolvesUnderAnchor: true), 0,
+                       "omitting anchorConfirmsContinuity must not change today's behavior")
+    }
+
+    // MARK: #2097 - anchorsAreContinuous (the SyncTime anchor comparison itself)
+
+    func testAnchorsAreContinuousOnTheReal20260911N2Gap() {
+        // The witnessed n=2 occurrence: 12:29:26 -> 14:00:02 local, 5436s wall, 54357 ring ticks
+        // (~9.999 ticks/s) spanning the Oura-app handoff. The ring's clock never paused.
+        let previous = (ringTicks: UInt32(42_236_951), unixSeconds: Int64(0))
+        let current = (ringTicks: UInt32(42_291_308), unixSeconds: Int64(5436))
+        XCTAssertTrue(OuraHistoryDrain.anchorsAreContinuous(previous: previous, current: current))
+    }
+
+    func testAnchorsAreContinuousDetectsARealPause() {
+        // A genuine power-cycle: ticks paused for 821s (matches the measured 13m41s dead-battery
+        // reboot) somewhere inside a 3600s wall-clock gap.
+        let previous = (ringTicks: UInt32(1_000_000), unixSeconds: Int64(0))
+        let tickedSeconds = 3600 - 821
+        let current = (ringTicks: UInt32(1_000_000) + UInt32(tickedSeconds * 10), unixSeconds: Int64(3600))
+        XCTAssertFalse(OuraHistoryDrain.anchorsAreContinuous(previous: previous, current: current))
+    }
+
+    func testAnchorsAreContinuousToleratesOrdinaryJitter() {
+        // 5s of receipt-latency noise across an otherwise-continuous gap must not false-positive as a
+        // pause (well under anchorContinuityMaxPauseSeconds).
+        let previous = (ringTicks: UInt32(1_000_000), unixSeconds: Int64(0))
+        let current = (ringTicks: UInt32(1_000_000 + 3_000), unixSeconds: Int64(305)) // 305s wall, 300s ticked
+        XCTAssertTrue(OuraHistoryDrain.anchorsAreContinuous(previous: previous, current: current))
+    }
+
+    func testAnchorsAreContinuousDeclinesOnTooShortAGap() {
+        let previous = (ringTicks: UInt32(1_000_000), unixSeconds: Int64(0))
+        let current = (ringTicks: UInt32(1_000_100), unixSeconds: Int64(10)) // below the 30s minimum
+        XCTAssertFalse(OuraHistoryDrain.anchorsAreContinuous(previous: previous, current: current),
+                       "too short a gap to judge - declines rather than guessing")
+    }
+
+    func testAnchorsAreContinuousDeclinesWhenTicksWentBackward() {
+        let previous = (ringTicks: UInt32(1_000_000), unixSeconds: Int64(0))
+        let current = (ringTicks: UInt32(999_000), unixSeconds: Int64(100)) // never observed; decline, not confirm
+        XCTAssertFalse(OuraHistoryDrain.anchorsAreContinuous(previous: previous, current: current))
+    }
+
     // MARK: loaded-cursor sanitize + reset
 
     func testSanitizeLoadedCursor() {

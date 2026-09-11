@@ -115,6 +115,103 @@ class OuraHistoryDrainTest {
         )
     }
 
+    // MARK: #2097 - a SyncTime anchor confirming clock continuity overrides the reboot reset
+
+    @Test
+    fun testAnchorConfirmsContinuityKeepsCursorInsteadOfFullReset() {
+        val d = OuraHistoryDrain()
+        d.noteStoredRingTime(500, resumeCursorAtFetchStart = 1000) // stale sample -> sawPreResumeData
+        assertTrue(d.sawPreResumeData)
+        assertEquals(
+            "continuity confirmed (#2097): not a reboot - discard the stale replay, keep the cursor",
+            1000L,
+            d.resumeCursorAtDrainEnd(currentCursor = 1000, resolvesUnderAnchor = true, anchorConfirmsContinuity = true),
+        )
+    }
+
+    @Test
+    fun testAnchorConfirmsContinuityStillAdvancesOnRealForwardProgress() {
+        val d = OuraHistoryDrain()
+        d.noteStoredRingTime(3_453_828, resumeCursorAtFetchStart = 1000) // forward...
+        d.noteStoredRingTime(500, resumeCursorAtFetchStart = 1000)       // ...plus a stale replay
+        assertTrue(d.sawPreResumeData)
+        assertEquals(
+            "continuity confirmed: genuine forward progress still commits normally",
+            3_453_828L,
+            d.resumeCursorAtDrainEnd(currentCursor = 1000, resolvesUnderAnchor = true, anchorConfirmsContinuity = true),
+        )
+    }
+
+    @Test
+    fun testAnchorContinuityDefaultsToOldRebootBehaviorWhenOmitted() {
+        val d = OuraHistoryDrain()
+        d.noteStoredRingTime(500, resumeCursorAtFetchStart = 1000)
+        assertEquals(
+            "omitting anchorConfirmsContinuity must not change today's behavior",
+            0L, d.resumeCursorAtDrainEnd(currentCursor = 1000, resolvesUnderAnchor = true),
+        )
+    }
+
+    // MARK: #2097 - anchorsAreContinuous (the SyncTime anchor comparison itself)
+
+    @Test
+    fun testAnchorsAreContinuousOnTheReal20260911N2Gap() {
+        // The witnessed n=2 occurrence: 12:29:26 -> 14:00:02 local, 5436s wall, 54357 ring ticks
+        // (~9.999 ticks/s) spanning the Oura-app handoff. The ring's clock never paused.
+        assertTrue(
+            OuraHistoryDrain.anchorsAreContinuous(
+                previousRingTicks = 42_236_951L, previousUnixSeconds = 0L,
+                currentRingTicks = 42_291_308L, currentUnixSeconds = 5436L,
+            ),
+        )
+    }
+
+    @Test
+    fun testAnchorsAreContinuousDetectsARealPause() {
+        // A genuine power-cycle: ticks paused for 821s (matches the measured 13m41s dead-battery
+        // reboot) somewhere inside a 3600s wall-clock gap.
+        val tickedSeconds = 3600 - 821
+        assertFalse(
+            OuraHistoryDrain.anchorsAreContinuous(
+                previousRingTicks = 1_000_000L, previousUnixSeconds = 0L,
+                currentRingTicks = 1_000_000L + tickedSeconds * 10L, currentUnixSeconds = 3600L,
+            ),
+        )
+    }
+
+    @Test
+    fun testAnchorsAreContinuousToleratesOrdinaryJitter() {
+        // 5s of receipt-latency noise across an otherwise-continuous gap must not false-positive as a
+        // pause (well under ANCHOR_CONTINUITY_MAX_PAUSE_SECONDS).
+        assertTrue(
+            OuraHistoryDrain.anchorsAreContinuous(
+                previousRingTicks = 1_000_000L, previousUnixSeconds = 0L,
+                currentRingTicks = 1_003_000L, currentUnixSeconds = 305L, // 305s wall, 300s ticked
+            ),
+        )
+    }
+
+    @Test
+    fun testAnchorsAreContinuousDeclinesOnTooShortAGap() {
+        assertFalse(
+            "too short a gap to judge - declines rather than guessing",
+            OuraHistoryDrain.anchorsAreContinuous(
+                previousRingTicks = 1_000_000L, previousUnixSeconds = 0L,
+                currentRingTicks = 1_000_100L, currentUnixSeconds = 10L, // below the 30s minimum
+            ),
+        )
+    }
+
+    @Test
+    fun testAnchorsAreContinuousDeclinesWhenTicksWentBackward() {
+        assertFalse(
+            OuraHistoryDrain.anchorsAreContinuous(
+                previousRingTicks = 1_000_000L, previousUnixSeconds = 0L,
+                currentRingTicks = 999_000L, currentUnixSeconds = 100L, // never observed; decline, not confirm
+            ),
+        )
+    }
+
     // MARK: in-session continuation cursor (open_oura drain_events `progressed`)
 
     @Test
