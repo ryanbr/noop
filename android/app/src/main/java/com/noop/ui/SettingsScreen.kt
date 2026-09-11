@@ -544,6 +544,10 @@ fun SettingsScreen(
      * need to send the user back through the picker.
      */
     var oversizeRestore by remember { mutableStateOf<Pair<android.net.Uri, String>?>(null) }
+    // #1014 family: a failed import/export ends on a multi-sentence message whose LAST clause is the
+    // part the reader can act on. A Toast truncated it, so what survived was the SQLite banner and
+    // nothing else. Held here and shown in a dialog instead.
+    var backupFailure by remember { mutableStateOf<String?>(null) }
 
     // #646/#651: LogExport's zip build + file read now run on Dispatchers.IO instead of blocking the
     // caller, so these buttons no longer freeze the UI — but nothing else stopped a second tap mid-export
@@ -764,7 +768,10 @@ fun SettingsScreen(
                     Toast.makeText(context, note, Toast.LENGTH_LONG).show()
                 },
                 onFailure = { e ->
-                    Toast.makeText(context, "Backup problem: ${e.message}", Toast.LENGTH_LONG).show()
+                    // The EXPORT-side integrity refusal lands here (#1014): a corrupt store is caught
+                    // before it is archived, and the message names the CSV route that still works. That
+                    // is a next step, so it needs the dialog for the same reason the import failures do.
+                    backupFailure = "Backup problem: ${e.message}"
                 },
             )
         }
@@ -812,9 +819,7 @@ fun SettingsScreen(
                     "Backup imported. Fully close and reopen NOOP for it to take effect.",
                     Toast.LENGTH_LONG,
                 ).show()
-                is DataBackup.ImportResult.Failed -> Toast.makeText(
-                    context, result.message, Toast.LENGTH_LONG,
-                ).show()
+                is DataBackup.ImportResult.Failed -> backupFailure = result.message
                 // #1807: refused ONLY for size, which is recoverable — offer to go ahead rather than
                 // ending on a Toast the user can do nothing about. The cap is a decompression guard
                 // against a hostile archive; a backup they just picked out of their own files is not
@@ -3322,6 +3327,10 @@ fun SettingsScreen(
             }
         }
 
+        backupFailure?.let { failure ->
+            BackupFailureDialog(message = failure, onDismiss = { backupFailure = null })
+        }
+
         oversizeRestore?.let { (pendingUri, pendingMessage) ->
             AlertDialog(
                 onDismissRequest = { oversizeRestore = null },
@@ -3340,13 +3349,17 @@ fun SettingsScreen(
                                 DataBackup.importFrom(context, pendingUri, allowOversize = true)
                             }
                             backupBusy = false
-                            val note = when (again) {
-                                is DataBackup.ImportResult.NeedsRestart ->
-                                    "Backup imported. Fully close and reopen NOOP for it to take effect."
-                                is DataBackup.ImportResult.Failed -> again.message
-                                is DataBackup.ImportResult.TooLarge -> again.message
+                            when (again) {
+                                is DataBackup.ImportResult.NeedsRestart -> Toast.makeText(
+                                    context,
+                                    "Backup imported. Fully close and reopen NOOP for it to take effect.",
+                                    Toast.LENGTH_LONG,
+                                ).show()
+                                // Same reason as the first attempt: these carry a next step, and a Toast
+                                // is where a next step goes to be truncated.
+                                is DataBackup.ImportResult.Failed -> backupFailure = again.message
+                                is DataBackup.ImportResult.TooLarge -> backupFailure = again.message
                             }
-                            Toast.makeText(context, note, Toast.LENGTH_LONG).show()
                         }
                     }) {
                         Text(

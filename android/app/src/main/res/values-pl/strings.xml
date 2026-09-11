@@ -1334,6 +1334,8 @@
     <string name="l10n_components_glowring_value_ac0e87de">wartość świecąca</string>
     <string name="l10n_components_increase_accessibility_0949c0e9">Zwiększ %1$s</string>
     <string name="l10n_components_ringfill_59cd4fb9">Wypełnienie pierścienia</string>
+    <string name="l10n_components_close_bbfa773e">Zamknij</string>
+    <string name="l10n_components_copy_af74f7c5">Kopia</string>
     <string name="l10n_connection_help_allow_nearby_devices_f7c74880">Zezwalaj na urządzenia w pobliżu</string>
     <string name="l10n_connection_help_charge_it_and_put_it_on_31b04814">Energia i załóż</string>
     <string name="l10n_connection_help_close_the_official_whoop_app_768d7d17">Zamknij oficjalną aplikację WHOOP</string>

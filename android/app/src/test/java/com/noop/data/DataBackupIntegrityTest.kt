@@ -1,6 +1,7 @@
 package com.noop.data
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -43,5 +44,63 @@ class DataBackupIntegrityTest {
             "Page 9 is never used",
             DataBackup.quickCheckVerdict(listOf("ok", "Page 9 is never used")),
         )
+    }
+
+    // ── readableComplaint: the verdict is forensic, this is what a person is shown ──
+
+    /** The reported shape. The verdict is ONE row carrying SQLite's banner, a newline, and then the
+     *  only half that says anything. Shown whole it spends the line on the banner, which is what a
+     *  truncating Toast displayed. */
+    @Test fun theBannerIsDroppedAndTheDiagnosisKept() {
+        assertEquals(
+            "Page 5 is never used",
+            DataBackup.readableComplaint("*** in database main ***\nPage 5 is never used"),
+        )
+    }
+
+    /** Captured from a REAL corrupted SQLite file (pages scribbled over, header left intact) rather
+     *  than invented: quick_check(1) answers with ONE row holding the banner, a newline, and the
+     *  diagnosis. This is the exact shape the reported Toast was truncating. */
+    @Test fun theRealQuickCheckShapeYieldsItsDiagnosis() {
+        assertEquals(
+            "Tree 2 page 7: btreeInitPage() returns error code 11",
+            DataBackup.readableComplaint("*** in database main ***\nTree 2 page 7: btreeInitPage() returns error code 11"),
+        )
+    }
+
+    /** An attached database names itself in the banner, so the match cannot be on "main" alone. */
+    @Test fun anyDatabaseNameInTheBannerIsDropped() {
+        assertEquals(
+            "Page 9 is never used",
+            DataBackup.readableComplaint("*** in database temp ***\nPage 9 is never used"),
+        )
+    }
+
+    /** Banner and nothing else: showing an empty parenthesis would be worse than showing the banner,
+     *  so the raw verdict survives as the fallback. */
+    @Test fun aVerdictOfNothingButBannerIsStillShown() {
+        assertEquals("*** in database main ***", DataBackup.readableComplaint("*** in database main ***"))
+    }
+
+    /** A verdict with no banner at all is already the diagnosis and passes through untouched. */
+    @Test fun aPlainVerdictIsUnchanged() {
+        assertEquals(
+            "row 12 missing from index sleepIdx",
+            DataBackup.readableComplaint("row 12 missing from index sleepIdx"),
+        )
+    }
+
+    @Test fun severalComplaintsAreJoinedOntoOneLine() {
+        assertEquals(
+            "Page 5 is never used; Page 9 is never used",
+            DataBackup.readableComplaint("*** in database main ***\nPage 5 is never used\nPage 9 is never used"),
+        )
+    }
+
+    /** Capped, because this rides inside a sentence that has to stay readable. */
+    @Test fun anOverlongComplaintIsCappedWithAnEllipsis() {
+        val out = DataBackup.readableComplaint("*** in database main ***\n" + "x".repeat(500), limit = 40)
+        assertEquals(40, out.length)
+        assertTrue(out.endsWith("\u2026"))
     }
 }

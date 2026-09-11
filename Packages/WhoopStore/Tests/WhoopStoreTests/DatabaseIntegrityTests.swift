@@ -106,4 +106,45 @@ final class DatabaseIntegrityTests: XCTestCase {
         XCTAssertEqual(DatabaseIntegrity.verdict(fromRows: ["ok", "Page 9 is never used"]),
                        "Page 9 is never used")
     }
+
+    /// Swift twin of the Kotlin `DataBackupIntegrityTest` readableComplaint cases: the verdict stays
+    /// forensic and verbatim, this is the half a person is shown.
+    func testReadableComplaintDropsTheBannerAndKeepsTheDiagnosis() {
+        // The reported shape: ONE row carrying the banner, a newline, then the only informative half.
+        XCTAssertEqual(
+            DatabaseIntegrity.readableComplaint("*** in database main ***\nPage 5 is never used"),
+            "Page 5 is never used"
+        )
+        // Captured from a REAL corrupted SQLite file (pages scribbled over, header left intact) rather
+        // than invented: quick_check(1) answers with ONE row holding the banner, a newline, and the
+        // diagnosis. The exact shape the reported Toast was truncating.
+        XCTAssertEqual(
+            DatabaseIntegrity.readableComplaint("*** in database main ***\nTree 2 page 7: btreeInitPage() returns error code 11"),
+            "Tree 2 page 7: btreeInitPage() returns error code 11"
+        )
+        // An attached database names itself, so the match cannot be on "main" alone.
+        XCTAssertEqual(
+            DatabaseIntegrity.readableComplaint("*** in database temp ***\nPage 9 is never used"),
+            "Page 9 is never used"
+        )
+        // Banner and nothing else: an empty parenthesis would be worse, so the raw verdict survives.
+        XCTAssertEqual(
+            DatabaseIntegrity.readableComplaint("*** in database main ***"),
+            "*** in database main ***"
+        )
+        // No banner at all: already the diagnosis, passes through untouched.
+        XCTAssertEqual(
+            DatabaseIntegrity.readableComplaint("row 12 missing from index sleepIdx"),
+            "row 12 missing from index sleepIdx"
+        )
+        XCTAssertEqual(
+            DatabaseIntegrity.readableComplaint("*** in database main ***\nPage 5 is never used\nPage 9 is never used"),
+            "Page 5 is never used; Page 9 is never used"
+        )
+        // Capped, because this rides inside a sentence that has to stay readable.
+        let long = DatabaseIntegrity.readableComplaint("*** in database main ***\n" + String(repeating: "x", count: 500),
+                                                      limit: 40)
+        XCTAssertEqual(long.count, 40)
+        XCTAssertTrue(long.hasSuffix("\u{2026}"))
+    }
 }

@@ -1385,6 +1385,8 @@
     <string name="l10n_components_glowring_value_ac0e87de">Glühwert</string>
     <string name="l10n_components_increase_accessibility_0949c0e9">%1$s erhöhen</string>
     <string name="l10n_components_ringfill_59cd4fb9">ringFill</string>
+    <string name="l10n_components_close_bbfa773e">Schließen</string>
+    <string name="l10n_components_copy_af74f7c5">Kopieren</string>
     <string name="l10n_connection_help_allow_nearby_devices_f7c74880">Geräte in der Nähe zulassen</string>
     <string name="l10n_connection_help_charge_it_and_put_it_on_31b04814">Lade es und lege es auf</string>
     <string name="l10n_connection_help_close_the_official_whoop_app_768d7d17">Schließe die offizielle WHOOP App</string>

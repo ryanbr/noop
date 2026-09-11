@@ -151,9 +151,9 @@ object DataBackup {
         // connection (WAL allows concurrent readers). Twin of the Apple writeVerifiedBackupZip.
         sqliteQuickCheckFailure(dbFile)?.let { complaint ->
             throw IOException(
-                "Couldn't export: the NOOP database failed its integrity check (SQLite reports: " +
-                    "$complaint). A backup of it would not restore. Export the WHOOP-format CSV " +
-                    "instead to save what's still readable."
+                "Couldn't export: the NOOP database failed its integrity check, so a backup of it " +
+                    "would not restore. Export the WHOOP-format CSV instead to save what's still " +
+                    "readable. (SQLite: ${readableComplaint(complaint)})"
             )
         }
 
@@ -327,8 +327,8 @@ object DataBackup {
             tempSqlite.delete()
             tempSettings.delete()
             return ImportResult.Failed(
-                "This backup file is damaged and can't be restored (SQLite reports: $complaint). " +
-                    "Your current data is untouched. Try an earlier backup file."
+                "This backup file is damaged, so nothing was restored. Your current data is " +
+                    "untouched. Try an earlier backup file. (SQLite: ${readableComplaint(complaint)})"
             )
         }
 
@@ -379,21 +379,22 @@ object DataBackup {
             if (rollbackFile.exists()) {
                 if (runCatching { rollbackFile.copyTo(dbFile, overwrite = true) }.isSuccess) {
                     rollbackFile.delete()
-                    message = "The backup failed its integrity check after the copy (SQLite reports: " +
-                        "$complaint). Your previous data was rolled back automatically and is unchanged."
+                    message = "The backup failed its integrity check after the copy. Your previous " +
+                        "data was rolled back automatically and is unchanged. " +
+                        "(SQLite: ${readableComplaint(complaint)})"
                 } else {
                     // The roll-back copy itself failed: KEEP the snapshot on disk — it is now the
                     // only good copy of the user's data — and tell the user exactly where it is.
-                    message = "The backup failed its integrity check after the copy (SQLite reports: " +
-                        "$complaint), and rolling back also failed. Your previous data is preserved at " +
-                        "${rollbackFile.name} next to the app's database."
+                    message = "The backup failed its integrity check after the copy, and rolling " +
+                        "back also failed. Your previous data is preserved at ${rollbackFile.name} " +
+                        "next to the app's database. (SQLite: ${readableComplaint(complaint)})"
                 }
             } else {
                 // Fresh install: nothing existed before the import, so removing the damaged file
                 // returns to the exact pre-import (empty) state.
                 dbFile.delete()
-                message = "The backup failed its integrity check after the copy (SQLite reports: " +
-                    "$complaint). There was no previous data to roll back."
+                message = "The backup failed its integrity check after the copy. There was no " +
+                    "previous data to roll back. (SQLite: ${readableComplaint(complaint)})"
             }
             return ImportResult.Failed(message)
         }
@@ -660,6 +661,44 @@ object DataBackup {
         if (rows.size == 1 && rows[0].equals("ok", ignoreCase = true)) return null
         return rows.firstOrNull { !it.equals("ok", ignoreCase = true) }
             ?: "quick_check returned no verdict"
+    }
+
+    /**
+     * SQLite's banner line, which names the database being reported on and says nothing about what is
+     * wrong with it. quick_check emits it ahead of the real diagnosis, joined into the SAME row.
+     */
+    private fun isBanner(line: String): Boolean =
+        line.startsWith("*** in database") && line.endsWith("***")
+
+    /**
+     * The part of a [quickCheckVerdict] worth showing a person, as one line.
+     *
+     * The verdict is kept VERBATIM on purpose: it is the forensic value, it goes in logs, and a reporter
+     * pasting it into an issue should paste what SQLite actually said. But what SQLite actually says
+     * begins with a banner and a newline:
+     *
+     *     *** in database main ***
+     *     Page 5 is never used
+     *
+     * Rendered into a sentence, that spends the whole line on "*** in database main ***" and pushes the
+     * only informative half ("Page 5 is never used") out of sight, which is exactly what a truncating
+     * Toast showed. This drops the banner, joins what is left onto one line, and caps the length, so the
+     * detail a person sees is the diagnosis.
+     *
+     * Falls back to the raw verdict, newlines flattened, whenever stripping would leave nothing: a
+     * verdict made ENTIRELY of banner is still better shown than shown as an empty parenthesis.
+     * Mirrors the Apple `DatabaseIntegrity.readableComplaint` on the same golden vectors.
+     */
+    fun readableComplaint(verdict: String, limit: Int = 140): String {
+        val kept = verdict.split('\n')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() && !isBanner(it) }
+        val joined = if (kept.isEmpty()) {
+            verdict.replace('\n', ' ').trim()
+        } else {
+            kept.joinToString("; ")
+        }
+        return if (joined.length <= limit) joined else joined.take(limit - 1).trimEnd() + "\u2026"
     }
 
     /**

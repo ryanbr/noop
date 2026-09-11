@@ -49,6 +49,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoGraph
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.platform.LocalContext
+import android.content.ClipData
+import android.content.ClipboardManager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -1481,3 +1486,40 @@ private fun Modifier.clickableNoRipple(onClick: () -> Unit): Modifier =
         interactionSource = remember { MutableInteractionSource() },
         onClick = onClick,
     )
+
+// MARK: - Backup / restore failure
+
+/**
+ * The dialog a failed backup, restore or export ends on.
+ *
+ * These messages run to several sentences and each one finishes with the part the reader can act on,
+ * so a Toast was the wrong container: the reported case clipped at "SQLite reports: *** in d..." and
+ * threw away BOTH the diagnosis and the "your current data is untouched" that followed it. What
+ * survived was the one fragment that helps nobody. A dialog shows the sentence whole.
+ *
+ * [Copy] puts it on the clipboard, so a corruption report carries SQLite's own words rather than a
+ * fragment retyped off a screenshot. Apple has shown these in an alert all along; this is Android
+ * catching up to it.
+ */
+@Composable
+fun BackupFailureDialog(message: String, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Palette.surfaceOverlay,
+        text = { Text(message, style = NoopType.subhead, color = Palette.textSecondary) },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(uiString(R.string.l10n_components_close_bbfa773e), color = Palette.accent)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = {
+                val clip = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                clip?.setPrimaryClip(ClipData.newPlainText("NOOP backup error", message))
+            }) {
+                Text(uiString(R.string.l10n_components_copy_af74f7c5), color = Palette.textSecondary)
+            }
+        },
+    )
+}

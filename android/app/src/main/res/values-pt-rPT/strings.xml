@@ -1348,6 +1348,8 @@
     <string name="l10n_components_glowring_value_ac0e87de">valor do anel luminoso</string>
     <string name="l10n_components_increase_accessibility_0949c0e9">Aumentar %1$s</string>
     <string name="l10n_components_ringfill_59cd4fb9">ringFill</string>
+    <string name="l10n_components_close_bbfa773e">Fechar</string>
+    <string name="l10n_components_copy_af74f7c5">Cópia</string>
     <string name="l10n_connection_help_allow_nearby_devices_f7c74880">Permitir dispositivos próximos</string>
     <string name="l10n_connection_help_charge_it_and_put_it_on_31b04814">Carregue e coloque-o</string>
     <string name="l10n_connection_help_close_the_official_whoop_app_768d7d17">Feche a aplicação oficial do WHOOP</string>

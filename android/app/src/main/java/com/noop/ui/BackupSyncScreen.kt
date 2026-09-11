@@ -71,6 +71,9 @@ fun BackupSyncScreen() {
     var auto by remember { mutableStateOf(BackupSyncPrefs.autoEnabled(context)) }
     var lastMs by remember { mutableStateOf(BackupSyncPrefs.lastBackupMs(context)) }
     var busy by remember { mutableStateOf(false) }
+    // #1014 family: these failures carry a next step in their LAST clause, which is exactly what a
+    // Toast drops. Held here and shown in a dialog, the same way Settings does.
+    var backupFailure by remember { mutableStateOf<String?>(null) }
     // How many dated snapshots to keep; pruning deletes the oldest beyond this (BackupSync.snapshotsToPrune).
     var keep by remember { mutableStateOf(BackupSyncPrefs.keepCount(context)) }
     var keepMenu by remember { mutableStateOf(false) }
@@ -119,13 +122,12 @@ fun BackupSyncScreen() {
                             Runtime.getRuntime().exit(0)
                         }
                     }
-                    is DataBackup.ImportResult.Failed ->
-                        Toast.makeText(context, r.message, Toast.LENGTH_LONG).show()
+                    is DataBackup.ImportResult.Failed -> backupFailure = r.message
                     // #1807: recoverable, but not from here — this screen restores a folder snapshot
                     // directly and has no confirm step to hang the override on. Settings → Backup & restore
-                    // → Import does, and shows the same sentence with a way through.
-                    is DataBackup.ImportResult.TooLarge ->
-                        Toast.makeText(context, r.message, Toast.LENGTH_LONG).show()
+                    // → Import does, and shows the same sentence with a way through. Which is the reason
+                    // it has to be READABLE here: the dialog is where the reader learns where to go.
+                    is DataBackup.ImportResult.TooLarge -> backupFailure = r.message
                 }
             } finally {
                 busy = false
@@ -492,6 +494,10 @@ fun BackupSyncScreen() {
                 }
             },
         )
+    }
+
+    backupFailure?.let { failure ->
+        BackupFailureDialog(message = failure, onDismiss = { backupFailure = null })
     }
 }
 

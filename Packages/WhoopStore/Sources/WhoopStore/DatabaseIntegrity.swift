@@ -60,4 +60,37 @@ public enum DatabaseIntegrity {
         if rows.count == 1, rows[0].lowercased() == "ok" { return nil }
         return rows.first { $0.lowercased() != "ok" } ?? "quick_check returned no verdict"
     }
+
+    /// SQLite's banner line, which names the database being reported on and says nothing about what is
+    /// wrong with it. quick_check emits it ahead of the real diagnosis, joined into the SAME row.
+    private static func isBanner(_ line: String) -> Bool {
+        line.hasPrefix("*** in database") && line.hasSuffix("***")
+    }
+
+    /// The part of a `verdict` worth showing a person, as one line.
+    ///
+    /// `verdict` is kept VERBATIM on purpose: it is the forensic value, it goes in logs, and a reporter
+    /// pasting it into an issue should paste what SQLite actually said. But what SQLite actually says
+    /// begins with a banner and a newline:
+    ///
+    ///     *** in database main ***
+    ///     Page 5 is never used
+    ///
+    /// Rendered into a sentence, that spends the whole line on "*** in database main ***" and pushes the
+    /// only informative half ("Page 5 is never used") out of sight. This drops the banner, joins what is
+    /// left onto one line, and caps the length, so the detail a person sees is the diagnosis.
+    ///
+    /// Falls back to the raw verdict, newlines flattened, whenever stripping would leave nothing: a
+    /// verdict made ENTIRELY of banner is still better shown than shown as an empty parenthesis.
+    /// Mirrored by Android's `DataBackup.readableComplaint` on the same golden vectors.
+    public static func readableComplaint(_ verdict: String, limit: Int = 140) -> String {
+        let kept = verdict.split(separator: "\n", omittingEmptySubsequences: false)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty && !isBanner($0) }
+        let joined = kept.isEmpty
+            ? verdict.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespaces)
+            : kept.joined(separator: "; ")
+        guard joined.count > limit else { return joined }
+        return String(joined.prefix(limit - 1)).trimmingCharacters(in: .whitespaces) + "\u{2026}"
+    }
 }
