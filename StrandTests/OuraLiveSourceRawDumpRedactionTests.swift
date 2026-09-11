@@ -31,4 +31,28 @@ final class OuraLiveSourceRawDumpRedactionTests: XCTestCase {
         let battery = OuraOuterFrame(op: 0x0D, body: [0x64])
         XCTAssertEqual(OuraLiveSource.rawDumpBytes([hr, productInfo, battery]), encoded([hr, battery]))
     }
+
+    /// PR #2090 review (ryanbr): `parseOuterFrames` silently drops an incomplete trailing frame
+    /// (`guard i + total <= bytes.count else { break }`) — ordinary, not rare, since the Reassembler
+    /// exists precisely because notifications split mid-frame. A caller reconstructing the sidecar from
+    /// `frames` alone therefore loses that unconsumed remainder. Reproduces the exact worked example from
+    /// the review: `41 02 AA BB 42 05 01 02` parses ONE complete frame (`41 02 AA BB`, 4 bytes) and leaves
+    /// `42 05 01 02` (4 of the claimed 7 body bytes) unconsumed - `rawDumpBytes(fromNotification:frames:)`
+    /// must still carry it into the sidecar, verbatim, appended after the (filtered) complete frames.
+    func testIncompleteTrailingFrameSurvivesAsATailNotAsALoss() {
+        let bytes: [UInt8] = [0x41, 0x02, 0xAA, 0xBB, 0x42, 0x05, 0x01, 0x02]
+        let frames = OuraFraming.parseOuterFrames(bytes)
+        XCTAssertEqual(frames, [OuraOuterFrame(op: 0x41, body: [0xAA, 0xBB])], "sanity: only one frame parses")
+        let dump = OuraLiveSource.rawDumpBytes(fromNotification: bytes, frames: frames)
+        XCTAssertEqual(dump, bytes, "the unconsumed tail must survive verbatim, not be dropped")
+    }
+
+    /// The same convenience function must still drop a product-info frame when the notification parses
+    /// cleanly with nothing left over (the ordinary case, no tail to preserve).
+    func testNotificationConvenienceStillStripsProductInfoWithNoTrailingPartial() {
+        let serial = Array("2038082631034041".utf8)
+        let bytes: [UInt8] = [0x19, UInt8(serial.count)] + serial
+        let frames = OuraFraming.parseOuterFrames(bytes)
+        XCTAssertEqual(OuraLiveSource.rawDumpBytes(fromNotification: bytes, frames: frames), [])
+    }
 }

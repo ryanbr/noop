@@ -149,9 +149,29 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     /// frame body. Found via a #2075 reporter's attachment, whose `oura-raw.jsonl` carried a stable
     /// 16-digit identifier this way, unredacted, into a public issue. Never touches decode: only what
     /// `rawDump?.record` sees changes.
-    nonisolated static func rawDumpBytes(_ frames: [OuraOuterFrame]) -> [UInt8] {
+    ///
+    /// `tail` (PR #2090 review, ryanbr): `frames` only covers what `OuraFraming.parseOuterFrames` fully
+    /// consumed — it silently drops an incomplete trailing frame (`guard i + total <= bytes.count else {
+    /// break }`), which is ORDINARY, not rare: the Reassembler exists precisely because notifications
+    /// split mid-frame. A caller reconstructing the sidecar from `frames` alone therefore loses that
+    /// unconsumed remainder — e.g. `41 02 AA BB 42 05 01 02` parses one complete frame and silently drops
+    /// `42 05 01 02`. For a sidecar whose whole purpose is exact wire bytes, that is a real loss, so a
+    /// caller that reconstructs from `frames` (rather than recording the original notification bytes
+    /// verbatim) must pass whatever `bytes` remained past the frames it parsed.
+    nonisolated static func rawDumpBytes(_ frames: [OuraOuterFrame], appending tail: [UInt8] = []) -> [UInt8] {
         frames.filter { !productInfoResponseOps.contains($0.op) }
               .flatMap { [$0.op, UInt8($0.body.count)] + $0.body }
+              + tail
+    }
+
+    /// Convenience for the whole-notification case (the "no secure frame" branch below, where `frames`
+    /// is already the full parse of `bytes`): computes the `tail` `rawDumpBytes` needs from `frames`
+    /// itself, rather than duplicating that arithmetic at the call site. Kept CoreBluetooth-free and
+    /// `nonisolated static` so it is testable directly, the same as `rawDumpBytes`.
+    nonisolated static func rawDumpBytes(fromNotification bytes: [UInt8], frames: [OuraOuterFrame]) -> [UInt8] {
+        let consumedLength = frames.reduce(0) { $0 + 2 + $1.body.count }
+        let tail = consumedLength < bytes.count ? Array(bytes[consumedLength...]) : []
+        return rawDumpBytes(frames, appending: tail)
     }
 
     /// Local-time formatter for logging a decoded date/time next to a raw ring-tick cursor value, so a
@@ -2574,8 +2594,11 @@ extension OuraLiveSource: @preconcurrency CBPeripheralDelegate {
             }
             return
         }
-        // No secure frame in this notification: treat the whole value as TLV record bytes.
-        let dumpBytes = Self.rawDumpBytes(frames)
+        // No secure frame in this notification: treat the whole value as TLV record bytes. `frames` was
+        // parsed from this WHOLE notification (line ~2495), so `rawDumpBytes(fromNotification:frames:)`
+        // appends whatever incomplete trailing frame `parseOuterFrames` had to leave behind (PR #2090
+        // review) — otherwise the sidecar silently loses exactly the wire bytes it exists to preserve.
+        let dumpBytes = Self.rawDumpBytes(fromNotification: bytes, frames: frames)
         if !dumpBytes.isEmpty {
             rawDump?.record(bytes: dumpBytes)
         }
