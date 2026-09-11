@@ -28,7 +28,7 @@ struct LiftSessionBar: View {
             Button {
                 session.isPresented = true
             } label: {
-                HStack(spacing: 12) {
+                HStack(spacing: NoopMetrics.gap) {
                     Image(systemName: "dumbbell.fill")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(tint(engine))

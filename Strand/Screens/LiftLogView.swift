@@ -69,8 +69,8 @@ struct LiftLogView: View {
 
     private var headerCard: some View {
         NoopCard(tint: StrandPalette.effortColor) {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: NoopMetrics.gap) {
+                HStack(spacing: NoopMetrics.rowSpacing) {
                     Image(systemName: "dumbbell.fill")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(StrandPalette.effortColor)
@@ -112,7 +112,7 @@ struct LiftLogView: View {
                 }
             }
 
-            HStack(spacing: 10) {
+            HStack(spacing: NoopMetrics.rowSpacing) {
                 Button {
                     editing = ProgramEditTarget(id: "new", program: nil)
                 } label: {
@@ -148,7 +148,7 @@ struct LiftLogView: View {
 
     private func programRow(_ program: LiftProgramRow) -> some View {
         NoopCard {
-            HStack(spacing: 12) {
+            HStack(spacing: NoopMetrics.gap) {
                 Button {
                     editing = ProgramEditTarget(id: program.id, program: program)
                 } label: {
@@ -221,7 +221,7 @@ struct LiftLogView: View {
     private var weekSection: some View {
         let ordered = LiftMuscle.ordered.filter { (weekCounts[$0] ?? 0) > 0 }
         return VStack(alignment: .leading, spacing: NoopMetrics.gap) {
-            SectionHeader("Sets per muscle", overline: "Last 7 days")
+            SectionHeader("Sets per muscle", overline: "Last 7 days · estimated")
             if ordered.isEmpty {
                 NoopCard {
                     Text("Once you've logged a session, this shows how many sets each muscle got this week, against what the research associates with growth.")
@@ -231,13 +231,13 @@ struct LiftLogView: View {
                 }
             } else {
                 NoopCard {
-                    VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: NoopMetrics.rowSpacing) {
                         ForEach(ordered, id: \.self) { muscle in
                             muscleBar(muscle, sets: weekCounts[muscle] ?? 0)
                         }
                         // The band is named and sourced, never phrased as a target NOOP sets for
                         // anyone: this is not a medical device and does not prescribe.
-                        Text("The tick marks about 4 sets a week — the point below which the research doesn't reliably detect growth. Above it, gains continue with strongly diminishing returns and no clear ceiling, so the bar has no \"full\".")
+                        Text("Counted from the muscles you assigned each exercise: direct sets count once, indirect ones half. The tick is about 4 sets a week — below that, studies across GROUPS of people stop reliably detecting growth. It is a research reference, not a target for you, and above it gains continue with strongly diminishing returns and no clear ceiling, so the bar has no \"full\".")
                             .font(StrandFont.footnote)
                             .foregroundStyle(StrandPalette.textTertiary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -335,7 +335,7 @@ struct LiftLogView: View {
 
     private func historyRow(_ session: LiftSessionRow) -> some View {
         NoopCard {
-            HStack(spacing: 12) {
+            HStack(spacing: NoopMetrics.gap) {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(session.programName ?? String(localized: "Session"))
                         .font(StrandFont.headline)

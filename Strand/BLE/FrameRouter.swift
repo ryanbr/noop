@@ -725,12 +725,42 @@ public final class FrameRouter {
     /// The event's OWN timestamp is what distinguishes the two cases: one gesture replayed carries
     /// one timestamp, while two genuine taps carry two. Nil fails OPEN (dispatch), because a real
     /// gesture must never be swallowed by a missing field.
-    private var lastDispatchedDoubleTapEventTs: Int?
+    ///
+    /// A SET, not a single slot. Remembering only the last dispatched timestamp suppresses a replay
+    /// solely when the replayed event is the most recent one dispatched, and a real offload does not
+    /// oblige. Interleave two taps and each replay looks new again:
+    ///
+    ///     tap A live -> last = A
+    ///     tap B live -> last = B
+    ///     replay A   -> A != B, dispatches
+    ///     replay B   -> B != A, dispatches
+    ///
+    /// Two phantom advances, and a multi-minute offload that re-walks its banked log repeats the
+    /// whole pattern — three taps measured as twelve in `FrameRouterDoubleTapDedupTests`. That is the
+    /// failure this de-duplication exists to prevent, surviving inside it.
+    ///
+    /// BOUNDED two ways, because this lives on the BLE path for the lifetime of a connection: entries
+    /// outside `liveGestureWindowSeconds` of the incoming event are dropped (past that, the freshness
+    /// guard in `dispatchLiveGestureIfFresh` refuses the replay anyway, so remembering it buys
+    /// nothing), and a hard cap covers a strap whose clock jumps rather than advances.
+    private var dispatchedDoubleTapEventTs: [Int] = []
+
+    /// Far above any plausible number of double-taps inside a 45-second window; a backstop against a
+    /// clock that jumps, not a working limit.
+    private static let dispatchedDoubleTapMemory = 32
 
     private func dispatchDoubleTapOnce(eventTimestamp ts: Int?) {
         if let ts {
-            guard ts != lastDispatchedDoubleTapEventTs else { return }
-            lastDispatchedDoubleTapEventTs = ts
+            guard !dispatchedDoubleTapEventTs.contains(ts) else { return }
+            // Prune BEFORE appending, so the event just accepted is always the one kept.
+            dispatchedDoubleTapEventTs.removeAll {
+                abs(ts - $0) > FrameRouter.liveGestureWindowSeconds
+            }
+            dispatchedDoubleTapEventTs.append(ts)
+            if dispatchedDoubleTapEventTs.count > FrameRouter.dispatchedDoubleTapMemory {
+                dispatchedDoubleTapEventTs.removeFirst(
+                    dispatchedDoubleTapEventTs.count - FrameRouter.dispatchedDoubleTapMemory)
+            }
         }
         state.onDoubleTap?()
     }

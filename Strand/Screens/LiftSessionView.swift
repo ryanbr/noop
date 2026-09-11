@@ -132,7 +132,7 @@ struct LiftSessionView: View {
 
     private func exerciseCard(_ engine: LiftSessionEngine, index: Int, item: LiftPlanItem) -> some View {
         NoopCard {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: NoopMetrics.rowSpacing) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.exercise)
                         .font(StrandFont.headline)
@@ -530,7 +530,7 @@ struct LiftSessionView: View {
     // MARK: - The control bar
 
     private func controlBar(_ engine: LiftSessionEngine) -> some View {
-        VStack(spacing: 10) {
+        VStack(spacing: NoopMetrics.rowSpacing) {
             HStack(spacing: 14) {
                 clock(String(localized: "Session"),
                       LiftFormat.duration(max(0, session.now - engine.startTs)),
@@ -552,7 +552,7 @@ struct LiftSessionView: View {
                 .accessibilityLabel("Undo")
             }
 
-            HStack(spacing: 10) {
+            HStack(spacing: NoopMetrics.rowSpacing) {
                 Button { session.advance() } label: {
                     Text(actionLabel(engine)).frame(maxWidth: .infinity)
                 }
@@ -639,7 +639,7 @@ struct LiftSessionView: View {
                        subtitle: "One number for the whole session, so a leg day can be compared with a run.") {
             VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
                 NoopCard {
-                    VStack(alignment: .leading, spacing: 12) {
+                    VStack(alignment: .leading, spacing: NoopMetrics.gap) {
                         Text("How hard was the whole session? (1–10)").strandOverline()
                         TextField("7", text: $sessionRpeText)
                             .textFieldStyle(.plain)

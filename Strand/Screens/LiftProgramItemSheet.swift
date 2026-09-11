@@ -125,7 +125,7 @@ struct LiftProgramItemSheet: View {
         VStack(alignment: .leading, spacing: NoopMetrics.gap) {
             SectionHeader("Exercise", overline: "Movement")
             NoopCard {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: NoopMetrics.gap) {
                     TextField("Incline dumbbell press", text: $exercise)
                         .textFieldStyle(.plain)
                         .font(StrandFont.body)
@@ -264,7 +264,7 @@ struct LiftProgramItemSheet: View {
             SectionHeader("Targets", overline: "What you're aiming for")
             NoopCard {
                 VStack(alignment: .leading, spacing: 14) {
-                    HStack(spacing: 12) {
+                    HStack(spacing: NoopMetrics.gap) {
                         field("Working sets") {
                             numberInput("4", text: $setsText, field: .sets)
                         }
@@ -272,7 +272,7 @@ struct LiftProgramItemSheet: View {
                             numberInput("8", text: $repsText, field: .reps)
                         }
                     }
-                    HStack(spacing: 12) {
+                    HStack(spacing: NoopMetrics.gap) {
                         field(weightLabel) {
                             numberInput("60", text: $weightText, field: .weight)
                         }

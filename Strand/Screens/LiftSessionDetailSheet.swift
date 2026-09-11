@@ -119,8 +119,8 @@ struct LiftSessionDetailSheet: View {
     private var figuresSection: some View {
         VStack(alignment: .leading, spacing: NoopMetrics.gap) {
             SectionHeader("This session", overline: "Figures")
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 10)],
-                      alignment: .leading, spacing: 10) {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: NoopMetrics.rowSpacing)],
+                      alignment: .leading, spacing: NoopMetrics.rowSpacing) {
                 tile(String(localized: "Volume"),
                      LiftFormat.weight(LiftMetrics.volumeLoadKg(sets), system: unitSystem),
                      String(localized: "\(workingSetCount) working sets"))
@@ -131,7 +131,7 @@ struct LiftSessionDetailSheet: View {
 
                 tile(String(localized: "Work vs rest"),
                      workRestText,
-                     String(localized: "\(LiftFormat.duration(workRest.workSec)) under load"))
+                     String(localized: "\(LiftFormat.duration(workRest.workSec)) in sets"))
 
                 tile(String(localized: "Effort"),
                      workout?.strain.map { LiftFormat.trim($0) } ?? "—",
@@ -200,7 +200,7 @@ struct LiftSessionDetailSheet: View {
     private func exerciseCard(_ summary: LiftMetrics.ExerciseSummary) -> some View {
         let rows = sets.filter { $0.exercise == summary.exercise }.sorted { $0.ord < $1.ord }
         return NoopCard {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: NoopMetrics.rowSpacing) {
                 Text(summary.exercise)
                     .font(StrandFont.headline)
                     .foregroundStyle(StrandPalette.textPrimary)
@@ -215,7 +215,7 @@ struct LiftSessionDetailSheet: View {
 
                 Divider().background(StrandPalette.textTertiary.opacity(0.2))
 
-                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                HStack(alignment: .firstTextBaseline, spacing: NoopMetrics.gap) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Best set").strandOverline()
                         Text(bestSetText(summary))
@@ -247,7 +247,7 @@ struct LiftSessionDetailSheet: View {
     }
 
     private func setLine(_ row: LiftSetRow) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: NoopMetrics.rowSpacing) {
             Text(row.isWarmup ? String(localized: "W") : "\(row.setIndex)")
                 .font(StrandFont.captionNumber)
                 .foregroundStyle(row.isWarmup ? StrandPalette.textTertiary : StrandPalette.effortColor)
@@ -312,7 +312,7 @@ struct LiftSessionDetailSheet: View {
         let counts = LiftMetrics.muscleCounts(sets)
         let ordered = LiftMuscle.ordered.filter { (counts.fractional[$0] ?? 0) > 0 }
         return VStack(alignment: .leading, spacing: NoopMetrics.gap) {
-            SectionHeader("Sets per muscle", overline: "This session")
+            SectionHeader("Sets per muscle", overline: "This session · estimated")
             if ordered.isEmpty {
                 NoopCard {
                     Text("None of these exercises has a muscle group yet. Add one on the exercise and every future session counts toward it.")
@@ -324,7 +324,7 @@ struct LiftSessionDetailSheet: View {
                 NoopCard {
                     VStack(alignment: .leading, spacing: 8) {
                         ForEach(ordered, id: \.self) { muscle in
-                            HStack(spacing: 10) {
+                            HStack(spacing: NoopMetrics.rowSpacing) {
                                 Text(muscle.displayName)
                                     .font(StrandFont.body)
                                     .foregroundStyle(StrandPalette.textPrimary)
@@ -337,7 +337,7 @@ struct LiftSessionDetailSheet: View {
                                     .foregroundStyle(StrandPalette.textTertiary)
                             }
                         }
-                        Text("Direct sets count once, indirect sets count as a half — the method the reference figures were derived under.")
+                        Text("Counted from the muscles you assigned each exercise: direct sets count once, indirect ones count as a half — the method the reference figures were derived under. An estimate from your own labels, not something measured off your body.")
                             .font(StrandFont.footnote)
                             .foregroundStyle(StrandPalette.textTertiary)
                             .fixedSize(horizontal: false, vertical: true)
