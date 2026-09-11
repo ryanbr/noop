@@ -60,34 +60,6 @@ public enum LiftMetrics {
         return rpe * (Double(durationSec) / 60.0)
     }
 
-    // MARK: - Work versus rest
-
-    public struct WorkRest: Equatable {
-        /// Seconds actually spent performing sets (warm-ups included — a warm-up is still time under
-        /// load, even though it is not counted as training volume).
-        public let workSec: Int
-        /// Seconds spent resting between sets, as MEASURED from the taps rather than as planned.
-        public let restSec: Int
-        /// Rest ÷ work. Nil when no work was recorded. A leg day at 1:4 and a circuit at 1:1 are
-        /// different training even at identical volume, and only a tap-through log can know it.
-        public let restToWorkRatio: Double?
-
-        public init(workSec: Int, restSec: Int) {
-            self.workSec = workSec
-            self.restSec = restSec
-            self.restToWorkRatio = workSec > 0 ? Double(restSec) / Double(workSec) : nil
-        }
-    }
-
-    public static func workRest(_ sets: [LiftSetRow]) -> WorkRest {
-        var work = 0, rest = 0
-        for s in sets {
-            if let start = s.startTs, let end = s.endTs, end > start { work += end - start }
-            if let r = s.restSec, r > 0 { rest += r }
-        }
-        return WorkRest(workSec: work, restSec: rest)
-    }
-
     // MARK: - Estimated one-rep max (Epley)
 
     /// The rep ceiling above which a 1RM estimate stops being worth showing.
