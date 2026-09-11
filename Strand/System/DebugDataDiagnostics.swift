@@ -40,10 +40,29 @@ enum DebugDataDiagnostics {
     /// rides the VALUE. "Provides(48h):" is 15 and overhung the column in a report that is aligned by hand
     /// and read by eye.
     /// Byte-identical to the Kotlin `AndroidDiagnostics.strapProvidesLine`.
-    static func strapProvidesLine(hr: Bool, rr: Bool, motion: Bool, steps: Bool) -> String {
+    static func strapProvidesLine(hr: Bool, rr: Bool, motion: Bool, steps: Bool,
+                                  deviceId: String) -> String {
         func mark(_ b: Bool) -> String { b ? "yes" : "NO" }
+        // The DEVICE rides the value beside the window, for the same reason the window does. This asks
+        // ONE id, the active one, while every scorer reads the union of the active, canonical and
+        // computed ids. Those disagree on a re-added strap, an archived spine, or a Health Connect
+        // import, and the line then reads as "this install has no heart rate" when it means "the active
+        // strap id delivered none". That misreading cost real triage time on #2012.
         return "Provides:    HR \(mark(hr)) · R-R \(mark(rr)) · motion \(mark(motion)) · steps \(mark(steps))"
-            + " (last 48h)"
+            + " (\(deviceId), last 48h)"
+    }
+
+    /// The note that says the funnel did NOT analyse the latest night, and which one it skipped.
+    ///
+    /// The funnel deliberately walks back to the most recent night carrying skin temperature, because a
+    /// night without it reports "skin=0" and teaches nothing. That fallback is right; printing its result
+    /// under a heading that says "latest night" is not. On #2012 it reported a night four days older than
+    /// the export with no indication, and reading it as the latest night is what a careful reader does.
+    ///
+    /// Empty when the funnel really did take the newest session, so the common case stays unchanged.
+    /// Byte-identical to the Kotlin `AndroidDiagnostics.funnelFallbackNote`.
+    static func funnelFallbackNote(chosenDay: String, newestDay: String) -> String {
+        chosenDay == newestDay ? "" : " (NOT the latest night: \(newestDay) carried no skin temperature)"
     }
 
     static func strapStateLines() -> [String] {
@@ -157,7 +176,8 @@ enum DebugDataDiagnostics {
                from: Int(Date().timeIntervalSince1970) - 48 * 3600,
                to: Int(Date().timeIntervalSince1970)) {
             lines.append(strapProvidesLine(hr: present.hr, rr: present.rr,
-                                           motion: present.gravity, steps: present.steps))
+                                           motion: present.gravity, steps: present.steps,
+                                           deviceId: repo.deviceId))
         }
 
         // Data state from the preloaded day spine.
@@ -251,7 +271,10 @@ enum DebugDataDiagnostics {
         let hr = await repo.hrSamples(from: cs.startTs, to: cs.endTs, limit: 200_000)
         let rr = (try? await store.rrIntervals(deviceId: did, from: cs.startTs, to: cs.endTs, limit: 200_000)) ?? []
         let resp = (try? await store.respSamples(deviceId: did, from: cs.startTs, to: cs.endTs, limit: 200_000)) ?? []
-        lines.append("Night \(dayStamp(cs.startTs)): grav=\(grav.count) hr=\(hr.count) rr=\(rr.count) resp=\(resp.count) skin=\(skin.count)")
+        lines.append("Night \(dayStamp(cs.startTs))"
+                     + funnelFallbackNote(chosenDay: dayStamp(cs.startTs),
+                                          newestDay: dayStamp(newest.startTs))
+                     + ": grav=\(grav.count) hr=\(hr.count) rr=\(rr.count) resp=\(resp.count) skin=\(skin.count)")
         if grav.isEmpty && hr.isEmpty {
             // #1617 follow-up: do NOT assert "freshly re-added" without testing the other explanation.
             // Several ids can hold one physical strap's data (#1193/#740), and when the history spine and

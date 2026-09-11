@@ -74,6 +74,19 @@ object AndroidDiagnostics {
         }
 
     /**
+     * The note that says the funnel did NOT analyse the latest night, and which one it skipped.
+     *
+     * The funnel deliberately walks back to the most recent night carrying skin temperature, because a
+     * night without it reports "skin=0" and teaches nothing. That fallback is right; printing its result
+     * under a heading that says "latest night" is not. On #2012 it reported a night four days older than
+     * the export with no indication, and reading it as the latest night is what a careful reader does.
+     *
+     * Empty when the funnel really did take the newest session, so the common case stays unchanged.
+     */
+    internal fun funnelFallbackNote(chosenDay: String, newestDay: String): String =
+        if (chosenDay == newestDay) "" else " (NOT the latest night: $newestDay carried no skin temperature)"
+
+    /**
      * What the active strap actually delivered over the window — the line that says which scores can
      * exist at all.
      *
@@ -92,10 +105,22 @@ object AndroidDiagnostics {
      * and read by eye.
      * Pure so it is unit-tested directly; byte-identical to the Swift twin.
      */
-    internal fun strapProvidesLine(hr: Boolean, rr: Boolean, motion: Boolean, steps: Boolean): String {
+    internal fun strapProvidesLine(
+        hr: Boolean,
+        rr: Boolean,
+        motion: Boolean,
+        steps: Boolean,
+        deviceId: String,
+    ): String {
         fun mark(b: Boolean) = if (b) "yes" else "NO"
+        // The DEVICE rides the value beside the window, for the same reason the window does. This asks
+        // ONE id, the active one, while every scorer reads the union of the active, canonical and
+        // computed ids. Those disagree on a re-added strap, an archived spine, or a Health Connect
+        // import, and the line then reads as "this install has no heart rate" when it means "the active
+        // strap id delivered none". That misreading cost real triage time on #2012, where the header
+        // said HR NO while the same export scored a day off 28,141 samples read through the union.
         return "Provides:    HR ${mark(hr)} · R-R ${mark(rr)} · motion ${mark(motion)} · steps ${mark(steps)}" +
-            " (last 48h)"
+            " ($deviceId, last 48h)"
     }
 
     /**
@@ -196,7 +221,7 @@ object AndroidDiagnostics {
                 val nowSec = now / 1000L
                 val present = com.noop.data.WhoopRepository.from(context)
                     .streamPresence(activeId, nowSec - 48L * 3600L, nowSec)
-                add(strapProvidesLine(present.hr, present.rr, present.gravity, present.steps))
+                add(strapProvidesLine(present.hr, present.rr, present.gravity, present.steps, activeId))
             }
             // #1735: row COUNTS alone cannot separate "Health Connect never brought the ride in" from
             // "it did, but nothing has re-scored since". Both halves of that need a WHEN, and neither had
@@ -278,7 +303,8 @@ object AndroidDiagnostics {
                 add("(no sleep session in the last 14 days to analyze)")
                 return@runCatching
             }
-            var session = recent.last()   // non-null (list checked non-empty), newest by ASC start order
+            val newestSession = recent.last()   // non-null (list checked non-empty), newest by ASC start
+            var session = newestSession
             var skin = repo.skinTempSamples(id, session.startTs, session.endTs, Int.MAX_VALUE)
             if (skin.isEmpty()) {
                 for (s in recent.asReversed()) {
@@ -290,7 +316,11 @@ object AndroidDiagnostics {
             val hr = repo.hrSamplesForDevice(id, session.startTs, session.endTs, Int.MAX_VALUE)
             val rr = repo.rrIntervalsForDevice(id, session.startTs, session.endTs, Int.MAX_VALUE)
             val resp = repo.respSamples(id, session.startTs, session.endTs, Int.MAX_VALUE)
-            add("Night ${dayStamp(session.startTs)}: grav=${grav.size} hr=${hr.size} rr=${rr.size} resp=${resp.size} skin=${skin.size}")
+            add(
+                "Night ${dayStamp(session.startTs)}" +
+                    funnelFallbackNote(dayStamp(session.startTs), dayStamp(newestSession.startTs)) +
+                    ": grav=${grav.size} hr=${hr.size} rr=${rr.size} resp=${resp.size} skin=${skin.size}",
+            )
             if (grav.isEmpty() && hr.isEmpty()) {
                 // #1617 follow-up: do NOT assert "freshly re-added" without testing the other explanation.
                 // Several ids can hold one physical strap's data (#1193/#740), and when the history spine

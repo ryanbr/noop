@@ -17,16 +17,20 @@ class StrapProvidesLineTest {
     @Test
     fun `an unbonded 5MG streams heart data and nothing else`() {
         assertEquals(
-            "Provides:    HR yes · R-R yes · motion NO · steps NO (last 48h)",
-            AndroidDiagnostics.strapProvidesLine(hr = true, rr = true, motion = false, steps = false),
+            "Provides:    HR yes · R-R yes · motion NO · steps NO (my-whoop, last 48h)",
+            AndroidDiagnostics.strapProvidesLine(
+                hr = true, rr = true, motion = false, steps = false, deviceId = "my-whoop",
+            ),
         )
     }
 
     @Test
     fun `a fully synced strap provides all four`() {
         assertEquals(
-            "Provides:    HR yes · R-R yes · motion yes · steps yes (last 48h)",
-            AndroidDiagnostics.strapProvidesLine(hr = true, rr = true, motion = true, steps = true),
+            "Provides:    HR yes · R-R yes · motion yes · steps yes (my-whoop, last 48h)",
+            AndroidDiagnostics.strapProvidesLine(
+                hr = true, rr = true, motion = true, steps = true, deviceId = "my-whoop",
+            ),
         )
     }
 
@@ -36,8 +40,34 @@ class StrapProvidesLineTest {
      */
     @Test
     fun `absence is the half that stands out`() {
-        val line = AndroidDiagnostics.strapProvidesLine(hr = true, rr = false, motion = false, steps = true)
+        val line = AndroidDiagnostics.strapProvidesLine(
+            hr = true, rr = false, motion = false, steps = true, deviceId = "my-whoop",
+        )
         assertEquals(2, Regex("NO").findAll(line).count())
-        assertEquals("Provides:    HR yes · R-R NO · motion NO · steps yes (last 48h)", line)
+        assertEquals("Provides:    HR yes · R-R NO · motion NO · steps yes (my-whoop, last 48h)", line)
+    }
+
+    /**
+     * #2012: the line asks ONE id, the active one, while every scorer reads the union of the active,
+     * canonical and computed ids. On a re-added strap or an archived spine those disagree, and the line
+     * then reads as "this install has no heart rate" when it means "the active strap id delivered none".
+     * Naming the id is what stops a reader drawing the first conclusion, which cost real triage time.
+     */
+    @Test
+    fun `the line names whose data it is describing`() {
+        val line = AndroidDiagnostics.strapProvidesLine(
+            hr = false, rr = false, motion = false, steps = false, deviceId = "whoop-5A0FAKE",
+        )
+        assertEquals("Provides:    HR NO · R-R NO · motion NO · steps NO (whoop-5A0FAKE, last 48h)", line)
+    }
+
+    /** The funnel's heading says "latest night"; when it falls back it has to say so. */
+    @Test
+    fun `the funnel note fires only when an older night was analysed`() {
+        assertEquals("", AndroidDiagnostics.funnelFallbackNote("2026-09-09", "2026-09-09"))
+        assertEquals(
+            " (NOT the latest night: 2026-09-09 carried no skin temperature)",
+            AndroidDiagnostics.funnelFallbackNote("2026-09-05", "2026-09-09"),
+        )
     }
 }
