@@ -317,7 +317,11 @@ data class LiveState(
      *  strip can't outlive the link. Applied on disconnect alongside the charging/bond clears. Twin of
      *  macOS LiveState.clearBiometrics (PR#191). */
     fun clearedBiometrics(): LiveState = copy(heartRate = null, rr = emptyList(), rrRecent = emptyList(),
-                                              streamingLiveHR = false)   // #56: a dropped link is no longer streaming
+                                              streamingLiveHR = false,   // #56: a dropped link is no longer streaming
+                                              // A stale clock-drift window must not outlive the link either, and
+                                              // after a device SWITCH it would answer for the previous strap.
+                                              // macOS clears its strapRange on the same path.
+                                              strapNewestUnix = null)
 }
 
 /**
@@ -7636,6 +7640,12 @@ class WhoopBleClient(
                                 log("Strap banked history span: ${fmt.format(java.util.Date(oldestUnix * 1000L))} → newest " +
                                     "(~$spanDays day${if (spanDays == 1L) "" else "s"} of backlog, drained oldest-first)")
                             }
+                            // Publish the newest banked stamp for the Clock-latched readout. Set
+                            // UNCONDITIONALLY, not inside the Test Centre gate below: the readout that
+                            // needs it is what a reporter is asked to quote, and gating the value on a
+                            // diagnostic mode would leave it null for exactly the user who has not
+                            // enabled one. Cleared with the rest of the link state on disconnect.
+                            _state.update { s -> s.copy(strapNewestUnix = it) }
                             // CAPTURE-B parity: promote the CLOCK-DRIFT picture from the buried raw frames to
                             // one upfront line in the UNIVERSAL block - the strap-reported [oldest, newest]
                             // window vs wall clock with a FUTURE-DATE flag (#767 / #754 / #72 cluster). A
@@ -7644,12 +7654,6 @@ class WhoopBleClient(
                             // (gate = active(UNIVERSAL) == any mode on), tagged .universal, not just the
                             // Connection mode. Matches the universal dayOwner line. Gated zero-cost; pure
                             // formatter, no behaviour change. Twin of the macOS data-range emit.
-                            // Publish the newest banked stamp for the Clock-latched readout. Set
-                            // UNCONDITIONALLY, not inside the Test Centre gate below: the readout that
-                            // needs it is what a reporter is asked to quote, and gating the value on a
-                            // diagnostic mode would leave it null for exactly the user who has not
-                            // enabled one.
-                            _state.update { s -> s.copy(strapNewestUnix = it) }
                             if (testCentre.active(com.noop.testcentre.TestDomain.UNIVERSAL)) {
                                 val line = com.noop.analytics.ConnectionTrace.clockDriftLine(
                                     oldestUnix = if (oldestUnix != null && oldestUnix < it) oldestUnix else null,

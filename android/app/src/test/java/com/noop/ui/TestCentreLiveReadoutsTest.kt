@@ -137,6 +137,17 @@ class TestCentreLiveReadoutsTest {
         assertEquals(null, warning)
     }
 
+    /** A verdict must not outlive the link that produced it: after a disconnect, and especially after a
+     *  strap SWITCH, a kept stamp would answer for the previous strap. macOS clears its strapRange on
+     *  the same path, and clearedBiometrics is that path here. */
+    @Test fun aDroppedLinkStopsReportingTheOldStrapsClock() {
+        val live = com.noop.ble.LiveState(strapNewestUnix = 40_000_000L)
+        assertEquals("no (records dated 1970/71)",
+            connectionClockReadout(emptyList(), live.strapNewestUnix, batteryPct = 50.0).first.value)
+        assertEquals("no (waiting for the strap clock)",
+            connectionClockReadout(emptyList(), live.clearedBiometrics().strapNewestUnix, batteryPct = 50.0).first.value)
+    }
+
     /** #1818: the remedy is battery-dependent, and an already-charged strap must not be sent round the
      *  loop it has just run. Wiring the battery through is the whole point of passing it. */
     @Test fun anAlreadyChargedStrapIsNotToldToChargeAgain() {
