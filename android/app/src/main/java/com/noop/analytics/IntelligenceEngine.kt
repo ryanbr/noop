@@ -2871,7 +2871,42 @@ object IntelligenceEngine {
         return if (dayStart < nowLocalMidnight) nextMidnight else minOf(nextMidnight, now)
     }
 
-    /** Drop the whole day cache when the pass-global config changed, recording that it happened (#2073).
+    /** Names of the config-signature fields, in the exact order `dayCacheConfigSig` builds them.
+     *
+     *  Kept beside the reader rather than at the construction site on purpose: that site sits inside
+     *  `analyzeRecentOnCpu`, which is on a JaCoCo bytecode ratchet, so labelling it there would spend
+     *  budget to say something only this diagnostic needs. The cost is that the two must stay in step,
+     *  which [changedConfigField] refuses to guess about when they are not. */
+    internal val DAY_CACHE_CONFIG_FIELDS: List<String> = listOf(
+        "hrvBaseline", "rhrBaseline", "age", "sex", "stepTicksPerStep", "maxHROverride",
+        "tzOffset", "sleepNeedHours", "sleepConsistency", "habitualMidsleep",
+        "experimentalSleepV2", "motionAwareWake", "deepHrvWindow", "spo2CandidateDisplay",
+        "effortMethod", "dayCycleMode",
+    )
+
+    /** Which config field(s) changed between two signatures, for the `configDropped` tally.
+     *
+     *  `configDropped` says a 21-day re-score happened because the pass-global config moved, and stops
+     *  exactly there: a field log pointed at a rolling BASELINE as the likeliest mover, but naming it
+     *  from the outside is a guess. This names the mover from the data.
+     *
+     *  Never guesses: "first" on the first drop of a process, and "unknown" when the two
+     *  signatures do not have the field count this list describes, because a mislabelled field would send
+     *  a reader somewhere the data never pointed. */
+    internal fun changedConfigField(previous: String, current: String): String {
+        // The field starts EMPTY, not null, so the very first drop of a process has nothing to diff
+        // against. That is "first", not "unknown": naming it unknown would report a shape mismatch that
+        // never happened and send a reader looking for a bug in the signature.
+        if (previous.isEmpty()) return "first"
+        val a = previous.split('|')
+        val b = current.split('|')
+        if (a.size != b.size || b.size != DAY_CACHE_CONFIG_FIELDS.size) return "unknown"
+        val moved = b.indices.filter { a[it] != b[it] }.map { DAY_CACHE_CONFIG_FIELDS[it] }
+        return if (moved.isEmpty()) "none" else moved.joinToString("+")
+    }
+
+    /** Drop the whole day cache when the pass-global config changed, recording that it happened (#2073)
+     *  and WHICH field moved.
      *
      *  The recording is the point. A dropped cache leaves NO entry to compare, so the miss tally below
      *  would stay silent and the line would read `reused=0/21` with nothing saying why, which is the exact
@@ -2879,9 +2914,10 @@ object IntelligenceEngine {
      *  inline branch that used to sit in the scoring method rather than adding to it. */
     private fun dropDayCacheIfConfigChanged(configSig: String) {
         if (configSig == dayScanCacheConfigSig) return
+        val moved = changedConfigField(dayScanCacheConfigSig, configSig)
         dayScanCache = HashMap()
         dayScanCacheConfigSig = configSig
-        dayCacheMissBy["configDropped"] = 1
+        dayCacheMissBy["configDropped($moved)"] = 1
     }
 
     /** The cached scan for [day] when it is still reusable, else null, tallying WHY it was not (#2073).

@@ -87,6 +87,41 @@ final class IntelligenceEngine: ObservableObject {
     /// potentially stale and the whole cache is dropped. Empty until the first pass.
     private var dayScanCacheConfigSig = ""
 
+    /// Names of the config-signature fields, in the exact order `dayCacheConfigSig` builds them.
+    ///
+    /// Kept beside the reader rather than at the construction site so that site stays a plain value list.
+    /// The cost is that the two must stay in step, which `changedConfigField` refuses to guess about when
+    /// they are not. Kotlin twin: `IntelligenceEngine.DAY_CACHE_CONFIG_FIELDS`.
+    static let dayCacheConfigFields: [String] = [
+        "hrvBaseline", "rhrBaseline", "age", "sex", "stepTicksPerStep", "maxHROverride",
+        "tzOffset", "sleepNeedHours", "sleepConsistency", "habitualMidsleep",
+        "experimentalSleepV2", "motionAwareWake", "deepHrvWindow", "spo2CandidateDisplay",
+        "effortMethod", "dayCycleMode",
+    ]
+
+    /// Which config field(s) moved between two signatures, for the `configDropped` tally.
+    ///
+    /// `configDropped` said a 21-day re-score happened because the pass-global config changed, and stopped
+    /// there. A field log pointed at a rolling BASELINE as the likeliest mover, but naming it from the
+    /// outside is a guess; this names it from the data.
+    ///
+    /// Never guesses: "first" on the first drop of a process, because the signature starts EMPTY rather
+    /// than nil and there is nothing to diff against, and "unknown" when the two signatures do not have
+    /// the field count this list describes, because a mislabelled field sends a reader somewhere the data
+    /// never pointed.
+    ///
+    /// `nonisolated` because it is a pure function of its arguments: the engine is @MainActor, and without
+    /// this the rule would inherit that isolation and could not be driven from a synchronous test.
+    /// Kotlin twin: `IntelligenceEngine.changedConfigField`.
+    nonisolated static func changedConfigField(previous: String, current: String) -> String {
+        if previous.isEmpty { return "first" }
+        let a = previous.split(separator: "|", omittingEmptySubsequences: false)
+        let b = current.split(separator: "|", omittingEmptySubsequences: false)
+        guard a.count == b.count, b.count == dayCacheConfigFields.count else { return "unknown" }
+        let moved = b.indices.filter { a[$0] != b[$0] }.map { dayCacheConfigFields[$0] }
+        return moved.isEmpty ? "none" : moved.joined(separator: "+")
+    }
+
     /// Who supplies the dashboard headline for a By-Day row. The By-Day card always shows NOOP's OWN
     /// on-device numbers, but the WHOLE-DASHBOARD value for the same day can come from an IMPORTED row
     /// that won the per-day merge (imports win field-by-field over computed , see Repository.mergeDaily).
@@ -895,6 +930,9 @@ final class IntelligenceEngine: ObservableObject {
         // trailing delay. So this fires once per completed backfill, not once per chunk. That coalescing is
         // load-bearing for the cache — removing it would reintroduce the #1402 storm in a form no signature
         // change can fix.
+        // Field names live in `dayCacheConfigFields`, in this exact order. Kept there rather than here so
+        // the construction stays a plain value list, and `changedConfigField` refuses to guess when the
+        // two fall out of step.
         let dayCacheConfigSig = [
             String(describing: baselines1.hrv),
             String(describing: baselines1.restingHR),
@@ -918,7 +956,10 @@ final class IntelligenceEngine: ObservableObject {
         // #2073: recorded, because a dropped cache leaves no entry to compare and the miss tally would
         // otherwise stay silent on the very case it exists to explain.
         var dayCacheConfigDropped = false
+        var dayCacheConfigMoved = ""
         if dayCacheConfigSig != dayScanCacheConfigSig {
+            dayCacheConfigMoved = Self.changedConfigField(previous: dayScanCacheConfigSig,
+                                                          current: dayCacheConfigSig)
             dayScanCache.removeAll()
             dayScanCacheConfigSig = dayCacheConfigSig
             dayCacheConfigDropped = true
@@ -955,7 +996,7 @@ final class IntelligenceEngine: ObservableObject {
             var dayCacheMissBy: [String: Int] = [:]
             // #2073: a cache dropped wholesale leaves NO entry to compare, so without this the tally would
             // stay silent and the line would read reused=0/21 with nothing saying why.
-            if dayCacheConfigDropped { dayCacheMissBy["configDropped"] = 1 }
+            if dayCacheConfigDropped { dayCacheMissBy["configDropped(\(dayCacheConfigMoved))"] = 1 }
             // #1538: per-phase cost tally. `prep` brackets the nine windowed store reads plus the
             // session matching that sits between them and `analyzeDay`; `score` brackets `analyzeDay`
             // itself. Emitted once per pass beside the reuse line.
