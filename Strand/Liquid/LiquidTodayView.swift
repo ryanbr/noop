@@ -65,6 +65,12 @@ struct LiquidTodayView: View {
     @State private var importedStepsDay: Int?      // Apple Health steps for the selected day (middle tier)
     @State private var importedActiveKcalDay: Double?  // #616: Apple Health active energy for the day (calorie fallback)
     @State private var hrValues: [Double] = []     // hrBuckets since midnight → 5-min means
+    /// Line identity for [hrValues], from the bucket timestamps this used to discard (#2082).
+    ///
+    /// A bucket with no samples is simply absent from the aggregate, so mapping straight to `bpm` closed
+    /// every hole up and drew a day of sparse live windows as one continuous line. That bites hardest on a
+    /// strap whose history never offloads, where heart rate exists ONLY for the windows it was connected.
+    @State private var hrSegments: [String] = []
     @State private var workouts: [WorkoutRow] = [] // newest-first
     /// #today-hosted-cards: the shared SleepModel that backs every SleepModel-derived hosted sleep card
     /// (Stages vs typical today; more to follow). Built ONCE in `load()` from the SAME inputs the Sleep tab
@@ -710,7 +716,8 @@ struct LiquidTodayView: View {
                     // Isolated leaf: it observes LiveState so the ~1 Hz HR notifies re-render ONLY
                     // this card, never the whole Today. Shows the current bpm live with a rolling
                     // beat-by-beat trace; falls back to today's banked 5-minute trace when idle.
-                    LiquidLiveHR(tint: liquidHeart, fallback: hrValues, animated: dataLoaded)
+                    LiquidLiveHR(tint: liquidHeart, fallback: hrValues, fallbackSegments: hrSegments,
+                                 animated: dataLoaded)
                 }
             }
             .buttonStyle(LiquidPressStyle())
@@ -1740,7 +1747,11 @@ struct LiquidTodayView: View {
         // #616: same-day imported active energy — the calorie fallback when the strap banked no on-device
         // HR estimate for the day, so the tile/card/detail agree (imported-first, mirrors steps).
         importedActiveKcalDay = (await appleA).filter { $0.day == selectedDayKey }.compactMap { $0.activeKcal }.max()
-        hrValues = (await hrA).map { $0.bpm }
+        // Awaited ONCE: the timestamps and the means have to come from the same read, or the segments
+        // would describe a different series than the one drawn.
+        let hrBuckets = await hrA
+        hrValues = hrBuckets.map { $0.bpm }
+        hrSegments = hrGapSegments(bucketTs: hrBuckets.map { $0.ts }, bucketSeconds: 300)
         workouts = (await wkA).filter { $0.startTs >= from && $0.startTs < to }
 
         let (chargeSource, effortSource, restSource) = await (chargeSourceA, effortSourceA, restSourceA)
@@ -2336,6 +2347,10 @@ private struct LiquidFullWidthNavigationAction: View {
 private struct LiquidLiveHR: View {
     var tint: Color
     var fallback: [Double]        // today's banked 5-minute buckets — shown when there's no live stream
+    /// Line identity for [fallback] only (#2082). The live series is 1 Hz and contiguous by construction,
+    /// so it passes nil and draws exactly as before; the banked buckets skip the hours nothing was
+    /// recorded, and without this the sparkline joined across them as though the day were continuous.
+    var fallbackSegments: [String] = []
     var animated: Bool
 
     @EnvironmentObject private var live: LiveState
@@ -2397,7 +2412,10 @@ private struct LiquidLiveHR: View {
             if series.count >= 2 {
                 ZStack {
                     LiquidHeartRateGrid()
-                    LiquidThread(bpm: series, tint: tint, height: 92, animated: animated)
+                    LiquidThread(bpm: series,
+                                 segments: isLive ? nil : (fallbackSegments.count == series.count
+                                                           ? fallbackSegments : nil),
+                                 tint: tint, height: 92, animated: animated)
                 }
                 .frame(height: 92)
                 .clipShape(RoundedRectangle(cornerRadius: NoopMetrics.space2, style: .continuous))

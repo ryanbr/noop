@@ -176,7 +176,12 @@ enum LiquidRender {
     }
 
     /// The live heart-rate curve as a glowing liquid thread with a travelling glint.
-    static func thread(_ base: GraphicsContext, _ size: CGSize, values: [Double], now: Double, tint: Color) {
+    /// - Parameter segments: per-value line identity from `hrGapSegments`, or nil for a series known to be
+    ///   contiguous. Values whose ids differ are stroked as SEPARATE subpaths, so a stretch the strap never
+    ///   recorded reads as a break instead of a straight climb across it (#2082). Nil produces byte-for-byte
+    ///   the path this drew before, which is what keeps the live 1 Hz stream untouched.
+    static func thread(_ base: GraphicsContext, _ size: CGSize, values: [Double], now: Double, tint: Color,
+                       segments: [String]? = nil) {
         guard values.count >= 2 else { return }
         let w = size.width, h = size.height, pad: Double = 10
         var mn = Double.greatestFiniteMagnitude, mx = -Double.greatestFiniteMagnitude
@@ -185,14 +190,28 @@ enum LiquidRender {
         let n = values.count
         func px(_ i: Int) -> Double { pad + Double(i) * (w - 2 * pad) / Double(n - 1) }
         func py(_ v: Double) -> Double { h - pad - (v - mn) / span * (h - 2 * pad) }
-        func curve() -> Path {
-            var p = Path()
-            p.move(to: CGPoint(x: px(0), y: py(values[0])))
-            for i in 1..<(n - 1) {
+        func appendRun(_ p: inout Path, _ lo: Int, _ hi: Int) {
+            // A lone bucket between two gaps is real data. A bare `move` strokes nothing, so give the round
+            // cap a zero-length line to draw: without it an isolated reading would silently vanish, which
+            // is the same class of lie as the joined line this change removes.
+            guard hi > lo else {
+                p.move(to: CGPoint(x: px(lo), y: py(values[lo])))
+                p.addLine(to: CGPoint(x: px(lo), y: py(values[lo])))
+                return
+            }
+            p.move(to: CGPoint(x: px(lo), y: py(values[lo])))
+            for i in (lo + 1)..<hi {
                 let xc = (px(i) + px(i + 1)) / 2, yc = (py(values[i]) + py(values[i + 1])) / 2
                 p.addQuadCurve(to: CGPoint(x: xc, y: yc), control: CGPoint(x: px(i), y: py(values[i])))
             }
-            p.addLine(to: CGPoint(x: px(n - 1), y: py(values[n - 1])))
+            p.addLine(to: CGPoint(x: px(hi), y: py(values[hi])))
+        }
+        func curve() -> Path {
+            var p = Path()
+            // One run when nothing says otherwise, and that run is the exact path this drew before.
+            var runs: [ClosedRange<Int>] = [0...(n - 1)]
+            if let segs = segments, segs.count == n { runs = hrGapRuns(segments: segs) }
+            for r in runs { appendRun(&p, r.lowerBound, r.upperBound) }
             return p
         }
         var ctx = base
@@ -341,6 +360,10 @@ struct LiquidTube: View {
 /// The live heart-rate thread. `bpm` is the recent series (any length ≥ 2).
 struct LiquidThread: View {
     let bpm: [Double]
+    /// Per-value line identity from `hrGapSegments`, or nil for a series known to be contiguous (#2082).
+    /// The live 1 Hz stream passes nil and is drawn exactly as before; the banked 5-minute fallback passes
+    /// ids so the hours a strap recorded nothing read as breaks rather than a climb across them.
+    var segments: [String]? = nil
     var tint: Color = Color(.sRGB, red: 1, green: 107/255, blue: 129/255, opacity: 1)
     var height: CGFloat = 96
     var animated: Bool = true
@@ -356,7 +379,7 @@ struct LiquidThread: View {
         TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { tl in   // 60fps to flow smoothly on ProMotion
             let now = liquidSeconds(tl.date)
             Canvas { context, size in
-                LiquidRender.thread(context, size, values: bpm, now: now, tint: tint)
+                LiquidRender.thread(context, size, values: bpm, now: now, tint: tint, segments: segments)
             }
         }
         .frame(height: height)
@@ -365,7 +388,7 @@ struct LiquidThread: View {
     /// One-shot render (no travelling glint / pulse) — used until first data load settles.
     private var staticThread: some View {
         Canvas { context, size in
-            LiquidRender.thread(context, size, values: bpm, now: 0, tint: tint)
+            LiquidRender.thread(context, size, values: bpm, now: 0, tint: tint, segments: segments)
         }
         .frame(height: height)
     }

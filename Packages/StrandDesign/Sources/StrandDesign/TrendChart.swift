@@ -25,6 +25,26 @@ import Charts
 /// of invention, and the stress trace made the same call when it stopped drawing through unscored hours.
 ///
 /// Byte-identical twin of the Kotlin `hrGapSegmentIds`.
+/// The index runs that `hrGapSegments` implies: one range per unbroken stretch, in order.
+///
+/// Charts can hand a segment id to the plotting library and let it split the line. A hand-drawn sparkline
+/// cannot, so it needs the runs themselves to know where to lift the pen. Same rule, same source of truth,
+/// rather than a second walk that could disagree with the first (#2082).
+///
+/// An empty input yields no runs. A run of one is still a run: a lone bucket between two gaps is real data
+/// and a caller that drops it would be hiding a reading rather than a gap.
+public func hrGapRuns(segments: [String]) -> [ClosedRange<Int>] {
+    guard !segments.isEmpty else { return [] }
+    var runs: [ClosedRange<Int>] = []
+    var start = 0
+    for i in 1..<segments.count where segments[i] != segments[i - 1] {
+        runs.append(start...(i - 1))
+        start = i
+    }
+    runs.append(start...(segments.count - 1))
+    return runs
+}
+
 public func hrGapSegments(bucketTs: [Int], bucketSeconds: Int) -> [String] {
     var segment = 0
     return bucketTs.enumerated().map { i, ts in
