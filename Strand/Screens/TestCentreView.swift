@@ -699,9 +699,12 @@ private struct TestModeRow: View {
             }
             HStack {
                 Spacer()
-                Button("Report") { report.start(mode: mode, live: live, repo: model.repo) }
+                // "Share", not "Report", to match the strap-log button and the sheet this opens, whose
+                // own copy already reads "Nothing leaves this phone until you tap Share". The word also
+                // describes what the tap does: it builds a redacted bundle and hands it to the share
+                // sheet. Nothing is sent anywhere.
+                Button("Share") { report.start(mode: mode, live: live, repo: model.repo) }
                     .buttonStyle(.plain).font(StrandFont.mono).foregroundStyle(StrandPalette.accent)
-                    .accessibilityLabel("Report a \(mode.title) bug")
             }
         }
         .onAppear {
