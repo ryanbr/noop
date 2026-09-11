@@ -971,6 +971,18 @@ public final class LiveState: ObservableObject {
         out = out.replacingOccurrences(
             of: "whoop-([A-Za-z0-9]{3})[A-Za-z0-9-]{3,}",
             with: "whoop-$1…", options: .regularExpression)
+        // #2092: an Oura device id (`oura-<serial>`) is the same #1303 gap for the OTHER brand — neither
+        // rule above catches it, since the prefix isn't "whoop-". Exact same shape (3-character prefix +
+        // `…`, matching `OuraSerialIdentity.logSafe`) and the same `-noop`-suffix-preserving pair, since
+        // `DeviceRegistryStore.computedSuffix` is brand-agnostic — an Oura device gets a `oura-<serial>
+        // -noop` sibling the same way a WHOOP strap does. Applied AFTER the WHOOP rules but that ordering
+        // is not load-bearing: the two prefixes never overlap. Kotlin twin in `redactStrapLogPii`.
+        out = out.replacingOccurrences(
+            of: "oura-([A-Za-z0-9]{3})[A-Za-z0-9-]{3,}(-noop)",
+            with: "oura-$1…$2", options: .regularExpression)
+        out = out.replacingOccurrences(
+            of: "oura-([A-Za-z0-9]{3})[A-Za-z0-9-]{3,}",
+            with: "oura-$1…", options: .regularExpression)
         // The account holder's NAME, as WHOOP writes it into the advertised local name. WHOOP names a
         // strap "<FirstName>'s Whoop" by default and the scan path logs that name on every discovery, so
         // the shareable log (#445) we ask people to attach to public issues carried a real person's name.

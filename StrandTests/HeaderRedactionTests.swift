@@ -54,4 +54,35 @@ final class HeaderRedactionTests: XCTestCase {
         let line = "  device id=my-whoop status=ACTIVE brand=WHOOP model=WHOOP 4.0 lastSeen=3h 10m ago"
         XCTAssertEqual(LiveState.redactPii(line), line)
     }
+
+    /// #2092: the same gap as #1303 above, for the OTHER brand. An Oura ring's adopted id is
+    /// `oura-<serial>`, and none of the WHOOP-shaped rules match a different literal prefix, so this
+    /// header line leaked the ring's serial verbatim until the twin `oura-` rule was added.
+    func testAnAdoptedOuraSerialIdIsMasked() {
+        let line = "  device id=oura-2H3B2405003655 status=ACTIVE brand=Oura model=Oura Ring 3 lastSeen=1h ago"
+        let safe = LiveState.redactPii(line)
+        XCTAssertFalse(safe.contains("2405003655"), "serial survived: \(safe)")
+        XCTAssertTrue(safe.contains("oura-2H3…"), "three-character prefix should remain: \(safe)")
+    }
+
+    /// The `-noop` computed-sibling suffix is brand-agnostic (`DeviceRegistryStore.computedSuffix`), so
+    /// it must survive the Oura mask exactly as it does the WHOOP one.
+    func testTheComputedSiblingMarkerSurvivesForOuraToo() {
+        XCTAssertEqual(LiveState.redactPii("Days: oura-2H3B2405003655-noop=25"), "Days: oura-2H3…-noop=25")
+    }
+
+    /// An all-digit serial (this repo's own #2075/#2090 evidence: "2038082631034041") must mask the same
+    /// as an alphanumeric one — the rule keys on the "oura-" prefix, not on the serial containing a letter.
+    func testAnAllDigitOuraSerialIsMaskedToo() {
+        let line = "adopted stable serial id oura-2038082631034041 (was oura-5C4C0BF8-2DF6-1B3A-18D0-3DF0B3590148)"
+        let safe = LiveState.redactPii(line)
+        XCTAssertFalse(safe.contains("2038082631034041"), "serial survived: \(safe)")
+        XCTAssertTrue(safe.contains("oura-203…"), "three-character prefix should remain: \(safe)")
+        // The PROVISIONAL id in the same line is a CB-UUID, already caught by the earlier UUID rule.
+        XCTAssertFalse(safe.contains("5C4C0BF8-2DF6-1B3A-18D0-3DF0B3590148"), "provisional UUID survived: \(safe)")
+    }
+
+    func testAnIdTooShortToBeAnOuraSerialIsUntouched() {
+        XCTAssertEqual(LiveState.redactPii("id=oura-ABCDE"), "id=oura-ABCDE")
+    }
 }

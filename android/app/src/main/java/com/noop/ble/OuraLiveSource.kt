@@ -1562,12 +1562,15 @@ class OuraLiveSource(
                     val ascii = String(CharArray(frame.body.size) { i ->
                         val b = frame.body[i]; if (b in 0x20..0x7e) b.toChar() else '.'
                     })
-                    log("Oura: product-info reply op=0x%02x (%dB) raw: %s | ascii: %s".format(frame.op, frame.body.size, hex, ascii))
+                    // #2092: decode BEFORE logging (was after) so the log line can tell a serial page from
+                    // a hardware page - decode itself is unchanged, only reordered.
+                    val str = OuraDecoders.productInfoString(frame.body)
+                    val (safeHex, safeAscii) = logSafeProductInfo(hex, ascii, str)
+                    log("Oura: product-info reply op=0x%02x (%dB) raw: %s | ascii: %s".format(frame.op, frame.body.size, safeHex, safeAscii))
                     // The two GetProductInfo pages both arrive under op 0x19; tell them apart by content:
                     //  • hardware page ("BLB_03") -> resolves a generation -> correct the model (#772).
                     //  • serial page ("2H3B2405003655", no "_NN" gen marker) -> the ring's STABLE identity ->
                     //    surface it so the app can re-point onto its `oura-<serial>` id (#771).
-                    val str = OuraDecoders.productInfoString(frame.body)
                     if (str != null) {
                         val gen = OuraRingGen.fromHardwareId(str)
                         if (gen != null) {
@@ -2162,6 +2165,18 @@ class OuraLiveSource(
          *  Twin of Swift's `isPlausibleSerial`. */
         private fun isPlausibleSerial(s: String): Boolean =
             s.length in 8..24 && s.all { it.isLetterOrDigit() }
+
+        /** What the product-info reply log line (below) may show (#2092): a serial page identifies the
+         *  ring's owner, so only its SHAPE is logged, via [com.noop.data.OuraSerialIdentity.logSafe] -
+         *  the same 3-character prefix [com.noop.data.WhoopSerialIdentity.logSafe] uses for a WHOOP
+         *  serial (#1303). A hardware-generation page ("BLB_03", never [isPlausibleSerial]) identifies no
+         *  one and is still logged in full; either way a masked value still confirms the decode happened,
+         *  which is all this line exists to do. Masks BOTH halves - logging a masked ascii beside the
+         *  unmasked hex would still leak the serial encoded. Twin of Swift's `logSafeProductInfo`. */
+        internal fun logSafeProductInfo(hex: String, ascii: String, decoded: String?): Pair<String, String> {
+            if (decoded == null || !isPlausibleSerial(decoded)) return hex to ascii
+            return "<serial>" to com.noop.data.OuraSerialIdentity.logSafe(decoded)
+        }
         private const val SET_AUTH_KEY_OK = 0x00
 
         /** Generate a fresh cryptographically-random 16-byte install key as unsigned bytes 0..255

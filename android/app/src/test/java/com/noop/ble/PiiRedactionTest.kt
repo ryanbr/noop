@@ -117,6 +117,37 @@ class PiiRedactionTest {
         assertEquals("id=whoop-ABC…", redactStrapLogPii("id=whoop-ABCDEF"))
     }
 
+    /**
+     * #2092: the same gap as #1303 above, for the OTHER brand. An Oura ring's adopted id is
+     * `oura-<serial>`, and none of the WHOOP-shaped rules match a different literal prefix.
+     */
+    @Test fun masksAnAdoptedOuraSerialDeviceId() {
+        val out = redactStrapLogPii("device id=oura-2H3B2405003655 status=ACTIVE brand=Oura")
+        assertEquals("device id=oura-2H3… status=ACTIVE brand=Oura", out)
+        assertFalse("the serial must not survive anywhere", out.contains("2405003655"))
+    }
+
+    @Test fun keepsTheComputedSiblingMarkerForOuraToo() {
+        assertEquals("Days: oura-2H3…-noop=25",
+                     redactStrapLogPii("Days: oura-2H3B2405003655-noop=25"))
+    }
+
+    /** An all-digit serial (this repo's own #2075/#2090 evidence) must mask the same as an alphanumeric
+     *  one - the rule keys on the "oura-" prefix, not on the serial containing a letter. The PROVISIONAL
+     *  id in the same line is `oura-<MAC address>` on Android (`AddDeviceWizard.kt`), already caught by
+     *  the existing MAC rule - not a UUID as on iOS/macOS. */
+    @Test fun masksAnAllDigitOuraSerialToo() {
+        val line = "adopted stable serial id oura-2038082631034041 (was oura-AA:BB:CC:DD:EE:FF)"
+        val out = redactStrapLogPii(line)
+        assertFalse("serial survived: $out", out.contains("2038082631034041"))
+        assertEquals(true, out.contains("oura-203…"))
+        assertFalse("provisional MAC survived: $out", out.contains("AA:BB:CC:DD:EE:FF"))
+    }
+
+    @Test fun ignoresOuraIdsTooShortToBeASerial() {
+        assertEquals("id=oura-ABCDE", redactStrapLogPii("id=oura-ABCDE"))
+    }
+
     @Test fun leavesModelNamesAndPlainTextAlone() {
         // "WHOOP 4.0" is a dotted model name, not a serial — must not be scrubbed.
         assertEquals("Auto-reconnecting to your saved WHOOP 4.0…",

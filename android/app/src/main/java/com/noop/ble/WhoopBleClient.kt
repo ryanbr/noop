@@ -11870,6 +11870,16 @@ private val PII_ADOPTED_ID_NOOP_RE = Regex("whoop-([A-Za-z0-9]{3})[A-Za-z0-9-]{3
 private val PII_ADOPTED_ID_RE = Regex("whoop-([A-Za-z0-9]{3})[A-Za-z0-9-]{3,}")
 
 /**
+ * #2092: an Oura device id (`oura-<serial>`) is the same #1303 gap as [PII_ADOPTED_ID_RE], for the OTHER
+ * brand. Neither WHOOP rule above matches it, since the prefix isn't "whoop-". Exact same shape (3-char
+ * prefix + "…", matching [com.noop.data.OuraSerialIdentity.logSafe]) and the same `-noop`-suffix
+ * pair, since the computed-sibling suffix is brand-agnostic — an Oura device gets a `oura-<serial>-noop`
+ * sibling the same way a WHOOP strap does.
+ */
+private val PII_OURA_ADOPTED_ID_NOOP_RE = Regex("oura-([A-Za-z0-9]{3})[A-Za-z0-9-]{3,}(-noop)")
+private val PII_OURA_ADOPTED_ID_RE = Regex("oura-([A-Za-z0-9]{3})[A-Za-z0-9-]{3,}")
+
+/**
  * Builds the 9-byte WHOOP 4.0 SET_ALARM_TIME (cmd 66) payload.
  * Layout: `[0x01] + u32 LE epoch + [0x00, 0x00]` subseconds + `[0x00, 0x00]` haptic-mode field.
  *
@@ -12108,6 +12118,10 @@ internal fun redactStrapLogPii(s: String): String = try {
         // for an adopted id. The -noop form runs before the general one so the sibling suffix survives.
         .replace(PII_ADOPTED_ID_NOOP_RE, "whoop-$1…$2")
         .replace(PII_ADOPTED_ID_RE, "whoop-$1…")
+        // #2092: the Oura twin of the two rules above. Order vs. the WHOOP pair is not load-bearing - the
+        // two prefixes never overlap.
+        .replace(PII_OURA_ADOPTED_ID_NOOP_RE, "oura-$1…$2")
+        .replace(PII_OURA_ADOPTED_ID_RE, "oura-$1…")
         // Last: the name rule keys on literal text no earlier rule produces or consumes, so it neither
         // masks a substitution marker nor depends on one.
         .replace(PII_DEVICE_NAME_RE, "<name>$1")

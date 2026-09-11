@@ -139,8 +139,21 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     /// so a misframed/garbage reply can never mint a bogus `oura-<serial>` identity (#771 honest-data guard).
     /// The captured Gen3 serial "2H3B2405003655" (14 chars) passes; the hardware id "BLB_03" (underscore) does
     /// not — but it is already routed to the generation path before this is reached.
-    private static func isPlausibleSerial(_ s: String) -> Bool {
+    nonisolated private static func isPlausibleSerial(_ s: String) -> Bool {
         (8...24).contains(s.count) && s.allSatisfy { $0.isLetter || $0.isNumber }
+    }
+
+    /// What the product-info reply log line (below) may show (#2092): a serial page identifies the
+    /// ring's owner, so only its SHAPE is logged, via `OuraSerialIdentity.logSafe` — the same 3-character
+    /// prefix `WhoopSerialIdentity.logSafe` uses for a WHOOP serial (#1303). A hardware-generation page
+    /// ("BLB_03", never `isPlausibleSerial`) identifies no one and is still logged in full; either way a
+    /// masked value still confirms the decode happened, which is all this line exists to do. Masks BOTH
+    /// halves — logging a masked `ascii` beside the unmasked `hex` would still leak the serial encoded.
+    /// `nonisolated static` and free of the log call itself, so it is testable without CoreBluetooth.
+    nonisolated static func logSafeProductInfo(hex: String, ascii: String,
+                                               decoded: String?) -> (hex: String, ascii: String) {
+        guard let decoded, isPlausibleSerial(decoded) else { return (hex, ascii) }
+        return ("<serial>", OuraSerialIdentity.logSafe(serial: decoded))
     }
 
     /// Re-encode outer frames for the raw diagnostics sidecar, dropping `productInfoResponseOps` —
@@ -2575,12 +2588,16 @@ extension OuraLiveSource: @preconcurrency CBPeripheralDelegate {
             let hex = frame.body.map { String(format: "%02x", $0) }.joined(separator: " ")
             guard loggedProductInfo.insert("\(frame.op):\(hex)").inserted else { continue }
             let ascii = String(bytes: frame.body.map { (0x20...0x7e).contains($0) ? $0 : 0x2e }, encoding: .ascii) ?? ""
-            log("Oura: product-info reply op=0x\(String(format: "%02x", frame.op)) (\(frame.body.count)B) raw: \(hex) | ascii: \(ascii)")
+            // #2092: decode BEFORE logging (was after) so the log line can tell a serial page from a
+            // hardware page — decode itself is unchanged, only reordered.
+            let decoded = OuraDecoders.productInfoString(frame.body)
+            let safe = Self.logSafeProductInfo(hex: hex, ascii: ascii, decoded: decoded)
+            log("Oura: product-info reply op=0x\(String(format: "%02x", frame.op)) (\(frame.body.count)B) raw: \(safe.hex) | ascii: \(safe.ascii)")
             // The two GetProductInfo pages both arrive under op 0x19; tell them apart by content:
             //  • hardware page ("BLB_03") → resolves a generation → correct the model (#772).
             //  • serial page ("2H3B2405003655", no "_NN" gen marker) → the ring's STABLE identity → surface it
             //    so the app can re-point this device onto its `oura-<serial>` id (#771).
-            if let str = OuraDecoders.productInfoString(frame.body) {
+            if let str = decoded {
                 if let gen = OuraRingGen.from(hardwareId: str) {
                     if gen != ringGen {
                         log("Oura: generation from hardware id \(str) is \(gen.displayName) (was \(ringGen.displayName)) - correcting model")
