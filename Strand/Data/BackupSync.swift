@@ -312,7 +312,17 @@ enum FolderBackup {
         // interactive export is where the user is told, because that is where they can act on it.
         switch await DataBackup.writeBackup(checkpoint: checkpoint, to: dest) {
         case .exported, .exportedOversize: break
-        default: return false
+        default:
+            // Remove whatever this run left behind, and note that this is the OPPOSITE of what the
+            // interactive export does with an unverifiable file. The two contexts want opposite answers:
+            // a file whose location the user chose is theirs to keep and inspect, and they are told so,
+            // while a file in THIS folder silently becomes `latestSnapshot` in a rotation whose older
+            // snapshots are still intact, with nobody watching to notice it was never confirmed. A
+            // snapshot that was never read back is not one to offer the restore picker first; the next
+            // run writes another. (A torn file already deleted itself; this covers the rest.)
+            // Twin of the Android FolderBackup delete.
+            try? FileManager.default.removeItem(at: dest)
+            return false
         }
 
         UserDefaults.standard.set(nowMs, forKey: lastKey)
