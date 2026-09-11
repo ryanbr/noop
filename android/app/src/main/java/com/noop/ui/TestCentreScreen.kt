@@ -72,6 +72,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 
 /**
  * Settings -> Test Centre (spec section 7), the Android twin of TestCentreView. Four sections: domain
@@ -672,13 +674,32 @@ private fun TestCentreLiveReadoutPanel(
             gravitySamples = gravitySamples,
         ),
     )
+    // #987/#1823: the clock half of the Connection readout, the row a reporter is asked to quote when
+    // nothing syncs plus the sentence that says what to do about it. Rendered here rather than through
+    // the registry's liveReadout ids because iOS renders it the same way, in ConnectionReadoutPanel: that
+    // id list is a spec both platforms carry byte-for-byte, and adding to one side alone breaks it.
+    val clockReadout = connectionClockReadout(
+        logLines = logLines,
+        strapNewestUnix = live.strapNewestUnix,
+        batteryPct = live.batteryPct,
+    ).takeIf { mode.domain == TestDomain.CONNECTION }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(top = 2.dp)) {
-        rows.forEach { row ->
+        (rows + listOfNotNull(clockReadout?.first)).forEach { row ->
             Row(Modifier.fillMaxWidth()) {
                 Text(row.label, style = NoopType.footnote, color = Palette.textTertiary)
                 Spacer(Modifier.weight(1f))
                 Text(row.value, style = NoopType.mono, color = Palette.textSecondary)
             }
+        }
+        clockReadout?.second?.let { warning ->
+            // Amber and in words, not a bare token: a never-set clock is the most common "no history at
+            // all" root cause, and the fix is in the sentence.
+            Text(
+                warning,
+                style = NoopType.footnote,
+                color = Palette.statusWarning,
+                modifier = Modifier.semantics { contentDescription = warning },
+            )
         }
     }
 }

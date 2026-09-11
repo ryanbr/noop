@@ -107,4 +107,46 @@ class TestCentreLiveReadoutsTest {
             TestCentreLiveRefreshPolicy.sources(battery, active = true),
         )
     }
+
+    // -- #987/#1823: the clock half of the Connection readout, computed here and never shown ---------
+    //
+    // ConnectionReadout.clockLatchedLabel and rtcWarning were both implemented AND unit-tested on this
+    // platform with NO production caller, so an Android user could only learn their strap's clock was
+    // never set by exporting a log and reading it themselves. iOS has shown both on Test Centre and
+    // Devices throughout. These pin the wiring; the rules themselves are pinned in ConnectionReadoutTest.
+
+    /** The reported shape: a WHOOP 5/MG whose banked records are epoch-era. Its GET_CLOCK reply is not
+     *  served on that family, so how the strap DATED its records is the only evidence there is. */
+    @Test fun anEpochDatedStrapReadsNotLatchedAndWarns() {
+        val (row, warning) = connectionClockReadout(emptyList(), strapNewestUnix = 40_000_000L, batteryPct = 50.0)
+        assertEquals(LiveReadoutRow("clockLatched", "Clock latched", "no (records dated 1970/71)"), row)
+        assertTrue(requireNotNull(warning).contains("not banking history"))
+    }
+
+    @Test fun aSanelyDatedStrapReadsLatchedAndDoesNotWarn() {
+        val (row, warning) = connectionClockReadout(emptyList(), strapNewestUnix = 1_782_475_000L, batteryPct = 50.0)
+        assertEquals("yes", row.value)
+        assertEquals(null, warning)
+    }
+
+    /** Before any range lands there is nothing to judge. The row says so rather than inventing a
+     *  verdict, and no warning is raised on an absence. */
+    @Test fun noEvidenceYetSaysWaitingAndRaisesNoWarning() {
+        val (row, warning) = connectionClockReadout(emptyList(), strapNewestUnix = null, batteryPct = null)
+        assertEquals("no (waiting for the strap clock)", row.value)
+        assertEquals(null, warning)
+    }
+
+    /** #1818: the remedy is battery-dependent, and an already-charged strap must not be sent round the
+     *  loop it has just run. Wiring the battery through is the whole point of passing it. */
+    @Test fun anAlreadyChargedStrapIsNotToldToChargeAgain() {
+        val flat = requireNotNull(
+            connectionClockReadout(emptyList(), strapNewestUnix = 40_000_000L, batteryPct = 40.0).second
+        )
+        val charged = requireNotNull(
+            connectionClockReadout(emptyList(), strapNewestUnix = 40_000_000L, batteryPct = 100.0).second
+        )
+        assertTrue(flat.contains("Charge the strap"))
+        assertTrue(charged.contains("already charged"))
+    }
 }

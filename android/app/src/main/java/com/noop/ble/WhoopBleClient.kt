@@ -148,6 +148,15 @@ data class LiveState(
      *  short history to render a moving R-R strip / rolling RMSSD. Appended (never replaced) via
      *  [withRRIntervals]; emptied by [clearedBiometrics]. Twin of macOS LiveState.rrRecent (PR#191). */
     val rrRecent: List<Int> = emptyList(),
+    /** Newest banked-record timestamp the strap reported in its last GET_DATA_RANGE reply, unix seconds.
+     *  null until a range lands.
+     *
+     *  This is the ONLY clock evidence a WHOOP 5/MG offers: its GET_CLOCK reply is not served on that
+     *  family (see the Interpreter's capture note), so the correlated device clock the WHOOP4 path
+     *  derives is always null there. Without it the Clock-latched readout can only say "waiting for the strap
+     *  clock" on a 5/MG, however broken the strap's RTC is, which is the #827 shape iOS fixed in #1823 by
+     *  falling back to how the strap DATED its records. Twin of macOS LiveState.strapRange.newestUnix. */
+    val strapNewestUnix: Long? = null,
     val batteryPct: Double? = null,
     /** Strap battery pack VOLTAGE (mV), decoded from the ~8-min BATTERY_LEVEL event (mv@21/@25) and the
      *  GET_EXTENDED_BATTERY_INFO response (#592). Shown on the Devices card as a "x.xx V" readout beside
@@ -7635,6 +7644,12 @@ class WhoopBleClient(
                             // (gate = active(UNIVERSAL) == any mode on), tagged .universal, not just the
                             // Connection mode. Matches the universal dayOwner line. Gated zero-cost; pure
                             // formatter, no behaviour change. Twin of the macOS data-range emit.
+                            // Publish the newest banked stamp for the Clock-latched readout. Set
+                            // UNCONDITIONALLY, not inside the Test Centre gate below: the readout that
+                            // needs it is what a reporter is asked to quote, and gating the value on a
+                            // diagnostic mode would leave it null for exactly the user who has not
+                            // enabled one.
+                            _state.update { s -> s.copy(strapNewestUnix = it) }
                             if (testCentre.active(com.noop.testcentre.TestDomain.UNIVERSAL)) {
                                 val line = com.noop.analytics.ConnectionTrace.clockDriftLine(
                                     oldestUnix = if (oldestUnix != null && oldestUnix < it) oldestUnix else null,

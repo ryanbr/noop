@@ -148,3 +148,30 @@ internal object TestCentreLiveReadouts {
             "\\[(${TestDomain.entries.joinToString("|") { Regex.escape(it.id) }})]\\s",
     )
 }
+
+/**
+ * The clock half of the Connection readout: the "Clock latched" row and the plain-words RTC warning.
+ *
+ * iOS renders these in `ConnectionReadoutPanel`, hard-coded in the view rather than bound to the
+ * registry's `liveReadout` ids (that list is a spec both platforms must carry byte-for-byte, and iOS's
+ * panel already shows more rows than it names). Android mirrors that shape here rather than adding an
+ * id, so the registry parity test keeps its meaning.
+ *
+ * Both values were computable on this platform all along: `clockLatchedLabel` and `rtcWarning` are
+ * implemented in `ConnectionReadout` and covered by `ConnectionReadoutTest`, and NEITHER had a
+ * production caller, so an Android user could only learn their strap's clock was never set by exporting
+ * a log and reading it themselves. Pure and separate from the Composable so the wiring is testable.
+ */
+internal fun connectionClockReadout(
+    logLines: List<String>,
+    strapNewestUnix: Long?,
+    batteryPct: Double?,
+): Pair<LiveReadoutRow, String?> {
+    val deviceClock = ConnectionReadout.clockCorrelatedDevice(logLines)
+    val row = LiveReadoutRow(
+        "clockLatched",
+        "Clock latched",
+        ConnectionReadout.clockLatchedLabel(deviceClock, strapNewestUnix),
+    )
+    return row to ConnectionReadout.rtcWarning(deviceClock, strapNewestUnix, batteryPct)
+}
