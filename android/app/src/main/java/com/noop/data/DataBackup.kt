@@ -73,14 +73,6 @@ object DataBackup {
         )
 
     /**
-     * #1014 (write-side): cheaply confirm a JUST-WRITTEN `.noopbak` at [uri] is structurally intact — its
-     * DB entry is present and begins with the SQLite magic header. A torn write (truncated ZIP / a
-     * half-flushed SAF document on a full disk or flaky provider) otherwise leaves a `.noopbak` that
-     * silently "restores" into an empty store, caught only by the import-side quick_check much later. Fail
-     * HERE at write time instead. Twin of the Apple post-write check in `writeVerifiedBackupZip`.
-     * Best-effort: any read/format error returns false (treated as not-intact).
-     */
-    /**
      * What a post-write check concluded about the file just produced.
      *
      * [UNVERIFIABLE] exists so that failing to READ a backup is never mistaken for evidence against it.
@@ -103,7 +95,12 @@ object DataBackup {
     }
 
     /**
-     * Re-read the `.noopbak` at [uri] and say what it looks like.
+     * Re-read the JUST-WRITTEN `.noopbak` at [uri] and say what it looks like.
+     *
+     * #1014 (write-side): a torn write, a truncated ZIP or a half-flushed SAF document on a full disk or
+     * a flaky provider, otherwise leaves a `.noopbak` that silently "restores" into an empty store, and
+     * is caught only by the import-side quick_check much later, when the original may be long gone. Fail
+     * HERE at write time instead. Twin of the Apple `writtenBackupIsIntact`.
      *
      * The tail is the cheap half and the half that actually catches a torn write; it is SKIPPED, not
      * failed, when the provider will not report a size, since refusing a good backup because a document
