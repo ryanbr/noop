@@ -2944,10 +2944,21 @@ public final class BLEManager: NSObject, ObservableObject {
             //    the auto-continue predicate for this exact latch; a caught-up strap is already false via
             //    the gap, so gating on it only bites the phantom case.
             if let n = newest, let f = frontier {
-                state.historyPendingSync =
+                let pending =
                     !BackfillContinuation.isFutureDatedNewest(n, wallNowUnix: wallNow)
                     && persistedSensorRows
                     && (n - f) > BackfillContinuation.defaultBehindGapSeconds
+                // #2012: say WHY, on the flip only. This half of the Rest "Pending sync" state used to
+                // change in total silence, so a report of it showing hours after waking was unanswerable.
+                if state.historyPendingSync != pending {
+                    log(PendingSyncDiagnostic.line(
+                        pending: pending, site: PendingSyncDiagnostic.sitePostOffload,
+                        newestUnix: n, frontierUnix: f,
+                        futureDated: BackfillContinuation.isFutureDatedNewest(n, wallNowUnix: wallNow),
+                        persistedRows: persistedSensorRows,
+                        thresholdSec: BackfillContinuation.defaultBehindGapSeconds))
+                }
+                state.historyPendingSync = pending
             }
             let stillConnected = state.connected && state.bonded
             guard BackfillContinuation.shouldAutoContinue(
@@ -6758,9 +6769,20 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                         // here: no offload has run yet, so there is no row evidence to weigh. The first
                         // completed pass corrects it.
                         let wallNowP = Int(Date().timeIntervalSince1970)
-                        state.historyPendingSync =
+                        let pendingAtConnect =
                             !BackfillContinuation.isFutureDatedNewest(newestForPending, wallNowUnix: wallNowP)
                             && (newestForPending - f) > BackfillContinuation.defaultBehindGapSeconds
+                        // #2012: say WHY, on the flip only (see the post-offload site).
+                        if state.historyPendingSync != pendingAtConnect {
+                            log(PendingSyncDiagnostic.line(
+                                pending: pendingAtConnect, site: PendingSyncDiagnostic.siteConnect,
+                                newestUnix: newestForPending, frontierUnix: f,
+                                futureDated: BackfillContinuation.isFutureDatedNewest(
+                                    newestForPending, wallNowUnix: wallNowP),
+                                persistedRows: nil,
+                                thresholdSec: BackfillContinuation.defaultBehindGapSeconds))
+                        }
+                        state.historyPendingSync = pendingAtConnect
                     }
                 }
             }
