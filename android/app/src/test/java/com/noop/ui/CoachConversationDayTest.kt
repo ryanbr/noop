@@ -100,6 +100,19 @@ class CoachConversationDayTest {
         assertEquals(day(2026, 3, 9), CoachViewModel.localEpochDay(localMidnight + 23 * 3_600, ny))
     }
 
+    /** The NEWEST row dates the transcript, not the oldest: a conversation started last night and
+     *  carried past midnight belongs to today, and must not be retired out from under the user.
+     *  Twin of the Swift `testTheNewestRowDecidesTheTranscriptDay`. */
+    @Test
+    fun `the newest row decides the transcript day`() {
+        fun at(y: Int, m: Int, d: Int, h: Int) =
+            LocalDate.of(y, m, d).atStartOfDay(utc).toEpochSecond() + h * 3_600L
+        val rows = listOf(at(2026, 9, 10, 23), at(2026, 9, 11, 0))
+        val lastDay = CoachViewModel.localEpochDay(rows.max(), utc)
+        assertEquals(day(2026, 9, 11), lastDay)
+        assertFalse(CoachViewModel.isStaleConversation(lastDay, day(2026, 9, 11)))
+    }
+
     /** The two rules together, which is how the restore path uses them: a transcript last written late
      *  last night is stale the moment the local date rolls over, even minutes later. */
     @Test
