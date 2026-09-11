@@ -456,8 +456,16 @@ struct LiftSessionView: View {
     // MARK: - Field bindings
     //
     // Each field reads and writes THROUGH the controller, so a keystroke lands in the engine and on
-    // disk immediately. Typing into a set that has not been completed yet is allowed — you may want
-    // to plan the next one — and is held until the set is recorded.
+    // disk immediately.
+    //
+    // TYPING INTO ANY SET, AT ANY TIME. A set that has already been performed is edited in place; one
+    // that has not is held in `LiftSessionController.pendingValues` and applied the moment it is
+    // recorded. The two are indistinguishable from the row, which is the requirement: being mid-set
+    // on one machine is no reason to refuse a correction to another row you are looking at.
+    //
+    // This used to be a claim rather than a behaviour — the comment here said the value was "held
+    // until the set is recorded" while `write` silently dropped it — and a real session found it:
+    // "when I type something during an active set to other sets it refreshes to the empty".
 
     /// A text binding that does not fight the user while they type: reads the draft if there is one,
     /// otherwise the canonical rendering of what is stored.
@@ -481,7 +489,7 @@ struct LiftSessionView: View {
 
     private func weightBinding(_ slot: LiftSlot) -> Binding<String> {
         fieldBinding(.weight(slot),
-                     formatted: { engine?.recordedSet(for: slot)?.weightKg.map { display($0) } ?? "" },
+                     formatted: { session.enteredValues(for: slot).weightKg.map { display($0) } ?? "" },
                      store: { text in
                          let kg = LiftFormat.number(text).map {
                              LiftFormat.kilograms(fromDisplay: $0, system: unitSystem)
@@ -492,7 +500,7 @@ struct LiftSessionView: View {
 
     private func repsBinding(_ slot: LiftSlot) -> Binding<String> {
         fieldBinding(.reps(slot),
-                     formatted: { engine?.recordedSet(for: slot)?.reps.map(String.init) ?? "" },
+                     formatted: { session.enteredValues(for: slot).reps.map(String.init) ?? "" },
                      store: { text in
                          write(slot) { $0.reps = Int(text.trimmingCharacters(in: .whitespaces)) }
                      })
@@ -500,13 +508,20 @@ struct LiftSessionView: View {
 
     private func rpeBinding(_ slot: LiftSlot) -> Binding<String> {
         fieldBinding(.rpe(slot),
-                     formatted: { engine?.recordedSet(for: slot)?.rpe.map { LiftFormat.trim($0) } ?? "" },
+                     formatted: { session.enteredValues(for: slot).rpe.map { LiftFormat.trim($0) } ?? "" },
                      store: { text in write(slot) { $0.rpe = LiftFormat.number(text) } })
     }
 
-    /// Apply one field change to a recorded set, leaving the others as they were.
+    /// Apply one field change to a set, leaving its other fields as they were.
+    ///
+    /// Works whether or not the set has been performed — the controller decides where the value
+    /// lands. It reads the CURRENT entered values first, so editing the reps cannot blank a weight
+    /// that was typed a moment ago into the same pending row.
     private func write(_ slot: LiftSlot, _ mutate: (inout LiftRecordedSet) -> Void) {
-        guard var row = engine?.recordedSet(for: slot) else { return }
+        let entered = session.enteredValues(for: slot)
+        var row = LiftRecordedSet(exerciseIndex: slot.exerciseIndex, setIndex: slot.setIndex,
+                                  weightKg: entered.weightKg, reps: entered.reps, rpe: entered.rpe,
+                                  isWarmup: session.isWarmup(slot), startTs: 0, endTs: 0, restSec: nil)
         mutate(&row)
         session.updateSet(slot, weightKg: row.weightKg, reps: row.reps,
                           rpe: row.rpe, isWarmup: row.isWarmup)

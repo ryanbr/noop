@@ -27,6 +27,27 @@ enum LiftSessionPersistence {
         var stage: StageBox
         var sets: [RecordedSet]
         var stageStartedAt: Int
+        /// Numbers typed into sets that have NOT happened yet, and slots marked a warm-up in
+        /// advance. Both are intent the user has already expressed, so a crash must not cost them —
+        /// that is the whole point of this snapshot.
+        ///
+        /// Optional because a snapshot written before these existed does not carry them: it decodes
+        /// as absent and the session resumes with nothing pending, which is exactly right.
+        var pendingValues: [PendingValue]?
+        var pendingWarmups: [SlotBox]?
+
+        struct PendingValue: Codable, Equatable {
+            var exerciseIndex: Int
+            var setIndex: Int
+            var weightKg: Double?
+            var reps: Int?
+            var rpe: Double?
+        }
+
+        struct SlotBox: Codable, Equatable {
+            var exerciseIndex: Int
+            var setIndex: Int
+        }
 
         struct PlanItem: Codable, Equatable {
             var exercise: String
@@ -112,7 +133,9 @@ enum LiftSessionPersistence {
 
     static func snapshot(engine: LiftSessionEngine,
                          programId: String?,
-                         programName: String?) -> Snapshot {
+                         programName: String?,
+                         pendingValues: [LiftSlot: LiftSessionController.PendingSetValues],
+                         pendingWarmups: Set<LiftSlot>) -> Snapshot {
         Snapshot(
             startSec: engine.startTs,
             programId: programId,
@@ -137,7 +160,33 @@ enum LiftSessionPersistence {
                                      isWarmup: $0.isWarmup, startTs: $0.startTs, endTs: $0.endTs,
                                      restSec: $0.restSec)
             },
-            stageStartedAt: engine.stageStartedAt)
+            stageStartedAt: engine.stageStartedAt,
+            // Sorted so the encoded snapshot is stable: a dictionary and a set have no order, and an
+            // unstable encoding would rewrite the defaults blob on every tick for no reason.
+            pendingValues: pendingValues
+                .sorted { ($0.key.exerciseIndex, $0.key.setIndex) < ($1.key.exerciseIndex, $1.key.setIndex) }
+                .map { slot, values in
+                    Snapshot.PendingValue(exerciseIndex: slot.exerciseIndex, setIndex: slot.setIndex,
+                                          weightKg: values.weightKg, reps: values.reps, rpe: values.rpe)
+                },
+            pendingWarmups: pendingWarmups
+                .sorted { ($0.exerciseIndex, $0.setIndex) < ($1.exerciseIndex, $1.setIndex) }
+                .map { Snapshot.SlotBox(exerciseIndex: $0.exerciseIndex, setIndex: $0.setIndex) })
+    }
+
+    /// The numbers typed in advance, back as the controller holds them.
+    static func pendingValues(from s: Snapshot) -> [LiftSlot: LiftSessionController.PendingSetValues] {
+        var out: [LiftSlot: LiftSessionController.PendingSetValues] = [:]
+        for p in s.pendingValues ?? [] {
+            out[LiftSlot(exerciseIndex: p.exerciseIndex, setIndex: p.setIndex)] =
+                LiftSessionController.PendingSetValues(weightKg: p.weightKg, reps: p.reps, rpe: p.rpe)
+        }
+        return out
+    }
+
+    /// The warm-up marks made in advance, back as the controller holds them.
+    static func pendingWarmups(from s: Snapshot) -> Set<LiftSlot> {
+        Set((s.pendingWarmups ?? []).map { LiftSlot(exerciseIndex: $0.exerciseIndex, setIndex: $0.setIndex) })
     }
 
     /// Rebuild an engine from a snapshot. Unknown muscle tokens are dropped rather than failing the

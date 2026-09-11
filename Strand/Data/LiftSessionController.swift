@@ -43,6 +43,29 @@ final class LiftSessionController: ObservableObject {
     /// recorded. Owned by the controller rather than a view so it survives the sheet being minimised.
     @Published private(set) var pendingWarmups: Set<LiftSlot> = []
 
+    /// Numbers typed into a set BEFORE it was performed, held exactly the way a warm-up mark is.
+    ///
+    /// Reported from a real session: "when I type something during an active set to other sets it
+    /// refreshes to the empty". It did — `LiftSessionView.write` could only edit a set that already
+    /// had a record, so every keystroke into a pending row was silently discarded, and the field only
+    /// LOOKED like it had taken until focus left and the draft was dropped.
+    ///
+    /// The engine invariant it ran into is real and stays: typing must never append a set, or a set
+    /// nobody performed becomes data. So the value is held here instead, shown back on the row, and
+    /// applied the instant the set is recorded — at which point it BEATS the carried plan, because a
+    /// number the user typed for this set is better evidence than the one the sheet guessed for it.
+    @Published private(set) var pendingValues: [LiftSlot: PendingSetValues] = [:]
+
+    /// What a user typed into a set that has not happened yet. All optional: a row where only the
+    /// weight was typed keeps carrying its reps.
+    struct PendingSetValues: Equatable {
+        var weightKg: Double?
+        var reps: Int?
+        var rpe: Double?
+
+        var isEmpty: Bool { weightKg == nil && reps == nil && rpe == nil }
+    }
+
     /// What the store holds for each exercise LAST session, keyed by exercise name then set number —
     /// the middle layer of `LiftSessionEngine.carry(for:lastSession:)`.
     ///
@@ -94,6 +117,11 @@ final class LiftSessionController: ObservableObject {
         engine = LiftSessionPersistence.engine(from: snapshot)
         programId = snapshot.programId
         programName = snapshot.programName
+        // Numbers typed for sets not yet performed, and warm-ups marked in advance, come back too:
+        // they are intent the user already expressed, and losing them is the bug this pair exists
+        // to prevent, whether it is lost to a blur or to a relaunch.
+        pendingValues = LiftSessionPersistence.pendingValues(from: snapshot)
+        pendingWarmups = LiftSessionPersistence.pendingWarmups(from: snapshot)
         now = Int(Date().timeIntervalSince1970)
         // Suppress the warning for a rest that is ALREADY inside its final seconds. Without this,
         // reopening a session mid-rest greets the user with three buzzes for a rest they have been
@@ -127,6 +155,7 @@ final class LiftSessionController: ObservableObject {
         programName = nil
         warnedFor = nil
         pendingWarmups = []
+        pendingValues = [:]
         isPresented = false
         ticker?.cancel()
         ticker = nil
@@ -161,7 +190,7 @@ final class LiftSessionController: ObservableObject {
 
         let stamp = Int(Date().timeIntervalSince1970)
         engine?.advance(now: stamp, lastSession: carryFromLastSession())
-        applyPendingWarmup()
+        applyPendingInput()
         now = stamp
         warnedFor = nil
         persist()
@@ -285,12 +314,26 @@ final class LiftSessionController: ObservableObject {
         return pendingWarmups.contains(slot)
     }
 
-    /// Carry a pre-marked warm-up onto the set that was just recorded.
-    private func applyPendingWarmup() {
-        guard let engine, let last = engine.sets.last, pendingWarmups.contains(last.slot),
-              !last.isWarmup else { return }
-        self.engine?.updateSet(last.slot, weightKg: last.weightKg, reps: last.reps,
-                               rpe: last.rpe, isWarmup: true)
+    /// Carry a pre-marked warm-up, and any numbers typed in advance, onto the set just recorded.
+    ///
+    /// The typed numbers OVERRIDE what `carry(for:lastSession:)` put there. The carry is the sheet's
+    /// best guess — this exercise earlier, last session, the program's target — and a value the user
+    /// typed for this very set outranks all three. A field left untouched keeps its carried value,
+    /// so typing only the weight does not blank the reps.
+    ///
+    /// The entry is CONSUMED. A redo (`start` on a completed slot) drops the record and should show
+    /// the ghosts again, exactly as it did before; leaving the entry behind would resurrect numbers
+    /// the user is in the middle of redoing.
+    private func applyPendingInput() {
+        guard let engine, let last = engine.sets.last else { return }
+        let typed = pendingValues.removeValue(forKey: last.slot)
+        let warmup = last.isWarmup || pendingWarmups.contains(last.slot)
+        guard typed != nil || warmup != last.isWarmup else { return }
+        self.engine?.updateSet(last.slot,
+                               weightKg: typed?.weightKg ?? last.weightKg,
+                               reps: typed?.reps ?? last.reps,
+                               rpe: typed?.rpe ?? last.rpe,
+                               isWarmup: warmup)
     }
 
     /// Begin a specific set — the out-of-order path, for when a machine is occupied.
@@ -329,9 +372,32 @@ final class LiftSessionController: ObservableObject {
         return true
     }
 
+    /// Fill in or correct a set's numbers — **any** set, at any time.
+    ///
+    /// A set that has been performed is edited in the engine. A set that has NOT been performed
+    /// cannot be (that would invent it), so its numbers are held in `pendingValues` until it is.
+    /// From the screen the two are indistinguishable, which is the point: the user asked to be able
+    /// to type into whichever row they are looking at, and being mid-set somewhere else is not a
+    /// reason to refuse.
     func updateSet(_ slot: LiftSlot, weightKg: Double?, reps: Int?, rpe: Double?, isWarmup: Bool) {
-        engine?.updateSet(slot, weightKg: weightKg, reps: reps, rpe: rpe, isWarmup: isWarmup)
+        if engine?.recordedSet(for: slot) != nil {
+            engine?.updateSet(slot, weightKg: weightKg, reps: reps, rpe: rpe, isWarmup: isWarmup)
+        } else if engine?.planItem(for: slot) != nil {
+            let values = PendingSetValues(weightKg: weightKg, reps: reps, rpe: rpe)
+            // Clearing the last field clears the entry rather than leaving an empty one behind, so
+            // the row goes back to showing the plan's grey ghost instead of a blank it has to keep.
+            if values.isEmpty { pendingValues.removeValue(forKey: slot) }
+            else { pendingValues[slot] = values }
+        }
         persist()
+    }
+
+    /// What a slot is currently showing: what it recorded, or what was typed into it in advance.
+    func enteredValues(for slot: LiftSlot) -> PendingSetValues {
+        if let row = engine?.recordedSet(for: slot) {
+            return PendingSetValues(weightKg: row.weightKg, reps: row.reps, rpe: row.rpe)
+        }
+        return pendingValues[slot] ?? PendingSetValues(weightKg: nil, reps: nil, rpe: nil)
     }
 
     func undo() {
@@ -361,6 +427,8 @@ final class LiftSessionController: ObservableObject {
         LiftSessionPersistence.store(
             LiftSessionPersistence.snapshot(engine: engine,
                                             programId: programId,
-                                            programName: programName))
+                                            programName: programName,
+                                            pendingValues: pendingValues,
+                                            pendingWarmups: pendingWarmups))
     }
 }

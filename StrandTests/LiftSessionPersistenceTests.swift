@@ -69,6 +69,33 @@ final class LiftSessionPersistenceTests: XCTestCase {
         XCTAssertEqual(engine.plan[0].targetSets, 4)
     }
 
+    /// Numbers typed for a set that has not happened yet must survive a crash. Losing them to a
+    /// relaunch would be the same bug as losing them to a blur, with extra steps.
+    func testNumbersTypedForASetNotYetPerformedSurviveARelaunch() throws {
+        let plan = [LiftPlanItem(exercise: "Row", targetSets: 3, restSec: 60)]
+        let engine = LiftSessionEngine(plan: plan, startTs: t0)
+        let slot = LiftSlot(exerciseIndex: 0, setIndex: 3)
+        let typed = LiftSessionController.PendingSetValues(weightKg: 72.5, reps: 6, rpe: nil)
+
+        let encoded = try XCTUnwrap(LiftSessionPersistence.encode(
+            LiftSessionPersistence.snapshot(engine: engine, programId: nil, programName: nil,
+                                            pendingValues: [slot: typed],
+                                            pendingWarmups: [LiftSlot(exerciseIndex: 0, setIndex: 1)])))
+        let back = try XCTUnwrap(LiftSessionPersistence.decode(encoded))
+
+        XCTAssertEqual(LiftSessionPersistence.pendingValues(from: back), [slot: typed])
+        XCTAssertEqual(LiftSessionPersistence.pendingWarmups(from: back),
+                       [LiftSlot(exerciseIndex: 0, setIndex: 1)])
+    }
+
+    /// A snapshot written before any of this existed carries neither, and must resume with nothing
+    /// pending rather than failing to read at all.
+    func testAnOldSnapshotResumesWithNothingPending() throws {
+        let decoded = try XCTUnwrap(LiftSessionPersistence.decode(snapshotJSONWithoutProgramItemId()))
+        XCTAssertTrue(LiftSessionPersistence.pendingValues(from: decoded).isEmpty)
+        XCTAssertTrue(LiftSessionPersistence.pendingWarmups(from: decoded).isEmpty)
+    }
+
     /// The round trip today's build performs on itself, including the new field.
     func testTodaysSnapshotRoundTripsWithTheProgramLine() throws {
         let plan = [LiftPlanItem(exercise: "Lat pulldown", primaryMuscle: .lats,
@@ -79,7 +106,8 @@ final class LiftSessionPersistenceTests: XCTestCase {
         engine.addSet(toExercise: 0)
 
         let encoded = try XCTUnwrap(LiftSessionPersistence.encode(
-            LiftSessionPersistence.snapshot(engine: engine, programId: "p1", programName: "Pull")))
+            LiftSessionPersistence.snapshot(engine: engine, programId: "p1", programName: "Pull",
+                                            pendingValues: [:], pendingWarmups: [])))
         let back = try XCTUnwrap(LiftSessionPersistence.decode(encoded))
         let rebuilt = LiftSessionPersistence.engine(from: back)
 
