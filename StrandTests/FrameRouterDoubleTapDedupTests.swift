@@ -97,4 +97,78 @@ final class FrameRouterDoubleTapDedupTests: XCTestCase {
         r.dispatchLiveGestureIfFresh(frame: bytes(doubleTapHex), now: doubleTapEventTs + 5_000)
         XCTAssertEqual(fired, 0)
     }
+
+    /// A second gesture: the captured frame with a DIFFERENT `event_timestamp` and a recomputed CRC.
+    ///
+    /// Minted rather than captured because the interleaved case needs two gestures reaching ONE
+    /// router, and the fixture carries a single timestamp. WHOOP 5 envelope: payload is
+    /// `frame[8..<20]`, its CRC32 is the trailing four bytes little-endian, and `event_timestamp`
+    /// sits at payload offset 4. The CRC16 header covers `frame[0..<6]` and is untouched.
+    private func doubleTapFrame(eventTs: Int) -> [UInt8] {
+        var f = bytes(doubleTapHex)
+        let ts = UInt32(eventTs)
+        for i in 0..<4 { f[12 + i] = UInt8((ts >> (8 * UInt32(i))) & 0xFF) }
+        let crc = crc32(f, 8, 20)
+        for i in 0..<4 { f[20 + i] = UInt8((crc >> (8 * UInt32(i))) & 0xFF) }
+        return f
+    }
+
+    /// The mint has to produce a frame the parser accepts, or a test built on it proves nothing.
+    func testTheMintedSecondGestureIsAValidFrame() {
+        let f = doubleTapFrame(eventTs: doubleTapEventTs + 12)
+        let check = verifyFrame(f, family: .whoop5)
+        XCTAssertTrue(check.ok, "minted frame must pass both CRCs or the dedup tests are meaningless")
+    }
+
+    /// TWO genuine taps, then an offload replaying BOTH — the case a single-slot memory cannot cover.
+    ///
+    /// Keeping only the last dispatched timestamp catches a replay solely when the replayed event is
+    /// the most recent one dispatched. Interleave them and each replay looks new:
+    ///
+    ///     tap A live -> last = A
+    ///     tap B live -> last = B
+    ///     replay A   -> A != B, dispatches again
+    ///     replay B   -> B != A, dispatches again
+    ///
+    /// Two phantom advances, which in a session is two sets silently lost — the exact failure this
+    /// de-duplication exists to prevent, surviving inside it.
+    @MainActor
+    func testTwoTapsReplayedTogetherStillFireOnlyTwice() {
+        let live = LiveState()
+        var fired = 0
+        live.onDoubleTap = { fired += 1 }
+        let r = router(live)
+
+        let tsA = doubleTapEventTs
+        let tsB = doubleTapEventTs + 12
+        r.handle(frame: doubleTapFrame(eventTs: tsA))
+        r.handle(frame: doubleTapFrame(eventTs: tsB))
+        XCTAssertEqual(fired, 2, "sanity: two genuine taps are two gestures")
+
+        // The strap offloads its banked log a few seconds later, carrying both events.
+        r.dispatchLiveGestureIfFresh(frame: doubleTapFrame(eventTs: tsA), now: tsB + 5)
+        r.dispatchLiveGestureIfFresh(frame: doubleTapFrame(eventTs: tsB), now: tsB + 5)
+
+        XCTAssertEqual(fired, 2, "a replay of EITHER tap must be suppressed, not just the most recent")
+    }
+
+    /// Three taps and a full re-walk, the shape a multi-minute offload actually has.
+    @MainActor
+    func testAWholeBatchReplayOfSeveralTapsAddsNothing() {
+        let live = LiveState()
+        var fired = 0
+        live.onDoubleTap = { fired += 1 }
+        let r = router(live)
+
+        let stamps = [doubleTapEventTs, doubleTapEventTs + 7, doubleTapEventTs + 19]
+        for ts in stamps { r.handle(frame: doubleTapFrame(eventTs: ts)) }
+        XCTAssertEqual(fired, 3)
+
+        for _ in 0..<3 {
+            for ts in stamps {
+                r.dispatchLiveGestureIfFresh(frame: doubleTapFrame(eventTs: ts), now: stamps[2] + 3)
+            }
+        }
+        XCTAssertEqual(fired, 3, "re-walking the banked log adds no gestures")
+    }
 }

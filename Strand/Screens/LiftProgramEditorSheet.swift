@@ -135,7 +135,7 @@ struct LiftProgramEditorSheet: View {
 
     private func itemRow(_ item: LiftProgramItemRow, index: Int) -> some View {
         NoopCard {
-            HStack(alignment: .top, spacing: 12) {
+            HStack(alignment: .top, spacing: NoopMetrics.gap) {
                 Button {
                     editingItem = ItemEditTarget(id: item.id, item: item)
                 } label: {
@@ -158,7 +158,7 @@ struct LiftProgramEditorSheet: View {
                 }
                 .buttonStyle(.plain)
 
-                VStack(spacing: 10) {
+                VStack(spacing: NoopMetrics.rowSpacing) {
                     Button {
                         move(from: index, by: -1)
                     } label: {
