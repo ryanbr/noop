@@ -148,6 +148,17 @@ class TestCentreLiveReadoutsTest {
             connectionClockReadout(emptyList(), live.clearedBiometrics().strapNewestUnix, batteryPct = 50.0).first.value)
     }
 
+    /** rtcWarning requires a charge from the CURRENT link: a stale 100% would withdraw the "charge it"
+     *  remedy from the very strap that earned it by running flat and resetting its RTC. Android never
+     *  clears batteryPct on disconnect, so a disconnected link must pass null, and null KEEPS the
+     *  charge advice rather than withdrawing it on no evidence. */
+    @Test fun aChargeFromADeadLinkDoesNotSuppressTheChargeAdvice() {
+        val stale = requireNotNull(
+            connectionClockReadout(emptyList(), strapNewestUnix = 40_000_000L, batteryPct = null).second
+        )
+        assertTrue(stale.contains("Charge the strap"))
+    }
+
     /** #1818: the remedy is battery-dependent, and an already-charged strap must not be sent round the
      *  loop it has just run. Wiring the battery through is the whole point of passing it. */
     @Test fun anAlreadyChargedStrapIsNotToldToChargeAgain() {

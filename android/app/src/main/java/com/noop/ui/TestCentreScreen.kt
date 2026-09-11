@@ -678,11 +678,30 @@ private fun TestCentreLiveReadoutPanel(
     // nothing syncs plus the sentence that says what to do about it. Rendered here rather than through
     // the registry's liveReadout ids because iOS renders it the same way, in ConnectionReadoutPanel: that
     // id list is a spec both platforms carry byte-for-byte, and adding to one side alone breaks it.
-    val clockReadout = connectionClockReadout(
-        logLines = logLines,
-        strapNewestUnix = live.strapNewestUnix,
-        batteryPct = live.batteryPct,
-    ).takeIf { mode.domain == TestDomain.CONNECTION }
+    //
+    // Gated BEFORE the call and remembered on its inputs, both deliberately. `takeIf` would have run the
+    // scan for every mode's panel and then discarded it, and this panel recomposes once a SECOND from the
+    // connection clock, while clockCorrelatedDevice walks the whole log looking for a line a 5/MG never
+    // emits - so the miss is the full scan, on the family this readout exists for.
+    //
+    // The charge is passed ONLY while connected, which rtcWarning requires of its callers in as many
+    // words: it must be a reading from the CURRENT link, never a last-known one that outlives it,
+    // because a stale 100% withdraws the "charge it" remedy from the very strap that earned it by
+    // running flat and resetting its RTC. Android never clears batteryPct on disconnect (macOS clears
+    // its battery samples), so without this gate the stale value is exactly what would arrive. Null
+    // keeps the charge advice, which is the safe direction.
+    val linkBatteryPct = live.batteryPct.takeIf { live.connected }
+    val clockReadout = if (mode.domain == TestDomain.CONNECTION) {
+        remember(logLines, live.strapNewestUnix, linkBatteryPct) {
+            connectionClockReadout(
+                logLines = logLines,
+                strapNewestUnix = live.strapNewestUnix,
+                batteryPct = linkBatteryPct,
+            )
+        }
+    } else {
+        null
+    }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(top = 2.dp)) {
         (rows + listOfNotNull(clockReadout?.first)).forEach { row ->
             Row(Modifier.fillMaxWidth()) {
