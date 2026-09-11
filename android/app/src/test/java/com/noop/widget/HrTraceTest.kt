@@ -225,7 +225,8 @@ class HrTraceTest {
      *  its true width on screen; the line drawn across it was the invented part. */
     @Test
     fun `a gap splits the trace into runs`() {
-        val pts = HrTrace.points(series(0L to 60, 60L to 61, 600L to 62, 660L to 63), 100f, 50f)
+        // A 90-minute disconnect, which is the shape actually reported.
+        val pts = HrTrace.points(series(0L to 60, 60L to 61, 5_460L to 62, 5_520L to 63), 100f, 50f)
         assertEquals(listOf(false, false, true, false), pts.map { it.startsRun })
         assertEquals(listOf(0..1, 2..3), HrTrace.runs(pts))
     }
@@ -247,8 +248,16 @@ class HrTraceTest {
      *  which is the same call the single-point series already makes. */
     @Test
     fun `a marooned reading is its own run`() {
-        val pts = HrTrace.points(series(0L to 60, 600L to 61, 1_200L to 62), 100f, 50f)
+        val pts = HrTrace.points(series(0L to 60, 5_400L to 61, 10_800L to 62), 100f, 50f)
         assertEquals(listOf(0..0, 1..1, 2..2), HrTrace.runs(pts))
+    }
+
+    /** The threshold is the widget's OWN definition of too-old rather than a number picked in the
+     *  renderer, so the line breaks exactly where the headline reading would already have been dropped.
+     *  Pinned, because the two drifting apart would be silent. */
+    @Test
+    fun `the gap threshold matches the stale cap`() {
+        assertEquals(HrDisplay.STALE_CAP_MS / 1_000L, HrTrace.GAP_SEC)
     }
 
     /** The common case is unchanged: a trace with no gaps is one run, and draws exactly as before. */

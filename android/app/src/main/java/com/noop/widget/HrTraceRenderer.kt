@@ -77,22 +77,22 @@ internal object HrTraceRenderer {
         // occupies its true width; it was only the line drawn across it that was never measured.
         val line = Path()
         val fill = Path()
+        val dots = ArrayList<Pair<Float, Float>>()
         for (r in HrTrace.runs(points)) {
             val (x0, y0) = px(points[r.first])
             if (r.first == r.last) {
-                // A lone reading between two gaps has no segment to stroke, so give it a hair of width
-                // and let the round cap render it as the dot it is rather than dropping it silently.
-                // Held a full dot inside the bitmap: the likeliest lone run of all is the NEWEST reading
-                // after a long disconnect, which sits exactly on the right edge.
-                val dx = x0.coerceIn(strokePx, (w.toFloat() - strokePx).coerceAtLeast(strokePx))
-                line.moveTo(dx - inset, y0)
-                line.lineTo(dx + inset, y0)
-            } else {
-                line.moveTo(x0, y0)
-                for (i in (r.first + 1)..r.last) {
-                    val (x, y) = px(points[i])
-                    line.lineTo(x, y)
-                }
+                // A lone reading between two gaps has no segment to stroke, so it gets the SAME dot the
+                // single-point series above gets, rather than being dropped silently. Held a full dot
+                // inside the bitmap: the likeliest lone run of all is the NEWEST reading after a long
+                // disconnect, which sits exactly on the right edge. Its fill would be zero-width, so it
+                // contributes no area either.
+                dots.add(x0.coerceIn(strokePx, (w.toFloat() - strokePx).coerceAtLeast(strokePx)) to y0)
+                continue
+            }
+            line.moveTo(x0, y0)
+            for (i in (r.first + 1)..r.last) {
+                val (x, y) = px(points[i])
+                line.lineTo(x, y)
             }
             // Each run closes its own area, so the gradient stops at the gap along with the line.
             fill.moveTo(x0, h.toFloat())
@@ -121,6 +121,14 @@ internal object HrTraceRenderer {
             strokeJoin = Paint.Join.ROUND
             color = lineColor
         })
+
+        if (dots.isNotEmpty()) {
+            val dotPaint = Paint().apply {
+                isAntiAlias = true
+                color = lineColor
+            }
+            for ((dx, dy) in dots) canvas.drawCircle(dx, dy, strokePx, dotPaint)
+        }
         return bmp
     }
 }

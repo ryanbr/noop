@@ -24,12 +24,16 @@ object HrTrace {
      *  a trace 300 pixels wide, which costs prefs space and buys nothing the eye can resolve. */
     const val BUCKET_SEC: Long = 60
 
-    /** What counts as a GAP: nothing recorded for five minutes. Deliberately more forgiving than the
-     *  Today chart's "more than one bucket", because that chart reads a fixed DB grid where a missing
-     *  bucket really is missing data, while this series only gains a point when the app publishes one.
-     *  Background scheduling routinely skips a minute, and at a one-bucket threshold that jitter would
-     *  shatter an ordinary trace into dots — far worse than the joined-across-a-gap line being fixed. */
-    const val GAP_SEC: Long = 5 * BUCKET_SEC
+    /** What counts as a GAP. Deliberately NOT the Today chart's "more than one bucket": that chart reads
+     *  a fixed DB grid, where a missing bucket really is missing data, while this series only gains a
+     *  point when the app PUBLISHES one, and background scheduling routinely skips a minute. At a
+     *  one-bucket threshold that ordinary jitter would shatter a healthy trace into dots, which is a
+     *  worse lie than the joined line being fixed.
+     *
+     *  Set to [HrDisplay.STALE_CAP_MS] rather than to a number picked here, so the line breaks exactly
+     *  where the widget would already have dropped the headline reading for being too old to represent
+     *  HR at all. `theGapThresholdMatchesTheStaleCap` pins the two together. */
+    const val GAP_SEC: Long = 15 * BUCKET_SEC
 
     /** Hard cap, so a clock jump backwards cannot grow the series without bound. WINDOW_SEC/BUCKET_SEC
      *  is 180; the slack absorbs a boundary point without letting the list run away. */
