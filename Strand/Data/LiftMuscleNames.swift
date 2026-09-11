@@ -51,12 +51,18 @@ extension LiftMuscle {
 
 extension LiftMuscle.Region {
     /// Localized section title for the muscle picker. Presentation-only, like the region itself.
+    ///
+    /// "Push muscles", not "Push" — and for the same reason the rest timer says "Rest period" rather
+    /// than "Rest". The catalog's bare `"Push"` key is the TODAY screen's readiness nudge ("push
+    /// yourself"), translated accordingly: 推送 in Chinese is a push NOTIFICATION, and "Вперёд" in
+    /// Russian is "forward". Reusing it would have rendered this picker's section headers as words
+    /// from an unrelated feature. A generic English word is never safe as a key here.
     var displayName: String {
         switch self {
-        case .push:  return String(localized: "Push")
-        case .pull:  return String(localized: "Pull")
-        case .legs:  return String(localized: "Legs")
-        case .trunk: return String(localized: "Trunk")
+        case .push:  return String(localized: "Push muscles")
+        case .pull:  return String(localized: "Pull muscles")
+        case .legs:  return String(localized: "Leg muscles")
+        case .trunk: return String(localized: "Trunk muscles")
         }
     }
 }
