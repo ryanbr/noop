@@ -3630,12 +3630,32 @@ private fun HostedCardsSection(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    // Clipped to the card's own radius BEFORE the click. `NoopCard` clips itself, but
-                    // the ripple draws on this wrapper, so without matching the shape here it would wash
-                    // square corners over a rounded card. `Metrics.cardRadius` is the right figure
-                    // because every hosted card renders through `NoopCard`: the 26dp liquid-hero
-                    // surface `ChartCard` can wear is hero-only, and none of these opt into it.
-                    .clip(RoundedCornerShape(Metrics.cardRadius))
+                    // Clipped BEFORE the click. `NoopCard` clips itself, but the ripple draws on this
+                    // wrapper, so without matching the shape here it would wash square corners over a
+                    // rounded card. `Metrics.cardRadius` is the right figure: the 26dp liquid-hero surface
+                    // `ChartCard` can wear is hero-only, and none of these opt into it.
+                    //
+                    // This used to read "because every hosted card renders through NoopCard", and that was
+                    // the bug (#2109). Six of them open with a bare section header instead, and the clip
+                    // was cutting its first glyph. The shape is asked for per card now.
+                    .clip(
+                        // #2109: shaped from the card's own opening, not assumed. A card that FILLS this
+                        // slot wants the full radius. A card that opens with a bare section header does
+                        // not: its first pixel is heading text at the top-left, where an 18dp corner cuts
+                        // hardest at y=0, and the radius clipped the overline's first glyph ("LAST NIGHT"
+                        // read as "AST NIGHT"). Square the TOP corners for those and keep the bottom
+                        // rounded, because the slot's bottom edge IS the inner card's bottom edge and a
+                        // square ripple there would wash its corners, which is the defect the clip was
+                        // added for in the first place.
+                        if (card.leadsWithSectionHeader) {
+                            RoundedCornerShape(
+                                topStart = 0.dp, topEnd = 0.dp,
+                                bottomStart = Metrics.cardRadius, bottomEnd = Metrics.cardRadius,
+                            )
+                        } else {
+                            RoundedCornerShape(Metrics.cardRadius)
+                        }
+                    )
                     .then(if (open != null) Modifier.clickable(onClick = open) else Modifier),
             ) {
             when (card) {
