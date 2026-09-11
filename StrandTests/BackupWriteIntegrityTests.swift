@@ -6,7 +6,7 @@ import ZIPFoundation
 ///
 /// `writeVerifiedBackupZip` has re-opened every `.noopbak` it writes since #1014 and refused to leave a
 /// torn one behind, and until now nothing tested that it does. These are those tests, driven against
-/// hand-built archives through the extracted `DataBackup.writtenBackupIsIntact(at:)`.
+/// hand-built archives through the extracted `DataBackup.verifyWrittenBackup(at:)`.
 ///
 /// Twin of the Android `DataBackupWriteIntegrityTest`. The two platforms answer the same question by
 /// different means, which is the point worth pinning: opening a ZIPFoundation `Archive` parses the
@@ -45,7 +45,7 @@ final class BackupWriteIntegrityTests: XCTestCase {
     }
 
     func testAWholeBackupIsIntact() throws {
-        XCTAssertTrue(DataBackup.writtenBackupIsIntact(at: try makeBackup()))
+        XCTAssertEqual(DataBackup.verifyWrittenBackup(at: try makeBackup()), .intact)
     }
 
     /// The shape the check exists for: a write cut short by a full disk or a dropped upload. The index
@@ -55,7 +55,7 @@ final class BackupWriteIntegrityTests: XCTestCase {
         let whole = try Data(contentsOf: backup)
         XCTAssertGreaterThan(whole.count, 600, "precondition: enough bytes that a third is a real cut")
         try whole.prefix(whole.count / 3).write(to: backup)
-        XCTAssertFalse(DataBackup.writtenBackupIsIntact(at: backup))
+        XCTAssertEqual(DataBackup.verifyWrittenBackup(at: backup), .torn)
     }
 
     /// Even one byte short: the central directory no longer adds up, so the archive does not open.
@@ -63,7 +63,7 @@ final class BackupWriteIntegrityTests: XCTestCase {
         let backup = try makeBackup()
         let whole = try Data(contentsOf: backup)
         try whole.prefix(whole.count - 1).write(to: backup)
-        XCTAssertFalse(DataBackup.writtenBackupIsIntact(at: backup))
+        XCTAssertEqual(DataBackup.verifyWrittenBackup(at: backup), .torn)
     }
 
     /// A perfectly valid archive that simply does not carry a database. The container is fine; the
@@ -74,7 +74,7 @@ final class BackupWriteIntegrityTests: XCTestCase {
         let payload = tmp.appendingPathComponent("settings.json")
         try Data("{}".utf8).write(to: payload)
         try archive.addEntry(with: "settings.json", fileURL: payload, compressionMethod: .deflate)
-        XCTAssertFalse(DataBackup.writtenBackupIsIntact(at: dest))
+        XCTAssertEqual(DataBackup.verifyWrittenBackup(at: dest), .torn)
     }
 
     /// Shorter than SQLite's own file header, so it cannot be a database whatever else it looks like.
@@ -87,17 +87,32 @@ final class BackupWriteIntegrityTests: XCTestCase {
         XCTAssertLessThan(16, Int(DataBackup.minimumBackupEntryBytes),
                           "precondition: the magic alone is shorter than the floor, so this tests the floor")
         try archive.addEntry(with: "noop-backup.sqlite", fileURL: payload, compressionMethod: .deflate)
-        XCTAssertFalse(DataBackup.writtenBackupIsIntact(at: dest))
+        XCTAssertEqual(DataBackup.verifyWrittenBackup(at: dest), .torn)
     }
 
-    /// Never an archive at all: answered false rather than thrown, which is the contract.
+    /// Never an archive at all: answered with a verdict rather than thrown, which is the contract.
     func testSomethingThatIsNotAnArchiveIsNotIntact() throws {
         let junk = tmp.appendingPathComponent("junk.noopbak")
+        // Readable, so we DID look; it simply is not an archive. That is a torn verdict, not an
+        // unverifiable one, and the distinction decides whether the caller deletes it.
         try Data(repeating: 0x41, count: 4_096).write(to: junk)
-        XCTAssertFalse(DataBackup.writtenBackupIsIntact(at: junk))
+        XCTAssertEqual(DataBackup.verifyWrittenBackup(at: junk), .torn)
     }
 
-    func testAMissingFileIsNotIntact() {
+    /// The distinction the verdict exists for, and the Swift twin of the Android verdict-table test.
+    ///
+    /// A file we cannot read tells us NOTHING about its contents, and the caller's answer to `torn` is to
+    /// delete. Before this the check returned a plain Bool, so a transient read failure and a genuinely
+    /// cut-short archive were the same answer, and the destructive one.
+    func testAFileThatCannotBeReadIsUnverifiableRatherThanTorn() {
+        XCTAssertEqual(DataBackup.verifyWrittenBackup(at: tmp.appendingPathComponent("absent.noopbak")),
+                       .unverifiable)
+    }
+
+    /// The convenience wrapper keeps agreeing with the verdict it delegates to.
+    func testTheBooleanWrapperTracksTheVerdict() throws {
+        let good = try makeBackup()
+        XCTAssertTrue(DataBackup.writtenBackupIsIntact(at: good))
         XCTAssertFalse(DataBackup.writtenBackupIsIntact(at: tmp.appendingPathComponent("absent.noopbak")))
     }
 }

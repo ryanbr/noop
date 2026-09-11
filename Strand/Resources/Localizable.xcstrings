@@ -459,6 +459,64 @@
         }
       }
     },
+    "the backup file was written, but couldn't be read back to check it, so it has been left in place rather than deleted. Open it before you rely on it, or export again somewhere else.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Die Backup-Datei wurde geschrieben, konnte aber zur Prüfung nicht zurückgelesen werden und wurde deshalb belassen statt gelöscht. Öffne sie, bevor du dich auf sie verlässt, oder exportiere erneut an einen anderen Ort."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El archivo de copia de seguridad se escribió, pero no se pudo volver a leer para comprobarlo, así que se ha conservado en lugar de borrarlo. Ábrelo antes de confiar en él o vuelve a exportar en otro lugar."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Le fichier de sauvegarde a été écrit, mais n'a pas pu être relu pour être vérifié, il a donc été conservé plutôt que supprimé. Ouvre-le avant de t'y fier, ou exporte à nouveau à un autre endroit."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Il file di backup è stato scritto, ma non è stato possibile rileggerlo per verificarlo, quindi è stato mantenuto anziché eliminato. Aprilo prima di farci affidamento, oppure esporta di nuovo altrove."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "plik kopii zapasowej został zapisany, ale nie udało się go ponownie odczytać w celu sprawdzenia, więc został zachowany, a nie usunięty. Otwórz go, zanim mu zaufasz, lub wyeksportuj ponownie w inne miejsce."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O ficheiro de cópia de segurança foi escrito, mas não foi possível voltar a lê-lo para o verificar, pelo que foi mantido em vez de eliminado. Abre-o antes de confiares nele, ou exporta novamente para outro local."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Файл резервной копии записан, но прочитать его для проверки не удалось, поэтому он оставлен, а не удалён. Откройте его, прежде чем полагаться на него, или выполните экспорт в другое место."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "备份文件已写入，但无法重新读取以进行检查，因此予以保留而未删除。请先打开确认后再依赖它，或导出到其他位置。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "備份檔案已寫入，但無法重新讀取以進行檢查，因此予以保留而未刪除。請先開啟確認後再依賴它，或匯出到其他位置。"
+          }
+        }
+      }
+    },
     "Forget device": {
       "localizations": {
         "de": {
