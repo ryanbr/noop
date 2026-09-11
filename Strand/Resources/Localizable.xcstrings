@@ -1,6 +1,9 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "%lld working sets · compare when you repeat this program": { "localizations": {
+      "de": {"stringUnit": {"state": "translated", "value": "%lld Arbeitssätze · vergleichbar, wenn du dieses Programm wiederholst"}}, "es": {"stringUnit": {"state": "translated", "value": "%lld series efectivas · compara al repetir este programa"}}, "fr": {"stringUnit": {"state": "translated", "value": "%lld séries de travail · à comparer quand tu refais ce programme"}}, "it": {"stringUnit": {"state": "translated", "value": "%lld serie di lavoro · confronta quando ripeti questo programma"}}, "pl": {"stringUnit": {"state": "translated", "value": "%lld serii roboczych · porównuj, gdy powtarzasz ten program"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "%lld séries de trabalho · compara quando repetires este programa"}}, "ru": {"stringUnit": {"state": "translated", "value": "%lld рабочих подходов · сравнивай при повторе этой программы"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "%lld 个正式组 · 重复同一计划时才可比较"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "%lld 個正式組 · 重複同一計畫時才可比較"}}
+    } },
     "%@ in sets": { "localizations": {
       "de": {"stringUnit": {"state": "translated", "value": "%@ in Sätzen"}}, "es": {"stringUnit": {"state": "translated", "value": "%@ en series"}}, "fr": {"stringUnit": {"state": "translated", "value": "%@ en séries"}}, "it": {"stringUnit": {"state": "translated", "value": "%@ nelle serie"}}, "pl": {"stringUnit": {"state": "translated", "value": "%@ w seriach"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "%@ em séries"}}, "ru": {"stringUnit": {"state": "translated", "value": "%@ в подходах"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "%@ 在组内"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "%@ 在組內"}}
     } },

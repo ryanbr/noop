@@ -121,17 +121,17 @@ struct LiftSessionDetailSheet: View {
             SectionHeader("This session", overline: "Figures")
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: NoopMetrics.rowSpacing)],
                       alignment: .leading, spacing: NoopMetrics.rowSpacing) {
+                // Weight x reps, summed. Exact, but only meaningful against the SAME program run
+                // again: 100 kg of leg press is not 100 kg of squat, so the total across different
+                // exercises compares nothing. The per-exercise figure below, with its delta against
+                // last time, is the form that answers "am I progressing" — this one is the tally.
                 tile(String(localized: "Volume"),
                      LiftFormat.weight(LiftMetrics.volumeLoadKg(sets), system: unitSystem),
-                     String(localized: "\(workingSetCount) working sets"))
+                     String(localized: "\(workingSetCount) working sets · compare when you repeat this program"))
 
                 tile(String(localized: "Session load"),
                      sessionLoadText,
                      sessionLoadCaption)
-
-                tile(String(localized: "Work vs rest"),
-                     workRestText,
-                     String(localized: "\(LiftFormat.duration(workRest.workSec)) in sets"))
 
                 tile(String(localized: "Effort"),
                      workout?.strain.map { LiftFormat.trim($0) } ?? "—",
@@ -140,13 +140,7 @@ struct LiftSessionDetailSheet: View {
         }
     }
 
-    private var workRest: LiftMetrics.WorkRest { LiftMetrics.workRest(sets) }
     private var workingSetCount: Int { sets.filter { !$0.isWarmup }.count }
-
-    private var workRestText: String {
-        guard let ratio = workRest.restToWorkRatio else { return "—" }
-        return String(format: "1 : %.1f", ratio)
-    }
 
     private var sessionLoadText: String {
         guard let load = LiftMetrics.sessionLoad(sessionRpe: session.sessionRpe,

@@ -61,28 +61,6 @@ final class LiftMetricsTests: XCTestCase {
         XCTAssertNil(LiftMetrics.sessionLoad(sessionRpe: 7, durationSec: 0))
     }
 
-    // MARK: - Work versus rest
-
-    func testWorkAndRestAreSummedFromTheTaps() {
-        let wr = LiftMetrics.workRest([
-            set(start: 100, end: 140, rest: 120),      // 40s work, 120s rest
-            set(start: 260, end: 290, rest: 90),       // 30s work, 90s rest
-        ])
-        XCTAssertEqual(wr.workSec, 70)
-        XCTAssertEqual(wr.restSec, 210)
-        XCTAssertEqual(wr.restToWorkRatio!, 3.0, accuracy: 0.001)
-    }
-
-    func testWarmUpTimeCountsAsWorkEvenThoughItIsNotVolume() {
-        let wr = LiftMetrics.workRest([set(warmup: true, start: 0, end: 60, rest: 30)])
-        XCTAssertEqual(wr.workSec, 60, "a warm-up is still time under load")
-    }
-
-    func testNoWorkMeansNoRatioRatherThanADivideByZero() {
-        XCTAssertNil(LiftMetrics.workRest([]).restToWorkRatio)
-        XCTAssertNil(LiftMetrics.workRest([set(start: nil, end: nil, rest: 90)]).restToWorkRatio)
-    }
-
     // MARK: - Estimated 1RM (Epley)
 
     func testEpleyMatchesTheFormula() {
