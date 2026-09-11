@@ -3,12 +3,15 @@ package com.noop.data
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
+import android.provider.DocumentsContract
 import android.util.Log
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import java.io.File
+import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.io.InputStream
 import java.io.IOException
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
@@ -53,6 +56,15 @@ object DataBackup {
     internal const val MAX_BACKUP_SQLITE_BYTES = 2_147_483_648L
     private const val MAX_BACKUP_SETTINGS_BYTES = 1_048_576L
 
+    /** "PK\u0005\u0006", the ZIP End Of Central Directory signature. */
+    private val ZIP_EOCD_SIGNATURE: ByteArray = byteArrayOf(0x50, 0x4B, 0x05, 0x06)
+
+    /** The fixed part of an End Of Central Directory record, before any comment. */
+    private const val ZIP_EOCD_MIN_BYTES: Int = 22
+
+    /** A ZIP comment can push the EOCD record up to 65535 bytes from the end, plus its own fixed part. */
+    private const val ZIP_EOCD_SEARCH_BYTES: Int = 65_535 + ZIP_EOCD_MIN_BYTES
+
     /** First 16 bytes of every SQLite 3 file: "SQLite format 3\0". */
     private val SQLITE_MAGIC: ByteArray =
         byteArrayOf(
@@ -68,26 +80,98 @@ object DataBackup {
      * HERE at write time instead. Twin of the Apple post-write check in `writeVerifiedBackupZip`.
      * Best-effort: any read/format error returns false (treated as not-intact).
      */
-    fun isWrittenBackupIntact(context: Context, uri: Uri): Boolean = runCatching {
-        context.contentResolver.openInputStream(uri)?.use { stream ->
-            ZipInputStream(stream).use { zip ->
-                var entry = zip.nextEntry
-                while (entry != null) {
-                    if (!entry.isDirectory && entry.name.substringAfterLast('/') == ZIP_ENTRY_NAME) {
-                        val header = ByteArray(SQLITE_MAGIC.size)
-                        var got = 0
-                        while (got < header.size) {
-                            val r = zip.read(header, got, header.size - got)
-                            if (r < 0) break
-                            got += r
-                        }
-                        return@runCatching got == header.size && header.contentEquals(SQLITE_MAGIC)
+    fun isWrittenBackupIntact(context: Context, uri: Uri): Boolean {
+        val resolver = context.contentResolver
+        // The TAIL first, because it is the cheap half and the half that actually catches a torn write.
+        // Skipped (not failed) when the provider will not report a size: refusing a good backup because a
+        // document provider is coy would trade a rare corruption for a common false alarm.
+        val tail = readTail(resolver, uri, ZIP_EOCD_SEARCH_BYTES)
+        if (tail != null && !hasEndOfCentralDirectory(tail)) return false
+        return runCatching {
+            resolver.openInputStream(uri)?.use { backupStreamIsIntact(it) } ?: false
+        }.getOrDefault(false)
+    }
+
+    /** The last [limit] bytes of [uri], or null when the provider will not say how big it is. */
+    private fun readTail(resolver: android.content.ContentResolver, uri: Uri, limit: Int): ByteArray? =
+        runCatching {
+            resolver.openFileDescriptor(uri, "r")?.use { pfd ->
+                val len = pfd.statSize
+                if (len <= 0L) return@use null
+                val window = minOf(len, limit.toLong()).toInt()
+                FileInputStream(pfd.fileDescriptor).use { fis ->
+                    fis.channel.position(len - window)
+                    val buf = ByteArray(window)
+                    var got = 0
+                    while (got < window) {
+                        val r = fis.read(buf, got, window - got)
+                        if (r < 0) break
+                        got += r
                     }
-                    entry = zip.nextEntry
+                    if (got == window) buf else null
                 }
-                false
             }
-        } ?: false
+        }.getOrNull()
+
+    /**
+     * Whether [tail], the last bytes of a file, contains a ZIP End Of Central Directory record.
+     *
+     * This is the check that catches the #1014 shape. A ZIP's index lives at its END, so a write cut
+     * short by a full disk or a flaky provider loses it. [backupStreamIsIntact] cannot see that at all:
+     * `ZipInputStream` walks LOCAL entry headers front to back and never looks for the central
+     * directory, so a file truncated to a few hundred bytes still presents a DB entry whose first
+     * sixteen bytes are a perfectly good SQLite header, and passes. The Apple twin never had this hole
+     * because opening an `Archive` for reading parses the central directory or fails.
+     *
+     * Scans rather than checking a fixed offset, because the record sits [ZIP_EOCD_MIN_BYTES] from the
+     * end only when the archive carries no comment.
+     *
+     * Finding the signature is NOT enough, and a first pass here that stopped there was wrong: lopping a
+     * single byte off a good archive leaves the signature untouched and only damages the fields behind
+     * it. So the record has to ADD UP. Its trailing comment-length field must account for exactly the
+     * bytes that follow it, which a file cut short cannot do, whether it was cut by a byte or a
+     * megabyte.
+     */
+    internal fun hasEndOfCentralDirectory(tail: ByteArray): Boolean {
+        if (tail.size < ZIP_EOCD_MIN_BYTES) return false
+        // From the end backwards: the LAST complete record is the real one.
+        for (i in tail.size - ZIP_EOCD_MIN_BYTES downTo 0) {
+            var hit = true
+            for (k in ZIP_EOCD_SIGNATURE.indices) {
+                if (tail[i + k] != ZIP_EOCD_SIGNATURE[k]) { hit = false; break }
+            }
+            if (!hit) continue
+            // Comment length is the last field of the record, little-endian.
+            val commentLength = (tail[i + 20].toInt() and 0xFF) or ((tail[i + 21].toInt() and 0xFF) shl 8)
+            if (i + ZIP_EOCD_MIN_BYTES + commentLength == tail.size) return true
+        }
+        return false
+    }
+
+    /**
+     * Whether a `.noopbak` stream carries a DB entry that begins with the SQLite magic header.
+     *
+     * Stream-shaped so it can be driven from a plain JVM test without a Context: the Uri-taking
+     * [isWrittenBackupIntact] is the thin wrapper over it.
+     */
+    internal fun backupStreamIsIntact(stream: InputStream): Boolean = runCatching {
+        ZipInputStream(stream).use { zip ->
+            var entry = zip.nextEntry
+            while (entry != null) {
+                if (!entry.isDirectory && entry.name.substringAfterLast('/') == ZIP_ENTRY_NAME) {
+                    val header = ByteArray(SQLITE_MAGIC.size)
+                    var got = 0
+                    while (got < header.size) {
+                        val r = zip.read(header, got, header.size - got)
+                        if (r < 0) break
+                        got += r
+                    }
+                    return@runCatching got == header.size && header.contentEquals(SQLITE_MAGIC)
+                }
+                entry = zip.nextEntry
+            }
+            false
+        }
     }.getOrDefault(false)
 
     /** First 4 bytes of every ZIP file: "PK\x03\x04". */
@@ -205,6 +289,33 @@ object DataBackup {
                 }
             }
         }
+        // #1014 (write-side): the SOURCE was verified before archiving, but the PRODUCED file can still
+        // be torn by a full disk, a dying card, or a provider that drops the tail, and such a .noopbak
+        // "restores" into an empty store, caught only by the import-side quick_check much later, when
+        // the original may be long gone. So check what was just written, here, while it can still be
+        // called a failed export rather than a bad backup.
+        //
+        // This check existed but was wired only into the SCHEDULED sync path, so the manual Settings
+        // export, the one taken deliberately before wiping a phone, never ran it. It belongs inside
+        // exportTo the way Apple's lives inside writeVerifiedBackupZip, so that no caller has to
+        // remember to ask.
+        if (!isWrittenBackupIntact(appContext, uri)) {
+            // Never leave a corrupt file behind masquerading as a good snapshot. Which of the two
+            // outcomes happened changes what the reader should do, so say which.
+            val removed = runCatching { DocumentsContract.deleteDocument(resolver, uri) }.getOrDefault(false)
+            throw IOException(
+                if (removed) {
+                    "Couldn't finish the backup: the file written was incomplete, so it was removed " +
+                        "rather than left looking like a good backup. The destination may be out of " +
+                        "space. Try again, or choose somewhere else."
+                } else {
+                    "Couldn't finish the backup: the file written was incomplete, and it could not be " +
+                        "removed either, so delete it yourself rather than trust it. The destination " +
+                        "may be out of space. Try again, or choose somewhere else."
+                },
+            )
+        }
+
         // #1807: the file is written and valid either way — this only reports whether restoring it will
         // need the user to confirm.
         return ExportOutcome(

@@ -190,12 +190,10 @@ object BackupSync {
         // exportTo throws on failure; on a partial write delete the half-written doc so prune/latest
         // never picks up a corrupt snapshot.
         return runCatching {
+            // #1014 (write-side): exportTo now verifies the file it just wrote and throws if it is torn,
+            // so the check that used to sit here would be a second full read of the same archive. The
+            // delete below still runs, and now covers every way exportTo can fail rather than only this one.
             DataBackup.exportTo(context, fileUri)
-            // #1014 (write-side): confirm the file we just wrote is structurally intact — a torn write (full
-            // disk / flaky SAF provider) otherwise leaves a truncated .noopbak that "restores" empty, caught
-            // only at import. Require the DB entry present + valid SQLite header, else treat as a failure and
-            // delete it below. Twin of the Apple post-write check in writeVerifiedBackupZip.
-            require(DataBackup.isWrittenBackupIntact(context, fileUri)) { "backup written incompletely" }
             fileUri
         }.getOrElse {
             runCatching { DocumentsContract.deleteDocument(resolver, fileUri) }

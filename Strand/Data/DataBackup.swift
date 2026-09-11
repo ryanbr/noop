@@ -170,21 +170,39 @@ enum DataBackup {
         return .exportedOversize(dest, bytes: bytes, limit: maxBackupSQLiteBytes)
     }
 
+    /// The smallest a real database entry can be: SQLite's own file header is exactly this long, so
+    /// anything shorter cannot be a database whatever else it looks like.
+    static let minimumBackupEntryBytes: UInt32 = 100
+
+    /// Whether the `.noopbak` at `url` is a COMPLETE archive carrying a plausible database entry.
+    ///
+    /// #1014 (write-side): the SOURCE is verified before archiving, but the PRODUCED file can still be
+    /// torn by a full disk, a dying filesystem, or a cloud client that drops the tail mid-write, and such
+    /// a truncated `.noopbak` otherwise "restores" into an empty store, caught only by the import-side
+    /// quick_check much later, when the original may be long gone.
+    ///
+    /// Opening an `Archive` for reading parses the CENTRAL DIRECTORY, which lives at the end of a ZIP, so
+    /// a file cut short does not open at all. That is cheap (an index read, no extraction) and is what
+    /// makes this catch truncation rather than merely mis-content.
+    ///
+    /// Extracted from `writeVerifiedBackupZip` so it can be driven against hand-built archives: this
+    /// guard has protected every export since #1014 and, until now, had no test of its own. The Android
+    /// twin is `DataBackup.hasEndOfCentralDirectory` plus `backupStreamIsIntact`, which has to find the
+    /// end record itself because `ZipInputStream` never looks for one.
+    static func writtenBackupIsIntact(at url: URL) -> Bool {
+        guard let written = try? Archive(url: url, accessMode: .read),
+              let dbEntry = written.first(where: { ($0.path as NSString).lastPathComponent == backupEntryName }),
+              dbEntry.uncompressedSize >= minimumBackupEntryBytes else { return false }
+        return true
+    }
+
     private static func writeVerifiedBackupZip(dbURL: URL, to dest: URL, settingsJSON: Data?) throws {
         if let complaint = DatabaseIntegrity.quickCheckFailure(atPath: dbURL.path) {
             throw ExportIntegrityFailure(complaint: complaint)
         }
         try writeBackupZip(dbURL: dbURL, to: dest, settingsJSON: settingsJSON, manifestJSON: currentManifestJSON())
-        // #1014 (write-side): the SOURCE is verified above, but the PRODUCED file can still be torn by a
-        // full disk / dying filesystem / flaky cloud-sync mid-write, and such a truncated `.noopbak`
-        // otherwise "restores" into an empty store — caught only by the import-side quick_check much later.
-        // Re-open the file we just wrote (a cheap central-directory read, no extraction — and a torn file
-        // has no valid trailing central directory, so it won't even open) and confirm its DB entry is
-        // present and non-empty (a SQLite header alone is 100 bytes). Fail HERE if not, and don't leave a
-        // corrupt file behind masquerading as a good snapshot. Twin of the Android post-write check.
-        guard let written = try? Archive(url: dest, accessMode: .read),
-              let dbEntry = written.first(where: { ($0.path as NSString).lastPathComponent == backupEntryName }),
-              dbEntry.uncompressedSize >= 100 else {
+        // Never leave a corrupt file behind masquerading as a good snapshot.
+        guard writtenBackupIsIntact(at: dest) else {
             try? FileManager.default.removeItem(at: dest)
             throw BackupWriteIncomplete()
         }
