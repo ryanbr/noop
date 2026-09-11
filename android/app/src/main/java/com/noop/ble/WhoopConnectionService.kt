@@ -30,6 +30,7 @@ import com.noop.location.GpsSession
 import com.noop.location.LocationTracker
 import com.noop.notif.BatteryAlertNotifier
 import com.noop.notif.IllnessAlertNotifier
+import com.noop.ui.LiveConsoleReadout
 import com.noop.ui.NoopPrefs
 import com.noop.ui.appLaunchIntent
 import com.noop.widget.StressWidgetProducer
@@ -503,7 +504,17 @@ class WhoopConnectionService : Service() {
                             restPct = dayState.widgetRest,
                             effortPct = dayState.widgetEffort,
                             heartRate = state.heartRate,
-                            batteryPct = state.batteryPct?.roundToInt(),
+                            // The ACTIVE device's charge (#2075). This service is the widget's
+                            // HEARTBEAT, so publishing the WHOOP's field here would have overwritten the
+                            // app-side fix within a minute and left the ring showing the strap's charge.
+                            // `activeDeviceIsWhoop` is the coordinator's own flag, so no registry read
+                            // lands on a collector driven by live heart rate.
+                            batteryPct = LiveConsoleReadout.batteryPercent(
+                                activeIsWhoop = ble.activeDeviceIsWhoop,
+                                whoopPct = state.batteryPct,
+                                ringPct = (application as NoopApplication)
+                                    .sourceCoordinator.ouraBatteryPct.value,
+                            ),
                             connected = state.connected,
                             stressSeries = stressCurve?.points ?: emptyList(),
                             stressDay = stressCurve?.epochDay,

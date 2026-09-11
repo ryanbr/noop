@@ -99,6 +99,9 @@ fun LiveScreen(viewModel: AppViewModel, onManageDevices: () -> Unit = {}) {
     // #628: the Oura ring's live wear/charge state (null for WHOOP / before evidence). Preferred by the
     // "Worn" stat below, so removing the ring or putting it on the charger flips it instead of lingering.
     val ouraWear by viewModel.ouraWearState.collectAsStateWithLifecycle()
+    // #2075: the console must read out the ACTIVE device, not whichever LiveState field is populated.
+    val activeIsWhoop by viewModel.activeIsWhoop.collectAsStateWithLifecycle()
+    val ouraBatteryPct by viewModel.ouraBatteryPct.collectAsStateWithLifecycle()
     val bpm by viewModel.bpm.collectAsStateWithLifecycle()
     val selectedModel by viewModel.selectedModel.collectAsStateWithLifecycle()
     // Active band name (MW-6) — names the band whose live data the console shows; falls back to "WHOOP".
@@ -131,7 +134,11 @@ fun LiveScreen(viewModel: AppViewModel, onManageDevices: () -> Unit = {}) {
         if (live.bonded) viewModel.getBattery()
     }
 
-    val activeConnection = live.connected && live.bonded
+    // Gated on the active device actually BEING a WHOOP (#2075). LiveState is one object every live
+    // source writes into, so `connected && bonded` stays true for a bonded strap while an Oura ring is
+    // the device on screen. That showed the WHOOP pill, the WHOOP charge and WHOOP-only controls under
+    // the ring's name, and made the pill's own ring branch unreachable, because this one is tested first.
+    val activeConnection = activeIsWhoop && live.connected && live.bonded
 
     // Live HR zone for the focal readout's colour world (presentation only — same shared HrZones model
     // the live-workout screen uses). 0 = below Zone 1 / no HR yet.
@@ -228,7 +235,8 @@ fun LiveScreen(viewModel: AppViewModel, onManageDevices: () -> Unit = {}) {
         // Console header — the pill + a connection-mode badge (+ a live SYNCING badge during a history
         // offload), with battery / worn / last-sync stats. Mirrors the macOS consoleHeader.
         item {
-        ConsoleHeader(live = live, activeConnection = activeConnection, ouraWear = ouraWear)
+        ConsoleHeader(live = live, activeConnection = activeConnection, ouraWear = ouraWear,
+            activeIsWhoop = activeIsWhoop, ouraBatteryPct = ouraBatteryPct)
         }
 
         // Primary Connect affordance, surfaced ABOVE the fold whenever there's no link — the real
@@ -338,7 +346,8 @@ fun LiveScreen(viewModel: AppViewModel, onManageDevices: () -> Unit = {}) {
 
         // Signal Trust rail — one tile per signal that has to be current for the console to be trusted.
         item {
-        SignalTrustRail(live = live, bpm = bpm, activeConnection = activeConnection)
+        SignalTrustRail(live = live, bpm = bpm, activeConnection = activeConnection,
+            activeIsWhoop = activeIsWhoop, ouraBatteryPct = ouraBatteryPct)
         }
 
         // Max HR + the top-zone entry threshold (read-only; manage coaching in Automations).
@@ -783,7 +792,16 @@ private fun ActiveBandRow(name: String, onManageDevices: () -> Unit) {
 }
 
 @Composable
-private fun ConsoleHeader(live: LiveState, activeConnection: Boolean, ouraWear: OuraWearState? = null) {
+private fun ConsoleHeader(
+    live: LiveState,
+    activeConnection: Boolean,
+    ouraWear: OuraWearState? = null,
+    /** Resolved by the caller (#2075), so the charge below belongs to the device being named.
+     *  NOT defaulted: a default would let a new call site silently fall back to WHOOP state, which is
+     *  precisely the bug this fixes. */
+    activeIsWhoop: Boolean,
+    ouraBatteryPct: Int?,
+) {
     NoopCard(padding = 14.dp) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             // Badges row — pill + connection-mode badge + a live SYNCING badge during an offload.
@@ -817,7 +835,11 @@ private fun ConsoleHeader(live: LiveState, activeConnection: Boolean, ouraWear: 
                 // Charging bolt next to the battery % when the strap reports it's charging (PR #568 reimpl).
                 HeaderStat(
                     "Battery",
-                    live.batteryPct?.let { "${it.toInt()}%" } ?: "—",
+                    // The ACTIVE device's charge. A non-WHOOP active device never falls back to the
+                    // strap's number: an em dash says "not reported", where the strap's charge under
+                    // the ring's name is a confident lie, and was the reported bug (#2075).
+                    LiveConsoleReadout.batteryPercent(activeIsWhoop, live.batteryPct, ouraBatteryPct)
+                        ?.let { "$it%" } ?: "—",
                     charging = live.charging == true,
                 )
                 HeaderStat("Worn", wornLabel(live, activeConnection, ouraWear))
@@ -1160,8 +1182,14 @@ private fun LiveProofMetric(modifier: Modifier, label: String, value: String, ti
 // MARK: - Signal Trust rail
 
 @Composable
-private fun SignalTrustRail(live: LiveState, bpm: Int?, activeConnection: Boolean) {
-    val tiles = signalTiles(live, bpm, activeConnection)
+private fun SignalTrustRail(
+    live: LiveState,
+    bpm: Int?,
+    activeConnection: Boolean,
+    activeIsWhoop: Boolean,
+    ouraBatteryPct: Int?,
+) {
+    val tiles = signalTiles(live, bpm, activeConnection, activeIsWhoop, ouraBatteryPct)
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
         SectionHeader(title = uiString(R.string.l10n_live_screen_signal_trust_4a91fe00), overline = "Proof that the console is current")
         // Two tiles per row (a LazyVerticalGrid can't live inside the scrolling ScreenScaffold —
@@ -1185,7 +1213,13 @@ private data class SignalTile(
     val tint: Color,
 )
 
-private fun signalTiles(live: LiveState, bpm: Int?, activeConnection: Boolean): List<SignalTile> = listOf(
+private fun signalTiles(
+    live: LiveState,
+    bpm: Int?,
+    activeConnection: Boolean,
+    activeIsWhoop: Boolean,
+    ouraBatteryPct: Int?,
+): List<SignalTile> = listOf(
     SignalTile(
         "Heart rate",
         bpm?.let { "$it bpm" } ?: "Missing",
@@ -1227,9 +1261,14 @@ private fun signalTiles(live: LiveState, bpm: Int?, activeConnection: Boolean): 
     ),
     SignalTile(
         "Battery",
-        live.batteryPct?.let { "${it.toInt()}%" } ?: "Unknown",
-        if (live.charging == true) "Charging" else "Last reported by strap",
-        batteryTint(live.batteryPct),
+        LiveConsoleReadout.batteryPercent(activeIsWhoop, live.batteryPct, ouraBatteryPct)
+            ?.let { "$it%" } ?: "Unknown",
+        // "by strap" only when a strap is what reported it (#2075).
+        if (live.charging == true) "Charging"
+        else if (activeIsWhoop) "Last reported by strap" else "Last reported by the ring",
+        batteryTint(
+            LiveConsoleReadout.batteryPercent(activeIsWhoop, live.batteryPct, ouraBatteryPct)?.toDouble(),
+        ),
     ),
     // Wear is only trustworthy on a live link: `worn` defaults true and is only updated by
     // WRIST_ON/OFF events, so while OFFLINE it would read a false-green "On wrist". Gate value + tint

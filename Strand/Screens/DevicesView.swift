@@ -188,9 +188,16 @@ private struct DevicesContent: View {
                     pairingHint: device.status == .active ? live.pairingHint : nil,
                     // Reboot in flight + link currently down → "Reconnecting…" (#166).
                     isReconnecting: device.status == .active && live.rebootInProgress && !live.connected,
-                    // The live battery belongs to whichever device is ACTIVE + connected (the WHOOP, a
-                    // generic strap, or an FTMS machine all funnel into live.batteryPct). nil otherwise.
-                    liveBatteryPct: (device.status == .active && live.connected) ? live.batteryPct.map { Int($0.rounded()) } : nil,
+                    // The live battery belongs to whichever device is ACTIVE + connected. A WHOOP, a
+                    // generic strap and an FTMS machine all funnel into live.batteryPct, but an Oura ring
+                    // does NOT: it reports its own charge, so an active ring row used to draw the strap's
+                    // stale number under the ring's name (#2075). Asked PER ROW rather than of the active
+                    // device, which is the stronger question and the one this loop can actually answer.
+                    liveBatteryPct: (device.status == .active && live.connected)
+                        ? LiveConsoleReadout.batteryPercent(
+                            activeIsWhoop: SourceCoordinator.isWhoop(device),
+                            whoopPct: live.batteryPct, ringPct: live.ouraBatteryPct)
+                        : nil,
                     liveBatteryMv: (device.status == .active && live.connected) ? live.batteryMv : nil,
                     // Firmware version for the ACTIVE strap. It's a STABLE property (NOOP can't change a
                     // strap's firmware), so prefer the live handshake value but fall back to the last-known

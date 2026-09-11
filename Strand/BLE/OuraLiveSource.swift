@@ -1727,6 +1727,10 @@ public final class OuraLiveSource: NSObject, ObservableObject {
 
             case .battery(let bat):
                 batteryPct = bat.percent
+                // #2075: publish the ring's charge into the shared LiveState too, beside `ouraWearState`.
+                // Holding it only here left the Live Console with nothing but the WHOOP's `batteryPct`,
+                // so it showed the strap's charge under the ring's name.
+                if feedsLive { live.ouraBatteryPct = bat.percent }
                 onBattery(bat.percent)
                 log("Oura: battery \(bat.percent)%")
                 enqueue([e], ts: now)

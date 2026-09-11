@@ -3,6 +3,26 @@ import Foundation
 import WidgetKit
 
 extension WidgetSnapshot {
+    /// The ACTIVE device's charge for the widget (#2075).
+    ///
+    /// `LiveState.batteryPct` is the WHOOP's, and `LiveState` is one object every live source writes
+    /// into, so publishing it unconditionally put the strap's charge on the widget while a ring was the
+    /// active device. Same rule as the Live Console, through the same seam.
+    ///
+    /// `@MainActor` like both publishers that call it: `AppModel.deviceRegistry` and `LiveState` are
+    /// main-actor isolated, so a nonisolated helper cannot read them.
+    @MainActor
+    static func activeBatteryPct(from model: AppModel) -> Int? {
+        LiveConsoleReadout.batteryPercent(
+            activeIsWhoop: LiveConsoleReadout.activeIsWhoop(
+                devices: model.deviceRegistry?.devices ?? [],
+                activeId: model.deviceRegistry?.activeDeviceId,
+            ),
+            whoopPct: model.live.batteryPct,
+            ringPct: model.live.ouraBatteryPct,
+        )
+    }
+
     /// Build a glance snapshot from the live app state and publish it to the shared App Group, then
     /// ask WidgetKit to refresh. Called when the app becomes active and after a Health sync.
     ///
@@ -81,7 +101,7 @@ extension WidgetSnapshot {
         let snap = WidgetSnapshot(
             recovery: day?.recovery.map { Int($0.rounded()) },
             bpm: model.bpm ?? model.live.heartRate,
-            batteryPct: model.live.batteryPct.map { Int($0.rounded()) },
+            batteryPct: activeBatteryPct(from: model),
             bonded: model.live.bonded,
             updated: Date(),
             // Stored 0–100 axis for ring fill; display string carries the #313 scale.
@@ -118,7 +138,7 @@ extension WidgetSnapshot {
         // ONCE per tick instead of loading it again inside saveAndReloadIfChanged.
         let previous = snap
         snap.bpm = model.bpm ?? model.live.heartRate
-        snap.batteryPct = model.live.batteryPct.map { Int($0.rounded()) }
+        snap.batteryPct = Self.activeBatteryPct(from: model)
         snap.bonded = model.live.bonded
         snap.updated = now
         saveAndReloadIfChanged(snap, previous: previous)

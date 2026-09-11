@@ -4154,6 +4154,16 @@ class WhoopBleClient(
     @Volatile
     private var whoopIsActiveDevice = true
 
+    /**
+     * Whether a WHOOP is the ACTIVE device, for readouts that must describe the right band (#2075).
+     *
+     * Read-only view of the flag [setWhoopIsActiveDevice] maintains from the coordinator's own start/stop
+     * closures, which derive it from `SourceIdentity.isWhoop` on the active row. Exposed so a producer on
+     * a hot path can ask without a registry read: the widget push rides a collector driven by live heart
+     * rate, and reading the DB there to answer a battery label would be absurd.
+     */
+    val activeDeviceIsWhoop: Boolean get() = whoopIsActiveDevice
+
     /** The last entry point [whoopConnectAllowed] turned away, so a rotation timer cannot flood the log. */
     private var lastBlockedConnectReason: String? = null
 

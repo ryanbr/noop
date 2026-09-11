@@ -146,6 +146,13 @@ class SourceCoordinator(
     private val _ouraWearState = MutableStateFlow<OuraWearState?>(null)
     val ouraWearState: StateFlow<OuraWearState?> = _ouraWearState.asStateFlow()
 
+    /** The RING's own charge while a live Oura source is up, for the Live Console's battery read (#2075).
+     *  Separate from `LiveState.batteryPct`, which is the WHOOP's: one shared LiveState means a bonded
+     *  strap leaves its charge sitting there, and a console that read it while a ring was active
+     *  reported the wrong band's battery under the right band's name. Mirrors [ouraWearState]. */
+    private val _ouraBatteryPct = MutableStateFlow<Int?>(null)
+    val ouraBatteryPct: StateFlow<Int?> = _ouraBatteryPct.asStateFlow()
+
     /** Collects the active Oura source's adoptPhase / needsPairing into the mirrors above; cancelled and
      *  nulled on teardown so a forgotten ring never leaks a stale outcome. */
     private var ouraStateJob: kotlinx.coroutines.Job? = null
@@ -590,6 +597,7 @@ class SourceCoordinator(
             launch { source.adoptPhase.collect { _ouraAdoptPhase.value = it } }
             launch { source.needsPairing.collect { _ouraNeedsPairing.value = it } }
             launch { source.ouraWearState.collect { _ouraWearState.value = it } }
+            launch { source.batteryPct.collect { _ouraBatteryPct.value = it } }   // #2075
         }
         return source
     }
@@ -628,6 +636,7 @@ class SourceCoordinator(
         _ouraAdoptPhase.value = OuraLiveSource.AdoptPhase.Idle
         _ouraNeedsPairing.value = null
         _ouraWearState.value = null   // #628: no live Oura source -> no wear badge
+        _ouraBatteryPct.value = null  // #2075: nor a stale ring charge
         // A stale speed/cadence/power readout must not outlive the strap session (the source's own stop()
         // already pushes an empty SensorMetrics, but reset here too so leaving for WHOOP / FTMS / Huami —
         // none of which feed this flow — is clean and immediate).

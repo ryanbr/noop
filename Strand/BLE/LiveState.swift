@@ -2,6 +2,7 @@ import Foundation
 import Combine
 import StrandAnalytics
 import WhoopProtocol
+import WhoopStore
 import OuraProtocol
 
 /// Observable snapshot of the live connection + biometric state, driven by FrameRouter
@@ -115,6 +116,13 @@ public final class LiveState: ObservableObject {
     /// beat only comes from a finger (`.worn`); "chg. detected"/"stopped" bracket `.charging`; a silent
     /// live-HR stream drops to `.off` (removed). Lets the Live view show On wrist / Off wrist.
     @Published public var ouraWearState: OuraWearState? = nil
+
+    /// The RING's own charge, when a ring is the live source. Separate from [batteryPct], which is the
+    /// WHOOP's, because `LiveState` is ONE object both sources write into: a bonded WHOOP beside a
+    /// streaming ring leaves the WHOOP's charge sitting in `batteryPct`, and a console that reads it
+    /// while a ring is the active device reports the wrong band's battery under the right band's name.
+    /// That is #2075, where a ring on 93% displayed the strap's 72%. Nil when no ring has reported.
+    @Published public var ouraBatteryPct: Int? = nil
 
     // MARK: - Battery runtime estimate (#713)
 
@@ -598,6 +606,7 @@ public final class LiveState: ObservableObject {
         clearStrapRange()                 // a stale clock-drift window must not outlive the link either
         lastFrameAtUnix = nil             // #987: a stale "last frame" freshness must not outlive it either
         ouraWearState = nil               // a stale worn/charging badge must not outlive the link either
+        ouraBatteryPct = nil              // nor a stale ring charge (#2075)
         // Perf: flush the durable log tail on disconnect (mirroring is batched in `append`), so a completed
         // session's tail is always persisted for a later scheduled export despite the per-line throttle.
         Self.persistTail(log)
@@ -1018,5 +1027,46 @@ public final class LiveState: ObservableObject {
         // Previous processes first, so the body stays in chronological order and the log-parsing tools read
         // it unchanged — they just get the night that a wake-time restart used to erase.
         return header + Self.previousSessionsText() + log.joined(separator: "\n")
+    }
+}
+
+/// What the Live Console should read out, given WHICH device is active.
+///
+/// `LiveState` is one object that every live source writes into, so "is this field populated" is not the
+/// same question as "does this field describe the device on screen". A bonded WHOOP sitting beside a
+/// streaming Oura ring leaves every WHOOP-only field truthful-looking while the console is naming the
+/// ring, which is #2075: the ring's own 93% was decoded and held, and the strap's stale 72% was what got
+/// drawn under "Oura Ring 5".
+///
+/// Pure and shared so the Apple and Android consoles cannot answer it differently.
+public enum LiveConsoleReadout {
+
+    /// Whether the ACTIVE registry device is a WHOOP.
+    ///
+    /// Defaults to true when the registry has not opened or the active row is not resolvable, which is
+    /// the WHOOP-first tone the console's device name already takes. Delegates to `SourceIdentity`, the
+    /// one place that answers this, rather than adding a second spelling of it.
+    ///
+    /// That default is load-bearing rather than cosmetic. A WHOOP adopting its serial identity re-keys
+    /// the active row mid-session (#1303), so the id being asked about can briefly name a row that no
+    /// longer exists; answering "WHOOP" there keeps a working strap's console intact, which is the right
+    /// call because the device that just re-keyed IS a WHOOP.
+    public static func activeIsWhoop(devices: [PairedDevice], activeId: String?) -> Bool {
+        guard let activeId, let active = devices.first(where: { $0.id == activeId }) else { return true }
+        return SourceIdentity.isWhoop(active)
+    }
+
+    /// The charge to show for the ACTIVE device, or nil to show nothing.
+    ///
+    /// A non-WHOOP active device never falls back to the WHOOP's charge. Showing nothing is the honest
+    /// answer when a ring has not reported yet; showing the strap's number would be a confident lie, and
+    /// it is the exact shape of the reported bug.
+    public static func batteryPercent(activeIsWhoop: Bool, whoopPct: Double?, ringPct: Int?) -> Int? {
+        // ROUNDS, and deliberately. The surfaces this replaced disagreed: Devices and the widget rounded,
+        // the Live Console truncated, so a strap on 72.6% read 73 on one screen and 72 on another. One
+        // seam has to pick, and for a percentage rounding is the accurate one. `.rounded()` is
+        // half-away-from-zero and Kotlin's Math.round is half-up, identical over the 0...100 this sees.
+        if activeIsWhoop { return whoopPct.map { Int($0.rounded()) } }
+        return ringPct
     }
 }

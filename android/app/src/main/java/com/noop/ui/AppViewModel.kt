@@ -186,6 +186,19 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     private val _activeDeviceName = MutableStateFlow<String?>(null)
     val activeDeviceName: StateFlow<String?> = _activeDeviceName.asStateFlow()
 
+    /** Whether the ACTIVE registry device is a WHOOP (#2075). Published beside the name and refreshed in
+     *  the SAME registry read, so the console can never name one device while reading another's state.
+     *
+     *  For the SCREENS, which need something to recompose on. The widget producers deliberately read
+     *  `WhoopBleClient.activeDeviceIsWhoop` instead: two of them write that one snapshot field, and a
+     *  flow that lags the coordinator's flag would make the widget flicker between the two devices'
+     *  charges. Both derive from `SourceIdentity.isWhoop` on the active row. */
+    private val _activeIsWhoop = MutableStateFlow(true)
+    val activeIsWhoop: StateFlow<Boolean> = _activeIsWhoop.asStateFlow()
+
+    /** The active Oura ring's own charge, for the Live Console (#2075). Mirrors [ouraWearState]. */
+    val ouraBatteryPct: StateFlow<Int?> get() = noopApp.sourceCoordinator.ouraBatteryPct
+
     /** WHOOP-style day streak (#569): consecutive local days that carry a Charge score, computed on
      *  device from the merged daily metrics. A day "qualifies" when its [com.noop.data.DailyMetric] has a
      *  non-null `recovery`. Pure math lives in [com.noop.analytics.StreakCalculator] (Swift/Kotlin twin). */
@@ -239,6 +252,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             val all = runCatching { noopApp.deviceRegistry.all() }.getOrDefault(emptyList())
             val active = all.firstOrNull { it.status == com.noop.data.DeviceStatus.active.name }
             _activeDeviceName.value = active?.let { displayName(it) }
+            // Same read, same row: the name and the "is it a WHOOP" verdict cannot disagree (#2075).
+            _activeIsWhoop.value = LiveConsoleReadout.activeIsWhoop(all, active?.id)
         }
     }
 
@@ -1049,7 +1064,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                             restPct = anchorRow?.let { RestScorer.restFromDaily(it)?.roundToInt() },
                             effortPct = anchorRow?.strain?.roundToInt(),
                             heartRate = live.heartRate,
-                            batteryPct = live.batteryPct?.roundToInt(),
+                            // The ACTIVE device's charge (#2075): a ring reports its own and does not
+                            // funnel into live.batteryPct, so publishing that put the strap's number on
+                            // the widget while a ring was active.
+                            //
+                            // Deliberately `ble.activeDeviceIsWhoop` rather than the [activeIsWhoop] flow
+                            // beside it. TWO producers write this one field, this and the BLE service,
+                            // and they must not disagree or the widget would flicker between a strap's
+                            // charge and a ring's. The flow exists for Compose, which needs something to
+                            // recompose on; the producers share the coordinator's flag.
+                            batteryPct = LiveConsoleReadout.batteryPercent(
+                                activeIsWhoop = ble.activeDeviceIsWhoop,
+                                whoopPct = live.batteryPct,
+                                ringPct = noopApp.sourceCoordinator.ouraBatteryPct.value,
+                            ),
                             connected = live.connected,
                             stressSeries = stressCurve?.points ?: emptyList(),
                             stressDay = stressCurve?.epochDay,
