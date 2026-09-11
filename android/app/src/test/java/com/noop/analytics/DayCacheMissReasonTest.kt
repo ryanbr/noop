@@ -79,9 +79,12 @@ class DayCacheMissReasonTest {
     fun `the causes with no key to compare still have names`() {
         // Both are produced by the engine rather than by missReason, so this pins the vocabulary the
         // reader will see rather than the function's branches.
-        val tokens = setOf("none", "shape", "owner", "hr", "rrAlias5", "streams", "absent", "configDropped")
+        // `configDropped` carries the field that moved, e.g. `configDropped(hrvBaseline)`, so the bare
+        // token is a prefix rather than the whole key. See [DayCacheConfigFieldTest].
+        val tokens = setOf("none", "shape", "owner", "hr", "rrAlias5", "streams", "absent",
+                           "configDropped(<field>)")
         assertTrue(tokens.contains("absent"))
-        assertTrue(tokens.contains("configDropped"))
+        assertTrue(tokens.any { it.startsWith("configDropped") })
     }
 
     @Test

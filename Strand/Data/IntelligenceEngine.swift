@@ -931,8 +931,9 @@ final class IntelligenceEngine: ObservableObject {
         // load-bearing for the cache — removing it would reintroduce the #1402 storm in a form no signature
         // change can fix.
         // Field names live in `dayCacheConfigFields`, in this exact order. Kept there rather than here so
-        // the construction stays a plain value list, and `changedConfigField` refuses to guess when the
-        // two fall out of step.
+        // the construction stays a plain value list. Add or reorder here and add or reorder there:
+        // `changedConfigField` refuses to name anything when the counts disagree, but it cannot see a
+        // REORDER, which would quietly label the wrong field.
         let dayCacheConfigSig = [
             String(describing: baselines1.hrv),
             String(describing: baselines1.restingHR),

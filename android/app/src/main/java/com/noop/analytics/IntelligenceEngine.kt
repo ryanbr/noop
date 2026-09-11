@@ -833,6 +833,10 @@ object IntelligenceEngine {
         // 2 s (#755). So this fires once per completed backfill, not once per chunk. That coalescing is
         // load-bearing for the cache — removing it would reintroduce the #1402 storm in a form no signature
         // change can fix.
+        // Field names live in [DAY_CACHE_CONFIG_FIELDS], in this exact order, so that this stays a plain
+        // value list and costs the bytecode ratchet nothing. Add or reorder here and add or reorder there:
+        // [changedConfigField] refuses to name anything when the counts disagree, but it cannot see a
+        // REORDER, which would quietly label the wrong field.
         val dayCacheConfigSig = listOf(
             baselines1.hrv.toString(), baselines1.restingHR.toString(),
             profile.age.toString(), profile.sex.toString(), profile.stepTicksPerStep.toString(),
