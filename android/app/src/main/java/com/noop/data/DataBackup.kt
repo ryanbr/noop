@@ -80,16 +80,42 @@ object DataBackup {
      * HERE at write time instead. Twin of the Apple post-write check in `writeVerifiedBackupZip`.
      * Best-effort: any read/format error returns false (treated as not-intact).
      */
-    fun isWrittenBackupIntact(context: Context, uri: Uri): Boolean {
+    /**
+     * What a post-write check concluded about the file just produced.
+     *
+     * [UNVERIFIABLE] exists so that failing to READ a backup is never mistaken for evidence against it.
+     * The caller deletes a [TORN] file, and deleting on "we could not look" would mean a provider having
+     * a bad moment could destroy a backup that was perfectly good.
+     */
+    internal enum class BackupWriteVerdict { INTACT, TORN, UNVERIFIABLE }
+
+    /**
+     * The decision itself, separated from the reading of the file so the whole table can be pinned by a
+     * plain JVM test: [tail] is null when the provider would not say how big the file is, and
+     * [entryIntact] is null when it could not be opened for reading at all.
+     */
+    internal fun writeVerdict(tail: ByteArray?, entryIntact: Boolean?): BackupWriteVerdict = when {
+        // A tail we COULD read that holds no end record is positive evidence of a cut-short write.
+        tail != null && !hasEndOfCentralDirectory(tail) -> BackupWriteVerdict.TORN
+        entryIntact == null -> BackupWriteVerdict.UNVERIFIABLE
+        entryIntact -> BackupWriteVerdict.INTACT
+        else -> BackupWriteVerdict.TORN
+    }
+
+    /**
+     * Re-read the `.noopbak` at [uri] and say what it looks like.
+     *
+     * The tail is the cheap half and the half that actually catches a torn write; it is SKIPPED, not
+     * failed, when the provider will not report a size, since refusing a good backup because a document
+     * provider is coy would trade a rare corruption for a common false alarm.
+     */
+    internal fun verifyWrittenBackup(context: Context, uri: Uri): BackupWriteVerdict {
         val resolver = context.contentResolver
-        // The TAIL first, because it is the cheap half and the half that actually catches a torn write.
-        // Skipped (not failed) when the provider will not report a size: refusing a good backup because a
-        // document provider is coy would trade a rare corruption for a common false alarm.
         val tail = readTail(resolver, uri, ZIP_EOCD_SEARCH_BYTES)
-        if (tail != null && !hasEndOfCentralDirectory(tail)) return false
-        return runCatching {
-            resolver.openInputStream(uri)?.use { backupStreamIsIntact(it) } ?: false
-        }.getOrDefault(false)
+        val entryIntact = runCatching {
+            resolver.openInputStream(uri)?.use { backupStreamIsIntact(it) }
+        }.getOrNull()
+        return writeVerdict(tail, entryIntact)
     }
 
     /** The last [limit] bytes of [uri], or null when the provider will not say how big it is. */
@@ -99,17 +125,19 @@ object DataBackup {
                 val len = pfd.statSize
                 if (len <= 0L) return@use null
                 val window = minOf(len, limit.toLong()).toInt()
-                FileInputStream(pfd.fileDescriptor).use { fis ->
-                    fis.channel.position(len - window)
-                    val buf = ByteArray(window)
-                    var got = 0
-                    while (got < window) {
-                        val r = fis.read(buf, got, window - got)
-                        if (r < 0) break
-                        got += r
-                    }
-                    if (got == window) buf else null
+                // Deliberately NOT closed: the descriptor belongs to the ParcelFileDescriptor, whose
+                // own `use` closes it. Wrapping this in `use` too would close the same fd twice, and
+                // the second close lands on whatever has since been handed that number.
+                val fis = FileInputStream(pfd.fileDescriptor)
+                fis.channel.position(len - window)
+                val buf = ByteArray(window)
+                var got = 0
+                while (got < window) {
+                    val r = fis.read(buf, got, window - got)
+                    if (r < 0) break
+                    got += r
                 }
+                if (got == window) buf else null
             }
         }.getOrNull()
 
@@ -299,20 +327,31 @@ object DataBackup {
         // export, the one taken deliberately before wiping a phone, never ran it. It belongs inside
         // exportTo the way Apple's lives inside writeVerifiedBackupZip, so that no caller has to
         // remember to ask.
-        if (!isWrittenBackupIntact(appContext, uri)) {
+        when (verifyWrittenBackup(appContext, uri)) {
+            BackupWriteVerdict.INTACT -> Unit
             // Never leave a corrupt file behind masquerading as a good snapshot. Which of the two
             // outcomes happened changes what the reader should do, so say which.
-            val removed = runCatching { DocumentsContract.deleteDocument(resolver, uri) }.getOrDefault(false)
-            throw IOException(
-                if (removed) {
-                    "Couldn't finish the backup: the file written was incomplete, so it was removed " +
-                        "rather than left looking like a good backup. The destination may be out of " +
-                        "space. Try again, or choose somewhere else."
-                } else {
-                    "Couldn't finish the backup: the file written was incomplete, and it could not be " +
-                        "removed either, so delete it yourself rather than trust it. The destination " +
-                        "may be out of space. Try again, or choose somewhere else."
-                },
+            BackupWriteVerdict.TORN -> {
+                val removed = runCatching { DocumentsContract.deleteDocument(resolver, uri) }
+                    .getOrDefault(false)
+                throw IOException(
+                    if (removed) {
+                        "Couldn't finish the backup: the file written was incomplete, so it was " +
+                            "removed rather than left looking like a good backup. The destination may " +
+                            "be out of space. Try again, or choose somewhere else."
+                    } else {
+                        "Couldn't finish the backup: the file written was incomplete, and it could " +
+                            "not be removed either, so delete it yourself rather than trust it. The " +
+                            "destination may be out of space. Try again, or choose somewhere else."
+                    },
+                )
+            }
+            // Failing to READ the file back is not evidence against it, so it is LEFT ALONE. Deleting
+            // here would let a storage provider having a bad moment destroy a good backup.
+            BackupWriteVerdict.UNVERIFIABLE -> throw IOException(
+                "The backup was written, but couldn't be read back to check it, so it has been left " +
+                    "in place rather than deleted on a guess. Open it before you rely on it, or " +
+                    "export again somewhere else.",
             )
         }
 
