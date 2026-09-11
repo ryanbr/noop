@@ -1344,38 +1344,29 @@ fun TodayScreen(
                 onOpenDevices = onOpenDevices,
             )
             // WORDMARK (iOS LiquidWordmark parity): a subtle centred "N O O P" @ ~50% opacity, with a
-            // tap easter egg. Shares its row with the Arrange affordance — wordmark centred, Arrange
-            // aligned to the trailing edge — so neither needs its own empty band.
-            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                LiquidWordmark()
-                // One consistent customization affordance for section order and visibility.
-                //
-                // #2008: reported as "not visible". It was not hidden, it was unreadable as a control:
-                // #486 folded it out of its own pinned row onto the wordmark row, and it kept the
-                // TERTIARY text colour, so the one affordance for rearranging Today sat at the dimmest
-                // tier in the palette beside a decorative 50%-opacity wordmark. Nothing said "button".
-                //
-                // The compact row #486 wanted is kept. What changes is that it now reads as a control:
-                // secondary text on a frosted pill, which is the idiom the rest of Today uses for a
-                // tappable surface. iOS has never had this problem, its twin is a proper header button
-                // (`nativeLiquidGlassHeaderButton`) at a fixed control size.
-                TextButton(
-                    onClick = { showLayoutEditor = true },
-                    colors = ButtonDefaults.textButtonColors(contentColor = Palette.textSecondary),
-                    contentPadding = PaddingValues(horizontal = Metrics.space10, vertical = Metrics.space4),
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .clip(RoundedCornerShape(50))
-                        .frostedCardSurface(cornerRadius = 999.dp),
-                ) {
-                    Icon(
-                        Icons.Filled.Tune,
-                        contentDescription = stringResource(R.string.today_customize_title),
-                        modifier = Modifier.size(Metrics.iconSmall),
-                    )
-                    Spacer(Modifier.width(Metrics.space4))
-                    Text(stringResource(R.string.today_customize_action), style = NoopType.footnote)
+            // tap easter egg. Still shares its row with the customization control, as #486 intended,
+            // but in a slot of its own rather than underneath it.
+            //
+            // #2110: the wordmark and the control used to share this row as a BOX (#486), wordmark centred
+            // and the control aligned CenterEnd. A Box stacks its children, so nothing reserved space or
+            // shortened the wordmark — the two simply overlapped once the control grew wide enough to reach
+            // the centre. #2010 grew it (icon + label + padding + a frosted pill) and the trailing "P"
+            // disappeared underneath it, worse per locale since the label runs 3 chars in zh to 13 in fr
+            // against the 9 it was eyeballed at.
+            //
+            // A ROW with equal fixed gutters instead of a Box: the leading Spacer mirrors the trailing
+            // control exactly, so the wordmark stays optically centred while owning the space BETWEEN them.
+            // Overlap is now unexpressible at any label width, in any locale, because the two occupy
+            // different slots rather than the same one.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Spacer(Modifier.size(HeaderClusterControl))
+                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    LiquidWordmark()
                 }
+                CustomizeDisc(onClick = { showLayoutEditor = true })
             }
         }
         }
@@ -2190,6 +2181,50 @@ private fun TodayCardDismissButton(onClick: () -> Unit, modifier: Modifier = Mod
     }
 }
 
+/** Customize Today (#2110): section order and visibility, on the trailing edge of the wordmark row.
+ *
+ *  Icon-only at the shared header-control size. The glyph and the accessibility-label-instead-of-text
+ *  treatment are iOS's (`slider.horizontal.3` in a `nativeLiquidGlassHeaderButton`), but the PLACEMENT
+ *  deliberately is not: iOS keeps this in the header control cluster, and Android cannot afford it
+ *  there. See the cluster comment in `LiquidTodayHeader` — Android's cluster already carries a sync
+ *  chip iOS has no equivalent of, and lacks iOS's measured title fade, so a control added there is
+ *  width taken straight from the day title.
+ *
+ *  Icon-only is what answers BOTH reports: it still reads as a control (#2008 found the old tertiary
+ *  text unreadable as one) while no longer out-shouting the hero rings (#2110), and dropping the
+ *  visible label retires the locale-width problem, since the word ran 3 characters in zh to 13 in fr.
+ *
+ *  No new string: the existing "Customize Today" title is the accessibility label, so this ships in
+ *  every locale that already had it. */
+@Composable
+private fun CustomizeDisc(onClick: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    Box(
+        modifier = Modifier
+            // Level with the avatar / + / battery ring (shared size), so the cluster reads as one row.
+            .size(HeaderClusterControl)
+            .liquidPress(interaction)
+            .clip(CircleShape)
+            // The same translucent-white disc the + uses, rather than the frosted card surface #2010
+            // reached for: the point is to look like its siblings, not like a call to action.
+            .background(Color.White.copy(alpha = 0.16f))
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+            )
+            .semantics { contentDescription = uiString(R.string.today_customize_title) },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            Icons.Filled.Tune,
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.size(16.dp),
+        )
+    }
+}
+
 @Composable
 private fun QuickActionDisc(onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
@@ -2399,6 +2434,14 @@ private fun LiquidTodayHeader(
         }
 
         // RIGHT: the controls, in order — [sync chip] · avatar · + · battery ring. Each ~36dp, 8dp apart.
+        //
+        // #2110: deliberately NOT where the Customize control went, even though that is where iOS keeps it.
+        // The title Column beside this is weight(1f) with maxLines=1 + Ellipsis, so every control added here
+        // is width taken from the day title, and Android starts from a wider cluster than iOS because of the
+        // sync chip iOS has no equivalent of. iOS can afford its fourth control because it fades the title
+        // under a MEASURED cluster width (headerTrailingControlFadeMask); Android has no such reserve. On a
+        // 393dp phone a fifth control leaves the 28sp title ~117dp, and "Yesterday" needs ~139dp, so it
+        // would have started ellipsizing a day title that fits today.
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
