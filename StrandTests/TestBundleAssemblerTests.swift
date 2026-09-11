@@ -124,6 +124,38 @@ final class TestBundleAssemblerTests: XCTestCase {
         XCTAssertTrue(out.contains("\"hex\":\"\(hex)\""), "the raw hex bytes must survive redaction intact")
     }
 
+    /// 2026-09-11: the test above only proves the raw `hex` field survives for a payload that happens to
+    /// avoid `redactHexDump`'s WHOOP-serial heuristic (its bytes never decode to a 9+ byte run of unbroken
+    /// alnum ASCII starting with a letter). A real capture's `0x80` live-HR/IBI and `0x43`/`0x61` debug-text
+    /// channels routinely produce exactly that shape by coincidence or by design (found 2026-09-11 in a
+    /// user's #2075 attachment: 38 of 3112 `oura-raw.jsonl` lines had bytes silently replaced with `•` — not
+    /// even valid hex — because they matched the WHOOP-serial shape this heuristic was built to catch on a
+    /// console hex dump, e.g. "WHOOP 4C1594026"). This pins that `oura-raw.jsonl` is now exempt from that
+    /// sweep while its `deviceId` is still masked.
+    func testRawSidecarSurvivesTheWhoopSerialHeuristicFalsePositive() {
+        let ringId = "5C4C0BF8-2DF6-1B3A-18D0-3DF0B3590148"
+        // 0x43 op, header-ish non-alnum bytes, then an UNBROKEN 9-byte letter-led alnum run ("SN1234567") -
+        // exactly what `redactHexDump` masks in a WHOOP console hex dump, coincidentally reachable by any
+        // Oura frame whose bytes happen to fall in that ASCII range.
+        let header = "e5a30000"
+        let payload = Array("SN1234567".utf8).map { String(format: "%02x", $0) }.joined()
+        let bodyLen = (header.count + payload.count) / 2
+        let hex = "43" + String(format: "%02x", bodyLen) + header + payload
+        let line = "{\"schema\":1,\"deviceId\":\"\(ringId)\",\"utc\":1,\"iso\":\"2026-09-11T00:00:00Z\",\"hex\":\"\(hex)\"}"
+        let out = String(data: TestBundleAssembler.redactEntries(
+            [FileExport.BundleEntry(name: "oura-raw.jsonl", data: Data(line.utf8))]).first!.data, encoding: .utf8)!
+        XCTAssertTrue(out.contains("\"hex\":\"\(hex)\""),
+                       "the debug-text frame must survive byte-for-byte, got: \(out)")
+        XCTAssertFalse(out.contains(ringId), "the ring UUID must still be scrubbed")
+        XCTAssertTrue(out.contains("\"deviceId\":\"<device>\""), "the ring id must still be masked to <device>")
+        // A sibling non-raw sidecar (decoded fields, no hex blob) is unaffected by this exemption and still
+        // rides the general `redactPii` sweep — the exemption is scoped to `raw` alone.
+        let ibiLine = "{\"schema\":1,\"deviceId\":\"\(ringId)\",\"hr\":60}"
+        let ibiOut = String(data: TestBundleAssembler.redactEntries(
+            [FileExport.BundleEntry(name: "oura-ibihr.jsonl", data: Data(ibiLine.utf8))]).first!.data, encoding: .utf8)!
+        XCTAssertFalse(ibiOut.contains(ringId))
+    }
+
     /// #572 follow-up: the field-aware `deviceId` mask closes the gap the canonical-only contract left — a
     /// DASHLESS (or truncated) ring id, which the dash-anchored UUID rule can't match and would otherwise
     /// leak verbatim, is still masked to `<device>`, and the raw `hex` capture is STILL untouched (the mask

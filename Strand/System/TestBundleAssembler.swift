@@ -34,14 +34,33 @@ enum TestBundleAssembler {
         "oura-raw.jsonl", "oura-ibihr.jsonl", "oura-activity.jsonl",
     ]
 
+    /// `oura-raw.jsonl` is the ONE sidecar whose payload is nothing but hex (`OuraRawDumpLine.encode`) —
+    /// `oura-ibihr.jsonl`/`oura-activity.jsonl` encode DECODED numeric fields, so `LiveState.redactHexDump`'s
+    /// byte-run heuristic below never sees a hex blob long enough to false-positive on. Only `raw` needs the
+    /// exemption `redactEntries` applies via this set.
+    private static let rawHexSidecarNames: Set<String> = ["oura-raw.jsonl"]
+
     /// Re-run the redaction sink over every entry. Text entries are decoded as UTF-8, scrubbed via the same
     /// LiveState.redactPii used by the live sink, and re-encoded. A non-UTF-8 entry (none today) passes
     /// through untouched rather than risk corrupting binary. meta.json and report.txt have no PII shapes so
     /// they pass through byte-identical; raw-capture is where the embedded serials live.
+    ///
+    /// `oura-raw.jsonl` skips the `redactPii` sweep entirely (see `rawHexSidecarNames`) — its `hex` field is
+    /// the ring's UNDECODED TLV bytes, and `redactPii`'s `redactHexDump` helper (built for #1833: a WHOOP
+    /// serial hiding as ASCII inside a hex-dumped console line) decodes hex back to bytes and masks any 9+
+    /// byte run that spells alnum ASCII starting with a letter. Every Oura record is nothing but such runs,
+    /// so that heuristic fires on ordinary sensor bytes and on the `0x43`/`0x61` debug-text channel (ASCII by
+    /// design) — found 2026-09-11 via a real user capture: 38 of 3112 lines had bytes silently replaced with
+    /// `•` placeholders that are not even valid hex, breaking any offline tool that reframes the file. The
+    /// actual identity leak this heuristic was hoped to also catch here — the ring's SERIAL, arriving in
+    /// plain digits via a `0x18`/`0x19` GetProductInfo reply — is invisible to it anyway (no letter in an
+    /// all-numeric run), and is instead filtered at the SOURCE by `OuraLiveSource.rawDumpBytes` before the
+    /// frame ever reaches this file. The `deviceId` field mask below still runs unconditionally, so the one
+    /// piece of identity `oura-raw.jsonl`'s JSON envelope carries is still scrubbed.
     static func redactEntries(_ entries: [FileExport.BundleEntry]) -> [FileExport.BundleEntry] {
         entries.map { entry in
             guard let text = String(data: entry.data, encoding: .utf8) else { return entry }
-            var scrubbed = LiveState.redactPii(text)
+            var scrubbed = rawHexSidecarNames.contains(entry.name) ? text : LiveState.redactPii(text)
             // #572 follow-up: field-aware deviceId mask for the Oura sidecars (see `ouraSidecarNames`). Runs
             // AFTER redactPii, so it catches a non-canonical id that the dash-anchored UUID rule misses; on an
             // already-canonical id redactPii turned into `<device>`, this is a no-op. Key-anchored to
