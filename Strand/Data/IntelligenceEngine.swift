@@ -92,7 +92,11 @@ final class IntelligenceEngine: ObservableObject {
     /// Kept beside the reader rather than at the construction site so that site stays a plain value list.
     /// The cost is that the two must stay in step, which `changedConfigField` refuses to guess about when
     /// they are not. Kotlin twin: `IntelligenceEngine.DAY_CACHE_CONFIG_FIELDS`.
-    static let dayCacheConfigFields: [String] = [
+    ///
+    /// `nonisolated` for the same reason the reader below is: the engine is @MainActor, so a plain
+    /// `static let` inherits that isolation, and neither a nonisolated function nor a synchronous test
+    /// could then touch it. `[String]` is Sendable, so sharing it is safe.
+    nonisolated static let dayCacheConfigFields: [String] = [
         "hrvBaseline", "rhrBaseline", "age", "sex", "stepTicksPerStep", "maxHROverride",
         "tzOffset", "sleepNeedHours", "sleepConsistency", "habitualMidsleep",
         "experimentalSleepV2", "motionAwareWake", "deepHrvWindow", "spo2CandidateDisplay",
