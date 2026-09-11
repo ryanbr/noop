@@ -221,10 +221,16 @@ enum LiquidRender {
             return p
         }
         var ctx = base
-        ctx.stroke(curve(), with: .color(tint.opacity(0.9)), style: StrokeStyle(lineWidth: 2.4, lineCap: .round, lineJoin: .round))
-        // travelling glint
+        // Built ONCE. The glint strokes the same geometry as the line under it, and this runs inside a
+        // 60fps TimelineView, so building it per stroke walked the whole series twice a frame for two
+        // identical paths.
+        let line = curve()
+        ctx.stroke(line, with: .color(tint.opacity(0.9)), style: StrokeStyle(lineWidth: 2.4, lineCap: .round, lineJoin: .round))
+        // Travelling glint. The dash pattern restarts at each subpath, so a day broken into several runs
+        // shows a tick per run rather than one glint travelling the whole line. Cosmetic, and the honest
+        // alternative (one glint walking across gaps) would re-assert the continuity this change removes.
         let phase = -(now * 55).truncatingRemainder(dividingBy: 414)
-        ctx.stroke(curve(), with: .color(.white.opacity(0.55)),
+        ctx.stroke(line, with: .color(.white.opacity(0.55)),
                    style: StrokeStyle(lineWidth: 1.1, lineCap: .round, dash: [14, 400], dashPhase: phase))
         // endpoint pulse
         let ex = px(n - 1), ey = py(values[n - 1])
