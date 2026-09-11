@@ -97,6 +97,13 @@ class DataBackupIntegrityTest {
         )
     }
 
+    /** A nonsense limit must not throw: take(-1) is an exception in Kotlin and prefix(-1) traps in
+     *  Swift, and a display helper is the last place that should be able to crash a failure path. */
+    @Test fun adegenerateLimitStillReturnsSomething() {
+        assertEquals(1, DataBackup.readableComplaint("*** in database main ***\nPage 5", limit = 0).length)
+        assertEquals(1, DataBackup.readableComplaint("*** in database main ***\nPage 5", limit = -5).length)
+    }
+
     /** Capped, because this rides inside a sentence that has to stay readable. */
     @Test fun anOverlongComplaintIsCappedWithAnEllipsis() {
         val out = DataBackup.readableComplaint("*** in database main ***\n" + "x".repeat(500), limit = 40)

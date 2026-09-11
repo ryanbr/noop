@@ -69,9 +69,9 @@ public enum DatabaseIntegrity {
 
     /// The part of a `verdict` worth showing a person, as one line.
     ///
-    /// `verdict` is kept VERBATIM on purpose: it is the forensic value, it goes in logs, and a reporter
-    /// pasting it into an issue should paste what SQLite actually said. But what SQLite actually says
-    /// begins with a banner and a newline:
+    /// `verdict` is kept VERBATIM on purpose: it is the forensic value, and a reporter pasting it into
+    /// an issue should paste what SQLite actually said rather than a summary of it. (It reaches no log
+    /// today: the only copy is the one shown.) What SQLite says begins with a banner and a newline:
     ///
     ///     *** in database main ***
     ///     Page 5 is never used
@@ -90,7 +90,8 @@ public enum DatabaseIntegrity {
         let joined = kept.isEmpty
             ? verdict.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespaces)
             : kept.joined(separator: "; ")
-        guard joined.count > limit else { return joined }
-        return String(joined.prefix(limit - 1)).trimmingCharacters(in: .whitespaces) + "\u{2026}"
+        let cap = max(1, limit)
+        guard joined.count > cap else { return joined }
+        return String(joined.prefix(cap - 1)).trimmingCharacters(in: .whitespaces) + "\u{2026}"
     }
 }

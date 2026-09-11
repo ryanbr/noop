@@ -141,6 +141,10 @@ final class DatabaseIntegrityTests: XCTestCase {
             DatabaseIntegrity.readableComplaint("*** in database main ***\nPage 5 is never used\nPage 9 is never used"),
             "Page 5 is never used; Page 9 is never used"
         )
+        // A nonsense limit must not trap: prefix(-1) is a precondition failure, and a display helper is
+        // the last place that should be able to crash a failure path.
+        XCTAssertEqual(DatabaseIntegrity.readableComplaint("*** in database main ***\nPage 5", limit: 0).count, 1)
+        XCTAssertEqual(DatabaseIntegrity.readableComplaint("*** in database main ***\nPage 5", limit: -5).count, 1)
         // Capped, because this rides inside a sentence that has to stay readable.
         let long = DatabaseIntegrity.readableComplaint("*** in database main ***\n" + String(repeating: "x", count: 500),
                                                       limit: 40)

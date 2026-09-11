@@ -673,8 +673,9 @@ object DataBackup {
     /**
      * The part of a [quickCheckVerdict] worth showing a person, as one line.
      *
-     * The verdict is kept VERBATIM on purpose: it is the forensic value, it goes in logs, and a reporter
-     * pasting it into an issue should paste what SQLite actually said. But what SQLite actually says
+     * The verdict is kept VERBATIM on purpose: it is the forensic value, and a reporter pasting it into
+     * an issue should paste what SQLite actually said rather than a summary of it. (It reaches no log
+     * today: the only copy is the one shown, which is why the dialog can copy it.) What SQLite says
      * begins with a banner and a newline:
      *
      *     *** in database main ***
@@ -698,7 +699,8 @@ object DataBackup {
         } else {
             kept.joinToString("; ")
         }
-        return if (joined.length <= limit) joined else joined.take(limit - 1).trimEnd() + "\u2026"
+        val cap = limit.coerceAtLeast(1)
+        return if (joined.length <= cap) joined else joined.take(cap - 1).trimEnd() + "\u2026"
     }
 
     /**
