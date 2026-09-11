@@ -168,9 +168,24 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     /// is already the full parse of `bytes`): computes the `tail` `rawDumpBytes` needs from `frames`
     /// itself, rather than duplicating that arithmetic at the call site. Kept CoreBluetooth-free and
     /// `nonisolated static` so it is testable directly, the same as `rawDumpBytes`.
+    ///
+    /// CORRECTION (PR #2090 review, ryanbr, self-caught 6 minutes after suggesting the tail in the first
+    /// place): appending the tail unconditionally would put the serial BACK. When the frame split across
+    /// notifications is itself a GetProductInfo reply, `parseOuterFrames` stops right at it, so the
+    /// unconsumed remainder starts with `0x19` and continues straight into the ASCII serial - exactly
+    /// what this whole PR exists to keep out. The refinement that gets both: append the remainder only
+    /// when its first byte is NOT a `productInfoResponseOps` op. An ordinary split frame (any other op)
+    /// keeps full fidelity; a split product-info frame drops its (however partial) tail along with the
+    /// rest of it, same as a complete one does.
     nonisolated static func rawDumpBytes(fromNotification bytes: [UInt8], frames: [OuraOuterFrame]) -> [UInt8] {
         let consumedLength = frames.reduce(0) { $0 + 2 + $1.body.count }
-        let tail = consumedLength < bytes.count ? Array(bytes[consumedLength...]) : []
+        var tail: [UInt8] = []
+        if consumedLength < bytes.count {
+            let remainder = Array(bytes[consumedLength...])
+            if let leadOp = remainder.first, !productInfoResponseOps.contains(leadOp) {
+                tail = remainder
+            }
+        }
         return rawDumpBytes(frames, appending: tail)
     }
 

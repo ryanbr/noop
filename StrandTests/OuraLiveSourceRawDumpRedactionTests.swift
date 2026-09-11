@@ -55,4 +55,23 @@ final class OuraLiveSourceRawDumpRedactionTests: XCTestCase {
         let frames = OuraFraming.parseOuterFrames(bytes)
         XCTAssertEqual(OuraLiveSource.rawDumpBytes(fromNotification: bytes, frames: frames), [])
     }
+
+    func testSplitProductInfoFrameTailIsDroppedNotAppended() {
+        let partialSerial = Array("2H3B2405003655".utf8) // 14 of the 20 bytes the header claims
+        let bytes: [UInt8] = [0x41, 0x02, 0xAA, 0xBB, 0x19, 0x14] + partialSerial
+        let frames = OuraFraming.parseOuterFrames(bytes)
+        XCTAssertEqual(frames, [OuraOuterFrame(op: 0x41, body: [0xAA, 0xBB])], "sanity: only one frame parses")
+        let dump = OuraLiveSource.rawDumpBytes(fromNotification: bytes, frames: frames)
+        XCTAssertEqual(dump, [0x41, 0x02, 0xAA, 0xBB], "the split product-info tail must be dropped whole")
+        XCTAssertFalse(String(decoding: dump, as: UTF8.self).contains("2H3B2405003655"))
+    }
+
+    /// The same guard applies to a bare one-byte remainder (just the op, not even a length byte yet) -
+    /// the review's "a one-byte remainder is fine to test the same way" note.
+    func testOneByteProductInfoOpRemainderIsDropped() {
+        let bytes: [UInt8] = [0x41, 0x02, 0xAA, 0xBB, 0x18]
+        let frames = OuraFraming.parseOuterFrames(bytes)
+        let dump = OuraLiveSource.rawDumpBytes(fromNotification: bytes, frames: frames)
+        XCTAssertEqual(dump, [0x41, 0x02, 0xAA, 0xBB])
+    }
 }
