@@ -80,6 +80,12 @@ object IntelligenceEngine {
      *  same reason [dayScanCache] is: every pass runs under [analyzeGate], so there is no concurrent access. */
     private val skippedSleepDays = SleepSkipCollector()
 
+    /** #2073: why each night missed the reuse cache this pass, by cause. A FIELD rather than a local for
+     *  the same reason [dayScanCache] is: `analyzeRecentOnCpu` sits on a JaCoCo bytecode ratchet, and a
+     *  local plus the parameter passing it needs cost more there than the diagnostic is worth. Cleared at
+     *  the top of every pass; safe because every pass runs under `analyzeGate`. */
+    private val dayCacheMissBy = LinkedHashMap<String, Int>()
+
     /**
      * #1005 BATTERY: in-memory per-day reuse for [analyzeRecent]'s pass-1 loop, keyed by day. On a heavy user
      * (21 nights, ~178 k HR rows/night, a 1.26 GB store) every re-score re-read *every* night's raw streams
@@ -843,11 +849,9 @@ object IntelligenceEngine {
         ).joinToString("|")
         // Drop the whole cache on a config change. Under [analyzeGate] (this whole pass runs holding the
         // lock), so mutating the object-level cache here is race-free.
-        if (dayCacheConfigSig != dayScanCacheConfigSig) {
-            dayScanCache = HashMap()
-            dayScanCacheConfigSig = dayCacheConfigSig
-        }
         var dayCacheReused = 0
+        dayCacheMissBy.clear()
+        dropDayCacheIfConfigChanged(dayCacheConfigSig)
         // #1538: per-phase cost tally. `prep` brackets the nine windowed store reads plus the session
         // matching that sits between them and [AnalyticsEngine.analyzeDay]; `score` brackets analyzeDay
         // itself. Emitted once per pass beside the reuse line. Byte-identical line to the Swift twin.
@@ -939,8 +943,8 @@ object IntelligenceEngine {
                     // makes the cost what this change claims: paid only while a trace is on.
                     hrvWindowDetail = hrvTraceSink != null && dayStart == nowLocalMidnight)
                 dayCacheKey = key
-                val cached = dayScanCache[day]
-                if (cached != null && cached.key == key) {
+                val cached = reusableDayScan(day, key)
+                if (cached != null) {
                     // Repopulate every per-day map pass 2 reads (mirror of the loop's own writes below),
                     // replay the day's diag lines, and continue — the reused night is downstream-
                     // indistinguishable from a freshly-scored one. readOwnerByDay is the universal CAPTURE-B
@@ -1432,8 +1436,10 @@ object IntelligenceEngine {
         // unreadable fingerprint, or a night under the >=200-sample floor — can never be reused, so counting
         // it against the ratio made a healthy cache look broken and put a floor under how good the number
         // could ever get. Byte-identical string to the Swift twin.
+        // #2073: the miss tally rides the same line. Absent when nothing was cached to miss, so a first
+        // pass and a healthy pass both read exactly as before.
         diag("analyzeRecent dayCache reused=$dayCacheReused/${dayCacheReused + dayCacheCacheable} " +
-            "size=${dayScanCache.size} days=$maxDays")
+            "size=${dayScanCache.size} days=$maxDays${missByField()}")
         // #1538: where the pass actually goes. `prep` is the nine windowed store reads plus the session
         // matching between them; `score` is analyzeDay. The two do NOT sum to the pass total — pass 2, the
         // baseline folds and the reconciliation are outside this loop — so read them as a RATIO, which is
@@ -1445,6 +1451,8 @@ object IntelligenceEngine {
             WindowedStreamPlan.logLine(
                 hrWindow.rowsRead, hrWindow.rowsServed, hrWindow.truncatedReads,
                 rrWindow.rowsRead, rrWindow.rowsServed, rrWindow.truncatedReads,
+                hrWindow.ownerFlips, rrWindow.ownerFlips,
+                hrWindow.reuseOffReads, rrWindow.reuseOffReads,
             ),
         )
 
@@ -2862,6 +2870,44 @@ object IntelligenceEngine {
         val nextMidnight = dayStart + SECONDS_PER_DAY
         return if (dayStart < nowLocalMidnight) nextMidnight else minOf(nextMidnight, now)
     }
+
+    /** Drop the whole day cache when the pass-global config changed, recording that it happened (#2073).
+     *
+     *  The recording is the point. A dropped cache leaves NO entry to compare, so the miss tally below
+     *  would stay silent and the line would read `reused=0/21` with nothing saying why, which is the exact
+     *  silence this diagnostic exists to remove. Out here for the bytecode ratchet, and it replaces the
+     *  inline branch that used to sit in the scoring method rather than adding to it. */
+    private fun dropDayCacheIfConfigChanged(configSig: String) {
+        if (configSig == dayScanCacheConfigSig) return
+        dayScanCache = HashMap()
+        dayScanCacheConfigSig = configSig
+        dayCacheMissBy["configDropped"] = 1
+    }
+
+    /** The cached scan for [day] when it is still reusable, else null, tallying WHY it was not (#2073).
+     *
+     *  Folded into the lookup rather than added beside it: `analyzeRecentOnCpu` sits on a JaCoCo bytecode
+     *  ratchet, and doing the key compare here REPLACES the null-check and comparison that used to be
+     *  inline instead of adding to them. */
+    private fun reusableDayScan(day: String, freshKey: String): CachedDayScan? {
+        val cached = dayScanCache[day] ?: run {
+            // No entry at all: a first pass, a night new to the window, or a cache just dropped wholesale.
+            // Counted so a total miss always carries a cause.
+            dayCacheMissBy["absent"] = (dayCacheMissBy["absent"] ?: 0) + 1
+            return null
+        }
+        if (cached.key == freshKey) return cached
+        val why = AnalyzeRecentDayCache.missReason(cached.key, freshKey)
+        dayCacheMissBy[why] = (dayCacheMissBy[why] ?: 0) + 1
+        return null
+    }
+
+    /** The miss tally as it rides the reuse line, or empty when nothing was cached to miss (#2073). Same
+     *  budget reason as [noteDayCacheMiss]. */
+    private fun missByField(): String = if (dayCacheMissBy.isEmpty()) "" else
+        // SORTED, not insertion order: which cause happens to be seen first depends on which day missed
+        // first, and a diagnostic that reorders itself between passes is harder to diff. Matches the twin.
+        " missBy=" + dayCacheMissBy.entries.sortedBy { it.key }.joinToString(",") { "${it.key}:${it.value}" }
 
     /** The pass-1 HR sliding read window. Constructed OUTSIDE `analyzeRecentOnCpu` so neither the
      *  element lambda nor the reader lambda counts against that method's bytecode budget, which the

@@ -79,11 +79,22 @@ final class WindowedStreamPlanTests: XCTestCase {
         XCTAssertEqual(
             WindowedStreamPlan.logLine(hrRead: 1_000, hrServed: 9_000, hrTruncated: 0,
                                        rrRead: 250, rrServed: 750, rrTruncated: 3),
-            "analyzeRecent windows hr[read=1000 served=9000 truncated=0] "
-                + "rr[read=250 served=750 truncated=3]")
+            "analyzeRecent windows hr[read=1000 served=9000 truncated=0 ownerFlips=0 reuseOff=0] "
+                + "rr[read=250 served=750 truncated=3 ownerFlips=0 reuseOff=0]")
         XCTAssertEqual(
             WindowedStreamPlan.logLine(hrRead: 0, hrServed: 0, hrTruncated: 0,
                                        rrRead: 0, rrServed: 0, rrTruncated: 0),
-            "analyzeRecent windows hr[read=0 served=0 truncated=0] rr[read=0 served=0 truncated=0]")
+            "analyzeRecent windows hr[read=0 served=0 truncated=0 ownerFlips=0 reuseOff=0] "
+                + "rr[read=0 served=0 truncated=0 ownerFlips=0 reuseOff=0]")
+        // #2073: the shape the field log actually had, and the one a reader would have got WRONG.
+        // A WHOOP 5 R-R window is told not to reuse at all, so served=0 is by design; ownerFlips alone
+        // reads 0 there and would have suggested a gap, which is the opposite of true.
+        XCTAssertEqual(
+            WindowedStreamPlan.logLine(hrRead: 1_752_302, hrServed: 1_926_517, hrTruncated: 0,
+                                       rrRead: 9_044, rrServed: 0, rrTruncated: 0,
+                                       hrOwnerFlips: 0, rrOwnerFlips: 0,
+                                       hrReuseOff: 0, rrReuseOff: 21),
+            "analyzeRecent windows hr[read=1752302 served=1926517 truncated=0 ownerFlips=0 reuseOff=0] "
+                + "rr[read=9044 served=0 truncated=0 ownerFlips=0 reuseOff=21]")
     }
 }

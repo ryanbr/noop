@@ -41,6 +41,25 @@ public final class SlidingStreamWindow<T> {
     /// even the 32-bit `Int` of `arm64_32` that this package also builds for. Stated because a width left
     /// to be inferred is how the 32-bit `pct` over-count got in (#1685).
     public private(set) var rowsServed = 0
+    /// How many reads were forced by the OWNER changing since the last one (#2073). Diagnostic only.
+    ///
+    /// `served` near zero already tells a reader the windows are declining, and `WindowedStreamPlan`'s own
+    /// doc names the three ways that happens: truncation, an owner flip, or a gap. `truncated` is already
+    /// on the line, so counting the flips separates the remaining two instead of leaving them as one
+    /// unanswerable number. A field log showed a stream reading 4,084 rows and serving none with
+    /// `truncated=0`, and there was no way to tell which of the other two it was.
+    public private(set) var ownerFlips = 0
+
+    /// Reads that bypassed reuse entirely because the caller passed `allowReuse: false` (#2073).
+    ///
+    /// This is the answer `ownerFlips` alone would get WRONG. A WHOOP 5 R-R read passes false, because
+    /// transport selection is range-dependent and a slice could mix transports, so that window can never
+    /// serve from its buffer: `served=0` there is BY DESIGN, not a decline. Without this count the line
+    /// said `served=0 truncated=0 ownerFlips=0` and invited a reader to conclude "a gap", which is the
+    /// opposite of true. The bypass also clears the buffer, so a genuine owner change on such a stream is
+    /// never even seen as a flip.
+    public private(set) var reuseOffReads = 0
+
     /// Rows this window read from the store. Diagnostic only. Same width note as `rowsServed`.
     public private(set) var rowsRead = 0
     /// Reads whose RESULT came back at the store's cap, so the newest rows were dropped and the day was
@@ -67,12 +86,14 @@ public final class SlidingStreamWindow<T> {
         // A range-dependent source choice is not composable: a slice or extension may select another
         // transport. Read the whole interval and retain no buffer, while keeping cost/truncation truthful.
         if !allowReuse {
+            reuseOffReads += 1
             _ = failedRead()
             guard let full = await read(owner, from, to) else { return [] }
             rowsRead += full.count
             if full.count >= limit { truncatedReads += 1 }
             return full
         }
+        if let cached = self.owner, cached != owner { ownerFlips += 1 }
         let plan = WindowedStreamPlan.plan(cachedOwner: self.owner, cachedFrom: self.from,
                                            cachedTo: self.to, cachedTruncated: truncated,
                                            owner: owner, from: from, to: to)

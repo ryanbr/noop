@@ -915,9 +915,13 @@ final class IntelligenceEngine: ObservableObject {
         // Drop the whole cache on a config change, then snapshot it into a Sendable `let` for the detached
         // loop (the engine is @MainActor; the loop can't touch `self`). The loop returns the updated cache
         // and we write it back after `.value`.
+        // #2073: recorded, because a dropped cache leaves no entry to compare and the miss tally would
+        // otherwise stay silent on the very case it exists to explain.
+        var dayCacheConfigDropped = false
         if dayCacheConfigSig != dayScanCacheConfigSig {
             dayScanCache.removeAll()
             dayScanCacheConfigSig = dayCacheConfigSig
+            dayCacheConfigDropped = true
         }
         let inDayScanCache = dayScanCache
 
@@ -946,6 +950,12 @@ final class IntelligenceEngine: ObservableObject {
             // diagnostic carried on `skippedDayLines`.
             var dayScanCacheLocal = inDayScanCache
             var dayCacheReused = 0
+            // #2073: WHY a night missed, tallied by cause. The reuse count alone cannot separate "today's
+            // heart rate grew" from "something shared by all 21 keys moved", and those need different fixes.
+            var dayCacheMissBy: [String: Int] = [:]
+            // #2073: a cache dropped wholesale leaves NO entry to compare, so without this the tally would
+            // stay silent and the line would read reused=0/21 with nothing saying why.
+            if dayCacheConfigDropped { dayCacheMissBy["configDropped"] = 1 }
             // #1538: per-phase cost tally. `prep` brackets the nine windowed store reads plus the
             // session matching that sits between them and `analyzeDay`; `score` brackets `analyzeDay`
             // itself. Emitted once per pass beside the reuse line.
@@ -1051,10 +1061,19 @@ final class IntelligenceEngine: ObservableObject {
                             // path exactly as it was.
                             hrvWindowDetail: hrvTraceActive && dayStart == nowLocalMidnight)
                         dayCacheKey = key
-                        if let cached = dayScanCacheLocal[day], cached.key == key {
-                            out.append(cached.scan)
-                            dayCacheReused += 1
-                            continue
+                        if dayScanCacheLocal[day] == nil {
+                            // No entry at all: a first pass, a night new to the window, or a cache just
+                            // dropped wholesale. Counted so a total miss always carries a cause.
+                            dayCacheMissBy["absent", default: 0] += 1
+                        }
+                        if let cached = dayScanCacheLocal[day] {
+                            if cached.key == key {
+                                out.append(cached.scan)
+                                dayCacheReused += 1
+                                continue
+                            }
+                            let why = AnalyzeRecentDayCache.missReason(cachedKey: cached.key, freshKey: key)
+                            dayCacheMissBy[why, default: 0] += 1
                         }
                     }
                 }
@@ -1614,9 +1633,16 @@ final class IntelligenceEngine: ObservableObject {
             // so counting it against the ratio made a healthy cache look broken and put a floor under how
             // good the number could ever get. On a store with gaps the old form could not reach `21/21` even
             // in principle, which is exactly the misreading #1538 opened with.
+            // #2073: the miss tally rides the same line. Absent when nothing was cached to miss, so a
+            // first pass and a healthy pass both read exactly as before.
+            var missBy = ""
+            if !dayCacheMissBy.isEmpty {
+                let parts = dayCacheMissBy.sorted { $0.key < $1.key }.map { "\($0.key):\($0.value)" }
+                missBy = " missBy=" + parts.joined(separator: ",")
+            }
             skippedDayLines.append("analyzeRecent dayCache reused=\(dayCacheReused)/"
                                    + "\(dayCacheReused + dayCacheCacheable) "
-                                   + "size=\(dayScanCacheLocal.count) days=\(maxDays)")
+                                   + "size=\(dayScanCacheLocal.count) days=\(maxDays)\(missBy)")
             // #1538: where the pass actually goes. `prep` is the nine windowed store reads plus the
             // session matching between them; `score` is `analyzeDay`. The two do not sum to the pass
             // total — pass 2, the baseline folds and the reconciliation are outside this loop — so read
@@ -1633,7 +1659,9 @@ final class IntelligenceEngine: ObservableObject {
                 hrRead: hrWindow.rowsRead, hrServed: hrWindow.rowsServed,
                 hrTruncated: hrWindow.truncatedReads,
                 rrRead: rrWindow.rowsRead, rrServed: rrWindow.rowsServed,
-                rrTruncated: rrWindow.truncatedReads))
+                rrTruncated: rrWindow.truncatedReads,
+                hrOwnerFlips: hrWindow.ownerFlips, rrOwnerFlips: rrWindow.ownerFlips,
+                hrReuseOff: hrWindow.reuseOffReads, rrReuseOff: rrWindow.reuseOffReads))
             return (out, skippedDayLines, dayScanCacheLocal)
         }.value
         // #1005: write the loop's updated reuse cache back to the (main-actor) stored property. The pass ran

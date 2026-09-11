@@ -81,13 +81,22 @@ class WindowedStreamPlanTest {
      */
     @Test fun logLineShape() {
         assertEquals(
-            "analyzeRecent windows hr[read=1000 served=9000 truncated=0] " +
-                "rr[read=250 served=750 truncated=3]",
+            "analyzeRecent windows hr[read=1000 served=9000 truncated=0 ownerFlips=0 reuseOff=0] " +
+                "rr[read=250 served=750 truncated=3 ownerFlips=0 reuseOff=0]",
             WindowedStreamPlan.logLine(1_000L, 9_000L, 0L, 250L, 750L, 3L),
         )
         assertEquals(
-            "analyzeRecent windows hr[read=0 served=0 truncated=0] rr[read=0 served=0 truncated=0]",
+            "analyzeRecent windows hr[read=0 served=0 truncated=0 ownerFlips=0 reuseOff=0] " +
+                "rr[read=0 served=0 truncated=0 ownerFlips=0 reuseOff=0]",
             WindowedStreamPlan.logLine(0L, 0L, 0L, 0L, 0L, 0L),
+        )
+        // #2073: the shape the field log actually had, and the one a reader would have got WRONG.
+        // A WHOOP 5 R-R window is told not to reuse at all, so served=0 is by design; ownerFlips alone
+        // reads 0 there and would have suggested a gap, which is the opposite of true.
+        assertEquals(
+            "analyzeRecent windows hr[read=1752302 served=1926517 truncated=0 ownerFlips=0 reuseOff=0] " +
+                "rr[read=9044 served=0 truncated=0 ownerFlips=0 reuseOff=21]",
+            WindowedStreamPlan.logLine(1_752_302L, 1_926_517L, 0L, 9_044L, 0L, 0L, 0L, 0L, 0L, 21L),
         )
     }
 }

@@ -44,9 +44,19 @@ object WindowedStreamPlan {
         rrRead: Long,
         rrServed: Long,
         rrTruncated: Long,
+        hrOwnerFlips: Long = 0,
+        rrOwnerFlips: Long = 0,
+        hrReuseOff: Long = 0,
+        rrReuseOff: Long = 0,
     ): String =
-        "analyzeRecent windows hr[read=$hrRead served=$hrServed truncated=$hrTruncated] " +
-            "rr[read=$rrRead served=$rrServed truncated=$rrTruncated]"
+        // #2073: `served` near zero says the windows are declining, and the doc above names three causes.
+        // `truncated` covered one. `ownerFlips` separates the other two, and `reuseOff` covers the case
+        // none of them describe: a stream the caller told not to reuse at all, where served=0 is by design
+        // and reading it as a decline is simply wrong.
+        "analyzeRecent windows hr[read=$hrRead served=$hrServed truncated=$hrTruncated " +
+            "ownerFlips=$hrOwnerFlips reuseOff=$hrReuseOff] " +
+            "rr[read=$rrRead served=$rrServed truncated=$rrTruncated " +
+            "ownerFlips=$rrOwnerFlips reuseOff=$rrReuseOff]"
 
     /** What the caller should do to obtain rows for the requested window. */
     sealed interface Plan {

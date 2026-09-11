@@ -40,10 +40,20 @@ public enum WindowedStreamPlan {
         hrTruncated: Int,
         rrRead: Int,
         rrServed: Int,
-        rrTruncated: Int
+        rrTruncated: Int,
+        hrOwnerFlips: Int = 0,
+        rrOwnerFlips: Int = 0,
+        hrReuseOff: Int = 0,
+        rrReuseOff: Int = 0
     ) -> String {
-        "analyzeRecent windows hr[read=\(hrRead) served=\(hrServed) truncated=\(hrTruncated)] "
-            + "rr[read=\(rrRead) served=\(rrServed) truncated=\(rrTruncated)]"
+        // #2073: `served` near zero says the windows are declining, and the doc above names three causes.
+        // `truncated` covered one. `ownerFlips` separates the other two, and `reuseOff` covers the case
+        // none of them describe: a stream the caller told not to reuse at all, where served=0 is by design
+        // and reading it as a decline is simply wrong.
+        "analyzeRecent windows hr[read=\(hrRead) served=\(hrServed) truncated=\(hrTruncated) "
+            + "ownerFlips=\(hrOwnerFlips) reuseOff=\(hrReuseOff)] "
+            + "rr[read=\(rrRead) served=\(rrServed) truncated=\(rrTruncated) "
+            + "ownerFlips=\(rrOwnerFlips) reuseOff=\(rrReuseOff)]"
     }
 
     /// What the caller should do to obtain rows for the requested window.

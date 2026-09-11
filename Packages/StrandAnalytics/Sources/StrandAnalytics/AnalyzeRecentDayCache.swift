@@ -17,6 +17,29 @@ import Foundation
 /// it only has to invalidate correctly on one platform; the Kotlin twin (`AnalyzeRecentDayCache`) mirrors
 /// the shape but the two key strings are NOT required to match byte-for-byte across platforms.
 public enum AnalyzeRecentDayCache {
+
+    /// WHICH part of a day's cache key moved, for the miss reason on the reuse line (#2073).
+    ///
+    /// The line has only ever reported how many nights were reused. A healthy pass reuses all but today,
+    /// whose heart rate is still growing; a pass that reuses NOTHING has had something shared by every
+    /// day's key change, and the two cases need different fixes. A field log showed 0 of 21 on 13 passes
+    /// out of 17, each costing about 50 seconds of prep and 1.75M row reads, and the reuse count alone
+    /// could not say why. `rrAlias5` is called out separately because it is the one input computed ONCE
+    /// per pass and folded into all 21 keys, so it alone can turn a single flip into a total miss.
+    ///
+    /// Keys are `owner|hrCount:hrMaxTs:anchor:detail|streams`, so the segment that differs names the
+    /// cause. Pure, and pinned by the same table of cases as the Kotlin twin.
+    public static func missReason(cachedKey: String, freshKey: String) -> String {
+        if cachedKey == freshKey { return "none" }
+        let a = cachedKey.split(separator: "|", maxSplits: 2, omittingEmptySubsequences: false)
+        let b = freshKey.split(separator: "|", maxSplits: 2, omittingEmptySubsequences: false)
+        if a.count < 3 || b.count < 3 { return "shape" }
+        if a[0] != b[0] { return "owner" }
+        if a[1] != b[1] { return "hr" }
+        let ra = a[2].range(of: "rrAlias5=").map { String(a[2][$0.upperBound...]) } ?? ""
+        let rb = b[2].range(of: "rrAlias5=").map { String(b[2][$0.upperBound...]) } ?? ""
+        return ra != rb ? "rrAlias5" : "streams"
+    }
     /// The per-day reuse key. Reuse a cached day iff this string is unchanged since the scan was cached.
     ///
     /// - `hrCount` / `hrMaxTs`: the night-window HR fingerprint (row count + newest timestamp) — the SAME

@@ -53,6 +53,27 @@ class SlidingStreamWindow<T>(
     var rowsServed = 0L
         private set
 
+    /** How many reads were forced by the OWNER changing since the last one (#2073). Diagnostic only.
+     *
+     *  `served` near zero already tells a reader the windows are declining, and this file's own plan doc
+     *  names the three ways that happens: truncation, an owner flip, or a gap. `truncated` is already on
+     *  the line, so counting the flips separates the remaining two instead of leaving them as one
+     *  unanswerable number. A field log showed a stream reading 4,084 rows and serving none with
+     *  `truncated=0`, and there was no way to tell which of the other two it was. */
+    var ownerFlips = 0L
+        private set
+
+    /** Reads that bypassed reuse entirely because the caller passed `allowReuse = false` (#2073).
+     *
+     *  This is the answer [ownerFlips] alone would get WRONG. A WHOOP 5 R-R read passes false, because
+     *  transport selection is range-dependent and a slice could mix transports, so that window can never
+     *  serve from its buffer: `served=0` there is BY DESIGN, not a decline. Without this count the line
+     *  said `served=0 truncated=0 ownerFlips=0` and invited a reader to conclude "a gap", which is the
+     *  opposite of true. The bypass also clears the buffer, so a genuine owner change on such a stream is
+     *  never even seen as a flip. */
+    var reuseOffReads = 0L
+        private set
+
     /** Rows this window read from the store. Diagnostic only. Same width note as [rowsServed]. */
     var rowsRead = 0L
         private set
@@ -79,12 +100,14 @@ class SlidingStreamWindow<T>(
     suspend fun rows(owner: String, from: Long, to: Long, allowReuse: Boolean = true): List<T> {
         // Range-dependent transport selection cannot safely reuse a slice or independently read head.
         if (!allowReuse) {
+            reuseOffReads++
             failedRead()
             val full = read(owner, from, to) ?: return emptyList()
             rowsRead += full.size
             if (full.size >= limit) truncatedReads++
             return full
         }
+        if (this.owner != null && this.owner != owner) ownerFlips++
         val plan = WindowedStreamPlan.plan(this.owner, this.from, this.to, truncated, owner, from, to)
         val result: List<T>
         val nowTruncated: Boolean
