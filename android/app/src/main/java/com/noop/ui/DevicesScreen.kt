@@ -170,6 +170,26 @@ fun DevicesScreen(
     // #1300 tier 2: recompute the two-strap comparison when the strap set changes.
     LaunchedEffect(activeDevices) { strapCompare = loadStrapCompare(viewModel.repo, activeDevices) }
     val removedDevices = all.filter { it.status == DeviceStatus.archived.name }
+    // #987: the strap-clock readout, computed ONCE for the whole list rather than per card, and only
+    // while connected. Remembered on its inputs so the log scan does not re-run on every recomposition
+    // of a screen that redraws for battery, sync and rename state.
+    // The device clock is deliberately NOT resolved here. It comes from the strap log, which on this
+    // platform lives in the BLE client rather than in LiveState as it does on macOS, so reading it would
+    // subscribe this screen to the log revision and rebuild the line list several times a second through
+    // an offload burst. It is a WHOOP4-only signal in any case, and the strap's own dating of its records
+    // is the evidence that matters, and the ONLY evidence a 5/MG gives. The cost is wording on a 4.0 with
+    // a dead RTC ("records dated" rather than "RTC reads"), not the verdict.
+    val clockState = if (live.connected) {
+        remember(live.strapNewestUnix, live.batteryPct) {
+            connectionClockReadout(
+                deviceClockUnix = null,
+                strapNewestUnix = live.strapNewestUnix,
+                batteryPct = live.batteryPct,
+            )
+        }
+    } else {
+        null
+    }
     val currentActiveName =
         all.firstOrNull { it.status == DeviceStatus.active.name }?.let { displayName(it) }
             ?: "Your current strap"
@@ -289,6 +309,18 @@ fun DevicesScreen(
                 // Historical record layout from the current backfill, distinct from strap firmware.
                 liveHistoryLayout = if (device.status == DeviceStatus.active.name && live.connected)
                     live.historyLayoutVersion else null,
+                // #987: the strap-clock state, ACTIVE card only, computed once for both halves (the log
+                // scan is the cost worth paying once, not twice - the same reason macOS pairs them).
+                //
+                // The charge is passed only while connected: rtcWarning requires a reading from the
+                // CURRENT link, since a stale 100% withdraws the "charge it" remedy from the very strap
+                // that earned it by running flat and resetting its RTC.
+                //
+                // macOS pairs this with a "last frame" half that Android cannot show yet: it has no
+                // lastFrameAtUnix to read. That belongs with the other ConnectionReadout functions this
+                // platform computes and does not surface, not smuggled in here.
+                liveClockLine = clockState?.first?.let { "Clock latched: ${it.value}" },
+                liveClockWarning = clockState?.second,
                 onMakeActive = { switchTarget = device },
                 onRename = { renameTarget = device },
                 onRemove = { removeTarget = device },
@@ -748,6 +780,14 @@ private fun DeviceCard(
     liveFirmware: String? = null,
     /** The active+connected strap's observed banked-history record layout (`hist_version`). */
     liveHistoryLayout: Int? = null,
+    /** #987: "Clock latched: … · last frame …" for the ACTIVE card. A strap whose clock was never set
+     *  banks nothing, which reads to the user as "live HR works but no history ever arrives", and this
+     *  is the line a reporter is asked to quote. null on every other card. Twin of the macOS
+     *  DeviceCard liveClockLine. */
+    liveClockLine: String? = null,
+    /** #987: the plain-words 1970/71 warning that goes with [liveClockLine], when there is one to give.
+     *  Twin of the macOS DeviceCard liveClockWarning. */
+    liveClockWarning: String? = null,
     onMakeActive: () -> Unit,
     onRename: () -> Unit,
     onRemove: (() -> Unit)?,
@@ -903,6 +943,20 @@ private fun DeviceCard(
                     onFeatureFlagProbe = onFeatureFlagProbe,
                 onAbortSync = onAbortSync,
                     onDeviceConfigProbe = onDeviceConfigProbe,
+                )
+            }
+            // #987: the strap-clock state, on the card the user already looks at rather than only in a
+            // diagnostic mode they have to switch on. The line carries the tokens; the warning carries
+            // the sentence, which is the half that says what to do about it.
+            if (liveClockLine != null) {
+                Text(liveClockLine, style = NoopType.footnote, color = Palette.textTertiary)
+            }
+            if (liveClockWarning != null) {
+                Text(
+                    liveClockWarning,
+                    style = NoopType.footnote,
+                    color = Palette.statusWarning,
+                    modifier = Modifier.semantics { contentDescription = liveClockWarning },
                 )
             }
         }

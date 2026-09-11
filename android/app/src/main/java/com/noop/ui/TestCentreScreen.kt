@@ -74,6 +74,7 @@ import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import com.noop.analytics.ConnectionReadout
 
 /**
  * Settings -> Test Centre (spec section 7), the Android twin of TestCentreView. Four sections: domain
@@ -694,7 +695,7 @@ private fun TestCentreLiveReadoutPanel(
     val clockReadout = if (mode.domain == TestDomain.CONNECTION) {
         remember(logLines, live.strapNewestUnix, linkBatteryPct) {
             connectionClockReadout(
-                logLines = logLines,
+                deviceClockUnix = ConnectionReadout.clockCorrelatedDevice(logLines),
                 strapNewestUnix = live.strapNewestUnix,
                 batteryPct = linkBatteryPct,
             )

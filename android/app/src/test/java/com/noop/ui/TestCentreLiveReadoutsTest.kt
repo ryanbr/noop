@@ -118,13 +118,13 @@ class TestCentreLiveReadoutsTest {
     /** The reported shape: a WHOOP 5/MG whose banked records are epoch-era. Its GET_CLOCK reply is not
      *  served on that family, so how the strap DATED its records is the only evidence there is. */
     @Test fun anEpochDatedStrapReadsNotLatchedAndWarns() {
-        val (row, warning) = connectionClockReadout(emptyList(), strapNewestUnix = 40_000_000L, batteryPct = 50.0)
+        val (row, warning) = connectionClockReadout(deviceClockUnix = null, strapNewestUnix = 40_000_000L, batteryPct = 50.0)
         assertEquals(LiveReadoutRow("clockLatched", "Clock latched", "no (records dated 1970/71)"), row)
         assertTrue(requireNotNull(warning).contains("not banking history"))
     }
 
     @Test fun aSanelyDatedStrapReadsLatchedAndDoesNotWarn() {
-        val (row, warning) = connectionClockReadout(emptyList(), strapNewestUnix = 1_782_475_000L, batteryPct = 50.0)
+        val (row, warning) = connectionClockReadout(deviceClockUnix = null, strapNewestUnix = 1_782_475_000L, batteryPct = 50.0)
         assertEquals("yes", row.value)
         assertEquals(null, warning)
     }
@@ -132,7 +132,7 @@ class TestCentreLiveReadoutsTest {
     /** Before any range lands there is nothing to judge. The row says so rather than inventing a
      *  verdict, and no warning is raised on an absence. */
     @Test fun noEvidenceYetSaysWaitingAndRaisesNoWarning() {
-        val (row, warning) = connectionClockReadout(emptyList(), strapNewestUnix = null, batteryPct = null)
+        val (row, warning) = connectionClockReadout(deviceClockUnix = null, strapNewestUnix = null, batteryPct = null)
         assertEquals("no (waiting for the strap clock)", row.value)
         assertEquals(null, warning)
     }
@@ -143,9 +143,9 @@ class TestCentreLiveReadoutsTest {
     @Test fun aDroppedLinkStopsReportingTheOldStrapsClock() {
         val live = com.noop.ble.LiveState(strapNewestUnix = 40_000_000L)
         assertEquals("no (records dated 1970/71)",
-            connectionClockReadout(emptyList(), live.strapNewestUnix, batteryPct = 50.0).first.value)
+            connectionClockReadout(deviceClockUnix = null, strapNewestUnix = live.strapNewestUnix, batteryPct = 50.0).first.value)
         assertEquals("no (waiting for the strap clock)",
-            connectionClockReadout(emptyList(), live.clearedBiometrics().strapNewestUnix, batteryPct = 50.0).first.value)
+            connectionClockReadout(deviceClockUnix = null, strapNewestUnix = live.clearedBiometrics().strapNewestUnix, batteryPct = 50.0).first.value)
     }
 
     /** rtcWarning requires a charge from the CURRENT link: a stale 100% would withdraw the "charge it"
@@ -154,19 +154,29 @@ class TestCentreLiveReadoutsTest {
      *  charge advice rather than withdrawing it on no evidence. */
     @Test fun aChargeFromADeadLinkDoesNotSuppressTheChargeAdvice() {
         val stale = requireNotNull(
-            connectionClockReadout(emptyList(), strapNewestUnix = 40_000_000L, batteryPct = null).second
+            connectionClockReadout(deviceClockUnix = null, strapNewestUnix = 40_000_000L, batteryPct = null).second
         )
         assertTrue(stale.contains("Charge the strap"))
+    }
+
+    /** A WHOOP4 correlated clock is the stronger signal and wins over the record dating. The Test Centre
+     *  caller resolves it from the log; the Devices caller deliberately passes null, so this pins that the
+     *  helper honours whichever it is handed. */
+    @Test fun aCorrelatedDeviceClockTakesPrecedenceOverTheRecordDating() {
+        val (row, _) = connectionClockReadout(
+            deviceClockUnix = 40_000_000L, strapNewestUnix = 1_782_475_000L, batteryPct = 50.0,
+        )
+        assertEquals("no (RTC reads 1970/71)", row.value)
     }
 
     /** #1818: the remedy is battery-dependent, and an already-charged strap must not be sent round the
      *  loop it has just run. Wiring the battery through is the whole point of passing it. */
     @Test fun anAlreadyChargedStrapIsNotToldToChargeAgain() {
         val flat = requireNotNull(
-            connectionClockReadout(emptyList(), strapNewestUnix = 40_000_000L, batteryPct = 40.0).second
+            connectionClockReadout(deviceClockUnix = null, strapNewestUnix = 40_000_000L, batteryPct = 40.0).second
         )
         val charged = requireNotNull(
-            connectionClockReadout(emptyList(), strapNewestUnix = 40_000_000L, batteryPct = 100.0).second
+            connectionClockReadout(deviceClockUnix = null, strapNewestUnix = 40_000_000L, batteryPct = 100.0).second
         )
         assertTrue(flat.contains("Charge the strap"))
         assertTrue(charged.contains("already charged"))
