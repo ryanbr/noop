@@ -9,7 +9,7 @@ import StrandAnalytics
 /// issue, and toasts). No network of our own, no cloud.
 ///
 /// This is the thin orchestrator that ties Group D's UI to the Group B/C contracts (TestBundleAssembler,
-/// FileExport.exportBundle, ReportReviewGate, TestReportLink, TestReportFlow). It is an ObservableObject
+/// FileExport.exportBundle, ReportReviewGate, TestReportFlow). It is an ObservableObject
 /// so the screen can present the review sheet off `pendingReview`.
 @MainActor
 final class TestCentreReport: ObservableObject {
@@ -116,12 +116,6 @@ final class TestCentreReport: ObservableObject {
         let platform = "macOS"
         #endif
         let osVersion = ProcessInfo.processInfo.operatingSystemVersionString
-        // CAPTURE-A (#812): seed the issue's what_happens box from the tester's own questionnaire answers so
-        // a report submitted without the .zip still opens with their words. The log tail is prefilled inside
-        // TestReportFlow from the redacted report.txt entry.
-        let seed = TestModeRegistry.mode(p.profile).flatMap {
-            TestReportLink.whatHappensSeed(questionnaire: $0.questionnaire, answers: TestCentre.answers(p.profile))
-        }
         // Launched (#646/#651): TestReportFlow.run is now async since it awaits FileExport.exportBundle's
         // off-main zip build.
         Task {
@@ -133,8 +127,7 @@ final class TestCentreReport: ObservableObject {
                 showToast: { [weak self] msg in self?.lastStatus = msg },
                 // M3: prime the clipboard AND surface the report for a visible "Copy report.txt" button so
                 // the documented mobile fallback is reachable, not just silently on the pasteboard.
-                copyToPasteboard: { [weak self] text in PlatformPasteboard.copy(text); self?.copyableReport = text },
-                whatHappensSeed: seed)
+                copyToPasteboard: { [weak self] text in PlatformPasteboard.copy(text); self?.copyableReport = text })
         }
         pending = nil
     }

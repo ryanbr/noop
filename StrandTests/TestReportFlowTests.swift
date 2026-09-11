@@ -18,9 +18,13 @@ final class TestReportFlowTests: XCTestCase {
     func testAttachToastNamesTheSavedFile() {
         let toast = TestReportFlow.Plan.attachToast(savedName: "noop-sleep-ios-v7.3.0-260626-0712.zip")
         XCTAssertTrue(toast.contains("noop-sleep-ios-v7.3.0-260626-0712.zip"))
-        // The instruction to tap the paperclip on the next screen (no em-dash anywhere).
-        XCTAssertTrue(toast.contains("tap"))
+        XCTAssertTrue(toast.contains("Attach"))
         XCTAssertFalse(toast.contains("\u{2014}"))   // hard rule: no em-dash
+        // The flow no longer opens a GitHub issue composer, so the toast must not walk the user through
+        // one. It used to say "On the next screen tap the paperclip and pick it", describing a screen
+        // that will never appear now.
+        XCTAssertFalse(toast.contains("paperclip"))
+        XCTAssertFalse(toast.contains("next screen"))
     }
 
     func testCopyFallbackOfferedOnMobileOnly() {

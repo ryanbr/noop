@@ -24,8 +24,13 @@ class TestReportFlowTest {
     fun attachToastNamesTheSavedFileAndHasNoEmDash() {
         val toast = TestReportFlow.Plan.attachToast("noop-sleep-android-v7.3.0-260626-0712.zip")
         assertTrue(toast.contains("noop-sleep-android-v7.3.0-260626-0712.zip"))
-        assertTrue(toast.contains("tap"))
+        assertTrue(toast.contains("Attach"))
         assertFalse(toast.contains("\u2014"))
+        // The flow no longer opens a GitHub issue composer, so the toast must not walk the user through
+        // one. It used to say "On the next screen tap the paperclip and pick it", describing a screen
+        // that will never appear now.
+        assertFalse(toast.contains("paperclip"))
+        assertFalse(toast.contains("next screen"))
     }
 
     @Test

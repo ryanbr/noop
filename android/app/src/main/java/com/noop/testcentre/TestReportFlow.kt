@@ -27,11 +27,16 @@ object TestReportFlow {
             return "noop-${profile.id}-$platform-v$version-$stamp.zip"
         }
 
-        /** Identical copy to the Swift toast so testers see the same wording on every platform. */
+        /** Identical copy to the Swift toast so testers see the same wording on every platform.
+         *
+         *  Was "On the next screen tap the paperclip and pick it", which described the GitHub issue
+         *  composer this flow opened. Nothing opens a composer now, so it says where the file went and
+         *  stops, rather than walking the user through a screen they will not see. */
         fun attachToast(savedName: String): String =
-            "Saved as $savedName. On the next screen tap the paperclip and pick it."
+            "Saved as $savedName. Attach it to your bug report."
 
-        /** Android is a mobile platform, so it offers the Copy-report.txt fallback. */
+        /** Android is a mobile platform, where pasting a .zip into a web form is awkward, so it offers the
+         *  Copy-report.txt fallback for a reporter writing an issue by hand. */
         fun offersCopyFallback(platform: String): Boolean =
             platform.lowercase() == "android" || platform.lowercase() == "ios"
     }
@@ -39,9 +44,13 @@ object TestReportFlow {
     /** The review gate is mandatory and not skippable (spec section 12). */
     fun shouldProceed(gate: ReportReviewGate): Boolean = gate.isCleared
 
-    /** Share the already-redacted bundle, open the prefilled issue, toast, and prime the copy fallback.
-     *  `entries` is the redacted, capped bundle the caller assembled. Review-before-share is mandatory:
-     *  nothing is shared until the gate is cleared (spec section 12).
+    /** Share the already-redacted bundle, toast, and prime the copy fallback. `entries` is the redacted,
+     *  capped bundle the caller assembled. Review-before-share is mandatory: nothing is shared until the
+     *  gate is cleared (spec section 12).
+     *
+     *  This used to open a prefilled GitHub issue after sharing, which is why the button said "Report".
+     *  That step is gone: the app names no destination and takes nothing off the device, so this now does
+     *  what the strap-log Share button does. Filing an issue is the reporter's own step.
      *
      *  Suspend (#646/#651): [LogExport.exportBundle] moved its zip build + write off the caller's
      *  dispatcher, so this now awaits it rather than blocking Main on a multi-MB bundle. */
@@ -53,12 +62,6 @@ object TestReportFlow {
             if (!shouldProceed(gate)) return@runCatching
             val name = Plan.bundleName(profile, platform, version)
             LogExport.exportBundle(context, entries, name)              // existing ACTION_SEND chooser
-            // CAPTURE-A (#812): prefill the issue `log` body from the already-redacted report.txt so a
-            // submission without the .zip attached still carries the diagnostic trace (incl. the universal
-            // dayOwner line). The bundle is already v2-redacted; this reuses that text verbatim.
-            val reportText = entries.firstOrNull { it.first == "report.txt" }?.second?.let { String(it) }
-            TestReportLink.openReport(context, profile, title, version, platform, osVersion,
-                reportText = reportText)
             Toast.makeText(context, Plan.attachToast(name), Toast.LENGTH_LONG).show()
             if (Plan.offersCopyFallback(platform)) {
                 val report = entries.firstOrNull { it.first == "report.txt" }?.second

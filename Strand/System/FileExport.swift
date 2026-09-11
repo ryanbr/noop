@@ -131,8 +131,10 @@ enum FileExport {
         let vc = UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
         if !cleanup.isEmpty || completion != nil {
             // Fires after the share sheet is dismissed (saved or cancelled). We clean up staged files and
-            // then run `completion` (M1/#812: the Test Centre report opens its prefilled issue here, once
-            // the share sheet is gone, so the in-app SafariVC presents with nothing else on screen).
+            // then run `completion`. That hook existed for the Test Centre report, which opened a prefilled
+            // GitHub issue once the sheet was gone; that step has been removed and nothing passes a
+            // completion today. Kept because it is the only point at which "the sheet has closed" is
+            // observable, which any future caller needing to follow a share will want.
             vc.completionWithItemsHandler = { _, _, _, _ in
                 let fm = FileManager.default
                 for url in cleanup where fm.fileExists(atPath: url.path) {
