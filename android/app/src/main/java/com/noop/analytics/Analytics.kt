@@ -86,11 +86,25 @@ object IllnessWatch {
         val recent = days.takeLast(2)
         // ~28 days ending 3 days ago: take the last 31, drop the most recent 3.
         val base = days.takeLast(31).dropLast(3)
-        // Valid nights a signal's window must carry before it may accuse the recent one. `mean` returns
-        // a figure from a SINGLE value, so without this a lone stored night is a "baseline" (#2130).
-        // A local, not a named constant: promoting it adds parity-ledger debt for a detail of one
-        // function. It does not make the comparison SOUND, which is the rest of #2130.
-        val minBaselineNights = 10
+        // Whether a signal's baseline window is fit to accuse the recent one (#2130).
+        //
+        // The Swift twin of this window already does exactly this: `AppModel.applyIllnessSignal` folds
+        // the SAME `suffix(31).dropLast(3)` through `Baselines.foldHistory` and refuses the signal
+        // outright unless the state is usable. Android was taking a plain mean instead, which is happy
+        // with ONE stored value, so a lone night could be the baseline a wearer was accused against, and
+        // no gate stood between a cold-start baseline and a health warning.
+        //
+        // Folding rather than counting matters: it is the same statistic Charge is scored against, so
+        // the banner and the score can no longer hold two different baselines for one metric. On the
+        // device in #2130 they held 35.7ms and 19.71ms at the same moment.
+        // Resolved as values, not as a helper: a named local function is a declaration the parity ledger
+        // counts, and this file's Kotlin half is inside its scan.
+        val rhrBaseUsable = Baselines.metricCfg["resting_hr"]?.let { cfg ->
+            Baselines.foldHistory(base.map { it.restingHr?.toDouble() }, cfg).usable
+        } == true
+        val hrvBaseUsable = Baselines.metricCfg["hrv"]?.let { cfg ->
+            Baselines.foldHistory(base.map { it.avgHrv }, cfg).usable
+        } == true
 
         fun mean(vals: List<Double>): Double? =
             if (vals.isEmpty()) null else vals.sum() / vals.size.toDouble()
@@ -104,22 +118,19 @@ object IllnessWatch {
         val flags = mutableListOf<String>()
 
         run {
-            // Guarded like the respiration flag below, which has always required it.
-            val rhrBase = base.mapNotNull { it.restingHr?.toDouble() }
             val r = rm { it.restingHr?.toDouble() }
             val b = bm { it.restingHr?.toDouble() }
-            if (r != null && b != null && rhrBase.size >= minBaselineNights && r >= b + 5) {
+            if (r != null && b != null && rhrBaseUsable && r >= b + 5) {
                 flags.add("resting HR +${(r - b).roundToInt()} bpm")
             }
         }
 
         run {
             // The sparsest of the four: the over-count gate withholds whole nights (#1118), so HRV is
-            // the likeliest to have been resting on a handful of stored values.
-            val hrvBase = base.mapNotNull { it.avgHrv }
+            // the likeliest to have been resting on a cold-start baseline.
             val r = rm { it.avgHrv }
             val b = bm { it.avgHrv }
-            if (r != null && b != null && b > 0 && hrvBase.size >= minBaselineNights && r <= b * 0.80) {
+            if (r != null && b != null && b > 0 && hrvBaseUsable && r <= b * 0.80) {
                 flags.add("HRV −${((1 - r / b) * 100).roundToInt()}%")
             }
         }
@@ -142,7 +153,7 @@ object IllnessWatch {
             val r = rm { it.respRateBpm }
             val b = bm { it.respRateBpm }
             val plausible = { v: Double -> v in 8.0..25.0 }
-            if (r != null && b != null && respBase.size >= minBaselineNights &&
+            if (r != null && b != null && respBase.size >= 10 &&
                 plausible(r) && plausible(b) && r >= b + 2.5
             ) {
                 flags.add("respiration up")
