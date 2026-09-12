@@ -11,6 +11,8 @@ internal object IntelligencePersistence {
     data class LegacyScoreSnapshot(
         val avgHrv: Double,
         val recovery: Double?,
+        val respRateBpm: Double?,
+        val avgSdnn: Double?,
         val recoverySource: String?,
     )
 
@@ -128,9 +130,16 @@ internal object IntelligencePersistence {
             val snapshot = LegacyScoreSnapshot(
                 avgHrv = oldHrv,
                 recovery = existing.recovery,
+                respRateBpm = existing.respRateBpm,
+                avgSdnn = existing.avgSdnn,
                 recoverySource = repo.scoreInputSource(computedId, fresh.day, "recovery"),
             )
-            dailies[index] = fresh.copy(avgHrv = snapshot.avgHrv, recovery = snapshot.recovery)
+            dailies[index] = fresh.copy(
+                avgHrv = snapshot.avgHrv,
+                recovery = snapshot.recovery,
+                respRateBpm = snapshot.respRateBpm,
+                avgSdnn = snapshot.avgSdnn,
+            )
             snapshots[fresh.day] = snapshot
         }
         return snapshots

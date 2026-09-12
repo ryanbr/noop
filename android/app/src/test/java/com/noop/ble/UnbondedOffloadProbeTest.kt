@@ -704,4 +704,21 @@ class UnbondedOffloadProbeTest {
         assertTrue(line!!, line.contains("inconclusive-link budget is spent"))
         assertTrue(line, line.contains("our own stack"))
     }
+
+    /**
+     * #2135: the key a refusal is WRITTEN under must be reachable by the prefix a re-arm sweeps.
+     *
+     * The two drifting apart is the whole bug: the sweep cleared the two budgets, the latch kept its own
+     * spelling in another file, and the probe stayed retired through every re-arm while the diagnostic
+     * kept suggesting one. Building the key from the prefix makes that unrepresentable; this pins it.
+     */
+    @Test
+    fun aRefusalKeyIsReachableByTheRearmSweep() {
+        val key = unbondedOffloadRefusedPrefKey("AA:BB:CC:DD:EE:FF")
+        assertNotNull(key)
+        assertTrue(
+            "a refusal latch the re-arm cannot sweep is a retirement with no way out",
+            key!!.startsWith(UNBONDED_OFFLOAD_REFUSED_KEY_PREFIX),
+        )
+    }
 }

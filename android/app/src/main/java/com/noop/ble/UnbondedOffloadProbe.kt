@@ -277,10 +277,16 @@ internal fun unbondedProbeSupersedesLine(explicitBondOptedIn: Boolean): String =
         else "") +
         " (#1635, experimental)"
 
+/** Prefix of every persisted refusal latch, so opting back in can clear them all without knowing which
+ *  straps carry one (#2135). Same reason [UNBONDED_PROBE_SILENT_LINKS_KEY_PREFIX] is a constant, and the
+ *  key below is built FROM it so the writer and the sweeper cannot drift apart. */
+internal const val UNBONDED_OFFLOAD_REFUSED_KEY_PREFIX = "noop.unbondedOffloadRefused."
+
 /** Persisted key for "this strap refused the unbonded puffin subscriptions". Per device and lowercased,
  *  for the same reason [firmwarePrefKey] is. */
 internal fun unbondedOffloadRefusedPrefKey(peripheralId: String?): String? =
-    peripheralId?.trim()?.takeIf { it.isNotEmpty() }?.let { "noop.unbondedOffloadRefused.${it.lowercase()}" }
+    peripheralId?.trim()?.takeIf { it.isNotEmpty() }
+        ?.let { UNBONDED_OFFLOAD_REFUSED_KEY_PREFIX + it.lowercase() }
 
 /**
  * Does writing [PuffinExperiment.unbondedOffload] hand every strap's silence budget back?

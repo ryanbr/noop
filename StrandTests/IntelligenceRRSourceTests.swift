@@ -95,10 +95,12 @@ final class IntelligenceRRSourceTests: XCTestCase {
             XCTAssertFalse(noBeatsGap, "ordinary missing beats must not be blamed on legacy units")
 
             // Restore the exact 11.5-era computed cells before the 11.6 source-policy re-score. The
-            // fixture deliberately gives every other field stale values: only HRV + Charge may survive.
+            // fixture deliberately gives every unrelated field stale values: only the RR-derived snapshot
+            // (HRV + Charge + respiration + SDNN) may survive.
             let legacySnapshot = DailyMetric(day: input.day, totalSleepMin: 1, efficiency: 0.01,
                 deepMin: 1, remMin: 1, lightMin: 1, disturbances: 99, restingHr: 199,
-                avgHrv: 77.25, recovery: 0.42, strain: 99, exerciseCount: 99)
+                avgHrv: 77.25, recovery: 0.42, strain: 99, exerciseCount: 99,
+                respRateBpm: 14.25, avgSdnn: 63.5)
             try await store.persistComputedScores(
                 dailyMetrics: [legacySnapshot], metricPoints: [],
                 provenance: [ScoreInputProvenanceRow(day: input.day, key: "recovery", sourceId: "legacy-owner")],
@@ -107,10 +109,14 @@ final class IntelligenceRRSourceTests: XCTestCase {
             let legacy = try await score()
             XCTAssertEqual(legacy.avgHrv, legacySnapshot.avgHrv, "the restored HRV cell must survive")
             XCTAssertEqual(legacy.recovery, legacySnapshot.recovery, "HRV and Charge survive as one snapshot")
+            XCTAssertEqual(legacy.respRateBpm, legacySnapshot.respRateBpm,
+                           "RR-derived respiration must survive with the snapshot")
+            XCTAssertEqual(legacy.avgSdnn, legacySnapshot.avgSdnn,
+                           "the other persisted RR-only aggregate must survive with the snapshot")
             XCTAssertNotEqual(legacy.totalSleepMin, legacySnapshot.totalSleepMin,
                               "sleep is freshly scored rather than copied from the snapshot")
             XCTAssertNotEqual(legacy.restingHr, legacySnapshot.restingHr,
-                              "only HRV and Charge receive legacy protection")
+                              "only the R-R-derived snapshot receives legacy protection")
             let preservedSource = try await store.scoreInputSource(deviceId: canonical + "-noop",
                 day: input.day, key: "recovery")
             XCTAssertEqual(preservedSource, "legacy-owner", "snapshot provenance must survive")
@@ -120,6 +126,8 @@ final class IntelligenceRRSourceTests: XCTestCase {
             let stable = try await score()
             XCTAssertEqual(stable.avgHrv, legacySnapshot.avgHrv)
             XCTAssertEqual(stable.recovery, legacySnapshot.recovery)
+            XCTAssertEqual(stable.respRateBpm, legacySnapshot.respRateBpm)
+            XCTAssertEqual(stable.avgSdnn, legacySnapshot.avgSdnn)
             let stableSource = try await store.scoreInputSource(deviceId: canonical + "-noop",
                 day: input.day, key: "recovery")
             XCTAssertEqual(stableSource, "legacy-owner")
@@ -140,6 +148,8 @@ final class IntelligenceRRSourceTests: XCTestCase {
             let insufficient = try await score()
             XCTAssertNil(insufficient.avgHrv)
             XCTAssertNil(insufficient.recovery)
+            XCTAssertNil(insufficient.respRateBpm)
+            XCTAssertNil(insufficient.avgSdnn)
 
             // Recreate the pre-upgrade snapshot, then prove a complete canonical transport supersedes it.
             try await store.persistComputedScores(
@@ -153,6 +163,8 @@ final class IntelligenceRRSourceTests: XCTestCase {
             XCTAssertGreaterThan(try XCTUnwrap(restored.avgHrv), 0)
             XCTAssertNotEqual(restored.avgHrv, legacySnapshot.avgHrv)
             XCTAssertNotNil(restored.recovery)
+            XCTAssertNotEqual(restored.respRateBpm, legacySnapshot.respRateBpm)
+            XCTAssertNotEqual(restored.avgSdnn, legacySnapshot.avgSdnn)
             let promotedSource = try await store.scoreInputSource(deviceId: canonical + "-noop",
                 day: input.day, key: "recovery")
             XCTAssertEqual(promotedSource, active, "freshly scored provenance replaces the snapshot")

@@ -247,10 +247,12 @@ final class IntelligenceEngine: ObservableObject {
         let primarySessionRHRCoverage: PrimarySessionRestingHR.Coverage?
     }
 
-    /// Exact pre-upgrade score cells retained only while an unlabelled WHOOP 5 R-R window is withheld.
+    /// Exact pre-upgrade R-R-derived cells retained only while an unlabelled WHOOP 5 window is withheld.
     private struct LegacyScoreSnapshot {
         let avgHrv: Double
         let recovery: Double?
+        let respRateBpm: Double?
+        let avgSdnn: Double?
         let recoverySource: String?
     }
 
@@ -2320,15 +2322,17 @@ final class IntelligenceEngine: ObservableObject {
             }
         }
 
-        // Apply the exact pair only after current-score traces and derived series were produced from the
+        // Apply the exact snapshot only after current-score traces and derived series were produced from the
         // current inputs. A legacy snapshot must not masquerade as a value recalculated against today's
-        // baselines; it only protects the two persisted/displayed cells from a destructive nil overwrite.
+        // baselines; it only protects persisted R-R-derived cells from a destructive nil overwrite.
         var persistedDailies = dailies
         for index in persistedDailies.indices {
             let fresh = persistedDailies[index]
             guard let snapshot = legacySnapshots[fresh.day], fresh.avgHrv == nil,
                   (fresh.totalSleepMin ?? 0) > 0 else { continue }
-            persistedDailies[index] = fresh.with(avgHrv: snapshot.avgHrv, recovery: snapshot.recovery)
+            persistedDailies[index] = fresh.with(avgHrv: snapshot.avgHrv, recovery: snapshot.recovery,
+                                                 respRateBpm: snapshot.respRateBpm,
+                                                 avgSdnn: snapshot.avgSdnn)
             appliedLegacySnapshots[fresh.day] = snapshot
         }
         for index in out.indices {
@@ -3068,6 +3072,7 @@ final class IntelligenceEngine: ObservableObject {
                 unlabelledAliasOfWhoop5: alias)) == true else { continue }
             snapshots[day.day] = LegacyScoreSnapshot(
                 avgHrv: oldHrv, recovery: old.recovery,
+                respRateBpm: old.respRateBpm, avgSdnn: old.avgSdnn,
                 recoverySource: try? await store.scoreInputSource(
                     deviceId: computedId, day: day.day, key: "recovery"))
         }
@@ -3354,14 +3359,15 @@ final class IntelligenceEngine: ObservableObject {
 // is most easily dropped at (they respell every field by name), so StrandTests asserts them directly
 // rather than through a copy that could drift. Nothing outside this module can see them either way.
 extension DailyMetric {
-    /// Rebuild with the exact legacy HRV/Charge pair while keeping every other freshly-scored cell.
-    func with(avgHrv hrv: Double, recovery r: Double?) -> DailyMetric {
+    /// Rebuild with the exact legacy R-R-derived snapshot while keeping every other freshly-scored cell.
+    func with(avgHrv hrv: Double, recovery r: Double?, respRateBpm resp: Double?,
+              avgSdnn sdnn: Double?) -> DailyMetric {
         DailyMetric(day: day, totalSleepMin: totalSleepMin, efficiency: efficiency, deepMin: deepMin,
                     remMin: remMin, lightMin: lightMin, disturbances: disturbances, restingHr: restingHr,
                     avgHrv: hrv, recovery: r, strain: strain, exerciseCount: exerciseCount,
-                    spo2Pct: spo2Pct, skinTempDevC: skinTempDevC, respRateBpm: respRateBpm,
+                    spo2Pct: spo2Pct, skinTempDevC: skinTempDevC, respRateBpm: resp,
                     steps: steps, activeKcalEst: activeKcalEst,
-                    spo2Red: spo2Red, spo2Ir: spo2Ir, avgSdnn: avgSdnn, skinTempC: skinTempC,
+                    spo2Red: spo2Red, spo2Ir: spo2Ir, avgSdnn: sdnn, skinTempC: skinTempC,
                     sleepHrOnly: sleepHrOnly)
     }
 

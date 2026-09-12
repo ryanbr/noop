@@ -17,18 +17,17 @@ ANDROID_PERSISTENCE = (
 class LegacyScorePreservationContractTests(unittest.TestCase):
     def test_swift_protects_only_the_persisted_and_displayed_copy(self) -> None:
         source = SWIFT_ENGINE.read_text()
-        protection_start = source.index("// Apply the exact pair only after")
+        protection_start = source.index("// Apply the exact snapshot only after")
         persistence_end = source.index("markPostLoopPhase(\"persist\")", protection_start)
         persistence = source[protection_start:persistence_end]
 
         self.assertIn("var persistedDailies = dailies", persistence)
         self.assertIn("for index in persistedDailies.indices", persistence)
         self.assertIn("let fresh = persistedDailies[index]", persistence)
-        self.assertIn(
-            "persistedDailies[index] = fresh.with(avgHrv: snapshot.avgHrv, "
-            "recovery: snapshot.recovery)",
-            persistence,
-        )
+        self.assertIn("persistedDailies[index] = fresh.with(avgHrv: snapshot.avgHrv", persistence)
+        self.assertIn("recovery: snapshot.recovery", persistence)
+        self.assertIn("respRateBpm: snapshot.respRateBpm", persistence)
+        self.assertIn("avgSdnn: snapshot.avgSdnn", persistence)
         self.assertIn("for daily in persistedDailies", persistence)
         self.assertIn("dailyMetrics: persistedDailies", persistence)
         self.assertNotIn("dailies[index] = fresh.with(avgHrv:", persistence)
@@ -51,6 +50,8 @@ class LegacyScorePreservationContractTests(unittest.TestCase):
             preparation,
         )
         self.assertIn("dailies = mutableDailies", preparation)
+        self.assertIn("respRateBpm = existing.respRateBpm", source)
+        self.assertIn("avgSdnn = existing.avgSdnn", source)
 
 
 if __name__ == "__main__":
