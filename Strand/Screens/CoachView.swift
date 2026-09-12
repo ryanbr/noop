@@ -39,6 +39,10 @@ struct CoachView: View {
     /// Working copy of the system prompt while editing, committed to the engine on change so an edit
     /// takes effect on the next send. Seeded from the engine when the editor opens.
     @State private var promptDraft: String = ""
+    /// Presents the provider/model/key settings (the setup card) as a sheet from the toolbar gear.
+    /// Without this, a configured coach has no way back to settings — and for the on-device provider
+    /// (configured = model downloaded, no key) the old toolbar "Disconnect" was a silent no-op.
+    @State private var showingSettings = false
     @FocusState private var composerFocused: Bool
 
     // K5: scheduled morning-brief notification settings (CoachBriefScheduler).
@@ -121,14 +125,13 @@ struct CoachView: View {
                     .disabled(coach.messages.isEmpty)
                 }
                 ToolbarItem {
-                    Button(role: .destructive) {
-                        coach.disconnect()
-                        keyDraft = ""
+                    Button {
+                        showingSettings = true
                     } label: {
-                        Label("Disconnect", systemImage: "gearshape")
+                        Label("Coach settings", systemImage: "gearshape")
                     }
-                    .help("Forget the saved key and disconnect")
-                    .accessibilityLabel("Disconnect provider")
+                    .help("Provider, model and key settings")
+                    .accessibilityLabel("Coach settings")
                 }
             }
         }
@@ -186,6 +189,7 @@ struct CoachView: View {
         .onChangeCompat(of: coach.dataConsent) { _ in
             Task { await coach.startBriefIfNeeded() }
         }
+        .sheet(isPresented: $showingSettings) { settingsSheet }
     }
 
     /// K5: the scheduled morning-brief notification settings — enable toggle, time-of-day picker, and an
@@ -272,7 +276,6 @@ struct CoachView: View {
                 briefStatus = "Couldn't generate a brief right now — check your key and data access."
             }
         }
-    }
 
     /// Explicit, revocable permission for the coach to read & send the user's data. Off by default.
     /// A frosted Charge-tinted card so it reads as part of the green Coach world, not a flat panel.
@@ -423,6 +426,36 @@ struct CoachView: View {
         }
     }
 
+    // MARK: - Settings sheet (reachable once configured, via the toolbar gear)
+
+    /// The provider/model/key controls, presented as a sheet so they stay reachable after the coach is
+    /// configured. Reuses `setupCard` (the same controls shown inline before first configuration) and
+    /// adds a Done button plus, for key-based providers, the Disconnect action the toolbar used to hold.
+    private var settingsSheet: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 16) {
+                    setupCard
+                    if coach.provider != .onDevice && (coach.hasKey || coach.customConnected) {
+                        NoopButton("Disconnect \(coach.provider.displayName)",
+                                   systemImage: "xmark.circle", kind: .secondary) {
+                            coach.disconnect()
+                            keyDraft = ""
+                        }
+                    }
+                }
+                .padding(NoopMetrics.screenPadding)
+            }
+            .background(StrandPalette.surfaceBase)
+            .navigationTitle("Coach settings")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { showingSettings = false }
+                }
+            }
+        }
+    }
+
     // MARK: - Setup (no key yet)
 
     private var setupCard: some View {
@@ -446,13 +479,18 @@ struct CoachView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Provider").strandOverline()
                     Picker("Provider", selection: $coach.provider) {
-                        ForEach(AIProvider.allCases) { p in
+                        ForEach(AIProvider.available) { p in
                             Text(p.displayName).tag(p)
                         }
                     }
                     .labelsHidden()
                     .pickerStyle(.segmented)
                     .accessibilityLabel("Provider")
+                }
+
+                // On-device model download (on-device provider only)
+                if coach.provider == .onDevice {
+                    onDeviceSetupSection
                 }
 
                 // Server URL (Custom / local LLM only)
@@ -496,33 +534,35 @@ struct CoachView: View {
                 // Model
                 modelSelector
 
-                // Key
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(coach.provider == .custom ? "API key (optional)" : "API key").strandOverline()
-                    SecureField(coach.provider == .custom
-                                ? "Only if your server requires one"
-                                : "Paste your \(coach.provider.displayName) API key", text: $keyDraft)
-                        .textFieldStyle(.plain)
-                        .font(StrandFont.body)
-                        .foregroundStyle(StrandPalette.textPrimary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 9)
-                        .background(StrandPalette.surfaceInset, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .strokeBorder(StrandPalette.hairline, lineWidth: 1))
-                        .onSubmit { coach.provider == .custom ? connectCustom() : saveKey() }
-                        .accessibilityLabel("API key")
-                }
-
-                HStack {
-                    if coach.provider == .custom {
-                        NoopButton("Connect", systemImage: "link", kind: .primary, action: connectCustom)
-                            .disabled(coach.customBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    } else {
-                        NoopButton("Save key", systemImage: "key.fill", kind: .primary, action: saveKey)
-                            .disabled(keyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                // Key (hidden for on-device provider — no API key is needed)
+                if coach.provider != .onDevice {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(coach.provider == .custom ? "API key (optional)" : "API key").strandOverline()
+                        SecureField(coach.provider == .custom
+                                    ? "Only if your server requires one"
+                                    : "Paste your \(coach.provider.displayName) API key", text: $keyDraft)
+                            .textFieldStyle(.plain)
+                            .font(StrandFont.body)
+                            .foregroundStyle(StrandPalette.textPrimary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 9)
+                            .background(StrandPalette.surfaceInset, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .strokeBorder(StrandPalette.hairline, lineWidth: 1))
+                            .onSubmit { coach.provider == .custom ? connectCustom() : saveKey() }
+                            .accessibilityLabel("API key")
                     }
-                    Spacer()
+
+                    HStack {
+                        if coach.provider == .custom {
+                            NoopButton("Connect", systemImage: "link", kind: .primary, action: connectCustom)
+                                .disabled(coach.customBaseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        } else {
+                            NoopButton("Save key", systemImage: "key.fill", kind: .primary, action: saveKey)
+                                .disabled(keyDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
+                        Spacer()
+                    }
                 }
 
                 // Whatever the last attempt from THIS card ran into. The setup card had no error line
@@ -618,6 +658,87 @@ struct CoachView: View {
         guard !trimmed.isEmpty else { return }
         coach.setCustomModel(trimmed)
         customModel = false
+    }
+
+    // MARK: - On-device setup section
+
+    @ViewBuilder
+    private var onDeviceSetupSection: some View {
+        let m = ModelCatalog.coach
+        VStack(alignment: .leading, spacing: 10) {
+            if !ModelCatalog.deviceMeetsRequirements() {
+                Text("This \(Platform.deviceNounPhrase) doesn't have enough memory to run the on-device coach. Pick a cloud provider above instead.")
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                switch coach.modelDownloads.state {
+                case .absent, .failed:
+                    Text("\(m.displayName) runs entirely on your \(Platform.deviceNounPhrase). One-time download over Wi-Fi (~\(byteString(m.sizeBytes))). After that, coaching works with no internet.")
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if case .failed(let msg) = coach.modelDownloads.state {
+                        Text(msg)
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.statusCritical)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    NoopButton("Download coach model", systemImage: "arrow.down.circle", kind: .primary) {
+                        coach.modelDownloads.startDownload()
+                    }
+                case .downloading(let p):
+                    ProgressView(value: p) {
+                        Text("Downloading… \(Int(p * 100))%")
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                    }
+                    NoopButton("Cancel", systemImage: "xmark", kind: .secondary) {
+                        coach.modelDownloads.cancel()
+                    }
+                case .verifying:
+                    ProgressView {
+                        Text("Verifying…")
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                    }
+                case .ready:
+                    StatePill("Model ready", tone: .positive, showsDot: true)
+                    NoopButton("Delete model (free \(byteString(m.sizeBytes)))", systemImage: "trash", kind: .secondary) {
+                        coach.modelDownloads.deleteModel()
+                    }
+                }
+
+                // Meta Llama 3.2 attribution + license — required by the Llama 3.2 Community License
+                // whenever the Llama model is offered. Shown in every state (before, during, after
+                // download) so the notice is present at the download prompt too.
+                llamaAttribution
+            }
+        }
+    }
+
+    /// "Built with Llama" attribution + license/AUP links. The weights are downloaded from Hugging
+    /// Face on request and NOT redistributed by NOOP; the model is Meta's own (non-OSI) license.
+    private var llamaAttribution: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("Built with Llama")
+                .font(StrandFont.footnote.weight(.semibold))
+                .foregroundStyle(StrandPalette.textSecondary)
+            Text("The on-device model is Meta's Llama 3.2, downloaded from Hugging Face on first run under the Llama 3.2 Community License (© Meta Platforms, Inc.). NOOP doesn't redistribute the weights.")
+                .font(StrandFont.footnote)
+                .foregroundStyle(StrandPalette.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 14) {
+                Link("Llama 3.2 license", destination: URL(string: "https://www.llama.com/llama3_2/license/")!)
+                Link("Acceptable-use policy", destination: URL(string: "https://www.llama.com/llama3_2/use-policy/")!)
+            }
+            .font(StrandFont.footnote)
+            .tint(StrandPalette.accent)   // design-system: links use the palette accent, never system blue
+        }
+    }
+
+    private func byteString(_ bytes: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
 
     // MARK: - Connected state
@@ -943,6 +1064,10 @@ struct CoachView: View {
             .buttonStyle(.plain)
             .disabled(coach.sending || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             .accessibilityLabel("Send")
+
+            if coach.sending {
+                NoopButton("Stop", systemImage: "stop.fill", kind: .secondary) { coach.stop() }
+            }
         }
         .padding(8)
         .background(NoopPanelSurface(cornerRadius: 16))
@@ -1028,9 +1153,11 @@ struct CoachView: View {
 
     private var privacyFootnote: some View {
         Label {
-            Text(coach.provider == .custom
-                 ? "Coach talks only to the server URL you set. Point it at a local model (Ollama, LM Studio, llama.cpp) to keep everything on your own machine. Nothing is sent until you ask."
-                 : "This is the only feature that leaves \(Platform.deviceNounPhrase). It sends a summary of your metrics to \(coach.provider.displayName) using your own key. Nothing is sent until you ask.")
+            Text(coach.provider == .onDevice
+                 ? "On-device coaching never leaves your \(Platform.deviceNounPhrase) — your metrics are read and answered locally."
+                 : (coach.provider == .custom
+                    ? "Coach talks only to the server URL you set. Point it at a local model (Ollama, LM Studio, llama.cpp) to keep everything on your own machine. Nothing is sent until you ask."
+                    : "This is the only feature that leaves \(Platform.deviceNounPhrase). It sends a summary of your metrics to \(coach.provider.displayName) using your own key. Nothing is sent until you ask."))
                 .font(StrandFont.footnote)
                 .foregroundStyle(StrandPalette.textTertiary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -1065,7 +1192,7 @@ struct CoachView: View {
         guard !trimmed.isEmpty, !coach.sending else { return }
         draft = ""
         composerFocused = false
-        Task { await coach.send(trimmed) }
+        Task { await coach.sendStreaming(trimmed) }
     }
 
     /// K14: Trigger a subtle haptic when the Coach reply arrives. On iOS, a light impact feedback.

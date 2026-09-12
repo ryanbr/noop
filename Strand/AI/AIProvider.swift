@@ -4,6 +4,7 @@ import StrandAnalytics
 // MARK: - Provider enum
 
 enum AIProvider: String, CaseIterable, Identifiable {
+    case onDevice
     case openAI
     case anthropic
     case gemini
@@ -13,6 +14,7 @@ enum AIProvider: String, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
+        case .onDevice:  return "On-device (no setup, fully private)"
         case .openAI:    return "OpenAI"
         case .anthropic: return "Anthropic"
         case .gemini:    return "Google Gemini"
@@ -22,6 +24,7 @@ enum AIProvider: String, CaseIterable, Identifiable {
 
     var defaultModel: String {
         switch self {
+        case .onDevice:  return ModelCatalog.coach.id
         case .openAI:    return "gpt-4o-mini"
         case .anthropic: return "claude-sonnet-4-6"
         case .gemini:    return "gemini-flash-latest"   // stable alias → current Flash, no version churn (#400)
@@ -33,6 +36,7 @@ enum AIProvider: String, CaseIterable, Identifiable {
     /// these, and `refreshModels()` can merge the provider's live list.
     var modelOptions: [String] {
         switch self {
+        case .onDevice:  return [ModelCatalog.coach.id]
         case .openAI:
             return ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano"]
         case .anthropic:
@@ -61,6 +65,7 @@ enum AIProvider: String, CaseIterable, Identifiable {
 
     var endpoint: URL {
         switch self {
+        case .onDevice:  return URL(string: "file:///on-device")!   // unused; inference is in-process
         case .openAI:    return URL(string: "https://api.openai.com/v1/chat/completions")!
         case .anthropic: return URL(string: "https://api.anthropic.com/v1/messages")!
         case .gemini:    return URL(string: "https://generativelanguage.googleapis.com/v1beta/models")!
@@ -70,6 +75,7 @@ enum AIProvider: String, CaseIterable, Identifiable {
 
     var modelsEndpoint: URL {
         switch self {
+        case .onDevice:  return URL(string: "file:///on-device")!   // unused
         case .openAI:    return URL(string: "https://api.openai.com/v1/models")!
         case .anthropic: return URL(string: "https://api.anthropic.com/v1/models")!
         case .gemini:    return URL(string: "https://generativelanguage.googleapis.com/v1beta/models")!
@@ -79,6 +85,12 @@ enum AIProvider: String, CaseIterable, Identifiable {
 
     var client: any AIProviderClient {
         switch self {
+        case .onDevice:
+            #if os(iOS)
+            return OnDeviceClient.shared
+            #else
+            return UnavailableOnDeviceClient()
+            #endif
         case .openAI:    return OpenAIClient()
         case .anthropic: return AnthropicClient()
         case .gemini:    return GeminiClient()
@@ -214,6 +226,41 @@ enum CustomAIAuthHeader: String, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - Platform availability + defaults
+
+extension AIProvider {
+    /// Providers shown in the picker. The on-device provider is iOS-only; macOS keeps the cloud set.
+    static var available: [AIProvider] {
+        #if os(iOS)
+        return allCases
+        #else
+        return allCases.filter { $0 != .onDevice }
+        #endif
+    }
+
+    /// The provider a fresh install starts on: on-device (zero-setup) on iOS, OpenAI on macOS.
+    static var defaultProvider: AIProvider {
+        #if os(iOS)
+        return .onDevice
+        #else
+        return .openAI
+        #endif
+    }
+}
+
+#if !os(iOS)
+/// macOS stand-in so `AIProvider.onDevice.client` type-checks in the shared enum. Never selectable on
+/// macOS (filtered out of `available`); if somehow invoked it fails clearly rather than doing anything.
+/// Task 9 replaced the iOS path with OnDeviceClient.shared; only macOS uses this stub now.
+struct UnavailableOnDeviceClient: AIProviderClient {
+    func send(key: String, model: String, systemPrompt: String,
+              messages: [(role: ChatMessage.Role, content: String)], session: URLSession) async throws -> String {
+        throw AICoachError.deviceUnsupported
+    }
+    func fetchModels(key: String, session: URLSession) async throws -> [String] { [ModelCatalog.coach.id] }
+}
+#endif
+
 // MARK: - Provider protocol
 
 protocol AIProviderClient {
@@ -225,6 +272,16 @@ protocol AIProviderClient {
         messages: [(role: ChatMessage.Role, content: String)],
         session: URLSession
     ) async throws -> String
+
+    /// Stream a chat turn as incremental text chunks. Cloud clients inherit the default below (one
+    /// chunk); only the on-device client overrides this to emit true token-by-token output.
+    func stream(
+        key: String,
+        model: String,
+        systemPrompt: String,
+        messages: [(role: ChatMessage.Role, content: String)],
+        session: URLSession
+    ) -> AsyncThrowingStream<String, Error>
 
     /// Fetch the provider's live model list and return plain model ids.
     func fetchModels(key: String, session: URLSession) async throws -> [String]
@@ -286,6 +343,32 @@ extension AIProviderClient {
         let reply = try await send(key: key, model: model, systemPrompt: systemPrompt,
                                     messages: messages, session: session)
         onDelta(reply)
+    }
+}
+
+// MARK: - Protocol extension default
+
+extension AIProviderClient {
+    func stream(
+        key: String,
+        model: String,
+        systemPrompt: String,
+        messages: [(role: ChatMessage.Role, content: String)],
+        session: URLSession
+    ) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let full = try await send(key: key, model: model, systemPrompt: systemPrompt,
+                                              messages: messages, session: session)
+                    continuation.yield(full)
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
     }
 }
 
