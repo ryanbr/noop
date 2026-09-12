@@ -157,11 +157,17 @@ object IntelligenceEngine {
          *  yet (priority only: 0 = active strap, 1 = other live straps, 2 = whole-day imports,
          *  3 = activity files (#137), 4 = archived).
          *
-         *  Archived rows ARE included, because one list feeds two consumers here: [resolveDayOwner] and
-         *  the day-cycle/step engines, and the latter keep archived rows as read-only historical
-         *  candidates. Swift builds the two separately, and its day-owner half drops archived outright
-         *  (`IntelligenceEngine.resolveDayOwner`), so for a day covered only by a removed strap the two
-         *  platforms can name a different owner. Which rule is the intended one is open in #2026. */
+         *  Archived rows ARE included, and [resolveDayOwner] USES them rather than merely inheriting
+         *  them from the day-cycle/step engines that read the same list:
+         *  `RegistryDayOwnerSourceTest.archivedDeviceRemainsALowestPriorityHistoricalCandidate` pins an
+         *  archived device winning a day nothing live covers, so removing and later re-adding a strap
+         *  cannot erase its earlier coverage. A live or import source always outranks it.
+         *
+         *  Swift builds its two lists separately and they differ in SHAPE, not only in membership: the
+         *  cycle list carries these same five priorities, while the day-owner half filters archived out
+         *  first and ranks the remainder FOUR ways, with no archived branch at all
+         *  (`IntelligenceEngine.resolveDayOwner`). So for a day covered only by a removed strap the two
+         *  platforms name a different owner. Which rule is the intended one is open in #2026. */
         suspend fun candidatePriorities(): List<Pair<String, Int>>
 
         /** A locked owner override for [day] from the dayOwnership table, or null. Wins outright. */
