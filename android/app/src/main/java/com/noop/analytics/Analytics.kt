@@ -86,19 +86,15 @@ object IllnessWatch {
         val recent = days.takeLast(2)
         // ~28 days ending 3 days ago: take the last 31, drop the most recent 3.
         val base = days.takeLast(31).dropLast(3)
-        // Whether a signal's baseline window is fit to accuse the recent one (#2130).
+        // Whether a signal's window is fit to accuse the recent one (#2130). The Swift twin folds this
+        // SAME window through `Baselines.foldHistory` and refuses the signal unless the state is usable;
+        // here it was a plain mean, which is happy with ONE value and gated nothing.
         //
-        // The Swift twin of this window already does exactly this: `AppModel.applyIllnessSignal` folds
-        // the SAME `suffix(31).dropLast(3)` through `Baselines.foldHistory` and refuses the signal
-        // outright unless the state is usable. Android was taking a plain mean instead, which is happy
-        // with ONE stored value, so a lone night could be the baseline a wearer was accused against, and
-        // no gate stood between a cold-start baseline and a health warning.
+        // Folding rather than counting is the point: it is the statistic Charge is scored against, so
+        // the banner and the score can no longer hold two different baselines for one metric.
         //
-        // Folding rather than counting matters: it is the same statistic Charge is scored against, so
-        // the banner and the score can no longer hold two different baselines for one metric. On the
-        // device in #2130 they held 35.7ms and 19.71ms at the same moment.
-        // Resolved as values, not as a helper: a named local function is a declaration the parity ledger
-        // counts, and this file's Kotlin half is inside its scan.
+        // Values rather than a helper because a named local function is a declaration the parity ledger
+        // counts, and this file is inside its scan.
         val rhrBaseUsable = Baselines.metricCfg["resting_hr"]?.let { cfg ->
             Baselines.foldHistory(base.map { it.restingHr?.toDouble() }, cfg).usable
         } == true
