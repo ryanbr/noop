@@ -18,9 +18,10 @@ import android.content.SharedPreferences
  */
 class PuffinExperiment(
     private val prefs: SharedPreferences,
-    /** NoopPrefs, where the per-strap refusal latch lives. Null in tests that touch only this file's own
-     *  switches; a re-arm then clears the budgets and leaves the latch, which is the pre-#2135 behaviour. */
-    private val noopPrefs: SharedPreferences? = null,
+    /** NoopPrefs, where the per-strap refusal latch lives. Required, not defaulted: a caller that omitted
+     *  it would silently re-arm into the very state #2135 is about, and [from] is the only construction
+     *  site there is, so nothing is served by making it skippable. */
+    private val noopPrefs: SharedPreferences,
 ) {
 
     /** True if the user opted in to the WHOOP 5/MG protocol probes (default false). */
@@ -176,13 +177,11 @@ class PuffinExperiment(
                 // #2135: and the refusal latch, the one retirement reason a sweep of THIS file cannot
                 // reach. Same prefix rule, same edge, other file, because it is written at connect time
                 // with a device in hand and so cannot live here.
-                noopPrefs?.let { np ->
-                    val ne = np.edit()
-                    np.all.keys
-                        .filter { it.startsWith(UNBONDED_OFFLOAD_REFUSED_KEY_PREFIX) }
-                        .forEach { ne.remove(it) }
-                    ne.apply()
-                }
+                val ne = noopPrefs.edit()
+                noopPrefs.all.keys
+                    .filter { it.startsWith(UNBONDED_OFFLOAD_REFUSED_KEY_PREFIX) }
+                    .forEach { ne.remove(it) }
+                ne.apply()
             }
             e.apply()
         }
