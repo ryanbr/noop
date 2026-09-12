@@ -248,7 +248,8 @@ class Whoop5RRSqliteTest {
 
         val computedId = "$id-noop"
         val legacySnapshot = noBeats.copy(deviceId = computedId, totalSleepMin = 1.0, efficiency = 0.01,
-            restingHr = 199, avgHrv = 77.25, recovery = 0.42, strain = 99.0)
+            restingHr = 199, avgHrv = 77.25, recovery = 0.42, strain = 99.0,
+            respRateBpm = 14.25, avgSdnn = 63.5)
         days[computedId to legacySnapshot.day] = legacySnapshot
         provenance[Triple(computedId, legacySnapshot.day, "recovery")] = ScoreInputProvenanceRow(
             computedId, legacySnapshot.day, "recovery", "legacy-owner")
@@ -259,12 +260,16 @@ class Whoop5RRSqliteTest {
         if (expectsProtection) {
             assertEquals(legacySnapshot.avgHrv, legacy.avgHrv)
             assertEquals(legacySnapshot.recovery, legacy.recovery)
+            assertEquals("RR-derived respiration must survive", legacySnapshot.respRateBpm, legacy.respRateBpm)
+            assertEquals("the other persisted RR-only aggregate must survive", legacySnapshot.avgSdnn, legacy.avgSdnn)
             assertNotEquals("sleep must be freshly scored", legacySnapshot.totalSleepMin, legacy.totalSleepMin)
-            assertNotEquals("only HRV and Charge are protected", legacySnapshot.restingHr, legacy.restingHr)
+            assertNotEquals("only the R-R-derived snapshot is protected", legacySnapshot.restingHr, legacy.restingHr)
             assertEquals("legacy-owner", repo.scoreInputSource(computedId, legacy.day, "recovery"))
             val stable = score()
             assertEquals(legacySnapshot.avgHrv, stable.avgHrv)
             assertEquals(legacySnapshot.recovery, stable.recovery)
+            assertEquals(legacySnapshot.respRateBpm, stable.respRateBpm)
+            assertEquals(legacySnapshot.avgSdnn, stable.avgSdnn)
             assertEquals("legacy-owner", repo.scoreInputSource(computedId, legacy.day, "recovery"))
 
             val thin = legacyRr.first()
@@ -273,6 +278,8 @@ class Whoop5RRSqliteTest {
             val insufficient = score()
             assertNull("a marked but insufficient transport must not be masked", insufficient.avgHrv)
             assertNull(insufficient.recovery)
+            assertNull(insufficient.respRateBpm)
+            assertNull(insufficient.avgSdnn)
 
             days[computedId to legacySnapshot.day] = legacySnapshot
             provenance[Triple(computedId, legacySnapshot.day, "recovery")] = ScoreInputProvenanceRow(
@@ -292,6 +299,10 @@ class Whoop5RRSqliteTest {
         val restored = score()
         assertEquals(40.0, restored.avgHrv!!, 0.001)
         assertNotNull(restored.recovery)
+        if (expectsProtection) {
+            assertNotEquals(legacySnapshot.respRateBpm, restored.respRateBpm)
+            assertNotEquals(legacySnapshot.avgSdnn, restored.avgSdnn)
+        }
         if (expectsProtection) assertEquals(owner, repo.scoreInputSource(computedId, restored.day, "recovery"))
         assertFalse(showsLegacyGap(restored, owner))
         val idle = score()

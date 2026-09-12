@@ -1,7 +1,25 @@
-# These are the scanner's own unit and repository-acceptance tests. Run the
-# multi-minute suite when its implementation, authority, tests, or workflow
-# changes; ordinary product-source changes belong to the later ledger/ratchet
-# gate, not to repeated self-testing of the scanner.
+# These are the scanner's own unit and repository-acceptance tests.
+#
+# On a PULL REQUEST, run the multi-minute suite only when its implementation,
+# authority, tests or workflow change; ordinary product-source changes belong to
+# the later ledger/ratchet gate, not to repeated self-testing of the scanner.
+#
+# It also runs DAILY on main. One of these tests is not about the scanner at
+# all: the repository acceptance asserts that the checked-in authority still
+# reproduces from the CURRENT product source. Product changes are what
+# invalidates it, and product changes are exactly what both filters exclude, so
+# main could carry stale authority indefinitely with nothing red until some
+# later PR touched Tools/ and inherited the whole accumulated drift.
+#
+# That happened four times, and three landed on an outside contributor's PR that
+# had caused none of it. The schedule finds it within a day, on main, where
+# re-deriving is a two-minute maintainer action.
+#
+# Deliberately a schedule rather than an unfiltered push: this suite is pinned
+# NOT to run on product source (see test_core_tools_filter_covers_every_
+# governance_tool_path, which asserts both filters and forbids product globs),
+# and a periodic check keeps that true. See the history in #1534.
+
 name: Parity Governance CI
 
 on:
@@ -21,6 +39,10 @@ on:
       - 'Tools/parity_*.json'
       - 'Tools/tests/**'
       - '.github/workflows/parity-governance.yml'
+  # Daily, so authority staleness is found on a schedule instead of by whoever
+  # next edits Tools/. See the header note.
+  schedule:
+    - cron: '17 4 * * *'
   workflow_dispatch:
 
 concurrency:
