@@ -216,7 +216,8 @@ private suspend fun loadDaytimeStress(vm: AppViewModel, personalBaseline: Boolea
  * today's intraday read: BaselineRelative once there's enough real worn daytime-HR history for a usable
  * baseline, else DayRelative (the unchanged default). Reads each past day's raw HR once (bounded per
  * day) via [vm].repo; unworn days (no HR) are skipped without an R-R read. Faithful twin of the iOS
- * StressView.daytimeScoringMode. [todayLocalDay] is today's date in [zone].
+ * StressView.daytimeScoringMode. [todayLocalDay] is today's date in [zone]. Each day is reduced
+ * to its aggregate as it is read (#2107), so only the aggregates are retained, never the streams.
  */
 private suspend fun daytimeScoringMode(
     vm: AppViewModel,
@@ -225,7 +226,13 @@ private suspend fun daytimeScoringMode(
 ): DaytimeStress.ScoringMode {
     // 30 mirrors the app's other rolling baselines (nightly resting-HR / HRV) and the iOS baselineHistoryDays.
     val baselineHistoryDays = 30
-    val days = ArrayList<DaytimeBaselines.DaytimeDayStreams>(baselineHistoryDays)
+    // #2107: keep each day's AGGREGATE, never its streams. This used to accumulate 30 x
+    // DaytimeDayStreams, each holding up to 200,000 HR plus 200,000 R-R samples, and hand the lot to
+    // the fold. The fold's first act is to reduce a day to two Doubles, so all that was ever wanted
+    // from thirty days was sixty numbers; holding the samples alive to produce them is what exhausted
+    // a 256MB heap on a worn 5.0 and crashed the app with an OutOfMemoryError. Reducing here lets each
+    // day's samples become garbage at the end of its own iteration.
+    val aggregates = ArrayList<DaytimeBaselines.DayAggregate>(baselineHistoryDays)
     // Oldest → newest so the EWMA fold replays the history in order.
     for (back in baselineHistoryDays downTo 1) {
         val window = stressLocalDayWindow(todayLocalDay.minusDays(back.toLong()), zone)
@@ -242,15 +249,11 @@ private suspend fun daytimeScoringMode(
             window.toEpochSecondInclusive,
             limit = 200_000,
         )
-        days.add(
-            DaytimeBaselines.DaytimeDayStreams(
-                hr = dayHr,
-                rr = dayRr,
-                tzOffsetSeconds = window.offsetSeconds.toLong(),
-            ),
+        aggregates.add(
+            DaytimeBaselines.dayDaytimeAggregate(dayHr, dayRr, window.offsetSeconds.toLong()),
         )
     }
-    return DaytimeBaselines.scoringMode(days)
+    return DaytimeBaselines.scoringModeFromAggregates(aggregates)
 }
 
 // MARK: - Loaded content

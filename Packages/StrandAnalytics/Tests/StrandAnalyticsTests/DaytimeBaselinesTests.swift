@@ -87,6 +87,41 @@ final class DaytimeBaselinesTests: XCTestCase {
 
     // MARK: - Fold trailing history
 
+    /// #2107: reducing each day as it is read must produce EXACTLY the list fold's answer.
+    ///
+    /// The caller used to hold thirty days of raw streams to compute sixty numbers, which exhausted the
+    /// heap. It now reduces per day and keeps only the aggregates. That is only safe if the two routes
+    /// agree, so this pins them together rather than trusting that one delegates to the other today.
+    func testReducingPerDayMatchesFoldingTheWholeList() {
+        let days = (0..<12).map {
+            DaytimeStress.DaytimeDayStreams(hr: flatDayHR($0, bpm: 65 + ($0 % 3)), rr: [],
+                                            tzOffsetSeconds: 0)
+        }
+        let viaList = DaytimeStress.foldDaytimeBaselines(days: days)
+        let viaAggregates = DaytimeStress.foldAggregates(days.map {
+            DaytimeStress.dayDaytimeAggregate(hr: $0.hr, rr: $0.rr, tzOffsetSeconds: $0.tzOffsetSeconds)
+        })
+        XCTAssertEqual(viaList.hr.baseline, viaAggregates.hr.baseline, accuracy: 0)
+        XCTAssertEqual(viaList.hr.usable, viaAggregates.hr.usable)
+        XCTAssertEqual(viaList.rmssd?.baseline, viaAggregates.rmssd?.baseline)
+
+        // And the same for the mode the screen actually asks for.
+        let modeViaList = DaytimeStress.scoringMode(history: days)
+        let modeViaAggregates = DaytimeStress.scoringModeFromAggregates(days.map {
+            DaytimeStress.dayDaytimeAggregate(hr: $0.hr, rr: $0.rr, tzOffsetSeconds: $0.tzOffsetSeconds)
+        })
+        XCTAssertEqual(modeViaList, modeViaAggregates)
+    }
+
+    /// An unworn day contributes no aggregate either way. Pinned because the caller SKIPS such days
+    /// before reducing (it never reads their R-R), so the two routes must still line up when the day
+    /// list and the aggregate list have different lengths in the caller's loop.
+    func testAnEmptyDayReducesToNothingOnBothRoutes() {
+        let empty = DaytimeStress.dayDaytimeAggregate(hr: [], rr: [], tzOffsetSeconds: 0)
+        XCTAssertNil(empty.hr)
+        XCTAssertNil(empty.rmssd)
+    }
+
     func testFoldConvergesHRBaselineToThePersonalDaytimeFloor() {
         // Twelve identical days whose P10 daytime HR is exactly 65 → the EWMA center converges to 65 and
         // the baseline is usable (12 ≥ minNightsSeed). No R-R anywhere → RMSSD baseline is nil.

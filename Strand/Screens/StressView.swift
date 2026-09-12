@@ -160,8 +160,14 @@ struct StressView: View {
     /// fold itself is O(days).
     private func daytimeScoringMode(startOfToday: Date) async -> DaytimeStress.ScoringMode {
         let cal = Calendar.current
-        var days: [DaytimeStress.DaytimeDayStreams] = []
-        days.reserveCapacity(Self.baselineHistoryDays)
+        // #2107: keep each day's AGGREGATE, never its streams. This used to accumulate 30 x
+        // DaytimeDayStreams, each holding up to 200,000 HR plus 200,000 R-R samples, and hand the lot to
+        // the fold. The fold's first act is to reduce a day to two Doubles, so all that was ever wanted
+        // from thirty days was sixty numbers; holding the samples alive to produce them is what exhausted
+        // a 256MB heap on the Android twin and crashed it with an OutOfMemoryError. Reducing here lets
+        // each day's samples be released at the end of its own iteration.
+        var aggregates: [(hr: Double?, rmssd: Double?)] = []
+        aggregates.reserveCapacity(Self.baselineHistoryDays)
         // Oldest → newest so the EWMA fold replays the history in order.
         for back in stride(from: Self.baselineHistoryDays, through: 1, by: -1) {
             guard let dayStart = cal.date(byAdding: .day, value: -back, to: startOfToday),
@@ -172,9 +178,11 @@ struct StressView: View {
             let dayHR = await repo.hrSamples(from: from, to: to, limit: 200_000)
             guard !dayHR.isEmpty else { continue }   // unworn day — no floor to learn, skip the R-R read
             let dayRR = await repo.rrIntervals(from: from, to: to, limit: 200_000)
-            days.append(.init(hr: dayHR, rr: dayRR, tzOffsetSeconds: dayTz))
+            aggregates.append(
+                DaytimeStress.dayDaytimeAggregate(hr: dayHR, rr: dayRR, tzOffsetSeconds: dayTz)
+            )
         }
-        return DaytimeStress.scoringMode(history: days)
+        return DaytimeStress.scoringModeFromAggregates(aggregates)
     }
 
     /// Recompute the cached `StressModel` only when (repo.days, storedSeries)

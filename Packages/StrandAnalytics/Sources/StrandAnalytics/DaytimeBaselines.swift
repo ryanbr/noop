@@ -118,12 +118,28 @@ public extension DaytimeStress {
     /// the scorer honestly runs HR-only rather than z-scoring against a 1–2-day, untrustworthy HRV
     /// baseline — the whole-baseline grain of the per-hour graceful-nil already in `rawScore`.
     static func foldDaytimeBaselines(days: [DaytimeDayStreams]) -> (hr: BaselineState, rmssd: BaselineState?) {
+        foldAggregates(days.map {
+            dayDaytimeAggregate(hr: $0.hr, rr: $0.rr, tzOffsetSeconds: $0.tzOffsetSeconds)
+        })
+    }
+
+    /// The same fold, taking days already reduced to their `dayDaytimeAggregate` pair.
+    ///
+    /// This exists so a CALLER can reduce each day as it reads it and let that day's raw samples go,
+    /// instead of holding thirty days of them at once (#2107). A day collapses to two `Double?`s here and
+    /// its streams are never read again, so keeping them alive bought nothing and cost a heap: thirty days
+    /// of a worn 5.0 is millions of sample objects, which is how a 256MB Android heap ran out.
+    ///
+    /// `foldDaytimeBaselines(days:)` is now literally this with the reduction done eagerly, so the
+    /// streaming caller and the list caller cannot drift apart: there is one fold, reached two ways.
+    /// Twin of Kotlin `DaytimeBaselines.foldAggregates`.
+    static func foldAggregates(_ aggregates: [(hr: Double?, rmssd: Double?)])
+        -> (hr: BaselineState, rmssd: BaselineState?) {
         var hrAggs: [Double?] = []
         var rmssdAggs: [Double?] = []
-        hrAggs.reserveCapacity(days.count)
-        rmssdAggs.reserveCapacity(days.count)
-        for d in days {
-            let agg = dayDaytimeAggregate(hr: d.hr, rr: d.rr, tzOffsetSeconds: d.tzOffsetSeconds)
+        hrAggs.reserveCapacity(aggregates.count)
+        rmssdAggs.reserveCapacity(aggregates.count)
+        for agg in aggregates {
             hrAggs.append(agg.hr)
             rmssdAggs.append(agg.rmssd)
         }
@@ -138,7 +154,16 @@ public extension DaytimeStress {
     /// unchanged default). This is the single graceful-degradation gate: a cold start, or a trailing
     /// window that is all sparse/imported days, keeps EXACTLY today's pre-existing day-relative behaviour.
     static func scoringMode(history days: [DaytimeDayStreams]) -> ScoringMode {
-        let baselines = foldDaytimeBaselines(days: days)
+        scoringModeFromAggregates(days.map {
+            dayDaytimeAggregate(hr: $0.hr, rr: $0.rr, tzOffsetSeconds: $0.tzOffsetSeconds)
+        })
+    }
+
+    /// `scoringMode(history:)` for days already reduced to aggregates. See `foldAggregates` for why
+    /// (#2107). Named rather than overloaded, so the twin stays findable by name from either side.
+    /// Twin of Kotlin `DaytimeBaselines.scoringModeFromAggregates`.
+    static func scoringModeFromAggregates(_ aggregates: [(hr: Double?, rmssd: Double?)]) -> ScoringMode {
+        let baselines = foldAggregates(aggregates)
         guard baselines.hr.usable else { return .dayRelative }
         // RMSSD stays out of the LIVE score until it has its own validation pass — see
         // `DaytimeStress.daytimeRMSSDScoringEnabled`. The baseline is still folded above (so the
