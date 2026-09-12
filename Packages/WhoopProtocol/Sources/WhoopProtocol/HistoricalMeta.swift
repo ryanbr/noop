@@ -18,9 +18,15 @@ public enum HistoricalMeta: Equatable {
 /// - For HISTORY_END the metadata post-hook additionally stores in p.parsed:
 ///   `"unix"` → `.int(unix_seconds)` and `"trim_cursor"` → `.int(trim_value)`
 public func classifyHistoricalMeta(_ p: ParsedFrame) -> HistoricalMeta {
-    // Integrity gate: only act on a checksum-valid frame. CRC32 is the protocol's only integrity
-    // check; without this a malicious/garbled BLE peer could forge HISTORY_END/HISTORY_COMPLETE
-    // (advancing the trim cursor + acking the strap to discard data we never durably stored).
+    // Integrity gate: only act on an INTACT frame. `ok` is now the verifier's FULL verdict — header
+    // checksum, payload CRC32 and the structural length together — which is the part that matters
+    // here: a forged HISTORY_END/HISTORY_COMPLETE whose payload CRC32 is right but whose header
+    // checksum or declared length is not used to reach this classifier, and acting on one advances the
+    // trim cursor, which acks the strap to discard data we never durably stored.
+    //
+    // The `crcOK` half of the old two-step check is now redundant for every freshly parsed frame and is
+    // kept only for parse results handed in from elsewhere — a `ParsedFrame` decoded from a capture
+    // written before the verdict widened carries the old constant `ok: true` beside a false `crcOK`.
     guard p.ok, p.crcOK != false else { return .other }
     guard p.typeName == "METADATA" else { return .other }
     guard case .string(let metaName)? = p.parsed["meta_type"] else { return .other }

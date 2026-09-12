@@ -161,4 +161,69 @@ final class DataRangeTests: XCTestCase {
     func testIsPendingResponse_falseForNegativeCmdOff() {
         XCTAssertFalse(DataRange.isPendingResponse([UInt8](repeating: 0, count: 40), cmdOff: -1))
     }
+
+    // MARK: - the BLE seam's gate on this reply (task 2.15)
+
+    /// GET_DATA_RANGE(34) — the opcode the seam compares at `cmdOff`, held by the app target's command
+    /// table; the predicate takes it as an argument rather than restating the protocol fact.
+    private let getDataRangeOpcode: UInt8 = 34
+
+    /// A complete WHOOP 4.0 GET_DATA_RANGE COMMAND_RESPONSE: type@4, seq@5, cmd@6, body from 7 —
+    /// `oldest` on the aligned grid `oldestUnix` scans, `newest` one word later.
+    private func dataRangeReply(oldest: Int, newest: Int) -> [UInt8] {
+        var payload = [UInt8]()
+        for v in [oldest, newest] { for k in 0..<4 { payload.append(UInt8((v >> (8 * k)) & 0xFF)) } }
+        return frameFromPayload(payload, type: 0x24, seq: 1, cmd: getDataRangeOpcode)
+    }
+
+    /// An intact reply is accepted, and it is the value the seam then applies as the reported window
+    /// and as the offload's plausibility bounds.
+    func testAnIntactDataRangeReplyIsAcceptedAndCarriesTheWindow() {
+        let oldest = 1_750_000_000, newest = 1_780_000_000
+        let f = dataRangeReply(oldest: oldest, newest: newest)
+        let p = parseFrame(f, family: .whoop4)
+        XCTAssertTrue(p.ok, "precondition: the reply is intact")
+        XCTAssertTrue(DataRange.acceptsReply(f, cmdOff: 6, opcode: getDataRangeOpcode, verdictOK: p.ok))
+        XCTAssertEqual(DataRange.newestUnix(from: f, wallNowUnix: 1_790_000_000, futureSkewSeconds: skew48h),
+                       newest)
+        XCTAssertEqual(DataRange.oldestUnix(from: f), oldest)
+    }
+
+    /// Scenario "eine Antwort mit falscher Kopfprüfsumme verändert weder den gemeldeten Zeitbereich
+    /// noch die Plausibilitätsgrenzen des Abzugs" (task 2.15). The damaged reply still DECODES a
+    /// window — the verdict is the only thing that keeps it out, which is why the gate has to be a
+    /// predicate a test can hold rather than a condition buried in the seam.
+    func testABrokenDataRangeReplyMovesNeitherTheWindowNorThePlausibilityBounds() {
+        let oldest = 1_750_000_000, newest = 1_780_000_000
+        var bad = dataRangeReply(oldest: oldest, newest: newest)
+        bad[3] ^= 0xFF                                   // CRC-8 over the length field only
+        let p = parseFrame(bad, family: .whoop4)
+        XCTAssertEqual(p.rejectReason, .headerChecksumMismatch)
+        XCTAssertEqual(p.crcOK, true, "precondition: the payload CRC32 still verifies")
+        XCTAssertEqual(DataRange.newestUnix(from: bad, wallNowUnix: 1_790_000_000, futureSkewSeconds: skew48h),
+                       newest, "precondition: these bytes DO carry a window a seam could apply")
+
+        // The seam in miniature: the reported window and the two plausibility bounds, moved only on
+        // an accepted reply. Their previous values must survive a damaged one untouched.
+        var reportedNewest: Int? = 1_700_000_001
+        var boundsNewest: Int? = 1_700_000_001
+        var boundsOldest: Int? = 1_700_000_000
+        if DataRange.acceptsReply(bad, cmdOff: 6, opcode: getDataRangeOpcode, verdictOK: p.ok) {
+            reportedNewest = DataRange.newestUnix(from: bad, wallNowUnix: 1_790_000_000,
+                                                  futureSkewSeconds: skew48h)
+            boundsNewest = reportedNewest
+            boundsOldest = DataRange.oldestUnix(from: bad)
+        }
+        XCTAssertEqual(reportedNewest, 1_700_000_001, "the reported range must not move")
+        XCTAssertEqual(boundsNewest, 1_700_000_001, "the offload's upper plausibility bound must not move")
+        XCTAssertEqual(boundsOldest, 1_700_000_000, "the offload's lower plausibility bound must not move")
+    }
+
+    /// The gate is per-reply, not per-connection: a frame carrying another opcode at `cmdOff` is not a
+    /// data-range reply at all, however intact it is.
+    func testAnotherOpcodeIsNotADataRangeReply() {
+        let other = frameFromPayload([0x00, 0x01, 0x02, 0x03], type: 0x24, seq: 1, cmd: 26)
+        XCTAssertTrue(parseFrame(other, family: .whoop4).ok)
+        XCTAssertFalse(DataRange.acceptsReply(other, cmdOff: 6, opcode: getDataRangeOpcode, verdictOK: true))
+    }
 }

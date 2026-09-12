@@ -4343,10 +4343,19 @@ public final class BLEManager: NSObject, ObservableObject {
     ///
     /// Called only while a run is armed, and only for non-offload live frames.
     private func noteEcgProbeFrame(_ frame: [UInt8]) {
-        // CRC GATE FIRST (safety contract §2: "New inbound paths must do the same"). The verdict this
-        // probe produces is its entire output, and a single flipped bit at byte 12 would turn a healthy
-        // SUCCESS into "DATA REQUEST REFUSED" — the strongest claim the report can make. So no byte of
-        // an unverified frame is read here, on either branch.
+        // INTEGRITY GATE FIRST (safety contract §2: "New inbound paths must do the same"). The verdict
+        // this probe produces is its entire output, and a single flipped bit at byte 12 would turn a
+        // healthy SUCCESS into "DATA REQUEST REFUSED" — the strongest claim the report can make. So no
+        // byte of an unverified frame is read here, on either branch.
+        //
+        // This is the app's only DIRECT call into the verifier rather than into a parser, so the
+        // widened verdict lands here first, and it CHANGES WHAT COUNTS AS EVIDENCE. The gate used to
+        // mean "the payload CRC32 is not demonstrably wrong"; it now also requires the CRC16 header
+        // checksum and the exact declared length. A frame with a damaged envelope therefore no longer
+        // settles a step's outcome AND no longer counts as a candidate ECG data packet — so it can
+        // neither produce a refusal the strap never uttered, nor pad the packet count that the report's
+        // silence-based signals are weighed against. Both directions are intended: silence attributed
+        // to nothing is a weaker claim than a verdict attributed to a corrupted frame.
         guard verifyFrame(frame, family: .whoop5).ok else { return }
         // Both COMMAND_RESPONSE spellings: 0x24 (36, what the #592/#690 handlers key on) and the puffin
         // alias 38, which `canonicalTypeName` folds onto the same name. Accepting both means a strap that
@@ -5769,6 +5778,14 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
                 offloadResp: offloadResp, offloadSkinTemp: offloadSkinTemp, offloadSpo2: offloadSpo2,
                 // nil, not 0: this store does not return a step count, and a zero would read as a fault.
                 offloadSteps: nil))
+            // Frames this link REJECTED, per reason. A per-connection readout, so it sits behind the
+            // Test Centre's Connection domain (D3) — a resync after a lost notification rejects frames
+            // routinely and always did, and that number is explicitly NOT the signal to act on. The one
+            // that is (payload CRC32 verified, envelope not) announces itself when it happens, whether
+            // or not any test mode is on. Silent when the link rejected nothing.
+            if TestCentre.active(.connection), let rejects = router.rejectTally.summaryLine() {
+                state.append(log: rejects, domain: .connection)
+            }
         }
         // Clear the tally with the link, so a second teardown for the same drop cannot re-report it.
         inboundFrames = 0; inboundBytes = 0; cmdChannelFrames = 0
@@ -6882,11 +6899,23 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
              BLEManager.cmdNotifyChar,
              BLEManager.eventNotifyChar:
             // Reassemble (no-op for already-complete frames) then route each complete frame.
-            for frame in reassembler.feed(bytes) {
+            // A byte run whose declared total is below the family minimum is dropped INSIDE the
+            // reassembler and reaches no parser and no archive, so its monotonic drop count is folded
+            // into the connection's reject tally right after the feed that may have grown it —
+            // otherwise it would disappear without trace.
+            let completedFrames = reassembler.feed(bytes)
+            router.noteReassemblerDrops(reassembler.belowMinimumLengthDrops)
+            for frame in completedFrames {
                 if backfilling, BLEManager.isOffloadFrame(frame, family: .whoop4) {
                     // Historical replay is bulk sync traffic, not live UI traffic. Feed it only to
                     // the Backfiller; parsing every record through FrameRouter updates SwiftUI for
                     // no user-visible benefit and can make the app feel hung during long offloads.
+                    // …but the CONNECTION'S REJECT TALLY must still see it (D3): the router is what
+                    // counts rejections, and skipping it left the one counter the hardware run's abort
+                    // criterion reads blind in exactly the traffic where an emptied-then-acked section
+                    // is a permanent loss. The verdict is formed once here, from the verifier, and
+                    // handed to the counter — no parse on this path, which is why it was skipped.
+                    router.noteOffloadFrameVerdict(verifyFrame(frame, family: .whoop4))
                     armBackfillTimeout()
                     routeBackfillFrame(frame)
                     // …but a REAL-TIME physical gesture (double-tap / wrist) must still fire even mid-
@@ -6905,6 +6934,30 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                 // the router + collector re-checks the invariant).
                 let parsed = parseFrame(frame, family: .whoop4)
                 router.handle(parsed: parsed, frame: frame)       // live/UI path
+                //
+                // WHAT IS AND IS NOT GATED BELOW (standing risk, recorded rather than fixed here).
+                //
+                // Everything from here on branches on a RAW BYTE COMPARE of the command opcode, before
+                // any integrity verdict. That is deliberate and unchanged by the frame-integrity work:
+                // the six state-driving consumers are gated (router, history-metadata classifier, both
+                // extractors, clock correlation, and the data-range reply below), and this change does
+                // not claim "every frame consumer".
+                //
+                // Of the probe replies dispatched here, these verify before reading a field, inside
+                // their own decoder: the feature-flag probe and the device-config READ probe (both
+                // through `verifyFrame` in WhoopProtocol), the R22 read-back and the ECG/Broadcast-HR
+                // gate READ-BACKS (through the same probe parser), and the 5/MG ECG probe.
+                //
+                // These do NOT, and stay that way for now — none drives live state or the offload:
+                //   • the extended-battery probe (#592) and the body-location probe (#690): each reads
+                //     the reply's bytes, states a finding about the strap in the Devices dialog, and
+                //     persists its payload hex to UserDefaults for the next capture diff;
+                //   • the WRITE-ACK branches (R22 disable, ECG gate, Broadcast-HR gate), which read a
+                //     result code straight out of the frame for their transcripts.
+                // The exposure is a diagnostic that asserts something the strap never said — a real
+                // violation of "a diagnostic may only assert what it can attribute", but a reading, not
+                // a data path. Hardening them is a scope decision, not this change's.
+                //
                 // #592: the read-only extended-battery probe's COMMAND_RESPONSE — format + publish it for the
                 // Devices dialog (raw hex + payload triage + capture diff). Sibling of the #451 dump below.
                 if frame.count > 6, frame[6] == WhoopCommand.getExtendedBatteryInfo.rawValue {
@@ -6931,7 +6984,17 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                 // #695: WHOOP4 data-range reply — cmd byte @6. The 5/MG reply (puffin envelope, cmd @10) is
                 // handled in the 5/MG case below; both call handleDataRangeResponse so 5/MG now gets the same
                 // newest/oldest window (strapNewestTs / #547 backfill gate) + diagnostics it previously missed.
-                if frame.count > 6, frame[6] == WhoopCommand.getDataRange.rawValue {
+                //
+                // GATED ON THE FULL VERDICT, unlike the probe replies above, because this one has OFFLOAD
+                // effect: the newest/oldest words it yields become the plausibility window every drained
+                // record is checked against (#547). A damaged reply that narrows that window makes the
+                // real records of the same sync fall through it — the section then persists nothing, and
+                // is acknowledged anyway, which is the same permanent loss the integrity gate exists to
+                // stop. `parsed` is the single parse from the seam above; this costs one Bool, no reparse.
+                // The decision itself lives in `DataRange.acceptsReply` so a WhoopProtocol test can hold
+                // it — nothing compiles this seam, so a gate written only here is a gate nothing pins.
+                if DataRange.acceptsReply(frame, cmdOff: 6, opcode: WhoopCommand.getDataRange.rawValue,
+                                          verdictOK: parsed.ok) {
                     handleDataRangeResponse(frame, cmdOff: 6, feedsSync: true)
                 }
                 // Clock correlation runs in both live and backfill modes. Once established it
@@ -6967,7 +7030,10 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
             // timestamps are already real-unix seconds.) Live HR/battery still also come from the
             // standard 0x2A37 / 0x2A19 profiles handled above.
             if BLEManager.whoop5NotifyChars.contains(characteristic.uuid) {
-                for frame in reassembler.feed(bytes) {
+                // Same fold as the WHOOP 4.0 path above: byte runs dropped below the family minimum.
+                let completedFrames = reassembler.feed(bytes)
+                router.noteReassemblerDrops(reassembler.belowMinimumLengthDrops)
+                for frame in completedFrames {
                     let isOffload = backfilling && BLEManager.isOffloadFrame(frame, family: .whoop5)
                     noteWhoop5R22Telemetry(frame, duringOffload: isOffload)   // #174 deep-data telemetry
                     // Durable EVENT-frame log for deep-data research (#103) — BEFORE the offload
@@ -6985,6 +7051,10 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                         // Same policy as WHOOP4: historical offload frames are bulk sync traffic.
                         // Keep them out of the live UI parser during backfill and let Backfiller
                         // preserve/order/process them in the sliced drain.
+                        // Same tally hand-off as the WHOOP 4.0 loop, and for the same reason (D3):
+                        // the router counts rejections, so a frame that skips it would be invisible
+                        // to the counter the hardware run is judged on. One verdict, no parse.
+                        router.noteOffloadFrameVerdict(verifyFrame(frame, family: .whoop5))
                         armBackfillTimeout()
                         routeBackfillFrame(frame)
                         // A real-time double-tap / wrist gesture still fires during a 5/MG offload (which
@@ -6995,6 +7065,10 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                         continue
                     }
                     router.handle(frame: frame)
+                    // The same split as the WHOOP 4.0 loop above, and for the same reasons: the probe
+                    // dispatches below branch on a raw opcode compare; the ones that verify do it inside
+                    // their own decoder, the extended-battery / body-location probes and the write-ack
+                    // branches do not, and are recorded there as a standing risk rather than hardened.
                     // #592: a 5/MG extended-battery probe COMMAND_RESPONSE (puffin envelope: type @8, cmd
                     // @10). Format + publish it for the Devices dialog, exactly like the 4.0 path above.
                     if frame.count > 10, frame[8] == 0x24, frame[10] == WhoopCommand.getExtendedBatteryInfo.rawValue {
@@ -7048,7 +7122,14 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                     // the ECG records arrive under. `ecgProbeArmed` is false outside a user-initiated
                     // run, so this costs one Bool read on every other frame.
                     if ecgProbeArmed { noteEcgProbeFrame(frame) }
-                    if frame.count > 10, frame[8] == 0x24, frame[10] == WhoopCommand.getDataRange.rawValue {
+                    // Gated on the FULL verdict for the same reason as the 4.0 path: this reply sets the
+                    // window the offload judges its records against. The verdict is taken here rather
+                    // than threaded from the seam because the 5/MG loop hands the router raw bytes; a
+                    // data-range reply arrives once or twice per connection, so the parse is not a cost
+                    // on the frame flood.
+                    if frame.count > 10, frame[8] == 0x24,
+                       DataRange.acceptsReply(frame, cmdOff: 10, opcode: WhoopCommand.getDataRange.rawValue,
+                                              verdictOK: parseFrame(frame, family: .whoop5).ok) {
                         // feedsSync: false — #695 diagnostic-only on 5/MG: log the dump/backlog/newest/oldest so
                         // a strap log validates the decode, but DON'T feed strapNewestTs/backfill/state yet.
                         // Flip to true once a real 5.0/MG strap confirms the newest/oldest are correct.

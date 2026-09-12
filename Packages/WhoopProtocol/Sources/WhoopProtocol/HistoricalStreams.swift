@@ -78,15 +78,31 @@ public func isPlausibleHistoricalUnix(_ ts: Int, wallNow: Int,
 /// archive they are lost forever while the UI reports a clean sync (#77 / #91).
 ///
 /// Console (type-50, `frame[typeIndex] == 0x32`) frames are strap-side debug-log text that decode to
-/// zero rows BY DESIGN and are never returned. 5/MG v26 (raw PPG block, hist_version 26) is also
-/// skipped unconditionally (even on a CRC failure): a v26 record's payload is the optical waveform,
-/// which `extractHistoricalStreams` now persists durably in its OWN stream (`Streams.ppgWaveform` /
-/// WhoopStore's `ppgWaveformSample` table, issue #156 follow-up) whenever it decodes — this reject
-/// archive exists for genuinely-undecodable records, and a decoded v26 record was never one of those.
+/// zero rows BY DESIGN and are never returned. 5/MG v26 (raw PPG block, hist_version 26) is skipped
+/// only while it is INTACT: a v26 record's payload is the optical waveform, which
+/// `extractHistoricalStreams` persists durably in its OWN stream (`Streams.ppgWaveform` / WhoopStore's
+/// `ppgWaveformSample` table, issue #156 follow-up) — but only for a record it accepts. Since the
+/// integrity gate, a v26 record with a broken envelope is dropped by that extraction too, so skipping
+/// it here on the version byte alone would leave it stored nowhere while its section is acked anyway.
 /// Only genuine type-47 record frames whose payload would otherwise be silently dropped are returned.
 ///
 /// Used by the Backfiller/BLEManager to archive undecodable history BEFORE acking the trim. Mirrors
 /// the Android rejectedHistoricalRecords so one mapping toolchain re-ingests both archives.
+///
+/// EVIDENCE-PRESERVING READER (D8) — its verdict runs the OTHER WAY ROUND, and the difference is
+/// load-bearing. Everywhere else a negative integrity verdict means "do not act on this frame". Here it
+/// means "this frame must be archived", because the strap is about to free it and this archive is the
+/// only durable copy that will exist. Turning this into "act only on a positive verdict", the way the
+/// state-driving gates were turned, would delete exactly the frames it exists to keep.
+///
+/// So the stricter verdict makes the archived set LARGER, never smaller: every frame archived before is
+/// archived still, plus the classes the envelope check now rejects (a wrong header checksum, a declared
+/// length below the family minimum, a truncated frame, trailing bytes). The one way a frame can be lost
+/// relative to before is upstream of here: the reassembler drops a byte run whose declared total is
+/// below the family minimum, so it never reaches any parser. That drop is counted
+/// (`Reassembler.belowMinimumLengthDrops`, folded into `FrameRejectTally`) precisely so it stays visible.
+///
+/// Accepted side effect: on a noisy link the raw archives grow. The existing eviction rule bounds that.
 public func rejectedHistoricalRecords(_ rawFrames: [[UInt8]], family: DeviceFamily) -> [[UInt8]] {
     // The type byte sits at the inner-record start: frame[4] on WHOOP 4.0, frame[8] on WHOOP 5/MG
     // (the puffin envelope is 4 bytes longer). hist_version sits one byte past the type+seq+cmd
@@ -97,7 +113,14 @@ public func rejectedHistoricalRecords(_ rawFrames: [[UInt8]], family: DeviceFami
         // Only genuine HISTORICAL_DATA records (47). Console (50) and METADATA frames have a
         // different type byte, so they never pass this gate — they are excluded by construction.
         guard f.count > typeIndex, Int(f[typeIndex]) == 47 else { return false }
-        if family == .whoop5, f.count > versionIndex, Int(f[versionIndex]) == 26 { return false }  // v26 PPG: has its own durable stream (ppgWaveform), not this reject archive
+        // v26 PPG: skipped BECAUSE `extractHistoricalStreams` stores it durably in its own waveform
+        // stream (ppgWaveform) — so the skip holds only while that premise does. A REJECTED v26 record
+        // is dropped by the extraction like any other, which leaves it stored nowhere while the section
+        // is acked anyway. Bind the skip to the verdict, not to the version byte alone.
+        if family == .whoop5, f.count > versionIndex, Int(f[versionIndex]) == 26 {
+            let p = parseFrame(f, family: family)
+            return !(p.ok && p.crcOK != false)
+        }
         // UNMAPPED LAYOUT (5/MG) — archive UNCONDITIONALLY, whatever it decoded.
         //
         // The decode-outcome test below is the wrong question for a layout NOOP has no field map for.
@@ -113,7 +136,11 @@ public func rejectedHistoricalRecords(_ rawFrames: [[UInt8]], family: DeviceFami
         // banks empty placeholder records at 1 Hz cannot push out the one informative frame either.
         if family == .whoop5, isUnmappedWhoop5HistoricalRecord(f) { return true }
         let p = parseFrame(f, family: family)
-        // Envelope/CRC reject: parse failed outright or the CRC32 trailer mismatched.
+        // NOT INTACT → ARCHIVE. Reading the verdict this way round is the whole point of this reader
+        // (D8): the frame cannot be turned into rows, so its bytes are the only thing left to keep.
+        // With the verdict widened to cover the header checksum and the structural length, this branch
+        // catches strictly MORE frames than it did before — which is the intended direction. The
+        // `crcOK` half stays for exactly that reason: every condition here can only add to the archive.
         if !p.ok || p.crcOK == false { return true }
         // Unmapped layout: the envelope parsed but no usable biometrics decoded. A record is genuinely
         // undecodable only if it has no timestamp, or NEITHER heart rate NOR motion. v25 (issue #30)
@@ -242,6 +269,11 @@ public func extractHistoricalStreams(_ parsed: [ParsedFrame],
     // #891: packet types that reach `default:` and are dropped. See `Streams.unhandledPacketTypes`.
     var unhandledTypes: [String: Int] = [:]
     for r in parsed {
+        // `ok` is now the FULL verdict — header checksum, payload CRC32 and structural length — so it
+        // alone rejects everything the two-part check used to. The `crcOK` half is kept because this
+        // function takes parse results from its CALLER, and a `ParsedFrame` decoded from a capture file
+        // written before the verdict widened carries the old constant `ok: true` beside a false `crcOK`.
+        // Dropping it would start deriving rows from those.
         if !r.ok || r.crcOK == false { continue }
         let p = r.parsed
         switch r.typeName {

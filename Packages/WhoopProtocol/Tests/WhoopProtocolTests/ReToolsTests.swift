@@ -119,7 +119,29 @@ final class ReToolsTests: XCTestCase {
         XCTAssertTrue(g.unknownBytes.allSatisfy { $0.constant })
     }
 
-    // MARK: - C) inventory: census sorted by count, ok/crc, ts span, len spread
+    // MARK: - 2.13: the hand-built parse result still decodes after the new field appeared
+
+    // ReTools' fixtures build a ParsedFrame by decoding a JSON dict that has no `rejectReason` key at
+    // all — the same shape older capture files have. Decoding must stay TOLERANT and default it to
+    // `.none`, or every fixture in this file (and every archived capture) becomes undecodable.
+    func testHandBuiltParseResultDecodesWithoutARejectReason() {
+        let f = frame(type: "EVENT", len: 4)
+        XCTAssertEqual(f.rejectReason, .none,
+                       "a document without the key must decode, defaulting the reason to none")
+        // And a document that DOES carry one keeps it, so the field is genuinely read and not ignored.
+        let dict: [String: Any] = [
+            "ok": false, "typeName": "EVENT", "seq": NSNull(), "cmdName": NSNull(),
+            "crcOK": true, "lenBytes": 12, "rawHex": "", "fields": [], "parsed": [:],
+            "rejectReason": "headerChecksumMismatch",
+        ]
+        let data = try! JSONSerialization.data(withJSONObject: dict)
+        let decoded = try! JSONDecoder().decode(ParsedFrame.self, from: data)
+        XCTAssertEqual(decoded.rejectReason, .headerChecksumMismatch)
+        XCTAssertTrue(decoded.payloadCRCOKButEnvelopeRejected,
+                      "payload CRC32 right + envelope wrong is the class that used to pass the gates")
+    }
+
+    // MARK: - C) inventory: census sorted by count, intact/parsable/crc, ts span, len spread
 
     func testInventoryCensus() {
         let hist = frame(type: "HISTORICAL_DATA", seq: 26, len: 8, ok: true, crcOK: true)
@@ -133,8 +155,11 @@ final class ReToolsTests: XCTestCase {
         XCTAssertEqual(inv.first?.key, "HISTORICAL_DATA/v26")   // 3 records → most common, sorts first
         let h = inv.first!
         XCTAssertEqual(h.count, 3)
-        XCTAssertEqual(h.okCount, 2)
+        XCTAssertEqual(h.intactCount, 2)
         XCTAssertEqual(h.crcOkCount, 2)
+        // All three carry a decoded packet type, including the one that is not intact: parseability and
+        // integrity are separate columns, and the census must not report a readable frame as unreadable.
+        XCTAssertEqual(h.parsableCount, 3)
         XCTAssertEqual(h.firstTsMs, 1000)
         XCTAssertEqual(h.lastTsMs, 3000)
         XCTAssertEqual(h.minLen, 6)

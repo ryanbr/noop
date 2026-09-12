@@ -73,4 +73,58 @@ final class StreamsTests: XCTestCase {
                                deviceClockRef: deviceClockRef, wallClockRef: wallClockRef)
         XCTAssertEqual(s.hr.count, 1)
     }
+
+    // MARK: - the extraction gate reads the FULL verdict
+    //
+    // Scenario "Zustandstreibende Tore fordern das volle Urteil / Strom- und Verlaufs-Extraktion
+    // überspringt ungültige Rahmen". Each frame is a real REALTIME_DATA broken in exactly one way and
+    // still fully decodable, so what is missing from the result is attributable to the gate.
+
+    func testFrameWithABrokenHeaderChecksumYieldsNoRow() {
+        var broken = bytes(rt0)
+        broken[3] ^= 0xFF                                       // header checksum only
+        let p = parseFrame(broken)
+        XCTAssertEqual(p.crcOK, true, "precondition: the payload CRC32 still verifies")
+        XCTAssertNotNil(p.parsed["heart_rate"], "precondition: the frame still decodes an HR")
+        let s = extractStreams([p], deviceClockRef: deviceClockRef, wallClockRef: wallClockRef)
+        XCTAssertTrue(s.hr.isEmpty, "no row may be derived from a frame that is not intact")
+        XCTAssertTrue(s.rr.isEmpty)
+    }
+
+    func testFrameWithTrailingBytesYieldsNoRow() {
+        let p = parseFrame(bytes(rt0) + [0x00])
+        XCTAssertEqual(p.rejectReason, .lengthMismatch)
+        let s = extractStreams([p], deviceClockRef: deviceClockRef, wallClockRef: wallClockRef)
+        XCTAssertTrue(s.hr.isEmpty)
+    }
+
+    func testOneBrokenFrameInASequenceLosesOnlyItsOwnRow() {
+        var broken = bytes(rt1)
+        broken[3] ^= 0xFF
+        let s = extractStreams([parseFrame(bytes(rt0)), parseFrame(broken)],
+                               deviceClockRef: deviceClockRef, wallClockRef: wallClockRef)
+        XCTAssertEqual(s.hr, [HRSample(ts: 1_736_365_593, bpm: 60)],
+                       "the intact frame still produces its row; only the broken one is skipped")
+    }
+
+    // MARK: - D7: a named field is never read out of the CRC32 trailer (post-hook half, 2.18)
+
+    /// This 17-byte WHOOP 4.0 REALTIME_DATA frame is INTACT — correct header checksum, correct CRC32,
+    /// exact declared length of 13 — but its inner record ends at byte 13, so the R-R count the
+    /// realtime post-hook reads at offset 13 is the first byte of the frame's own CRC32 trailer. That
+    /// byte is 0x01, and the two trailer bytes behind it read as a 33403 ms interval: a physiologically
+    /// impossible R-R that the strap never sent and that nothing downstream could tell from a real one.
+    ///
+    /// The gate cannot catch this — the frame passes every checksum. Only the payload bound does.
+    func testRealtimeRRCountIsNotReadOutOfTheTrailer() {
+        let frame = bytes("aa0d00e9280100000009000000017b826e")
+        let p = parseFrame(frame)
+        XCTAssertTrue(p.ok, "precondition: this frame is intact by every checksum")
+        XCTAssertEqual(p.typeName, "REALTIME_DATA")
+        XCTAssertEqual(frame[13], 0x01, "precondition: the trailer's first byte reads as rr_count = 1")
+        XCTAssertEqual(p.parsed["rr_intervals"], .intArray([]),
+                       "an R-R interval must never be decoded out of the CRC32 trailer")
+        let s = extractStreams([p], deviceClockRef: deviceClockRef, wallClockRef: wallClockRef)
+        XCTAssertTrue(s.rr.isEmpty, "…and no such row may reach the datastore")
+    }
 }

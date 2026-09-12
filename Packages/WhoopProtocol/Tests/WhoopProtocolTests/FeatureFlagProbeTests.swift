@@ -870,4 +870,37 @@ final class FeatureFlagProbeTests: XCTestCase {
         XCTAssertTrue(v.contains("an implausible 9999 flag(s)"), v)
         XCTAssertTrue(v.contains("(inconclusive)"), v)
     }
+
+    // MARK: - direct caller of the verifier (2.5): the useful path is unchanged
+
+    /// `FeatureFlagProbe.record` calls `verifyFrame` itself rather than going through `parseFrame`, so a
+    /// stricter verifier could have silently broken this probe. These pin that it did not — the ordinary
+    /// well-formed replies of BOTH families still decode — and that the classes the verifier newly
+    /// rejects come back as `.crc`, its own refusal, rather than being read as data.
+    func testTheOrdinaryReplyStillDecodesUnderTheTightenedVerifier() {
+        let four = whoop4Response(cmd: 117, payload: payload(result: 1, record: [0x01, 0x0B, 0x00]))
+        XCTAssertTrue(verifyFrame(four, family: .whoop4).ok, "precondition: an ordinary 4.0 reply is intact")
+        XCTAssertEqual(verifyFrame(four, family: .whoop4).reason, .none)
+        guard case .success = FeatureFlagProbe.parseStart(frame: four, family: .whoop4) else {
+            return XCTFail("the 4.0 useful path must still decode")
+        }
+        let five = whoop5Response(cmd: 117, payload: payload(result: 1, record: [0x01, 0x10, 0x00]))
+        XCTAssertTrue(verifyFrame(five, family: .whoop5).ok)
+        guard case .success = FeatureFlagProbe.parseStart(frame: five, family: .whoop5) else {
+            return XCTFail("the 5/MG useful path must still decode")
+        }
+    }
+
+    func testAReplyWithTrailingBytesIsRefusedNotRead() {
+        let frame = whoop4Response(cmd: 117, payload: payload(result: 1, record: [0x01, 0x0B, 0x00])) + [0x00]
+        XCTAssertEqual(verifyFrame(frame, family: .whoop4).reason, .lengthMismatch)
+        XCTAssertEqual(FeatureFlagProbe.parseStart(frame: frame, family: .whoop4), .failure(.crc))
+    }
+
+    func testAReplyWithABrokenHeaderChecksumIsRefusedNotRead() {
+        var frame = whoop4Response(cmd: 117, payload: payload(result: 1, record: [0x01, 0x0B, 0x00]))
+        frame[3] ^= 0xFF
+        XCTAssertEqual(verifyFrame(frame, family: .whoop4).crc32OK, true, "the payload CRC32 still verifies")
+        XCTAssertEqual(FeatureFlagProbe.parseStart(frame: frame, family: .whoop4), .failure(.crc))
+    }
 }

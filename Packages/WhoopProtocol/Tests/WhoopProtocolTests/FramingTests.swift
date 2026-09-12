@@ -69,7 +69,9 @@ final class FramingTests: XCTestCase {
         // inner = [43,0,0] + data (7 bytes); length = 7 + 4 = 11.
         XCTAssertEqual(frame[0], 0xAA)
         XCTAssertEqual(Int(frame[1]) | (Int(frame[2]) << 8), 11)
-        XCTAssertEqual(frame[3], 0x00) // placeholder crc8
+        // The header checksum is computed for real (it used to be a 0x00 placeholder), so a rebuilt
+        // frame is one a strap could have sent rather than one every gate now rejects.
+        XCTAssertEqual(frame[3], crc8([frame[1], frame[2]]))
         XCTAssertEqual(frame[4], 43)
         XCTAssertEqual(frame[5], 0)
         XCTAssertEqual(frame[6], 0)
@@ -80,8 +82,12 @@ final class FramingTests: XCTestCase {
         let got = UInt32(frame[11]) | (UInt32(frame[12]) << 8)
             | (UInt32(frame[13]) << 16) | (UInt32(frame[14]) << 24)
         XCTAssertEqual(got, want)
-        // The reconstructed frame's crc32 must verify (crc8 is a placeholder so .ok stays false).
-        XCTAssertEqual(verifyFrame(frame).crc32OK, true)
+        // The reconstructed frame verifies end to end: both checksums AND the exact length.
+        let check = verifyFrame(frame)
+        XCTAssertEqual(check.crc32OK, true)
+        XCTAssertEqual(check.crc8OK, true)
+        XCTAssertTrue(check.ok)
+        XCTAssertEqual(check.reason, .none)
     }
 
     func testFrameFromPayloadDefaults() {

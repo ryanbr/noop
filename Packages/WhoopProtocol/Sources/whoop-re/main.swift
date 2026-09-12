@@ -173,12 +173,18 @@ case "coverage":
 
 case "inventory":
     requireFile()
-    print(pad("TYPE/VERSION", 24) + pad("COUNT", 8, right: true) + pad("OK", 8, right: true)
-          + pad("CRC", 8, right: true) + pad("LEN", 12, right: true) + "  TS SPAN")
+    // INTACT (full verdict) and PARSABLE (a packet type was decoded) are separate columns: a capture
+    // whose frames all read fine but whose envelopes are damaged reads 0 INTACT and n PARSABLE, and
+    // collapsing that into one "OK" column would hide which of the two is the problem.
+    print(pad("TYPE/VERSION", 24) + pad("COUNT", 8, right: true) + pad("INTACT", 8, right: true)
+          + pad("PARSED", 8, right: true) + pad("CRC", 8, right: true)
+          + pad("LEN", 12, right: true) + "  TS SPAN")
     for g in ReTools.inventory(loadRecords(positional[0], family)) {
         let lenCol = g.minLen == g.maxLen ? "\(g.minLen)" : "\(g.minLen)-\(g.maxLen)"
         let span = (g.firstTsMs != nil && g.lastTsMs != nil) ? "\(g.firstTsMs!)..\(g.lastTsMs!)" : "—"
-        print(pad(g.key, 24) + pad(String(g.count), 8, right: true) + pad(String(g.okCount), 8, right: true)
+        print(pad(g.key, 24) + pad(String(g.count), 8, right: true)
+              + pad(String(g.intactCount), 8, right: true)
+              + pad(String(g.parsableCount), 8, right: true)
               + pad(String(g.crcOkCount), 8, right: true) + pad(lenCol, 12, right: true) + "  \(span)")
     }
 

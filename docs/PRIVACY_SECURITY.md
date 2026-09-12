@@ -428,7 +428,7 @@ truncated, oversized, or adversarial frames. The protocol core
 (`Packages/WhoopProtocol/`) is the reverse-engineering layer and is the first line of
 defense.
 
-**CRC-gated parsing.** Every frame is checked against its checksums before it is
+**Integrity-gated parsing.** Every frame is checked against its envelope before it is
 allowed to drive any application state. `Framing.swift` implements three checksums
 verbatim from the wire formats:
 
@@ -436,44 +436,71 @@ verbatim from the wire formats:
 - `crc32` (zlib/reflected) over the inner payload,
 - `crc16Modbus` for the WHOOP 5.0 header (ported from the `goose` work).
 
-`verifyFrame(_:)` (and the family-aware `verifyFrame(_:family:)`) only return
-`ok == true` when the header CRC **and** the payload CRC32 both validate:
+`verifyFrame(_:)` (and the family-aware `verifyFrame(_:family:)`) return
+`ok == true` only when the header CRC, the payload CRC32 **and** the structural size
+rules all hold. The structural half matters as much as the checksums: a frame must be
+at least 11 bytes on WHOOP 4.0 and 13 on 5.0/MG, and must carry *exactly* the total its
+length field declares (`length + 4`, `declLength + 8`), so a truncated frame and one
+with trailing bytes past its own end are both rejected. A payload CRC32 that cannot be
+computed counts as a failure, never as "unknown". The outcome is one verdict plus one
+non-optional reason:
 
 ```swift
-let ok = crc8OK && (crc32OK ?? false)
+let reason = frameRejectReason(totalFromLength: total, actualCount: frame.count,
+                               minimumBytes: FrameLimits.whoop4MinimumFrameBytes,
+                               headerCRCOK: crc8OK, crc32OK: crc32OK)
+return FrameCheck(ok: reason == .none, /* … */ reason: reason)
 ```
 
-The live BLE path then refuses anything that fails. In
+The live BLE path then refuses anything that fails, in a single condition. In
 `Strand/BLE/FrameRouter.swift`:
 
 ```swift
 let parsed = parseFrame(frame)
+// `ok` is the FULL verdict — never let bad bytes drive state.
 guard parsed.ok else { return }
-// Reject frames that failed their checksum — never let bad bytes drive state.
-if parsed.crcOK == false { return }
 ```
 
-The same gate guards clock correlation (`Strand/Collect/ClockCorrelation.swift`
-requires `parsed.ok, parsed.crcOK != false`), so a corrupt frame can neither update
-the displayed metrics nor poison the device-clock model.
+The same gate guards clock correlation (`Strand/Collect/ClockCorrelation.swift`),
+historical-metadata classification, live and historical stream extraction, and the
+data-range reply — so a corrupt frame can neither update the displayed metrics, nor
+poison the device-clock model, nor advance the strap's trim cursor. `parsed.rejectReason`
+carries the cause, so a rejection is counted and attributable rather than silent.
 
-**Bounds-checked decoding.** Field reads never index past the end of the buffer. The
-low-level readers in `Interpreter.swift` return `nil` instead of trapping when a read
-would run off the end of the frame:
+**What this does not claim.** A CRC is not a signature, so none of the above asserts
+**authenticity**: a peer that forms the envelope correctly is not excluded. Nor is the
+claim "every frame consumer" — six state-driving consumers require the full verdict.
+Evidence-preserving readers deliberately keep the opposite direction: a raw history
+frame that fails is *archived* rather than dropped, so the durable copy of a frame the
+strap is about to release survives.
+
+**Bounds-checked decoding.** Field reads never index past the end of the buffer, and
+never reach into the frame's own CRC32 trailer. The low-level readers in
+`Interpreter.swift` take an explicit `limit` and return `nil` instead of trapping:
 
 ```swift
-@inline(__always) private func readU16(_ f: [UInt8], _ off: Int) -> Int? {
-    off + 2 <= f.count ? Int(f[off]) | (Int(f[off + 1]) << 8) : nil
+@inline(__always) private func readU16(_ f: [UInt8], _ off: Int, _ limit: Int) -> Int? {
+    off >= 0 && off + 2 <= limit ? Int(f[off]) | (Int(f[off + 1]) << 8) : nil
 }
 ```
 
+The `limit` is the **minimum** of where the trailer starts and how many bytes the frame
+actually has. Both halves are load-bearing: the trailer start is derived from the
+*declared* length and points past the buffer on a truncated frame, while the buffer size
+alone would let a frame sitting at the family minimum have its own checksum trailer
+decoded as a sequence number, a command byte or a metadata type. The argument is
+required rather than defaulted, so adding a field read without deciding its bound does
+not compile. The one deliberate exception is the 8-byte history-end acknowledgement
+block echoed back to the strap verbatim, which reaches into the trailer by construction
+and is an opaque echo rather than a decoded field.
+
 Schema-driven field extraction skips any field whose offset is out of range
-(`guard let val = readDType(frame, fld.off, dtype) else { continue }`), and the
-`FieldBuilder` clamps every slice to the real buffer length
-(`let end = min(off + length, frame.count)`). The WHOOP 5.0 path adds explicit
-minimum-length and `payloadEnd <= frame.count` guards before slicing the payload or
-trailer. A short or lying length field therefore yields a partial parse, never an
-out-of-bounds read.
+(`guard let val = readDType(frame, fld.off, dtype, limit) else { continue }`), the same
+bound applies to the per-type post-hooks, and the `FieldBuilder` clamps every slice to
+the real buffer length (`let end = min(off + length, frame.count)`). The WHOOP 5.0 path
+adds explicit minimum-length and `payloadEnd <= frame.count` guards before slicing the
+payload or trailer. A short or lying length field therefore yields a partial parse,
+never an out-of-bounds read.
 
 **Sane-value gating at the application edge.** Even a CRC-valid frame is range-checked
 before it updates the UI/state. The realtime handler discards implausible heart rates
@@ -482,7 +509,10 @@ carries them — so a single bad-but-valid packet can't wipe good state.
 
 **Reassembly is bounded by the declared length.** The `Reassembler` resynchronizes on
 the `0xAA` start-of-frame byte, discards leading garbage, and only emits a frame once
-`length + 4` bytes are present — it does not unboundedly buffer arbitrary data.
+`length + 4` bytes are present — it does not unboundedly buffer arbitrary data. A
+declared total below the family minimum (11 bytes on WHOOP 4.0, 13 on 5.0/MG) or above
+the 8192-byte ceiling is not a frame at all: that start byte is dropped and the scan
+resyncs on the next one. Sub-minimum drops are counted rather than discarded silently.
 
 ### 3.2 Threat B: a malicious import file (zip bombs, XML bombs, huge exports)
 

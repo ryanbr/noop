@@ -31,8 +31,21 @@ public final class FrameRouter {
         // #900: a fresh connection is a fresh capture session — re-arm the per-command raw-frame dump so
         // each connect can re-capture the disputed COMMAND_RESPONSE prefix once. `family` is set fresh per
         // connection by BLEManager (connectCore), so this is the per-session reset hook.
-        didSet { rawDumpedRespCmds.removeAll(); loggedFirmwareGate = nil; deviceId = nil }
+        didSet {
+            rawDumpedRespCmds.removeAll(); loggedFirmwareGate = nil; deviceId = nil
+            rejectTally = FrameRejectTally(); loggedRejectReasons.removeAll()
+        }
     }
+
+    /// Rejected frames on this connection, per reason, plus the one named counter for the class that
+    /// used to pass the gates (payload CRC32 verified, envelope not). Reset per connection alongside the
+    /// other per-connection routing state, since that is the unit the readout is about.
+    public private(set) var rejectTally = FrameRejectTally()
+
+    /// Reasons already reported on this connection, so the Test Centre line is one per REASON rather
+    /// than one per frame: a noisy link rejects continuously, and a per-frame line would bury the
+    /// transition that carries the information.
+    private var loggedRejectReasons: Set<FrameRejectReason> = []
 
     /// #900: resp command names (e.g. "GET_BATTERY_LEVEL(26)") whose raw COMMAND_RESPONSE frame has already
     /// been dumped this connection. The provenance dump fires once per command per session so a 4.0's
@@ -64,9 +77,14 @@ public final class FrameRouter {
         assert(parsed == parseFrame(frame, family: family),
                "FrameRouter.handle: threaded ParsedFrame != fresh parse (#47 parse-once invariant)")
         #endif
-        guard parsed.ok else { return }
-        // Reject frames that failed their checksum — never let bad bytes drive state.
-        if parsed.crcOK == false { return }
+        // ONE gate, the verifier's FULL verdict: header checksum, payload CRC32 and structural length
+        // together. This used to be two steps — a parse-succeeded flag, then a separate payload-CRC
+        // check — and between them sat the class this change closes: a frame whose payload CRC32 is
+        // right while its header checksum or declared length is not. Never let bad bytes drive state.
+        guard parsed.ok else {
+            noteRejectedFrame(parsed)
+            return
+        }
 
         // #987: stamp frame liveness for the Connection readout's "last frame" row. A plain (non-
         // published, see LiveState) Int write, so the raw flood costs no re-renders here.
@@ -675,8 +693,70 @@ public final class FrameRouter {
     func mirrorStrapConsoleIfPresent(frame: [UInt8]) {
         guard frameTypeName(frame, family: family) == "CONSOLE_LOGS" else { return }
         let parsed = parseFrame(frame, family: family)
-        guard parsed.ok, parsed.crcOK != false else { return }
+        // The full verdict, in one step — the frame is parsed right here, so `ok` already covers the
+        // payload CRC32 the second condition used to check separately.
+        guard parsed.ok else { return }
         appendStrapConsole(parsed)
+    }
+
+    /// Count one rejected frame and say something about it exactly once (D3).
+    ///
+    /// Two different visibility rules, on purpose:
+    ///
+    /// - The class where the payload CRC32 VERIFIED while the envelope did not is announced always-on,
+    ///   at its first sighting. It is the class that passed every gate before this change, it is what
+    ///   the hardware run's abort criterion reads, and it costs nothing on a link where it never
+    ///   happens — which is the whole point of leaving rare-event evidence unconditional.
+    /// - The ordinary per-connection detail sits behind the Test Centre's Connection domain, one line
+    ///   per REASON. A resync after a lost notification rejects frames routinely and always has; a line
+    ///   per frame would be noise, and the general per-reason counter is explicitly NOT the abort signal.
+    ///
+    /// Each line reports only what the parse result observed: the reason the verifier gave, and the
+    /// packet type the decoder actually read (a rejected frame keeps it).
+    private func noteRejectedFrame(_ parsed: ParsedFrame) {
+        let hadAdmittedClass = rejectTally.payloadCRCOKButEnvelopeRejected > 0
+        let reason = rejectTally.note(parsed)
+        if !hadAdmittedClass && rejectTally.payloadCRCOKButEnvelopeRejected > 0 {
+            state.append(log: "Frame rejected while its payload CRC32 verified "
+                         + "(reason=\(reason.rawValue), type=\(parsed.typeName), \(parsed.lenBytes) bytes) "
+                         + "— the frame class that reached live state before the integrity gate.")
+        }
+        if TestCentre.active(.connection), loggedRejectReasons.insert(reason).inserted {
+            state.append(log: "frameReject reason=\(reason.rawValue) type=\(parsed.typeName) "
+                         + "bytes=\(parsed.lenBytes)", domain: .connection)
+        }
+    }
+
+    /// Count an OFFLOAD frame's verdict on this connection (D3).
+    ///
+    /// The BLE seam routes a replayed history frame straight to the Backfiller, so `handle(parsed:frame:)`
+    /// — the only caller of `noteRejectedFrame` — never sees it. Without this the tally, and with it the
+    /// ONE counter the hardware run's abort criterion is read from, stays at zero during exactly the
+    /// traffic in which a wrongly-emptied and then acked section is a permanent loss. The verdict is
+    /// formed once at the seam and handed over here; nothing is parsed twice.
+    ///
+    /// The line reports only what the verifier observed. There is no packet type in it because nothing
+    /// decoded one on this path — naming the offload is what this evidence can attribute.
+    func noteOffloadFrameVerdict(_ check: FrameCheck) {
+        let hadAdmittedClass = rejectTally.payloadCRCOKButEnvelopeRejected > 0
+        let reason = rejectTally.note(check)
+        guard reason != .none else { return }
+        if !hadAdmittedClass && rejectTally.payloadCRCOKButEnvelopeRejected > 0 {
+            state.append(log: "Frame rejected while its payload CRC32 verified "
+                         + "(reason=\(reason.rawValue), during a history offload) "
+                         + "— the frame class that reached live state before the integrity gate.")
+        }
+        if TestCentre.active(.connection), loggedRejectReasons.insert(reason).inserted {
+            state.append(log: "frameReject reason=\(reason.rawValue) offload=true", domain: .connection)
+        }
+    }
+
+    /// Fold the reassembler's monotonic below-minimum drop count into this connection's tally, so a byte
+    /// run dropped before any parser saw it still shows up as a rejection with the reason
+    /// "belowMinimumLength" instead of vanishing. Idempotent — only the growth since the last call is
+    /// added, so the BLE seam can call it after every notification.
+    func noteReassemblerDrops(_ monotonicTotal: Int) {
+        rejectTally.absorbReassemblerDrops(monotonicTotal)
     }
 
     /// The one place the strap's own narration reaches the log, so the live and offload paths cannot
@@ -695,7 +775,9 @@ public final class FrameRouter {
         // anyway. Family-aware (WHOOP4 type @[4], 5/MG @[8]).
         guard frameTypeName(frame, family: family) == "EVENT" else { return }
         let parsed = parseFrame(frame, family: family)
-        guard parsed.ok, parsed.crcOK != false else { return }
+        // Same single gate as `handle`: a gesture changes worn state, so it may only come from an
+        // intact frame. `frameTypeName` is a type PEEK and says nothing about integrity.
+        guard parsed.ok else { return }
         guard parsed.typeName == "EVENT", let ev = parsed.parsed["event"]?.stringValue else { return }
         guard let ts = parsed.parsed["event_timestamp"]?.intValue, ts > 0 else { return }   // fail closed
         guard abs(now - ts) <= FrameRouter.liveGestureWindowSeconds else { return }

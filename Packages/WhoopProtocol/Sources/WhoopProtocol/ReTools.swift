@@ -226,7 +226,18 @@ public enum ReTools {
     public struct GroupInventory: Equatable {
         public let key: String
         public let count: Int
-        public let okCount: Int
+        /// How many frames of the group were INTACT — the verifier's full verdict (header checksum,
+        /// payload CRC32 and structural length together). Named `intactCount` rather than `okCount`
+        /// since the verdict widened: "intact" and "readable" are now different questions, and a census
+        /// that blurred them would report a capture full of decodable frames as decoding nothing.
+        public let intactCount: Int
+        /// How many frames yielded a packet type at all — PARSEABILITY. This is the count that answers
+        /// "can this tool see what these bytes are", which is the question a mapping run asks; it is
+        /// always ≥ `intactCount`.
+        public let parsableCount: Int
+        /// How many frames had a VERIFIED payload CRC32. Kept beside the two above because their
+        /// difference is the interesting one: payload CRC32 right while the envelope is wrong is the
+        /// class that used to pass every gate.
         public let crcOkCount: Int
         public let firstTsMs: Int?
         public let lastTsMs: Int?
@@ -234,9 +245,10 @@ public enum ReTools {
         public let maxLen: Int
     }
 
-    /// A census of a capture: what types/versions it holds, how many of each, how many decoded and
-    /// passed CRC, the timestamp span, and the frame-length spread. The fastest way to see "this strap
-    /// banked a v21 we've never captured" before decoding a single byte.
+    /// A census of a capture: what types/versions it holds, how many of each, how many were intact, how
+    /// many were readable at all, how many passed the payload CRC32, the timestamp span, and the
+    /// frame-length spread. The fastest way to see "this strap banked a v21 we've never captured"
+    /// before decoding a single byte.
     public static func inventory(_ records: [Record]) -> [GroupInventory] {
         let groups = Dictionary(grouping: records, by: { groupKey($0.frame) })
         return groups.map { key, recs in
@@ -244,7 +256,8 @@ public enum ReTools {
             let lens = recs.map { $0.bytes.count }
             return GroupInventory(
                 key: key, count: recs.count,
-                okCount: recs.filter { $0.frame.ok }.count,
+                intactCount: recs.filter { $0.frame.ok }.count,
+                parsableCount: recs.filter { $0.frame.isParsable }.count,
                 crcOkCount: recs.filter { $0.frame.crcOK == true }.count,
                 firstTsMs: ts.min(), lastTsMs: ts.max(),
                 minLen: lens.min() ?? 0, maxLen: lens.max() ?? 0)

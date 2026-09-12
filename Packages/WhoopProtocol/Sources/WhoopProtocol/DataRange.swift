@@ -88,6 +88,25 @@ public enum DataRange {
         return behind
     }
 
+    /// The BLE seam's decision on a GET_DATA_RANGE COMMAND_RESPONSE: is this a reply to `opcode`, and
+    /// may it move state? A reply is accepted only on the verifier's FULL verdict.
+    ///
+    /// This one reply does not merely report a timestamp: `newestUnix`/`oldestUnix` become the window
+    /// every drained record of the same sync is checked against (#547). A damaged reply that narrows
+    /// the window makes the real records fall through it — the section persists nothing and is acked
+    /// anyway, which is the permanent loss the integrity gate exists to stop. So the gate belongs to
+    /// this decision, not to the seam that happens to host it: as a predicate it is testable off the
+    /// app target, where nothing compiles the seam.
+    ///
+    /// `verdictOK` is the FULL verdict of the single parse the caller already holds, taken lazily so a
+    /// frame that is not this reply costs one byte compare and no parse. The opcode is passed in rather
+    /// than restated here: the command table lives with the caller.
+    public static func acceptsReply(_ frame: [UInt8], cmdOff: Int, opcode: UInt8,
+                                    verdictOK: @autoclosure () -> Bool) -> Bool {
+        guard cmdOff >= 0, cmdOff < frame.count, frame[cmdOff] == opcode else { return false }
+        return verdictOK()
+    }
+
     /// True when a GET_DATA_RANGE COMMAND_RESPONSE is the `PENDING(2)` acknowledgement rather than the
     /// answer. The strap replies twice: a short PENDING ack, then the payload with `SUCCESS(1)`. Framing's
     /// own result-code table already states it — "2=PENDING precedes SUCCESS on GET_DATA_RANGE

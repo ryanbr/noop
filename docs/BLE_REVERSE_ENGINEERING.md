@@ -145,6 +145,10 @@ against `my-whoop`'s `WhoopPacket.framed_packet` and is implemented in `Commands
 - **`crc8`** (poly `0x07`, table in `Framing.swift`) guards **only the two length bytes** — a cheap
   header integrity check that lets the reassembler trust the declared length.
 - **`crc32`** is standard zlib CRC-32 (reflected, poly `0xEDB88320`) over the inner bytes.
+- **Size rules.** A 4.0 frame must be **at least 11 bytes** — the envelope plus one payload byte —
+  and must be **exactly `len + 4`** bytes. Equality, not "at least": a frame cut short and a frame
+  carrying trailing bytes past its own end are **both** rejected, even when the payload CRC32 over
+  the bytes the length field claims happens to check out.
 
 `type` is the packet type (see §5), `cmd` is the command/event number, `seq` is a rolling sequence
 byte (and, for historical records, doubles as the **record version** — see §3).
@@ -154,6 +158,10 @@ byte (and, for historical records, doubles as the **record version** — see §3
 BLE delivers frames in MTU-sized fragments. The `Reassembler` (`Framing.swift`) accumulates bytes,
 finds the `0xAA` SOF, reads the `len` field, and only emits a frame once `len + 4` bytes are present.
 `BLEManager.didUpdateValueFor` feeds every custom-channel notification through it before routing.
+
+The reassembler knows the same per-family minimum (11 bytes on 4.0, 13 on 5.0/MG): a `0xAA` whose
+declared total is smaller is dropped and the scan resyncs on the next SOF, counted in
+`belowMinimumLengthDrops` so the byte run leaves a trace instead of disappearing.
 
 ### WHOOP 5.0 envelope
 
@@ -174,6 +182,12 @@ total = declaredLength + 8
 The inner record (`[type][seq][cmd][data…]`) starts at **offset 8** instead of offset 4, and the
 payload CRC32 is unchanged from 4.0. The whole 4-vs-5 difference is funnelled through one switch:
 `DeviceFamily.headerCRCKind`.
+
+The size rules carry over with the family's own numbers: a 5.0/MG frame must be **at least 13
+bytes** (8 header bytes including the CRC16, one payload byte, the 4-byte CRC32 trailer) and
+**exactly `declaredLength + 8`** bytes, so truncation and trailing bytes are again both rejected.
+The smallest real frame in the project's captures is exactly 11 bytes on 4.0 and 124 bytes on
+5.0/MG, so neither minimum rejects anything that has actually been recorded off a strap.
 
 ---
 

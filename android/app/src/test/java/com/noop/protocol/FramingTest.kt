@@ -2,6 +2,7 @@ package com.noop.protocol
 
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -289,16 +290,20 @@ class FramingTest {
 
     @Test
     fun parse_corruptedCrc_reportsCrcFalse() {
-        // Flip a payload byte so the CRC32 no longer matches; the frame is still well-formed (ok),
-        // but crcOk must be false so downstream code rejects it.
+        // Flip a payload byte so the CRC32 no longer matches. The envelope is still well-formed, but
+        // `ok` is the FULL verdict now, so it is false and the reason names the payload CRC — this
+        // test used to assert `ok == true` for a frame it had deliberately corrupted.
         val frame = bytes(
             0xaa, 0x12, 0x00, 0x7d, 0x28, 0x00, 0x00, 0xf1, 0x53, 0x65, 0x00, 0x00,
             0x3e, 0x02, 0x52, 0x03, 0x66, 0x03, 0x73, 0x8f, 0x40, 0xae,
         )
         frame[12] = (frame[12] + 1).toByte() // mutate heart_rate byte
         val r = Framing.parseFrame(frame)
-        assertTrue(r.ok)
+        assertFalse(r.ok)
+        assertEquals(FrameRejectReason.PAYLOAD_CRC_MISMATCH, r.rejectReason)
         assertEquals(false, r.crcOk)
+        // The frame stays READABLE for inspection surfaces: a rejected frame keeps its packet type.
+        assertEquals("REALTIME_DATA", r.typeName)
     }
 
     @Test

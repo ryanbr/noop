@@ -111,6 +111,21 @@ checksum. The branch point is `DeviceFamily.headerCRCKind`:
 | `whoop4` | CRC8 (poly `0x07`) | `.crc8` |
 | `whoop5` | CRC16-Modbus (poly `0xA001`, init `0xFFFF`, reflected) | `.crc16Modbus` |
 
+Beyond the two checksums, an envelope must also satisfy two **structural** rules before it counts
+as intact. Both are enforced in one place — `verifyFrame` — and both are family-specific:
+
+| Family | Minimum total frame size | Exact total frame size |
+|--------|--------------------------|------------------------|
+| `whoop4` | **11 bytes** (`FrameLimits.whoop4MinimumFrameBytes`) | `length + 4` |
+| `whoop5` | **13 bytes** (`FrameLimits.whoop5MinimumFrameBytes`) | `declLength + 8` |
+
+The minimum is the smallest envelope that can still carry one payload byte; anything shorter has
+no payload to read and is rejected outright. The exact size is compared against the byte count that
+was actually handed in, so **a truncated frame and a frame with trailing bytes past its own end are
+both rejected** — the comparison is equality, not "at least". The smallest real frame in the
+project's captures is exactly 11 bytes (WHOOP 4.0) and 124 bytes (WHOOP 5.0/MG), so neither bound
+rejects a recorded frame.
+
 ### 2.1 WHOOP 4.0 envelope
 
 ```
@@ -130,19 +145,37 @@ total frame size = length + 4
   (command number, §6), then the payload.
 - **`crc32`** — standard zlib CRC-32 (reflected, poly `0xEDB88320`), `u32` little-endian,
   computed over the **inner bytes** `frame[4 .. length)`.
+- **structural size** — the frame must be at least **11 bytes** long and must carry **exactly**
+  `length + 4` bytes. Fewer (a truncated frame) and more (trailing bytes) are both rejected.
 
 Reference: `verifyFrame(_:)` and `crc8(_:)` / `crc32(_:)` in `Framing.swift`, and the
 outbound builder `WhoopCommand.frame(seq:payload:)` in `Strand/BLE/Commands.swift`.
 
 ```swift
 // Framing.swift — WHOOP 4.0 validation (abridged)
-let length = u16le(frame, 1)
-let crc8OK = crc8([frame[1], frame[2]]) == frame[3]
-if 7 <= length && length + 4 <= frame.count {
-    let inner = Array(frame[4..<length])
-    crc32OK = crc32(inner) == u32le(frame, length)
+guard frame.first == 0xAA else { return FrameCheck(ok: false, reason: .noStartOfFrame) }
+guard frame.count >= FrameLimits.whoop4MinimumFrameBytes else {
+    return FrameCheck(ok: false, reason: .belowMinimumLength)
 }
+let length = u16le(frame, 1)
+let total = length + 4
+let crc8OK = crc8(frame, 1, 3) == frame[3]          // ranged: no per-frame sub-array copy
+var crc32OK: Bool? = nil
+if 7 <= length && total <= frame.count {
+    crc32OK = crc32(frame, 4, length) == u32le(frame, length)
+}
+// One verdict, one reason: structure first, then the header checksum, then the payload CRC32.
+let reason = frameRejectReason(totalFromLength: total, actualCount: frame.count,
+                               minimumBytes: FrameLimits.whoop4MinimumFrameBytes,
+                               headerCRCOK: crc8OK, crc32OK: crc32OK)
+return FrameCheck(ok: reason == .none, length: length, crc8OK: crc8OK, crc32OK: crc32OK,
+                  reason: reason)
 ```
+
+The payload CRC32 is still computed when the byte count and the declared total disagree, so the
+combination "payload CRC right, envelope wrong" stays observable in `FrameCheck.crc32OK` — but it
+does not make the frame intact. A payload CRC32 that could **not** be computed at all is likewise a
+rejection (`.payloadCRCUnverifiable`), never an "unknown" a consumer might read as a pass.
 
 ### 2.2 WHOOP 5.0 / MG envelope
 
@@ -164,6 +197,9 @@ total frame size = declLength + 8
   `frame[6..8]`.
 - **inner record** — starts at **offset 8**: `type` `[8]`, `seq` `[9]`, `cmd` `[10]`, payload `[11..]`.
 - **`crc32`** — same zlib CRC-32, LE, over the payload `frame[8 .. declLength+4)`.
+- **structural size** — the frame must be at least **13 bytes** long (8 header bytes including the
+  CRC16, one payload byte, the 4-byte CRC32 trailer) and must carry **exactly** `declLength + 8`
+  bytes. As on 4.0, truncation and trailing bytes are both rejected.
 
 Reference: `verifyFrameWhoop5(_:)` / `parseFrameWhoop5(_:)`. For a uniform "header CRC ok?"
 signal across families, the `FrameCheck.crc8OK` field carries the **CRC16** outcome on 5.0.
@@ -235,11 +271,29 @@ from a strap whose stored value is `0`. See #891.
 | CRC32 (zlib) | `crc32(_:)` | reflected, poly `0xEDB88320`, init `0xFFFFFFFF`, final XOR `0xFFFFFFFF` |
 | CRC16-Modbus | `crc16Modbus(_:)` | poly `0xA001`, init `0xFFFF`, reflected |
 
-CRC32 is the protocol's **only payload-integrity guarantee**. Decode and state-update paths
-reject any frame whose CRC32 fails: `FrameRouter.handle(frame:)` bails on `parsed.crcOK == false`,
-and `classifyHistoricalMeta(_:)` refuses to act on a frame where `p.crcOK == false` — without
-that gate a garbled or hostile peer could forge a `HISTORY_END`/`HISTORY_COMPLETE` and advance
-the strap's trim cursor, discarding data that was never durably stored.
+CRC32 is the protocol's **only payload-integrity guarantee**, and it is not the whole gate.
+`verifyFrame` folds the header checksum, the payload CRC32 **and** the structural size rules of §2
+into a single verdict, published as `FrameCheck.ok` and carried onto `ParsedFrame.ok` (§8). Decode
+and state-update paths ask for that one verdict:
+
+```swift
+let parsed = parseFrame(frame, family: family)
+guard parsed.ok else { return }   // header checksum + payload CRC32 + structural size, in one step
+```
+
+`FrameRouter.handle(parsed:frame:)` and `classifyHistoricalMeta(_:)` both gate on it. Without that
+gate a garbled or hostile peer could forge a `HISTORY_END`/`HISTORY_COMPLETE` and advance the strap's
+trim cursor, discarding data that was never durably stored — and a payload CRC32 check on its own
+would not stop it, because the forged frame's own payload CRC32 can be correct while its header
+checksum or declared length is not.
+
+None of this claims **authenticity**: a CRC is not a signature. A peer that forms the envelope
+correctly is not excluded. The scope of the gate is likewise deliberate — six state-driving
+consumers (the router, the historical-metadata classifier, live-stream extraction, historical-row
+extraction, clock correlation, and the data-range reply) require the full verdict, not "every frame
+consumer". Evidence-preserving readers are the documented exception: a raw history frame with a
+negative verdict is archived *because* it failed, so the only durable copy of a frame the strap is
+about to release is not the one that gets dropped.
 
 ### 2.6 Reassembly
 
@@ -248,6 +302,13 @@ bytes, finds the `0xAA` SOF, reads the `u16` LE length at `buf[1..3]`, and emits
 frame once `buf.count ≥ length + 4`. Leading garbage before an SOF is discarded; a buffer with
 no SOF is dropped. The app feeds the data/cmd/event notify characteristics through one
 `Reassembler` in `peripheral(_:didUpdateValueFor:error:)`.
+
+The reassembler applies the **same family minimum** as `verifyFrame` (11 / 13 bytes): a `0xAA`
+whose declared total falls below it cannot be a frame at all — its "inner fields" would be its own
+checksum trailer — so that SOF is dropped and the scan resyncs on the next one. Such a drop is
+counted in `Reassembler.belowMinimumLengthDrops` rather than vanishing silently, because a byte run
+discarded here never reaches a parser and never reaches the evidence-preserving reader either. The
+existing ceiling (`maxFrameBytes`, 8192) resyncs the same way at the other end.
 
 ```swift
 // usage in BLEManager
@@ -258,8 +319,11 @@ for frame in reassembler.feed(bytes) {
 ```
 
 `frameFromPayload(_:type:seq:cmd:)` reconstructs a complete frame from a bare payload (used when
-a capture stored only the data portion): it rebuilds the envelope with a correct zlib CRC32 and
-a placeholder `0x00` CRC8 byte.
+a capture stored only the data portion): it rebuilds the envelope with a correct zlib CRC32 **and**
+a correctly computed CRC8 header byte. The CRC8 used to be a `0x00` placeholder, which was harmless
+only while the gates asked whether the payload CRC32 was demonstrably wrong; under the full verdict
+a placeholder header makes every rebuilt frame fail, so the rebuild now round-trips through
+`verifyFrame` positively.
 
 ---
 
@@ -755,9 +819,52 @@ waiting on a network.
 
 ## 8. Decoded output (`ParsedFrame`)
 
-`parseFrame(_:)` returns a `ParsedFrame` with the validated envelope, a typed field list
+`parseFrame(_:)` returns a `ParsedFrame` with the envelope verdict, a typed field list
 (`[DecodedField]`), and a flat `parsed: [String: ParsedValue]` dictionary that downstream code
-reads. Key entries by packet type:
+reads.
+
+**`ok` means "intact", not "parsed".** It carries `verifyFrame`'s full verdict — header checksum,
+payload CRC32 and structural size together — for the frame as a whole. It is *not* a parsability
+signal: a frame with a broken header still gets decoded, so an inspector surface, a capture export
+or a diagnostic summary keeps the frame's `typeName` and its `parsed` fields even when `ok` is
+false. Code that wants to know whether the decode produced anything must ask for that (the parser
+returns `typeName == "INVALID/FRAGMENT"` when it could not decode at all), not read `ok`.
+
+**`rejectReason` says why.** It is a non-optional `FrameRejectReason` sitting on the parse result
+itself, so a consumer can report the cause from the value it was handed — the frame is parsed
+exactly once and the result threaded onwards, and a consumer that had to re-verify to learn the
+reason would break that invariant. `.none` accompanies a positive verdict and only that:
+
+| `rejectReason` | Meaning |
+|---|---|
+| `none` | Intact: header checksum, payload CRC32 and structural size all agree. |
+| `noStartOfFrame` | No `0xAA` — this byte run is not a frame. |
+| `belowMinimumLength` | Below the family minimum (11 / 13 bytes). |
+| `lengthMismatch` | Byte count ≠ the total the length field declares: truncated, or trailing bytes. |
+| `headerChecksumMismatch` | CRC8 (4.0) or CRC16-Modbus (5.0/MG) disagreed. |
+| `payloadCRCMismatch` | The payload CRC32 was computed and disagreed. |
+| `payloadCRCUnverifiable` | The payload CRC32 could not be computed. A **rejection**, not "unknown". |
+
+The two payload-CRC cases stay apart on purpose: "we could not compute the CRC32" is a different
+claim from "the CRC32 disagreed", and a diagnostic may only assert what it observed. Decoding a
+`ParsedFrame` from an older capture that predates the field defaults `rejectReason` to `.none`
+rather than failing.
+
+**Named inner-field reads are bounded by the CRC32 trailer.** Every read of a named field —
+sequence byte, command byte, and the schema-driven fields including the per-type post-hooks — is
+clamped to the **minimum of where the trailer starts and the frame's real size**. The minimum is
+required in both directions: the trailer start follows from the *declared* length and points past
+the buffer on a truncated frame, while the frame size alone is what let a frame sitting at the
+family minimum have its own checksum trailer decoded as a sequence number or a metadata type. A
+field counts as present when its start plus its length does **not exceed** that bound — the
+smallest real WHOOP 4.0 history frame is 11 bytes with its trailer at 7, and its metadata type
+occupies precisely the last payload byte, so a stricter comparison would swallow
+`HISTORY_COMPLETE`. The one exception is the 8-byte `end_data` acknowledgement block that §7.4
+echoes back to the strap verbatim: it reaches into the CRC32 trailer by construction (on the real
+25-byte `HISTORY_END` frame the trailer starts at 21 and the block runs 17…25) and is an opaque
+echo, not a decoded field.
+
+Key `parsed` entries by packet type:
 
 | Packet | `parsed` keys (examples) |
 |--------|--------------------------|

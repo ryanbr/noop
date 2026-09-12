@@ -817,11 +817,16 @@ private func toWall(_ deviceTs: Int?, _ deviceClockRef: Int, _ wallClockRef: Int
 ///
 /// HR/R-R are taken ONLY from REALTIME_DATA (type 40). REALTIME_RAW_DATA (type 43) also
 /// carries an HR byte but streams alongside type-40 during raw collection, so routing both
-/// would double-count HR for the same instants. CRC-failed and non-ok frames are skipped.
+/// would double-count HR for the same instants. Frames whose integrity verdict is negative are
+/// skipped — no row is derived from a frame that is not intact.
 public func extractStreams(_ parsed: [ParsedFrame],
                            deviceClockRef: Int, wallClockRef: Int) -> Streams {
     var out = Streams()
     for r in parsed {
+        // `ok` is now the FULL verdict — header checksum, payload CRC32 and structural length — so it
+        // alone rejects everything the two-part check used to. The `crcOK` half is kept for the same
+        // reason as in `extractHistoricalStreams`: a parse result decoded from a capture written before
+        // the verdict widened carries the old constant `ok: true` beside a false `crcOK`.
         if !r.ok || r.crcOK == false { continue }
         let p = r.parsed
         switch r.typeName {

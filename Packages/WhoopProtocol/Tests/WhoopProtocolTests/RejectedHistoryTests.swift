@@ -77,6 +77,31 @@ final class RejectedHistoryTests: XCTestCase {
         XCTAssertTrue(rejectedHistoricalRecords([v26], family: .whoop5).isEmpty)
     }
 
+    /// The v26 skip is bound to the VERDICT, not to the version byte alone. Its whole premise is that
+    /// `extractHistoricalStreams` stores such a record durably in the PPG waveform stream — which stops
+    /// being true the moment the record is rejected: the extraction drops it, and an unconditional skip
+    /// here would leave it archived nowhere while the section is acked anyway.
+    func testWhoop5V26RecordWithABrokenHeaderChecksumIsArchived() {
+        var bad = bytes(whoop5V26Hex)
+        bad[6] ^= 0xFF                                  // CRC-16-Modbus over the first six bytes
+        XCTAssertEqual(bad[8], 47)                      // still a HISTORICAL_DATA record…
+        XCTAssertEqual(bad[9], 26)                      // …still version 26
+        let p = parseFrame(bad, family: .whoop5)
+        XCTAssertEqual(p.crcOK, true, "precondition: the PAYLOAD CRC32 still verifies")
+        XCTAssertEqual(p.rejectReason, .headerChecksumMismatch)
+        XCTAssertEqual(rejectedHistoricalRecords([bad], family: .whoop5), [bad],
+                       "a rejected v26 record reaches no stream, so its bytes are the only copy left")
+    }
+
+    /// The other direction of the same rule: binding the skip to the verdict must not start archiving
+    /// the NORMAL case. An intact v26 record is stored in its own stream and stays out of the archive.
+    func testIntactWhoop5V26RecordIsStillNotArchived() {
+        let v26 = bytes(whoop5V26Hex)
+        XCTAssertTrue(parseFrame(v26, family: .whoop5).ok, "precondition: the record is intact")
+        XCTAssertTrue(rejectedHistoricalRecords([v26], family: .whoop5).isEmpty,
+                      "the archive must not grow by the normal case")
+    }
+
     func testNonHistoricalFrameExcluded() {
         // A REALTIME_DATA (type-40) frame is live, not offload — never a history-loss candidate.
         let realtime = frameFromPayload([0x01, 0x02, 0x03], type: 40, seq: 0, cmd: 0)
@@ -96,6 +121,75 @@ final class RejectedHistoryTests: XCTestCase {
         let console = frameFromPayload([0x00], type: 50, seq: 0, cmd: 0)
         let rejected = rejectedHistoricalRecords([good, bad, console], family: .whoop4)
         XCTAssertEqual(rejected, [bad])
+    }
+
+    // MARK: - D8: this reader runs the OTHER WAY ROUND — a negative verdict means ARCHIVE
+
+    /// Scenario "Beweissichernde Leser verlieren keine Rahmen / Rahmen mit kaputtem Header wird
+    /// gesichert statt verworfen". Before the change this frame passed as decodable and was archived
+    /// NOWHERE; the strap frees it on the next trim ack, so the archive is the only copy that can exist.
+    func testWhoop4RecordWithABrokenHeaderChecksumIsArchived() {
+        var bad = bytes(v24Hex)
+        bad[3] ^= 0xFF                                  // CRC-8 over the length field only
+        let p = parseFrame(bad)
+        XCTAssertEqual(p.crcOK, true, "precondition: the PAYLOAD CRC32 still verifies")
+        XCTAssertEqual(p.rejectReason, .headerChecksumMismatch)
+        XCTAssertEqual(rejectedHistoricalRecords([bad], family: .whoop4), [bad],
+                       "a frame we cannot trust is a frame we must keep the bytes of")
+    }
+
+    func testWhoop5RecordWithABrokenHeaderChecksumIsArchived() {
+        var bad = bytes(whoop5V18Hex)
+        bad[6] ^= 0xFF                                  // CRC-16-Modbus over the first six bytes
+        XCTAssertEqual(bad[8], 47)
+        XCTAssertEqual(parseFrame(bad, family: .whoop5).rejectReason, .headerChecksumMismatch)
+        XCTAssertEqual(rejectedHistoricalRecords([bad], family: .whoop5), [bad])
+    }
+
+    func testWhoop4RecordWithTrailingBytesIsArchived() {
+        let bad = bytes(v24Hex) + [0x00]                // one byte past the frame's own end
+        XCTAssertEqual(parseFrame(bad).rejectReason, .lengthMismatch)
+        XCTAssertEqual(rejectedHistoricalRecords([bad], family: .whoop4), [bad])
+    }
+
+    func testWhoop4RecordWithATruncatedTrailerIsArchived() {
+        let bad = Array(bytes(v24Hex).dropLast(2))
+        XCTAssertEqual(parseFrame(bad).rejectReason, .lengthMismatch)
+        XCTAssertEqual(rejectedHistoricalRecords([bad], family: .whoop4), [bad])
+    }
+
+    /// Scenario "Bisher gesicherte Rahmen bleiben gesichert", over the real capture corpus.
+    ///
+    /// The pre-change reader is re-implemented here verbatim, with the one substitution the change
+    /// makes: its `ok` was a constant that meant "these bytes read as a frame", which is
+    /// `isParsable` today. Every frame it would have archived must still be archived. The direction
+    /// is asserted as a SUBSET, not as equality, because the new reader is expected to archive more.
+    func testNoCorpusFrameIsArchivedLessThanBefore() throws {
+        let url = try XCTUnwrap(Bundle.module.url(forResource: "frames", withExtension: "json"),
+                                "the WHOOP 4.0 capture corpus must be present")
+        struct HexOnly: Decodable { let hex: String }
+        let corpus = try JSONDecoder().decode([HexOnly].self, from: Data(contentsOf: url))
+            .map { bytes($0.hex) }
+        XCTAssertGreaterThan(corpus.count, 50, "precondition: a corpus worth calling a corpus")
+
+        // The pre-change predicate, for WHOOP 4.0.
+        func archivedBefore(_ f: [UInt8]) -> Bool {
+            guard f.count > 4, Int(f[4]) == 47 else { return false }
+            let p = parseFrame(f, family: .whoop4)
+            if !p.isParsable || p.crcOK == false { return true }
+            return p.parsed["unix"]?.intValue == nil
+                || (p.parsed["heart_rate"]?.intValue == nil && p.parsed["gravity_x"]?.doubleValue == nil)
+        }
+
+        let before = corpus.filter(archivedBefore)
+        let now = Set(rejectedHistoricalRecords(corpus, family: .whoop4).map { Data($0) })
+        for f in before {
+            XCTAssertTrue(now.contains(Data(f)),
+                          "a frame archived before this change must still be archived: \(f.prefix(8))")
+        }
+        // And nothing INTACT and decodable was dragged in: the corpus's clean records stay out.
+        let clean = corpus.filter { $0.count > 4 && Int($0[4]) == 47 && parseFrame($0).ok }
+        XCTAssertGreaterThan(clean.count, 0, "precondition: the corpus holds intact type-47 records")
     }
 
     func testIsEmptyRecordFrameFlagsAllZeroPayloadOnly() {

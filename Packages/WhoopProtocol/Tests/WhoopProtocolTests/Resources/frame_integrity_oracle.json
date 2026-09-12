@@ -1,0 +1,498 @@
+{
+  "_comment": [
+    "SHARED FRAME-INTEGRITY ORACLE (change frame-integrity, D5 / task 4.2).",
+    "Generated — do not hand-edit. Regenerate with:",
+    "swift run --package-path openspec/changes/frame-integrity/oracle-gen FrameIntegrityOracleGen",
+    "Two byte-identical copies are committed, one per test tree, and both suites assert every case",
+    "and all three pinned fields (verdict, reject_reason, meta), so neither platform can move its",
+    "verifier without the other's suite going red.",
+    "verdict       = ParsedFrame.ok, the verifier's FULL verdict.",
+    "reject_reason = the Swift FrameRejectReason rawValue; Kotlin maps its enum through wireName.",
+    "meta          = classifyHistoricalMeta, as start | complete | other | end(unix=U,trim=T).",
+    "ecg_inner_payload_hex is present only on cases with ecg_path true (the second verifying path,",
+    "Whoop5Ecg.innerPayload); null means that path refused the frame.",
+    "The export FORM of a reject reason differs by design (Kotlin omits the key when there is no",
+    "reason, Swift always writes it) — this oracle pins the verdict, the reason and the",
+    "classification, never the export spelling."
+  ],
+  "coverage": {
+    "case_count": 45,
+    "classes": {
+      "below_minimum": 4,
+      "boundary": 3,
+      "ecg_path": 3,
+      "evaluation_order": 4,
+      "header_corrupt": 5,
+      "no_start_of_frame": 4,
+      "payload_corrupt": 5,
+      "trailing_bytes": 3,
+      "truncated": 4,
+      "valid_recorded": 9,
+      "valid_synthetic": 1
+    },
+    "reasons": {
+      "belowMinimumLength": 5,
+      "headerChecksumMismatch": 7,
+      "lengthMismatch": 10,
+      "noStartOfFrame": 4,
+      "none": 14,
+      "payloadCRCMismatch": 5
+    }
+  },
+  "cases": [
+    {
+      "name": "w4_realtime_valid",
+      "family": "whoop4",
+      "class": "valid_recorded",
+      "hex": "aa1800ff28020f3de10128663c0000000000000000000000da855212",
+      "verdict": true,
+      "reject_reason": "none",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "w4_meta_history_start_11",
+      "family": "whoop4",
+      "class": "valid_recorded",
+      "hex": "aa07006b3100012366efad",
+      "verdict": true,
+      "reject_reason": "none",
+      "meta": "start",
+      "ecg_path": false
+    },
+    {
+      "name": "w4_meta_history_complete_11",
+      "family": "whoop4",
+      "class": "valid_recorded",
+      "hex": "aa07006b3100030f07e143",
+      "verdict": true,
+      "reject_reason": "none",
+      "meta": "complete",
+      "ecg_path": false
+    },
+    {
+      "name": "w4_history_end_25",
+      "family": "whoop4",
+      "class": "valid_recorded",
+      "hex": "aa15001631000200f1536500000000000039300000c3401bdb",
+      "verdict": true,
+      "reject_reason": "none",
+      "meta": "end(unix=1700000000,trim=12345)",
+      "ecg_path": false
+    },
+    {
+      "name": "w4_historical_v24_valid",
+      "family": "whoop4",
+      "class": "valid_recorded",
+      "hex": "aa6400a12f18054c1c0a023ed0266a5037805418016d022b0234020000000000006b07ff0085593c1f65cebed7b3e63eb85a5f3f000080401f65cebed7b3e63eb85a5f3f500264025d03640229014009010c020c00000000000f0001c4020000000000008fdeb278",
+      "verdict": true,
+      "reject_reason": "none",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "w4_historical_v25_valid",
+      "family": "whoop4",
+      "class": "valid_recorded",
+      "hex": "aa50000c2f1900006800007dff2a6a20430900433103007e026502ba026c022eff70f996f879fad6fd8300d6017e0267027201be00290258030e05c507f00c030ead11cb15791500d2553c9003000000d6393716",
+      "verdict": true,
+      "reject_reason": "none",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "w5_historical_v18_valid",
+      "family": "whoop5",
+      "class": "valid_recorded",
+      "hex": "aa01740001003fb12f1280733d8401b69f266a66460066025a0265020000000000007b0a8d656463ff0012163cf6a439bf2924fd3ed763fe3e3200aa000000000000000000f7000901f10b0007010c020c00000000000000000000000000000000000000000000000100656f1e1e0000009d61a7c00000003e862817",
+      "verdict": true,
+      "reject_reason": "none",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "w5_meta_history_end_valid",
+      "family": "whoop5",
+      "class": "valid_recorded",
+      "hex": "aa011c00010023d1316a0284a3266a0a373d00000041b601001000000000000044d21e3d",
+      "verdict": true,
+      "reject_reason": "none",
+      "meta": "end(unix=1780917124,trim=112193)",
+      "ecg_path": false
+    },
+    {
+      "name": "w5_meta_history_start_valid",
+      "family": "whoop5",
+      "class": "valid_recorded",
+      "hex": "aa012c0001002cd1312c0184a3266ad7230d0000005200000000000000320000002600000001000000000000000b010034497926",
+      "verdict": true,
+      "reject_reason": "none",
+      "meta": "start",
+      "ecg_path": false
+    },
+    {
+      "name": "w5_command_response_valid",
+      "family": "whoop5",
+      "class": "valid_synthetic",
+      "hex": "aa010c000001e74124070211223344557481f36e",
+      "verdict": true,
+      "reject_reason": "none",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "w4_realtime_header_checksum_corrupt",
+      "family": "whoop4",
+      "class": "header_corrupt",
+      "hex": "aa18000028020f3de10128663c0000000000000000000000da855212",
+      "verdict": false,
+      "reject_reason": "headerChecksumMismatch",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "w4_history_end_25_header_corrupt",
+      "family": "whoop4",
+      "class": "header_corrupt",
+      "hex": "aa1500e931000200f1536500000000000039300000c3401bdb",
+      "verdict": false,
+      "reject_reason": "headerChecksumMismatch",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "w4_meta_complete_11_header_corrupt",
+      "family": "whoop4",
+      "class": "header_corrupt",
+      "hex": "aa0700943100030f07e143",
+      "verdict": false,
+      "reject_reason": "headerChecksumMismatch",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "w5_command_response_header_crc16_corrupt",
+      "family": "whoop5",
+      "class": "header_corrupt",
+      "hex": "aa010c000001184124070211223344557481f36e",
+      "verdict": false,
+      "reject_reason": "headerChecksumMismatch",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "w5_meta_history_end_header_corrupt",
+      "family": "whoop5",
+      "class": "header_corrupt",
+      "hex": "aa011c000100dcd1316a0284a3266a0a373d00000041b601001000000000000044d21e3d",
+      "verdict": false,
+      "reject_reason": "headerChecksumMismatch",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "w4_realtime_payload_corrupt",
+      "family": "whoop4",
+      "class": "payload_corrupt",
+      "hex": "aa1800ff28020f3d1e0128663c0000000000000000000000da855212",
+      "verdict": false,
+      "reject_reason": "payloadCRCMismatch",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "w4_history_end_25_payload_corrupt",
+      "family": "whoop4",
+      "class": "payload_corrupt",
+      "hex": "aa150016310002000e536500000000000039300000c3401bdb",
+      "verdict": false,
+      "reject_reason": "payloadCRCMismatch",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "w4_historical_v24_payload_corrupt",
+      "family": "whoop4",
+      "class": "payload_corrupt",
+      "hex": "aa6400a12f18054c1c0a023ed0266a5037805418fe6d022b0234020000000000006b07ff0085593c1f65cebed7b3e63eb85a5f3f000080401f65cebed7b3e63eb85a5f3f500264025d03640229014009010c020c00000000000f0001c4020000000000008fdeb278",
+      "verdict": false,
+      "reject_reason": "payloadCRCMismatch",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "w5_historical_v18_payload_corrupt",
+      "family": "whoop5",
+      "class": "payload_corrupt",
+      "hex": "aa01740001003fb12f1280733d8401b69f266a66b90066025a0265020000000000007b0a8d656463ff0012163cf6a439bf2924fd3ed763fe3e3200aa000000000000000000f7000901f10b0007010c020c00000000000000000000000000000000000000000000000100656f1e1e0000009d61a7c00000003e862817",
+      "verdict": false,
+      "reject_reason": "payloadCRCMismatch",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "w5_meta_history_end_payload_corrupt",
+      "family": "whoop5",
+      "class": "payload_corrupt",
+      "hex": "aa011c00010023d1316a0284a3266a0a373d0000ff41b601001000000000000044d21e3d",
+      "verdict": false,
+      "reject_reason": "payloadCRCMismatch",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "w4_total8_declared4",
+      "family": "whoop4",
+      "class": "below_minimum",
+      "hex": "aa04005400000000",
+      "verdict": false,
+      "reject_reason": "belowMinimumLength",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "w4_total9_declared5",
+      "family": "whoop4",
+      "class": "below_minimum",
+      "hex": "aa05004131b7efdc83",
+      "verdict": false,
+      "reject_reason": "belowMinimumLength",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "w4_total10_declared6",
+      "family": "whoop4",
+      "class": "below_minimum",
+      "hex": "aa06007e31004d158487",
+      "verdict": false,
+      "reject_reason": "belowMinimumLength",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "w5_total12_declared4",
+      "family": "whoop5",
+      "class": "below_minimum",
+      "hex": "aa0104000001e52100000000",
+      "verdict": false,
+      "reject_reason": "belowMinimumLength",
+      "meta": "other",
+      "ecg_path": true,
+      "ecg_inner_payload_hex": null
+    },
+    {
+      "name": "w4_realtime_truncated_by_1",
+      "family": "whoop4",
+      "class": "truncated",
+      "hex": "aa1800ff28020f3de10128663c0000000000000000000000da8552",
+      "verdict": false,
+      "reject_reason": "lengthMismatch",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "w4_history_end_25_trailer_truncated",
+      "family": "whoop4",
+      "class": "truncated",
+      "hex": "aa15001631000200f1536500000000000039300000c340",
+      "verdict": false,
+      "reject_reason": "lengthMismatch",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "w5_historical_v18_truncated_by_1",
+      "family": "whoop5",
+      "class": "truncated",
+      "hex": "aa01740001003fb12f1280733d8401b69f266a66460066025a0265020000000000007b0a8d656463ff0012163cf6a439bf2924fd3ed763fe3e3200aa000000000000000000f7000901f10b0007010c020c00000000000000000000000000000000000000000000000100656f1e1e0000009d61a7c00000003e8628",
+      "verdict": false,
+      "reject_reason": "lengthMismatch",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "w4_huge_declared_length_11_present",
+      "family": "whoop4",
+      "class": "truncated",
+      "hex": "aa00f0de31000102030405",
+      "verdict": false,
+      "reject_reason": "lengthMismatch",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "w4_realtime_trailing_byte",
+      "family": "whoop4",
+      "class": "trailing_bytes",
+      "hex": "aa1800ff28020f3de10128663c0000000000000000000000da85521200",
+      "verdict": false,
+      "reject_reason": "lengthMismatch",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "w4_meta_complete_11_trailing_byte",
+      "family": "whoop4",
+      "class": "trailing_bytes",
+      "hex": "aa07006b3100030f07e14300",
+      "verdict": false,
+      "reject_reason": "lengthMismatch",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "w5_command_response_trailing_byte",
+      "family": "whoop5",
+      "class": "trailing_bytes",
+      "hex": "aa010c000001e74124070211223344557481f36e00",
+      "verdict": false,
+      "reject_reason": "lengthMismatch",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "w5_min13_metadata_boundary",
+      "family": "whoop5",
+      "class": "boundary",
+      "hex": "aa0105000001e4dd31b7efdc83",
+      "verdict": true,
+      "reject_reason": "none",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "w5_meta14_fakes_history_complete",
+      "family": "whoop5",
+      "class": "boundary",
+      "hex": "aa0106000001e49931530315e675",
+      "verdict": true,
+      "reject_reason": "none",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "w4_short_realtime_14",
+      "family": "whoop4",
+      "class": "boundary",
+      "hex": "aa0a0082280111223344854deb31",
+      "verdict": true,
+      "reject_reason": "none",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "no_start_of_frame_w4",
+      "family": "whoop4",
+      "class": "no_start_of_frame",
+      "hex": "bb1800ff28020f3de10128663c0000000000000000000000da855212",
+      "verdict": false,
+      "reject_reason": "noStartOfFrame",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "no_start_of_frame_w5",
+      "family": "whoop5",
+      "class": "no_start_of_frame",
+      "hex": "bb010c000001e74124070211223344557481f36e",
+      "verdict": false,
+      "reject_reason": "noStartOfFrame",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "empty_byte_run_w4",
+      "family": "whoop4",
+      "class": "no_start_of_frame",
+      "hex": "",
+      "verdict": false,
+      "reject_reason": "noStartOfFrame",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "empty_byte_run_w5",
+      "family": "whoop5",
+      "class": "no_start_of_frame",
+      "hex": "",
+      "verdict": false,
+      "reject_reason": "noStartOfFrame",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "w4_length_field_corrupt_order_length_before_header",
+      "family": "whoop4",
+      "class": "evaluation_order",
+      "hex": "aae700ff28020f3de10128663c0000000000000000000000da855212",
+      "verdict": false,
+      "reject_reason": "lengthMismatch",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "w4_header_and_payload_both_corrupt",
+      "family": "whoop4",
+      "class": "evaluation_order",
+      "hex": "aa18000028020f3d1e0128663c0000000000000000000000da855212",
+      "verdict": false,
+      "reject_reason": "headerChecksumMismatch",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "w4_below_minimum_and_header_corrupt",
+      "family": "whoop4",
+      "class": "evaluation_order",
+      "hex": "aa0400ab00000000",
+      "verdict": false,
+      "reject_reason": "belowMinimumLength",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "w5_trailing_byte_and_header_corrupt",
+      "family": "whoop5",
+      "class": "evaluation_order",
+      "hex": "aa010c000001184124070211223344557481f36e00",
+      "verdict": false,
+      "reject_reason": "lengthMismatch",
+      "meta": "other",
+      "ecg_path": false
+    },
+    {
+      "name": "w5_ecg_filtered_valid",
+      "family": "whoop5",
+      "class": "ecg_path",
+      "hex": "aa0120000001efd128010002050101000100012a003d3f2c031103000a00f6ff2c0100004decffd3",
+      "verdict": true,
+      "reject_reason": "none",
+      "meta": "other",
+      "ecg_path": true,
+      "ecg_inner_payload_hex": "02050101000100012a003d3f2c031103000a00f6ff2c010000"
+    },
+    {
+      "name": "w5_ecg_filtered_trailing_byte",
+      "family": "whoop5",
+      "class": "ecg_path",
+      "hex": "aa0120000001efd128010002050101000100012a003d3f2c031103000a00f6ff2c0100004decffd300",
+      "verdict": false,
+      "reject_reason": "lengthMismatch",
+      "meta": "other",
+      "ecg_path": true,
+      "ecg_inner_payload_hex": null
+    },
+    {
+      "name": "w5_ecg_header_crc16_corrupt",
+      "family": "whoop5",
+      "class": "ecg_path",
+      "hex": "aa012000000110d128010002050101000100012a003d3f2c031103000a00f6ff2c0100004decffd3",
+      "verdict": false,
+      "reject_reason": "headerChecksumMismatch",
+      "meta": "other",
+      "ecg_path": true,
+      "ecg_inner_payload_hex": null
+    }
+  ]
+}

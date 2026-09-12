@@ -505,4 +505,38 @@ final class DeviceConfigReadProbeTests: XCTestCase {
         """
         XCTAssertEqual(report.render(), golden)
     }
+
+    // MARK: - direct caller of the verifier (2.5): the useful path is unchanged
+
+    /// `DeviceConfigReadProbe.parse` gates on `verifyFrame` directly. The ordinary replies must still
+    /// decode under the tightened verifier, and the newly-rejected classes must come back as its own
+    /// `.crc` refusal instead of being read.
+    func testTheOrdinaryReplyStillDecodesUnderTheTightenedVerifier() {
+        let record = echoRecord("enable_r22_packets", value: 0x32, lead: [0x01])
+        let five = whoop5Response(cmd: 128, payload: payload(result: 1, record: record))
+        XCTAssertEqual(verifyFrame(five, family: .whoop5).reason, .none, "precondition: intact")
+        guard case .success(let r) = DeviceConfigReadProbe.parse(frame: five, family: .whoop5, expecting: 128) else {
+            return XCTFail("the 5/MG useful path must still decode")
+        }
+        XCTAssertEqual(r.value(for: "enable_r22_packets"), 0x32)
+
+        let four = whoop4Response(cmd: 121, payload: payload(result: 1, record: echoRecord("k", value: 0x31)))
+        XCTAssertEqual(verifyFrame(four, family: .whoop4).reason, .none)
+        guard case .success = DeviceConfigReadProbe.parse(frame: four, family: .whoop4, expecting: 121) else {
+            return XCTFail("the 4.0 useful path must still decode")
+        }
+    }
+
+    func testAReplyWithTrailingBytesIsRefusedNotRead() {
+        let frame = whoop4Response(cmd: 121, payload: payload(result: 1, record: echoRecord("k", value: 0x31))) + [0x00]
+        XCTAssertEqual(verifyFrame(frame, family: .whoop4).reason, .lengthMismatch)
+        XCTAssertEqual(DeviceConfigReadProbe.parse(frame: frame, family: .whoop4, expecting: 121), .failure(.crc))
+    }
+
+    func testAReplyWithABrokenHeaderChecksumIsRefusedNotRead() {
+        var frame = whoop4Response(cmd: 121, payload: payload(result: 1, record: echoRecord("k", value: 0x31)))
+        frame[3] ^= 0xFF
+        XCTAssertEqual(verifyFrame(frame, family: .whoop4).crc32OK, true, "the payload CRC32 still verifies")
+        XCTAssertEqual(DeviceConfigReadProbe.parse(frame: frame, family: .whoop4, expecting: 121), .failure(.crc))
+    }
 }

@@ -21,18 +21,56 @@ package com.noop.protocol
  */
 
 // MARK: - little-endian readers (null when out of range; mirror interpreter._read)
+//
+// [limit] is the EXCLUSIVE upper bound for a NAMED INNER FIELD (D7): the minimum of where the CRC32
+// trailer starts and how many bytes the frame actually has. It is a required argument, not a
+// defaulted one, so adding a field read without deciding its bound does not compile. Callers derive
+// it with [payloadLimitOf], which never returns more than the frame size, so passing it is at least
+// as safe as the old size-only bound and never reads a byte that is not there.
 
-private fun ByteArray.u8(off: Int): Int? = if (off + 1 <= size) this[off].toInt() and 0xFF else null
+private fun ByteArray.u8(off: Int, limit: Int): Int? =
+    if (off >= 0 && off + 1 <= limit) this[off].toInt() and 0xFF else null
 
-private fun ByteArray.u16(off: Int): Int? =
-    if (off + 2 <= size) (this[off].toInt() and 0xFF) or ((this[off + 1].toInt() and 0xFF) shl 8) else null
+private fun ByteArray.u16(off: Int, limit: Int): Int? =
+    if (off >= 0 && off + 2 <= limit) (this[off].toInt() and 0xFF) or ((this[off + 1].toInt() and 0xFF) shl 8)
+    else null
 
-private fun ByteArray.u32(off: Int): Long? {
-    if (off + 4 > size) return null
+private fun ByteArray.u32(off: Int, limit: Int): Long? {
+    if (off < 0 || off + 4 > limit) return null
     return (this[off].toLong() and 0xFFL) or
         ((this[off + 1].toLong() and 0xFFL) shl 8) or
         ((this[off + 2].toLong() and 0xFFL) shl 16) or
         ((this[off + 3].toLong() and 0xFFL) shl 24)
+}
+
+/**
+ * The frame's OWN envelope words (declared length, CRC32 trailer) — bounded by the array itself, not
+ * by [payloadLimitOf]. These bytes are the envelope, never a decoded inner field, so D7 does not
+ * apply to them; keeping them on a separate reader is what stops a field read borrowing the wider
+ * bound by accident.
+ */
+private fun ByteArray.envU32(off: Int): Long? {
+    if (off < 0 || off + 4 > size) return null
+    return (this[off].toLong() and 0xFFL) or
+        ((this[off + 1].toLong() and 0xFFL) shl 8) or
+        ((this[off + 2].toLong() and 0xFFL) shl 16) or
+        ((this[off + 3].toLong() and 0xFFL) shl 24)
+}
+
+/**
+ * The exclusive upper bound for reading named inner fields out of [frame] (D7).
+ *
+ * It is the MINIMUM of the CRC32 trailer's start and the frame's real size — not one or the other.
+ * The trailer start follows from the DECLARED length, which on a truncated frame points past the
+ * last byte we hold, so using it alone would read off the end of the array; using only the frame
+ * size is what let a frame at the family minimum have its own checksum trailer decoded as a
+ * sequence number, a command byte or a metadata type. A field counts as present when its start plus
+ * its length does not EXCEED this bound: the smallest real WHOOP 4.0 history frame is 11 bytes with
+ * its trailer at 7, and its metadata type occupies precisely the last payload byte.
+ */
+private fun payloadLimitOf(frame: ByteArray, trailerStart: Int?): Int {
+    if (trailerStart == null) return frame.size
+    return minOf(maxOf(0, trailerStart), frame.size)
 }
 
 /**
@@ -52,6 +90,15 @@ class Reassembler(private val family: DeviceFamily = DeviceFamily.WHOOP4) {
     private var data = ByteArray(0)
     private var head = 0   // index of the first byte not yet consumed
     private var tail = 0   // index one past the last valid byte
+
+    /**
+     * How many start-of-frame bytes were dropped because the total length they declared was below
+     * the family minimum. Such a byte run never reaches a parser, so without this counter it would
+     * vanish without trace — and one of the readers downstream exists to preserve exactly the frames
+     * nothing else can read. Monotonic for the lifetime of the reassembler; [reset] leaves it alone.
+     */
+    var belowMinimumLengthDrops = 0
+        private set
 
     /**
      * Drop any partial-frame remnant. Called on (re)connect so a stalled or garbage frame from one
@@ -87,6 +134,14 @@ class Reassembler(private val family: DeviceFamily = DeviceFamily.WHOOP4) {
                 ((data[head + 2].toInt() and 0xFF) or ((data[head + 3].toInt() and 0xFF) shl 8)) + 8
             } else {
                 ((data[head + 1].toInt() and 0xFF) or ((data[head + 2].toInt() and 0xFF) shl 8)) + 4
+            }
+            if (total < FrameLimits.minimumFrameBytes(family)) {
+                // A declared total below the family minimum cannot be a frame: emitting it would hand
+                // a parser a byte run whose "inner fields" are its own checksum trailer. Drop this
+                // 0xAA, count it, and resync on the next one — same shape as the ceiling below.
+                belowMinimumLengthDrops += 1
+                head += 1
+                continue
             }
             if (total > MAX_FRAME_BYTES) {
                 // A corrupt or misaligned SOF decodes an impossibly large length and we'd wait forever
@@ -145,12 +200,101 @@ class Reassembler(private val family: DeviceFamily = DeviceFamily.WHOOP4) {
     }
 }
 
-/** Outcome of validating a frame envelope and its CRCs. */
-private data class FrameCheck(
+/**
+ * Why a frame failed the envelope check — one value, never null, so a consumer can report the cause
+ * without verifying or parsing the frame a second time (the parse-once invariant).
+ *
+ * [NONE] is the ONLY value that accompanies a positive verdict. The two payload-CRC cases are kept
+ * apart on purpose: a diagnostic may only assert what it observed, and "we could not compute the
+ * CRC32" is not the same claim as "the CRC32 disagreed". Twin of the Swift `FrameRejectReason`,
+ * value for value (`none` → [NONE], `noStartOfFrame` → [NO_START_OF_FRAME], … ).
+ */
+enum class FrameRejectReason {
+    /** The frame is intact: header checksum, payload CRC32 and the structural length all agree. */
+    NONE,
+
+    /** No 0xAA start-of-frame byte — this byte run is not a frame at all. */
+    NO_START_OF_FRAME,
+
+    /** Fewer bytes than the device family's smallest well-formed frame can have. */
+    BELOW_MINIMUM_LENGTH,
+
+    /**
+     * The byte count does not equal the total derived from the declared length field: the frame is
+     * truncated, or it carries trailing bytes past its own end.
+     */
+    LENGTH_MISMATCH,
+
+    /** The header checksum (CRC-8 on WHOOP 4.0, CRC-16-Modbus on WHOOP 5.0/MG) disagreed. */
+    HEADER_CHECKSUM_MISMATCH,
+
+    /** The payload CRC32 was computed and disagreed. */
+    PAYLOAD_CRC_MISMATCH,
+
+    /**
+     * The payload CRC32 could not be computed at all. Fail-closed: an unverifiable CRC counts as a
+     * negative verdict, never as "unknown". The structural rules above make this unreachable for a
+     * frame that got past them, so it is defence in depth rather than an observed class.
+     */
+    PAYLOAD_CRC_UNVERIFIABLE,
+}
+
+/**
+ * The structural lower bounds a frame must clear before any of its bytes are read as fields.
+ *
+ * WHOOP 4.0: `[SOF][len u16][crc8][type][seq][cmd] + [crc32 u32]` = 11 bytes. The zero-payload
+ * metadata frames at this bound are valid and intentional; the minimum preserves the old `length >= 7` rule.
+ * WHOOP 5.0/MG: `[SOF][fmt][declLen u16][hdr u16][crc16 u16] + >=1 payload byte + [crc32 u32]` = 13.
+ * The smallest real frame in the project's captures is exactly 11 bytes (WHOOP 4.0) and 124 bytes
+ * (WHOOP 5.0/MG), so neither bound rejects a recorded frame. Twin of the Swift `FrameLimits`.
+ */
+object FrameLimits {
+    const val WHOOP4_MINIMUM_FRAME_BYTES = 11
+    const val WHOOP5_MINIMUM_FRAME_BYTES = 13
+
+    /** The minimum total frame size for [family], in bytes. */
+    fun minimumFrameBytes(family: DeviceFamily): Int = when (family) {
+        DeviceFamily.WHOOP4 -> WHOOP4_MINIMUM_FRAME_BYTES
+        DeviceFamily.WHOOP5 -> WHOOP5_MINIMUM_FRAME_BYTES
+    }
+}
+
+/**
+ * Turn the individual outcomes into ONE verdict and ONE reason, in a fixed order: structure first
+ * (a length we cannot trust makes every later read meaningless), then the header checksum, then the
+ * payload CRC32. A null [crc32Ok] is a rejection, not an "unknown" that a consumer might read as a
+ * pass — that tri-state is exactly what let malformed frames drive live state before this change.
+ */
+private fun frameRejectReason(
+    totalFromLength: Int,
+    actualCount: Int,
+    minimumBytes: Int,
+    headerCrcOk: Boolean,
+    crc32Ok: Boolean?,
+): FrameRejectReason {
+    if (totalFromLength < minimumBytes) return FrameRejectReason.BELOW_MINIMUM_LENGTH
+    if (totalFromLength != actualCount) return FrameRejectReason.LENGTH_MISMATCH
+    if (!headerCrcOk) return FrameRejectReason.HEADER_CHECKSUM_MISMATCH
+    return when (crc32Ok) {
+        null -> FrameRejectReason.PAYLOAD_CRC_UNVERIFIABLE
+        false -> FrameRejectReason.PAYLOAD_CRC_MISMATCH
+        true -> FrameRejectReason.NONE
+    }
+}
+
+/**
+ * Outcome of validating a frame envelope and its CRCs.
+ *
+ * [ok] is the FULL verdict: start-of-frame, minimum length, exact length, header checksum and
+ * payload CRC32 together. It is true exactly when [reason] is [FrameRejectReason.NONE]. The
+ * individual outcomes stay on the result as diagnostics.
+ */
+data class FrameCheck(
     val ok: Boolean,
     val length: Int? = null,
     val headerCrcOk: Boolean? = null,
     val crc32Ok: Boolean? = null,
+    val reason: FrameRejectReason = FrameRejectReason.NONE,
 )
 
 object Framing {
@@ -158,23 +302,51 @@ object Framing {
     // MARK: - validation
 
     /**
-     * Validate a complete Whoop 4.0 frame envelope and both CRCs.
+     * Validate a complete Whoop 4.0 frame envelope: structure, header checksum and payload CRC32.
      * Frame: [0xAA][len u16 LE][crc8(len)][...inner...][crc32 u32 LE], total = len + 4.
+     *
+     * A frame is accepted only when it is at least [FrameLimits.WHOOP4_MINIMUM_FRAME_BYTES] long,
+     * carries EXACTLY `len + 4` bytes (so a truncated frame and one with trailing bytes are both
+     * rejected), its CRC-8 over the length field matches, and its CRC32 over the inner record
+     * matches. `reason` says which rule failed first.
      */
     private fun verifyWhoop4(frame: ByteArray): FrameCheck {
-        if (frame.size < 8 || frame[0] != 0xAA.toByte()) return FrameCheck(ok = false)
+        if (frame.isEmpty() || frame[0] != 0xAA.toByte()) {
+            return FrameCheck(ok = false, reason = FrameRejectReason.NO_START_OF_FRAME)
+        }
+        if (frame.size < FrameLimits.WHOOP4_MINIMUM_FRAME_BYTES) {
+            // Too short even to hold an envelope plus one payload byte: no field of it is read, and
+            // the length word it may carry is not worth reporting as a length.
+            return FrameCheck(ok = false, reason = FrameRejectReason.BELOW_MINIMUM_LENGTH)
+        }
         val length = (frame[1].toInt() and 0xFF) or ((frame[2].toInt() and 0xFF) shl 8)
+        val total = length + 4
         // Ranged CRC checksums the two length bytes in place, with no per-frame allocation.
         val headerOk = Crc.crc8(frame, 1, 3) == (frame[3].toInt() and 0xFF)
         var crc32Ok: Boolean? = null
-        // length must cover at least the envelope's inner bytes (mirrors framing.py).
-        if (length in 7..(frame.size - 4)) {
+        // length must cover at least the envelope's inner bytes (mirrors framing.py). Trailing bytes
+        // do not stop the CRC32 from being computed — that combination (payload CRC right, envelope
+        // wrong) is precisely the class this change stops admitting, so it must stay observable.
+        if (length >= 7 && total <= frame.size) {
             // inner record = frame[4 until length], checksummed in place.
             val want = Crc.crc32(frame, 4, length)
-            val got = frame.u32(length) ?: 0L
+            val got = frame.envU32(length) ?: 0L
             crc32Ok = want == got
         }
-        return FrameCheck(ok = headerOk && (crc32Ok == true), length = length, headerCrcOk = headerOk, crc32Ok = crc32Ok)
+        val reason = frameRejectReason(
+            totalFromLength = total,
+            actualCount = frame.size,
+            minimumBytes = FrameLimits.WHOOP4_MINIMUM_FRAME_BYTES,
+            headerCrcOk = headerOk,
+            crc32Ok = crc32Ok,
+        )
+        return FrameCheck(
+            ok = reason == FrameRejectReason.NONE,
+            length = length,
+            headerCrcOk = headerOk,
+            crc32Ok = crc32Ok,
+            reason = reason,
+        )
     }
 
     /*
@@ -184,9 +356,14 @@ object Framing {
      *   total = declaredLength + 8 (declaredLength counts payload + the 4-byte CRC32 trailer).
      */
     private fun verifyWhoop5(frame: ByteArray): FrameCheck {
-        if (frame.size < 12 || frame[0] != 0xAA.toByte()) return FrameCheck(ok = false)
+        if (frame.isEmpty() || frame[0] != 0xAA.toByte()) {
+            return FrameCheck(ok = false, reason = FrameRejectReason.NO_START_OF_FRAME)
+        }
+        // Smallest well-formed whoop5 frame: 8 header bytes (incl. CRC16) + 1 payload byte + 4 CRC32.
+        if (frame.size < FrameLimits.WHOOP5_MINIMUM_FRAME_BYTES) {
+            return FrameCheck(ok = false, reason = FrameRejectReason.BELOW_MINIMUM_LENGTH)
+        }
         val declaredLength = (frame[2].toInt() and 0xFF) or ((frame[3].toInt() and 0xFF) shl 8)
-        if (declaredLength < 4) return FrameCheck(ok = false, length = declaredLength)
         val total = declaredLength + 8
 
         // Ranged CRC over the first 6 header bytes in place, with no copyOfRange.
@@ -195,27 +372,65 @@ object Framing {
         val headerOk = wantHeader == gotHeader
 
         var crc32Ok: Boolean? = null
-        if (frame.size >= total) {
+        if (declaredLength >= 4 && total <= frame.size) {
             val payloadEnd = total - 4
             // payload = frame[8 until payloadEnd], checksummed in place.
             val want = Crc.crc32(frame, 8, payloadEnd)
-            val got = frame.u32(payloadEnd) ?: 0L
+            val got = frame.envU32(payloadEnd) ?: 0L
             crc32Ok = want == got
         }
-        return FrameCheck(ok = headerOk && (crc32Ok == true), length = declaredLength, headerCrcOk = headerOk, crc32Ok = crc32Ok)
+        val reason = frameRejectReason(
+            totalFromLength = total,
+            actualCount = frame.size,
+            minimumBytes = FrameLimits.WHOOP5_MINIMUM_FRAME_BYTES,
+            headerCrcOk = headerOk,
+            crc32Ok = crc32Ok,
+        )
+        return FrameCheck(
+            ok = reason == FrameRejectReason.NONE,
+            length = declaredLength,
+            headerCrcOk = headerOk,
+            crc32Ok = crc32Ok,
+            reason = reason,
+        )
     }
 
     /**
-     * Family-aware envelope + CRC check — true only when the envelope and BOTH CRCs verify. The Kotlin
-     * twin of Swift's `verifyFrame(_:family:).ok`. Exposed so a decoder outside this object can CRC-gate
-     * a frame before reading any field (the BLE safety contract's "bad bytes never drive state");
-     * [parseFrame] uses the same two private validators internally.
+     * Family-aware frame validation — the ONE decision point. Kotlin twin of Swift's
+     * `verifyFrame(_:family:)`: structure (minimum length, then exact length), header checksum,
+     * then payload CRC32, with a non-null [FrameCheck.reason] saying which rule failed first.
      */
-    fun frameCrcOk(frame: ByteArray, family: DeviceFamily): Boolean =
+    fun verifyFrame(frame: ByteArray, family: DeviceFamily): FrameCheck =
         when (family) {
-            DeviceFamily.WHOOP4 -> verifyWhoop4(frame).ok
-            DeviceFamily.WHOOP5 -> verifyWhoop5(frame).ok
+            DeviceFamily.WHOOP4 -> verifyWhoop4(frame)
+            DeviceFamily.WHOOP5 -> verifyWhoop5(frame)
         }
+
+    /**
+     * Family-aware envelope + CRC check — true only when the envelope, the structural length and BOTH
+     * CRCs verify. The Kotlin twin of Swift's `verifyFrame(_:family:).ok`. Exposed so a decoder
+     * outside this object can gate a frame before reading any field (the BLE safety contract's "bad
+     * bytes never drive state"); [parseFrame] uses the same validator internally.
+     */
+    fun frameCrcOk(frame: ByteArray, family: DeviceFamily): Boolean = verifyFrame(frame, family).ok
+
+    /**
+     * The D7 bound for reading named inner fields out of [frame] — the minimum of the CRC32
+     * trailer's start (derived from the DECLARED length) and the frame's real size. Internal so the
+     * historical record decoders, which read their fields outside this object, bound them exactly as
+     * the envelope decoders here do.
+     */
+    internal fun payloadLimit(frame: ByteArray, family: DeviceFamily): Int {
+        val trailerStart: Int? = when (family) {
+            // WHOOP 4.0: the CRC32 trailer starts at the declared length.
+            DeviceFamily.WHOOP4 ->
+                if (frame.size >= 3) (frame[1].toInt() and 0xFF) or ((frame[2].toInt() and 0xFF) shl 8) else null
+            // WHOOP 5.0/MG: total = declaredLength + 8, and the trailer is the last 4 of those.
+            DeviceFamily.WHOOP5 ->
+                if (frame.size >= 4) ((frame[2].toInt() and 0xFF) or ((frame[3].toInt() and 0xFF) shl 8)) + 4 else null
+        }
+        return payloadLimitOf(frame, trailerStart)
+    }
 
     // MARK: - type / enum naming
 
@@ -274,32 +489,49 @@ object Framing {
         }
 
     private fun parseWhoop4(frame: ByteArray): ParsedFrame {
-        if (frame.size < 8 || frame[0] != 0xAA.toByte()) return ParsedFrame.invalid()
-
         val check = verifyWhoop4(frame)
+        // Below the family minimum there is no inner record at all — every offset a field would use
+        // lands in the checksum trailer — so nothing is decoded, not even a packet type.
+        if (frame.size < FrameLimits.WHOOP4_MINIMUM_FRAME_BYTES || frame[0] != 0xAA.toByte()) {
+            return ParsedFrame.invalid(check.reason)
+        }
+
         val length = check.length
         val crcOk = check.crc32Ok
+        // D7: named inner fields come only from payload bytes. On WHOOP 4.0 the CRC32 trailer starts
+        // at the declared length.
+        val limit = payloadLimitOf(frame, length)
 
         val t = frame[4].toInt() and 0xFF
         val name = typeName(t)
         val parsed = LinkedHashMap<String, Any?>()
 
         when (name) {
-            "REALTIME_DATA" -> decodeRealtime(frame, parsed)
-            "EVENT" -> decodeEvent(frame, length, parsed)
-            "COMMAND_RESPONSE" -> decodeCommandResponse(frame, length, parsed)
-            "METADATA" -> decodeMetadata(frame, length, parsed)
+            "REALTIME_DATA" -> decodeRealtime(frame, limit, parsed)
+            "EVENT" -> decodeEvent(frame, limit, parsed)
+            "COMMAND_RESPONSE" -> decodeCommandResponse(frame, limit, parsed)
+            "METADATA" -> decodeMetadata(frame, limit, parsed)
             else -> Unit
         }
 
-        return ParsedFrame(ok = true, crcOk = crcOk, typeName = name, parsed = parsed)
+        // `ok` is the verifier's full verdict, not a constant: the fields above stay decoded so an
+        // inspector can still read a broken frame, but no consumer may mistake that for integrity.
+        return ParsedFrame(
+            ok = check.ok, crcOk = crcOk, typeName = name, parsed = parsed,
+            rejectReason = check.reason,
+        )
     }
 
     private fun parseWhoop5(frame: ByteArray): ParsedFrame {
-        // Minimum whoop5 frame: 8 header bytes + 1 inner (type) + 4 CRC32 trailer.
-        if (frame.size < 12 || frame[0] != 0xAA.toByte()) return ParsedFrame.invalid()
         val check = verifyWhoop5(frame)
+        // Minimum whoop5 frame: 8 header bytes + 1 payload byte + 4 CRC32 trailer. Below that, the
+        // type byte at [8] would be the first byte of the frame's own CRC32 trailer.
+        if (frame.size < FrameLimits.WHOOP5_MINIMUM_FRAME_BYTES || frame[0] != 0xAA.toByte()) {
+            return ParsedFrame.invalid(check.reason)
+        }
         val innerStart = 8
+        // D7: bounded by the trailer AND the real size — total = declaredLength + 8, trailer = last 4.
+        val limit = payloadLimitOf(frame, check.length?.let { it + 4 })
         val t = frame[innerStart].toInt() and 0xFF
         val name = typeName(t)
         val parsed = LinkedHashMap<String, Any?>()
@@ -308,20 +540,23 @@ object Framing {
         // worn frames; see the Swift Whoop5RealtimeTests vector). Other types stay envelope-only until
         // their per-type 5.0 offsets are confirmed on hardware — we don't invent offsets.
         when (name) {
-            "REALTIME_DATA" -> decodeRealtimeWhoop5(frame, parsed, minOf(frame.size, (check.length ?: 0) + 4))
-            "METADATA" -> decodeMetadataWhoop5(frame, parsed)
-            "EVENT" -> decodeEventWhoop5(frame, parsed)
-            "COMMAND_RESPONSE" -> decodeCommandResponseWhoop5(frame, parsed)
+            "REALTIME_DATA" -> decodeRealtimeWhoop5(frame, limit, parsed)
+            "METADATA" -> decodeMetadataWhoop5(frame, limit, parsed)
+            "EVENT" -> decodeEventWhoop5(frame, limit, parsed)
+            "COMMAND_RESPONSE" -> decodeCommandResponseWhoop5(frame, limit, parsed)
             // WHOOP 5/MG ONLY, and that is a gap rather than a decision. Swift decodes the 4.0 console
             // layout too (`PostHooks`, offsets 11..len-1, pinned by a test on real 4.0 text), so after the
             // Apple consumer was wired up a WHOOP 4.0 narrates into an iOS strap log and stays silent in an
             // Android one — the same defect this fixed on Apple, mirrored onto the other strap. Left for a
             // follow-up rather than smuggled in here: it needs the 4.0 offsets and its own vector, and this
             // change is already about a key three implementations disagreed on.
-            "CONSOLE_LOGS" -> decodeConsoleLogsWhoop5(frame, parsed)
+            "CONSOLE_LOGS" -> decodeConsoleLogsWhoop5(frame, limit, parsed)
             else -> Unit
         }
-        return ParsedFrame(ok = true, crcOk = check.crc32Ok, typeName = name, parsed = parsed)
+        return ParsedFrame(
+            ok = check.ok, crcOk = check.crc32Ok, typeName = name, parsed = parsed,
+            rejectReason = check.reason,
+        )
     }
 
     /**
@@ -331,19 +566,18 @@ object Framing {
      * BATTERY_LEVEL the 4.0 payload decode shifts with it: soc%=u16@21/10, mV=u16@25, charging@30
      * bit0 (mirrors Swift Interpreter's whoop5 event decode; all gated, fail closed). (#78 fork)
      */
-    private fun decodeEventWhoop5(frame: ByteArray, parsed: MutableMap<String, Any?>) {
-        val evVal = frame.u8(10) ?: return
+    private fun decodeEventWhoop5(frame: ByteArray, limit: Int, parsed: MutableMap<String, Any?>) {
+        val evVal = frame.u8(10, limit) ?: return
         parsed["event"] = eventLabel(evVal)
-        frame.u32(12)?.let { parsed["event_timestamp"] = it.toInt() }
-        val payEnd = frame.size - 4
-        if (payEnd > 16) {
-            parsed["event_payload_hex"] = frame.copyOfRange(16, payEnd)
+        frame.u32(12, limit)?.let { parsed["event_timestamp"] = it.toInt() }
+        if (limit > 16) {
+            parsed["event_payload_hex"] = frame.copyOfRange(16, limit)
                 .joinToString("") { "%02x".format(it) }
         }
         if (EventNumber.fromRaw(evVal) == EventNumber.BATTERY_LEVEL) {
-            frame.u16(21)?.let { raw -> if (raw <= 1100) parsed["battery_pct"] = raw.toDouble() / 10.0 }
-            frame.u16(25)?.let { mv -> if (mv in 3000..4300) parsed["battery_mV"] = mv }
-            frame.u8(30)?.let { ch -> if (ch <= 1) parsed["battery_charging"] = ch and 1 }
+            frame.u16(21, limit)?.let { raw -> if (raw <= 1100) parsed["battery_pct"] = raw.toDouble() / 10.0 }
+            frame.u16(25, limit)?.let { mv -> if (mv in 3000..4300) parsed["battery_mV"] = mv }
+            frame.u8(30, limit)?.let { ch -> if (ch <= 1) parsed["battery_charging"] = ch and 1 }
         }
     }
 
@@ -355,20 +589,20 @@ object Framing {
      * direct percent at @13 (gated ≤100, fail closed; Swift parity — unused until the 5/MG
      * allowlist grows).
      */
-    private fun decodeCommandResponseWhoop5(frame: ByteArray, parsed: MutableMap<String, Any?>) {
-        val cmd = frame.u8(10) ?: return
+    private fun decodeCommandResponseWhoop5(frame: ByteArray, limit: Int, parsed: MutableMap<String, Any?>) {
+        val cmd = frame.u8(10, limit) ?: return
         parsed["resp_cmd"] = commandLabel(cmd)
-        frame.u8(11)?.let { parsed["resp_seq"] = it }
-        frame.u8(12)?.let { parsed["result"] = commandResultLabel(it) }
+        frame.u8(11, limit)?.let { parsed["resp_seq"] = it }
+        frame.u8(12, limit)?.let { parsed["result"] = commandResultLabel(it) }
         if (CommandNumber.fromRaw(cmd) == CommandNumber.GET_BATTERY_LEVEL) {
-            frame.u8(13)?.let { pct -> if (pct <= 100) parsed["battery_pct"] = pct.toDouble() }
+            frame.u8(13, limit)?.let { pct -> if (pct <= 100) parsed["battery_pct"] = pct.toDouble() }
         }
         // GET_HELLO (145): device name + firmware version. Mirrors the Swift Interpreter decode of the
         // same 50.38.1.0 capture: payload base is frame[11]; the name is printable ASCII at pay[16],
         // the firmware is 4 bytes at pay[93] gated on pay[93]==50 (the "5.x" generation). The session
         // token in the same block is deliberately never read. Surfaced on the Devices card.
         if (cmd == 145) {
-            val payEnd = frame.size - 4 // drop the trailing CRC32
+            val payEnd = limit // payload only: stops where the CRC32 trailer starts (D7)
             if (payEnd > 11) {
                 val pay = frame.copyOfRange(11, payEnd)
                 val name = StringBuilder()
@@ -407,11 +641,11 @@ object Framing {
      * `decodeWhoop5ConsoleLogs` in Interpreter.swift (its text key is "log").
      * (#78 fork, real-frame verified)
      */
-    private fun decodeConsoleLogsWhoop5(frame: ByteArray, parsed: MutableMap<String, Any?>) {
-        frame.u16(9)?.let { parsed["record_index"] = it }
-        frame.u32(12)?.let { parsed["unix"] = it.toInt() }
-        frame.u16(16)?.let { parsed["subsec"] = it }
-        val payEnd = frame.size - 4
+    private fun decodeConsoleLogsWhoop5(frame: ByteArray, limit: Int, parsed: MutableMap<String, Any?>) {
+        frame.u16(9, limit)?.let { parsed["record_index"] = it }
+        frame.u32(12, limit)?.let { parsed["unix"] = it.toInt() }
+        frame.u16(16, limit)?.let { parsed["subsec"] = it }
+        val payEnd = limit // payload only: stops where the CRC32 trailer starts (D7)
         if (payEnd <= 21) return
         val text = frame.copyOfRange(21, payEnd)
             .toString(Charsets.UTF_8)
@@ -430,14 +664,14 @@ object Framing {
      * Backfiller never acked/trimmed → 5/MG offload never completed. Offsets verified against real
      * WHOOP 5 HISTORY_END frames (Swift decodeWhoop5Metadata, Interpreter.swift:407). (#78)
      */
-    private fun decodeMetadataWhoop5(frame: ByteArray, parsed: MutableMap<String, Any?>) {
-        val mt = frame.u8(10) ?: return
+    private fun decodeMetadataWhoop5(frame: ByteArray, limit: Int, parsed: MutableMap<String, Any?>) {
+        val mt = frame.u8(10, limit) ?: return
         parsed["meta_type"] = metaLabel(mt)
         // Only a HISTORY_END carries unix/subsec/trim; the u-reads null out on the shorter
         // START/COMPLETE frames, so classifyHistoricalMeta keys those off meta_type alone.
-        frame.u32(11)?.let { parsed["unix"] = it.toInt() }
-        frame.u16(15)?.let { parsed["subsec"] = it }
-        frame.u32(21)?.let { parsed["trim_cursor"] = it.toInt() }
+        frame.u32(11, limit)?.let { parsed["unix"] = it.toInt() }
+        frame.u16(15, limit)?.let { parsed["subsec"] = it }
+        frame.u32(21, limit)?.let { parsed["trim_cursor"] = it.toInt() }
     }
 
     /**
@@ -445,17 +679,17 @@ object Framing {
      * subseconds@14 (u16), heart_rate@16 (u8), rr_count@17, rr@18.. (u16). Mirrors the Swift
      * parseFrameWhoop5 realtime decode and is covered by the same real-frame test vector.
      */
-    private fun decodeRealtimeWhoop5(frame: ByteArray, parsed: MutableMap<String, Any?>, payloadEnd: Int) {
-        frame.u32(10)?.let { parsed["timestamp"] = it.toInt() }
-        frame.u16(14)?.let { parsed["subseconds"] = it }
-        frame.u8(16)?.let { parsed["heart_rate"] = it }
-        val rrn = frame.u8(17) ?: 0
+    private fun decodeRealtimeWhoop5(frame: ByteArray, limit: Int, parsed: MutableMap<String, Any?>) {
+        frame.u32(10, limit)?.let { parsed["timestamp"] = it.toInt() }
+        frame.u16(14, limit)?.let { parsed["subseconds"] = it }
+        frame.u8(16, limit)?.let { parsed["heart_rate"] = it }
+        val rrn = frame.u8(17, limit) ?: 0
         parsed["rr_count"] = rrn
         val rrs = ArrayList<Int>()
         val rawTicks = ArrayList<Int>()
         for (i in 0 until rrn) {
-            if (18 + i * 2 + 2 > payloadEnd) break
-            val v = frame.u16(18 + i * 2)
+            if (18 + i * 2 + 2 > limit) break
+            val v = frame.u16(18 + i * 2, limit)
             if (v != null && v > 0) {
                 rawTicks.add(v)
                 rrs.add(Whoop5RR.milliseconds(v))
@@ -469,16 +703,16 @@ object Framing {
     // MARK: - per-type decoders (Whoop 4.0). Ported from PostHooks.swift + the static field specs.
 
     /** REALTIME_DATA (type 40): timestamp@6 (u32), heart_rate@12 (u8), rr_count@13, rr@14.. (u16). */
-    private fun decodeRealtime(frame: ByteArray, parsed: MutableMap<String, Any?>) {
-        frame.u32(6)?.let { parsed["timestamp"] = it.toInt() }
-        frame.u16(10)?.let { parsed["subseconds"] = it }
-        frame.u8(12)?.let { parsed["heart_rate"] = it }
-        val rrn = frame.u8(13) ?: 0
+    private fun decodeRealtime(frame: ByteArray, limit: Int, parsed: MutableMap<String, Any?>) {
+        frame.u32(6, limit)?.let { parsed["timestamp"] = it.toInt() }
+        frame.u16(10, limit)?.let { parsed["subseconds"] = it }
+        frame.u8(12, limit)?.let { parsed["heart_rate"] = it }
+        val rrn = frame.u8(13, limit) ?: 0
         parsed["rr_count"] = rrn
         val rrs = ArrayList<Int>()
         for (i in 0 until rrn) {
             // Drop 0 ms intervals (placeholders, not beat-to-beat intervals), matching Swift.
-            val v = frame.u16(14 + i * 2)
+            val v = frame.u16(14 + i * 2, limit)
             if (v != null && v > 0) rrs.add(v)
         }
         parsed["rr_intervals"] = rrs
@@ -488,17 +722,17 @@ object Framing {
      * EVENT (type 48): event@6 (u8, EventNumber), event_timestamp@8 (u32).
      * For BATTERY_LEVEL, additionally decode soc@17(/10), mV@21, charging@26 bit0.
      */
-    private fun decodeEvent(frame: ByteArray, length: Int?, parsed: MutableMap<String, Any?>) {
-        val evVal = frame.u8(6) ?: return
+    private fun decodeEvent(frame: ByteArray, limit: Int, parsed: MutableMap<String, Any?>) {
+        val evVal = frame.u8(6, limit) ?: return
         parsed["event"] = eventLabel(evVal)
-        frame.u32(8)?.let { parsed["event_timestamp"] = it.toInt() }
+        frame.u32(8, limit)?.let { parsed["event_timestamp"] = it.toInt() }
 
-        if (EventNumber.fromRaw(evVal) == EventNumber.BATTERY_LEVEL && length != null) {
+        if (EventNumber.fromRaw(evVal) == EventNumber.BATTERY_LEVEL) {
             // Fixed layout, empirically verified against captured frames:
             //   soc% = u16@17/10 · mV = u16@21 · charging = u8@26 bit0
-            frame.u16(17)?.let { raw -> if (raw <= 1100) parsed["battery_pct"] = raw.toDouble() / 10.0 }
-            frame.u16(21)?.let { mv -> if (mv in 3000..4300) parsed["battery_mV"] = mv }
-            frame.u8(26)?.let { ch -> if (ch <= 1) parsed["battery_charging"] = ch and 1 }
+            frame.u16(17, limit)?.let { raw -> if (raw <= 1100) parsed["battery_pct"] = raw.toDouble() / 10.0 }
+            frame.u16(21, limit)?.let { mv -> if (mv in 3000..4300) parsed["battery_mV"] = mv }
+            frame.u8(26, limit)?.let { ch -> if (ch <= 1) parsed["battery_charging"] = ch and 1 }
         }
     }
 
@@ -506,12 +740,11 @@ object Framing {
      * COMMAND_RESPONSE (type 36): resp_cmd@6 (u8, CommandNumber). Decodes the battery level reply.
      * Payload begins at offset 7; GET_BATTERY_LEVEL stores soc% = u16(payload[2..4]) / 10.
      */
-    private fun decodeCommandResponse(frame: ByteArray, length: Int?, parsed: MutableMap<String, Any?>) {
-        if (length == null) return
-        val payEnd = minOf(length, frame.size)
+    private fun decodeCommandResponse(frame: ByteArray, limit: Int, parsed: MutableMap<String, Any?>) {
+        val payEnd = limit // payload only: stops where the CRC32 trailer starts (D7)
         if (payEnd < 7) return
         val pay = frame.copyOfRange(7, payEnd)
-        val cmd = frame.u8(6) ?: return
+        val cmd = frame.u8(6, limit) ?: return
         parsed["resp_cmd"] = commandLabel(cmd)
         // #791: the origin-seq echo and the result code, which the 5/MG path has always exposed (at @11/@12)
         // and this one never did. Without them a 4.0 strap log cannot say whether a command SUCCEEDED or
@@ -562,11 +795,10 @@ object Framing {
      * METADATA (type 49): meta_type@6 (u8, MetadataType). For a 14-byte payload ('<LHLL'):
      * unix@7 (u32), subsec@11 (u16), unk0@13 (u32), trim_cursor@17 (u32).
      */
-    private fun decodeMetadata(frame: ByteArray, length: Int?, parsed: MutableMap<String, Any?>) {
-        val mt = frame.u8(6) ?: return
+    private fun decodeMetadata(frame: ByteArray, limit: Int, parsed: MutableMap<String, Any?>) {
+        val mt = frame.u8(6, limit) ?: return
         parsed["meta_type"] = metaLabel(mt)
-        if (length == null) return
-        val payEnd = minOf(length, frame.size)
+        val payEnd = limit // payload only: stops where the CRC32 trailer starts (D7)
         if (payEnd <= 7) return
         val pay = frame.copyOfRange(7, payEnd)
         if (pay.size >= 14) {

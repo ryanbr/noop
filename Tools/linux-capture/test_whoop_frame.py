@@ -160,6 +160,71 @@ class Whoop4HistoryAckTests(unittest.TestCase):
         self.assertTrue(wf.verify_whoop4_frame(ack))                    # ack is itself CRC-valid
 
 
+def _whoop4_frame_of_total(total: int) -> bytes:
+    """A structurally consistent WHOOP 4.0 frame of exactly `total` bytes: the declared length agrees
+    with the byte count, the CRC8 header checks out and the CRC32 trailer covers the inner bytes that
+    are left (none at all for the 8-byte case)."""
+    length = total - 4
+    len_bytes = bytes([length & 0xFF, (length >> 8) & 0xFF])
+    inner = (bytes([wf.COMMAND_TYPE, 0, wf.CMD_GET_BATTERY_LEVEL]) + bytes(8))[:total - 8]
+    trailer = wf.crc32(inner).to_bytes(4, "little")
+    return bytes([0xAA]) + len_bytes + bytes([wf.crc8(len_bytes)]) + inner + trailer
+
+
+def _whoop5_frame_of_total(total: int) -> bytes:
+    """The WHOOP 5.0/MG image of `_whoop4_frame_of_total`: declared length, CRC16 header and CRC32
+    trailer are all internally consistent, so only the size distinguishes the cases."""
+    decl = total - 8
+    head = bytes([0xAA, 0x01, decl & 0xFF, (decl >> 8) & 0xFF, 0x00, 0x00])
+    payload = (bytes([wf.COMMAND_TYPE, 0, 1, 0]) + bytes(8))[:total - 12]
+    return (head + wf.crc16_modbus(head).to_bytes(4, "little")[:2] + payload
+            + wf.crc32(payload).to_bytes(4, "little"))
+
+
+class MinimumFrameLengthTests(unittest.TestCase):
+    """The family minimums from WhoopProtocol's `FrameLimits` (11 bytes on WHOOP 4.0, 13 on 5.0/MG).
+
+    A frame below them is internally consistent — declared length, header checksum and a CRC32 over
+    zero payload bytes all agree — and was accepted before. It is rejected here so the verifiers of
+    this tool and of the protocol package answer the same question; the callers on the trim-ack path
+    already demand more bytes than this, so the effect is on the verifiers' other callers.
+    """
+
+    def test_whoop4_eight_byte_frame_is_rejected(self):
+        frame = _whoop4_frame_of_total(8)
+        self.assertEqual(len(frame), 8)
+        self.assertEqual(frame[3], wf.crc8(frame[1:3]))            # header checksum is correct
+        self.assertEqual(frame[4:8], wf.crc32(b"").to_bytes(4, "little"))   # CRC32 over no payload
+        self.assertFalse(wf.verify_whoop4_frame(frame))
+
+    def test_whoop4_below_minimum_is_rejected(self):
+        for total in (8, 9, 10):
+            with self.subTest(total=total):
+                self.assertFalse(wf.verify_whoop4_frame(_whoop4_frame_of_total(total)))
+
+    def test_whoop4_at_minimum_is_accepted(self):
+        frame = _whoop4_frame_of_total(11)
+        self.assertEqual(len(frame), 11)
+        self.assertTrue(wf.verify_whoop4_frame(frame))
+
+    def test_whoop5_twelve_byte_frame_is_rejected(self):
+        frame = _whoop5_frame_of_total(12)
+        self.assertEqual(len(frame), 12)
+        self.assertEqual(frame[6] | (frame[7] << 8), wf.crc16_modbus(frame[0:6]))
+        self.assertEqual(frame[8:12], wf.crc32(b"").to_bytes(4, "little"))
+        self.assertFalse(wf.verify_whoop5_frame(frame))
+
+    def test_whoop5_at_minimum_is_accepted(self):
+        frame = _whoop5_frame_of_total(13)
+        self.assertEqual(len(frame), 13)
+        self.assertTrue(wf.verify_whoop5_frame(frame))
+
+    def test_real_frames_stay_valid(self):
+        # The recorded frames are far above both bounds; raising the minimum must not touch them.
+        self.assertTrue(wf.verify_whoop5_frame(HistoryAckTests.HISTORY_END))
+        self.assertTrue(wf.verify_whoop4_frame(Whoop4HistoryAckTests.HISTORY_END))
+
+
 class ReassemblerTests(unittest.TestCase):
     def test_single_frame_across_fragments(self):
         hello = wf.WHOOP5_CLIENT_HELLO
