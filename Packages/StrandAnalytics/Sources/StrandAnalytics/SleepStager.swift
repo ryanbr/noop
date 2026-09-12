@@ -2949,6 +2949,8 @@ public enum SleepStager {
     /// HRV when the beats cannot carry a successive-difference statistic, and the nightly trace, which has
     /// to say WHY it was withheld. A second copy of the classification could describe a different set of
     /// beats than the number it is explaining, which is the one thing the gate's own comment insists on.
+    ///
+    /// Mirrors Kotlin `sessionRrVerdict`.
     static func sessionRrVerdict(start: Int, end: Int, rr: [RRInterval]) -> HRVAnalyzer.RrCoverageVerdict {
         let seg = rr.filter { $0.ts >= start && $0.ts <= end }
         // `collapsed` is deliberately the SAME figure as `coverage`; see `sessionAvgHRV` for why the

@@ -3274,6 +3274,8 @@ object SleepStager {
      * HRV when the beats cannot carry a successive-difference statistic, and the nightly trace, which has
      * to say WHY it was withheld. A second copy of the classification could describe a different set of
      * beats than the number it is explaining, which is the one thing the gate's own comment insists on.
+     *
+     * Mirrors Swift `sessionRrVerdict`.
      */
     internal fun sessionRrVerdict(start: Long, end: Long,
                                   rr: List<RrInterval>): HrvAnalyzer.RrCoverageVerdict {
