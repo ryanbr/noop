@@ -177,21 +177,36 @@ object StressTrace {
      *
      * Adjacency is by POSITION in the series, not by timestamp arithmetic: the series is already the
      * hour grid the chart draws, so two neighbouring entries are two neighbouring hours by construction.
+     *
+     * A span runs edge to edge of the hours it covers, NOT centre to centre. An hour is a stretch of the
+     * day, not an instant, and the difference is the whole case for the change: centre to centre gives a
+     * lone masked hour a width of zero, which is exactly the hour that most needs to be legible, since
+     * there is no run of neighbours to make it obvious. Edges are taken as the MIDPOINT to each
+     * neighbour rather than as a fixed slot, so an irregular series (a DST-long day, an hour missing
+     * from the list entirely) still gets honest extents. At the ends of the series the territory stops
+     * at the point itself: the day's extent is what was sampled, and nothing is invented past it, which
+     * also keeps every span inside the box without a clamp.
      */
     fun movingSpans(series: List<StressPoint>, width: Float): List<ClosedFloatingPointRange<Float>> {
         if (series.isEmpty() || width <= 0f) return emptyList()
         val t0 = series.first().ts
         val span = (series.last().ts - t0).toFloat()
-        fun xOf(ts: Long): Float = if (span <= 0f) 0f else (ts - t0) / span * width
+        val xs = FloatArray(series.size) {
+            if (span <= 0f) 0f else (series[it].ts - t0) / span * width
+        }
+        val last = series.lastIndex
+        fun leftEdge(i: Int): Float = if (i == 0) xs[0] else (xs[i - 1] + xs[i]) / 2f
+        fun rightEdge(i: Int): Float = if (i == last) xs[last] else (xs[i] + xs[i + 1]) / 2f
         val out = ArrayList<ClosedFloatingPointRange<Float>>()
         var runStart: Int? = null
         for (i in series.indices) {
             val moving = series[i].moving
             if (moving && runStart == null) runStart = i
-            val runEnds = !moving || i == series.lastIndex
-            if (runEnds && runStart != null) {
-                val last = if (moving) i else i - 1
-                out.add(xOf(series[runStart!!].ts)..xOf(series[last].ts))
+            val from = runStart
+            // A run closes at the first hour that is NOT moving, and also at the end of the series, or
+            // a day whose last hours were all masked would be dropped for want of a terminator.
+            if (from != null && (!moving || i == last)) {
+                out.add(leftEdge(from)..rightEdge(if (moving) i else i - 1))
                 runStart = null
             }
         }

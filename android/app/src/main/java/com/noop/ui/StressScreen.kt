@@ -725,9 +725,10 @@ internal fun StressTodayCard(points: List<StressPoint>, modifier: Modifier = Mod
                         // colour that is not the one the axis labels use. Reported as "many gaps" by a
                         // wearer who read the old evenly spaced tertiary dots as tick marks and asked
                         // whether he needed to enable continuous HRV to fill them. A scale does not
-                        // start and stop with the data, so a bar that spans exactly the hole cannot be
-                        // read as one. A single masked hour still gets a mark, floored to the stroke
-                        // width so it stays visible rather than collapsing to a hairline.
+                        // start and stop with the data, so a bar sitting under the stretch it explains
+                        // cannot be read as one. The span already covers the masked hours edge to edge,
+                        // so the floor below is only for a degenerate series with no width to spread
+                        // across, not the ordinary lone-hour case.
                         val markY = h - markBand / 2f
                         val markH = (markBand * 0.5f).coerceAtLeast(1f)
                         StressTrace.movingSpans(points, w).forEach { span ->

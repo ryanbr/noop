@@ -207,4 +207,38 @@ class StressTraceTest {
         val series = listOf(pt(0, 1.0, false), pt(3600, 2.0, false))
         assertEquals(emptyList<ClosedFloatingPointRange<Float>>(), StressTrace.movingSpans(series, 100f))
     }
+
+    /**
+     * A LONE masked hour is the case the geometry exists for: centre to centre it has a width of zero,
+     * and it is the hour with no neighbours to make it obvious, so it is also the one that most needs
+     * to be legible. It covers its own hour, half a slot either side of its centre.
+     */
+    @Test
+    fun `a lone moving hour spans its own hour, not an instant`() {
+        val series = listOf(
+            pt(0, 1.0, false), pt(3600, 1.0, false), pt(7200, null, true),
+            pt(10800, 1.0, false), pt(14400, 1.0, false),
+        )
+        val span = StressTrace.movingSpans(series, 100f).single()
+        assertEquals(37.5f, span.start, 0.01f)
+        assertEquals(62.5f, span.endInclusive, 0.01f)
+    }
+
+    /** A run covers its hours EDGE to edge, so the bar reaches past the outermost masked centres. */
+    @Test
+    fun `a run covers its hours edge to edge`() {
+        val series = listOf(
+            pt(0, 1.0, false), pt(3600, null, true), pt(7200, null, true), pt(10800, 1.0, false),
+        )
+        val span = StressTrace.movingSpans(series, 100f).single()
+        assertEquals(100f / 6f, span.start, 0.01f)
+        assertEquals(100f * 5f / 6f, span.endInclusive, 0.01f)
+    }
+
+    /** At the ends of the day the territory stops at the data: nothing is invented past what was sampled. */
+    @Test
+    fun `a run starting at the first hour starts at the edge of the box`() {
+        val series = listOf(pt(0, null, true), pt(3600, 1.0, false), pt(7200, 1.0, false))
+        assertEquals(0f, StressTrace.movingSpans(series, 100f).single().start, 0.01f)
+    }
 }
