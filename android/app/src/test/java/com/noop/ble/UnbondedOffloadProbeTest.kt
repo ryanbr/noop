@@ -513,19 +513,31 @@ class UnbondedOffloadProbeTest {
      * The two gates must agree by construction, not by both being edited together. Whenever the probe
      * declines for a RETIREMENT reason, the skip must decline too — otherwise the strap is stranded with a
      * suppressed handshake and nothing using the link it creates.
+     *
+     * All THREE retirement grounds are swept. The inconclusive axis was held at 0 here while the ground
+     * itself was live, so this pinned the agreement on two thirds of the rule, and stranding is precisely
+     * what the omission of that axis caused in `WhoopBleClient`. To be accurate about what this test can
+     * and cannot do: a pure-function sweep cannot see a CALL SITE that forgets an argument, which is why
+     * `unbondedProbeRetired` no longer offers a default for it. This pins that the two rules agree once
+     * they are both given it.
      */
     @Test
     fun `the skip and the probe retire on exactly the same conditions`() {
         for (refused in listOf(false, true)) {
             for (silent in 0..UNBONDED_PROBE_MAX_SILENT_LINKS + 1) {
-                val retired = unbondedProbeRetired(refused, silent, inconclusiveLinksSoFar = 0)
-                val probeWouldRun = shouldProbeUnbondedOffload(
-                    isWhoop5 = true, optedIn = true, bonded = false, helloWrittenThisLink = false,
-                    alreadyProbedThisLink = false, previouslyRefused = refused, silentLinksSoFar = silent)
-                val skips = unbondedProbeSupersedesHandshake(
-                    optedIn = true, isWhoop5 = true, appLevelBonded = false, userInitiated = false,
-                    probeRetired = retired)
-                assertEquals("refused=$refused silent=$silent", probeWouldRun, skips)
+                for (inconclusive in 0..UNBONDED_PROBE_MAX_INCONCLUSIVE_LINKS + 1) {
+                    val retired = unbondedProbeRetired(refused, silent, inconclusive)
+                    val probeWouldRun = shouldProbeUnbondedOffload(
+                        isWhoop5 = true, optedIn = true, bonded = false, helloWrittenThisLink = false,
+                        alreadyProbedThisLink = false, previouslyRefused = refused,
+                        silentLinksSoFar = silent, inconclusiveLinksSoFar = inconclusive)
+                    val skips = unbondedProbeSupersedesHandshake(
+                        optedIn = true, isWhoop5 = true, appLevelBonded = false, userInitiated = false,
+                        probeRetired = retired)
+                    assertEquals(
+                        "refused=$refused silent=$silent inconclusive=$inconclusive",
+                        probeWouldRun, skips)
+                }
             }
         }
     }
