@@ -108,6 +108,49 @@ class AnalyticsTest {
         assertNull(IllnessWatch.evaluate(days))
     }
 
+    /**
+     * #2130: a signal may not accuse the recent window off a handful of stored nights.
+     *
+     * 31 days of history, but HRV present on only 4 of the baseline nights. RHR is dense and drops hard,
+     * so the RHR flag still fires; HRV must not, which leaves one flag and no banner. The recent pair
+     * carries HRV, so this pins the BASELINE requirement rather than merely "no data".
+     */
+    @Test
+    fun illness_sparseHrvBaselineCannotRaiseAnHrvFlag() {
+        val baseline = (0 until 31).map {
+            day(
+                "2026-01-%02d".format(it + 1),
+                restingHr = 50,
+                avgHrv = if (it < 4) 60.0 else null,
+                skinTempDevC = 0.0,
+                respRateBpm = 14.0,
+            )
+        }
+        val recent = listOf(
+            day("2026-02-01", restingHr = 58, avgHrv = 20.0, skinTempDevC = 0.0, respRateBpm = 14.0),
+            day("2026-02-02", restingHr = 58, avgHrv = 20.0, skinTempDevC = 0.0, respRateBpm = 14.0),
+        )
+        assertNull(
+            "one flag is not a banner, and a 4-night HRV history is not a baseline",
+            IllnessWatch.evaluate(baseline + recent),
+        )
+    }
+
+    /** The same day shape, but with a DENSE HRV baseline, still raises both flags. */
+    @Test
+    fun illness_denseHrvBaselineStillRaisesTheHrvFlag() {
+        val baseline = (0 until 31).map {
+            day("2026-01-%02d".format(it + 1), restingHr = 50, avgHrv = 60.0, skinTempDevC = 0.0, respRateBpm = 14.0)
+        }
+        val recent = listOf(
+            day("2026-02-01", restingHr = 58, avgHrv = 20.0, skinTempDevC = 0.0, respRateBpm = 14.0),
+            day("2026-02-02", restingHr = 58, avgHrv = 20.0, skinTempDevC = 0.0, respRateBpm = 14.0),
+        )
+        val msg = IllnessWatch.evaluate(baseline + recent)
+        assertNotNull(msg)
+        assertTrue("the HRV flag is what the sparse case withholds", msg!!.contains("HRV"))
+    }
+
     @Test
     fun illness_twoFlagsRaisesBanner() {
         // 31 calm days, then 2 strained recent days appended (33 total).

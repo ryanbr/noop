@@ -74,6 +74,20 @@ object Zones {
  * is a UI concern, so this pure function omits it. Callers decide whether to run it.
  */
 object IllnessWatch {
+
+    /**
+     * Valid nights a signal's baseline window must carry before it may accuse the recent one.
+     *
+     * `mean` returns a figure from a SINGLE value, so without this a lone stored night is a "baseline".
+     * The respiration flag has always required it; #2130 found HRV and resting HR going without, on a
+     * device where HRV survives on 2 nights in 21 because the over-count gate withholds the rest (#1118).
+     *
+     * This does NOT make the comparison sound. The window still averages whatever was stored, including
+     * values a later engine would no longer produce, which is the substance of #2130 and needs the
+     * baseline-trust flag iOS already gates on. This only stops the thinnest version of it.
+     */
+    private const val MIN_BASELINE_NIGHTS = 10
+
     /**
      * Evaluate the [days] history (oldest -> newest). Returns a human-readable banner
      * message when 2+ anomaly flags fire, otherwise null.
@@ -99,17 +113,25 @@ object IllnessWatch {
         val flags = mutableListOf<String>()
 
         run {
+            // #2130: the same "enough valid baseline nights" rule the respiration flag below already
+            // applies. `mean` is happy with ONE value, so without this a single stored night can serve
+            // as the baseline a wearer's resting HR is judged against.
+            val rhrBase = base.mapNotNull { it.restingHr?.toDouble() }
             val r = rm { it.restingHr?.toDouble() }
             val b = bm { it.restingHr?.toDouble() }
-            if (r != null && b != null && r >= b + 5) {
+            if (r != null && b != null && rhrBase.size >= MIN_BASELINE_NIGHTS && r >= b + 5) {
                 flags.add("resting HR +${(r - b).roundToInt()} bpm")
             }
         }
 
         run {
+            // #2130: same guard, and it matters more here. HRV is the sparsest of the four, since the
+            // over-count gate withholds whole nights (#1118), so its baseline is the likeliest of them
+            // to have been resting on a handful of stored values.
+            val hrvBase = base.mapNotNull { it.avgHrv }
             val r = rm { it.avgHrv }
             val b = bm { it.avgHrv }
-            if (r != null && b != null && b > 0 && r <= b * 0.80) {
+            if (r != null && b != null && b > 0 && hrvBase.size >= MIN_BASELINE_NIGHTS && r <= b * 0.80) {
                 flags.add("HRV −${((1 - r / b) * 100).roundToInt()}%")
             }
         }
@@ -132,7 +154,7 @@ object IllnessWatch {
             val r = rm { it.respRateBpm }
             val b = bm { it.respRateBpm }
             val plausible = { v: Double -> v in 8.0..25.0 }
-            if (r != null && b != null && respBase.size >= 10 &&
+            if (r != null && b != null && respBase.size >= MIN_BASELINE_NIGHTS &&
                 plausible(r) && plausible(b) && r >= b + 2.5
             ) {
                 flags.add("respiration up")
