@@ -98,12 +98,21 @@ private struct StressMovingMarksShape: Shape {
 
     func path(in rect: CGRect) -> Path {
         var path = Path()
-        let half: CGFloat = 3
-        for x in StressTrace.movingMarks(series, width: rect.width) {
+        // A span arrives covering its hours edge to edge, so the only width left to decide is the
+        // FLOOR, for a degenerate series with no width to spread across. It is the width the mark used
+        // to have unconditionally, kept so the smallest mark is no less visible than before.
+        let minWidth: CGFloat = 6
+        let radius = rect.height / 2
+        for span in StressTrace.movingSpans(series, width: rect.width) {
+            let lo = min(max(span.lowerBound, 0), rect.width)
+            let hi = min(max(span.upperBound, 0), rect.width)
+            // Floored by GROWING right, then left if that ran into the edge, so a mark at either end
+            // of the day keeps its width instead of being trimmed away by the box.
+            let x1 = max(hi, min(lo + minWidth, rect.width))
+            let x0 = min(lo, max(x1 - minWidth, 0))
             path.addRoundedRect(
-                in: CGRect(x: max(x - half, 0), y: rect.minY,
-                           width: min(half * 2, rect.width), height: rect.height),
-                cornerSize: CGSize(width: half, height: half),
+                in: CGRect(x: x0, y: rect.minY, width: x1 - x0, height: rect.height),
+                cornerSize: CGSize(width: radius, height: radius),
             )
         }
         return path

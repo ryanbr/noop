@@ -29,13 +29,13 @@ internal object StressTraceRenderer {
     /**
      * @param segments from [StressTrace.segments], already normalised into the box, each a contiguous
      *        run of scored hours
-     * @param movingMarks from [StressTrace.movingMarks], X centres of the hours masked as movement
+     * @param movingSpans from [StressTrace.movingSpans], the CONTIGUOUS stretches masked as movement
      * @return the trace, or null when there is nothing to draw or the box is degenerate, so the caller
      *         shows the empty state rather than an empty image.
      */
     fun render(
         segments: List<List<StressTrace.Pt>>,
-        movingMarks: List<Float>,
+        movingSpans: List<ClosedFloatingPointRange<Float>>,
         /** from [StressTrace.highPoints], the scored hours sitting in the high band */
         highPoints: List<StressTrace.Pt>,
         widthPx: Int,
@@ -54,7 +54,7 @@ internal object StressTraceRenderer {
         markColor: Int,
         strokePx: Float,
     ): Bitmap? {
-        if (segments.isEmpty() && movingMarks.isEmpty() && highPoints.isEmpty()) return null
+        if (segments.isEmpty() && movingSpans.isEmpty() && highPoints.isEmpty()) return null
         // The caller sized this with the shared payload budget; re-check it rather than re-decide it.
         val w = widthPx.coerceAtLeast(1)
         val h = heightPx.coerceAtLeast(1)
@@ -69,7 +69,7 @@ internal object StressTraceRenderer {
 
         // Reserve the bottom strip for the movement marks so a calm hour's line, which sits at the very
         // bottom of a fixed domain, cannot be confused with them.
-        val markBand = if (movingMarks.isEmpty()) 0f else (strokePx * 2f).coerceAtMost(h / 6f)
+        val markBand = if (movingSpans.isEmpty()) 0f else (strokePx * 2f).coerceAtMost(h / 6f)
         val chartH = (h - markBand).coerceAtLeast(1f)
 
         // Inset by the stroke so a point sitting exactly on the top or bottom edge is not shaved in half.
@@ -164,20 +164,27 @@ internal object StressTraceRenderer {
             }
         }
 
-        if (movingMarks.isNotEmpty() && markBand > 0f) {
+        if (movingSpans.isNotEmpty() && markBand > 0f) {
             val markPaint = Paint().apply {
                 isAntiAlias = true
                 color = markColor
                 style = Paint.Style.FILL
             }
-            val halfWidth = (strokePx * 1.5f).coerceAtLeast(1f)
+            // A span arrives covering its hours edge to edge, so the only width left to decide is the
+            // FLOOR, for a degenerate series with no width to spread across. It is the width the mark
+            // used to have unconditionally, kept so the smallest mark is no less visible than before.
+            val minWidth = (strokePx * 3f).coerceAtLeast(1f)
+            val radius = markBand / 2f
             val top = h - markBand
-            for (x in movingMarks) {
-                canvas.drawRoundRect(
-                    (x - halfWidth).coerceAtLeast(0f), top,
-                    (x + halfWidth).coerceAtMost(w.toFloat()), h.toFloat(),
-                    halfWidth, halfWidth, markPaint,
-                )
+            val right = w.toFloat()
+            for (span in movingSpans) {
+                val lo = span.start.coerceIn(0f, right)
+                val hi = span.endInclusive.coerceIn(0f, right)
+                // Floored by GROWING right, then left if that ran into the edge, so a mark at either
+                // end of the day keeps its width instead of being trimmed away by the box.
+                val x1 = maxOf(hi, minOf(lo + minWidth, right))
+                val x0 = minOf(lo, maxOf(x1 - minWidth, 0f))
+                canvas.drawRoundRect(x0, top, x1, h.toFloat(), radius, radius, markPaint)
             }
         }
         return bmp

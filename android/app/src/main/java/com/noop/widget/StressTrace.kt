@@ -165,14 +165,12 @@ object StressTrace {
     /**
      * The moving hours grouped into CONTIGUOUS x ranges, for the marks along the base (#2106).
      *
-     * Separate from [movingMarks] because the two answer different questions. Bare centres say where
-     * each masked hour was; a run says which STRETCH of the day was masked, and that is what a reader
-     * needs when they are looking at a hole in the trace and trying to work out what put it there.
-     *
-     * The reason this matters was reported rather than theorised. A wearer saw the gaps, read the
-     * evenly spaced dots along the zero line as axis ticks, and concluded the data itself was missing,
-     * asking whether continuous HRV tracking would fill them in. Adjacent hours drawn as one bar under
-     * the gap it explains cannot be mistaken for a scale, because a scale does not start and stop with
+     * A run rather than a mark per hour, because a run says which STRETCH of the day was masked, and
+     * that is what a reader needs when they are looking at a hole in the trace and trying to work out
+     * what put it there. The reason it matters was reported rather than theorised: a wearer saw the
+     * gaps, read the evenly spaced marks along the zero line as axis ticks, concluded the data itself
+     * was missing, and asked whether continuous HRV tracking would fill them in. One bar under the
+     * stretch it explains cannot be mistaken for a scale, because a scale does not start and stop with
      * the data.
      *
      * Adjacency is by POSITION in the series, not by timestamp arithmetic: the series is already the
@@ -186,6 +184,10 @@ object StressTrace {
      * from the list entirely) still gets honest extents. At the ends of the series the territory stops
      * at the point itself: the day's extent is what was sampled, and nothing is invented past it, which
      * also keeps every span inside the box without a clamp.
+     *
+     * The upper edge is floored to the lower one. On a sorted series it never binds, but the two
+     * platforms disagree about what an inverted range means, Kotlin yielding an empty one where Swift
+     * traps, and a twin that crashes on one side and shrugs on the other is not a twin.
      */
     fun movingSpans(series: List<StressPoint>, width: Float): List<ClosedFloatingPointRange<Float>> {
         if (series.isEmpty() || width <= 0f) return emptyList()
@@ -206,26 +208,12 @@ object StressTrace {
             // A run closes at the first hour that is NOT moving, and also at the end of the series, or
             // a day whose last hours were all masked would be dropped for want of a terminator.
             if (from != null && (!moving || i == last)) {
-                out.add(leftEdge(from)..rightEdge(if (moving) i else i - 1))
+                val lo = leftEdge(from)
+                out.add(lo..maxOf(rightEdge(if (moving) i else i - 1), lo))
                 runStart = null
             }
         }
         return out
-    }
-
-    /**
-     * X positions of the hours masked as movement, for the faint marks along the base.
-     *
-     * Returned as bare X centres rather than as spans: the mark's thickness is a drawing decision and
-     * belongs to the renderer, while WHERE the moving hours were is a fact about the day.
-     */
-    fun movingMarks(series: List<StressPoint>, width: Float): List<Float> {
-        if (series.isEmpty() || width <= 0f) return emptyList()
-        val t0 = series.first().ts
-        val span = (series.last().ts - t0).toFloat()
-        return series.filter { it.moving }.map { p ->
-            if (span <= 0f) 0f else (p.ts - t0) / span * width
-        }
     }
 
     /**

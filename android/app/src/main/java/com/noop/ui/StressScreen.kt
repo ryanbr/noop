@@ -728,12 +728,14 @@ internal fun StressTodayCard(points: List<StressPoint>, modifier: Modifier = Mod
                         // start and stop with the data, so a bar sitting under the stretch it explains
                         // cannot be read as one. The span already covers the masked hours edge to edge,
                         // so the floor below is only for a degenerate series with no width to spread
-                        // across, not the ordinary lone-hour case.
+                        // across, not the ordinary lone-hour case. It is the WIDGET's floor, and wider
+                        // than the dot this replaced, so even that case is no less visible than before.
                         val markY = h - markBand / 2f
                         val markH = (markBand * 0.5f).coerceAtLeast(1f)
+                        val minMarkW = strokeW * 3f
                         StressTrace.movingSpans(points, w).forEach { span ->
-                            val x0 = span.start
-                            val x1 = (span.endInclusive).coerceAtLeast(x0 + strokeW)
+                            val x1 = maxOf(span.endInclusive, minOf(span.start + minMarkW, w))
+                            val x0 = minOf(span.start, maxOf(x1 - minMarkW, 0f))
                             drawRoundRect(
                                 color = markTone,
                                 topLeft = Offset(x0, markY - markH / 2f),

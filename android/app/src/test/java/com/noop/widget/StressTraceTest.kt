@@ -76,9 +76,9 @@ class StressTraceTest {
     fun `hours masked as movement are marked and do not join the line`() {
         val day = listOf(at(0, 1.0), at(1, null, moving = true), at(2, 1.0))
         assertEquals(2, StressTrace.segments(day, 100f, 100f).size)
-        val marks = StressTrace.movingMarks(day, 100f)
-        assertEquals(1, marks.size)
-        assertEquals(50f, marks.single(), 0.001f)
+        val span = StressTrace.movingSpans(day, 100f).single()
+        assertEquals(25f, span.start, 0.001f)
+        assertEquals(75f, span.endInclusive, 0.001f)
     }
 
     // MARK: - the high band
@@ -171,41 +171,33 @@ class StressTraceTest {
 
     // #2106: contiguous masked stretches, so the marks read as regions rather than as axis ticks.
 
-    private fun pt(ts: Long, level: Double?, moving: Boolean) = StressPoint(ts, level, moving)
-
     /** Adjacent masked hours become ONE span: that is the whole point, a bar under the hole it explains. */
     @Test
     fun `adjacent moving hours join into one span`() {
-        val series = listOf(
-            pt(0, 1.0, false), pt(3600, null, true), pt(7200, null, true), pt(10800, 1.5, false),
-        )
-        val spans = StressTrace.movingSpans(series, 100f)
-        assertEquals(1, spans.size)
+        val day = listOf(at(0, 1.0), at(1, null, moving = true), at(2, null, moving = true), at(3, 1.5))
+        assertEquals(1, StressTrace.movingSpans(day, 100f).size)
     }
 
     /** Separated runs stay separate, so two different stretches are not merged into one claim. */
     @Test
     fun `separated moving runs stay separate`() {
-        val series = listOf(
-            pt(0, null, true), pt(3600, 1.0, false), pt(7200, null, true),
-        )
-        assertEquals(2, StressTrace.movingSpans(series, 100f).size)
+        val day = listOf(at(0, null, moving = true), at(1, 1.0), at(2, null, moving = true))
+        assertEquals(2, StressTrace.movingSpans(day, 100f).size)
     }
 
-    /** A run ending at the LAST point still closes, rather than being dropped for want of a terminator. */
+    /** A run ending at the LAST hour still closes, rather than being dropped for want of a terminator. */
     @Test
     fun `a run ending at the last point is still emitted`() {
-        val series = listOf(pt(0, 1.0, false), pt(3600, null, true), pt(7200, null, true))
-        val spans = StressTrace.movingSpans(series, 100f)
-        assertEquals(1, spans.size)
-        assertEquals(100f, spans.first().endInclusive, 0.01f)
+        val day = listOf(at(0, 1.0), at(1, null, moving = true), at(2, null, moving = true))
+        val span = StressTrace.movingSpans(day, 100f).single()
+        assertEquals(100f, span.endInclusive, 0.001f)
     }
 
     /** No moving hours means no marks, so an ordinary day carries no band at all. */
     @Test
     fun `no moving hours yields no spans`() {
-        val series = listOf(pt(0, 1.0, false), pt(3600, 2.0, false))
-        assertEquals(emptyList<ClosedFloatingPointRange<Float>>(), StressTrace.movingSpans(series, 100f))
+        assertEquals(emptyList<ClosedFloatingPointRange<Float>>(),
+                     StressTrace.movingSpans(listOf(at(0, 1.0), at(1, 2.0)), 100f))
     }
 
     /**
@@ -215,30 +207,25 @@ class StressTraceTest {
      */
     @Test
     fun `a lone moving hour spans its own hour, not an instant`() {
-        val series = listOf(
-            pt(0, 1.0, false), pt(3600, 1.0, false), pt(7200, null, true),
-            pt(10800, 1.0, false), pt(14400, 1.0, false),
-        )
-        val span = StressTrace.movingSpans(series, 100f).single()
-        assertEquals(37.5f, span.start, 0.01f)
-        assertEquals(62.5f, span.endInclusive, 0.01f)
+        val day = listOf(at(0, 1.0), at(1, 1.0), at(2, null, moving = true), at(3, 1.0), at(4, 1.0))
+        val span = StressTrace.movingSpans(day, 100f).single()
+        assertEquals(37.5f, span.start, 0.001f)
+        assertEquals(62.5f, span.endInclusive, 0.001f)
     }
 
     /** A run covers its hours EDGE to edge, so the bar reaches past the outermost masked centres. */
     @Test
     fun `a run covers its hours edge to edge`() {
-        val series = listOf(
-            pt(0, 1.0, false), pt(3600, null, true), pt(7200, null, true), pt(10800, 1.0, false),
-        )
-        val span = StressTrace.movingSpans(series, 100f).single()
-        assertEquals(100f / 6f, span.start, 0.01f)
-        assertEquals(100f * 5f / 6f, span.endInclusive, 0.01f)
+        val day = listOf(at(0, 1.0), at(1, null, moving = true), at(2, null, moving = true), at(3, 1.0))
+        val span = StressTrace.movingSpans(day, 100f).single()
+        assertEquals(100f / 6f, span.start, 0.001f)
+        assertEquals(100f * 5f / 6f, span.endInclusive, 0.001f)
     }
 
     /** At the ends of the day the territory stops at the data: nothing is invented past what was sampled. */
     @Test
     fun `a run starting at the first hour starts at the edge of the box`() {
-        val series = listOf(pt(0, null, true), pt(3600, 1.0, false), pt(7200, 1.0, false))
-        assertEquals(0f, StressTrace.movingSpans(series, 100f).single().start, 0.01f)
+        val day = listOf(at(0, null, moving = true), at(1, 1.0), at(2, 1.0))
+        assertEquals(0f, StressTrace.movingSpans(day, 100f).single().start, 0.001f)
     }
 }

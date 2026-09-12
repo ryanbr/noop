@@ -266,7 +266,7 @@ private fun StressTraceImage(
     val bmp = runCatching {
         StressTraceRenderer.render(
             segments = StressTrace.segments(snap.stressSeries, wPx.toFloat(), hPx.toFloat()),
-            movingMarks = StressTrace.movingMarks(snap.stressSeries, wPx.toFloat()),
+            movingSpans = StressTrace.movingSpans(snap.stressSeries, wPx.toFloat()),
             highPoints = StressTrace.highPoints(snap.stressSeries, wPx.toFloat(), hPx.toFloat()),
             widthPx = wPx,
             heightPx = hPx,

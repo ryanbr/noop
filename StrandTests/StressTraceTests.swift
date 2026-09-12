@@ -78,9 +78,64 @@ final class StressTraceTests: XCTestCase {
     func testHoursMaskedAsMovementAreMarkedAndDoNotJoinTheLine() {
         let day = [at(0, 1.0), at(1, nil, moving: true), at(2, 1.0)]
         XCTAssertEqual(StressTrace.segments(day, width: 100, height: 100).count, 2)
-        let marks = StressTrace.movingMarks(day, width: 100)
-        XCTAssertEqual(marks.count, 1)
-        XCTAssertEqual(marks[0], 50, accuracy: 0.001)
+        let span = StressTrace.movingSpans(day, width: 100)[0]
+        XCTAssertEqual(span.lowerBound, 25, accuracy: 0.001)
+        XCTAssertEqual(span.upperBound, 75, accuracy: 0.001)
+    }
+
+    // #2106: contiguous masked stretches, so the marks read as regions rather than as axis ticks.
+
+    /// Adjacent masked hours become ONE span: that is the whole point, a bar under the hole it explains.
+    func testAdjacentMovingHoursJoinIntoOneSpan() {
+        let day = [at(0, 1.0), at(1, nil, moving: true), at(2, nil, moving: true), at(3, 1.5)]
+        XCTAssertEqual(StressTrace.movingSpans(day, width: 100).count, 1)
+    }
+
+    /// Separated runs stay separate, so two different stretches are not merged into one claim.
+    func testSeparatedMovingRunsStaySeparate() {
+        let day = [at(0, nil, moving: true), at(1, 1.0), at(2, nil, moving: true)]
+        XCTAssertEqual(StressTrace.movingSpans(day, width: 100).count, 2)
+    }
+
+    /// A run ending at the LAST hour still closes, rather than being dropped for want of a terminator.
+    func testARunEndingAtTheLastPointIsStillEmitted() {
+        let day = [at(0, 1.0), at(1, nil, moving: true), at(2, nil, moving: true)]
+        let spans = StressTrace.movingSpans(day, width: 100)
+        XCTAssertEqual(spans.count, 1)
+        XCTAssertEqual(spans[0].upperBound, 100, accuracy: 0.001)
+    }
+
+    /// No moving hours means no marks, so an ordinary day carries no band at all.
+    func testNoMovingHoursYieldsNoSpans() {
+        XCTAssertTrue(StressTrace.movingSpans([at(0, 1.0), at(1, 2.0)], width: 100).isEmpty)
+    }
+
+    /// A LONE masked hour is the case the geometry exists for: centre to centre it has a width of zero,
+    /// and it is the hour with no neighbours to make it obvious, so it is also the one that most needs
+    /// to be legible. It covers its own hour, half a slot either side of its centre.
+    func testALoneMovingHourSpansItsOwnHourNotAnInstant() {
+        let day = [at(0, 1.0), at(1, 1.0), at(2, nil, moving: true), at(3, 1.0), at(4, 1.0)]
+        let spans = StressTrace.movingSpans(day, width: 100)
+        XCTAssertEqual(spans.count, 1)
+        XCTAssertEqual(spans[0].lowerBound, 37.5, accuracy: 0.001)
+        XCTAssertEqual(spans[0].upperBound, 62.5, accuracy: 0.001)
+    }
+
+    /// A run covers its hours EDGE to edge, so the bar reaches past the outermost masked centres.
+    func testARunCoversItsHoursEdgeToEdge() {
+        let day = [at(0, 1.0), at(1, nil, moving: true), at(2, nil, moving: true), at(3, 1.0)]
+        let spans = StressTrace.movingSpans(day, width: 100)
+        XCTAssertEqual(spans.count, 1)
+        XCTAssertEqual(spans[0].lowerBound, 100.0 / 6.0, accuracy: 0.001)
+        XCTAssertEqual(spans[0].upperBound, 100.0 * 5.0 / 6.0, accuracy: 0.001)
+    }
+
+    /// At the ends of the day the territory stops at the data: nothing is invented past what was sampled.
+    func testARunStartingAtTheFirstHourStartsAtTheEdgeOfTheBox() {
+        let day = [at(0, nil, moving: true), at(1, 1.0), at(2, 1.0)]
+        let spans = StressTrace.movingSpans(day, width: 100)
+        XCTAssertEqual(spans.count, 1)
+        XCTAssertEqual(spans[0].lowerBound, 0, accuracy: 0.001)
     }
 
     // MARK: - the high band
