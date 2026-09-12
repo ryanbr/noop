@@ -129,6 +129,7 @@ class RepositoryBaselineTests(unittest.TestCase):
                 "Tools/issue_ref.py",
                 "Tools/parity_*.py",
                 "Tools/parity_*.json",
+                "Tools/parity_case_specs/**",
                 "Tools/tests/**",
                 ".github/workflows/parity-governance.yml",
             ] * 2,

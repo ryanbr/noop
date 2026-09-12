@@ -29,6 +29,7 @@ on:
       - 'Tools/issue_ref.py'
       - 'Tools/parity_*.py'
       - 'Tools/parity_*.json'
+      - 'Tools/parity_case_specs/**'
       - 'Tools/tests/**'
       - '.github/workflows/parity-governance.yml'
   push:
@@ -37,6 +38,7 @@ on:
       - 'Tools/issue_ref.py'
       - 'Tools/parity_*.py'
       - 'Tools/parity_*.json'
+      - 'Tools/parity_case_specs/**'
       - 'Tools/tests/**'
       - '.github/workflows/parity-governance.yml'
   # Daily, so authority staleness is found on a schedule instead of by whoever
@@ -67,8 +69,8 @@ jobs:
           python3 -m unittest discover -s tests -p "test_*.py" -v 2>&1 | tee "$RUNNER_TEMP/out.txt"
           ran=$(grep -oE '^Ran [0-9]+ test' "$RUNNER_TEMP/out.txt" | grep -oE '[0-9]+')
           echo "collected ${ran:-0} tests"
-          if [ "${ran:-0}" -lt 103 ]; then
-            echo "::error::expected at least 103 parity-governance tests, collected ${ran:-0} — discovery is broken, not the suite"
+          if [ "${ran:-0}" -lt 138 ]; then
+            echo "::error::expected at least 138 parity-governance tests, collected ${ran:-0} — discovery is broken, not the suite"
             exit 1
           fi
         working-directory: Tools
