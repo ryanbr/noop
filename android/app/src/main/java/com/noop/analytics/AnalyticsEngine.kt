@@ -644,8 +644,26 @@ object AnalyticsEngine {
             // `reported` is the value NOOP actually displays (duration-weighted session-mean-of-means);
             // `wholeNight` is the pooled-window mean it equals on single-session nights and the apples-to-
             // apples baseline for the deepOnly/lastSWS comparison (all three are pooled window means).
+            // #2128: say WHY `reported` is nil, but ONLY when the night printed real window means beside
+            // it. That is the confusing case: a nil next to `wholeNight=31.55ms` reads as a value that
+            // went missing, when the usual cause is the #1118 gate refusing an over-counted night on
+            // purpose. A night with no windows at all explains itself and pays nothing here.
+            //
+            // The `hrv diag` line one row above carries `rrIntegrity`, but that verdict is scored over the
+            // whole DAY while the gate runs per SESSION, so the two disagree exactly when it matters: a
+            // day reading `underCovered` can still hold a session the gate refused. Reading the adjacent
+            // line is what led #2128 to be filed against intended behaviour.
+            //
+            // Cost: one extra O(n) filter and coverage pass per withheld session. `sessionAvgHRV`'s own
+            // comment warns against buying diagnostic detail on this path, but what it refuses is a SORT
+            // (`collapsedCoverage` opens with one); `rrCoverage` is a single linear pass, and this runs
+            // only on nights that already produced nothing.
+            val refused = if (avgHRVDaily != null || withR.isEmpty()) null else physiologySessions
+                .map { SleepStager.sessionRrVerdict(it.start, it.end, rrSorted) }
+                .firstOrNull { !HrvAnalyzer.successiveDiffIsTrustworthy(it) }
             hrvTraceSink(
                 "hrv nightSummary reported=${avgHRVDaily?.let { "${round2(it)}ms" } ?: "nil"} " +
+                    (refused?.let { "refused=${it.raw} " } ?: "") +
                     "wholeNight=${meanMs(withR)} deepOnly=${meanMs(deepW)} " +
                     "lastSWS=${meanMs(lastSws)} nWin=${withR.size} nDeep=${deepW.size}",
             )

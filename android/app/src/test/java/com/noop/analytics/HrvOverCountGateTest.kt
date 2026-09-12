@@ -84,4 +84,28 @@ class HrvOverCountGateTest {
                 HrvAnalyzer.beatSpreadIsTrustworthy(v), HrvAnalyzer.successiveDiffIsTrustworthy(v))
         }
     }
+
+    /**
+     * #2128: the verdict the nightly trace prints must be the one the value gate actually acted on.
+     *
+     * Asserted as an AGREEMENT rather than against a fixed label, so extracting the classification into
+     * [SleepStager.sessionRrVerdict] cannot let the explanation and the decision drift apart. A bare
+     * `reported=nil` beside real window means reads as a value that went missing; it is usually this gate
+     * refusing an over-counted night on purpose, and the trace can only say so if it asks the same helper.
+     */
+    @Test fun theTracedVerdictAgreesWithTheGate() {
+        val start = 1000L
+        val end = start + 600
+        val overCounted = (0 until 600).flatMap { i -> listOf(rr(start + i, 880), rr(start + i, 960)) }
+        val plausible = (0 until 600).map { i -> rr(start + i, 900) }
+        for (beats in listOf(overCounted, plausible)) {
+            assertTrue("precondition: these beats DO yield an RMSSD", windowsYieldRmssd(start, end, beats))
+            val verdict = SleepStager.sessionRrVerdict(start, end, beats)
+            assertEquals(
+                "a withheld night must be exactly the night the traced verdict calls untrustworthy",
+                SleepStager.sessionAvgHRV(start, end, beats) == null,
+                !HrvAnalyzer.successiveDiffIsTrustworthy(verdict),
+            )
+        }
+    }
 }

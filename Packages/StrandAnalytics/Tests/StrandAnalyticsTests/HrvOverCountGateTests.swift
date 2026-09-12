@@ -80,4 +80,28 @@ final class HrvOverCountGateTests: XCTestCase {
                            "verdict \(v) must be judged alike by both gates")
         }
     }
+
+    /// #2128: the verdict the nightly trace prints must be the one the value gate actually acted on.
+    ///
+    /// Asserted as an AGREEMENT rather than against a fixed label, so extracting the classification into
+    /// `sessionRrVerdict` cannot let the explanation and the decision drift apart. A bare `reported=nil`
+    /// beside real window means reads as a value that went missing; it is usually this gate refusing an
+    /// over-counted night on purpose, and the trace can only say so if it asks the same helper.
+    func testTheTracedVerdictAgreesWithTheGate() {
+        let start = 1_000, end = 1_600
+        var overCounted: [RRInterval] = []
+        var plausible: [RRInterval] = []
+        for i in 0..<600 {
+            overCounted.append(RRInterval(ts: start + i, rrMs: 880))
+            overCounted.append(RRInterval(ts: start + i, rrMs: 960))
+            plausible.append(RRInterval(ts: start + i, rrMs: 900))
+        }
+        for beats in [overCounted, plausible] {
+            XCTAssertTrue(windowsYieldRMSSD(start, end, beats), "precondition: these beats DO yield an RMSSD")
+            let verdict = SleepStager.sessionRrVerdict(start: start, end: end, rr: beats)
+            XCTAssertEqual(SleepStager.sessionAvgHRV(start: start, end: end, rr: beats) == nil,
+                           !HRVAnalyzer.successiveDiffIsTrustworthy(verdict),
+                           "a withheld night must be exactly the night the traced verdict calls untrustworthy")
+        }
+    }
 }

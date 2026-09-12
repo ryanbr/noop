@@ -769,7 +769,25 @@ public enum AnalyticsEngine {
             // `wholeNight` is the pooled-window mean it equals on single-session nights and the apples-to-
             // apples baseline for the deepOnly/lastSWS comparison (all three are pooled window means).
             let reported = avgHRVDaily.map { "\(r2($0))ms" } ?? "nil"
-            hrvTraceSink("hrv nightSummary reported=\(reported) wholeNight=\(meanMs(withR)) deepOnly=\(meanMs(deepW)) lastSWS=\(meanMs(lastSws)) nWin=\(withR.count) nDeep=\(deepW.count)")
+            // #2128: say WHY `reported` is nil, but ONLY when the night printed real window means beside
+            // it. That is the confusing case: a nil next to `wholeNight=31.55ms` reads as a value that went
+            // missing, when the usual cause is the #1118 gate refusing an over-counted night on purpose. A
+            // night with no windows at all explains itself and pays nothing here.
+            //
+            // The `hrv diag` line one row above carries `rrIntegrity`, but that verdict is scored over the
+            // whole DAY while the gate runs per SESSION, so the two disagree exactly when it matters: a day
+            // reading `underCovered` can still hold a session the gate refused. Reading the adjacent line is
+            // what led #2128 to be filed against intended behaviour.
+            //
+            // Cost: one extra O(n) filter and coverage pass per withheld session. `sessionAvgHRV`'s own
+            // comment warns against buying diagnostic detail on this path, but what it refuses is a SORT
+            // (`collapsedCoverage` opens with one); `rrCoverage` is a single linear pass, and this runs only
+            // on nights that already produced nothing.
+            let refused: String = (avgHRVDaily != nil || withR.isEmpty) ? "" : (physiologySessions
+                .map { SleepStager.sessionRrVerdict(start: $0.start, end: $0.end, rr: rrSorted) }
+                .first { !HRVAnalyzer.successiveDiffIsTrustworthy($0) }
+                .map { "refused=\($0.rawValue) " } ?? "")
+            hrvTraceSink("hrv nightSummary reported=\(reported) \(refused)wholeNight=\(meanMs(withR)) deepOnly=\(meanMs(deepW)) lastSWS=\(meanMs(lastSws)) nWin=\(withR.count) nDeep=\(deepW.count)")
         }
 
         // Nightly APPROXIMATE respiratory rate (breaths/min) from the R-R stream via

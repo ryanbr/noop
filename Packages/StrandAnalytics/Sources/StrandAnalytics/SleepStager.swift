@@ -2943,6 +2943,20 @@ public enum SleepStager {
         public let rmssd: Double?
     }
 
+    /// The #1118 coverage verdict for a session's OWN R-R, windowed exactly as `sessionHrvWindows` is.
+    ///
+    /// Named once because two callers need the SAME verdict: `sessionAvgHRV`, which withholds the night's
+    /// HRV when the beats cannot carry a successive-difference statistic, and the nightly trace, which has
+    /// to say WHY it was withheld. A second copy of the classification could describe a different set of
+    /// beats than the number it is explaining, which is the one thing the gate's own comment insists on.
+    static func sessionRrVerdict(start: Int, end: Int, rr: [RRInterval]) -> HRVAnalyzer.RrCoverageVerdict {
+        let seg = rr.filter { $0.ts >= start && $0.ts <= end }
+        // `collapsed` is deliberately the SAME figure as `coverage`; see `sessionAvgHRV` for why the
+        // distinction between the two over-count verdicts is not worth a second sort here.
+        let coverage = HRVAnalyzer.rrCoverage(tsSec: seg.map { $0.ts }, rrMs: seg.map { Double($0.rrMs) })
+        return HRVAnalyzer.classifyCoverage(coverage: coverage, collapsed: coverage)
+    }
+
     /// Mean RMSSD over 5-min tumbling windows across the session (ms), or nil.
     /// Uses the same range-filter + ≥2-valid-interval rule as hrv.rmssd().
     static func sessionAvgHRV(start: Int, end: Int, rr: [RRInterval]) -> Double? {
@@ -2958,19 +2972,7 @@ public enum SleepStager {
         // Classified over the SAME beats the value was built from, windowed [start, end] exactly as
         // `sessionHrvWindows` does, so the verdict cannot describe a different set of beats than the number
         // it is gating.
-        let seg = rr.filter { $0.ts >= start && $0.ts <= end }
-        let segTs = seg.map { $0.ts }
-        let segMs = seg.map { Double($0.rrMs) }
-        let coverage = HRVAnalyzer.rrCoverage(tsSec: segTs, rrMs: segMs)
-        // `collapsed` is deliberately the SAME figure as `coverage`, which pins every over-count here to
-        // crossSecondOverCount. That is not a claim about which kind it is. The collapsed figure exists only
-        // to choose BETWEEN the two over-count verdicts, and this gate refuses both, so the real one would
-        // change no outcome — while costing a full sort of the night's ~50-70k beats, since
-        // `collapsedCoverage` opens with a sort. This runs per session, per day, across ~21 days of every
-        // analyzeRecent, every 15 minutes; #1510 cut this exact path from six sorts a night to two, and
-        // buying a distinction the caller discards would hand that back. `rrCoverage` is a single O(n)
-        // pass. If a future gate ever needs the two over-count cases apart, compute it then.
-        let verdict = HRVAnalyzer.classifyCoverage(coverage: coverage, collapsed: coverage)
+        let verdict = sessionRrVerdict(start: start, end: end, rr: rr)
         guard HRVAnalyzer.successiveDiffIsTrustworthy(verdict) else { return nil }
         return vals.reduce(0, +) / Double(vals.count)
     }
