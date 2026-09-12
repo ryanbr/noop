@@ -16,7 +16,12 @@ import android.content.SharedPreferences
  * The macOS app stored this in `UserDefaults` under the key `noopPuffinExperiments`; the Android
  * equivalent is [SharedPreferences]. The same key name is reused for parity.
  */
-class PuffinExperiment(private val prefs: SharedPreferences) {
+class PuffinExperiment(
+    private val prefs: SharedPreferences,
+    /** NoopPrefs, where the per-strap refusal latch lives. Null in tests that touch only this file's own
+     *  switches; a re-arm then clears the budgets and leaves the latch, which is the pre-#2135 behaviour. */
+    private val noopPrefs: SharedPreferences? = null,
+) {
 
     /** True if the user opted in to the WHOOP 5/MG protocol probes (default false). */
     var isEnabled: Boolean
@@ -170,6 +175,22 @@ class PuffinExperiment(private val prefs: SharedPreferences) {
                     .forEach { e.remove(it) }
             }
             e.apply()
+            // #2135: the refusal latch is the one retirement reason the sweep above cannot reach, because
+            // it lives in NoopPrefs rather than this file. #1804 could set it FALSELY off the probe's own
+            // local teardown, so a strap latched before that change stayed retired through every re-arm
+            // while the stalled-link diagnostic kept suggesting one. Swept by the same prefix rule, on the
+            // other file, and only on the same off-to-on edge.
+            if (rearms) {
+                runCatching {
+                    noopPrefs?.let { np ->
+                        val ne = np.edit()
+                        np.all.keys
+                            .filter { it.startsWith(UNBONDED_OFFLOAD_REFUSED_KEY_PREFIX) }
+                            .forEach { ne.remove(it) }
+                        ne.apply()
+                    }
+                }
+            }
         }
 
     /**
@@ -181,6 +202,11 @@ class PuffinExperiment(private val prefs: SharedPreferences) {
      * written to `NoopPrefs` and swept from `noop_experiments`, re-enabling the switch would clear nothing
      * and the probe would stay retired forever, silently. Keeping the budget on the object that owns the
      * switch makes that drift unrepresentable rather than merely documented.
+     *
+     * The refusal latch could not move here, being written at connect time with a device in hand, and it
+     * is exactly the "retired forever, silently" case this paragraph warns about: #2135. The setter is
+     * now handed `NoopPrefs` as well and sweeps the latch by its own prefix, so both files are reachable
+     * from the one place the intent is unambiguous.
      *
      * Unreadable prefs read as 0 — the probe's other gates bound it, and a prefs failure must not be the
      * thing that keeps a spent budget spent.
@@ -315,6 +341,9 @@ class PuffinExperiment(private val prefs: SharedPreferences) {
         const val KEY_MOTION_AWARE_WAKE = "noopMotionAwareWake"
 
         fun from(context: Context): PuffinExperiment =
-            PuffinExperiment(context.getSharedPreferences(PREFS, Context.MODE_PRIVATE))
+            PuffinExperiment(
+                context.getSharedPreferences(PREFS, Context.MODE_PRIVATE),
+                context.getSharedPreferences(com.noop.ui.NoopPrefs.NAME, Context.MODE_PRIVATE),
+            )
     }
 }
