@@ -147,10 +147,25 @@ object WidgetSnapshotStore {
      * send in that case, but by then the work is done, and stress is the one field whose production
      * costs a day of heart-rate rows rather than a field read.
      */
-    suspend fun hasStressWidget(context: Context): Boolean = runCatching {
+    suspend fun hasStressWidget(context: Context): Boolean = stressWidgetPlacement(context) ?: false
+
+    /**
+     * Whether a stress widget is placed, or NULL when that could not be determined (#2120).
+     *
+     * [hasStressWidget] collapses the failure into `false`, which is right for a caller deciding whether
+     * to do work: no answer means do nothing. It is wrong for a caller deciding when to try AGAIN, because
+     * "no widget is placed" and "the widget host did not answer" want opposite things. The first is a
+     * settled no; the second is a transient miss that left a placed widget blank, and the wearer sees it
+     * until something else fills it.
+     *
+     * Crossing into GlanceAppWidgetManager is what can fail here, which is exactly the crossing the
+     * caller's early stamp exists to keep off a hot collector, so the two decisions are entangled and
+     * the uncertainty has to survive the call to be acted on.
+     */
+    suspend fun stressWidgetPlacement(context: Context): Boolean? = runCatching {
         GlanceAppWidgetManager(context.applicationContext)
             .getGlanceIds(StressGlanceWidget::class.java).isNotEmpty()
-    }.getOrDefault(false)
+    }.getOrNull()
 
     fun save(context: Context, snap: WidgetSnapshot) {
         val prefs = context.getSharedPreferences(FILE, Context.MODE_PRIVATE)

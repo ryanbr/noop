@@ -47,6 +47,42 @@ internal object StressWidgetProducer {
     @Volatile
     private var memo: Memo? = null
 
+    /** How soon a FAILED attempt may be retried. Short, because the widget is blank until it succeeds. */
+    const val RESCORE_RETRY_MS: Long = 60L * 1000L
+
+    /**
+     * The stamp to keep after an attempt, given what that attempt actually produced (#2120).
+     *
+     * The caller stamps BEFORE it reads, deliberately: stamping inside the placement branch would leave
+     * the gate open for everyone without the widget, so the placement check, which crosses into
+     * GlanceAppWidgetManager, would run on every emission of a collector driven by live heart rate. The
+     * cost of that choice was that an attempt producing NOTHING still spent the whole interval, so a
+     * transient miss left a placed widget blank for fifteen minutes and the wearer fixed it by opening
+     * the app. This decides what the stamp becomes once the outcome is known.
+     *
+     *  - produced a curve: keep [nowMs]. Nothing is wrong, take the full interval.
+     *  - [widgetPlaced] FALSE, a settled no: also keep [nowMs]. Producing nothing is the RIGHT answer,
+     *    and retrying sooner would re-run the placement check on a hot collector, which is precisely
+     *    what the early stamp exists to prevent.
+     *  - a placed widget whose read came back null: rewind so the next attempt is [retryMs] away rather
+     *    than a full interval. Not zero, because the other half of the caller's reasoning is that a
+     *    failing pass must not retry on the very next sample; a short floor honours both.
+     *  - [widgetPlaced] NULL, the host did not answer: rewind as well, and this is the case the report is
+     *    really about. The placement check fails closed, so a transient miss arrives as the same `false`
+     *    a settled no does, and spending the interval on it leaves a placed widget blank.
+     */
+    fun stampAfterAttempt(
+        nowMs: Long,
+        producedCurve: Boolean,
+        widgetPlaced: Boolean?,
+        intervalMs: Long,
+        retryMs: Long = RESCORE_RETRY_MS,
+    ): Long {
+        if (producedCurve || widgetPlaced == false) return nowMs
+        // Rewind so `shouldRescore` turns true again after `retryMs`, never sooner than that floor.
+        return nowMs - (intervalMs - retryMs).coerceAtLeast(0L)
+    }
+
     /**
      * Whether a background tick should rescore, given when it last did.
      *

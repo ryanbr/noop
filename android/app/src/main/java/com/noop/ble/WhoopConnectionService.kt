@@ -476,21 +476,45 @@ class WhoopConnectionService : Service() {
                             nowMs, lastStressScoreAtMs, STRESS_RESCORE_INTERVAL_MS,
                         )
                     ) {
-                        // Stamped as soon as the interval elapses, BEFORE both the placement check and
-                        // the read. Two reasons, and the first is the one that bites: stamping inside
-                        // the placement branch would leave the gate permanently open for anyone WITHOUT
-                        // the widget, so `hasStressWidget` — which crosses into GlanceAppWidgetManager —
-                        // would run on every emission of a collector driven by live heart rate. The
-                        // second is that a slow or failing pass must not become a retry loop that reads
-                        // the day again on the very next sample.
+                        // Stamped BEFORE the placement check and the read, then CORRECTED once the
+                        // outcome is known. Stamping inside the placement branch would leave the gate
+                        // permanently open for anyone WITHOUT the widget, so `hasStressWidget` — which
+                        // crosses into GlanceAppWidgetManager — would run on every emission of a
+                        // collector driven by live heart rate; and a failing pass must not retry on the
+                        // very next sample. Both still hold.
+                        //
+                        // #2120: what did NOT hold is spending the whole interval on an attempt that
+                        // produced nothing. The placement check used to arrive here as a plain Boolean
+                        // that had already collapsed its own failure into `false`, so one Glance hiccup
+                        // read as "no widget" and the curve was skipped; `todayCurve` returns null on a
+                        // blank device id or a caught failure. Either left a placed widget blank for
+                        // fifteen minutes, and the wearer fixed it by opening the app. This now reads
+                        // the placement as a TRI-STATE and rewinds the stamp to a short retry floor for
+                        // both of those, while a settled "no widget" still keeps the full interval.
                         lastStressScoreAtMs = nowMs
-                        if (WidgetSnapshotStore.hasStressWidget(this@WhoopConnectionService)) {
+                        // Tri-state: null means the widget host did not answer, which is NOT the same
+                        // as a settled "no widget" and must not spend the interval like one.
+                        val widgetPlaced =
+                            WidgetSnapshotStore.stressWidgetPlacement(this@WhoopConnectionService)
+                        // `!= false` rather than `== true`: an UNANSWERED placement check scores anyway.
+                        // Skipping on unknown meant a device whose Glance check fails persistently never
+                        // scored at all, it just failed faster, and the widget the wearer is looking at
+                        // stayed blank. Pushing a curve nobody displays is harmless, it is stored and
+                        // unread; withholding one from a widget that IS placed is the reported bug.
+                        val curve = if (widgetPlaced != false) {
                             StressWidgetProducer.todayCurve(
                                 repo, (application as NoopApplication).activeDeviceId,
                             )
                         } else {
                             null
                         }
+                        lastStressScoreAtMs = StressWidgetProducer.stampAfterAttempt(
+                            nowMs = nowMs,
+                            producedCurve = curve != null,
+                            widgetPlaced = widgetPlaced,
+                            intervalMs = STRESS_RESCORE_INTERVAL_MS,
+                        )
+                        curve
                     } else {
                         null
                     }
