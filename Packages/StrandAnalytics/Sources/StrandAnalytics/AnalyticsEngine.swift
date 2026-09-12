@@ -783,7 +783,11 @@ public enum AnalyticsEngine {
             // comment warns against buying diagnostic detail on this path, but what it refuses is a SORT
             // (`collapsedCoverage` opens with one); `rrCoverage` is a single linear pass, and this runs only
             // on nights that already produced nothing.
-            let refused: String = (avgHRVDaily != nil || withR.isEmpty) ? "" : (physiologySessions
+            //
+            // NOT in deep-window mode. That branch re-derives from `sessionHrvWindows` and never reads
+            // `s.avgHRV`, so the #1118 gate plays no part in its nil and naming it would be a diagnostic
+            // asserting a cause it did not verify. `nDeep` on this same line already explains that case.
+            let refused: String = (deepHrvWindow || avgHRVDaily != nil || withR.isEmpty) ? "" : (physiologySessions
                 .map { SleepStager.sessionRrVerdict(start: $0.start, end: $0.end, rr: rrSorted) }
                 .first { !HRVAnalyzer.successiveDiffIsTrustworthy($0) }
                 .map { "refused=\($0.rawValue) " } ?? "")

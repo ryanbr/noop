@@ -658,7 +658,11 @@ object AnalyticsEngine {
             // comment warns against buying diagnostic detail on this path, but what it refuses is a SORT
             // (`collapsedCoverage` opens with one); `rrCoverage` is a single linear pass, and this runs
             // only on nights that already produced nothing.
-            val refused = if (avgHRVDaily != null || withR.isEmpty()) null else physiologySessions
+            //
+            // NOT in deep-window mode. That branch re-derives from `sessionHrvWindows` and never reads
+            // `s.avgHRV`, so the #1118 gate plays no part in its nil and naming it would be a diagnostic
+            // asserting a cause it did not verify. `nDeep` on this same line already explains that case.
+            val refused = if (deepHrvWindow || avgHRVDaily != null || withR.isEmpty()) null else physiologySessions
                 .map { SleepStager.sessionRrVerdict(it.start, it.end, rrSorted) }
                 .firstOrNull { !HrvAnalyzer.successiveDiffIsTrustworthy(it) }
             hrvTraceSink(
