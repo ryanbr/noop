@@ -178,14 +178,29 @@ final class StressTraceTests: XCTestCase {
         XCTAssertEqual(StressTrace.levelTicks(), [3, 2, 1, 0])
     }
 
-    func testTimeTicksAnchorToTheScoredHoursNotToTheDay() {
+    func testTimeTicksLabelTheAxisWhichSpansTheWholeSeries() {
         let day = [at(0, nil), at(8, 1.0), at(12, 1.5), at(16, 2.0), at(23, nil)]
-        // An evening-only day must not label its axis with a morning that was never sampled.
-        XCTAssertEqual(StressTrace.timeTicks(day), [8 * hour, 12 * hour, 16 * hour])
+        // Every renderer spreads these three evenly across the chart, and the chart spans the SERIES.
+        // Anything narrower names the wrong instant at the edge it is drawn against.
+        XCTAssertEqual(StressTrace.timeTicks(day), [0, 11 * hour + 1_800, 23 * hour])
     }
 
-    func testOneScoredHourNamesOneInstant() {
-        XCTAssertEqual(StressTrace.timeTicks([at(9, 1.0), at(10, nil)]), [9 * hour])
+    /// #2106: scored to 18:30, masked as movement until 22:00, and the axis said the day ended at 18:30.
+    /// The right-hand label is the end of the DAY, not the end of scoring, or a chart that is perfectly
+    /// current reads as one that stopped updating hours ago.
+    func testADayWhoseClosingHoursWereAllMaskedStillNamesItsTrueEnd() {
+        let day = [at(6, 1.0), at(18, 1.5), at(20, nil, moving: true), at(22, nil, moving: true)]
+        XCTAssertEqual(StressTrace.timeTicks(day).last, 22 * hour)
+    }
+
+    func testOneInstantNamesOneInstant() {
+        // The renderers hide a lone label, so this is what keeps a one-point day from showing a stray.
+        XCTAssertEqual(StressTrace.timeTicks([at(9, 1.0)]), [9 * hour])
+    }
+
+    func testTwoInstantsNameBothEndsAndTheMidpointBetweenThem() {
+        XCTAssertEqual(StressTrace.timeTicks([at(9, 1.0), at(10, nil)]),
+                       [9 * hour, 9 * hour + 1_800, 10 * hour])
     }
 
     // MARK: - the snapshot's day guard

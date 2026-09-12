@@ -201,15 +201,27 @@ public enum StressTrace {
     /// moved with the day would make two days impossible to compare at a glance.
     public static func levelTicks() -> [Int] { [3, 2, 1, 0] }
 
-    /// The three timestamps along the bottom: first, middle and last of the SCORED data, not of the day.
+    /// The three timestamps along the bottom: first, middle and last of the SERIES.
     ///
-    /// Anchored to scored hours because a day with only an evening's signal would otherwise label its
-    /// axis with a morning that was never sampled, and the curve would sit crushed into the right-hand
-    /// end of a mostly empty chart. Fewer than three distinct instants returns what there is, so the
-    /// caller draws one label rather than three copies of it.
+    /// The series, not the scored hours, because these label the AXIS, and the axis IS the series: every
+    /// placement in this file maps x across `first.ts ... last.ts`, and every renderer spreads these
+    /// three labels evenly across that same width. Anchoring them to the scored subset instead put the
+    /// last SCORED instant at the right-hand edge, so a day whose closing hours were all masked as
+    /// movement announced that it ended when scoring stopped rather than when the day did.
+    ///
+    /// That is the second half of #2106, and it was read exactly as it was drawn: a chart running to
+    /// 22:00 labelled "18:30" at its right edge, reported as the app having stopped updating. The
+    /// trailing hours were there the whole time, masked as exertion. Only the axis disagreed.
+    ///
+    /// The rationale this replaces was that an evening-only wearer would otherwise be labelled with a
+    /// morning that was never sampled. The buckets are built FROM the samples, so the series carries no
+    /// unsampled hours to begin with, and the curve was already spread across the series either way.
+    /// The labels were the only part that ever disagreed with the geometry.
+    ///
+    /// Fewer than three distinct instants returns what there is, so the caller draws one label rather
+    /// than three copies of it.
     public static func timeTicks(_ series: [StressPoint]) -> [Int64] {
-        let scored = series.filter { $0.level != nil }
-        guard let first = scored.first?.ts, let last = scored.last?.ts else { return [] }
+        guard let first = series.first?.ts, let last = series.last?.ts else { return [] }
         if first == last { return [first] }
         let mid = first + (last - first) / 2
         return (mid == first || mid == last) ? [first, last] : [first, mid, last]

@@ -157,16 +157,34 @@ class StressTraceTest {
     }
 
     @Test
-    fun `time ticks anchor to the scored hours, not to the day`() {
+    fun `time ticks label the axis, which spans the whole series`() {
         val day = listOf(at(0, null), at(8, 1.0), at(12, 1.5), at(16, 2.0), at(23, null))
-        val ticks = StressTrace.timeTicks(day)
-        // An evening-only day must not label its axis with a morning that was never sampled.
-        assertEquals(listOf(8 * h, 12 * h, 16 * h), ticks)
+        // Every renderer spreads these three evenly across the chart, and the chart spans the SERIES.
+        // Anything narrower names the wrong instant at the edge it is drawn against.
+        assertEquals(listOf(0L, 11 * h + 1800L, 23 * h), StressTrace.timeTicks(day))
+    }
+
+    /**
+     * #2106: scored to 18:30, masked as movement until 22:00, and the axis said the day ended at 18:30.
+     * The right-hand label is the end of the DAY, not the end of scoring, or a chart that is perfectly
+     * current reads as one that stopped updating hours ago.
+     */
+    @Test
+    fun `a day whose closing hours were all masked still names its true end`() {
+        val day = listOf(at(6, 1.0), at(18, 1.5), at(20, null, moving = true), at(22, null, moving = true))
+        assertEquals(22 * h, StressTrace.timeTicks(day).last())
     }
 
     @Test
-    fun `one scored hour names one instant`() {
-        assertEquals(listOf(9 * h), StressTrace.timeTicks(listOf(at(9, 1.0), at(10, null))))
+    fun `one instant names one instant`() {
+        // The renderers hide a lone label, so this is what keeps a one-point day from showing a stray.
+        assertEquals(listOf(9 * h), StressTrace.timeTicks(listOf(at(9, 1.0))))
+    }
+
+    @Test
+    fun `two instants name both ends and the midpoint between them`() {
+        assertEquals(listOf(9 * h, 9 * h + 1800L, 10 * h),
+                     StressTrace.timeTicks(listOf(at(9, 1.0), at(10, null))))
     }
 
     // #2106: contiguous masked stretches, so the marks read as regions rather than as axis ticks.

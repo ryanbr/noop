@@ -664,93 +664,100 @@ internal fun StressTodayCard(points: List<StressPoint>, modifier: Modifier = Mod
                         }
                     }
                     Spacer(Modifier.width(6.dp))
-                    Canvas(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(Metrics.chartHeight),
-                    ) {
-                        val w = size.width
-                        val h = size.height
-                        if (w <= 0f || h <= 0f) return@Canvas
-                        val strokeW = 2.dp.toPx()
-                        // Reserve the bottom strip for the movement marks, and build the geometry AT the
-                        // reduced height rather than scaling it afterwards. A calm hour sits at the very
-                        // bottom of a fixed domain, so without the strip its line and the marks share a
-                        // row and read as one thing. (The widget carves the same band out of its bitmap;
-                        // computing against `chartH` here is the same idea without the second mapping
-                        // that had to be got right there.)
-                        val hasMarks = points.any { it.moving }
-                        val markBand = if (hasMarks) (strokeW * 2.5f).coerceAtMost(h / 6f) else 0f
-                        val chartH = (h - markBand).coerceAtLeast(1f)
-                        // Amber at the top through green to blue at the bottom: because the domain is
-                        // fixed, vertical position IS the level, so one shader colours every run by the
-                        // score it actually carries.
-                        val gradient = Brush.verticalGradient(listOf(tense, steady, calm),
-                                                              startY = 0f, endY = chartH)
+                    // The chart and its hour labels share ONE column, so the labels line up with the
+                    // ink they name. As siblings of the whole row they started at the card's edge
+                    // instead, shifted left of the chart by the width of the level scale (#2106).
+                    Column(modifier = Modifier.weight(1f)) {
+                        Canvas(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(Metrics.chartHeight),
+                        ) {
+                            val w = size.width
+                            val h = size.height
+                            if (w <= 0f || h <= 0f) return@Canvas
+                            val strokeW = 2.dp.toPx()
+                            // Reserve the bottom strip for the movement marks, and build the geometry AT the
+                            // reduced height rather than scaling it afterwards. A calm hour sits at the very
+                            // bottom of a fixed domain, so without the strip its line and the marks share a
+                            // row and read as one thing. (The widget carves the same band out of its bitmap;
+                            // computing against `chartH` here is the same idea without the second mapping
+                            // that had to be got right there.)
+                            val hasMarks = points.any { it.moving }
+                            val markBand = if (hasMarks) (strokeW * 2.5f).coerceAtMost(h / 6f) else 0f
+                            val chartH = (h - markBand).coerceAtLeast(1f)
+                            // Amber at the top through green to blue at the bottom: because the domain is
+                            // fixed, vertical position IS the level, so one shader colours every run by the
+                            // score it actually carries.
+                            val gradient = Brush.verticalGradient(listOf(tense, steady, calm),
+                                                                  startY = 0f, endY = chartH)
 
-                        StressTrace.segments(points, w, chartH).forEach { run ->
-                            if (run.isEmpty()) return@forEach
-                            if (run.size == 1) {
-                                // Brushed, not a flat colour: the dot has to carry the level the same way
-                                // the line does, or a lone HIGH hour would draw the calm-day green.
-                                drawCircle(brush = gradient, radius = strokeW,
-                                           center = Offset(run[0].x.coerceAtLeast(strokeW), run[0].y))
-                                return@forEach
+                            StressTrace.segments(points, w, chartH).forEach { run ->
+                                if (run.isEmpty()) return@forEach
+                                if (run.size == 1) {
+                                    // Brushed, not a flat colour: the dot has to carry the level the same way
+                                    // the line does, or a lone HIGH hour would draw the calm-day green.
+                                    drawCircle(brush = gradient, radius = strokeW,
+                                               center = Offset(run[0].x.coerceAtLeast(strokeW), run[0].y))
+                                    return@forEach
+                                }
+                                val line = Path().apply {
+                                    moveTo(run[0].x, run[0].y)
+                                    run.drop(1).forEach { lineTo(it.x, it.y) }
+                                }
+                                // Closed PER RUN, so the fill cannot spread under an hour that was never
+                                // scored and undo the gap the broken line exists to draw.
+                                val fill = Path().apply {
+                                    addPath(line)
+                                    lineTo(run.last().x, chartH)
+                                    lineTo(run[0].x, chartH)
+                                    close()
+                                }
+                                drawPath(fill, brush = gradient, alpha = StrandAlpha.chartFillSoft)
+                                drawPath(line, brush = gradient,
+                                         style = Stroke(width = strokeW, cap = StrokeCap.Round,
+                                                        join = StrokeJoin.Round))
                             }
-                            val line = Path().apply {
-                                moveTo(run[0].x, run[0].y)
-                                run.drop(1).forEach { lineTo(it.x, it.y) }
+                            // Hours in the HIGH band, dotted above the line exactly as the screen marks them.
+                            StressTrace.highPoints(points, w, chartH).forEach {
+                                drawCircle(color = tense, radius = strokeW,
+                                           center = Offset(it.x, (it.y - strokeW * 2f).coerceAtLeast(strokeW)))
                             }
-                            // Closed PER RUN, so the fill cannot spread under an hour that was never
-                            // scored and undo the gap the broken line exists to draw.
-                            val fill = Path().apply {
-                                addPath(line)
-                                lineTo(run.last().x, chartH)
-                                lineTo(run[0].x, chartH)
-                                close()
+                            // The stretches the motion gate masked: exertion raises heart rate on its own, so
+                            // the hour is marked rather than scored.
+                            // #2106: one bar per CONTIGUOUS masked stretch, not a dot per hour, and in a
+                            // colour that is not the one the axis labels use. Reported as "many gaps" by a
+                            // wearer who read the old evenly spaced tertiary dots as tick marks and asked
+                            // whether he needed to enable continuous HRV to fill them. A scale does not
+                            // start and stop with the data, so a bar sitting under the stretch it explains
+                            // cannot be read as one. The span already covers the masked hours edge to edge,
+                            // so the floor below is only for a degenerate series with no width to spread
+                            // across, not the ordinary lone-hour case. It is the WIDGET's floor, and wider
+                            // than the dot this replaced, so even that case is no less visible than before.
+                            val markY = h - markBand / 2f
+                            val markH = (markBand * 0.5f).coerceAtLeast(1f)
+                            val minMarkW = strokeW * 3f
+                            StressTrace.movingSpans(points, w).forEach { span ->
+                                val x1 = maxOf(span.endInclusive, minOf(span.start + minMarkW, w))
+                                val x0 = minOf(span.start, maxOf(x1 - minMarkW, 0f))
+                                drawRoundRect(
+                                    color = markTone,
+                                    topLeft = Offset(x0, markY - markH / 2f),
+                                    size = Size(x1 - x0, markH),
+                                    cornerRadius = CornerRadius(markH / 2f, markH / 2f),
+                                )
                             }
-                            drawPath(fill, brush = gradient, alpha = StrandAlpha.chartFillSoft)
-                            drawPath(line, brush = gradient,
-                                     style = Stroke(width = strokeW, cap = StrokeCap.Round,
-                                                    join = StrokeJoin.Round))
                         }
-                        // Hours in the HIGH band, dotted above the line exactly as the screen marks them.
-                        StressTrace.highPoints(points, w, chartH).forEach {
-                            drawCircle(color = tense, radius = strokeW,
-                                       center = Offset(it.x, (it.y - strokeW * 2f).coerceAtLeast(strokeW)))
-                        }
-                        // The stretches the motion gate masked: exertion raises heart rate on its own, so
-                        // the hour is marked rather than scored.
-                        // #2106: one bar per CONTIGUOUS masked stretch, not a dot per hour, and in a
-                        // colour that is not the one the axis labels use. Reported as "many gaps" by a
-                        // wearer who read the old evenly spaced tertiary dots as tick marks and asked
-                        // whether he needed to enable continuous HRV to fill them. A scale does not
-                        // start and stop with the data, so a bar sitting under the stretch it explains
-                        // cannot be read as one. The span already covers the masked hours edge to edge,
-                        // so the floor below is only for a degenerate series with no width to spread
-                        // across, not the ordinary lone-hour case. It is the WIDGET's floor, and wider
-                        // than the dot this replaced, so even that case is no less visible than before.
-                        val markY = h - markBand / 2f
-                        val markH = (markBand * 0.5f).coerceAtLeast(1f)
-                        val minMarkW = strokeW * 3f
-                        StressTrace.movingSpans(points, w).forEach { span ->
-                            val x1 = maxOf(span.endInclusive, minOf(span.start + minMarkW, w))
-                            val x0 = minOf(span.start, maxOf(x1 - minMarkW, 0f))
-                            drawRoundRect(
-                                color = markTone,
-                                topLeft = Offset(x0, markY - markH / 2f),
-                                size = Size(x1 - x0, markH),
-                                cornerRadius = CornerRadius(markH / 2f, markH / 2f),
-                            )
-                        }
-                    }
-                }
-
-                if (ticks.size >= 2) {
-                    Row(modifier = Modifier.fillMaxWidth()) {
-                        ticks.forEachIndexed { i, ts ->
-                            Text(pointTimeLabel(ts), style = NoopType.footnote, color = textTertiary)
-                            if (i < ticks.size - 1) Spacer(Modifier.weight(1f))
+                        // Evenly spread, which is only honest because the ticks now span the same series
+                        // the chart does. While they named the last SCORED hour, the right-hand label sat
+                        // at the right-hand edge and claimed the day ended there (#2106).
+                        if (ticks.size >= 2) {
+                            Row(modifier = Modifier.fillMaxWidth()) {
+                                ticks.forEachIndexed { i, ts ->
+                                    Text(pointTimeLabel(ts), style = NoopType.footnote, color = textTertiary)
+                                    if (i < ticks.size - 1) Spacer(Modifier.weight(1f))
+                                }
+                            }
                         }
                     }
                 }

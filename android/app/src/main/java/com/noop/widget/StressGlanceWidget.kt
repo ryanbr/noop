@@ -326,7 +326,8 @@ private fun StressTraceImage(
 }
 
 /**
- * The time labels under the curve: first, middle and last SCORED hour (see [StressTrace.timeTicks]).
+ * The time labels under the curve: first, middle and last instant of the SERIES (see
+ * [StressTrace.timeTicks]), which is the span the trace above is drawn across.
  *
  * Spread with weighted spacers rather than fixed gaps, so the middle label sits over the middle of the
  * chart whatever width the launcher gave the widget. Formatted through the locale's short time format,
@@ -335,7 +336,7 @@ private fun StressTraceImage(
 @Composable
 private fun StressTimeAxis(snap: WidgetSnapshot, dark: Boolean) {
     val ticks = StressTrace.timeTicks(snap.stressSeries)
-    // One scored hour names one instant, and a single label pinned to the left edge reads as a stray
+    // One instant names one instant, and a single label pinned to the left edge reads as a stray
     // rather than an axis, so the axis only appears once there is a span to label.
     if (ticks.size < 2) return
     val fmt = DateFormat.getTimeInstance(DateFormat.SHORT)

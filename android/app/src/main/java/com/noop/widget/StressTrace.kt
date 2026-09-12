@@ -225,18 +225,30 @@ object StressTrace {
     fun levelTicks(): List<Int> = listOf(3, 2, 1, 0)
 
     /**
-     * The three timestamps along the bottom: first, middle, last of the SCORED data, not of the day.
+     * The three timestamps along the bottom: first, middle and last of the SERIES.
      *
-     * Anchored to scored hours because a day that only has an evening's worth of signal would otherwise
-     * label its axis with a morning that was never sampled, and the trace would sit crushed into the
-     * right-hand end of a mostly empty chart. Fewer than three distinct instants returns what there is,
-     * so the renderer draws one label rather than three copies of it.
+     * The series, not the scored hours, because these label the AXIS, and the axis IS the series: every
+     * placement in this file maps x across `first.ts .. last.ts`, and every renderer spreads these three
+     * labels evenly across that same width. Anchoring them to the scored subset instead put the last
+     * SCORED instant at the right-hand edge, so a day whose closing hours were all masked as movement
+     * announced that it ended when scoring stopped rather than when the day did.
+     *
+     * That is the second half of #2106, and it was read exactly as it was drawn: a chart running to
+     * 22:00 labelled "18:30" at its right edge, reported as the app having stopped updating. The
+     * trailing hours were there the whole time, masked as exertion. Only the axis disagreed.
+     *
+     * The rationale this replaces was that an evening-only wearer would otherwise be labelled with a
+     * morning that was never sampled. The buckets are built FROM the samples, so the series carries no
+     * unsampled hours to begin with, and the trace was already spread across the series either way. The
+     * labels were the only part that ever disagreed with the geometry.
+     *
+     * Fewer than three distinct instants returns what there is, so the renderer draws one label rather
+     * than three copies of it.
      */
     fun timeTicks(series: List<StressPoint>): List<Long> {
-        val scored = series.filter { it.level != null }
-        if (scored.isEmpty()) return emptyList()
-        val first = scored.first().ts
-        val last = scored.last().ts
+        if (series.isEmpty()) return emptyList()
+        val first = series.first().ts
+        val last = series.last().ts
         if (first == last) return listOf(first)
         val mid = first + (last - first) / 2
         return if (mid == first || mid == last) listOf(first, last) else listOf(first, mid, last)
