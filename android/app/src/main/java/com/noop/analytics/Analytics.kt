@@ -82,25 +82,24 @@ object IllnessWatch {
      */
     fun evaluate(days: List<DailyMetric>): String? {
         if (days.size < 14) return null
+        // #2130: this banner asserts strain from the same physiology Charge is scored on. When the app
+        // produced no Charge ANYWHERE in the window it is about to compare, it has already said it cannot
+        // judge that physiology, and a warning drawn from it contradicts its own verdict.
+        //
+        // The window's own values cannot tell you this. They are the STORED daily rows, which stay dense
+        // and healthy-looking while the engine's freshly computed series is starved: a device in #2130
+        // read "HRV -51%" off a stored base of ~35.7ms while Charge sat at `nilScore
+        // reason=hrvBaselineNotUsable, hrvNValid=2, need nValid>=4` on every one of 21 nights. Folding
+        // the stored rows, as an earlier revision did, asks the wrong series and passes.
+        //
+        // Deliberately the whole banner, not the HRV flag alone: it takes two flags to raise, and the
+        // other three are drawn from the same scoring pass. A month without a single Charge is not a
+        // state to be issuing health warnings from.
+        if (days.takeLast(31).none { it.recovery != null }) return null
 
         val recent = days.takeLast(2)
         // ~28 days ending 3 days ago: take the last 31, drop the most recent 3.
         val base = days.takeLast(31).dropLast(3)
-        // Whether a signal's window is fit to accuse the recent one (#2130). The Swift twin folds this
-        // SAME window through `Baselines.foldHistory` and refuses the signal unless the state is usable;
-        // here it was a plain mean, which is happy with ONE value and gated nothing.
-        //
-        // Folding rather than counting is the point: it is the statistic Charge is scored against, so
-        // the banner and the score can no longer hold two different baselines for one metric.
-        //
-        // Values rather than a helper because a named local function is a declaration the parity ledger
-        // counts, and this file is inside its scan.
-        val rhrBaseUsable = Baselines.metricCfg["resting_hr"]?.let { cfg ->
-            Baselines.foldHistory(base.map { it.restingHr?.toDouble() }, cfg).usable
-        } == true
-        val hrvBaseUsable = Baselines.metricCfg["hrv"]?.let { cfg ->
-            Baselines.foldHistory(base.map { it.avgHrv }, cfg).usable
-        } == true
 
         fun mean(vals: List<Double>): Double? =
             if (vals.isEmpty()) null else vals.sum() / vals.size.toDouble()
@@ -116,17 +115,15 @@ object IllnessWatch {
         run {
             val r = rm { it.restingHr?.toDouble() }
             val b = bm { it.restingHr?.toDouble() }
-            if (r != null && b != null && rhrBaseUsable && r >= b + 5) {
+            if (r != null && b != null && r >= b + 5) {
                 flags.add("resting HR +${(r - b).roundToInt()} bpm")
             }
         }
 
         run {
-            // The sparsest of the four: the over-count gate withholds whole nights (#1118), so HRV is
-            // the likeliest to have been resting on a cold-start baseline.
             val r = rm { it.avgHrv }
             val b = bm { it.avgHrv }
-            if (r != null && b != null && b > 0 && hrvBaseUsable && r <= b * 0.80) {
+            if (r != null && b != null && b > 0 && r <= b * 0.80) {
                 flags.add("HRV −${((1 - r / b) * 100).roundToInt()}%")
             }
         }

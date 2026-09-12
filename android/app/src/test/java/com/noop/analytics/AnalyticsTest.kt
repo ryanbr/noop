@@ -84,6 +84,7 @@ class AnalyticsTest {
         avgHrv: Double? = null,
         skinTempDevC: Double? = null,
         respRateBpm: Double? = null,
+        recovery: Double? = 60.0,
     ): DailyMetric = DailyMetric(
         deviceId = "test",
         day = d,
@@ -91,6 +92,7 @@ class AnalyticsTest {
         avgHrv = avgHrv,
         skinTempDevC = skinTempDevC,
         respRateBpm = respRateBpm,
+        recovery = recovery,
     )
 
     @Test
@@ -109,40 +111,34 @@ class AnalyticsTest {
     }
 
     /**
-     * #2130: a signal may not accuse the recent window off a baseline the app would not otherwise use.
+     * #2130: no Charge anywhere in the window means no banner from it.
      *
-     * 31 days of history, but HRV on only 2 of the baseline nights, so its fold is CALIBRATING and
-     * `usable` is false. That is the field case verbatim (`hrvNValid=2, need nValid>=4`). Deliberately
-     * below the seed rather than at it: 4 valid nights would be provisional by count and rejected only
-     * for staleness, which would leave the test passing for a reason it does not name.
-     *
-     * RHR is dense and drops hard, so the RHR flag still fires; HRV must not, which leaves one flag and
-     * no banner. The recent pair carries HRV, so this pins the BASELINE rather than merely "no data".
+     * The device that reported this had flags firing off a STORED base of dense, healthy-looking values
+     * while the engine scored `nilScore reason=hrvBaselineNotUsable` on all 21 nights. The window's own
+     * values cannot reveal that, which is why this asks the app's verdict instead: two flags that would
+     * otherwise raise, and no scored day, so nothing is claimed.
      */
     @Test
-    fun illness_unusableHrvBaselineCannotRaiseAnHrvFlag() {
+    fun illness_noScoredChargeInTheWindowRaisesNothing() {
         val baseline = (0 until 31).map {
-            day(
-                "2026-01-%02d".format(it + 1),
-                restingHr = 50,
-                avgHrv = if (it < 2) 60.0 else null,
-                skinTempDevC = 0.0,
-                respRateBpm = 14.0,
-            )
+            day("2026-01-%02d".format(it + 1), restingHr = 50, avgHrv = 60.0, skinTempDevC = 0.0,
+                respRateBpm = 14.0, recovery = null)
         }
         val recent = listOf(
-            day("2026-02-01", restingHr = 58, avgHrv = 20.0, skinTempDevC = 0.0, respRateBpm = 14.0),
-            day("2026-02-02", restingHr = 58, avgHrv = 20.0, skinTempDevC = 0.0, respRateBpm = 14.0),
+            day("2026-02-01", restingHr = 58, avgHrv = 20.0, skinTempDevC = 0.0, respRateBpm = 14.0,
+                recovery = null),
+            day("2026-02-02", restingHr = 58, avgHrv = 20.0, skinTempDevC = 0.0, respRateBpm = 14.0,
+                recovery = null),
         )
         assertNull(
-            "one flag is not a banner, and a calibrating HRV fold is not a baseline",
+            "a month without a single Charge is not a state to issue health warnings from",
             IllnessWatch.evaluate(baseline + recent),
         )
     }
 
-    /** The same day shape, but with a fold that IS usable, still raises both flags. */
+    /** The same day shape on an app that IS scoring still raises, so the guard is not a blanket mute. */
     @Test
-    fun illness_usableHrvBaselineStillRaisesTheHrvFlag() {
+    fun illness_aScoringAppStillRaisesTheSameFlags() {
         val baseline = (0 until 31).map {
             day("2026-01-%02d".format(it + 1), restingHr = 50, avgHrv = 60.0, skinTempDevC = 0.0, respRateBpm = 14.0)
         }
@@ -152,7 +148,7 @@ class AnalyticsTest {
         )
         val msg = IllnessWatch.evaluate(baseline + recent)
         assertNotNull(msg)
-        assertTrue("the HRV flag is what the unusable case withholds", msg!!.contains("HRV"))
+        assertTrue("the HRV flag is what the unscored case withholds", msg!!.contains("HRV"))
     }
 
     @Test
