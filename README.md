@@ -605,6 +605,7 @@ That's it — copy away.
 - [`CHANGELOG.md`](CHANGELOG.md) — release history and what to expect (also shown in-app under **What's new**).
 - [`DISCLAIMER.md`](DISCLAIMER.md) — trademark, interoperability, and medical/legal notice.
 - [`ATTRIBUTION.md`](ATTRIBUTION.md) — full credits and licensing notes.
+- [`docs/SCOPE.md`](docs/SCOPE.md) — which WHOOP-app features stay out of scope (and why) versus their local, on-device equivalents.
 - [`project.yml`](project.yml) — XcodeGen project definition (source of `Strand.xcodeproj`).
 
 ---

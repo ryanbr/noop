@@ -3,7 +3,9 @@
 Guidance for anyone (human or AI agent) submitting a pull request. This is the high-signal map;
 [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) is the full guide (BLE safety contract, design-system
 rules, add-a-metric/screen/command recipes), [`docs/BUILD.md`](docs/BUILD.md) covers signing/pairing,
-and [`docs/IOS.md`](docs/IOS.md) covers the iOS target. Read this first; follow the links for depth.
+[`docs/IOS.md`](docs/IOS.md) covers the iOS target, and [`docs/SCOPE.md`](docs/SCOPE.md) names the
+specific WHOOP-app features that stay out of scope (and their local equivalents). Read this first;
+follow the links for depth.
 
 ## What NOOP is (and the hard scope limits)
 
