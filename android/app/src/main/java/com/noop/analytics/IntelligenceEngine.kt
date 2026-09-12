@@ -153,8 +153,15 @@ object IntelligenceEngine {
      * in by the UI scoring pass. Mirrors the Swift IntelligenceEngine.resolveDayOwner read-through (1B-4).
      */
     interface DayOwnerSource {
-        /** Non-archived paired devices, each as a [DayOwnerResolver.Candidate] WITHOUT its hasData flag
-         *  resolved yet (priority only: 0 = active strap, 1 = other live straps, 2 = imports). */
+        /** EVERY paired device, each as a [DayOwnerResolver.Candidate] WITHOUT its hasData flag resolved
+         *  yet (priority only: 0 = active strap, 1 = other live straps, 2 = whole-day imports,
+         *  3 = activity files (#137), 4 = archived).
+         *
+         *  Archived rows ARE included, because one list feeds two consumers here: [resolveDayOwner] and
+         *  the day-cycle/step engines, and the latter keep archived rows as read-only historical
+         *  candidates. Swift builds the two separately, and its day-owner half drops archived outright
+         *  (`IntelligenceEngine.resolveDayOwner`), so for a day covered only by a removed strap the two
+         *  platforms can name a different owner. Which rule is the intended one is open in #2026. */
         suspend fun candidatePriorities(): List<Pair<String, Int>>
 
         /** A locked owner override for [day] from the dayOwnership table, or null. Wins outright. */
