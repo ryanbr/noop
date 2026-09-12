@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from collections.abc import Iterator
 from pathlib import Path
 from unittest import mock
 
@@ -95,6 +96,21 @@ class ParityLedgerTests(unittest.TestCase):
             check=True,
         )
         subprocess.run(["git", "branch", "origin/main", "HEAD"], cwd=self.root, check=True)
+
+    @contextlib.contextmanager
+    def symlinked_temporary_directory(self) -> Iterator[None]:
+        with tempfile.TemporaryDirectory(dir=self.root) as resolved_directory:
+            alias = Path(f"{resolved_directory}-alias")
+            alias.symlink_to(resolved_directory, target_is_directory=True)
+            try:
+                with mock.patch.object(
+                    parity_ledger.tempfile,
+                    "TemporaryDirectory",
+                    return_value=contextlib.nullcontext(str(alias)),
+                ):
+                    yield
+            finally:
+                alias.unlink()
 
     def test_clean_synthetic_tree_has_no_findings(self) -> None:
         self.write_clean_tree()
@@ -1195,6 +1211,18 @@ fun broken(value: Int) = "broken ${run { Trace.suffix(value) }
              ["git", "archive", "--format=tar", expected]],
             calls,
         )
+
+    def test_base_scans_resolve_symlinked_temporary_root(self) -> None:
+        self.write_clean_tree()
+        self.mark_current_tree_as_origin_main()
+
+        with self.symlinked_temporary_directory():
+            self.assertIsNotNone(parity_ledger._base_semantic_state(self.root))
+        with self.symlinked_temporary_directory():
+            self.assertIsInstance(
+                parity_ledger.finding_identities_at_git_ref(self.root, "origin/main"),
+                set,
+            )
 
     def test_counter_increase_beyond_baseline_is_rejected(self) -> None:
         self.write_clean_tree()

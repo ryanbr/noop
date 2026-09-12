@@ -1573,7 +1573,7 @@ def _base_semantic_state(
             stderr=subprocess.DEVNULL,
         )
         with tempfile.TemporaryDirectory() as directory:
-            base_root = Path(directory)
+            base_root = Path(directory).resolve()
             with tarfile.open(fileobj=io.BytesIO(archive), mode="r:") as bundle:
                 bundle.extractall(base_root, filter="data")
             inventory = _inventory(base_root)
@@ -2576,7 +2576,7 @@ def finding_identities_at_git_ref(root: Path, ref: str) -> set[str]:
     except (FileNotFoundError, subprocess.CalledProcessError) as exc:
         raise ValueError(f"cannot scan exact base {ref!r}") from exc
     with tempfile.TemporaryDirectory() as directory:
-        base_root = Path(directory)
+        base_root = Path(directory).resolve()
         try:
             with tarfile.open(fileobj=io.BytesIO(archive), mode="r:") as bundle:
                 bundle.extractall(base_root, filter="data")
