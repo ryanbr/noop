@@ -34,6 +34,25 @@ object ConnectionTrace {
 
 
     /**
+     * The R-R transport line: what a device has banked versus what its unit policy can actually score.
+     *
+     * #2117: a WHOOP 5 window is pinned to one transport, and a window holding no beat on a scorable
+     * channel reads back EMPTY rather than falling back. Everything derived from beats then goes blank
+     * (HRV, respiratory rate) while heart-rate-derived values carry on, which is what a wearer reports as
+     * "HRV stopped working". The analyzer cannot explain it: handed nothing, it honestly reports nInput=0
+     * and has no way to know whether the strap banked nothing or banked beats the policy refused.
+     *
+     * These two facts separate those cases, and the store already computes both. Rides every export for
+     * the same reason the clock-drift line does: the wearer who needs it is the one who did not know to
+     * turn a mode on. Returns null for a device the policy does not apply to, so a WHOOP 4 export is
+     * unchanged.
+     *
+     * Twin of Swift `UniversalTrace.rrTransportLine`.
+     */
+    fun rrTransportLine(
+        strictWhoop5: Boolean,
+
+    /**
      * The CLOCK-DRIFT summary line (#767 / #754 cluster): the strap-reported banked-record window
      * [oldest, newest] against the wall clock, ending in the shared clock VERDICT ([clockVerdict]):
      * FUTURE-DATED (ahead beyond [futureToleranceSeconds]), RTC-EPOCH (a never-set ~1970/71 clock, #987),
@@ -42,6 +61,23 @@ object ConnectionTrace {
      * .connection line. All timestamps are unix seconds in the same wall domain. [oldestUnix] is optional
      * (a half/short range reply gives only the upper bound). Mirrors the Swift formatter exactly.
      */
+        firstRecordedUnix: Long?,
+        firstScorableUnix: Long?,
+    ): String? {
+        if (!strictWhoop5) return null
+        if (firstRecordedUnix == null) return "rrTransport recorded=none scorable=none"
+        val recorded = "recorded=" + isoDate(firstRecordedUnix)
+        // Beats on disk, none the policy will score: the whole history predates transport labelling or
+        // sits on an excluded channel. This is the state that blanks every night at once.
+        if (firstScorableUnix == null) return "rrTransport $recorded scorable=none unscorableHistory=yes"
+        val gapDays = maxOf(
+            0L,
+            Math.round((firstScorableUnix - firstRecordedUnix).toDouble() / 86_400.0),
+        )
+        return "rrTransport $recorded scorable=" + isoDate(firstScorableUnix) +
+            " unscorableHistory=" + (if (gapDays > 0) "yes" else "no") + " gapDays=" + gapDays
+    }
+
     fun clockDriftLine(
         oldestUnix: Long?,
         newestUnix: Long,

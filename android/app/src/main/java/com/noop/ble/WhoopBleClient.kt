@@ -7643,6 +7643,44 @@ class WhoopBleClient(
                                 )
                                 log(line, com.noop.testcentre.TestDomain.UNIVERSAL)
                             }
+                            // #2117: the R-R TRANSPORT picture, beside the clock-drift line and for the
+                            // same reason. A WHOOP 5 window is pinned to one transport, so a window with
+                            // no beat on a scorable channel reads back empty and everything beat-derived
+                            // (HRV, respiratory rate) blanks while heart-rate values carry on. The HRV
+                            // analyzer cannot explain that: handed nothing it honestly says nInput=0, with
+                            // no way to tell "banked nothing" from "banked beats the policy refused".
+                            // These two facts separate those, and the store already has both. Rides EVERY
+                            // export, because the wearer who needs it is the one who did not know to turn
+                            // a mode on. Pure formatter, no behaviour change. Twin of the Apple emit.
+                            if (testCentre.active(com.noop.testcentre.TestDomain.UNIVERSAL)) {
+                                // Three indexed reads, so OFF the BLE callback thread: this is
+                                // observability and must never sit in front of the connection path.
+                                ioScope.launch {
+                                    val rrLine = runCatching {
+                                        // The two MINs only feed a line the formatter suppresses unless
+                                        // this is strict, so a device the policy does not govern stops
+                                        // after the one registry read. Not hypothetical: a 4.0 in a
+                                        // reconnect burst (#1120) runs this repeatedly, and would other-
+                                        // wise fetch them from the store the backfill is writing through,
+                                        // to discard them every time. Twin of the Apple early-out.
+                                        if (!repository.isWhoop5RrSource(deviceId)) {
+                                            null
+                                        } else {
+                                            com.noop.analytics.ConnectionTrace.rrTransportLine(
+                                                strictWhoop5 = true,
+                                                firstRecordedUnix = repository.firstRecordedRrTs(deviceId),
+                                                firstScorableUnix =
+                                                    repository.firstScorableWhoop5RrTs(deviceId),
+                                            )
+                                        }
+                                    }.getOrNull()
+                                    // Silent when it cannot read its inputs: a diagnostic that cannot
+                                    // measure says nothing rather than guessing, so the line is absent.
+                                    if (rrLine != null) {
+                                        log(rrLine, com.noop.testcentre.TestDomain.UNIVERSAL)
+                                    }
+                                }
+                            }
                             // #1164: recompute the "strap has banked records newer than our frontier" flag
                             // so the Today Rest card can show "Pending sync" right after connect (before the
                             // first offload starts), not only after an offload completes. The frontier read

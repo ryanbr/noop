@@ -151,8 +151,17 @@ enum TestBundleAssembler {
         //    the report body BEFORE the completeness scan so its `dayOwner`-sibling token is part of the text
         //    the guard reads. No-op when no range was ever seen this session (no strap reply yet).
         let baseReport = live.exportableLogText()
-        let universalLine = universalClockDriftLine(range: live.strapRange)
-        let reportText = universalLine.map { baseReport + "\n[universal] " + $0 } ?? baseReport
+        // #2117: both universal lines ride every export, appended in a fixed order so two reports from
+        // the same strap diff cleanly. Either may be absent (no range reported yet; a device the WHOOP 5
+        // unit policy does not govern), and an absent line is simply omitted rather than stubbed, so a
+        // WHOOP 4 report is byte-unchanged by this existing.
+        let universalLines = [
+            universalClockDriftLine(range: live.strapRange),
+            universalRRTransportLine(transport: live.rrTransport),
+        ].compactMap { $0 }
+        let reportText = universalLines.isEmpty
+            ? baseReport
+            : baseReport + universalLines.map { "\n[universal] " + $0 }.joined()
 
         // 1. report.txt: the same exportable strap log the strap-log card shares, plus the universal
         //    clock-drift line. Already redacted by the append(log:) sink, but the whole-bundle redactEntries
@@ -264,6 +273,17 @@ enum TestBundleAssembler {
     /// this session (no strap reply yet) OR only a firmware-only snapshot exists (newest==0, no real window).
     /// Pure; delegates the format to UniversalTrace so the line can never silently drift. `now` is injectable
     /// so the line is unit-testable without a live clock.
+    /// The universal R-R transport line (#2117): what the device banked versus what its unit policy can
+    /// score. nil when nothing has been resolved this session, or for a device the policy does not govern.
+    /// The judgement is `UniversalTrace.rrTransportLine`, shared byte for byte with Android; this is the
+    /// hand-off.
+    static func universalRRTransportLine(transport: LiveState.RRTransport?) -> String? {
+        guard let transport else { return nil }
+        return UniversalTrace.rrTransportLine(strictWhoop5: transport.strictWhoop5,
+                                              firstRecordedUnix: transport.firstRecordedUnix,
+                                              firstScorableUnix: transport.firstScorableUnix)
+    }
+
     static func universalClockDriftLine(range: LiveState.StrapRange?,
                                         now: Int = Int(Date().timeIntervalSince1970)) -> String? {
         guard let range, range.newestUnix > 0 else { return nil }

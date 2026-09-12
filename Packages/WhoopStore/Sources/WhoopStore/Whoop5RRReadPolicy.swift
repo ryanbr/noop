@@ -67,7 +67,7 @@ extension WhoopStore {
             // that old ID. Resolve its active strap here so sleep edits and ordinary reads agree.
             // Physical owners and confirmed WHOOP 4 history never inherit another strap's policy.
             if !tagged && !unlabelledAliasOfWhoop5 && deviceId == "my-whoop",
-               let active = try String.fetchOne(db, sql: "SELECT id FROM pairedDevice WHERE status = 'active' LIMIT 1"),
+               let active = try String.fetchOne(db, sql: DeviceRegistryStore.activeDeviceIdSQL),
                active != deviceId {
                 tagged = try isWhoop5RRSource(db: db, deviceId: active)
             }

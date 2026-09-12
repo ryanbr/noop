@@ -250,6 +250,16 @@ final class AppModel: ObservableObject {
         live.$heartRate.sink { [weak self] _ in self?.ingestHR() }.store(in: &hrCancellables)
         live.$rr.sink { [weak self] _ in self?.ingestHR() }.store(in: &hrCancellables)
 
+        // #2117: bank the device's R-R transport facts whenever a link comes up. Shell-independent on
+        // purpose: the classic Today already reads these three for its own note, but the Liquid shell is
+        // the iOS default, and the wearer this explains is the one whose HRV silently went blank there.
+        // Two indexed MINs plus one registry read, once per connect, so it is cheap enough not to gate.
+        live.$connected.sink { [weak self] isConnected in
+            // The disconnect path clears via `clearBiometrics`, so only a link coming UP refreshes.
+            guard isConnected, let self else { return }
+            Task { await self.refreshRRTransportFacts() }
+        }.store(in: &hrCancellables)
+
         // Physical-input + wear hooks (fired live by FrameRouter).
         live.onDoubleTap = { [weak self] in self?.handleDoubleTap() }
         live.onWristChange = { [weak self] worn in self?.handleWristChange(worn) }
@@ -504,6 +514,36 @@ final class AppModel: ObservableObject {
         ble.setPauseCaptureOnPowerSave(on && PuffinExperiment.pauseHrvOnPowerSaveEnabled,
                                        thresholdPct: PuffinExperiment.powerSavingBatteryPct)
     }
+    /// #2117: resolve what this device has banked versus what its unit policy can score, and hand the
+    /// facts to `LiveState` so every Test Centre export carries the universal `rrTransport` line.
+    ///
+    /// Facts only. The judgement is `UniversalTrace.rrTransportLine`, shared byte for byte with Android.
+    /// Silent on failure: a diagnostic that cannot read its inputs says nothing rather than guessing, and
+    /// the line is simply absent from the export.
+    private func refreshRRTransportFacts() async {
+        // No store to ask: drop whatever was banked rather than leaving a previous answer standing. A
+        // diagnostic may only assert what it can attribute, and stale facts would be attributed to now.
+        guard let store = await repo.storeHandle() else {
+            live.clearRRTransport()
+            return
+        }
+        let owner = repo.deviceId
+        let strict = (try? await store.isWhoop5RRSource(deviceId: owner)) ?? false
+        // The two MINs are only ever read by a line the formatter suppresses unless this is strict, so a
+        // device the policy does not govern stops after the one registry read. That case is not
+        // hypothetical: a 4.0 in a reconnect burst (#1120) runs this repeatedly, and the timestamps would
+        // be fetched from the store queue the backfill is writing through, to be discarded every time.
+        guard strict else {
+            live.setRRTransport(strictWhoop5: false, firstRecordedUnix: nil, firstScorableUnix: nil)
+            return
+        }
+        let firstRecorded = (try? await store.firstRecordedRRTimestamp(deviceId: owner)) ?? nil
+        let firstScorable = (try? await store.firstScorableWhoop5RRTimestamp(deviceId: owner)) ?? nil
+        // AppModel is @MainActor, so this resumes on the main actor: no hop needed.
+        live.setRRTransport(strictWhoop5: strict, firstRecordedUnix: firstRecorded,
+                            firstScorableUnix: firstScorable)
+    }
+
 
     /// Tiny and guarded: with no generic strap paired the active id is "my-whoop", so the coordinator
     /// observes WHOOP-active and stays a NO-OP , the existing `scan()`/`disconnect()` WHOOP flow is

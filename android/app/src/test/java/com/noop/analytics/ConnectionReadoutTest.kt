@@ -2,6 +2,7 @@ package com.noop.analytics
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -298,5 +299,64 @@ class ConnectionReadoutTest {
     @Test fun lastFrameLabel() {
         assertEquals("12s ago", ConnectionReadout.lastFrameLabel(990L, nowUnix = 1_002L))
         assertEquals("no frames yet", ConnectionReadout.lastFrameLabel(null, nowUnix = 1_002L))
+    }
+
+    // #2117: the R-R transport line, separating "banked nothing" from "banked beats the policy refused".
+    // Byte-identical twin of the Swift UniversalTraceRRTransportTests.
+
+    /** A device the WHOOP 5 unit policy does not govern says nothing, so a WHOOP 4 export is unchanged. */
+    @Test
+    fun `a non strict device emits nothing`() {
+        assertNull(ConnectionTrace.rrTransportLine(false, 1_750_000_000L, null))
+    }
+
+    /** The state that blanks every night at once: beats on disk, none the policy will score. */
+    @Test
+    fun `beats on disk but none scorable is named`() {
+        val line = ConnectionTrace.rrTransportLine(true, 1_750_000_000L, null)
+        assertNotNull(line)
+        assertTrue(line!!.contains("scorable=none"))
+        assertTrue(line.contains("unscorableHistory=yes"))
+    }
+
+    /** A strap that never banked a beat is a DIFFERENT report from one whose beats were refused. */
+    @Test
+    fun `no history at all is not reported as unscorable`() {
+        val line = ConnectionTrace.rrTransportLine(true, null, null)
+        assertEquals("rrTransport recorded=none scorable=none", line)
+        assertFalse(line!!.contains("unscorableHistory"))
+    }
+
+    /** The gap is what says how much history was refused. */
+    @Test
+    fun `a partly scorable history reports the gap in days`() {
+        val line = ConnectionTrace.rrTransportLine(true, 1_750_000_000L, 1_750_000_000L + 30 * 86_400L)
+        assertNotNull(line)
+        assertTrue(line!!.contains("unscorableHistory=yes"))
+        assertTrue(line.contains("gapDays=30"))
+    }
+
+    /**
+     * The WHOLE line, byte for byte, with the identical literal pinned on the Swift side.
+     *
+     * The other cases assert fragments, which would let the two platforms drift on anything a `contains`
+     * does not look at: field order, spacing, or the shared date format. A report is diffed across
+     * platforms, so the line has to be the same line, not merely the same facts.
+     */
+    @Test
+    fun `the whole line is pinned byte for byte`() {
+        assertEquals(
+            "rrTransport recorded=2025-06-15 15:06:40 scorable=2025-07-15 15:06:40 unscorableHistory=yes gapDays=30",
+            ConnectionTrace.rrTransportLine(true, 1_750_000_000L, 1_752_592_000L),
+        )
+    }
+
+    /** Fully scorable from the first beat says so plainly, rather than by a missing field. */
+    @Test
+    fun `a fully scorable history says so`() {
+        val line = ConnectionTrace.rrTransportLine(true, 1_750_000_000L, 1_750_000_000L)
+        assertNotNull(line)
+        assertTrue(line!!.contains("unscorableHistory=no"))
+        assertTrue(line.contains("gapDays=0"))
     }
 }

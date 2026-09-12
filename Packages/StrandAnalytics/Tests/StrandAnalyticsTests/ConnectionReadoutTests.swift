@@ -300,3 +300,66 @@ final class ConnectionReadoutTests: XCTestCase {
         XCTAssertEqual(ConnectionReadout.lastFrameLabel(lastFrameUnix: nil, nowUnix: 1_002), "no frames yet")
     }
 }
+
+/// #2117: the R-R transport line, which separates "banked nothing" from "banked beats the policy refused".
+final class UniversalTraceRRTransportTests: XCTestCase {
+
+    /// A device the WHOOP 5 unit policy does not govern says nothing at all, so a WHOOP 4 export is
+    /// byte-unchanged by this line existing.
+    func testANonStrictDeviceEmitsNothing() {
+        XCTAssertNil(UniversalTrace.rrTransportLine(strictWhoop5: false, firstRecordedUnix: 1_750_000_000,
+                                                    firstScorableUnix: nil))
+    }
+
+    /// The state that blanks every night at once: beats on disk, none the policy will score. This is the
+    /// one worth recognising at a glance, because it looks identical to "no data" from the analyzer's side.
+    func testBeatsOnDiskButNoneScorableIsNamed() {
+        let line = UniversalTrace.rrTransportLine(strictWhoop5: true, firstRecordedUnix: 1_750_000_000,
+                                                  firstScorableUnix: nil)
+        XCTAssertNotNil(line)
+        XCTAssertTrue(line!.contains("scorable=none"))
+        XCTAssertTrue(line!.contains("unscorableHistory=yes"))
+    }
+
+    /// A strap that has never banked a beat is a DIFFERENT report from one whose beats were refused, and
+    /// the line must not blur them: no "unscorableHistory" claim when there is no history to be unscorable.
+    func testNoHistoryAtAllIsNotReportedAsUnscorable() {
+        let line = UniversalTrace.rrTransportLine(strictWhoop5: true, firstRecordedUnix: nil,
+                                                  firstScorableUnix: nil)
+        XCTAssertEqual(line, "rrTransport recorded=none scorable=none")
+        XCTAssertFalse(line!.contains("unscorableHistory"))
+    }
+
+    /// Partly scorable: the gap is what says how much history was refused, and it is the number that
+    /// distinguishes "upgraded last week" from "lost a year".
+    func testAPartlyScorableHistoryReportsTheGapInDays() {
+        let line = UniversalTrace.rrTransportLine(strictWhoop5: true, firstRecordedUnix: 1_750_000_000,
+                                                  firstScorableUnix: 1_750_000_000 + 30 * 86_400)
+        XCTAssertNotNil(line)
+        XCTAssertTrue(line!.contains("unscorableHistory=yes"))
+        XCTAssertTrue(line!.contains("gapDays=30"))
+    }
+
+    /// The WHOLE line, byte for byte, with the identical literal pinned on the Kotlin side.
+    ///
+    /// The other cases here assert fragments, which would let the two platforms drift on anything a
+    /// `contains` does not look at: field order, spacing, or the shared date format. A report is diffed
+    /// across platforms, so the line has to be the same line, not merely the same facts.
+    func testTheWholeLineIsPinnedByteForByte() {
+        XCTAssertEqual(
+            UniversalTrace.rrTransportLine(strictWhoop5: true, firstRecordedUnix: 1_750_000_000,
+                                           firstScorableUnix: 1_752_592_000),
+            "rrTransport recorded=2025-06-15 15:06:40 scorable=2025-07-15 15:06:40 unscorableHistory=yes gapDays=30"
+        )
+    }
+
+    /// Fully scorable from the first beat: nothing was refused, and the line must say so plainly rather
+    /// than leaving a reader to infer it from a missing field.
+    func testAFullyScorableHistorySaysSo() {
+        let line = UniversalTrace.rrTransportLine(strictWhoop5: true, firstRecordedUnix: 1_750_000_000,
+                                                  firstScorableUnix: 1_750_000_000)
+        XCTAssertNotNil(line)
+        XCTAssertTrue(line!.contains("unscorableHistory=no"))
+        XCTAssertTrue(line!.contains("gapDays=0"))
+    }
+}
