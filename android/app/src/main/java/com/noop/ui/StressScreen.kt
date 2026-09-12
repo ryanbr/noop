@@ -667,7 +667,12 @@ internal fun StressTodayCard(points: List<StressPoint>, modifier: Modifier = Mod
                     // The chart and its hour labels share ONE column, so the labels line up with the
                     // ink they name. As siblings of the whole row they started at the card's edge
                     // instead, shifted left of the chart by the width of the level scale (#2106).
-                    Column(modifier = Modifier.weight(1f)) {
+                    // The 10.dp is the gap the labels had as a direct child of the card's column,
+                    // carried over so moving them only changes WHERE they start, not how they sit.
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
                         Canvas(
                             modifier = Modifier
                                 .fillMaxWidth()
