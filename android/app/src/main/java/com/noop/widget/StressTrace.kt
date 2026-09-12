@@ -163,6 +163,42 @@ object StressTrace {
     }
 
     /**
+     * The moving hours grouped into CONTIGUOUS x ranges, for the marks along the base (#2106).
+     *
+     * Separate from [movingMarks] because the two answer different questions. Bare centres say where
+     * each masked hour was; a run says which STRETCH of the day was masked, and that is what a reader
+     * needs when they are looking at a hole in the trace and trying to work out what put it there.
+     *
+     * The reason this matters was reported rather than theorised. A wearer saw the gaps, read the
+     * evenly spaced dots along the zero line as axis ticks, and concluded the data itself was missing,
+     * asking whether continuous HRV tracking would fill them in. Adjacent hours drawn as one bar under
+     * the gap it explains cannot be mistaken for a scale, because a scale does not start and stop with
+     * the data.
+     *
+     * Adjacency is by POSITION in the series, not by timestamp arithmetic: the series is already the
+     * hour grid the chart draws, so two neighbouring entries are two neighbouring hours by construction.
+     */
+    fun movingSpans(series: List<StressPoint>, width: Float): List<ClosedFloatingPointRange<Float>> {
+        if (series.isEmpty() || width <= 0f) return emptyList()
+        val t0 = series.first().ts
+        val span = (series.last().ts - t0).toFloat()
+        fun xOf(ts: Long): Float = if (span <= 0f) 0f else (ts - t0) / span * width
+        val out = ArrayList<ClosedFloatingPointRange<Float>>()
+        var runStart: Int? = null
+        for (i in series.indices) {
+            val moving = series[i].moving
+            if (moving && runStart == null) runStart = i
+            val runEnds = !moving || i == series.lastIndex
+            if (runEnds && runStart != null) {
+                val last = if (moving) i else i - 1
+                out.add(xOf(series[runStart!!].ts)..xOf(series[last].ts))
+                runStart = null
+            }
+        }
+        return out
+    }
+
+    /**
      * X positions of the hours masked as movement, for the faint marks along the base.
      *
      * Returned as bare X centres rather than as spans: the mark's thickness is a drawing decision and

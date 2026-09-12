@@ -168,4 +168,43 @@ class StressTraceTest {
     fun `one scored hour names one instant`() {
         assertEquals(listOf(9 * h), StressTrace.timeTicks(listOf(at(9, 1.0), at(10, null))))
     }
+
+    // #2106: contiguous masked stretches, so the marks read as regions rather than as axis ticks.
+
+    private fun pt(ts: Long, level: Double?, moving: Boolean) = StressPoint(ts, level, moving)
+
+    /** Adjacent masked hours become ONE span: that is the whole point, a bar under the hole it explains. */
+    @Test
+    fun `adjacent moving hours join into one span`() {
+        val series = listOf(
+            pt(0, 1.0, false), pt(3600, null, true), pt(7200, null, true), pt(10800, 1.5, false),
+        )
+        val spans = StressTrace.movingSpans(series, 100f)
+        assertEquals(1, spans.size)
+    }
+
+    /** Separated runs stay separate, so two different stretches are not merged into one claim. */
+    @Test
+    fun `separated moving runs stay separate`() {
+        val series = listOf(
+            pt(0, null, true), pt(3600, 1.0, false), pt(7200, null, true),
+        )
+        assertEquals(2, StressTrace.movingSpans(series, 100f).size)
+    }
+
+    /** A run ending at the LAST point still closes, rather than being dropped for want of a terminator. */
+    @Test
+    fun `a run ending at the last point is still emitted`() {
+        val series = listOf(pt(0, 1.0, false), pt(3600, null, true), pt(7200, null, true))
+        val spans = StressTrace.movingSpans(series, 100f)
+        assertEquals(1, spans.size)
+        assertEquals(100f, spans.first().endInclusive, 0.01f)
+    }
+
+    /** No moving hours means no marks, so an ordinary day carries no band at all. */
+    @Test
+    fun `no moving hours yields no spans`() {
+        val series = listOf(pt(0, 1.0, false), pt(3600, 2.0, false))
+        assertEquals(emptyList<ClosedFloatingPointRange<Float>>(), StressTrace.movingSpans(series, 100f))
+    }
 }
