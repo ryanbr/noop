@@ -649,25 +649,30 @@ object AnalyticsEngine {
             // went missing, when the usual cause is the #1118 gate refusing an over-counted night on
             // purpose. A night with no windows at all explains itself and pays nothing here.
             //
-            // The `hrv diag` line one row above carries `rrIntegrity`, but that verdict is scored over the
-            // whole DAY while the gate runs per SESSION, so the two disagree exactly when it matters: a
-            // day reading `underCovered` can still hold a session the gate refused. Reading the adjacent
-            // line is what led #2128 to be filed against intended behaviour.
+            // The `hrv diag` row above carries `rrIntegrity`, but that verdict is scored over the whole
+            // DAY while the gate runs per SESSION, so the two disagree exactly when it matters: a day
+            // reading `underCovered` can still hold a session the gate refused. Reading the adjacent line
+            // is what led #2128 to be filed against intended behaviour.
             //
-            // Cost: one extra O(n) filter and coverage pass per withheld session. `sessionAvgHRV`'s own
-            // comment warns against buying diagnostic detail on this path, but what it refuses is a SORT
-            // (`collapsedCoverage` opens with one); `rrCoverage` is a single linear pass, and this runs
-            // only on nights that already produced nothing.
+            // Derived from the two existing calls rather than by re-classifying the beats. Inside
+            // [SleepStager.sessionAvgHRV] the ONLY paths to null are "no window yielded an RMSSD" and the
+            // gate, so windows-with-RMSSD plus a null value IS the gate, with nothing restated that could
+            // later disagree with it. It says `overCount` rather than naming a verdict because that
+            // function pins every over-count to CROSS_SECOND internally to avoid a sort, so the specific
+            // label would be a distinction it does not actually make.
             //
             // NOT in deep-window mode. That branch re-derives from `sessionHrvWindows` and never reads
-            // `s.avgHRV`, so the #1118 gate plays no part in its nil and naming it would be a diagnostic
+            // `s.avgHRV`, so the gate plays no part in its nil and naming it would be a diagnostic
             // asserting a cause it did not verify. `nDeep` on this same line already explains that case.
-            val refused = if (deepHrvWindow || avgHRVDaily != null || withR.isEmpty()) null else physiologySessions
-                .map { SleepStager.sessionRrVerdict(it.start, it.end, rrSorted) }
-                .firstOrNull { !HrvAnalyzer.successiveDiffIsTrustworthy(it) }
+            val refused = !deepHrvWindow && avgHRVDaily == null && withR.isNotEmpty() &&
+                physiologySessions.any { s ->
+                    SleepStager.sessionHrvWindows(s.start, s.end, rrSorted, emptyList())
+                        .any { it.rmssd != null } &&
+                        SleepStager.sessionAvgHRV(s.start, s.end, rrSorted) == null
+                }
             hrvTraceSink(
                 "hrv nightSummary reported=${avgHRVDaily?.let { "${round2(it)}ms" } ?: "nil"} " +
-                    (refused?.let { "refused=${it.raw} " } ?: "") +
+                    (if (refused) "refused=overCount " else "") +
                     "wholeNight=${meanMs(withR)} deepOnly=${meanMs(deepW)} " +
                     "lastSWS=${meanMs(lastSws)} nWin=${withR.size} nDeep=${deepW.size}",
             )

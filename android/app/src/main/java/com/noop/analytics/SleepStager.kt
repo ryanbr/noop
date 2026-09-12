@@ -3268,25 +3268,6 @@ object SleepStager {
     data class HrvWindow(val startTs: Long, val stage: String, val cleanBeats: Int, val rmssd: Double?)
 
     /**
-     * The #1118 coverage verdict for a session's OWN R-R, windowed exactly as [sessionHrvWindows] is.
-     *
-     * Named once because two callers need the SAME verdict: [sessionAvgHRV], which withholds the night's
-     * HRV when the beats cannot carry a successive-difference statistic, and the nightly trace, which has
-     * to say WHY it was withheld. A second copy of the classification could describe a different set of
-     * beats than the number it is explaining, which is the one thing the gate's own comment insists on.
-     *
-     * Mirrors Swift `sessionRrVerdict`.
-     */
-    internal fun sessionRrVerdict(start: Long, end: Long,
-                                  rr: List<RrInterval>): HrvAnalyzer.RrCoverageVerdict {
-        val seg = rr.filter { it.ts in start..end }
-        // `collapsed` is deliberately the SAME figure as `coverage`; see [sessionAvgHRV] for why the
-        // distinction between the two over-count verdicts is not worth a second sort here.
-        val coverage = HrvAnalyzer.rrCoverage(seg.map { it.ts }, seg.map { it.rrMs.toDouble() })
-        return HrvAnalyzer.classifyCoverage(coverage, coverage)
-    }
-
-    /**
      * Mean RMSSD over 5-min tumbling windows across the session (ms), or null.
      * Uses the same range-filter + ≥2-valid-interval rule as hrv.rmssd().
      */
@@ -3303,7 +3284,11 @@ object SleepStager {
         // Classified over the SAME beats the value was built from, windowed [start, end] exactly as
         // `sessionHrvWindows` does, so the verdict cannot describe a different set of beats than the number
         // it is gating.
-        val verdict = sessionRrVerdict(start, end, rr)
+        val seg = rr.filter { it.ts in start..end }
+        val segTs = seg.map { it.ts }
+        val segMs = seg.map { it.rrMs.toDouble() }
+        val coverage = HrvAnalyzer.rrCoverage(segTs, segMs)
+        val verdict = HrvAnalyzer.classifyCoverage(coverage, coverage)
         if (!HrvAnalyzer.successiveDiffIsTrustworthy(verdict)) return null
         return vals.sum() / vals.size.toDouble()
     }
