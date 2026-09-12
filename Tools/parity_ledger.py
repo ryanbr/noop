@@ -1573,7 +1573,9 @@ def _base_semantic_state(
             stderr=subprocess.DEVNULL,
         )
         with tempfile.TemporaryDirectory() as directory:
-            base_root = Path(directory)
+            # Resolve before anything is derived from it: build_twin_map resolves its root, and an
+            # inventory taken from the unresolved spelling then fails relative_to (#2143, macOS).
+            base_root = Path(directory).resolve()
             with tarfile.open(fileobj=io.BytesIO(archive), mode="r:") as bundle:
                 bundle.extractall(base_root, filter="data")
             inventory = _inventory(base_root)
@@ -2576,7 +2578,8 @@ def finding_identities_at_git_ref(root: Path, ref: str) -> set[str]:
     except (FileNotFoundError, subprocess.CalledProcessError) as exc:
         raise ValueError(f"cannot scan exact base {ref!r}") from exc
     with tempfile.TemporaryDirectory() as directory:
-        base_root = Path(directory)
+        # Same resolution as _base_semantic_state, so both temp checkouts spell their root one way (#2143).
+        base_root = Path(directory).resolve()
         try:
             with tarfile.open(fileobj=io.BytesIO(archive), mode="r:") as bundle:
                 bundle.extractall(base_root, filter="data")
