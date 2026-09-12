@@ -4,17 +4,22 @@
 # authority, tests or workflow change; ordinary product-source changes belong to
 # the later ledger/ratchet gate, not to repeated self-testing of the scanner.
 #
-# On a PUSH TO MAIN, run it unconditionally. One of these tests is not about the
-# scanner at all: the repository acceptance asserts that the checked-in authority
-# still reproduces from the CURRENT product source. Product changes are exactly
-# what invalidates it, so filtering this trigger to Tools/ meant main could carry
-# stale authority indefinitely with nothing red, until some later PR touched
-# Tools/ and inherited the whole accumulated drift.
+# It also runs DAILY on main. One of these tests is not about the scanner at
+# all: the repository acceptance asserts that the checked-in authority still
+# reproduces from the CURRENT product source. Product changes are what
+# invalidates it, and product changes are exactly what both filters exclude, so
+# main could carry stale authority indefinitely with nothing red until some
+# later PR touched Tools/ and inherited the whole accumulated drift.
 #
 # That happened four times, and three landed on an outside contributor's PR that
-# had not caused any of it. The suite is Python-only and costs ~2.5 minutes; a
-# red main on the merge that caused the drift is the signal, and re-deriving is
-# a two-minute maintainer action. See the history in #1534.
+# had caused none of it. The schedule finds it within a day, on main, where
+# re-deriving is a two-minute maintainer action.
+#
+# Deliberately a schedule rather than an unfiltered push: this suite is pinned
+# NOT to run on product source (see test_core_tools_filter_covers_every_
+# governance_tool_path, which asserts both filters and forbids product globs),
+# and a periodic check keeps that true. See the history in #1534.
+
 name: Parity Governance CI
 
 on:
@@ -28,6 +33,16 @@ on:
       - '.github/workflows/parity-governance.yml'
   push:
     branches: [main]
+    paths:
+      - 'Tools/issue_ref.py'
+      - 'Tools/parity_*.py'
+      - 'Tools/parity_*.json'
+      - 'Tools/tests/**'
+      - '.github/workflows/parity-governance.yml'
+  # Daily, so authority staleness is found on a schedule instead of by whoever
+  # next edits Tools/. See the header note.
+  schedule:
+    - cron: '17 4 * * *'
   workflow_dispatch:
 
 concurrency:
