@@ -1,7 +1,20 @@
-# These are the scanner's own unit and repository-acceptance tests. Run the
-# multi-minute suite when its implementation, authority, tests, or workflow
-# changes; ordinary product-source changes belong to the later ledger/ratchet
-# gate, not to repeated self-testing of the scanner.
+# These are the scanner's own unit and repository-acceptance tests.
+#
+# On a PULL REQUEST, run the multi-minute suite only when its implementation,
+# authority, tests or workflow change; ordinary product-source changes belong to
+# the later ledger/ratchet gate, not to repeated self-testing of the scanner.
+#
+# On a PUSH TO MAIN, run it unconditionally. One of these tests is not about the
+# scanner at all: the repository acceptance asserts that the checked-in authority
+# still reproduces from the CURRENT product source. Product changes are exactly
+# what invalidates it, so filtering this trigger to Tools/ meant main could carry
+# stale authority indefinitely with nothing red, until some later PR touched
+# Tools/ and inherited the whole accumulated drift.
+#
+# That happened four times, and three landed on an outside contributor's PR that
+# had not caused any of it. The suite is Python-only and costs ~2.5 minutes; a
+# red main on the merge that caused the drift is the signal, and re-deriving is
+# a two-minute maintainer action. See the history in #1534.
 name: Parity Governance CI
 
 on:
@@ -15,12 +28,6 @@ on:
       - '.github/workflows/parity-governance.yml'
   push:
     branches: [main]
-    paths:
-      - 'Tools/issue_ref.py'
-      - 'Tools/parity_*.py'
-      - 'Tools/parity_*.json'
-      - 'Tools/tests/**'
-      - '.github/workflows/parity-governance.yml'
   workflow_dispatch:
 
 concurrency:
