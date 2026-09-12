@@ -111,15 +111,34 @@ class CommandCatalogueTest {
         }
     }
 
-    /** The ECG family #891 turns on. None is sendable; all three are now legible. */
+    /**
+     * The ECG family #891 turns on: all three legible, and — since the gated MG ECG research probe
+     * (#891/#1100) gave Android an ECG app layer that drives them — all three now constructible too.
+     *
+     * This assertion used to be `assertNull`, on the grounds that "Android has no ECG app layer and sends
+     * none of them". That premise is what changed; the safety property did not. Being in the sender enum
+     * makes an opcode EXPRESSIBLE, not REACHABLE: every send crosses the one `send()` chokepoint, where
+     * `WhoopBleClient.ecgSendAdmitted` requires the opcode to be in the closed four-element allow-list
+     * [EcgResearchAllowList.PROBE_OPCODES], the ECG probe opt-in to be on, and the strap to be a
+     * positively-attested MG.
+     *
+     * `senderEnumStaysCuratedAfterTheLabelFix` above is the other half of this and is deliberately
+     * unchanged: the destructive families — firmware load, DFU, fuel-gauge reset, and the *_NEW trio at
+     * 142/143/144 that sits three codes above 139 — are still `assertNull`. Widening the enum's top from
+     * 123 to 139 did not drag its neighbours in.
+     */
     @Test
-    fun theMgEcgTogglesAreNamedButNotSendable() {
+    fun theMgEcgTogglesAreNamedAndNowConstructibleBehindTheSendGate() {
         assertEquals("TOGGLE_LABRADOR_DATA_GENERATION", CommandNames.byRaw[124])
         assertEquals("TOGGLE_LABRADOR_RAW_SAVE", CommandNames.byRaw[125])
         assertEquals("TOGGLE_LABRADOR_FILTERED", CommandNames.byRaw[139])
-        assertNull(CommandNumber.fromRaw(124))
-        assertNull(CommandNumber.fromRaw(125))
-        assertNull(CommandNumber.fromRaw(139))
+        assertEquals(124, CommandNumber.fromRaw(124)?.rawValue)
+        assertEquals(125, CommandNumber.fromRaw(125)?.rawValue)
+        assertEquals(139, CommandNumber.fromRaw(139)?.rawValue)
+        // SELECT_WRIST(123) was already constructible; what changes for it is the SEND surface: the gate now
+        // admits it to an attested MG with the probe opt-in on, and unlike the three toggles it is PERSISTENT
+        // wrist config (see EcgResearchAllowList) — a toggle stops when the session does, this does not.
+        assertEquals(123, CommandNumber.fromRaw(123)?.rawValue)
     }
 
     /**

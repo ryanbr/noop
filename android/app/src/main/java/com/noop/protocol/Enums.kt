@@ -262,16 +262,29 @@ enum class CommandNumber(val rawValue: Int) {
     // not add it and deliberately does not remove it either: dropping a pre-existing entry would change
     // the curated send surface for a reason that has nothing to do with decoding ECG packets, and that is
     // a separate decision from the one below.
-    SELECT_WRIST(123);
+    SELECT_WRIST(123),
+    // The three WHOOP MG ECG ("Labrador") TOGGLES (124 / 125 / 139).
     //
-    // The three WHOOP MG ECG ("Labrador") TOGGLES (124 / 125 / 139) are deliberately ABSENT from this
-    // enum. This branch originally listed them here so a COMMAND_RESPONSE for one would be labelled
-    // rather than shown as a bare hex opcode — a reason #893 has since made obsolete, by giving Android
-    // a read-only `CommandNames` label table that names every opcode the schema names without making any
-    // of them constructible. Android has no ECG app layer and sends none of them, so growing the
-    // SENDER enum to buy a label would widen what the command sender can express for nothing. Apple's
-    // `WhoopCommand` carries them because Apple actually drives the gated probe. See
-    // `com.noop.protocol.Whoop5Ecg` for the decoder and `Whoop5EcgProbe` for the verdict rules.
+    // These were ABSENT, and the reason given was: "Android has no ECG app layer and sends none of them,
+    // so growing the SENDER enum to buy a label would widen what the command sender can express for
+    // nothing." The label half of that is still right — #893's read-only `CommandNames` table names every
+    // opcode the schema names without making any constructible, and nothing here is added for a label.
+    //
+    // What changed is the premise: the gated MG ECG research probe (#891/#1100) is an Android ECG app
+    // layer, and it does send them, exactly as Apple's `WhoopCommand` already does for the same probe.
+    //
+    // Adding them does not widen the REACHABLE surface, which is the property that matters. Every send
+    // passes the single `send()` chokepoint, where [WhoopBleClient.ecgSendAdmitted] admits an opcode only
+    // if it is in the positive allow-list [com.noop.protocol.EcgResearchAllowList.PROBE_OPCODES], the ECG
+    // probe opt-in is on, and the strap is a POSITIVELY-attested MG. The allow-list is a closed set of
+    // four, so the firmware-load family three codes above 139 (142/143/144) is not expressible through it
+    // — asserted in EcgResearchAllowListTest, not merely asserted here.
+    //
+    // See `com.noop.protocol.Whoop5Ecg` for the command builders and decoder, and `Whoop5EcgProbe` for
+    // the verdict rules. Values are the schema numbers.
+    TOGGLE_LABRADOR_DATA_GENERATION(124),
+    TOGGLE_LABRADOR_RAW_SAVE(125),
+    TOGGLE_LABRADOR_FILTERED(139);
 
     companion object {
         private val byRaw = entries.associateBy { it.rawValue }

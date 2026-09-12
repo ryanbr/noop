@@ -49,6 +49,7 @@ import com.noop.protocol.DeviceConfigReadProbeReport
 import com.noop.protocol.DeviceConfigWriteGate
 import com.noop.protocol.BroadcastHrGateReport
 import com.noop.protocol.EcgRawDataGateReport
+import com.noop.protocol.EcgResearchAllowList
 import com.noop.protocol.FeatureFlagProbe
 import com.noop.protocol.FeatureFlagProbeReport
 import com.noop.protocol.Framing
@@ -4467,7 +4468,12 @@ class WhoopBleClient(
                 // verified — same discipline as the R22 read-back above. The write ack is never the proof.
                 // Both the ECG gate (#891) and the Broadcast-HR gate (#1061) read themselves back over this.
                 !(DeviceConfigWriteGate.isReadBackOpcode(cmd.rawValue) &&
-                    (ecgGateReport != null || broadcastHrGateReport != null))) {
+                    (ecgGateReport != null || broadcastHrGateReport != null)) &&
+                // MG ECG ("Labrador") research probe (#891/#1100): the ECG opcodes 123/124/125/139, admitted
+                // ONLY by ecgSendAdmitted — the probe opt-in on, on a connected, positively-attested MG. The
+                // opcode gate is the positive allow-list EcgResearchAllowList, a closed set of four, so the
+                // firmware-load family three codes above 139 is not expressible through it.
+                !ecgSendAdmitted(cmd)) {
                 log("send(${cmd.name}) skipped — no WHOOP 5/MG framing for this command yet")
                 return
             }
@@ -8957,6 +8963,29 @@ class WhoopBleClient(
         ecgGateReport = null
         _ecgRawDataGate.value = report
         log("ECG gate (#891):\n${report.render()}")
+    }
+
+    /**
+     * THE send allow-list for the WHOOP MG ECG ("Labrador") opcodes (#891/#1100).
+     *
+     * True only for an opcode in the positive allow-list [EcgResearchAllowList.PROBE_OPCODES], with the ECG
+     * probe opt-in on, on a connected, positively-attested MG. Every other opcode, family or state is false
+     * — the firmware-load family and the rest of [EcgResearchAllowList.FORBIDDEN] are refused because they
+     * are simply not in that set, not because a deny-list caught them.
+     *
+     * Nothing in this change can make it return true in practice: there is no ECG caller on Android yet and
+     * no Settings row that sets [PuffinExperiment.ecgProbe], so the opcodes this change makes constructible
+     * are not reachable from any code path. That is the point — the enum widening and the gate that bounds
+     * it land together, and the probe that needs it lands afterwards against a gate already in `main`.
+     *
+     * The run-arming and stop-override conditions belong with that probe, and tighten this further.
+     */
+    private fun ecgSendAdmitted(cmd: CommandNumber): Boolean {
+        if (!EcgResearchAllowList.isProbeOpcode(cmd.rawValue)) return false
+        if (connectedFamily != DeviceFamily.WHOOP5) return false
+        if (!whoop5Variant().isMG) return false
+        if (!_state.value.connected) return false
+        return puffinExperiment.ecgProbe
     }
 
     /** Clear the #891 result (Settings row dismissed / disconnect). Twin of Swift clearEcgRawDataGate(). */
