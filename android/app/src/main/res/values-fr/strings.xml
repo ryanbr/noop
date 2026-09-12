@@ -1533,7 +1533,16 @@
     <string name="l10n_today_screen_recovery_ea924f72">Récupération</string>
     <string name="l10n_today_screen_sync_chip_now_c9bc849a">à l\'instant</string>
     <string name="l10n_today_screen_sync_chip_live_98aadb37">en direct</string>
-    <string name="l10n_today_screen_sync_chip_syncing_desc_bfc290e7">Synchronisation de l\'historique du bracelet, %1$d blocs</string>
+    <string name="l10n_today_screen_sync_chip_syncing_desc_92daf60c">Synchronisation de l\'historique du bracelet, %1$s</string>
+    <string name="l10n_today_screen_sync_chip_syncing_pages_desc_ad763b39">Synchronisation de l\'historique du bracelet, %1$s, %2$s</string>
+    <plurals name="sync_chip_chunks_count">
+        <item quantity="one">%1$d bloc</item>
+        <item quantity="other">%1$d blocs</item>
+    </plurals>
+    <plurals name="sync_chip_pages_behind_count">
+        <item quantity="one">%1$d page de retard à la connexion</item>
+        <item quantity="other">%1$d pages de retard à la connexion</item>
+    </plurals>
     <string name="l10n_today_screen_sync_chip_synced_desc_4d255944">Historique du bracelet synchronisé il y a %1$s</string>
     <string name="l10n_today_screen_sync_chip_experimental_desc_3de06a70">Connecté ; la synchronisation de l\'historique est expérimentale sur ce bracelet.</string>
     <string name="l10n_today_screen_recovery_roundtoint_charge_92fbaa5e">Charge %1$s%%</string>

@@ -263,6 +263,9 @@ private data class TodayLiveSnapshot(
      *  most once per connection, so it costs the snapshot nothing. */
     val historyReady: Boolean,
     val historySyncExperimental: Boolean,
+    /** #689/#815: the connect-time GET_DATA_RANGE backlog sample, when known. Set once per connection,
+     *  so it adds no per-tick churn to this snapshot. */
+    val pagesBehindAtConnect: Int?,
     val batteryPct: Double?,
     /** True once a WHOOP 5/MG strap has been seen this session, picks the 5/MG rated-life fallback for the
      *  battery runtime estimate (#713). Changes at most once per connection, so it doesn't reintroduce the
@@ -347,6 +350,7 @@ fun TodayScreen(
                 syncChunksThisSession = s.syncChunksThisSession,
                 historyReady = s.historyReady,
                 historySyncExperimental = s.historySyncExperimental,
+                pagesBehindAtConnect = s.pagesBehindAtConnect,
                 batteryPct = s.batteryPct,
                 whoop5 = s.whoop5Detected,
                 charging = s.charging,
@@ -1338,6 +1342,7 @@ fun TodayScreen(
                 syncChunksThisSession = liveSnap.syncChunksThisSession,
                 lastSyncAt = liveSnap.lastSyncAt,
                 historySyncExperimental = liveSnap.historySyncExperimental,
+                pagesBehindAtConnect = liveSnap.pagesBehindAtConnect,
                 onPickDay = { offset -> selectedDayOffset = offset },
                 onQuickActions = onQuickActions,
                 onOpenSettings = onOpenSettings,
@@ -2355,6 +2360,8 @@ private fun LiquidTodayHeader(
     syncChunksThisSession: Int = 0,
     lastSyncAt: Long? = null,
     historySyncExperimental: Boolean = false,
+    // #689/#815: the connect-time backlog sample, when known.
+    pagesBehindAtConnect: Int? = null,
     onPickDay: (Int) -> Unit,
     onQuickActions: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -2452,6 +2459,7 @@ private fun LiquidTodayHeader(
             SyncStatusChip(
                 backfilling = backfilling, chunks = syncChunksThisSession,
                 lastSyncAt = lastSyncAt, historySyncExperimental = historySyncExperimental,
+                pagesBehind = pagesBehindAtConnect,
             )
             // (a) Profile avatar (the photo set in Settings, or the NOOP loop mark) → Settings. Mirrors iOS.
             Box(
@@ -2490,6 +2498,7 @@ private fun SyncStatusChip(
     chunks: Int,
     lastSyncAt: Long?,
     historySyncExperimental: Boolean,
+    pagesBehind: Int? = null,
 ) {
     // The clock and the translated "now" word are resolved HERE, in the composable that already depends
     // on both, and handed down — so `SyncChipState.resolve` stays a genuinely pure decision that a plain
@@ -2501,11 +2510,28 @@ private fun SyncStatusChip(
         lastSyncAtSec = lastSyncAt,
         historySyncExperimental = historySyncExperimental,
         nowSec = System.currentTimeMillis() / 1000L,
+        pagesBehind = pagesBehind,
     )
     when (state) {
-        is SyncChipState.Syncing -> ChipCapsule(
-            Icons.Filled.Autorenew, "${state.chunks}", Palette.accent,
-            uiString(R.string.l10n_today_screen_sync_chip_syncing_desc_bfc290e7, state.chunks))
+        is SyncChipState.Syncing -> {
+            // Both counts are inflected, so "1 chunk" and "1 page" read correctly. Android <plurals>
+            // inflects one quantity per resource, so each count resolves separately and a template
+            // sentence joins them — the joiner sits inside the template, never on a resource edge,
+            // because aapt2 strips edge whitespace (#2041).
+            val chunksText = uiPlural(R.plurals.sync_chip_chunks_count, state.chunks, state.chunks)
+            val pagesText = state.pagesBehind?.let {
+                uiPlural(R.plurals.sync_chip_pages_behind_count, it, it)
+            }
+            ChipCapsule(
+                Icons.Filled.Autorenew, "${state.chunks}", Palette.accent,
+                desc = if (pagesText != null) {
+                    uiString(R.string.l10n_today_screen_sync_chip_syncing_pages_desc_ad763b39, chunksText, pagesText)
+                } else {
+                    uiString(R.string.l10n_today_screen_sync_chip_syncing_desc_92daf60c, chunksText)
+                },
+                detail = pagesText,
+            )
+        }
         is SyncChipState.Synced -> ChipCapsule(
             Icons.Filled.Check, state.agoText, Palette.textSecondary,
             uiString(R.string.l10n_today_screen_sync_chip_synced_desc_4d255944, state.agoText))
@@ -2519,7 +2545,7 @@ private fun SyncStatusChip(
 
 /** The shared sync-chip capsule (icon + terse label). Twin of the iOS `SyncStatusChip.chip`. */
 @Composable
-private fun ChipCapsule(icon: ImageVector, text: String, tint: Color, desc: String) {
+private fun ChipCapsule(icon: ImageVector, text: String, tint: Color, desc: String, detail: String? = null) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -2533,6 +2559,19 @@ private fun ChipCapsule(icon: ImageVector, text: String, tint: Color, desc: Stri
     ) {
         Icon(icon, contentDescription = desc, tint = tint, modifier = Modifier.size(14.dp))
         Text(text, style = NoopType.caption, color = tint)
+        // #689/#815: the optional secondary line (the backlog figure). Dimmer than the count it follows,
+        // because the count is the live thing and this is a fixed sample taken at connect. maxLines = 1
+        // with ellipsis so a long localisation cannot push the header cluster off a narrow screen
+        // (#1835); the accessibility description carries the full sentence either way.
+        if (detail != null) {
+            Text(
+                detail,
+                style = NoopType.caption,
+                color = Palette.textSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 

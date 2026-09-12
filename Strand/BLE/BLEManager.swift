@@ -5927,6 +5927,9 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         // re-derives it. (The honest flag is per-link, like the syncing pill / reject counters above.)
         whoop5EmptyOffload.reset()
         state.historySyncExperimental = false
+        // #689/#815: the backlog sample is "at connect" by definition, so it must not survive the link it
+        // was taken on — a stale figure under a fresh connection would be a plain lie.
+        state.pagesBehindAtConnect = nil
         lastBatteryReadAt = nil   // #battery: next connect's first enableLiveNotifications re-seeds the 5/MG battery reading
         // #612: the display flag only, not the underlying emptySyncTracker streak (that counter
         // deliberately survives a reconnect — unchanged, existing behaviour). A fresh link re-derives
@@ -6719,6 +6722,9 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
         if !DataRange.isPendingResponse(frame, cmdOff: cmdOff) {
             if let pages = DataRange.pagesBehind(from: frame, cmdOff: cmdOff) {
                 log("Strap backlog pages behind: \(pages) (#689 — GET_DATA_RANGE ring backlog, diagnostic only)")
+                // #815: confirmed on both WHOOP 4.0 and 5.0/MG, so bank it unconditionally. The Today sync
+                // chip reads this while backfilling is true. Twin of the Android FrameRouter branch.
+                state.pagesBehindAtConnect = Int(pages)
             } else {
                 log("Strap backlog pages behind: not decodable from this frame (#689 — offsets may have moved; "
                     + "the raw frame above is the input). Diagnostic only, sync is unaffected.")

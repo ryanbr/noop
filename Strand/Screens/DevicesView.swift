@@ -641,7 +641,7 @@ private struct DeviceSyncStatusCard: View {
 
     var body: some View {
         switch SyncChipState.resolve(live: live) {
-        case .syncing(let chunks):
+        case .syncing(let chunks, _):
             statusCard(
                 systemImage: "arrow.triangle.2.circlepath",
                 detail: chunks > 0

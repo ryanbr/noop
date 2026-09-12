@@ -287,6 +287,15 @@ data class LiveState(
      *  once empty offloads are SUSTAINED; cleared on connect or once the strap banks real records. Twin of
      *  macOS LiveState.historySyncExperimental. */
     val historySyncExperimental: Boolean = false,
+    /** #689/#815: the strap's ring-buffer page backlog, sampled ONCE from the connect-time
+     *  GET_DATA_RANGE reply and never re-polled mid-offload — the link is already firmware-paced, and
+     *  #377 rules out re-polling for a readout. So this is a figure AT CONNECT, not a live one, and the
+     *  Today sync chip's copy says so rather than letting a static number read as a stalled live one.
+     *  A bounded ring measure (write pointer − read pointer against the ring size), never a percentage:
+     *  the strap never reveals a total record count. Confirmed against real captures on WHOOP 4.0 and
+     *  5.0/MG. null before the first reply this session, or when the frame did not decode. Twin of
+     *  macOS LiveState.pagesBehindAtConnect. */
+    val pagesBehindAtConnect: Int? = null,
     /** #612: TRUE when the WHOOP-4/generic empty-offload streak ([emptySyncTracker]) is currently
      *  SUSTAINED (3+ consecutive completed-but-empty offloads). Not 5/MG-specific and not coupled to HR:
      *  a connected strap that keeps handing over nothing has this true regardless of live-HR status.
@@ -1371,6 +1380,9 @@ class WhoopBleClient(
                 // #580: the 5/MG "history experimental" note is per-link — a fresh connect re-derives it
                 // from the next offload, so it must not outlive the dropped link.
                 historySyncExperimental = false,
+                // #689/#815: the backlog sample is "at connect" by definition, so it must not survive the
+                // link it was taken on — a stale figure under a fresh connection would be a plain lie.
+                pagesBehindAtConnect = null,
                 // #612: the display flag only, not the underlying emptySyncTracker streak (that counter
                 // deliberately survives a reconnect, unchanged existing behaviour).
                 sustainedEmptyOffload = false,
@@ -7586,6 +7598,9 @@ class WhoopBleClient(
                             val pagesBehind = com.noop.protocol.DataRange.pagesBehind(frame, cmdOff)
                             if (pagesBehind != null) {
                                 log("Strap backlog pages behind: $pagesBehind (#689 — GET_DATA_RANGE ring backlog, diagnostic only)")
+                                // #815: confirmed on both WHOOP 4.0 and 5.0/MG, so bank it unconditionally.
+                                // The Today sync chip reads this while backfilling is true.
+                                _state.update { it.copy(pagesBehindAtConnect = pagesBehind.toInt()) }
                             } else {
                                 log(
                                     "Strap backlog pages behind: not decodable from this frame (#689 — offsets may " +

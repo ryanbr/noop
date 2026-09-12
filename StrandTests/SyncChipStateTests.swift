@@ -15,7 +15,7 @@ final class SyncChipStateTests: XCTestCase {
         let live = LiveState()
         live.backfilling = true
         live.syncChunksThisSession = 7
-        XCTAssertEqual(SyncChipState.resolve(live: live), .syncing(chunks: 7))
+        XCTAssertEqual(SyncChipState.resolve(live: live), .syncing(chunks: 7, pagesBehind: nil))
     }
 
     func testLastSyncedAt_isSyncedWithAgeText() {
@@ -50,7 +50,7 @@ final class SyncChipStateTests: XCTestCase {
         live.backfilling = true
         live.syncChunksThisSession = 2
         live.lastSyncedAt = Date().timeIntervalSince1970 - 5
-        XCTAssertEqual(SyncChipState.resolve(live: live), .syncing(chunks: 2))
+        XCTAssertEqual(SyncChipState.resolve(live: live), .syncing(chunks: 2, pagesBehind: nil))
     }
 
     func testLastSyncedAt_takesPriorityOverHistorySyncExperimental() {

@@ -1515,7 +1515,16 @@
     <string name="l10n_today_screen_recovery_ea924f72">Recuperación</string>
     <string name="l10n_today_screen_sync_chip_now_c9bc849a">ahora</string>
     <string name="l10n_today_screen_sync_chip_live_98aadb37">en vivo</string>
-    <string name="l10n_today_screen_sync_chip_syncing_desc_bfc290e7">Sincronizando el historial de la pulsera, %1$d bloques</string>
+    <string name="l10n_today_screen_sync_chip_syncing_desc_92daf60c">Sincronizando el historial de la pulsera, %1$s</string>
+    <string name="l10n_today_screen_sync_chip_syncing_pages_desc_ad763b39">Sincronizando el historial de la pulsera, %1$s, %2$s</string>
+    <plurals name="sync_chip_chunks_count">
+        <item quantity="one">%1$d bloque</item>
+        <item quantity="other">%1$d bloques</item>
+    </plurals>
+    <plurals name="sync_chip_pages_behind_count">
+        <item quantity="one">%1$d página de retraso al conectar</item>
+        <item quantity="other">%1$d páginas de retraso al conectar</item>
+    </plurals>
     <string name="l10n_today_screen_sync_chip_synced_desc_4d255944">Historial de la pulsera sincronizado hace %1$s</string>
     <string name="l10n_today_screen_sync_chip_experimental_desc_3de06a70">Conectado; la sincronización del historial es experimental en esta pulsera.</string>
     <string name="l10n_today_screen_recovery_roundtoint_charge_92fbaa5e">%1$s%%</string>

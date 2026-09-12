@@ -416,7 +416,13 @@ internal fun recordingStateFor(
  *  [Hidden] only on a true cold start (the building-scores note owns that case). Previously this
  *  priority order lived inline inside the `@Composable`, where it could not be unit-tested. */
 sealed class SyncChipState {
-    data class Syncing(val chunks: Int) : SyncChipState()
+    /** #689/#815 follow-up: [pagesBehind] is the strap's GET_DATA_RANGE ring backlog, sampled ONCE at
+     *  connect (`LiveState.pagesBehindAtConnect`) and never re-polled, so it is a figure "at connect"
+     *  rather than a live one — the copy says so. null when no reply has landed this session, when the
+     *  frame did not decode, AND when the backlog is zero: a chip that is actively syncing while
+     *  claiming "0 pages behind" contradicts itself, and a zero sample carries nothing a reader can
+     *  act on. [resolve] applies that rule so both platforms drop the same case. */
+    data class Syncing(val chunks: Int, val pagesBehind: Int? = null) : SyncChipState()
     data class Synced(val agoText: String) : SyncChipState()
     object ExperimentalLive : SyncChipState()
     object Hidden : SyncChipState()
@@ -439,8 +445,12 @@ sealed class SyncChipState {
             lastSyncAtSec: Long?,
             historySyncExperimental: Boolean,
             nowSec: Long,
+            pagesBehind: Int? = null,
         ): SyncChipState = when {
-            backfilling -> Syncing(chunks)
+            // `takeIf { it > 0 }` is the zero rule from [Syncing.pagesBehind], applied here so the
+            // decision is pure and testable rather than sitting in the composable. Negative can't come
+            // off the wire (the decoder returns a ring delta), but the bound reads the same either way.
+            backfilling -> Syncing(chunks, pagesBehind?.takeIf { it > 0 })
             lastSyncAtSec != null -> Synced(shortSyncAgo(lastSyncAtSec, nowSec))
             historySyncExperimental -> ExperimentalLive
             else -> Hidden
