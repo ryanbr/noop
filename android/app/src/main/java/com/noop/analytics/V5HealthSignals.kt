@@ -41,7 +41,7 @@ object V5HealthSignals {
          * already raised. Nullable so an absent illness pass leaves it null. (Augment-only, Option A.)
          */
         val illnessDistance: IllnessDistance.Result?,
-        /** True once there are enough trusted nights for any of these to be more than "learning". */
+        /** True once an HRV or resting-HR baseline can honestly gate an illness heads-up. */
         val baselineTrusted: Boolean,
     )
 
@@ -60,7 +60,18 @@ object V5HealthSignals {
         activityBins: List<CircadianEngine.ActivityBin> = emptyList(),
         daysObserved: Int = 0,
     ): Snapshot {
-        val baselineTrusted = days.count { hasAnyVital(it) } >= MIN_BASELINE_NIGHTS
+        // #2131: trust belongs to a SIGNAL, not to a row. Counting rows with any vital let fourteen
+        // unrelated or mixed measurements lend confidence to an HRV/RHR illness claim even though no
+        // one baseline had fourteen observations. Use the same trailing window zAgainst uses for the
+        // newest night and mirror iOS's illness gate: a trusted RHR OR HRV baseline may raise. Keep the
+        // cycle classifier's existing availability gate separate so this illness fix cannot change it.
+        val cycleBaselineUsable = days.count { hasAnyVital(it) } >= MIN_BASELINE_NIGHTS
+        val baselineWindow = days.dropLast(1).takeLast(BASELINE_WINDOW).filter { hasAnyVital(it) }
+        val rhrBaselineTrusted =
+            baselineWindow.count { it.restingHr != null } >= MIN_BASELINE_NIGHTS
+        val hrvBaselineTrusted =
+            baselineWindow.count { it.avgHrv != null } >= MIN_BASELINE_NIGHTS
+        val baselineTrusted = rhrBaselineTrusted || hrvBaselineTrusted
 
         // ── Per-night z-scores against each signal's trailing rolling baseline ──
         val nights = ArrayList<CyclePhaseEngine.Night>(days.size)
@@ -78,7 +89,11 @@ object V5HealthSignals {
 
         // ── Cycle awareness (opt-in) ──
         val cycle = if (cycleOptedIn) {
-            CyclePhaseEngine.classify(nights, baselineUsable = baselineTrusted, loggedPeriodStarts = loggedPeriodStarts)
+            CyclePhaseEngine.classify(
+                nights,
+                baselineUsable = cycleBaselineUsable,
+                loggedPeriodStarts = loggedPeriodStarts,
+            )
         } else {
             CyclePhaseEngine.Result(
                 phase = CyclePhaseEngine.Phase.LEARNING,
@@ -151,7 +166,7 @@ object V5HealthSignals {
      *  twin's `guard bins.count >= 6` in AppModel.computeCircadianPhase. */
     internal const val MIN_CIRCADIAN_BINS = 6
 
-    /** A day is "usable" for the baseline if it carries at least one of the four illness/cycle vitals. */
+    /** Whether a row can contribute to any signal's baseline; empty rows do not enter trust counts. */
     private fun hasAnyVital(d: DailyMetric): Boolean =
         d.restingHr != null || d.avgHrv != null || d.skinTempDevC != null || d.respRateBpm != null
 
