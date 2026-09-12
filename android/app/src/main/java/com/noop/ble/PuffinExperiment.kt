@@ -173,24 +173,18 @@ class PuffinExperiment(
                 prefs.all.keys
                     .filter { it.startsWith(UNBONDED_PROBE_INCONCLUSIVE_LINKS_KEY_PREFIX) }
                     .forEach { e.remove(it) }
-            }
-            e.apply()
-            // #2135: the refusal latch is the one retirement reason the sweep above cannot reach, because
-            // it lives in NoopPrefs rather than this file. #1804 could set it FALSELY off the probe's own
-            // local teardown, so a strap latched before that change stayed retired through every re-arm
-            // while the stalled-link diagnostic kept suggesting one. Swept by the same prefix rule, on the
-            // other file, and only on the same off-to-on edge.
-            if (rearms) {
-                runCatching {
-                    noopPrefs?.let { np ->
-                        val ne = np.edit()
-                        np.all.keys
-                            .filter { it.startsWith(UNBONDED_OFFLOAD_REFUSED_KEY_PREFIX) }
-                            .forEach { ne.remove(it) }
-                        ne.apply()
-                    }
+                // #2135: and the refusal latch, the one retirement reason a sweep of THIS file cannot
+                // reach. Same prefix rule, same edge, other file, because it is written at connect time
+                // with a device in hand and so cannot live here.
+                noopPrefs?.let { np ->
+                    val ne = np.edit()
+                    np.all.keys
+                        .filter { it.startsWith(UNBONDED_OFFLOAD_REFUSED_KEY_PREFIX) }
+                        .forEach { ne.remove(it) }
+                    ne.apply()
                 }
             }
+            e.apply()
         }
 
     /**
