@@ -2735,9 +2735,19 @@ private struct LiquidBatteryButton: View {
             // VoiceOver announcing a real count while the ring showed the synthetic one — i.e. the
             // harness could not be used to check the read-out it exists to exercise.
             let n = syncChunks
-            return n > 0
-                ? String(localized: "Syncing strap history, \(n) chunks")
-                : String(localized: "Syncing strap history")
+            guard n > 0 else { return String(localized: "Syncing strap history") }
+            // #689/#815: the connect-time ring backlog, when the strap reported one. Zero is dropped by
+            // `SyncChipState.resolve`, and dropped here for the same reason: "0 pages behind" beside a
+            // running sync contradicts itself. Both counts inflect — the phrase is built from its own
+            // entry and joined through a template, so "1 chunk" and "1 page" read correctly and the
+            // joining punctuation stays inside the translated template rather than being concatenated.
+            let behind = live.pagesBehindAtConnect
+                .flatMap { $0 > 0 ? $0 : nil }
+                .map { String(localized: "\($0) pages behind at connect") }
+            if let behind {
+                return String(localized: "Syncing strap history, \(n) chunks, \(behind)")
+            }
+            return String(localized: "Syncing strap history, \(n) chunks")
         }
 
         switch batteryDisplay {
