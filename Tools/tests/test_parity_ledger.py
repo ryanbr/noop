@@ -114,6 +114,19 @@ class ParityLedgerTests(unittest.TestCase):
         result = parity_ledger.scan(self.root, compact)
         self.assertIn("twin-map-authority-drift", {item.rule for item in result.findings})
 
+    def test_expand_twin_map_accepts_a_symlinked_root(self) -> None:
+        # expand_twin_map built its inventory from the root as given while build_twin_map resolved it,
+        # so a root reached through a symlink (macOS /var -> /private/var) raised in relative_to. A
+        # symlinked root reproduces that on any OS, including the Linux runner.
+        self.write_clean_tree()
+        compact = parity_ledger.build_compact_twin_map(self.root)
+        with tempfile.TemporaryDirectory() as holder:
+            link = Path(holder) / "link"
+            link.symlink_to(self.root, target_is_directory=True)
+            expanded, drift = parity_ledger.expand_twin_map(link, compact)
+        self.assertEqual([], drift)
+        self.assertEqual(parity_ledger.build_twin_map(self.root), expanded)
+
     def test_compact_authority_drift_names_new_one_sided_declaration(self) -> None:
         self.write_clean_tree()
         subprocess.run(["git", "init", "-q"], cwd=self.root, check=True)
@@ -559,7 +572,9 @@ enum Engine {
         with mock.patch.object(parity_ledger, "_read", side_effect=recording_read):
             parity_ledger.scan(self.root, twin_map)
 
-        self.assertEqual(sorted([self.swift, self.kotlin]), sorted(reads))
+        # The ledger reads through resolved paths; compare resolved so a symlinked temp dir (macOS
+        # /var -> /private/var) does not fail a test about read counts.
+        self.assertEqual(sorted([self.swift.resolve(), self.kotlin.resolve()]), sorted(reads))
 
     def test_retargeted_claims_cannot_hide_behind_stale_file_and_constant_pairs(self) -> None:
         swift_one = self.swift.with_name("One.swift")
@@ -1166,10 +1181,10 @@ fun broken(value: Int) = "broken ${run { Trace.suffix(value) }
         real = parity_ledger.finding_identities_at_git_ref
         with mock.patch.object(parity_ledger, "finding_identities_at_git_ref", wraps=real) as scanned:
             self.assertEqual(0, self.run_cli(twin_map, baseline)[0])
-            scanned.assert_called_once_with(self.root, "origin/main")
+            scanned.assert_called_once_with(self.root.resolve(), "origin/main")
         with mock.patch.object(parity_ledger, "finding_identities_at_git_ref", wraps=real) as scanned:
             self.assertEqual(0, self.run_cli(twin_map, baseline, base=base_sha)[0])
-            scanned.assert_called_once_with(self.root, base_sha)
+            scanned.assert_called_once_with(self.root.resolve(), base_sha)
         code, output = self.run_cli(twin_map, baseline, base="missing/shallow-base")
         self.assertEqual(1, code)
         self.assertIn("cannot scan exact base", output)

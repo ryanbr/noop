@@ -1645,6 +1645,9 @@ def build_compact_twin_map(root: Path) -> dict:
 
 def expand_twin_map(root: Path, twin_map: dict) -> tuple[dict, list[str]]:
     """Expand v3 from source and report every frozen-authority mismatch."""
+    # Resolve before taking the inventory, as build_twin_map and semantic_authority do: both
+    # receive this inventory and resolve their own root, so the spellings must already agree.
+    root = root.resolve()
     if twin_map.get("schema_version") != 3:
         return twin_map, []
     inventory = _inventory(root)
