@@ -80,6 +80,35 @@ final class SleepPhantomNightFallbackTests: XCTestCase {
 
     // Missing-night honesty: the newest stored night may stay visible, but the status above it must say
     // whether today's night is still moving through sync/analysis or finished without a detection.
+    /// #2108: a night already in hand silences `.calculating`.
+    ///
+    /// Reported as a banner that never clears, and the screenshot showed worse: "detecting and staging
+    /// the night now" printed directly above that same night, scored, timed and staged. The ladder
+    /// checked `calculating` before `hasCurrentNight`, so a finished night could not silence it however
+    /// complete it was. This is the combination none of the cases below covered, which is why it shipped.
+    /// Twin of the Kotlin `a night already in hand silences calculating`.
+    func testFreshnessNightInHandSilencesCalculating() {
+        XCTAssertNil(resolveSleepFreshness(hasCurrentNight: true, morningReady: true, syncing: false,
+                                           calculating: true, syncedSinceDayStart: true, syncFailed: false))
+    }
+
+    /// `.syncing` deliberately still outranks a present night: data landing now can change what is shown,
+    /// where recalculating an already scored night cannot make the banner true about what is on screen.
+    /// Pinned so the fix above is not later tidied into suppressing both.
+    func testFreshnessSyncingStillShowsWithNightInHand() {
+        XCTAssertEqual(resolveSleepFreshness(hasCurrentNight: true, morningReady: true, syncing: true,
+                                             calculating: true, syncedSinceDayStart: true,
+                                             syncFailed: false), .syncing)
+    }
+
+    /// And the reorder did not silence the one state that genuinely reports work in progress: before
+    /// morning with no night detected, `.calculating` still wins over the quiet return.
+    func testFreshnessCalculatingStillShowsBeforeMorningWithNoNight() {
+        XCTAssertEqual(resolveSleepFreshness(hasCurrentNight: false, morningReady: false, syncing: false,
+                                             calculating: true, syncedSinceDayStart: false,
+                                             syncFailed: false), .calculating)
+    }
+
     func testFreshnessProgressStatesWinOverStaleHistory() {
         XCTAssertEqual(resolveSleepFreshness(hasCurrentNight: false, morningReady: true, syncing: true,
                                               calculating: true, syncedSinceDayStart: false, syncFailed: true), .syncing)
