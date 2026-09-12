@@ -140,7 +140,12 @@ internal fun unbondedProbeSkippedLine(
 internal fun unbondedProbeRetired(
     previouslyRefused: Boolean,
     silentLinksSoFar: Int,
-    inconclusiveLinksSoFar: Int = 0,
+    /** No default: it had one, and BOTH consumers in WhoopBleClient silently took it, so a strap
+     *  retired only by the inconclusive budget (#1804's case, where every link is a local teardown)
+     *  reported NOT retired. The handshake stayed suppressed for a probe that would never run, which is
+     *  the exact harm `unbondedProbeSupersedesHandshake.probeRetired` exists to prevent. Required, so
+     *  the next consumer cannot omit it in silence. */
+    inconclusiveLinksSoFar: Int,
 ): Boolean =
     previouslyRefused
         || !unbondedProbeStillWorthAsking(silentLinksSoFar)
