@@ -994,9 +994,13 @@ public final class OuraLiveSource: NSObject, ObservableObject {
             // startTs on the ROUNDED onset (stable across the ring's re-serves) rather than the end-anchored
             // first-code time — so re-serves of one night share a PK and the displayed bedtime is the true
             // onset. The completeness guard in the persist closure then suppresses/replaces any duplicate.
+            // `safeKeyedStart` refuses the rekey when `sleepStart` didn't actually bind in the assembler's
+            // own clip (item 22, 2026-09-12: a mis-paired 0x49 window otherwise wrote a startTs 16 min
+            // AFTER its own endTs) — see its doc comment for why `onset <= mapped.startTs` is the exact test.
             let session: CachedSleepSession = {
-                guard onsetKeying(), let onset = sleepStart else { return mapped }
-                return mapped.withStartTs(SleepSessionDedup.keyedStart(onsetUnixSeconds: onset))
+                guard onsetKeying(), let onset = sleepStart,
+                      let keyed = SleepSessionDedup.safeKeyedStart(onset: onset, mapped: mapped) else { return mapped }
+                return mapped.withStartTs(keyed)
             }()
             let start = session.startTs
             // #1284 residual 3: log when this persist lands wholly inside — or overlapping — a session already

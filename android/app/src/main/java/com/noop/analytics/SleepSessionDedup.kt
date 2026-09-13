@@ -154,6 +154,32 @@ object SleepSessionDedup {
         return ((onsetUnixSeconds + g / 2) / g) * g
     }
 
+    /**
+     * Guards the onset rekey against `OuraHypnogramBurst.codesWithTimes`'s own safety net: that
+     * assembler silently falls back to the UNCLIPPED lay when clipping to the ring's `0x49` onset
+     * would empty the burst entirely (a mis-paired window's onset landing after every real code) —
+     * "so a mis-paired window can never empty the night." The caller has no signal that fallback
+     * fired, and blindly re-keying startTs to that onset anyway wrote a NEGATIVE-DURATION session
+     * (item 22, 2026-09-12: startTs 16 min after its own endTs on a 2-minute nap, because the matched
+     * 0x49 window's onset was ~16 min later than the only two codes the ring actually wrote).
+     *
+     * A clip that genuinely bound leaves `mapped.startTs >= onset` by construction — the surviving
+     * codes are exactly those with `ts >= onset`, so the first one can only sit at or after it. A clip
+     * the fallback ignored leaves `mapped.startTs < onset` just as reliably, since EVERY written code
+     * was earlier than onset (that is precisely why clipping to it would have emptied the burst). Also
+     * rejects the rarer case where 30 s grid-rounding pushes a nearly-adjacent onset to or past endTs,
+     * which would otherwise mint a zero/negative-duration session on its own.
+     *
+     * Returns the keyed start to bank, or null to keep the mapped `startTs` unchanged (no rekey).
+     * Takes plain bounds rather than a session type so it works against either platform's
+     * pre-persist mapping shape (`com.noop.oura.OuraSleepSession` here, `CachedSleepSession` in Swift).
+     */
+    fun safeKeyedStart(onset: Long, mappedStartTs: Long, mappedEndTs: Long): Long? {
+        if (onset > mappedStartTs) return null
+        val keyed = keyedStart(onset)
+        return if (keyed < mappedEndTs) keyed else null
+    }
+
     /** The bank decision, mirroring the Swift twin. */
     data class BankPlan(val bank: Boolean, val supersededStarts: List<Long>)
 

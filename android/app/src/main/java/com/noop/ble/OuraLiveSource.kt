@@ -834,9 +834,15 @@ class OuraLiveSource(
             // startTs on the ROUNDED onset (stable across the ring's re-serves) rather than the end-anchored
             // first-code time — so re-serves of one night share a PK and the bedtime is the true onset. The
             // completeness guard in the persist closure then suppresses/replaces any duplicate.
+            // safeKeyedStart refuses the rekey when `sleepStart` didn't actually bind in the assembler's own
+            // clip (item 22, 2026-09-12: a mis-paired 0x49 window otherwise wrote a startTs 16 min AFTER its
+            // own endTs) — see its doc comment for why `onset <= mapped.startTs` is the exact test.
             val onset = sleepStart
-            val session = if (onsetKeying() && onset != null) {
-                mapped.copy(startTs = com.noop.analytics.SleepSessionDedup.keyedStart(onset))
+            val keyed = onset?.let {
+                com.noop.analytics.SleepSessionDedup.safeKeyedStart(it, mapped.startTs, mapped.endTs)
+            }
+            val session = if (onsetKeying() && keyed != null) {
+                mapped.copy(startTs = keyed)
             } else {
                 mapped
             }
