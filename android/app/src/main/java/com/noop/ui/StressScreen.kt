@@ -1204,10 +1204,15 @@ private fun MarkerTile(
     if (delta != null && kotlin.math.abs(delta) >= 0.5) {
         val up = delta > 0
         val isStressful = (up == higherIsStress)
-        deltaText = "${if (up) "+" else "−"}${kotlin.math.abs(delta).roundToInt()} vs base"
+        // The magnitude alone, signed. TrendChip reads the sign to pick its ▲/▼, and the section
+        // header two lines up already says "vs 30-day baseline", so spelling "vs base" again inside
+        // the chip spent width on a word the reader has just been given (#2145).
+        deltaText = "${if (up) "+" else "−"}${kotlin.math.abs(delta).roundToInt()}"
         deltaColor = if (isStressful) Palette.statusWarning else Palette.statusPositive
     } else {
-        deltaText = "at baseline"
+        // "at baseline" for the same reason: the header supplies "baseline", the chip supplies the
+        // distance from it, which is none. No glyph, TrendChip showing one only for a signed value.
+        deltaText = "±0"
         deltaColor = Palette.textTertiary
     }
     StatTile(
@@ -1217,10 +1222,15 @@ private fun MarkerTile(
         accent = accent,
         delta = deltaText,
         deltaColor = deltaColor,
-        // #492 item 5: on narrow two-column cards the intrinsic-width "vs base" chip used to consume
-        // nearly the whole row and leave the reading as "4…" / "73…". Share the row evenly so the real
-        // physiological value stays intact; the explanatory chip is the element allowed to ellipsize.
-        compactDelta = true,
+        // NO compactDelta, deliberately (#2145). #492 item 5 added it because the intrinsic-width
+        // "vs base" chip ate the row and left the reading as "4…", and an even split then starved
+        // BOTH sides on a two-up tile: "53 bpm" and "+7 vs base" each want more than half, so the
+        // field saw "53 …" beside "▲ +7 vs …". An even split cannot be the answer, because a weighted
+        // child with fill = true is held to exactly its share, so the value stays at half however
+        // little the chip needs. The chip is now the sign and at most three digits at 12sp, so it
+        // measures under 45dp including its pill padding, and the weighted value takes everything
+        // else. The old chip wanted about 90dp of a row that has about 140dp to give, which is what
+        // made it starve the reading in the first place.
     )
 }
 

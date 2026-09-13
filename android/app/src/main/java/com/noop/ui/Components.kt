@@ -528,6 +528,12 @@ fun StatTile(
     // intrinsic size. Used by narrow two-column tiles where a wide chip (e.g. "1234 kcal" or
     // "+10 vs base") would otherwise starve the reading column and clip its value. The default
     // keeps callers that have enough width exactly as they were.
+    //
+    // NO CALLER PASSES TRUE ANY MORE, and reach for a shorter chip before reaching for this (#2145).
+    // It splits the row evenly, which starves BOTH sides once the chip is wide: the value is weighted
+    // with fill = true, so it is held to exactly its share however little the chip turns out to need.
+    // The stress marker tiles clipped their reading AND their chip this way. The workouts feed went
+    // full width, the stress tiles shortened the chip; both then wanted the natural-width path.
     compactDelta: Boolean = false,
 ) {
     // Each tile borrows its accent as a faint card wash, so a metric reads as part of its
