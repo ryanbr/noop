@@ -41,6 +41,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Air
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.BluetoothSearching
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -53,7 +55,6 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.MonitorWeight
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.TrackChanges
@@ -2237,7 +2238,12 @@ private fun RescanDisc(scanning: Boolean, onClick: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            Icons.Filled.Refresh,
+            // Bluetooth, not Refresh. Settings can use a circular arrow because the word "Re-scan" is
+            // sitting next to it; here the glyph is the whole affordance, and a circular arrow on a
+            // screen full of numbers reads as "reload my data" rather than "look for my strap". This is
+            // also the icon Live's Scan & Connect button and the onboarding connect steps already use,
+            // so the same action now looks the same everywhere it appears.
+            if (scanning) Icons.Filled.BluetoothSearching else Icons.Filled.Bluetooth,
             contentDescription = null,
             tint = Color.White.copy(alpha = if (scanning) 0.45f else 1f),
             modifier = Modifier.size(16.dp),
