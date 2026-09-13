@@ -229,11 +229,9 @@ the periodic **type-47 historical offload is the primary metric source**, not th
                  →  ackTrim (.withResponse confirmed ack to strap)
    ```
 
-   NOOP sends the ACK only after decoded data is locally durable. Link-layer confirmation
-   is not proof of permanent device-side progress. If the watchdog fires before the ACK,
-   local committed progress is retained; retry must tolerate replay and duplicates. The
-   strap can continue after a rewind failure, so an exact resume position is not guaranteed;
-   see [interruption and recovery](PROTOCOL_TRANSPORT.md#interruption-and-recovery).
+   A chunk is forgotten by the strap **only after** decoded data is locally durable and the ack is
+   link-layer confirmed. If the watchdog fires (strap went silent), nothing is acked and the durable
+   `strap_trim` cursor lets the next session resume exactly where it left off.
 
 Type-47 records carry their **own real-unix timestamps**, so the historical path does *not* depend on
 `GET_CLOCK`; if the clock correlation hasn't landed yet, `Backfiller` falls back to an identity

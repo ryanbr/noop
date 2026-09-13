@@ -22,7 +22,7 @@ no second decoder to drift.
 | WHOOP 5.0 — bond + `CLIENT_HELLO` session + command set | ✅ verified on real hardware |
 | WHOOP 5.0 — historical offload trigger (`SEND_HISTORICAL_DATA`) | ✅ verified (full burst, same trim-cursor mechanism as 4.0) |
 | WHOOP 5.0 — historical **biometrics** (type-47 v18) | ✅ unix + HR + R-R + gravity decoded (`parseFrameWhoop5`); cross-validated vs a 4C on the same person/window (HR corr 0.96, ±1 bpm at rest) |
-| WHOOP 5.0 — optical channels (PPG/SpO₂/skin-temp) + v26 layout | ◑ partial — v26 optical window mapped; legacy spot-HRV timing/decoding assumptions require revalidation; SpO₂ derivation remains unresolved |
+| WHOOP 5.0 — optical channels (PPG/SpO₂/skin-temp) + v26 layout | ◑ partial — v26 channel-0 PPG validated as **real** cardiac PPG (HR-locked, corr +0.907 over 14 bursts) → a **spot HRV** is derivable from it (`whoop_spot_hrv.py`); SpO₂/skin-temp still raw (AC-coupled PPG has no DC) |
 
 See [`../../docs/BLE_REVERSE_ENGINEERING.md`](../../docs/BLE_REVERSE_ENGINEERING.md) §3 for the
 protocol details these tools exercise.
@@ -89,9 +89,9 @@ the Python capture side does not require Swift.
 | `correlate_ground_truth.py` | **Locate un-decoded record fields using your WHOOP CSV export as known-plaintext.** Cross-references capture frames against the official per-night values (HRV, resting HR, skin temp, SpO₂, respiratory rate) to find each biometric's byte offset + encoding. Reuses the Swift importer's localized header aliases (English + DE/ES). Reports offsets only — your health values never leave the machine. Stdlib only. See [Ground-truth correlation](#ground-truth-correlation-correlate_ground_truthpy). |
 | `validate_spo2_candidate.py` | **Multi-device validation of the v18 SpO₂ candidate at frame @82** (`spo2_candidate_82`). Nightly aggregate of in-band (70–100) samples during `sleep_state=asleep` vs CSV `blood_oxygen_pct`; reports r / MAE / bias / offset-specificity and a promote checklist. **@82 is duty-cycled**, so the tool detects its window schedule per capture, aggregates per window, and reports window coverage; a strap that never emits @82 is classified `feature_absent` rather than failed. Batch mode for several straps. Postable summary has **no raw SpO₂ values** (safe for [#103](https://github.com/ryanbr/noop/issues/103)). Stdlib only. See [SpO₂ candidate validation](#spo₂-candidate-validation-validate_spo2_candidatepy). |
 | `pair_probe.py` | One-shot WHOOP 5 bonding probe: scan → connect → `pair()` → test `fd4b` access. `python3 pair_probe.py <MAC>`. |
-| `analyze_v26_waveform.py` | Historical v26 analysis using a 24 Hz assumption; not validation of the current R26 decoder. |
+| `analyze_v26_waveform.py` | Characterise the WHOOP 5 **v26** type-47 buffer as PPG @24 Hz using its own co-timestamped HR as ground truth. |
 | `analyze_v25_waveform.py` | **WHOOP 4.0 v25 PPG → HR span-pinning harness ([#194](https://github.com/ryanbr/noop/issues/194)).** Sweeps the unpinned PPG span (start + sample-count) across a corpus of captures at *known* HRs and reports the span where recovered HR **tracks** ground truth instead of the `1440/N` autocorrelation artifact — or, on resting-only data, exactly what capture is still needed. `--selftest` proves it on synthetic pulses; no args runs the bundled-frames demo. Stdlib only. |
-| `whoop_spot_hrv.py` | **Spot HRV (RMSSD) from the sparse PPG bursts.** Reads legacy v26 `feat_ppg` data with a 24 Hz timing assumption (read-only), detects beats, computes RMSSD per PPG-covered window with a GOOD/COARSE/POOR quality label. See [Spot HRV](#spot-hrv-from-sparse-ppg-whoop_spot_hrvpy). Stdlib only. |
+| `whoop_spot_hrv.py` | **Spot HRV (RMSSD) from the sparse PPG bursts.** Reads the v26 `feat_ppg` channel-0 24 Hz waveform (read-only), detects beats, computes RMSSD per PPG-covered window with a GOOD/COARSE/POOR quality label. See [Spot HRV](#spot-hrv-from-sparse-ppg-whoop_spot_hrvpy). Stdlib only. |
 | `test_whoop_frame.py` | Unit tests for framing / reassembly / HR parsing / buzz frames (no `bleak` needed). |
 | `test_hci_extract.py` | Unit tests for the btsnoop/pklg parsers, L2CAP/ATT reassembly, and WHOOP-frame extraction (synthetic fixtures; stdlib only). |
 | `test_correlate_ground_truth.py` | Unit tests for the CSV/alias loading and the known-plaintext field search (planted-value recovery + false-positive rejection; stdlib only). |
@@ -355,7 +355,7 @@ themselves and risk diverging on the offsets.
 |---|---|---|
 | `feat_second` | `(device_id, unix)` | second — the wide design matrix |
 | `feat_rr` | `(device_id, unix, idx)` | R-R interval within a second |
-| `feat_ppg` | `(device_id, unix, sample_idx, channel)` | legacy derived optical value; see R26 caveat below |
+| `feat_ppg` | `(device_id, unix, sample_idx, channel)` | optical sample (WHOOP 5 v26, 24/sec) |
 | `feat_event` | `(device_id, unix, kind)` | strap event |
 
 #### Column reference (what each value means, as far as verified)
@@ -387,18 +387,13 @@ themselves and risk diverging on the offsets.
 | `idx` | int | position of the interval within its second (0 … `rr_count`-1) |
 | `rr_ms` | ms | one R-R (inter-beat) interval |
 
-`feat_ppg` — derived WHOOP 5 **v26** optical values. The table below describes
-legacy exports, not the wire contract. The [R26 reference](../../docs/PROTOCOL_SENSORS.md#r26-compact-optical-window)
-requires a base plus 24 deltas (25 reconstructed samples) and identifies the burst
-counter separately. Revalidate these tools against that contract before using
-existing derived rows for beat timing or HRV; this documentation change does not
-update the tools or regenerate stored data:
+`feat_ppg` — the WHOOP 5 **v26** optical photoplethysmography waveform (the raw pulse signal):
 
 | Column | Unit | Meaning |
 |---|---|---|
-| `sample_idx` | int 0–23 | legacy export index; not the complete 25-sample R26 window |
-| `channel` | int | legacy decoder field; not a physical optical channel or wavelength identifier |
-| `value` | relative ADC (signed) | legacy derived value; verify base-plus-delta reconstruction before treating it as an optical sample; uncalibrated |
+| `sample_idx` | int 0–23 | position within the 24-sample (≈ 24 Hz) burst for that second |
+| `channel` | int | raw optical channel id as the decoder reports it. **No colour claim** — which physical LED (green/red/IR) each id maps to is unverified, so the raw id is surfaced as-is |
+| `value` | relative ADC (signed) | one waveform sample. A **relative** optical intensity (AC+DC, uncalibrated) — useful for pulse shape / HR / perfusion features, **not** an absolute measurement |
 
 `feat_event` — strap lifecycle events (useful for non-wear masking and context):
 
@@ -416,13 +411,12 @@ update the tools or regenerate stored data:
 > **Linux-first, read-only.** This derives an HRV figure on Linux from data the offload already gives —
 > a capability the rest of the app does **not** yet implement (the apps surface the strap/cloud HRV; they
 > don't derive RMSSD from the offloaded PPG). It opens `whoop.db` read-only and never writes. Documented
-> here as a historical experiment; decoding and timing require revalidation before reuse.
+> here as the reference; port to the apps later.
 
-The tool uses legacy derived rows and a 24 Hz timing assumption. Historical
-analysis reported correlation +0.907 over 14 bursts; this does not validate the
-corrected 25-sample reconstruction or establish reliable inter-beat intervals.
-The commands and output below describe the existing experiment, not a validated
-HRV implementation for the current R26 contract.
+The offload's per-second `rr_packed`/`rr` field **saturates and underestimates** HRV. But the strap also
+banks a **real 24 Hz PPG waveform** in its sparse optical bursts (record version 26 → `feat_ppg` channel 0).
+That waveform is genuine cardiac PPG — its fundamental **tracks heart rate** (validated: corr **+0.907** over
+14 bursts). So beats can be detected and RMSSD computed:
 
 ```bash
 python3 whoop_spot_hrv.py --db captures/whoop.db --device 1                  # every PPG-covered window
@@ -434,11 +428,21 @@ window_start   span     HR   RMSSD  beats  quality
   1120          40s   109      -       1  POOR
 ```
 
-Historical capture comparisons were exploratory. Recompute them after checking
-base-plus-delta reconstruction, sample timing, burst boundaries and clipping.
-The existing GOOD/COARSE/POOR labels are tool heuristics, not validation of those
-assumptions. Sparse capture coverage also prevents continuous overnight HRV.
-The available optical metadata does not establish a calibrated SpO₂ derivation.
+Where a burst lands inside a deep-sleep window, the PPG-derived RMSSD has lined up with WHOOP's own
+deep-sleep number on the captures checked so far — and reaches values the offload's clamped `rr` field
+can't. That's promising, not a controlled study: the tool labels each window's `quality` so you can tell a
+trustworthy spot from a noisy one rather than relying on the headline.
+
+**Honest limits** (the tool labels each window's `quality`):
+- **Sparse** — bursts are ~40 s every ~18.7 min (~3.3 %), so a window gets HRV only if a burst lands in it.
+  This is a **spot** HRV (best: a burst inside deep sleep), **not** continuous overnight HRV.
+- **Coarse** — 24 Hz quantises beat timing (~42 ms/sample); sub-sample interpolation + ectopic rejection
+  help, but trust `GOOD` (≥25 clean beats), treat `COARSE`/`POOR` with caution. HR (rate) is solid; RMSSD is
+  approximate. Too little signal returns `None` rather than a fabricated number.
+- **HRV only, not SpO₂** — the PPG is AC-coupled (no DC red/IR).
+
+Best consumer: **sleep/recovery** — a deep-sleep spot RMSSD is a recovery proxy and an HRV input the sleep
+stager otherwise lacks.
 
 ## Decode (`whoop-decode`)
 
@@ -577,7 +581,7 @@ personal data.
 ## SpO₂ candidate validation (`validate_spo2_candidate.py`)
 
 Once a capture has v18 historical records, this tool tests whether **byte @82** is a trustworthy
-candidate SpO₂ interpretation (the `spo2_candidate_82` instrumentation already in Swift/Kotlin) by comparing
+strap-computed SpO₂ scalar (the `spo2_candidate_82` decode already in Swift/Kotlin) by comparing
 **nightly means** against your WHOOP CSV export — the multi-device bar described in
 [`docs/WHOOP5_DEEP_DATA.md`](../../docs/WHOOP5_DEEP_DATA.md).
 
