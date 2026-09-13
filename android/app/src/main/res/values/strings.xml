@@ -2800,4 +2800,5 @@
     <string name="coach_consent_off">Off: the coach answers generally and sends none of your metrics.</string>
     <string name="l10n_app_changelog_a_today_screen_you_arrange_yourself_6194ccd0">A Today screen you arrange yourself, stress on the home screen, and backups that check themselves</string>
     <string name="l10n_stress_screen_scored_through_1_s_later_hours_fbb7d6c7">Scored through %1$s. Later hours need more heart-rate samples.</string>
+    <string name="l10n_today_screen_scan_and_connect_40157030">Scan and connect</string>
 </resources>

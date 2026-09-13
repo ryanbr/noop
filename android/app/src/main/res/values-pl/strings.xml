@@ -2779,4 +2779,5 @@
     <string name="coach_consent_off">Wyłączone: coach odpowiada ogólnie i nie wysyła żadnych Twoich danych.</string>
     <string name="l10n_app_changelog_a_today_screen_you_arrange_yourself_6194ccd0">Ekran Dzisiaj, który układasz sam, stres na ekranie głównym i kopie zapasowe, które same się sprawdzają</string>
     <string name="l10n_stress_screen_scored_through_1_s_later_hours_fbb7d6c7">Ocenione do %1$s. Późniejsze godziny wymagają więcej pomiarów tętna.</string>
+    <string name="l10n_today_screen_scan_and_connect_40157030">Skanuj i połącz</string>
 </resources>

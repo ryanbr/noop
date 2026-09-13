@@ -40,7 +40,6 @@ import androidx.compose.material.icons.filled.Accessibility
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Air
 import androidx.compose.material.icons.filled.Autorenew
-import androidx.compose.material.icons.automirrored.filled.BatteryUnknown
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Check
@@ -50,16 +49,18 @@ import androidx.compose.material.icons.filled.Functions
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.MonitorWeight
-import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.TrackChanges
-import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.WaterDrop
+import androidx.compose.material.icons.automirrored.filled.BatteryUnknown
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -267,6 +268,9 @@ private data class TodayLiveSnapshot(
      *  most once per connection, so it costs the snapshot nothing. */
     val historyReady: Boolean,
     val historySyncExperimental: Boolean,
+    /** Whether a scan is running, so the header chip can say so and refuse a second tap while it is
+     *  (#2169). Flips twice per scan rather than per tick, so it costs this snapshot nothing. */
+    val scanning: Boolean,
     /** #689/#815: the connect-time GET_DATA_RANGE backlog sample, when known. Set once per connection,
      *  so it adds no per-tick churn to this snapshot. */
     val pagesBehindAtConnect: Int?,
@@ -342,6 +346,10 @@ fun TodayScreen(
     // 72→73 bpm tick produces an EQUAL snapshot and the body is NOT recomposed; it only recomposes when
     // connection / sync / battery / streaming-presence actually change. The live bpm number is rendered
     // elsewhere (HeartRateTrendCard), which scopes its own collection. Appearance-preserving.
+    // #2169: the ONE gate every scan entry point goes through. `connect()` called directly silently
+    // does nothing on Android 12+ when the Bluetooth permission was denied or revoked (#1), so Today's
+    // two new affordances use the same wrapper Settings' Re-scan and Live's Connect already use.
+    val requestScan = rememberRequestScan { viewModel.connect() }
     val liveSnap by remember {
         derivedStateOf {
             val s = live
@@ -354,6 +362,7 @@ fun TodayScreen(
                 syncChunksThisSession = s.syncChunksThisSession,
                 historyReady = s.historyReady,
                 historySyncExperimental = s.historySyncExperimental,
+                scanning = s.scanning,
                 pagesBehindAtConnect = s.pagesBehindAtConnect,
                 batteryPct = s.batteryPct,
                 whoop5 = s.whoop5Detected,
@@ -1347,6 +1356,8 @@ fun TodayScreen(
                 lastSyncAt = liveSnap.lastSyncAt,
                 historySyncExperimental = liveSnap.historySyncExperimental,
                 pagesBehindAtConnect = liveSnap.pagesBehindAtConnect,
+                scanning = liveSnap.scanning,
+                onRescan = requestScan,
                 onPickDay = { offset -> selectedDayOffset = offset },
                 onQuickActions = onQuickActions,
                 onOpenSettings = onOpenSettings,
@@ -1371,7 +1382,9 @@ fun TodayScreen(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Spacer(Modifier.size(HeaderClusterControl))
+                // #2169: the balancing spacer becomes the control. Same size, so the wordmark stays
+                // centred and nothing else in the header gives up width for it.
+                RescanDisc(scanning = liveSnap.scanning, onClick = requestScan)
                 Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                     LiquidWordmark()
                 }
@@ -2190,6 +2203,48 @@ private fun TodayCardDismissButton(onClick: () -> Unit, modifier: Modifier = Mod
     }
 }
 
+/**
+ * Scan and connect, on the LEADING edge of the wordmark row (#2169).
+ *
+ * That slot cost nothing to take. The row was a spacer, the wordmark centred in what was left, and the
+ * Customize disc; the spacer existed only to balance the disc so the wordmark sat centred. A control
+ * there replaces it, and the wordmark stays where it was.
+ *
+ * Deliberately NOT in the right-hand cluster, which is where this would otherwise belong. #2110
+ * measured that: a fifth control there leaves the 28sp day title about 117dp, and "Yesterday" needs
+ * about 139dp, so it would ellipsize a title that fits today.
+ *
+ * Greys out and stops taking taps while a scan is running, which is the same rule the Settings and Live
+ * buttons follow. No spinner: the sync chip two controls away is already the thing that reports state.
+ */
+@Composable
+private fun RescanDisc(scanning: Boolean, onClick: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    Box(
+        modifier = Modifier
+            .size(HeaderClusterControl)
+            .liquidPress(interaction)
+            .clip(CircleShape)
+            // The same translucent-white disc its siblings use: part of the header, not a call to action.
+            .background(Color.White.copy(alpha = if (scanning) 0.08f else 0.16f))
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                enabled = !scanning,
+                onClick = onClick,
+            )
+            .semantics { contentDescription = uiString(R.string.l10n_today_screen_scan_and_connect_40157030) },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            Icons.Filled.Refresh,
+            contentDescription = null,
+            tint = Color.White.copy(alpha = if (scanning) 0.45f else 1f),
+            modifier = Modifier.size(16.dp),
+        )
+    }
+}
+
 /** Customize Today (#2110): section order and visibility, on the trailing edge of the wordmark row.
  *
  *  Icon-only at the shared header-control size. The glyph and the accessibility-label-instead-of-text
@@ -2366,6 +2421,9 @@ private fun LiquidTodayHeader(
     historySyncExperimental: Boolean = false,
     // #689/#815: the connect-time backlog sample, when known.
     pagesBehindAtConnect: Int? = null,
+    // #2169: whether a scan is already running, and how to ask for one.
+    scanning: Boolean = false,
+    onRescan: (() -> Unit)? = null,
     onPickDay: (Int) -> Unit,
     onQuickActions: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -2464,6 +2522,7 @@ private fun LiquidTodayHeader(
                 backfilling = backfilling, chunks = syncChunksThisSession,
                 lastSyncAt = lastSyncAt, historySyncExperimental = historySyncExperimental,
                 pagesBehind = pagesBehindAtConnect,
+                scanning = scanning, onRescan = onRescan,
             )
             // (a) Profile avatar (the photo set in Settings, or the NOOP loop mark) → Settings. Mirrors iOS.
             Box(
@@ -2503,6 +2562,13 @@ private fun SyncStatusChip(
     lastSyncAt: Long?,
     historySyncExperimental: Boolean,
     pagesBehind: Int? = null,
+    // #2169: the chip is the one thing in the header that reports sync state and took no tap at all,
+    // so asking it for a sync is the gesture a reader tries first. Routed through the caller rather
+    // than calling connect() here, because the permission gate has to come first: on Android 12+ a
+    // direct connect() silently does nothing when the Bluetooth permission was denied or revoked (#1).
+    // Null leaves the chip exactly as it was, which is what the other callers of it want.
+    scanning: Boolean = false,
+    onRescan: (() -> Unit)? = null,
 ) {
     // The clock and the translated "now" word are resolved HERE, in the composable that already depends
     // on both, and handed down — so `SyncChipState.resolve` stays a genuinely pure decision that a plain
@@ -2516,6 +2582,10 @@ private fun SyncStatusChip(
         nowSec = System.currentTimeMillis() / 1000L,
         pagesBehind = pagesBehind,
     )
+    // Offered only when there is an action to run and no scan already running, the same rule the
+    // Settings and Live buttons follow. `Syncing` deliberately keeps its tap: a sync in flight is not
+    // a scan in flight, and asking to reconnect mid-backfill is a reasonable thing to want.
+    val tap = onRescan?.takeIf { !scanning }
     when (state) {
         is SyncChipState.Syncing -> {
             // Both counts are inflected, so "1 chunk" and "1 page" read correctly. Android <plurals>
@@ -2534,14 +2604,17 @@ private fun SyncStatusChip(
                     uiString(R.string.l10n_today_screen_sync_chip_syncing_desc_92daf60c, chunksText)
                 },
                 detail = pagesText,
+                onClick = tap,
             )
         }
         is SyncChipState.Synced -> ChipCapsule(
             Icons.Filled.Check, state.agoText, Palette.textSecondary,
-            uiString(R.string.l10n_today_screen_sync_chip_synced_desc_4d255944, state.agoText))
+            uiString(R.string.l10n_today_screen_sync_chip_synced_desc_4d255944, state.agoText),
+            onClick = tap)
         SyncChipState.ExperimentalLive -> ChipCapsule(
             Icons.Filled.Check, uiString(R.string.l10n_today_screen_sync_chip_live_98aadb37), Palette.textSecondary,
-            uiString(R.string.l10n_today_screen_sync_chip_experimental_desc_3de06a70))
+            uiString(R.string.l10n_today_screen_sync_chip_experimental_desc_3de06a70),
+            onClick = tap)
         SyncChipState.Hidden -> Unit
         // cold start — render nothing; the building-scores note covers it.
     }
@@ -2549,7 +2622,16 @@ private fun SyncStatusChip(
 
 /** The shared sync-chip capsule (icon + terse label). Twin of the iOS `SyncStatusChip.chip`. */
 @Composable
-private fun ChipCapsule(icon: ImageVector, text: String, tint: Color, desc: String, detail: String? = null) {
+private fun ChipCapsule(
+    icon: ImageVector,
+    text: String,
+    tint: Color,
+    desc: String,
+    detail: String? = null,
+    // #2169: a second way to the same action as the disc, on the one header element that already
+    // reports sync state and took no tap at all. Costs no width, and null leaves the pill inert.
+    onClick: (() -> Unit)? = null,
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -2559,6 +2641,20 @@ private fun ChipCapsule(icon: ImageVector, text: String, tint: Color, desc: Stri
             .height(HeaderClusterControl)
             .clip(RoundedCornerShape(50))
             .background(Palette.surfaceInset)
+            // After the clip, so the ripple stays inside the capsule.
+            // onClickLabel rather than a contentDescription: the icon already describes the STATE
+            // ("synced 3 minutes ago"), and overriding that would trade the information for the action.
+            // A click label names the action alongside it instead of in place of it.
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(
+                        onClickLabel = uiString(R.string.l10n_today_screen_scan_and_connect_40157030),
+                        onClick = onClick,
+                    )
+                } else {
+                    Modifier
+                }
+            )
             .padding(horizontal = 10.dp),
     ) {
         Icon(icon, contentDescription = desc, tint = tint, modifier = Modifier.size(14.dp))
