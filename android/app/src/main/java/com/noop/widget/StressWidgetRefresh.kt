@@ -7,6 +7,8 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.noop.NoopApplication
+import com.noop.ui.stressLocalDayWindowContaining
+import java.time.ZoneId
 import java.util.concurrent.TimeUnit
 
 /**
@@ -108,9 +110,29 @@ class StressWidgetRefreshWorker(
             StressWidgetRefresh.Action.Skip -> return Result.success()
             StressWidgetRefresh.Action.Score -> Unit
         }
-        val curve = StressWidgetProducer.todayCurve(app.repository, app.activeDeviceId)
+        // The cheap gate before the expensive one. `todayCurve` already declines to re-read a day whose
+        // heart rate has not moved, but its memo is a process field and a worker woken after the app was
+        // killed starts with an empty one — so it would pay a full pass to rebuild the curve already on
+        // screen. With background connection off no rows arrive between wakes at all, which is exactly
+        // the user this feature exists for, so that pass is pure waste in the common case. Two indexed
+        // queries answer it instead. An empty stored fingerprint means "no idea" and admits the pass.
+        val deviceId = app.activeDeviceId
+        val fingerprint = runCatching {
+            val nowSeconds = nowMs / 1000L
+            val window = stressLocalDayWindowContaining(nowSeconds, ZoneId.systemDefault())
+            val fp = app.repository.hrFingerprintWindow(deviceId, window.fromEpochSecond, nowSeconds)
+            "${fp.first}:${fp.second}:${window.day.toEpochDay()}"
+        }.getOrNull()
+        if (fingerprint != null && fingerprint == WidgetSnapshotStore.lastStressFingerprint(applicationContext)) {
+            // Nothing new to score. The stamp still moves, so the next wake measures from this check
+            // rather than from the last full pass.
+            WidgetSnapshotStore.noteStressScored(applicationContext, nowMs)
+            return Result.success()
+        }
+        val curve = StressWidgetProducer.todayCurve(app.repository, deviceId)
             ?: return Result.success()
         WidgetSnapshotStore.noteStressScored(applicationContext, nowMs)
+        if (fingerprint != null) WidgetSnapshotStore.noteStressFingerprint(applicationContext, fingerprint)
         // An EMPTY curve is still published: it is a real answer about today, and the day rollover
         // relies on it to drop yesterday's line rather than leave it standing.
         WidgetSnapshotStore.pushStressOnly(applicationContext, curve.points, curve.epochDay)

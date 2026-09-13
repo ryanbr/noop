@@ -70,6 +70,7 @@ object WidgetSnapshotStore {
     private const val KEY_STRESS = "stressSeries"
     private const val KEY_STRESS_DAY = "stressDay"
     private const val KEY_STRESS_SCORED_AT = "stressScoredAt"
+    private const val KEY_STRESS_FINGERPRINT = "stressFingerprint"
 
     suspend fun push(context: Context, snap: WidgetSnapshot) {
         val app = context.applicationContext
@@ -182,6 +183,28 @@ object WidgetSnapshotStore {
     fun lastStressScoredAtMs(context: Context): Long =
         context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
             .getLong(KEY_STRESS_SCORED_AT, 0L)
+
+    /**
+     * The heart-rate fingerprint the last scoring pass saw, as text (#2185).
+     *
+     * [StressWidgetProducer] already refuses to re-read a day whose heart rate has not moved, but its
+     * memo is a process field. A worker woken fifteen minutes after the app was killed starts with an
+     * empty one and pays the full pass to rebuild a curve identical to the one on screen. That is the
+     * COMMON case for the user this exists for: background connection off means no new rows arrive at
+     * all between wakes, so every pass would be pure waste. Persisting the fingerprint gives the memo
+     * something to survive on, at the cost of two indexed queries.
+     *
+     * Empty means "no idea", which admits the pass rather than skipping it.
+     */
+    fun lastStressFingerprint(context: Context): String =
+        context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+            .getString(KEY_STRESS_FINGERPRINT, "").orEmpty()
+
+    /** Record the fingerprint a scoring pass consumed, for [lastStressFingerprint]. */
+    fun noteStressFingerprint(context: Context, fingerprint: String) {
+        context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+            .edit().putString(KEY_STRESS_FINGERPRINT, fingerprint).apply()
+    }
 
     /** Record a scoring attempt's stamp for [lastStressScoredAtMs]. */
     fun noteStressScored(context: Context, atMs: Long) {
