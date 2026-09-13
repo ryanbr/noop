@@ -96,6 +96,22 @@ class ParityLedgerTests(unittest.TestCase):
         )
         subprocess.run(["git", "branch", "origin/main", "HEAD"], cwd=self.root, check=True)
 
+    def test_base_semantic_state_survives_a_symlinked_temp_root(self) -> None:
+        # #2143: on macOS the temp dir is /var/folders/..., a symlink to /private/var/.... The base
+        # checkout built its inventory from the unresolved root, then build_twin_map resolved the
+        # root, so relative_to saw two spellings of one directory and raised. Pointing tempfile at a
+        # symlink reproduces that on any OS, including the Linux runner.
+        self.write_clean_tree()
+        self.mark_current_tree_as_origin_main()
+        with tempfile.TemporaryDirectory() as holder:
+            real = Path(holder) / "real"
+            real.mkdir()
+            link = Path(holder) / "link"
+            link.symlink_to(real, target_is_directory=True)
+            with mock.patch.object(tempfile, "tempdir", str(link)):
+                state = parity_ledger._base_semantic_state(self.root)
+        self.assertIsNotNone(state)
+
     def test_clean_synthetic_tree_has_no_findings(self) -> None:
         self.write_clean_tree()
         twin_map = parity_ledger.build_twin_map(self.root)
