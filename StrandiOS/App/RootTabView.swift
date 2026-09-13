@@ -16,6 +16,8 @@ struct RootTabView: View {
     /// advertise a behaviour that never happens. Off until someone confirms it on an iOS 26 device.
     @AppStorage("noop.bottomBarAutoHide") private var bottomBarAutoHide = false
 
+    /// The live gym session, owned at the app root — see `LiftSessionController`.
+    @EnvironmentObject private var liftSession: LiftSessionController
     /// External entry points must wait until the mandatory first-run gates have completed. The root owns
     /// that state; keeping it explicit here prevents this shell's window-level sheet from covering a gate.
     let homeScreenQuickActionsEnabled: Bool
@@ -241,6 +243,29 @@ struct RootTabView: View {
         .onChange(of: homeScreenQuickActionsEnabled) { _, _ in
             presentPendingHomeScreenQuickActionIfPossible()
         }
+        // The running gym session, reachable from ANY tab. It sits above the tab bar rather than
+        // inside the Lift Log screen, because a workout outlives whichever screen you wandered to —
+        // and because swiping the sheet away must minimise the session, not end it.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if liftSession.isActive {
+                LiftSessionBar()
+                    .padding(.horizontal, 14)
+                    // Clear the floating tab bar with the same constant every screen uses, or the
+                    // session bar sits on top of the tab labels.
+                    .padding(.bottom, NoopMetrics.tabBarClearance)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: liftSession.isActive)
+        .sheet(isPresented: $liftSession.isPresented) {
+            LiftSessionView { }
+        }
+        // A session left running by a previous launch comes back as the BAR, not as a sheet thrown
+        // in the user's face — they open it when they want it.
+        .task {
+            guard !liftSession.isActive, let snapshot = LiftSessionPersistence.load() else { return }
+            liftSession.resume(from: snapshot)
+        }
     }
 
     /// Mandatory launch gates defer an external action. Once the shell is available, an explicit Home
@@ -427,6 +452,7 @@ struct RootTabView: View {
                 moreSection("Body") {
                     MoreRow("Live", "waveform.path.ecg", .live)
                     MoreRow("Workouts", "figure.run", .workouts)
+                    MoreRow("Lift Log", "dumbbell.fill", .liftLog)
                     MoreRow("Health", "heart.text.square.fill", .health)
                     MoreRow("Lab Book", "books.vertical.fill", .labBook)
                     MoreRow("Stress", "bolt.heart.fill", .stress)
@@ -550,7 +576,7 @@ struct RootTabView: View {
 /// registration in `moreTab`.
 private enum MoreDestination: Hashable {
     case insightsHub, intelligence, coach, insights, explore, compare
-    case live, workouts, health, labBook, stress, breathe, intervals, rhythm
+    case live, workouts, liftLog, health, labBook, stress, breathe, intervals, rhythm
     case fusedRecord, appleHealth, miBand, dataSources, backupSync, shortcutsExport, noopLimitations
     case alarms, automations, testCentre, siriShortcuts, powerSaving, settings
 
@@ -564,6 +590,7 @@ private enum MoreDestination: Hashable {
         case .compare:         CompareView()
         case .live:            LiveView()
         case .workouts:        WorkoutsView()
+        case .liftLog:         LiftLogView()
         case .health:          HealthView()
         case .labBook:         LabBookView()
         case .stress:          StressView()

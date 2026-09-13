@@ -160,6 +160,13 @@ public struct DeviceRegistryStore: Sendable {
         // so forgetting that source must clear them — otherwise an imported phone's hour-by-hour step
         // history survives the delete (the same privacy defect this list exists to close).
         "appleStepHour",
+        // v46-lift-log: every table in the strength log is deviceId-keyed, including the child rows
+        // (liftProgramItem, liftSet). They are joined to their parents by id, not by a foreign key, so
+        // if the children were left off this list a "delete all of this device's data" would strip the
+        // programs and sessions and leave every exercise line and every logged set behind — the exact
+        // privacy defect this list exists to close, and one the deviceId-column guard test could not
+        // catch for a child table keyed only by its parent.
+        "liftExercise", "liftProgram", "liftProgramItem", "liftSession", "liftSet",
     ]
 
     /// Permanently delete every recorded sample/derived row belonging to one device, across all
