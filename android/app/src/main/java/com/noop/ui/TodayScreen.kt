@@ -351,7 +351,17 @@ fun TodayScreen(
     // #2169: the ONE gate every scan entry point goes through. `connect()` called directly silently
     // does nothing on Android 12+ when the Bluetooth permission was denied or revoked (#1), so Today's
     // two new affordances use the same wrapper Settings' Re-scan and Live's Connect already use.
-    val requestScan = rememberRequestScan { viewModel.connect() }
+    var scanTapAt by remember { mutableStateOf(0L) }
+    // Armed from INSIDE the granted callback, not from the tap. `rememberRequestScan` runs this either
+    // straight away, when the permission is already held, or after the system dialog closes; timing the
+    // reply from the tap instead would start a clock while that dialog was still open and then answer a
+    // press that was proceeding perfectly well, with whatever stale note happened to be lying around.
+    // A permanently denied permission still lands here, the launcher's callback firing either way, so
+    // the case most worth explaining is the one this keeps.
+    val requestScan = rememberRequestScan {
+        scanTapAt = System.currentTimeMillis()
+        viewModel.connect()
+    }
     // #2169: Today can start a connect but had nowhere to report one that never starts. Every early
     // exit from a user-initiated connect writes an explanatory note and leaves `scanning` false, so
     // "Bluetooth is off. Turn it on, then tap Connect." and the Nearby-devices permission line were
@@ -361,18 +371,13 @@ fun TodayScreen(
     // Shown only after a tap from HERE, and only when the tap did not get as far as scanning, so this
     // stays a reply to a press rather than Today quietly becoming a connection-status surface, which
     // is a larger question (#2179).
-    var scanTapAt by remember { mutableStateOf(0L) }
     var scanHint by remember { mutableStateOf<String?>(null) }
-    val requestScanFromToday = {
-        scanTapAt = System.currentTimeMillis()
-        requestScan()
-    }
     LaunchedEffect(scanTapAt) {
         if (scanTapAt == 0L) return@LaunchedEffect
         scanHint = null
-        // Long enough for the permission dialog and the adapter checks to settle, short enough to still
-        // read as the answer to the press.
-        delay(700)
+        // Long enough for the adapter checks and the scan start to settle, short enough to still read
+        // as the answer to the press. The dialog is already behind us by here.
+        delay(400)
         if (!live.scanning && !live.connected) scanHint = live.statusNote
         delay(4_500)
         scanHint = null
@@ -1387,7 +1392,7 @@ fun TodayScreen(
                 // One rule for both affordances: they exist while the strap is away. Connected, the
                 // chip goes back to reporting sync and nothing else, rather than offering a connect to
                 // something already connected.
-                onRescan = if (liveSnap.connected) null else requestScanFromToday,
+                onRescan = if (liveSnap.connected) null else requestScan,
                 onPickDay = { offset -> selectedDayOffset = offset },
                 onQuickActions = onQuickActions,
                 onOpenSettings = onOpenSettings,
@@ -1436,7 +1441,7 @@ fun TodayScreen(
                 ) {
                     if (scanAffordance > 0.01f) {
                         Box(modifier = Modifier.graphicsLayer { alpha = scanAffordance }) {
-                            RescanDisc(scanning = liveSnap.scanning, onClick = requestScanFromToday)
+                            RescanDisc(scanning = liveSnap.scanning, onClick = requestScan)
                         }
                     }
                 }
