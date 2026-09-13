@@ -465,12 +465,22 @@ class OuraLiveSource(
 
     /**
      * Periodic re-fetch while connected, so an overnight-connected session (or one left open after a nap)
-     * picks up freshly-banked sleep data without needing a reconnect. Mirrors the WHOOP ~15 min periodic
-     * history-offload floor. Held as a NAMED runnable so [stop]/disconnect can remove it from the handler,
-     * matching [reengageRunnable] / [reconnectRunnable].
+     * picks up freshly-banked sleep data without needing a reconnect. Held as a NAMED runnable so
+     * [stop]/disconnect can remove it from the handler, matching [reengageRunnable] / [reconnectRunnable].
      */
     private var historyFetchScheduled = false
-    private val historyFetchIntervalMs = 900_000L
+    /**
+     * MEASURED 2026-08-10 (capture `…-260810-1556`, 2h31m at 96.6% connected): this interval is not just a
+     * backstop, it is the ACTUAL DATA CADENCE. Between fetches the ring delivered nothing at all — seven
+     * arrival gaps of 893-928 s inside live sessions, clustering exactly on the old 900 s value, while the
+     * app was awake (59-60 live-HR re-arms per gap), the link was up and the ring was worn. Only 2.1% of
+     * `0x80` "live HR" arrived within 15 s of its own second; the median record was 385 s old on arrival.
+     *
+     * 900 -> 300 s at a marginal cost: while live HR is on the app already writes dhr_enable+dhr_subscribe
+     * every 15 s (462 commands/h measured) against 21 commands/h for the whole history-fetch machinery.
+     * Payload is unchanged — the same records, in smaller chunks. Swift twin: `historyFetchInterval`.
+     */
+    private val historyFetchIntervalMs = 300_000L
     private val historyFetchRunnable = object : Runnable {
         override fun run() {
             fetchHistoryIfIdle()

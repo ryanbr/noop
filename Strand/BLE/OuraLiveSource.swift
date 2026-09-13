@@ -675,10 +675,22 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     /// One-shot delay before a self-chained drain pass (see `finishDrain`). Invalidated on teardown.
     private var chainedDrainTimer: Timer?
     /// Periodic re-fetch while connected, so an overnight-connected session (or one left open after a nap)
-    /// picks up freshly-banked sleep data without needing a reconnect. Mirrors BLEManager's ~15 min
-    /// periodic WHOOP history-offload floor.
+    /// picks up freshly-banked sleep data without needing a reconnect.
+    ///
+    /// MEASURED 2026-08-10 (capture `…-260810-1556`, 2h31m at 96.6% connected): this interval is not just a
+    /// backstop, it is the ACTUAL DATA CADENCE. Between fetches the ring delivered **nothing at all** —
+    /// seven arrival gaps of 893-928 s inside live sessions, clustering exactly on the old 900 s value,
+    /// while the app was awake (59-60 live-HR re-arms per gap), the link was up and the ring was worn. Only
+    /// **2.1%** of `0x80` "live HR" arrived within 15 s of its own second; the median record was **385 s**
+    /// old on arrival. So a user watching live HR was watching a 6-minute-old burst.
+    ///
+    /// 900 -> 300 s halves-and-then-some the worst-case staleness at a marginal cost: while live HR is on
+    /// the app already writes `dhr_enable`+`dhr_subscribe` every 15 s (462 commands/h measured), against
+    /// which the whole history-fetch machinery was 21 commands/h. The payload is unchanged either way — the
+    /// same records arrive, in smaller chunks — and `fetchHistoryIfIdle` is a no-op unless the driver is
+    /// idle-streaming, so a fetch never overlaps a drain.
     private var historyFetchTimer: Timer?
-    private let historyFetchInterval: TimeInterval = 900
+    private let historyFetchInterval: TimeInterval = 300
 
     /// Kick a history-fetch pass at the current cursor, but ONLY when the driver is idle-streaming (never
     /// overlaps a fetch already in flight - the driver's own phase is the guard, so this is safe to call
