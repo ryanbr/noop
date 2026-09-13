@@ -260,4 +260,46 @@ final class OuraHistoryDrainTests: XCTestCase {
         XCTAssertEqual(d.maxStoredRingTime, 2_900_000)
         XCTAssertEqual(d.maxSeenRingTime, 3_000_000, "stored notes don't inflate the seen max")
     }
+
+    /// `predatesResume` is the ONE comparison behind `sawPreResumeData`, applied to whole hypnogram
+    /// bursts by the app layer (a re-served night's tail must not become a phantom session — 2026-09-13).
+    /// The expected column is the standalone-compiled Swift twin's stdout, verbatim, over the same cases the
+    /// Kotlin test carries, so both platforms are pinned to the same table rather than to each other.
+    func testPredatesResumeOracleTable() {
+        let cases: [(UInt32, UInt32)] = [
+            (42_867_280, 43_895_637), (43_731_586, 43_895_637), (43_895_636, 43_895_637), (43_895_637, 43_895_637),
+            (43_895_638, 43_895_637), (43_897_237, 43_895_637), (0, 43_895_637), (1, 43_895_637),
+            (42_867_280, 0), (0, 0), (UInt32.max, 0), (UInt32.max, UInt32.max), (UInt32.max - 1, UInt32.max),
+            (5, 1), (1, 5), (0, 1),
+        ]
+        let got = cases.map { "\($0.0),\($0.1),\(OuraHistoryDrain.predatesResume(ringTime: $0.0, resumeCursorAtFetchStart: $0.1))" }
+            .joined(separator: "\n")
+        XCTAssertEqual(got, """
+42867280,43895637,true
+43731586,43895637,true
+43895636,43895637,true
+43895637,43895637,false
+43895638,43895637,false
+43897237,43895637,false
+0,43895637,true
+1,43895637,true
+42867280,0,false
+0,0,false
+4294967295,0,false
+4294967295,4294967295,false
+4294967294,4294967295,true
+5,1,false
+1,5,true
+0,1,true
+""")
+    }
+
+    func testPredatesResumeIsWhatFlagsPreResumeData() {
+        var d = OuraHistoryDrain()
+        d.noteStoredRingTime(43_731_586, resumeCursorAtFetchStart: 43_895_637)
+        XCTAssertTrue(d.sawPreResumeData, "the drain flag and the burst gate must agree on the same sample")
+        var e = OuraHistoryDrain()
+        e.noteStoredRingTime(43_897_237, resumeCursorAtFetchStart: 43_895_637)
+        XCTAssertFalse(e.sawPreResumeData)
+    }
 }

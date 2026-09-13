@@ -317,4 +317,53 @@ class OuraHistoryDrainTest {
         // Stall floor reset: a fresh flat sequence starts counting from scratch.
         assertTrue(d.onSummary(bytesLeft = 1000, moreData = true, elapsedSeconds = 1.0))
     }
+
+    /**
+     * `predatesResume` is the ONE comparison behind `sawPreResumeData`, applied to whole hypnogram bursts
+     * by the app layer (a re-served night's tail must not become a phantom session — 2026-09-13). The
+     * expected block is the standalone-compiled SWIFT twin's stdout, verbatim
+     * (`swiftc -O twin.swift main.swift -o t && ./t`), over the same cases — the Kotlin side is pinned to
+     * the Swift oracle, not read side by side with it.
+     */
+    @Test
+    fun predatesResumeMatchesTheSwiftOracleTable() {
+        val cases = listOf(
+            42_867_280L to 43_895_637L, 43_731_586L to 43_895_637L, 43_895_636L to 43_895_637L, 43_895_637L to 43_895_637L,
+            43_895_638L to 43_895_637L, 43_897_237L to 43_895_637L, 0L to 43_895_637L, 1L to 43_895_637L,
+            42_867_280L to 0L, 0L to 0L, 4_294_967_295L to 0L, 4_294_967_295L to 4_294_967_295L, 4_294_967_294L to 4_294_967_295L,
+            5L to 1L, 1L to 5L, 0L to 1L,
+        )
+        val got = cases.joinToString("\n") { (rt, cur) -> "$rt,$cur,${OuraHistoryDrain.predatesResume(rt, cur)}" }
+        assertEquals(
+            """
+            42867280,43895637,true
+            43731586,43895637,true
+            43895636,43895637,true
+            43895637,43895637,false
+            43895638,43895637,false
+            43897237,43895637,false
+            0,43895637,true
+            1,43895637,true
+            42867280,0,false
+            0,0,false
+            4294967295,0,false
+            4294967295,4294967295,false
+            4294967294,4294967295,true
+            5,1,false
+            1,5,true
+            0,1,true
+            """.trimIndent(),
+            got,
+        )
+    }
+
+    @Test
+    fun predatesResumeIsWhatFlagsPreResumeData() {
+        val d = OuraHistoryDrain()
+        d.noteStoredRingTime(43_731_586L, resumeCursorAtFetchStart = 43_895_637L)
+        assertTrue("the drain flag and the burst gate must agree on the same sample", d.sawPreResumeData)
+        val e = OuraHistoryDrain()
+        e.noteStoredRingTime(43_897_237L, resumeCursorAtFetchStart = 43_895_637L)
+        assertFalse(e.sawPreResumeData)
+    }
 }

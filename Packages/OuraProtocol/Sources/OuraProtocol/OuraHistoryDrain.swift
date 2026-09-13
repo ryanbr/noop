@@ -92,7 +92,22 @@ public struct OuraHistoryDrain: Sendable, Equatable {
     public mutating func noteStoredRingTime(_ rt: UInt32, resumeCursorAtFetchStart: UInt32) {
         guard rt <= Self.maxPlausibleResumeTicks else { return }
         if rt > maxStoredRingTime { maxStoredRingTime = rt }
-        if resumeCursorAtFetchStart > 0, rt < resumeCursorAtFetchStart { sawPreResumeData = true }
+        if Self.predatesResume(ringTime: rt, resumeCursorAtFetchStart: resumeCursorAtFetchStart) { sawPreResumeData = true }
+    }
+
+    /// Whether a record stamped `ringTime` was served from BEFORE where this fetch resumed — the one
+    /// comparison behind `sawPreResumeData`, exposed so a caller can apply it to a whole hypnogram burst.
+    /// A cursor of 0 is a full pull with no floor, so nothing predates it.
+    ///
+    /// WHY A BURST NEEDS THIS (2026-09-13, Gen 3, Oura-app handoff): "discarding the stale replay" in the
+    /// #2097 judge keeps the CURSOR, but every replayed record has already been ingested by then.
+    /// Time-series rows dedupe on their primary keys; the hypnogram assembler does not — it received the
+    /// last two sleep-phase records of two nights, re-served from the second client's position without
+    /// their 0x49 windows, and end-anchored each pair at its write time into a 52-minute session whose
+    /// codes were not the night's tail at all. A burst whose write moment predates the resume cursor was
+    /// already banked from its own drain; the persist refuses it instead of handing it to the dedup.
+    public static func predatesResume(ringTime: UInt32, resumeCursorAtFetchStart: UInt32) -> Bool {
+        resumeCursorAtFetchStart > 0 && ringTime < resumeCursorAtFetchStart
     }
 
     /// Record ANY history record's ring-time toward the in-session continuation cursor (anchored or not),

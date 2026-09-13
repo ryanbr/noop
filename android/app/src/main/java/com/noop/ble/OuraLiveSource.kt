@@ -790,6 +790,21 @@ class OuraLiveSource(
     private fun persistHypnogramBurst(burst: OuraHypnogramBurst) {
         val d = driver ?: return
         if (burst.totalCodes <= 0) return
+        // STALE-REPLAY GATE (2026-09-13, Oura-app handoff on a Gen 3): a second BLE client on the same
+        // phone makes the ring re-serve from ITS position, and the #2097 judge rightly keeps our cursor —
+        // but by then every replayed record has been ingested. Time-series rows dedupe on their keys; a
+        // burst does not: the last two sleep-phase records of a night came back without their 0x49 window
+        // and were end-anchored at their write time into a 52-minute `[no-0x49-onset]` session whose codes
+        // were not the night's tail. A burst written BEFORE where this fetch resumed was already banked
+        // from its own drain, so it is refused here rather than handed to the persist path's dedup. A
+        // genuine reboot is unaffected: its judge resets the cursor to 0 and the chained full pull
+        // re-serves the same records with no floor. Twin of the Swift gate.
+        if (OuraHistoryDrain.predatesResume(burst.lastRingTimestamp, resumeCursorAtFetchStart)) {
+            log("Oura: hypnogram burst (${burst.totalCodes} codes, written at rt ${burst.lastRingTimestamp})" +
+                " predates the resume cursor $resumeCursorAtFetchStart - a re-serve from a second BLE client's" +
+                " position (#2097), already banked from its own drain; not persisted")
+            return
+        }
         val writeEnd = d.unixSeconds(forRingTimestamp = burst.lastRingTimestamp)
         if (writeEnd == null) {
             pendingUnanchoredBursts.add(burst)

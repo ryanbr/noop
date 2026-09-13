@@ -941,6 +941,20 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     /// available). Logs the reconstructed window + stage minutes so a capture is self-evident.
     private func persistHypnogramBurst(_ burst: OuraHypnogramBurst) {
         guard let driver, burst.totalCodes > 0 else { return }
+        // STALE-REPLAY GATE (2026-09-13, Oura-app handoff on a Gen 3): a second BLE client on the same
+        // phone makes the ring re-serve from ITS position, and the #2097 judge rightly keeps our cursor —
+        // but by then every replayed record has been ingested. Time-series rows dedupe on their keys; a
+        // burst does not: the last two sleep-phase records of a night came back without their 0x49 window
+        // and were end-anchored at their write time into a 52-minute `[no-0x49-onset]` session whose codes
+        // were not the night's tail. A burst written BEFORE where this fetch resumed was already banked
+        // from its own drain, so it is refused here rather than handed to the persist closure's dedup
+        // (which only catches a fragment that happens to sit inside a stored row, and only with onset
+        // keying on). A genuine reboot is unaffected: its judge resets the cursor to 0 and the chained
+        // full pull re-serves the same records with no floor.
+        if OuraHistoryDrain.predatesResume(ringTime: burst.lastRingTimestamp, resumeCursorAtFetchStart: resumeCursorAtFetchStart) {
+            log("Oura: hypnogram burst (\(burst.totalCodes) codes, written at rt \(burst.lastRingTimestamp)) predates the resume cursor \(resumeCursorAtFetchStart) - a re-serve from a second BLE client's position (#2097), already banked from its own drain; not persisted")
+            return
+        }
         // HOLD-UNTIL-ANCHOR (same discipline as pendingAnchorEvents): the burst end IS the night's whole
         // time axis, so guessing it from wall-clock would persist real stage codes at fabricated times.
         // An unanchored burst is parked and re-tried when the 0x42 anchor lands; if the session ends
