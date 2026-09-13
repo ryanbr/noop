@@ -1358,7 +1358,10 @@ fun TodayScreen(
                 historySyncExperimental = liveSnap.historySyncExperimental,
                 pagesBehindAtConnect = liveSnap.pagesBehindAtConnect,
                 scanning = liveSnap.scanning,
-                onRescan = requestScan,
+                // One rule for both affordances: they exist while the strap is away. Connected, the
+                // chip goes back to reporting sync and nothing else, rather than offering a connect to
+                // something already connected.
+                onRescan = if (liveSnap.connected) null else requestScan,
                 onPickDay = { offset -> selectedDayOffset = offset },
                 onQuickActions = onQuickActions,
                 onOpenSettings = onOpenSettings,
@@ -1383,9 +1386,20 @@ fun TodayScreen(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // #2169: the balancing spacer becomes the control. Same size, so the wordmark stays
-                // centred and nothing else in the header gives up width for it.
-                RescanDisc(scanning = liveSnap.scanning, onClick = requestScan)
+                // #2169: the balancing spacer becomes the control, but ONLY while there is something to
+                // connect. A permanently visible control has to explain itself; one that appears exactly
+                // when the strap is away says what it is for by being there, and cannot be read as a
+                // reload button on a screen that never reloads. Connected, it goes back to being a
+                // spacer, so the wordmark is centred by the same control-sized gutter either way and
+                // nothing moves as the strap comes and goes.
+                //
+                // Scanning counts as needed: a scan running means not yet connected, and hiding the
+                // control mid-attempt would take away the only in-progress signal the header has.
+                if (!liveSnap.connected) {
+                    RescanDisc(scanning = liveSnap.scanning, onClick = requestScan)
+                } else {
+                    Spacer(Modifier.size(HeaderClusterControl))
+                }
                 Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                     LiquidWordmark()
                 }
