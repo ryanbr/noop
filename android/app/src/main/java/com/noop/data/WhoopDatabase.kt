@@ -53,8 +53,13 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         V18AuxSampleEntity::class,
         AppleStepHour::class,
         CoachMessageRow::class,
+        LiftExerciseRow::class,
+        LiftProgramRow::class,
+        LiftProgramItemRow::class,
+        LiftSessionRow::class,
+        LiftSetEntity::class,
     ],
-    version = 39,
+    version = 40,
     // #775: ON so Room's KSP processor writes the generated schema (every table's exact `CREATE TABLE`,
     // columns in declaration order with affinity/NOT NULL/default, PK and indices) as JSON. That export
     // is what lets a plain JVM test — no device, no Robolectric — read Android's REAL schema and compare
@@ -74,7 +79,7 @@ abstract class WhoopDatabase : RoomDatabase() {
         const val DB_NAME = "noop_whoop.db"
         /** Room schema version — MUST equal the `@Database(version = …)` above. Surfaced in the backup
          *  manifest (#1410) so an export states its schema. Bump both together on a migration. */
-        const val SCHEMA_VERSION = 39
+        const val SCHEMA_VERSION = 40
 
         @Volatile
         private var instance: WhoopDatabase? = null
@@ -997,6 +1002,95 @@ abstract class WhoopDatabase : RoomDatabase() {
         }
 
         /**
+         * The in-app strength log. Twin of GRDB `v46-lift-log`; see `LiftEntities.kt` for what these
+         * tables hold and for why the Android half is schema-only for now.
+         *
+         * Column order matches the entity declaration order, which matches GRDB's `create(table:)`,
+         * and `SchemaOracleTest` fails on any of the three drifting apart. Every statement is
+         * `IF NOT EXISTS`, matching the GRDB side: a database that already carries these tables
+         * converges rather than throwing.
+         */
+        internal val LIFT_LOG_SQL: List<String> = listOf(
+            """CREATE TABLE IF NOT EXISTS `liftExercise` (
+                `id` TEXT NOT NULL,
+                `deviceId` TEXT NOT NULL,
+                `name` TEXT NOT NULL,
+                `primaryMuscle` TEXT,
+                `secondaryMuscles` TEXT,
+                `createdAt` INTEGER NOT NULL,
+                `lastUsedTs` INTEGER,
+                PRIMARY KEY(`id`)
+            )""",
+            "CREATE UNIQUE INDEX IF NOT EXISTS `idx_liftExercise_natural` ON `liftExercise` (`deviceId`, `name`)",
+            """CREATE TABLE IF NOT EXISTS `liftProgram` (
+                `id` TEXT NOT NULL,
+                `deviceId` TEXT NOT NULL,
+                `name` TEXT NOT NULL,
+                `note` TEXT,
+                `createdAt` INTEGER NOT NULL,
+                `updatedAt` INTEGER NOT NULL,
+                `archived` INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY(`id`)
+            )""",
+            "CREATE INDEX IF NOT EXISTS `idx_liftProgram_device_updatedAt` ON `liftProgram` (`deviceId`, `updatedAt`)",
+            """CREATE TABLE IF NOT EXISTS `liftProgramItem` (
+                `id` TEXT NOT NULL,
+                `deviceId` TEXT NOT NULL,
+                `programId` TEXT NOT NULL,
+                `ord` INTEGER NOT NULL,
+                `exercise` TEXT NOT NULL,
+                `targetSets` INTEGER,
+                `targetRepsLow` INTEGER,
+                `targetRepsHigh` INTEGER,
+                `targetRpe` REAL,
+                `targetWeightKg` REAL,
+                `restSec` INTEGER,
+                `note` TEXT,
+                PRIMARY KEY(`id`)
+            )""",
+            "CREATE INDEX IF NOT EXISTS `idx_liftProgramItem_device` ON `liftProgramItem` (`deviceId`)",
+            "CREATE INDEX IF NOT EXISTS `idx_liftProgramItem_program_ord` ON `liftProgramItem` (`programId`, `ord`)",
+            """CREATE TABLE IF NOT EXISTS `liftSession` (
+                `id` TEXT NOT NULL,
+                `deviceId` TEXT NOT NULL,
+                `startTs` INTEGER NOT NULL,
+                `endTs` INTEGER,
+                `sport` TEXT NOT NULL,
+                `programId` TEXT,
+                `programName` TEXT,
+                `sessionRpe` REAL,
+                `note` TEXT,
+                PRIMARY KEY(`id`)
+            )""",
+            "CREATE UNIQUE INDEX IF NOT EXISTS `idx_liftSession_natural` ON `liftSession` (`deviceId`, `startTs`, `sport`)",
+            """CREATE TABLE IF NOT EXISTS `liftSet` (
+                `id` TEXT NOT NULL,
+                `deviceId` TEXT NOT NULL,
+                `sessionId` TEXT NOT NULL,
+                `ord` INTEGER NOT NULL,
+                `exercise` TEXT NOT NULL,
+                `primaryMuscle` TEXT,
+                `secondaryMuscles` TEXT,
+                `setIndex` INTEGER NOT NULL,
+                `weightKg` REAL,
+                `reps` INTEGER,
+                `rpe` REAL,
+                `isWarmup` INTEGER NOT NULL DEFAULT 0,
+                `startTs` INTEGER,
+                `endTs` INTEGER,
+                `restSec` INTEGER,
+                `note` TEXT,
+                PRIMARY KEY(`id`)
+            )""",
+            "CREATE INDEX IF NOT EXISTS `idx_liftSet_device_exercise` ON `liftSet` (`deviceId`, `exercise`)",
+            "CREATE INDEX IF NOT EXISTS `idx_liftSet_session_ord` ON `liftSet` (`sessionId`, `ord`)",
+        )
+
+        internal val MIGRATION_39_40 = object : Migration(39, 40) {
+            override fun migrate(db: SupportSQLiteDatabase) { LIFT_LOG_SQL.forEach(db::execSQL) }
+        }
+
+        /**
          * Every migration the builder registers, as a VALUE rather than an argument list.
          *
          * It was previously spelled inline in `addMigrations(...)`, which meant nothing could check it. A
@@ -1022,7 +1116,7 @@ abstract class WhoopDatabase : RoomDatabase() {
             MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26,
             MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30,
             MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36,
-            MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39,
+            MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40,
         )
 
         private fun build(appContext: Context): WhoopDatabase =

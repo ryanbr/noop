@@ -142,6 +142,11 @@ class DeviceRegistry(
         dao.reKeyLiveSessions(from, to); dao.deleteLiveSessionsFor(from)
         dao.reKeyDismissedWorkouts(from, to); dao.deleteDismissedWorkoutsFor(from)
         dao.reKeyDismissedSleeps(from, to); dao.deleteDismissedSleepsFor(from)
+        dao.reKeyLiftExercises(from, to); dao.deleteLiftExercisesFor(from)
+        dao.reKeyLiftPrograms(from, to); dao.deleteLiftProgramsFor(from)
+        dao.reKeyLiftProgramItems(from, to); dao.deleteLiftProgramItemsFor(from)
+        dao.reKeyLiftSessions(from, to); dao.deleteLiftSessionsFor(from)
+        dao.reKeyLiftSets(from, to); dao.deleteLiftSetsFor(from)
     }
 
     /** Archive a device — keeps its row and samples (invariant I4). */
@@ -223,6 +228,11 @@ class DeviceRegistry(
             dao.deleteLiveSessionsFor(id)
             dao.deleteDismissedWorkoutsFor(id)
             dao.deleteDismissedSleepsFor(id)
+            dao.deleteLiftExercisesFor(id)
+            dao.deleteLiftProgramsFor(id)
+            dao.deleteLiftProgramItemsFor(id)
+            dao.deleteLiftSessionsFor(id)
+            dao.deleteLiftSetsFor(id)
         }
     }
 

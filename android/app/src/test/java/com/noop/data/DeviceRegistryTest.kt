@@ -119,6 +119,11 @@ class DeviceRegistryTest {
         override suspend fun deleteLiveSessionsFor(deviceId: String) { deletedTables += "liveSession" to deviceId }
         override suspend fun deleteDismissedWorkoutsFor(deviceId: String) { deletedTables += "dismissedWorkout" to deviceId }
         override suspend fun deleteDismissedSleepsFor(deviceId: String) { deletedTables += "dismissedSleep" to deviceId }
+        override suspend fun deleteLiftExercisesFor(deviceId: String) { deletedTables += "liftExercise" to deviceId }
+        override suspend fun deleteLiftProgramsFor(deviceId: String) { deletedTables += "liftProgram" to deviceId }
+        override suspend fun deleteLiftProgramItemsFor(deviceId: String) { deletedTables += "liftProgramItem" to deviceId }
+        override suspend fun deleteLiftSessionsFor(deviceId: String) { deletedTables += "liftSession" to deviceId }
+        override suspend fun deleteLiftSetsFor(deviceId: String) { deletedTables += "liftSet" to deviceId }
 
         // #771 adopt-serial re-key: sample-table re-keys are unmodelled here (no per-table storage in
         // this fake), same as the delete*For no-ops above for those tables. dayOwnership IS modelled
@@ -151,6 +156,11 @@ class DeviceRegistryTest {
         override suspend fun reKeyLiveSessions(from: String, to: String) {}
         override suspend fun reKeyDismissedWorkouts(from: String, to: String) {}
         override suspend fun reKeyDismissedSleeps(from: String, to: String) {}
+        override suspend fun reKeyLiftExercises(from: String, to: String) {}
+        override suspend fun reKeyLiftPrograms(from: String, to: String) {}
+        override suspend fun reKeyLiftProgramItems(from: String, to: String) {}
+        override suspend fun reKeyLiftSessions(from: String, to: String) {}
+        override suspend fun reKeyLiftSets(from: String, to: String) {}
 
         /** The registry row for [id], or null (#771 adopt-serial needs the active row's fields). */
         override suspend fun pairedDevice(id: String): PairedDeviceRow? = devices[id]
@@ -319,6 +329,10 @@ class DeviceRegistryTest {
             // `.noopbak` restored from iOS carries its rows — and THIS path is "Remove Apple Health
             // imported data", so leaving them behind would be the plainest form of the defect.
             "appleStepHour",
+            // v46-lift-log: the strength log, CHILD rows included. liftProgramItem and liftSet join to
+            // their parents by id rather than by a foreign key, so clearing only the parents would leave
+            // every logged set behind.
+            "liftExercise", "liftProgram", "liftProgramItem", "liftSession", "liftSet",
         )
         assertEquals(expectedTables, dao.deletedTables.map { it.first }.toSet())
         // Every delete was scoped to the requested device, not the seeded my-whoop.
