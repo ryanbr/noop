@@ -46,11 +46,28 @@ object StressTrace {
      *  a malformed payload from growing the list without bound. */
     const val MAX_POINTS: Int = 26
 
-    /** `ts:level:moving`, comma separated, with `-` for an unscored hour. Compact enough for a prefs
-     *  string at a day's length, and readable in a bug report, which a binary blob would not be. */
+    /**
+     * `ts:level:moving`, comma separated, with `-` for an unscored hour. Compact enough for a prefs
+     * string at a day's length, and readable in a bug report, which a binary blob would not be.
+     *
+     * THE LEVEL IS WRITTEN LOSSLESSLY (#2166). This used to be `"%.2f"`, which made the snapshot a
+     * rounding step in front of a rounding: the widget printed a level that had been rounded to two
+     * decimals and then to one, while the Today card rounded the live double once. Two roundings move
+     * a value across a boundary one rounding does not, so a raw 2.2450 printed 2.3 on the widget and
+     * 2.2 on the card, on identical data with no staleness in it. Measured across the domain, the two
+     * disagreed by a tenth on 5% of levels, and the same skew reached the peak and average, which are
+     * folded from this series on one side and from live points on the other.
+     *
+     * `Double.toString` emits the shortest decimal that reads back as the same double, so decode
+     * returns the bits encode was handed and the widget formats exactly what the card formats. Any
+     * fixed precision would only have made the disagreement rarer, which is the thing #2167 objects
+     * to elsewhere. It costs a few hundred characters a day and it costs the digits their tidiness,
+     * a level reading 1.5851456074086638 rather than 1.59; read the first few and ignore the rest.
+     * It is also locale-independent, which `String.format` without a fixed locale was not.
+     */
     fun encode(series: List<StressPoint>): String =
         series.joinToString(",") { p ->
-            val level = p.level?.let { String.format(java.util.Locale.US, "%.2f", it) } ?: "-"
+            val level = p.level?.toString() ?: "-"
             "${p.ts}:$level:${if (p.moving) 1 else 0}"
         }
 

@@ -127,10 +127,12 @@ class StressTraceTest {
         val day = listOf(at(0, 1.25), at(1, null), at(2, null, moving = true), at(3, 2.5))
         val back = StressTrace.decode(StressTrace.encode(day))
         assertEquals(day.size, back.size)
-        assertEquals(1.25, back[0].level!!, 0.001)
+        // Exactly, not within a tolerance: since #2166 the snapshot is a faithful copy, and a
+        // tolerance here would pass just as well for the lossy encoding that caused that bug.
+        assertEquals(1.25, back[0].level!!, 0.0)
         assertNull(back[1].level)
         assertTrue(back[2].moving)
-        assertEquals(2.5, back[3].level!!, 0.001)
+        assertEquals(2.5, back[3].level!!, 0.0)
     }
 
     @Test
@@ -275,5 +277,39 @@ class StressTraceTest {
         assertEquals("1.9", StressTrace.formatLevel(1.85))
         assertEquals("2.0", StressTrace.formatLevel(1.96))
         assertEquals("0.0", StressTrace.formatLevel(0.04))
+    }
+
+    // #2166: the snapshot used to round to two decimals, so the widget rounded twice where the card
+    // rounded once and the two printed different tenths on 5% of levels.
+
+    /** The bands that used to skew. Each of these sits just under a tenth and just over the two
+     *  decimal step that would have carried it over. */
+    @Test
+    fun `a level prints the same through the snapshot as it does live`() {
+        for (raw in listOf(2.2450, 0.0450, 1.7450, 2.9450, 0.1450)) {
+            val throughSnapshot = StressTrace.decode(StressTrace.encode(listOf(at(0, raw))))
+            assertEquals(
+                "level $raw",
+                StressTrace.formatLevel(raw),
+                StressTrace.formatLevel(throughSnapshot.single().level!!),
+            )
+        }
+    }
+
+    /** The property the bands above are examples of: encode then decode returns the same bits. */
+    @Test
+    fun `the snapshot returns the level it was handed`() {
+        val awkward = listOf(0.0, 3.0, 2.2449999999999997, 1.5851456074086638, 0.7393400821388699)
+        val back = StressTrace.decode(StressTrace.encode(awkward.mapIndexed { i, v -> at(i, v) }))
+        assertEquals(awkward, back.map { it.level })
+    }
+
+    /** A snapshot written by a build before #2166 still reads, two decimals and all. */
+    @Test
+    fun `an older two decimal snapshot still decodes`() {
+        val back = StressTrace.decode("0:1.59:0,3600:2.45:1")
+        assertEquals(2, back.size)
+        assertEquals(1.59, back[0].level!!, 0.0)
+        assertTrue(back[1].moving)
     }
 }
