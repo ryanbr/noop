@@ -243,13 +243,5 @@ public enum LiftMetrics {
         /// FOR STRENGTH. Hypertrophy has no identified ceiling — gains continue with strongly
         /// diminishing returns, and the uncertainty widens as volume rises.
         public static let strengthPlateauSetsPerWeek = 4.0
-
-        /// Where a weekly count sits relative to the hypertrophy band, as a 0...1 fraction of the
-        /// minimum effective dose, clamped. Deliberately NOT a percentage score: a muscle at 9 sets
-        /// is not "225% complete", it is simply past the point where the evidence thins out.
-        public static func fractionOfHypertrophyMinimum(_ weeklySets: Double) -> Double {
-            guard hypertrophyMinimumSetsPerWeek > 0 else { return 0 }
-            return min(1.0, max(0.0, weeklySets / hypertrophyMinimumSetsPerWeek))
-        }
     }
 }

@@ -107,8 +107,8 @@ final class LiftLogStoreTests: XCTestCase {
             sessionRpe: 7.5, note: nil)
         _ = try await store.upsertLiftSessions([row])
 
-        let back = try await store.liftSession(deviceId: "dev", startTs: 1_700_000_000,
-                                               sport: "Strength Training")
+        let back = try await store.liftSessions(deviceId: "dev", fromTs: 1_700_000_000,
+                                                toTs: 1_700_000_000).first
         XCTAssertEqual(back?.sessionRpe, 7.5)
     }
 
@@ -120,8 +120,8 @@ final class LiftLogStoreTests: XCTestCase {
             sessionRpe: nil, note: nil)
         _ = try await store.upsertLiftSessions([row])
 
-        let back = try await store.liftSession(deviceId: "dev", startTs: 1_700_000_500,
-                                               sport: "Strength Training")
+        let back = try await store.liftSessions(deviceId: "dev", fromTs: 1_700_000_500,
+                                                toTs: 1_700_000_500).first
         XCTAssertNil(back?.sessionRpe,
                      "a skipped rating must stay nil — a 0 would read as 'effortless' and corrupt the load")
     }

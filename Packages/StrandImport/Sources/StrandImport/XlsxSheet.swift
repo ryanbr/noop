@@ -50,15 +50,6 @@ enum XlsxSheet {
         return Sheet(headerKeys: Set(keys.filter { !$0.isEmpty }), rows: out)
     }
 
-    /// The FIRST worksheet as a rectangular grid — kept for callers that only want to look at the
-    /// leading sheet's headers.
-    static func grid(from data: Data) throws -> [[String]] {
-        guard let first = try grids(from: data).first else {
-            throw LiftProgramSheetImporter.ImportError.unreadable
-        }
-        return first
-    }
-
     /// Every worksheet as a grid of strings, in workbook (tab) order.
     static func grids(from data: Data) throws -> [[[String]]] {
         guard let archive = try? Archive(data: data, accessMode: .read) else {

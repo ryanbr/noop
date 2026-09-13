@@ -188,14 +188,6 @@ final class LiftMetricsTests: XCTestCase {
 
     // MARK: - The reference band
 
-    func testTheBandIsAFractionOfTheMinimumEffectiveDoseAndClamps() {
-        XCTAssertEqual(LiftMetrics.ReferenceDose.fractionOfHypertrophyMinimum(2), 0.5, accuracy: 0.001)
-        XCTAssertEqual(LiftMetrics.ReferenceDose.fractionOfHypertrophyMinimum(4), 1.0, accuracy: 0.001)
-        XCTAssertEqual(LiftMetrics.ReferenceDose.fractionOfHypertrophyMinimum(20), 1.0, accuracy: 0.001,
-                       "9 sets is not '225% complete' — past the minimum the evidence just thins out")
-        XCTAssertEqual(LiftMetrics.ReferenceDose.fractionOfHypertrophyMinimum(0), 0.0, accuracy: 0.001)
-    }
-
     func testTheReferenceDosesAreTheOnesTheCreditsWereDerivedUnder() {
         XCTAssertEqual(LiftMetrics.ReferenceDose.hypertrophyMinimumSetsPerWeek, 4.0)
         XCTAssertEqual(LiftMetrics.ReferenceDose.strengthMinimumSetsPerWeek, 1.0)
