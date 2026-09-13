@@ -114,7 +114,7 @@ final class LiftProgramSheetImporterTests: XCTestCase {
 
         // The header row is what the importer matches on, so it is what must not drift. (`rows`
         // is empty for an unfilled template by design — every data row is blank.)
-        let grid = try XlsxSheet.grid(from: data)
+        let grid = try XlsxSheet.grids(from: data).first ?? []
         let headers = grid.first.map { $0.map { HeaderNorm.normalize($0) } } ?? []
         for expected in ["program", "program_note", "exercise", "primary_muscle",
                          "secondary_muscles", "sets", "reps", "weight_kg", "rest_sec", "note"] {
