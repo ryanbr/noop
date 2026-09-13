@@ -43,7 +43,6 @@ import com.noop.ui.MainActivity
 import com.noop.ui.uiString
 import java.text.DateFormat
 import java.util.Date
-import java.util.Locale
 
 /**
  * Home-screen widget: today's stress as the intraday curve the Stress screen draws (#2040).
@@ -118,9 +117,6 @@ private const val STRESS_CHART_TARGET_DP = 92f
 private fun stressChartWidthDp(widthDp: Float): Float =
     (widthDp - STRESS_CARD_PADDING_DP - STRESS_SCALE_COLUMN_DP).coerceAtLeast(24f)
 
-/** One decimal, the same precision the screen prints a 0-3 score at. */
-private fun formatLevel(value: Double): String = String.format(Locale.getDefault(), "%.1f", value)
-
 @Composable
 private fun StressWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
     val size = LocalSize.current
@@ -161,12 +157,12 @@ private fun StressWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
         }
         // Assembled by concatenation rather than as a template, so no English word is ever written
         // here: every part comes from a resource, and the separators carry no letters to translate.
-        val spoken = latest?.let { stressLabel + " " + formatLevel(it) + " " + ofThree }
+        val spoken = latest?.let { stressLabel + " " + StressTrace.formatLevel(it) + " " + ofThree }
             ?: (stressLabel + " " + emptyReason)
 
         Row(verticalAlignment = Alignment.Vertical.Bottom) {
             Text(
-                text = latest?.let { formatLevel(it) } ?: "—",
+                text = latest?.let { StressTrace.formatLevel(it) } ?: "—",
                 style = TextStyle(
                     color = stressTextPrimary(dark), fontSize = 30.sp, fontWeight = FontWeight.Bold,
                 ),
@@ -193,7 +189,7 @@ private fun StressWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
                     .format(Date(stats.peak.ts * 1000))
                 Text(
                     text = uiString(R.string.trends_peak) +
-                        " ${formatLevel(stats.peak.level ?: 0.0)} · $peakTime",
+                        " ${StressTrace.formatLevel(stats.peak.level ?: 0.0)} · $peakTime",
                     style = TextStyle(color = stressTextPrimary(dark), fontSize = 11.sp),
                     modifier = GlanceModifier
                         .background(ColorProvider(stressTense(dark).copy(alpha = 0.18f)))
@@ -223,7 +219,7 @@ private fun StressWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
                 Text(
                     text = if (stats != null) {
                         uiString(R.string.l10n_stress_screen_avg_a178769d) +
-                            " ${formatLevel(stats.mean)} · " +
+                            " ${StressTrace.formatLevel(stats.mean)} · " +
                             uiString(R.string.l10n_hr_glance_widget_updated_time_1b5feedb, time)
                     } else {
                         uiString(R.string.l10n_hr_glance_widget_updated_time_1b5feedb, time)
