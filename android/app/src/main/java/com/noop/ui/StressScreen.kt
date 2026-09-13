@@ -1199,9 +1199,16 @@ private fun MarkerTile(
     higherIsStress: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val deltaText: String
+    val deltaText: String?
     val deltaColor: Color
-    if (delta != null && kotlin.math.abs(delta) >= 0.5) {
+    if (delta == null) {
+        // NO CHIP, rather than a claim we cannot make. The delta is null when today has no reading or
+        // there is no 30-day baseline to stand it against, and both of those used to render the
+        // at-baseline chip: a tile with no reading read "— at baseline", and a first-week tile said a
+        // reading sat exactly on a baseline that did not exist yet. StatTile draws no chip for null.
+        deltaText = null
+        deltaColor = Palette.textTertiary
+    } else if (kotlin.math.abs(delta) >= 0.5) {
         val up = delta > 0
         val isStressful = (up == higherIsStress)
         // The magnitude alone, signed. TrendChip reads the sign to pick its ▲/▼, and the section
@@ -1210,8 +1217,10 @@ private fun MarkerTile(
         deltaText = "${if (up) "+" else "−"}${kotlin.math.abs(delta).roundToInt()}"
         deltaColor = if (isStressful) Palette.statusWarning else Palette.statusPositive
     } else {
-        // "at baseline" for the same reason: the header supplies "baseline", the chip supplies the
+        // "at baseline" shortens the same way: the header supplies "baseline", the chip supplies the
         // distance from it, which is none. No glyph, TrendChip showing one only for a signed value.
+        // Reached only with a real delta now, so it says "measured, and it is zero" rather than
+        // standing in for "nothing to measure".
         deltaText = "±0"
         deltaColor = Palette.textTertiary
     }
