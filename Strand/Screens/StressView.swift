@@ -515,7 +515,15 @@ struct StressView: View {
     private func markerTile(label: LocalizedStringKey, value: String, delta: Double?, accent: Color, higherIsStress: Bool) -> some View {
         let deltaText: String?
         let deltaColor: Color
-        if let delta, abs(delta) >= 0.5 {
+        // NO CHIP for a missing delta, rather than a claim we cannot make (#2145). It is nil when
+        // today has no reading or there is no 30-day baseline to stand one against, and both fell
+        // through to the at-baseline chip: a tile with no reading read "— at baseline", and a
+        // first-week tile put a reading exactly on a baseline that did not exist yet. StatTile draws
+        // the pill only for a non-nil delta, so nil is already the way to say nothing here.
+        if delta == nil {
+            deltaText = nil
+            deltaColor = StrandPalette.textTertiary
+        } else if let delta, abs(delta) >= 0.5 {
             let up = delta > 0
             let isStressful = (up == higherIsStress)
             deltaText = String(localized: "\(up ? "+" : "−")\(Int(abs(delta).rounded())) vs base")

@@ -1199,15 +1199,29 @@ private fun MarkerTile(
     higherIsStress: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val deltaText: String
+    val deltaText: String?
     val deltaColor: Color
-    if (delta != null && kotlin.math.abs(delta) >= 0.5) {
+    if (delta == null) {
+        // NO CHIP, rather than a claim we cannot make. The delta is null when today has no reading or
+        // there is no 30-day baseline to stand it against, and both of those used to render the
+        // at-baseline chip: a tile with no reading read "— at baseline", and a first-week tile said a
+        // reading sat exactly on a baseline that did not exist yet. StatTile draws no chip for null.
+        deltaText = null
+        deltaColor = Palette.textTertiary
+    } else if (kotlin.math.abs(delta) >= 0.5) {
         val up = delta > 0
         val isStressful = (up == higherIsStress)
-        deltaText = "${if (up) "+" else "−"}${kotlin.math.abs(delta).roundToInt()} vs base"
+        // The magnitude alone, signed. TrendChip reads the sign to pick its ▲/▼, and the section
+        // header two lines up already says "vs 30-day baseline", so spelling "vs base" again inside
+        // the chip spent width on a word the reader has just been given (#2145).
+        deltaText = "${if (up) "+" else "−"}${kotlin.math.abs(delta).roundToInt()}"
         deltaColor = if (isStressful) Palette.statusWarning else Palette.statusPositive
     } else {
-        deltaText = "at baseline"
+        // "at baseline" shortens the same way: the header supplies "baseline", the chip supplies the
+        // distance from it, which is none. No glyph, TrendChip showing one only for a signed value.
+        // Reached only with a real delta now, so it says "measured, and it is zero" rather than
+        // standing in for "nothing to measure".
+        deltaText = "±0"
         deltaColor = Palette.textTertiary
     }
     StatTile(
@@ -1217,10 +1231,15 @@ private fun MarkerTile(
         accent = accent,
         delta = deltaText,
         deltaColor = deltaColor,
-        // #492 item 5: on narrow two-column cards the intrinsic-width "vs base" chip used to consume
-        // nearly the whole row and leave the reading as "4…" / "73…". Share the row evenly so the real
-        // physiological value stays intact; the explanatory chip is the element allowed to ellipsize.
-        compactDelta = true,
+        // NO compactDelta, deliberately (#2145). #492 item 5 added it because the intrinsic-width
+        // "vs base" chip ate the row and left the reading as "4…", and an even split then starved
+        // BOTH sides on a two-up tile: "53 bpm" and "+7 vs base" each want more than half, so the
+        // field saw "53 …" beside "▲ +7 vs …". An even split cannot be the answer, because a weighted
+        // child with fill = true is held to exactly its share, so the value stays at half however
+        // little the chip needs. The chip is now the sign and at most three digits at 12sp, so it
+        // measures under 45dp including its pill padding, and the weighted value takes everything
+        // else. The old chip wanted about 90dp of a row that has about 140dp to give, which is what
+        // made it starve the reading in the first place.
     )
 }
 
