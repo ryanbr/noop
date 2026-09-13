@@ -72,6 +72,21 @@ jobs:
             echo "::error::$TAG still exists after a delete that reported success. Refusing to create over it."
             exit 1
           fi
+          # The TAG has to go as well, and its own failure is the quiet one. `create` ignores --target
+          # when the tag already exists, so a release gone but a tag left behind does not fail: it
+          # publishes today's assets against a tag still pointing at the previous build's commit, and
+          # nothing says so. The release title carries $SHA from the workflow, so it would read as
+          # today's build while `git checkout testing-latest` handed someone yesterday's source.
+          # Deleting the ref directly is the same thing --cleanup-tag meant to do, so try once more
+          # before giving up rather than failing a build over a leftover.
+          if gh api "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "$TAG survived --cleanup-tag; deleting the ref directly."
+            gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" >/dev/null 2>&1 || true
+            if gh api "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" >/dev/null 2>&1; then
+              echo "::error::The tag $TAG could not be removed. Creating now would publish this build against the previous build's commit, so stopping instead."
+              exit 1
+            fi
+          fi
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --prerelease --target "${{ github.sha }}" \
             --title "NOOP Staging — base ${VER} · ${DATE} · ${SHA}" \
             --notes "Rolling **latest** testing build — refreshed in place, so this tag is always the newest. NOOP main + ryanbr's open PRs + vetted community PRs, built with the **NOOP Staging** identity (installs **beside** the official app, separate data). Filenames carry the base app version (\`v${VER}\`).
