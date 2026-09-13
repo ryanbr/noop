@@ -56,6 +56,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import com.noop.analytics.DaytimeBaselines
 import com.noop.analytics.DaytimeStress
 import com.noop.analytics.HrvFreqDomain
@@ -63,6 +64,7 @@ import com.noop.analytics.StressIndex
 import com.noop.data.DailyMetric
 import com.noop.widget.StressPoint
 import com.noop.widget.StressTrace
+import com.noop.widget.StressWidgetProducer
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -70,6 +72,7 @@ import java.util.Locale
 import kotlin.math.exp
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
+import kotlinx.coroutines.delay
 
 // MARK: - Stress Monitor (ported from Strand/Screens/StressView.swift)
 //
@@ -126,12 +129,23 @@ fun StressScreen(vm: AppViewModel, onBreathe: () -> Unit = {}) {
     // span/beat gate is not met. Faithful twin of the iOS StressView readouts.
     var stressIndex by remember { mutableStateOf<StressIndex.Components?>(null) }
     var freqHrv by remember { mutableStateOf<HrvFreqDomain.Bands?>(null) }
-    androidx.compose.runtime.LaunchedEffect(vm.activeStrapId) {
-        val read = runCatching { loadDaytimeStress(vm, NoopPrefs.stressPersonalBaseline(context)) }
-            .getOrDefault(DaytimeReadout(DaytimeStress.Result.EMPTY, null, null))
-        daytime = read.daytime
-        stressIndex = read.stressIndex
-        freqHrv = read.freqHrv
+    // #2144: on the SAME interval the Today card and the widget score on, and gated the same way.
+    // This used to read once, on open, which is why the screen happened to be the fresher of the two
+    // when the report was filed: it had simply been opened later. Refreshing only the card would have
+    // moved the disagreement rather than ended it, since a screen left open would then be the stale
+    // one. Both surfaces now age at the same rate, which is the actual ask in the report.
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.LaunchedEffect(vm.activeStrapId, lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+            while (true) {
+                val read = runCatching { loadDaytimeStress(vm, NoopPrefs.stressPersonalBaseline(context)) }
+                    .getOrDefault(DaytimeReadout(DaytimeStress.Result.EMPTY, null, null))
+                daytime = read.daytime
+                stressIndex = read.stressIndex
+                freqHrv = read.freqHrv
+                delay(StressWidgetProducer.RESCORE_INTERVAL_MS)
+            }
+        }
     }
 
     // Rebuild the model only when the inputs (days, stored) actually change — the
