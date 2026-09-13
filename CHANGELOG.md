@@ -1754,15 +1754,8 @@ than it got) and @sudden-break's logs on #156:
   failed — a `persisted N rows (M with motion) across K night(s)` line on every successful offload.
   NOOP previously logged only failures, so a shared log couldn't actually show whether history was
   banking; now it can. (#150)
-> Current protocol qualification: empty history or a `0xFFFFFFFF` field does not
-> uniquely identify a lost clock. Producer state and storage/read errors can also
-> matter; see [history recovery](docs/PROTOCOL_TRANSPORT.md#interruption-and-recovery).
-
-- **Improved (Mac, iOS and Android):** when the strap reports it has no stored history to hand over (its
-  "no flash cursor" state, `trim=0xFFFFFFFF`), NOOP now names the real cause plainly — the strap's clock
-  has lost sync and it isn't saving to flash, a **charge/clock state on the strap, not a NOOP decode
-  bug**. The Troubleshooting and FAQ guides now lead with this — the most common reason recovery and
-  sleep don't appear — with the fix: fully charge to 100% and reconnect. (#150)
+- Improved empty-history diagnostics. For device behavior, see
+  [history recovery](docs/PROTOCOL_TRANSPORT.md#interruption-and-recovery).
 
 ---
 
@@ -1859,16 +1852,8 @@ than it got) and @sudden-break's logs on #156:
 
 ## 1.90 — NOOP now tells you when your strap isn't saving history — and how to fix it
 
-> Current protocol qualification: empty history or a `0xFFFFFFFF` field does not
-> uniquely identify a lost clock. Producer state and storage/read errors can also
-> matter; see [history recovery](docs/PROTOCOL_TRANSPORT.md#interruption-and-recovery).
-
-- **Improved (Mac and Android):** when a sync **completes** but your strap handed over only its
-  diagnostic output and **no stored history** — which means its clock has lost sync and it isn't saving
-  data to flash — NOOP now says so, with the fix (**fully charge the strap to 100%, then reconnect**),
-  instead of silently reporting "synced." This is the single most common reason recovery, sleep and
-  strain stop appearing on a WHOOP 4.0, and it now distinguishes that from a normal caught-up sync.
-  (#77, #91, #120)
+- Improved empty-history diagnostics. For device behavior, see
+  [history recovery](docs/PROTOCOL_TRANSPORT.md#interruption-and-recovery).
 
 ---
 
@@ -2979,9 +2964,6 @@ killed standard-0x2A37 live HR).
 
 ## 1.13 — WHOOP 5/MG heart rate on Android
 
-> Later qualification: WHOOP 5/MG can supply standard-profile HR without the
-> custom-channel handshake. The failure below describes that earlier client/session,
-> not a universal absence of standard HR; see [the current profile](docs/PROTOCOL_WHOOP5.md).
 
 
 - **Note:** other 5/MG commands (battery poll, haptic buzz) still need their own verified puffin framing
@@ -3018,9 +3000,6 @@ killed standard-0x2A37 live HR).
 
 ## 1.10 — WHOOP 5/MG bonding on Android + Health Monitor fix
 
-> Later qualification: WHOOP 5/MG can supply standard-profile HR without the
-> custom-channel handshake. The failure below describes that earlier client/session,
-> not a universal absence of standard HR; see [the current profile](docs/PROTOCOL_WHOOP5.md).
 
 
 - **Fixed (Health Monitor): the heart-rate chart freezing when opened from the Live page.** Leaving
