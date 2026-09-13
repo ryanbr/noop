@@ -1395,10 +1395,25 @@ fun TodayScreen(
                 //
                 // Scanning counts as needed: a scan running means not yet connected, and hiding the
                 // control mid-attempt would take away the only in-progress signal the header has.
-                if (!liveSnap.connected) {
-                    RescanDisc(scanning = liveSnap.scanning, onClick = requestScan)
-                } else {
-                    Spacer(Modifier.size(HeaderClusterControl))
+                // The SLOT is permanent and only the control inside it fades, rather than swapping the
+                // two. A 4.0 that is dropping and auto-reconnecting flips `connected` repeatedly, and an
+                // instant swap turns that into a blinking icon beside the wordmark; a fade reads as a
+                // pulse instead. Keeping the gutter itself always present also means the wordmark cannot
+                // shift even mid-transition, which an if/else between a control and a spacer allows.
+                val scanAffordance by animateFloatAsState(
+                    targetValue = if (liveSnap.connected) 0f else 1f,
+                    animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
+                    label = "scanAffordance",
+                )
+                Box(
+                    modifier = Modifier.size(HeaderClusterControl),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (scanAffordance > 0.01f) {
+                        Box(modifier = Modifier.graphicsLayer { alpha = scanAffordance }) {
+                            RescanDisc(scanning = liveSnap.scanning, onClick = requestScan)
+                        }
+                    }
                 }
                 Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                     LiquidWordmark()
