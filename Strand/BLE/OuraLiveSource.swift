@@ -796,7 +796,40 @@ public final class OuraLiveSource: NSObject, ObservableObject {
             chainedDrainTimer = t
         } else if completed {
             chainedDrainPasses = 0   // healthy full completion re-arms the cap for future backlogs
+            noteCompletedOffload()
         }
+    }
+
+    /// Stamp `LiveState.lastSyncedAt` after a drain that COMPLETED and actually banked something, so the
+    /// ring's freshly-offloaded history gets scored now instead of waiting on the 15-minute periodic tick.
+    ///
+    /// WHY THIS EXISTS: `AppModel` re-scores off a debounced `live.$lastSyncedAt` sink
+    /// (`refreshAfterCompletedBackfill` → `repo.refresh` + `intelligence.analyzeRecent`), but only
+    /// `BLEManager.exitBackfilling` (the WHOOP `HISTORY_COMPLETE` path) ever stamped it — the Oura drain
+    /// never did. Observed consequence (2026-08-02 capture): the morning's `analyzeRecent` ran at app
+    /// launch ~09:25, the ring delivered that night's hypnogram at 09:31:44, and nothing re-scored after,
+    /// so the night stayed `totalSleepMin=nil, matched=0` despite a complete 541-minute session sitting in
+    /// the DB. Relaunching did not help — it just re-ran the same premature pass. Reusing the WHOOP signal
+    /// (rather than adding a second refresh path) means the ring inherits the SAME `.debounce(2s)` +
+    /// `removeDuplicates()` coalescing that #755 added for slice storms.
+    ///
+    /// GATES, so this cannot become a refresh storm:
+    /// - `feedsLive` — the discovery-only wizard scanner must never touch `LiveState` at all.
+    /// - `drain.maxStoredRingTime > 0` — only a drain that BANKED a record counts. A reconnect that
+    ///   completes instantly at `bytes_left 0` with nothing new (the common case on repeated connects)
+    ///   banks nothing, so it does not stamp and does not trigger a re-score.
+    private func noteCompletedOffload() {
+        guard feedsLive, drain.maxStoredRingTime > 0 else { return }
+        let now = Date().timeIntervalSince1970
+        // Logged because a BLE-path change is only verifiable on real hardware: this line appearing AFTER
+        // the night's `sleep-phase record` lines, followed by a fresh `sleep day=` with a non-nil
+        // totalSleepMin, is exactly the sequence that was missing.
+        log("Oura: offload complete - marking synced so the new history is scored now (not at the next periodic tick)")
+        live.lastSyncedAt = now
+        // Mirrors BLEManager: persisted so "last offload completed" survives a relaunch. Before this, a
+        // ring-only install had no completed-offload timestamp at all and read "No completed offload yet"
+        // forever, however many nights it had actually synced.
+        UserDefaults.standard.set(now, forKey: "lastSyncedAt")
     }
 
     private func restartBatchQuietTimer() {
