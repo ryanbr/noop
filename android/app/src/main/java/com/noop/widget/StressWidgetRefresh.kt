@@ -53,6 +53,24 @@ object StressWidgetRefresh {
         }
     }
 
+    /** What one wake-up should do, as a value a test can assert without WorkManager or a Context. */
+    enum class Action { Retire, Skip, Score }
+
+    /**
+     * The whole of the worker's decision, kept pure for the same reason `shouldRescore` and
+     * `stampAfterAttempt` are: the parts of this that can be wrong are the conditions, not the plumbing,
+     * and a Context-free predicate is the only part of a widget worker a JVM test can reach at all.
+     *
+     * [placed] is nullable because `stressWidgetPlacement` answers null when the LOOKUP failed rather
+     * than when the answer is no. Retiring on that would cancel the schedule over a transient failure
+     * with nothing left to restart it before the next app launch, so only a definite no retires.
+     */
+    fun action(placed: Boolean?, nowMs: Long, lastScoredAtMs: Long, intervalMs: Long): Action = when {
+        placed == false -> Action.Retire
+        !StressWidgetProducer.shouldRescore(nowMs, lastScoredAtMs, intervalMs) -> Action.Skip
+        else -> Action.Score
+    }
+
     /** Stop rescoring once the last stress widget is gone. */
     fun cancel(context: Context) {
         runCatching { WorkManager.getInstance(context.applicationContext).cancelUniqueWork(WORK) }
@@ -70,26 +88,25 @@ class StressWidgetRefreshWorker(
 
     override suspend fun doWork(): Result {
         val app = applicationContext as? NoopApplication ?: return Result.success()
-        // Cancels itself when the last widget has gone, so an uninstalled widget stops costing a pass.
-        // A NULL placement means the lookup failed rather than answering no, and cancelling on that
-        // would retire the schedule over a transient failure with nothing left to restart it until the
-        // next app launch; so an unknown answer works, and only a definite no stops.
-        if (WidgetSnapshotStore.stressWidgetPlacement(applicationContext) == false) {
-            StressWidgetRefresh.cancel(applicationContext)
-            return Result.success()
-        }
-        // Defer to whoever scored last. The BLE service rescores on this same cadence while it is
-        // running, so with background connection on the widget is already being kept fresh and a second
-        // full pass here would read a day of heart-rate rows to arrive at the curve already on screen.
-        // `shouldRescore` is the service's own comparison, reused rather than restated.
         val nowMs = System.currentTimeMillis()
-        if (!StressWidgetProducer.shouldRescore(
-                nowMs = nowMs,
-                lastScoreAtMs = WidgetSnapshotStore.lastStressScoredAtMs(applicationContext),
-                intervalMs = TimeUnit.MINUTES.toMillis(StressWidgetRefresh.INTERVAL_MINUTES),
-            )
-        ) {
-            return Result.success()
+        // Skip defers to whoever scored last: the BLE service rescores on this same cadence while it is
+        // running, so with background connection on the widget is already fresh and a second full pass
+        // would read a day of heart-rate rows to arrive at the curve already on screen. The deferral is
+        // deliberately ONE-WAY. The service reads its own in-process field and knows nothing of this
+        // stamp, which is correct: its cadence is what it always was, and this worker is the new cost.
+        val decided = StressWidgetRefresh.action(
+            placed = WidgetSnapshotStore.stressWidgetPlacement(applicationContext),
+            nowMs = nowMs,
+            lastScoredAtMs = WidgetSnapshotStore.lastStressScoredAtMs(applicationContext),
+            intervalMs = TimeUnit.MINUTES.toMillis(StressWidgetRefresh.INTERVAL_MINUTES),
+        )
+        when (decided) {
+            StressWidgetRefresh.Action.Retire -> {
+                StressWidgetRefresh.cancel(applicationContext)
+                return Result.success()
+            }
+            StressWidgetRefresh.Action.Skip -> return Result.success()
+            StressWidgetRefresh.Action.Score -> Unit
         }
         val curve = StressWidgetProducer.todayCurve(app.repository, app.activeDeviceId)
             ?: return Result.success()
