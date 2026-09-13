@@ -700,12 +700,23 @@ internal fun StressTodayCard(points: List<StressPoint>, modifier: Modifier = Mod
             }
 
             if (stats == null) {
-                // The SAME "Calibrating" placeholder the pinned Today stress card already shows with no
-                // usable signal, so the two never disagree about what an unscored day looks like. Honest
-                // blank rather than a flat line at zero: only waking hours score, so this is every day's
-                // early morning as well as a day with too little signal.
+                // Two states, two answers, which is the distinction the WIDGET already draws and this card
+                // did not. Outside the 06:00-22:00 scored window nothing is coming until morning, and at
+                // 1am the local day has just rolled over with no waking hour in it at all: saying
+                // "Calibrating" there claims the app is working on something it will not touch for hours.
+                // Inside the window it is the honest word, the day simply not having produced a scorable
+                // hour yet. Both strings already exist and are translated, so this borrows rather than
+                // adds. Honest blank either way, never a flat line at zero.
+                val outsideScoredWindow =
+                    !DaytimeStress.isWakingHourOfDay(java.time.LocalTime.now().hour)
                 Text(
-                    uiString(R.string.l10n_today_screen_calibrating_37c2c9bd),
+                    uiString(
+                        if (outsideScoredWindow) {
+                            R.string.l10n_stress_glance_widget_resumes_in_the_morning_a640b49f
+                        } else {
+                            R.string.l10n_today_screen_calibrating_37c2c9bd
+                        }
+                    ),
                     style = NoopType.footnote,
                     color = textTertiary,
                 )
