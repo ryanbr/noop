@@ -416,7 +416,7 @@ screening verdict behind an explicit the maintainer go/no-go and the full consen
    (vs the PPG-derived path)? Needs a real overnight R-R capture to confirm the 4.0 headline is real and
    not noise-dominated.
 4. **PPG IBI accuracy.** `PpgHr` currently yields a per-second *rate*, not beat *instants*; extracting
-   trustworthy inter-beat intervals (peak picking) from the [R26 optical window](../../PROTOCOL_SENSORS.md#r26-compact-optical-window) is non-trivial and may not be
+   trustworthy inter-beat intervals (peak picking) from the 24 Hz buffer is non-trivial and may not be
    reliable enough for §3.4 — does the fusion path survive contact?
 5. **Jurisdictional reach of "consider seeing a clinician."** Even disclaimed, does that phrasing risk
    being read as a medical-device function in any market NOOP is distributed in? Worth a conservative
