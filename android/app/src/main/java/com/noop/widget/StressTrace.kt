@@ -81,7 +81,11 @@ object StressTrace {
             if (bits.size != 3) continue
             val ts = bits[0].toLongOrNull() ?: continue
             val level = if (bits[1] == "-") null else bits[1].toDoubleOrNull() ?: continue
-            if (level != null && (level < 0.0 || level > DOMAIN_MAX)) continue
+            // Negated rather than written as the two out-of-range tests, so a NaN is skipped too.
+            // Every comparison against NaN is false, so `level < 0.0 || level > DOMAIN_MAX` admitted
+            // one, and "NaN" is text `toDoubleOrNull` accepts. Infinity was always caught, being
+            // greater than the ceiling.
+            if (level != null && !(level >= 0.0 && level <= DOMAIN_MAX)) continue
             out.add(StressPoint(ts, level, bits[2] == "1"))
         }
         out.sortBy { it.ts }

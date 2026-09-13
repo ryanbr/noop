@@ -1,6 +1,7 @@
 package com.noop.widget
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -319,6 +320,24 @@ class StressTraceTest {
         val back = StressTrace.decode(StressTrace.encode(listOf(at(0, tiny))))
         assertEquals(tiny, back.single().level!!, 0.0)
         assertEquals(StressTrace.formatLevel(tiny), StressTrace.formatLevel(back.single().level!!))
+    }
+
+    /**
+     * A NaN in a corrupt payload is skipped rather than drawn.
+     *
+     * `decode` is tolerant by design because it runs on the render path, and NaN was the one shape
+     * that got past the domain guard: every comparison against it is false, so the two out-of-range
+     * tests both said no. It would have reached the chart as a NaN coordinate and the average as a
+     * NaN fold. Infinity was always caught, being greater than the ceiling.
+     */
+    @Test
+    fun `a NaN level is skipped rather than admitted by the domain guard`() {
+        // The guard is what rejects it, not the parse: this is text Kotlin reads as a Double.
+        assertNotNull("NaN".toDoubleOrNull())
+        assertTrue(StressTrace.decode("0:NaN:0").isEmpty())
+        assertTrue(StressTrace.decode("0:Infinity:0").isEmpty())
+        // and the valid neighbours in the same payload still survive
+        assertEquals(2, StressTrace.decode("0:1.5:0,3600:NaN:0,7200:2.5:1").size)
     }
 
     /** A snapshot written by a build before #2166 still reads, two decimals and all. */
