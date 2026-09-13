@@ -1,6 +1,7 @@
 package com.noop.widget
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -127,10 +128,12 @@ class StressTraceTest {
         val day = listOf(at(0, 1.25), at(1, null), at(2, null, moving = true), at(3, 2.5))
         val back = StressTrace.decode(StressTrace.encode(day))
         assertEquals(day.size, back.size)
-        assertEquals(1.25, back[0].level!!, 0.001)
+        // Exactly, not within a tolerance: since #2166 the snapshot is a faithful copy, and a
+        // tolerance here would pass just as well for the lossy encoding that caused that bug.
+        assertEquals(1.25, back[0].level!!, 0.0)
         assertNull(back[1].level)
         assertTrue(back[2].moving)
-        assertEquals(2.5, back[3].level!!, 0.001)
+        assertEquals(2.5, back[3].level!!, 0.0)
     }
 
     @Test
@@ -275,5 +278,74 @@ class StressTraceTest {
         assertEquals("1.9", StressTrace.formatLevel(1.85))
         assertEquals("2.0", StressTrace.formatLevel(1.96))
         assertEquals("0.0", StressTrace.formatLevel(0.04))
+    }
+
+    // #2166: the snapshot used to round to two decimals, so the widget rounded twice where the card
+    // rounded once and the two printed different tenths on 5% of levels.
+
+    /** The bands that used to skew. Each of these sits just under a tenth and just over the two
+     *  decimal step that would have carried it over. */
+    @Test
+    fun `a level prints the same through the snapshot as it does live`() {
+        for (raw in listOf(2.2450, 0.0450, 1.7450, 2.9450, 0.1450)) {
+            val throughSnapshot = StressTrace.decode(StressTrace.encode(listOf(at(0, raw))))
+            assertEquals(
+                "level $raw",
+                StressTrace.formatLevel(raw),
+                StressTrace.formatLevel(throughSnapshot.single().level!!),
+            )
+        }
+    }
+
+    /** The property the bands above are examples of: encode then decode returns the same bits. */
+    @Test
+    fun `the snapshot returns the level it was handed`() {
+        val awkward = listOf(0.0, 3.0, 2.2449999999999997, 1.5851456074086638, 0.7393400821388699)
+        val back = StressTrace.decode(StressTrace.encode(awkward.mapIndexed { i, v -> at(i, v) }))
+        assertEquals(awkward, back.map { it.level })
+    }
+
+    /**
+     * A deeply suppressed level, where `Double.toString` switches to scientific notation.
+     *
+     * `"%.2f"` could not emit an `E`, so this shape is new with #2166 and the decoder had never seen
+     * it. A z-sum below about -8 squashes under 1e-3 and prints as `3.7018372795869517E-4`, which has
+     * no `:` or `,` in it to confuse the split, and parses back. Pinned because the encoding changed
+     * under a decoder that was written for fixed-point text.
+     */
+    @Test
+    fun `a level small enough to print in scientific notation still round-trips`() {
+        val tiny = 3.0 / (1.0 + Math.exp(9.0))
+        assertTrue("expected scientific notation, got $tiny", tiny.toString().contains("E"))
+        val back = StressTrace.decode(StressTrace.encode(listOf(at(0, tiny))))
+        assertEquals(tiny, back.single().level!!, 0.0)
+        assertEquals(StressTrace.formatLevel(tiny), StressTrace.formatLevel(back.single().level!!))
+    }
+
+    /**
+     * A NaN in a corrupt payload is skipped rather than drawn.
+     *
+     * `decode` is tolerant by design because it runs on the render path, and NaN was the one shape
+     * that got past the domain guard: every comparison against it is false, so the two out-of-range
+     * tests both said no. It would have reached the chart as a NaN coordinate and the average as a
+     * NaN fold. Infinity was always caught, being greater than the ceiling.
+     */
+    @Test
+    fun `a NaN level is skipped rather than admitted by the domain guard`() {
+        // The guard is what rejects it, not the parse: this is text Kotlin reads as a Double.
+        assertNotNull("NaN".toDoubleOrNull())
+        assertTrue(StressTrace.decode("0:NaN:0").isEmpty())
+        assertTrue(StressTrace.decode("0:Infinity:0").isEmpty())
+        // and the valid neighbours in the same payload still survive
+        assertEquals(2, StressTrace.decode("0:1.5:0,3600:NaN:0,7200:2.5:1").size)
+    }
+
+    /** A snapshot written by a build before #2166 still reads, two decimals and all. */
+    @Test
+    fun `an older two decimal snapshot still decodes`() {
+        val back = StressTrace.decode("0:1.59:0,3600:2.45:1")
+        assertEquals(2, back.size)
+        assertEquals(1.59, back[0].level!!, 0.0)
+        assertTrue(back[1].moving)
     }
 }
