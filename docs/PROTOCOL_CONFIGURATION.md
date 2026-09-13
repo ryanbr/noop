@@ -98,6 +98,8 @@ Requests below are command bodies, excluding the transport envelope. Revision-1 
 | Persistent optical/R20 policy | 153 | Revision-1 boolean. Wire 0 stores explicit off, wire 1 stores on. Nonvolatile write requested, but ACK does not check programming success. |
 | Persistent IMU/R21 policy | 154 | Same persistent policy contract, independent of IMU session saving. |
 
+The two dedicated persistent policies share an option record with LED accessibility (149). If the setter cannot read that record, it writes from defaults before applying the requested option, so other stored options may be replaced. This is separate from the named configuration namespaces below.
+
 The persistent policy resolver treats stored 1 as true and stored 0/2 as false. A missing or invalid record falls back to stored zero; a deployed device may already contain other values. There is no established BLE getter for these two dedicated policies. The durable-write path is distinct from RAM session flags, but observed reboot survival, power-loss atomicity and actual successful programming are not guaranteed by a command acknowledgement.
 
 Raw, individual-sensor and ECG companion controls write shared session requests in event order; they are not independent leases. A later raw stop can clear requests set by another session control. Persistent and continuous sources remain separate contributions. Full downstream hardware application is unresolved; “off acknowledged” is not proof that the sensor is idle. Live transport, saving and producer start/stop each need their own application state. Startup/reset defaults and disconnect behavior are not universally known.
@@ -193,8 +195,11 @@ On SUCCESS, the value is text: depending on the key's type, it can be `0`, `1`,
 digit. No binary value or type tag is present. Key-specific meaning and units
 must come from the key's schema.
 
-Unknown keys, read failures and formatting failures return result 0, the
-normalized key echo and an all-zero value field. Unsupported request revisions
+Unknown keys, reported value-read helper errors and formatting failures return
+result 0, the normalized key echo and an all-zero value field. An underlying
+checked-storage-slot read failure is different: the loader substitutes zero bytes
+and continues successfully. A valid key can therefore return result 1 with a
+formatted zero fallback despite such a storage failure. Unsupported request revisions
 return result 0 with revision 1 and 64 zero bytes, without a key echo. Accept a
 value only after checking result 1 and matching the canonical key. A non-NUL
 32-byte key is normalized and therefore will not be echoed exactly.
@@ -325,8 +330,9 @@ R22 preparation chooses enabled version preferences in this order:
 and historical publication separately. Multiple preferences select one path;
 they do not request separate output for each enabled version.
 
-Selection does not guarantee the emitted version. Version 3 can fall back to 2
-when both of its selected inputs are absent; version 5 falls back to 4 unless its
+Selection does not guarantee the emitted version. Version 3 falls back to 2
+when both selected 32-bit input words are zero. This is a value test, not proof
+that sensor data is absent. Version 5 falls back to 4 unless its
 readiness result is exactly 1. When version 9 selects its queued replay path,
 empty queues cause a fallback to version 4; selecting it does not guarantee fresh version-9 output. See
 [queued channels](PROTOCOL_SENSORS.md#r22-version-9-queued-channels-and-sample-encoding). Version 8 is not established in this

@@ -18,10 +18,7 @@ agreed to; how you use hardware you own is your responsibility.
 ## 2. No proprietary material is contained or redistributed
 
 This repository contains **only original work** authored by the project's contributors, plus
-factual protocol observations. Some protocol facts were confirmed by examining the official app
-**for the sole purpose of interoperability** — an activity expressly permitted by
-**17 U.S.C. § 1201(f)** and analogous interoperability provisions (see §3). **No** such material
-is reproduced, redistributed, or included here. Specifically, this repository does **NOT**
+factual protocol observations. Specifically, this repository does **NOT**
 contain, bundle, mirror, or link to any of the following:
 
 - WHOOP application binaries, APKs, IPAs, or installers;
@@ -34,8 +31,7 @@ contain, bundle, mirror, or link to any of the following:
 Application icons, color choices, and UI in this project are **original creations**. Any
 similarity to a generic "dark fitness app" aesthetic is coincidental and not copied from any
 protected work. Protocol facts (frame layout, command identifiers, field offsets) are
-**uncopyrightable factual information** about how bytes appear on a wire, documented through the
-author's own observation of traffic to and from a device the author owns.
+**uncopyrightable factual information** about how bytes appear on a wire.
 
 ## 3. Nature of the work: interoperability & security research
 

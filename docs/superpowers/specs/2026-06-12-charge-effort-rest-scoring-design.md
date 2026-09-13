@@ -56,7 +56,7 @@ Composite, replacing the bare efficiency proxy:
 | Consistency (sleep/wake regularity) | 0.10 |
 
 - Personal sleep need: 8 h default, refined by recent average; hours-vs-need clamps at 100.
-- Consumes whatever stages each device provides (v25 motion on 4.0; PPG/IMU on 5 as it unlocks).
+- Consumes NOOP-derived or imported stages, with their source retained.
 - The `sleep_performance` key now stores this composite (0–100). The Charge "Rest quality" term reads it
   (÷100) instead of raw efficiency.
 

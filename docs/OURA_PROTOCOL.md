@@ -186,14 +186,9 @@ reproduces with the paired phone's Bluetooth fully off. This matches CoreBluetoo
 behavior that `connect()` has no built-in timeout (an unanswered connect just stays pending forever),
 so the practical symptom is a silent, permanent hang rather than an error.
 
-This is a different (and apparently more total) failure surface than the already-known WHOOP 5.0/MG
-macOS limitation (see `docs/WHOOP5_DEEP_DATA.md`, "iOS / Android only on real hardware") - WHOOP 5/MG
-at least connects and discovers services, failing only at an authenticated characteristic write
-(`CBATTError` "Encryption is insufficient"). Oura's connect doesn't get that far at all. The exact
-CoreBluetooth/bluetoothd mechanism isn't diagnosed further than this (would need a low-level HCI/SMP
-trace), but the practical conclusion is the same as WHOOP 5/MG's: **treat Oura ring pairing as
-iOS/Android-only** until proven otherwise on macOS. This applies to the §3.7 Advanced-key flow as
-much as to the §3.2 factory-reset one - the limitation is at connect time, before any key is used.
+The exact CoreBluetooth/bluetoothd mechanism remains undiagnosed. This observed Oura
+connect-time failure precedes the key exchange in both the §3.7 Advanced-key flow
+and the §3.2 factory-reset flow.
 Not yet tested: whether a genuinely never-bonded-anywhere (factory-reset) ring behaves differently
 from the already-Oura-app-owned case tested here.
 
@@ -805,9 +800,7 @@ like its sibling banked streams (`.hrv`/`.temp`/`.spo2`/`.sleepPhase`) — the f
   ⇒ Judging this decode by "does it beat WHOOP" would ask it to beat **Oura's own app** at reproducing
   WHOOP — the wrong test for a vendor-computed value, and an impossible one. So NOOP maps **`breath`
   only** onto a `respSample` row under the RING's deviceId (`OuraStreamMapping`, both platforms), in
-  **milli-breaths-per-minute** (`raw == wireByte × 125`, exact for all 256 wire values — the same table
-  otherwise carries a WHOOP's raw respiration ADC waveform, a different quantity, so the row's owner is
-  what distinguishes them, via `OuraRespScale`). It is shown on the day/Deep-Timeline respiration track
+  **milli-breaths-per-minute** (`raw == wireByte × 125`, exact for all 256 wire values; `OuraRespScale` identifies the ring-specific quantity). It is shown on the day/Deep-Timeline respiration track
   in breaths/min, and it **becomes the night's `dailyMetric.respRateBpm`** — the scored slot — in place of
   NOOP's RSA-from-R-R estimate, which on a ring night is built from banked R-R and carries no breathing
   information at all (shuffling the night returns the same 13.3333 bpm). Three constraints ride with that:
@@ -872,7 +865,7 @@ sortable time. NOOP:
 
 **FINDING — raw window vs the app's adjusted period.** The `0x49` window (hence NOOP's persisted window)
 is the ring's RAW sleep window: it includes the edge AWAKE epochs (settling-in before sleep, lying awake
-before rising). The Oura app / WHOOP display an ADJUSTED *sleep period* (first-asleep → last-asleep),
+before rising). The Oura app displays an ADJUSTED *sleep period* (first-asleep → last-asleep),
 which is narrower — e.g. 2026-07-23: NOOP raw `22:56 → 08:21` (post start-clamp) vs a perceived/app
 `~23:30 → 08:14`; the ~34 min onset gap is edge-awake the ring counts. This is the same raw-vs-adjusted
 difference the "raw on-device stages" UI caveat surfaces.

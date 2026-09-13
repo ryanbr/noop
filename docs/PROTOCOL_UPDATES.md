@@ -82,10 +82,16 @@ implementation validation or firmware-image authentication and rollback policy.
 
 Required claims are strings `aud` and `sub`, bounded to 30 and 11 bytes and compared
 to stored device identity fields, plus decimal unsigned 32-bit numeric `iat` and
-`exp`, with `exp >= iat`. New transfers require `iat` strictly greater than the
-stored accepted value. The separate remaining authorization duration is derived
+`exp`, with `exp >= iat`. New transfers require `iat` to be strictly greater than the stored accepted value. If reading
+that metadata fails, the comparison uses a zero-filled fallback instead; a read
+failure does not itself force rejection. Identity-storage reads also initialize
+buffers and continue to the identity comparisons after read errors; those errors
+do not independently force certificate rejection. The separate remaining authorization duration is derived
 from `exp - iat`; it is not the freshness value or an established direct wall-clock
-comparison against `exp`. A saved certificate is parsed during cold initialization
+comparison against `exp`. One accounting path charges elapsed monotonic seconds
+during flash work, capped at the remaining amount. A successful write commits the
+reduced amount and advances that accounting timestamp; failure behavior and reboot
+restoration remain separate limits. A saved certificate is parsed during cold initialization
 without requiring its
 own saved `iat` to be newer than itself. That differs from accepting a new
 transfer. JSON edge cases and complete duration restoration after reboot remain

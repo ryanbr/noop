@@ -50,7 +50,7 @@ device, its data, and its connection to official services. **You assume that ris
 ## 4. No proprietary material
 
 NOOP contains **only original work** plus **uncopyrightable factual notes** about how data appears on
-the wire, observed by the author from a device the author owns. NOOP does **not** contain, bundle,
+the wire. NOOP does **not** contain, bundle,
 mirror, link to, or redistribute any WHOOP application, firmware, decompiled or disassembled code,
 source, logos, artwork, credentials, or server endpoints, and does **not** circumvent any access
 control, DRM, paywall, or login. Any reverse engineering is undertaken **solely to achieve

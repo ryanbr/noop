@@ -288,7 +288,7 @@ total = length + 4
 [1]      format byte (0x01)
 [2..3]   declaredLength u16 LE   (= payload length + 4)
 [4..5]   header bytes
-[6..7]   CRC16-Modbus over frame[0..6], u16 LE
+[6..7]   CRC16-Modbus over frame[0,6) (Kotlin: 0 until 6), u16 LE
 [8..]    inner record: [type][seq][cmd][data…]
 tail     crc32 (zlib, LE) over the payload, 4 bytes
 total = declaredLength + 8
@@ -314,8 +314,9 @@ with `ok`, `typeName`, `seq`, `cmdName`, `crcOK`, `fields`, and a flat `parsed` 
    `38 (PUFFIN_COMMAND_RESPONSE) → COMMAND_RESPONSE`, `56 (PUFFIN_METADATA) → METADATA`
    (`DeviceFamily.swift`).
 
-The enum groups in `whoop_protocol.json` are `PacketType` (16 entries), `MetadataType`,
-`EventNumber`, and `CommandNumber` (77 entries). Decode the command name for COMMAND (35) /
+The enum groups in `whoop_protocol.json` are `PacketType`, `MetadataType`,
+`EventNumber`, and `CommandNumber`. These client enum inventories are not a
+firmware dispatch-count guarantee. Decode the command name for COMMAND (35) /
 COMMAND_RESPONSE (36) frames via the `CommandNumber` enum.
 
 ### Device family + GATT identity (`DeviceFamily.swift` → `DeviceFamily.kt`, ported)
@@ -338,9 +339,9 @@ discovery; transcribe it verbatim (`DeviceFamily.whoop5ClientHello`).
 
 The `CommandNumber` sender set ports the **curated, safe** `WhoopCommand` enum from
 `Strand/BLE/Commands.swift`. It intentionally **excludes** destructive commands (firmware load,
-force-trim, ship-mode, power-cycle, fuel-gauge reset, BLE DFU) so the command sender can never brick
-or wipe the strap — preserve that exclusion. The one guarded exception is `REBOOT_STRAP` (a plain,
-non-destructive restart), sent only from the user-initiated, confirmation-gated Restart action
+force-trim, ship-mode, power-cycle, fuel-gauge reset, BLE DFU); preserve that
+allowlist policy without treating it as a guarantee against every device failure. The one guarded exception is `REBOOT_STRAP`
+(a restart request; complete persistence across restart is not established here), sent only from the user-initiated, confirmation-gated Restart action
 (`WhoopBleClient.rebootStrap()`) — never automatically (#166). Raw values are the on-wire command
 codes; the ones the connect/offload lifecycle relies on:
 
@@ -370,12 +371,11 @@ builder exactly — it is the most-exercised write path.
 This is the **trickiest** part of the port — Android's GATT stack is stricter than CoreBluetooth —
 but it is implemented and **validated on a real WHOOP 4.0** (live HR confirmed on 5.0/MG). The
 macOS reference is `Strand/BLE/BLEManager.swift` (CoreBluetooth); the Android equivalent uses
-`BluetoothGatt`. The **sequence is identical**; only the API differs. The notes below document how
-the Android layer mirrors the reference so future changes stay in parity.
+`BluetoothGatt`. The protocol is shared; pairing and connection lifecycle are platform-specific.
 
 ### CoreBluetooth → Android mapping
 
-| CoreBluetooth (macOS, verified) | Android `BluetoothGatt` (to build) |
+| CoreBluetooth (macOS, verified) | Android `BluetoothGatt` |
 | --- | --- |
 | `CBCentralManager.scanForPeripherals(withServices: [service])` | `BluetoothLeScanner.startScan(filters, settings, callback)` with a `ScanFilter` on the service UUID |
 | `central.connect(peripheral)` | `device.connectGatt(context, autoConnect=false, gattCallback, TRANSPORT_LE)` |
@@ -384,29 +384,30 @@ the Android layer mirrors the reference so future changes stay in parity.
 | `.withoutResponse` | `WRITE_TYPE_NO_RESPONSE` |
 | `peripheral.setNotifyValue(true, for:)` | `gatt.setCharacteristicNotification(char, true)` **plus** write `ENABLE_NOTIFICATION_VALUE` to the `0x2902` CCCD descriptor |
 | `didUpdateValueFor` delegate | `onCharacteristicChanged` callback |
-| `didWriteValueFor` (confirmed-write = bond) | `onCharacteristicWrite` with `GATT_SUCCESS` |
+| `didWriteValueFor` (write completion, not independent bond proof) | `onCharacteristicWrite` with `GATT_SUCCESS` |
 
-### The connect → bond → stream sequence (must match `BLEManager`)
+### Connection setup and the earlier WHOOP 4 sequence
+
+The outline below records the earlier WHOOP 4 custom-channel flow. The current
+Android client treats OS bond state and generation-specific session setup
+separately; use the [WHOOP 4](PROTOCOL_WHOOP4.md) and
+[WHOOP 5/MG](PROTOCOL_WHOOP5.md) profiles for their respective sequences.
 
 1. **Scan** filtered by the family service UUID (`61080001-…` for 4.0, `fd4b0001-…` for 5.0).
 2. **Connect** and **discover services**, then discover the family characteristics.
-3. **BOND via one confirmed write.** This is the load-bearing trick: writing
+3. **Earlier WHOOP 4 setup via a confirmed write.** Writing
    `GET_BATTERY_LEVEL` (cmd 26) to the command/write characteristic (`…0002`) with
    `WRITE_TYPE_DEFAULT` triggers just-works bonding. On Android, prefer letting the GATT write drive
-   pairing; you may also need to handle `BluetoothDevice.createBond()` / the
-   `ACTION_BOND_STATE_CHANGED` broadcast depending on the OEM stack. Bond confirmation =
-   `onCharacteristicWrite(GATT_SUCCESS)`.
-4. **Subscribe** (notify) to the command-notify, event-notify, and data-notify characteristics
-   (`…0003/0004/0005`), plus the standard Heart Rate (`0x2A37`, service `0x180D`) and Battery
-   (`0x2A19`, service `0x180F`) characteristics. The standard HR profile is the **reliable** R-R
-   and HR source and works **unbonded**.
-5. **Run the connect handshake EXACTLY ONCE per connection.** On macOS this is guarded by
-   `connectHandshakeDone` because `didWriteValueFor` re-fires on every confirmed write; the same
-   guard is mandatory on Android (`onCharacteristicWrite` likewise fires per write). Re-blasting
-   `hello`/`SET_CLOCK` mid-offload was the documented root cause of the strap refusing to serve
-   type-47. The handshake: `getHelloHarvard` → `getAdvertisingNameHarvard` → `setClock` →
-   `getClock` (empty payload) → `sendR10R11Realtime [0x00]` (stop the raw flood) → `getDataRange`,
-   then after ~1.5 s start the historical offload.
+   pairing in that earlier flow. Current WHOOP 5/MG handling separately observes
+   `BOND_BONDED` / `createBond()` and its hello exchange.
+   `onCharacteristicWrite(GATT_SUCCESS)` confirms the write, not a persistent bond.
+4. **Subscribe** to the characteristics exposed by the selected family. Standard
+   Heart Rate (`0x2A37`, service `0x180D`) and Battery (`0x2A19`, service `0x180F`)
+   have separate handling from custom notifications.
+5. **Guard connection initialization in the client.** A write callback can fire for
+   subsequent commands as well. Use the current [family handshake and clock
+   conventions](PROTOCOL_WHOOP4.md#bond-handshake--connect-lifecycle-whoop-40), rather than repeating
+   initialization during an offload.
 6. **Reassemble** notification fragments on the three custom characteristics through `Reassembler`,
    route each complete frame, run clock correlation, and during a backfill route only genuine
    offload frames (types `47/48/49/50` — HISTORICAL_DATA / EVENT / METADATA / CONSOLE_LOGS), dropping
@@ -427,8 +428,7 @@ the Android layer mirrors the reference so future changes stay in parity.
   a foreground service of type `connectedDevice` (the manifest already declares
   `FOREGROUND_SERVICE` and `FOREGROUND_SERVICE_CONNECTED_DEVICE`). Android has no direct analogue to
   CoreBluetooth state restoration — a foreground service is the equivalent mechanism.
-- **Strap must be out of range of the official app** during initial bonding, worn, and charged
-  enough to report a non-zero heart rate.
+- Disconnect a competing client before testing; inspect connection and measurement state separately.
 
 ### Debugging the strap connection
 
@@ -558,7 +558,7 @@ post-import rescore via `CaptureImporter.analyzeWindowDays(firstDay, today)`:
 
 - **Recovery needs ≥7 baseline nights** (`ReadinessEngine`), so a short capture imports sleep / strain
   / HRV / resting-HR but leaves `recovery` null until enough history accumulates — expected, not a bug.
-- **WHOOP 4 SpO₂ / skin-temp** historical records carry raw PPG counts (`red`/`ir`) and a raw temp int,
+- The **legacy WHOOP 4 decoder** reads optical values labelled `red`/`ir` and a raw temperature int,
   not calibrated `%`/`°C`; the engine does not derive daily SpO₂ / skin-temp from them, so those daily
   fields stay null on a 4.0 import.
 
@@ -668,15 +668,14 @@ deeper scores still being reverse-engineered.
 - [x] Runtime permission flow: `BLUETOOTH_SCAN` + `BLUETOOTH_CONNECT` granted on API 31+.
 - [x] Scan finds the strap by the family service UUID (4.0 `61080001-…`, 5.0 `fd4b0001-…`).
 - [x] Connect → discover services → discover the family characteristics.
-- [x] **Bond via the single confirmed write** of `GET_BATTERY_LEVEL` to `…0002`
-      (`onCharacteristicWrite(GATT_SUCCESS)`).
+- [x] WHOOP 4 battery-query write completion observed; current OS bonding is handled separately.
 - [x] CCCD `0x2902` descriptor write enables notifications on `…0003/0004/0005`, `0x2A37`, `0x2A19`.
-- [x] GATT operation queue prevents dropped writes (one in flight at a time).
+- [x] GATT operation queue serializes writes (one in flight at a time).
 - [x] Connect handshake runs **exactly once** per connection (the `connectHandshakeDone` guard) —
       no `hello`/`SET_CLOCK` re-blast mid-offload.
 - [x] Standard HR (`0x2A37`) yields plausible HR (30–220 bpm) and R-R intervals (4.0 + 5.0/MG).
-- [x] `SET_CLOCK` (8-byte payload) latches; `GET_CLOCK` (empty payload) returns a clock correlation.
-- [x] `sendR10R11Realtime [0x00]` stops the ~2/s type-43 raw flood.
+- [x] Clock read/write paths implemented; use the family-specific clock contract.
+- [x] WHOOP 4 `sendR10R11Realtime [0x00]` was used to stop the legacy type-43 raw stream.
 - [x] Historical offload (`sendHistoricalData [0x00]`) streams HISTORY_START → type-47 →
       HISTORY_END (acked via `historicalDataResult [0x01]+endData`) → HISTORY_COMPLETE (WHOOP 4.0).
 - [ ] WHOOP 5.0 / MG: full offload + **deep-score** parity (recovery / strain / sleep) on a real

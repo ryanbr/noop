@@ -211,8 +211,8 @@ central = CBCentralManager(delegate: self, queue: .main)
 
 so all delegate callbacks arrive on the main actor. WHOOP 4.0 uses the `61080001-…` service family
 with a CRC8 header; WHOOP 5.0 (the "goose"/MG path) uses the `fd4b0001-…` family with a
-CRC16-Modbus header. The strap must be **out of range of the official app** during initial bonding,
-and worn/charged to report a non-zero heart rate.
+CRC16-Modbus header. See the [connection profiles](PROTOCOL.md) for
+family-specific connection requirements.
 
 ### 5. Dev loop
 
@@ -326,8 +326,7 @@ facts in `WhoopProtocol/Resources/whoop_protocol.json` are language-agnostic). B
 instructions live in **`android/README.md`** — open the `android/` directory in Android Studio, let
 Gradle sync, and run on a device with Bluetooth (an emulator cannot reach a physical strap).
 
-> The macOS app remains the reference implementation; the shared packages define the protocol,
-> storage, analytics, and import behavior every client matches.
+> The shared packages support the Apple clients; Android has a separate implementation.
 
 ---
 

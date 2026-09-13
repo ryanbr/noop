@@ -13,7 +13,6 @@
 
 - Duplicated in **four** places (iOS analytics + iOS UI + Android analytics + Android UI), all wrong the same way, so they agree with each other but all mis-pick.
 - **Window off-by-one:** the detector treats overnight as [20:00, 11:00) (`SleepStager.isOvernightOnset`) while the selector/UI use [20:00, 10:00). A ~10:30 onset is kept as "night" by the detector but demoted to "nap" by the selector. Cleanest trigger.
-- **Why this is the anti-pattern:** the domain research is unanimous, no major wearable (Oura, WHOOP, Garmin, Fitbit) or actigraphy algorithm (GGIR/HDCZA, Actiware) uses a fixed clock onset window. It is a documented failure mode for late/irregular/shift/daytime sleepers.
 
 ### B. Android sleep edits never re-score (confirmed, medium)
 Swift calls `analyzeRecent()` immediately after every sleep edit/delete/nap-add, recomputing recovery + the persisted Rest. Android only persists the row and waits up to 15 min for the background loop. So after editing sleep on Android, Charge and Rest stay stale and Today disagrees with the Sleep tab. (Audit findings #2/#3/#4 — one root cause.)

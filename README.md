@@ -143,9 +143,9 @@ from **their own device**, on a machine **they** control.
 You bought the strap. The biometric stream it produces is yours. NOOP is built on
 that premise:
 
-- **Own your data.** NOOP reads heart rate, R-R intervals, SpO₂, skin temperature,
-  respiration, accelerometer/gravity, battery, and event data straight off the
-  strap over Bluetooth and writes it to a local SQLite database. Nothing is
+- **Own your data.** NOOP reads supported heart-rate, R-R, sensor, battery and event records
+  over Bluetooth and writes them to a local SQLite database. Available fields and
+  physical interpretation depend on the device family. Nothing is
   uploaded anywhere.
 - **Account-free and local.** NOOP never logs into a WHOOP account and never hits
   a WHOOP server. It does not bypass any login, paywall, or DRM; it simply talks to
@@ -172,9 +172,9 @@ shared cross-platform code.
 |---|---|
 | **Today** (Control Center) | Home dashboard: recovery ring, a "today's synthesis" insight, a grid of stat tiles (recovery, strain, sleep, HRV, RHR, SpO₂, respiratory, steps, weight, calories) each with a 14-day sparkline, live strap **battery %** and HR trend, recent workouts, and a data-sources footer. |
 | **Readiness** | An on-device "should you push today?" read that synthesizes established sports-science signals from your own history — HRV vs your baseline (Plews/Buchheit), resting-HR drift (Lamberts), sleeping respiratory-rate drift, training-load balance (acute:chronic workload ratio, Gabbett) and training monotony (Foster) — into a single headline (Primed / Balanced / Strained / Run down) with the drivers behind it. Pure local math, not medical advice. |
-| **Live** | Real-time view of the connected strap — heart rate and frame stream as they arrive (~1 Hz). |
-| **Breathe** | **HRV haptic breathing biofeedback.** The strap both *measures* HRV (R-R intervals) and *buzzes* its haptic motor, so NOOP paces your breath with felt cues (one buzz inhale, two exhale) and shows live HR + rolling RMSSD responding as the session deepens. Presets: Relax 4-6, Coherence 5.5, Box 4-4. Each session reports a **pre/post HRV outcome** so you can see how much you settled. |
-| **Intervals** | **Silent haptic HIIT timer.** The strap buzzes every transition (triple-buzz into WORK, single into REST, 3-2-1 tick at phase ends, long buzz on finish) so you train hands-free. Falls back to a glanceable visual timer with no strap. |
+| **Live** | Real-time view of the connected strap — heart rate and frame stream as they arrive. |
+| **Breathe** | **HRV haptic breathing biofeedback.** NOOP computes HRV from received R-R intervals and uses the strap’s haptic motor to pace your breath with felt cues (one buzz inhale, two exhale) and shows live HR + rolling RMSSD responding as the session deepens. Presets: Relax 4-6, Coherence 5.5, Box 4-4. Each session reports a **pre/post HRV outcome** so you can see how much you settled. |
+| **Intervals** | **Silent haptic HIIT timer.** Haptic cues mark timer transitions (triple-buzz into WORK, single into REST, 3-2-1 tick at phase ends, long buzz on finish) so you train hands-free. Falls back to a glanceable visual timer with no strap. |
 | **Explore** (Metric Explorer) | Interrogate any single metric over time, built from the metric catalog (`Strand/Data/MetricCatalog.swift`). |
 | **Compare** | Plot two metrics together / against each other over a shared timeline. |
 | **Insights** | Behavioral and correlational insights derived from your own series — including **Activity Cost**, which learns what each activity type typically costs your next-morning recovery (and how long you take to bounce back) from your own history. |
@@ -203,8 +203,8 @@ and an in-app **"What's new"** changelog shown after each update.
 - **Double-tap → Mac action.** Double-tap the strap to lock the Mac, buzz back to
   confirm, mark a moment, do nothing, or run any macOS **Shortcut** by name (via
   the `shortcuts://` URL scheme, so it's sandbox-friendly).
-- **Wear & presence.** Lock the Mac (or run a Shortcut) the moment the strap
-  leaves your wrist; run a Shortcut when it goes back on. *(macOS reserves true
+- **Wear & presence.** Lock the Mac (or run a Shortcut) when NOOP receives a wear-off event;
+  run a Shortcut on a wear-on event. *(macOS reserves true
   auto-**unlock** for Apple Watch — NOOP can lock, not unlock.)*
 - **Haptic coaching.** HR-zone coaching and an experimental resting-stress nudge —
   the strap buzzes so you don't have to watch a screen.
@@ -244,7 +244,7 @@ NOOP is an independent, **experimental** project — capable, but a work in prog
 | Strap | Status |
 |---|---|
 | **WHOOP 4.0** | ✅ The tested, supported path. Live HR, recovery, strain, sleep, history offload — the full experience. (v1.95 also unlocked sleep + recovery on the newer "v25" 4.0 firmware layout that earlier versions could only read live HR from.) |
-| **WHOOP 5.0 / MG** | 🧪 **Live heart rate works** (confirmed on real hardware). Pick "WHOOP 5.0 / MG" before connecting — and see the pairing note below, because you can't just scan for it. Deeper 5/MG metrics (recovery, strain, sleep) are still being mapped; there's an opt-in **Settings → Experimental** toggle for 5/MG owners who want to help document the protocol. |
+| **WHOOP 5.0 / MG** | 🧪 **Live heart rate works** (confirmed on real hardware). Pick "WHOOP 5.0 / MG" before connecting — and see the pairing note below, for the connection requirements. Deeper 5/MG metrics (recovery, strain, sleep) are still being mapped; there's an opt-in **Settings → Experimental** toggle for 5/MG owners who want to help document the protocol. |
 | **Oura Ring (Gen 3)** | 🧪 **Experimental, not a supported strap.** Pairs on **iOS / Android only** and reads real overnight data — heart rate, sleep stages, skin temperature, SpO₂, motion — but a ring-only day does **not** produce a recovery/strain score yet, and some metrics are permanently out of reach. See **Oura ring support** below before you expect anything from it. |
 
 > ### WHOOP 5.0 / MG analysis limits
@@ -267,31 +267,10 @@ NOOP is an independent, **experimental** project — capable, but a work in prog
 >
 > ### Pairing a WHOOP 5.0 / MG — read this first
 >
-> A WHOOP strap holds an encrypted Bluetooth **bond with only one device at a time**, and yours is
-> normally bonded to the **official WHOOP app** on your phone. **You can't just scan for it in NOOP** —
-> if the strap is still bonded to the WHOOP app, NOOP's pairing is refused and the strap log shows
-> *"Encryption is insufficient"* / *"bond refused."* (Live **heart rate** is the exception — it rides the
-> standard Bluetooth heart-rate profile, so it streams without a bond. But pairing — needed for the
-> deeper features — does not.)
->
-> **To pair properly:**
-> 1. **Close the official WHOOP app** on your phone (fully quit it, or turn that phone's Bluetooth off) so
->    it isn't holding the bond.
-> 2. **Put the strap in pairing mode** — on a 5.0/MG, **tap the band repeatedly** (firm taps on the
->    sensor) until the **LEDs flash blue**.
-> 3. In NOOP: **Live → choose "WHOOP 5.0 / MG" → Scan & Connect.** Success looks like
->    *"CLIENT_HELLO acked — link established"* in the strap log (not *"bond refused"*). It can take a
->    couple of attempts.
->
-> **Only one device at a time.** Because the strap holds a single bond, don't leave it connected to your
-> phone *and* your Mac (or the WHOOP app) at once — live heart rate will still show on all of them
-> (that rides the bond-free standard profile), but **none** of them will have the real encrypted bond.
-> If HR streams fine yet **buzz, alarm, double-tap and history don't work**, that's the tell: the strap
-> isn't truly bonded to this device. Free it from everything else, then pair here.
->
-> Bonding to NOOP may take the strap's bond away from the WHOOP app, so the official app might need to
-> re-pair afterwards. This is the **hardest part of 5/MG support** — if it refuses, you're almost
-> certainly still bonded to the WHOOP app (or another device); free the strap and retry.
+> Disconnect another app or device that is actively using the strap, then select the
+> WHOOP 5.0 / MG family in NOOP and connect. Follow the
+> [connection profile](docs/PROTOCOL_WHOOP5.md) for pairing and session setup.
+> Standard HR reception alone does not establish that custom commands are ready.
 
 The app always tells you what's live now versus still building, both in onboarding and on each screen.
 
@@ -356,9 +335,9 @@ reproducible and independent of the pairing method. Documented in
 NOOP computes your scores on your own device, so like any recovery wearable it
 needs a little data before everything fills in:
 
-- **Live heart rate** shows the moment the strap connects.
-- **Strain and sleep** appear after you've worn it and synced — the strap's last
-  ~14 days offload automatically over the first few minutes.
+- **Live heart rate** appears when the connected strap supplies valid readings.
+- **Strain and sleep** appear after you've worn it and synced. Available retained
+  history downloads as synchronization progresses; its span and transfer time vary.
 - **Recovery** needs a few nights for the app to learn your personal baseline,
   then sharpens each night. WHOOP makes you wait for the same reason.
 - **In a hurry?** Import your WHOOP export in Data Sources and your full history

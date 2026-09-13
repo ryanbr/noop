@@ -152,7 +152,10 @@ neither a validated hypnogram nor an established production SpO₂ value.
 The packed byte at frame 36 includes source-selection contributions. In the
 traced producer, bit 4 is added when an alternate-source selection branch is
 active, and bit 5 is added both there and under a subsequent hold condition.
-These are coexisting flags, not a ranked quality enum.
+The same byte also receives the low four bits of a separate source through an
+OR operation, and another source can add bit 6. These contributions can coexist
+with bits 4 and 5. They do not establish a single quality enum, a complete
+validity mask or physiological labels.
 
 The numeric selector has the following bounded transitions. Here `x` and `y` are
 internal numeric scores, `-128` is missing input, and counts are calls, not seconds
@@ -237,10 +240,15 @@ primary source has no samples, a fallback source supplies that block, including
 its count, and marker bit 0 is set. Do not interpret the fourth block as a permanently
 fixed optical channel or its marker as a quality verdict.
 
-Drive/configuration values are quantized as `(input + 5) // 10`, then represented
-as u16. This rounding/truncation does not establish milliamps or another
+On the known configuration-to-metadata producer path, drive/configuration values
+are quantized as
+`(((input + 5) mod 2^32) // 10) mod 2^16`: the addition wraps as u32 before
+unsigned division, then the result is stored as u16. This rounding/truncation does not establish milliamps or another
 upstream physical unit. Historical conventions include ranges 16/32 and offsets
-in multiples of 800. A zero-drive fourth block has served as a dark control; that
+in multiples of 800. In the first-block configuration join, accepted offset
+settings 0/8000/16000/24000 produce signed metadata values 0/800/1600/2400.
+This join does not establish every block's complete routing or a physical unit.
+A zero-drive fourth block has served as a dark control; that
 pattern is not a guarantee under every routing configuration. The two slots share
 one header and remain **A/B**, not red/infrared/green. Detector geometry, wavelength,
 source enums and calibrated drive/range/offset units remain unresolved.

@@ -208,6 +208,17 @@ the response timeout path, returns revision 1 followed by 64 zero bytes.
 | 57, 61 | 4 each | Clock pair from last-written page |
 
 For the derived quantity, C and D are each increased by capacity if below A.
+The record-count estimate is zero when adjusted trim and write positions coincide.
+On the successful record-sequence extraction path, it is the greater of the
+unsigned 32-bit expression `currentSequence − extractedSequence + 1` and the page
+distance. Other paths use fallback estimates, so this is not an exact record count
+or an all-path formula.
+For accepted format-1 records, the first three clock pairs use the inner record
+clock for packet 47 and the header clock for packets 48 and 54. Unsupported
+header/type combinations yield a zero pair. The last pair prefers the page's
+stored final clock and uses a compatible record/header fallback only when both
+stored components are zero. These fallbacks do not establish valid dates.
+
 The second member of each pair is a 16-bit value widened to 32 bits. Boundary A and the complete units of every retained clock form remain unresolved. Treat the estimates as counts/distances, not durations. Failed page reads produce seconds-like 0xffffffff and widened companion 65535; unsupported headers can produce zero pairs. The history contract below specifies local retries and current type-49 routing without a universal cross-version guarantee.
 
 
@@ -231,6 +242,12 @@ is a read-page position modulo ring capacity; the second reflects write-wrap sta
 The ordinary acknowledgement path uses the first word for its boundary operation,
 but this does not make the trailing bytes optional. Do not construct a replacement
 token from an independently saved cursor.
+
+The ordinary boundary operation maps the supplied first word into the ring
+geometry, handles boundary crossing and reduces the selected position modulo
+capacity before updating the acknowledged/trim boundary. When write-wrap state
+is zero, an ahead-of-write target is clamped to the write position. This does
+not change the requirement to echo the original END token unchanged.
 
 Special tokens are separate from ordinary chunk acknowledgements. With a first
 word of `0xffffffff`, the storage handler skips the normal boundary operation but

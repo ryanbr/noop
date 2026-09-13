@@ -21,7 +21,7 @@ These are hard constraints, not preferences. A PR is out of scope if it:
   boundary in [`docs/SCOPE.md`](docs/SCOPE.md) (including #1314's one-way self-hosted push);
 - adds analytics/telemetry/crash-reporting that phones home;
 - adds WHOOP firmware, decompiled app code, logos/assets, or any DRM circumvention. NOOP is
-  **clean-room interoperability** with hardware the user owns — keep it that way. (That bars
+  **independent interoperability** with hardware the user owns — keep it that way. (That bars
   *implementations* and literals, not every fact learned from one: a protocol offset may be
   re-derived with attribution as an unvalidated candidate — see the "facts vs code" bullet in
   [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) before telling a contributor no.)
@@ -190,15 +190,14 @@ Swift, you MUST build the app yourself: `xcodebuild … build` locally, or run `
 - **Migrations:** add a versioned migration + a test; never mutate an existing migration. Watch for
   data-loss traps (window-wide deletes, backfill rewrites) — prefer additive/transactional changes.
 - **Deriving a physiological signal from raw sensor data — validate against the artifact, not one
-  match:** the WHOOP optical/motion buffers are fixed-N-samples-per-record, so autocorrelation/spectral
+  match:** fixed-capacity WHOOP record buffers can include partial valid counts, so autocorrelation/spectral
   methods can manufacture a peak at the record period that *looks* physiological and coincidentally
   matches the WHOOP app on a stable night — that's why the PPG→HR estimate (#194) was withdrawn. A
   single "matched WHOOP" night is **not** validation. Prove the method **tracks a varying input**
   (different subjects, or nights where the true value moves; for synthetic tests, recover *multiple*
   injected values, not one). Until it does, land it as **instrumentation** (decode + store + log the
   estimate beside the incumbent) or behind a **default-off Experimental toggle** — never make it the
-  default or feed it a downstream gate (recovery, illness) on thin evidence. (WHOOP 4.0 motion is
-  separately too sparse to reliably stage sleep or tell in-bed from out-of-bed — see #345.)
+  default or feed it a downstream gate (recovery, illness) on thin evidence.
 
 ## iOS / Android specifics worth knowing
 

@@ -36,11 +36,7 @@ desktop. So the plan front-loads a hard, time-boxed BLE spike before committing.
 | **Swift-on-Windows** ❌ | Reuses the pure-Foundation Swift packages (`WhoopProtocol`, `StrandAnalytics`) — but **SwiftUI doesn't exist on Windows** (0% UI reuse), and worst of all **Swift-on-Windows cannot be built from a Mac** (needs the MSVC toolchain), with **no prior art for GATT-central over swift-winrt**. Highest risk, can't dev from Mac. |
 | **.NET 8 + Avalonia (C#)** 🟡 (fallback) | **Cleanest BLE** — native WinRT `Windows.Devices.Bluetooth` is the mature first-party path. Builds from Mac. **But it's a third codebase**: a full C# re-port of the protocol + analytics + a full Avalonia rebuild of all ~25 screens. Most work, no reuse. |
 
-The cross-cutting BLE study cleared the classic desktop dealbreaker: **WinRT GATT central can scan,
-connect, bond, subscribe and write to an *unpaired* WHOOP strap without first pairing it in Windows
-Settings.** That reliability lives natively in .NET (the fallback). The Compose-Desktop path reaches the
-same WinRT stack through **btleplug** (a maintained Rust BLE library with Windows support) via JNI — the
-same engine, one interop layer removed. That layer is the spike.
+The spike must validate the Windows BLE connection and security workflow on the target strap.
 
 ---
 

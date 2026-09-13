@@ -121,7 +121,7 @@ are very welcome.
 
 Prefer to build it yourself (which also grants HealthKit/widgets under your own Apple ID)? Run
 `xcodegen generate`, then build the **`NOOPiOS`** scheme in Xcode. The reconciliation that brought the
-[PR #42](../../../pull/42) port onto current `main` is summarised in **"Lessons from the fold-in"**
+[PR #42](https://github.com/ryanbr/noop/pull/42) port onto current `main` is summarised in **"Lessons from the fold-in"**
 below.
 
 > 🛠️ **Signing it under your own Apple ID** (thanks @gingerbeardman for the original recipe). Apple
@@ -230,7 +230,7 @@ charts, and palette render on iOS as-is.
 
 The macOS app target lives in [`Strand/`](../Strand/). It is the reference
 implementation; Android ships as a full app (`android/`), and the iOS app is an
-experimental, build-from-source community port ([PR #42](../../../pull/42)). The macOS app composes
+experimental, build-from-source community port ([PR #42](https://github.com/ryanbr/noop/pull/42)). The macOS app composes
 the packages like this:
 
 - `Strand/App/StrandApp.swift` — the `@main` SwiftUI `App`. Declares a `WindowGroup`
@@ -274,9 +274,9 @@ both fully supported on iOS.
 ## CoreBluetooth on iOS
 
 The BLE engine (`Strand/BLE/BLEManager.swift`) uses **CoreBluetooth**, which is the
-same framework on iOS and macOS. The strap interaction — scan by service → connect →
-discover → **bond** (one confirmed write) → subscribe → reassemble fragmented frames →
-route — is identical across platforms.
+same framework on iOS and macOS. Both clients discover the family-specific services, establish the required connection
+security, subscribe, and reassemble frames. A confirmed characteristic write is not
+independent proof of a persistent OS bond.
 
 The engine already discovers the WHOOP 4.0 custom service and characteristics, plus
 the standard Heart Rate (`180D` / `2A37`) and Battery (`180F` / `2A19`) services. The
@@ -299,7 +299,7 @@ public func centralManager(_ central: CBCentralManager,
     self.peripheral = p
     self.restoredPeripheral = p
     p.delegate = self
-    // Collection only runs post-bond, so a restored link was already bonded; seed flags.
+    // Seed the client readiness flags; these flags are not independent OS bond proof.
     state.bonded = true
     didBond = true
     …
@@ -469,7 +469,7 @@ This is the biggest *additive* opportunity on iOS.
 | Direction | iOS capability |
 |---|---|
 | **Read** | Query HealthKit live (`HKHealthStore`, `HKSampleQuery`, anchored/observer queries) for HR, RHR, HRV SDNN, SpO₂, wrist/body temperature, respiratory rate, sleep stages, workouts, body composition — the same types `relevantTypes` already enumerates in `AppleHealthImporter`. No manual export needed. |
-| **Write** | Write NOOP-computed values back into Apple Health: HR / HRV / SpO₂ / temperature samples decoded from the strap, sleep analysis from `StrandAnalytics.SleepStager`, and workouts from `WorkoutDetector` — so NOOP data shows up across the user's Health ecosystem. |
+| **Write** | Write NOOP-computed values back into Apple Health: supported HR and temperature samples, NOOP-derived HRV, and eligible imported values, sleep analysis from `StrandAnalytics.SleepStager`, and workouts from `WorkoutDetector` — so NOOP data shows up across the user's Health ecosystem. |
 | **Background delivery** | `HKObserverQuery` + `enableBackgroundDelivery` keep the on-device store current, while a best-effort `BGAppRefreshTaskRequest` periodically writes already-banked strap data back to Health. Fresh WHOOP offloads write immediately from their completion hook. iOS chooses the actual refresh time. |
 
 Because `AppleHealthImporter` already defines the canonical type set, units, and

@@ -14,7 +14,7 @@ NOOP's adoption path stands on documented Oura BLE behaviour. We reimplement; we
 - **Gen 3 vs Gen 4/5 use different transports.** Gen 3 exposes a Nordic-UART-style GATT pair for command/response framing; Gen 4 (and the same-family newer ring) moved to a revised characteristic set and a different bond/key requirement (per the open Oura-RE notes, e.g. the `oura-re` / `open_ring` PROTOCOL writeups: "Gen 3 = UART service, Gen 4 = new service UUID + per-ring key"). We DETECT the gen by which GATT services enumerate, never by trusting the name. FACT (protocol layout) per open Oura-RE PROTOCOL docs.
 - **The ring is owned by a 16-byte key installed at setup.** The official Oura app provisions this key during onboarding; the ring will only answer authenticated commands from the holder of that key (per open_ring PROTOCOL notes on the setup/auth handshake). FACT (auth model) per open_ring PROTOCOL docs.
 - **Factory reset returns the ring to an unprovisioned state** in which a new owner can install their own key (per the same RE setup notes: reset clears the installed key so the next setup claims it). This is the mechanism NOOP uses: the user resets in the Oura app, then NOOP installs ITS key and becomes the sole owner. FACT (reset semantics) per open_ring PROTOCOL docs.
-- **One-owner constraint.** The ring answers one key at a time, so once NOOP owns it the official Oura app can no longer drive it. This is the same single-link reality NOOP already warns about for WHOOP (`AddDeviceWizard.swift` `singleConnectionWarning`). FACT (single-owner) per open_ring PROTOCOL docs + mirrors WHOOP A6.
+- **One-owner constraint.** The ring answers one key at a time, so once NOOP owns it the official Oura app can no longer drive it. FACT (single-owner) per open_ring PROTOCOL docs.
 - **Available live/decoded metrics off an owned ring:** live heart rate, raw PPG/IR for HR + a derived HRV (rMSSD) under suitable conditions, motion (steps as a raw motion count), skin-temperature deviation, and battery, with sleep staging derived on-device from the offloaded overnight record. Higher-level "readiness" is Oura's own proprietary derived score and is NOT recovered; NOOP computes its own Charge instead. FACT set per open Oura-RE metric notes; absolute SpO2 % is NOT decoded.
 - **Export-file shapes** (the Advanced/import lane and the per-day rollups this screen reuses) are NOOP's own parser, `Packages/StrandImport/Sources/StrandImport/OuraExportParser.swift`: sleep periods (durations not a hypnogram), `daily_readiness` (RHR, `temperature_deviation`, reference score), `daily_sleep` (reference score), `daily_activity` (steps, calories). FACT confirmed in-repo.
 
@@ -192,7 +192,7 @@ Verdicts are honest and source-gated: ✓ = decoded and used; ~ = best-effort / 
 | Resting heart rate | ✓ | ✓ | ~ | From the overnight record. |
 | Sleep staging (hypnogram) | ✓ | ✓ | ~ | Staged on-device from the offloaded night, drawn with the shared `Hypnogram`. |
 | Skin-temperature trend | ~ | ~ | ~ | Deviation from your baseline (`+0.3 C vs normal`), `REL.`/`*`, never a clinical absolute. |
-| Steps / motion | ~ | ~ | ~ | Raw motion count, `*`, same honesty as WHOOP 5 steps. |
+| Steps / motion | ~ | ~ | ~ | Raw motion count, `*`. |
 | Battery | ✓ | ✓ | ~ | Surfaced on the card like any active device. |
 | Blood oxygen (SpO2 %) | dash | dash | dash | No absolute % is decoded off the ring. File import only. |
 | Oura Readiness / Sleep score | dash | dash | dash | Oura-proprietary. NOOP computes its own Charge instead. |
@@ -262,5 +262,5 @@ Built by copying `XiaomiBandView` (the established per-source template): `Screen
 
 - No em-dashes in any user-facing string above (uses commas, periods, parentheses).
 - Voice matches the existing honest, US-neutral wizard copy ("It will tell you plainly", "It never shows a number it did not measure"), no AI mention anywhere.
-- Mirrors NOOP's established honesty rules: estimates carry `*`, calibrating uses the countdown pattern (A4), skin temp is `REL.` (A5), the single-owner warning reuses the WHOOP A6 pattern. The destructive "this replaces Oura" gate is the new, Oura-specific honesty surface.
+- Mirrors NOOP's established honesty rules: estimates carry `*`, calibrating uses the countdown pattern (A4), skin temp is `REL.` (A5). The destructive "this replaces Oura" gate is the new, Oura-specific honesty surface.
 - The non-destructive file-import lane and the Advanced keep-your-key lane are both always one tap away, so the destructive takeover is never the only door.

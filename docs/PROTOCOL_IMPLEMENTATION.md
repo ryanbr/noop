@@ -146,7 +146,7 @@ The legacy WHOOP 4 `BATTERY_LEVEL` event decoder uses this layout (see the `even
 
 <a id="6-commandnumber-sending--the-safe-subset"></a>
 
-## CommandNumber (sending) — the safe subset
+## CommandNumber (sending) — client subset
 
 **Historical NOOP sender inventory.** The table below records client payload conventions, primarily WHOOP 4. It is not the WHOOP 5/MG command contract or a recommendation to send every listed operation. Use the [command reference](PROTOCOL_COMMANDS.md) for current meanings and the [alarm reference](PROTOCOL_ALARMS.md) for revisioned alarms.
 
@@ -385,9 +385,11 @@ measurement establish an entitlement or subscription gate.
 
  Beyond the oldest/newest timestamps NOOP already
 scans from a `GET_DATA_RANGE` reply, the app computes a ring-buffer page backlog from three u32s in the
-command-response inner payload (whose byte 0 is a subtype): write page `W = V(2)`, read pointer `U = V(3)`,
+command-response inner payload (whose byte 0 is a subtype): write page `W = V(2)`, acknowledged/trim boundary `D = V(3)`,
 ring capacity `T = V(5)`, where `V(i)` is the u32 at inner offset `i·4 + 1` (frame offsets `cmdOff + 10/14/22`
-here). Backlog with wraparound: `W < U ? W + (T − U) : W − U`. `DataRange.pagesBehind` (Swift + Kotlin twins,
+here). In the current WHOOP 5/MG [range layout](PROTOCOL_TRANSPORT.md#data-range--command-34),
+the read-page cursor is `V(1)`; `V(3)` measures the acknowledged boundary instead.
+Backlog with wraparound: `W < D ? W + (T − D) : W − D`. `DataRange.pagesBehind` (Swift + Kotlin twins,
 byte-parity, unit-tested for normal / wraparound / too-short / implausible) logs `Strap backlog pages behind:
 N` when it decodes plausibly — read u32 LE, guarded on frame length + a capacity sanity ceiling. **Never**
 gates sync or backfill: the layout is RE'd from the WHOOP app (facts, reimplemented in NOOP's own code, see
@@ -507,29 +509,11 @@ inherit a base layout and override only what changed. The streamed decode that f
 
 ## SpO₂ on 5.0 / MG — what the wire does and does not carry
 
-Recorded because "why is there no blood oxygen?" is a recurring question with a protocol answer.
-
-- **No dedicated SpO₂ read operation is identified in the [command reference](PROTOCOL_COMMANDS.md).** This does not establish a universal absence across firmware or devices.
-- **The historical candidate was observed during sleep.** This observation is narrower than a universal product-generation rule: `aux_byte_82` is
-  observed nonzero *only* while the band sleep flag reads asleep. Expect values in overnight windows,
-  never a continuous 24/7 series.
-- **The export is a per-cycle aggregate.** `blood_oxygen_pct` arrives on the physiological-cycles row —
-  our own importer reads it beside `recovery_score_pct` and `day_strain`, keyed on
-  `cycleStart`/`cycleEnd` (`WhoopExportImporter.swift:272`) — so it is one value per recovery cycle and
-  will not equal a plain mean of raw wire samples. Rounding, quality gates and incomplete nights all
-  move it.
-- **A night with no export value is a real gap**, not a NOOP bug — naps and incomplete nights are
-  reported to carry none. (Contributor observation from #807, not something this repo can verify from
-  the wire; recorded because "my SpO₂ is missing" reads as a decode failure otherwise.)
-
-- **Configuration names do not prove a product gate.** Enumeration identifies known keys, not every dependency or physiological meaning; see [configuration policy](PROTOCOL_CONFIGURATION.md).
-
-So the research target is finding the banked on-device sample in the historical type-47 record — not
-inventing a red/IR ratio or reversing a calibration curve. The v18 `@82` candidate and its split
-cross-device evidence are covered in
-[`WHOOP5_DEEP_DATA.md`](WHOOP5_DEEP_DATA.md); the full v18 field map lives in
-[`BLE_REVERSE_ENGINEERING.md`](BLE_REVERSE_ENGINEERING.md#the-whoop-50-type-47-record-version-18) and
-is deliberately **not** duplicated here — one table, one place to keep correct.
+No dedicated SpO₂ read operation is identified in the current command reference.
+R18 byte 82 has no established physiological meaning. NOOP imports
+`blood_oxygen_pct` as a per-cycle value; that importer does not establish the
+vendor's aggregation or calibration algorithm. See the
+[raw-record interpretation limits](PROTOCOL_SENSORS.md).
 
 <a id="11-file-map"></a>
 

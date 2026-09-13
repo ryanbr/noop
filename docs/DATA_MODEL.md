@@ -173,7 +173,7 @@ ASC LIMIT ?`.
 | `bpm` | INTEGER NOT NULL | Beats per minute. |
 | `synced` | INTEGER NOT NULL DEFAULT 0 | *(v5, vestigial)* |
 
-**Primary key:** `(deviceId, ts)`. HR is taken only from `REALTIME_DATA` (type 40) frames.
+**Primary key:** `(deviceId, ts)`. HR rows can come from the standard HR profile, custom live records or historical records; the producing decoder determines their timestamp and provenance.
 `latestHRSampleTs(deviceId:)` returns `MAX(ts)` here — the biometric "data frontier" used by the
 stuck-strap watchdog.
 
@@ -211,7 +211,7 @@ Two properties of `ord` a consumer has to know:
   No `COALESCE`, no sentinel. Room and GRDB agree here because both are SQLite.
 - **`ord` is batch-local.** A second split across two live flushes restarts `ord` at 0, and
   `ON CONFLICT DO NOTHING` keeps whichever row landed first, so that second also falls back to
-  magnitude order. The historical offload path delivers a second atomically and is unaffected.
+  magnitude order. This is a local batching property, not a guarantee that the strap delivers each second atomically.
 
 `ord` is a sort key only. The two platforms differ in whether they carry it back: Swift selects
 `ts, rrMs`, so `ord` is excluded, while `WhoopDao.rrIntervals` is `SELECT *` and Room materialises it
@@ -250,36 +250,36 @@ dedupe. Reads decode it back into `[String: ParsedValue]` with a shared, reused 
 These four mirror the original streams (per-row natural key `(deviceId, ts)`, `DO NOTHING`
 inserts, identical range-read shape).
 
-#### `spo2Sample` — pulse oximetry raw ADC
+#### `spo2Sample` — legacy optical values
 
 | Column | Type | Notes |
 | --- | --- | --- |
 | `deviceId` | TEXT NOT NULL | Part of PK. |
 | `ts` | INTEGER NOT NULL | Unix seconds. Part of PK. |
-| `red` | INTEGER NOT NULL | Red LED raw ADC. |
-| `ir` | INTEGER NOT NULL | IR LED raw ADC. |
+| `red` | INTEGER NOT NULL | Legacy decoder value labelled `red`. |
+| `ir` | INTEGER NOT NULL | Legacy decoder value labelled `ir`. |
 | `synced` | INTEGER NOT NULL DEFAULT 0 | *(v5, vestigial)* |
 
 **Primary key:** `(deviceId, ts)`.
 
-#### `skinTempSample` — skin temperature raw ADC
+#### `skinTempSample` — decoder temperature values
 
 | Column | Type | Notes |
 | --- | --- | --- |
 | `deviceId` | TEXT NOT NULL | Part of PK. |
 | `ts` | INTEGER NOT NULL | Unix seconds. Part of PK. |
-| `raw` | INTEGER NOT NULL | Raw ADC reading. |
+| `raw` | INTEGER NOT NULL | Decoded value; interpretation and scale depend on the source. |
 | `synced` | INTEGER NOT NULL DEFAULT 0 | *(v5, vestigial)* |
 
 **Primary key:** `(deviceId, ts)`.
 
-#### `respSample` — respiration raw ADC
+#### `respSample` — source-specific respiration values
 
 | Column | Type | Notes |
 | --- | --- | --- |
 | `deviceId` | TEXT NOT NULL | Part of PK. |
 | `ts` | INTEGER NOT NULL | Unix seconds. Part of PK. |
-| `raw` | INTEGER NOT NULL | Raw ADC reading. |
+| `raw` | INTEGER NOT NULL | Decoded value; interpretation and scale depend on the source. |
 | `synced` | INTEGER NOT NULL DEFAULT 0 | *(v5, vestigial)* |
 
 **Primary key:** `(deviceId, ts)`.
@@ -331,8 +331,7 @@ then zlib-compressed with a 4-byte uncompressed-length prefix.
 
 **Pruning policy** (`pruneRaw(now:keepWindowSeconds:maxUnsyncedBytes:)`): only batches with a
 non-null `syncedAt` older than `now - keepWindowSeconds` are deleted — safe because the decoded
-streams persist separately. Unsynced raw is **never** dropped (it is the sole copy of the strap's
-not-yet-decoded bytes after a chunk is trimmed). `maxUnsyncedBytes` is accepted for call-site
+streams persist separately. Unsynced raw is **never** dropped (acknowledged bytes may no longer be available from the strap). `maxUnsyncedBytes` is accepted for call-site
 compatibility but intentionally unused.
 
 ---

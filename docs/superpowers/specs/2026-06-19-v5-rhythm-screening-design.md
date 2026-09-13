@@ -22,11 +22,9 @@ behind FDA/CE clearance. Oura's "Symptom Radar" is illness-trend, not rhythm. So
 **WHOOP 4.0** — the most common strap in the wild — has **no path at all** to even a rough heads-up
 that their pulse looked irregular last night.
 
-NOOP already has, on **every** strap (4.0 and 5.0/MG), the one signal these features are ultimately
-built on top of: **beat-to-beat timing.** From the strap's own R-R intervals (and, on 5.0 stretches
-that only stream optical PPG, from the raw red/IR waveform NOOP already decodes), NOOP can compute the
-**irregularity statistics** that an irregular-rhythm screen is made of — entirely **on-device, offline,
-free, no subscription.**
+This proposal requires a usable R-R series. Record availability and sample quality must
+be checked for the connected device; an implemented decoder does not establish a
+continuous beat-timing feed.
 
 The differentiation is structural, not marketing:
 
@@ -53,7 +51,7 @@ care, and structurally prone to false positives (motion, ectopy, a wandering opt
 |---|---|---|
 | **R-R intervals** | `RRInterval(ts, rrMs)` — `Streams.rr`, from `REALTIME_DATA` (type 40) **and** the standard `0x2A37` HR characteristic (`StandardHeartRate.parse` returns `rr: [Int]`, 1/1024 s → ms). | The core input. **Crucially present on WHOOP 4.0** via 0x2A37. Stored in `rrInterval` table, read by `Reads.rrIntervals(deviceId:from:to:limit:)`. |
 | **Live R-R** | `LiveState.rrRecent` (bounded rolling buffer) + `setRRIntervals(_:)`. The `keepRealtimeForData` / `noopContinuousHrv` toggle (`PuffinExperiment.keepRealtimeForDataKey`) already keeps the realtime R-R feed armed for HRV. | Lets a *live* "check my rhythm now" spot-check reuse the same tap the breathing trainer uses. |
-| **Raw PPG (red/IR)** | `SpO2Sample(ts, red, ir, unit:"raw_adc")` — `Streams.spo2`, type-47 historical. | Motion-robust fusion input + an *independent* beat-timing source to cross-check R-R (see §3.4). |
+| **Legacy WHOOP 4 optical samples** | `SpO2Sample(ts, red, ir, unit:"raw_adc")` — `Streams.spo2`, type-47 historical. | Proposed fusion input; usable beat timing must first be validated (see §3.4). |
 | **PPG autocorrelation** | `PpgHr.estimate(...)` / `derivePpgHr(...)` — detrend, de-artifact comb, normalised-ACF peak + confidence. | Reuse the windowed-ACF machinery to extract beat instants from PPG for the fusion path. |
 | **Accelerometer** | `GravitySample(x,y,z,g)` — `Streams.gravity`. | Motion gate: irregularity during movement is **discarded**, not screened. The single biggest false-positive killer. |
 | **Ectopic rejection** | `HRVAnalyzer.rejectEctopic` (Malik 20% local-median), `rangeFilter` [300,2000] ms. | We **invert** part of this: HRV throws ectopics away; Rhythm *counts* them — but reuses the exact same range filter and the median helper. |
@@ -123,10 +121,10 @@ cleared screens require *persistence/burden*, and is the main lever we turn towa
 wolf."
 
 ### 3.4 PPG + accelerometer fusion (motion-robustness — the frontier path)
-On 5.0 stretches where R-R is sparse but raw red/IR PPG is dense, and as an **independent confirmation**
-channel on 4.0:
-- Extract **inter-beat intervals from PPG** via the existing `PpgHr` ACF/peak machinery (beat instants,
-  not just a rate), then run the **same §3.2 statistics** on the PPG-derived IBI series.
+This proposed path first needs a validated waveform, sample timing and channel interpretation
+for the selected device. The current record layouts alone do not establish these prerequisites:
+- Develop and validate **inter-beat interval extraction from PPG**; the existing `PpgHr`
+  estimator produces a rate, not a beat-instant series. Then run the **same §3.2 statistics** on the PPG-derived IBI series.
 - **Require agreement.** A flag is only raised if the R-R path *and* the PPG path agree (or, on a
   PPG-only window, if PPG irregularity persists AND the motion gate is firmly "still"). Disagreement →
   no flag (it's probably motion/contact noise).

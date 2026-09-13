@@ -70,5 +70,5 @@ reliable in real-world use.
 
 Scope changes are deliberate, not incidental. If you believe one of the out-of-scope areas should move,
 open an issue that names the constraint it touches and how it would be satisfied — don't open the PR
-first. A "WHOOP has it" argument, on its own, is not a reason: NOOP is a clean-room, offline, anonymous
+first. A "WHOOP has it" argument, on its own, is not a reason: NOOP is an independent, offline, anonymous
 tool, not a WHOOP clone.

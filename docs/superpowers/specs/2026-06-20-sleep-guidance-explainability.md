@@ -24,14 +24,14 @@ Plain English, no jargon, no em-dashes. Swift and Kotlin must say the *same word
    - `scored(value)` — today's own value exists.
    - `calibrating(nightsRemaining)` — baselines still cold-start (< the personal-baseline threshold of nights).
    - `carriedLastNight(date)` — prior scored day shown pre-tonight (the #543 carry-over).
-   - `needsStrap` — no data for the period (strap not worn / not connected / not synced).
+   - `needsStrap` — no available data for the period.
 
-3. **Recording-state model.** "Recording" / "Last synced Xm ago" / "Not recording (reason)" from the BLE connection state + last-sync timestamp.
+3. **Connection and sync state.** Show connection state and "Last synced Xm ago"; neither proves whether the strap is recording.
 
 ## Components
 
 1. **Why-this-is-your-main-sleep explainer** (Sleep tab). Tappable info on the hero and each nap row → the reason from the foundation + an Edit nudge: *"Main sleep because it was your longest block (7h 12m), near your usual bedtime. Your 45-min afternoon block is logged as a nap. Wrong? Tap Edit."* Directly answers #547 (pikapik).
-2. **Explained score states** (Today). Each score/tile renders its state instead of a bare blank: **Calibrating — N more nights**, **Last night · <date>**, **Needs the strap — was it worn + connected overnight?**, each with one line of what-to-do.
+2. **Explained score states** (Today). Each score/tile renders its state instead of a bare blank: **Calibrating — N more nights**, **Last night · <date>**, **No data for last night — sync your strap**, each with one line of what-to-do.
 3. **Recording status** (Today / Live). A clear, honest chip/banner so people know it's working, or know it isn't and why.
 4. **Provenance** (extends the By-Day badge already built). On-device / Whoop / Apple Health on every derived number, reflecting the REAL per-day merge winner.
 5. **"How NOOP works" primer** (new sheet, reachable from a "?"). Skimmable: how sleep classification works, how scores + calibration work, what recording means, what the provenance badges mean.

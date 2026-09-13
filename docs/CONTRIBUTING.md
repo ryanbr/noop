@@ -384,16 +384,17 @@ The app's outbound command set lives in `Strand/BLE/Commands.swift` as `WhoopCom
 /// This is intentionally a *subset*: DESTRUCTIVE commands that wipe data or brick the strap
 /// (firmware load/DFU, force-trim, ship-mode, power-cycle, fuel-gauge reset) stay deliberately
 /// EXCLUDED so the in-app command sender can never form those bytes. The ONE exception is
-/// `rebootStrap` (a plain, non-destructive restart), sent only from a user-initiated, confirmed action.
+/// `rebootStrap` (a restart request), sent only from a user-initiated, confirmed action.
+/// This allowlist does not prove complete storage persistence across restart.
 ```
 
-Every other command in the enum is **safe and reversible** — toggle realtime HR, read clock /
+The remaining allowlisted operations are the intended read/toggle and haptic interface — toggle realtime HR, read clock /
 battery / version / data range, run/stop a haptic pattern, arm/read/cancel the firmware alarm,
 enter/exit high-frequency sync, start/stop raw data. **Do not add firmware/DFU,
 ship-mode/power-cycle, force-trim, fuel-gauge reset, or any command that can brick, wipe, or
-permanently alter the device.** The lone reboot exception is deliberate and narrow: a restart keeps
-all stored data and NOOP already reboots the strap via rename — it is confirmation-gated and never
-sent automatically (#166). If you believe another non-trivial command is genuinely needed, open an
+permanently alter the device.** The lone reboot exception permits a restart request; it
+does not guarantee that every stored value survives. The historical rename flow also
+requested a restart. Follow the current command-specific safeguards. If you believe another non-trivial command is genuinely needed, open an
 issue first, justify why it's reversible, and document its payload and on-device verification before
 any code.
 
@@ -408,27 +409,24 @@ inbound frames are rejected if their checksum fails.
   (WHOOP 4 uses a CRC8 header; WHOOP 5 / the "goose" path uses a CRC16-Modbus header) — see
   `Packages/WhoopProtocol/Sources/WhoopProtocol/Framing.swift` (`verifyFrame`, `verifyFrame(_:family:)`).
 - **Inbound:** `FrameRouter.handle(frame:)` decodes with `parseFrame` and **rejects any frame whose
-  `crcOK == false`** before it can touch `LiveState`. Bad bytes never drive state. New inbound paths
+  `crcOK == false`** before it can touch `LiveState`. A checksum-valid frame still requires field validation. New inbound paths
   must do the same.
 
-Never short-circuit a CRC check "to make a capture work". If a real frame fails CRC, the bug is in
-the framing/decoding, not in the check.
+Never short-circuit a CRC check "to make a capture work". A CRC failure can indicate corruption, truncation, an unsupported layout or a decoder error.
 
 ### 3. Keep the BLE path stable
 
 The connect/bond/offload state machine in `Strand/BLE/BLEManager.swift` (plus `Strand/Collect/`) is
 load-bearing and was hardened against real failure modes that are documented in the comments
-(racing `SEND_HISTORICAL` ahead of the handshake, straps left parked in high-freq sync, a type-43
-realtime-raw flood that dominated flash). Treat it as stable infrastructure:
+(racing `SEND_HISTORICAL` ahead of the handshake and legacy mode-transition problems). Treat it as stable infrastructure:
 
 - **Don't reorder the connect handshake.** Offload is deliberately gated on
-  `connectHandshakeDone`; `SET_CLOCK` (cmd 10) must precede arming the firmware alarm so the strap
+  `connectHandshakeDone`; the family-specific `SET_CLOCK` must precede arming the firmware alarm so the strap
   RTC is UTC-correct.
 - **Don't `ENTER` high-frequency sync.** The app no longer enters it and sends `exitHighFreqSync`
-  defensively on connect to release straps parked there by older builds.
-- **Prefer `.withoutResponse` writes** (the `send(_:payload:writeType:)` default); use
-  `.withResponse` only where an ack is genuinely required (e.g. `historicalDataResult`), matching the
-  existing call sites.
+  defensively on connect as a mode-exit request; sending it does not prove completed mode cleanup.
+- **Preserve family- and operation-specific write types.** A GATT write response and an application
+  command response are different acknowledgements.
 - **Verify on real hardware.** Anything that changes what bytes go out, or when, must be tested
   against an actual strap and the result noted in the PR. The existing comments do exactly this
   (e.g. "Verified on-device: 2.1/s → 0/s, and it persists across reconnect").
@@ -502,7 +500,7 @@ Only after re-reading [The BLE safety contract](#the-ble-safety-contract-read-th
 3. **Add a payload builder if needed** (cf. `setAlarmPayload(epochSec:)`), keeping the byte layout
    documented.
 4. **Send it through the existing path** — `BLEManager.send(_:payload:writeType:)` — which frames the
-   command (correct CRC8 + CRC32) and writes to the command characteristic. Don't build raw writes
+   command with the selected family’s header CRC and body CRC32 and writes to the command characteristic. Don't build raw writes
    by hand.
 5. **Verify on a real strap** and record the result in the PR.
 
@@ -572,16 +570,13 @@ Schema lives in `Packages/WhoopStore/Sources/WhoopStore/Database.swift` as a **v
 - **Anonymous, project-voice.** Documentation and comments are written in a neutral, third-person
   project voice. Keep upstream credits (`my-whoop`, `goose`, `GRDB.swift`, `ZIPFoundation`) intact.
 - **No proprietary material.** Don't add WHOOP firmware, decompiled app code, logos, or assets, and
-  don't introduce DRM circumvention. Keep contributions to clean-room interoperability with hardware
+  don't introduce DRM circumvention. Keep contributions to independent interoperability with hardware
   the user owns.
 - **Facts vs code — the line that actually gets tested.** The rule above is about *code*: verbatim or
   transcribed implementations, string literals, and assets stay out however correct they are. A
   **protocol fact** — a byte offset, a field width, an enum value — is an observation about the wire,
   and this project's practice is that it may be reimplemented, *provided* it is attributed and lands as an **unvalidated candidate**: decoded and
-  logged, never backing a shipped metric, until independent captures clear it. `spo2_candidate_82`
-  (v18 byte `@82`) is the worked example — sourced from a decompile, attributed as such in
-  `Interpreter.swift`, gated by a test that stops it ever writing `spo2Pct`, and still a candidate
-  because the cross-device evidence is split. See [`ATTRIBUTION.md`](../ATTRIBUTION.md).
+  logged, never backing a shipped metric, until independent captures clear it. See [`ATTRIBUTION.md`](../ATTRIBUTION.md).
 
   This matters because third-party WHOOP projects are frequently decompile-derived. "It came from a
   decompile" doesn't by itself rule a finding out; **copying their implementation does**, and so does

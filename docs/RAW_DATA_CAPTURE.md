@@ -31,10 +31,12 @@ The writes use the authenticated WHOOP command characteristic and require a conn
 An accepted command is not evidence that samples arrived, so the collector reports connection state,
 request state, packet/byte counts, the last packet time, and history-sync progress separately.
 
-The decoded IMU buffer contains 100 signed 16-bit samples for each of `ax, ay, az, gx, gy, gz`, keyed
-by a strap Unix timestamp. Accelerometer scale is `1/4096 g/LSB`; gyroscope scale is
-`0.06104 deg/s/LSB`. See [BLE reverse engineering](BLE_REVERSE_ENGINEERING.md#4-the-realtime-r10r11-raw-stream-type-43)
-for the byte layout and validation evidence.
+The earlier NOOP decoder accepts 100 signed 16-bit samples for each of
+`ax, ay, az, gx, gy, gz`, keyed by a strap Unix timestamp, and applies
+`1/4096 g/LSB` and `0.06104 deg/s/LSB` as its historical scaling convention.
+The [WHOOP 5/MG R21 layout](PROTOCOL_SENSORS.md#r21-six-axis-imu) also permits
+partly populated buffers; its fixed layout does not independently prove physical
+scaling or timing for every configuration.
 
 ## Live capture and history repair
 
@@ -109,18 +111,7 @@ suggested archive name is `noop-5mg-raw-<session-id>.zip`.
 
 ## Scope and operational limits
 
-- Capture is deliberately bounded and explicit. One uncontrolled WHOOP 5/MG discharge trace provides
-  a useful order of magnitude, not a benchmark: a 5 h 47 min overnight capture consumed about
-  `0.71 percentage points/hour`, and two later 42–45 minute captures each consumed about
-  `0.57 percentage points/hour`. Nearby non-capture periods in the same discharge averaged about
-  `0.31 percentage points/hour`; a separate 5.6-day pre-capture baseline averaged about
-  `0.46 percentage points/hour`. These single-band observations suggest roughly 1.5–2.3× the normal
-  drain while 100 Hz is active, depending on the chosen baseline. They do **not** establish a general
-  runtime guarantee or isolate producer, BLE, and history-repair costs.
-- The current evidence does **not** establish flash-retention, thermal, or BLE-airtime costs for
-  continuous 24/7 100 Hz operation.
-- A one-hour workout/research capture succeeding does not establish that a 36-hour rolling recorder is
-  safe. Any future rolling buffer needs hardware measurements and an explicit retention policy.
+
 - The separately enabled protocol trace remains a general diagnostics tool. Starting a Raw Data
   Collector session does not enable it or duplicate its transport frames into the raw outbox.
 - Session capture has one source of truth for high-rate motion: its file-backed `.imus` segments.

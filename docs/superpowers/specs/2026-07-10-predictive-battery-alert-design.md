@@ -8,9 +8,7 @@ must carry the Kotlin `runtimeAlert` policy + tests to honor the parity contract
 
 ## Problem
 
-The existing low-battery alert (#368) fires at a fixed 15% state of charge. Runtime at 15% differs
-by strap generation — ~16 h on a WHOOP 4.0 but ~1.8 days on a 5.0/MG — so the warning's lead time is
-an accident of hardware. Meanwhile `BatteryEstimator` (#713) already produces a personalized
+The existing low-battery alert (#368) fires at a fixed 15% state of charge. A fixed percentage does not determine remaining runtime. Meanwhile `BatteryEstimator` (#713) already produces a personalized
 "~X left" runtime estimate from the strap's banked discharge history. The two are not connected.
 
 ## Behavior

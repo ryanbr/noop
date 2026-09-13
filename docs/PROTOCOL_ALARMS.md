@@ -37,11 +37,11 @@ SET's response body is `[4, validation detail]`. This detail is distinct from th
 
 Validation failures return outer failure. Detail 1 can accompany outer success **or failure**, because saving the record can still fail. The alarm-set event 56 is not an independent proof that storage succeeded.
 
-Alarm records use nonvolatile storage, but writes are not established as atomic and survival of a particular power interruption has not been validated. GET reloads storage, yet failed reads can substitute zeros while GET still reports success. An all-zero time can therefore mean cleared/unset state or a storage-read fallback. Do not treat it as a separate storage-health result. Invalid-ID/revision failure bodies are not usable alarm records.
+SET saves the pattern portion before the time portion. A pattern-write failure prevents the time write; a time-write failure can leave the new pattern with the previous schedule. Alarm records use nonvolatile storage, but writes are not established as atomic and survival of a particular power interruption has not been validated. GET reloads storage, yet failed reads can substitute zeros while GET still reports success. An all-zero time can therefore mean cleared/unset state or a storage-read fallback. Do not treat it as a separate storage-health result. Invalid-ID/revision failure bodies are not usable alarm records.
 
 ### Disable, due processing and manual run
 
-DISABLE uses `[2, ID]` for one alarm or `[2,255]` for all six. Its outer result reflects storage success/failure, and its body carries revision 2. Disabling clears the saved record; it does not substitute for stopping an already active haptic effect.
+DISABLE uses `[2, ID]` for one alarm or `[2,255]` for all six. Its outer result reflects storage success/failure, and its body carries revision 2. All-ID disable attempts every slot even after an individual write fails, retaining a failure result if any write fails. Failure can therefore follow partial clearing; read back individual slots when their state matters. Disabling clears the saved record; it does not substitute for stopping an already active haptic effect.
 
 Due processing compares the alarm's whole seconds with the strap clock. Fractional ticks are retained but do not make this due check subsecond-precise. The scan cadence is nominally about half a second; exact intervals and worst-case latency remain unresolved. A due alarm is copied into active state and its stored record is cleared before haptic completion: it is a **one-shot schedule**, not a daily recurrence. Repeat count controls waveform repetition. Storage-clear failure remains separate. Simultaneous due slots share one execution context: the highest due ID in the ascending scan replaces the shared fields; independent simultaneous playback is not guaranteed.
 
@@ -91,6 +91,10 @@ reaching the scanning state. Reboot survival and wake latency require separate
 validation. No automatic ECG or sensor-request cleanup on disconnect is promised.
 
 Command 122 takes revision 1 alone. Initial pending and final success/failure all carry the one-byte body `[1]`; unsupported revision also fails with `[1]`. The final result is operation-specific and must not be inferred from the start response detail. Command 19 takes 12 bytes and returns revision plus detail; its final success uses detail 5, as does manual RUN.
+
+NOOP’s single-notification command-19 body is `01 2F 98 00 00 00 00 00 00 00 00 00`:
+revision 1, effects `[47,152,0,0,0,0,0,0]`, zero effect-loop control and zero repeats.
+
 
 The nominal half-second scan scale comes from five received timer ticks followed
 by event dispatch. Interrupt handling restarts the timer, so this is not an exact

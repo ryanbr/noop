@@ -31,9 +31,8 @@ nothing wrong with your data.
 
 ## Why is my HRV different from the WHOOP app's?
 
-HRV is computed from the R-R (beat-to-beat) intervals your strap banks overnight, and small
-differences in which beats are accepted move the number. A large difference — roughly double — is
-worth reporting, because it usually means the R-R stream is over-covered.
+NOOP computes HRV from available R-R intervals. Differences in coverage, ordering and
+filtering can change the result; a large mismatch is worth reporting with its diagnostics.
 
 Your strap log carries the diagnostic:
 
@@ -72,8 +71,9 @@ switchable off in Settings → About, and the full detail is in
 
 ## Which numbers are measured, and which are NOOP's own estimates?
 
-Measured from the strap: heart rate, R-R intervals, resting HR, skin temperature, respiratory rate,
-sleep duration and stages.
+The strap supplies fields such as heart rate and R-R intervals; available layouts depend on
+the device family. Resting HR, sleep duration and stages may be derived by NOOP or imported,
+rather than read directly as strap measurements.
 
 NOOP's own on-device scores, not clinical measures: Charge (recovery), Effort (strain), Rest (sleep
 performance), Stress, Fitness Age and Vitality. [docs/ANALYTICS.md](ANALYTICS.md) documents the

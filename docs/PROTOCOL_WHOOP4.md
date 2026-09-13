@@ -55,9 +55,9 @@ if 7 <= length && length + 4 <= frame.count {
 
 ## Bond handshake & connect lifecycle (WHOOP 4.0)
 
-This section records NOOP’s WHOOP 4 connection sequence and its observations. The delays and periodic timers are client policy, not required protocol timing. The custom channels are used after bonding. CoreBluetooth performs *just-works*
-bonding the moment a confirmed (`.withResponse`) write succeeds, so NOOP bonds by sending one
-benign command and waiting for the write acknowledgement.
+This section records NOOP’s WHOOP 4 connection sequence and its observations. The delays and periodic timers are client policy, not required protocol timing. NOOP marks its WHOOP 4 connection as bonded after the confirmed command write is
+acknowledged, then runs its connection handshake. This describes client connection
+handling; a write acknowledgement is not independent proof of a persistent OS bond.
 
 ```
 scan(service 61080001) ─▶ connect ─▶ discoverServices
@@ -77,11 +77,14 @@ refusing to stream type-47, so the guard is load-bearing. The one-shot handshake
 1. `GET_HELLO_HARVARD` (35) — version/identity hello (mirrors the official flow; not strictly
    required to serve).
 2. `GET_ADVERTISING_NAME_HARVARD` (76).
-3. `SET_CLOCK` (10) — set the strap RTC to UTC; payload is the **8-byte** form
-   `[seconds u32 LE][subseconds u32 LE]` (`BLEManager.setClockPayload()`). A wrong-length
-   `SET_CLOCK` is ack'd but not latched, leaving the RTC "lost" so the strap won't serve type-47.
-4. `GET_CLOCK` (11) with an **empty** payload (the strap ignores a wrong-length payload). The
-   response establishes the device↔wall `ClockRef` correlation used for realtime decode.
+3. `SET_CLOCK` (10) — the client sends both retained variants with the same Unix
+   seconds: four seconds bytes followed by four zeros, then four seconds bytes
+   followed by five zeros. These are WHOOP 4 compatibility attempts.
+4. `GET_CLOCK` (11) — the client tries both an empty body and `00`. Which form
+   responds or updates the clock depends on the supported WHOOP 4 firmware.
+   Earlier investigations reported unsuitable bodies leaving the clock unchanged,
+   including cases with an acknowledgement. Read back the clock: ACK alone does
+   not prove it latched, and silent history does not uniquely identify a clock problem.
 5. `SEND_R10_R11_REALTIME` (63) with `[0x00]` — stop the ~2/s type-43 raw flood (BLE airtime /
    battery / flash). This is the *real* control for that stream; `STOP_RAW_DATA` (82) does not
    affect it.
@@ -91,7 +94,8 @@ refusing to stream type-47, so the guard is load-bearing. The one-shot handshake
 A periodic backfill timer (`backfillIntervalSeconds = 900`, i.e. 15 min, matching WHOOP) and a
 keep-alive timer (`keepAliveIntervalSeconds = 30`: re-arm realtime, poll battery, watchdog the
 link) are then started. The `GET_CLOCK` response is decoded by `ClockCorrelation` to produce a
-`ClockRef(device:wall:)`; this unblocks both the live `Collector` and the `Backfiller`.
+`ClockRef(device:wall:)` for realtime decoding. Backfill can also proceed with
+the client's identity-clock fallback when correlation is unavailable.
 
 > WHOOP 5.0 instead writes the static `CLIENT_HELLO` [frame](PROTOCOL_WHOOP5.md#connection-and-frame-format) to its `…0002` command
 > characteristic immediately after discovery.
@@ -142,4 +146,13 @@ serial on first read.
 
 ## Commands and records
 
-The [historical sender inventory](PROTOCOL_IMPLEMENTATION.md#6-commandnumber-sending--the-safe-subset) records WHOOP 4 payload conventions. It is not equivalent to the WHOOP 5/MG catalog. WHOOP 4 battery replies use the legacy `u16le / 10` percent convention. Historical layouts are selected by their version in NOOP’s schema; the v24 optical/respiration fields must not be mapped onto WHOOP 5 records by adding four to offsets. See [decoder notes](PROTOCOL_IMPLEMENTATION.md#8-decoded-output-parsedframe) and the [historical measurement discussion](WHOOP5_DEEP_DATA.md#why-spo₂-and-the-raw-respiration-track-arent-available-on-50).
+The [historical sender inventory](PROTOCOL_IMPLEMENTATION.md#6-commandnumber-sending--the-safe-subset) records WHOOP 4 payload conventions. It is not equivalent to the WHOOP 5/MG catalog. WHOOP 4 battery replies use the legacy `u16le / 10` percent convention. Historical layouts are selected by their version in NOOP’s schema; the v24 optical/respiration fields must not be mapped onto WHOOP 5 records by adding four to offsets. See [decoder notes](PROTOCOL_IMPLEMENTATION.md#8-decoded-output-parsedframe) and the [historical measurement discussion](WHOOP5_DEEP_DATA.md#spo₂-and-respiration-interpretation-limits).
+
+## Legacy IMU client-schema layout
+
+NOOP's WHOOP 4 schema selects an IMU variant by declared length 1,917, with 100 signed `i16le`
+values per axis. Absolute frame offsets are 89/289/489 for acceleration X/Y/Z
+and 692/892/1092 for gyro X/Y/Z. The client applies acceleration scale `1/4096`
+and gyro scale `2000/32768`; these are legacy decoder conventions and do not
+establish WHOOP 5/MG scaling. See the
+[bundled schema](../Packages/WhoopProtocol/Sources/WhoopProtocol/Resources/whoop_protocol.json).
