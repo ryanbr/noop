@@ -37,7 +37,41 @@ jobs:
           echo "ver=$VER" >> "$GITHUB_OUTPUT"
           # ROLLING release: recreate the single tag so stale (incl. old-version) assets never linger —
           # one stable URL, always the newest build, zero cleanup. (To KEEP a build, cut a one-off tag.)
-          gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes || true
+          #
+          # The delete USED to end in `|| true`, which could not tell "the tag is not there yet",
+          # which is the normal first-run case and fine, from "the delete failed", which makes the
+          # create below certain to fail (#2174). Build 499 hit a 500 from GitHub here, the create
+          # then stopped on "Release.tag_name already exists", and since meta gates all four build
+          # legs a blip in a metadata step threw away the Android, iOS and macOS builds behind it.
+          # The message a reader got described the symptom and pointed away from the cause.
+          delete_rolling_release() {
+            local out status attempt
+            for attempt in 1 2 3; do
+              out=$(gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes 2>&1) && status=0 || status=$?
+              [ "$status" -eq 0 ] && return 0
+              # Nothing there to delete is success, not failure: first build, or an earlier run that
+              # got as far as deleting. Anything else is worth another go, GitHub 5xx being transient.
+              case "$(printf '%s' "$out" | tr '[:upper:]' '[:lower:]')" in
+                *"not found"*|*404*) return 0 ;;
+              esac
+              echo "release delete attempt ${attempt} of 3 did not succeed: ${out}"
+              sleep $((attempt * 5))
+            done
+            return 1
+          }
+          delete_rolling_release || {
+            echo "::error::Could not delete $TAG after 3 attempts. Not creating over it, because that fails with a message about the tag existing rather than about this."
+            exit 1
+          }
+          # Assert rather than assume. A delete that reports success but leaves the release standing
+          # would otherwise be read by the create as a name clash, which is the confusion above.
+          # Known limit: a 5xx on this view reads the same as a clean 404, so a blip here lands back
+          # on the create's own error. That is where we were before, not somewhere worse, and failing
+          # the build on an inconclusive view would stop builds whose release really had gone.
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::$TAG still exists after a delete that reported success. Refusing to create over it."
+            exit 1
+          fi
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --prerelease --target "${{ github.sha }}" \
             --title "NOOP Staging — base ${VER} · ${DATE} · ${SHA}" \
             --notes "Rolling **latest** testing build — refreshed in place, so this tag is always the newest. NOOP main + ryanbr's open PRs + vetted community PRs, built with the **NOOP Staging** identity (installs **beside** the official app, separate data). Filenames carry the base app version (\`v${VER}\`).
