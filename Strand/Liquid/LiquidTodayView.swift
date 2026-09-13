@@ -945,7 +945,11 @@ struct LiquidTodayView: View {
                      value: stressText, tint: StrandPalette.accent, frac: fracOver(stress, 3))
         case .fitnessAge:
             cardLink(.metric("fitness_age"), title: card.title, sub: card.subtitle,
-                     value: unitText(fitnessAge, card.unit), tint: StrandPalette.chargeColor, frac: 0.5)
+                     // Bound symbol as on the Health hero (#2173), so a floored reading does not read
+                     // exact here and bounded there.
+                     value: fitnessAge.map { "\(fitnessAgeBoundSymbol($0))" + unitText($0, card.unit) }
+                         ?? unitText(fitnessAge, card.unit),
+                     tint: StrandPalette.chargeColor, frac: 0.5)
         case .vo2max:
             cardLink(.metric("vo2max_est"), title: card.title, sub: card.subtitle,
                      value: unitText(vo2max, card.unit), tint: StrandPalette.chargeColor, frac: 0.5)

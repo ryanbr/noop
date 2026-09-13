@@ -780,7 +780,19 @@ private struct FitnessAgeSection: View {
 
     /// The younger/older-than-your-age subtitle as whole-phrase variants per count and direction, so
     /// translators see complete sentences (never a stitched plural or direction fragment).
-    private func ageDeltaLine(years: Int, younger: Bool) -> String {
+    private func ageDeltaLine(years: Int, younger: Bool, bound: String = "") -> String {
+        // A bounded reading can only be stated as a direction, never as a distance: the true age is at
+        // or beyond the bound, so a plain "N years younger" would present a floor as a measurement.
+        // "At least N" is the same number said truthfully, and where there is no safe distance to give
+        // (a chronological age at or inside the bound) the line states the bound on its own.
+        if bound == "≤" {
+            if younger && years > 0 { return String(localized: "At least \(years) years younger than your age") }
+            return String(localized: "\(Int(FitnessAgeEngine.minAge)) or younger")
+        }
+        if bound == "≥" {
+            if !younger && years > 0 { return String(localized: "At least \(years) years older than your age") }
+            return String(localized: "\(Int(FitnessAgeEngine.maxAge)) or older")
+        }
         if years == 0 { return String(localized: "About the same as your age") }
         switch (younger, years == 1) {
         case (true, true):   return String(localized: "1 year younger than your age")
@@ -818,6 +830,7 @@ private struct FitnessAgeSection: View {
 
     private func heroCard(age: Double) -> some View {
         let shown = Int(age.rounded())
+        let bound = fitnessAgeBoundSymbol(age)
         let delta = Double(profile.age) - age        // +ve = fitness age younger than chronological
         let years = Int(abs(delta).rounded())
         let younger = delta >= 0
@@ -833,14 +846,14 @@ private struct FitnessAgeSection: View {
                         LiquidVessel(value: fitnessAgeFraction(age), tint: StrandPalette.chargeColor,
                                      animated: true, tapPassesThrough: true)
                             .frame(width: 96, height: 96)
-                        CountUpNumber(value: Double(shown), font: StrandFont.rounded(30))
+                        CountUpNumber(value: Double(shown), font: StrandFont.rounded(30), prefix: bound)
                             .foregroundStyle(.white)
                             .shadow(color: .black.opacity(0.5), radius: 6, y: 1)
                             .allowsHitTesting(false)
                     }
                     VStack(alignment: .leading, spacing: NoopMetrics.space1) {
                         Text("Fitness Age").strandOverline()
-                        Text(ageDeltaLine(years: years, younger: younger))
+                        Text(ageDeltaLine(years: years, younger: younger, bound: bound))
                             .font(StrandFont.subhead)
                             .foregroundStyle(younger ? StrandPalette.statusPositive : StrandPalette.statusWarning)
                     }
@@ -868,7 +881,8 @@ private struct FitnessAgeSection: View {
             }
             .buttonStyle(LiquidPressStyle())
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Fitness Age \(shown), \(ageDeltaLine(years: years, younger: younger)). Tap to see the trend.")
+            // The spoken label carries the bound too, so a screen reader is not told a floored reading is exact.
+            .accessibilityLabel("Fitness Age \(bound)\(shown), \(ageDeltaLine(years: years, younger: younger, bound: bound)). Tap to see the trend.")
 
             Text("± \(Int(FitnessAgeEngine.displayBandYears)) yr · a fitness comparison, not a biological age")
                 .font(StrandFont.footnote)
@@ -1569,3 +1583,21 @@ struct VitalityDemoScreen: View {
     }
 }
 #endif
+
+/// The symbol a stored Fitness Age needs when it is sitting on a reporting bound (#2173).
+///
+/// `FitnessAgeEngine` clamps to [minAge, maxAge], so every model output below 20 is stored as
+/// exactly 20.0 and every output above 80 as exactly 80.0. A reader cannot tell either from a
+/// genuine 20 or 80, and the number looks as exact as every other number on the screen, which is
+/// what makes a floored reading read like a sync or scoring fault rather than the end of the scale.
+///
+/// Decided from the value rather than carried out of the engine, matching the Kotlin twin. The
+/// clamp returns the bound constant itself, so equality is exact and needs no tolerance, and
+/// deciding here covers the weekly rows already banked, which no flag added today could reach.
+/// A reading that is genuinely 20.0 is therefore also called "20 or younger", which is true of it.
+/// Saying "<20" would need the unclamped value, and that is gone before anything is stored.
+func fitnessAgeBoundSymbol(_ value: Double) -> String {
+    if value <= FitnessAgeEngine.minAge { return "≤" }
+    if value >= FitnessAgeEngine.maxAge { return "≥" }
+    return ""
+}
