@@ -187,8 +187,13 @@ class StalledLinkDiagnosticsTest {
     }
 
     /**
-     * When the probe has retired (latched refusal or spent silence budget), the hint says so and
-     * points at the off/on retry — #1804 fixed a false negative that could have latched it.
+     * When the probe has retired (latched refusal or spent silence budget), the hint says so and names
+     * the ONE action that exists: turning the switch on.
+     *
+     * Reaching that branch proves the switch is off, because the opted-in case short-circuits to an
+     * empty hint, so the old "turn it off and on" was advice only an opted-IN reader could follow and
+     * no reader of this sentence ever is. A field log showed the probe skipped for "the experiment is
+     * off" on the same link this line called retired.
      */
     @Test
     fun `the probe hint names the retry path when retired`() {
@@ -197,7 +202,8 @@ class StalledLinkDiagnosticsTest {
             unbondedProbeOptedIn = false, unbondedProbeRetired = true,
         )
         assertTrue(line, line.contains("retired"))
-        assertTrue(line, line.contains("turn it off and on"))
+        assertTrue(line, line.contains("turning it ON"))
+        assertFalse(line, line.contains("turn it off and on"))
         assertTrue(line, line.contains("#1804"))
     }
 

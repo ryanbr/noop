@@ -9463,6 +9463,7 @@ class WhoopBleClient(
                         probeRetired = unbondedProbeRetired(
                             previouslyRefused = unbondedOffloadPreviouslyRefused(g.device.address),
                             silentLinksSoFar = unbondedProbeSilentLinks,
+                            inconclusiveLinksSoFar = unbondedProbeInconclusiveLinks,
                         ),
                     )
                 ) {
@@ -10018,6 +10019,7 @@ class WhoopBleClient(
                 unbondedProbeRetired = unbondedProbeRetired(
                     previouslyRefused = unbondedOffloadPreviouslyRefused(lastDeviceAddress),
                     silentLinksSoFar = unbondedProbeSilentLinks,
+                    inconclusiveLinksSoFar = unbondedProbeInconclusiveLinks,
                 ),
             ))
             return
