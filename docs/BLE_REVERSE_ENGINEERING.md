@@ -640,16 +640,6 @@ consistently across the whole session:
 | `0x1a` GET_BATTERY_LEVEL | 0 | silent |
 | `0x23` GET_HELLO_HARVARD | 0 | silent |
 
-Consequences worth carrying forward:
-
-- **Battery is unreachable on this firmware.** Command 26 silent, command 98 answering `FAILURE`, no
-  `BATTERY_LEVEL(3)` events in 40 minutes, no `EXTENDED_BATTERY_INFORMATION(63)` events either, and the
-  standard `0x2A19` characteristic a constant-100 stub. All four sources are dead, so there is no
-  client-side path to the percent — not a decode bug to find.
-- **`0x62` answers while `0x1a` does not**, which is odd enough to be a lead: the extended-battery opcode is
-  reachable but fails, so it may want a sub-command or page selector in its request payload rather than the
-  `[0x00]` the probe sends.
-
 
 ---
 
