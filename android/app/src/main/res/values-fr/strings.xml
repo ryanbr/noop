@@ -2769,4 +2769,5 @@
     <string name="coach_consent_on">Activé : votre charge, repos, VFC et entraînements sont envoyés au fournisseur, chaque entraînement avec son sport, sa durée, sa distance et sa fréquence cardiaque.</string>
     <string name="coach_consent_off">Désactivé : le coach répond de façon générale et n\'envoie aucune de vos données.</string>
     <string name="l10n_app_changelog_a_today_screen_you_arrange_yourself_6194ccd0">Un écran Aujourd\'hui que vous composez vous-même, le stress sur l\'écran d\'accueil, et des sauvegardes qui se vérifient elles-mêmes</string>
+    <string name="l10n_stress_screen_scored_through_1_s_later_hours_fbb7d6c7">Évalué jusqu\'à %1$s. Les heures suivantes nécessitent plus de mesures de fréquence cardiaque.</string>
 </resources>

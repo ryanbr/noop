@@ -104,6 +104,7 @@ import androidx.compose.ui.zIndex
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.withFrameNanos
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -143,7 +144,10 @@ import android.app.DatePickerDialog
 import android.content.Context
 import android.view.HapticFeedbackConstants
 import android.widget.Toast
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import com.noop.R
 import com.noop.ai.AiKeyStore
 import com.noop.analytics.Baselines
@@ -3646,11 +3650,35 @@ private fun HostedCardsSection(
     // card and the widget can never show different curves.
     val needsStressCurve = cards.contains(HostedCard.STRESS_TODAY)
     var stressCurve by remember { mutableStateOf<List<StressPoint>>(emptyList()) }
-    LaunchedEffect(needsStressCurve, days, viewModel.activeStrapId) {
-        stressCurve = if (needsStressCurve) {
-            StressWidgetProducer.todayCurve(viewModel.repo, viewModel.activeStrapId)?.points ?: emptyList()
-        } else {
-            emptyList()
+    // #2144: this used to score ONCE, when these keys last moved, and none of them tracks incoming
+    // heart rate — `days` is the daily rows, not the intraday samples the curve is built from. So a
+    // card left open held whatever it scored then, while the Stress screen scores when you open it,
+    // and the two drifted apart by however long sat between the two triggers. A reporter saw 1pm here
+    // against 2pm there at twenty past four. Same producer and same scoring on both sides; the whole
+    // difference was when each last asked, so this asks again on the cadence the widget already uses.
+    val stressLifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(needsStressCurve, days, viewModel.activeStrapId, stressLifecycleOwner) {
+        if (!needsStressCurve) {
+            stressCurve = emptyList()
+            return@LaunchedEffect
+        }
+        // Gated on STARTED, the same reason HealthScreen's live-HR tick is: a LaunchedEffect is tied to
+        // the composition and not to the lifecycle, so an ungated loop here would go on scoring a day of
+        // heart-rate rows every fifteen minutes for as long as the composition survived in the
+        // background. The service is already doing that work on this exact cadence while backgrounded,
+        // which is the point of it, so the card doing it too would be a second pass that nothing is on
+        // screen to read. Resuming re-enters the block and scores immediately, so coming back to the app
+        // shows a current curve rather than waiting out an interval.
+        stressLifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                // A null is "nothing to say about stress right now" (no device to read), which the
+                // producer documents as keep-what-you-had rather than "today scored nothing". Holding
+                // the last curve matters more here than for a single pass: blanking the card on one bad
+                // tick would be a visible flicker on a screen that is sitting open.
+                StressWidgetProducer.todayCurve(viewModel.repo, viewModel.activeStrapId)
+                    ?.let { stressCurve = it.points }
+                delay(StressWidgetProducer.RESCORE_INTERVAL_MS)
+            }
         }
     }
     // Turning the card's own destination into the callback that reaches it. The mapping itself lives

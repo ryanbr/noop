@@ -51,6 +51,22 @@ internal object StressWidgetProducer {
     const val RESCORE_RETRY_MS: Long = 60L * 1000L
 
     /**
+     * How often a live surface should ask for today's curve again.
+     *
+     * Lives here rather than in one caller because more than one surface has to keep step: the
+     * connection service scores on it for the widget, and the Today card now refreshes on it too
+     * (#2144). Before that the card scored once, when its LaunchedEffect keys last moved, and none
+     * of those keys track incoming heart rate, so a card left open drifted hours behind the Stress
+     * screen, which scores when you open it. Two surfaces, one producer, and the only difference
+     * between them was when each last asked.
+     *
+     * Matched to the data rather than to the stream: the curve resolves to half-hours, so asking
+     * more often than this buys nothing and costs a day of heart-rate rows every time, the memo
+     * being no help while a strap is streaming into the window it fingerprints.
+     */
+    const val RESCORE_INTERVAL_MS: Long = 15L * 60L * 1000L
+
+    /**
      * The stamp to keep after an attempt, given what that attempt actually produced (#2120).
      *
      * The caller stamps BEFORE it reads, deliberately: stamping inside the placement branch would leave
