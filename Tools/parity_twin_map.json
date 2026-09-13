@@ -19,7 +19,7 @@
   },
   "authority": {
     "files": {"count": 487, "sha256": "a90bd1677a35dae57901a6e193e4ec9b5648a004d6bcce796cb56dccc2648e66"},
-    "functions": {"count": 4313, "sha256": "e35c875ef21cca1d13329f404ec749a6dcf2ac9678f9b1e92ca4ed3792cd47e4"},
+    "functions": {"count": 4315, "sha256": "d2bf60097e1a84455b3ab07fcc707973829d3be465adf26686188f8e464ab2cf"},
     "properties": {"count": 448, "sha256": "e90524140aa597cab434483743950f0b78110140d1e2b1dd9ed7d72e8d25fddf"},
     "constants": {"count": 1890, "sha256": "d918e6c0739ae1d2df2f74bfdbd36f6e7f26c434ea4dc09a1afe4eb75c8f8d11"},
     "file_pairs": {"count": 61, "sha256": "ed77a9b1fadece7a30b27b37cb1826a2e95ac1b5e81419fa5364ae6dffc22bf3"},
@@ -27,7 +27,7 @@
     "property_pairs": {"count": 147, "sha256": "781073f4b7af31db4400da247eb16910c2c8adbbb4ab5f9169b852566ed3dbc8"},
     "constant_pairs": {"count": 665, "sha256": "080c97b062e80cb7d1f526bfb50b367cbbf6b0cadf43e2c5ec3f2ad046fe09cb"},
     "unpaired_files": {"count": 383, "sha256": "af7ea6779645ef49bedf7c8db1b67b95e493daa96215fd0bcfb86c7db78618f4"},
-    "unpaired_functions": {"count": 4015, "sha256": "81e492be777785417f51417a8c9ced94a8e1006d60e1b91fcb2fbe7ef5b86801"},
+    "unpaired_functions": {"count": 4017, "sha256": "f27d4ce4d5033c98ee900c0eb60399507354320b0edd2a35fdfba96f458db5f4"},
     "unpaired_properties": {"count": 154, "sha256": "e38ff018589491eedd40569390492f97f5d9dd2a12acd8a2880a34d1d58c73e8"},
     "unpaired_constants": {"count": 560, "sha256": "7edadfead59eb823725ed319636e573e73f623e4e4ce39ac85144d2b3531f787"}
   }
