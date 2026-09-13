@@ -41,6 +41,8 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Air
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.BluetoothSearching
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -53,7 +55,6 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.MonitorWeight
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.TrackChanges
@@ -134,6 +135,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -349,7 +351,37 @@ fun TodayScreen(
     // #2169: the ONE gate every scan entry point goes through. `connect()` called directly silently
     // does nothing on Android 12+ when the Bluetooth permission was denied or revoked (#1), so Today's
     // two new affordances use the same wrapper Settings' Re-scan and Live's Connect already use.
-    val requestScan = rememberRequestScan { viewModel.connect() }
+    var scanTapAt by remember { mutableStateOf(0L) }
+    // Armed from INSIDE the granted callback, not from the tap. `rememberRequestScan` runs this either
+    // straight away, when the permission is already held, or after the system dialog closes; timing the
+    // reply from the tap instead would start a clock while that dialog was still open and then answer a
+    // press that was proceeding perfectly well, with whatever stale note happened to be lying around.
+    // A permanently denied permission still lands here, the launcher's callback firing either way, so
+    // the case most worth explaining is the one this keeps.
+    val requestScan = rememberRequestScan {
+        scanTapAt = System.currentTimeMillis()
+        viewModel.connect()
+    }
+    // #2169: Today can start a connect but had nowhere to report one that never starts. Every early
+    // exit from a user-initiated connect writes an explanatory note and leaves `scanning` false, so
+    // "Bluetooth is off. Turn it on, then tap Connect." and the Nearby-devices permission line were
+    // being set and thrown away: Live and Onboarding render `statusNote`, Today does not. A tap that
+    // cannot proceed therefore changed nothing on screen at all, which reads as a dead control.
+    //
+    // Shown only after a tap from HERE, and only when the tap did not get as far as scanning, so this
+    // stays a reply to a press rather than Today quietly becoming a connection-status surface, which
+    // is a larger question (#2179).
+    var scanHint by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(scanTapAt) {
+        if (scanTapAt == 0L) return@LaunchedEffect
+        scanHint = null
+        // Long enough for the adapter checks and the scan start to settle, short enough to still read
+        // as the answer to the press. The dialog is already behind us by here.
+        delay(400)
+        if (!live.scanning && !live.connected) scanHint = live.statusNote
+        delay(4_500)
+        scanHint = null
+    }
     val liveSnap by remember {
         derivedStateOf {
             val s = live
@@ -1357,7 +1389,10 @@ fun TodayScreen(
                 historySyncExperimental = liveSnap.historySyncExperimental,
                 pagesBehindAtConnect = liveSnap.pagesBehindAtConnect,
                 scanning = liveSnap.scanning,
-                onRescan = requestScan,
+                // One rule for both affordances: they exist while the strap is away. Connected, the
+                // chip goes back to reporting sync and nothing else, rather than offering a connect to
+                // something already connected.
+                onRescan = if (liveSnap.connected) null else requestScan,
                 onPickDay = { offset -> selectedDayOffset = offset },
                 onQuickActions = onQuickActions,
                 onOpenSettings = onOpenSettings,
@@ -1382,13 +1417,49 @@ fun TodayScreen(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // #2169: the balancing spacer becomes the control. Same size, so the wordmark stays
-                // centred and nothing else in the header gives up width for it.
-                RescanDisc(scanning = liveSnap.scanning, onClick = requestScan)
+                // #2169: the balancing spacer becomes the control, but ONLY while there is something to
+                // connect. A permanently visible control has to explain itself; one that appears exactly
+                // when the strap is away says what it is for by being there, and cannot be read as a
+                // reload button on a screen that never reloads. Connected, it goes back to being a
+                // spacer, so the wordmark is centred by the same control-sized gutter either way and
+                // nothing moves as the strap comes and goes.
+                //
+                // Scanning counts as needed: a scan running means not yet connected, and hiding the
+                // control mid-attempt would take away the only in-progress signal the header has.
+                // The SLOT is permanent and only the control inside it fades, rather than swapping the
+                // two. A 4.0 that is dropping and auto-reconnecting flips `connected` repeatedly, and an
+                // instant swap turns that into a blinking icon beside the wordmark; a fade reads as a
+                // pulse instead. Keeping the gutter itself always present also means the wordmark cannot
+                // shift even mid-transition, which an if/else between a control and a spacer allows.
+                val scanAffordance by animateFloatAsState(
+                    targetValue = if (liveSnap.connected) 0f else 1f,
+                    animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
+                )
+                Box(
+                    modifier = Modifier.size(HeaderClusterControl),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (scanAffordance > 0.01f) {
+                        Box(modifier = Modifier.graphicsLayer { alpha = scanAffordance }) {
+                            RescanDisc(scanning = liveSnap.scanning, onClick = requestScan)
+                        }
+                    }
+                }
                 Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                     LiquidWordmark()
                 }
                 CustomizeDisc(onClick = { showLayoutEditor = true })
+            }
+            // The reply to a tap that went nowhere. Wording comes from the BLE layer, the same text
+            // Live and Onboarding show, so this adds no copy of its own.
+            scanHint?.let { hint ->
+                Text(
+                    hint,
+                    style = NoopType.footnote,
+                    color = Palette.textSecondary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                )
             }
         }
         }
@@ -2237,7 +2308,12 @@ private fun RescanDisc(scanning: Boolean, onClick: () -> Unit) {
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            Icons.Filled.Refresh,
+            // Bluetooth, not Refresh. Settings can use a circular arrow because the word "Re-scan" is
+            // sitting next to it; here the glyph is the whole affordance, and a circular arrow on a
+            // screen full of numbers reads as "reload my data" rather than "look for my strap". This is
+            // also the icon Live's Scan & Connect button and the onboarding connect steps already use,
+            // so the same action now looks the same everywhere it appears.
+            if (scanning) Icons.Filled.BluetoothSearching else Icons.Filled.Bluetooth,
             contentDescription = null,
             tint = Color.White.copy(alpha = if (scanning) 0.45f else 1f),
             modifier = Modifier.size(16.dp),
