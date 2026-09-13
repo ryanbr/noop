@@ -136,13 +136,30 @@ fun StressScreen(vm: AppViewModel, onBreathe: () -> Unit = {}) {
     // one. Both surfaces now age at the same rate, which is the actual ask in the report.
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     androidx.compose.runtime.LaunchedEffect(vm.activeStrapId, lifecycleOwner) {
+        // Guarded on the same fingerprint the widget producer memoises against, for the same reason.
+        // `loadDaytimeStress` is the expensive read on this screen, three windowed row fetches plus the
+        // two HRV engines, and repeating it was free when it happened once on open. On a timer it is
+        // not: with the strap disconnected, or simply quiet, nothing about today's heart rate has moved
+        // and re-reading produces a result identical to the one already on screen. An indexed count and
+        // max answers that for the price of neither.
+        var lastHrFingerprint: Pair<Int, Long>? = null
         lifecycleOwner.lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
             while (true) {
-                val read = runCatching { loadDaytimeStress(vm, NoopPrefs.stressPersonalBaseline(context)) }
-                    .getOrDefault(DaytimeReadout(DaytimeStress.Result.EMPTY, null, null))
-                daytime = read.daytime
-                stressIndex = read.stressIndex
-                freqHrv = read.freqHrv
+                val nowSeconds = System.currentTimeMillis() / 1000L
+                val window = stressLocalDayWindowContaining(nowSeconds, ZoneId.systemDefault())
+                val fingerprint = runCatching {
+                    vm.repo.hrFingerprintWindow(vm.activeStrapId, window.fromEpochSecond, nowSeconds)
+                }.getOrNull()
+                // A failed fingerprint reads as "cannot tell", which loads rather than skips: being
+                // wrong about this costs one pass, being wrong the other way freezes the screen.
+                if (fingerprint == null || fingerprint != lastHrFingerprint) {
+                    lastHrFingerprint = fingerprint
+                    val read = runCatching { loadDaytimeStress(vm, NoopPrefs.stressPersonalBaseline(context)) }
+                        .getOrDefault(DaytimeReadout(DaytimeStress.Result.EMPTY, null, null))
+                    daytime = read.daytime
+                    stressIndex = read.stressIndex
+                    freqHrv = read.freqHrv
+                }
                 delay(StressWidgetProducer.RESCORE_INTERVAL_MS)
             }
         }
