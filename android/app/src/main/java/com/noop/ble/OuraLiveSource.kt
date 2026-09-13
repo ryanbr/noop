@@ -694,8 +694,13 @@ class OuraLiveSource(
         pendingContinuation = false
         handler.removeCallbacks(batchQuietRunnable)
         hypnogramAssembler.flush()?.let { persistHypnogramBurst(it) }
-        val rebootFullPullPending = drain.sawPreResumeData
-        commitResumeCursor(completed)
+        // Ask the cursor commit whether it actually reset for a reboot rather than reading
+        // `drain.sawPreResumeData` directly: that flag is also raised by a stale replay from a second BLE
+        // client's serve position, which the #2097 judge inside `commitResumeCursor` rejects as "not a
+        // reboot" and answers by keeping the cursor. Snapshotting the flag here (as this did until
+        // 2026-09-13) had the scheduler print "ring reboot detected - starting the honest full re-pull"
+        // two lines after "not a reboot (#2097)" and burn a chained pass that only re-read the kept cursor.
+        val rebootFullPullPending = commitResumeCursor(completed)
         advance(OuraTransition.HistoryCursorAdvanced(cursor = historyCursor, moreData = false))
         if (rebootFullPullPending || resumeBacklog) {
             if (chainedDrainPasses >= MAX_CHAINED_DRAIN_PASSES) {
@@ -724,8 +729,11 @@ class OuraLiveSource(
      * [OuraHistoryDrain.anchorsAreContinuous]), in which case the stale replay is treated like ordinary
      * stale data instead (dropped; cursor follows the same forward-only-if-resolving rule as any other
      * drain) rather than forcing a full re-pull of the ring's entire history.
+     *
+     * Returns `true` only when the cursor WAS reset to 0 for a reboot — the one outcome that leaves a
+     * full re-pull pending for [finishDrain] to chain. A stale replay the judge rejected returns `false`.
      */
-    private fun commitResumeCursor(drainCompleted: Boolean) {
+    private fun commitResumeCursor(drainCompleted: Boolean): Boolean {
         val how = if (drainCompleted) "caught up (bytes_left 0)" else "stopped early"
         val resolves = drain.maxStoredRingTime > 0 &&
             driver?.unixSeconds(forRingTimestamp = drain.maxStoredRingTime) != null
@@ -736,7 +744,7 @@ class OuraLiveSource(
                 " - clock reset/seek ignored; next connect does a full pull")
             historyCursor = 0
             OuraHistoryCursorStore.save(appContext, deviceId, 0)
-            return
+            return true
         }
         if (drain.sawPreResumeData) {
             log("Oura: history $how but the ring served data older than cursor $resumeCursorAtFetchStart" +
@@ -754,6 +762,7 @@ class OuraLiveSource(
         } else {
             log("Oura: history $how (resume cursor unchanged $historyCursor)")
         }
+        return false
     }
 
     /**
