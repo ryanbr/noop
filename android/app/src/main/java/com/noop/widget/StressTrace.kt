@@ -1,6 +1,7 @@
 package com.noop.widget
 
 import com.noop.analytics.DaytimeStress
+import kotlin.math.roundToInt
 
 /**
  * One hour on the widget's stress trace.
@@ -214,6 +215,26 @@ object StressTrace {
             }
         }
         return out
+    }
+
+    /**
+     * A 0-3 level as the one string every surface prints (#2164).
+     *
+     * There were two spellings. The widget used `String.format(Locale.getDefault(), "%.1f")`, which
+     * punctuates by locale, so a German reader saw `2,8`; the Today card built tenths by hand and always
+     * produced `2.8`, so one number appeared two ways on a screen and its own widget.
+     *
+     * The dot wins because the Apple surfaces already print it: Swift's `String(format:)` without a
+     * locale does not localise, so every stress figure in `StressWidget.swift` is dot-decimal. Matching
+     * the card and iOS makes three of the four surfaces agree without changing what any of them showed.
+     *
+     * Clamped to the domain, which the card did and the widget did not. `squash` should keep levels
+     * inside it already, so this is belt-and-braces rather than load-bearing; what matters is that both
+     * surfaces are braced the same way instead of disagreeing above the ceiling.
+     */
+    fun formatLevel(value: Double): String {
+        val tenths = (value * 10).roundToInt().coerceIn(0, (DOMAIN_MAX * 10).toInt())
+        return "${tenths / 10}.${tenths % 10}"
     }
 
     /**

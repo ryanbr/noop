@@ -43,7 +43,6 @@ import com.noop.ui.MainActivity
 import com.noop.ui.uiString
 import java.text.DateFormat
 import java.util.Date
-import java.util.Locale
 
 /**
  * Home-screen widget: today's stress as the intraday curve the Stress screen draws (#2040).
@@ -119,7 +118,9 @@ private fun stressChartWidthDp(widthDp: Float): Float =
     (widthDp - STRESS_CARD_PADDING_DP - STRESS_SCALE_COLUMN_DP).coerceAtLeast(24f)
 
 /** One decimal, the same precision the screen prints a 0-3 score at. */
-private fun formatLevel(value: Double): String = String.format(Locale.getDefault(), "%.1f", value)
+/** Delegates to [StressTrace.formatLevel] so the widget and the Today card cannot spell one number
+ *  two ways (#2164). Was a locale-punctuated "%.1f" here and hand-built tenths there. */
+private fun formatLevel(value: Double): String = StressTrace.formatLevel(value)
 
 @Composable
 private fun StressWidgetContent(snap: WidgetSnapshot, dark: Boolean) {

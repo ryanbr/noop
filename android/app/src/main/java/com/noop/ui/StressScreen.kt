@@ -624,10 +624,10 @@ internal fun StressTodayCard(points: List<StressPoint>, modifier: Modifier = Mod
                 // which shows a number rather than this curve.
                 Overline(uiString(R.string.hosted_card_stress_title), modifier = Modifier.weight(1f))
                 if (stats != null) {
-                    val peakTenths = ((stats.peak.level ?: 0.0) * 10).roundToInt().coerceIn(0, 30)
                     Text(
                         uiString(R.string.trends_peak) +
-                            " ${peakTenths / 10}.${peakTenths % 10} · ${pointTimeLabel(stats.peak.ts)}",
+                            " ${StressTrace.formatLevel(stats.peak.level ?: 0.0)} · " +
+                            pointTimeLabel(stats.peak.ts),
                         style = NoopType.footnote,
                         color = Palette.textSecondary,
                     )
@@ -767,10 +767,9 @@ internal fun StressTodayCard(points: List<StressPoint>, modifier: Modifier = Mod
                     }
                 }
 
-                val avgTenths = (stats.mean * 10).roundToInt().coerceIn(0, 30)
                 Text(
                     uiString(R.string.l10n_stress_screen_avg_a178769d) +
-                        " ${avgTenths / 10}.${avgTenths % 10}",
+                        " ${StressTrace.formatLevel(stats.mean)}",
                     style = NoopType.footnote,
                     color = textTertiary,
                 )

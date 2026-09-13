@@ -246,4 +246,34 @@ class StressTraceTest {
         val day = listOf(at(0, null, moving = true), at(1, 1.0), at(2, 1.0))
         assertEquals(0f, StressTrace.movingSpans(day, 100f).single().start, 0.001f)
     }
+
+    // #2164: one number, one spelling. The widget punctuated by locale and the card built tenths by
+    // hand, so a German reader saw 2,8 on the card's own widget and 2.8 on the card.
+
+    /** The dot is not the platform's choice of separator, it is the one Apple already prints. */
+    @Test
+    fun `a level is printed dot-decimal whatever the locale`() {
+        val previous = java.util.Locale.getDefault()
+        try {
+            java.util.Locale.setDefault(java.util.Locale.GERMANY)
+            assertEquals("2.8", StressTrace.formatLevel(2.8))
+        } finally {
+            java.util.Locale.setDefault(previous)
+        }
+    }
+
+    /** Clamped at both ends, which the card did and the widget did not. */
+    @Test
+    fun `a level is clamped to the domain at both ends`() {
+        assertEquals("3.0", StressTrace.formatLevel(StressTrace.DOMAIN_MAX + 0.4))
+        assertEquals("0.0", StressTrace.formatLevel(-1.0))
+    }
+
+    /** Halves round away from zero, the behaviour both spellings already had. */
+    @Test
+    fun `a level rounds to one decimal`() {
+        assertEquals("1.9", StressTrace.formatLevel(1.85))
+        assertEquals("2.0", StressTrace.formatLevel(1.96))
+        assertEquals("0.0", StressTrace.formatLevel(0.04))
+    }
 }
