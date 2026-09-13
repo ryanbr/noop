@@ -1403,7 +1403,6 @@ fun TodayScreen(
                 val scanAffordance by animateFloatAsState(
                     targetValue = if (liveSnap.connected) 0f else 1f,
                     animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
-                    label = "scanAffordance",
                 )
                 Box(
                     modifier = Modifier.size(HeaderClusterControl),
