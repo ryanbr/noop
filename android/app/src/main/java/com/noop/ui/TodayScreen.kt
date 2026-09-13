@@ -135,6 +135,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -351,6 +352,31 @@ fun TodayScreen(
     // does nothing on Android 12+ when the Bluetooth permission was denied or revoked (#1), so Today's
     // two new affordances use the same wrapper Settings' Re-scan and Live's Connect already use.
     val requestScan = rememberRequestScan { viewModel.connect() }
+    // #2169: Today can start a connect but had nowhere to report one that never starts. Every early
+    // exit from a user-initiated connect writes an explanatory note and leaves `scanning` false, so
+    // "Bluetooth is off. Turn it on, then tap Connect." and the Nearby-devices permission line were
+    // being set and thrown away: Live and Onboarding render `statusNote`, Today does not. A tap that
+    // cannot proceed therefore changed nothing on screen at all, which reads as a dead control.
+    //
+    // Shown only after a tap from HERE, and only when the tap did not get as far as scanning, so this
+    // stays a reply to a press rather than Today quietly becoming a connection-status surface, which
+    // is a larger question (#2179).
+    var scanTapAt by remember { mutableStateOf(0L) }
+    var scanHint by remember { mutableStateOf<String?>(null) }
+    val requestScanFromToday = {
+        scanTapAt = System.currentTimeMillis()
+        requestScan()
+    }
+    LaunchedEffect(scanTapAt) {
+        if (scanTapAt == 0L) return@LaunchedEffect
+        scanHint = null
+        // Long enough for the permission dialog and the adapter checks to settle, short enough to still
+        // read as the answer to the press.
+        delay(700)
+        if (!live.scanning && !live.connected) scanHint = live.statusNote
+        delay(4_500)
+        scanHint = null
+    }
     val liveSnap by remember {
         derivedStateOf {
             val s = live
@@ -1361,7 +1387,7 @@ fun TodayScreen(
                 // One rule for both affordances: they exist while the strap is away. Connected, the
                 // chip goes back to reporting sync and nothing else, rather than offering a connect to
                 // something already connected.
-                onRescan = if (liveSnap.connected) null else requestScan,
+                onRescan = if (liveSnap.connected) null else requestScanFromToday,
                 onPickDay = { offset -> selectedDayOffset = offset },
                 onQuickActions = onQuickActions,
                 onOpenSettings = onOpenSettings,
@@ -1410,7 +1436,7 @@ fun TodayScreen(
                 ) {
                     if (scanAffordance > 0.01f) {
                         Box(modifier = Modifier.graphicsLayer { alpha = scanAffordance }) {
-                            RescanDisc(scanning = liveSnap.scanning, onClick = requestScan)
+                            RescanDisc(scanning = liveSnap.scanning, onClick = requestScanFromToday)
                         }
                     }
                 }
@@ -1418,6 +1444,17 @@ fun TodayScreen(
                     LiquidWordmark()
                 }
                 CustomizeDisc(onClick = { showLayoutEditor = true })
+            }
+            // The reply to a tap that went nowhere. Wording comes from the BLE layer, the same text
+            // Live and Onboarding show, so this adds no copy of its own.
+            scanHint?.let { hint ->
+                Text(
+                    hint,
+                    style = NoopType.footnote,
+                    color = Palette.textSecondary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                )
             }
         }
         }
