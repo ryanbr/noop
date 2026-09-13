@@ -786,11 +786,13 @@ private struct FitnessAgeSection: View {
         // "At least N" is the same number said truthfully, and where there is no safe distance to give
         // (a chronological age at or inside the bound) the line states the bound on its own.
         if bound == "≤" {
-            if younger && years > 0 { return String(localized: "At least \(years) years younger than your age") }
+            if younger && years == 1 { return String(localized: "At least 1 year younger than your age") }
+            if younger && years > 1 { return String(localized: "At least \(years) years younger than your age") }
             return String(localized: "\(Int(FitnessAgeEngine.minAge)) or younger")
         }
         if bound == "≥" {
-            if !younger && years > 0 { return String(localized: "At least \(years) years older than your age") }
+            if !younger && years == 1 { return String(localized: "At least 1 year older than your age") }
+            if !younger && years > 1 { return String(localized: "At least \(years) years older than your age") }
             return String(localized: "\(Int(FitnessAgeEngine.maxAge)) or older")
         }
         if years == 0 { return String(localized: "About the same as your age") }
