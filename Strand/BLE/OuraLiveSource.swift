@@ -788,8 +788,13 @@ public final class OuraLiveSource: NSObject, ObservableObject {
         if let burst = hypnogramAssembler.flush() {
             persistHypnogramBurst(burst)
         }
-        let rebootFullPullPending = drain.sawPreResumeData
-        commitResumeCursor(drainCompleted: completed)
+        // Ask the cursor commit whether it actually reset for a reboot rather than reading
+        // `drain.sawPreResumeData` directly: that flag is also raised by a stale replay from a second BLE
+        // client's serve position, which the #2097 judge inside `commitResumeCursor` rejects as "not a
+        // reboot" and answers by keeping the cursor. Snapshotting the flag here (as this did until
+        // 2026-09-13) had the scheduler print "ring reboot detected - starting the honest full re-pull"
+        // two lines after "not a reboot (#2097)" and burn a chained pass that only re-read the kept cursor.
+        let rebootFullPullPending = commitResumeCursor(drainCompleted: completed)
         logActivityEstimateSummary()
         advance(.historyCursorAdvanced(cursor: historyCursor, moreData: false))
         if rebootFullPullPending || resumeBacklog {
@@ -864,7 +869,10 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     /// `OuraHistoryDrain.anchorsAreContinuous`), in which case the stale replay is treated like ordinary
     /// stale data instead (dropped; cursor follows the same forward-only-if-resolving rule as any other
     /// drain) rather than forcing a full re-pull of the ring's entire history.
-    private func commitResumeCursor(drainCompleted: Bool) {
+    ///
+    /// Returns `true` only when the cursor WAS reset to 0 for a reboot — the one outcome that leaves a
+    /// full re-pull pending for `finishDrain` to chain. A stale replay the judge rejected returns `false`.
+    private func commitResumeCursor(drainCompleted: Bool) -> Bool {
         let how = drainCompleted ? "caught up (bytes_left 0)" : "stopped early"
         let resolves = drain.maxStoredRingTime > 0
             && (driver?.unixSeconds(forRingTimestamp: drain.maxStoredRingTime) != nil)
@@ -875,7 +883,7 @@ public final class OuraLiveSource: NSObject, ObservableObject {
             log("Oura: history \(how) but the ring served data older than cursor \(resumeCursorAtFetchStart) - clock reset/seek ignored; next connect does a full pull")
             historyCursor = 0
             OuraHistoryCursorStore.save(0, deviceId: deviceId)
-            return
+            return true
         }
         if drain.sawPreResumeData {
             log("Oura: history \(how) but the ring served data older than cursor \(resumeCursorAtFetchStart) - the ring's own SyncTime clock never paused across the gap, so this is a second BLE client's serve position, not a reboot (#2097); discarding the stale replay instead of a full re-pull")
@@ -889,6 +897,7 @@ public final class OuraLiveSource: NSObject, ObservableObject {
         } else {
             log("Oura: history \(how) (resume cursor unchanged \(historyCursor) [\(describeCursor(historyCursor))])")
         }
+        return false
     }
 
     /// Whether this drain's `sawPreResumeData` flag should be trusted as a genuine ring reboot, or
@@ -932,6 +941,20 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     /// available). Logs the reconstructed window + stage minutes so a capture is self-evident.
     private func persistHypnogramBurst(_ burst: OuraHypnogramBurst) {
         guard let driver, burst.totalCodes > 0 else { return }
+        // STALE-REPLAY GATE (2026-09-13, Oura-app handoff on a Gen 3): a second BLE client on the same
+        // phone makes the ring re-serve from ITS position, and the #2097 judge rightly keeps our cursor —
+        // but by then every replayed record has been ingested. Time-series rows dedupe on their keys; a
+        // burst does not: the last two sleep-phase records of a night came back without their 0x49 window
+        // and were end-anchored at their write time into a 52-minute `[no-0x49-onset]` session whose codes
+        // were not the night's tail. A burst written BEFORE where this fetch resumed was already banked
+        // from its own drain, so it is refused here rather than handed to the persist closure's dedup
+        // (which only catches a fragment that happens to sit inside a stored row, and only with onset
+        // keying on). A genuine reboot is unaffected: its judge resets the cursor to 0 and the chained
+        // full pull re-serves the same records with no floor.
+        if OuraHistoryDrain.predatesResume(ringTime: burst.lastRingTimestamp, resumeCursorAtFetchStart: resumeCursorAtFetchStart) {
+            log("Oura: hypnogram burst (\(burst.totalCodes) codes, written at rt \(burst.lastRingTimestamp)) predates the resume cursor \(resumeCursorAtFetchStart) - a re-serve from a second BLE client's position (#2097), already banked from its own drain; not persisted")
+            return
+        }
         // HOLD-UNTIL-ANCHOR (same discipline as pendingAnchorEvents): the burst end IS the night's whole
         // time axis, so guessing it from wall-clock would persist real stage codes at fabricated times.
         // An unanchored burst is parked and re-tried when the 0x42 anchor lands; if the session ends
@@ -1586,7 +1609,6 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     /// Returns false (and writes nothing) if the link is not ready, so the caller can say so rather than
     /// silently appearing to have written. The value bytes are logged verbatim: this is a write to the
     /// ring's own config, and a strap log that does not say exactly what went out is useless afterwards.
-    @discardableResult
     func writeUserInfo(field: OuraUserInfoField, value: [UInt8]) -> Bool {
         guard peripheral != nil, writeCharacteristic != nil else {
             log("Oura: 0x20 user-info write SKIPPED - no connected ring / write characteristic")
@@ -1613,7 +1635,6 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     /// also sends is guaranteed to log a fresh line — the connect-time SpO2/real_steps auto-probe (or an
     /// earlier manual call) may have already consumed `logFeatureStatus`'s once-per-connection dedup for
     /// this exact feature id.
-    @discardableResult
     func writeFeatureMode(feature: UInt8, mode: UInt8) -> Bool {
         guard peripheral != nil, writeCharacteristic != nil else {
             log("Oura: feature-mode write SKIPPED - no connected ring / write characteristic")
@@ -2972,7 +2993,6 @@ public enum OuraKeyStore {
 
     /// Store (or replace) the 16-byte install key for `deviceId`. A wrong-length key is rejected (no
     /// partial key is ever stored, so a later read can't return a malformed key).
-    @discardableResult
     public static func save(_ key: Data, deviceId: String) -> Bool {
         guard key.count == keyLength else { return false }
         SecItemDelete(baseQuery(deviceId: deviceId) as CFDictionary)
