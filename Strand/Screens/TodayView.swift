@@ -2817,7 +2817,8 @@ struct TodayView: View {
             // copy and the owner's reply on #706.
             return stressToday.map { "\(Int($0.rounded()))" } ?? Self.calibratingPlaceholder
         case .fitnessAge:
-            return withUnit(fitnessAgeToday.map { "\(Int($0.rounded()))" } ?? "—")
+            // Bound symbol as on the Health hero (#2173).
+            return withUnit(fitnessAgeToday.map { "\(fitnessAgeBoundSymbol($0))\(Int($0.rounded()))" } ?? "—")
         case .vo2max:
             return vo2maxToday.map { "\(Int($0.rounded()))" } ?? "—"
         case .vitality:

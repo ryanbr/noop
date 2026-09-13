@@ -458,12 +458,16 @@ struct CountUpNumber: View, Animatable {
     /// byte-identical; the WHOOP 0–21 Effort scale passes 1 so the hero matches the app-wide one-decimal
     /// `effortDisplay` convention instead of rounding 12.6 → "13" (#45).
     var decimals: Int = 0
+    /// Rendered ahead of the number and never animated, for a value that is bounded rather than
+    /// measured: Fitness Age arrives clamped, so a reading at the edge of the scale shows "≤20" while
+    /// the count-up still runs (#2173). Empty by default, which leaves every existing caller identical.
+    var prefix: String = ""
     var animatableData: Double {
         get { value }
         set { value = newValue }
     }
     var body: some View {
-        Text(decimals > 0 ? String(format: "%.\(decimals)f", value) : "\(Int(value.rounded()))")
+        Text(prefix + (decimals > 0 ? String(format: "%.\(decimals)f", value) : "\(Int(value.rounded()))"))
             .font(font).monospacedDigit()
     }
 }

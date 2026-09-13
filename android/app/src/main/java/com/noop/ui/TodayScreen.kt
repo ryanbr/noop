@@ -4128,7 +4128,9 @@ private fun dashboardCardValue(
             // state instead, matching the owner's reply on #706 and the StressScreen empty/calibrating copy.
             stress?.let { it.roundToInt().toString() } ?: STRESS_CALIBRATING
         DashboardCard.FITNESS_AGE ->
-            withUnit(fitnessAge?.let { it.roundToInt().toString() } ?: NO_DATA)
+            // Carries the bound symbol the Health hero uses (#2173), so a floored reading does not read
+            // as an exact one here and as a bounded one there.
+            withUnit(fitnessAge?.let { "${fitnessAgeBoundSymbol(it)}${it.roundToInt()}" } ?: NO_DATA)
         DashboardCard.VO2MAX ->
             vo2max?.let { it.roundToInt().toString() } ?: NO_DATA
         DashboardCard.VITALITY ->
