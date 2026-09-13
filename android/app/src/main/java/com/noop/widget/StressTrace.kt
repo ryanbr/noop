@@ -226,14 +226,22 @@ object StressTrace {
      *
      * The dot wins because the Apple surfaces already print it: Swift's `String(format:)` without a
      * locale does not localise, so every stress figure in `StressWidget.swift` is dot-decimal. Matching
-     * the card and iOS makes three of the four surfaces agree without changing what any of them showed.
+     * the card and iOS settles the separator on all four surfaces without changing what any of them
+     * showed.
+     *
+     * ROUNDING IS ARITHMETIC, NOT `printf`, for the reason `SleepStagerTrace.round1` gives: Java rounds
+     * half up on the decimal expansion, C `printf` rounds half to even on the binary value, and a
+     * harness caught those disagreeing on a real number. So the card's spelling is the one kept here,
+     * and iOS stays on `String(format:)`. A logistic squash lands within an ulp of a .x5 boundary about
+     * never, so the two cannot be shown to differ on a real level, but the arithmetic side is the one
+     * this codebase has already settled on.
      *
      * Clamped to the domain, which the card did and the widget did not. `squash` should keep levels
      * inside it already, so this is belt-and-braces rather than load-bearing; what matters is that both
      * surfaces are braced the same way instead of disagreeing above the ceiling.
      */
     fun formatLevel(value: Double): String {
-        val tenths = (value * 10).roundToInt().coerceIn(0, (DOMAIN_MAX * 10).toInt())
+        val tenths = (value * 10).roundToInt().coerceIn(0, (DOMAIN_MAX * 10).roundToInt())
         return "${tenths / 10}.${tenths % 10}"
     }
 
