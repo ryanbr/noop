@@ -106,8 +106,10 @@ import androidx.compose.ui.zIndex
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.withFrameNanos
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -174,6 +176,7 @@ import com.noop.data.DailyMetric
 import com.noop.protocol.Whoop5RR
 import com.noop.widget.StressPoint
 import com.noop.widget.StressWidgetProducer
+import com.noop.widget.WidgetSnapshotStore
 import com.noop.data.HrBucket
 import com.noop.data.SleepSession
 import com.noop.data.WhoopRepository
@@ -3822,6 +3825,24 @@ private fun HostedCardsSection(
     // card and the widget can never show different curves.
     val needsStressCurve = cards.contains(HostedCard.STRESS_TODAY)
     var stressCurve by remember { mutableStateOf<List<StressPoint>>(emptyList()) }
+    // SEEDED from the curve already on disk, so an app update does not show "Calibrating" for a day it
+    // has already scored. `stressCurve` starts empty on a cold process, and the card reads an empty
+    // curve as an unscored day, which is honest for a genuinely unscored one and wrong the moment the
+    // app is merely restarted. The first compute usually fills it, but not always in time: the strap id
+    // it needs comes from the source coordinator and is blank for a moment after launch, and a blank id
+    // makes the producer answer null, which by contract means "say nothing" and leaves the card empty
+    // until the next pass.
+    //
+    // The widget snapshot is the same curve, written by the last scoring pass and day-guarded on load,
+    // so it is either today's or nothing. Read once, off the main thread, and only while nothing better
+    // has arrived, so a compute that has already landed is never overwritten by a staler copy.
+    LaunchedEffect(Unit) {
+        if (stressCurve.isNotEmpty()) return@LaunchedEffect
+        val banked = withContext(Dispatchers.IO) {
+            runCatching { WidgetSnapshotStore.load(context).stressSeries }.getOrDefault(emptyList())
+        }
+        if (banked.isNotEmpty() && stressCurve.isEmpty()) stressCurve = banked
+    }
     // #2144: this used to score ONCE, when these keys last moved, and none of them tracks incoming
     // heart rate — `days` is the daily rows, not the intraday samples the curve is built from. So a
     // card left open held whatever it scored then, while the Stress screen scores when you open it,
