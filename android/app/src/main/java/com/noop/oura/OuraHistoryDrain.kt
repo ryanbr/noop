@@ -168,10 +168,15 @@ class OuraHistoryDrain {
          */
         const val ANCHOR_CONTINUITY_MAX_PAUSE_SECONDS = 20.0
 
-        /** Minimum wall-clock gap [anchorsAreContinuous] will judge; below this a few seconds of
-         *  receipt-latency noise would dominate the rate measurement, so it declines rather than
-         *  guessing. */
-        const val ANCHOR_CONTINUITY_MIN_GAP_SECONDS = 30.0
+        /** Minimum wall-clock gap [anchorsAreContinuous] will judge; below this it declines rather
+         *  than guessing. 10 s, not the original 30: the test is an ABSOLUTE margin
+         *  ([ANCHOR_CONTINUITY_MAX_PAUSE_SECONDS], 20 s), not a rate, so a few seconds of receipt-latency
+         *  noise inside a 10 s gap still leaves most of that margin — and a genuine power-cycle pause is
+         *  minutes, which cannot hide inside a short gap either. The 30 s floor declined on a real 27 s
+         *  reconnect (2026-09-12, 268 ticks / 27 s = 9.93/s, ring clock plainly continuous) and the old
+         *  full re-pull fired — a fast relaunch-and-reconnect is the cheapest way to produce a stale
+         *  replay, so it is the case the floor must not exclude (#2097). Swift twin. */
+        const val ANCHOR_CONTINUITY_MIN_GAP_SECONDS = 10.0
 
         /**
          * Whether two `0x13 SyncTime` anchors observed across a connect-to-connect gap are consistent

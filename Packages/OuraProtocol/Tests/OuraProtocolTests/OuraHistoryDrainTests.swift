@@ -161,9 +161,21 @@ final class OuraHistoryDrainTests: XCTestCase {
 
     func testAnchorsAreContinuousDeclinesOnTooShortAGap() {
         let previous = (ringTicks: UInt32(1_000_000), unixSeconds: Int64(0))
-        let current = (ringTicks: UInt32(1_000_100), unixSeconds: Int64(10)) // below the 30s minimum
+        let current = (ringTicks: UInt32(1_000_050), unixSeconds: Int64(5)) // below the 10s minimum
         XCTAssertFalse(OuraHistoryDrain.anchorsAreContinuous(previous: previous, current: current),
                        "too short a gap to judge - declines rather than guessing")
+    }
+
+    func testAnchorsAreContinuousOnTheReal20260912FastReconnect() {
+        // 2026-09-12 19:38:56 -> 19:39:23: an app relaunch (Xcode install), state restoration resumed
+        // the still-connected ring, and the next connect came 27s later with a stale replay. Ring
+        // ticks 43358625 -> 43358893 = 268 ticks over 27s wall (9.93/s): plainly continuous, but the
+        // original 30s floor declined and the old full re-pull from 2026-07-24 fired. Must judge, and
+        // must say continuous.
+        let previous = (ringTicks: UInt32(43_358_625), unixSeconds: Int64(0))
+        let current = (ringTicks: UInt32(43_358_893), unixSeconds: Int64(27))
+        XCTAssertTrue(OuraHistoryDrain.anchorsAreContinuous(previous: previous, current: current),
+                      "a 27s gap with a continuous ring clock is judgeable and continuous")
     }
 
     func testAnchorsAreContinuousDeclinesWhenTicksWentBackward() {

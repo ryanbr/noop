@@ -197,7 +197,22 @@ class OuraHistoryDrainTest {
             "too short a gap to judge - declines rather than guessing",
             OuraHistoryDrain.anchorsAreContinuous(
                 previousRingTicks = 1_000_000L, previousUnixSeconds = 0L,
-                currentRingTicks = 1_000_100L, currentUnixSeconds = 10L, // below the 30s minimum
+                currentRingTicks = 1_000_050L, currentUnixSeconds = 5L, // below the 10s minimum
+            ),
+        )
+    }
+
+    @Test
+    fun testAnchorsAreContinuousOnTheReal20260912FastReconnect() {
+        // 2026-09-12 19:38:56 -> 19:39:23: an app relaunch, state restoration resumed the still-connected
+        // ring, and the next connect came 27s later with a stale replay. Ring ticks 43358625 -> 43358893
+        // = 268 ticks over 27s wall (9.93/s): plainly continuous, but the original 30s floor declined and
+        // the old full re-pull fired. Must judge, and must say continuous. Swift twin.
+        assertTrue(
+            "a 27s gap with a continuous ring clock is judgeable and continuous",
+            OuraHistoryDrain.anchorsAreContinuous(
+                previousRingTicks = 43_358_625L, previousUnixSeconds = 0L,
+                currentRingTicks = 43_358_893L, currentUnixSeconds = 27L,
             ),
         )
     }
