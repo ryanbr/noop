@@ -304,6 +304,23 @@ class StressTraceTest {
         assertEquals(awkward, back.map { it.level })
     }
 
+    /**
+     * A deeply suppressed level, where `Double.toString` switches to scientific notation.
+     *
+     * `"%.2f"` could not emit an `E`, so this shape is new with #2166 and the decoder had never seen
+     * it. A z-sum below about -8 squashes under 1e-3 and prints as `3.7018372795869517E-4`, which has
+     * no `:` or `,` in it to confuse the split, and parses back. Pinned because the encoding changed
+     * under a decoder that was written for fixed-point text.
+     */
+    @Test
+    fun `a level small enough to print in scientific notation still round-trips`() {
+        val tiny = 3.0 / (1.0 + Math.exp(9.0))
+        assertTrue("expected scientific notation, got $tiny", tiny.toString().contains("E"))
+        val back = StressTrace.decode(StressTrace.encode(listOf(at(0, tiny))))
+        assertEquals(tiny, back.single().level!!, 0.0)
+        assertEquals(StressTrace.formatLevel(tiny), StressTrace.formatLevel(back.single().level!!))
+    }
+
     /** A snapshot written by a build before #2166 still reads, two decimals and all. */
     @Test
     fun `an older two decimal snapshot still decodes`() {
