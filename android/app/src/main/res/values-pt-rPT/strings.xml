@@ -2762,4 +2762,5 @@
     <string name="coach_consent_on">Ligado: a tua carga, descanso, VFC e treinos são enviados ao fornecedor, cada treino com o desporto, duração, distância e frequência cardíaca.</string>
     <string name="coach_consent_off">Desligado: o coach responde de forma geral e não envia nenhuma das tuas métricas.</string>
     <string name="l10n_app_changelog_a_today_screen_you_arrange_yourself_6194ccd0">Um ecrã Hoje que organiza a seu gosto, o stress no ecrã principal e cópias de segurança que se verificam a si próprias</string>
+    <string name="l10n_stress_screen_scored_through_1_s_later_hours_fbb7d6c7">Avaliado até às %1$s. As horas seguintes precisam de mais amostras de frequência cardíaca.</string>
 </resources>

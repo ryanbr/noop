@@ -842,7 +842,7 @@ class WhoopConnectionService : Service() {
         /** How often this service rescores the widget's stress curve. Matched to the curve's own
          *  half-hour resolution and to the in-app analytics cadence, not to the live HR stream that
          *  drives the collector it sits in. */
-        private const val STRESS_RESCORE_INTERVAL_MS = 15L * 60L * 1000L
+        private val STRESS_RESCORE_INTERVAL_MS = StressWidgetProducer.RESCORE_INTERVAL_MS
 
         private const val CHANNEL_ID = "noop_strap_connection"
         private const val NOTIF_ID = 4201

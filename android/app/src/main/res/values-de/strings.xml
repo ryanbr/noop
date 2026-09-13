@@ -2783,4 +2783,5 @@
     <string name="coach_consent_on">An: Ladung, Erholung, HRV und Workouts gehen an den Anbieter, jedes Workout mit Sportart, Dauer, Distanz und Herzfrequenz.</string>
     <string name="coach_consent_off">Aus: Der Coach antwortet allgemein und sendet keine deiner Werte.</string>
     <string name="l10n_app_changelog_a_today_screen_you_arrange_yourself_6194ccd0">Ein Heute-Bildschirm, den du selbst zusammenstellst, Stress auf dem Homescreen und Backups, die sich selbst prüfen</string>
+    <string name="l10n_stress_screen_scored_through_1_s_later_hours_fbb7d6c7">Bewertet bis %1$s. Spätere Stunden brauchen mehr Herzfrequenz-Messwerte.</string>
 </resources>

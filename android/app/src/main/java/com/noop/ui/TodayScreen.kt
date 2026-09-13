@@ -104,6 +104,7 @@ import androidx.compose.ui.zIndex
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.withFrameNanos
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -3646,11 +3647,25 @@ private fun HostedCardsSection(
     // card and the widget can never show different curves.
     val needsStressCurve = cards.contains(HostedCard.STRESS_TODAY)
     var stressCurve by remember { mutableStateOf<List<StressPoint>>(emptyList()) }
+    // #2144: this used to score ONCE, when these keys last moved, and none of them tracks incoming
+    // heart rate — `days` is the daily rows, not the intraday samples the curve is built from. So a
+    // card left open held whatever it scored then, while the Stress screen scores when you open it,
+    // and the two drifted apart by however long sat between the two triggers. A reporter saw 1pm here
+    // against 2pm there at twenty past four. Same producer and same scoring on both sides; the whole
+    // difference was when each last asked, so this asks again on the cadence the widget already uses.
     LaunchedEffect(needsStressCurve, days, viewModel.activeStrapId) {
-        stressCurve = if (needsStressCurve) {
-            StressWidgetProducer.todayCurve(viewModel.repo, viewModel.activeStrapId)?.points ?: emptyList()
-        } else {
-            emptyList()
+        if (!needsStressCurve) {
+            stressCurve = emptyList()
+            return@LaunchedEffect
+        }
+        while (true) {
+            // A null is "nothing to say about stress right now" (no device to read), which the producer
+            // documents as keep-what-you-had rather than "today scored nothing". Holding the last curve
+            // matters more here than it did for a single pass: blanking the card on one bad tick would
+            // be a visible flicker on a screen that is sitting open.
+            StressWidgetProducer.todayCurve(viewModel.repo, viewModel.activeStrapId)
+                ?.let { stressCurve = it.points }
+            delay(StressWidgetProducer.RESCORE_INTERVAL_MS)
         }
     }
     // Turning the card's own destination into the callback that reaches it. The mapping itself lives

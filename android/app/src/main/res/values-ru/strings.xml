@@ -2657,4 +2657,5 @@
     <string name="coach_consent_on">Включено: заряд, отдых, ВСР и тренировки отправляются провайдеру, каждая тренировка с видом спорта, длительностью, дистанцией и пульсом.</string>
     <string name="coach_consent_off">Выключено: коуч отвечает в общем виде и не отправляет ваши показатели.</string>
     <string name="l10n_app_changelog_a_today_screen_you_arrange_yourself_6194ccd0">Экран «Сегодня», который вы составляете сами, стресс на главном экране и резервные копии, которые проверяют себя сами</string>
+    <string name="l10n_stress_screen_scored_through_1_s_later_hours_fbb7d6c7">Оценено до %1$s. Для более поздних часов нужно больше измерений пульса.</string>
 </resources>

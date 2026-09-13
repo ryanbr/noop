@@ -522,6 +522,22 @@ private fun StressAdvancedCard(
 
 // MARK: - 3 · Daytime timeline (intraday, same 0–3 proxy)
 
+/**
+ * How far behind the clock the newest scored hour has to be before the timeline says so (#2144).
+ *
+ * An hour is scored once its bucket holds [DaytimeStress.minHourHrSamples] heart-rate samples, and
+ * that is the ONLY test: there is no completeness rule, so the hour in progress scores as soon as it
+ * has banked enough, which on a strap streaming at roughly 1 Hz is a few minutes in. What actually
+ * decides how far back the curve ends is therefore sample DENSITY, not the clock, and a strap that
+ * banks history in chunks rather than streaming leaves recent hours under the bar for a while.
+ *
+ * So a healthy curve can end anywhere from minutes to an hour or two back depending on how the day's
+ * data arrived, and a threshold here has to clear all of that to avoid crying wolf. Two and a half
+ * hours is past what any of it explains, which is about where a reader starts wondering whether
+ * syncing has died rather than reading the chart.
+ */
+private const val staleTimelineSeconds: Long = 150L * 60L
+
 @Composable
 private fun StressDaytimeSection(
     day: DaytimeStress.Result,
@@ -578,6 +594,24 @@ private fun StressDaytimeSection(
                     style = NoopType.footnote,
                     color = Palette.textTertiary,
                 )
+                // Where the curve actually stops, said plainly, and only when it is far enough behind
+                // the clock to look broken (#2144). The caption above gives the rule; a reader looking
+                // at a line that ends at 2pm on an axis running to 4pm wants to know that THIS hour is
+                // the reason, not a sync that has died. Quiet on an ordinary day, when the newest
+                // scored hour is simply the one that has just finished.
+                val lastScored = day.scored.lastOrNull()?.startTs
+                if (lastScored != null &&
+                    System.currentTimeMillis() / 1000L - lastScored >= staleTimelineSeconds
+                ) {
+                    Text(
+                        uiString(
+                            R.string.l10n_stress_screen_scored_through_1_s_later_hours_fbb7d6c7,
+                            pointTimeLabel(lastScored),
+                        ),
+                        style = NoopType.footnote,
+                        color = Palette.textTertiary,
+                    )
+                }
             }
         }
 
