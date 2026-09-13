@@ -514,6 +514,13 @@ class WhoopConnectionService : Service() {
                             widgetPlaced = widgetPlaced,
                             intervalMs = STRESS_RESCORE_INTERVAL_MS,
                         )
+                        // Published so the periodic worker can see it (#2185). Without this the two
+                        // rescore on the same cadence with no knowledge of each other, and an install
+                        // with background connection on pays two full passes a quarter hour for one
+                        // curve. The stamp is the one the memo logic already computed.
+                        WidgetSnapshotStore.noteStressScored(
+                            this@WhoopConnectionService, lastStressScoreAtMs,
+                        )
                         curve
                     } else {
                         null

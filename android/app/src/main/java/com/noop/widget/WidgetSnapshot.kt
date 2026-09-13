@@ -69,6 +69,7 @@ object WidgetSnapshotStore {
      *  the other widgets read untouched. */
     private const val KEY_STRESS = "stressSeries"
     private const val KEY_STRESS_DAY = "stressDay"
+    private const val KEY_STRESS_SCORED_AT = "stressScoredAt"
 
     suspend fun push(context: Context, snap: WidgetSnapshot) {
         val app = context.applicationContext
@@ -166,6 +167,53 @@ object WidgetSnapshotStore {
         GlanceAppWidgetManager(context.applicationContext)
             .getGlanceIds(StressGlanceWidget::class.java).isNotEmpty()
     }.getOrNull()
+
+    /**
+     * When stress was last scored for the widget, by EITHER path (#2185).
+     *
+     * The BLE service and the periodic worker both rescore on the same fifteen minutes, and neither can
+     * see the other's clock: the service keeps its stamp in a field, which dies with the process and is
+     * invisible to a worker anyway. Left alone, an install with background connection on would pay two
+     * full passes every quarter hour, each reading a day of heart-rate rows, for one curve. Sharing the
+     * stamp through the prefs both already write makes them cooperate rather than race.
+     *
+     * Zero means "never scored in this install", which is far enough in the past to admit any caller.
+     */
+    fun lastStressScoredAtMs(context: Context): Long =
+        context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+            .getLong(KEY_STRESS_SCORED_AT, 0L)
+
+    /** Record a scoring attempt's stamp for [lastStressScoredAtMs]. */
+    fun noteStressScored(context: Context, atMs: Long) {
+        context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+            .edit().putLong(KEY_STRESS_SCORED_AT, atMs).apply()
+    }
+
+    /**
+     * Write ONLY the stress fields, and refresh only the stress widget (#2185).
+     *
+     * [save] writes `recovery`, `rest`, `effort`, `battery` and `connected` unconditionally, because
+     * every caller of it so far has been a push that knew all of them. A periodic rescore knows none:
+     * it reads banked heart-rate rows and produces a curve, with no live link and therefore no battery,
+     * no bpm and no connection state. Handing that through [push] would blank the other three widgets
+     * every quarter of an hour, so the curve gets its own write instead of a fuller one being faked.
+     *
+     * `updatedAt` is deliberately untouched. That stamp is what the 2x2, compact and HR widgets render
+     * as "Updated <time>" or "last seen", and it names when the READING is from; the stress widget does
+     * not display it, so advancing it here would move a timestamp on three widgets whose data this call
+     * did not refresh.
+     */
+    suspend fun pushStressOnly(context: Context, series: List<StressPoint>, epochDay: Long) {
+        val app = context.applicationContext
+        app.getSharedPreferences(FILE, Context.MODE_PRIVATE).edit()
+            .putString(KEY_STRESS, StressTrace.encode(series))
+            .putLong(KEY_STRESS_DAY, epochDay)
+            .apply()
+        val ids = runCatching {
+            GlanceAppWidgetManager(app).getGlanceIds(StressGlanceWidget::class.java)
+        }.getOrDefault(emptyList())
+        if (ids.isNotEmpty()) runCatching { StressGlanceWidget().updateAll(app) }
+    }
 
     fun save(context: Context, snap: WidgetSnapshot) {
         val prefs = context.getSharedPreferences(FILE, Context.MODE_PRIVATE)
