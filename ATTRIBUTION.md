@@ -43,9 +43,9 @@ The line is between the fact and the expression of it:
 
 This is long-standing practice, not a one-off. Worked examples already in the tree:
 
-- **`spo2_candidate_82`** (`Interpreter.swift`) — WHOOP 5 v18 byte `@82` read as a strap-computed SpO₂
-  percentage, attributed as *"a decompile-sourced decode (gen5.rs `spo2_pct`), reimplemented here as a
-  protocol fact with attribution"*. A guard test stops it ever writing `spo2Pct`, and it is still a
+- **`spo2_candidate_82`** (`Interpreter.swift`) — WHOOP 5 v18 byte `@82` provisionally interpreted as a candidate SpO₂
+  percentage, with the existing attribution to the decompile-sourced `gen5.rs`
+  `spo2_pct` decode retained. A guard test stops it ever writing `spo2Pct`, and it is still a
   candidate because the cross-device evidence is split.
 - **The R22 config opcodes** (`Whoop5Config.swift` / `.kt`) — `SET_FF_VALUE (0x78)` and the flag key
   names, corroborated against *Asherlc/dofek docs/whoop-ble-protocol.md (Android APK decompilation)*

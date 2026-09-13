@@ -257,7 +257,7 @@ NOOP is an independent, **experimental** project — capable, but a work in prog
 > | Sleep duration / detection | Experimental; can fall back to heart rate when motion is sparse |
 > | Sleep stages | Approximate and not reliable while full overnight motion and cardiorespiratory inputs remain incomplete |
 > | Skin temperature | Raw values decode on supported historical layouts; not available consistently across 5/MG firmware |
-> | Blood oxygen / SpO₂ | Not recoverable offline from current time-multiplexed PPG data |
+> | Blood oxygen / SpO₂ | Offline derivation from the documented optical records is not established |
 > | Overnight HRV and respiratory rate | Incomplete unless sufficient R-R intervals are captured |
 >
 > In short: seeing the Sleep, Health, Readiness, or Insights screens doesn't mean their deepest
