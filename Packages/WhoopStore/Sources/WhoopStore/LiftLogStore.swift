@@ -514,17 +514,6 @@ extension WhoopStore {
         }
     }
 
-    /// The session paired with a workout row, by that row's natural key. Nil when the workout was
-    /// not logged through the lift log.
-    public func liftSession(deviceId: String, startTs: Int, sport: String) async throws -> LiftSessionRow? {
-        try syncRead { db in
-            try Row.fetchOne(db, sql: """
-                SELECT * FROM liftSession
-                WHERE deviceId = ? AND startTs = ? AND sport = ?
-                """, arguments: [deviceId, startTs, sport]).map(LiftSessionRow.decode)
-        }
-    }
-
     /// Delete a session and every set in it. Returns true if a session row was removed.
     @discardableResult
     public func deleteLiftSession(id: String) async throws -> Bool {

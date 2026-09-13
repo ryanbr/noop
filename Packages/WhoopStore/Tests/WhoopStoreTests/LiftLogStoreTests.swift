@@ -235,16 +235,6 @@ final class LiftLogStoreTests: XCTestCase {
         XCTAssertEqual(sessions.first?.id, "s1", "the original id is kept")
     }
 
-    func testSessionLookupByWorkoutNaturalKey() async throws {
-        let store = try await WhoopStore.inMemory()
-        _ = try await store.upsertLiftSessions([mkSession(id: "s1", startTs: 1_000)])
-
-        let hit = try await store.liftSession(deviceId: dev, startTs: 1_000, sport: sport)
-        XCTAssertEqual(hit?.id, "s1")
-        let miss = try await store.liftSession(deviceId: dev, startTs: 2_000, sport: sport)
-        XCTAssertNil(miss, "a workout not logged through the lift log has no session")
-    }
-
     func testDeletingASessionDeletesItsSets() async throws {
         let store = try await WhoopStore.inMemory()
         _ = try await store.upsertLiftSessions([mkSession(id: "s1", startTs: 1_000)])
