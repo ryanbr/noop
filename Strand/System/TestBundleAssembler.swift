@@ -1,5 +1,6 @@
 import Foundation
 import StrandAnalytics
+import WhoopStore
 
 /// Assembles the Test Centre export bundle: gathers report.txt, meta.json, raw-capture and last-crash,
 /// runs the redaction pass over EVERY file, applies the 20 MB cap, and hands the entries to
@@ -14,14 +15,25 @@ enum TestBundleAssembler {
     /// The redaction stamp written into meta.json so a maintainer knows the whole-bundle scrub ran.
     static let redactionVersion = "v2"
 
+    /// The bundle's hard byte cap (spec section 5.4; under GitHub's 25 MB attachment limit). Shared by
+    /// `capEntries` (what finally ships) and `ouraDiagnosticEntries` (how much it is worth reading), so the
+    /// read ceiling can never drift above the budget it feeds.
+    static let defaultCapBytes = 20 * 1024 * 1024
+
+    /// The Oura Diagnostics-dir sidecar kinds the bundle attaches — the SINGLE source of truth
+    /// `normalizedOuraEntryName`/`ouraDiagnosticEntries`/`trimmableNames`/`ouraSidecarNames` all derive
+    /// from, so a new dump writer (`Strand/BLE/Oura*Dump.swift`) needs exactly one line added here to be
+    /// picked up everywhere instead of silently missing the export bundle. (Landed after `cva-ppg` and
+    /// `real-steps` shipped their writers but not their kind entry — both wrote real files on-device that
+    /// the bundler's hardcoded 3-kind list then dropped from every export.)
+    static let ouraSidecarKinds: [String] = ["raw", "ibihr", "activity", "cva-ppg", "motion", "real-steps"]
+
     /// The bundle files that may be trimmed to fit the cap (newest-tail kept). The strap-log tail and
     /// meta.json are already bounded, so only these raw research streams can blow the budget: the WHOOP
-    /// frame capture plus the Oura ring's Tier-B JSONL sidecars (raw notifications / IBI-HR / activity MET).
-    /// Everything NOT listed here is kept whole and its bytes are reserved before the trimmable group is
-    /// given the remainder. These are the NORMALIZED entry names (the ring id is dropped from the filename).
-    static let trimmableNames: Set<String> = [
-        "raw-capture.jsonl", "oura-raw.jsonl", "oura-ibihr.jsonl", "oura-activity.jsonl",
-    ]
+    /// frame capture plus the Oura ring's Tier-B JSONL sidecars (raw notifications / IBI-HR / activity MET /
+    /// CVA-PPG / motion / real-steps). Everything NOT listed here is kept whole and its bytes are reserved
+    /// before the trimmable group is given the remainder. NORMALIZED entry names (ring id dropped).
+    static let trimmableNames: Set<String> = Set(["raw-capture.jsonl"] + ouraSidecarKinds.map { "oura-\($0).jsonl" })
 
     /// #572 follow-up: the Oura Tier-B sidecars carry the ring id in a `"deviceId"` JSON field. The
     /// whole-bundle UUID scrub (`LiveState.redactPii`) masks it only when it is a CANONICAL dashed
@@ -30,9 +42,7 @@ enum TestBundleAssembler {
     /// covered, and (unlike broadening the UUID regex to dashless hex) it CANNOT touch the raw `hex` capture
     /// field, which a greedier rule would shred. Scoped to the sidecars so a non-PII logical `deviceId`
     /// (e.g. "my-whoop") elsewhere in the bundle stays readable. NORMALIZED names (ring id already dropped).
-    static let ouraSidecarNames: Set<String> = [
-        "oura-raw.jsonl", "oura-ibihr.jsonl", "oura-activity.jsonl",
-    ]
+    static let ouraSidecarNames: Set<String> = Set(ouraSidecarKinds.map { "oura-\($0).jsonl" })
 
     /// `oura-raw.jsonl` is the ONE sidecar whose payload is nothing but hex (`OuraRawDumpLine.encode`) —
     /// `oura-ibihr.jsonl`/`oura-activity.jsonl` encode DECODED numeric fields, so `LiveState.redactHexDump`'s
@@ -76,33 +86,81 @@ enum TestBundleAssembler {
 
     /// Hard cap the bundle at `capBytes` (20 MB default, under GitHub's 25 MB; spec section 5.4). The
     /// strap-log tail and meta.json are already bounded, so only the `trimmableNames` research streams can
-    /// exceed. We reserve the whole size of every non-trimmable file, then split the remaining budget across
-    /// the trimmable files IN PROPORTION to their size, keeping the MOST-RECENT tail of each (newest data is
-    /// the most diagnostic) and trimming from the front. With a single trimmable file this is identical to
-    /// the prior raw-capture-only behaviour (its share is the whole remainder). Returns the capped entries
-    /// plus whether any truncation happened, which the caller writes to meta.truncated.
+    /// exceed. We reserve the whole size of every non-trimmable file, then share the remaining budget across
+    /// the trimmable files, keeping the MOST-RECENT tail of each (newest data is the most diagnostic) and
+    /// trimming from the front. Returns the capped entries plus whether any truncation happened, which the
+    /// caller writes to meta.truncated.
+    ///
+    /// ALLOCATION: **max-min fair** (water-filling), NOT proportional-to-size. Each stream is offered an
+    /// equal share of what is left; a stream smaller than its share is kept WHOLE and its unused remainder
+    /// flows to the streams that are still over. See `fairAllowances` for why, and for the measured export
+    /// that motivated it. With a single trimmable file this is still identical to the original
+    /// raw-capture-only behaviour: its share is the whole remainder.
     static func capEntries(_ entries: [FileExport.BundleEntry],
-                           capBytes: Int = 20 * 1024 * 1024) -> (entries: [FileExport.BundleEntry], truncated: Bool) {
+                           capBytes: Int = defaultCapBytes) -> (entries: [FileExport.BundleEntry], truncated: Bool) {
         let total = entries.reduce(0) { $0 + $1.data.count }
         guard total > capBytes else { return (entries, false) }
         // Reserve the non-trimmable files (kept whole), then share the remainder across the trimmable ones.
         let nonTrimmable = entries.filter { !trimmableNames.contains($0.name) }.reduce(0) { $0 + $1.data.count }
         let budget = max(0, capBytes - nonTrimmable)
-        let trimmableTotal = entries.filter { trimmableNames.contains($0.name) }.reduce(0) { $0 + $1.data.count }
+        let allowance = fairAllowances(
+            sizes: entries.filter { trimmableNames.contains($0.name) }.map { ($0.name, $0.data.count) },
+            budget: budget)
         var truncated = false
         let capped = entries.map { entry -> FileExport.BundleEntry in
             guard trimmableNames.contains(entry.name) else { return entry }
-            // Each trimmable file gets a byte share proportional to its size (integer floor keeps the sum
-            // under budget, so the bundle never breaches the cap). Kept whole if already within its share.
-            let share = trimmableTotal > 0
-                ? Int(Double(budget) * Double(entry.data.count) / Double(trimmableTotal))
-                : 0
+            let share = allowance[entry.name] ?? 0
             guard entry.data.count > share else { return entry }
             truncated = true
-            // Keep the tail (most recent): the last `share` bytes.
-            return FileExport.BundleEntry(name: entry.name, data: Data(entry.data.suffix(share)))
+            // Keep the tail (most recent): the last `share` bytes, then snap forward to the next full
+            // JSONL line. A raw byte-count tail can (and in production did - a real export shipped
+            // oura-cva-ppg.jsonl/oura-real-steps.jsonl/oura-motion.jsonl each with a corrupted first
+            // line) land mid-record; every trimmable name is newline-delimited JSONL, so dropping the
+            // partial line at the front keeps every kept line honest.
+            return FileExport.BundleEntry(name: entry.name,
+                                          data: Self.trimToLineBoundary(entry.data.suffix(share)))
         }
         return (capped, truncated)
+    }
+
+    /// Split `budget` bytes across the named streams **max-min fairly**: walk them smallest-first, offering
+    /// each an equal share of whatever budget remains, and let a stream that fits under its share take only
+    /// what it needs so the surplus rolls forward to the larger ones. Integer floor keeps the sum at or under
+    /// `budget`, so the bundle can never breach the cap. Pure; `sizes` order does not affect the result.
+    ///
+    /// WHY NOT PROPORTIONAL-TO-SIZE (the original rule): it hands the budget to the BULKIEST stream, and for
+    /// these sidecars bulk is close to inversely correlated with diagnostic value. Measured on a real export
+    /// (`noop-master-iOS-v9.3.1-260809-0716.zip`, six trimmable sidecars over a 20,863,648-byte budget):
+    /// `oura-spo2.jsonl` — a per-sample dump whose values are also in the SQLite the same bundle ships —
+    /// took **53.9 %**, while `oura-raw.jsonl` got **1.9 %** (388,064 bytes: 8 min 43 s of an 8.4 h night).
+    /// The raw sidecar is the UNDECODED wire bytes, the one file in the bundle from which a protocol fact can
+    /// be re-derived independently of our own decoder, so starving it costs a night of verification that
+    /// nothing else can supply. Under this rule the ~3.47 MB fair share keeps it whole and the surplus goes
+    /// where it is merely bulk. Same 20 MB bundle, no editorial ranking of the streams.
+    static func fairAllowances(sizes: [(name: String, bytes: Int)], budget: Int) -> [String: Int] {
+        // Smallest-first, name-tiebroken so the result is deterministic regardless of input order.
+        let ordered = sizes.sorted { $0.bytes != $1.bytes ? $0.bytes < $1.bytes : $0.name < $1.name }
+        var allowance: [String: Int] = [:]
+        var left = max(0, budget)
+        var unserved = ordered.count
+        for stream in ordered {
+            let share = unserved > 0 ? left / unserved : 0
+            let give = min(max(0, stream.bytes), share)
+            allowance[stream.name] = give
+            left -= give
+            unserved -= 1
+        }
+        return allowance
+    }
+
+    /// Drop bytes up to and including the first newline in `data`, so a raw byte-count tail (from
+    /// `capEntries`'s fair-share trim) never starts mid-line for a newline-delimited JSONL sidecar.
+    /// Returns `data` unchanged when it contains no newline (a single very-long line, or already empty)
+    /// - never worse than the untrimmed behaviour, just not improved. Pure/testable.
+    static func trimToLineBoundary(_ data: Data) -> Data {
+        guard let newline = data.firstIndex(of: 0x0A) else { return data }
+        let start = data.index(after: newline)
+        return data.subdata(in: start..<data.endIndex)
     }
 
     // MARK: - assemble (the entrypoint behind the Report button, the Group D integration seam)
@@ -320,36 +378,71 @@ enum TestBundleAssembler {
     }
 
     /// Map a diagnostics filename to a NORMALIZED bundle entry name that drops the ring id, or nil when the
-    /// file is not one of the three Oura sidecars. `oura-<type>-<ringId>.jsonl` → `oura-<type>.jsonl`, which
-    /// (a) keeps the ring id out of the bundle's filenames (redaction scrubs content, never names) and
-    /// (b) lands on the `trimmableNames` set so the cap can trim it. Pure/string-only for unit testing.
+    /// file is not one of the Oura sidecars in `ouraSidecarKinds`. `oura-<type>-<ringId>.jsonl` →
+    /// `oura-<type>.jsonl`, which (a) keeps the ring id out of the bundle's filenames (redaction scrubs
+    /// content, never names) and (b) lands on the `trimmableNames` set so the cap can trim it.
+    ///
+    /// A ROLLED GENERATION (`oura-<type>-<ringId>.jsonl.<n>`, written by `OuraRawDump`'s session ring) maps
+    /// to the SAME normalized name on purpose — `ouraDiagnosticEntries` merges the generations behind that
+    /// one name rather than choosing between them. Before generations were recognised at all, the `.jsonl`
+    /// suffix test rejected every one of them and the bundle could only ever ship the live file — which on
+    /// 2026-08-10 was a 30-second morning session while the night's 4 MB sat in a generation the export
+    /// never looked at.
+    ///
+    /// Thin wrapper over `WhoopStore.OuraSidecarGenerations`, where the rule is pure and unit-tested under
+    /// `swift test`; this file is app-target Swift that no default CI job compiles.
     static func normalizedOuraEntryName(forFile filename: String) -> String? {
-        for kind in ["raw", "ibihr", "activity"] {
-            if filename.hasPrefix("oura-\(kind)-"), filename.hasSuffix(".jsonl") {
-                return "oura-\(kind).jsonl"
-            }
-        }
-        return nil
+        guard let hit = OuraSidecarGenerations.classify(filename: filename, kinds: ouraSidecarKinds)
+        else { return nil }
+        return OuraSidecarGenerations.entryName(kind: hit.kind)
     }
 
     /// Gather the Oura ring's Tier-B JSONL sidecars as bundle entries, normalized names and RAW bytes (the
     /// caller redacts + caps). Enumerates the Diagnostics dir rather than reconstructing per-ring filenames,
-    /// so it needs no active-ring id and picks up whatever was captured. If two rings produced the same kind
-    /// (rare), the entry names would collide; we keep the LARGEST file per normalized name (the fuller
-    /// capture is the more useful one) so the bundle never carries duplicate names.
-    static func ouraDiagnosticEntries() -> [FileExport.BundleEntry] {
-        guard let dir = ouraDiagnosticsDir(),
-              let files = try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)
+    /// so it needs no active-ring id and picks up whatever was captured.
+    ///
+    /// Several files map to one entry name — the live session plus its rolled generations, and (rarely) two
+    /// rings that wrote the same kind. We **concatenate them oldest → newest** rather than choosing one, so
+    /// that the cap's existing keep-the-tail trim decides what ships. `OuraSidecarGenerations.mergePlan`
+    /// holds that rule, pure and unit-tested; see its doc comment for the measured export that motivated it.
+    ///
+    /// ⚠️ THIS REPLACES `largest-wins`, which was not a buggy pick but the wrong criterion: the wake drain
+    /// flushes the night's whole bank at once, so the biggest generation is whichever session drained most
+    /// — routinely not the one holding the night. It cost 11 of 31 nights in the `Sleep Nights` corpus.
+    ///
+    /// Reads are bounded by `capBytes`: an entry can never keep more than the whole bundle cap, so pulling
+    /// older generations past that point would be wasted memory. A kind whose newest file already fills the
+    /// cap therefore reads exactly one file, as it did before.
+    ///
+    /// `directory` is injectable so the merge is testable against a temp dir laid out like a real ring;
+    /// production passes nil and gets `<Application Support>/OpenWhoop/Diagnostics`.
+    static func ouraDiagnosticEntries(capBytes: Int = defaultCapBytes,
+                                      directory: URL? = nil) -> [FileExport.BundleEntry] {
+        guard let dir = directory ?? ouraDiagnosticsDir(),
+              let files = try? FileManager.default.contentsOfDirectory(
+                at: dir, includingPropertiesForKeys: [.fileSizeKey])
         else { return [] }
-        var byName: [String: FileExport.BundleEntry] = [:]
-        for url in files.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
-            guard let name = normalizedOuraEntryName(forFile: url.lastPathComponent),
-                  let entry = fileEntry(at: url, name: name) else { continue }
-            if let existing = byName[name], existing.data.count >= entry.data.count { continue }
-            byName[name] = entry
+        let sizes: [(name: String, bytes: Int)] = files.map { url in
+            // Size from the directory entry, so planning never reads a file it will not ship.
+            let bytes = (try? url.resourceValues(forKeys: [.fileSizeKey]))?.fileSize ?? 0
+            return (url.lastPathComponent, bytes)
         }
-        // Stable order (raw, ibihr, activity) so the bundle listing is deterministic.
-        return ["oura-raw.jsonl", "oura-ibihr.jsonl", "oura-activity.jsonl"].compactMap { byName[$0] }
+        let plans = OuraSidecarGenerations.mergePlan(files: sizes, kinds: ouraSidecarKinds,
+                                                     ceilingBytes: capBytes)
+        return plans.compactMap { plan in
+            var merged = Data()
+            for filename in plan.files {
+                guard let part = try? Data(contentsOf: dir.appendingPathComponent(filename)),
+                      !part.isEmpty else { continue }
+                // Every sidecar is newline-delimited JSONL. A file whose last write did not end in a
+                // newline would otherwise splice its final record onto the next generation's first one,
+                // producing a line that parses as neither. Cheap to guarantee, silent to get wrong.
+                if let last = merged.last, last != 0x0A { merged.append(0x0A) }
+                merged.append(part)
+            }
+            guard !merged.isEmpty else { return nil }
+            return FileExport.BundleEntry(name: plan.entryName, data: merged)
+        }
     }
 
     /// The on-disk path a crash report would live at, when a crash handler is wired. There is no producer
