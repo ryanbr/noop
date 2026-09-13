@@ -13,8 +13,19 @@ The capture file format is **identical** to the macOS app's frame-export hook, s
 here and on a Mac are interchangeable, and both feed the one decoder of record (`WhoopProtocol`) —
 no second decoder to drift.
 
-Use the [protocol reference](../../docs/PROTOCOL.md) for the fields and commands
-these tools exercise.
+## Status
+
+| Path | State |
+|---|---|
+| WHOOP 4.0 — capture + decode | ✅ verified on real hardware (frames decode CRC-valid) |
+| WHOOP 4.0 — **historical offload** + decode (HR/RR/resp/SpO₂/accel) | ✅ verified on real hardware (`whoop_sync.py` — durable ack-loop drain, thousands of type-47 records) |
+| WHOOP 5.0 — bond + `CLIENT_HELLO` session + command set | ✅ verified on real hardware |
+| WHOOP 5.0 — historical offload trigger (`SEND_HISTORICAL_DATA`) | ✅ verified (full burst, same trim-cursor mechanism as 4.0) |
+| WHOOP 5.0 — historical **biometrics** (type-47 v18) | ✅ unix + HR + R-R + gravity decoded (`parseFrameWhoop5`); cross-validated vs a 4C on the same person/window (HR corr 0.96, ±1 bpm at rest) |
+| WHOOP 5.0 — optical channels (PPG/SpO₂/skin-temp) + v26 layout | ◑ partial — v26 optical window mapped; legacy spot-HRV timing/decoding assumptions require revalidation; SpO₂ derivation remains unresolved |
+
+See [`../../docs/BLE_REVERSE_ENGINEERING.md`](../../docs/BLE_REVERSE_ENGINEERING.md) §3 for the
+protocol details these tools exercise.
 
 ## Why this split
 
@@ -30,7 +41,7 @@ these tools exercise.
   are stdlib-only — `bleak` is needed only to actually talk to a strap.
 - **A Swift toolchain** (5.9+, any 6.x works) to build `whoop-decode`. `WhoopProtocol` is
   Foundation-only, so it builds on Linux unchanged — no Apple frameworks required.
-
+- A **WHOOP strap you own**, and (for WHOOP 5) the phone's Bluetooth off during capture.
 
 > Tested on **Pop!_OS 24.04** (Ubuntu 24.04 base). Any modern BlueZ-based distro should work; the
 > `apt` commands below are for Debian/Ubuntu/Pop!_OS — use your distro's package manager otherwise.
@@ -76,11 +87,11 @@ the Python capture side does not require Swift.
 | `whoop_frame.py` | CRC8 / CRC16-Modbus / CRC32, frame builders (`build_command_frame`, `build_puffin_command`, `build_whoop5_buzz` / `build_whoop4_buzz`), the family-aware `Reassembler`, and the standard-HR parser. Stdlib only. |
 | `hci_extract.py` | **Turn a phone HCI capture into `capture.json`.** Parses a btsnoop (`btsnoop_hci.log`) or Apple PacketLogger (`.pklg`) log, reassembles L2CAP/ATT, and extracts the CRC-valid WHOOP frames — so a capture of the **official app** (issue [#103](https://github.com/ryanbr/noop/issues/103)) feeds the same decode pipeline. Only WHOOP streams reach the output. Stdlib only. See [From a phone HCI capture](#from-a-phone-hci-capture-hci_extractpy). |
 | `correlate_ground_truth.py` | **Locate un-decoded record fields using your WHOOP CSV export as known-plaintext.** Cross-references capture frames against the official per-night values (HRV, resting HR, skin temp, SpO₂, respiratory rate) to find each biometric's byte offset + encoding. Reuses the Swift importer's localized header aliases (English + DE/ES). Reports offsets only — your health values never leave the machine. Stdlib only. See [Ground-truth correlation](#ground-truth-correlation-correlate_ground_truthpy). |
-
+| `validate_spo2_candidate.py` | **Multi-device validation of the v18 SpO₂ candidate at frame @82** (`spo2_candidate_82`). Nightly aggregate of in-band (70–100) samples during `sleep_state=asleep` vs CSV `blood_oxygen_pct`; reports r / MAE / bias / offset-specificity and a promote checklist. **@82 is duty-cycled**, so the tool detects its window schedule per capture, aggregates per window, and reports window coverage; a strap that never emits @82 is classified `feature_absent` rather than failed. Batch mode for several straps. Postable summary has **no raw SpO₂ values** (safe for [#103](https://github.com/ryanbr/noop/issues/103)). Stdlib only. See [SpO₂ candidate validation](#spo₂-candidate-validation-validate_spo2_candidatepy). |
 | `pair_probe.py` | One-shot WHOOP 5 bonding probe: scan → connect → `pair()` → test `fd4b` access. `python3 pair_probe.py <MAC>`. |
-
+| `analyze_v26_waveform.py` | Historical v26 analysis using a 24 Hz assumption; not validation of the current R26 decoder. |
 | `analyze_v25_waveform.py` | **WHOOP 4.0 v25 PPG → HR span-pinning harness ([#194](https://github.com/ryanbr/noop/issues/194)).** Sweeps the unpinned PPG span (start + sample-count) across a corpus of captures at *known* HRs and reports the span where recovered HR **tracks** ground truth instead of the `1440/N` autocorrelation artifact — or, on resting-only data, exactly what capture is still needed. `--selftest` proves it on synthetic pulses; no args runs the bundled-frames demo. Stdlib only. |
-
+| `whoop_spot_hrv.py` | **Spot HRV (RMSSD) from the sparse PPG bursts.** Reads legacy v26 `feat_ppg` data with a 24 Hz timing assumption (read-only), detects beats, computes RMSSD per PPG-covered window with a GOOD/COARSE/POOR quality label. See [Spot HRV](#spot-hrv-from-sparse-ppg-whoop_spot_hrvpy). Stdlib only. |
 | `test_whoop_frame.py` | Unit tests for framing / reassembly / HR parsing / buzz frames (no `bleak` needed). |
 | `test_hci_extract.py` | Unit tests for the btsnoop/pklg parsers, L2CAP/ATT reassembly, and WHOOP-frame extraction (synthetic fixtures; stdlib only). |
 | `test_correlate_ground_truth.py` | Unit tests for the CSV/alias loading and the known-plaintext field search (planted-value recovery + false-positive rejection; stdlib only). |
@@ -97,6 +108,9 @@ With the venv active (`source .venv/bin/activate` — see [Setup](#setup-first-t
 python3 whoop_capture.py --model whoop4 --address AA:BB:CC:DD:EE:FF --duration 120
 ```
 
+It scans for the strap's custom GATT service, performs the bond, subscribes to the custom notify
+channels **and** the standard Heart Rate profile (`0x2A37`, works unbonded), reassembles complete
+frames, and appends each to `capture.json` as:
 
 ```json
 { "hex": "aa01…", "char": "fd4b0005-…", "ts_ms": 1700000000123, "hr": 61 }
@@ -106,14 +120,25 @@ The live `hr` (from the standard profile) is the **ground-truth cross-check**: f
 puffin payload that tracks it to locate the 5.0 HR field. `ts_ms` lets you line frames up against
 known events.
 
-### WHOOP 5: connection setup
+### WHOOP 5: bonding (do this once)
 
-Use the [WHOOP 5 connection profile](../../docs/PROTOCOL_WHOOP5.md).
-Set the address used by the examples to your strap’s address:
+The WHOOP 5 `fd4b…` characteristics require an **encrypted/bonded** link — without a bond, subscribing
+or writing just stalls. The bond is plain just-works, but BlueZ needs a clean slate and the strap's
+pairing window. With the **phone's Bluetooth off** (the strap accepts one central at a time):
 
 ```bash
-export WHOOP_MAC='AA:BB:CC:DD:EE:FF'
+export WHOOP_MAC=AA:BB:CC:DD:EE:FF
+bluetoothctl remove $WHOOP_MAC     # clear any stale/half bond first — this is the usual fix
+# put the strap into pairing mode, then:
+bluetoothctl --timeout 8 scan on   # rediscover it
+python3 pair_probe.py $WHOOP_MAC   # one just-works pair; the bond then persists
 ```
+
+A stale bond left from a failed attempt shows up as `pair() → AuthenticationFailed`; `remove` + a
+fresh pairing window clears it. Once bonded, the capture below needs no further pairing.
+
+WHOOP's own guidance is to pair only through their app, not the OS Bluetooth menu. For interoperability
+with a strap **you own**, the OS-level just-works bond above is sufficient — there is no app-side step.
 
 ### WHOOP 5: capture + start the stream
 
@@ -123,16 +148,13 @@ python3 whoop_capture.py --model whoop5 --address $WHOOP_MAC --probe --duration 
 ```
 
 `--probe` sends the (4.0) command numbers re-framed for puffin after `CLIENT_HELLO`;
-`SEND_HISTORICAL_DATA` requests historical offload. The examined run without
-`--probe` received only the hello response; this does not exclude asynchronous
-events or standard-profile notifications in another session.
+`SEND_HISTORICAL_DATA` triggers a full historical offload. Without it you get only the hello response.
 
 ## Find a lost strap (`whoop_buzz.py`)
 
 Misplaced your strap in the house? This connects and **vibrates it on repeat** so you can hear/feel it
-and walk over. It sends notification-haptic requests, without explicit clock-set,
-alarm-storage or firmware-update commands. That describes the tool's requests,
-not a guarantee that firmware creates no internal state or event records.
+and walk over. It sends the same haptic the official app uses for alarms — safe and reversible (only
+the vibration motor runs; nothing is written to the data store, clock, alarm, or firmware).
 
 ```bash
 # scan for any WHOOP 5, buzz 12× every 3 s
@@ -157,8 +179,10 @@ python3 whoop_buzz.py --locate --address AA:BB:CC:DD:EE:FF
 #   -88 dBm [██████·····························]  ← far / through a wall
 ```
 
-Connect the selected strap using its [family profile](../../docs/PROTOCOL_WHOOP5.md).
-Disconnect competing active clients before capturing.
+Preconditions (same as capture): the strap must be **bonded to this machine** (run `pair_probe.py`
+once — see [WHOOP 5: bonding](#whoop-5-bonding-do-this-once)), the **phone's Bluetooth must be OFF**
+(the strap accepts one central at a time), and the strap must be **awake and in range** (~10 m line of
+sight; a dead battery can't buzz).
 
 By default each buzz is confirmed against the strap's `COMMAND_RESPONSE` ack, so the tool tells you
 `acknowledged` vs `no ack yet` and exits non-zero if nothing was acknowledged — handy for scripting.
@@ -192,8 +216,8 @@ Exit codes: `0` clock OK or successfully set, `2` strap not found, `3` written b
 **The clock is checked automatically before every sync.** A sync from a strap with a bad clock yields
 correctly-*valued* but wrongly-*dated* biometrics, so `whoop_sync.py sync` and `realtime` run this same
 check first: they read the RTC and set it to now only if it has drifted past `--clock-threshold`
-(default 30 s), then proceed. This best-effort preflight can change strap clock
-state; any error is logged and the sync continues. Disable with `--no-clock-check`.
+(default 30 s), then proceed. It's a self-contained preflight that doesn't perturb the capture session,
+and it's best-effort (any error is logged and the sync continues). Disable with `--no-clock-check`.
 
 ```bash
 # clock is checked + fixed (if >30s off) automatically, then the capture runs
@@ -204,10 +228,10 @@ python3 whoop_sync.py realtime --model whoop4 --address <MAC> ... --no-clock-che
 
 `whoop_setclock.py` remains the standalone tool for an explicit check/set outside a sync.
 
-> **Firmware gotcha.** Older WHOOP 4 firmware (e.g. `41.17.6.0`) latches the RTC
+> **Firmware gotcha (hardware-verified).** Older WHOOP 4 firmware (e.g. `41.17.6.0`) latches the RTC
 > **only** with the **9-byte** `SET_CLOCK` body (`u32 LE + 5 zero`); the 8-byte form newer firmware
 > uses draws *no* response and silently fails. `build_whoop4_set_clock` sends the 9-byte form. The
-> length matters: an unsupported body can be ignored or rejected; an ACK does not prove the clock latched. Note also that the stored historical
+> length is load-bearing — a wrong length is ack'd but not latched. Note also that the stored historical
 > records keep the (correct) timestamp they were written with, so offloading old history does **not**
 > need the clock fixed first — only future recordings do.
 
@@ -225,18 +249,15 @@ accelerometer/gravity vector.
 - **WHOOP 5.0** — offload transport + ack + durable storage work (puffin framing, `CLIENT_HELLO`).
   The type-47 **v18** record decodes: `unix` @ 15, `heart_rate` @ 22 (stored by the sync), plus R-R
   and gravity via `whoop-decode`. Validated against a 4C worn by the same person in the same window
-  (HR corr 0.96, ±1 bpm at rest). This legacy storage path keeps additional fields
-  raw (`unix`/`hr` = NULL for records it does not project). Current mapped
-  [R18](../../docs/PROTOCOL_SENSORS.md#r18-biometric-summary) and
-  [R26](../../docs/PROTOCOL_SENSORS.md#r26-compact-optical-window) layouts are separate
-  from that export limitation; physiological interpretation remains bounded.
+  (HR corr 0.96, ±1 bpm at rest). The optical channels (PPG/SpO₂/skin-temp) and a less-common **v26**
+  record layout are kept raw (`unix`/`hr` = NULL) pending ground truth.
 
 ```
   whoop_sync.py sync ─► whoop.db (SQLite, device-scoped) ─► export ─► capture.json ─► whoop-decode
    (bleak / BlueZ)        persist-before-ack + trim cursor     (per device)               (HR/RR/resp/accel)
 ```
 
-### The offload handshake
+### The offload handshake (verified on real hardware)
 
 1. Connect, subscribe the three `6108` notify channels, and silence the live type-43 raw flood
    (`TOGGLE_REALTIME_HR` / `SEND_R10_R11_REALTIME` off) so it doesn't starve the offload of airtime.
@@ -253,11 +274,10 @@ accelerometer/gravity vector.
 
 ### Durability — persist-before-ack
 
-A successful ack may release the on-strap history copy, so the tool commits each
-received chunk to SQLite (`journal_mode=WAL`, `synchronous=FULL` → fsync) **before**
-sending its ack. The local trim cursor supports bookkeeping and gap reporting.
-This ordering does not guarantee that every BLE frame arrived or that a reconnect
-resumes at exactly the same position; see [history recovery](../../docs/PROTOCOL_TRANSPORT.md#interruption-and-recovery).
+The ack tells the strap it may **trim (delete)** the acked chunk, so each chunk is committed to SQLite
+(`journal_mode=WAL`, `synchronous=FULL` → fsync) **before** its ack is sent: a dropped BLE frame can
+never be lost to a trim. The trim cursor is persisted too, so a reconnect **resumes where you left off**
+(the strap also remembers; the stored cursor is for the client's own bookkeeping + gap reporting).
 
 ### Device scoping
 
@@ -283,6 +303,10 @@ python3 whoop_sync.py decode  --db .. --address .. [--full]             # raw fr
 drained / strap asleep). Re-run any time to continue — the cursor is durable. Times for `label`
 accept epoch seconds, ISO-8601, or `HH:MM` (today).
 
+> **The strap must be advertising to connect.** A bonded strap that BlueZ already auto-connected is
+> *not* advertising, so `sync` force-disconnects and scans for the device object before connecting
+> (and retries). If the strap has been idle a while it sleeps — nudge it (move it / pull it off the
+> charger) so it advertises again; a central cannot wake a sleeping peripheral.
 
 ### SQLite schema
 
@@ -310,13 +334,13 @@ python3 whoop_sync.py decode --db captures/whoop.db --address AA:BB:.. --full   
 
 **It reuses the Swift `whoop-decode` as the one decoder of record — it does _not_ re-implement
 decoding in Python.** The bridge shells out to `whoop-decode --json`, maps the decoded fields into the
-tables below, and stores nothing the decoder didn't produce. This bridge therefore
-shares the Swift decoder with the Apple clients and CLI. Android has a separate
-Kotlin implementation whose parity must be checked independently. The decode cursor lives in `sync_state` (`last_decoded_frame_id`), so a run only decodes
+tables below, and stores nothing the decoder didn't produce. So the iOS/macOS/Android apps, the CLI,
+and this decode step can never drift on frame offsets: there is exactly one decoder, verified against
+real hardware. The decode cursor lives in `sync_state` (`last_decoded_frame_id`), so a run only decodes
 **new** frames; re-runs are **idempotent**.
 
 **Why this development matters for the synced data.** The raw offload is the *irreplaceable* part —
-once the client acknowledges a chunk the strap may release its retained copy — so capture must never be blocked or risked.
+once the strap acks a chunk it may **trim (delete) it** — so capture must never be blocked or risked.
 Decoding is the *rebuildable* part (features can always be re-derived from `frames`). The bridge
 respects that split: decode runs **after** the offload fully drains, never inside the persist-before-ack
 loop, and is **best-effort** — if `whoop-decode` isn't built or errors, the raw frames are already safe
@@ -352,11 +376,9 @@ themselves and risk diverging on the offsets.
 | `resp_raw` | raw ADC | respiration-related raw reading. WHOOP 4 (v24) only |
 | `record_version` | int | source record layout: **24** = WHOOP 4; **18 / 26** = WHOOP 5. Tells the consumer which columns are real vs NULL for this row |
 
-> **Legacy export columns.** WHOOP 5 **v18** leaves `spo2_*`, `skin_temp_raw`
-> and `resp_raw` **NULL** in this export schema; WHOOP 4 **v24** fills them.
-> This does not mean R18 is unmapped: the [current R18 reference](../../docs/PROTOCOL_SENSORS.md#r18-biometric-summary)
-> describes known thermal, motion and status fields. Those fields do not establish
-> a SpO2 or raw-respiration interpretation for these legacy columns.
+> **Provenance via NULLs.** WHOOP 5 **v18** leaves the optical region unmapped (no verified offsets), so
+> `spo2_*` / `skin_temp_raw` / `resp_raw` are **NULL** there; WHOOP 4 **v24** fills them. Per project rule
+> we never invent offsets — an honest NULL beats a fabricated number.
 
 `feat_rr` — individual beat-to-beat intervals (for HRV beyond the per-second summary):
 
@@ -396,6 +418,11 @@ update the tools or regenerate stored data:
 > don't derive RMSSD from the offloaded PPG). It opens `whoop.db` read-only and never writes. Documented
 > here as a historical experiment; decoding and timing require revalidation before reuse.
 
+The tool uses legacy derived rows and a 24 Hz timing assumption. Historical
+analysis reported correlation +0.907 over 14 bursts; this does not validate the
+corrected 25-sample reconstruction or establish reliable inter-beat intervals.
+The commands and output below describe the existing experiment, not a validated
+HRV implementation for the current R26 contract.
 
 ```bash
 python3 whoop_spot_hrv.py --db captures/whoop.db --device 1                  # every PPG-covered window
@@ -407,6 +434,11 @@ window_start   span     HR   RMSSD  beats  quality
   1120          40s   109      -       1  POOR
 ```
 
+Historical capture comparisons were exploratory. Recompute them after checking
+base-plus-delta reconstruction, sample timing, burst boundaries and clipping.
+The existing GOOD/COARSE/POOR labels are tool heuristics, not validation of those
+assumptions. Sparse capture coverage also prevents continuous overnight HRV.
+The available optical metadata does not establish a calibrated SpO₂ derivation.
 
 ## Decode (`whoop-decode`)
 
@@ -443,7 +475,7 @@ the phone captured it directly.
 
 If you want a smaller file, two optional flags narrow it down:
 
-
+- `--only-type 47` — just the main once-per-second records.
 - `--since <unix-time>` — only data newer than a given moment.
 
 Then transfer `capture.json` to your phone (any file transfer works), open NOOP, and pick it from
@@ -457,21 +489,25 @@ than crashing the import.
 
 | Symptom | Cause | Fix |
 |---|---|---|
-
-
+| `pair() → AuthenticationFailed` | Stale/half bond in BlueZ, or strap not in its pairing window | `bluetoothctl remove <MAC>`, re-enter pairing mode, retry |
+| Connect hangs (no `connected: True`) | Phone holds the strap (one central at a time) | Turn the **phone's Bluetooth off** / move it away |
+| `start_notify` / write to `fd4b…` hangs | Not bonded — those chars need an encrypted link | Bond first (see *WHOOP 5: bonding*) |
+| Bonded but only the hello response, no stream | No post-hello command sent | Add `--probe` |
+| Not found in scan | Strap asleep / advertising window closed | Wake/charge-tap the strap; for WHOOP 5 re-enter pairing mode |
 | `BleakClient(addr)` hangs right after `bluetoothctl remove` | BlueZ forgot the device | Scan first so it's rediscovered (the tools do this) |
 
 ## Safety & scope
 
-- Offline decode/export tools operate on local files. BLE tools also issue the
-  requests described in their individual sections: session setup, probes, history
-  transfer, clock read/set preflight or notification haptics, depending on the tool
-  and options. They are not uniformly read-only with respect to the strap.
-- These tools do not issue firmware-update, reboot, ship-mode or DFU commands.
+- **Read-only with respect to your strap**, apart from the bonding handshake every BLE client must
+  perform. These tools record data the strap already broadcasts.
+- The only frames written are the **session/bond handshake** and, under `--probe`, a small set of
+  **non-destructive** read/toggle commands (`GET_CLOCK`, `TOGGLE_REALTIME_HR`, `SEND_R10_R11_REALTIME`,
+  `SEND_HISTORICAL_DATA`) — all part of the curated command set described in the project's BLE safety
+  contract. No firmware/reboot/ship-mode/DFU commands are sent.
 - **`whoop_sync.py` additionally sends `HISTORICAL_DATA_RESULT` (cmd 23), the offload ack.** This
-  can advance the strap's acknowledged boundary and release already served history.
-  This does not establish immediate physical flash erasure. Because the on-strap
-  copy may become unavailable, the tool commits each
+  advances the strap's trim cursor, which causes the strap to **trim (delete) historical chunks it has
+  already served** — exactly the same housekeeping WHOOP's own app performs on every sync, not a wipe
+  of device function. Because the ack is destructive *to the on-strap copy*, the tool commits each
   chunk to disk **before** acking it (persist-before-ack), and the data lives on in the local DB.
 - Use only on **hardware you own**. Capture files contain your strap's serial / a session token /
   its MAC — they are git-ignored and should not be shared.
@@ -479,6 +515,11 @@ than crashing the import.
 
 ## From a phone HCI capture (`hci_extract.py`)
 
+You don't need a Linux BLE adapter to contribute frames. A **Bluetooth HCI capture of the official
+WHOOP app** — the artifact issue [#103](https://github.com/ryanbr/noop/issues/103) asks for — records
+the real app unlocking and draining the deep streams, which is exactly the traffic NOOP can't yet
+elicit itself. `hci_extract.py` converts such a log into the same `capture.json` the rest of this
+pipeline consumes.
 
 Grab the capture on the phone that already pairs with your strap:
 
@@ -503,6 +544,11 @@ mapped offsets), not the raw log.
 
 ## Ground-truth correlation (`correlate_ground_truth.py`)
 
+A capture gives raw records; your **WHOOP data export** gives the official readings for the same
+nights. Put them together and the un-decoded layout (the type-`0x2F` deep records, the 5/MG history
+types NOOP still skips — see [`WHOOP5_DEEP_DATA.md`](../../docs/WHOOP5_DEEP_DATA.md)) becomes a
+*known-plaintext* problem: search each record for the byte offset + encoding whose value reproduces a
+known biometric across every night.
 
 Get the export from **app.whoop.com → Account → Data Export** (any language — the tool reads the
 localized German/Spanish/… column headers via the same alias table the app's importer uses).
@@ -530,6 +576,10 @@ personal data.
 
 ## SpO₂ candidate validation (`validate_spo2_candidate.py`)
 
+Once a capture has v18 historical records, this tool tests whether **byte @82** is a trustworthy
+candidate SpO₂ interpretation (the `spo2_candidate_82` instrumentation already in Swift/Kotlin) by comparing
+**nightly means** against your WHOOP CSV export — the multi-device bar described in
+[`docs/WHOOP5_DEEP_DATA.md`](../../docs/WHOOP5_DEEP_DATA.md).
 
 The frame source can be **either** an `hci_extract` / `whoop_capture` `capture.json` **or the SQLite
 capture DB `whoop_sync.py` writes** (`captures/whoop.db`) — the same `frames` table
@@ -567,7 +617,7 @@ python3 validate_spo2_candidate.py --batch devices.json --postable
 ]
 ```
 
-### R18 byte 82 observations
+### @82 is duty-cycled — read this before trusting a run
 
 `@82` is **not** sampled every second. On a corpus of 18,650 v18 records — 18,602 of them from
 [@digitalerdude](https://github.com/digitalerdude)'s public PacketLogger capture of an official-app
@@ -576,8 +626,13 @@ is nonzero in only **450 records (2.4 %)**, in **15 runs, every one exactly 30 r
 starting at the same `unix % 1200`, with **zero phase variance**. Outside that window the byte is
 identically `0x00`.
 
+So a capture (or a sampling scheme) that is not aligned to the phase reads all zeros and looks
+exactly like a strap with the feature switched off. The tool therefore:
 
-- **aggregates per window**, not per second: the tool treats each 30-second burst as one observation, so
+- **detects** the schedule per capture — period, phase, window length, jitter — and prints what it
+  found. The window's *existence and stable length* is the robust fact; the phase offset is **not**
+  assumed to generalise across straps or firmware, so it is never hard-coded;
+- **aggregates per window**, not per second: a 30-second burst is one measurement the strap took, so
   a densely-sampled window cannot outvote a sparse one;
 - **reports coverage** per night (windows sampled ÷ windows expected) and warns loudly below
   `--min-window-coverage` (default 0.5), because a night built on 2 of 21 windows is not comparable
@@ -598,6 +653,22 @@ What it checks (per device):
 | Distinct in-band values at @82 (variance floor) | ≥ 5, stdev ≥ 0.5 |
 | Median share of the night's duty windows sampled | ≥ 0.5 (n/a if not duty-cycled) |
 
+The variance floor exists because "the value lands in 70–100" is **not** a specific screen. On a real
+subscription-free 5.0 strap six offsets pass an in-band-only screen on a majority of records — `@17`,
+`@33`, `@59`, `@69`, `@71`, `@107` — and every one is either an already-decoded non-SpO₂ field (`@33`
+`cardiac_flags`, `@59` `step_cadence`, `@69`/`@71` the two aux thermal channels) or near-constant
+(`@17` is byte 2 of the u32 unix timestamp at `@15`; `@107` has 4 distinct values). A nightly SpO₂
+cannot have 2 distinct values, so an offset must show real variation before its correlation is ranked.
+
+**Overall PASS** only if every gate clears. A strap whose `@82` is `0x00` on 100 % of a long enough
+capture is reported as **`feature_absent`** — neither a PASS nor a FAIL, and excluded from the
+multi-device gate, because a device with no data has not failed a correlation. To make that claim the
+capture must also have **watched** the strap: at least an hour of *observed* sleep (samples × cadence,
+not `max − min`, which counts gaps) and a cadence of **≤ 30 s**, since a coarser one can alias with the
+duty period and read `0x00` off a working strap. Either bar missed and it stays a plain FAIL, with the
+duty line saying why. NOOP still will not
+promote `spo2_candidate_82` → `spo2Pct` from a single device: need **≥ 2 devices** that each PASS
+(postable summary prints `multi_device_eligible` / `all_pass` / `feature_absent`).
 
 **Privacy:** default output and `--postable` print only aggregates (r, MAE, bias, offsets, pass/fail).
 `--show-nights` prints per-night values for **local** debugging — do not paste that on GitHub.

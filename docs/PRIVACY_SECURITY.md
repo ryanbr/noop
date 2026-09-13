@@ -42,7 +42,7 @@ Data enters or leaves NOOP only through these explicit paths:
 
 | Path | Transport | Direction |
 |------|-----------|-----------|
-| Strap communication | Bluetooth LE | Receives records; sends connection, clock, collection and history-acknowledgement commands |
+| Live collection | Bluetooth LE, strap → device | Read-only from the strap |
 | File import (Apple Health, WHOOP CSV, nutrition CSV) | User-selected files on disk | Read-only from disk |
 | Oura history import (opt-in build flag, §1.1b) | HTTPS OAuth + REST, `api.ouraring.com` → device | Read-only from your own Oura account |
 | Apple Health export, incl. iOS "Export for Shortcuts" | On-device, user-initiated | NOOP → your Apple Health, on your device only (§1.3) |
@@ -374,7 +374,7 @@ share time and hands that file to the OS share sheet. Nothing is uploaded by NOO
 decoded biometric *values* (heart-rate numbers, R-R intervals, SpO₂, skin-temp are not
 written to the log — only control-plane command names and frame-routing), and no
 hello-token or serial hex (the handshake lines log *that* a step happened, not its
-payload). The one mild identifier is the strap's advertised name (e.g.
+secret payload). The one mild identifier is the strap's advertised name (e.g.
 `WHOOP 5AG…`), which the user chooses to include when they tap Share.
 
 **logcat is opt-in (debug mode), off by default.** By default the log is mirrored
@@ -432,7 +432,7 @@ defense.
 allowed to drive any application state. `Framing.swift` implements three checksums
 verbatim from the wire formats:
 
-- WHOOP 4 `crc8` (poly 0x07) over the two length bytes,
+- `crc8` (poly 0x07) over the length header,
 - `crc32` (zlib/reflected) over the inner payload,
 - `crc16Modbus` for the WHOOP 5.0 header (ported from the `goose` work).
 
@@ -444,17 +444,18 @@ let ok = crc8OK && (crc32OK ?? false)
 ```
 
 The live BLE path then refuses anything that fails. In
-`Strand/BLE/FrameRouter.swift` (use the connection’s selected device family):
+`Strand/BLE/FrameRouter.swift`:
 
 ```swift
-let parsed = parseFrame(frame, family: selectedFamily)
+let parsed = parseFrame(frame)
 guard parsed.ok else { return }
-// Reject checksum failures; valid checksums do not authenticate the sender.
+// Reject frames that failed their checksum — never let bad bytes drive state.
 if parsed.crcOK == false { return }
 ```
 
-Clock correlation also checks `parsed.ok, parsed.crcOK != false`. A forged or malformed
-frame with recomputed checksums can pass checksum validation; field validation remains necessary.
+The same gate guards clock correlation (`Strand/Collect/ClockCorrelation.swift`
+requires `parsed.ok, parsed.crcOK != false`), so a corrupt frame can neither update
+the displayed metrics nor poison the device-clock model.
 
 **Bounds-checked decoding.** Field reads never index past the end of the buffer. The
 low-level readers in `Interpreter.swift` return `nil` instead of trapping when a read
@@ -477,11 +478,11 @@ out-of-bounds read.
 **Sane-value gating at the application edge.** Even a CRC-valid frame is range-checked
 before it updates the UI/state. The realtime handler discards implausible heart rates
 (`hr >= 30, hr <= 220`) and only overwrites R-R intervals when the frame actually
-carries them. These checks do not make arbitrary CRC-valid input trustworthy.
+carries them — so a single bad-but-valid packet can't wipe good state.
 
 **Reassembly is bounded by the declared length.** The `Reassembler` resynchronizes on
 the `0xAA` start-of-frame byte, discards leading garbage, and only emits a frame once
-the family-specific frame length is present (`length + 4` on WHOOP 4, `length + 8` on WHOOP 5).
+`length + 4` bytes are present — it does not unboundedly buffer arbitrary data.
 
 ### 3.2 Threat B: a malicious import file (zip bombs, XML bombs, huge exports)
 
@@ -582,7 +583,7 @@ dedicated source id `nutrition-csv`, alongside your other metrics and entirely o
 | Process | Data exfiltration / network egress | Three explicit paths: AI Coach (your key, chosen provider, summary only — §1.1a), Oura history import (your OAuth app, inbound-only — §1.1b), and Android self-hosted push (default-off, user-owned endpoint, one-way versioned batches — §1.1d). No NOOP server, account, or telemetry; ordinary BLE/offline use makes no application network request. | `Strand/AI/AICoach.swift`, `Strand/Oura/`, `android/.../ai/AiCoach.kt`, `docs/PUSH_PROTOCOL.md` |
 | Oura history import | OAuth token / scope leakage, cross-account data mixing | Compiled out by default (`OURA_CLOUD_IMPORT`, §1.1b); tokens Keychain-only (`kSecAttrAccessibleAfterFirstUnlock`, never UserDefaults/plist); fixed OAuth scopes set at build time; raw + normalized rows partitioned under `deviceId = "oura-api"`; Oura's own scores kept reference-only (`ref_*`/`oura_*` metricSeries keys, never NOOP's Charge/Effort/Rest); `.cloudImport` is structurally priority-2 so it never seizes a WHOOP day; Forget Oura access purges tokens + every `oura-api` row incl. the raw archive | `Strand/Oura/OuraTokenStore.swift`, `Strand/Oura/OuraConnectModel.swift`, `Packages/WhoopStore/Sources/WhoopStore/OuraRawStore.swift` |
 | Filesystem | Broad disk access | Only `files.user-selected.read-write`; data stays in the sandbox container | `Strand.entitlements`, `Strand/Collect/StorePaths.swift` |
-| BLE frames | Malformed / adversarial packets | Family-specific header CRC (CRC8 on 4, CRC16 on 5) plus CRC32; reject checksum failures, not sender authentication | `WhoopProtocol/Framing.swift`, `Strand/BLE/FrameRouter.swift` |
+| BLE frames | Malformed / adversarial packets | CRC8 + CRC32 (+ CRC16 for v5) gating; reject on failure | `WhoopProtocol/Framing.swift`, `Strand/BLE/FrameRouter.swift` |
 | BLE frames | Out-of-bounds reads from short/lying length | `nil`-returning bounds-checked readers; slice clamping; min-length guards | `WhoopProtocol/Interpreter.swift` |
 | BLE frames | Garbage / partial fragments | SOF-resync reassembler bounded by declared length | `WhoopProtocol/Framing.swift` (`Reassembler`) |
 | App state | Implausible-but-valid values | Range gates (e.g. HR 30–220) at the state edge | `Strand/BLE/FrameRouter.swift` |

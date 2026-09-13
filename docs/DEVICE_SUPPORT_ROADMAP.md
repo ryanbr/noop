@@ -1,6 +1,6 @@
 # Device support — roadmap & protocol notes
 
-NOOP's north star is **WHOOP**, the primary supported device family. Everything else is an opportunistic, easy-first
+NOOP's north star is **WHOOP**, fully supported. Everything else is an opportunistic, easy-first
 expansion that must never regress the WHOOP experience. This file records where each additional
 source stands and the protocol facts we've verified, so the next build can pick up cleanly.
 

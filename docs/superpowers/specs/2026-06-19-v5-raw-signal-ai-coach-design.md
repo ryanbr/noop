@@ -76,7 +76,7 @@ to the coach as callable tools**, not capturing them.
 ### New (this pillar)
 
 - **No new sensor capture.** The pillar is an orchestration + tool layer, not a new
-  collector. It consumes available `StreamStore` records, with family-specific signal interpretation.
+  collector. (R-R, PPG, accel, skin-temp already flow through `StreamStore`.)
 - **`CoachToolKit`**: a thin, read-only, deterministic façade over the stores/engines
   above, returning *compact JSON-ish text* the model can read (see Architecture).
 - **Tool-call loop**: an agentic loop that lets a tool-capable provider call those
@@ -303,7 +303,7 @@ framing must be tighter, not looser.
   infection / illness"*). A short deny-list of clinical-claim patterns is included in
   the prompt.
 - **Honest about limits.** PPG-derived HRV/HR, motion-derived sleep staging, and
-  skin-temp *deviation* (not absolute core temp) are NOOP-derived estimates from consumer-strap data;
+  skin-temp *deviation* (not absolute core temp) are estimates from a consumer strap;
   the provenance footer and copy say "estimated from your strap", consistent with the
   rest of NOOP (e.g. the SpO₂ walk-back, skin-temp-as-deviation).
 - **Privacy copy unchanged and reinforced.** Same `aiCoachPrivacyNote`: nothing leaves

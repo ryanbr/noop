@@ -21,7 +21,7 @@ SHA-256-verified + Room KSP-validated), ships versioned releases, and runs on re
 with real users against real **WHOOP 4.0 and 5.0/MG** straps.
 
 **BLE work still needs real hardware, though — a compile proves nothing about the radio.**
-OS bonding and the family-specific session handshake, the realtime HR
+The bond handshake (one confirmed write to the command characteristic), the realtime HR
 stream, the historical (type-47) offload, and the haptic buzz can't be exercised in an
 emulator. Any change on the CoreBluetooth/GATT, offload, or live-HR path must be validated
 on a phone with Bluetooth **and** an actual strap — say what you tested on hardware. See the
@@ -228,12 +228,11 @@ and are the source of truth for the BLE layer:
 | WHOOP 5 custom service | `fd4b0001-cce1-4033-93ce-002d5875f58a` |
 | Standard HR service / char | `0x180D` / `0x2A37` (HR + R-R, works **unbonded**) |
 | Battery service / char | `0x180F` / `0x2A19` (percent) |
-| **Earlier WHOOP 4 setup** | The reference starts with a confirmed `GET_BATTERY_LEVEL` write. Write completion is not independent proof of a persistent OS bond. WHOOP 5/MG uses its separate pairing/session path. |
+| **Bond** | exactly **one confirmed (`writeWithResponse`) write** to the command characteristic — the reference uses `GET_BATTERY_LEVEL`. Its completion callback = bonded. |
 
-The WHOOP 4 framing envelope: `0xAA`, u16 LE length, CRC8(length bytes),
+The framing envelope (verified): `0xAA`, u16 LE length, CRC8(length bytes),
 `[type=35][seq][cmd][payload]`, CRC32 LE. Fragments arriving on the notify
-characteristics are reassembled before routing. WHOOP 5/MG uses the separate
-[format-1 envelope](../docs/PROTOCOL_TRANSPORT.md#format-1-framing).
+characteristics are reassembled before routing.
 
 ---
 
@@ -250,10 +249,10 @@ phone **and** a WHOOP strap.
 - [ ] Navigation between the main tabs works (Today / Sleep / Trends / Coach / Settings, etc.).
 - [ ] Runtime BLE permission prompt appears on first launch (Android 12+) and is handled.
 
-**WHOOP 4 hardware acceptance checklist (test criteria, not a WHOOP 5 contract):**
+**On real hardware (phone + WHOOP strap):**
 
 - [ ] Scan discovers the strap by the WHOOP 4 service UUID and connects.
-- [ ] OS bond state is established; check characteristic write completion separately.
+- [ ] **Bond succeeds** — one confirmed write to the command characteristic completes without error.
 - [ ] Standard HR (`0x2A37`) streams a plausible heart rate (30–220 bpm) and R-R intervals.
 - [ ] Battery (`0x2A19`) reports a sane percentage.
 - [ ] Realtime HR toggle starts/stops the custom REALTIME stream.
@@ -275,8 +274,7 @@ phone **and** a WHOOP strap.
 - The BLE layer is the highest-risk part. Android's `BluetoothGatt` is callback-based and
   serializes GATT operations differently from CoreBluetooth — queue writes/reads and wait
   for each callback before issuing the next, or operations will be silently dropped.
-- Keep app session readiness separate from Android OS pairing. The current client
-  handles `createBond()` and OS bond state separately from write completion and
-  the generation-specific hello sequence.
+- "Bond" here means the app-level confirmed-write handshake described above, **not**
+  necessarily Android OS pairing (`createBond()`); follow the reference's just-works flow.
 - Keep all timestamps and CRC math byte-exact against the Swift reference — protocol bugs
   surface as "the strap won't serve data", not as crashes.

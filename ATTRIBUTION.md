@@ -41,10 +41,41 @@ The line is between the fact and the expression of it:
 - **The implementation may not be copied** — not verbatim, not transcribed. Nor may string literals,
   assets, or anything else that is authored expression rather than an observation about the wire.
 
-Current command and field meanings are maintained in the
-[command reference](docs/PROTOCOL_COMMANDS.md), [sensor layouts](docs/PROTOCOL_SENSORS.md),
-and [ECG contract](docs/PROTOCOL_ECG.md). Decoder support and physical validation remain
-separate questions.
+This is long-standing practice, not a one-off. Worked examples already in the tree:
+
+- **`spo2_candidate_82`** (`Interpreter.swift`) — WHOOP 5 v18 byte `@82` provisionally interpreted as a candidate SpO₂
+  percentage, with the existing attribution to the decompile-sourced `gen5.rs`
+  `spo2_pct` decode retained. A guard test stops it ever writing `spo2Pct`, and it is still a
+  candidate because the cross-device evidence is split.
+- **The R22 config opcodes** (`Whoop5Config.swift` / `.kt`) — `SET_FF_VALUE (0x78)` and the flag key
+  names, corroborated against *Asherlc/dofek docs/whoop-ble-protocol.md (Android APK decompilation)*
+  and validated byte-for-byte against a decrypted HCI capture.
+- **The disputed battery opcode** (`Commands.swift`, `Enums.kt`) — a decompile reads
+  `GET_EXTENDED_BATTERY_INFO` as 87 where our table says 98. Both readings are recorded and the
+  question is settled by probing real firmware, not by picking a source.
+- **The MG ECG ("Labrador") packet layouts** (`Whoop5Ecg.swift` / `.kt`, `docs/PROTOCOL.md` §9.1) —
+  field order, widths and enum values for `FilteredLabradorPacket` / `RawLabradorPacket`, plus the
+  `{revision, arg, padding}` command payload shape, re-derived from static analysis of the vendor's iOS
+  client. The four command NUMBERS were already in our own `CommandNumber` table from the whoomp/goose
+  work above. Most of it still ships as an **unvalidated candidate**: the decode backs no metric, and the
+  fields nobody can attest (the wrist enum's raw values, the progress "timed out" sentinel, the ECG
+  sample unit, the packet type byte) are carried raw rather than named. **One exception is now attested
+  rather than inferred:** `ControlSignal`'s raw values were also read off the client's enum order, and a
+  WHOOP MG (`WS50_r00`, fw `50.39.1.0`) contradicts that reading — `1` stops generation, `2` starts it,
+  `0` is refused. The enum now carries the hardware values with the device and firmware named. A
+  hardware-observed value is strictly stronger than the inference it replaces, but it is one device.
+  The on-strap rhythm classifier's verdict is decoded as a byte and is never presented as a finding —
+  NOOP is not a medical device.
+
+And the line held from the other side:
+
+- **`StrainTargetNotifier`** (both platforms) — *"CLEAN-ROOM: this reimplements the BEHAVIOUR only. The
+  copy is NOOP's own — NOT WHOOP's decompiled strings."* Behaviour re-derived; the user-facing text
+  written fresh.
+- **The `LINK_VALID` handshake**, rejected in
+  [`docs/BLE_REVERSE_ENGINEERING.md`](docs/BLE_REVERSE_ENGINEERING.md) — its reply payload is a
+  literal string lifted from the app. Expression, not a fact about the wire, so it stays out
+  regardless of whether the handshake turns out to be real.
 
 ## Oura ring (gen 3/4/5) protocol
 NOOP's Oura code is **original clean-room** work. The local BLE source

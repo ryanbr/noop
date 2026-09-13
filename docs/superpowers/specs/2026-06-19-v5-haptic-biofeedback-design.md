@@ -67,14 +67,14 @@ the HRV math, and the Breathe outcome capture that already ship.
 | **Live "stress-onset" detector (JITAI)** | new: short-window RMSSD drop, motion-gated, edge-triggered | **New (engine)** |
 
 **Honest limits we state up front:**
-- NOOP applies range and ectopic filters to R-R inputs. Available intervals do not establish
-  validated beat-timing accuracy; HF-HRV / RSA remain estimates.
-- R-R availability must be checked in the received standard or custom stream.
+- WHOOP R-R is **PPG-derived**, not ECG — beat timing is good enough for trend RMSSD but is noisier than
+  a chest strap. We already clean it (range + Malik ectopic). HF-HRV / RSA amplitude are therefore
+  **estimates**, never clinical readings.
+- The custom realtime stream usually reports `rr_count=0`; the **reliable** R-R is the standard profile.
   Resonance sweeps need a steady R-R feed, so the engine requires a minimum clean-beat rate and reports
   "not enough beat data" rather than guessing (mirrors Breathe's existing `"—"` behaviour).
-- This design reuses NOOP's existing notification pattern, changing its
-  *count* (stacked loops) and *timing*. This is a client pattern choice, not a
-  universal firmware restriction on waveform duration. Inhale = lighter cue, exhale = heavier cue, exactly as Breathe
+- Each WHOOP notification buzz is a **fixed-length** motor pulse — we can't vary on-time per pulse, only
+  *count* (stacked loops) and *timing*. Inhale = lighter cue, exhale = heavier cue, exactly as Breathe
   and Haptic Clock already do.
 
 ---
@@ -334,10 +334,10 @@ Swift and Kotlin (a `ParityTests`-style pair), so the twins can't drift.
    amplitude cleanly at 4.5–7 br/min, or do we need the custom stream when it actually carries beats?
    (Decides whether the full sweep is trustworthy or we ship quick-sweep-only first.) — needs an
    on-strap capture.
-2. **Buzz timing fidelity.** With the selected NOOP notification pattern: is the inhale/exhale (1 vs 2 loops) distinction
+2. **Buzz timing fidelity.** Fixed-length motor pulses: is the inhale/exhale (1 vs 2 loops) distinction
    crisp enough to pace at slow paces without the exhale's two pulses bleeding into the next inhale?
    Confirm on a real motor; may need a longer inter-phase gap than Breathe uses.
-3. **Exercise-gate source latency.** The `recentGravity` history input can be delayed, so the
+3. **Exercise-gate source latency.** Gravity is *offloaded* (lags ~7–15 min via `recentGravity`), so the
    L3 gate may see motion late. Is the resting-HR-band gate sufficient on its own for real-time
    suppression, with gravity as a secondary confirm? Or do we need a lighter live-motion signal?
 4. **L2 safety envelope.** Final numbers for max Δ-below-HR, HR floor, and max duration — conservative

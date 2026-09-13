@@ -134,8 +134,10 @@ stays single-owner-per-day. The fused view labels which device owns the day's sc
 existing output.
 
 ### Research grounding (cited approach, branded but transparent)
-- **Best-signal selection** is a proposed NOOP source-preference policy; it does not establish
-  which hardware algorithm a strap uses or which source is physically more accurate.
+- **Best-signal selection** follows the consumer-wearables consensus that dedicated sensors beat proxies:
+  wrist pedometers count steps directly while a chest/forearm strap *estimates* from motion+HR (this is why
+  the WHOOP itself historically didn't surface steps). We encode that as the trust tier, not as a vendor
+  preference.
 - **Cross-source agreement** is a standard **Bland–Altman-style agreement** intuition (difference vs mean),
   reduced to a simple tolerance check for display — we surface the *spread*, we don't claim a true value.
 - **No black box.** Like Charge/Effort/Rest, the policy and tolerances are published, inspectable

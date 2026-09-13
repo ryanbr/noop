@@ -146,8 +146,8 @@ StrandImport ───────▶ WhoopProtocol + WhoopStore + ZIPFoundation
   set of packet types (e.g. `PUFFIN_COMMAND_RESPONSE` = 38, `PUFFIN_METADATA` = 56) that
   `canonicalTypeName(_:schema:)` aliases onto the 4.0 base names so they decode with the same logic.
 
-The shared API selects family-specific framing, service identifiers and hello messages.
-Decoding and downstream stream extraction also retain family-specific handling.
+`verifyFrame(_:family:)` and the `DeviceFamily` UUID/CLIENT_HELLO accessors are the single switch
+points between generations; everything downstream of `parseFrame` is generation-agnostic.
 
 ---
 
@@ -202,18 +202,17 @@ if backfilling {
    `parseFrame → extractStreams(clockRef) → store.insert` (**decoded first, durable**) →
    optionally `enqueueRawBatch` (raw, transient).
 5. Standard `0x2A37` HR/RR is recorded **continuously and independently** via
-   `Collector.ingestStandardHR` — the client assigns a reception wall-clock timestamp,
-   so that stored row needs no device-clock correlation and keeps recording regardless of which screen is open.
+   `Collector.ingestStandardHR` — it carries a wall-clock timestamp so it needs no clock
+   correlation and keeps recording regardless of which screen is open.
 
-The earlier WHOOP 4 live decoder correlates device time with wall time through
-`ClockCorrelation`/`GET_CLOCK`. This is not a shared timestamp rule: WHOOP 5/MG
-[type-40 records](PROTOCOL_SENSORS.md#packet-40-live-hr-and-r-r) carry Unix
-seconds, with a separate time field whose scale remains unresolved.
+Live `REALTIME_DATA` (type 40) timestamps are a **device monotonic epoch**; `extractStreams` maps
+them to wall time with the linear `(device, wall)` offset captured at connect by
+`ClockCorrelation`/`GET_CLOCK`.
 
 ### Historical path (offload / backfill)
 
-The strap retains biometric history subject to its storage capacity and collection
-state; a fixed retained duration is not guaranteed. NOOP requests history once per connect and then every `backfillIntervalSeconds` (900s) while connected+bonded — so
+The strap holds a ~14-day on-device biometric store. NOOP re-offloads it the way the official client
+syncs — once per connect and then every `backfillIntervalSeconds` (900s) while connected+bonded — so
 the periodic **type-47 historical offload is the primary metric source**, not the live stream.
 
 1. `requestSync(_:)` gates every kick on connection state **and** `BackfillPolicy` (the rate
@@ -247,7 +246,7 @@ Type-47 records carry their **own real-unix timestamps**, so the historical path
 | Producer | `Collector` | `Backfiller` |
 | Trigger | Continuous notify | `SEND_HISTORICAL_DATA`, rate-limited |
 | Frame types | 40/43 (REALTIME) + 0x2A37 | 47/48/49/50 (HISTORICAL/EVENT/META/LOGS) |
-| Timestamp source | Generation-specific: older WHOOP 4 correlation; WHOOP 5/MG Unix seconds | Record timestamp; see the generation-specific layout |
+| Timestamp source | Device epoch → wall via `ClockRef` | Real unix in the record |
 | Durability unit | Cadence flush (64 frames / 30s) | One `HISTORY_END` chunk, trim-acked |
 | Decode fn | `extractStreams` | `extractHistoricalStreams` |
 | Role | Live HR/UI + opt-in detail | **Primary** metric source |
@@ -256,7 +255,8 @@ Type-47 records carry their **own real-unix timestamps**, so the historical path
 
 ## 6. The BLE connection lifecycle
 
-`BLEManager` is the only CoreBluetooth surface. The WHOOP 4 connection flow below runs **exactly once per connection** (guarded by `connectHandshakeDone`, because `didWriteValueFor` re-fires on every
+`BLEManager` is the only CoreBluetooth surface. The connection handshake runs **exactly once per
+connection** (guarded by `connectHandshakeDone`, because `didWriteValueFor` re-fires on every
 confirmed write):
 
 ```
@@ -270,12 +270,11 @@ scan(customService) ─▶ didDiscover ─▶ connect ─▶ didDiscoverServices
                                    └─ startKeepAlive()       (re-arm realtime, poll battery, watchdog)
 ```
 
-WHOOP 5/MG uses its separate [client-hello connection sequence](PROTOCOL_WHOOP5.md#connection-and-frame-format).
-
 Supporting machinery, all on the main run loop:
 
 - **Keep-alive (30s):** re-arms the realtime stream if wanted, polls battery, and — if **no
-  notification has arrived for >120s** — bounces the link; the auto-rescan on disconnect attempts to reconnect and restore requested streaming.
+  notification has arrived for >120s** — bounces the link; the auto-rescan on disconnect re-bonds and
+  resumes streaming.
 - **Stuck-strap watchdog:** after each offload, `StuckStrapDetector` compares the strap's newest
   record (`GET_DATA_RANGE`) against NOOP's data frontier (`latestHRSampleTs`). Strap-ahead **and**
   frontier-frozen ⇒ a reboot hint banner; off-wrist / caught-up is *not* flagged.
@@ -381,9 +380,8 @@ computed locally.
    SQLite file, and the UI are the whole system.
 2. **Decoded-first durability.** Metrics are committed before raw is queued; the raw outbox is a
    prunable convenience, never the source of truth.
-3. **Durable before acknowledgement.** NOOP commits decoded data before acknowledging a
-   historical chunk. Its local cursor supports retries, but device-side progress and exact
-   resumption are not guaranteed; see [history recovery](PROTOCOL_TRANSPORT.md#interruption-and-recovery).
+3. **Resumable safe-trim.** The strap forgets historical data only after NOOP has it durably and has
+   confirmed the ack; a durable cursor makes every offload resumable.
 4. **Pure cores, thin shell.** `WhoopProtocol`, `WhoopStore`, `StrandAnalytics`, and `StrandImport`
    are platform-pure and testable in isolation; the app target is the only CoreBluetooth/SwiftUI
    surface.

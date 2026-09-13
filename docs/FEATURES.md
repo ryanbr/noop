@@ -57,13 +57,12 @@ Throughout the app the strap reports one of three states:
 - **Connecting** — found and connecting, finishing the secure pairing handshake (warning / amber).
 - **Bonded** — paired and streaming; haptics and live HR are available (positive / green).
 
-> Use NOOP's connection workflow for the appropriate strap family. Visibility in
-> OS Bluetooth settings depends on the platform and advertising/pairing state;
-> it is not a universal property of WHOOP's custom service.
+> WHOOP straps do **not** appear in *System Settings → Bluetooth*. They advertise on a custom
+> profile that only apps like NOOP can find — so there's nothing to pair in System Settings.
 
-Custom haptic controls need the appropriate secured connection and session state.
-Standard-profile HR/R-R can be available before custom-session readiness. NOOP's
-button gates are client policy, separate from that protocol distinction.
+Commands that drive the strap motor (any wrist buzz) and the live realtime stream require a
+**bonded** connection. Where a feature needs this, it is noted below and the button is disabled
+until you bond.
 
 ---
 
@@ -79,7 +78,8 @@ The onboarding wizard (`OnboardingWizard.swift`) appears on first launch and run
    your Mac; the connection is local BLE with no server in the middle.
 4. **Wear & wake** — put the strap on (snug, sensor on skin), charge it, keep it within ~1 m.
 5. **Scan** — a radar sweep; tapping **Scan** calls the BLE engine. If it hasn't bonded after
-   ~12 seconds, a troubleshooting card appears with connection guidance.
+   ~12 seconds, a reassurance card appears explaining the strap won't show in System Settings,
+   that only one host can hold it at a time (close the WHOOP phone app), etc.
 6. **Bonded celebration** — a Charge ring blooms in when the strap bonds, with battery %.
 7. **Profile** — age, sex, weight, height (feeds zones, calories and baselines). Shows your
    estimated max heart rate.
@@ -118,7 +118,7 @@ The home dashboard (`TodayView.swift`, titled "Control Center"). A tight, gaples
 
 ## Live
 
-**Sidebar: Live · connected HR and the hardware-test surface; standard HR may be available before full pairing.**
+**Sidebar: Live · needs a bonded strap for HR; the hardware-test surface.**
 
 `LiveView.swift` is the real-time heart-rate screen and the pairing/diagnostics surface:
 
@@ -134,7 +134,7 @@ The home dashboard (`TodayView.swift`, titled "Control Center"). A tight, gaples
   streaming.
 
 Opening Live starts the realtime HR stream and requests a fresh battery reading; leaving it
-requests that custom stream to stop; standard Heart Rate handling is separate.
+stops the realtime stream (the lightweight standard HR keeps recording).
 
 ---
 
@@ -144,7 +144,8 @@ requests that custom stream to stop; standard Heart Rate handling is separate.
 
 `BreathingView.swift` / `BreatheScreen.kt` / `WatchBreatheView.swift` — an **HRV haptic breathing
 biofeedback** trainer (NOOP's flagship novel feature), now also a **content-driven protocol
-catalog**. NOOP computes HRV from received R-R intervals and requests haptic breathing cues.
+catalog**. Because the strap both *measures* HRV (from R-R intervals) and *buzzes*, NOOP can pace
+your breath with a felt cue and watch your HRV respond in real time.
 
 - **Pick a pace** from the in-place pill row:
   - Built-in: Relax 4-6, Coherence 5.5, plus a **catalog** of ANS protocols (Deep, Box 4-4-4-4 with
@@ -182,7 +183,7 @@ A "Test buzz" button fires a single pulse (bonded only).
 **Sidebar: Intervals · works visually without a strap; needs a bonded strap for haptic cues.**
 
 `IntervalTimerView.swift` — a **silent haptic HIIT interval timer**. Train hands-free: the strap
-requests a haptic cue at each transition so you never look at the screen.
+buzzes every transition so you never look at the screen.
 
 - **Configure** Work seconds (5–600), Rest seconds (5–600) and Rounds (1–30).
 - A big glanceable **stage face**: WORK / REST / DONE, the current round, a countdown ring, and a
@@ -419,7 +420,7 @@ and Apple Health under `apple-health`, so per-source pages and cross-source cons
 `NotificationSettingsView.swift` — choose which Mac apps tap your wrist, and how. Everything runs
 on this Mac.
 
-- **Wrist alerts** master switch (opt-in, **off** by default). A test control sends a haptic request
+- **Wrist alerts** master switch (opt-in, **off** by default). A test buzz fires immediately
   (bonded only). Strap status mirrors the connection state.
 - **Per-app control** — NOOP discovers installed, notification-capable apps via macOS
   (LaunchServices) and groups them: **Email** (Outlook, Mail), **Messaging** (WhatsApp, Messenger,
@@ -458,7 +459,7 @@ A **Test action** button runs it without the strap. Recent moments are listed an
 ### Wear & presence
 React when the strap comes off or goes on:
 
-- **Lock the Mac when I take the strap off** — reacts when the client receives the wear-off event; detection and delivery add latency.
+- **Lock the Mac when I take the strap off** — fires the moment the strap leaves your wrist.
 - **Run a Shortcut when taken off** — presence automation (set a Focus, pause media, set away…).
 - **Run a Shortcut when put back on** — reverse it when you return.
 
@@ -471,9 +472,8 @@ React when the strap comes off or goes on:
   you are still. Off by default, with optional auto-nudges, quiet hours, and your resonance pace.
 
 ### Smart alarm
-This arms the strap's **own firmware alarm**. A successfully stored schedule is
-processed using the strap clock without NOOP running. Storage, detection and
-driver execution still impose [alarm timing and success limits](PROTOCOL_ALARMS.md).
+Wake to a wrist buzz. This arms the strap's **own firmware alarm**, so it still fires even if the
+Mac is asleep or NOOP is closed. Set your wake time — the strap buzzes at exactly that time.
 NOOP does not currently do light-sleep early wake.
 
 Mac side-effects are sandbox-friendly: screen lock uses macOS's own lock entry point, and

@@ -131,7 +131,7 @@ public func verifyFrame(_ frame: [UInt8]) -> FrameCheck
 public func verifyFrame(_ frame: [UInt8], family: DeviceFamily) -> FrameCheck
 
 public final class Reassembler {                       // accumulate BLE fragments → whole frames
-    public init(family: DeviceFamily = .whoop4)
+    public init()
     public func feed(_ fragment: [UInt8]) -> [[UInt8]]
 }
 ```
@@ -162,7 +162,7 @@ that `WhoopStore` persists:
 `Streams` value. All carry wall-clock unix-second timestamps and are `Codable`.
 
 ```swift
-// Live capture (type-40 REALTIME_DATA): HR + R-R with family-specific time handling.
+// Live capture (type-40 REALTIME_DATA): HR + R-R, device clock → wall clock.
 public func extractStreams(_ parsed: [ParsedFrame],
                            deviceClockRef: Int, wallClockRef: Int) -> Streams
 
@@ -173,25 +173,21 @@ public func extractHistoricalStreams(_ parsed: [ParsedFrame],
 
 `classifyHistoricalMeta(_:)` (`HistoricalMeta.swift`) drives the
 historical-offload state machine by classifying a parsed `METADATA` frame into
-`.start`, `.end(unix:trim:)`, `.complete`, or `.other`. The CRC32 gate detects
-checksum failures; it does not authenticate a peer or prevent a forged frame.
+`.start`, `.end(unix:trim:)`, `.complete`, or `.other` — gated on a valid CRC32
+so a garbled peer cannot forge a `HISTORY_END`.
 
 ### Minimal usage
-
-Use the same device family for reassembly and parsing. Create a new reassembler
-when switching families; buffered fragments belong to the previous connection.
 
 ```swift
 import WhoopProtocol
 
-// Select the family for this connection before receiving notifications.
-let selectedFamily: DeviceFamily = .whoop5
-let reassembler = Reassembler(family: selectedFamily)
+// Reassemble BLE notification fragments, then decode each complete frame.
+let reassembler = Reassembler()
 var parsedFrames: [ParsedFrame] = []
 
-func onNotification(_ fragment: [UInt8]) {
+func onNotification(_ fragment: [UInt8], family: DeviceFamily) {
     for frame in reassembler.feed(fragment) {
-        let parsed = parseFrame(frame, family: selectedFamily)
+        let parsed = parseFrame(frame, family: family)
         guard parsed.ok, parsed.crcOK != false else { continue }
         parsedFrames.append(parsed)
     }

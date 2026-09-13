@@ -23,7 +23,7 @@ Men:    VO₂max = 100.27 − 0.296·age + 0.226·PA − 0.369·waist(cm) − 0.
 Women:  VO₂max =  74.74 − 0.247·age + 0.198·PA − 0.259·waist(cm) − 0.114·RHR     SEE 5.14
 ```
 
-- **RHR** is resting heart rate (a rolling 7-day median computed by NOOP from recorded HR).
+- **RHR** is resting heart rate (a rolling 7-day median from the strap).
 - **PA** is a physical-activity index (see below).
 - **waist** is waist circumference in cm, from the profile if the user enters it.
 - **SEE** is the model's standard error of estimate — roughly ±5.7 (men) / ±5.1 (women) ml/kg/min on the

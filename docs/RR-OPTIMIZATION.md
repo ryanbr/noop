@@ -52,7 +52,7 @@ Two separate limits, each capping a different metric.
 
 Recovery match is capped by sample size. On eight nights a multi-parameter fit reaches 0.849 in-sample but only 0.575 leave-one-out, which is overfitting. An unfitted composite holds at about 0.85. A legitimate correlation near 0.91 needs more nights, so exporting a fuller WHOOP history is the unlock, since WHOOP's data export returns the full account.
 
-Sparse R-R coverage limits this HRV comparison.
+HRV absolute match is capped by capture quality. Only three of the eight nights had adequate R-R coverage, because the band is OS-bonded to the WHOOP app and the co-resident noop capture is trimmed. Matching WHOOP's HRV closely needs an exclusive bond on a spare phone without the WHOOP app, not a better formula.
 
 ## Candidate changes not yet shipped
 
