@@ -3056,10 +3056,14 @@ killed standard-0x2A37 live HR).
   more captures — so NOOP never ships a guessed offset. These are building blocks toward on-device 5.0
   sleep/recovery (decode layer only; not yet surfaced in the UI).
 
-- **Fixed (macOS): revised the WHOOP 5.0 v26 decoder metadata selection.** This release
-  changed the selected byte and range gate; the field is now understood as a burst
-  counter, not a channel selector (see the later PR #553 correction). Current byte
-  and sample semantics are in the [R26 reference](docs/PROTOCOL_SENSORS.md#r26-compact-optical-window).
+- **Fixed (macOS): the WHOOP 5.0 v26 PPG channel index was read from the wrong byte.** A community
+  reverse-engineering report (validated against a 22 h overnight corpus) and NOOP's own two real test
+  fixtures both show the channel is **`frame[21]` (values 1–26, a time-multiplexed sweep)**, not
+  `frame[12]` — the `0x41`/`0x46` that the merged v1.19 decode reported were a high-entropy counter byte
+  caught during a short 2-burst capture. Corrected and gated to 1…26 so a wrong offset stores nothing.
+  The PPG **waveform** decode (LE i16 @[27:75]) was always correct and is unchanged. This 26-way
+  time-multiplex is also why **SpO₂ is not recoverable offline** (it needs simultaneous red+IR; no two
+  channels are ever co-sampled). 117 WhoopProtocol tests green.
 
 ## 1.20 — Strap log stays off the system log (Android)
 
@@ -3082,13 +3086,15 @@ killed standard-0x2A37 live HR).
   source already kept its own status line (from 1.18); this serialises the import itself behind a single
   `activeImportSource`.
 
-- **Added: WHOOP 5.0 optical PPG waveform decoding** (#43). The type-47 version-26
-  record became visible in the strap inspector and `whoop-decode`. This historical
-  release used a decoder interpretation subsequently corrected; see the
-  [R26 reference](docs/PROTOCOL_SENSORS.md#r26-compact-optical-window) for the current
-  base-plus-deltas layout. Decoder-only and version-keyed; v18 and unknown versions
-  were unaffected.
-
+- **Added: WHOOP 5.0 optical PPG waveform decoded** (#43). The strap's high-rate type-47 **version-26**
+  history record — previously a raw region — is now decoded as a **24 Hz optical photoplethysmography
+  (PPG) trace**: 24 little-endian i16 ADC samples per second (`unix` u32 LE @15, channel id @12). It was
+  identified as optical, not motion, using heart rate as *internal* ground truth — the concatenated
+  waveform autocorrelates to the measured HR (lag 14 ≈ 103 bpm vs 101.7 bpm), trough-detection gives a
+  ~563 ms inter-beat interval, and the pulse stays HR-locked even when the wrist is still. Raw ADC counts
+  are exposed verbatim as `ppg_waveform` (PPG has no absolute unit — no scale is invented). Visible in
+  the strap inspector / `whoop-decode`; a building block toward 5.0 recovery and strain. Decoder-only and
+  version-keyed, so v18 and unknown versions are unaffected.
 
 ## 1.18 — Import fixes (Mac + Android)
 
