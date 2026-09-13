@@ -2771,4 +2771,5 @@
     <string name="coach_consent_off">Desactivado: el coach responde en general y no envía ninguna de tus métricas.</string>
     <string name="l10n_app_changelog_a_today_screen_you_arrange_yourself_6194ccd0">Una pantalla de Hoy que organizas tú, el estrés en la pantalla de inicio y copias de seguridad que se comprueban solas</string>
     <string name="l10n_stress_screen_scored_through_1_s_later_hours_fbb7d6c7">Puntuado hasta las %1$s. Las horas posteriores necesitan más muestras de frecuencia cardiaca.</string>
+    <string name="l10n_today_screen_scan_and_connect_40157030">Buscar y conectar</string>
 </resources>

@@ -2682,4 +2682,5 @@
     <string name="coach_consent_off">关闭：教练只作一般性回答，不发送你的任何数据。</string>
     <string name="l10n_app_changelog_a_today_screen_you_arrange_yourself_6194ccd0">可自行编排的「今天」页面、主屏幕上的压力曲线，以及会自我校验的备份</string>
     <string name="l10n_stress_screen_scored_through_1_s_later_hours_fbb7d6c7">已评分至 %1$s。较晚的时段需要更多心率采样。</string>
+    <string name="l10n_today_screen_scan_and_connect_40157030">扫描并连接</string>
 </resources>
