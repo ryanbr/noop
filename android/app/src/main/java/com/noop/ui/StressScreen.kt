@@ -594,7 +594,12 @@ private fun StressDaytimeSection(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Overline("Stress through the day", modifier = Modifier.weight(1f))
-                    val peak = day.peak
+                    // The peak of what is DRAWN, not of the whole hours (#2144). A sliding window can
+                    // exceed both hourly neighbours when the busy stretch straddles a boundary, so
+                    // reading `day.peak` here would caption the line with a number below its visible
+                    // maximum. Everything that COUNTS hours still reads `hours`; a maximum is not a
+                    // count, and this one has to describe the picture it sits above.
+                    val peak = day.timeline.filter { it.level != null }.maxByOrNull { it.level!! }
                     val peakLevel = peak?.level
                     if (peak != null && peakLevel != null) {
                         Text(

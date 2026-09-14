@@ -271,7 +271,13 @@ struct StressView: View {
                     HStack {
                         Text("Autonomic load through the day").strandOverline()
                         Spacer()
-                        if let peak = day.peak, let lvl = peak.level {
+                        // The peak of what is DRAWN, not of the whole hours (#2144). A sliding window
+                        // can exceed both hourly neighbours when the busy stretch straddles a boundary,
+                        // so `day.peak` would caption the line with a number below its visible maximum.
+                        // Everything that COUNTS hours still reads `hours`; a maximum is not a count.
+                        let drawnPeak = day.timeline.filter { $0.level != nil }
+                            .max { ($0.level ?? 0) < ($1.level ?? 0) }
+                        if let peak = drawnPeak, let lvl = peak.level {
                             Text("peak \(String(format: "%.1f", lvl)) · \(hourLabel(peak.hour))")
                                 .font(StrandFont.captionNumber)
                                 .foregroundStyle(StressRamp.color(lvl))
