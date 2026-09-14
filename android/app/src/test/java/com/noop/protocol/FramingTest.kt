@@ -510,16 +510,22 @@ class FramingTest {
         assertEquals("CONSOLE_LOGS", parsed.typeName)
         assertEquals(true, parsed.crcOk)
         assertEquals("Historical Data\n 55, 2581959: BLE: hist transfer s", parsed.parsed["log"])
-        // Record header (Swift parity: decodeWhoop5ConsoleLogs): per-chunk counter + batch time.
-        assertEquals(671, parsed.parsed["record_index"])
+        // Record header (Swift parity: decodeWhoop5ConsoleLogs): wrapping u8 sequence, the separate
+        // raw header byte, and batch time. Byte 9 is 0x9F and byte 10 is 0x02; the pair used to be
+        // read as one u16 (0x029F = 671), which is the #2192 misread.
+        assertEquals(159, parsed.parsed["console_sequence"])
+        assertEquals(2, parsed.parsed["console_header_byte_10"])
         assertEquals(1773607251, parsed.parsed["unix"])
         assertEquals(16041, parsed.parsed["subsec"])
     }
 
     @Test
-    fun whoop5_consoleLogs_consecutiveChunksCarryContiguousIndices() {
+    fun whoop5_consoleLogs_consecutiveChunksCarryContiguousSequence() {
         // Two consecutive real chunks of one console stream — a single log line split mid-word
-        // ("…response a" | "ck, start burst") across frames. record_index is the reassembly key.
+        // ("…response a" | "ck, start burst") across frames. The sequence advances by one modulo
+        // 256 and the header byte does not move with it, which is why the two are decoded apart.
+        // Continuity is a CHECK on arrival order, not a sort key: a wrapping byte cannot order a
+        // stream, and captured EVENT records can sit between console fragments.
         val a = Framing.parseFrame(
             fromHex(
                 "aa014400010030b132ad020052b4526a337334000131392c203134363535323131393a20424c453a2068" +
@@ -536,8 +542,10 @@ class FramingTest {
         )
         assertEquals(true, a.crcOk)
         assertEquals(true, b.crcOk)
-        assertEquals(685, a.parsed["record_index"])
-        assertEquals(686, b.parsed["record_index"])
+        assertEquals(173, a.parsed["console_sequence"])
+        assertEquals(174, b.parsed["console_sequence"])
+        assertEquals(2, a.parsed["console_header_byte_10"])
+        assertEquals(2, b.parsed["console_header_byte_10"])
         assertEquals("19, 146552119: BLE: hist transfer start response a", a.parsed["log"])
         assertEquals("ck, start burst\n 19, 146554630: BLE: History burst", b.parsed["log"])
     }
