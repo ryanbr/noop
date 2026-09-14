@@ -858,18 +858,6 @@ private struct FitnessAgeSection: View {
                         Text(ageDeltaLine(years: years, younger: younger, bound: bound))
                             .font(StrandFont.subhead)
                             .foregroundStyle(younger ? StrandPalette.statusPositive : StrandPalette.statusWarning)
-                        // At a bound the age has stopped carrying information: every model output past
-                        // the end of the scale banks as the same number, so someone still improving sees
-                        // nothing move (#2184). The VO₂max already beside it is NOT clamped and is the
-                        // same estimate this age derives from, so it keeps resolving where the age
-                        // cannot. Pointing at it asserts nothing the model cannot support, which an
-                        // extended reporting floor could not manage: two more years of range would still
-                        // sit inside the ±5 band this card already shows.
-                        if !bound.isEmpty, vo2max != nil {
-                            Text("Fitness Age stops here. VO₂max keeps moving.")
-                                .font(StrandFont.footnote)
-                                .foregroundStyle(StrandPalette.textTertiary)
-                        }
                     }
                     Spacer(minLength: 0)
                     if let vo2 = vo2max {
@@ -897,6 +885,22 @@ private struct FitnessAgeSection: View {
             .accessibilityElement(children: .ignore)
             // The spoken label carries the bound too, so a screen reader is not told a floored reading is exact.
             .accessibilityLabel("Fitness Age \(bound)\(shown), \(ageDeltaLine(years: years, younger: younger, bound: bound)). Tap to see the trend.")
+
+            // At a bound the age has stopped carrying information: every model output past the end of
+            // the scale banks as the same number, so someone still improving sees nothing move (#2184).
+            // The VO₂max in the row above is NOT clamped and is the same estimate this age derives from,
+            // so it keeps resolving where the age cannot. Pointing at it asserts nothing the model cannot
+            // support, which an extended reporting floor could not manage: two more years of range would
+            // still sit inside the ±5 band the line below states.
+            //
+            // FULL WIDTH, beside that band line, rather than inside the VStack holding the vessel and the
+            // delta: that column shares an HStack with the VO₂max readout, so a 44-character sentence
+            // would wrap in half a card and crowd the number it explains.
+            if !bound.isEmpty, vo2max != nil {
+                Text("Fitness Age stops here. VO₂max keeps moving.")
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textTertiary)
+            }
 
             Text("± \(Int(FitnessAgeEngine.displayBandYears)) yr · a fitness comparison, not a biological age")
                 .font(StrandFont.footnote)
