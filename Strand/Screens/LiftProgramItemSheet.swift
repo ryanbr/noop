@@ -327,6 +327,7 @@ struct LiftProgramItemSheet: View {
                 .buttonStyle(.noopPrimary)
                 .frame(maxWidth: 160)
                 .disabled(!canSave)
+                .opacity(canSave ? 1 : NoopButtonMetrics.disabledOpacity)
                 .accessibilityLabel("Save exercise")
         }
     }

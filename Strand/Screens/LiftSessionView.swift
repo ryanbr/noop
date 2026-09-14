@@ -12,7 +12,7 @@ import WhoopStore
 // COLOUR CARRIES STATE, so you can find your place at a glance from arm's length:
 //   green   the set you are working now
 //   amber   the rest that follows it
-//   done    a completed set, with a check and the numbers you entered
+//   done    a completed set, with a check; numbers nobody typed stay grey
 //
 // The session itself lives in `LiftSessionController`, ABOVE this view. Swiping this sheet away
 // minimises it to the bottom bar; the clock, the strap gesture and the buzzes all keep running,
@@ -27,12 +27,19 @@ struct LiftSessionView: View {
     /// Called once the session has been written, so the hub can reload.
     let onFinished: () async -> Void
 
-    /// What the user did for each exercise LAST session — the fallback ghost values, loaded once.
-    @State private var lastTime: [String: [Int: LiftRecordedSet]] = [:]
     @State private var showingFinish = false
     @State private var confirmingDiscard = false
     @State private var sessionRpeText = ""
     @State private var saving = false
+    /// The two questions finishing can ask. Nil until answered: saving waits for an answer rather than
+    /// deciding for the user.
+    @State private var unfinishedChoice: UnfinishedChoice?
+    @State private var programChoice: ProgramChoice?
+    /// Program lines whose set count this session changed, read when the finish sheet opens.
+    @State private var setCountChanges: [LiftSessionController.SetCountChange] = []
+
+    private enum UnfinishedChoice: Hashable { case complete, discard }
+    private enum ProgramChoice: Hashable { case update, keep }
 
     /// For the live heart rate on the control bar. `AppModel.bpm` is the smoothed, spike-filtered
     /// value every screen is supposed to show — never the raw per-beat number, which swings with HRV.
@@ -159,7 +166,7 @@ struct LiftSessionView: View {
                 columnHeadings
 
                 ForEach(engine.slots(forExercise: index), id: \.self) { slot in
-                    setRow(engine, slot: slot, item: item)
+                    setRow(engine, slot: slot)
                     // The rest belongs BETWEEN two sets, because that is where it happens.
                     if isRestingAfter(engine, slot: slot) { restBand(engine) }
                 }
@@ -177,17 +184,16 @@ struct LiftSessionView: View {
     ///
     /// The geometry mirrors a set row: the minus sits in the tick column, under the checks it undoes.
     ///
-    /// **Both buttons also rewrite the program**, which is the point rather than a side effect — a
-    /// program is a plan for NEXT time, and the sets you actually chose are the better plan. The
-    /// running session is unaffected either way; the write-back only changes what the program offers
-    /// when it is started again.
+    /// **Both buttons change this session only.** Whether the program keeps the new count is asked
+    /// when the session is finished: a program is a plan for next time, and one extra set on a good
+    /// day is not always a new plan.
     private func setCountRow(_ engine: LiftSessionEngine, index: Int, item: LiftPlanItem) -> some View {
         let canAdd = item.targetSets < LiftSessionEngine.maxSetsPerExercise
         let canRemove = engine.canRemoveSet(fromExercise: index)
 
         return HStack(spacing: 8) {
             Button {
-                changeSetCount { session.addSet(toExercise: index) }
+                session.addSet(toExercise: index)
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "plus.circle")
@@ -203,7 +209,7 @@ struct LiftSessionView: View {
             .accessibilityLabel(String(localized: "Add a set to \(item.exercise)"))
 
             Button {
-                changeSetCount { session.removeSet(fromExercise: index) }
+                session.removeSet(fromExercise: index)
             } label: {
                 Image(systemName: "minus.circle")
                     .font(.system(size: 17, weight: .semibold))
@@ -222,43 +228,6 @@ struct LiftSessionView: View {
         .padding(.horizontal, 8)
     }
 
-    /// Run a change to the set count, then make the program match.
-    ///
-    /// One funnel for every path that can move a count — the two buttons and the undo — so the
-    /// program cannot be left behind by a route someone forgot about.
-    private func changeSetCount(_ change: () -> Bool) {
-        guard change() else { return }
-        Task { await writeSetCountsToProgram() }
-    }
-
-    /// Write the session's set counts back onto the program behind it.
-    ///
-    /// Re-reads the lines first and edits only `targetSets`, so a program edited elsewhere while the
-    /// session runs keeps every other change, and a line that has since been deleted is skipped
-    /// rather than resurrected. Writes nothing at all when no count actually differs — the store
-    /// call replaces the program's lines wholesale, and that is not something to do on every tap.
-    private func writeSetCountsToProgram() async {
-        guard let programId = session.programId, let plan = session.engine?.plan,
-              let store = await repo.storeHandle() else { return }
-        var wanted: [String: Int] = [:]
-        for line in plan {
-            if let id = line.programItemId { wanted[id] = line.targetSets }
-        }
-        guard !wanted.isEmpty,
-              let rows = try? await store.liftProgramItems(programId: programId) else { return }
-
-        var changed = false
-        let rewritten = rows.map { row -> LiftProgramItemRow in
-            guard let sets = wanted[row.id], row.targetSets != sets else { return row }
-            var edited = row
-            edited.targetSets = sets
-            changed = true
-            return edited
-        }
-        guard changed else { return }
-        _ = try? await store.replaceLiftProgramItems(programId: programId, items: rewritten)
-    }
-
     /// Width of the set-number column, shared by the heading and every row so the number sits
     /// directly under its label.
     ///
@@ -266,7 +235,7 @@ struct LiftSessionView: View {
     /// mid-word — a real session photographed it reading "SE / T" over two lines. The headings are
     /// also `lineLimit(1)` with a scale floor: this row is four short labels across a phone width in
     /// ten languages, and a wrapped heading breaks the column alignment for every row beneath it.
-    private static let setColumnWidth: CGFloat = 34
+    static let setColumnWidth: CGFloat = 34
 
     /// Width of the trailing tick column. Mirrored by a clear spacer in the heading row so the four
     /// labels sit over the four things they name.
@@ -291,7 +260,7 @@ struct LiftSessionView: View {
 
     // MARK: - One set row
 
-    private func setRow(_ engine: LiftSessionEngine, slot: LiftSlot, item: LiftPlanItem) -> some View {
+    private func setRow(_ engine: LiftSessionEngine, slot: LiftSlot) -> some View {
         let recorded = engine.recordedSet(for: slot)
         let isWorking = engine.stage == .working(slot)
 
@@ -318,10 +287,10 @@ struct LiftSessionView: View {
 
             numberField(slot: slot, field: .weight(slot),
                         text: weightBinding(slot),
-                        ghost: ghostWeight(engine, slot: slot, item: item))
+                        ghost: ghostWeight(slot))
             numberField(slot: slot, field: .reps(slot),
                         text: repsBinding(slot),
-                        ghost: ghostReps(engine, slot: slot, item: item))
+                        ghost: ghostReps(slot))
             numberField(slot: slot, field: .rpe(slot),
                         text: rpeBinding(slot),
                         ghost: ghostRpe(engine, slot: slot))
@@ -419,34 +388,26 @@ struct LiftSessionView: View {
 
     // MARK: - Ghost values
     //
-    // The placeholder shows what you'd most likely repeat, in priority order: the PREVIOUS SET OF
-    // THIS EXERCISE IN THIS SESSION first (set 2 almost always mirrors set 1), then the same set
-    // number last session, then the program's target — the same order, from the same source, as
-    // `LiftSessionEngine.carry(for:lastSession:)`.
+    // The grey numbers come from ONE chain, `LiftSessionController.carry(for:)`: this exercise earlier
+    // in the session (set 2 almost always mirrors set 1), then the same set last session, then the
+    // program's target. The minimised bar and the Lock Screen read the same chain.
     //
-    // These are shown only for a set that has NOT been completed yet: a plan, not a record. Once the
-    // set is completed the carried numbers become a real entry and the binding below returns them,
-    // so the row shows what was actually logged rather than a grey suggestion of it. Keep the two
-    // chains in step — a ghost that does not match what completing the set records is worse than no
-    // ghost at all.
+    // A set keeps its grey numbers after it is done, until something is typed over them — grey means
+    // "not entered". What they are worth is decided when the session is finished: every set without
+    // typed numbers is completed with them, or discarded, in one choice.
 
-    private func ghostWeight(_ engine: LiftSessionEngine, slot: LiftSlot, item: LiftPlanItem) -> String {
-        if let prev = engine.previousSetInSession(for: slot)?.weightKg { return display(prev) }
-        if let last = lastTime[item.exercise]?[slot.setIndex]?.weightKg { return display(last) }
-        if let target = item.targetWeightKg { return display(target) }
-        return "—"
+    private func ghostWeight(_ slot: LiftSlot) -> String {
+        session.carry(for: slot).weightKg.map { display($0) } ?? "—"
     }
 
-    private func ghostReps(_ engine: LiftSessionEngine, slot: LiftSlot, item: LiftPlanItem) -> String {
-        if let prev = engine.previousSetInSession(for: slot)?.reps { return String(prev) }
-        if let last = lastTime[item.exercise]?[slot.setIndex]?.reps { return String(last) }
-        if let target = item.targetRepsLow { return String(target) }
-        return "—"
+    private func ghostReps(_ slot: LiftSlot) -> String {
+        session.carry(for: slot).reps.map(String.init) ?? "—"
     }
 
+    /// RPE is never carried, so its ghost is only the previous set's own rating — a reminder, never a
+    /// value any set will save.
     private func ghostRpe(_ engine: LiftSessionEngine, slot: LiftSlot) -> String {
-        if let prev = engine.previousSetInSession(for: slot)?.rpe { return LiftFormat.trim(prev) }
-        return "—"
+        engine.previousSetInSession(for: slot)?.rpe.map { LiftFormat.trim($0) } ?? "—"
     }
 
     private func display(_ kg: Double) -> String {
@@ -538,11 +499,7 @@ struct LiftSessionView: View {
                 stageClock(engine)
                 heartRate()
                 Spacer(minLength: 0)
-                Button {
-                    // Through the funnel: undo restores the plan as well as the sets, so taking back
-                    // an added set has to take it back off the program too.
-                    changeSetCount { session.undo(); return true }
-                } label: {
+                Button { session.undo() } label: {
                     Image(systemName: "arrow.uturn.backward")
                         .font(.system(size: 15, weight: .semibold))
                 }
@@ -558,7 +515,12 @@ struct LiftSessionView: View {
                 }
                 .buttonStyle(.noopPrimary)
 
-                Button { showingFinish = true } label: {
+                Button {
+                    unfinishedChoice = nil
+                    programChoice = nil
+                    setCountChanges = []
+                    showingFinish = true
+                } label: {
                     Text("Finish")
                 }
                 .buttonStyle(NoopButtonStyle(.secondary))
@@ -635,8 +597,11 @@ struct LiftSessionView: View {
     // MARK: - Finish
 
     private var finishSheet: some View {
-        ScreenScaffold(title: "Finish session",
-                       subtitle: "One number for the whole session, so a leg day can be compared with a run.") {
+        let unfinished = session.unfinishedSlots.count
+        let answered = (unfinished == 0 || unfinishedChoice != nil)
+            && (setCountChanges.isEmpty || programChoice != nil)
+        return ScreenScaffold(title: "Finish session",
+                              subtitle: "One number for the whole session, so a leg day can be compared with a run.") {
             VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
                 NoopCard {
                     VStack(alignment: .leading, spacing: NoopMetrics.gap) {
@@ -653,16 +618,26 @@ struct LiftSessionView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
+                if unfinished > 0 { unfinishedCard(count: unfinished) }
+                if !setCountChanges.isEmpty { programCard }
+
                 HStack {
                     Button("Skip") { Task { await save() } }
                         .buttonStyle(.plain)
                         .font(StrandFont.body)
                         .foregroundStyle(StrandPalette.textSecondary)
+                        .disabled(saving || !answered)
                     Spacer()
                     Button("Save session") { Task { await save() } }
                         .buttonStyle(.noopPrimary)
                         .frame(maxWidth: 180)
-                        .disabled(saving)
+                        .disabled(saving || !answered)
+                        .opacity(saving || !answered ? NoopButtonMetrics.disabledOpacity : 1)
+                }
+                if !answered {
+                    Text("Choose an option above to save.")
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textTertiary)
                 }
 
                 // A way OUT that records nothing. Until this existed, every route off this screen
@@ -699,14 +674,65 @@ struct LiftSessionView: View {
         #endif
         .background(StrandPalette.surfaceBase)
         .keyboardDoneToolbar($focused)
+        .task { await loadSetCountChanges() }
+    }
+
+    /// Sets nobody typed a number into. One choice covers all of them, because what matters at the end
+    /// of a session is simply whether they happened: complete them with the numbers the sheet showed,
+    /// or leave them out.
+    private func unfinishedCard(count: Int) -> some View {
+        NoopCard {
+            VStack(alignment: .leading, spacing: NoopMetrics.gap) {
+                Text("Unfinished sets").strandOverline()
+                Text("\(count) sets have no numbers typed in — sets you did not start, or finished without typing.")
+                    .font(StrandFont.body)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Picker("Unfinished sets", selection: $unfinishedChoice) {
+                    Text("Complete them").tag(UnfinishedChoice?.some(.complete))
+                    Text("Discard them").tag(UnfinishedChoice?.some(.discard))
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                Text("Completing saves them with the grey numbers shown. Discarding leaves them out of the session.")
+                    .font(StrandFont.footnote)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    /// Set counts changed with ⊕/⊖ during the session. The program keeps them only if asked to.
+    private var programCard: some View {
+        NoopCard {
+            VStack(alignment: .leading, spacing: NoopMetrics.gap) {
+                Text("Program").strandOverline()
+                Text("You changed the number of sets. Keep the new counts in the program for next time?")
+                    .font(StrandFont.body)
+                    .foregroundStyle(StrandPalette.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                ForEach(setCountChanges, id: \.itemId) { change in
+                    Text("\(change.exercise): \(change.from) → \(change.to) sets")
+                        .font(StrandFont.bodyNumber)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                }
+                Picker("Program", selection: $programChoice) {
+                    Text("Update program").tag(ProgramChoice?.some(.update))
+                    Text("Keep as it was").tag(ProgramChoice?.some(.keep))
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+            }
+        }
     }
 
     // MARK: - Loading and saving
 
-    /// What was lifted for each of this session's exercises LAST time, indexed by set number.
+    /// What was lifted for each of this session's exercises LAST time, by set number — the middle
+    /// layer of the grey numbers, handed to the controller that owns the chain.
     private func loadLastTime() async {
         guard let engine, let store = await repo.storeHandle() else { return }
-        var out: [String: [Int: LiftRecordedSet]] = [:]
+        var out: [String: [Int: LiftSetCarry]] = [:]
         // One query per DISTINCT exercise, not per plan line. A program that programs the same
         // movement twice — or an imported one with many lines — would otherwise re-ask the store the
         // same question, and this runs when the sheet opens.
@@ -714,21 +740,13 @@ struct LiftSessionView: View {
             let rows = (try? await store.lastLiftSets(deviceId: repo.deviceId,
                                                       exercise: exercise,
                                                       before: engine.startTs)) ?? []
-            var bySet: [Int: LiftRecordedSet] = [:]
+            var bySet: [Int: LiftSetCarry] = [:]
             for r in rows where !r.isWarmup {
-                bySet[r.setIndex] = LiftRecordedSet(
-                    exerciseIndex: 0, setIndex: r.setIndex, weightKg: r.weightKg, reps: r.reps,
-                    rpe: r.rpe, isWarmup: r.isWarmup, startTs: r.startTs ?? 0,
-                    endTs: r.endTs ?? 0, restSec: r.restSec)
+                bySet[r.setIndex] = LiftSetCarry(weightKg: r.weightKg, reps: r.reps)
             }
             out[exercise] = bySet
         }
-        lastTime = out
-        // The controller needs this too: the strap can complete a set while this sheet is minimised,
-        // and a set recorded that way must carry the same numbers the sheet was showing.
-        session.setLastSession(out.mapValues { bySet in
-            bySet.mapValues { LiftSetCarry(weightKg: $0.weightKg, reps: $0.reps) }
-        })
+        session.setLastSession(out)
     }
 
     private func save() async {
@@ -740,6 +758,8 @@ struct LiftSessionView: View {
         guard let engine = session.engine else { return }
         let endTs = Int(Date().timeIntervalSince1970)
         let sessionId = UUID().uuidString
+        // After `finish`, which closes out the running rest: that set's measured rest belongs to it.
+        let finished = session.setsToSave(completingUnfinished: unfinishedChoice == .complete)
 
         let row = LiftSessionRow(
             id: sessionId, deviceId: repo.deviceId,
@@ -752,8 +772,9 @@ struct LiftSessionView: View {
         _ = try? await store.upsertLiftSessions([row])
 
         // `ord` is COMPLETION order, which with out-of-order work is not the plan's order — and it
-        // is the order that actually happened, which is what a session should read back as.
-        let rows = engine.sets.enumerated().map { ord, s -> LiftSetRow in
+        // is the order that actually happened, which is what a session should read back as. Sets
+        // completed at finish without being started come last.
+        let rows = finished.enumerated().map { ord, s -> LiftSetRow in
             let item = engine.planItem(for: s.slot)
             return LiftSetRow(
                 id: UUID().uuidString, deviceId: repo.deviceId, sessionId: sessionId,
@@ -762,11 +783,14 @@ struct LiftSessionView: View {
                 // past weeks were counted as.
                 primaryMuscle: item?.primaryMuscle,
                 secondaryMuscles: item?.secondaryMuscles ?? [],
-                setIndex: s.setIndex, weightKg: s.weightKg, reps: s.reps, rpe: s.rpe,
+                setIndex: s.slot.setIndex, weightKg: s.weightKg, reps: s.reps, rpe: s.rpe,
                 isWarmup: s.isWarmup, startTs: s.startTs, endTs: s.endTs,
                 restSec: s.restSec, note: nil)
         }
         _ = try? await store.upsertLiftSets(rows)
+        if programChoice == .update {
+            await writeSetCountsToProgram(store: store, plan: engine.plan)
+        }
 
         // Through the SAME path a manual workout takes, so it inherits overlap dedup, the engine's
         // HR-derived strain fill and delete/merge. `strain` stays nil deliberately: the engine fills
@@ -783,6 +807,28 @@ struct LiftSessionView: View {
         await onFinished()
         showingFinish = false
         dismiss()
+    }
+
+    /// The program lines whose set count this session changed, for the finish sheet to ask about.
+    private func loadSetCountChanges() async {
+        guard let programId = session.programId, let plan = session.engine?.plan,
+              let store = await repo.storeHandle(),
+              let rows = try? await store.liftProgramItems(programId: programId) else { return }
+        setCountChanges = LiftSessionController.setCountChanges(plan: plan, program: rows)
+    }
+
+    /// Save this session's set counts onto its program — only when the user chose to.
+    ///
+    /// Re-reads the lines and moves only `targetSets`, so a program edited elsewhere while the session
+    /// ran keeps every other change and a line deleted since is not resurrected. The store call
+    /// replaces the lines wholesale, so nothing is written when no count differs.
+    private func writeSetCountsToProgram(store: WhoopStore, plan: [LiftPlanItem]) async {
+        guard let programId = session.programId,
+              let rows = try? await store.liftProgramItems(programId: programId) else { return }
+        let changes = LiftSessionController.setCountChanges(plan: plan, program: rows)
+        guard !changes.isEmpty else { return }
+        _ = try? await store.replaceLiftProgramItems(
+            programId: programId, items: LiftSessionController.applying(changes, to: rows))
     }
 
     /// The sport every logged session is filed under — the same token the Hevy/Liftosaur importer

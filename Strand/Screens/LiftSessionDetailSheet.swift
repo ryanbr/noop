@@ -3,7 +3,7 @@ import StrandDesign
 import StrandAnalytics
 import WhoopStore
 
-// One finished session, read back in full: every set as performed, the six session figures, and how
+// One finished session, read back in full: every set as performed, the session figures, and how
 // each exercise compares with the last time you did it.
 //
 // This is the screen the whole feature exists to produce. A log book that cannot show you what you
@@ -18,8 +18,8 @@ import WhoopStore
 
 struct LiftSessionDetailSheet: View {
     let session: LiftSessionRow
-    /// Called after the session is deleted, so the hub can reload its list.
-    var onDeleted: () async -> Void = {}
+    /// Called after the session is edited or deleted, so the hub can reload its list.
+    var onChanged: () async -> Void = {}
 
     @EnvironmentObject var repo: Repository
     @Environment(\.dismiss) private var dismiss
@@ -32,6 +32,9 @@ struct LiftSessionDetailSheet: View {
     @State private var loaded = false
     @State private var confirmingDelete = false
     @State private var deleting = false
+    @State private var editing = false
+    /// Session RPE as stored now. The edit sheet can correct it, and the session load must follow.
+    @State private var sessionRpe: Double?
 
     @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
     private var unitSystem: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .metric }
@@ -52,6 +55,7 @@ struct LiftSessionDetailSheet: View {
                     muscleSection
                     rpeSection
                     footnote
+                    NoopButton("Edit sets", systemImage: "pencil", kind: .secondary) { editing = true }
                     deleteSection
                 }
             }
@@ -63,6 +67,19 @@ struct LiftSessionDetailSheet: View {
         #endif
         .background(StrandPalette.surfaceBase)
         .task { await load() }
+        .sheet(isPresented: $editing) {
+            LiftSessionEditSheet(session: storedSession, sets: sets) {
+                await load()
+                await onChanged()
+            }
+        }
+    }
+
+    /// The session as stored now, with any corrected RPE.
+    private var storedSession: LiftSessionRow {
+        var row = session
+        row.sessionRpe = sessionRpe
+        return row
     }
 
     /// Remove a session that should not have been recorded — a mis-tap, or a test.
@@ -101,7 +118,7 @@ struct LiftSessionDetailSheet: View {
         _ = try? await store.deleteLiftSession(id: session.id)   // cascades to its sets
         if let workout { await repo.deleteWorkout(workout) }
 
-        await onDeleted()
+        await onChanged()
         dismiss()
     }
 
@@ -143,7 +160,7 @@ struct LiftSessionDetailSheet: View {
     private var workingSetCount: Int { sets.filter { !$0.isWarmup }.count }
 
     private var sessionLoadText: String {
-        guard let load = LiftMetrics.sessionLoad(sessionRpe: session.sessionRpe,
+        guard let load = LiftMetrics.sessionLoad(sessionRpe: sessionRpe,
                                                  durationSec: durationSec) else { return "—" }
         return String(Int(load.rounded()))
     }
@@ -155,7 +172,7 @@ struct LiftSessionDetailSheet: View {
     /// "× 2 min" invites the reader to check 8 × 2 = 16 against a displayed 21 and conclude the app
     /// is making numbers up.
     private var sessionLoadCaption: String {
-        guard let rpe = session.sessionRpe else {
+        guard let rpe = sessionRpe else {
             return String(localized: "not rated")
         }
         let minutes = Double(durationSec) / 60.0
@@ -398,8 +415,16 @@ struct LiftSessionDetailSheet: View {
     // MARK: - Load
 
     private func load() async {
-        guard let store = await repo.storeHandle() else { loaded = true; return }
+        guard let store = await repo.storeHandle() else { sessionRpe = session.sessionRpe; loaded = true; return }
         sets = (try? await store.liftSets(sessionId: session.id)) ?? []
+        // Re-read rather than trusting the row this sheet was opened with: the edit sheet can change it.
+        let stored = try? await store.liftSessions(deviceId: session.deviceId,
+                                                   fromTs: session.startTs, toTs: session.startTs)
+        if let row = stored?.first(where: { $0.id == session.id }) {
+            sessionRpe = row.sessionRpe
+        } else {
+            sessionRpe = session.sessionRpe
+        }
 
         // The workout row this session is pinned to, by that table's own natural key.
         let rows = (try? await store.workouts(deviceId: repo.deviceId,

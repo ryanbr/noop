@@ -77,8 +77,9 @@ final class LiftSessionPendingInputTests: XCTestCase {
         c.advance()
 
         XCTAssertEqual(c.engine?.recordedSet(for: slot(0, 1))?.weightKg, 70)
-        XCTAssertEqual(c.engine?.recordedSet(for: slot(0, 1))?.reps, 9,
-                       "reps nobody typed still come from the carry, not from nowhere")
+        XCTAssertNil(c.engine?.recordedSet(for: slot(0, 1))?.reps, "reps nobody typed stay grey")
+        XCTAssertEqual(c.values(of: slot(0, 1)).reps, 9,
+                       "and still count as the carried value, not as nothing")
     }
 
     /// Clearing the field puts the row back to showing the plan's grey ghost, rather than pinning an

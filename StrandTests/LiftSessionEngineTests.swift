@@ -98,45 +98,61 @@ final class LiftSessionEngineTests: XCTestCase {
         XCTAssertEqual(e.slotAfter(slot(2, 2)), slot(0, 1), "exhausted -> first pending in plan order")
     }
 
-    // MARK: - Carrying the shown numbers onto a completed set
+    // MARK: - Grey numbers
+    //
+    // A finished set records its timing only. Its numbers stay grey until typed, and what a set without
+    // typed numbers saves is decided when the session is finished (`LiftSessionFinishTests`).
 
-    /// A set completed with nothing typed records the numbers the sheet was showing in grey. Before
-    /// this, 19 sets from a real session saved with weight and reps NIL — the sheet displayed
-    /// "50 x 10" the whole time and stored nothing, so the session's volume was zero.
-    func testCompletingASetWithoutTypingRecordsTheProgramTarget() {
+    /// Finishing a set without typing writes nothing into it: the program's target stays a grey
+    /// suggestion the user can type straight over, and still counts as the numbers the sheet showed.
+    func testFinishingASetWithoutTypingLeavesItsNumbersGrey() {
         var e = LiftSessionEngine(plan: [targetedPlanItem()], startTs: t0)
         e.advance(now: t0 + 10)     // warm-up -> working set 1
         e.advance(now: t0 + 70)     // set done
 
         let row = e.recordedSet(for: slot(0, 1))
-        XCTAssertEqual(row?.weightKg, 50)
-        XCTAssertEqual(row?.reps, 10)
+        XCTAssertNil(row?.weightKg, "a grey number is not an entry")
+        XCTAssertNil(row?.reps)
+        XCTAssertEqual(e.values(of: slot(0, 1), lastSession: [:]), LiftSetCarry(weightKg: 50, reps: 10))
+        XCTAssertEqual(e.unenteredSlots.first, slot(0, 1))
     }
 
-    /// The second set carries what the FIRST set actually was, not the plan — if you dropped to
-    /// 45 kg, set 2 follows you down rather than snapping back to the program.
-    func testASetCarriesWhatTheExerciseActuallyDidEarlierInTheSession() {
+    /// The second set follows what the FIRST set counts as — if you dropped to 45 kg, set 2 follows
+    /// you down rather than snapping back to the program.
+    func testGreyNumbersFollowWhatTheExerciseDidEarlierInTheSession() {
         var e = LiftSessionEngine(plan: [targetedPlanItem()], startTs: t0)
         e.advance(now: t0 + 10)
         e.advance(now: t0 + 70)
         e.updateSet(slot(0, 1), weightKg: 45, reps: 8, rpe: 9, isWarmup: false)
-        e.advance(now: t0 + 130)    // rest done -> set 2
-        e.advance(now: t0 + 190)    // set 2 done
 
-        let row = e.recordedSet(for: slot(0, 2))
-        XCTAssertEqual(row?.weightKg, 45, "the session's own history outranks the program's plan")
-        XCTAssertEqual(row?.reps, 8)
+        XCTAssertEqual(e.carry(for: slot(0, 2), lastSession: [:]), LiftSetCarry(weightKg: 45, reps: 8),
+                       "the session's own history outranks the program's plan")
+    }
+
+    /// An untyped set 1 still leads set 2, and correcting set 1 later moves set 2's grey numbers with it:
+    /// nothing was written into set 2 that would have to be typed over.
+    func testCorrectingAnEarlierSetMovesTheGreyNumbersAfterIt() {
+        var e = LiftSessionEngine(plan: [targetedPlanItem()], startTs: t0)
+        e.advance(now: t0 + 10)
+        e.advance(now: t0 + 70)                                   // set 1 done, untyped
+        e.advance(now: t0 + 130)
+        e.advance(now: t0 + 190)                                  // set 2 done, untyped
+        XCTAssertEqual(e.values(of: slot(0, 2), lastSession: [:]).weightKg, 50)
+
+        e.updateSet(slot(0, 1), weightKg: 42.5, reps: nil, rpe: nil, isWarmup: false)
+        XCTAssertEqual(e.values(of: slot(0, 2), lastSession: [:]).weightKg, 42.5)
+        XCTAssertEqual(e.values(of: slot(0, 2), lastSession: [:]).reps, 10,
+                       "a field left alone keeps following its own chain")
     }
 
     /// The store's answer sits between this session and the program target.
     func testLastSessionIsUsedWhenTheSessionHasNoEarlierSetForTheExercise() {
-        var e = LiftSessionEngine(plan: [targetedPlanItem()], startTs: t0)
-        e.advance(now: t0 + 10)
-        e.advance(now: t0 + 70, lastSession: LiftSetCarry(weightKg: 52.5, reps: 9))
-
-        let row = e.recordedSet(for: slot(0, 1))
-        XCTAssertEqual(row?.weightKg, 52.5, "last session beats the program's target")
-        XCTAssertEqual(row?.reps, 9)
+        let e = LiftSessionEngine(plan: [targetedPlanItem()], startTs: t0)
+        let last = [1: LiftSetCarry(weightKg: 52.5, reps: 9)]
+        XCTAssertEqual(e.carry(for: slot(0, 1), lastSession: last), LiftSetCarry(weightKg: 52.5, reps: 9),
+                       "last session beats the program's target")
+        XCTAssertEqual(e.carry(for: slot(0, 3), lastSession: last), LiftSetCarry(weightKg: 50, reps: 10),
+                       "a set number last session did not have falls through to the target")
     }
 
     /// RPE is never carried: it is how hard a set FELT, which nothing can know in advance, and
@@ -149,7 +165,7 @@ final class LiftSessionEngineTests: XCTestCase {
         e.advance(now: t0 + 130)
         e.advance(now: t0 + 190)
 
-        XCTAssertEqual(e.recordedSet(for: slot(0, 2))?.weightKg, 50, "weight carries")
+        XCTAssertEqual(e.values(of: slot(0, 2), lastSession: [:]).weightKg, 50, "weight carries")
         XCTAssertNil(e.recordedSet(for: slot(0, 2))?.rpe, "the felt effort of a set does not")
     }
 
@@ -160,21 +176,26 @@ final class LiftSessionEngineTests: XCTestCase {
         e.advance(now: t0 + 10)
         e.advance(now: t0 + 70)
 
-        XCTAssertNil(e.recordedSet(for: slot(0, 1))?.weightKg)
-        XCTAssertNil(e.recordedSet(for: slot(0, 1))?.reps)
+        XCTAssertEqual(e.values(of: slot(0, 1), lastSession: [:]), LiftSetCarry.none)
     }
 
-    /// A carried value is a normal entry: typing over it wins, including typing a 0 for a set that
-    /// was planned but not actually performed.
-    func testTypingZeroOverAcarriedValueSticks() {
+    /// A typed value beats the grey one, including a 0 for a set that was planned but not performed.
+    func testTypingZeroOverAGreyValueSticks() {
         var e = LiftSessionEngine(plan: [targetedPlanItem()], startTs: t0)
         e.advance(now: t0 + 10)
         e.advance(now: t0 + 70)
-        XCTAssertEqual(e.recordedSet(for: slot(0, 1))?.weightKg, 50)
-
         e.updateSet(slot(0, 1), weightKg: 0, reps: 0, rpe: nil, isWarmup: false)
-        XCTAssertEqual(e.recordedSet(for: slot(0, 1))?.weightKg, 0)
-        XCTAssertEqual(e.recordedSet(for: slot(0, 1))?.reps, 0)
+        XCTAssertEqual(e.values(of: slot(0, 1), lastSession: [:]), LiftSetCarry(weightKg: 0, reps: 0))
+    }
+
+    /// Only a set with nothing typed at all is unentered; a rating alone counts as an entry.
+    func testUnenteredSlotsAreTheOnesNobodyTypedInto() {
+        var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
+        e.start(slot(0, 1), now: t0); e.advance(now: t0 + 40)     // done, untyped
+        e.start(slot(0, 2), now: t0 + 100); e.advance(now: t0 + 140)
+        e.updateSet(slot(0, 2), weightKg: nil, reps: nil, rpe: 8, isWarmup: false)
+        XCTAssertEqual(e.unenteredSlots, [slot(0, 1), slot(1, 1)],
+                       "an untyped finished set and a never-started one; the rated set is entered")
     }
 
     // MARK: - The default in-order path
@@ -506,10 +527,11 @@ final class LiftSessionEngineTests: XCTestCase {
         XCTAssertFalse(e.allCompleted, "and now it is not — there is one more to do")
         e.advance(now: t0 + 160)                                  // out of the rest, into set 2
         XCTAssertEqual(e.stage, .working(slot(0, 2)))
-        e.advance(now: t0 + 200, lastSession: LiftSetCarry(weightKg: 20, reps: 12))
+        e.advance(now: t0 + 200)
         XCTAssertEqual(e.sets.count, 2)
         XCTAssertEqual(e.sets.last?.setIndex, 2)
-        XCTAssertEqual(e.sets.last?.weightKg, 20, "an added set carries like any other")
+        XCTAssertEqual(e.values(of: slot(0, 2), lastSession: [2: LiftSetCarry(weightKg: 20, reps: 12)]).reps, 12,
+                       "an added set shows grey numbers like any other")
     }
 
     func testAddingSetsStopsAtTheBound() {

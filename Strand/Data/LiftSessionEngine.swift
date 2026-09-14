@@ -40,9 +40,9 @@ struct LiftPlanItem: Equatable {
     /// The weight the program plans, in kilograms.
     var targetWeightKg: Double?
     var note: String?
-    /// The `liftProgramItem.id` this line was flattened from, so a set added or dropped during the
-    /// session can be written back onto the program it came from. Nil for a line with no program
-    /// behind it, and the write-back is then simply skipped.
+    /// The `liftProgramItem.id` this line was flattened from, so a set count changed during the session
+    /// can be offered back to the program when it is finished. Nil for a line with no program behind
+    /// it, which is then never offered.
     var programItemId: String?
 
     /// Rest used when a program line does not specify one. Two minutes sits in the middle of the
@@ -92,7 +92,7 @@ struct LiftRecordedSet: Equatable {
     var slot: LiftSlot { LiftSlot(exerciseIndex: exerciseIndex, setIndex: setIndex) }
 }
 
-/// What a set records when it is completed without anything typed into it.
+/// The numbers a set shows in grey: what it would save if completed without anything typed.
 ///
 /// Only weight and reps. RPE is deliberately absent — see `carry(for:lastSession:)`.
 struct LiftSetCarry: Equatable {
@@ -239,44 +239,57 @@ struct LiftSessionEngine: Equatable {
         return max(0, endsAt - now)
     }
 
-    /// What was lifted for the PREVIOUS set of this exercise in THIS session — the ghost values a
-    /// set row shows before anything is typed. Falls back to nil, and the UI then falls back to the
-    /// plan's target or to what was lifted last session.
+    /// The nearest earlier set of this exercise already performed in THIS session. Nil for the first
+    /// set, or when nothing before it has been done yet.
     func previousSetInSession(for slot: LiftSlot) -> LiftRecordedSet? {
         (1..<max(1, slot.setIndex)).reversed()
             .compactMap { recordedSet(for: LiftSlot(exerciseIndex: slot.exerciseIndex, setIndex: $0)) }
             .first
     }
 
-    /// What this slot records if the user completes it without typing: the same numbers the sheet
-    /// was already showing them in grey, in the same order of preference — this exercise earlier in
-    /// THIS session, then the same set number LAST session, then the program's target.
+    /// The numbers a slot shows in grey, in order of preference: this exercise earlier in THIS
+    /// session, then the same set number LAST session, then the program's target.
     ///
-    /// The original rule was that a placeholder is never recorded, on the principle that "a number
-    /// nobody entered must never become data". A real session killed it: 19 sets were completed
-    /// against visible 50 kg x 10 placeholders and every one saved with weight and reps NIL, so the
-    /// session's volume was zero and the numbers the whole feature exists to keep were simply gone.
-    /// Silence is not the conservative choice when the alternative is losing the measurement.
+    /// "Earlier in this session" means what that set COUNTS AS (`values(of:lastSession:)`), so set 2
+    /// follows set 1 whether or not anything was typed there, and moves again if set 1 is corrected.
     ///
-    /// The principle survives in a stricter form: this is not an inference about what the user did,
-    /// it is the plan they were working to, committed only because they pressed "set done" against
-    /// it. The UI must therefore render a carried value as a REAL entry rather than a placeholder —
-    /// what was recorded has to be visible and correctable during the rest, which is when set entry
-    /// happens by design. A set the user did not actually do is corrected to 0, not left blank.
+    /// GREY STAYS GREY. Finishing a set records its timing and nothing else; a number becomes the
+    /// set's own only when it is typed. What a set without typed numbers is worth is decided once,
+    /// when the session is finished: the user completes all of them with these numbers or discards
+    /// them (`LiftSessionController.setsToSave`). Both earlier rules lost something. Recording nothing
+    /// let 19 sets from a real session save with no numbers at all, and writing the grey numbers in at
+    /// "set done" turned a suggestion into an entry the user then had to type over.
     ///
     /// RPE is NOT carried. Weight and reps are a plan, knowable in advance; RPE is how hard a set
     /// FELT, knowable only afterwards, and carrying one forward would invent the one figure nobody
     /// can guess for you. It would also silently corrupt the coverage the RPE card reports — every
     /// set would read as rated, and "14 of 19 sets unrated" could never be shown again.
     ///
-    /// `lastSession` is the one layer the engine cannot know: it comes from the store, and the
-    /// caller supplies it. Nil there simply falls through to the target.
-    func carry(for slot: LiftSlot, lastSession: LiftSetCarry) -> LiftSetCarry {
-        let previous = previousSetInSession(for: slot)
+    /// `lastSession` is this exercise's previous session by set number — the one layer the engine
+    /// cannot know. The caller supplies it; a set number it lacks falls through to the target.
+    func carry(for slot: LiftSlot, lastSession: [Int: LiftSetCarry]) -> LiftSetCarry {
+        let previous = previousSetInSession(for: slot).map { values(of: $0.slot, lastSession: lastSession) }
+        let last = lastSession[slot.setIndex]
         let item = planItem(for: slot)
         return LiftSetCarry(
-            weightKg: previous?.weightKg ?? lastSession.weightKg ?? item?.targetWeightKg,
-            reps: previous?.reps ?? lastSession.reps ?? item?.targetRepsLow)
+            weightKg: previous?.weightKg ?? last?.weightKg ?? item?.targetWeightKg,
+            reps: previous?.reps ?? last?.reps ?? item?.targetRepsLow)
+    }
+
+    /// What a slot counts as: each number typed into it, else its grey number.
+    func values(of slot: LiftSlot, lastSession: [Int: LiftSetCarry]) -> LiftSetCarry {
+        let grey = carry(for: slot, lastSession: lastSession)
+        guard let set = recordedSet(for: slot) else { return grey }
+        return LiftSetCarry(weightKg: set.weightKg ?? grey.weightKg, reps: set.reps ?? grey.reps)
+    }
+
+    /// Slots with no number typed in: never performed, or performed without typing. Finishing the
+    /// session asks once what happens to all of them.
+    var unenteredSlots: [LiftSlot] {
+        allSlots.filter { slot in
+            guard let set = recordedSet(for: slot) else { return true }
+            return set.weightKg == nil && set.reps == nil && set.rpe == nil
+        }
     }
 
     // MARK: - Actions
@@ -296,10 +309,7 @@ struct LiftSessionEngine: Equatable {
     }
 
     /// The big button. Context decides what it means.
-    ///
-    /// `lastSession` is what the store holds for the slot being completed, used only as the middle
-    /// layer of `carry(for:lastSession:)`. Callers without it pass `.none`.
-    mutating func advance(now: Int, lastSession: LiftSetCarry = .none) {
+    mutating func advance(now: Int) {
         switch stage {
         case .warmup:
             guard let next = nextPendingSlot else { return }
@@ -307,10 +317,10 @@ struct LiftSessionEngine: Equatable {
 
         case .working(let slot):
             pushHistory()
-            let carried = carry(for: slot, lastSession: lastSession)
+            // Timing only: the numbers stay grey until typed (see `carry(for:lastSession:)`).
             sets.append(LiftRecordedSet(
                 exerciseIndex: slot.exerciseIndex, setIndex: slot.setIndex,
-                weightKg: carried.weightKg, reps: carried.reps, rpe: nil, isWarmup: false,
+                weightKg: nil, reps: nil, rpe: nil, isWarmup: false,
                 startTs: stageStartedAt, endTs: now, restSec: nil))
             let rest = planItem(for: slot)?.restSec ?? LiftPlanItem.defaultRestSec
             stage = .resting(slot, endsAt: now + rest)

@@ -51,7 +51,9 @@ struct LiftLogView: View {
                 historySection
             }
         }
-        .task(id: repo.refreshSeq) { await load() }
+        // Also on a saved session: the session sheet lives above this screen and cannot tell it
+        // directly, and a save does not always bump `refreshSeq`.
+        .task(id: "\(repo.refreshSeq)-\(session.savedSessions)") { await load() }
         .sheet(item: $editing) { target in
             LiftProgramEditorSheet(program: target.program) {
                 await load()

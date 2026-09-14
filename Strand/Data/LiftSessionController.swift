@@ -31,6 +31,10 @@ final class LiftSessionController: ObservableObject {
     /// True while the full sheet is presented; false when minimised to the bottom bar.
     @Published var isPresented = false
 
+    /// Bumped each time a finished session is written. The session sheet is presented above every
+    /// screen, so its save cannot call back into the one listing sessions; that screen reloads on this.
+    @Published private(set) var savedSessions = 0
+
     var isActive: Bool { engine != nil && engine?.isFinished == false }
 
     /// Rest period the five-second warning has already fired for. Lives HERE, not in a view, so
@@ -69,12 +73,11 @@ final class LiftSessionController: ObservableObject {
     /// What the store holds for each exercise LAST session, keyed by exercise name then set number —
     /// the middle layer of `LiftSessionEngine.carry(for:lastSession:)`.
     ///
-    /// It lives here rather than in the sheet because the strap can advance a set while the sheet is
-    /// minimised or closed, and a set recorded from the strap must carry the same numbers the sheet
-    /// would have shown. `LiftSessionView` loads it and hands it over; until it does (a session
-    /// resumed straight into the bar after a relaunch, say) the carry falls through to the program's
-    /// target, which is the layer below.
-    private var lastSession: [String: [Int: LiftSetCarry]] = [:]
+    /// It lives here rather than in the sheet because the minimised bar and the Lock Screen show a
+    /// set's numbers too, and they must be the grey numbers the sheet shows. `LiftSessionView` loads it
+    /// and hands it over; until it does (a session resumed straight into the bar after a relaunch, say)
+    /// the grey numbers fall through to the program's target, which is the layer below.
+    @Published private var lastSession: [String: [Int: LiftSetCarry]] = [:]
     private var ticker: AnyCancellable?
 
     /// Fires the strap buzz. Injected so the controller has no opinion about BLE and stays testable.
@@ -147,6 +150,7 @@ final class LiftSessionController: ObservableObject {
     func finishedSaving() {
         teardown()
         LiftSessionPersistence.clear()
+        savedSessions += 1
     }
 
     private func teardown() {
@@ -189,7 +193,7 @@ final class LiftSessionController: ObservableObject {
         if fromStrap { buzz(LiftSessionController.advanceConfirmBuzzes) }
 
         let stamp = Int(Date().timeIntervalSince1970)
-        engine?.advance(now: stamp, lastSession: carryFromLastSession())
+        engine?.advance(now: stamp)
         applyPendingInput()
         now = stamp
         warnedFor = nil
@@ -253,21 +257,17 @@ final class LiftSessionController: ObservableObject {
         }
     }
 
-    /// Reps x weight for a slot, as "8 x 30 kg".
-    ///
-    /// While RESTING these are what the set actually recorded; while WORKING the set does not exist
-    /// yet, so they are what completing it would record — the same numbers the sheet shows in grey.
+    /// Reps x weight for a slot, as "8 x 30 kg": what the set counts as — typed numbers, else the grey
+    /// ones the sheet shows.
     func setNumbers(for slot: LiftSlot, system: UnitSystem) -> String? {
-        guard let engine else { return nil }
-        let values = engine.recordedSet(for: slot).map {
-            LiftSetCarry(weightKg: $0.weightKg, reps: $0.reps)
-        } ?? carry(for: slot)
+        guard engine != nil else { return nil }
+        let shown = values(of: slot)
 
-        let weight = values.weightKg.map {
+        let weight = shown.weightKg.map {
             LiftFormat.trim(LiftFormat.display(fromKilograms: $0, system: system))
             + " " + LiftFormat.weightUnit(system)
         }
-        switch (values.reps, weight) {
+        switch (shown.reps, weight) {
         case (let r?, let w?): return "\(r) x \(w)"
         case (let r?, nil):    return String(localized: "\(r) reps")
         case (nil, let w?):    return w
@@ -281,21 +281,19 @@ final class LiftSessionController: ObservableObject {
         lastSession = values
     }
 
-    /// What a slot will record (or did record) without anything typed — the sheet's grey numbers,
-    /// resolved through the same chain, for callers that only have the controller. Used by the
-    /// minimised bar, which has no access to the store's last-session values on its own.
+    /// The grey numbers a slot shows — the one chain every surface reads, so the sheet, the minimised
+    /// bar and the Lock Screen cannot disagree about them.
     func carry(for slot: LiftSlot) -> LiftSetCarry {
-        guard let engine else { return .none }
-        let exercise = engine.planItem(for: slot)?.exercise
-        let last = exercise.flatMap { lastSession[$0]?[slot.setIndex] } ?? .none
-        return engine.carry(for: slot, lastSession: last)
+        engine?.carry(for: slot, lastSession: lastSessionSets(for: slot)) ?? .none
     }
 
-    /// The last-session carry for the slot currently being worked, if any.
-    private func carryFromLastSession() -> LiftSetCarry {
-        guard let engine, case .working(let slot) = engine.stage,
-              let exercise = engine.planItem(for: slot)?.exercise else { return .none }
-        return lastSession[exercise]?[slot.setIndex] ?? .none
+    /// What a slot counts as: typed numbers, else its grey ones.
+    func values(of slot: LiftSlot) -> LiftSetCarry {
+        engine?.values(of: slot, lastSession: lastSessionSets(for: slot)) ?? .none
+    }
+
+    private func lastSessionSets(for slot: LiftSlot) -> [Int: LiftSetCarry] {
+        engine?.planItem(for: slot).flatMap { lastSession[$0.exercise] } ?? [:]
     }
 
     /// Mark a slot as a warm-up (or not). Applies immediately when the set already exists, and is
@@ -316,10 +314,8 @@ final class LiftSessionController: ObservableObject {
 
     /// Carry a pre-marked warm-up, and any numbers typed in advance, onto the set just recorded.
     ///
-    /// The typed numbers OVERRIDE what `carry(for:lastSession:)` put there. The carry is the sheet's
-    /// best guess — this exercise earlier, last session, the program's target — and a value the user
-    /// typed for this very set outranks all three. A field left untouched keeps its carried value,
-    /// so typing only the weight does not blank the reps.
+    /// The set is recorded with its timing only, so typed numbers become its own and a field left
+    /// untouched stays grey — typing only the weight does not blank the reps.
     ///
     /// The entry is CONSUMED. A redo (`start` on a completed slot) drops the record and should show
     /// the ghosts again, exactly as it did before; leaving the entry behind would resurrect numbers
@@ -409,6 +405,87 @@ final class LiftSessionController: ObservableObject {
     func finish() {
         engine?.finish(now: Int(Date().timeIntervalSince1970))
         persist()
+    }
+
+    // MARK: - Finishing
+
+    /// Slots with no number typed in — never started, or finished without typing. Finishing asks once
+    /// whether to complete all of them with their grey numbers or leave them out.
+    var unfinishedSlots: [LiftSlot] { engine?.unenteredSlots ?? [] }
+
+    /// One set as the finished session saves it. Timing is nil for a set completed at finish without
+    /// ever being started: there is no moment to record, and inventing one would give it a rest and a
+    /// heart-rate window it never had.
+    struct FinishedSet: Equatable {
+        var slot: LiftSlot
+        var weightKg: Double?
+        var reps: Int?
+        var rpe: Double?
+        var isWarmup: Bool
+        var startTs: Int?
+        var endTs: Int?
+        var restSec: Int?
+    }
+
+    /// The sets the session saves.
+    ///
+    /// A set with anything typed always saves, and a number left blank takes its grey value, so a set
+    /// that was rated but never weighed does not save empty. Unfinished sets are saved with their grey
+    /// numbers (and anything typed in advance) when `completingUnfinished`, and left out otherwise.
+    /// Performed sets keep the order they happened in; sets completed at finish follow in plan order.
+    func setsToSave(completingUnfinished: Bool) -> [FinishedSet] {
+        guard let engine else { return [] }
+        let unfinished = Set(engine.unenteredSlots)
+        var out = engine.sets
+            .filter { completingUnfinished || !unfinished.contains($0.slot) }
+            .map { set -> FinishedSet in
+                let shown = values(of: set.slot)
+                return FinishedSet(slot: set.slot, weightKg: shown.weightKg, reps: shown.reps,
+                                   rpe: set.rpe, isWarmup: set.isWarmup, startTs: set.startTs,
+                                   endTs: set.endTs, restSec: set.restSec)
+            }
+        guard completingUnfinished else { return out }
+        for slot in engine.allSlots where !engine.isCompleted(slot) {
+            let typed = pendingValues[slot]
+            let grey = carry(for: slot)
+            out.append(FinishedSet(slot: slot, weightKg: typed?.weightKg ?? grey.weightKg,
+                                   reps: typed?.reps ?? grey.reps, rpe: typed?.rpe,
+                                   isWarmup: pendingWarmups.contains(slot),
+                                   startTs: nil, endTs: nil, restSec: nil))
+        }
+        return out
+    }
+
+    /// A program line whose set count this session changed.
+    struct SetCountChange: Equatable {
+        var itemId: String
+        var exercise: String
+        var from: Int
+        var to: Int
+    }
+
+    /// Lines whose set count in this session differs from the program's current one. A line with no
+    /// count counts as one set, as it does when a session starts, and a line deleted from the program
+    /// since is skipped rather than resurrected.
+    static func setCountChanges(plan: [LiftPlanItem], program items: [LiftProgramItemRow]) -> [SetCountChange] {
+        let byId = Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return plan.compactMap { line in
+            guard let id = line.programItemId, let row = byId[id] else { return nil }
+            let saved = max(1, row.targetSets ?? 1)
+            guard saved != line.targetSets else { return nil }
+            return SetCountChange(itemId: id, exercise: line.exercise, from: saved, to: line.targetSets)
+        }
+    }
+
+    /// The program's lines with `changes` applied. Only `targetSets` moves.
+    static func applying(_ changes: [SetCountChange], to items: [LiftProgramItemRow]) -> [LiftProgramItemRow] {
+        let counts = Dictionary(changes.map { ($0.itemId, $0.to) }, uniquingKeysWith: { first, _ in first })
+        return items.map { row in
+            guard let sets = counts[row.id] else { return row }
+            var edited = row
+            edited.targetSets = sets
+            return edited
+        }
     }
 
     // MARK: - The rest warning
