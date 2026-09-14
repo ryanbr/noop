@@ -986,7 +986,12 @@ final class IntelligenceEngine: ObservableObject {
         let inDayScanCache = dayScanCache
 
         let (scanned, skippedDayLines, updatedDayScanCache):
-            ([DayScan], [String], [String: (key: String, scan: DayScan)]) = await Task.detached(priority: .utility) {
+            // The pass runs unprompted, so it must yield to the UI rather than race it. `runUnescalated`
+            // and not an awaited detached task: awaiting one records a dependency and the runtime raises
+            // it to the awaiting main actor's priority, which made the `.utility` that used to sit here a
+            // label rather than a behaviour. The hop off the main actor was always real; the yielding was
+            // not. This is the day scan, the longest single stretch of CPU in the app.
+            ([DayScan], [String], [String: (key: String, scan: DayScan)]) = await runUnescalated {
             var out: [DayScan] = []
             // Days skipped below (too few HR samples) never get a DayScan, so this diagnostic can't ride
             // along on one; carried out alongside `out` and replayed through `diagnosticSink` on the main
@@ -1723,7 +1728,7 @@ final class IntelligenceEngine: ObservableObject {
                 hrOwnerFlips: hrWindow.ownerFlips, rrOwnerFlips: rrWindow.ownerFlips,
                 hrReuseOff: hrWindow.reuseOffReads, rrReuseOff: rrWindow.reuseOffReads))
             return (out, skippedDayLines, dayScanCacheLocal)
-        }.value
+        }
         // #1005: write the loop's updated reuse cache back to the (main-actor) stored property. The pass ran
         // to completion above (`.value` awaited), so there is no concurrent access.
         dayScanCache = updatedDayScanCache
@@ -2531,7 +2536,8 @@ final class IntelligenceEngine: ObservableObject {
         let inStepsMotionCache = stepsMotionCache
         let (refStepsByDay, motionByDay, updatedStepsMotionCache, stepsMotionLogLine):
             ([String: Double], [String: Double], [String: (key: String, motion: Double)], String) =
-            await Task.detached(priority: .utility) {
+            // Same as the day scan above: unprompted work, so it yields. See `runUnescalated`.
+            await runUnescalated {
             // Phone reference steps per day, from the apple-health daily rows (steps > 0 only).
             // #693: read `appleDaily`, NOT `dailyMetrics`. Apple-Health import writes the phone step count into
             // `appleDaily.steps` (Int?), never into a dailyMetric `steps` row , so the old `dailyMetrics` read
@@ -2596,7 +2602,7 @@ final class IntelligenceEngine: ObservableObject {
             let motionLog = StepsMotionCache.logLine(reused: motionReused, folded: motionFolded,
                                                      size: motionCacheLocal.count)
             return (refSteps, motion, motionCacheLocal, motionLog)
-        }.value
+        }
         stepsMotionCache = updatedStepsMotionCache
         // Write the pruned cache back, only when it moved. `serialize` renders sorted, so a pass that reused
         // every day produces the string already stored and skips the write entirely.

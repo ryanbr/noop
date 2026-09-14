@@ -81,11 +81,16 @@ enum StressDayCurve {
             // The samples are plain value structs, so the hop retains rather than copies them.
             // The half-step display series is asked for here (`includeTimeline`), because both readers
             // draw a curve. Nothing downstream of this counts hours, so the overlap is free.
-            scored = await Task.detached(priority: .utility) {
+            // #2181: `runUnescalated`, not an awaited detached task. This caller is @MainActor, and
+            // awaiting a task hands it the caller's priority, so the `.utility` here used to be a label
+            // rather than a behaviour: the hop off the main actor was real, but the scoring then raced
+            // the UI for cores at the UI's own quality of service. This runs unprompted on activation
+            // and after every Health sync, exactly when the UI is busy, so it must yield.
+            scored = await runUnescalated {
                 DaytimeStress.analyze(hr: hr, rr: rr, gravity: gravity,
                                       tzOffsetSeconds: tz, mode: .dayRelative,
                                       includeTimeline: true)
-            }.value
+            }
         }
         // Too little signal leaves an EMPTY result, which is a real answer about today rather than a
         // refusal: a reader should drop yesterday's line rather than keep drawing it.
