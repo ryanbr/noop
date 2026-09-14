@@ -94,6 +94,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -224,12 +225,16 @@ private data class DrawerGroup(
     val defaultExpanded: Boolean,
 )
 
-// Mirrors the iOS RootTabView `moreTab` grouping + order one-for-one. Today / Trends / Sleep are NOT
-// listed (they're bottom-bar tabs, exactly as on iOS). Android-only screens (Vital Signs, Wake Window,
-// Notifications, Devices) are slotted into the matching iOS group.
+// Mirrors the iOS RootTabView `moreTab` grouping + order one-for-one. Today / Trends / Sleep / Coach
+// are NOT listed (they're bottom-bar tabs, exactly as on iOS). Android-only screens (Vital Signs, Wake
+// Window, Notifications, Devices) are slotted into the matching iOS group.
 private val drawerGroups: List<DrawerGroup> = listOf(
     DrawerGroup("Insights", R.string.more_group_insights, listOf(
-        Destination.InsightsHub, Destination.Intelligence, Destination.Coach,
+        // Coach is a bottom-bar tab now and is deliberately absent here, matching iOS: "K3: Coach
+        // promoted to a top-level tab — no longer listed under More." Leaving it would have put the
+        // same destination in two places at once, which is the duplication the note above says this
+        // list exists to avoid. (#2218)
+        Destination.InsightsHub, Destination.Intelligence,
         Destination.Insights, Destination.Explore, Destination.Compare,
     ), defaultExpanded = true),
     DrawerGroup("Body", R.string.more_group_body, listOf(
@@ -453,7 +458,7 @@ object BottomBarStyleStore {
 }
 
 /**
- * App shell: a single [Scaffold] with a floating [GlassBottomBar] (Today · Trends · Sleep · More)
+ * App shell: a single [Scaffold] with a floating [GlassBottomBar] (Today · Trends · Sleep · Coach · More)
  * driving one [NavHost], mirroring the iOS RootTabView. There is NO global toolbar and no nav drawer
  * — every screen self-titles via [ScreenScaffold], and the "More" sheet (opened from the bar) reaches
  * every destination in [drawerGroups], so nothing is lost. A single [AppViewModel] is created here and
@@ -1045,7 +1050,7 @@ private fun MoreRow(dest: Destination, onClick: () -> Unit) {
 /** A single bottom-bar nav slot: the destination it switches to, plus the bar-specific icon/label. */
 private data class BarTab(val dest: Destination, val icon: ImageVector, @StringRes val labelRes: Int)
 
-/** The nav slots in iOS order: Today · Trends · Sleep · More.
+/** The nav slots in iOS order: Today · Trends · Sleep · Coach · More.
  *  More is special-cased (it opens the sheet rather than a route), so it is appended at the call site. */
 private val barLeadingTabs = listOf(
     BarTab(Destination.Today, Icons.Outlined.GridView, R.string.nav_today),
@@ -1054,6 +1059,11 @@ private val barLeadingTabs = listOf(
 )
 private val barTrailingTabs = listOf(
     BarTab(Destination.Sleep, Icons.Filled.Bedtime, R.string.nav_sleep),
+    // #2218: Coach was promoted to a top-level tab on iOS and this side did not follow, so it sat in
+    // the More list while the comment above claimed the two bars matched. AutoAwesome is the sparkles
+    // glyph iOS uses, and the same one the More row already shows, so the entry a wearer has learned
+    // keeps its face when it moves up.
+    BarTab(Destination.Coach, Icons.Filled.AutoAwesome, R.string.nav_coach),
 )
 
 @Composable
@@ -1123,10 +1133,14 @@ private fun GlassBottomBar(
                     icon = Icons.Filled.MoreHoriz,
                     label = stringResource(R.string.nav_more),
                     // Selected on the More page itself, and also kept lit whenever the current screen is
-                    // one reached THROUGH More (i.e. not one of the bar's own three tabs) — so drilling
-                    // into any grouped destination still reads as "you're in More", never "nowhere".
-                    active = current != Destination.Today && current != Destination.Trends &&
-                        current != Destination.Sleep,
+                    // one reached THROUGH More (i.e. not one of the bar's own tabs) — so drilling into
+                    // any grouped destination still reads as "you're in More", never "nowhere".
+                    //
+                    // Derived from the bar's own lists rather than restated. Spelling the tabs out here
+                    // is what made adding Coach a two-part change: the slot alone would have lit Coach
+                    // AND More together, because this predicate had never heard of it. (#2218)
+                    active = barLeadingTabs.none { it.dest == current } &&
+                        barTrailingTabs.none { it.dest == current },
                     modifier = Modifier.weight(1f),
                     onClick = { onTabSelected(Destination.More) },
                 )
@@ -1170,6 +1184,13 @@ private fun BarSlot(
                 fontWeight = if (active) FontWeight.SemiBold else FontWeight.Medium,
             ),
             color = tint,
+            // #2218: one line, always. A fifth slot takes about a fifth off every label's width, and the
+            // bar scale goes to 2x, so the longest of them can no longer be assumed to fit on a narrow
+            // phone. Wrapping would not break anything, since `barHeight` is measured afterwards and
+            // screens clear whatever it comes to, but a two-line nav bar at one size and a one-line bar
+            // at the next is the kind of thing nobody reports and everybody notices.
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
