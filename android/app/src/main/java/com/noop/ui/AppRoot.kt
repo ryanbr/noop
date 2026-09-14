@@ -128,7 +128,7 @@ import com.noop.push.SelfHostedPushScreen
 // Routes whose screens belong to later waves point at a ComingSoon placeholder so the app compiles today.
 
 /** A single drawer destination: stable route, display title (localized via [titleRes]), sidebar icon. */
-private enum class Destination(
+internal enum class Destination(
     val route: String,
     @StringRes val titleRes: Int,
     val icon: ImageVector,
@@ -218,7 +218,7 @@ private enum class Destination(
 // `more.expandedSections` CSV — see [MoreSectionPrefs]); it must NEVER be localized. [headerRes] is the
 // localized DISPLAY label the More page shows. Decoupling the two lets the label translate without
 // touching the persisted open/closed state or the iOS parity of the stored string.
-private data class DrawerGroup(
+internal data class DrawerGroup(
     val header: String,
     @StringRes val headerRes: Int,
     val items: List<Destination>,
@@ -228,7 +228,7 @@ private data class DrawerGroup(
 // Mirrors the iOS RootTabView `moreTab` grouping + order one-for-one. Today / Trends / Sleep / Coach
 // are NOT listed (they're bottom-bar tabs, exactly as on iOS). Android-only screens (Vital Signs, Wake
 // Window, Notifications, Devices) are slotted into the matching iOS group.
-private val drawerGroups: List<DrawerGroup> = listOf(
+internal val drawerGroups: List<DrawerGroup> = listOf(
     DrawerGroup("Insights", R.string.more_group_insights, listOf(
         // Coach is a bottom-bar tab now and is deliberately absent here, matching iOS: "K3: Coach
         // promoted to a top-level tab — no longer listed under More." Leaving it would have put the
@@ -1048,16 +1048,16 @@ private fun MoreRow(dest: Destination, onClick: () -> Unit) {
 // same destinations.
 
 /** A single bottom-bar nav slot: the destination it switches to, plus the bar-specific icon/label. */
-private data class BarTab(val dest: Destination, val icon: ImageVector, @StringRes val labelRes: Int)
+internal data class BarTab(val dest: Destination, val icon: ImageVector, @StringRes val labelRes: Int)
 
 /** The nav slots in iOS order: Today · Trends · Sleep · Coach · More.
  *  More is special-cased (it opens the sheet rather than a route), so it is appended at the call site. */
-private val barLeadingTabs = listOf(
+internal val barLeadingTabs = listOf(
     BarTab(Destination.Today, Icons.Outlined.GridView, R.string.nav_today),
     // chart.line.uptrend.xyaxis on iOS — the rising-trend glyph, not a flat bar chart.
     BarTab(Destination.Trends, Icons.AutoMirrored.Filled.TrendingUp, R.string.nav_trends),
 )
-private val barTrailingTabs = listOf(
+internal val barTrailingTabs = listOf(
     BarTab(Destination.Sleep, Icons.Filled.Bedtime, R.string.nav_sleep),
     // #2218: Coach was promoted to a top-level tab on iOS and this side did not follow, so it sat in
     // the More list while the comment above claimed the two bars matched. AutoAwesome is the sparkles
