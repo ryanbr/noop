@@ -1094,6 +1094,24 @@ final class HealthKitBridge: ObservableObject {
     ///
     /// A workout of ours with no external UUID at all is LEFT ALONE. It cannot be matched against the
     /// store, so deleting it would be guessing, and the #1503 sweep already exists for that class.
+    ///
+    /// ONE assumption this rests on, and it is newly load-bearing: that deleting an `HKWorkout` also
+    /// removes the energy and distance samples `writeWorkouts` attached through its `HKWorkoutBuilder`.
+    /// The key-based delete already assumed it, but harmlessly, because every delete there is followed
+    /// immediately by a rewrite of the same key, so a surviving child is replaced rather than stranded.
+    /// An orphan is deleted and NOT rewritten, so if the assumption is wrong its children are left in
+    /// Health attributed to us with no workout above them, and nothing here will ever collect them.
+    ///
+    /// There is no fallback handle. `builder.addMetadata` puts the external UUID on the WORKOUT; the
+    /// samples go through `builder.addSamples` carrying no metadata at all, so they cannot be found by
+    /// key. Finding them by type and range instead would sweep `activeEnergyBurned` written by our own
+    /// vitals path and by every other source, which is precisely the blind range delete this function
+    /// exists to avoid. Verifying the assumption needs a device (#2210).
+    ///
+    /// Note also that this reads. `authorizationStatus` reports SHARE permission only, and HealthKit
+    /// does not let an app ask whether it may read. With write granted and read withheld the query
+    /// returns nothing rather than failing, so reconciliation quietly does nothing and the duplicates
+    /// stay. That fails safe, but it fails silent.
     private func deleteOrphanedWorkouts(fromTs: Int, toTs: Int, keeping: Set<String>) async {
         let pred = NSCompoundPredicate(andPredicateWithSubpredicates: [
             HKQuery.predicateForObjects(from: HKSource.default()),
