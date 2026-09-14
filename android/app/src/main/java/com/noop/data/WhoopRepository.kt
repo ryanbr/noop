@@ -1106,6 +1106,15 @@ class WhoopRepository(
         dao.deleteMetricSeries(deviceId, key)
     suspend fun upsertJournal(rows: List<JournalEntry>) = dao.upsertJournal(rows)
     suspend fun upsertWorkouts(rows: List<WorkoutRow>) = dao.upsertWorkouts(rows)
+
+    /**
+     * Persist analytics-derived fields onto workouts the user already logged. This is deliberately
+     * append/update-only: unlike the retired detected-row reconciliation, an empty or interrupted pass
+     * performs no DAO call and can never delete grandfathered `sport="detected"` history (#2187).
+     */
+    suspend fun persistWorkoutBackfills(rows: List<WorkoutRow>) {
+        if (rows.isNotEmpty()) dao.upsertWorkouts(rows)
+    }
     suspend fun upsertAppleDaily(rows: List<AppleDaily>) = dao.upsertAppleDaily(rows)
 
     // MARK: - Live Sessions (silent guardian, v22). The runner banks the row at start (endTs null) and
@@ -1447,20 +1456,27 @@ class WhoopRepository(
     suspend fun stepActivityClassLatestUnion(activeDeviceId: String, from: Long, to: Long, limit: Int = DEFAULT_LIMIT):
         Int? = latestActivityClass(importedSourceIds(activeDeviceId).map { dao.stepSamples(it, from, to, limit) })
 
-    /** Delete a computed source's [sport] workouts in [from, to] (makes re-detection idempotent). (#78) */
-    suspend fun deleteComputedWorkouts(deviceId: String, sport: String, from: Long, to: Long) =
-        dao.deleteWorkoutsBySport(deviceId, sport, from, to)
-
     // MARK: - Workout editing (manual add/edit · relabel · dismiss · delete) (#107)
     //
     // Mirrors macOS Repository's workout-editing surface. Manual workouts live under the strap source
-    // ([strapDeviceId], source "manual") , the same place live-tracked sessions land. Detected bouts
-    // live under "<strapDeviceId>-noop" with sport "detected" and are wiped + re-derived each engine
-    // run, so a durable dismissal is recorded in the independent `dismissedWorkout` table.
+    // ([strapDeviceId], source "manual") , the same place live-tracked sessions land. Grandfathered
+    // detected bouts live under "<strapDeviceId>-noop" with sport "detected"; the engine no longer
+    // creates or reconciles them, but their durable dismissal path remains supported.
 
     /** Dismissed detected-bout markers for the computed source of [strapDeviceId]. */
     suspend fun dismissedDetected(strapDeviceId: String = "my-whoop"): List<DismissedWorkout> =
         dao.dismissedWorkouts(computedDeviceId(strapDeviceId))
+
+    /**
+     * Dismissed detected-bout markers across the same active + archived + canonical WHOOP union used by
+     * raw telemetry and workout reads. A rejection recorded before a strap remove/re-add must keep
+     * suppressing the corresponding suggestion after the active namespace changes.
+     */
+    suspend fun dismissedDetectedUnion(activeDeviceId: String): List<DismissedWorkout> =
+        rawWhoopSourceIds(activeDeviceId)
+            .map { computedDeviceId(it) }
+            .flatMap { dao.dismissedWorkouts(it) }
+            .distinctBy { Triple(it.deviceId, it.startTs, it.endTs) }
 
     /** Deleted-sleep tombstones for BOTH the imported and computed sources of [strapDeviceId] (#33/#65).
      *
@@ -1487,10 +1503,11 @@ class WhoopRepository(
     /**
      * Persist a retroactive / edited manual workout under the strap source. [replacing] is the row the
      * edit started from:
-     *  - editing a DETECTED bout replaces it with this manual row , the detected original is dismissed
-     *    durably so the re-detector doesn't bring it back (else both would show);
-     *  - editing a MANUAL row whose PRIMARY KEY moved deletes the stale row first (the
-     *    (deviceId, startTs, sport) PK upsert would otherwise orphan it). deviceId is part of that key,
+     *  - editing a grandfathered DETECTED bout writes the manual replacement first, then records its
+     *    legacy dismissal marker and deletes the original. A failed replacement write therefore leaves
+     *    the user's existing history intact;
+     *  - editing a MANUAL row whose PRIMARY KEY moved writes the replacement first, then retires the
+     *    stale row. A failed write therefore preserves the original. deviceId is part of that key,
      *    so a row stored under a re-paired strap's active id counts as moved even when startTs and sport
      *    are untouched: the edit lands on the "my-whoop" seed while the original stays put, and
      *    `workoutsUnion` reads [activeDeviceId, "my-whoop"] keeping the FIRST row per (startTs, sport),
@@ -1500,43 +1517,50 @@ class WhoopRepository(
      */
     suspend fun saveManualWorkout(row: WorkoutRow, replacing: WorkoutRow? = null) {
         if (replacing != null && replacing.source.lowercase().endsWith("-noop")) {
+            dao.upsertWorkouts(listOf(row))
             dismissDetected(replacing)
-        } else if (replacing != null && supersedesStoredRow(replacing, row)) {
+            return
+        }
+        if (replacing != null && supersedesStoredRow(replacing, row)) {
+            // A failed insert must not erase history. If the later delete fails, retaining both rows is
+            // safer and recoverable; the caller can retry the edit.
+            dao.upsertWorkouts(listOf(row))
             dao.deleteWorkoutByKey(replacing.deviceId, replacing.startTs, replacing.sport)
+            return
         }
         dao.upsertWorkouts(listOf(row))
     }
 
     /**
-     * Re-label a detected bout: copy it to a manual strap row with the chosen [sport], then delete the
-     * detected original. Survives analyzeRecent , the engine re-derives only sport="detected" rows AND
-     * skips any re-derived bout overlapping a real strap workout, which this copy now is , so the same
-     * session is never re-created as a duplicate. (#107)
+     * Re-label a grandfathered detected bout: write a manual strap row with the chosen [sport], then retain
+     * the legacy dismissal marker and delete the detected original. Writing first preserves history on a
+     * failed upsert; the marker keeps the decision durable if deletion fails or the manual copy is removed.
+     * (#107/#2187)
      */
     suspend fun relabelDetected(row: WorkoutRow, sport: String, strapDeviceId: String = "my-whoop") {
         val trimmed = sport.trim()
         if (trimmed.isEmpty()) return
         val manual = row.copy(deviceId = strapDeviceId, sport = trimmed, source = "manual")
         dao.upsertWorkouts(listOf(manual))
-        dao.deleteWorkoutsBySport(computedDeviceId(strapDeviceId), "detected", row.startTs, row.startTs)
+        dismissDetected(row)
     }
 
     /**
-     * Dismiss a DETECTED bout the user says isn't a workout: record a durable marker (so a re-detect
-     * that recreates the same PK stays hidden) AND delete the current row so it disappears now.
-     * No-op when the row isn't a detected bout. (#107)
+     * Dismiss a grandfathered DETECTED bout the user says isn't a workout: retain its durable marker for
+     * historical compatibility and suggestion suppression, then delete the current row so it disappears
+     * now. No-op when the row isn't a detected bout. (#107/#2187)
      */
     suspend fun dismissDetected(row: WorkoutRow) {
         if (!row.source.lowercase().endsWith("-noop")) return
-        // Marker carries the bout's [startTs, endTs] span so a re-detected bout whose boundary drifts
-        // still overlaps it and stays hidden (matches macOS dismissed-span semantics).
+        // Marker carries the bout's [startTs, endTs] span; the suggestion path preserves its historical
+        // half-open overlap semantics even though the analytics engine no longer creates generic rows.
         dao.insertDismissed(listOf(DismissedWorkout(row.deviceId, row.startTs, row.endTs)))
         dao.deleteWorkoutsBySport(row.deviceId, row.sport, row.startTs, row.startTs)
     }
 
     /**
-     * Delete ONE workout. A detected bout is dismissed durably (so it doesn't come back on the next
-     * re-detect); everything else is removed by its exact natural key. (#107)
+     * Delete ONE workout. A grandfathered detected bout also retains a durable dismissal marker;
+     * everything else is removed by its exact natural key. (#107/#2187)
      */
     suspend fun deleteWorkout(row: WorkoutRow) {
         if (row.source.lowercase().endsWith("-noop")) { dismissDetected(row); return }
@@ -2031,8 +2055,8 @@ class WhoopRepository(
     suspend fun workoutsUnion(deviceId: String, from: Long, to: Long, limit: Int = DEFAULT_LIMIT): List<WorkoutRow> =
         dedupWorkoutsByKey(rawWhoopSourceIds(deviceId).flatMap { dao.workouts(it, from, to, limit) })
 
-    /** The COMPUTED ("-noop") twin of [workoutsUnion] for detected workouts (the engine writes detected
-     *  sessions under "<importedDeviceId>-noop"), across the computed union ids. */
+    /** The COMPUTED ("-noop") twin of [workoutsUnion], including grandfathered detected sessions retained
+     *  under "<importedDeviceId>-noop", across the computed union ids. */
     suspend fun detectedWorkoutsUnion(deviceId: String, from: Long, to: Long, limit: Int = DEFAULT_LIMIT): List<WorkoutRow> =
         dedupWorkoutsByKey(rawWhoopSourceIds(deviceId).map { "$it-noop" }
             .flatMap { dao.workouts(it, from, to, limit) })

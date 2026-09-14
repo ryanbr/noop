@@ -1136,8 +1136,8 @@ interface WhoopDao : DeviceRegistryDao {
     @Query("SELECT COUNT(*) FROM appleDaily WHERE deviceId = :deviceId AND day >= :from AND day <= :to")
     suspend fun appleDailyCount(deviceId: String, from: String, to: String): Int
 
-    /** Delete a computed source's workouts of a given [sport] whose startTs is in [from, to]
-     *  (makes detected-workout re-derivation idempotent). (#78) */
+    /** Delete a computed source's workouts of a given [sport] whose startTs is in [from, to].
+     *  Retained for explicit maintenance; automatic reconciliation no longer calls it (#2187). */
     @Query("DELETE FROM workout WHERE deviceId = :deviceId AND sport = :sport AND startTs >= :from AND startTs <= :to")
     suspend fun deleteWorkoutsBySport(deviceId: String, sport: String, from: Long, to: Long)
 
@@ -1146,7 +1146,7 @@ interface WhoopDao : DeviceRegistryDao {
     @Query("DELETE FROM workout WHERE deviceId = :deviceId AND startTs = :startTs AND sport = :sport")
     suspend fun deleteWorkoutByKey(deviceId: String, startTs: Long, sport: String)
 
-    // MARK: - Dismissed detected bouts (durable #107 marker; survives engine re-detection)
+    // MARK: - Dismissed detected bouts (durable #107 marker; retained for legacy history/suggestions)
 
     /** Record a dismissed detected bout. IGNORE so re-dismissing the same bout is a no-op. */
     @Insert(onConflict = OnConflictStrategy.IGNORE)

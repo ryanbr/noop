@@ -134,9 +134,10 @@ abstract class WhoopDatabase : RoomDatabase() {
         }
 
         /**
-         * v4 -> v5: ADDITIVE, adds the `dismissedWorkout` table (#107): a durable marker that keeps a
-         * dismissed auto-detected bout hidden after the engine re-derives it. CREATE TABLE only (no
-         * data touched), so existing workouts/history are untouched. The SQL MUST match Room's
+         * v4 -> v5: ADDITIVE, adds the `dismissedWorkout` table (#107): a durable marker for a rejected
+         * detected bout. Generic detected-row reconciliation is retired, but the table remains part of
+         * grandfathered history and suggestion suppression. CREATE TABLE only (no data touched), so existing
+         * workouts/history are untouched. The SQL MUST match Room's
          * generated schema for the [DismissedWorkout] entity exactly, all three PK columns NOT NULL,
          * composite PRIMARY KEY in declaration order. Guarded by MigrationRoundTripTest like the others.
          */

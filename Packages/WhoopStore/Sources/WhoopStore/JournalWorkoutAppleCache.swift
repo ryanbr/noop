@@ -179,9 +179,9 @@ extension WhoopStore {
         }
     }
 
-    /// Delete one source's workouts of a given sport whose startTs is in [from, to]
-    /// (makes detected-workout re-derivation idempotent). Returns rows deleted.
-    /// Port of Android WhoopDao.deleteWorkoutsBySport (#78).
+    /// Delete one source's workouts of a given sport whose startTs is in [from, to]. Automatic
+    /// detected-workout reconciliation no longer calls this; explicit edit/dismiss paths still do.
+    /// Returns rows deleted. Port of Android WhoopDao.deleteWorkoutsBySport (#78/#2187).
     @discardableResult
     public func deleteWorkouts(deviceId: String, sport: String, from: Int, to: Int) async throws -> Int {
         try syncWrite { db in

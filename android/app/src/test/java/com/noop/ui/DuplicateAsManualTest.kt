@@ -42,7 +42,7 @@ class DuplicateAsManualTest {
         assertEquals(stored, WorkoutEditing.replacingRowFor(stored, isCopy = false))
     }
 
-    /** A detected bout also replaces: the repository dismisses the original durably so it can't re-detect. */
+    /** A grandfathered detected bout also replaces: the repository retires the original with its marker. */
     @Test fun editingADetectedBoutStillReplacesIt() {
         val detected = row("my-whoop-noop")
         assertEquals(detected, WorkoutEditing.replacingRowFor(detected, isCopy = false))

@@ -1905,8 +1905,8 @@ private fun DetailRow(label: String, value: String) {
 }
 
 /**
- * Per-row overflow menu. A DETECTED bout can be re-labelled (becomes a real manual session that
- * survives re-detection) or dismissed (durably hidden so it doesn't come back). A MANUAL session can
+ * Per-row overflow menu. A grandfathered DETECTED bout can be re-labelled (becomes a real manual session)
+ * or dismissed (with its legacy marker retained). A MANUAL session can
  * be edited or deleted. Imported WHOOP / Apple rows are read-only — we never rewrite imported history
  * — but can be duplicated as an editable manual copy. (#107)
  */

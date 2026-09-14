@@ -472,7 +472,7 @@ object IntelligenceEngine {
         universalSink: ((String) -> Unit)? = null,
         // Workouts & GPS test-mode trace sink (Test Centre, #975). Context-free layer, so the caller reads
         // TestCentre.active(WORKOUTS) and passes a non-null sink ONLY when the mode is on, routing each
-        // detected-bout persist/drop decision to the .workouts-tagged strap log. null (the default) =
+        // detected-bout analytics/backfill decision to the .workouts-tagged strap log. null (the default) =
         // byte-identical default path (no lines). Mirrors the Swift workoutsTraceActive wiring.
         workoutsTraceSink: ((String) -> Unit)? = null,
         // HRV & Autonomic test-mode sink (#141). Context-free layer, so the caller reads TestCentre.active(HRV)
@@ -648,7 +648,7 @@ object IntelligenceEngine {
         // scored day emits the verbatim `dayOwner …` line. See the public overload's doc.
         universalSink: ((String) -> Unit)? = null,
         // Workouts & GPS test-mode trace sink (#975). null = byte-identical default (no lines); when non-null
-        // each detected bout emits a `detectedBout verdict=persisted|droppedOverlap …` line to the .workouts-
+        // each detected bout emits a `detectedBout verdict=analyticsOnly|droppedOverlap…` line to .workouts-
         // tagged strap log, so an "auto workout appeared then vanished" is explainable from an export. Swift twin.
         workoutsTraceSink: ((String) -> Unit)? = null,
         // HRV & Autonomic test-mode sink (#141). null = byte-identical default (no lines); when non-null,
@@ -1579,7 +1579,11 @@ object IntelligenceEngine {
         val out = ArrayList<Computed>()
         val dailies = ArrayList<DailyMetric>()
         val sleepRows = ArrayList<SleepSession>()
-        val workoutRows = ArrayList<WorkoutRow>()
+        // #2187: the analytics detector remains useful for enriching an already logged workout, but it
+        // no longer publishes generic sport="detected" rows. Keep this list intentionally limited to
+        // backfills of real manual/imported rows; the opt-in Today confirmation path is the sole producer
+        // of a new user-visible workout.
+        val workoutBackfills = ArrayList<WorkoutRow>()
         // Rest composite (0–100) per night → persisted as the sleep_performance metric series so the
         // dashboard Rest score reflects the new composite, not raw efficiency. Swift parity.
         val restRows = ArrayList<MetricSeriesRow>()
@@ -1775,9 +1779,9 @@ object IntelligenceEngine {
                     ),
                 )
             }
-            // Persist the detected workouts the pipeline already computes (previously discarded).
-            // Skip any bout overlapping a real imported/manual workout so import+wear users don't
-            // double-count. sport="detected"; energyKcal is the APPROXIMATE Keytel/BMR total.
+            // The daily analytics detector still computes bouts for daily analytics and can enrich
+            // missing fields on an overlapping real imported/manual workout. It does NOT publish a new
+            // generic workout: the opt-in Today card remains the only creation path, and requires Save.
             // #1545: where the detector lost every candidate workout on this day, emitted BEFORE the
             // per-bout loop so it is present even when that loop runs zero times — which is exactly the
             // report it exists for. The `effort bout` line below explains a bout that exists; a strap log
@@ -1815,7 +1819,7 @@ object IntelligenceEngine {
                         collider, avgBpm = avgBpm, peakHR = s.peakHR, caloriesKcal = s.caloriesKcal, strain = s.strain,
                     )
                     val didBackfill = backfilled != collider
-                    if (didBackfill) workoutRows.add(backfilled)
+                    if (didBackfill) workoutBackfills.add(backfilled)
                     workoutsTraceSink?.invoke(
                         WorkoutsTrace.detectedBoutLine(
                             verdict = if (didBackfill) "droppedOverlapBackfilled" else "droppedOverlap",
@@ -1825,22 +1829,8 @@ object IntelligenceEngine {
                     )
                     continue
                 }
-                workoutRows.add(
-                    WorkoutRow(
-                        deviceId = computedId,
-                        startTs = s.start,
-                        endTs = s.end,
-                        sport = "detected",
-                        source = computedId,
-                        durationS = s.durationS,
-                        energyKcal = s.caloriesKcal,
-                        avgHr = avgBpm,
-                        maxHr = s.peakHR,
-                        strain = s.strain,
-                    ),
-                )
                 workoutsTraceSink?.invoke(
-                    WorkoutsTrace.detectedBoutLine(verdict = "persisted", durMin = durMin, avgBpm = avgBpm),
+                    WorkoutsTrace.detectedBoutLine(verdict = "analyticsOnly", durMin = durMin, avgBpm = avgBpm),
                 )
             }
         }
@@ -1964,8 +1954,8 @@ object IntelligenceEngine {
         // mergeSleep / daily aggregate would DOUBLE-COUNT both into an inflated time-in-bed AND the edit
         // would visually revert. The edited row is already stored (it carries userEdited=1 and is never
         // re-emitted here , the engine only writes detected twins), so we simply don't re-insert its
-        // detected twin. Sleep has no delete-reinsert pass (unlike dailyMetric/workout), so this IS the
-        // idempotency guard for the edited case. Overlap uses the edit's EFFECTIVE window. (#318)
+        // detected twin. Sleep has no window replacement pass, so this IS the idempotency guard for the
+        // edited case. Overlap uses the edit's EFFECTIVE window. (#318)
         val editedWindows = editedRows.map { it.effectiveStartTs to it.endTs }
         // #33: also drop any re-detected night the user has DELETED: a dismissedSleep tombstone keeps it
         // from regenerating, mirroring the dismissedWorkout guard. Overlap (not exact startTs) because a
@@ -2041,11 +2031,11 @@ object IntelligenceEngine {
                     "session(s) re-banked under a shifted strap timebase; re-scoring the affected days.",
             )
         }
-        // Make re-detection idempotent across runs: clear the prior computed detected workouts
-        // in the scored window (a bout's startTs can drift as more HR arrives, which would
-        // otherwise orphan stale rows under the (deviceId,startTs,sport) key), then re-insert.
-        repo.deleteComputedWorkouts(computedId, "detected", windowStart, nowSeconds)
-        if (workoutRows.isNotEmpty()) repo.upsertWorkouts(workoutRows)
+        // #2187 data-safety invariant: analytics reconciliation must never delete grandfathered detected
+        // history and no longer inserts fresh generic rows. Only write real rows whose missing metrics were
+        // enriched above. Turning detection off, a partial stream, or a failed/cancelled pass is therefore
+        // incapable of erasing previously visible workouts.
+        repo.persistWorkoutBackfills(workoutBackfills)
 
         // #137: a manually-started workout is scored from sparse live HR at save time , near-zero
         // calories/strain on a 5/MG. Now that offloaded HR may cover the window, re-score the

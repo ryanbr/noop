@@ -134,4 +134,50 @@ class AutoWorkoutDetectorTest {
         val hr = block(start - 300, 300, 65) + block(start, 20 * 60, 120) + block(start + 1200, 300, 65)
         assertEquals(1, AutoWorkoutDetector.detect(hr).size)
     }
+
+    @Test fun configurableQualificationHasExactTenMinuteBoundary() {
+        val start = 10_000_000L
+        val nineMinutesFiftyNine = block(start, 10 * 60, 120) // inclusive span is 599 s
+        val exactlyTenMinutes = block(start, 10 * 60 + 1, 120) // inclusive span is 600 s
+
+        assertTrue(
+            AutoWorkoutDetector.detect(
+                nineMinutesFiftyNine, restingHR = 60, minimumSustainedMinutes = 10.0,
+            ).isEmpty(),
+        )
+        assertEquals(
+            1,
+            AutoWorkoutDetector.detect(
+                exactlyTenMinutes, restingHR = 60, minimumSustainedMinutes = 10.0,
+            ).size,
+        )
+    }
+
+    @Test fun configurableQualificationHasExactFifteenMinuteBoundary() {
+        val start = 11_000_000L
+        val fourteenMinutesFiftyNine = block(start, 15 * 60, 120) // inclusive span is 899 s
+        val exactlyFifteenMinutes = block(start, 15 * 60 + 1, 120) // inclusive span is 900 s
+
+        assertTrue(
+            AutoWorkoutDetector.detect(
+                fourteenMinutesFiftyNine, restingHR = 60, minimumSustainedMinutes = 15.0,
+            ).isEmpty(),
+        )
+        assertEquals(
+            1,
+            AutoWorkoutDetector.detect(
+                exactlyFifteenMinutes, restingHR = 60, minimumSustainedMinutes = 15.0,
+            ).size,
+        )
+    }
+
+    @Test fun publishedDefaultRemainsTwelveMinutes() {
+        val start = 12_000_000L
+        val elevenMinutesFiftyNine = block(start, 12 * 60, 120)
+        val exactlyTwelveMinutes = block(start, 12 * 60 + 1, 120)
+
+        assertEquals(listOf(10.0, 15.0), AutoWorkoutDetector.shadowSustainedMinutes)
+        assertTrue(AutoWorkoutDetector.detect(elevenMinutesFiftyNine, restingHR = 60).isEmpty())
+        assertEquals(1, AutoWorkoutDetector.detect(exactlyTwelveMinutes, restingHR = 60).size)
+    }
 }

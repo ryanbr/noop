@@ -26749,60 +26749,60 @@
         }
       }
     },
-    "After a sync, NOOP looks over your recent heart rate for a sustained, raised stretch that looks like exercise and offers to save it. It only ever suggests. Nothing is saved until you tap Save, and you can dismiss any suggestion. Deliberately conservative, so the odd workout may be missed. On %@ only.": {
+    "After a sync, NOOP looks over your recent heart rate for a sustained, raised stretch that looks like exercise and offers to save it. It only ever suggests. Nothing is saved until you tap Save, and you can dismiss any suggestion. Turning this off stops future suggestions but keeps your existing workout history. Deliberately conservative, so the odd workout may be missed. On %@ only.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nach einer Synchronisierung prüft NOOP deine jüngste Herzfrequenz auf eine anhaltend erhöhte Phase, die nach Training aussieht, und bietet an, sie zu speichern. Es schlägt nur vor. Nichts wird gespeichert, bis du auf „Sichern“ tippst, und du kannst jeden Vorschlag verwerfen. Bewusst konservativ, das eine oder andere Workout kann also durchrutschen. Nur auf %@."
+            "value": "Nach einer Synchronisierung prüft NOOP deine jüngste Herzfrequenz auf eine anhaltend erhöhte Phase, die nach Training aussieht, und bietet an, sie zu speichern. Es schlägt nur vor. Nichts wird gespeichert, bis du auf „Sichern“ tippst, und du kannst jeden Vorschlag verwerfen. Wenn du dies deaktivierst, werden künftige Vorschläge gestoppt, dein bestehender Trainingsverlauf bleibt jedoch erhalten. Bewusst konservativ, das eine oder andere Workout kann also durchrutschen. Nur auf %@."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Después de una sincronización, NOOP revisa tu frecuencia cardíaca reciente buscando un tramo sostenido y elevado que parezca ejercicio y ofrece guardarlo. Solo sugiere. No se guarda nada hasta que tocas Guardar, y puedes descartar cualquier sugerencia. Es deliberadamente conservador, así que algún entrenamiento puede pasarse por alto. Solo en %@."
+            "value": "Después de una sincronización, NOOP revisa tu frecuencia cardíaca reciente buscando un tramo sostenido y elevado que parezca ejercicio y ofrece guardarlo. Solo sugiere. No se guarda nada hasta que tocas Guardar, y puedes descartar cualquier sugerencia. Al desactivarlo, se detienen las sugerencias futuras, pero se conserva el historial de entrenamientos existente. Es deliberadamente conservador, así que algún entrenamiento puede pasarse por alto. Solo en %@."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Après une synchronisation, NOOP examine votre fréquence cardiaque récente à la recherche d'une période soutenue et élevée qui ressemble à de l'exercice, et propose de l'enregistrer. Il ne fait que suggérer. Rien n'est enregistré tant que vous n'appuyez pas sur Enregistrer, et vous pouvez ignorer toute suggestion. Délibérément prudent, il se peut donc qu'un entraînement occasionnel soit manqué. Sur %@ uniquement."
+            "value": "Après une synchronisation, NOOP examine votre fréquence cardiaque récente à la recherche d'une période soutenue et élevée qui ressemble à de l'exercice, et propose de l'enregistrer. Il ne fait que suggérer. Rien n'est enregistré tant que vous n'appuyez pas sur Enregistrer, et vous pouvez ignorer toute suggestion. La désactivation interrompt les suggestions futures tout en conservant votre historique d'entraînement existant. Délibérément prudent, il se peut donc qu'un entraînement occasionnel soit manqué. Sur %@ uniquement."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dopo una sincronizzazione, NOOP esamina la tua frequenza cardiaca recente alla ricerca di un tratto prolungato ed elevato che sembra esercizio fisico e propone di salvarlo. Si limita sempre a suggerire, niente viene salvato finché non tocchi Salva, e puoi ignorare qualsiasi suggerimento. Volutamente conservativo, quindi qualche allenamento può sfuggire. Solo su %@."
+            "value": "Dopo una sincronizzazione, NOOP esamina la tua frequenza cardiaca recente alla ricerca di un tratto prolungato ed elevato che sembra esercizio fisico e propone di salvarlo. Si limita sempre a suggerire, niente viene salvato finché non tocchi Salva, e puoi ignorare qualsiasi suggerimento. Disattivandolo, le proposte future si interrompono, ma la cronologia degli allenamenti esistente viene conservata. Volutamente conservativo, quindi qualche allenamento può sfuggire. Solo su %@."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Após uma sincronização, o NOOP analisa a tua frequência cardíaca recente em busca de um alongamento sustentado e elevado que pareça exercício e oferece-se para o guardar. Apenas sugere. Nada é guardado até tocar em Guardar e pode descartar qualquer sugestão. Deliberadamente conservador, pelo que alguns treinos podem ser perdidos. Apenas em %@."
+            "value": "Após uma sincronização, o NOOP analisa a tua frequência cardíaca recente em busca de um alongamento sustentado e elevado que pareça exercício e oferece-se para o guardar. Apenas sugere. Nada é guardado até tocar em Guardar e pode descartar qualquer sugestão. Desativar esta opção impede sugestões futuras, mas mantém o histórico de treinos existente. Deliberadamente conservador, pelo que alguns treinos podem ser perdidos. Apenas em %@."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "После синхронизации NOOP просматривает недавний пульс в поисках устойчивого повышенного отрезка, похожего на тренировку, и предлагает его сохранить. Это только предложение. Ничего не сохраняется, пока вы не нажмёте «Сохранить», и любое предложение можно отклонить. Специально осторожный подход, поэтому отдельные тренировки могут быть пропущены. Только на %@."
+            "value": "После синхронизации NOOP просматривает недавний пульс в поисках устойчивого повышенного отрезка, похожего на тренировку, и предлагает его сохранить. Это только предложение. Ничего не сохраняется, пока вы не нажмёте «Сохранить», и любое предложение можно отклонить. Если отключить эту функцию, новые предложения перестанут появляться, а существующая история тренировок сохранится. Специально осторожный подход, поэтому отдельные тренировки могут быть пропущены. Только на %@."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "同步后，NOOP 会检查你近期的心率，寻找一段看起来像运动的、持续升高的区段，并建议保存它。它只会建议，在你点击「保存」之前不会保存任何内容，你也可以忽略任何建议。它刻意保守，因此偶尔可能会漏掉某次锻炼。仅在 %@ 上。"
+            "value": "同步后，NOOP 会检查你近期的心率，寻找一段看起来像运动的、持续升高的区段，并建议保存它。它只会建议，在你点击「保存」之前不会保存任何内容，你也可以忽略任何建议。关闭此功能会停止今后的建议，但会保留现有的锻炼历史记录。它刻意保守，因此偶尔可能会漏掉某次锻炼。仅在 %@ 上。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "同步後，NOOP 會檢查你近期的心率，尋找一段看起來像運動的、持續升高的區段，並建議保存它。它只會建議，在你點擊「儲存」之前不會保存任何內容，你也可以忽略任何建議。它刻意保守，因此偶爾可能會漏掉某次鍛鍊。僅在 %@ 上。"
+            "value": "同步後，NOOP 會檢查你近期的心率，尋找一段看起來像運動的、持續升高的區段，並建議保存它。它只會建議，在你點擊「儲存」之前不會保存任何內容，你也可以忽略任何建議。關閉此功能會停止日後的建議，但會保留現有的鍛鍊歷史記錄。它刻意保守，因此偶爾可能會漏掉某次鍛鍊。僅在 %@ 上。"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Po synchronizacji NOOP sprawdza Twoje ostatnie tętno pod kątem trwałego, podwyższonego odcinka rozciągającego, który wygląda jak ćwiczenie, i proponuje jego zapisanie. Zawsze tylko sugeruje. Nic nie zostanie zapisane, dopóki nie klikniesz Zapisz. Możesz odrzucić każdą sugestię. Celowo konserwatywny, więc dziwny trening może zostać pominięty. Tylko w %@."
+            "value": "Po synchronizacji NOOP sprawdza Twoje ostatnie tętno pod kątem trwałego, podwyższonego odcinka rozciągającego, który wygląda jak ćwiczenie, i proponuje jego zapisanie. Zawsze tylko sugeruje. Nic nie zostanie zapisane, dopóki nie klikniesz Zapisz. Możesz odrzucić każdą sugestię. Wyłączenie tej funkcji zatrzyma przyszłe sugestie, ale zachowa dotychczasową historię treningów. Celowo konserwatywny, więc dziwny trening może zostać pominięty. Tylko w %@."
           }
         }
       }

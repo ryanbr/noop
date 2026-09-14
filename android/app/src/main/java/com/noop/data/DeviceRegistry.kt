@@ -90,8 +90,8 @@ class DeviceRegistry(
                 dao.upsertPairedDevice(active.copy(id = serialId))
             }
             // BOTH id shapes. Every strap also owns a COMPUTED sibling keyed `<deviceId>-noop` (see
-            // WhoopRepository.computedDeviceId) holding the scored days, detected workouts and metric
-            // series the engine derives. That id never equals activeId, so re-keying only the pairing's
+            // WhoopRepository.computedDeviceId) holding scored days, legacy detected workouts and metric
+            // series. That id never equals activeId, so re-keying only the pairing's
             // own id left the computed history stranded under an id nothing reads again while the next
             // scoring pass wrote under `<serialId>-noop` — the orphaned history this adoption exists to
             // prevent, displaced onto the computed half. A ring has no computed sibling, which is why the

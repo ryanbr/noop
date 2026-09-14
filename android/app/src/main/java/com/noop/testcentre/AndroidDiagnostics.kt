@@ -422,12 +422,10 @@ object AndroidDiagnostics {
             add("Stored: " + perSource.joinToString("  ") { "${it.first}=${it.second.size}" })
             val latest = perSource.flatMap { it.second }.maxByOrNull { it.startTs }
             add(if (latest != null) "Latest: ${dayStamp(latest.startTs)} · ${latest.sport} (${latest.source})" else "Latest: none")
-            // #1735: "auto-detect is off but workouts keep appearing" is answerable only if the log says
-            // which of the TWO detectors is meant. The Settings toggle governs the opt-in suggestion card
-            // ONLY; the engine derives durable sport="detected" rows on every pass regardless, and all the
-            // per-bout tracing for that sits behind the Test Centre WORKOUTS domain, which a reporter
-            // filing a non-test-mode bug will not have on. Counts read from the store, so this states what
-            // IS, not what the code intends.
+            // #1735/#2187: the Settings toggle governs the opt-in suggestion card, now the only path that
+            // can create a new user-visible automatic workout, and only after Save. The engine may still
+            // analyze bouts to enrich an overlapping real workout, but no longer publishes generic rows.
+            // Counts remain useful because grandfathered sport="detected" history is deliberately retained.
             // Guarded SEPARATELY from the section: this file's contract is that every probe is guarded,
             // and a throw in here would otherwise be caught by the outer handler and reported as
             // "(workout sources unavailable)" - blaming the store for a failure in the auto-detect probe,
@@ -768,21 +766,14 @@ object AndroidDiagnostics {
         else "Scoring:     last pass $ago"
 
     /**
-     * Which workout detector produced what, and whether the Settings toggle has anything to do with it.
-     *
-     * NOOP has TWO detectors and they are deliberately separate (see AutoWorkoutDetector's header). The
-     * Settings toggle governs the opt-in SUGGESTION card, which only ever offers a workout and saves
-     * nothing until the user taps Save. The IntelligenceEngine separately derives durable sport="detected"
-     * rows from the 1 Hz store on every scoring pass, and that has never been gated by the toggle.
-     *
-     * Both are called "detect" in the UI, so #1735 read the second one's rows as the first one ignoring
-     * its own switch, which is an entirely reasonable reading. Every per-bout line that would have shown
-     * the difference sits behind the Test Centre WORKOUTS domain, and that report was filed as "not a
-     * test-mode bug" with the domain off, so the log carried nothing about it at all.
+     * Whether automatic workout suggestions are enabled and how much grandfathered detected history is
+     * still stored. The suggestion card is the only path that can create a new user-visible automatic
+     * workout, and it saves nothing until the user confirms. IntelligenceEngine still analyzes bouts for
+     * daily analytics and overlap enrichment, but never publishes or reconciles generic workout rows.
      *
      * Reads COUNTS from the store rather than describing intent: it states what is on disk, not what the
-     * code believes it does. The reassurance clause is emitted only for the combination that actually
-     * misleads (card off, rows present) so it never claims to explain a state it is not looking at.
+     * code believes it does. The retained-history clause is emitted only when the card is off and legacy
+     * rows remain, making clear that disabling stops future suggestions without destructively erasing them.
      * [dismissedMarkers] is null when the query failed, and renders "n/a" rather than a wrong zero, which
      * would read as "your dismissals are not sticking".
      */
@@ -794,12 +785,12 @@ object AndroidDiagnostics {
         val card = if (suggestionCardEnabled) "on" else "off"
         val dismissed = dismissedMarkers?.toString() ?: "n/a"
         val note = if (!suggestionCardEnabled && storedDetectedRows > 0) {
-            " (rows with the card off are EXPECTED: a different detector makes them)"
+            " (stored rows are retained legacy history; disabling does not delete them)"
         } else {
             ""
         }
-        return "Auto-detect: suggestion card=$card · engine \"Activity\" rows=always on, not gated by " +
-            "that toggle · stored detected=$storedDetectedRows · dismissed markers=$dismissed$note"
+        return "Auto-detect: suggestion card=$card · new workouts=confirmation only; analytics does not " +
+            "publish generic rows · stored legacy detected=$storedDetectedRows · dismissed markers=$dismissed$note"
     }
 
     /** A coarse OEM-kill heuristic by manufacturer (the aggressive-background-kill vendors). Pure and

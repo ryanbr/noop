@@ -19,6 +19,12 @@ import WhoopProtocol
 
 extension AutoWorkoutDetector {
 
+    private struct ShadowPair {
+        let candidateIndex: Int
+        let savedIndex: Int
+        let overlapS: Int
+    }
+
     /// Side-effect-free diagnostic twin of `detect(...)`: returns the SAME `[DetectedWorkout]` detect would,
     /// plus the trace. The returned windows ARE `detect(...)`'s verbatim, so the trace can never disagree
     /// with what the Today card actually suggests. The trace logs the inputs + the thresholds, then walks the
@@ -26,17 +32,21 @@ extension AutoWorkoutDetector {
     /// survived or dropped, mirroring the algorithm exactly. The Kotlin twin is
     /// `AutoWorkoutDetectorTrace.detectTrace`.
     ///
-    /// - Parameters mirror `detect(...)` exactly. `path` tags the call ("autoDetect" / "manualReview") so a
-    ///   report shows which entry point produced it.
+    /// - Parameters mirror `detect(...)` exactly. `minimumSustainedMinutes` defaults to the published
+    ///   12-minute policy; explicit 10/15-minute values are for local shadow diagnostics only. `path` tags
+    ///   the call ("autoDetect" / "manualReview") so a report shows which entry point produced it.
     public static func detectTrace(hr: [(ts: Int, bpm: Int)],
                                    restingBpm: Int?,
                                    motion: [MotionPoint]? = nil,
                                    savedSpans: [SavedWorkoutSpan] = [],
+                                   minimumSustainedMinutes: Double = minSustainedMin,
                                    path: String = "autoDetect")
         -> (results: [DetectedWorkout], trace: [String]) {
 
         // The result the Today card reads, verbatim, so the trace cannot diverge from it.
-        let results = detect(hr: hr, restingBpm: restingBpm, motion: motion, savedSpans: savedSpans)
+        let results = detect(hr: hr, restingBpm: restingBpm, motion: motion,
+                             savedSpans: savedSpans,
+                             minimumSustainedMinutes: minimumSustainedMinutes)
 
         var lines: [String] = []
         let floor = (restingBpm ?? defaultRestingHR) + elevatedMarginBPM
@@ -50,7 +60,7 @@ extension AutoWorkoutDetector {
         // Thresholds applied (the autoDetectThresholds capture). Stated once so a report carries the
         // calibration the windows were judged against.
         lines.append("autoDetect thresholds elevatedMargin=\(elevatedMarginBPM)bpm "
-            + "minSustainedMin=\(minSustainedMin) maxDipS=\(maxDipS) mergeGapS=\(mergeGapS) "
+            + "minSustainedMin=\(minimumSustainedMinutes) maxDipS=\(maxDipS) mergeGapS=\(mergeGapS) "
             + "motionConfirmMean=\(motionConfirmMean)")
 
         // Rebuild the SAME merged windows the detector forms (sustained spans tolerating dips, then merge),
@@ -67,7 +77,9 @@ extension AutoWorkoutDetector {
         var spanEnd = 0
         var dipStart: Int? = nil
         func closeSpan() {
-            if let s = spanStart, Double(spanEnd - s) >= minSustainedMin * 60.0 { spans.append((s, spanEnd)) }
+            if let s = spanStart, Double(spanEnd - s) >= minimumSustainedMinutes * 60.0 {
+                spans.append((s, spanEnd))
+            }
             spanStart = nil
             dipStart = nil
         }
@@ -85,7 +97,7 @@ extension AutoWorkoutDetector {
 
         if spans.isEmpty {
             lines.append("autoDetect why=noSustainedSpan "
-                + "(no contiguous run held >=\(minSustainedMin)min above \(floor)bpm)")
+                + "(no contiguous run held >=\(minimumSustainedMinutes)min above \(floor)bpm)")
             lines.append("autoDetect result windows=0")
             return (results, lines)
         }
@@ -129,6 +141,226 @@ extension AutoWorkoutDetector {
             + "(offered the most recent that is not saved or dismissed)")
         return (results, lines)
     }
+
+    /// Compare shadow candidates with manually/imported labelled workouts, without suppressing overlaps.
+    /// Candidates and labels are canonical-sorted, then paired one-to-one with a deterministic weighted
+    /// assignment. The assignment maximises cardinality first and total overlap second, so a broad label cannot
+    /// strand a candidate with no alternative and an equally large matching cannot retain a lower-overlap set.
+    /// Results therefore do not depend on database/union iteration order. A match requires strictly positive
+    /// overlap; endpoint-only contact is not evidence that the detector found the labelled workout.
+    ///
+    /// When `hrForObservability` is supplied, a label is observable only when its longest recorded HR run
+    /// (no sample gap above the detector's 90-second dip tolerance) spans the shorter of the label duration
+    /// and this policy's qualification duration. This retains genuinely short labelled workouts as evidence,
+    /// but two isolated points cannot manufacture a policy miss. Unobservable labels are reported separately
+    /// and never counted as misses. `matched` counts pairs, `unmatched` candidates left over, and `missed`
+    /// observable labelled spans left over. Median onset/end errors are absolute seconds for matched pairs,
+    /// or `n/a` when nothing matched.
+    ///
+    /// The caller must exclude legacy automatically detected rows from `savedSpans`: shadow mode measures
+    /// against user-confirmed/imported labels, not against the detector's own prior output. This formatter is
+    /// pure and returns only aggregate counts; it cannot save, dismiss, classify, or score a workout.
+    public static func shadowComparisonLine(policyMinutes: Double,
+                                            candidates: [DetectedWorkout],
+                                            savedSpans: [SavedWorkoutSpan],
+                                            hrForObservability: [(ts: Int, bpm: Int)]? = nil) -> String {
+        let orderedCandidates = candidates.sorted {
+            if $0.startSec != $1.startSec { return $0.startSec < $1.startSec }
+            if $0.endSec != $1.endSec { return $0.endSec < $1.endSec }
+            if $0.avgBpm != $1.avgBpm { return $0.avgBpm < $1.avgBpm }
+            if $0.peakBpm != $1.peakBpm { return $0.peakBpm < $1.peakBpm }
+            return $0.durationMin < $1.durationMin
+        }
+        let labelPartition = shadowLabelPartition(
+            savedSpans: savedSpans,
+            hr: hrForObservability,
+            policyMinutes: policyMinutes)
+        let orderedSaved = labelPartition.observable.sorted {
+            if $0.startSec != $1.startSec { return $0.startSec < $1.startSec }
+            return $0.endSec < $1.endSec
+        }
+        var possibleByCandidate = Array(repeating: [ShadowPair](), count: orderedCandidates.count)
+        for (candidateIndex, candidate) in orderedCandidates.enumerated() {
+            for (savedIndex, saved) in orderedSaved.enumerated() {
+                let overlapS = min(candidate.endSec, saved.endSec)
+                    - max(candidate.startSec, saved.startSec)
+                guard overlapS > 0 else { continue }
+                possibleByCandidate[candidateIndex].append(ShadowPair(
+                    candidateIndex: candidateIndex,
+                    savedIndex: savedIndex,
+                    overlapS: overlapS))
+            }
+        }
+        let matchedPairs = maximumCardinalityOverlapPairs(
+            possibleByCandidate: possibleByCandidate,
+            savedCount: orderedSaved.count)
+
+        let onsetErrors = matchedPairs.map {
+            abs(orderedCandidates[$0.candidateIndex].startSec - orderedSaved[$0.savedIndex].startSec)
+        }
+        let endErrors = matchedPairs.map {
+            abs(orderedCandidates[$0.candidateIndex].endSec - orderedSaved[$0.savedIndex].endSec)
+        }
+        let matched = matchedPairs.count
+        let missed = orderedSaved.count - matched
+        let unmatched = candidates.count - matched
+        return "workout shadow policy=\(shadowMinuteLabel(policyMinutes))min candidates=\(candidates.count) "
+            + "matched=\(matched) missed=\(missed) unobservable=\(labelPartition.unobservableCount) "
+            + "unmatched=\(unmatched) "
+            + "medianOnsetErrorS=\(medianErrorLabel(onsetErrors)) "
+            + "medianEndErrorS=\(medianErrorLabel(endErrors))"
+    }
+
+    /// Run the published policy plus the supported 10/15-minute alternatives for local shadow diagnostics
+    /// and return aggregate trace lines only. Label spans are deliberately NOT passed into `detect`: doing
+    /// so would suppress every true overlap before it could be measured. No result from this function is a
+    /// published suggestion.
+    public static func shadowComparisonLines(hr: [(ts: Int, bpm: Int)],
+                                             restingBpm: Int?,
+                                             motion: [MotionPoint]? = nil,
+                                             savedSpans: [SavedWorkoutSpan],
+                                             policies: [Double] = ([minSustainedMin]
+                                                 + shadowSustainedMinutes).sorted()) -> [String] {
+        policies.map { policy in
+            let candidates = detect(hr: hr, restingBpm: restingBpm, motion: motion,
+                                    minimumSustainedMinutes: policy)
+            return shadowComparisonLine(policyMinutes: policy, candidates: candidates,
+                                        savedSpans: savedSpans, hrForObservability: hr)
+        }
+    }
+
+    /// Split labels by whether the detector input has enough contiguous-in-time HR to evaluate this policy.
+    private static func shadowLabelPartition(savedSpans: [SavedWorkoutSpan],
+                                             hr: [(ts: Int, bpm: Int)]?,
+                                             policyMinutes: Double)
+        -> (observable: [SavedWorkoutSpan], unobservableCount: Int) {
+        guard let hr else { return (savedSpans, 0) }
+        let timestamps = Array(Set(hr.map(\.ts))).sorted()
+        var observable: [SavedWorkoutSpan] = []
+        observable.reserveCapacity(savedSpans.count)
+        for span in savedSpans {
+            let labelDuration = max(0, span.endSec - span.startSec)
+            let requiredCoverage = min(Double(labelDuration), max(0, policyMinutes * 60.0))
+            var runStart: Int?
+            var previousTimestamp: Int?
+            var longestRun = 0
+            for timestamp in timestamps {
+                if timestamp < span.startSec { continue }
+                if timestamp > span.endSec { break }
+                if let previousTimestamp, timestamp - previousTimestamp > maxDipS {
+                    runStart = timestamp
+                } else if runStart == nil {
+                    runStart = timestamp
+                }
+                if let runStart { longestRun = max(longestRun, timestamp - runStart) }
+                previousTimestamp = timestamp
+            }
+            if longestRun > 0, Double(longestRun) >= requiredCoverage { observable.append(span) }
+        }
+        return (observable, savedSpans.count - observable.count)
+    }
+
+    /// Hungarian assignment over candidate rows and saved-label + dummy columns. Every positive-overlap
+    /// edge receives a cardinality bonus larger than the maximum possible total overlap, making the scalar
+    /// objective exactly lexicographic: match count first, summed overlap second. Canonical input order and
+    /// lowest-column tie breaks keep equal optima deterministic across Swift and Kotlin.
+    private static func maximumCardinalityOverlapPairs(possibleByCandidate: [[ShadowPair]],
+                                                       savedCount: Int) -> [ShadowPair] {
+        let candidateCount = possibleByCandidate.count
+        guard candidateCount > 0, savedCount > 0,
+              let maxOverlap = possibleByCandidate.flatMap({ $0 }).map(\.overlapS).max()
+        else { return [] }
+
+        let maximumMatches = min(candidateCount, savedCount)
+        let cardinalityBonus = Int64(maxOverlap) * Int64(maximumMatches) + 1
+        let columnCount = savedCount + candidateCount
+        var weights = Array(
+            repeating: Array(repeating: Int64(0), count: columnCount),
+            count: candidateCount)
+        for options in possibleByCandidate {
+            for option in options {
+                weights[option.candidateIndex][option.savedIndex] =
+                    cardinalityBonus + Int64(option.overlapS)
+            }
+        }
+
+        // Minimum-cost Hungarian algorithm over negated weights. `p[column]` is its assigned 1-based row.
+        var rowPotential = Array(repeating: Int64(0), count: candidateCount + 1)
+        var columnPotential = Array(repeating: Int64(0), count: columnCount + 1)
+        var assignedRow = Array(repeating: 0, count: columnCount + 1)
+        var previousColumn = Array(repeating: 0, count: columnCount + 1)
+        let infinity = Int64.max / 4
+
+        for row in 1...candidateCount {
+            assignedRow[0] = row
+            var currentColumn = 0
+            var minimumReducedCost = Array(repeating: infinity, count: columnCount + 1)
+            var usedColumn = Array(repeating: false, count: columnCount + 1)
+            repeat {
+                usedColumn[currentColumn] = true
+                let currentRow = assignedRow[currentColumn]
+                var delta = infinity
+                var nextColumn = 0
+                for column in 1...columnCount where !usedColumn[column] {
+                    let cost = -weights[currentRow - 1][column - 1]
+                    let reducedCost = cost - rowPotential[currentRow] - columnPotential[column]
+                    if reducedCost < minimumReducedCost[column] {
+                        minimumReducedCost[column] = reducedCost
+                        previousColumn[column] = currentColumn
+                    }
+                    if minimumReducedCost[column] < delta {
+                        delta = minimumReducedCost[column]
+                        nextColumn = column
+                    }
+                }
+                for column in 0...columnCount {
+                    if usedColumn[column] {
+                        rowPotential[assignedRow[column]] += delta
+                        columnPotential[column] -= delta
+                    } else {
+                        minimumReducedCost[column] -= delta
+                    }
+                }
+                currentColumn = nextColumn
+            } while assignedRow[currentColumn] != 0
+
+            repeat {
+                let prior = previousColumn[currentColumn]
+                assignedRow[currentColumn] = assignedRow[prior]
+                currentColumn = prior
+            } while currentColumn != 0
+        }
+
+        var matches: [ShadowPair] = []
+        for savedColumn in 1...savedCount {
+            let candidateRow = assignedRow[savedColumn]
+            guard candidateRow > 0,
+                  let pair = possibleByCandidate[candidateRow - 1]
+                    .first(where: { $0.savedIndex == savedColumn - 1 })
+            else { continue }
+            matches.append(pair)
+        }
+        return matches.sorted {
+            if $0.candidateIndex != $1.candidateIndex { return $0.candidateIndex < $1.candidateIndex }
+            return $0.savedIndex < $1.savedIndex
+        }
+    }
+
+    /// Locale-independent policy label for byte-identical Swift/Kotlin shadow lines.
+    private static func shadowMinuteLabel(_ value: Double) -> String {
+        if value.isFinite, abs(value) < 1e15, value.rounded() == value {
+            return String(Int(value))
+        }
+        return String(value)
+    }
+
+    private static func medianErrorLabel(_ values: [Int]) -> String {
+        guard !values.isEmpty else { return "n/a" }
+        let sorted = values.sorted()
+        let middle = sorted.count / 2
+        if !sorted.count.isMultiple(of: 2) { return String(sorted[middle]) }
+        return shadowMinuteLabel((Double(sorted[middle - 1]) + Double(sorted[middle])) / 2.0)
+    }
 }
 
 /// Pure line formatters + the live-readout parser for the Workouts & GPS test mode. The app-target emitters
@@ -164,14 +396,12 @@ public enum WorkoutsTrace {
             + "distanceM=\(Int(distanceM.rounded())) (filter: accuracy+speed gate)"
     }
 
-    /// An engine detected-bout decision line: the IntelligenceEngine derives a workout bout from the raw HR
-    /// stream, then either PERSISTS it (source "-noop", sport "detected") or DROPS it because it overlaps a
-    /// real session the user already logged (manual / imported), so the same bout is never counted twice.
-    /// This is the "auto workout appeared then vanished" seam (#975): a bout can persist on one pass then be
-    /// dropped on the next once the manual row lands, and without this line the export shows NO workouts
-    /// trace for the auto path at all. `verdict` is "persisted" / "droppedOverlap"; `durMin` is the whole-
-    /// minute bout length; on a drop, `overlapSource` names the real row it collided with. No PII (a source
-    /// label + minutes + bpm only). Mirrors the Kotlin `WorkoutsTrace.detectedBoutLine`.
+    /// An analytics detected-bout decision line. IntelligenceEngine derives a bout from raw HR/motion for
+    /// scoring and enrichment, but never creates or reconciles a visible generic workout from it. A bout
+    /// with no real overlap is `analyticsOnly`; one overlapping a manual/imported row is either
+    /// `droppedOverlapBackfilled` when it supplied missing metrics, or `droppedOverlap` when that row was
+    /// already complete. On an overlap, `overlapSource` names the real row. `durMin` is the whole-minute bout
+    /// length. No PII (a source label + minutes + bpm only). Mirrors Kotlin `WorkoutsTrace.detectedBoutLine`.
     public static func detectedBoutLine(verdict: String,
                                         durMin: Int,
                                         avgBpm: Int,

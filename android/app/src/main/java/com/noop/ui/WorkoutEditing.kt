@@ -69,12 +69,12 @@ object WorkoutEditing {
         return out.toString()
     }
 
-    // MARK: - Dismissed detected bouts (durable across re-detection)
+    // MARK: - Dismissed detected bouts (legacy rows + suggestion suppression)
 
     /**
      * Read-time filter: a DETECTED row is hidden when it OVERLAPS any dismissed marker's
-     * [startTs, endTs] span. Span-overlap (not an exact-key match) survives the small startTs drift a
-     * bout's boundary can take as more HR arrives, matching the macOS dismissed-span semantics exactly.
+     * [startTs, endTs] span. Span-overlap is retained for legacy rows and the separate suggestion path,
+     * matching the macOS dismissed-span semantics exactly.
      * Imported / manual rows are never auto-hidden (the user deletes those outright). Half-open overlap
      * test: `row.start < span.end && span.start < row.end`. (#107)
      */
@@ -204,12 +204,10 @@ object WorkoutEditing {
 
     // MARK: - Detected-vs-real overlap collapse (#975)
     //
-    // The engine derives a "detected" bout from raw HR and DROPS it when it overlaps a real logged session,
-    // but only on the next analyze pass. Between a live/manual session ending and that pass, BOTH the manual
-    // row AND the detected shadow of the same bout show, and the detected shadow (a wider, sport-agnostic HR
-    // window) reads an implausibly high interpolated Effort/HR next to the real one. sameActivity cannot
-    // collapse them because their SPORTS differ ("detected" vs the user's sport). This read-time guard mirrors
-    // the engine's rule so the list never shows the transient duplicate. Runs before the same-sport dedup.
+    // Grandfathered generic detections can overlap a real workout logged later. sameActivity cannot collapse
+    // that pair because their SPORTS differ ("detected" vs the user's sport), so the wider generic row would
+    // otherwise remain beside the real one indefinitely. This read-time guard hides that redundant legacy
+    // row and runs before the same-sport dedup.
 
     /**
      * True when [detected] (a detected bout) is a redundant shadow of [real] (a non-detected logged session):

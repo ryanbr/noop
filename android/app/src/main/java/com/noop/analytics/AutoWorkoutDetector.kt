@@ -11,10 +11,10 @@ import kotlin.math.sqrt
  * BYTE-PARITY on the detection logic (same thresholds, same span/merge/overlap rules,
  * same outputs), verified by the mirrored unit tests on each platform.
  *
- * This is DELIBERATELY SEPARATE from [WorkoutDetector] (the exercise.py port that computes
- * calories / zones / strain and writes the durable "detected" rows the IntelligenceEngine
- * churns). This one is the lightweight, OPT-IN, NON-DESTRUCTIVE MVP that only ever SUGGESTS
- * a workout via a dismissible Today card — it never writes a row on its own. The user taps
+ * This remains the published, validation-frozen suggestion policy during #2187's shadow phase.
+ * [WorkoutDetector] separately computes daily analytics and missing-field enrichment, but no
+ * longer publishes generic workout rows. This lightweight, OPT-IN, NON-DESTRUCTIVE path only ever
+ * SUGGESTS a workout via a dismissible Today card — it never writes a row on its own. The user taps
  * "Save" to turn a suggestion into a manual workout, or X to dismiss it forever.
  *
  * The thresholds here are intentionally CONSERVATIVE (low sensitivity): a sustained ≥12-min
@@ -37,6 +37,13 @@ object AutoWorkoutDetector {
 
     /** A candidate must hold the elevated gate for a contiguous span of at least this long. */
     const val minSustainedMin: Double = 12.0
+
+    /**
+     * Candidate duration policies evaluated only by the local Workouts Test Centre shadow pass.
+     * Neither value changes the published 12-minute suggestion policy until labelled real-world
+     * validation supports a rollout decision.
+     */
+    val shadowSustainedMinutes: List<Double> = listOf(10.0, 15.0)
 
     /** A dip below the gate no longer than this does NOT break the span (a red light, a sip of water). */
     const val maxDipS: Long = 90L
@@ -105,7 +112,7 @@ object AutoWorkoutDetector {
      *  2. Grow a contiguous span across elevated samples. A run of NON-elevated samples is tolerated
      *     (does not end the span) ONLY while the dip's wall-clock duration stays <= [maxDipS]; a longer
      *     dip closes the span. The span's [start, end] are the first/last ELEVATED sample timestamps.
-     *  3. Keep a span only when it lasts >= [minSustainedMin].
+     *  3. Keep a span only when it lasts >= [minimumSustainedMinutes].
      *  4. Merge two kept spans when the gap between them is strictly < [mergeGapS].
      *  5. If a motion series is supplied, drop a window unless its mean motion intensity over the window
      *     is >= [motionConfirmMean] (confirmation). With no motion series, HR-only — keep it.
@@ -116,12 +123,15 @@ object AutoWorkoutDetector {
      * @param restingHR the nightly resting HR for the day; null → [defaultRestingHR] (60).
      * @param gravity OPTIONAL continuous motion series for confirmation; empty/omitted → HR-only.
      * @param savedWorkouts already-saved workout windows as (startSec, endSec) pairs to exclude by overlap.
+     * @param minimumSustainedMinutes qualification duration. The default preserves the published
+     *   12-minute suggestion behavior; other values are for explicit shadow evaluation only.
      */
     fun detect(
         hr: List<HrSample>,
         restingHR: Int? = null,
         gravity: List<GravitySample> = emptyList(),
         savedWorkouts: List<Pair<Long, Long>> = emptyList(),
+        minimumSustainedMinutes: Double = minSustainedMin,
     ): List<DetectedWorkout> {
         val seg = cleanHR(hr)
         if (seg.isEmpty()) return emptyList()
@@ -138,7 +148,7 @@ object AutoWorkoutDetector {
 
         fun closeSpan() {
             val s = spanStart
-            if (s != null && (spanEnd - s) >= minSustainedMin * 60.0) {
+            if (s != null && (spanEnd - s) >= minimumSustainedMinutes * 60.0) {
                 spans.add(s to spanEnd)
             }
             spanStart = null

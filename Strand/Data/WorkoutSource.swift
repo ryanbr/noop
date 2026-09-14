@@ -8,8 +8,9 @@ import StrandAnalytics   // WorkoutsTrace: the dedup-decision line formatter for
 ///   - "whoop"        — WhoopImporter (imported WHOOP session)
 ///   - "apple_health" / "apple-health" — AppleHealthImport
 ///   - "manual"       — AppModel.endWorkout (v1.67 live session) AND the retro add/edit sheet
-///   - "my-whoop-noop"— IntelligenceEngine detected bouts (source == the computed deviceId, i.e.
-///                       it ends in "-noop"). These are re-derived every analyzeRecent run.
+///   - "my-whoop-noop"— legacy IntelligenceEngine detected bouts (source == the computed deviceId,
+///                       i.e. it ends in "-noop"). These remain readable/editable but are no longer
+///                       created or reconciled by `analyzeRecent`.
 ///
 /// Classification order matters: "-noop" is checked BEFORE "whoop" because the computed id
 /// "my-whoop-noop" also contains the substring "whoop".
@@ -71,14 +72,12 @@ enum WorkoutSource: Equatable {
         sport == "detected" ? "Activity" : splitCamelCase(sport)
     }
 
-    // MARK: - Dismissed detected bouts (durable across re-detection)
+    // MARK: - Dismissed legacy detected bouts
     //
-    // The engine wipes + re-derives "detected" rows every run, so deleting a detected row from the
-    // table would only hide it until the next analyzeRecent recreates the same (startTs, sport) PK.
-    // The durable "this isn't a workout" record is a list of dismissed time spans persisted in
-    // UserDefaults (the macOS WorkoutRow lives in the WhoopStore Journal file, which this layer must
-    // not extend with a new column). A detected row overlapping any dismissed span stays hidden.
-    // (#107)
+    // Before #2187 the engine wiped + re-derived "detected" rows every run, so the durable "this isn't a
+    // workout" record had to be a list of dismissed spans in UserDefaults. New passes preserve history
+    // and create no such rows, but the tombstones remain load-bearing for existing databases and suppress
+    // a matching confirmation candidate during the transition. (#107/#2187)
 
     /// UserDefaults key holding the dismissed spans as "startTs:endTs" strings.
     static let dismissedDefaultsKey = "workouts.dismissedDetected"
@@ -96,9 +95,8 @@ enum WorkoutSource: Equatable {
     /// The "startTs:endTs" token persisted for a dismissed row (caller appends it to the defaults list).
     static func dismissedToken(for row: WorkoutRow) -> String { "\(row.startTs):\(row.endTs)" }
 
-    /// Read-time filter: a DETECTED row overlapping any dismissed span is hidden. Imported / manual
-    /// rows are never auto-hidden (the user deletes those outright), so dismissal only applies to the
-    /// re-derived detected source. Half-open overlap test: `row.start < span.end && span.start < row.end`.
+    /// Read-time filter: a legacy DETECTED row overlapping any dismissed span is hidden. Imported/manual
+    /// rows are never auto-hidden. Half-open overlap test: `row.start < span.end && span.start < row.end`.
     static func isDismissed(_ row: WorkoutRow, spans: [(start: Int, end: Int)]) -> Bool {
         classify(row.source) == .detected
             && spans.contains { row.startTs < $0.end && $0.start < row.endTs }
@@ -190,16 +188,12 @@ enum WorkoutSource: Equatable {
 
     // MARK: - Detected-vs-real overlap collapse (#975)
     //
-    // The engine derives a "detected" bout from raw HR and DROPS it when it overlaps a real logged session
-    // (IntelligenceEngine: bare time overlap, ANY source), but only on the next analyze pass. Between a live
-    // /manual session ending and that pass, BOTH the manual row AND the detected shadow of the same bout show
-    // in the list, and the detected shadow (a WIDER, sport-agnostic HR window) reads an implausibly high
-    // interpolated Effort/HR next to the real one. `sameActivity` cannot collapse them because their SPORTS
-    // differ ("detected" vs the user's sport). This read-time guard mirrors the engine's own rule so the list
-    // never shows the transient duplicate: a DETECTED row is dropped when its time window overlaps a REAL
-    // (non-detected) session by more than half of the shorter of the two. The >50%-of-shorter test (not bare
-    // touching) keeps a genuinely separate back-to-back session distinct, matching `sameActivity`'s overlap
-    // rule. Runs BEFORE the same-sport cross-source dedup, so the detected shadow is gone before that walk.
+    // Grandfathered generic detections can overlap a real workout logged later. `sameActivity` cannot collapse
+    // that pair because their SPORTS differ ("detected" vs the user's sport), so the wider generic row would
+    // otherwise remain beside the real one indefinitely. This read-time guard hides a DETECTED row when its
+    // window overlaps a REAL (non-detected) session by more than half of the shorter of the two. The
+    // >50%-of-shorter test (not bare touching) keeps a genuinely separate back-to-back session distinct,
+    // matching `sameActivity`'s overlap rule. It runs BEFORE same-sport cross-source dedup.
 
     /// True when `detected` (a detected bout) is a redundant shadow of `real` (a logged session of any source
     /// other than detected): their windows overlap by more than half of the shorter session. Order matters ,

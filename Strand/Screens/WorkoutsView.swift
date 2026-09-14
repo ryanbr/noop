@@ -1566,9 +1566,9 @@ struct WorkoutsView: View {
         .fixedSize()
     }
 
-    /// Right-click actions per row. A DETECTED bout can be re-labelled (becomes a real manual session
-    /// that survives re-detection) or dismissed (durably hidden). A MANUAL session can be edited or
-    /// deleted. Imported WHOOP / Apple rows are read-only (we never rewrite imported history).
+    /// Right-click actions per row. A grandfathered DETECTED bout can be re-labelled as a real manual
+    /// session or dismissed with its legacy marker retained. A MANUAL session can be edited or deleted.
+    /// Imported WHOOP / Apple rows are read-only (we never rewrite imported history).
     @ViewBuilder
     private func rowMenu(_ row: WorkoutRow) -> some View {
         switch WorkoutSource.classify(row.source) {

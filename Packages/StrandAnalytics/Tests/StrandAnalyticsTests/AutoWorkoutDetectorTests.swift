@@ -15,6 +15,11 @@ final class AutoWorkoutDetectorTests: XCTestCase {
         (0..<durS).map { (ts: start + $0, bpm: bpm) }
     }
 
+    /// A flat HR span with an exact wall-clock elapsed duration, including both endpoints.
+    private func elapsedSpan(_ start: Int, _ elapsedS: Int, _ bpm: Int) -> [(ts: Int, bpm: Int)] {
+        (0...elapsedS).map { (ts: start + $0, bpm: bpm) }
+    }
+
     private func grav(_ ts: Int, _ x: Double) -> GravitySample {
         GravitySample(ts: ts, x: x, y: 0, z: 1)
     }
@@ -121,5 +126,40 @@ final class AutoWorkoutDetectorTests: XCTestCase {
         let start = 9_000_000
         let hr = block(start - 300, 300, 65) + block(start, 20 * 60, 120) + block(start + 1200, 300, 65)
         XCTAssertEqual(AutoWorkoutDetector.detect(hr: hr, restingBpm: nil).count, 1)
+    }
+
+    func testTenMinuteShadowPolicyBoundary() {
+        let start = 10_000_000
+        let below = elapsedSpan(start, 10 * 60 - 1, 120)
+        let exact = elapsedSpan(start, 10 * 60, 120)
+
+        XCTAssertTrue(AutoWorkoutDetector.detect(
+            hr: below, restingBpm: 60, minimumSustainedMinutes: 10.0).isEmpty)
+        XCTAssertEqual(AutoWorkoutDetector.detect(
+            hr: exact, restingBpm: 60, minimumSustainedMinutes: 10.0).count, 1)
+        // The same exact ten-minute span must not change the published 12-minute result.
+        XCTAssertTrue(AutoWorkoutDetector.detect(hr: exact, restingBpm: 60).isEmpty)
+    }
+
+    func testPublishedDefaultRemainsTwelveMinutes() {
+        let start = 10_500_000
+        let below = elapsedSpan(start, 12 * 60 - 1, 120)
+        let exact = elapsedSpan(start, 12 * 60, 120)
+
+        XCTAssertEqual(AutoWorkoutDetector.minSustainedMin, 12.0)
+        XCTAssertEqual(AutoWorkoutDetector.shadowSustainedMinutes, [10.0, 15.0])
+        XCTAssertTrue(AutoWorkoutDetector.detect(hr: below, restingBpm: 60).isEmpty)
+        XCTAssertEqual(AutoWorkoutDetector.detect(hr: exact, restingBpm: 60).count, 1)
+    }
+
+    func testFifteenMinuteShadowPolicyBoundary() {
+        let start = 11_000_000
+        let below = elapsedSpan(start, 15 * 60 - 1, 120)
+        let exact = elapsedSpan(start, 15 * 60, 120)
+
+        XCTAssertTrue(AutoWorkoutDetector.detect(
+            hr: below, restingBpm: 60, minimumSustainedMinutes: 15.0).isEmpty)
+        XCTAssertEqual(AutoWorkoutDetector.detect(
+            hr: exact, restingBpm: 60, minimumSustainedMinutes: 15.0).count, 1)
     }
 }

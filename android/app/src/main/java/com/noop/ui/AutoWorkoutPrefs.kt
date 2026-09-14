@@ -8,10 +8,9 @@ import com.noop.analytics.AutoWorkoutDetector
  *
  * Byte-mirror of the iOS `Repository.autoDetectDismissedSpans` (UserDefaults key
  * "workouts.autoDetectDismissed"): a flat list of "startSec:endSec" tokens (the detector's integer
- * seconds). Kept DELIBERATELY SEPARATE from the gravity detector's `dismissedWorkout` table
- * ([com.noop.data.WhoopRepository.dismissedDetected]) so the two features never cross-suppress each
- * other — exactly as the iOS twin does. A dismissed suggestion is remembered here so the same window
- * never re-prompts after a relaunch.
+ * seconds). The store remains intact for compatibility; candidate filtering now honors it together
+ * with the analytics detector's legacy `dismissedWorkout` markers, so neither prior rejection can
+ * reappear after the #2187 transition.
  *
  * NON-destructive: this only records that the user said "not this one"; no workout row is ever
  * created or deleted by the auto-detect feature unless the user taps Save.
@@ -39,8 +38,25 @@ object AutoWorkoutPrefs {
     /** Token for one auto-detect span — matches the iOS `autoDetectToken` ("startSec:endSec"). */
     fun token(w: AutoWorkoutDetector.DetectedWorkout): String = "${w.startSec}:${w.endSec}"
 
-    /** Parse the END time (seconds) out of a "startSec:endSec" token; null if malformed. */
+    /** Parse only the suffix after the last colon, exactly like Swift's pruning path. */
     private fun tokenEnd(token: String): Long? = token.substringAfterLast(':', "").toLongOrNull()
+
+    /**
+     * Preserve the published semantics of each dismissal store. This card's SharedPreferences entries
+     * suppress only the exact detector token that was dismissed. The analytics detector's durable legacy
+     * markers use half-open interval overlap, so a drifted candidate is suppressed but two spans that only
+     * touch at an endpoint are not treated as the same workout.
+     */
+    internal fun isDismissed(
+        w: AutoWorkoutDetector.DetectedWorkout,
+        legacyTokens: Set<String>,
+        detectedSpans: List<Pair<Long, Long>>,
+    ): Boolean {
+        if (token(w) in legacyTokens) return true
+        return detectedSpans.any { (start, end) ->
+            w.startSec < end && start < w.endSec
+        }
+    }
 
     /**
      * Prune the dismissed-span set: drop spans whose END is older than ~30 days (they can never be
@@ -48,7 +64,7 @@ object AutoWorkoutPrefs {
      * Malformed tokens are kept (treated as newest) so we never silently lose data on a parse miss.
      * Byte-mirrored in the iOS `Repository.prunedAutoDetectSpans`.
      */
-    private fun prune(spans: Set<String>, now: Long): Set<String> {
+    internal fun prune(spans: Set<String>, now: Long): Set<String> {
         val cutoff = now - DISMISSED_MAX_AGE_SEC
         // Drop anything that aged out; an unparseable token survives the age filter.
         val fresh = spans.filter { token -> (tokenEnd(token) ?: return@filter true) >= cutoff }

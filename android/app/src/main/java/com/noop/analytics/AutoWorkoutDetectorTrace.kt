@@ -2,6 +2,7 @@ package com.noop.analytics
 
 import com.noop.data.GravitySample
 import com.noop.data.HrSample
+import kotlin.math.abs
 
 // AutoWorkoutDetectorTrace.kt - Kotlin twin of AutoWorkoutDetector+Trace.swift. The Workouts & GPS
 // test-mode auto-detect trace + line formatters.
@@ -19,6 +20,12 @@ import com.noop.data.HrSample
 
 object AutoWorkoutDetectorTrace {
 
+    private data class ShadowOption(
+        val candidate: Int,
+        val saved: Int,
+        val overlapS: Long,
+    )
+
     /**
      * Side-effect-free diagnostic twin of [AutoWorkoutDetector.detect]: returns the SAME
      * List<DetectedWorkout> detect would (it reuses detect verbatim), plus the trace. The trace logs the
@@ -32,9 +39,12 @@ object AutoWorkoutDetectorTrace {
         gravity: List<GravitySample> = emptyList(),
         savedWorkouts: List<Pair<Long, Long>> = emptyList(),
         path: String = "autoDetect",
+        minimumSustainedMinutes: Double = AutoWorkoutDetector.minSustainedMin,
     ): Pair<List<AutoWorkoutDetector.DetectedWorkout>, List<String>> {
         // The result the Today card reads, verbatim, so the trace cannot diverge from it.
-        val results = AutoWorkoutDetector.detect(hr, restingHR, gravity, savedWorkouts)
+        val results = AutoWorkoutDetector.detect(
+            hr, restingHR, gravity, savedWorkouts, minimumSustainedMinutes,
+        )
 
         val lines = ArrayList<String>()
         val floor = (restingHR ?: AutoWorkoutDetector.defaultRestingHR) + AutoWorkoutDetector.elevatedMarginBPM
@@ -48,7 +58,7 @@ object AutoWorkoutDetectorTrace {
         )
         lines.add(
             "autoDetect thresholds elevatedMargin=${AutoWorkoutDetector.elevatedMarginBPM}bpm " +
-                "minSustainedMin=${AutoWorkoutDetector.minSustainedMin} maxDipS=${AutoWorkoutDetector.maxDipS} " +
+                "minSustainedMin=$minimumSustainedMinutes maxDipS=${AutoWorkoutDetector.maxDipS} " +
                 "mergeGapS=${AutoWorkoutDetector.mergeGapS} motionConfirmMean=${AutoWorkoutDetector.motionConfirmMean}",
         )
 
@@ -65,7 +75,7 @@ object AutoWorkoutDetectorTrace {
         var dipStart: Long? = null
         fun closeSpan() {
             val s = spanStart
-            if (s != null && (spanEnd - s) >= AutoWorkoutDetector.minSustainedMin * 60.0) spans.add(s to spanEnd)
+            if (s != null && (spanEnd - s) >= minimumSustainedMinutes * 60.0) spans.add(s to spanEnd)
             spanStart = null
             dipStart = null
         }
@@ -84,7 +94,7 @@ object AutoWorkoutDetectorTrace {
         if (spans.isEmpty()) {
             lines.add(
                 "autoDetect why=noSustainedSpan " +
-                    "(no contiguous run held >=${AutoWorkoutDetector.minSustainedMin}min above ${floor}bpm)",
+                    "(no contiguous run held >=${minimumSustainedMinutes}min above ${floor}bpm)",
             )
             lines.add("autoDetect result windows=0")
             return results to lines
@@ -132,6 +142,202 @@ object AutoWorkoutDetectorTrace {
                 "(offered the most recent that is not saved or dismissed)",
         )
         return results to lines
+    }
+
+    /**
+     * Compare one shadow duration policy with real, already-saved workout spans. This formats only
+     * aggregate counts: it performs no I/O and cannot publish a candidate or mutate workout history.
+     * Matching is deterministic and one-to-one: inputs are first put in canonical order, then a weighted
+     * assignment maximises cardinality first and total overlap second. A match requires strictly positive
+     * overlap; endpoint-only contact is not evidence that the detector found the labelled workout.
+     *
+     * When [hrForObservability] is supplied, a label is observable only when its longest recorded HR run
+     * (no sample gap above the detector's 90-second dip tolerance) spans the shorter of the label duration
+     * and this policy's qualification duration. This retains genuinely short labelled workouts as evidence,
+     * but two isolated points cannot manufacture a policy miss. Unobservable labels are reported separately
+     * and never counted as misses.
+     */
+    fun shadowComparisonLine(
+        policyMinutes: Double,
+        candidates: List<AutoWorkoutDetector.DetectedWorkout>,
+        savedSpans: List<Pair<Long, Long>>,
+        hrForObservability: List<HrSample>? = null,
+    ): String {
+        val orderedCandidates = candidates.sortedWith(
+            compareBy<AutoWorkoutDetector.DetectedWorkout> { it.startSec }
+                .thenBy { it.endSec }
+                .thenBy { it.avgBpm }
+                .thenBy { it.peakBpm }
+                .thenBy { it.durationMin },
+        )
+        val (observableSaved, unobservableCount) = shadowLabelPartition(
+            savedSpans,
+            hrForObservability,
+            policyMinutes,
+        )
+        val orderedSaved = observableSaved.sortedWith(
+            compareBy<Pair<Long, Long>> { it.first }.thenBy { it.second },
+        )
+        val optionsByCandidate = List(orderedCandidates.size) { ArrayList<ShadowOption>() }
+        for ((candidateIndex, candidate) in orderedCandidates.withIndex()) {
+            for ((savedIndex, saved) in orderedSaved.withIndex()) {
+                val overlapS = minOf(candidate.endSec, saved.second) -
+                    maxOf(candidate.startSec, saved.first)
+                if (overlapS <= 0L) continue
+                optionsByCandidate[candidateIndex] += ShadowOption(
+                    candidateIndex,
+                    savedIndex,
+                    overlapS,
+                )
+            }
+        }
+        val matchedPairs = maximumCardinalityOverlapPairs(optionsByCandidate, orderedSaved.size)
+        val onsetErrors = ArrayList<Long>()
+        val endErrors = ArrayList<Long>()
+        for (option in matchedPairs) {
+            val candidate = orderedCandidates[option.candidate]
+            val saved = orderedSaved[option.saved]
+            onsetErrors += abs(candidate.startSec - saved.first)
+            endErrors += abs(candidate.endSec - saved.second)
+        }
+        val matched = matchedPairs.size
+        val policy = if (policyMinutes % 1.0 == 0.0) {
+            policyMinutes.toInt().toString()
+        } else {
+            policyMinutes.toString()
+        }
+        return "workout shadow policy=${policy}min candidates=${candidates.size} " +
+            "matched=$matched missed=${orderedSaved.size - matched} unobservable=$unobservableCount " +
+            "unmatched=${candidates.size - matched} " +
+            "medianOnsetErrorS=${medianError(onsetErrors)} medianEndErrorS=${medianError(endErrors)}"
+    }
+
+    /** Split labels by whether the detector input has enough contiguous-in-time HR to evaluate this policy. */
+    private fun shadowLabelPartition(
+        savedSpans: List<Pair<Long, Long>>,
+        hr: List<HrSample>?,
+        policyMinutes: Double,
+    ): Pair<List<Pair<Long, Long>>, Int> {
+        if (hr == null) return savedSpans to 0
+        val timestamps = hr.map { it.ts }.distinct().sorted()
+        val observable = savedSpans.filter { span ->
+            val labelDuration = maxOf(0L, span.second - span.first)
+            val requiredCoverage = minOf(labelDuration.toDouble(), maxOf(0.0, policyMinutes * 60.0))
+            var runStart: Long? = null
+            var previousTimestamp: Long? = null
+            var longestRun = 0L
+            for (timestamp in timestamps) {
+                if (timestamp < span.first) continue
+                if (timestamp > span.second) break
+                val previous = previousTimestamp
+                val currentRunStart = if (
+                    previous != null && timestamp - previous > AutoWorkoutDetector.maxDipS
+                ) {
+                    timestamp
+                } else {
+                    runStart ?: timestamp
+                }
+                runStart = currentRunStart
+                longestRun = maxOf(longestRun, timestamp - currentRunStart)
+                previousTimestamp = timestamp
+            }
+            longestRun > 0L && longestRun.toDouble() >= requiredCoverage
+        }
+        return observable to (savedSpans.size - observable.size)
+    }
+
+    /**
+     * Hungarian assignment over candidate rows and saved-label + dummy columns. Every positive-overlap
+     * edge receives a cardinality bonus larger than the maximum possible total overlap, making the scalar
+     * objective exactly lexicographic: match count first, summed overlap second. Canonical input order and
+     * lowest-column tie breaks keep equal optima deterministic across Kotlin and Swift.
+     */
+    private fun maximumCardinalityOverlapPairs(
+        optionsByCandidate: List<List<ShadowOption>>,
+        savedCount: Int,
+    ): List<ShadowOption> {
+        val candidateCount = optionsByCandidate.size
+        val maxOverlap = optionsByCandidate.flatten().maxOfOrNull { it.overlapS }
+        if (candidateCount == 0 || savedCount == 0 || maxOverlap == null) return emptyList()
+
+        val maximumMatches = minOf(candidateCount, savedCount)
+        val cardinalityBonus = maxOverlap * maximumMatches.toLong() + 1L
+        val columnCount = savedCount + candidateCount
+        val weights = Array(candidateCount) { LongArray(columnCount) }
+        for (options in optionsByCandidate) {
+            for (option in options) {
+                weights[option.candidate][option.saved] = cardinalityBonus + option.overlapS
+            }
+        }
+
+        // Minimum-cost Hungarian algorithm over negated weights. assignedRow[column] is 1-based.
+        val rowPotential = LongArray(candidateCount + 1)
+        val columnPotential = LongArray(columnCount + 1)
+        val assignedRow = IntArray(columnCount + 1)
+        val previousColumn = IntArray(columnCount + 1)
+        val infinity = Long.MAX_VALUE / 4L
+        for (row in 1..candidateCount) {
+            assignedRow[0] = row
+            var currentColumn = 0
+            val minimumReducedCost = LongArray(columnCount + 1) { infinity }
+            val usedColumn = BooleanArray(columnCount + 1)
+            do {
+                usedColumn[currentColumn] = true
+                val currentRow = assignedRow[currentColumn]
+                var delta = infinity
+                var nextColumn = 0
+                for (column in 1..columnCount) {
+                    if (usedColumn[column]) continue
+                    val cost = -weights[currentRow - 1][column - 1]
+                    val reducedCost = cost - rowPotential[currentRow] - columnPotential[column]
+                    if (reducedCost < minimumReducedCost[column]) {
+                        minimumReducedCost[column] = reducedCost
+                        previousColumn[column] = currentColumn
+                    }
+                    if (minimumReducedCost[column] < delta) {
+                        delta = minimumReducedCost[column]
+                        nextColumn = column
+                    }
+                }
+                for (column in 0..columnCount) {
+                    if (usedColumn[column]) {
+                        rowPotential[assignedRow[column]] += delta
+                        columnPotential[column] -= delta
+                    } else {
+                        minimumReducedCost[column] -= delta
+                    }
+                }
+                currentColumn = nextColumn
+            } while (assignedRow[currentColumn] != 0)
+
+            do {
+                val prior = previousColumn[currentColumn]
+                assignedRow[currentColumn] = assignedRow[prior]
+                currentColumn = prior
+            } while (currentColumn != 0)
+        }
+
+        return (1..savedCount).mapNotNull { savedColumn ->
+            val candidateRow = assignedRow[savedColumn]
+            if (candidateRow == 0) null else optionsByCandidate[candidateRow - 1]
+                .firstOrNull { it.saved == savedColumn - 1 }
+        }.sortedWith(compareBy<ShadowOption> { it.candidate }.thenBy { it.saved })
+    }
+
+    /** Median of non-negative whole-second errors; even samples can produce a `.5` value. */
+    private fun medianError(values: List<Long>): String {
+        if (values.isEmpty()) return "n/a"
+        val sorted = values.sorted()
+        val middle = sorted.size / 2
+        if (sorted.size % 2 == 1) return sorted[middle].toString()
+        val lower = sorted[middle - 1]
+        val upper = sorted[middle]
+        val whole = lower / 2 + upper / 2
+        return if (lower % 2L == upper % 2L) {
+            (whole + lower % 2L).toString()
+        } else {
+            "$whole.5"
+        }
     }
 }
 
@@ -181,12 +387,11 @@ object WorkoutsTrace {
             "dropped=$droppedSource(richness=$droppedRichness) (same activity, richer kept)"
 
     /**
-     * An engine detected-bout decision line (#975): the IntelligenceEngine derives a bout from raw HR then
-     * either PERSISTS it (source "-noop", sport "detected") or DROPS it because it overlaps a real logged
-     * session (manual / imported), so the same bout is never counted twice. `verdict` is "persisted" /
-     * "droppedOverlap" / "droppedShadow"; `durMin` is the whole-minute bout length; on a drop, `overlapSource`
-     * names the real row it collided with. No PII (a source label + minutes + bpm only). Swift twin
-     * WorkoutsTrace.detectedBoutLine.
+     * An analytics detected-bout decision line (#975/#2187): the IntelligenceEngine derives a bout from raw
+     * HR for metrics only. A non-overlap is `analyticsOnly`; an overlap with a real manual/imported session
+     * is `droppedOverlap` or `droppedOverlapBackfilled` when missing fields were enriched. `durMin` is the
+     * whole-minute bout length; on an overlap, `overlapSource` names the real row it collided with. No PII
+     * (a source label + minutes + bpm only). Swift twin WorkoutsTrace.detectedBoutLine.
      */
     fun detectedBoutLine(
         verdict: String,

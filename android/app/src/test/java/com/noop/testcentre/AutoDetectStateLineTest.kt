@@ -11,30 +11,27 @@ import org.junit.Test
 class AutoDetectStateLineTest {
 
     /**
-     * The misleading combination, and the only one the reassurance belongs on: the toggle is off and rows
-     * exist anyway. Claiming it in any other state would be explaining something the line is not looking
-     * at, which is how a diagnostic starts asserting more than it observes.
+     * The only state that needs a retention explanation: the toggle is off and grandfathered rows remain.
      */
     @Test
     fun `only the misleading combination gets the reassurance`() {
         val misleading = AndroidDiagnostics.autoDetectStateLine(false, storedDetectedRows = 12, dismissedMarkers = 3)
         assertTrue(misleading.contains("suggestion card=off"))
-        assertTrue(misleading.contains("are EXPECTED"))
+        assertTrue(misleading.contains("retained legacy history"))
 
-        // Card off and NO rows: nothing to explain.
-        assertFalse(AndroidDiagnostics.autoDetectStateLine(false, 0, 0).contains("are EXPECTED"))
-        // Card ON: rows are unsurprising to a reader who just enabled it.
-        assertFalse(AndroidDiagnostics.autoDetectStateLine(true, 12, 0).contains("are EXPECTED"))
+        assertFalse(AndroidDiagnostics.autoDetectStateLine(false, 0, 0).contains("retained legacy history"))
+        assertFalse(AndroidDiagnostics.autoDetectStateLine(true, 12, 0).contains("retained legacy history"))
     }
 
-    /** The load-bearing fact: the engine rows are not governed by the toggle. Always stated. */
+    /** The load-bearing fact: analytics never publishes a new generic workout. Always stated. */
     @Test
-    fun `the ungated engine rows are named in every state`() {
+    fun `confirmation-only publication is named in every state`() {
         for (card in listOf(true, false)) {
             for (rows in listOf(0, 7)) {
                 val line = AndroidDiagnostics.autoDetectStateLine(card, rows, 0)
-                assertTrue("state card=$card rows=$rows must name the ungated derivation",
-                           line.contains("not gated by that toggle"))
+                assertTrue("state card=$card rows=$rows must name confirmation-only publication",
+                           line.contains("new workouts=confirmation only"))
+                assertTrue(line.contains("analytics does not publish generic rows"))
             }
         }
     }
@@ -43,7 +40,7 @@ class AutoDetectStateLineTest {
     fun `the counts are reported`() {
         val line = AndroidDiagnostics.autoDetectStateLine(true, storedDetectedRows = 41, dismissedMarkers = 5)
         assertTrue(line.contains("suggestion card=on"))
-        assertTrue(line.contains("stored detected=41"))
+        assertTrue(line.contains("stored legacy detected=41"))
         assertTrue(line.contains("dismissed markers=5"))
     }
 
