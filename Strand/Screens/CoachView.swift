@@ -685,7 +685,12 @@ struct CoachView: View {
                 Label("Disconnect", systemImage: "gearshape")
             }
         } label: {
+            // Same affordance DevicesView uses for its per-device menu, headline size included. The
+            // size is not decoration here: the report this came from was that the option could not be
+            // FOUND, so a control that matches the one the wearer has already learned, at a size worth
+            // aiming at, is doing part of the work.
             Image(systemName: "ellipsis.circle")
+                .font(StrandFont.headline)
                 .foregroundStyle(StrandPalette.textSecondary)
         }
         .accessibilityLabel("Connection")
