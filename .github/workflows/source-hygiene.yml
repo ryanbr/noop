@@ -38,3 +38,10 @@ jobs:
       # point — fix the comment instead.
       - name: Detached doc comments (regression gate)
         run: python3 Tools/doc_comment_lint.py
+
+      # The constructed arithmetic examples that docs/PROTOCOL_SENSORS.md and PROTOCOL_ECG.md tell
+      # readers to run. Stdlib-only and finishes in well under a second, so it rides along in this
+      # already-running job on every PR rather than behind a docs/** filter, which would need a
+      # workflow or runner of its own. Fails on any assertion, so a doc edit cannot break it silently.
+      - name: Protocol doc examples (arithmetic check)
+        run: python3 docs/protocol-examples/validate_examples.py
