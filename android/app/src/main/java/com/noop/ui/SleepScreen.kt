@@ -749,7 +749,9 @@ fun SleepScreen(
                 display = display,
                 activeIsOura = activeIsOura,
                 nightHr = nightHr,
-                clock = night?.clockLabel ?: model?.clockLabel,
+                // #2199: never the SleepModel's label here — that model resolves to the NEWEST night, not
+                // the browsed one. See navHeaderClockLabel, where the rule and its tests live.
+                clock = navHeaderClockLabel(night?.clockLabel, navDays, nightOffset, is24h),
                 nightOffset = nightOffset,
                 lastIndex = max(navDays.lastIndex, 0),
                 nightLabel = nightLabel,
