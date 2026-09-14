@@ -653,6 +653,10 @@ public final class FrameRouter {
     /// backfill offload (old ts) is ignored, but a real-time one fires even mid-sync.
     static let liveGestureWindowSeconds = 45
 
+    /// How far back a DOUBLE_TAP arriving through a sync still earns a log line. Ten minutes covers a
+    /// gym session's syncs; anything older is ordinary history being offloaded, and stays silent.
+    static let lateGestureLogSeconds = 600
+
     /// Parse an EVENT frame and fire ONLY the live physical-gesture handlers (double-tap / wrist) iff the
     /// event is recent. Called for offload frames during backfill — where `handle(frame:)` is skipped —
     /// so a real-time gesture still works mid-offload (#69: the 5/MG offload runs for minutes). `now`
@@ -698,7 +702,17 @@ public final class FrameRouter {
         guard parsed.ok, parsed.crcOK != false else { return }
         guard parsed.typeName == "EVENT", let ev = parsed.parsed["event"]?.stringValue else { return }
         guard let ts = parsed.parsed["event_timestamp"]?.intValue, ts > 0 else { return }   // fail closed
-        guard abs(now - ts) <= FrameRouter.liveGestureWindowSeconds else { return }
+        let age = now - ts
+        guard abs(age) <= FrameRouter.liveGestureWindowSeconds else {
+            // A recent double-tap reaching us through a sync gets a line, so a tap reported as "did not
+            // register" can be checked: a live dispatch leaves "Double-tap → …" at that moment, and a
+            // tap that only ever came through a sync leaves just this. It asserts only the delivery seen.
+            if ev.hasPrefix("DOUBLE_TAP"), age > 0, age <= FrameRouter.lateGestureLogSeconds {
+                state.append(log: "Double-tap (strap time \(ts)) arrived \(age) s late during a sync; "
+                             + "not acted on (live window \(FrameRouter.liveGestureWindowSeconds) s)")
+            }
+            return
+        }
         if ev.hasPrefix("DOUBLE_TAP") {
             dispatchDoubleTapOnce(eventTimestamp: ts)
         } else if ev.hasPrefix("WRIST_ON") {
@@ -751,7 +765,12 @@ public final class FrameRouter {
 
     private func dispatchDoubleTapOnce(eventTimestamp ts: Int?) {
         if let ts {
-            guard !dispatchedDoubleTapEventTs.contains(ts) else { return }
+            guard !dispatchedDoubleTapEventTs.contains(ts) else {
+                // Only a gesture actually held back leaves a line, so a tap reported as missing can be
+                // told apart from a replay being suppressed.
+                state.append(log: "Double-tap (strap time \(ts)) not dispatched: that event was already handled")
+                return
+            }
             // Prune BEFORE appending, so the event just accepted is always the one kept.
             dispatchedDoubleTapEventTs.removeAll {
                 abs(ts - $0) > FrameRouter.liveGestureWindowSeconds

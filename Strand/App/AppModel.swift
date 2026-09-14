@@ -1645,7 +1645,11 @@ final class AppModel: ObservableObject {
 
     private func handleDoubleTap() {
         let now = Date()
-        guard now.timeIntervalSince(lastDoubleTapAt) > 1.2 else { return }   // debounce repeats
+        let since = now.timeIntervalSince(lastDoubleTapAt)
+        guard since > 1.2 else {   // debounce repeats
+            live.append(log: String(format: "Double-tap ignored: %.1f s after the previous one (debounce 1.2 s)", since))
+            return
+        }
         lastDoubleTapAt = now
         if let override = strapDoubleTapOverride {
             live.append(log: "Double-tap → Lift Log: next")

@@ -171,4 +171,34 @@ final class FrameRouterDoubleTapDedupTests: XCTestCase {
         }
         XCTAssertEqual(fired, 3, "re-walking the banked log adds no gestures")
     }
+
+    // MARK: - Evidence for a tap that "did not register"
+
+    /// A held-back replay leaves a line, so a missed tap can be told apart from a suppressed replay.
+    @MainActor
+    func testASuppressedReplayLeavesALogLine() {
+        let live = LiveState()
+        let r = router(live)
+        let frame = bytes(doubleTapHex)
+        r.handle(frame: frame)
+        let before = live.log.count
+        r.dispatchLiveGestureIfFresh(frame: frame, now: doubleTapEventTs + 10)
+        XCTAssertTrue(live.log.dropFirst(before).contains {
+            $0.contains("\(doubleTapEventTs)") && $0.contains("already handled")
+        })
+    }
+
+    /// A recent double-tap that only reaches the app through a sync is logged; old history is not.
+    @MainActor
+    func testALateDoubleTapIsLoggedButOldHistoryIsNot() {
+        let live = LiveState()
+        let r = router(live)
+        let before = live.log.count
+        r.dispatchLiveGestureIfFresh(frame: bytes(doubleTapHex), now: doubleTapEventTs + 120)
+        XCTAssertTrue(live.log.dropFirst(before).contains { $0.contains("arrived 120 s late") })
+
+        let count = live.log.count
+        r.dispatchLiveGestureIfFresh(frame: bytes(doubleTapHex), now: doubleTapEventTs + 5_000)
+        XCTAssertEqual(live.log.count, count, "a replay from hours ago is history, not a missed tap")
+    }
 }
