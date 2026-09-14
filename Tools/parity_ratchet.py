@@ -403,6 +403,7 @@ def compare_metadata(
     base: str,
     *,
     offline: bool,
+    repair_stale_base: bool = False,
     warnings: list[str] | None = None,
 ) -> list[str]:
     """Compare current governance metadata with the exact requested base."""
@@ -440,12 +441,39 @@ def compare_metadata(
         with _base_tree(root, base) as base_root:
             base_sets = parity_ledger.semantic_authority(base_root)
             base_manifest = parity_ledger.authority_manifest(base_sets)
-            if old_map["authority"] != base_manifest:
+            base_scan_map = parity_ledger.build_compact_twin_map(base_root)
+            base_scan_map["exemptions"] = old_registry["dispositions"]
+            base_scan = parity_ledger.scan(base_root, base_scan_map)
+        base_authority_is_stale = old_map["authority"] != base_manifest
+        if base_authority_is_stale:
+            repair_mismatches: list[str] = []
+            if current_sets != base_sets:
+                repair_mismatches.append("semantic authority differs from the exact base")
+            if ({item.identity for item in current_scan.findings}
+                    != {item.identity for item in base_scan.findings}):
+                repair_mismatches.append("finding identities differ from the exact base")
+            if current_scan.counters != base_scan.counters:
+                repair_mismatches.append("counters differ from the exact base")
+            if current_registry != old_registry:
+                repair_mismatches.append("typed dispositions differ from the exact base")
+            if current_map["authority"] != current_manifest:
+                repair_mismatches.append("current authority is not exactly derived")
+            if current_baseline != parity_ledger.build_compact_baseline(current_scan):
+                repair_mismatches.append("current baseline is not exactly derived")
+            if not repair_stale_base:
                 errors.append(
                     f"{TWIN_MAP_PATH}: base authority cannot be reproduced with the current derivation; migration required"
                 )
-            base_scan_map = parity_ledger.build_compact_twin_map(base_root)
-            base_scan = parity_ledger.scan(base_root, base_scan_map)
+            elif repair_mismatches:
+                errors.append(
+                    f"{TWIN_MAP_PATH}: stale-base repair rejected because "
+                    + "; ".join(repair_mismatches)
+                )
+            else:
+                warnings.append(
+                    f"{TWIN_MAP_PATH}: repaired stale metadata already present in the exact base; "
+                    "no current-tree governance delta accepted"
+                )
         base_findings = {item.identity for item in base_scan.findings}
         current_findings = {item.identity for item in current_scan.findings}
         required = _required_v3_exemptions(
@@ -616,13 +644,24 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--root", type=Path, default=ROOT)
     parser.add_argument("--base", help="base ref; defaults durably to origin/main")
     parser.add_argument("--offline", action="store_true", help="skip GitHub issue existence checks")
+    parser.add_argument(
+        "--repair-stale-base",
+        action="store_true",
+        help="adopt exactly derived metadata only when governed state is unchanged from an already-stale base",
+    )
     args = parser.parse_args(argv)
     root = args.root.resolve()
     try:
         base = resolve_base(root, args.base)
         warnings: list[str] = []
         errors = repository_consistency_errors(root, warnings=warnings)
-        errors.extend(compare_metadata(root, base, offline=args.offline, warnings=warnings))
+        errors.extend(compare_metadata(
+            root,
+            base,
+            offline=args.offline,
+            repair_stale_base=args.repair_stale_base,
+            warnings=warnings,
+        ))
         for warning in warnings:
             print(f"WARNING: {warning}", file=sys.stderr)
         return _print_errors(errors)

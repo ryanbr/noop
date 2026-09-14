@@ -101,6 +101,20 @@ edits `parity_dispositions.json`.
 Deleting a paired duplicate is fail-closed derived-snapshot drift that requires
 this guarded refresh flow by design.
 
+If the scheduled `main` run finds that the exact base already contains stale
+metadata, use the explicit repair variant:
+
+```sh
+python3 Tools/parity_ledger.py --refresh-derived --repair-stale-base --base origin/main
+```
+
+This is not a force switch and does not create a disposition. The ratchet
+independently scans the exact base and the current tree, then permits the repair
+only when semantic authority, finding identities, counters, and typed
+dispositions are unchanged between them and both regenerated snapshots exactly
+match that shared state. Any source debt introduced on the repair branch still
+fails closed, as does a hand-edited or partial snapshot.
+
 For a new one-sided declaration, choose explicitly:
 
 The `add-unpaired-function` diagnostic defines "new" by absence of the

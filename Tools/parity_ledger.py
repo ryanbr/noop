@@ -2620,6 +2620,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--bootstrap-map", action="store_true", help="write a fresh inventory map before scanning")
     parser.add_argument("--write-baseline", action="store_true", help="rewrite the baseline with current findings")
     parser.add_argument("--refresh-derived", action="store_true", help="refresh existing derived snapshots only if the ratchet accepts the result")
+    parser.add_argument(
+        "--repair-stale-base",
+        action="store_true",
+        help="with --refresh-derived, repair metadata drift already present in the exact base",
+    )
     parser.add_argument("--base", default="origin/main", help="exact git ref used to prove debt reductions")
     args = parser.parse_args(argv)
 
@@ -2628,6 +2633,9 @@ def main(argv: list[str] | None = None) -> int:
     baseline_path = args.baseline_path or root / "Tools/parity_ledger_baseline.json"
     if args.bootstrap_map != args.write_baseline:
         print("FAIL --bootstrap-map and --write-baseline must be used together")
+        return 2
+    if args.repair_stale_base and not args.refresh_derived:
+        print("FAIL --repair-stale-base requires --refresh-derived")
         return 2
     if args.refresh_derived:
         if args.bootstrap_map or args.write_baseline or args.no_baseline:
@@ -2654,6 +2662,8 @@ def main(argv: list[str] | None = None) -> int:
                 sys.executable, str(Path(__file__).with_name("parity_ratchet.py")),
                 "--root", str(root), "--base", args.base, "--offline",
             ]
+            if args.repair_stale_base:
+                command.append("--repair-stale-base")
             completed = subprocess.run(command, cwd=root, text=True, capture_output=True)
             if completed.returncode:
                 print("FAIL derived refresh rejected; snapshots restored")
