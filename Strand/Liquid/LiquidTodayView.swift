@@ -2657,7 +2657,9 @@ private struct LiquidBatteryButton: View {
     private var batteryDisplay: LiquidTodayView.StrapBatteryDisplay {
         #if DEBUG
         if DemoSyncHarness.active {
+            // The harness stands in for a connected WHOOP, so it answers this the way one would.
             return .resolve(
+                activeIsWhoop: true,
                 connected: true,
                 batteryPct: DemoSyncHarness.batteryPercent,
                 charging: DemoSyncHarness.charging
