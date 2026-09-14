@@ -337,7 +337,6 @@ fun TodayScreen(
     // source streams, and the strap's percentage is never cleared, so under an active ring both halves of
     // the old gate passed and Today drew the strap's charge. Same seam the Devices list already uses.
     val activeIsWhoop by viewModel.activeIsWhoop.collectAsStateWithLifecycle()
-    val ouraBatteryPct by viewModel.ouraBatteryPct.collectAsStateWithLifecycle()
     val v5Signals by viewModel.v5Signals.collectAsStateWithLifecycle()
     val cycleEnabled by viewModel.cycleTrackingEnabled.collectAsStateWithLifecycle()
     val cycleHidden by viewModel.cycleAwarenessHidden.collectAsStateWithLifecycle()
@@ -1906,11 +1905,14 @@ fun TodayScreen(
         item {
             TodaySourcesSection(
                 footer,
-                strapBatteryPct = if (liveSnap.connected) LiveConsoleReadout.batteryPercent(
-                    activeIsWhoop = activeIsWhoop,
-                    whoopPct = liveSnap.batteryPct,
-                    ringPct = ouraBatteryPct,
-                ) else null,
+                // NOT routed through LiveConsoleReadout.batteryPercent, which substitutes the RING's charge
+                // for a non-WHOOP active device. That is right for a readout that names the active device,
+                // and wrong here: this value lands in the SourceRow badged `today_source_whoop`, and it
+                // also feeds that row's `present` flag. Substituting would put the ring's number under a
+                // WHOOP label and assert a WHOOP source that is not there, which is worse than the stale
+                // reading being fixed. Nothing is the honest answer for a strap that is not active.
+                strapBatteryPct = if (liveSnap.connected && activeIsWhoop)
+                    liveSnap.batteryPct?.roundToInt() else null,
                 // The runtime estimate is banked from strap SoC samples, so it is the strap's alone.
                 strapBatteryEstimate = if (liveSnap.connected && activeIsWhoop) batteryEstimateText else null,
                 expanded = sourcesExpanded,
