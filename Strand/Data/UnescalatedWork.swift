@@ -14,10 +14,17 @@ import Foundation
 /// 21: an awaited detached task reports 21 inside the body, this reports 17, with and without a
 /// suspension point in the body.
 ///
-/// Use this ONLY for work the wearer did not ask for and is not waiting on — the analysis pass, the
-/// unprompted rescore. Work the wearer started and is watching (an export, a backup, a restore) SHOULD
-/// escalate: they are waiting for it, and finishing sooner is the whole point. Escalation is a bug
-/// only where the work was meant to yield.
+/// Use this ONLY where EVERY caller is unprompted. Work the wearer started and is watching should
+/// escalate: finishing sooner is the whole point. Escalation is a bug only where the work was meant
+/// to yield.
+///
+/// Judge that at the ENTRY POINT, not at the block that burns the CPU. The analysis pass looks like an
+/// obvious candidate from inside `IntelligenceEngine`, and is not one: `analyzeRecent` is reached from
+/// a fifteen-minute background tick AND from a just-logged workout, whose call site asks for it so the
+/// new strain and calories "appear immediately", and from an Intelligence screen sitting empty while
+/// the wearer waits for it to fill. One internal block, several kinds of caller, so the priority
+/// belongs to whoever asked. Giving that pass a caller-aware priority is worth doing and is a larger
+/// change than this one.
 ///
 /// Cancellation is unchanged from the shape this replaces: a detached task already inherits none, and
 /// the continuation is always resumed exactly once, so a cancelled caller cannot leak it.
