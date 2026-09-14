@@ -233,7 +233,16 @@ private suspend fun loadDaytimeStress(vm: AppViewModel, personalBaseline: Boolea
     } else {
         DaytimeStress.ScoringMode.DayRelative
     }
-    val daytime = DaytimeStress.analyze(hr, rr, gravity, tzOffsetSeconds, mode)
+    // includeTimeline: the SLIDING read, so the screen's line moves in half-hours instead of stepping
+    // through whole clock hours (#2144). The scored unit is still a full hour; this only decides how
+    // often that hour is re-read, so a thin ten minutes now costs the windows that overlap it rather
+    // than a whole hour of chart. The Today card and the widget have always asked for this; the screen
+    // people actually study was the one still stepping.
+    //
+    // It is not free, which is why it was opt-in: a second bucketing pass and one RMSSD per extra
+    // window, on a screen already doing three windowed reads. Since #2144 that cost only lands when
+    // today's heart rate has actually moved, which is what makes it affordable here.
+    val daytime = DaytimeStress.analyze(hr, rr, gravity, tzOffsetSeconds, mode, includeTimeline = true)
     // ADDITIVE advanced readouts from the SAME `rr`. Each engine self-gates and returns null when
     // its requirement is not met, in which case its row is simply hidden in the UI.
     val si = StressIndex.components(rr)
@@ -602,12 +611,16 @@ private fun StressDaytimeSection(
 
                 // Autonomic-load LINE for the day, drawn in the same blue→green→amber WHOOP
                 // ramp as the hero PipBar (README screen 9 "day autonomic-load line").
-                DaytimeStressLine(day.hours)
+                // The SLIDING series, not the bare hours (#2144). Everything that COUNTS hours keeps
+                // reading `hours`: the totals bar's shares still have to sum to the day, and the
+                // trailing "Nh" is a count of scored hours, not of drawn points. Only the line and its
+                // ruler follow the finer read.
+                DaytimeStressLine(day.timeline)
 
                 // Hour ruler under the line (first / midday / last covered hour).
                 // start padding matches stressYAxisWidth so labels align with the chart area.
-                val lo = day.hours.firstOrNull()?.hour
-                val hi = day.hours.lastOrNull()?.hour
+                val lo = day.timeline.firstOrNull()?.hour
+                val hi = day.timeline.lastOrNull()?.hour
                 if (lo != null && hi != null) {
                     Row(modifier = Modifier.fillMaxWidth().padding(start = stressYAxisWidth)) {
                         Text(hourLabel(lo), style = NoopType.footnote, color = Palette.textTertiary)
@@ -630,7 +643,8 @@ private fun StressDaytimeSection(
                 // at a line that ends at 2pm on an axis running to 4pm wants to know that THIS hour is
                 // the reason, not a sync that has died. Quiet on an ordinary day, when the newest
                 // scored hour is simply the one that has just finished.
-                val lastScored = day.scored.lastOrNull()?.startTs
+                // The last point actually DRAWN, which is a timeline point now rather than an hour.
+                val lastScored = day.timeline.lastOrNull { it.level != null }?.startTs
                 if (lastScored != null &&
                     System.currentTimeMillis() / 1000L - lastScored >= staleTimelineSeconds
                 ) {
