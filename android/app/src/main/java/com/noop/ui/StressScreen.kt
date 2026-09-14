@@ -62,6 +62,7 @@ import com.noop.analytics.DaytimeStress
 import com.noop.analytics.HrvFreqDomain
 import com.noop.analytics.StressIndex
 import com.noop.data.DailyMetric
+import com.noop.data.RrInterval
 import com.noop.widget.StressPoint
 import com.noop.widget.StressTrace
 import com.noop.widget.StressWidgetProducer
@@ -72,7 +73,9 @@ import java.util.Locale
 import kotlin.math.exp
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 // MARK: - Stress Monitor (ported from Strand/Screens/StressView.swift)
 //
@@ -154,11 +157,23 @@ fun StressScreen(vm: AppViewModel, onBreathe: () -> Unit = {}) {
                 // wrong about this costs one pass, being wrong the other way freezes the screen.
                 if (fingerprint == null || fingerprint != lastHrFingerprint) {
                     lastHrFingerprint = fingerprint
-                    val read = runCatching { loadDaytimeStress(vm, NoopPrefs.stressPersonalBaseline(context)) }
-                        .getOrDefault(DaytimeReadout(DaytimeStress.Result.EMPTY, null, null))
-                    daytime = read.daytime
-                    stressIndex = read.stressIndex
-                    freqHrv = read.freqHrv
+                    // TWO phases, so the chart is not held behind work it does not use (#2181). The
+                    // scoring pass publishes first and the line can draw; the two optional HRV lenses,
+                    // which live in their own card and include a Lomb-Scargle periodogram over the whole
+                    // day of beats, fill in after. Both phases run on Dispatchers.Default rather than on
+                    // the LaunchedEffect's main thread, which is what made this a frozen screen instead
+                    // of a slow one.
+                    val personal = NoopPrefs.stressPersonalBaseline(context)
+                    val core = runCatching { loadDaytimeCore(vm, personal) }.getOrNull()
+                    daytime = core?.daytime ?: DaytimeStress.Result.EMPTY
+                    val beats = core?.rr.orEmpty()
+                    val lenses = if (beats.isEmpty()) null else runCatching {
+                        withContext(Dispatchers.Default) {
+                            StressIndex.components(beats) to HrvFreqDomain.freqDomain(beats)
+                        }
+                    }.getOrNull()
+                    stressIndex = lenses?.first
+                    freqHrv = lenses?.second
                 }
                 delay(StressWidgetProducer.RESCORE_INTERVAL_MS)
             }
@@ -191,24 +206,38 @@ fun StressScreen(vm: AppViewModel, onBreathe: () -> Unit = {}) {
 }
 
 /**
- * The daytime timeline result plus the two additive, on-demand HRV readouts, all derived from the
- * SAME day's R-R. The readouts are null when their engine's gate is not met (Baevsky needs >= 20
- * clean beats; freq-HRV needs >= 60 s span) or when the day had no usable intraday HR. None of this
- * touches the 0..3 score.
+ * The scoring pass and the beats it read, which is everything the chart needs (#2181).
+ *
+ * The two optional HRV lenses are deliberately NOT in here. They live in their own card, the chart does
+ * not use them, and one of them is a Lomb-Scargle periodogram over the whole day of beats. Carrying the
+ * beats out lets the caller compute them afterwards without reading a second time.
  */
-private data class DaytimeReadout(
+private data class DaytimeCore(
     val daytime: DaytimeStress.Result,
-    val stressIndex: StressIndex.Components?,
-    val freqHrv: HrvFreqDomain.Bands?,
+    val rr: List<RrInterval>,
 )
 
 /**
  * Read TODAY's banked HR + R-R and build the intraday stress timeline. Local-day window
- * [midnight, now]; [DaytimeStress] buckets it into waking hours and reuses the daily
- * score's math, so this is the same proxy at a finer grain (never a new score). The SAME `rr` is
- * then fed to the two additive HRV engines (no extra fetch, no DB / schema change).
+ * [midnight, now]; [DaytimeStress] buckets it into waking hours and reuses the daily score's math, so
+ * this is the same proxy at a finer grain (never a new score).
+ *
+ * WITHOUT the two additive HRV lenses, and OFF the main thread (#2181). Until then this ran straight
+ * from a LaunchedEffect body, so it sat on Dispatchers.Main: Room's suspend DAOs move the queries off
+ * it, but the merge, the scoring pass and both lenses ran on the UI thread. That does not merely delay
+ * the chart, it holds the frame, which is why the screen sat blank rather than showing an empty chart
+ * filling in. FullDayChartScreen already wraps its equivalent work in Dispatchers.Default.
+ *
+ * The lenses moved out because the chart never used them and was waiting for them anyway.
+ * `HrvFreqDomain` is a Lomb-Scargle periodogram, chosen so uneven beat spacing is not resampled away,
+ * and it costs what that choice costs: about 79 probed frequencies across VLF/LF/HF, each walking the
+ * whole beat series with a sine and a cosine per beat. The caller computes them from the `rr` carried
+ * out here, so they cost no second read and hold up nothing.
  */
-private suspend fun loadDaytimeStress(vm: AppViewModel, personalBaseline: Boolean): DaytimeReadout {
+private suspend fun loadDaytimeCore(
+    vm: AppViewModel,
+    personalBaseline: Boolean,
+): DaytimeCore = withContext(Dispatchers.Default) {
     val nowSeconds = System.currentTimeMillis() / 1000L
     val zone = ZoneId.systemDefault()
     val todayWindow = stressLocalDayWindowContaining(nowSeconds, zone)
@@ -216,7 +245,7 @@ private suspend fun loadDaytimeStress(vm: AppViewModel, personalBaseline: Boolea
     val tzOffsetSeconds = zone.rules.getOffset(Instant.ofEpochSecond(nowSeconds)).totalSeconds.toLong()
     val hr = vm.repo.hrSamplesUnion(vm.activeStrapId, from, nowSeconds, limit = 200_000)
     if (hr.size < DaytimeStress.minHourHrSamples) {
-        return DaytimeReadout(DaytimeStress.Result.EMPTY, null, null)
+        return@withContext DaytimeCore(DaytimeStress.Result.EMPTY, emptyList())
     }
     val rr = vm.repo.rrIntervalsUnion(vm.activeStrapId, from, nowSeconds, limit = 200_000)
     // Wrist accelerometer for the motion gate: an ambulatory hour is EXERTION, not stress, so it is
@@ -245,9 +274,7 @@ private suspend fun loadDaytimeStress(vm: AppViewModel, personalBaseline: Boolea
     val daytime = DaytimeStress.analyze(hr, rr, gravity, tzOffsetSeconds, mode, includeTimeline = true)
     // ADDITIVE advanced readouts from the SAME `rr`. Each engine self-gates and returns null when
     // its requirement is not met, in which case its row is simply hidden in the UI.
-    val si = StressIndex.components(rr)
-    val freq = HrvFreqDomain.freqDomain(rr)
-    return DaytimeReadout(daytime, si, freq)
+    DaytimeCore(daytime, rr)
 }
 
 /**
