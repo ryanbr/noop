@@ -77,8 +77,9 @@ final class ImportInboxCleanupTests: XCTestCase {
     }
 
     func testPurgeRemovesStaleInboxDropsButKeepsFreshOnes() throws {
-        // Only meaningful on iOS (purgeImportInbox is a no-op elsewhere); on macOS this asserts the
-        // no-op leaves files alone, which is also correct.
+        // Both platforms assert, differently: on iOS the stale drop must go, off iOS `purgeImportInbox()`
+        // is a no-op and BOTH drops must survive. The second is not a formality, because this test writes
+        // into the real `Documents/Inbox` that the production function scans.
         let stale = try makeFile(at: inbox.appendingPathComponent("stale-\(UUID()).zip"))
         // Age it well past the 60 s in-flight guard.
         try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSinceNow: -3600)],
@@ -93,6 +94,15 @@ final class ImportInboxCleanupTests: XCTestCase {
         #if os(iOS)
         XCTAssertFalse(FileManager.default.fileExists(atPath: stale.path),
                        "a stale Inbox drop must be purged on launch (#590)")
+        #else
+        // StrandTests runs on the macOS scheme, so the branch above is the one we almost never execute.
+        // Assert the OTHER half rather than compiling the interesting case away: `purgeImportInbox()` is
+        // wholly `#if os(iOS)`, so off iOS the stale drop must SURVIVE. That makes the platform gate on
+        // the production function a tested property instead of an assumed one — drop the `#if` there and
+        // this run deletes a file out of the user's real Documents/Inbox, which is the accident worth
+        // catching. Without it the macOS run only ever confirmed that a no-op left `fresh` alone.
+        XCTAssertTrue(FileManager.default.fileExists(atPath: stale.path),
+                      "purgeImportInbox() is iOS-only; off iOS a stale Inbox drop must be left alone")
         #endif
     }
 }
