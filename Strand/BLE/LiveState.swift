@@ -72,6 +72,22 @@ public final class LiveState: ObservableObject {
     /// separate short history to render an actually-moving R-R strip / rolling RMSSD. Appended (never
     /// replaced) by `setRRIntervals(_:)`; emptied by `clearBiometrics()`.
     @Published public private(set) var rrRecent: [Int] = []
+    /// The WHOOP strap's last reported charge. NOT the active device's.
+    ///
+    /// Two properties make this dangerous to read on its own, and both are deliberate. It is the
+    /// strap's alone, with no other source writing it. And it is never cleared: [clearBiometrics]
+    /// blanks the ring's charge beside it and leaves this, so a strap's last percentage outlives its
+    /// link on purpose, which is what lets a reconnect show a number before the first fresh reading.
+    ///
+    /// So `connected` does not qualify it. That flag goes true the moment ANY source streams, including
+    /// a ring's first live heart rate, at which point a stale strap percentage satisfies both halves of
+    /// the obvious gate. That is #2076 and #2208, the same bug found twice, across ten surfaces.
+    ///
+    /// Any readout naming the ACTIVE device must go through `LiveConsoleReadout.batteryPercent`, which
+    /// substitutes the ring's own charge. Any readout labelled as the strap's must pair this with
+    /// [activeIsWhoop] and show nothing when it is false: substituting there would put a ring's number
+    /// under a WHOOP heading. Which of the two a surface needs depends on what it claims to be showing,
+    /// and that is a question about the label rather than about this field.
     @Published public var batteryPct: Double? = nil
     /// Strap battery pack VOLTAGE (mV), decoded from the ~8-min BATTERY_LEVEL event (mv@21/@25) and the
     /// GET_EXTENDED_BATTERY_INFO response (#592). Shown on the Devices card as a "x.xx V" readout beside the
