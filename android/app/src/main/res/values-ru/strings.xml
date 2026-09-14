@@ -2659,4 +2659,5 @@
     <string name="l10n_app_changelog_a_today_screen_you_arrange_yourself_6194ccd0">Экран «Сегодня», который вы составляете сами, стресс на главном экране и резервные копии, которые проверяют себя сами</string>
     <string name="l10n_stress_screen_scored_through_1_s_later_hours_fbb7d6c7">Оценено до %1$s. Для более поздних часов нужно больше измерений пульса.</string>
     <string name="l10n_today_screen_scan_and_connect_40157030">Найти и подключить</string>
+    <string name="l10n_health_screen_fitness_age_stops_here_vo_max_383d989a">Фитнес-возраст здесь останавливается. VO₂max — нет.</string>
 </resources>

@@ -2785,4 +2785,5 @@
     <string name="l10n_app_changelog_a_today_screen_you_arrange_yourself_6194ccd0">Ein Heute-Bildschirm, den du selbst zusammenstellst, Stress auf dem Homescreen und Backups, die sich selbst prüfen</string>
     <string name="l10n_stress_screen_scored_through_1_s_later_hours_fbb7d6c7">Bewertet bis %1$s. Spätere Stunden brauchen mehr Herzfrequenz-Messwerte.</string>
     <string name="l10n_today_screen_scan_and_connect_40157030">Suchen und verbinden</string>
+    <string name="l10n_health_screen_fitness_age_stops_here_vo_max_383d989a">Das Fitnessalter endet hier. VO₂max nicht.</string>
 </resources>

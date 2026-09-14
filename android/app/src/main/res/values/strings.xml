@@ -2801,4 +2801,5 @@
     <string name="l10n_app_changelog_a_today_screen_you_arrange_yourself_6194ccd0">A Today screen you arrange yourself, stress on the home screen, and backups that check themselves</string>
     <string name="l10n_stress_screen_scored_through_1_s_later_hours_fbb7d6c7">Scored through %1$s. Later hours need more heart-rate samples.</string>
     <string name="l10n_today_screen_scan_and_connect_40157030">Scan and connect</string>
+    <string name="l10n_health_screen_fitness_age_stops_here_vo_max_383d989a">Fitness Age stops here. VO₂max keeps moving.</string>
 </resources>

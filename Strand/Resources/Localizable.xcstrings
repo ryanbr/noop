@@ -70433,6 +70433,64 @@
         }
       }
     },
+    "Fitness Age stops here. VO₂max keeps moving.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Das Fitnessalter endet hier. VO₂max nicht."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La edad de forma física se detiene aquí. El VO₂máx no."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’âge de forme s’arrête ici. Pas la VO₂max."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L’età di fitness si ferma qui. Il VO₂max no."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wiek sprawności zatrzymuje się tutaj. VO₂max nie."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A idade de forma física para aqui. O VO₂máx não."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Фитнес-возраст здесь останавливается. VO₂max — нет."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "体能年龄到此为止，VO₂max 仍在变化。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "體能年齡到此為止，VO₂max 仍在變化。"
+          }
+        }
+      }
+    },
     "Fitness Age %lld, %@. Tap to see the trend.": {
       "localizations": {
         "de": {

@@ -1026,6 +1026,22 @@ private fun FitnessAgeHero(
                         color = if (deltaYears == 0) Palette.textSecondary
                         else if (younger) Palette.statusPositive else Palette.statusWarning,
                     )
+                    // At a bound the age has stopped carrying information: every model output past the
+                    // end of the scale banks as the same number, so someone who is still improving sees
+                    // nothing move (#2184). The VO₂max already beside it is NOT clamped and is the same
+                    // estimate this age is derived from, so it keeps resolving where the age cannot.
+                    // Pointing at it costs one line and asserts nothing the model cannot support, which
+                    // is the part an extended reporting floor could not manage: two more years of range
+                    // would still sit inside the ±5 band this card already shows.
+                    if (boundSymbol.isNotEmpty() && vo2max != null) {
+                        Text(
+                            text = uiString(
+                                R.string.l10n_health_screen_fitness_age_stops_here_vo_max_383d989a,
+                            ),
+                            style = NoopType.footnote,
+                            color = Palette.textTertiary,
+                        )
+                    }
                 }
                 if (vo2max != null) {
                     Column(horizontalAlignment = Alignment.End) {
