@@ -587,10 +587,16 @@ fun TodayScreen(
         // StressScreen does (day → value, clamped 0–3) and feeding the same `days` ties the two together; both
         // recompute off `days`, so the pinned card stays in sync. null (no usable signal) keeps the honest
         // "Calibrating" placeholder, matching StressScreen's empty state.
+        // OFF the main thread. This reads the stress series over ALL history and then builds a model
+        // that is O(n) across it, and a LaunchedEffect body runs on the UI thread, so on an install with
+        // a long history it was holding frames on the home screen. The three reads below it are indexed
+        // single-row lookups and are left as they are.
         stressToday = runCatching {
-            val stored = viewModel.repo.metricSeries("my-whoop", "stress", "0000-01-01", "9999-12-31")
-                .associate { it.day to it.value.coerceIn(0.0, 3.0) }
-            StressModel.build(days, stored)?.score
+            withContext(Dispatchers.Default) {
+                val stored = viewModel.repo.metricSeries("my-whoop", "stress", "0000-01-01", "9999-12-31")
+                    .associate { it.day to it.value.coerceIn(0.0, 3.0) }
+                StressModel.build(days, stored)?.score
+            }
         }.getOrNull()
         fitnessAgeToday = runCatching {
             viewModel.repo.latestMetricComputedUnion(viewModel.activeStrapId, "fitness_age")?.value
@@ -3813,8 +3819,11 @@ private fun HostedCardsSection(
     val needsSleepModel = cards.any { it in modelBackedHosted }
     var hostedSleepModel by remember { mutableStateOf<SleepModel?>(null) }
     LaunchedEffect(needsSleepModel, days, viewModel.activeStrapId) {
+        // OFF the main thread: a LaunchedEffect body runs on it, and this walks the night's stages.
         hostedSleepModel = if (needsSleepModel) {
-            buildHostedSleepModel(viewModel.repo, viewModel.activeStrapId, days)
+            withContext(Dispatchers.Default) {
+                buildHostedSleepModel(viewModel.repo, viewModel.activeStrapId, days)
+            }
         } else {
             null
         }

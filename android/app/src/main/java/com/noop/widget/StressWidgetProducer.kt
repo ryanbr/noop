@@ -5,6 +5,8 @@ import com.noop.data.WhoopRepository
 import com.noop.ui.stressLocalDayWindowContaining
 import java.time.Instant
 import java.time.ZoneId
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Scores today's hourly stress for the widget, and does it as rarely as it can get away with.
@@ -125,9 +127,14 @@ internal object StressWidgetProducer {
         deviceId: String?,
         nowSeconds: Long = System.currentTimeMillis() / 1000L,
         zone: ZoneId = ZoneId.systemDefault(),
-    ): Curve? {
-        if (deviceId.isNullOrBlank()) return null
-        return runCatching {
+    ): Curve? = withContext(Dispatchers.Default) {
+        // OFF the caller's dispatcher, because one caller is a LaunchedEffect body and that means the
+        // main thread. Room's suspend DAOs move the queries themselves, but the row merge and
+        // DaytimeStress.analyze do not, so a day of heart rate was being bucketed and scored on the UI
+        // thread of the Today screen. Fixed here rather than at the call site so every caller gets it:
+        // the connection service, the periodic widget worker and the screen all reach this one function.
+        if (deviceId.isNullOrBlank()) return@withContext null
+        runCatching {
             val window = stressLocalDayWindowContaining(nowSeconds, zone)
             val day = window.day.toEpochDay()
             val from = window.fromEpochSecond
@@ -136,7 +143,8 @@ internal object StressWidgetProducer {
             // Same day, same heart rate: nothing can have changed the score, so nothing is read. The day
             // is part of the check because a fingerprint that happens to match across midnight would
             // otherwise serve yesterday's curve as today's.
-            memo?.let { if (it.day == day && it.fingerprint == fingerprint) return Curve(it.points, day) }
+            val memoHit = memo?.takeIf { it.day == day && it.fingerprint == fingerprint }
+            if (memoHit != null) return@runCatching Curve(memoHit.points, day)
 
             val hr = repo.hrSamplesUnion(deviceId, from, nowSeconds, limit = 200_000)
             val points = if (hr.size < DaytimeStress.minHourHrSamples) {
