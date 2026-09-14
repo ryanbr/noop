@@ -629,8 +629,54 @@ struct CoachView: View {
             if coach.sending {
                 StatePill("Thinking", tone: .accent, pulsing: true)
             }
+            #if os(iOS)
+            connectionMenu
+            #endif
         }
     }
+
+    #if os(iOS)
+    /// #2206: the same two actions the toolbar above carries, drawn where iPhone can reach them.
+    ///
+    /// `RootTabView.tab(...)` wraps every primary tab root in a NavigationStack and applies
+    /// `.toolbar(.hidden, for: .navigationBar)`, because each screen draws its own in-content header.
+    /// So Clear conversation and Disconnect were being placed into a bar this platform never shows, and
+    /// rendered nowhere. Disconnect is the ONLY route back to the setup card, which is the only place
+    /// an API key can be typed: `isConfigured` gates that card away the moment a key is saved. The
+    /// result was a key that could be set once and then never changed, with reinstalling the app the
+    /// only way out, which on an offline-first app costs the wearer their entire history.
+    ///
+    /// macOS keeps the toolbar and does not get this, so its behaviour is untouched. A menu rather than
+    /// a bare button because it needs two taps to reach a destructive action, matching the protection
+    /// the toolbar's separation gives, and because both actions belong to the same connection.
+    ///
+    /// Worth knowing before changing `disconnect()`: neither `hasKey` nor `isConfigured` is published,
+    /// since `hasKey` reads the Keychain on each evaluation. The setup card reappears because
+    /// `disconnect()` ALSO assigns the published `messages`, which is what re-evaluates the body. A
+    /// future disconnect that stopped clearing the transcript would clear the key and leave this screen
+    /// showing a chat for a connection that no longer exists. macOS has depended on the same coupling
+    /// since its toolbar button existed, so this is a latent edge being written down, not a new one.
+    private var connectionMenu: some View {
+        Menu {
+            Button {
+                showClearConfirm = true
+            } label: {
+                Label("Clear conversation", systemImage: "trash")
+            }
+            .disabled(coach.messages.isEmpty)
+            Button(role: .destructive) {
+                coach.disconnect()
+                keyDraft = ""
+            } label: {
+                Label("Disconnect", systemImage: "gearshape")
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle")
+                .foregroundStyle(StrandPalette.textSecondary)
+        }
+        .accessibilityLabel("Connection")
+    }
+    #endif
 
     private var transcript: some View {
         StrandCard(padding: 16) {
