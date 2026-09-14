@@ -6,6 +6,8 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.After
+import org.junit.Before
 import org.junit.Test
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -18,6 +20,24 @@ import java.util.TimeZone
  * the true calendar distance from each night's local wake-day. Mirrors iOS SleepView.nightsAgo.
  */
 class SleepHeroLogicTest {
+
+    // The nav-header date formats in the DEFAULT zone (`clockLabelFor` takes no zone), while these
+    // fixtures are built in UTC. Without pinning, an onset at 01:00 UTC formats as the PREVIOUS day
+    // anywhere west of UTC, so the date assertions below passed in UTC and Europe and failed in the
+    // Americas. Pin it for the class and restore, rather than leaving a suite that depends on where
+    // the contributor happens to live.
+    private var defaultZone: TimeZone? = null
+
+    @Before
+    fun pinZone() {
+        defaultZone = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+    }
+
+    @After
+    fun restoreZone() {
+        defaultZone?.let { TimeZone.setDefault(it) }
+    }
 
     private fun nightOn(date: LocalDate): List<SleepSession> {
         val endTs = date.atStartOfDay(ZoneOffset.UTC).plusHours(7).toEpochSecond()  // 07:00 UTC wake
