@@ -365,9 +365,10 @@ final class LiftSessionController: ObservableObject {
         guard let engine, engine.canRemoveSet(fromExercise: index) else { return false }
         let dropped = LiftSlot(exerciseIndex: index, setIndex: engine.plan[index].targetSets)
         self.engine?.removeSet(fromExercise: index)
-        // A slot that no longer exists must not keep a warm-up mark: adding the set back would
-        // return it silently marked, from a tap the user made against a different set.
+        // A slot that no longer exists must not keep a warm-up mark or typed numbers: adding the set
+        // back would return them silently, from input the user gave a set they then removed.
         pendingWarmups.remove(dropped)
+        pendingValues.removeValue(forKey: dropped)
         persist()
         return true
     }

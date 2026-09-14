@@ -42,7 +42,8 @@ and the per-muscle rollup resolves the same name the same way.
 
 ## Formats and quirks
 
-- **`.xlsx`** (the template) and **`.csv`** both work. Everything is read from the FIRST sheet.
+- **`.xlsx`** (the template) and **`.csv`** both work. In a workbook, the first sheet in tab order that
+  has an `Exercise` column is imported, so an instructions tab in front of it is fine.
 - **CSV delimiters** are sniffed — `,`, `;` or tab. Excel in most of Europe writes `;`, which is fine.
 - **Decimal commas** are understood: `40,5` and `40.5` both mean 40.5.
 - **Unit suffixes** are tolerated: `40,5 kg` reads as 40.5.

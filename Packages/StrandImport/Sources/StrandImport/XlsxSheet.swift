@@ -3,8 +3,8 @@ import ZIPFoundation
 
 // A deliberately small `.xlsx` reader: enough to read a filled-in template, and nothing else.
 //
-// An .xlsx is a ZIP of XML. Reading one properly — styles, number formats, dates, formulas, multiple
-// sheets, streaming — is a library's worth of work. This reads the FIRST worksheet as text, which is
+// An .xlsx is a ZIP of XML. Reading one properly — styles, number formats, dates, formulas,
+// streaming — is a library's worth of work. This reads each worksheet as text, in tab order, which is
 // all a program sheet needs, and is honest about that: no formula evaluation (a cell's last cached
 // value is used, which is what Excel wrote), no date coercion, no styling.
 //

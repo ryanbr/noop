@@ -710,7 +710,7 @@ public final class FrameRouter {
 
     // MARK: - Double-tap de-duplication
 
-    /// `event_timestamp` of the last DOUBLE_TAP handed to the app.
+    /// `event_timestamp`s of the DOUBLE_TAPs recently handed to the app.
     ///
     /// ONE physical gesture can reach us TWICE. It arrives live through `handle(frame:)`, and then
     /// again when the strap offloads its banked event log — `dispatchLiveGestureIfFresh` runs over

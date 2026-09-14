@@ -4,7 +4,7 @@ import WhoopStore
 // Training metrics for the Lift Log.
 //
 // Every figure here is arithmetic the user can redo by hand from their own logged sets. That is the
-// whole design constraint: NOOP shows six honest numbers rather than one invented score, because a
+// whole design constraint: NOOP shows a few honest numbers rather than one invented score, because a
 // composite "workout score out of 100" feels satisfying and tells you nothing about what to change.
 //
 // PURE. No store, no clock, no UI — the inputs are rows and the outputs are numbers, so the whole

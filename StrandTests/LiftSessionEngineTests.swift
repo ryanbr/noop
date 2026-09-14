@@ -295,7 +295,7 @@ final class LiftSessionEngineTests: XCTestCase {
         e.advance(now: t0 + 10)                                   // planned 90s
         e.advance(now: t0 + 210)                                  // actually rested 200s
         XCTAssertEqual(e.sets[0].restSec, 200,
-                       "work-vs-rest is measured from the taps, not assumed from the plan")
+                       "rest is measured from the taps, not assumed from the plan")
     }
 
     func testASetCarriesTheDurationItWasPerformedOver() {

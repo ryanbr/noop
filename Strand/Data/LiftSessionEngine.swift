@@ -318,8 +318,8 @@ struct LiftSessionEngine: Equatable {
 
         case .resting(let slot, _):
             pushHistory()
-            // Record what was ACTUALLY rested — the figure the work-vs-rest split is built from, and
-            // the one thing only the taps can know.
+            // Record what was ACTUALLY rested — the figure each set row shows, and the one thing
+            // only the taps can know.
             if let i = sets.firstIndex(where: { $0.slot == slot }) {
                 sets[i].restSec = max(0, now - stageStartedAt)
             }

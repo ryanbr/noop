@@ -159,4 +159,21 @@ final class LiftSessionPendingInputTests: XCTestCase {
         XCTAssertNil(c.enteredValues(for: slot(0, 1)).weightKg,
                      "the row is back to its ghosts, as it was before this existed")
     }
+
+    /// Removing a set takes what was entered for it along: adding the set back starts it fresh
+    /// rather than returning numbers and a warm-up mark given to a set the user dropped.
+    func testRemovingASetDropsWhatWasEnteredForIt() {
+        let c = controller()
+        c.start(plan: plan(), programId: nil, programName: "Upper A")
+        c.updateSet(slot(0, 3), weightKg: 80, reps: 4, rpe: nil, isWarmup: false)
+        c.setWarmup(slot(0, 3), true)
+
+        XCTAssertTrue(c.removeSet(fromExercise: 0))
+        XCTAssertTrue(c.addSet(toExercise: 0))
+
+        XCTAssertNil(c.enteredValues(for: slot(0, 3)).weightKg,
+                     "the re-added set shows its ghosts, not the dropped set's numbers")
+        XCTAssertFalse(c.isWarmup(slot(0, 3)))
+        XCTAssertTrue(c.pendingValues.isEmpty)
+    }
 }

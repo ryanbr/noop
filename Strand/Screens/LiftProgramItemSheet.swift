@@ -435,8 +435,8 @@ struct LiftProgramItemSheet: View {
             ord: item?.ord ?? 0,
             exercise: name,
             targetSets: Int(setsText.trimmingCharacters(in: .whitespaces)),
-            // ONE rep count. `targetRepsHigh`/`targetRpe` stay nil: they are v40 columns kept for
-            // compatibility, not part of the plan any more.
+            // ONE rep count. `targetRepsHigh`/`targetRpe` stay nil: they are schema columns the
+            // editor no longer fills, not part of the plan any more.
             targetRepsLow: Int(repsText.trimmingCharacters(in: .whitespaces)),
             targetRepsHigh: nil,
             targetRpe: nil,
