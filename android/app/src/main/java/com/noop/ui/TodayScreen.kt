@@ -1395,7 +1395,8 @@ fun TodayScreen(
                 dayTitle = dayTitle,
                 humanDate = humanDate,
                 selectedDay = selectedDay,
-                batteryPct = if (liveSnap.connected && activeIsWhoop) liveSnap.batteryPct else null,
+                batteryPct = if (liveSnap.connected) liveSnap.batteryPct else null,
+                strapIsActiveDevice = activeIsWhoop,
                 backfilling = liveSnap.backfilling,
                 syncChunksThisSession = liveSnap.syncChunksThisSession,
                 lastSyncAt = liveSnap.lastSyncAt,
@@ -2511,6 +2512,11 @@ private fun LiquidTodayHeader(
     humanDate: String,
     selectedDay: LocalDate,
     batteryPct: Double?,
+    /** Whether the STRAP is the active device. Separate from [batteryPct] on purpose: that says what
+     *  the control reads, this says whether the control should exist. A null percentage while the strap
+     *  IS active means "connected, no reading yet" and is worth drawing; a strap that is not the active
+     *  device has nothing to say and is not drawn at all. (#2208) */
+    strapIsActiveDevice: Boolean,
     // #245: sync state for the compact header chip (twin of iOS SyncStatusChip).
     backfilling: Boolean = false,
     syncChunksThisSession: Int = 0,
@@ -2640,7 +2646,11 @@ private fun LiquidTodayHeader(
             // disc → the quick-actions menu). Sized to match the rest of the liquid cluster (shared HeaderClusterControl).
             QuickActionDisc(onClick = onQuickActions)
             // (c) Strap battery ring showing the % (iOS LiquidBatteryButton). Tap → Devices.
-            LiquidBatteryRing(batteryPct = batteryPct, onClick = onOpenDevices)
+            // Not drawn when the strap is not the active device: an empty "Strap battery" ring under a
+            // streaming ring is a control asserting something about a strap nobody is wearing.
+            if (strapIsActiveDevice) {
+                LiquidBatteryRing(batteryPct = batteryPct, onClick = onOpenDevices)
+            }
         }
     }
 }

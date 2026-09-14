@@ -72,19 +72,29 @@ final class LiquidBatteryDisplayTests: XCTestCase {
     /// strap's charge. A non-WHOOP active device must show nothing rather than someone else's number.
     func testRingActiveShowsNothingEvenWithAStalestrapCharge() {
         XCTAssertEqual(Display.resolve(activeIsWhoop: false, connected: true, batteryPct: 72.4, charging: false),
-                       .offline)
+                       .notActiveDevice)
     }
 
     /// Charging is the strap's BATTERY_LEVEL event, so it is strap-only for the same reason. A ring must
     /// not inherit the strap's charger state either.
     func testRingActiveShowsNothingWhileTheStrapCharges() {
         XCTAssertEqual(Display.resolve(activeIsWhoop: false, connected: true, batteryPct: 88, charging: true),
-                       .offline)
+                       .notActiveDevice)
     }
 
     /// A ring active with no strap charge ever recorded is the same answer, reached the other way.
-    func testRingActiveWithNoStrapChargeIsAlsoOffline() {
+    func testRingActiveWithNoStrapChargeIsAlsoNotDrawn() {
         XCTAssertEqual(Display.resolve(activeIsWhoop: false, connected: true, batteryPct: nil, charging: nil),
+                       .notActiveDevice)
+    }
+
+    /// The distinction @pipiche38 asked for on #2216. A strap that IS active and disconnected is offline,
+    /// a real claim worth making. A strap that is not the active device is a different answer entirely,
+    /// and collapsing the two told a wearer with a streaming ring that their strap was not connected.
+    func testNotActiveIsNotTheSameAnswerAsOffline() {
+        XCTAssertNotEqual(Display.resolve(activeIsWhoop: false, connected: true, batteryPct: 72, charging: false),
+                          Display.resolve(activeIsWhoop: true, connected: false, batteryPct: 72, charging: false))
+        XCTAssertEqual(Display.resolve(activeIsWhoop: true, connected: false, batteryPct: 72, charging: false),
                        .offline)
     }
 
