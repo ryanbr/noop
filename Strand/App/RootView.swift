@@ -545,7 +545,13 @@ private struct SidebarStatus: View {
                 Text(statusText)
                     .font(StrandFont.rounded(12, weight: .medium))
                     .foregroundStyle(StrandPalette.textPrimary)
-                Text(live.batteryPct.map { String(localized: "Battery \(Int($0))%") } ?? String(localized: "Strap not connected"))
+                // #2208: gated on BOTH the link and whose device it is. This read had NO gate at all, so
+                // it showed the strap's last charge with nothing connected: `batteryPct` is never cleared,
+                // which made the honest `nil` branch below unreachable on any install that had paired a
+                // strap once. "Strap not connected" was dead text.
+                Text(live.connected && live.activeIsWhoop
+                     ? live.batteryPct.map { String(localized: "Battery \(Int($0))%") } ?? String(localized: "Strap not connected")
+                     : String(localized: "Strap not connected"))
                     .font(StrandFont.rounded(11))
                     .foregroundStyle(StrandPalette.textTertiary)
             }

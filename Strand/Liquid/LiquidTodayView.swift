@@ -2527,8 +2527,17 @@ extension LiquidTodayView {
         /// A reading from the current link.
         case charge(pct: Double, charging: Bool)
 
-        static func resolve(connected: Bool, batteryPct: Double?, charging: Bool?) -> StrapBatteryDisplay {
+        /// #2208: `activeIsWhoop` is required, not defaulted. `connected` alone was never enough: it is
+        /// true the moment ANY source streams, `batteryPct` is the strap's and is never cleared, so under
+        /// an active ring both halves of the old gate passed and this drew the strap's charge. Charging
+        /// is strap-only for the same reason, so a non-WHOOP active device reports neither.
+        ///
+        /// No default value on purpose. A defaulted flag is one a future call site can forget, and
+        /// forgetting it reinstates exactly this bug in a form that still compiles.
+        static func resolve(activeIsWhoop: Bool, connected: Bool,
+                            batteryPct: Double?, charging: Bool?) -> StrapBatteryDisplay {
             guard connected else { return .offline }
+            guard activeIsWhoop else { return .offline }
             guard let pct = batteryPct else { return .pending(charging: charging == true) }
             return .charge(pct: pct, charging: charging == true)
         }
@@ -2656,6 +2665,7 @@ private struct LiquidBatteryButton: View {
         }
         #endif
         return .resolve(
+            activeIsWhoop: live.activeIsWhoop,
             connected: live.connected,
             batteryPct: live.batteryPct,
             charging: live.charging
@@ -2871,7 +2881,8 @@ private struct LiquidSyncStatusRow: View {
 private struct LiquidStrapBatteryRow: View {
     @EnvironmentObject var live: LiveState
     var body: some View {
-        if live.connected, let pct = live.batteryPct {
+        // #2208: the strap's charge only when the strap is the active device.
+        if live.connected, live.activeIsWhoop, let pct = live.batteryPct {
             HStack {
                 Text("Strap battery").font(StrandFont.subhead).foregroundStyle(StrandPalette.textSecondary)
                 Spacer()

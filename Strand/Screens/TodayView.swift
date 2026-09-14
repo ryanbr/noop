@@ -5787,7 +5787,8 @@ private struct StrapBatteryRow: View {
     }
 
     var body: some View {
-        if live.connected, let pct = live.batteryPct {
+        // #2208: the strap's charge only when the strap is the active device.
+        if live.connected, live.activeIsWhoop, let pct = live.batteryPct {
             Divider().overlay(StrandPalette.hairline)
             HStack(spacing: 10) {
                 SourceBadge("Strap battery", tint: tint(pct))

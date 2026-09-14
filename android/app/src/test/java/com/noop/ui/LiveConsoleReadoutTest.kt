@@ -109,4 +109,22 @@ class LiveConsoleReadoutTest {
         // Symmetry: a ring that reported earlier must not leak into a strap's readout either.
         assertNull(LiveConsoleReadout.batteryPercent(true, null, 93))
     }
+
+    /**
+     * #2208: Today used to gate on `connected` alone, which goes true the moment ANY source streams,
+     * while the strap's percentage is never cleared. Both halves passed under an active ring and the
+     * screen drew the strap's charge. The seam's answer for a non-WHOOP active device is the ring's own
+     * number, or nothing, never the strap's.
+     */
+    @Test
+    fun ringActiveNeverFallsBackToTheStrapCharge() {
+        assertEquals(93, LiveConsoleReadout.batteryPercent(false, 72.4, 93))
+        assertNull(LiveConsoleReadout.batteryPercent(false, 72.4, null))
+    }
+
+    /** And the strap keeps reporting when it IS the active device. */
+    @Test
+    fun whoopActiveStillReportsItsOwnCharge() {
+        assertEquals(72, LiveConsoleReadout.batteryPercent(true, 72.4, 93))
+    }
 }

@@ -333,6 +333,11 @@ fun TodayScreen(
     val days by viewModel.recentDays.collectAsStateWithLifecycle()
     val activeDayCycle by viewModel.activeDayCycle.collectAsStateWithLifecycle()
     val spo2CandidateByDay by viewModel.spo2CandidateByDay.collectAsStateWithLifecycle()
+    // #2208: `connected` alone never said WHOSE charge liveSnap.batteryPct is. It goes true the moment any
+    // source streams, and the strap's percentage is never cleared, so under an active ring both halves of
+    // the old gate passed and Today drew the strap's charge. Same seam the Devices list already uses.
+    val activeIsWhoop by viewModel.activeIsWhoop.collectAsStateWithLifecycle()
+    val ouraBatteryPct by viewModel.ouraBatteryPct.collectAsStateWithLifecycle()
     val v5Signals by viewModel.v5Signals.collectAsStateWithLifecycle()
     val cycleEnabled by viewModel.cycleTrackingEnabled.collectAsStateWithLifecycle()
     val cycleHidden by viewModel.cycleAwarenessHidden.collectAsStateWithLifecycle()
@@ -1391,7 +1396,7 @@ fun TodayScreen(
                 dayTitle = dayTitle,
                 humanDate = humanDate,
                 selectedDay = selectedDay,
-                batteryPct = if (liveSnap.connected) liveSnap.batteryPct else null,
+                batteryPct = if (liveSnap.connected && activeIsWhoop) liveSnap.batteryPct else null,
                 backfilling = liveSnap.backfilling,
                 syncChunksThisSession = liveSnap.syncChunksThisSession,
                 lastSyncAt = liveSnap.lastSyncAt,
@@ -1901,8 +1906,13 @@ fun TodayScreen(
         item {
             TodaySourcesSection(
                 footer,
-                strapBatteryPct = if (liveSnap.connected) liveSnap.batteryPct?.roundToInt() else null,
-                strapBatteryEstimate = if (liveSnap.connected) batteryEstimateText else null,
+                strapBatteryPct = if (liveSnap.connected) LiveConsoleReadout.batteryPercent(
+                    activeIsWhoop = activeIsWhoop,
+                    whoopPct = liveSnap.batteryPct,
+                    ringPct = ouraBatteryPct,
+                ) else null,
+                // The runtime estimate is banked from strap SoC samples, so it is the strap's alone.
+                strapBatteryEstimate = if (liveSnap.connected && activeIsWhoop) batteryEstimateText else null,
                 expanded = sourcesExpanded,
                 onToggle = { sourcesExpanded = !sourcesExpanded },
             )

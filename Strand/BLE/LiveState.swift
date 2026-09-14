@@ -124,6 +124,24 @@ public final class LiveState: ObservableObject {
     /// That is #2075, where a ring on 93% displayed the strap's 72%. Nil when no ring has reported.
     @Published public var ouraBatteryPct: Int? = nil
 
+    /// Whether the ACTIVE device is a WHOOP, published so a readout can answer "whose charge is this"
+    /// without observing `AppModel`.
+    ///
+    /// It sits here because [batteryPct] does, and the two are only meaningful together. `batteryPct` is
+    /// the strap's and is never cleared, deliberately, so on its own it cannot say whether it describes
+    /// the device the wearer is currently looking at. Every surface that reads it needs this alongside,
+    /// and `Today` in particular cannot reach the device registry: it observes `BLEManager` rather than
+    /// `AppModel` on purpose, because `AppModel` publishes on the 1 Hz heart-rate tick and observing it
+    /// would re-render the whole screen every second.
+    ///
+    /// Written in ONE place, `SourceCoordinator.activeDeviceChanged`, from the same `activeDeviceId`
+    /// transition that decides which live source runs. Defaults to true, matching
+    /// `LiveConsoleReadout.activeIsWhoop`'s WHOOP-first default for an unresolvable row.
+    ///
+    /// Not cleared by [clearBiometrics]: which device is active is not a biometric and does not stop
+    /// being true when a link drops. (#2208)
+    @Published public var activeIsWhoop: Bool = true
+
     // MARK: - Battery runtime estimate (#713)
 
     /// Rolling buffer of `(unix-seconds, SoC%)` battery readings banked from the live link, the twin of

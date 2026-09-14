@@ -158,6 +158,11 @@ final class SourceCoordinator: ObservableObject {
     ///   • WHOOP active after a strap → stop the strap source + resume WHOOP.
     ///   • A generic strap → pause WHOOP + (re)start `StandardHRSource` for that strap's id.
     func activeDeviceChanged(to id: String) {
+        // #2208: publish whose device this is BEFORE any branch returns. Readouts that show the strap's
+        // charge need it to know the number is not the active device's, and the Apple Watch path below
+        // short-circuits, so setting it inside the WHOOP/strap split would leave a watch reading `true`.
+        live.activeIsWhoop = isWhoop(id)
+
         // The Apple Watch is a HealthKit source with `peripheralId: nil` (see `AppleWatchDevice`): there is
         // no BLE peripheral to connect, and the M1 live read happens entirely in `HealthKitBridge`'s
         // observers + sync, off this BLE coordinator. Short-circuit BEFORE the WHOOP branch so we never
