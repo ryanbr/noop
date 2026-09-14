@@ -745,7 +745,29 @@ class WhoopRepository(
     // MARK: - Server-derived caches (latest value wins on conflict)
 
     suspend fun upsertDailyMetrics(days: List<DailyMetric>) = dao.upsertDailyMetrics(days)
-    suspend fun upsertSleepSessions(sessions: List<SleepSession>) = dao.upsertSleepSessions(sessions)
+
+    /**
+     * Upsert cached sleep sessions without letting a partial re-serve replace a fuller night.
+     *
+     * The read and write share one transaction so every caller gets the same store-level guarantee.
+     * Existing hand-edited bounds/stages and the arrays owned by targeted writers are retained by
+     * [SleepSessionUpsertPolicy]; derived vitals still refresh. Mirrors WhoopStore's cache upsert.
+     */
+    suspend fun upsertSleepSessions(sessions: List<SleepSession>) {
+        if (sessions.isEmpty()) return
+        transactor.run {
+            for (candidate in sessions) {
+                val existing = dao.sleepSession(candidate.deviceId, candidate.startTs)
+                if (existing == null) {
+                    dao.insertSleepSession(candidate)
+                } else {
+                    SleepSessionUpsertPolicy.merge(existing, candidate)?.let {
+                        dao.updateSleepSession(it)
+                    }
+                }
+            }
+        }
+    }
 
     /** Delete the computed source's cached daily rows whose day-key is in [from, to] (inclusive,
      *  yyyy-MM-dd). The #277 local-day re-bucketing migration clears the computed UTC-keyed rows over
@@ -1025,8 +1047,8 @@ class WhoopRepository(
         dao.updateSleepStages(deviceId, detectedStartTs, stagesJSON)
 
     // MARK: - Per-epoch sleep analytics (v18: motionJSON / sleepStateJSON). Banked beside stagesJSON on
-    // the sleepSession row; written/read through targeted methods so the @Upsert recompute/import path
-    // (which never names these columns) preserves them. Port of iOS WhoopStore.persist/sessionMotion +
+    // the sleepSession row; written/read through targeted methods, then carried through recompute/import
+    // refreshes by SleepSessionUpsertPolicy. Port of iOS WhoopStore.persist/sessionMotion +
     // persist/sessionSleepState. HONESTY: an absent signal is stored as NULL and read back as null, never
     // a fabricated zero series; an EMPTY input array clears the column.
 
@@ -1319,6 +1341,17 @@ class WhoopRepository(
      *  [FIRST_RECORDED_RR_SQL]. Twin of Swift `firstRecordedRRTimestamp`. */
     suspend fun firstRecordedRrTs(deviceId: String): Long? =
         dao.firstRecordedRrTs(deviceId)
+
+    /** True only when strict WHOOP 5 policy withheld unlabelled legacy beats in this exact scoring window. */
+    suspend fun legacyWhoop5RrWithheld(
+        deviceId: String,
+        from: Long,
+        to: Long,
+        unlabelledAliasOfWhoop5: Boolean = false,
+    ): Boolean = transactor.run {
+        isWhoop5RrSource(deviceId, unlabelledAliasOfWhoop5) &&
+            dao.legacyWhoop5RrWithheld(deviceId, from, to)
+    }
 
     /** Diagnostic export keeps all WHOOP transports and legacy values without scoring selection.
      * Existing quarantine and Oura SpO2-IBI exclusions still apply. */
@@ -2954,23 +2987,12 @@ class WhoopRepository(
             return out
         }
 
-        /** True when the session carries a non-empty stage payload; null, "", and "[]" carry none.
-         *  Twin of WhoopStore.SleepMerge.hasStages. */
-        private fun hasStages(s: SleepSession): Boolean {
-            val json = s.stagesJSON?.trim() ?: return false
-            return json.isNotEmpty() && json != "[]"
-        }
-
         /** How much of a night this session's stages actually describe: 2 = covers its span, 1 = present
          *  but HOLED, 0 = none. A timeline whose coverage cannot be measured (the imported minute-dict
          *  shape, which has no timestamps) is never holed, so it ranks 2 — imports keep being judged on
          *  presence exactly as they always were, and this gate cannot reach them.
          *  Twin of WhoopStore.SleepMerge.richness. */
-        private fun richness(s: SleepSession): Int {
-            if (!hasStages(s)) return 0
-            val span = (s.endTs - s.startTs).toDouble()
-            return if (com.noop.analytics.HypnogramCoverage.isHoled(s.stagesJSON, span)) 1 else 2
-        }
+        private fun richness(s: SleepSession): Int = SleepSessionUpsertPolicy.richness(s)
 
         /** A day's richness is that of its BEST session — a day with a fully-staged main night plus an
          *  unstaged nap is a staged day (#715 keeps every session of the winning day either way).

@@ -72,6 +72,9 @@ final class Whoop5RRStoreTests: XCTestCase {
         let guarded = try await store.rrIntervals(deviceId: "my-whoop", from: 0, to: 1000, limit: 100,
                                                  unlabelledAliasOfWhoop5: true)
         XCTAssertTrue(guarded.isEmpty)
+        let withheld = try await store.legacyWhoop5RRWithheld(
+            deviceId: "my-whoop", from: 0, to: 1000, unlabelledAliasOfWhoop5: true)
+        XCTAssertTrue(withheld, "the canonical alias must expose the same strict-window status as its read")
         try registry(store, model: "4.0")
         let confirmedFour = try await store.isWhoop5RRSource(deviceId: "my-whoop", unlabelledAliasOfWhoop5: true)
         XCTAssertFalse(confirmedFour)
@@ -126,6 +129,40 @@ final class Whoop5RRStoreTests: XCTestCase {
         XCTAssertEqual(rows.map(\.rrMs), [1000, 977], "stray tags cannot override a different device brand")
         let stored = try await s.rrRowsWithChannelForTest(deviceId: id)
         XCTAssertEqual(stored.count, 2, "source policy never rewrites or removes legacy intervals")
+    }
+
+    func testLegacyWithheldStatusUsesTheExactScoringWindowAndSourcePolicy() async throws {
+        let s = try await WhoopStore.inMemory()
+        try registry(s, model: "5.0 MG")
+        _ = try await s.insert(Streams(rr: [RRInterval(ts: 100, rrMs: 1000)]), deviceId: id)
+        let withheld = try await s.legacyWhoop5RRWithheld(deviceId: id, from: 100, to: 200)
+        XCTAssertTrue(withheld)
+        let outside = try await s.legacyWhoop5RRWithheld(deviceId: id, from: 101, to: 200)
+        XCTAssertFalse(outside,
+                       "legacy rows outside the exact read window cannot protect a score")
+        try await s.dbWriter.write { db in
+            try db.execute(sql: "UPDATE rrInterval SET tsSuspect = 1 WHERE deviceId = ? AND ts = 100",
+                           arguments: [self.id])
+        }
+        let quarantined = try await s.legacyWhoop5RRWithheld(deviceId: id, from: 100, to: 200)
+        XCTAssertFalse(quarantined, "quarantined rows are excluded exactly like the scoring read")
+        try await s.dbWriter.write { db in
+            try db.execute(sql: "UPDATE rrInterval SET tsSuspect = NULL WHERE deviceId = ? AND ts = 100",
+                           arguments: [self.id])
+        }
+
+        _ = try await s.insert(Streams(rr: [RRInterval(ts: 150, rrMs: 990,
+                                                       srcChannel: .whoop5Standard)]), deviceId: id)
+        let labelled = try await s.legacyWhoop5RRWithheld(deviceId: id, from: 100, to: 200)
+        XCTAssertFalse(labelled,
+                       "any scorable labelled transport ends legacy protection")
+
+        try registry(s, model: "4.0")
+        let whoop4 = try await s.legacyWhoop5RRWithheld(deviceId: id, from: 100, to: 149)
+        XCTAssertFalse(whoop4)
+        try registry(s, model: "5.0 MG", brand: "Oura")
+        let otherBrand = try await s.legacyWhoop5RRWithheld(deviceId: id, from: 100, to: 149)
+        XCTAssertFalse(otherBrand)
     }
 
     func testSourceSelectionPrecedesLimitAndSharesBoundsAndQuarantine() async throws {

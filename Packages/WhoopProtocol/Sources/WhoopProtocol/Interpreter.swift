@@ -916,22 +916,31 @@ private func decodeWhoop5Event(_ frame: [UInt8], fb: FieldBuilder, schema: Schem
 
 /// Decode a WHOOP 5.0 CONSOLE_LOGS (type 50) frame — the strap firmware's own plaintext diagnostics
 /// channel. The console is one continuous text stream chunked into fixed-size pieces, so a log line
-/// routinely splits mid-sentence across frames; consumers reassemble by `record_index` order before
-/// reading. Lines look like `19, 146552119: BLE: History burst success. Trim: …` (boot-count,
+/// routinely splits mid-sentence across frames. Consumers retain arrival order within one link and
+/// characteristic and check the wrapping `console_sequence` before joining text. Lines look like
+/// `19, 146552119: BLE: History burst success. Trim: …` (boot-count,
 /// firmware tick ms, tag, message) and narrate the history sync and the sensor pipeline
 /// ("SENSORS: AFE configuration changed", "SIGPROC: generated a valid SPO2 during sleep") — primary
 /// raw material for the deep-data work (#103).
 ///
-/// Record header, verified across 3 257 real frames from two nights (all one shape: 76-byte frame,
-/// chunk_len 52, channel 1): `record_index` u16@9 (monotonic per-chunk counter — the frame's u8 seq
-/// slot is its low byte), `unix` u32@12 + `subsec` u16@16 (batch write time), chunk_len u16@18,
-/// channel u8@20, text bytes @21 up to the CRC32 trailer with NUL padding. The Kotlin twin is
-/// `Framing.decodeConsoleLogsWhoop5`, same offsets. The text key is "log" — matching the Python
+/// Header: sequence u8@9, raw header byte @10, `unix` u32@12 + `subsec` u16@16 (batch write time),
+/// chunk_len u16@18, channel u8@20, text bytes @21 up to the CRC32 trailer with NUL padding.
+/// On firmware 50.41.1.0, 2,978 CRC-valid night records keep @10 = 2, including nine captured
+/// 255 -> 0 sequence wraps. Reading @9 as a monotonic u16 was wrong: it jumps 767 -> 512 at each
+/// wrap. Captured EVENT records can occupy sequence positions between console fragments; other
+/// record kinds have their own sequence semantics. Never sort these chunks by a global index or
+/// join across an unexplained gap. See docs/WHOOP5_DEEP_DATA.md for the evidence boundary.
+/// The text key is "log" — matching the Python
 /// reference decoder that `golden.json` is generated from, which `ParityTests` pins. Kotlin used
 /// "console" for the same field, and the mismatch is why a reader ported from that side got nil.
 private func decodeWhoop5ConsoleLogs(_ frame: [UInt8], fb: FieldBuilder, payloadEnd: Int?) {
-    if let idx = readDType(frame, 9, "u16") {
-        fb.add(9, 2, "record_index", "meta", value: .int(idx), note: "per-chunk counter")
+    if let sequence = readDType(frame, 9, "u8") {
+        fb.add(9, 1, "console_sequence", "meta", value: .int(sequence),
+               note: "wrapping u8 console/event sequence; not a historical record index")
+    }
+    if let headerByte = readDType(frame, 10, "u8") {
+        fb.add(10, 1, "console_header_byte_10", "raw", value: .int(headerByte),
+               note: "raw header byte; remains 2 across observed sequence wraps")
     }
     if let unix = readDType(frame, 12, "u32") { fb.add(12, 4, "unix", "time", value: .int(unix)) }
     if let ss = readDType(frame, 16, "u16") { fb.add(16, 2, "subsec", "time", value: .int(ss)) }

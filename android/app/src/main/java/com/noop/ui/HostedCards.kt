@@ -134,6 +134,30 @@ val HostedCard.destination: HostedDestination
     }
 
 /**
+ * Whether the card's content OPENS with a bare section header instead of filling its slot with a card.
+ *
+ * The Today host wraps every card in a rounded clip so the tap ripple respects the card's corners. That
+ * is right for a card that fills the slot, and wrong for these: their first pixel is header TEXT at the
+ * slot's top-left, and an 18dp corner cuts hardest at y=0, so the radius ate the first glyph of the
+ * overline ("LAST NIGHT" rendering as "AST NIGHT", #2109). The clip is shaped from this instead.
+ *
+ * Read the card's FIRST EMISSION, following any delegation: NIGHT_DETAIL looks like it opens with a grid
+ * and actually opens with `MetricGrid`, whose own first child is a header. A shallow look at the host
+ * composable misses that one.
+ *
+ * Listed rather than defaulted, for the same reason [destination] is: the `when` is exhaustive, so a card
+ * added later cannot silently inherit a shape that clips its title. The failure this guards is quiet, a
+ * heading that is merely slightly wrong, which is exactly the kind nobody files twice.
+ */
+val HostedCard.leadsWithSectionHeader: Boolean
+    get() = when (this) {
+        HostedCard.SLEEP_MARKS, HostedCard.ASLEEP_DURATION, HostedCard.STAGES_VS_TYPICAL,
+        HostedCard.NIGHT_DETAIL, HostedCard.SLEEP_DEBT, HostedCard.STAGES -> true
+        HostedCard.HOURS_VS_NEEDED, HostedCard.CONSISTENCY, HostedCard.STRESS_TODAY,
+        HostedCard.TREND_HRV, HostedCard.TREND_RESTING_HR, HostedCard.TREND_EFFORT -> false
+    }
+
+/**
  * The card's display title, localized. The enum's [title] field stays the English source-of-truth default
  * (used for logging/comparisons); the UI reads this so the editor shows a translated title. Enum
  * constructors can't call [stringResource], so resolution happens here at the render site. Mirrors iOS,

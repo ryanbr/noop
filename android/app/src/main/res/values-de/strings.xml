@@ -1715,7 +1715,16 @@
     <string name="l10n_today_screen_recovery_ea924f72">Erholung</string>
     <string name="l10n_today_screen_sync_chip_now_c9bc849a">jetzt</string>
     <string name="l10n_today_screen_sync_chip_live_98aadb37">Live</string>
-    <string name="l10n_today_screen_sync_chip_syncing_desc_bfc290e7">Verlaufssynchronisierung des Straps läuft, %1$d Chunks</string>
+    <string name="l10n_today_screen_sync_chip_syncing_desc_92daf60c">Verlaufssynchronisierung des Straps läuft, %1$s</string>
+    <string name="l10n_today_screen_sync_chip_syncing_pages_desc_ad763b39">Verlaufssynchronisierung des Straps läuft, %1$s, %2$s</string>
+    <plurals name="sync_chip_chunks_count">
+        <item quantity="one">%1$d Chunk</item>
+        <item quantity="other">%1$d Chunks</item>
+    </plurals>
+    <plurals name="sync_chip_pages_behind_count">
+        <item quantity="one">%1$d Seite Rückstand bei Verbindungsaufbau</item>
+        <item quantity="other">%1$d Seiten Rückstand bei Verbindungsaufbau</item>
+    </plurals>
     <string name="l10n_today_screen_sync_chip_synced_desc_4d255944">Verlauf des Straps vor %1$s synchronisiert</string>
     <string name="l10n_today_screen_sync_chip_experimental_desc_3de06a70">Verbunden; die Verlaufssynchronisierung ist bei diesem Strap experimentell.</string>
     <string name="l10n_today_screen_recovery_roundtoint_charge_92fbaa5e">%1$s%% Ladung</string>
@@ -2774,4 +2783,8 @@
     <string name="coach_consent_on">An: Ladung, Erholung, HRV und Workouts gehen an den Anbieter, jedes Workout mit Sportart, Dauer, Distanz und Herzfrequenz.</string>
     <string name="coach_consent_off">Aus: Der Coach antwortet allgemein und sendet keine deiner Werte.</string>
     <string name="l10n_app_changelog_a_today_screen_you_arrange_yourself_6194ccd0">Ein Heute-Bildschirm, den du selbst zusammenstellst, Stress auf dem Homescreen und Backups, die sich selbst prüfen</string>
+    <string name="l10n_stress_screen_scored_through_1_s_later_hours_fbb7d6c7">Bewertet bis %1$s. Spätere Stunden brauchen mehr Herzfrequenz-Messwerte.</string>
+    <string name="l10n_today_screen_scan_and_connect_40157030">Suchen und verbinden</string>
+    <string name="l10n_health_screen_fitness_age_stops_here_vo_max_383d989a">Das Fitnessalter endet hier. VO₂max nicht.</string>
+    <string name="l10n_app_changelog_a_stress_screen_that_keeps_up_f7ec3f36">Ein Stress-Bildschirm, der mitkommt, WHOOP-5-Werte in den Einheiten, die das Band sendet, und ein Ring, der sich nicht mehr wiederholt</string>
 </resources>

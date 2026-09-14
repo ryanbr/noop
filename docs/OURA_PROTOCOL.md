@@ -174,28 +174,32 @@ Before app-auth, the ring answers a small set unauthenticated: firmware (`0x08`)
 
 Treat this key like a password: it authenticates as the real Oura app against your account's ring. NOOP stores it locally the same way it stores its own provisioned key (Keychain on iOS / EncryptedSharedPreferences-Keystore on Android, §3.2) — nothing is transmitted anywhere. This recipe extracts a fact from **your own** device backup and a public schema doc; it does not touch, decompile, or redistribute any Oura app code.
 
-### 3.8 macOS pairing limitation (observed, 2026-07-29)
+### 3.8 macOS pairing needs a factory-reset ring (observed 2026-07-29, corrected 2026-09-12)
 
-Pairing an Oura ring that has never been Bluetooth-bonded to the Mac (i.e. any ring whose only prior
-bond is with the official Oura app on a phone) reproducibly fails on macOS. `CBCentralManager.connect()`
-is issued cleanly (scanning stopped first, `central.state == .poweredOn`, a valid, in-range peripheral -
-observed RSSI as good as -55), but **no CoreBluetooth delegate callback ever arrives** - not
-`didConnect`, not `didFailToConnect`. The ring never appears in System Settings ▸ Bluetooth either
-(no partial bond record is created). Ruled out: a second central holding the ring - the same failure
-reproduces with the paired phone's Bluetooth fully off. This matches CoreBluetooth's documented
-behavior that `connect()` has no built-in timeout (an unanswered connect just stays pending forever),
-so the practical symptom is a silent, permanent hang rather than an error.
+Pairing an Oura ring that is still Bluetooth-bonded to a phone (i.e. its only prior bond is with the
+official Oura app) reproducibly fails on macOS. `CBCentralManager.connect()` is issued cleanly
+(scanning stopped first, `central.state == .poweredOn`, a valid, in-range peripheral - observed RSSI
+as good as -55), but **no CoreBluetooth delegate callback ever arrives** - not `didConnect`, not
+`didFailToConnect`. The ring never appears in System Settings ▸ Bluetooth either (no partial bond
+record is created). Ruled out: a second central holding the ring - the same failure reproduces with
+the paired phone's Bluetooth fully off. This matches CoreBluetooth's documented behavior that
+`connect()` has no built-in timeout (an unanswered connect just stays pending forever), so the
+practical symptom is a silent, permanent hang rather than an error.
 
 This is a different (and apparently more total) failure surface than the already-known WHOOP 5.0/MG
 macOS limitation (see `docs/WHOOP5_DEEP_DATA.md`, "iOS / Android only on real hardware") - WHOOP 5/MG
 at least connects and discovers services, failing only at an authenticated characteristic write
 (`CBATTError` "Encryption is insufficient"). Oura's connect doesn't get that far at all. The exact
 CoreBluetooth/bluetoothd mechanism isn't diagnosed further than this (would need a low-level HCI/SMP
-trace), but the practical conclusion is the same as WHOOP 5/MG's: **treat Oura ring pairing as
-iOS/Android-only** until proven otherwise on macOS. This applies to the §3.7 Advanced-key flow as
-much as to the §3.2 factory-reset one - the limitation is at connect time, before any key is used.
-Not yet tested: whether a genuinely never-bonded-anywhere (factory-reset) ring behaves differently
-from the already-Oura-app-owned case tested here.
+trace).
+
+**Corrected 2026-09-12: a genuinely factory-reset ring pairs on macOS without issue.** The 2026-07-29
+finding above tested only an already-Oura-app-owned ring; resetting the ring from the official Oura
+app first - clearing whatever bond/pairing state the earlier phone bond left behind - then pairing
+with NOOP on macOS works. So the limitation is specifically **an existing non-Mac bond**, not macOS
+pairing in general: this applies to the §3.7 Advanced-key flow as much as to the §3.2 factory-reset
+one, since the hang is at connect time, before any key is used, but a §3.2 factory-reset performed via
+the Oura app clears it first.
 
 ---
 
@@ -1226,7 +1230,17 @@ NOOP ships a **read-only** probe that asks the ring to report a feature's own st
 
 - **Shipped probes:** `spo2_status` (`2f 02 20 04`) and `realsteps_status` (`2f 02 20 0b`), sent once after `get_battery` on each connect; logged once per feature, never stored or scored.
 - **All-zero = server-gated OFF.** A gated/unavailable feature reads back `mode=0 status=0 state=0 subscription=0`. Contrast the *streaming* daytime-HR (`0x02`), which reads `mode=1 status=0x11 state=2` — so **all-zero mode/status/state is the gated signature**, not `subscription==0` alone (daytime-HR is `subscription=0` yet active).
-- **2026-07-20 Gen 3 capture:** both SpO2 (`0x04`) and real_steps (`0x0b`) returned all-zero — confirming §7.1 on live hardware. No local `setFeatureMode` can flip these; the gate is the Oura cloud `ClientConfiguration`, not the ring or NOOP.
+- **2026-07-20 Gen 3 capture:** both SpO2 (`0x04`) and real_steps (`0x0b`) returned all-zero — confirming §7.1 on live hardware. **Correction (2026-09-11): the claim that formerly stood here — "no local `setFeatureMode` can flip these" — was never actually tested.** NOOP has only ever sent the read probe (`2f 02 20 <id>`); it has never sent the enable write (`2f 03 22 <id> <mode>`), so the ring's response to that write on a gate-OFF NOOP ring is genuinely unknown, not confirmed-impossible. See §7.5 for the contradicting evidence.
+
+### 7.5 Local `setFeatureMode` enable — bypasses the account gate for some features; NOOP sends it from Test Centre, the bypass itself is UNVALIDATED on NOOP's own hardware [open_oura-feat]
+
+`docs/ring-features.md` [open_oura-feat] reports that, on a **consumer Ring 5** with `real_steps`/`exercise_hr`/`cva_ppg`/`experimental` all reading server-gated OFF, sending the write `2f 03 22 <id> 01` (mode → automatic) directly over BLE — **with no paid membership and no server-side entitlement change** — returned success and the features stayed AUTOMATIC (verified there with a follow-up `feature-status` read). Only `research_data` (`0x01`) was rejected outright, and `raw_data` (`0x12`) accepted the mode write but its RData sampler still refused to configure (`INVALID_SUBTAG`) — so the local write does not universally defeat every entitlement, but it worked for 4 of the 5 features NOOP's §3.7 Advanced-key/paid-membership path was written to unlock.
+
+**What this does and doesn't tell us:**
+- It contradicts the §7.4 claim above at least for `real_steps`/`exercise_hr`/`cva_ppg`/`experimental` — the gate for those is not purely an Oura-cloud `ClientConfiguration` check; the ring itself will honor a local mode write regardless.
+- **SpO2 (`0x04`) is not covered by this evidence.** On the source ring, SpO2 already read AUTOMATIC by default before any write was sent — the experiment never demonstrated forcing SpO2 from a gate-OFF state, which is the case NOOP's own 2026-07-20 capture is actually in. Whether `2f 03 22 04 01` flips a gate-OFF SpO2 ring is untested by both projects.
+- The wire bytes (`2f 03 22 <id> <mode>` → `2f 03 23 <id> <status>`) are independently verifiable over BLE and are already cited into §7.1 from [ring4-ble]/[open_oura-feat]; only the *outcome of actually sending it on a gated ring* is new here. The *rationale* `ring-features.md` gives for why this works (`FeatureDefinitions.*` server-flag names, the `b0.smali` enable sequence) is attributed there to decompiled-app analysis and is cited here as background only — NOOP implements neither that code nor those literals.
+- **The account-gate bypass remains UNVALIDATED on NOOP's own hardware.** The write itself is now reachable, from Test Centre only (#2105), behind an explicit confirmation; no automatic path in `OuraDriver` sends it, and §7.4's status probe stays read-only. The write MECHANISM is confirmed here: disabling then re-enabling SpO2 flipped `mode` 1→0→1, reproduced in both directions on a real Gen 3. That ring was already cloud-entitled, so it does not test the bypass. Whether `2f 03 22 04 01` moves a gate-OFF SpO2 ring is still open work.
 
 ---
 

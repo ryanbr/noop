@@ -939,6 +939,27 @@ private fun HealthHeroVessel(
     }
 }
 
+/**
+ * The symbol a stored Fitness Age needs when it is sitting on a reporting bound (#2173).
+ *
+ * `FitnessAgeEngine` clamps to [minAge, maxAge], so every model output below 20 is stored as exactly
+ * 20.0 and every output above 80 as exactly 80.0. A reader cannot tell those from a genuine 20 or 80,
+ * and the number looks as exact as any other, which is what makes a floored reading read like a sync
+ * or scoring fault rather than the edge of the scale.
+ *
+ * Decided from the value rather than carried out of the engine deliberately. The clamp returns the
+ * bound constant itself, so equality is exact and needs no tolerance, and deciding here covers the
+ * weekly rows already persisted, which no flag added today could reach. The cost is that a reading
+ * that is genuinely 20.0 is also called "20 or younger", which is true of it, so nothing is claimed
+ * that is not known. Saying "<20" would need the unclamped value, and that is gone by the time
+ * anything is stored.
+ */
+internal fun fitnessAgeBoundSymbol(value: Double): String = when {
+    value <= FitnessAgeEngine.minAge -> "≤"
+    value >= FitnessAgeEngine.maxAge -> "≥"
+    else -> ""
+}
+
 /** The hero tile: a big Fitness Age number on the gold Charge world, the younger/older read-out, an
  *  optional VO₂max chip, the honest ± band caption, and a "How accurate is this?" toggle. */
 @Composable
@@ -951,10 +972,21 @@ private fun FitnessAgeHero(
     checklistOpen: Boolean,
 ) {
     val shown = fitnessAge.roundToInt()
+    val boundSymbol = fitnessAgeBoundSymbol(fitnessAge)
     // Delta vs the user's actual age: younger when the fitness age is below it. abs() drives the words.
     val deltaYears = (chronoAge - fitnessAge).roundToInt()
     val younger = fitnessAge < chronoAge
+    // A bounded reading can only be stated as a direction, never as a distance (#2173). The true age
+    // is somewhere at or beyond the bound, so "N years younger" would be a floor presented as a
+    // measurement; "at least N" is the same number said truthfully. Below the floor with a chronological
+    // age at or under it there is no safe distance to state at all, so the card states the bound alone.
     val deltaWord = when {
+        boundSymbol == "≤" && deltaYears > 0 ->
+            "At least $deltaYears ${yearWord(deltaYears)} younger than your age"
+        boundSymbol == "≤" -> "${FitnessAgeEngine.minAge.roundToInt()} or younger"
+        boundSymbol == "≥" && deltaYears < 0 ->
+            "At least ${kotlin.math.abs(deltaYears)} ${yearWord(deltaYears)} older than your age"
+        boundSymbol == "≥" -> "${FitnessAgeEngine.maxAge.roundToInt()} or older"
         deltaYears == 0 -> "About your age"
         younger -> "$deltaYears ${yearWord(deltaYears)} younger than your age"
         else -> "${kotlin.math.abs(deltaYears)} ${yearWord(deltaYears)} older than your age"
@@ -984,6 +1016,9 @@ private fun FitnessAgeHero(
                         value = shown.toDouble(),
                         tint = Palette.chargeColor,
                         diameter = 96.dp,
+                        // The vessel already takes a formatter, so a bounded reading needs no change
+                        // to the component: the count-up still runs, it just arrives at "≤20".
+                        format = { "$boundSymbol${it.roundToInt()}" },
                     )
                     Text(
                         text = deltaWord,
@@ -1008,6 +1043,24 @@ private fun FitnessAgeHero(
                 }
             }
 
+            // At a bound the age has stopped carrying information: every model output past the end of
+            // the scale banks as the same number, so someone who is still improving sees nothing move
+            // (#2184). The VO₂max in the row above is NOT clamped and is the same estimate this age is
+            // derived from, so it keeps resolving where the age cannot. Pointing at it asserts nothing
+            // the model cannot support, which an extended reporting floor could not manage: two more
+            // years of range would still sit inside the ±5 band the line below already states.
+            //
+            // FULL WIDTH, beside that band line, rather than inside the weighted column with the vessel:
+            // a 44-character sentence in half a hero's width wraps to three lines and crowds the number
+            // it is explaining. Same trap as #2145, where the reading and its chip each got half a row
+            // and neither fitted.
+            if (boundSymbol.isNotEmpty() && vo2max != null) {
+                Text(
+                    text = uiString(R.string.l10n_health_screen_fitness_age_stops_here_vo_max_383d989a),
+                    style = NoopType.footnote,
+                    color = Palette.textTertiary,
+                )
+            }
             Text(
                 text = uiString(R.string.l10n_health_screen_5_yr_a_fitness_comparison_not_418aa11d),
                 style = NoopType.footnote,

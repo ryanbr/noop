@@ -644,8 +644,35 @@ object AnalyticsEngine {
             // `reported` is the value NOOP actually displays (duration-weighted session-mean-of-means);
             // `wholeNight` is the pooled-window mean it equals on single-session nights and the apples-to-
             // apples baseline for the deepOnly/lastSWS comparison (all three are pooled window means).
+            // #2128: say WHY `reported` is nil, but ONLY when the night printed real window means beside
+            // it. That is the confusing case: a nil next to `wholeNight=31.55ms` reads as a value that
+            // went missing, when the usual cause is the #1118 gate refusing an over-counted night on
+            // purpose. A night with no windows at all explains itself and pays nothing here.
+            //
+            // The `hrv diag` row above carries `rrIntegrity`, but that verdict is scored over the whole
+            // DAY while the gate runs per SESSION, so the two disagree exactly when it matters: a day
+            // reading `underCovered` can still hold a session the gate refused. Reading the adjacent line
+            // is what led #2128 to be filed against intended behaviour.
+            //
+            // Derived from the two existing calls rather than by re-classifying the beats. Inside
+            // [SleepStager.sessionAvgHRV] the ONLY paths to null are "no window yielded an RMSSD" and the
+            // gate, so windows-with-RMSSD plus a null value IS the gate, with nothing restated that could
+            // later disagree with it. It says `overCount` rather than naming a verdict because that
+            // function pins every over-count to CROSS_SECOND internally to avoid a sort, so the specific
+            // label would be a distinction it does not actually make.
+            //
+            // NOT in deep-window mode. That branch re-derives from `sessionHrvWindows` and never reads
+            // `s.avgHRV`, so the gate plays no part in its nil and naming it would be a diagnostic
+            // asserting a cause it did not verify. `nDeep` on this same line already explains that case.
+            val refused = !deepHrvWindow && avgHRVDaily == null && withR.isNotEmpty() &&
+                physiologySessions.any { s ->
+                    SleepStager.sessionHrvWindows(s.start, s.end, rrSorted, emptyList())
+                        .any { it.rmssd != null } &&
+                        SleepStager.sessionAvgHRV(s.start, s.end, rrSorted) == null
+                }
             hrvTraceSink(
                 "hrv nightSummary reported=${avgHRVDaily?.let { "${round2(it)}ms" } ?: "nil"} " +
+                    (if (refused) "refused=overCount " else "") +
                     "wholeNight=${meanMs(withR)} deepOnly=${meanMs(deepW)} " +
                     "lastSWS=${meanMs(lastSws)} nWin=${withR.size} nDeep=${deepW.size}",
             )

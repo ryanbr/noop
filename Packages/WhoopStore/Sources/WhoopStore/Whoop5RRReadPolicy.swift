@@ -43,6 +43,31 @@ extension WhoopStore {
         }
     }
 
+    /// Whether the strict WHOOP 5 read policy withheld this exact window solely because it contains
+    /// unlabelled, non-quarantined legacy rows and no verified scoring transport. This is deliberately
+    /// narrower than "the R-R read was empty": an unworn night, WHOOP 4, another brand, and a labelled
+    /// but insufficient transport all return false and therefore remain ordinary current-score outcomes.
+    public func legacyWhoop5RRWithheld(deviceId: String, from: Int, to: Int,
+                                       unlabelledAliasOfWhoop5: Bool = false) async throws -> Bool {
+        try syncRead { db in
+            guard try Self.isWhoop5RRSource(db: db, deviceId: deviceId,
+                                            unlabelledAliasOfWhoop5: unlabelledAliasOfWhoop5) else {
+                return false
+            }
+            return try Bool.fetchOne(db, sql: """
+                SELECT
+                  EXISTS(SELECT 1 FROM rrInterval
+                         WHERE deviceId = :d AND ts >= :f AND ts <= :t
+                           AND srcChannel IS NULL
+                           AND (tsSuspect IS NULL OR tsSuspect <> 1))
+                  AND NOT EXISTS(SELECT 1 FROM rrInterval
+                         WHERE deviceId = :d AND ts >= :f AND ts <= :t
+                           AND srcChannel IN \(Self.scorableWhoop5Channels)
+                           AND (tsSuspect IS NULL OR tsSuspect <> 1))
+                """, arguments: ["d": deviceId, "f": from, "t": to]) ?? false
+        }
+    }
+
     /// Shared by RR reads and consumers whose cached/union reads must obey the same owner policy.
     public func isWhoop5RRSource(deviceId: String, unlabelledAliasOfWhoop5: Bool = false) async throws -> Bool {
         try syncRead { try Self.isWhoop5RRSource(db: $0, deviceId: deviceId,
@@ -67,7 +92,7 @@ extension WhoopStore {
             // that old ID. Resolve its active strap here so sleep edits and ordinary reads agree.
             // Physical owners and confirmed WHOOP 4 history never inherit another strap's policy.
             if !tagged && !unlabelledAliasOfWhoop5 && deviceId == "my-whoop",
-               let active = try String.fetchOne(db, sql: "SELECT id FROM pairedDevice WHERE status = 'active' LIMIT 1"),
+               let active = try String.fetchOne(db, sql: DeviceRegistryStore.activeDeviceIdSQL),
                active != deviceId {
                 tagged = try isWhoop5RRSource(db: db, deviceId: active)
             }

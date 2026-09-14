@@ -1655,7 +1655,14 @@
     <string name="l10n_today_screen_recovery_ea924f72">恢复分数</string>
     <string name="l10n_today_screen_sync_chip_now_c9bc849a">刚刚</string>
     <string name="l10n_today_screen_sync_chip_live_98aadb37">实时</string>
-    <string name="l10n_today_screen_sync_chip_syncing_desc_bfc290e7">正在同步腕带历史记录，%1$d 个数据块</string>
+    <string name="l10n_today_screen_sync_chip_syncing_desc_92daf60c">正在同步腕带历史记录，%1$s</string>
+    <string name="l10n_today_screen_sync_chip_syncing_pages_desc_ad763b39">正在同步腕带历史记录，%1$s，%2$s</string>
+    <plurals name="sync_chip_chunks_count">
+        <item quantity="other">%1$d 个数据块</item>
+    </plurals>
+    <plurals name="sync_chip_pages_behind_count">
+        <item quantity="other">连接时落后 %1$d 页</item>
+    </plurals>
     <string name="l10n_today_screen_sync_chip_synced_desc_4d255944">手环历史记录已在 %1$s 前同步</string>
     <string name="l10n_today_screen_sync_chip_experimental_desc_3de06a70">已连接；此手环的历史同步功能为实验性功能。</string>
     <string name="l10n_today_screen_recovery_roundtoint_charge_92fbaa5e">%1$s%% 充能(Charge)</string>
@@ -2674,4 +2681,8 @@
     <string name="coach_consent_on">开启：你的充能、休息、HRV 和训练会发送给服务商，每次训练包含运动类型、时长、距离和心率。</string>
     <string name="coach_consent_off">关闭：教练只作一般性回答，不发送你的任何数据。</string>
     <string name="l10n_app_changelog_a_today_screen_you_arrange_yourself_6194ccd0">可自行编排的「今天」页面、主屏幕上的压力曲线，以及会自我校验的备份</string>
+    <string name="l10n_stress_screen_scored_through_1_s_later_hours_fbb7d6c7">已评分至 %1$s。较晚的时段需要更多心率采样。</string>
+    <string name="l10n_today_screen_scan_and_connect_40157030">扫描并连接</string>
+    <string name="l10n_health_screen_fitness_age_stops_here_vo_max_383d989a">体能年龄到此为止，VO₂max 仍在变化。</string>
+    <string name="l10n_app_changelog_a_stress_screen_that_keeps_up_f7ec3f36">跟得上的压力页面、以手环实际发送单位读取的 WHOOP 5 数值，以及不再重复上报的指环</string>
 </resources>

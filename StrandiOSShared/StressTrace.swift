@@ -146,17 +146,53 @@ public enum StressTrace {
         }
     }
 
-    /// X positions of the hours masked as movement, for the faint marks along the base.
+    /// The hours masked as movement, grouped into CONTIGUOUS x ranges, for the marks along the base.
     ///
-    /// Bare X centres rather than spans: the mark's thickness is a drawing decision, while WHERE the
-    /// moving hours were is a fact about the day.
-    public static func movingMarks(_ series: [StressPoint], width: CGFloat) -> [CGFloat] {
+    /// A run rather than a mark per hour, because a run says which STRETCH of the day was masked, and
+    /// that is what a reader needs when they are looking at a hole in the trace and trying to work out
+    /// what put it there. The reason it matters was reported rather than theorised: a wearer saw the
+    /// gaps, read the evenly spaced marks along the zero line as axis ticks, concluded the data itself
+    /// was missing, and asked whether continuous HRV tracking would fill them in. One bar under the
+    /// stretch it explains cannot be mistaken for a scale, because a scale does not start and stop with
+    /// the data.
+    ///
+    /// Adjacency is by POSITION in the series, not by timestamp arithmetic: the series is already the
+    /// hour grid the chart draws, so two neighbouring entries are two neighbouring hours by construction.
+    ///
+    /// A span runs edge to edge of the hours it covers, NOT centre to centre. An hour is a stretch of the
+    /// day, not an instant, and the difference is the whole case for the shape: centre to centre gives a
+    /// lone masked hour a width of zero, which is exactly the hour that most needs to be legible, since
+    /// there are no neighbours to make it obvious. Edges are the MIDPOINT to each neighbour rather than a
+    /// fixed slot, so an irregular series (a DST-long day, an hour missing from the list entirely) still
+    /// gets honest extents. At the ends of the series the territory stops at the point itself: the day's
+    /// extent is what was sampled, nothing is invented past it, and every span stays inside the box
+    /// without a clamp.
+    ///
+    /// The upper edge is floored to the lower one. On a sorted series it never binds, but the two
+    /// platforms disagree about what an inverted range means, Kotlin yielding an empty one where Swift
+    /// traps, and a twin that crashes on one side and shrugs on the other is not a twin.
+    public static func movingSpans(_ series: [StressPoint], width: CGFloat) -> [ClosedRange<CGFloat>] {
         guard let firstPoint = series.first, let lastPoint = series.last, width > 0 else { return [] }
         let t0 = firstPoint.ts
         let span = CGFloat(lastPoint.ts - t0)
-        return series.filter(\.moving).map { p in
-            span <= 0 ? 0 : CGFloat(p.ts - t0) / span * width
+        let xs = series.map { span <= 0 ? CGFloat(0) : CGFloat($0.ts - t0) / span * width }
+        let last = series.count - 1
+        func leftEdge(_ i: Int) -> CGFloat { i == 0 ? xs[0] : (xs[i - 1] + xs[i]) / 2 }
+        func rightEdge(_ i: Int) -> CGFloat { i == last ? xs[last] : (xs[i] + xs[i + 1]) / 2 }
+        var out: [ClosedRange<CGFloat>] = []
+        var runStart: Int?
+        for i in series.indices {
+            let moving = series[i].moving
+            if moving, runStart == nil { runStart = i }
+            // A run closes at the first hour that is NOT moving, and also at the end of the series, or
+            // a day whose last hours were all masked would be dropped for want of a terminator.
+            if let from = runStart, !moving || i == last {
+                let lo = leftEdge(from)
+                out.append(lo...max(rightEdge(moving ? i : i - 1), lo))
+                runStart = nil
+            }
         }
+        return out
     }
 
     /// The labels up the left edge, top-down: the top of the domain down to zero.
@@ -165,15 +201,27 @@ public enum StressTrace {
     /// moved with the day would make two days impossible to compare at a glance.
     public static func levelTicks() -> [Int] { [3, 2, 1, 0] }
 
-    /// The three timestamps along the bottom: first, middle and last of the SCORED data, not of the day.
+    /// The three timestamps along the bottom: first, middle and last of the SERIES.
     ///
-    /// Anchored to scored hours because a day with only an evening's signal would otherwise label its
-    /// axis with a morning that was never sampled, and the curve would sit crushed into the right-hand
-    /// end of a mostly empty chart. Fewer than three distinct instants returns what there is, so the
-    /// caller draws one label rather than three copies of it.
+    /// The series, not the scored hours, because these label the AXIS, and the axis IS the series: every
+    /// placement in this file maps x across `first.ts ... last.ts`, and every renderer spreads these
+    /// three labels evenly across that same width. Anchoring them to the scored subset instead put the
+    /// last SCORED instant at the right-hand edge, so a day whose closing hours were all masked as
+    /// movement announced that it ended when scoring stopped rather than when the day did.
+    ///
+    /// That is the second half of #2106, and it was read exactly as it was drawn: a chart running to
+    /// 22:00 labelled "18:30" at its right edge, reported as the app having stopped updating. The
+    /// trailing hours were there the whole time, masked as exertion. Only the axis disagreed.
+    ///
+    /// The rationale this replaces was that an evening-only wearer would otherwise be labelled with a
+    /// morning that was never sampled. The buckets are built FROM the samples, so the series carries no
+    /// unsampled hours to begin with, and the curve was already spread across the series either way.
+    /// The labels were the only part that ever disagreed with the geometry.
+    ///
+    /// Fewer than three distinct instants returns what there is, so the caller draws one label rather
+    /// than three copies of it.
     public static func timeTicks(_ series: [StressPoint]) -> [Int64] {
-        let scored = series.filter { $0.level != nil }
-        guard let first = scored.first?.ts, let last = scored.last?.ts else { return [] }
+        guard let first = series.first?.ts, let last = series.last?.ts else { return [] }
         if first == last { return [first] }
         let mid = first + (last - first) / 2
         return (mid == first || mid == last) ? [first, last] : [first, mid, last]

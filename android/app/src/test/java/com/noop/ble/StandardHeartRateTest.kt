@@ -47,6 +47,7 @@ class StandardHeartRateTest {
         val r = StandardHeartRate.parse(bytes(0x00, 72))!!
         assertEquals(72, r.hr)
         assertTrue(r.rr.isEmpty())
+        assertTrue(r.rrRawTicks.isEmpty())
     }
 
     @Test
@@ -55,6 +56,7 @@ class StandardHeartRateTest {
         val r = StandardHeartRate.parse(bytes(0x01, 0x40, 0x01))!!
         assertEquals(320, r.hr)
         assertTrue(r.rr.isEmpty())
+        assertTrue(r.rrRawTicks.isEmpty())
     }
 
     @Test
@@ -63,6 +65,7 @@ class StandardHeartRateTest {
         val r = StandardHeartRate.parse(bytes(0x10, 60, 0x00, 0x04))!!
         assertEquals(60, r.hr)
         assertEquals(listOf(1000), r.rr)
+        assertEquals(listOf(1024), r.rrRawTicks)
     }
 
     @Test
@@ -71,6 +74,7 @@ class StandardHeartRateTest {
         val r = StandardHeartRate.parse(bytes(0x10, 58, 0x00, 0x02, 0x00, 0x04))!!
         assertEquals(58, r.hr)
         assertEquals(listOf(500, 1000), r.rr)
+        assertEquals(listOf(512, 1024), r.rrRawTicks)
     }
 
     @Test
@@ -80,6 +84,7 @@ class StandardHeartRateTest {
         val r = StandardHeartRate.parse(bytes(0x18, 65, 0xFF, 0x00, 0x00, 0x04))!!
         assertEquals(65, r.hr)
         assertEquals(listOf(1000), r.rr)
+        assertEquals(listOf(1024), r.rrRawTicks)
     }
 
     @Test

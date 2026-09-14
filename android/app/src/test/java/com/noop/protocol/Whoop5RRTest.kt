@@ -75,12 +75,15 @@ class Whoop5RRTest {
             val historical = pair.getString("kind") == "v18"
             val parsed = if (historical) decodeHistorical(nativeBytes, DeviceFamily.WHOOP5)!! else frame.parsed
             assertEquals(raw, parsed["rr_raw_ticks"])
+            // WHOOP 5 words are already milliseconds (identity).
+            assertEquals(raw, parsed["rr_intervals"])
+            // Standard BLE parser still applies 1/1024 conversion — wrong for this strap.
             assertNotEquals(raw, standard.rr)
-            assertEquals(standard.rr, parsed["rr_intervals"])
+            assertEquals(raw, standard.rrRawTicks)
             val intervals = if (historical)
                 extractHistoricalStreams(listOf(nativeBytes), 0, 0, DeviceFamily.WHOOP5).rr.map { it.rrMs }
             else extractStreams(listOf(frame), 0, 0).rr.map { it.rrMs }
-            assertEquals(standard.rr, intervals)
+            assertEquals(raw, intervals)
         }
     }
 

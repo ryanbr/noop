@@ -425,7 +425,7 @@ class FramingTest {
         ByteArray(s.length / 2) { ((s[it * 2].digitToInt(16) shl 4) or s[it * 2 + 1].digitToInt(16)).toByte() }
 
     /** A real type-40 REALTIME_DATA frame from a worn WHOOP 5 (same vector as the Swift
-     *  Whoop5RealtimeTests): hr=98, rr=[603,587] ticks → [589,573] ms, ts=1780916382. HR matched the 0x2A37 profile. */
+     *  Whoop5RealtimeTests): hr=98, rr=[603,587] ms, ts=1780916382. HR matched the 0x2A37 profile. */
     private val whoop5RealtimeHex =
         "aa011800010022e128029ea0266aae4762025b024b020000000001005ed515dc"
 
@@ -438,7 +438,7 @@ class FramingTest {
         assertEquals(98, f.parsed["heart_rate"])          // 4.0 @12 → 5.0 @16
         assertEquals(1780916382, f.parsed["timestamp"])   // 4.0 @6  → 5.0 @10
         @Suppress("UNCHECKED_CAST")
-        assertEquals(listOf(589, 573), f.parsed["rr_intervals"] as List<Int>)
+        assertEquals(listOf(603, 587), f.parsed["rr_intervals"] as List<Int>)
     }
 
     @Test
@@ -510,16 +510,23 @@ class FramingTest {
         assertEquals("CONSOLE_LOGS", parsed.typeName)
         assertEquals(true, parsed.crcOk)
         assertEquals("Historical Data\n 55, 2581959: BLE: hist transfer s", parsed.parsed["log"])
-        // Record header (Swift parity: decodeWhoop5ConsoleLogs): per-chunk counter + batch time.
-        assertEquals(671, parsed.parsed["record_index"])
+        // Record header (Swift parity: decodeWhoop5ConsoleLogs): wrapping u8 sequence, the separate
+        // raw header byte, and batch time. Byte 9 is 0x9F and byte 10 is 0x02; the pair used to be
+        // read as one u16 (0x029F = 671), which is the #2192 misread.
+        assertEquals(159, parsed.parsed["console_sequence"])
+        assertEquals(2, parsed.parsed["console_header_byte_10"])
+        assertNull("the u16 misread must not come back", parsed.parsed["record_index"])
         assertEquals(1773607251, parsed.parsed["unix"])
         assertEquals(16041, parsed.parsed["subsec"])
     }
 
     @Test
-    fun whoop5_consoleLogs_consecutiveChunksCarryContiguousIndices() {
+    fun whoop5_consoleLogs_consecutiveChunksCarryContiguousSequence() {
         // Two consecutive real chunks of one console stream — a single log line split mid-word
-        // ("…response a" | "ck, start burst") across frames. record_index is the reassembly key.
+        // ("…response a" | "ck, start burst") across frames. The sequence advances by one modulo
+        // 256 and the header byte does not move with it, which is why the two are decoded apart.
+        // Continuity is a CHECK on arrival order, not a sort key: a wrapping byte cannot order a
+        // stream, and captured EVENT records can sit between console fragments.
         val a = Framing.parseFrame(
             fromHex(
                 "aa014400010030b132ad020052b4526a337334000131392c203134363535323131393a20424c453a2068" +
@@ -536,8 +543,10 @@ class FramingTest {
         )
         assertEquals(true, a.crcOk)
         assertEquals(true, b.crcOk)
-        assertEquals(685, a.parsed["record_index"])
-        assertEquals(686, b.parsed["record_index"])
+        assertEquals(173, a.parsed["console_sequence"])
+        assertEquals(174, b.parsed["console_sequence"])
+        assertEquals(2, a.parsed["console_header_byte_10"])
+        assertEquals(2, b.parsed["console_header_byte_10"])
         assertEquals("19, 146552119: BLE: hist transfer start response a", a.parsed["log"])
         assertEquals("ck, start burst\n 19, 146554630: BLE: History burst", b.parsed["log"])
     }
@@ -574,6 +583,39 @@ class FramingTest {
         val f = consoleFrame(ByteArray(6))
         val p = Framing.parseFrame(f, DeviceFamily.WHOOP5)
         assertNull(p.parsed["log"])
+    }
+
+    /** The wrap is the whole evidentiary basis for decoding @9 as a u8: byte 10 must NOT move when
+     *  the sequence rolls 255 -> 0. On firmware 50.41.1.0 it held at 2 across nine captured wraps, so
+     *  a carry here would mean the pair really was one u16 after all. Synthetic headers, because a
+     *  capture spanning a wrap is not committed. Twin of Swift `testConsoleSequenceWrapDoesNotCarryIntoHeaderByte`. */
+    @Test
+    fun whoop5_consoleLogs_sequenceWrapDoesNotCarryIntoHeaderByte() {
+        for (sequence in listOf(254, 255, 0, 1)) {
+            val f = consoleFrame("fragment".toByteArray())
+            f[9] = sequence.toByte()
+            f[10] = 2
+            val p = Framing.parseFrame(f, DeviceFamily.WHOOP5).parsed
+            assertEquals(sequence, p["console_sequence"])
+            assertEquals(2, p["console_header_byte_10"])
+            assertNull("console chunks have no monotonic historical index", p["record_index"])
+            assertEquals("fragment", p["log"])
+        }
+    }
+
+    /** The converse: the header byte varies independently and never perturbs the sequence. Together
+     *  with the wrap test this pins the two as separate fields rather than one split value. Twin of
+     *  Swift `testConsoleHeaderByteDoesNotChangeSequence`. */
+    @Test
+    fun whoop5_consoleLogs_headerByteDoesNotChangeSequence() {
+        for (headerByte in listOf(0, 2, 255)) {
+            val f = consoleFrame("fragment".toByteArray())
+            f[9] = 7
+            f[10] = headerByte.toByte()
+            val p = Framing.parseFrame(f, DeviceFamily.WHOOP5).parsed
+            assertEquals(7, p["console_sequence"])
+            assertEquals(headerByte, p["console_header_byte_10"])
+        }
     }
 
     /** Only TRAILING NULs are trimmed; the text before them is kept verbatim. */

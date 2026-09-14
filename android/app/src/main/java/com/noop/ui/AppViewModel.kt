@@ -1051,10 +1051,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     // widget reads the anchor here (the notification's honest-null contract lives in the
                     // service), keeping the two symmetric.
                     val anchorRow = widgetAnchorRow(days, logicalKey, localKey)
-                    // #2040: today's stress curve for the stress widget. Self-gating on a cheap HR
-                    // fingerprint, so an idle tick costs one indexed COUNT and no rows; null when
-                    // there is no device to read, which leaves whatever curve is stored alone.
-                    val stressCurve = com.noop.widget.StressWidgetProducer.todayCurve(repo, activeStrapId)
+                    // #2040: today's stress curve for the stress widget. Do not even fingerprint the
+                    // day's HR when nobody has placed one; scoring is the only expensive widget field.
+                    // Null also leaves whatever curve is already stored alone, so a newly placed widget
+                    // fills on the next pass without disturbing the other widget snapshots.
+                    val stressCurve = if (WidgetSnapshotStore.hasStressWidget(appContext)) {
+                        com.noop.widget.StressWidgetProducer.todayCurve(repo, activeStrapId)
+                    } else {
+                        null
+                    }
                     WidgetSnapshotStore.push(
                         appContext,
                         WidgetSnapshot(

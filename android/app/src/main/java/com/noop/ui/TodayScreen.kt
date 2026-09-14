@@ -40,8 +40,9 @@ import androidx.compose.material.icons.filled.Accessibility
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Air
 import androidx.compose.material.icons.filled.Autorenew
-import androidx.compose.material.icons.automirrored.filled.BatteryUnknown
 import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.Bluetooth
+import androidx.compose.material.icons.filled.BluetoothSearching
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -50,16 +51,17 @@ import androidx.compose.material.icons.filled.Functions
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.MonitorHeart
 import androidx.compose.material.icons.filled.MonitorWeight
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Thermostat
 import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.TrackChanges
-import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.WaterDrop
+import androidx.compose.material.icons.automirrored.filled.BatteryUnknown
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -104,7 +106,10 @@ import androidx.compose.ui.zIndex
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.withFrameNanos
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -132,6 +137,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -143,7 +149,10 @@ import android.app.DatePickerDialog
 import android.content.Context
 import android.view.HapticFeedbackConstants
 import android.widget.Toast
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import com.noop.R
 import com.noop.ai.AiKeyStore
 import com.noop.analytics.Baselines
@@ -167,6 +176,7 @@ import com.noop.data.DailyMetric
 import com.noop.protocol.Whoop5RR
 import com.noop.widget.StressPoint
 import com.noop.widget.StressWidgetProducer
+import com.noop.widget.WidgetSnapshotStore
 import com.noop.data.HrBucket
 import com.noop.data.SleepSession
 import com.noop.data.WhoopRepository
@@ -263,6 +273,12 @@ private data class TodayLiveSnapshot(
      *  most once per connection, so it costs the snapshot nothing. */
     val historyReady: Boolean,
     val historySyncExperimental: Boolean,
+    /** Whether a scan is running, so the header chip can say so and refuse a second tap while it is
+     *  (#2169). Flips twice per scan rather than per tick, so it costs this snapshot nothing. */
+    val scanning: Boolean,
+    /** #689/#815: the connect-time GET_DATA_RANGE backlog sample, when known. Set once per connection,
+     *  so it adds no per-tick churn to this snapshot. */
+    val pagesBehindAtConnect: Int?,
     val batteryPct: Double?,
     /** True once a WHOOP 5/MG strap has been seen this session, picks the 5/MG rated-life fallback for the
      *  battery runtime estimate (#713). Changes at most once per connection, so it doesn't reintroduce the
@@ -317,6 +333,10 @@ fun TodayScreen(
     val days by viewModel.recentDays.collectAsStateWithLifecycle()
     val activeDayCycle by viewModel.activeDayCycle.collectAsStateWithLifecycle()
     val spo2CandidateByDay by viewModel.spo2CandidateByDay.collectAsStateWithLifecycle()
+    // #2208: `connected` alone never said WHOSE charge liveSnap.batteryPct is. It goes true the moment any
+    // source streams, and the strap's percentage is never cleared, so under an active ring both halves of
+    // the old gate passed and Today drew the strap's charge. Same seam the Devices list already uses.
+    val activeIsWhoop by viewModel.activeIsWhoop.collectAsStateWithLifecycle()
     val v5Signals by viewModel.v5Signals.collectAsStateWithLifecycle()
     val cycleEnabled by viewModel.cycleTrackingEnabled.collectAsStateWithLifecycle()
     val cycleHidden by viewModel.cycleAwarenessHidden.collectAsStateWithLifecycle()
@@ -335,6 +355,40 @@ fun TodayScreen(
     // 72→73 bpm tick produces an EQUAL snapshot and the body is NOT recomposed; it only recomposes when
     // connection / sync / battery / streaming-presence actually change. The live bpm number is rendered
     // elsewhere (HeartRateTrendCard), which scopes its own collection. Appearance-preserving.
+    // #2169: the ONE gate every scan entry point goes through. `connect()` called directly silently
+    // does nothing on Android 12+ when the Bluetooth permission was denied or revoked (#1), so Today's
+    // two new affordances use the same wrapper Settings' Re-scan and Live's Connect already use.
+    var scanTapAt by remember { mutableStateOf(0L) }
+    // Armed from INSIDE the granted callback, not from the tap. `rememberRequestScan` runs this either
+    // straight away, when the permission is already held, or after the system dialog closes; timing the
+    // reply from the tap instead would start a clock while that dialog was still open and then answer a
+    // press that was proceeding perfectly well, with whatever stale note happened to be lying around.
+    // A permanently denied permission still lands here, the launcher's callback firing either way, so
+    // the case most worth explaining is the one this keeps.
+    val requestScan = rememberRequestScan {
+        scanTapAt = System.currentTimeMillis()
+        viewModel.connect()
+    }
+    // #2169: Today can start a connect but had nowhere to report one that never starts. Every early
+    // exit from a user-initiated connect writes an explanatory note and leaves `scanning` false, so
+    // "Bluetooth is off. Turn it on, then tap Connect." and the Nearby-devices permission line were
+    // being set and thrown away: Live and Onboarding render `statusNote`, Today does not. A tap that
+    // cannot proceed therefore changed nothing on screen at all, which reads as a dead control.
+    //
+    // Shown only after a tap from HERE, and only when the tap did not get as far as scanning, so this
+    // stays a reply to a press rather than Today quietly becoming a connection-status surface, which
+    // is a larger question (#2179).
+    var scanHint by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(scanTapAt) {
+        if (scanTapAt == 0L) return@LaunchedEffect
+        scanHint = null
+        // Long enough for the adapter checks and the scan start to settle, short enough to still read
+        // as the answer to the press. The dialog is already behind us by here.
+        delay(400)
+        if (!live.scanning && !live.connected) scanHint = live.statusNote
+        delay(4_500)
+        scanHint = null
+    }
     val liveSnap by remember {
         derivedStateOf {
             val s = live
@@ -347,6 +401,8 @@ fun TodayScreen(
                 syncChunksThisSession = s.syncChunksThisSession,
                 historyReady = s.historyReady,
                 historySyncExperimental = s.historySyncExperimental,
+                scanning = s.scanning,
+                pagesBehindAtConnect = s.pagesBehindAtConnect,
                 batteryPct = s.batteryPct,
                 whoop5 = s.whoop5Detected,
                 charging = s.charging,
@@ -535,10 +591,16 @@ fun TodayScreen(
         // StressScreen does (day → value, clamped 0–3) and feeding the same `days` ties the two together; both
         // recompute off `days`, so the pinned card stays in sync. null (no usable signal) keeps the honest
         // "Calibrating" placeholder, matching StressScreen's empty state.
+        // OFF the main thread. This reads the stress series over ALL history and then builds a model
+        // that is O(n) across it, and a LaunchedEffect body runs on the UI thread, so on an install with
+        // a long history it was holding frames on the home screen. The three reads below it are indexed
+        // single-row lookups and are left as they are.
         stressToday = runCatching {
-            val stored = viewModel.repo.metricSeries("my-whoop", "stress", "0000-01-01", "9999-12-31")
-                .associate { it.day to it.value.coerceIn(0.0, 3.0) }
-            StressModel.build(days, stored)?.score
+            withContext(Dispatchers.Default) {
+                val stored = viewModel.repo.metricSeries("my-whoop", "stress", "0000-01-01", "9999-12-31")
+                    .associate { it.day to it.value.coerceIn(0.0, 3.0) }
+                StressModel.build(days, stored)?.score
+            }
         }.getOrNull()
         fitnessAgeToday = runCatching {
             viewModel.repo.latestMetricComputedUnion(viewModel.activeStrapId, "fitness_age")?.value
@@ -1334,48 +1396,84 @@ fun TodayScreen(
                 humanDate = humanDate,
                 selectedDay = selectedDay,
                 batteryPct = if (liveSnap.connected) liveSnap.batteryPct else null,
+                strapIsActiveDevice = activeIsWhoop,
                 backfilling = liveSnap.backfilling,
                 syncChunksThisSession = liveSnap.syncChunksThisSession,
                 lastSyncAt = liveSnap.lastSyncAt,
                 historySyncExperimental = liveSnap.historySyncExperimental,
+                pagesBehindAtConnect = liveSnap.pagesBehindAtConnect,
+                scanning = liveSnap.scanning,
+                // One rule for both affordances: they exist while the strap is away. Connected, the
+                // chip goes back to reporting sync and nothing else, rather than offering a connect to
+                // something already connected.
+                onRescan = if (liveSnap.connected) null else requestScan,
                 onPickDay = { offset -> selectedDayOffset = offset },
                 onQuickActions = onQuickActions,
                 onOpenSettings = onOpenSettings,
                 onOpenDevices = onOpenDevices,
             )
             // WORDMARK (iOS LiquidWordmark parity): a subtle centred "N O O P" @ ~50% opacity, with a
-            // tap easter egg. Shares its row with the Arrange affordance — wordmark centred, Arrange
-            // aligned to the trailing edge — so neither needs its own empty band.
-            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                LiquidWordmark()
-                // One consistent customization affordance for section order and visibility.
+            // tap easter egg. Still shares its row with the customization control, as #486 intended,
+            // but in a slot of its own rather than underneath it.
+            //
+            // #2110: the wordmark and the control used to share this row as a BOX (#486), wordmark centred
+            // and the control aligned CenterEnd. A Box stacks its children, so nothing reserved space or
+            // shortened the wordmark — the two simply overlapped once the control grew wide enough to reach
+            // the centre. #2010 grew it (icon + label + padding + a frosted pill) and the trailing "P"
+            // disappeared underneath it, worse per locale since the label runs 3 chars in zh to 13 in fr
+            // against the 9 it was eyeballed at.
+            //
+            // A ROW with equal fixed gutters instead of a Box: the leading Spacer mirrors the trailing
+            // control exactly, so the wordmark stays optically centred while owning the space BETWEEN them.
+            // Overlap is now unexpressible at any label width, in any locale, because the two occupy
+            // different slots rather than the same one.
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // #2169: the balancing spacer becomes the control, but ONLY while there is something to
+                // connect. A permanently visible control has to explain itself; one that appears exactly
+                // when the strap is away says what it is for by being there, and cannot be read as a
+                // reload button on a screen that never reloads. Connected, it goes back to being a
+                // spacer, so the wordmark is centred by the same control-sized gutter either way and
+                // nothing moves as the strap comes and goes.
                 //
-                // #2008: reported as "not visible". It was not hidden, it was unreadable as a control:
-                // #486 folded it out of its own pinned row onto the wordmark row, and it kept the
-                // TERTIARY text colour, so the one affordance for rearranging Today sat at the dimmest
-                // tier in the palette beside a decorative 50%-opacity wordmark. Nothing said "button".
-                //
-                // The compact row #486 wanted is kept. What changes is that it now reads as a control:
-                // secondary text on a frosted pill, which is the idiom the rest of Today uses for a
-                // tappable surface. iOS has never had this problem, its twin is a proper header button
-                // (`nativeLiquidGlassHeaderButton`) at a fixed control size.
-                TextButton(
-                    onClick = { showLayoutEditor = true },
-                    colors = ButtonDefaults.textButtonColors(contentColor = Palette.textSecondary),
-                    contentPadding = PaddingValues(horizontal = Metrics.space10, vertical = Metrics.space4),
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .clip(RoundedCornerShape(50))
-                        .frostedCardSurface(cornerRadius = 999.dp),
+                // Scanning counts as needed: a scan running means not yet connected, and hiding the
+                // control mid-attempt would take away the only in-progress signal the header has.
+                // The SLOT is permanent and only the control inside it fades, rather than swapping the
+                // two. A 4.0 that is dropping and auto-reconnecting flips `connected` repeatedly, and an
+                // instant swap turns that into a blinking icon beside the wordmark; a fade reads as a
+                // pulse instead. Keeping the gutter itself always present also means the wordmark cannot
+                // shift even mid-transition, which an if/else between a control and a spacer allows.
+                val scanAffordance by animateFloatAsState(
+                    targetValue = if (liveSnap.connected) 0f else 1f,
+                    animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing),
+                )
+                Box(
+                    modifier = Modifier.size(HeaderClusterControl),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Icon(
-                        Icons.Filled.Tune,
-                        contentDescription = stringResource(R.string.today_customize_title),
-                        modifier = Modifier.size(Metrics.iconSmall),
-                    )
-                    Spacer(Modifier.width(Metrics.space4))
-                    Text(stringResource(R.string.today_customize_action), style = NoopType.footnote)
+                    if (scanAffordance > 0.01f) {
+                        Box(modifier = Modifier.graphicsLayer { alpha = scanAffordance }) {
+                            RescanDisc(scanning = liveSnap.scanning, onClick = requestScan)
+                        }
+                    }
                 }
+                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    LiquidWordmark()
+                }
+                CustomizeDisc(onClick = { showLayoutEditor = true })
+            }
+            // The reply to a tap that went nowhere. Wording comes from the BLE layer, the same text
+            // Live and Onboarding show, so this adds no copy of its own.
+            scanHint?.let { hint ->
+                Text(
+                    hint,
+                    style = NoopType.footnote,
+                    color = Palette.textSecondary,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+                )
             }
         }
         }
@@ -1808,8 +1906,16 @@ fun TodayScreen(
         item {
             TodaySourcesSection(
                 footer,
-                strapBatteryPct = if (liveSnap.connected) liveSnap.batteryPct?.roundToInt() else null,
-                strapBatteryEstimate = if (liveSnap.connected) batteryEstimateText else null,
+                // NOT routed through LiveConsoleReadout.batteryPercent, which substitutes the RING's charge
+                // for a non-WHOOP active device. That is right for a readout that names the active device,
+                // and wrong here: this value lands in the SourceRow badged `today_source_whoop`, and it
+                // also feeds that row's `present` flag. Substituting would put the ring's number under a
+                // WHOOP label and assert a WHOOP source that is not there, which is worse than the stale
+                // reading being fixed. Nothing is the honest answer for a strap that is not active.
+                strapBatteryPct = if (liveSnap.connected && activeIsWhoop)
+                    liveSnap.batteryPct?.roundToInt() else null,
+                // The runtime estimate is banked from strap SoC samples, so it is the strap's alone.
+                strapBatteryEstimate = if (liveSnap.connected && activeIsWhoop) batteryEstimateText else null,
                 expanded = sourcesExpanded,
                 onToggle = { sourcesExpanded = !sourcesExpanded },
             )
@@ -2190,6 +2296,97 @@ private fun TodayCardDismissButton(onClick: () -> Unit, modifier: Modifier = Mod
     }
 }
 
+/**
+ * Scan and connect, on the LEADING edge of the wordmark row (#2169).
+ *
+ * That slot cost nothing to take. The row was a spacer, the wordmark centred in what was left, and the
+ * Customize disc; the spacer existed only to balance the disc so the wordmark sat centred. A control
+ * there replaces it, and the wordmark stays where it was.
+ *
+ * Deliberately NOT in the right-hand cluster, which is where this would otherwise belong. #2110
+ * measured that: a fifth control there leaves the 28sp day title about 117dp, and "Yesterday" needs
+ * about 139dp, so it would ellipsize a title that fits today.
+ *
+ * Greys out and stops taking taps while a scan is running, which is the same rule the Settings and Live
+ * buttons follow. No spinner: the sync chip two controls away is already the thing that reports state.
+ */
+@Composable
+private fun RescanDisc(scanning: Boolean, onClick: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    Box(
+        modifier = Modifier
+            .size(HeaderClusterControl)
+            .liquidPress(interaction)
+            .clip(CircleShape)
+            // The same translucent-white disc its siblings use: part of the header, not a call to action.
+            .background(Color.White.copy(alpha = if (scanning) 0.08f else 0.16f))
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                enabled = !scanning,
+                onClick = onClick,
+            )
+            .semantics { contentDescription = uiString(R.string.l10n_today_screen_scan_and_connect_40157030) },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            // Bluetooth, not Refresh. Settings can use a circular arrow because the word "Re-scan" is
+            // sitting next to it; here the glyph is the whole affordance, and a circular arrow on a
+            // screen full of numbers reads as "reload my data" rather than "look for my strap". This is
+            // also the icon Live's Scan & Connect button and the onboarding connect steps already use,
+            // so the same action now looks the same everywhere it appears.
+            if (scanning) Icons.Filled.BluetoothSearching else Icons.Filled.Bluetooth,
+            contentDescription = null,
+            tint = Color.White.copy(alpha = if (scanning) 0.45f else 1f),
+            modifier = Modifier.size(16.dp),
+        )
+    }
+}
+
+/** Customize Today (#2110): section order and visibility, on the trailing edge of the wordmark row.
+ *
+ *  Icon-only at the shared header-control size. The glyph and the accessibility-label-instead-of-text
+ *  treatment are iOS's (`slider.horizontal.3` in a `nativeLiquidGlassHeaderButton`), but the PLACEMENT
+ *  deliberately is not: iOS keeps this in the header control cluster, and Android cannot afford it
+ *  there. See the cluster comment in `LiquidTodayHeader` — Android's cluster already carries a sync
+ *  chip iOS has no equivalent of, and lacks iOS's measured title fade, so a control added there is
+ *  width taken straight from the day title.
+ *
+ *  Icon-only is what answers BOTH reports: it still reads as a control (#2008 found the old tertiary
+ *  text unreadable as one) while no longer out-shouting the hero rings (#2110), and dropping the
+ *  visible label retires the locale-width problem, since the word ran 3 characters in zh to 13 in fr.
+ *
+ *  No new string: the existing "Customize Today" title is the accessibility label, so this ships in
+ *  every locale that already had it. */
+@Composable
+private fun CustomizeDisc(onClick: () -> Unit) {
+    val interaction = remember { MutableInteractionSource() }
+    Box(
+        modifier = Modifier
+            // Level with the avatar / + / battery ring (shared size), so the cluster reads as one row.
+            .size(HeaderClusterControl)
+            .liquidPress(interaction)
+            .clip(CircleShape)
+            // The same translucent-white disc the + uses, rather than the frosted card surface #2010
+            // reached for: the point is to look like its siblings, not like a call to action.
+            .background(Color.White.copy(alpha = 0.16f))
+            .clickable(
+                interactionSource = interaction,
+                indication = null,
+                onClick = onClick,
+            )
+            .semantics { contentDescription = uiString(R.string.today_customize_title) },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            Icons.Filled.Tune,
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.size(16.dp),
+        )
+    }
+}
+
 @Composable
 private fun QuickActionDisc(onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
@@ -2315,11 +2512,21 @@ private fun LiquidTodayHeader(
     humanDate: String,
     selectedDay: LocalDate,
     batteryPct: Double?,
+    /** Whether the STRAP is the active device. Separate from [batteryPct] on purpose: that says what
+     *  the control reads, this says whether the control should exist. A null percentage while the strap
+     *  IS active means "connected, no reading yet" and is worth drawing; a strap that is not the active
+     *  device has nothing to say and is not drawn at all. (#2208) */
+    strapIsActiveDevice: Boolean,
     // #245: sync state for the compact header chip (twin of iOS SyncStatusChip).
     backfilling: Boolean = false,
     syncChunksThisSession: Int = 0,
     lastSyncAt: Long? = null,
     historySyncExperimental: Boolean = false,
+    // #689/#815: the connect-time backlog sample, when known.
+    pagesBehindAtConnect: Int? = null,
+    // #2169: whether a scan is already running, and how to ask for one.
+    scanning: Boolean = false,
+    onRescan: (() -> Unit)? = null,
     onPickDay: (Int) -> Unit,
     onQuickActions: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -2399,6 +2606,14 @@ private fun LiquidTodayHeader(
         }
 
         // RIGHT: the controls, in order — [sync chip] · avatar · + · battery ring. Each ~36dp, 8dp apart.
+        //
+        // #2110: deliberately NOT where the Customize control went, even though that is where iOS keeps it.
+        // The title Column beside this is weight(1f) with maxLines=1 + Ellipsis, so every control added here
+        // is width taken from the day title, and Android starts from a wider cluster than iOS because of the
+        // sync chip iOS has no equivalent of. iOS can afford its fourth control because it fades the title
+        // under a MEASURED cluster width (headerTrailingControlFadeMask); Android has no such reserve. On a
+        // 393dp phone a fifth control leaves the 28sp title ~117dp, and "Yesterday" needs ~139dp, so it
+        // would have started ellipsizing a day title that fits today.
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -2409,6 +2624,8 @@ private fun LiquidTodayHeader(
             SyncStatusChip(
                 backfilling = backfilling, chunks = syncChunksThisSession,
                 lastSyncAt = lastSyncAt, historySyncExperimental = historySyncExperimental,
+                pagesBehind = pagesBehindAtConnect,
+                scanning = scanning, onRescan = onRescan,
             )
             // (a) Profile avatar (the photo set in Settings, or the NOOP loop mark) → Settings. Mirrors iOS.
             Box(
@@ -2429,7 +2646,11 @@ private fun LiquidTodayHeader(
             // disc → the quick-actions menu). Sized to match the rest of the liquid cluster (shared HeaderClusterControl).
             QuickActionDisc(onClick = onQuickActions)
             // (c) Strap battery ring showing the % (iOS LiquidBatteryButton). Tap → Devices.
-            LiquidBatteryRing(batteryPct = batteryPct, onClick = onOpenDevices)
+            // Not drawn when the strap is not the active device: an empty "Strap battery" ring under a
+            // streaming ring is a control asserting something about a strap nobody is wearing.
+            if (strapIsActiveDevice) {
+                LiquidBatteryRing(batteryPct = batteryPct, onClick = onOpenDevices)
+            }
         }
     }
 }
@@ -2447,6 +2668,14 @@ private fun SyncStatusChip(
     chunks: Int,
     lastSyncAt: Long?,
     historySyncExperimental: Boolean,
+    pagesBehind: Int? = null,
+    // #2169: the chip is the one thing in the header that reports sync state and took no tap at all,
+    // so asking it for a sync is the gesture a reader tries first. Routed through the caller rather
+    // than calling connect() here, because the permission gate has to come first: on Android 12+ a
+    // direct connect() silently does nothing when the Bluetooth permission was denied or revoked (#1).
+    // Null leaves the chip exactly as it was, which is what the other callers of it want.
+    scanning: Boolean = false,
+    onRescan: (() -> Unit)? = null,
 ) {
     // The clock and the translated "now" word are resolved HERE, in the composable that already depends
     // on both, and handed down — so `SyncChipState.resolve` stays a genuinely pure decision that a plain
@@ -2458,17 +2687,41 @@ private fun SyncStatusChip(
         lastSyncAtSec = lastSyncAt,
         historySyncExperimental = historySyncExperimental,
         nowSec = System.currentTimeMillis() / 1000L,
+        pagesBehind = pagesBehind,
     )
+    // Offered only when there is an action to run and no scan already running, the same rule the
+    // Settings and Live buttons follow. `Syncing` deliberately keeps its tap: a sync in flight is not
+    // a scan in flight, and asking to reconnect mid-backfill is a reasonable thing to want.
+    val tap = onRescan?.takeIf { !scanning }
     when (state) {
-        is SyncChipState.Syncing -> ChipCapsule(
-            Icons.Filled.Autorenew, "${state.chunks}", Palette.accent,
-            uiString(R.string.l10n_today_screen_sync_chip_syncing_desc_bfc290e7, state.chunks))
+        is SyncChipState.Syncing -> {
+            // Both counts are inflected, so "1 chunk" and "1 page" read correctly. Android <plurals>
+            // inflects one quantity per resource, so each count resolves separately and a template
+            // sentence joins them — the joiner sits inside the template, never on a resource edge,
+            // because aapt2 strips edge whitespace (#2041).
+            val chunksText = uiPlural(R.plurals.sync_chip_chunks_count, state.chunks, state.chunks)
+            val pagesText = state.pagesBehind?.let {
+                uiPlural(R.plurals.sync_chip_pages_behind_count, it, it)
+            }
+            ChipCapsule(
+                Icons.Filled.Autorenew, "${state.chunks}", Palette.accent,
+                desc = if (pagesText != null) {
+                    uiString(R.string.l10n_today_screen_sync_chip_syncing_pages_desc_ad763b39, chunksText, pagesText)
+                } else {
+                    uiString(R.string.l10n_today_screen_sync_chip_syncing_desc_92daf60c, chunksText)
+                },
+                detail = pagesText,
+                onClick = tap,
+            )
+        }
         is SyncChipState.Synced -> ChipCapsule(
             Icons.Filled.Check, state.agoText, Palette.textSecondary,
-            uiString(R.string.l10n_today_screen_sync_chip_synced_desc_4d255944, state.agoText))
+            uiString(R.string.l10n_today_screen_sync_chip_synced_desc_4d255944, state.agoText),
+            onClick = tap)
         SyncChipState.ExperimentalLive -> ChipCapsule(
             Icons.Filled.Check, uiString(R.string.l10n_today_screen_sync_chip_live_98aadb37), Palette.textSecondary,
-            uiString(R.string.l10n_today_screen_sync_chip_experimental_desc_3de06a70))
+            uiString(R.string.l10n_today_screen_sync_chip_experimental_desc_3de06a70),
+            onClick = tap)
         SyncChipState.Hidden -> Unit
         // cold start — render nothing; the building-scores note covers it.
     }
@@ -2476,7 +2729,16 @@ private fun SyncStatusChip(
 
 /** The shared sync-chip capsule (icon + terse label). Twin of the iOS `SyncStatusChip.chip`. */
 @Composable
-private fun ChipCapsule(icon: ImageVector, text: String, tint: Color, desc: String) {
+private fun ChipCapsule(
+    icon: ImageVector,
+    text: String,
+    tint: Color,
+    desc: String,
+    detail: String? = null,
+    // #2169: a second way to the same action as the disc, on the one header element that already
+    // reports sync state and took no tap at all. Costs no width, and null leaves the pill inert.
+    onClick: (() -> Unit)? = null,
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -2486,10 +2748,37 @@ private fun ChipCapsule(icon: ImageVector, text: String, tint: Color, desc: Stri
             .height(HeaderClusterControl)
             .clip(RoundedCornerShape(50))
             .background(Palette.surfaceInset)
+            // After the clip, so the ripple stays inside the capsule.
+            // onClickLabel rather than a contentDescription: the icon already describes the STATE
+            // ("synced 3 minutes ago"), and overriding that would trade the information for the action.
+            // A click label names the action alongside it instead of in place of it.
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable(
+                        onClickLabel = uiString(R.string.l10n_today_screen_scan_and_connect_40157030),
+                        onClick = onClick,
+                    )
+                } else {
+                    Modifier
+                }
+            )
             .padding(horizontal = 10.dp),
     ) {
         Icon(icon, contentDescription = desc, tint = tint, modifier = Modifier.size(14.dp))
         Text(text, style = NoopType.caption, color = tint)
+        // #689/#815: the optional secondary line (the backlog figure). Dimmer than the count it follows,
+        // because the count is the live thing and this is a fixed sample taken at connect. maxLines = 1
+        // with ellipsis so a long localisation cannot push the header cluster off a narrow screen
+        // (#1835); the accessibility description carries the full sentence either way.
+        if (detail != null) {
+            Text(
+                detail,
+                style = NoopType.caption,
+                color = Palette.textSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
@@ -3552,8 +3841,11 @@ private fun HostedCardsSection(
     val needsSleepModel = cards.any { it in modelBackedHosted }
     var hostedSleepModel by remember { mutableStateOf<SleepModel?>(null) }
     LaunchedEffect(needsSleepModel, days, viewModel.activeStrapId) {
+        // OFF the main thread: a LaunchedEffect body runs on it, and this walks the night's stages.
         hostedSleepModel = if (needsSleepModel) {
-            buildHostedSleepModel(viewModel.repo, viewModel.activeStrapId, days)
+            withContext(Dispatchers.Default) {
+                buildHostedSleepModel(viewModel.repo, viewModel.activeStrapId, days)
+            }
         } else {
             null
         }
@@ -3564,11 +3856,53 @@ private fun HostedCardsSection(
     // card and the widget can never show different curves.
     val needsStressCurve = cards.contains(HostedCard.STRESS_TODAY)
     var stressCurve by remember { mutableStateOf<List<StressPoint>>(emptyList()) }
-    LaunchedEffect(needsStressCurve, days, viewModel.activeStrapId) {
-        stressCurve = if (needsStressCurve) {
-            StressWidgetProducer.todayCurve(viewModel.repo, viewModel.activeStrapId)?.points ?: emptyList()
-        } else {
-            emptyList()
+    // SEEDED from the curve already on disk, so an app update does not show "Calibrating" for a day it
+    // has already scored. `stressCurve` starts empty on a cold process, and the card reads an empty
+    // curve as an unscored day, which is honest for a genuinely unscored one and wrong the moment the
+    // app is merely restarted. The first compute usually fills it, but not always in time: the strap id
+    // it needs comes from the source coordinator and is blank for a moment after launch, and a blank id
+    // makes the producer answer null, which by contract means "say nothing" and leaves the card empty
+    // until the next pass.
+    //
+    // The widget snapshot is the same curve, written by the last scoring pass and day-guarded on load,
+    // so it is either today's or nothing. Read once, off the main thread, and only while nothing better
+    // has arrived, so a compute that has already landed is never overwritten by a staler copy.
+    LaunchedEffect(Unit) {
+        if (stressCurve.isNotEmpty()) return@LaunchedEffect
+        val banked = withContext(Dispatchers.IO) {
+            runCatching { WidgetSnapshotStore.load(context).stressSeries }.getOrDefault(emptyList())
+        }
+        if (banked.isNotEmpty() && stressCurve.isEmpty()) stressCurve = banked
+    }
+    // #2144: this used to score ONCE, when these keys last moved, and none of them tracks incoming
+    // heart rate — `days` is the daily rows, not the intraday samples the curve is built from. So a
+    // card left open held whatever it scored then, while the Stress screen scores when you open it,
+    // and the two drifted apart by however long sat between the two triggers. A reporter saw 1pm here
+    // against 2pm there at twenty past four. Same producer and same scoring on both sides; the whole
+    // difference was when each last asked, so this asks again on the cadence the widget already uses.
+    val stressLifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(needsStressCurve, days, viewModel.activeStrapId, stressLifecycleOwner) {
+        if (!needsStressCurve) {
+            stressCurve = emptyList()
+            return@LaunchedEffect
+        }
+        // Gated on STARTED, the same reason HealthScreen's live-HR tick is: a LaunchedEffect is tied to
+        // the composition and not to the lifecycle, so an ungated loop here would go on scoring a day of
+        // heart-rate rows every fifteen minutes for as long as the composition survived in the
+        // background. The service is already doing that work on this exact cadence while backgrounded,
+        // which is the point of it, so the card doing it too would be a second pass that nothing is on
+        // screen to read. Resuming re-enters the block and scores immediately, so coming back to the app
+        // shows a current curve rather than waiting out an interval.
+        stressLifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                // A null is "nothing to say about stress right now" (no device to read), which the
+                // producer documents as keep-what-you-had rather than "today scored nothing". Holding
+                // the last curve matters more here than for a single pass: blanking the card on one bad
+                // tick would be a visible flicker on a screen that is sitting open.
+                StressWidgetProducer.todayCurve(viewModel.repo, viewModel.activeStrapId)
+                    ?.let { stressCurve = it.points }
+                delay(StressWidgetProducer.RESCORE_INTERVAL_MS)
+            }
         }
     }
     // Turning the card's own destination into the callback that reaches it. The mapping itself lives
@@ -3587,12 +3921,32 @@ private fun HostedCardsSection(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    // Clipped to the card's own radius BEFORE the click. `NoopCard` clips itself, but
-                    // the ripple draws on this wrapper, so without matching the shape here it would wash
-                    // square corners over a rounded card. `Metrics.cardRadius` is the right figure
-                    // because every hosted card renders through `NoopCard`: the 26dp liquid-hero
-                    // surface `ChartCard` can wear is hero-only, and none of these opt into it.
-                    .clip(RoundedCornerShape(Metrics.cardRadius))
+                    // Clipped BEFORE the click. `NoopCard` clips itself, but the ripple draws on this
+                    // wrapper, so without matching the shape here it would wash square corners over a
+                    // rounded card. `Metrics.cardRadius` is the right figure: the 26dp liquid-hero surface
+                    // `ChartCard` can wear is hero-only, and none of these opt into it.
+                    //
+                    // This used to read "because every hosted card renders through NoopCard", and that was
+                    // the bug (#2109). Six of them open with a bare section header instead, and the clip
+                    // was cutting its first glyph. The shape is asked for per card now.
+                    .clip(
+                        // #2109: shaped from the card's own opening, not assumed. A card that FILLS this
+                        // slot wants the full radius. A card that opens with a bare section header does
+                        // not: its first pixel is heading text at the top-left, where an 18dp corner cuts
+                        // hardest at y=0, and the radius clipped the overline's first glyph ("LAST NIGHT"
+                        // read as "AST NIGHT"). Square the TOP corners for those and keep the bottom
+                        // rounded, because the slot's bottom edge IS the inner card's bottom edge and a
+                        // square ripple there would wash its corners, which is the defect the clip was
+                        // added for in the first place.
+                        if (card.leadsWithSectionHeader) {
+                            RoundedCornerShape(
+                                topStart = 0.dp, topEnd = 0.dp,
+                                bottomStart = Metrics.cardRadius, bottomEnd = Metrics.cardRadius,
+                            )
+                        } else {
+                            RoundedCornerShape(Metrics.cardRadius)
+                        }
+                    )
                     .then(if (open != null) Modifier.clickable(onClick = open) else Modifier),
             ) {
             when (card) {
@@ -4026,7 +4380,9 @@ private fun dashboardCardValue(
             // state instead, matching the owner's reply on #706 and the StressScreen empty/calibrating copy.
             stress?.let { it.roundToInt().toString() } ?: STRESS_CALIBRATING
         DashboardCard.FITNESS_AGE ->
-            withUnit(fitnessAge?.let { it.roundToInt().toString() } ?: NO_DATA)
+            // Carries the bound symbol the Health hero uses (#2173), so a floored reading does not read
+            // as an exact one here and as a bounded one there.
+            withUnit(fitnessAge?.let { "${fitnessAgeBoundSymbol(it)}${it.roundToInt()}" } ?: NO_DATA)
         DashboardCard.VO2MAX ->
             vo2max?.let { it.roundToInt().toString() } ?: NO_DATA
         DashboardCard.VITALITY ->

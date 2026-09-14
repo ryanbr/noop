@@ -1,10 +1,10 @@
 package com.noop.protocol
 
-/** WHOOP 5 type-40/v18 words are 1/1024-second ticks. Swift Whoop5RR; WHOOP 4 stays unchanged. */
+/** WHOOP 5 type-40/v18 interval words are already milliseconds. Swift Whoop5RR; WHOOP 4 stays unchanged. */
 object Whoop5RR {
     fun milliseconds(ticks: Int): Int {
         require(ticks in 0..65535)
-        return (ticks * 1000 + 512) / 1024
+        return ticks
     }
 
     fun usesCanonicalSource(model: String?, brand: String?, hasTaggedIntervals: Boolean): Boolean {

@@ -104,6 +104,86 @@ final class OuraHistoryDrainTests: XCTestCase {
                        "a reboot forces 0 (full pull) even if a forward sample also arrived")
     }
 
+    // MARK: #2097 - a SyncTime anchor confirming clock continuity overrides the reboot reset
+
+    func testAnchorConfirmsContinuityKeepsCursorInsteadOfFullReset() {
+        var d = OuraHistoryDrain()
+        d.noteStoredRingTime(500, resumeCursorAtFetchStart: 1000) // stale sample -> sawPreResumeData
+        XCTAssertTrue(d.sawPreResumeData)
+        XCTAssertEqual(d.resumeCursorAtDrainEnd(currentCursor: 1000, resolvesUnderAnchor: true,
+                                                 anchorConfirmsContinuity: true), 1000,
+                       "continuity confirmed (#2097): not a reboot - discard the stale replay, keep the cursor")
+    }
+
+    func testAnchorConfirmsContinuityStillAdvancesOnRealForwardProgress() {
+        var d = OuraHistoryDrain()
+        d.noteStoredRingTime(3_453_828, resumeCursorAtFetchStart: 1000) // forward...
+        d.noteStoredRingTime(500, resumeCursorAtFetchStart: 1000)       // ...plus a stale replay
+        XCTAssertTrue(d.sawPreResumeData)
+        XCTAssertEqual(d.resumeCursorAtDrainEnd(currentCursor: 1000, resolvesUnderAnchor: true,
+                                                 anchorConfirmsContinuity: true), 3_453_828,
+                       "continuity confirmed: genuine forward progress still commits normally")
+    }
+
+    func testAnchorContinuityDefaultsToOldRebootBehaviorWhenOmitted() {
+        var d = OuraHistoryDrain()
+        d.noteStoredRingTime(500, resumeCursorAtFetchStart: 1000)
+        XCTAssertEqual(d.resumeCursorAtDrainEnd(currentCursor: 1000, resolvesUnderAnchor: true), 0,
+                       "omitting anchorConfirmsContinuity must not change today's behavior")
+    }
+
+    // MARK: #2097 - anchorsAreContinuous (the SyncTime anchor comparison itself)
+
+    func testAnchorsAreContinuousOnTheReal20260911N2Gap() {
+        // The witnessed n=2 occurrence: 12:29:26 -> 14:00:02 local, 5436s wall, 54357 ring ticks
+        // (~9.999 ticks/s) spanning the Oura-app handoff. The ring's clock never paused.
+        let previous = (ringTicks: UInt32(42_236_951), unixSeconds: Int64(0))
+        let current = (ringTicks: UInt32(42_291_308), unixSeconds: Int64(5436))
+        XCTAssertTrue(OuraHistoryDrain.anchorsAreContinuous(previous: previous, current: current))
+    }
+
+    func testAnchorsAreContinuousDetectsARealPause() {
+        // A genuine power-cycle: ticks paused for 821s (matches the measured 13m41s dead-battery
+        // reboot) somewhere inside a 3600s wall-clock gap.
+        let previous = (ringTicks: UInt32(1_000_000), unixSeconds: Int64(0))
+        let tickedSeconds = 3600 - 821
+        let current = (ringTicks: UInt32(1_000_000) + UInt32(tickedSeconds * 10), unixSeconds: Int64(3600))
+        XCTAssertFalse(OuraHistoryDrain.anchorsAreContinuous(previous: previous, current: current))
+    }
+
+    func testAnchorsAreContinuousToleratesOrdinaryJitter() {
+        // 5s of receipt-latency noise across an otherwise-continuous gap must not false-positive as a
+        // pause (well under anchorContinuityMaxPauseSeconds).
+        let previous = (ringTicks: UInt32(1_000_000), unixSeconds: Int64(0))
+        let current = (ringTicks: UInt32(1_000_000 + 3_000), unixSeconds: Int64(305)) // 305s wall, 300s ticked
+        XCTAssertTrue(OuraHistoryDrain.anchorsAreContinuous(previous: previous, current: current))
+    }
+
+    func testAnchorsAreContinuousDeclinesOnTooShortAGap() {
+        let previous = (ringTicks: UInt32(1_000_000), unixSeconds: Int64(0))
+        let current = (ringTicks: UInt32(1_000_050), unixSeconds: Int64(5)) // below the 10s minimum
+        XCTAssertFalse(OuraHistoryDrain.anchorsAreContinuous(previous: previous, current: current),
+                       "too short a gap to judge - declines rather than guessing")
+    }
+
+    func testAnchorsAreContinuousOnTheReal20260912FastReconnect() {
+        // 2026-09-12 19:38:56 -> 19:39:23: an app relaunch (Xcode install), state restoration resumed
+        // the still-connected ring, and the next connect came 27s later with a stale replay. Ring
+        // ticks 43358625 -> 43358893 = 268 ticks over 27s wall (9.93/s): plainly continuous, but the
+        // original 30s floor declined and the old full re-pull from 2026-07-24 fired. Must judge, and
+        // must say continuous.
+        let previous = (ringTicks: UInt32(43_358_625), unixSeconds: Int64(0))
+        let current = (ringTicks: UInt32(43_358_893), unixSeconds: Int64(27))
+        XCTAssertTrue(OuraHistoryDrain.anchorsAreContinuous(previous: previous, current: current),
+                      "a 27s gap with a continuous ring clock is judgeable and continuous")
+    }
+
+    func testAnchorsAreContinuousDeclinesWhenTicksWentBackward() {
+        let previous = (ringTicks: UInt32(1_000_000), unixSeconds: Int64(0))
+        let current = (ringTicks: UInt32(999_000), unixSeconds: Int64(100)) // never observed; decline, not confirm
+        XCTAssertFalse(OuraHistoryDrain.anchorsAreContinuous(previous: previous, current: current))
+    }
+
     // MARK: loaded-cursor sanitize + reset
 
     func testSanitizeLoadedCursor() {
@@ -179,5 +259,47 @@ final class OuraHistoryDrainTests: XCTestCase {
         d.noteStoredRingTime(2_900_000, resumeCursorAtFetchStart: 0)
         XCTAssertEqual(d.maxStoredRingTime, 2_900_000)
         XCTAssertEqual(d.maxSeenRingTime, 3_000_000, "stored notes don't inflate the seen max")
+    }
+
+    /// `predatesResume` is the ONE comparison behind `sawPreResumeData`, applied to whole hypnogram
+    /// bursts by the app layer (a re-served night's tail must not become a phantom session — 2026-09-13).
+    /// The expected column is the standalone-compiled Swift twin's stdout, verbatim, over the same cases the
+    /// Kotlin test carries, so both platforms are pinned to the same table rather than to each other.
+    func testPredatesResumeOracleTable() {
+        let cases: [(UInt32, UInt32)] = [
+            (42_867_280, 43_895_637), (43_731_586, 43_895_637), (43_895_636, 43_895_637), (43_895_637, 43_895_637),
+            (43_895_638, 43_895_637), (43_897_237, 43_895_637), (0, 43_895_637), (1, 43_895_637),
+            (42_867_280, 0), (0, 0), (UInt32.max, 0), (UInt32.max, UInt32.max), (UInt32.max - 1, UInt32.max),
+            (5, 1), (1, 5), (0, 1),
+        ]
+        let got = cases.map { "\($0.0),\($0.1),\(OuraHistoryDrain.predatesResume(ringTime: $0.0, resumeCursorAtFetchStart: $0.1))" }
+            .joined(separator: "\n")
+        XCTAssertEqual(got, """
+42867280,43895637,true
+43731586,43895637,true
+43895636,43895637,true
+43895637,43895637,false
+43895638,43895637,false
+43897237,43895637,false
+0,43895637,true
+1,43895637,true
+42867280,0,false
+0,0,false
+4294967295,0,false
+4294967295,4294967295,false
+4294967294,4294967295,true
+5,1,false
+1,5,true
+0,1,true
+""")
+    }
+
+    func testPredatesResumeIsWhatFlagsPreResumeData() {
+        var d = OuraHistoryDrain()
+        d.noteStoredRingTime(43_731_586, resumeCursorAtFetchStart: 43_895_637)
+        XCTAssertTrue(d.sawPreResumeData, "the drain flag and the burst gate must agree on the same sample")
+        var e = OuraHistoryDrain()
+        e.noteStoredRingTime(43_897_237, resumeCursorAtFetchStart: 43_895_637)
+        XCTAssertFalse(e.sawPreResumeData)
     }
 }

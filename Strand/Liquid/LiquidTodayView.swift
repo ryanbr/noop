@@ -945,7 +945,11 @@ struct LiquidTodayView: View {
                      value: stressText, tint: StrandPalette.accent, frac: fracOver(stress, 3))
         case .fitnessAge:
             cardLink(.metric("fitness_age"), title: card.title, sub: card.subtitle,
-                     value: unitText(fitnessAge, card.unit), tint: StrandPalette.chargeColor, frac: 0.5)
+                     // Bound symbol as on the Health hero (#2173), so a floored reading does not read
+                     // exact here and bounded there.
+                     value: fitnessAge.map { "\(fitnessAgeBoundSymbol($0))" + unitText($0, card.unit) }
+                         ?? unitText(fitnessAge, card.unit),
+                     tint: StrandPalette.chargeColor, frac: 0.5)
         case .vo2max:
             cardLink(.metric("vo2max_est"), title: card.title, sub: card.subtitle,
                      value: unitText(vo2max, card.unit), tint: StrandPalette.chargeColor, frac: 0.5)
@@ -2522,8 +2526,24 @@ extension LiquidTodayView {
         case pending(charging: Bool)
         /// A reading from the current link.
         case charge(pct: Double, charging: Bool)
+        /// The strap is not the active device, so this control has nothing to say and is not drawn.
+        ///
+        /// Distinct from [offline], which asserts a strap that IS active is not connected. Collapsing the
+        /// two put a crossed-out bolt and "strap not connected" on the header of a wearer whose ring was
+        /// streaming, which is a different false claim from the one #2208 is about rather than a fix for
+        /// it, and the only one a ring-only wearer would see every day. (@pipiche38 on #2216)
+        case notActiveDevice
 
-        static func resolve(connected: Bool, batteryPct: Double?, charging: Bool?) -> StrapBatteryDisplay {
+        /// #2208: `activeIsWhoop` is required, not defaulted. `connected` alone was never enough: it is
+        /// true the moment ANY source streams, `batteryPct` is the strap's and is never cleared, so under
+        /// an active ring both halves of the old gate passed and this drew the strap's charge. Charging
+        /// is strap-only for the same reason, so a non-WHOOP active device reports neither.
+        ///
+        /// No default value on purpose. A defaulted flag is one a future call site can forget, and
+        /// forgetting it reinstates exactly this bug in a form that still compiles.
+        static func resolve(activeIsWhoop: Bool, connected: Bool,
+                            batteryPct: Double?, charging: Bool?) -> StrapBatteryDisplay {
+            guard activeIsWhoop else { return .notActiveDevice }
             guard connected else { return .offline }
             guard let pct = batteryPct else { return .pending(charging: charging == true) }
             return .charge(pct: pct, charging: charging == true)
@@ -2644,7 +2664,9 @@ private struct LiquidBatteryButton: View {
     private var batteryDisplay: LiquidTodayView.StrapBatteryDisplay {
         #if DEBUG
         if DemoSyncHarness.active {
+            // The harness stands in for a connected WHOOP, so it answers this the way one would.
             return .resolve(
+                activeIsWhoop: true,
                 connected: true,
                 batteryPct: DemoSyncHarness.batteryPercent,
                 charging: DemoSyncHarness.charging
@@ -2652,6 +2674,7 @@ private struct LiquidBatteryButton: View {
         }
         #endif
         return .resolve(
+            activeIsWhoop: live.activeIsWhoop,
             connected: live.connected,
             batteryPct: live.batteryPct,
             charging: live.charging
@@ -2660,7 +2683,7 @@ private struct LiquidBatteryButton: View {
 
     private var indicatorState: ChargeSyncIndicator.BatteryState {
         switch batteryDisplay {
-        case .offline:
+        case .offline, .notActiveDevice:
             return .offline
         case .pending(let charging):
             return .pending(charging: charging)
@@ -2670,21 +2693,29 @@ private struct LiquidBatteryButton: View {
     }
 
     var body: some View {
-        Button { router.openDevices() } label: {
-            ChargeSyncIndicator(
-                batteryState: indicatorState,
-                syncing: syncing,
-                chunks: syncChunks
-            )
+        // Not drawn at all when the strap is not the active device. The alternative is a glyph that
+        // has to say SOMETHING about a strap nobody is wearing, and every option is a claim: a charge
+        // that is not the active device's, or a crossed-out bolt asserting a disconnection that is not
+        // the interesting fact. The two Today rows already resolve it this way. (#2208)
+        if case .notActiveDevice = batteryDisplay {
+            EmptyView()
+        } else {
+            Button { router.openDevices() } label: {
+                ChargeSyncIndicator(
+                    batteryState: indicatorState,
+                    syncing: syncing,
+                    chunks: syncChunks
+                )
+            }
+            .nativeLiquidGlassSyncButton()
+            .accessibilityLabel(batteryAccessibility)
+            .debouncedSyncSignal(syncingRaw, into: $syncing)
+            // DEBUG-gated at the CALL SITE too, not just in the body: in Release the harness must cost
+            // literally nothing, rather than an async task created and immediately returned per appearance.
+            #if DEBUG
+            .task { await runDemoSyncCycleIfNeeded() }
+            #endif
         }
-        .nativeLiquidGlassSyncButton()
-        .accessibilityLabel(batteryAccessibility)
-        .debouncedSyncSignal(syncingRaw, into: $syncing)
-        // DEBUG-gated at the CALL SITE too, not just in the body: in Release the harness must cost
-        // literally nothing, rather than an async task created and immediately returned per appearance.
-        #if DEBUG
-        .task { await runDemoSyncCycleIfNeeded() }
-        #endif
     }
 
     /// DEBUG `--demo-sync` only: loop the syncing signal so the charge→sync morph plays in both
@@ -2735,12 +2766,24 @@ private struct LiquidBatteryButton: View {
             // VoiceOver announcing a real count while the ring showed the synthetic one — i.e. the
             // harness could not be used to check the read-out it exists to exercise.
             let n = syncChunks
-            return n > 0
-                ? String(localized: "Syncing strap history, \(n) chunks")
-                : String(localized: "Syncing strap history")
+            guard n > 0 else { return String(localized: "Syncing strap history") }
+            // #689/#815: the connect-time ring backlog, when the strap reported one. Zero is dropped by
+            // `SyncChipState.resolve`, and dropped here for the same reason: "0 pages behind" beside a
+            // running sync contradicts itself. Both counts inflect — the phrase is built from its own
+            // entry and joined through a template, so "1 chunk" and "1 page" read correctly and the
+            // joining punctuation stays inside the translated template rather than being concatenated.
+            let behind = live.pagesBehindAtConnect
+                .flatMap { $0 > 0 ? $0 : nil }
+                .map { String(localized: "\($0) pages behind at connect") }
+            if let behind {
+                return String(localized: "Syncing strap history, \(n) chunks, \(behind)")
+            }
+            return String(localized: "Syncing strap history, \(n) chunks")
         }
 
         switch batteryDisplay {
+        case .notActiveDevice:
+            return ""          // not drawn; the label is unreachable and must not claim anything
         case .offline:
             return String(localized: "Strap battery, strap not connected")
         case .pending(let charging):
@@ -2857,7 +2900,8 @@ private struct LiquidSyncStatusRow: View {
 private struct LiquidStrapBatteryRow: View {
     @EnvironmentObject var live: LiveState
     var body: some View {
-        if live.connected, let pct = live.batteryPct {
+        // #2208: the strap's charge only when the strap is the active device.
+        if live.connected, live.activeIsWhoop, let pct = live.batteryPct {
             HStack {
                 Text("Strap battery").font(StrandFont.subhead).foregroundStyle(StrandPalette.textSecondary)
                 Spacer()

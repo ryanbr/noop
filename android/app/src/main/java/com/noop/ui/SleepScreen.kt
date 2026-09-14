@@ -118,8 +118,15 @@ internal fun resolveSleepFreshness(
     syncFailed: Boolean,
 ): SleepFreshnessStatus? {
     if (syncing) return SleepFreshnessStatus.SYNCING
+    // #2108: a night already in hand outranks CALCULATING. It used to sit below, so `hasCurrentNight`
+    // could only silence the missing-night states and a finished night was structurally unable to
+    // silence this one: the banner said "detecting and staging the night now" directly above that same
+    // night scored, timed and staged on screen. A note that contradicts the content beside it is worse
+    // than no note, and one that is always on is read by nobody the day it matters. SYNCING stays above,
+    // because data still arriving can genuinely change what is shown.
+    if (hasCurrentNight) return null
     if (calculating) return SleepFreshnessStatus.CALCULATING
-    if (hasCurrentNight || !morningReady) return null
+    if (!morningReady) return null
     if (syncFailed) return SleepFreshnessStatus.SYNC_FAILED
     return if (syncedSinceDayStart) SleepFreshnessStatus.NOT_DETECTED
     else SleepFreshnessStatus.AWAITING_SYNC
@@ -742,7 +749,9 @@ fun SleepScreen(
                 display = display,
                 activeIsOura = activeIsOura,
                 nightHr = nightHr,
-                clock = night?.clockLabel ?: model?.clockLabel,
+                // #2199: never the SleepModel's label here — that model resolves to the NEWEST night, not
+                // the browsed one. See navHeaderClockLabel, where the rule and its tests live.
+                clock = navHeaderClockLabel(night?.clockLabel, navDays, nightOffset, is24h),
                 nightOffset = nightOffset,
                 lastIndex = max(navDays.lastIndex, 0),
                 nightLabel = nightLabel,

@@ -396,7 +396,7 @@ data class SleepSession(
     //     Interpreter's `(sb shr 4) and 3` (H2 persist half).
     // Both nullable TEXT (no SQL DEFAULT, a Kotlin construction default never reaches the schema), so old
     // rows read back null. HONESTY: an absent signal stays null, never a fabricated zero series. Written/read
-    // through the targeted DAO methods (not the @Upsert path, which never names them and so preserves them).
+    // through targeted DAO methods; [SleepSessionUpsertPolicy] carries the stored values through cache refreshes.
     val motionJSON: String? = null,
     val sleepStateJSON: String? = null,
     // v34 (Swift WhoopStore v34-sleep-staging-sparse parity, MIGRATION_27_28). True when this night was

@@ -1,6 +1,7 @@
 package com.noop.widget
 
 import com.noop.analytics.DaytimeStress
+import kotlin.math.roundToInt
 
 /**
  * One hour on the widget's stress trace.
@@ -45,11 +46,28 @@ object StressTrace {
      *  a malformed payload from growing the list without bound. */
     const val MAX_POINTS: Int = 26
 
-    /** `ts:level:moving`, comma separated, with `-` for an unscored hour. Compact enough for a prefs
-     *  string at a day's length, and readable in a bug report, which a binary blob would not be. */
+    /**
+     * `ts:level:moving`, comma separated, with `-` for an unscored hour. Compact enough for a prefs
+     * string at a day's length, and readable in a bug report, which a binary blob would not be.
+     *
+     * THE LEVEL IS WRITTEN LOSSLESSLY (#2166). This used to be `"%.2f"`, which made the snapshot a
+     * rounding step in front of a rounding: the widget printed a level that had been rounded to two
+     * decimals and then to one, while the Today card rounded the live double once. Two roundings move
+     * a value across a boundary one rounding does not, so a raw 2.2450 printed 2.3 on the widget and
+     * 2.2 on the card, on identical data with no staleness in it. Measured across the domain, the two
+     * disagreed by a tenth on 5% of levels, and the same skew reached the peak and average, which are
+     * folded from this series on one side and from live points on the other.
+     *
+     * `Double.toString` emits the shortest decimal that reads back as the same double, so decode
+     * returns the bits encode was handed and the widget formats exactly what the card formats. Any
+     * fixed precision would only have made the disagreement rarer, which is the thing #2167 objects
+     * to elsewhere. It costs a few hundred characters a day and it costs the digits their tidiness,
+     * a level reading 1.5851456074086638 rather than 1.59; read the first few and ignore the rest.
+     * It is also locale-independent, which `String.format` without a fixed locale was not.
+     */
     fun encode(series: List<StressPoint>): String =
         series.joinToString(",") { p ->
-            val level = p.level?.let { String.format(java.util.Locale.US, "%.2f", it) } ?: "-"
+            val level = p.level?.toString() ?: "-"
             "${p.ts}:$level:${if (p.moving) 1 else 0}"
         }
 
@@ -63,7 +81,11 @@ object StressTrace {
             if (bits.size != 3) continue
             val ts = bits[0].toLongOrNull() ?: continue
             val level = if (bits[1] == "-") null else bits[1].toDoubleOrNull() ?: continue
-            if (level != null && (level < 0.0 || level > DOMAIN_MAX)) continue
+            // Negated rather than written as the two out-of-range tests, so a NaN is skipped too.
+            // Every comparison against NaN is false, so `level < 0.0 || level > DOMAIN_MAX` admitted
+            // one, and "NaN" is text `toDoubleOrNull` accepts. Infinity was always caught, being
+            // greater than the ceiling.
+            if (level != null && !(level >= 0.0 && level <= DOMAIN_MAX)) continue
             out.add(StressPoint(ts, level, bits[2] == "1"))
         }
         out.sortBy { it.ts }
@@ -163,18 +185,85 @@ object StressTrace {
     }
 
     /**
-     * X positions of the hours masked as movement, for the faint marks along the base.
+     * The moving hours grouped into CONTIGUOUS x ranges, for the marks along the base (#2106).
      *
-     * Returned as bare X centres rather than as spans: the mark's thickness is a drawing decision and
-     * belongs to the renderer, while WHERE the moving hours were is a fact about the day.
+     * A run rather than a mark per hour, because a run says which STRETCH of the day was masked, and
+     * that is what a reader needs when they are looking at a hole in the trace and trying to work out
+     * what put it there. The reason it matters was reported rather than theorised: a wearer saw the
+     * gaps, read the evenly spaced marks along the zero line as axis ticks, concluded the data itself
+     * was missing, and asked whether continuous HRV tracking would fill them in. One bar under the
+     * stretch it explains cannot be mistaken for a scale, because a scale does not start and stop with
+     * the data.
+     *
+     * Adjacency is by POSITION in the series, not by timestamp arithmetic: the series is already the
+     * hour grid the chart draws, so two neighbouring entries are two neighbouring hours by construction.
+     *
+     * A span runs edge to edge of the hours it covers, NOT centre to centre. An hour is a stretch of the
+     * day, not an instant, and the difference is the whole case for the change: centre to centre gives a
+     * lone masked hour a width of zero, which is exactly the hour that most needs to be legible, since
+     * there is no run of neighbours to make it obvious. Edges are taken as the MIDPOINT to each
+     * neighbour rather than as a fixed slot, so an irregular series (a DST-long day, an hour missing
+     * from the list entirely) still gets honest extents. At the ends of the series the territory stops
+     * at the point itself: the day's extent is what was sampled, and nothing is invented past it, which
+     * also keeps every span inside the box without a clamp.
+     *
+     * The upper edge is floored to the lower one. On a sorted series it never binds, but the two
+     * platforms disagree about what an inverted range means, Kotlin yielding an empty one where Swift
+     * traps, and a twin that crashes on one side and shrugs on the other is not a twin.
      */
-    fun movingMarks(series: List<StressPoint>, width: Float): List<Float> {
+    fun movingSpans(series: List<StressPoint>, width: Float): List<ClosedFloatingPointRange<Float>> {
         if (series.isEmpty() || width <= 0f) return emptyList()
         val t0 = series.first().ts
         val span = (series.last().ts - t0).toFloat()
-        return series.filter { it.moving }.map { p ->
-            if (span <= 0f) 0f else (p.ts - t0) / span * width
+        val xs = FloatArray(series.size) {
+            if (span <= 0f) 0f else (series[it].ts - t0) / span * width
         }
+        val last = series.lastIndex
+        fun leftEdge(i: Int): Float = if (i == 0) xs[0] else (xs[i - 1] + xs[i]) / 2f
+        fun rightEdge(i: Int): Float = if (i == last) xs[last] else (xs[i] + xs[i + 1]) / 2f
+        val out = ArrayList<ClosedFloatingPointRange<Float>>()
+        var runStart: Int? = null
+        for (i in series.indices) {
+            val moving = series[i].moving
+            if (moving && runStart == null) runStart = i
+            val from = runStart
+            // A run closes at the first hour that is NOT moving, and also at the end of the series, or
+            // a day whose last hours were all masked would be dropped for want of a terminator.
+            if (from != null && (!moving || i == last)) {
+                val lo = leftEdge(from)
+                out.add(lo..maxOf(rightEdge(if (moving) i else i - 1), lo))
+                runStart = null
+            }
+        }
+        return out
+    }
+
+    /**
+     * A 0-3 level as the one string every surface prints (#2164).
+     *
+     * There were two spellings. The widget used `String.format(Locale.getDefault(), "%.1f")`, which
+     * punctuates by locale, so a German reader saw `2,8`; the Today card built tenths by hand and always
+     * produced `2.8`, so one number appeared two ways on a screen and its own widget.
+     *
+     * The dot wins because the Apple surfaces already print it: Swift's `String(format:)` without a
+     * locale does not localise, so every stress figure in `StressWidget.swift` is dot-decimal. Matching
+     * the card and iOS settles the separator on all four surfaces without changing what any of them
+     * showed.
+     *
+     * ROUNDING IS ARITHMETIC, NOT `printf`, for the reason `SleepStagerTrace.round1` gives: Java rounds
+     * half up on the decimal expansion, C `printf` rounds half to even on the binary value, and a
+     * harness caught those disagreeing on a real number. So the card's spelling is the one kept here,
+     * and iOS stays on `String(format:)`. A logistic squash lands within an ulp of a .x5 boundary about
+     * never, so the two cannot be shown to differ on a real level, but the arithmetic side is the one
+     * this codebase has already settled on.
+     *
+     * Clamped to the domain, which the card did and the widget did not. `squash` should keep levels
+     * inside it already, so this is belt-and-braces rather than load-bearing; what matters is that both
+     * surfaces are braced the same way instead of disagreeing above the ceiling.
+     */
+    fun formatLevel(value: Double): String {
+        val tenths = (value * 10).roundToInt().coerceIn(0, (DOMAIN_MAX * 10).roundToInt())
+        return "${tenths / 10}.${tenths % 10}"
     }
 
     /**
@@ -186,18 +275,30 @@ object StressTrace {
     fun levelTicks(): List<Int> = listOf(3, 2, 1, 0)
 
     /**
-     * The three timestamps along the bottom: first, middle, last of the SCORED data, not of the day.
+     * The three timestamps along the bottom: first, middle and last of the SERIES.
      *
-     * Anchored to scored hours because a day that only has an evening's worth of signal would otherwise
-     * label its axis with a morning that was never sampled, and the trace would sit crushed into the
-     * right-hand end of a mostly empty chart. Fewer than three distinct instants returns what there is,
-     * so the renderer draws one label rather than three copies of it.
+     * The series, not the scored hours, because these label the AXIS, and the axis IS the series: every
+     * placement in this file maps x across `first.ts .. last.ts`, and every renderer spreads these three
+     * labels evenly across that same width. Anchoring them to the scored subset instead put the last
+     * SCORED instant at the right-hand edge, so a day whose closing hours were all masked as movement
+     * announced that it ended when scoring stopped rather than when the day did.
+     *
+     * That is the second half of #2106, and it was read exactly as it was drawn: a chart running to
+     * 22:00 labelled "18:30" at its right edge, reported as the app having stopped updating. The
+     * trailing hours were there the whole time, masked as exertion. Only the axis disagreed.
+     *
+     * The rationale this replaces was that an evening-only wearer would otherwise be labelled with a
+     * morning that was never sampled. The buckets are built FROM the samples, so the series carries no
+     * unsampled hours to begin with, and the trace was already spread across the series either way. The
+     * labels were the only part that ever disagreed with the geometry.
+     *
+     * Fewer than three distinct instants returns what there is, so the renderer draws one label rather
+     * than three copies of it.
      */
     fun timeTicks(series: List<StressPoint>): List<Long> {
-        val scored = series.filter { it.level != null }
-        if (scored.isEmpty()) return emptyList()
-        val first = scored.first().ts
-        val last = scored.last().ts
+        if (series.isEmpty()) return emptyList()
+        val first = series.first().ts
+        val last = series.last().ts
         if (first == last) return listOf(first)
         val mid = first + (last - first) / 2
         return if (mid == first || mid == last) listOf(first, last) else listOf(first, mid, last)

@@ -122,14 +122,6 @@
     ],
     [
       "android/app/src/main/java/com/noop/ui/CoachScreen.kt",
-      "Off: the coach answers generally and sends none of your metrics."
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/CoachScreen.kt",
-      "On: your recovery, sleep, HRV and workouts are shared with the provider for tailored coaching."
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/CoachScreen.kt",
       "Only if your server requires one"
     ],
     [
@@ -450,10 +442,6 @@
     ],
     [
       "android/app/src/main/java/com/noop/ui/LiveWorkoutScreen.kt",
-      "%d:%02d"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/LiveWorkoutScreen.kt",
       "Below Zone 1"
     ],
     [
@@ -725,10 +713,6 @@
       "Unread. ${item.title}. ${item.message}"
     ],
     [
-      "android/app/src/main/java/com/noop/ui/WorkoutStart.kt",
-      "%d:%02d"
-    ],
-    [
       "android/app/src/main/java/com/noop/ui/WorkoutsScreen.kt",
       "${WorkoutEditing.displaySport(row.sport)}, ${dateLabel(row.startTs)}"
     ],
@@ -936,6 +920,10 @@
     ],
     [
       "Strand/Screens/HealthView.swift",
+      "Fitness Age \\(bound)\\(shown), \\(ageDeltaLine(years: years, younger: younger, bound: bound)). Tap to see the trend."
+    ],
+    [
+      "Strand/Screens/HealthView.swift",
       "Refresh Fitness Age now"
     ],
     [
@@ -1021,10 +1009,6 @@
     [
       "Strand/Screens/SettingsView.swift",
       "Date of birth, age \\(profile.age) years"
-    ],
-    [
-      "Strand/Screens/SettingsView.swift",
-      "NOOP estimates your steps from your WHOOP's motion, calibrated to your phone's step count. It's an estimate, not a step counter — a WHOOP 5.0 / MG streams motion (not a step count) only with deep data on."
     ],
     [
       "Strand/Screens/SettingsView.swift",

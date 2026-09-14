@@ -186,6 +186,14 @@ public enum HealthWriteback {
         appleHealthExternalUUID(kind: "sleep", identity: "\(startTs)")
     }
 
+    /// The prefix every workout key carries, without the identity.
+    ///
+    /// Exists so a reader can recognise one of our workouts in Health without reconstructing a key it
+    /// does not know the timestamp for: the orphan reconciliation in `HealthKitBridge` matches on this
+    /// to tell a workout WE wrote from one another app wrote, before deciding anything about it. Kept
+    /// beside the key builder so the two cannot drift. (#2210)
+    public static let appleHealthWorkoutKeyPrefix = "noop:workout:"
+
     /// The workout key: `noop:workout:<startTs>`.
     public static func appleHealthWorkoutKey(startTs: Int) -> String {
         appleHealthExternalUUID(kind: "workout", identity: "\(startTs)")

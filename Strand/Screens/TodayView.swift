@@ -2817,7 +2817,8 @@ struct TodayView: View {
             // copy and the owner's reply on #706.
             return stressToday.map { "\(Int($0.rounded()))" } ?? Self.calibratingPlaceholder
         case .fitnessAge:
-            return withUnit(fitnessAgeToday.map { "\(Int($0.rounded()))" } ?? "—")
+            // Bound symbol as on the Health hero (#2173).
+            return withUnit(fitnessAgeToday.map { "\(fitnessAgeBoundSymbol($0))\(Int($0.rounded()))" } ?? "—")
         case .vo2max:
             return vo2maxToday.map { "\(Int($0.rounded()))" } ?? "—"
         case .vitality:
@@ -5543,14 +5544,26 @@ struct TodayDayScopedCache {
 /// yet) → `✓ live`. `.hidden` only on a true cold start (the building-scores note owns that case). Twin
 /// of Android `SyncStatusChip`.
 enum SyncChipState: Equatable {
-    case syncing(chunks: Int)
+    /// #689/#815 follow-up: `pagesBehind` is the strap's GET_DATA_RANGE ring backlog, sampled once at
+    /// connect (`LiveState.pagesBehindAtConnect`) and never re-polled, so the copy reports it "at
+    /// connect" rather than as a live figure. nil when no reply has landed this session, when the frame
+    /// did not decode, AND when the backlog is zero: a chip that is actively syncing while claiming
+    /// "0 pages behind" contradicts itself, and a zero sample carries nothing a reader can act on.
+    /// `resolve` applies that rule so both platforms drop the same case. Twin of Android
+    /// `SyncChipState.Syncing`.
+    case syncing(chunks: Int, pagesBehind: Int?)
     case synced(agoText: String)
     case experimentalLive
     case hidden
 
     @MainActor
     static func resolve(live: LiveState) -> SyncChipState {
-        if live.backfilling { return .syncing(chunks: live.syncChunksThisSession) }
+        if live.backfilling {
+            // The zero rule above. Negative cannot come off the wire (the decoder returns a ring delta),
+            // but the bound reads the same either way. Android spells this `?.takeIf { it > 0 }`.
+            return .syncing(chunks: live.syncChunksThisSession,
+                            pagesBehind: live.pagesBehindAtConnect.flatMap { $0 > 0 ? $0 : nil })
+        }
         if let ts = live.lastSyncedAt { return .synced(agoText: shortAgo(ts)) }
         if live.historySyncExperimental { return .experimentalLive }
         return .hidden
@@ -5774,7 +5787,8 @@ private struct StrapBatteryRow: View {
     }
 
     var body: some View {
-        if live.connected, let pct = live.batteryPct {
+        // #2208: the strap's charge only when the strap is the active device.
+        if live.connected, live.activeIsWhoop, let pct = live.batteryPct {
             Divider().overlay(StrandPalette.hairline)
             HStack(spacing: 10) {
                 SourceBadge("Strap battery", tint: tint(pct))

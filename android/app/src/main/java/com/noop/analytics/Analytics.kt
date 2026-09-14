@@ -86,6 +86,21 @@ object IllnessWatch {
         val recent = days.takeLast(2)
         // ~28 days ending 3 days ago: take the last 31, drop the most recent 3.
         val base = days.takeLast(31).dropLast(3)
+        // Whether a signal's window is fit to accuse the recent one (#2130). The Swift twin folds this
+        // SAME window through `Baselines.foldHistory` and refuses the signal unless the state is usable;
+        // here it was a plain mean, which is happy with ONE value and gated nothing.
+        //
+        // Folding rather than counting is the point: it is the statistic Charge is scored against, so
+        // the banner and the score can no longer hold two different baselines for one metric.
+        //
+        // Values rather than a helper because a named local function is a declaration the parity ledger
+        // counts, and this file is inside its scan.
+        val rhrBaseUsable = Baselines.metricCfg["resting_hr"]?.let { cfg ->
+            Baselines.foldHistory(base.map { it.restingHr?.toDouble() }, cfg).usable
+        } == true
+        val hrvBaseUsable = Baselines.metricCfg["hrv"]?.let { cfg ->
+            Baselines.foldHistory(base.map { it.avgHrv }, cfg).usable
+        } == true
 
         fun mean(vals: List<Double>): Double? =
             if (vals.isEmpty()) null else vals.sum() / vals.size.toDouble()
@@ -101,15 +116,17 @@ object IllnessWatch {
         run {
             val r = rm { it.restingHr?.toDouble() }
             val b = bm { it.restingHr?.toDouble() }
-            if (r != null && b != null && r >= b + 5) {
+            if (r != null && b != null && rhrBaseUsable && r >= b + 5) {
                 flags.add("resting HR +${(r - b).roundToInt()} bpm")
             }
         }
 
         run {
+            // The sparsest of the four: the over-count gate withholds whole nights (#1118), so HRV is
+            // the likeliest to have been resting on a cold-start baseline.
             val r = rm { it.avgHrv }
             val b = bm { it.avgHrv }
-            if (r != null && b != null && b > 0 && r <= b * 0.80) {
+            if (r != null && b != null && b > 0 && hrvBaseUsable && r <= b * 0.80) {
                 flags.add("HRV −${((1 - r / b) * 100).roundToInt()}%")
             }
         }

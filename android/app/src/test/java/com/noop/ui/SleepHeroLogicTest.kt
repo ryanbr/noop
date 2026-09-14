@@ -2,6 +2,12 @@ package com.noop.ui
 
 import com.noop.data.SleepSession
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.After
+import org.junit.Before
 import org.junit.Test
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -14,6 +20,24 @@ import java.util.TimeZone
  * the true calendar distance from each night's local wake-day. Mirrors iOS SleepView.nightsAgo.
  */
 class SleepHeroLogicTest {
+
+    // The nav-header date formats in the DEFAULT zone (`clockLabelFor` takes no zone), while these
+    // fixtures are built in UTC. Without pinning, an onset at 01:00 UTC formats as the PREVIOUS day
+    // anywhere west of UTC, so the date assertions below passed in UTC and Europe and failed in the
+    // Americas. Pin it for the class and restore, rather than leaving a suite that depends on where
+    // the contributor happens to live.
+    private var defaultZone: TimeZone? = null
+
+    @Before
+    fun pinZone() {
+        defaultZone = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+    }
+
+    @After
+    fun restoreZone() {
+        defaultZone?.let { TimeZone.setDefault(it) }
+    }
 
     private fun nightOn(date: LocalDate): List<SleepSession> {
         val endTs = date.atStartOfDay(ZoneOffset.UTC).plusHours(7).toEpochSecond()  // 07:00 UTC wake
@@ -148,5 +172,45 @@ class SleepHeroLogicTest {
         val logicalToday = LocalDate.of(2026, 9, 6)
         assertEquals(0, calendarNightsAgo(nav, 0, utc, logicalToday))
         assertEquals("Last night", nightRelativeLabel(calendarNightsAgo(nav, 0, utc, logicalToday)))
+    }
+
+    // MARK: - #2199 nav-header date
+
+    /** The hero's own label always wins; the navDays fallback is only for a night that did not decode. */
+    @Test
+    fun navHeaderClockLabel_prefersTheHerosOwnLabel() {
+        val nav = listOf(nightOn(LocalDate.of(2026, 8, 13)), nightOn(LocalDate.of(2026, 8, 12)))
+        assertEquals("hero", navHeaderClockLabel("hero", nav, offset = 1, is24h = true))
+    }
+
+    /**
+     * The regression itself. With no hero label the header used to borrow the SleepModel's, which is
+     * built for the NEWEST night, so browsing to an older stage-less night printed the newest night's
+     * date under a correct "N nights ago". The label must describe the BROWSED night, so the two dates
+     * here must differ, and the one returned must be the browsed night's own.
+     */
+    @Test
+    fun navHeaderClockLabel_datesTheBrowsedNight_notTheNewestOne() {
+        val nav = listOf(nightOn(LocalDate.of(2026, 8, 13)), nightOn(LocalDate.of(2026, 8, 12)))
+        val newest = navHeaderClockLabel(null, nav, offset = 0, is24h = true)
+        val browsed = navHeaderClockLabel(null, nav, offset = 1, is24h = true)
+        assertNotNull(browsed)
+        assertNotEquals("a stage-less night must not borrow the newest night's date", newest, browsed)
+        // The window is (min effectiveStartTs, max endTs), so the date shown is the ONSET day: a 07:00
+        // wake on the 12th was an 01:00 onset the same day in UTC.
+        assertTrue("expected the browsed night's own date, got $browsed", browsed!!.startsWith("Wed 12 Aug"))
+    }
+
+    /** An offset past the end of navDays has no night to date, so the header shows nothing at all. */
+    @Test
+    fun navHeaderClockLabel_returnsNullWhenTheOffsetHasNoNight() {
+        val nav = listOf(nightOn(LocalDate.of(2026, 8, 13)))
+        assertNull(navHeaderClockLabel(null, nav, offset = 5, is24h = true))
+    }
+
+    /** A degenerate group (no usable window) also yields nothing rather than a borrowed date. */
+    @Test
+    fun navHeaderClockLabel_returnsNullForAnEmptyGroup() {
+        assertNull(navHeaderClockLabel(null, listOf(emptyList()), offset = 0, is24h = true))
     }
 }

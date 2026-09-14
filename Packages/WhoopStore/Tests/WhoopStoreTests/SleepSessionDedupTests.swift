@@ -272,6 +272,42 @@ final class SleepSessionDedupTests: XCTestCase {
         XCTAssertEqual(SleepSessionDedup.keyedStart(onsetUnixSeconds: 1234, gridSeconds: 0), 1234)   // grid clamp ≥1 = identity
     }
 
+    /// Item 22, 2026-09-12: a real captured negative-duration nap. Two written codes span
+    /// 14:24:17→14:26:17 (`mapped`), but the closest-matched `0x49` window's onset landed at
+    /// ~14:41:xx — ~16 min AFTER `mapped.endTs` — because `codesWithTimes`'s own clip-would-empty
+    /// fallback had silently returned the unclipped burst. The unguarded `keyedStart` call rounded
+    /// that onset to exactly 14:42:00 and wrote it as `startTs`, 943 s after `endTs`. `safeKeyedStart`
+    /// must refuse the rekey here and return nil (keep `mapped.startTs` unchanged).
+    func testSafeKeyedStartRefusesTheItem22NegativeDurationRegression() {
+        let mappedStart = 1_789_215_857   // 14:24:17 local — matches the captured stagesJSON
+        let mappedEnd = 1_789_215_977     // 14:26:17 local
+        let mismatchedOnset = 1_789_216_910   // ~14:41:50 — the mis-paired window's onset, after endTs
+        let mapped = session(start: mappedStart, end: mappedEnd)
+        XCTAssertNil(SleepSessionDedup.safeKeyedStart(onset: mismatchedOnset, mapped: mapped))
+    }
+
+    /// The ordinary, intended case: the assembler's clip genuinely bound, so the onset sits at or
+    /// just before the first surviving code (a few epochs, per `persistHypnogramBurst`'s own doc
+    /// comment) — `safeKeyedStart` should key `startTs` to the rounded onset as designed.
+    func testSafeKeyedStartAppliesTheRekeyWhenTheClipGenuinelyBound() {
+        let onset = 1_789_215_800   // precedes mapped.startTs, as a bound clip guarantees
+        let mapped = session(start: 1_789_215_857, end: 1_789_215_977)
+        let keyed = SleepSessionDedup.safeKeyedStart(onset: onset, mapped: mapped)
+        XCTAssertEqual(keyed, SleepSessionDedup.keyedStart(onsetUnixSeconds: onset))
+        XCTAssertLessThan(keyed!, mapped.endTs)
+    }
+
+    /// A second, smaller-magnitude failure mode `safeKeyedStart` also has to catch: the onset passes
+    /// the first guard (`onset <= mapped.startTs`, so the clip genuinely bound), but 30 s grid-rounding
+    /// pushes it to or past `endTs` on a very short (20 s) session — refuse rather than mint a
+    /// zero/negative-duration session.
+    func testSafeKeyedStartRefusesWhenRoundingWouldReachOrPassEndTs() {
+        let mapped = session(start: 1_000_000, end: 1_000_020)   // 20 s session
+        let onset = 999_995   // <= mapped.startTs (clip bound), but keyedStart(999_995, 60) = 1_000_020 == endTs
+        XCTAssertEqual(SleepSessionDedup.keyedStart(onsetUnixSeconds: onset), mapped.endTs)
+        XCTAssertNil(SleepSessionDedup.safeKeyedStart(onset: onset, mapped: mapped))
+    }
+
     func testPlanBankSameBucketFullerStoredRowSuppressesAPartialReserve() {
         // F1 regression: a partial re-drain keyed to the SAME bucket (same PK) as a fuller banked night must
         // be SUPPRESSED — the upsert would otherwise replace the fuller night's stages by PK. `existing` is

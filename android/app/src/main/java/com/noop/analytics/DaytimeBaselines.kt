@@ -136,11 +136,24 @@ object DaytimeBaselines {
      * scorer honestly runs HR-only rather than z-scoring against a 1–2-day, untrustworthy HRV
      * baseline — the whole-baseline grain of the per-hour graceful-null already in rawScore.
      */
-    fun foldDaytimeBaselines(days: List<DaytimeDayStreams>): DaytimeBaselineStates {
-        val hrAggs = ArrayList<Double?>(days.size)
-        val rmssdAggs = ArrayList<Double?>(days.size)
-        for (d in days) {
-            val agg = dayDaytimeAggregate(d.hr, d.rr, d.tzOffsetSeconds)
+    fun foldDaytimeBaselines(days: List<DaytimeDayStreams>): DaytimeBaselineStates =
+        foldAggregates(days.map { dayDaytimeAggregate(it.hr, it.rr, it.tzOffsetSeconds) })
+
+    /**
+     * The same fold, taking days already reduced to their [DayAggregate] pair.
+     *
+     * This exists so a CALLER can reduce each day as it reads it and let that day's raw samples go,
+     * instead of holding thirty days of them at once (#2107). A day collapses to two Doubles here and
+     * its streams are never read again, so keeping them alive bought nothing and cost a heap: thirty
+     * days of a worn 5.0 is millions of sample objects, which is how a 256MB heap ran out.
+     *
+     * [foldDaytimeBaselines] is now literally this with the reduction done eagerly, so the streaming
+     * caller and the list caller cannot drift apart: there is one fold, reached two ways.
+     */
+    fun foldAggregates(aggregates: List<DayAggregate>): DaytimeBaselineStates {
+        val hrAggs = ArrayList<Double?>(aggregates.size)
+        val rmssdAggs = ArrayList<Double?>(aggregates.size)
+        for (agg in aggregates) {
             hrAggs.add(agg.hr)
             rmssdAggs.add(agg.rmssd)
         }
@@ -157,8 +170,13 @@ object DaytimeBaselines {
      * a cold start, or a trailing window that is all sparse/imported days, keeps EXACTLY today's
      * pre-existing day-relative behaviour.
      */
-    fun scoringMode(days: List<DaytimeDayStreams>): DaytimeStress.ScoringMode {
-        val baselines = foldDaytimeBaselines(days)
+    fun scoringMode(days: List<DaytimeDayStreams>): DaytimeStress.ScoringMode =
+        scoringModeFromAggregates(days.map { dayDaytimeAggregate(it.hr, it.rr, it.tzOffsetSeconds) })
+
+    /** [scoringMode] for days already reduced to aggregates. See [foldAggregates] for why (#2107).
+     *  Twin of Swift `DaytimeStress.scoringModeFromAggregates`. */
+    fun scoringModeFromAggregates(aggregates: List<DayAggregate>): DaytimeStress.ScoringMode {
+        val baselines = foldAggregates(aggregates)
         if (!baselines.hr.usable) return DaytimeStress.ScoringMode.DayRelative
         // RMSSD stays out of the LIVE score until it has its own validation pass — see
         // DaytimeStress.daytimeRMSSDScoringEnabled. The baseline is still folded above (so the

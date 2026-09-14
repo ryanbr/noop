@@ -105,8 +105,15 @@ public struct MenuBarContent: View {
             : live.connected ? String(localized: "CONNECTED") : String(localized: "OFFLINE")
     }
 
+    /// #2208: the strap's charge, or nil when it is not the active device's to report. This surface read
+    /// `live.batteryPct` with NO gate, so it showed the strap's last percentage with nothing connected and
+    /// under an active ring alike. One accessor so the number and its tint cannot disagree.
+    private var strapBatteryPct: Double? {
+        (live.connected && live.activeIsWhoop) ? live.batteryPct : nil
+    }
+
     private var batteryTone: StrandTone {
-        guard let pct = live.batteryPct else { return .neutral }
+        guard let pct = strapBatteryPct else { return .neutral }
         switch pct {
         case ..<15: return .critical
         case ..<35: return .warning
@@ -212,8 +219,8 @@ public struct MenuBarContent: View {
         HStack(spacing: 0) {
             statCell(
                 "BATTERY",
-                live.batteryPct.map { "\(Int($0.rounded()))%" } ?? "—",
-                tint: live.batteryPct == nil ? StrandPalette.textPrimary : toneColor(batteryTone)
+                strapBatteryPct.map { "\(Int($0.rounded()))%" } ?? "—",
+                tint: strapBatteryPct == nil ? StrandPalette.textPrimary : toneColor(batteryTone)
             )
             cellDivider
             statCell(

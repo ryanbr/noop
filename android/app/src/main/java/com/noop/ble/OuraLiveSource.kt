@@ -465,12 +465,22 @@ class OuraLiveSource(
 
     /**
      * Periodic re-fetch while connected, so an overnight-connected session (or one left open after a nap)
-     * picks up freshly-banked sleep data without needing a reconnect. Mirrors the WHOOP ~15 min periodic
-     * history-offload floor. Held as a NAMED runnable so [stop]/disconnect can remove it from the handler,
-     * matching [reengageRunnable] / [reconnectRunnable].
+     * picks up freshly-banked sleep data without needing a reconnect. Held as a NAMED runnable so
+     * [stop]/disconnect can remove it from the handler, matching [reengageRunnable] / [reconnectRunnable].
      */
     private var historyFetchScheduled = false
-    private val historyFetchIntervalMs = 900_000L
+    /**
+     * MEASURED 2026-08-10 (capture `…-260810-1556`, 2h31m at 96.6% connected): this interval is not just a
+     * backstop, it is the ACTUAL DATA CADENCE. Between fetches the ring delivered nothing at all — seven
+     * arrival gaps of 893-928 s inside live sessions, clustering exactly on the old 900 s value, while the
+     * app was awake (59-60 live-HR re-arms per gap), the link was up and the ring was worn. Only 2.1% of
+     * `0x80` "live HR" arrived within 15 s of its own second; the median record was 385 s old on arrival.
+     *
+     * 900 -> 300 s at a marginal cost: while live HR is on the app already writes dhr_enable+dhr_subscribe
+     * every 15 s (462 commands/h measured) against 21 commands/h for the whole history-fetch machinery.
+     * Payload is unchanged — the same records, in smaller chunks. Swift twin: `historyFetchInterval`.
+     */
+    private val historyFetchIntervalMs = 300_000L
     private val historyFetchRunnable = object : Runnable {
         override fun run() {
             fetchHistoryIfIdle()
@@ -498,6 +508,28 @@ class OuraLiveSource(
 
     /** Where this fetch sought from (reboot detection floor); armed per drain. */
     private var resumeCursorAtFetchStart = 0L
+
+    /**
+     * The SyncTime anchor persisted from the END of the PREVIOUS connection to this ring (#2097),
+     * loaded fresh at the start of THIS session — never an anchor this session itself adopts. Compared
+     * against [currentSyncAnchorTicks]/[currentSyncAnchorUnixSeconds] in `commitResumeCursor` to tell a
+     * genuine ring reboot from a second BLE client (e.g. the Oura app) having served the ring in
+     * between: [OuraHistoryDrain.sawPreResumeData] alone cannot, since both produce the same "stored
+     * sample older than the fetch cursor" signature. Null on a first-ever connect to this ring, or when
+     * no previous session ever adopted an anchor — the comparison then declines and the existing
+     * "treat as reboot" behavior stands.
+     */
+    private var previousSyncAnchorTicks: Long? = null
+    private var previousSyncAnchorUnixSeconds: Long? = null
+
+    /**
+     * The SyncTime anchor THIS session has adopted (freshest wins, mirroring
+     * [OuraDriver.adoptSyncTimeAnchor]), persisted via [OuraSyncAnchorStore] for the NEXT connection to
+     * compare against as its own previous anchor. Null until `adoptSyncTimeAnchor` first succeeds this
+     * session.
+     */
+    private var currentSyncAnchorTicks: Long? = null
+    private var currentSyncAnchorUnixSeconds: Long? = null
 
     /** Wall-clock start of the current drain; feeds the deadline guard. */
     private var drainStartedAtMs: Long? = null
@@ -662,8 +694,13 @@ class OuraLiveSource(
         pendingContinuation = false
         handler.removeCallbacks(batchQuietRunnable)
         hypnogramAssembler.flush()?.let { persistHypnogramBurst(it) }
-        val rebootFullPullPending = drain.sawPreResumeData
-        commitResumeCursor(completed)
+        // Ask the cursor commit whether it actually reset for a reboot rather than reading
+        // `drain.sawPreResumeData` directly: that flag is also raised by a stale replay from a second BLE
+        // client's serve position, which the #2097 judge inside `commitResumeCursor` rejects as "not a
+        // reboot" and answers by keeping the cursor. Snapshotting the flag here (as this did until
+        // 2026-09-13) had the scheduler print "ring reboot detected - starting the honest full re-pull"
+        // two lines after "not a reboot (#2097)" and burn a chained pass that only re-read the kept cursor.
+        val rebootFullPullPending = commitResumeCursor(completed)
         advance(OuraTransition.HistoryCursorAdvanced(cursor = historyCursor, moreData = false))
         if (rebootFullPullPending || resumeBacklog) {
             if (chainedDrainPasses >= MAX_CHAINED_DRAIN_PASSES) {
@@ -687,19 +724,35 @@ class OuraLiveSource(
     /**
      * Commit the durable resume cursor at drain end. Only a cursor that (a) moved forward, (b) is
      * below the plausibility ceiling, and (c) resolves to a real time under the CURRENT anchor is
-     * persisted; a reboot (`sawPreResumeData`) resets to 0 so next connect does an honest full pull.
+     * persisted; a reboot (`sawPreResumeData`) resets to 0 so next connect does an honest full pull —
+     * UNLESS the ring's own SyncTime anchor proves its clock never paused across the gap (#2097:
+     * [OuraHistoryDrain.anchorsAreContinuous]), in which case the stale replay is treated like ordinary
+     * stale data instead (dropped; cursor follows the same forward-only-if-resolving rule as any other
+     * drain) rather than forcing a full re-pull of the ring's entire history.
+     *
+     * Returns `true` only when the cursor WAS reset to 0 for a reboot — the one outcome that leaves a
+     * full re-pull pending for [finishDrain] to chain. A stale replay the judge rejected returns `false`.
      */
-    private fun commitResumeCursor(drainCompleted: Boolean) {
+    private fun commitResumeCursor(drainCompleted: Boolean): Boolean {
         val how = if (drainCompleted) "caught up (bytes_left 0)" else "stopped early"
         val resolves = drain.maxStoredRingTime > 0 &&
             driver?.unixSeconds(forRingTimestamp = drain.maxStoredRingTime) != null
-        val newCursor = drain.resumeCursorAtDrainEnd(historyCursor, resolves)
-        if (drain.sawPreResumeData) {
+        val anchorConfirmsContinuity = drain.sawPreResumeData && syncAnchorsConfirmContinuity()
+        val newCursor = drain.resumeCursorAtDrainEnd(historyCursor, resolves, anchorConfirmsContinuity)
+        if (drain.sawPreResumeData && !anchorConfirmsContinuity) {
             log("Oura: history $how but the ring served data older than cursor $resumeCursorAtFetchStart" +
                 " - clock reset/seek ignored; next connect does a full pull")
             historyCursor = 0
             OuraHistoryCursorStore.save(appContext, deviceId, 0)
-        } else if (newCursor != historyCursor) {
+            return true
+        }
+        if (drain.sawPreResumeData) {
+            log("Oura: history $how but the ring served data older than cursor $resumeCursorAtFetchStart" +
+                " - the ring's own SyncTime clock never paused across the gap, so this is a second BLE" +
+                " client's serve position, not a reboot (#2097); discarding the stale replay instead of" +
+                " a full re-pull")
+        }
+        if (newCursor != historyCursor) {
             historyCursor = newCursor
             OuraHistoryCursorStore.save(appContext, deviceId, newCursor)
             log("Oura: history $how - resume cursor advanced to $historyCursor")
@@ -709,6 +762,21 @@ class OuraLiveSource(
         } else {
             log("Oura: history $how (resume cursor unchanged $historyCursor)")
         }
+        return false
+    }
+
+    /**
+     * Whether this drain's `sawPreResumeData` flag should be trusted as a genuine ring reboot, or
+     * whether the ring's own clock proves otherwise (#2097). Requires BOTH a previous-session anchor
+     * (persisted by an earlier connect) and an anchor THIS session adopted; either missing means there
+     * is nothing to compare, so this declines (`false`) and the existing reboot handling stands.
+     */
+    private fun syncAnchorsConfirmContinuity(): Boolean {
+        val prevTicks = previousSyncAnchorTicks ?: return false
+        val prevSeconds = previousSyncAnchorUnixSeconds ?: return false
+        val curTicks = currentSyncAnchorTicks ?: return false
+        val curSeconds = currentSyncAnchorUnixSeconds ?: return false
+        return OuraHistoryDrain.anchorsAreContinuous(prevTicks, prevSeconds, curTicks, curSeconds)
     }
 
     /**
@@ -722,6 +790,21 @@ class OuraLiveSource(
     private fun persistHypnogramBurst(burst: OuraHypnogramBurst) {
         val d = driver ?: return
         if (burst.totalCodes <= 0) return
+        // STALE-REPLAY GATE (2026-09-13, Oura-app handoff on a Gen 3): a second BLE client on the same
+        // phone makes the ring re-serve from ITS position, and the #2097 judge rightly keeps our cursor —
+        // but by then every replayed record has been ingested. Time-series rows dedupe on their keys; a
+        // burst does not: the last two sleep-phase records of a night came back without their 0x49 window
+        // and were end-anchored at their write time into a 52-minute `[no-0x49-onset]` session whose codes
+        // were not the night's tail. A burst written BEFORE where this fetch resumed was already banked
+        // from its own drain, so it is refused here rather than handed to the persist path's dedup. A
+        // genuine reboot is unaffected: its judge resets the cursor to 0 and the chained full pull
+        // re-serves the same records with no floor. Twin of the Swift gate.
+        if (OuraHistoryDrain.predatesResume(burst.lastRingTimestamp, resumeCursorAtFetchStart)) {
+            log("Oura: hypnogram burst (${burst.totalCodes} codes, written at rt ${burst.lastRingTimestamp})" +
+                " predates the resume cursor $resumeCursorAtFetchStart - a re-serve from a second BLE client's" +
+                " position (#2097), already banked from its own drain; not persisted")
+            return
+        }
         val writeEnd = d.unixSeconds(forRingTimestamp = burst.lastRingTimestamp)
         if (writeEnd == null) {
             pendingUnanchoredBursts.add(burst)
@@ -785,9 +868,15 @@ class OuraLiveSource(
             // startTs on the ROUNDED onset (stable across the ring's re-serves) rather than the end-anchored
             // first-code time — so re-serves of one night share a PK and the bedtime is the true onset. The
             // completeness guard in the persist closure then suppresses/replaces any duplicate.
+            // safeKeyedStart refuses the rekey when `sleepStart` didn't actually bind in the assembler's own
+            // clip (item 22, 2026-09-12: a mis-paired 0x49 window otherwise wrote a startTs 16 min AFTER its
+            // own endTs) — see its doc comment for why `onset <= mapped.startTs` is the exact test.
             val onset = sleepStart
-            val session = if (onsetKeying() && onset != null) {
-                mapped.copy(startTs = com.noop.analytics.SleepSessionDedup.keyedStart(onset))
+            val keyed = onset?.let {
+                com.noop.analytics.SleepSessionDedup.safeKeyedStart(it, mapped.startTs, mapped.endTs)
+            }
+            val session = if (onsetKeying() && keyed != null) {
+                mapped.copy(startTs = keyed)
             } else {
                 mapped
             }
@@ -875,6 +964,12 @@ class OuraLiveSource(
             log("Oura: UTC anchor from SyncTime response (0x13) $source - device rt $rt [$unit, " +
                 "raw $raw, status $status] = its receipt time; no 0x42 needed this session")
         }
+        // The freshest pair this session has adopted (mirrors `d.adoptSyncTimeAnchor` always
+        // overwriting), kept for `commitResumeCursor`'s continuity check and persisted so the NEXT
+        // connection can compare against it as its own previous anchor (#2097).
+        currentSyncAnchorTicks = rt
+        currentSyncAnchorUnixSeconds = receivedAt
+        OuraSyncAnchorStore.save(appContext, deviceId, rt, receivedAt)
         drainPendingAnchorEvents()
         drainPendingHypnogramBursts()
         return true
@@ -1035,6 +1130,14 @@ class OuraLiveSource(
             log("Oura: persisted resume cursor $loadedCursor exceeds the plausibility ceiling (pre-fix garbage) - full pull")
             OuraHistoryCursorStore.save(appContext, deviceId, 0)
         }
+        // The anchor from whatever session last adopted one — loaded BEFORE this session gets a chance
+        // to adopt its own, so `commitResumeCursor` can compare the two (#2097). The current-session
+        // anchor starts null each session; nothing carries a stale in-memory anchor into a fresh connect.
+        val loadedAnchor = OuraSyncAnchorStore.read(appContext, deviceId)
+        previousSyncAnchorTicks = loadedAnchor?.first
+        previousSyncAnchorUnixSeconds = loadedAnchor?.second
+        currentSyncAnchorTicks = null
+        currentSyncAnchorUnixSeconds = null
         // connectGatt can throw (SecurityException if BLUETOOTH_CONNECT was revoked mid-session,
         // IllegalArgumentException on a stale device) - never let that crash the app; a failed start
         // simply leaves the previous source in place (mirrors [StandardHrSource]).
@@ -2236,5 +2339,48 @@ object OuraHistoryCursorStore {
     /** Store the advanced cursor for [deviceId]. */
     fun save(ctx: Context, deviceId: String, cursor: Long) {
         runCatching { prefs(ctx).edit().putLong(prefKey(deviceId), cursor and 0xFFFF_FFFFL).apply() }
+    }
+}
+
+// MARK: - Oura SyncTime anchor persistence (#2097)
+
+/**
+ * Persists the Oura ring's `0x13 SyncTime` (ring-ticks, wall-clock) anchor pair across connects, so a
+ * later connection can check whether the ring's own clock ran continuously since the last one —
+ * distinguishing a genuine power-cycle from a second BLE client (e.g. the Oura app) having served the
+ * ring in between, which otherwise looks identical to [OuraHistoryDrain.sawPreResumeData]
+ * ([OuraHistoryDrain.anchorsAreContinuous] does the actual comparison; this object only persists the
+ * inputs). Kotlin twin of Swift's `OuraSyncAnchorStore`. Not sensitive — an opaque clock pairing, not a
+ * credential — so plain [SharedPreferences], same reasoning as [OuraHistoryCursorStore].
+ */
+object OuraSyncAnchorStore {
+    private const val FILE_NAME = "noop_oura_sync_anchor"
+    private const val TICKS_KEY_PREFIX = "sync_anchor_ticks_"
+    private const val SECONDS_KEY_PREFIX = "sync_anchor_seconds_"
+
+    private fun prefs(ctx: Context): SharedPreferences =
+        ctx.applicationContext.getSharedPreferences(FILE_NAME, Context.MODE_PRIVATE)
+
+    /** The persisted anchor for [deviceId] as (ringTicks, unixSeconds), or null if none is stored yet
+     *  (a ring never anchored before, or an install that predates this feature). */
+    fun read(ctx: Context, deviceId: String): Pair<Long, Long>? = runCatching {
+        val p = prefs(ctx)
+        val ticksKey = "$TICKS_KEY_PREFIX$deviceId"
+        val secondsKey = "$SECONDS_KEY_PREFIX$deviceId"
+        if (!p.contains(ticksKey) || !p.contains(secondsKey)) {
+            null
+        } else {
+            p.getLong(ticksKey, 0L) to p.getLong(secondsKey, 0L)
+        }
+    }.getOrNull()
+
+    /** Store the freshest anchor for [deviceId]. */
+    fun save(ctx: Context, deviceId: String, ringTicks: Long, unixSeconds: Long) {
+        runCatching {
+            prefs(ctx).edit()
+                .putLong("$TICKS_KEY_PREFIX$deviceId", ringTicks and 0xFFFF_FFFFL)
+                .putLong("$SECONDS_KEY_PREFIX$deviceId", unixSeconds)
+                .apply()
+        }
     }
 }

@@ -131,7 +131,13 @@ struct StressView: View {
             : .dayRelative
         if case .baselineRelative = mode { daytimeUsesPersonalBaseline = true }
         else { daytimeUsesPersonalBaseline = false }
-        daytime = DaytimeStress.analyze(hr: hr, rr: rr, gravity: gravity, tzOffsetSeconds: tz, mode: mode)
+        // includeTimeline: the SLIDING read, so the screen's line moves in half-hours instead of
+        // stepping through whole clock hours (#2144). The scored unit is still a full hour; this only
+        // decides how often that hour is re-read, so a thin ten minutes costs the windows that overlap
+        // it rather than a whole hour of chart. The Today card and the widget have always asked for
+        // this; the screen people actually study was the one still stepping. Twin of the Kotlin change.
+        daytime = DaytimeStress.analyze(hr: hr, rr: rr, gravity: gravity, tzOffsetSeconds: tz, mode: mode,
+                                        includeTimeline: true)
 
         // ADDITIVE advanced readouts, computed on-demand from the SAME `rr` (no extra fetch, no
         // DB / schema change, and no effect on the 0..3 score above). Each engine returns nil when
@@ -160,8 +166,14 @@ struct StressView: View {
     /// fold itself is O(days).
     private func daytimeScoringMode(startOfToday: Date) async -> DaytimeStress.ScoringMode {
         let cal = Calendar.current
-        var days: [DaytimeStress.DaytimeDayStreams] = []
-        days.reserveCapacity(Self.baselineHistoryDays)
+        // #2107: keep each day's AGGREGATE, never its streams. This used to accumulate 30 x
+        // DaytimeDayStreams, each holding up to 200,000 HR plus 200,000 R-R samples, and hand the lot to
+        // the fold. The fold's first act is to reduce a day to two Doubles, so all that was ever wanted
+        // from thirty days was sixty numbers; holding the samples alive to produce them is what exhausted
+        // a 256MB heap on the Android twin and crashed it with an OutOfMemoryError. Reducing here lets
+        // each day's samples be released at the end of its own iteration.
+        var aggregates: [(hr: Double?, rmssd: Double?)] = []
+        aggregates.reserveCapacity(Self.baselineHistoryDays)
         // Oldest → newest so the EWMA fold replays the history in order.
         for back in stride(from: Self.baselineHistoryDays, through: 1, by: -1) {
             guard let dayStart = cal.date(byAdding: .day, value: -back, to: startOfToday),
@@ -172,9 +184,11 @@ struct StressView: View {
             let dayHR = await repo.hrSamples(from: from, to: to, limit: 200_000)
             guard !dayHR.isEmpty else { continue }   // unworn day — no floor to learn, skip the R-R read
             let dayRR = await repo.rrIntervals(from: from, to: to, limit: 200_000)
-            days.append(.init(hr: dayHR, rr: dayRR, tzOffsetSeconds: dayTz))
+            aggregates.append(
+                DaytimeStress.dayDaytimeAggregate(hr: dayHR, rr: dayRR, tzOffsetSeconds: dayTz)
+            )
         }
-        return DaytimeStress.scoringMode(history: days)
+        return DaytimeStress.scoringModeFromAggregates(aggregates)
     }
 
     /// Recompute the cached `StressModel` only when (repo.days, storedSeries)
@@ -257,7 +271,13 @@ struct StressView: View {
                     HStack {
                         Text("Autonomic load through the day").strandOverline()
                         Spacer()
-                        if let peak = day.peak, let lvl = peak.level {
+                        // The peak of what is DRAWN, not of the whole hours (#2144). A sliding window
+                        // can exceed both hourly neighbours when the busy stretch straddles a boundary,
+                        // so `day.peak` would caption the line with a number below its visible maximum.
+                        // Everything that COUNTS hours still reads `hours`; a maximum is not a count.
+                        let drawnPeak = day.timeline.filter { $0.level != nil }
+                            .max { ($0.level ?? 0) < ($1.level ?? 0) }
+                        if let peak = drawnPeak, let lvl = peak.level {
                             Text("peak \(String(format: "%.1f", lvl)) · \(hourLabel(peak.hour))")
                                 .font(StrandFont.captionNumber)
                                 .foregroundStyle(StressRamp.color(lvl))
@@ -266,10 +286,13 @@ struct StressView: View {
 
                     // README screen-9: the day autonomic-load LINE, drawn with the same
                     // 3-stop blue→green→amber WHOOP gradient as the gauge.
-                    DaytimeLoadLine(hours: day.hours)
+                    // The SLIDING series, not the bare hours (#2144). Everything that COUNTS hours
+                    // keeps reading `hours`: the totals bar's shares still have to sum to the day.
+                    // Only the line and its ruler follow the finer read.
+                    DaytimeLoadLine(hours: day.timeline)
 
                     // Hour ruler under the line (first / midday / last covered hour).
-                    if let lo = day.hours.first?.hour, let hi = day.hours.last?.hour {
+                    if let lo = day.timeline.first?.hour, let hi = day.timeline.last?.hour {
                         HStack {
                             Text(hourLabel(lo)).font(StrandFont.footnote)
                                 .foregroundStyle(StrandPalette.textTertiary)
@@ -507,7 +530,15 @@ struct StressView: View {
     private func markerTile(label: LocalizedStringKey, value: String, delta: Double?, accent: Color, higherIsStress: Bool) -> some View {
         let deltaText: String?
         let deltaColor: Color
-        if let delta, abs(delta) >= 0.5 {
+        // NO CHIP for a missing delta, rather than a claim we cannot make (#2145). It is nil when
+        // today has no reading or there is no 30-day baseline to stand one against, and both fell
+        // through to the at-baseline chip: a tile with no reading read "— at baseline", and a
+        // first-week tile put a reading exactly on a baseline that did not exist yet. StatTile draws
+        // the pill only for a non-nil delta, so nil is already the way to say nothing here.
+        if delta == nil {
+            deltaText = nil
+            deltaColor = StrandPalette.textTertiary
+        } else if let delta, abs(delta) >= 0.5 {
             let up = delta > 0
             let isStressful = (up == higherIsStress)
             deltaText = String(localized: "\(up ? "+" : "−")\(Int(abs(delta).rounded())) vs base")

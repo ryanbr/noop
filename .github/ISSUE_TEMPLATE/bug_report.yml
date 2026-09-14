@@ -51,12 +51,16 @@ body:
   - type: dropdown
     id: strap
     attributes:
-      label: WHOOP strap model
+      label: WHOOP strap / Oura ring model
+      description: The model NOOP shows on the Devices screen for the device this report is about.
       options:
         - WHOOP 4.0
         - WHOOP 5.0
         - WHOOP MG
-        - No strap — imported data only
+        - Oura Ring 3 (Gen3)
+        - Oura Ring 4
+        - Oura Ring 5
+        - No strap or ring — imported data only
         - Not sure
     validations:
       required: true
@@ -67,7 +71,8 @@ body:
       multiple: true
       description: Tick all that apply.
       options:
-        - Live Bluetooth (strap connected)
+        - Live Bluetooth (WHOOP strap connected)
+        - Live Bluetooth (Oura ring connected)
         - WHOOP CSV export import
         - Apple Health import
         - Health Connect import

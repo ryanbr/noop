@@ -111,6 +111,17 @@ interface DeviceRegistryDao {
     @Query("DELETE FROM liveSession WHERE deviceId = :deviceId") suspend fun deleteLiveSessionsFor(deviceId: String)
     @Query("DELETE FROM dismissedWorkout WHERE deviceId = :deviceId") suspend fun deleteDismissedWorkoutsFor(deviceId: String)
     @Query("DELETE FROM dismissedSleep WHERE deviceId = :deviceId") suspend fun deleteDismissedSleepsFor(deviceId: String)
+    // v46-lift-log: the five strength-log tables, including the CHILD rows. `liftProgramItem` and
+    // `liftSet` join to their parents by id rather than by a foreign key, so deleting only the parents
+    // would strip the programs and sessions and leave every logged set behind — the same shape as the
+    // audit finding above. Landed WITH the schema rather than after it: no Android DAO writes these
+    // tables yet, so nothing would notice the gap until something did, and `deleteDeviceDataCallsEvery\
+    // DaoDeleteMethod` cannot see a table that has no method at all.
+    @Query("DELETE FROM liftExercise WHERE deviceId = :deviceId") suspend fun deleteLiftExercisesFor(deviceId: String)
+    @Query("DELETE FROM liftProgram WHERE deviceId = :deviceId") suspend fun deleteLiftProgramsFor(deviceId: String)
+    @Query("DELETE FROM liftProgramItem WHERE deviceId = :deviceId") suspend fun deleteLiftProgramItemsFor(deviceId: String)
+    @Query("DELETE FROM liftSession WHERE deviceId = :deviceId") suspend fun deleteLiftSessionsFor(deviceId: String)
+    @Query("DELETE FROM liftSet WHERE deviceId = :deviceId") suspend fun deleteLiftSetsFor(deviceId: String)
 
     // #771 adopt-serial: re-key one device's rows onto the serial id across every device-scoped table.
     // `UPDATE OR IGNORE` so the canonical (serial) row wins any (deviceId, ts…) primary-key clash; the
@@ -141,6 +152,11 @@ interface DeviceRegistryDao {
     @Query("UPDATE OR IGNORE liveSession SET deviceId = :to WHERE deviceId = :from") suspend fun reKeyLiveSessions(from: String, to: String)
     @Query("UPDATE OR IGNORE dismissedWorkout SET deviceId = :to WHERE deviceId = :from") suspend fun reKeyDismissedWorkouts(from: String, to: String)
     @Query("UPDATE OR IGNORE dismissedSleep SET deviceId = :to WHERE deviceId = :from") suspend fun reKeyDismissedSleeps(from: String, to: String)
+    @Query("UPDATE OR IGNORE liftExercise SET deviceId = :to WHERE deviceId = :from") suspend fun reKeyLiftExercises(from: String, to: String)
+    @Query("UPDATE OR IGNORE liftProgram SET deviceId = :to WHERE deviceId = :from") suspend fun reKeyLiftPrograms(from: String, to: String)
+    @Query("UPDATE OR IGNORE liftProgramItem SET deviceId = :to WHERE deviceId = :from") suspend fun reKeyLiftProgramItems(from: String, to: String)
+    @Query("UPDATE OR IGNORE liftSession SET deviceId = :to WHERE deviceId = :from") suspend fun reKeyLiftSessions(from: String, to: String)
+    @Query("UPDATE OR IGNORE liftSet SET deviceId = :to WHERE deviceId = :from") suspend fun reKeyLiftSets(from: String, to: String)
 
     /** The registry row for [id], or null. (#771 adopt-serial needs the active row's fields to clone/carry.) */
     @Query("SELECT * FROM pairedDevice WHERE id = :id")

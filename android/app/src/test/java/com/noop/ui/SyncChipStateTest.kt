@@ -89,4 +89,53 @@ class SyncChipStateTest {
         )
         assertEquals(SyncChipState.Synced("<1m"), state)
     }
+
+    // #689/#815: the connect-time backlog sample. Twin of the iOS cases in `SyncChipStateTests`.
+
+    @Test
+    fun backfillingWithBacklog_carriesThePagesFigure() {
+        val state = SyncChipState.resolve(
+            backfilling = true, chunks = 3, lastSyncAtSec = null, historySyncExperimental = false,
+            nowSec = NOW, pagesBehind = 120,
+        )
+        assertEquals(SyncChipState.Syncing(3, 120), state)
+    }
+
+    /**
+     * A zero backlog is dropped rather than rendered. The chip only exists while a sync is running, so
+     * "0 pages behind at connect" next to a spinning icon contradicts itself, and a zero sample gives a
+     * reader nothing to act on. Pinned because the rule lives in `resolve` precisely so both platforms
+     * drop the same case rather than each deciding in its own view layer.
+     */
+    @Test
+    fun backfillingWithZeroBacklog_dropsTheDetail() {
+        val state = SyncChipState.resolve(
+            backfilling = true, chunks = 3, lastSyncAtSec = null, historySyncExperimental = false,
+            nowSec = NOW, pagesBehind = 0,
+        )
+        assertEquals(SyncChipState.Syncing(3, null), state)
+    }
+
+    /** No reply yet this session, or a frame that did not decode: the chip is exactly what it was before. */
+    @Test
+    fun backfillingWithoutASample_isUnchanged() {
+        val state = SyncChipState.resolve(
+            backfilling = true, chunks = 3, lastSyncAtSec = null, historySyncExperimental = false,
+            nowSec = NOW, pagesBehind = null,
+        )
+        assertEquals(SyncChipState.Syncing(3, null), state)
+    }
+
+    /**
+     * The backlog only qualifies an in-progress sync. Once the strap has finished, the chip reports when
+     * it last synced, and a stale "behind" figure must not survive into that state.
+     */
+    @Test
+    fun notBackfilling_ignoresTheBacklog() {
+        val state = SyncChipState.resolve(
+            backfilling = false, chunks = 0, lastSyncAtSec = NOW - 65, historySyncExperimental = false,
+            nowSec = NOW, pagesBehind = 120,
+        )
+        assertEquals(SyncChipState.Synced("1m"), state)
+    }
 }

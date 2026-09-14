@@ -154,7 +154,14 @@ Swift, you MUST build the app yourself: `xcodebuild … build` locally, or run `
 ## Hard rules before you touch these areas
 
 - **BLE (read [`docs/CONTRIBUTING.md`](docs/CONTRIBUTING.md) §BLE safety contract first):** never add
-  destructive/write commands to hardware; CRC-gate every inbound frame; keep the connection path
+  **destructive** commands — firmware/DFU, ship-mode, power-cycle, force-trim, fuel-gauge reset, or
+  anything else that can brick, wipe, or permanently alter the device. The ban is on *destructive*, not
+  on writing: most of the curated set writes (toggle realtime HR, arm/cancel the alarm, start/stop raw
+  data), and reversibility is the test. A new non-trivial command is **issue-first** — justify why it is
+  reversible, confirmation-gate it, never send it automatically, and document its payload and its
+  on-device verification before any code. That is the bar `rebootStrap` (#166) and the Oura Test Centre
+  feature-mode write (#2105) were each held to. A write whose effect cannot be shown to reverse is
+  treated as destructive until proven otherwise. CRC-gate every inbound frame; keep the connection path
   stable; no hardcoded hex frame bytes in app code — protocol facts live in the decoders/schema.
 - **`didBond` is load-bearing well beyond the handshake — check every reader before you make a strap
   deliberately not bond.** At least three independent mechanisms treat "connected but never bonded" as a

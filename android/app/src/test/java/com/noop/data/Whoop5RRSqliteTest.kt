@@ -30,6 +30,7 @@ class Whoop5RRSqliteTest {
     private val owners = linkedMapOf<String, PairedDeviceRow>()
     private val sleeps = linkedMapOf<Pair<String, Long>, SleepSession>()
     private val days = linkedMapOf<Pair<String, String>, DailyMetric>()
+    private val provenance = linkedMapOf<Triple<String, String, String>, ScoreInputProvenanceRow>()
     private val gravity = mutableListOf<GravitySample>()
     private val id = "my-whoop"
 
@@ -78,14 +79,28 @@ class Whoop5RRSqliteTest {
                     (args[0] as List<*>).filterIsInstance<SleepSession>().forEach { sleeps[it.deviceId to it.startTs] = it }
                     Unit
                 }
+                "sleepSession" -> sleeps[(args[0] as String) to (args[1] as Long)]
                 "insertSleepSession" -> {
                     val row = args[0] as SleepSession
                     if (sleeps.putIfAbsent(row.deviceId to row.startTs, row) == null) 1L else -1L
                 }
+                "updateSleepSession" -> {
+                    val row = args[0] as SleepSession
+                    if (sleeps.replace(row.deviceId to row.startTs, row) != null) 1 else 0
+                }
                 "replaceComputedScoreWindow" -> {
+                    val deviceId = args[0] as String
+                    val from = args[1] as String
+                    val to = args[2] as String
+                    days.keys.removeAll { it.first == deviceId && it.second in from..to }
+                    provenance.keys.removeAll { it.first == deviceId && it.second in from..to && it.third != "vo2max_est" }
                     (args[3] as List<*>).filterIsInstance<DailyMetric>().forEach { days[it.deviceId to it.day] = it }
+                    (args[5] as List<*>).filterIsInstance<ScoreInputProvenanceRow>().forEach {
+                        provenance[Triple(it.deviceId, it.day, it.key)] = it
+                    }
                     Unit
                 }
+                "scoreInputSource" -> provenance[Triple(args[0] as String, args[1] as String, args[2] as String)]?.sourceId
                 "upsertMetricSeries", "upsertMetricSeriesWithProvenance", "deleteWorkoutsBySport" -> Unit
                 "sessionSleepStateJson" -> null
                 "appleDaily", "workouts", "dismissedSleeps" -> emptyList<Any>()
@@ -113,6 +128,10 @@ class Whoop5RRSqliteTest {
                         r.getInt("synced"), optional("ord"), optional("srcChannel"), optional("tsSuspect"))
                 }
                 "hasWhoop5RrSource" -> query(HAS_WHOOP5_RR_SOURCE_SQL, mapOf("deviceId" to args[0])) {
+                    it.getBoolean(1)
+                }.single()
+                "legacyWhoop5RrWithheld" -> query(LEGACY_WHOOP5_RR_WITHHELD_SQL,
+                    listOf("deviceId", "from", "to").zip(args.take(3)).toMap()) {
                     it.getBoolean(1)
                 }.single()
                 "firstScorableWhoop5RrTs", "firstRecordedRrTs" -> query(
@@ -200,7 +219,7 @@ class Whoop5RRSqliteTest {
         )
     }
 
-    private suspend fun assertLegacyGapScoringLifecycle(model: String, expectsLegacyGap: Boolean) {
+    private suspend fun assertLegacySnapshotScoringLifecycle(model: String, expectsProtection: Boolean) {
         val owner = "physical-strap"
         registry(model, owner = owner)
         activate(owner)
@@ -227,13 +246,44 @@ class Whoop5RRSqliteTest {
         assertNull(noBeats.recovery)
         assertFalse("ordinary missing beats are not legacy units", showsLegacyGap(noBeats, owner))
 
+        val computedId = "$id-noop"
+        val legacySnapshot = noBeats.copy(deviceId = computedId, totalSleepMin = 1.0, efficiency = 0.01,
+            restingHr = 199, avgHrv = 77.25, recovery = 0.42, strain = 99.0,
+            respRateBpm = 14.25, avgSdnn = 63.5)
+        days[computedId to legacySnapshot.day] = legacySnapshot
+        provenance[Triple(computedId, legacySnapshot.day, "recovery")] = ScoreInputProvenanceRow(
+            computedId, legacySnapshot.day, "recovery", "legacy-owner")
         val legacyRr = (start until end).map { RrRow(it, if (it % 2L == 0L) 980 else 1020) }
         repo.insert(StreamBatch(rr = legacyRr), owner)
         val legacy = score()
-        assertEquals(expectsLegacyGap, showsLegacyGap(legacy, owner))
-        if (expectsLegacyGap) {
-            assertNull(legacy.avgHrv)
-            assertNull("a seeded baseline cannot supply missing nightly HRV", legacy.recovery)
+        assertFalse(showsLegacyGap(legacy, owner))
+        if (expectsProtection) {
+            assertEquals(legacySnapshot.avgHrv, legacy.avgHrv)
+            assertEquals(legacySnapshot.recovery, legacy.recovery)
+            assertEquals("RR-derived respiration must survive", legacySnapshot.respRateBpm, legacy.respRateBpm)
+            assertEquals("the other persisted RR-only aggregate must survive", legacySnapshot.avgSdnn, legacy.avgSdnn)
+            assertNotEquals("sleep must be freshly scored", legacySnapshot.totalSleepMin, legacy.totalSleepMin)
+            assertNotEquals("only the R-R-derived snapshot is protected", legacySnapshot.restingHr, legacy.restingHr)
+            assertEquals("legacy-owner", repo.scoreInputSource(computedId, legacy.day, "recovery"))
+            val stable = score()
+            assertEquals(legacySnapshot.avgHrv, stable.avgHrv)
+            assertEquals(legacySnapshot.recovery, stable.recovery)
+            assertEquals(legacySnapshot.respRateBpm, stable.respRateBpm)
+            assertEquals(legacySnapshot.avgSdnn, stable.avgSdnn)
+            assertEquals("legacy-owner", repo.scoreInputSource(computedId, legacy.day, "recovery"))
+
+            val thin = legacyRr.first()
+            assertEquals(0, repo.insert(StreamBatch(rr = listOf(thin.copy(
+                srcChannel = RrSourceChannel.WHOOP5_STANDARD))), owner).rr)
+            val insufficient = score()
+            assertNull("a marked but insufficient transport must not be masked", insufficient.avgHrv)
+            assertNull(insufficient.recovery)
+            assertNull(insufficient.respRateBpm)
+            assertNull(insufficient.avgSdnn)
+
+            days[computedId to legacySnapshot.day] = legacySnapshot
+            provenance[Triple(computedId, legacySnapshot.day, "recovery")] = ScoreInputProvenanceRow(
+                computedId, legacySnapshot.day, "recovery", "legacy-owner")
             // Keep the same unlabelled-era bounds: valid HRV alone must rule out this cause.
             assertFalse("valid HRV without Charge is ordinary calibration",
                 showsLegacyGap(legacy.copy(avgHrv = 40.0), owner))
@@ -241,6 +291,7 @@ class Whoop5RRSqliteTest {
                 it.copy(srcChannel = RrSourceChannel.WHOOP5_HISTORICAL)
             }), owner).rr)
         } else {
+            assertNotEquals(legacySnapshot.avgHrv, legacy.avgHrv)
             assertEquals(40.0, legacy.avgHrv!!, 0.001)
             assertNotNull(legacy.recovery)
         }
@@ -248,6 +299,11 @@ class Whoop5RRSqliteTest {
         val restored = score()
         assertEquals(40.0, restored.avgHrv!!, 0.001)
         assertNotNull(restored.recovery)
+        if (expectsProtection) {
+            assertNotEquals(legacySnapshot.respRateBpm, restored.respRateBpm)
+            assertNotEquals(legacySnapshot.avgSdnn, restored.avgSdnn)
+        }
+        if (expectsProtection) assertEquals(owner, repo.scoreInputSource(computedId, restored.day, "recovery"))
         assertFalse(showsLegacyGap(restored, owner))
         val idle = score()
         assertEquals(restored.avgHrv, idle.avgHrv)
@@ -255,12 +311,12 @@ class Whoop5RRSqliteTest {
         assertFalse("a cache hit must not revive the explanation", showsLegacyGap(idle, owner))
     }
 
-    @Test fun actualWhoop5GapClearsAfterSourcePromotion() = runBlocking {
-        assertLegacyGapScoringLifecycle("5.0 MG", expectsLegacyGap = true)
+    @Test fun actualWhoop5LegacySnapshotClearsAfterSourcePromotion() = runBlocking {
+        assertLegacySnapshotScoringLifecycle("5.0 MG", expectsProtection = true)
     }
 
     @Test fun actualWhoop4LegacyNightKeepsScoresWithoutExplanation() = runBlocking {
-        assertLegacyGapScoringLifecycle("4.0", expectsLegacyGap = false)
+        assertLegacySnapshotScoringLifecycle("4.0", expectsProtection = false)
     }
 
     /** The date the "this night cannot be scored" explanation names comes from this query, so it has to
@@ -305,6 +361,29 @@ class Whoop5RRSqliteTest {
         assertFalse(plan.any { it.contains("SCAN rrInterval") })
     }
 
+    @Test fun legacyWithheldStatusUsesExactScoringWindowAndSourcePolicy() = runBlocking {
+        repo.insert(StreamBatch(rr = listOf(RrRow(100, 1000))), id)
+        assertTrue(repo.legacyWhoop5RrWithheld(id, 100, 200))
+        assertFalse("rows outside the exact read window cannot protect a score",
+            repo.legacyWhoop5RrWithheld(id, 101, 200))
+        statement("UPDATE rrInterval SET tsSuspect=1 WHERE deviceId=:id AND ts=100",
+            mapOf("id" to id)).use { it.executeUpdate() }
+        assertFalse("quarantined rows follow the scoring read exclusion",
+            repo.legacyWhoop5RrWithheld(id, 100, 200))
+        statement("UPDATE rrInterval SET tsSuspect=NULL WHERE deviceId=:id AND ts=100",
+            mapOf("id" to id)).use { it.executeUpdate() }
+
+        repo.insert(StreamBatch(rr = listOf(RrRow(150, 990,
+            srcChannel = RrSourceChannel.WHOOP5_STANDARD))), id)
+        assertFalse("a scorable labelled transport ends protection",
+            repo.legacyWhoop5RrWithheld(id, 100, 200))
+
+        registry("4.0")
+        assertFalse(repo.legacyWhoop5RrWithheld(id, 100, 149))
+        registry("5.0 MG", brand = "Oura")
+        assertFalse(repo.legacyWhoop5RrWithheld(id, 100, 149))
+    }
+
     @Test fun actualNightlyScorerGuardsCanonicalHistoryAfterRePairing() = runBlocking {
         registry("WHOOP")
         registry("5.0 MG", owner = "new-five")
@@ -317,6 +396,7 @@ class Whoop5RRSqliteTest {
             hr = (start until end).map { HrRow(it, 60) },
             rr = (start until end).map { RrRow(it, if (it % 2L == 0L) 980 else 1020) },
         ), id)
+        assertTrue(repo.legacyWhoop5RrWithheld(id, start, end))
         repo.upsertSleepSessions(listOf(SleepSession(deviceId = id, startTs = start, endTs = end,
             efficiency = 1.0, restingHr = null, avgHrv = null,
             stagesJSON = AnalyticsEngine.encodeStages(listOf(StageSegment(start, end, "light"))))))

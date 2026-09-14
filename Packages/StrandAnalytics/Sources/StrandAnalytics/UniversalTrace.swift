@@ -18,6 +18,37 @@ import Foundation
 
 public enum UniversalTrace {
 
+    /// The R-R transport line: what a device has banked versus what its unit policy can actually score.
+    ///
+    /// #2117: a WHOOP 5 window is pinned to one transport, and a window holding no beat on a scorable
+    /// channel reads back EMPTY rather than falling back. Everything derived from beats then goes blank
+    /// (HRV, respiratory rate) while heart-rate-derived values carry on, which is what a wearer reports
+    /// as "HRV stopped working". The analyzer cannot explain it: handed nothing, it honestly says
+    /// nInput=0 and has no way to know whether the strap banked nothing or banked beats the policy
+    /// refused.
+    ///
+    /// These two facts separate those cases, and the store already computes both. Rides every export for
+    /// the same reason the clock-drift line does: the wearer who needs it is the one who did not know to
+    /// turn a mode on. Returns nil for a device the policy does not apply to, so a WHOOP 4 export is
+    /// unchanged.
+    ///
+    /// Twin of Kotlin `ConnectionTrace.rrTransportLine`.
+    public static func rrTransportLine(strictWhoop5: Bool,
+                                       firstRecordedUnix: Int?,
+                                       firstScorableUnix: Int?) -> String? {
+        guard strictWhoop5 else { return nil }
+        guard let firstRecordedUnix else { return "rrTransport recorded=none scorable=none" }
+        let recorded = "recorded=\(ConnectionTrace.isoDate(firstRecordedUnix))"
+        guard let firstScorableUnix else {
+            // Beats on disk, none the policy will score: the whole history predates transport labelling
+            // or sits on an excluded channel. This is the state that blanks every night at once.
+            return "rrTransport \(recorded) scorable=none unscorableHistory=yes"
+        }
+        let gapDays = max(0, Int((Double(firstScorableUnix - firstRecordedUnix) / 86_400).rounded()))
+        return "rrTransport \(recorded) scorable=\(ConnectionTrace.isoDate(firstScorableUnix)) "
+            + "unscorableHistory=\(gapDays > 0 ? "yes" : "no") gapDays=\(gapDays)"
+    }
+
     /// The universal strap-clock line: the strap's newest banked-record timestamp vs wall clock, with a
     /// FUTURE-DATE flag (the tell of a wandering / un-clocked RTC), the optional banked span in days, and the
     /// firmware record-layout version the strap hands over. One line, tagged `.universal` by the caller, so

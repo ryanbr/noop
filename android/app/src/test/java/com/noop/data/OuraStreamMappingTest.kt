@@ -244,6 +244,18 @@ class OuraStreamMappingTest {
     }
 
     @Test
+    fun spo2DcRawChannelIsDroppedNotPersisted() {
+        // The 0x77 DC channel (unit "dc_raw") is a wildly different-scale raw PPG/perfusion signal
+        // (-9K to +11.7M in a real capture) - not SpO2 at all, so it must never reach the durable
+        // stream where a blind mean over `red` would be corrupted. Mirrors the Swift twin.
+        val s = OuraStreamMapping.streams(
+            listOf(OuraEvent.Spo2(OuraSpO2(ringTimestamp = 1, value = 11_709_098, unit = "dc_raw"))),
+            anchor,
+        )
+        assertTrue(s.spo2.isEmpty())
+    }
+
+    @Test
     fun tempPersistsAsHundredthsOfDegree() {
         val s = OuraStreamMapping.streams(
             listOf(OuraEvent.Temp(OuraTemp(ringTimestamp = 4, celsius = 33.27))),

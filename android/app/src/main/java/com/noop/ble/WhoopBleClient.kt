@@ -287,6 +287,15 @@ data class LiveState(
      *  once empty offloads are SUSTAINED; cleared on connect or once the strap banks real records. Twin of
      *  macOS LiveState.historySyncExperimental. */
     val historySyncExperimental: Boolean = false,
+    /** #689/#815: the strap's ring-buffer page backlog, sampled ONCE from the connect-time
+     *  GET_DATA_RANGE reply and never re-polled mid-offload — the link is already firmware-paced, and
+     *  #377 rules out re-polling for a readout. So this is a figure AT CONNECT, not a live one, and the
+     *  Today sync chip's copy says so rather than letting a static number read as a stalled live one.
+     *  A bounded ring measure (write pointer − read pointer against the ring size), never a percentage:
+     *  the strap never reveals a total record count. Confirmed against real captures on WHOOP 4.0 and
+     *  5.0/MG. null before the first reply this session, or when the frame did not decode. Twin of
+     *  macOS LiveState.pagesBehindAtConnect. */
+    val pagesBehindAtConnect: Int? = null,
     /** #612: TRUE when the WHOOP-4/generic empty-offload streak ([emptySyncTracker]) is currently
      *  SUSTAINED (3+ consecutive completed-but-empty offloads). Not 5/MG-specific and not coupled to HR:
      *  a connected strap that keeps handing over nothing has this true regardless of live-HR status.
@@ -1371,6 +1380,9 @@ class WhoopBleClient(
                 // #580: the 5/MG "history experimental" note is per-link — a fresh connect re-derives it
                 // from the next offload, so it must not outlive the dropped link.
                 historySyncExperimental = false,
+                // #689/#815: the backlog sample is "at connect" by definition, so it must not survive the
+                // link it was taken on — a stale figure under a fresh connection would be a plain lie.
+                pagesBehindAtConnect = null,
                 // #612: the display flag only, not the underlying emptySyncTracker streak (that counter
                 // deliberately survives a reconnect, unchanged existing behaviour).
                 sustainedEmptyOffload = false,
@@ -7586,6 +7598,9 @@ class WhoopBleClient(
                             val pagesBehind = com.noop.protocol.DataRange.pagesBehind(frame, cmdOff)
                             if (pagesBehind != null) {
                                 log("Strap backlog pages behind: $pagesBehind (#689 — GET_DATA_RANGE ring backlog, diagnostic only)")
+                                // #815: confirmed on both WHOOP 4.0 and 5.0/MG, so bank it unconditionally.
+                                // The Today sync chip reads this while backfilling is true.
+                                _state.update { it.copy(pagesBehindAtConnect = pagesBehind.toInt()) }
                             } else {
                                 log(
                                     "Strap backlog pages behind: not decodable from this frame (#689 — offsets may " +
@@ -7642,6 +7657,44 @@ class WhoopBleClient(
                                     wallNowUnix = System.currentTimeMillis() / 1000L,
                                 )
                                 log(line, com.noop.testcentre.TestDomain.UNIVERSAL)
+                            }
+                            // #2117: the R-R TRANSPORT picture, beside the clock-drift line and for the
+                            // same reason. A WHOOP 5 window is pinned to one transport, so a window with
+                            // no beat on a scorable channel reads back empty and everything beat-derived
+                            // (HRV, respiratory rate) blanks while heart-rate values carry on. The HRV
+                            // analyzer cannot explain that: handed nothing it honestly says nInput=0, with
+                            // no way to tell "banked nothing" from "banked beats the policy refused".
+                            // These two facts separate those, and the store already has both. Rides EVERY
+                            // export, because the wearer who needs it is the one who did not know to turn
+                            // a mode on. Pure formatter, no behaviour change. Twin of the Apple emit.
+                            if (testCentre.active(com.noop.testcentre.TestDomain.UNIVERSAL)) {
+                                // Three indexed reads, so OFF the BLE callback thread: this is
+                                // observability and must never sit in front of the connection path.
+                                ioScope.launch {
+                                    val rrLine = runCatching {
+                                        // The two MINs only feed a line the formatter suppresses unless
+                                        // this is strict, so a device the policy does not govern stops
+                                        // after the one registry read. Not hypothetical: a 4.0 in a
+                                        // reconnect burst (#1120) runs this repeatedly, and would other-
+                                        // wise fetch them from the store the backfill is writing through,
+                                        // to discard them every time. Twin of the Apple early-out.
+                                        if (!repository.isWhoop5RrSource(deviceId)) {
+                                            null
+                                        } else {
+                                            com.noop.analytics.ConnectionTrace.rrTransportLine(
+                                                strictWhoop5 = true,
+                                                firstRecordedUnix = repository.firstRecordedRrTs(deviceId),
+                                                firstScorableUnix =
+                                                    repository.firstScorableWhoop5RrTs(deviceId),
+                                            )
+                                        }
+                                    }.getOrNull()
+                                    // Silent when it cannot read its inputs: a diagnostic that cannot
+                                    // measure says nothing rather than guessing, so the line is absent.
+                                    if (rrLine != null) {
+                                        log(rrLine, com.noop.testcentre.TestDomain.UNIVERSAL)
+                                    }
+                                }
                             }
                             // #1164: recompute the "strap has banked records newer than our frontier" flag
                             // so the Today Rest card can show "Pending sync" right after connect (before the
@@ -8334,13 +8387,13 @@ class WhoopBleClient(
 
         val rr = mutableListOf<Int>()
         if (rrPresent) {
+            val isWhoop5 = connectedFamily == DeviceFamily.WHOOP5
             while (idx + 1 < data.size) {
                 val raw = (data[idx].toInt() and 0xFF) or ((data[idx + 1].toInt() and 0xFF) shl 8)
                 idx += 2
-                // Convert 1/1024 s units to milliseconds (matches the WHOOP store's R-R in ms). ROUNDED,
-                // byte-identical to StandardHeartRate.parse + the Swift twin; plain integer division
-                // truncated, diverging up to ~0.5 ms per interval into RMSSD/HRV. (ryanbr, #1032)
-                rr.add(Math.round(raw / 1024.0 * 1000.0).toInt())
+                // WHOOP 5 sends milliseconds directly on 0x2A37 (non-compliant with BLE spec's
+                // 1/1024-s unit). For other devices, convert per spec.
+                rr.add(if (isWhoop5) raw else Math.round(raw / 1024.0 * 1000.0).toInt())
             }
         }
 
@@ -9410,6 +9463,7 @@ class WhoopBleClient(
                         probeRetired = unbondedProbeRetired(
                             previouslyRefused = unbondedOffloadPreviouslyRefused(g.device.address),
                             silentLinksSoFar = unbondedProbeSilentLinks,
+                            inconclusiveLinksSoFar = unbondedProbeInconclusiveLinks,
                         ),
                     )
                 ) {
@@ -9965,6 +10019,7 @@ class WhoopBleClient(
                 unbondedProbeRetired = unbondedProbeRetired(
                     previouslyRefused = unbondedOffloadPreviouslyRefused(lastDeviceAddress),
                     silentLinksSoFar = unbondedProbeSilentLinks,
+                    inconclusiveLinksSoFar = unbondedProbeInconclusiveLinks,
                 ),
             ))
             return

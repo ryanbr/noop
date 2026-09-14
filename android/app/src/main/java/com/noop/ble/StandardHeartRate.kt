@@ -17,12 +17,14 @@ import com.noop.protocol.StandardHrContact
  *   - flags bit4 (0x10): one or more R-R intervals follow, each a u16 in 1/1024-second units
  *
  * R-R is converted to milliseconds as `round(raw / 1024 * 1000)` to match the Swift parser exactly
- * (the WHOOP store keeps R-R in ms).
+ * (the WHOOP store keeps R-R in ms). `rrRawTicks` carries the unconverted u16 values; WHOOP 5
+ * (firmware 50.41.1.0) sends milliseconds directly (non-compliant with BLE spec), so callers that
+ * know they have a WHOOP 5 should use `rrRawTicks` instead of `rr`.
  */
 object StandardHeartRate {
 
-    /** The parsed reading: heart rate (bpm) and the R-R intervals (ms), in arrival order. */
-    data class Reading(val hr: Int, val rr: List<Int>, val contact: StandardHrContact)
+    /** The parsed reading: heart rate (bpm), R-R intervals (ms), raw R-R ticks (u16), and contact state. */
+    data class Reading(val hr: Int, val rr: List<Int>, val rrRawTicks: List<Int>, val contact: StandardHrContact)
 
     /**
      * Parse one 0x2A37 notification payload. Returns null on an empty or truncated packet (a packet
@@ -48,13 +50,15 @@ object StandardHeartRate {
         if (flags and 0x08 != 0) idx += 2                // skip Energy Expended (bit 3)
 
         val rr = ArrayList<Int>()
+        val rrRawTicks = ArrayList<Int>()
         if ((flags shr 4) and 0x01 != 0) {               // R-R present (bit 4)
             while (idx + 1 < data.size) {
                 val raw = (data[idx].toInt() and 0xFF) or ((data[idx + 1].toInt() and 0xFF) shl 8)
+                rrRawTicks.add(raw)
                 rr.add(Math.round(raw / 1024.0 * 1000.0).toInt())   // 1/1024 s → ms (rounded)
                 idx += 2
             }
         }
-        return Reading(hr, rr, contact)
+        return Reading(hr, rr, rrRawTicks, contact)
     }
 }

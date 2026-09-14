@@ -242,4 +242,51 @@ class DaytimeBaselinesTest {
             assertNull("flag off: RMSSD is held out of the live score despite a usable baseline", mode.rmssd)
         }
     }
+
+    /**
+     * #2107: reducing each day as it is read must produce EXACTLY the list fold's answer.
+     *
+     * The screen used to hold thirty days of raw streams to compute sixty numbers, which exhausted a
+     * 256MB heap and crashed with an OutOfMemoryError. It now reduces per day and keeps only the
+     * aggregates. That is only safe if the two routes agree, so this pins them together rather than
+     * trusting that one delegates to the other today. Twin of the Swift
+     * `testReducingPerDayMatchesFoldingTheWholeList`.
+     */
+    @Test
+    fun `reducing per day matches folding the whole list`() {
+        val days = (0 until 12).map {
+            DaytimeBaselines.DaytimeDayStreams(
+                hr = flatDayHr(it, 65 + (it % 3)),
+                rr = emptyList(),
+                tzOffsetSeconds = 0L,
+            )
+        }
+        val viaList = DaytimeBaselines.foldDaytimeBaselines(days)
+        val viaAggregates = DaytimeBaselines.foldAggregates(
+            days.map { DaytimeBaselines.dayDaytimeAggregate(it.hr, it.rr, it.tzOffsetSeconds) },
+        )
+        assertEquals(viaList.hr.baseline, viaAggregates.hr.baseline, 0.0)
+        assertEquals(viaList.hr.usable, viaAggregates.hr.usable)
+        assertEquals(viaList.rmssd?.baseline, viaAggregates.rmssd?.baseline)
+
+        // And the same for the mode the screen actually asks for.
+        assertEquals(
+            DaytimeBaselines.scoringMode(days),
+            DaytimeBaselines.scoringModeFromAggregates(
+                days.map { DaytimeBaselines.dayDaytimeAggregate(it.hr, it.rr, it.tzOffsetSeconds) },
+            ),
+        )
+    }
+
+    /**
+     * An unworn day contributes no aggregate either way. Pinned because the caller SKIPS such days
+     * before reducing (it never reads their R-R), so the two routes must still line up when the day
+     * list and the aggregate list have different lengths in the caller's loop.
+     */
+    @Test
+    fun `an empty day reduces to nothing on both routes`() {
+        val empty = DaytimeBaselines.dayDaytimeAggregate(emptyList(), emptyList(), 0L)
+        assertNull(empty.hr)
+        assertNull(empty.rmssd)
+    }
 }

@@ -1515,7 +1515,16 @@
     <string name="l10n_today_screen_recovery_ea924f72">Recuperación</string>
     <string name="l10n_today_screen_sync_chip_now_c9bc849a">ahora</string>
     <string name="l10n_today_screen_sync_chip_live_98aadb37">en vivo</string>
-    <string name="l10n_today_screen_sync_chip_syncing_desc_bfc290e7">Sincronizando el historial de la pulsera, %1$d bloques</string>
+    <string name="l10n_today_screen_sync_chip_syncing_desc_92daf60c">Sincronizando el historial de la pulsera, %1$s</string>
+    <string name="l10n_today_screen_sync_chip_syncing_pages_desc_ad763b39">Sincronizando el historial de la pulsera, %1$s, %2$s</string>
+    <plurals name="sync_chip_chunks_count">
+        <item quantity="one">%1$d bloque</item>
+        <item quantity="other">%1$d bloques</item>
+    </plurals>
+    <plurals name="sync_chip_pages_behind_count">
+        <item quantity="one">%1$d página de retraso al conectar</item>
+        <item quantity="other">%1$d páginas de retraso al conectar</item>
+    </plurals>
     <string name="l10n_today_screen_sync_chip_synced_desc_4d255944">Historial de la pulsera sincronizado hace %1$s</string>
     <string name="l10n_today_screen_sync_chip_experimental_desc_3de06a70">Conectado; la sincronización del historial es experimental en esta pulsera.</string>
     <string name="l10n_today_screen_recovery_roundtoint_charge_92fbaa5e">%1$s%%</string>
@@ -2761,4 +2770,8 @@
     <string name="coach_consent_on">Activado: tu carga, descanso, HRV y entrenamientos se envían al proveedor, cada entrenamiento con su deporte, duración, distancia y frecuencia cardíaca.</string>
     <string name="coach_consent_off">Desactivado: el coach responde en general y no envía ninguna de tus métricas.</string>
     <string name="l10n_app_changelog_a_today_screen_you_arrange_yourself_6194ccd0">Una pantalla de Hoy que organizas tú, el estrés en la pantalla de inicio y copias de seguridad que se comprueban solas</string>
+    <string name="l10n_stress_screen_scored_through_1_s_later_hours_fbb7d6c7">Puntuado hasta las %1$s. Las horas posteriores necesitan más muestras de frecuencia cardiaca.</string>
+    <string name="l10n_today_screen_scan_and_connect_40157030">Buscar y conectar</string>
+    <string name="l10n_health_screen_fitness_age_stops_here_vo_max_383d989a">La edad de forma física se detiene aquí. El VO₂máx no.</string>
+    <string name="l10n_app_changelog_a_stress_screen_that_keeps_up_f7ec3f36">Una pantalla de estrés que no se queda atrás, lecturas del WHOOP 5 en las unidades que envía la banda, y un anillo que deja de repetirse</string>
 </resources>

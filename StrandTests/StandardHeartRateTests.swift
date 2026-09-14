@@ -26,6 +26,7 @@ final class StandardHeartRateTests: XCTestCase {
         let parsed = StandardHeartRate.parse([0x16, 72, 0x00, 0x04])
         XCTAssertEqual(parsed?.hr, 72)
         XCTAssertEqual(parsed?.rr, [1000])
+        XCTAssertEqual(parsed?.rrRawTicks, [1024])
         XCTAssertEqual(parsed?.contact, .supportedDetected)
     }
 }

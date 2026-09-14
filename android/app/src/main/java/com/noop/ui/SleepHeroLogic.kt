@@ -13,6 +13,37 @@ internal fun sleepScoreWord(score: Double): String = when {
 }
 
 /**
+ * The nav header's date/time line for the night at [offset].
+ *
+ * #2199: the hero's own [heroClockLabel] wins when the browsed night decoded. When it did not, this
+ * used to fall back to the SleepModel's label, and that model is built with `selectedDay = null`, so
+ * it resolves to the NEWEST night rather than the browsed one. The header then printed the latest
+ * night's date under a relative label still counting correctly for the night being browsed, with
+ * nothing on screen to say the two lines were about different nights. A confidently wrong date is
+ * worse than none, so the fallback now reads the browsed night's OWN window out of [navDays] and
+ * returns null when even that is unavailable, which the header renders as an em dash.
+ *
+ * The window is `SleepGroupEdit.groupWindow` — (min effectiveStartTs, max endTs) across the whole
+ * group, the same pair the time editor commits against. It is deliberately NOT the hero's onset rule.
+ * The hero dates from `heroGroup.first().effectiveStartTs`, i.e. after dropping a spurious pre-onset
+ * awake stub, so the label matches where the hypnogram starts (#736). That drop is decided by
+ * `isPreOnsetAwakeStub`, which weighs a fragment's DECODED asleep minutes against the group's largest
+ * span — inputs a night arriving here does not have, since it is here precisely because it did not
+ * resolve to a hero. With no hypnogram to align to and no decoded minutes to spot a stub with, the
+ * full window is both the best available answer and, unlike the old fallback, unambiguously about the
+ * night being browsed. Expect it to read a stub's onset where the hero would have skipped one.
+ */
+internal fun navHeaderClockLabel(
+    heroClockLabel: String?,
+    navDays: List<List<SleepSession>>,
+    offset: Int,
+    is24h: Boolean,
+): String? = heroClockLabel
+    ?: navDays.getOrNull(offset)
+        ?.let { com.noop.analytics.SleepGroupEdit.groupWindow(it) }
+        ?.let { (onset, wake) -> clockLabelFor(onset, wake, is24h) }
+
+/**
  * Short night-relative label ("Last night" / "1 night ago" / "N nights ago") for the ◀/▶-navigated
  * night. Shared by the Rest hero overline and the hypnogram nav header so both name the SAME night
  * the hero's score is resolved for. Mirrors iOS SleepView.nightRelativeLabel.

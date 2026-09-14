@@ -26,7 +26,7 @@ object AppChangelog {
      * Bump this when you add a release below. The "What's New" sheet shows automatically when the
      * stored last-seen version is behind this. (Decoupled from the bundle version on purpose.)
      */
-    const val CURRENT_VERSION = "11.6.0"
+    const val CURRENT_VERSION = "11.7.0"
 
     data class Release(
         val version: String,
@@ -37,6 +37,23 @@ object AppChangelog {
 
     /** Newest first. */
     val releases: List<Release> = listOf(
+        Release(
+            version = "11.7.0",
+            title = uiString(R.string.l10n_app_changelog_a_stress_screen_that_keeps_up_f7ec3f36),
+            date = "September 2026",
+            items = listOf(
+                "**A stress screen that keeps up (#2191, #2194, #2202, #2116).** Scoring a day of samples no longer happens on the thread that is drawing the screen, so Today and Stress stay responsive while they load. The baseline is reduced a day at a time instead of holding a month of readings at once, and the unprompted rescore now yields to whatever you are doing rather than competing with it.",
+                "**A stress widget that fills on its own (#2186, #2121, #2177).** The home-screen curve refreshes without waiting for the app to be opened, retries a rescore that produced nothing instead of spending the whole interval on it, and the Today curve stays as fresh as the screen it links to.",
+                "**Stress readings that agree with each other (#2165, #2168, #2182, #2190, #2124).** The 0 to 3 level has one spelling across the widget and the card, and is no longer rounded a second time on the way to the widget. The screen draws its line from the same sliding read the number comes from, movement is drawn as the stretches it covers rather than dots on the axis, and an early morning no longer reports Calibrating when the day has simply not started yet.",
+                "**WHOOP 5 readings in the units the strap actually sends (#2195, #2192, #2196, #2197, thanks @Trillient).** R-R intervals from the standard heart-rate profile were being converted as though they were in the spec's units, leaving them 2.3% low and feeding that error into HRV. The console log's sequence byte was also being read as half of a counter it is not. Both are decoded correctly now, on both platforms.",
+                "**An Oura ring that stops repeating itself (#2100, #2146, #2147, #2153, #2155, #2170, thanks @pipiche38).** A replayed burst the ring's own clock disproves no longer resets the history cursor or announces a reboot that did not happen. A freshly offloaded night is scored immediately rather than at the next periodic tick, history is fetched every five minutes instead of fifteen, and the anchor check judges a ten second gap rather than only a thirty second one.",
+                "**Scores that survive a re-score (#2115, #2141, thanks @bhelm).** WHOOP 5 HRV and Recovery, and the vitals derived from R-R, are preserved across a re-score instead of being dropped by a pass that could not recompute them.",
+                "**Scan and connect where you can reach them (#2178, #2180).** Both sit on the Today header, and the scan control appears only while the strap is actually away rather than occupying the header permanently.",
+                "**Readings that say when they are at a limit (#2176, #2189, #2122, #2201).** A Fitness Age sitting at the end of its scale says so rather than looking like a measurement, and points at the number that still moves. On Sleep, a night already in hand silences the calculating banner, and browsing to a night with no stages no longer shows the most recent night's date beneath it.",
+                "**Diagnostics that name the cause (#2118, #2129, #2136, #2160, #2138).** A device with no R-R now says whether the beats were never banked or were refused by the unit policy, and the nightly HRV summary says why it reported nothing. A retired probe tells its reader which switch to turn on, a re-arm clears the refusal latch it could never reach before, and the sync chip surfaces the strap's backlog.",
+                "**Smaller corrections.** A tile value now shrinks to fit instead of truncating, which it was meant to do all along (#2203, #2204, thanks @kavemang). Illness baselines are trusted per signal on Android (#2157, thanks @kavemang), stress scoring is skipped without a widget to draw it (#2111), sleep session cache upserts are guarded (#2112), and the strain banner is gated on the baseline the score already uses (#2132).",
+            ),
+        ),
         Release(
             version = "11.6.0",
             title = uiString(R.string.l10n_app_changelog_a_today_screen_you_arrange_yourself_6194ccd0),

@@ -108,6 +108,53 @@ class AnalyticsTest {
         assertNull(IllnessWatch.evaluate(days))
     }
 
+    /**
+     * #2130: a signal may not accuse the recent window off a baseline the app would not otherwise use.
+     *
+     * 31 days of history, but HRV on only 2 of the baseline nights, so its fold is CALIBRATING and
+     * `usable` is false. That is the field case verbatim (`hrvNValid=2, need nValid>=4`). Deliberately
+     * below the seed rather than at it: 4 valid nights would be provisional by count and rejected only
+     * for staleness, which would leave the test passing for a reason it does not name.
+     *
+     * RHR is dense and drops hard, so the RHR flag still fires; HRV must not, which leaves one flag and
+     * no banner. The recent pair carries HRV, so this pins the BASELINE rather than merely "no data".
+     */
+    @Test
+    fun illness_unusableHrvBaselineCannotRaiseAnHrvFlag() {
+        val baseline = (0 until 31).map {
+            day(
+                "2026-01-%02d".format(it + 1),
+                restingHr = 50,
+                avgHrv = if (it < 2) 60.0 else null,
+                skinTempDevC = 0.0,
+                respRateBpm = 14.0,
+            )
+        }
+        val recent = listOf(
+            day("2026-02-01", restingHr = 58, avgHrv = 20.0, skinTempDevC = 0.0, respRateBpm = 14.0),
+            day("2026-02-02", restingHr = 58, avgHrv = 20.0, skinTempDevC = 0.0, respRateBpm = 14.0),
+        )
+        assertNull(
+            "one flag is not a banner, and a calibrating HRV fold is not a baseline",
+            IllnessWatch.evaluate(baseline + recent),
+        )
+    }
+
+    /** The same day shape, but with a fold that IS usable, still raises both flags. */
+    @Test
+    fun illness_usableHrvBaselineStillRaisesTheHrvFlag() {
+        val baseline = (0 until 31).map {
+            day("2026-01-%02d".format(it + 1), restingHr = 50, avgHrv = 60.0, skinTempDevC = 0.0, respRateBpm = 14.0)
+        }
+        val recent = listOf(
+            day("2026-02-01", restingHr = 58, avgHrv = 20.0, skinTempDevC = 0.0, respRateBpm = 14.0),
+            day("2026-02-02", restingHr = 58, avgHrv = 20.0, skinTempDevC = 0.0, respRateBpm = 14.0),
+        )
+        val msg = IllnessWatch.evaluate(baseline + recent)
+        assertNotNull(msg)
+        assertTrue("the HRV flag is what the unusable case withholds", msg!!.contains("HRV"))
+    }
+
     @Test
     fun illness_twoFlagsRaisesBanner() {
         // 31 calm days, then 2 strained recent days appended (33 total).

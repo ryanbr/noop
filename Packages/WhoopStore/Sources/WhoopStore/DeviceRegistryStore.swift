@@ -23,9 +23,23 @@ public struct DeviceRegistryStore: Sendable {
         }
     }
 
+    /// The one query that answers "which strap is active".
+    ///
+    /// Shared rather than retyped because the answer is load-bearing beyond this accessor: the WHOOP 5
+    /// R-R policy resolves a legacy `my-whoop` alias through it, so this decides whose unit rules a
+    /// wearer's older history is judged by. Two copies of that could drift into disagreeing about which
+    /// strap a night belongs to, and the Android twin already keeps it in exactly one place
+    /// (`DeviceRegistryDao`).
+    ///
+    /// `LIMIT 1` with no `ORDER BY` is deliberate but only safe because single-active is an invariant
+    /// the writers maintain (demote every active row, then promote one, in that order). If two rows were
+    /// ever active at once the pick would be arbitrary, so the invariant is what makes this total, not
+    /// the query.
+    static let activeDeviceIdSQL = "SELECT id FROM pairedDevice WHERE status = 'active' LIMIT 1"
+
     public func activeDeviceId() throws -> String? {
         try dbQueue.read { db in
-            try String.fetchOne(db, sql: "SELECT id FROM pairedDevice WHERE status = 'active' LIMIT 1")
+            try String.fetchOne(db, sql: Self.activeDeviceIdSQL)
         }
     }
 
@@ -146,6 +160,13 @@ public struct DeviceRegistryStore: Sendable {
         // so forgetting that source must clear them — otherwise an imported phone's hour-by-hour step
         // history survives the delete (the same privacy defect this list exists to close).
         "appleStepHour",
+        // v46-lift-log: every table in the strength log is deviceId-keyed, including the child rows
+        // (liftProgramItem, liftSet). They are joined to their parents by id, not by a foreign key, so
+        // if the children were left off this list a "delete all of this device's data" would strip the
+        // programs and sessions and leave every exercise line and every logged set behind — the exact
+        // privacy defect this list exists to close, and one the deviceId-column guard test could not
+        // catch for a child table keyed only by its parent.
+        "liftExercise", "liftProgram", "liftProgramItem", "liftSession", "liftSet",
     ]
 
     /// Permanently delete every recorded sample/derived row belonging to one device, across all

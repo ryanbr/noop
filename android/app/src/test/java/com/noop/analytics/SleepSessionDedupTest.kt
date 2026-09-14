@@ -288,6 +288,45 @@ class SleepSessionDedupTest {
         assertEquals(1234L, SleepSessionDedup.keyedStart(1234L, 0L))   // grid clamp >=1 = identity
     }
 
+    // Item 22, 2026-09-12: a real captured negative-duration nap. Two written codes span
+    // 14:24:17->14:26:17 (mapped), but the closest-matched 0x49 window's onset landed at ~14:41:xx —
+    // ~16 min AFTER mapped.endTs — because codesWithTimes's own clip-would-empty fallback had
+    // silently returned the unclipped burst. The unguarded keyedStart call rounded that onset to
+    // exactly 14:42:00 and wrote it as startTs, 943 s after endTs. safeKeyedStart must refuse the
+    // rekey here and return null (keep mapped.startTs unchanged).
+    @Test
+    fun safeKeyedStart_refusesTheItem22NegativeDurationRegression() {
+        val mappedStart = 1_789_215_857L   // 14:24:17 local — matches the captured stagesJSON
+        val mappedEnd = 1_789_215_977L     // 14:26:17 local
+        val mismatchedOnset = 1_789_216_910L   // ~14:41:50 — the mis-paired window's onset, after endTs
+        assertEquals(null, SleepSessionDedup.safeKeyedStart(mismatchedOnset, mappedStart, mappedEnd))
+    }
+
+    // The ordinary, intended case: the assembler's clip genuinely bound, so the onset sits at or just
+    // before the first surviving code — safeKeyedStart should key startTs to the rounded onset.
+    @Test
+    fun safeKeyedStart_appliesTheRekeyWhenTheClipGenuinelyBound() {
+        val onset = 1_789_215_800L   // precedes mapped.startTs, as a bound clip guarantees
+        val mappedStart = 1_789_215_857L
+        val mappedEnd = 1_789_215_977L
+        val keyed = SleepSessionDedup.safeKeyedStart(onset, mappedStart, mappedEnd)
+        assertEquals(SleepSessionDedup.keyedStart(onset), keyed)
+        assertTrue(keyed!! < mappedEnd)
+    }
+
+    // A second, smaller-magnitude failure mode safeKeyedStart also has to catch: the onset passes the
+    // first guard (onset <= mappedStartTs, so the clip genuinely bound), but 30 s grid-rounding pushes
+    // it to or past endTs on a very short (20 s) session — refuse rather than mint a
+    // zero/negative-duration session.
+    @Test
+    fun safeKeyedStart_refusesWhenRoundingWouldReachOrPassEndTs() {
+        val mappedStart = 1_000_000L
+        val mappedEnd = 1_000_020L   // 20 s session
+        val onset = 999_995L   // <= mappedStart (clip bound), but keyedStart(999_995, 60) = 1_000_020 == endTs
+        assertEquals(mappedEnd, SleepSessionDedup.keyedStart(onset))
+        assertEquals(null, SleepSessionDedup.safeKeyedStart(onset, mappedStart, mappedEnd))
+    }
+
     @Test
     fun planBank_sameBucketFullerStoredRow_suppressesAPartialReserve() {
         // F1 regression: a partial re-drain at the SAME keyed PK as a fuller banked night must be suppressed.

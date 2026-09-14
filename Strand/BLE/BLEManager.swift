@@ -5327,14 +5327,17 @@ public final class BLEManager: NSObject, ObservableObject {
         // R-R: the standard profile is the RELIABLE source (the custom REALTIME_DATA stream
         // usually reports rr_count=0), so always surface intervals when present. setRRIntervals also
         // feeds the Live console's rolling rrRecent buffer.
-        if !m.rr.isEmpty { state.setRRIntervals(m.rr) }
+        // WHOOP 5 sends milliseconds directly (non-compliant with the BLE spec's 1/1024-s unit),
+        // so use the raw ticks — which ARE ms — instead of the spec-converted values.
+        let rr = router.family == .whoop5 ? m.rrRawTicks : m.rr
+        if !rr.isEmpty { state.setRRIntervals(rr) }
         // HR: the standard 0x2A37 profile is the RELIABLE source (BLE-standard, ~1Hz). Let it
         // drive the value whenever it's physiologically plausible; reject 0/garbage (off-wrist).
         // AppModel medians these into a stable display value. live perf: only publish on a real
         // change so a steady resting HR doesn't re-render the whole Live console every second.
         if m.hr >= 30 && m.hr <= 220, state.heartRate != m.hr { state.heartRate = m.hr }
         // Record it continuously — independent of the realtime stream or the open screen.
-        collector?.ingestStandardHR(hr: m.hr, rr: m.rr, contact: m.contact,
+        collector?.ingestStandardHR(hr: m.hr, rr: rr, contact: m.contact,
                                     family: router.family,
                                     at: Int(Date().timeIntervalSince1970))
     }
@@ -5927,6 +5930,9 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         // re-derives it. (The honest flag is per-link, like the syncing pill / reject counters above.)
         whoop5EmptyOffload.reset()
         state.historySyncExperimental = false
+        // #689/#815: the backlog sample is "at connect" by definition, so it must not survive the link it
+        // was taken on — a stale figure under a fresh connection would be a plain lie.
+        state.pagesBehindAtConnect = nil
         lastBatteryReadAt = nil   // #battery: next connect's first enableLiveNotifications re-seeds the 5/MG battery reading
         // #612: the display flag only, not the underlying emptySyncTracker streak (that counter
         // deliberately survives a reconnect — unchanged, existing behaviour). A fresh link re-derives
@@ -6719,6 +6725,9 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
         if !DataRange.isPendingResponse(frame, cmdOff: cmdOff) {
             if let pages = DataRange.pagesBehind(from: frame, cmdOff: cmdOff) {
                 log("Strap backlog pages behind: \(pages) (#689 — GET_DATA_RANGE ring backlog, diagnostic only)")
+                // #815: confirmed on both WHOOP 4.0 and 5.0/MG, so bank it unconditionally. The Today sync
+                // chip reads this while backfilling is true. Twin of the Android FrameRouter branch.
+                state.pagesBehindAtConnect = Int(pages)
             } else {
                 log("Strap backlog pages behind: not decodable from this frame (#689 — offsets may have moved; "
                     + "the raw frame above is the input). Diagnostic only, sync is unaffected.")

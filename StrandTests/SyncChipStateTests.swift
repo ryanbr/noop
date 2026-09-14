@@ -15,7 +15,7 @@ final class SyncChipStateTests: XCTestCase {
         let live = LiveState()
         live.backfilling = true
         live.syncChunksThisSession = 7
-        XCTAssertEqual(SyncChipState.resolve(live: live), .syncing(chunks: 7))
+        XCTAssertEqual(SyncChipState.resolve(live: live), .syncing(chunks: 7, pagesBehind: nil))
     }
 
     func testLastSyncedAt_isSyncedWithAgeText() {
@@ -50,7 +50,7 @@ final class SyncChipStateTests: XCTestCase {
         live.backfilling = true
         live.syncChunksThisSession = 2
         live.lastSyncedAt = Date().timeIntervalSince1970 - 5
-        XCTAssertEqual(SyncChipState.resolve(live: live), .syncing(chunks: 2))
+        XCTAssertEqual(SyncChipState.resolve(live: live), .syncing(chunks: 2, pagesBehind: nil))
     }
 
     func testLastSyncedAt_takesPriorityOverHistorySyncExperimental() {
@@ -62,5 +62,47 @@ final class SyncChipStateTests: XCTestCase {
         } else {
             XCTFail("A known last-sync should win over the experimental fallback")
         }
+    }
+
+    // #689/#815: the connect-time backlog sample. Twin of the Android cases in `SyncChipStateTest`.
+
+    @MainActor
+    func testBackfillingWithBacklogCarriesThePagesFigure() {
+        let live = LiveState()
+        live.backfilling = true
+        live.syncChunksThisSession = 3
+        live.pagesBehindAtConnect = 120
+        XCTAssertEqual(SyncChipState.resolve(live: live), .syncing(chunks: 3, pagesBehind: 120))
+    }
+
+    /// A zero backlog is dropped rather than rendered: "0 pages behind at connect" beside a running
+    /// sync contradicts itself, and a zero sample gives a reader nothing to act on. The rule lives in
+    /// `resolve` on both platforms so neither view layer decides it alone.
+    @MainActor
+    func testBackfillingWithZeroBacklogDropsTheDetail() {
+        let live = LiveState()
+        live.backfilling = true
+        live.syncChunksThisSession = 3
+        live.pagesBehindAtConnect = 0
+        XCTAssertEqual(SyncChipState.resolve(live: live), .syncing(chunks: 3, pagesBehind: nil))
+    }
+
+    /// No reply yet this session, or a frame that did not decode.
+    @MainActor
+    func testBackfillingWithoutASampleIsUnchanged() {
+        let live = LiveState()
+        live.backfilling = true
+        live.syncChunksThisSession = 3
+        XCTAssertEqual(SyncChipState.resolve(live: live), .syncing(chunks: 3, pagesBehind: nil))
+    }
+
+    /// The backlog only qualifies an in-progress sync; a stale figure must not survive into `.synced`.
+    @MainActor
+    func testNotBackfillingIgnoresTheBacklog() {
+        let live = LiveState()
+        live.backfilling = false
+        live.lastSyncedAt = Date().timeIntervalSince1970 - 65
+        live.pagesBehindAtConnect = 120
+        XCTAssertEqual(SyncChipState.resolve(live: live), .synced(agoText: "1m"))
     }
 }

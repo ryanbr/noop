@@ -153,8 +153,21 @@ object IntelligenceEngine {
      * in by the UI scoring pass. Mirrors the Swift IntelligenceEngine.resolveDayOwner read-through (1B-4).
      */
     interface DayOwnerSource {
-        /** Non-archived paired devices, each as a [DayOwnerResolver.Candidate] WITHOUT its hasData flag
-         *  resolved yet (priority only: 0 = active strap, 1 = other live straps, 2 = imports). */
+        /** EVERY paired device, each as a [DayOwnerResolver.Candidate] WITHOUT its hasData flag resolved
+         *  yet (priority only: 0 = active strap, 1 = other live straps, 2 = whole-day imports,
+         *  3 = activity files (#137), 4 = archived).
+         *
+         *  Archived rows ARE included, and [resolveDayOwner] USES them rather than merely inheriting
+         *  them from the day-cycle/step engines that read the same list:
+         *  `RegistryDayOwnerSourceTest.archivedDeviceRemainsALowestPriorityHistoricalCandidate` pins an
+         *  archived device winning a day nothing live covers, so removing and later re-adding a strap
+         *  cannot erase its earlier coverage. A live or import source always outranks it.
+         *
+         *  Swift builds its two lists separately and they differ in SHAPE, not only in membership: the
+         *  cycle list carries these same five priorities, while the day-owner half filters archived out
+         *  first and ranks the remainder FOUR ways, with no archived branch at all
+         *  (`IntelligenceEngine.resolveDayOwner`). So for a day covered only by a removed strap the two
+         *  platforms name a different owner. Which rule is the intended one is open in #2026. */
         suspend fun candidatePriorities(): List<Pair<String, Int>>
 
         /** A locked owner override for [day] from the dayOwnership table, or null. Wins outright. */
@@ -1923,6 +1936,7 @@ object IntelligenceEngine {
         val computedWindow = IntelligencePersistence.prepareComputedWindow(
             repo, importedDeviceId, computedId, oldestDay, newestDay, dailies, restRows, physiologicalSteps,
             candidatePriorities, resolvedScoreOwnerByDay,
+            IntelligencePersistence.LegacyScoreClock(nowLocalMidnight, nowSeconds, tzOffsetSeconds), out,
         )
         repo.replaceComputedScoreWindow(computedWindow)
 

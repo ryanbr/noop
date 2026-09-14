@@ -96,6 +96,11 @@ class SourceCoordinatorAdoptionTest {
         override suspend fun deleteLiveSessionsFor(deviceId: String) {}
         override suspend fun deleteDismissedWorkoutsFor(deviceId: String) {}
         override suspend fun deleteDismissedSleepsFor(deviceId: String) {}
+        override suspend fun deleteLiftExercisesFor(deviceId: String) {}
+        override suspend fun deleteLiftProgramsFor(deviceId: String) {}
+        override suspend fun deleteLiftProgramItemsFor(deviceId: String) {}
+        override suspend fun deleteLiftSessionsFor(deviceId: String) {}
+        override suspend fun deleteLiftSetsFor(deviceId: String) {}
         override suspend fun deleteDayOwnershipFor(deviceId: String) {
             owners.entries.removeIf { it.value.deviceId == deviceId }
         }
@@ -131,6 +136,11 @@ class SourceCoordinatorAdoptionTest {
         override suspend fun reKeyLiveSessions(from: String, to: String) {}
         override suspend fun reKeyDismissedWorkouts(from: String, to: String) {}
         override suspend fun reKeyDismissedSleeps(from: String, to: String) {}
+        override suspend fun reKeyLiftExercises(from: String, to: String) {}
+        override suspend fun reKeyLiftPrograms(from: String, to: String) {}
+        override suspend fun reKeyLiftProgramItems(from: String, to: String) {}
+        override suspend fun reKeyLiftSessions(from: String, to: String) {}
+        override suspend fun reKeyLiftSets(from: String, to: String) {}
 
         override suspend fun pairedDevice(id: String): PairedDeviceRow? = devices[id]
 

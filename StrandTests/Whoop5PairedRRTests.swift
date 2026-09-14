@@ -30,14 +30,17 @@ final class Whoop5PairedRRTests: XCTestCase {
             XCTAssertTrue(native.ok, pair.name)
             XCTAssertEqual(native.crcOK, true, pair.name)
             XCTAssertEqual(native.parsed["rr_raw_ticks"]?.intArrayValue, rawTicks, pair.name)
-            // This existing SIG parser is independent of Whoop5RR; the fixture has no converter-generated expectation.
+            // WHOOP 5 words are already milliseconds (identity); both channels carry the same raw words.
+            XCTAssertEqual(native.parsed["rr_intervals"]?.intArrayValue, rawTicks, pair.name)
+            // The standard BLE parser still applies 1/1024 conversion — wrong for this strap, but
+            // confirms transport parity (same raw words, different conversion gives different ms).
             let standard = try XCTUnwrap(StandardHeartRate.parse(standardBytes))
-            XCTAssertNotEqual(standard.rr, rawTicks, "treating native words as milliseconds must fail")
-            XCTAssertEqual(native.parsed["rr_intervals"]?.intArrayValue, standard.rr, pair.name)
+            XCTAssertNotEqual(standard.rr, rawTicks, "standard parser converts; WHOOP 5 words are already ms")
+            XCTAssertEqual(standard.rrRawTicks, rawTicks, "raw ticks match the native channel's raw words")
             let streams = pair.kind == "v18"
                 ? extractHistoricalStreams([native], deviceClockRef: 0, wallClockRef: 0)
                 : extractStreams([native], deviceClockRef: 0, wallClockRef: 0)
-            XCTAssertEqual(streams.rr.map(\.rrMs), standard.rr, pair.name)
+            XCTAssertEqual(streams.rr.map(\.rrMs), rawTicks, pair.name)
         }
     }
 

@@ -56,13 +56,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import com.noop.analytics.DaytimeBaselines
 import com.noop.analytics.DaytimeStress
 import com.noop.analytics.HrvFreqDomain
 import com.noop.analytics.StressIndex
 import com.noop.data.DailyMetric
+import com.noop.data.RrInterval
 import com.noop.widget.StressPoint
 import com.noop.widget.StressTrace
+import com.noop.widget.StressWidgetProducer
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -70,6 +73,9 @@ import java.util.Locale
 import kotlin.math.exp
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 
 // MARK: - Stress Monitor (ported from Strand/Screens/StressView.swift)
 //
@@ -126,12 +132,52 @@ fun StressScreen(vm: AppViewModel, onBreathe: () -> Unit = {}) {
     // span/beat gate is not met. Faithful twin of the iOS StressView readouts.
     var stressIndex by remember { mutableStateOf<StressIndex.Components?>(null) }
     var freqHrv by remember { mutableStateOf<HrvFreqDomain.Bands?>(null) }
-    androidx.compose.runtime.LaunchedEffect(vm.activeStrapId) {
-        val read = runCatching { loadDaytimeStress(vm, NoopPrefs.stressPersonalBaseline(context)) }
-            .getOrDefault(DaytimeReadout(DaytimeStress.Result.EMPTY, null, null))
-        daytime = read.daytime
-        stressIndex = read.stressIndex
-        freqHrv = read.freqHrv
+    // #2144: on the SAME interval the Today card and the widget score on, and gated the same way.
+    // This used to read once, on open, which is why the screen happened to be the fresher of the two
+    // when the report was filed: it had simply been opened later. Refreshing only the card would have
+    // moved the disagreement rather than ended it, since a screen left open would then be the stale
+    // one. Both surfaces now age at the same rate, which is the actual ask in the report.
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.LaunchedEffect(vm.activeStrapId, lifecycleOwner) {
+        // Guarded on the same fingerprint the widget producer memoises against, for the same reason.
+        // `loadDaytimeStress` is the expensive read on this screen, three windowed row fetches plus the
+        // two HRV engines, and repeating it was free when it happened once on open. On a timer it is
+        // not: with the strap disconnected, or simply quiet, nothing about today's heart rate has moved
+        // and re-reading produces a result identical to the one already on screen. An indexed count and
+        // max answers that for the price of neither.
+        var lastHrFingerprint: Pair<Int, Long>? = null
+        lifecycleOwner.lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+            while (true) {
+                val nowSeconds = System.currentTimeMillis() / 1000L
+                val window = stressLocalDayWindowContaining(nowSeconds, ZoneId.systemDefault())
+                val fingerprint = runCatching {
+                    vm.repo.hrFingerprintWindow(vm.activeStrapId, window.fromEpochSecond, nowSeconds)
+                }.getOrNull()
+                // A failed fingerprint reads as "cannot tell", which loads rather than skips: being
+                // wrong about this costs one pass, being wrong the other way freezes the screen.
+                if (fingerprint == null || fingerprint != lastHrFingerprint) {
+                    lastHrFingerprint = fingerprint
+                    // TWO phases, so the chart is not held behind work it does not use (#2181). The
+                    // scoring pass publishes first and the line can draw; the two optional HRV lenses,
+                    // which live in their own card and include a Lomb-Scargle periodogram over the whole
+                    // day of beats, fill in after. Both phases run on Dispatchers.Default rather than on
+                    // the LaunchedEffect's main thread, which is what made this a frozen screen instead
+                    // of a slow one.
+                    val personal = NoopPrefs.stressPersonalBaseline(context)
+                    val core = runCatching { loadDaytimeCore(vm, personal) }.getOrNull()
+                    daytime = core?.daytime ?: DaytimeStress.Result.EMPTY
+                    val beats = core?.rr.orEmpty()
+                    val lenses = if (beats.isEmpty()) null else runCatching {
+                        withContext(Dispatchers.Default) {
+                            StressIndex.components(beats) to HrvFreqDomain.freqDomain(beats)
+                        }
+                    }.getOrNull()
+                    stressIndex = lenses?.first
+                    freqHrv = lenses?.second
+                }
+                delay(StressWidgetProducer.RESCORE_INTERVAL_MS)
+            }
+        }
     }
 
     // Rebuild the model only when the inputs (days, stored) actually change — the
@@ -160,24 +206,38 @@ fun StressScreen(vm: AppViewModel, onBreathe: () -> Unit = {}) {
 }
 
 /**
- * The daytime timeline result plus the two additive, on-demand HRV readouts, all derived from the
- * SAME day's R-R. The readouts are null when their engine's gate is not met (Baevsky needs >= 20
- * clean beats; freq-HRV needs >= 60 s span) or when the day had no usable intraday HR. None of this
- * touches the 0..3 score.
+ * The scoring pass and the beats it read, which is everything the chart needs (#2181).
+ *
+ * The two optional HRV lenses are deliberately NOT in here. They live in their own card, the chart does
+ * not use them, and one of them is a Lomb-Scargle periodogram over the whole day of beats. Carrying the
+ * beats out lets the caller compute them afterwards without reading a second time.
  */
-private data class DaytimeReadout(
+private data class DaytimeCore(
     val daytime: DaytimeStress.Result,
-    val stressIndex: StressIndex.Components?,
-    val freqHrv: HrvFreqDomain.Bands?,
+    val rr: List<RrInterval>,
 )
 
 /**
  * Read TODAY's banked HR + R-R and build the intraday stress timeline. Local-day window
- * [midnight, now]; [DaytimeStress] buckets it into waking hours and reuses the daily
- * score's math, so this is the same proxy at a finer grain (never a new score). The SAME `rr` is
- * then fed to the two additive HRV engines (no extra fetch, no DB / schema change).
+ * [midnight, now]; [DaytimeStress] buckets it into waking hours and reuses the daily score's math, so
+ * this is the same proxy at a finer grain (never a new score).
+ *
+ * WITHOUT the two additive HRV lenses, and OFF the main thread (#2181). Until then this ran straight
+ * from a LaunchedEffect body, so it sat on Dispatchers.Main: Room's suspend DAOs move the queries off
+ * it, but the merge, the scoring pass and both lenses ran on the UI thread. That does not merely delay
+ * the chart, it holds the frame, which is why the screen sat blank rather than showing an empty chart
+ * filling in. FullDayChartScreen already wraps its equivalent work in Dispatchers.Default.
+ *
+ * The lenses moved out because the chart never used them and was waiting for them anyway.
+ * `HrvFreqDomain` is a Lomb-Scargle periodogram, chosen so uneven beat spacing is not resampled away,
+ * and it costs what that choice costs: about 79 probed frequencies across VLF/LF/HF, each walking the
+ * whole beat series with a sine and a cosine per beat. The caller computes them from the `rr` carried
+ * out here, so they cost no second read and hold up nothing.
  */
-private suspend fun loadDaytimeStress(vm: AppViewModel, personalBaseline: Boolean): DaytimeReadout {
+private suspend fun loadDaytimeCore(
+    vm: AppViewModel,
+    personalBaseline: Boolean,
+): DaytimeCore = withContext(Dispatchers.Default) {
     val nowSeconds = System.currentTimeMillis() / 1000L
     val zone = ZoneId.systemDefault()
     val todayWindow = stressLocalDayWindowContaining(nowSeconds, zone)
@@ -185,7 +245,7 @@ private suspend fun loadDaytimeStress(vm: AppViewModel, personalBaseline: Boolea
     val tzOffsetSeconds = zone.rules.getOffset(Instant.ofEpochSecond(nowSeconds)).totalSeconds.toLong()
     val hr = vm.repo.hrSamplesUnion(vm.activeStrapId, from, nowSeconds, limit = 200_000)
     if (hr.size < DaytimeStress.minHourHrSamples) {
-        return DaytimeReadout(DaytimeStress.Result.EMPTY, null, null)
+        return@withContext DaytimeCore(DaytimeStress.Result.EMPTY, emptyList())
     }
     val rr = vm.repo.rrIntervalsUnion(vm.activeStrapId, from, nowSeconds, limit = 200_000)
     // Wrist accelerometer for the motion gate: an ambulatory hour is EXERTION, not stress, so it is
@@ -202,12 +262,19 @@ private suspend fun loadDaytimeStress(vm: AppViewModel, personalBaseline: Boolea
     } else {
         DaytimeStress.ScoringMode.DayRelative
     }
-    val daytime = DaytimeStress.analyze(hr, rr, gravity, tzOffsetSeconds, mode)
+    // includeTimeline: the SLIDING read, so the screen's line moves in half-hours instead of stepping
+    // through whole clock hours (#2144). The scored unit is still a full hour; this only decides how
+    // often that hour is re-read, so a thin ten minutes now costs the windows that overlap it rather
+    // than a whole hour of chart. The Today card and the widget have always asked for this; the screen
+    // people actually study was the one still stepping.
+    //
+    // It is not free, which is why it was opt-in: a second bucketing pass and one RMSSD per extra
+    // window, on a screen already doing three windowed reads. Since #2144 that cost only lands when
+    // today's heart rate has actually moved, which is what makes it affordable here.
+    val daytime = DaytimeStress.analyze(hr, rr, gravity, tzOffsetSeconds, mode, includeTimeline = true)
     // ADDITIVE advanced readouts from the SAME `rr`. Each engine self-gates and returns null when
     // its requirement is not met, in which case its row is simply hidden in the UI.
-    val si = StressIndex.components(rr)
-    val freq = HrvFreqDomain.freqDomain(rr)
-    return DaytimeReadout(daytime, si, freq)
+    DaytimeCore(daytime, rr)
 }
 
 /**
@@ -216,7 +283,8 @@ private suspend fun loadDaytimeStress(vm: AppViewModel, personalBaseline: Boolea
  * today's intraday read: BaselineRelative once there's enough real worn daytime-HR history for a usable
  * baseline, else DayRelative (the unchanged default). Reads each past day's raw HR once (bounded per
  * day) via [vm].repo; unworn days (no HR) are skipped without an R-R read. Faithful twin of the iOS
- * StressView.daytimeScoringMode. [todayLocalDay] is today's date in [zone].
+ * StressView.daytimeScoringMode. [todayLocalDay] is today's date in [zone]. Each day is reduced
+ * to its aggregate as it is read (#2107), so only the aggregates are retained, never the streams.
  */
 private suspend fun daytimeScoringMode(
     vm: AppViewModel,
@@ -225,7 +293,13 @@ private suspend fun daytimeScoringMode(
 ): DaytimeStress.ScoringMode {
     // 30 mirrors the app's other rolling baselines (nightly resting-HR / HRV) and the iOS baselineHistoryDays.
     val baselineHistoryDays = 30
-    val days = ArrayList<DaytimeBaselines.DaytimeDayStreams>(baselineHistoryDays)
+    // #2107: keep each day's AGGREGATE, never its streams. This used to accumulate 30 x
+    // DaytimeDayStreams, each holding up to 200,000 HR plus 200,000 R-R samples, and hand the lot to
+    // the fold. The fold's first act is to reduce a day to two Doubles, so all that was ever wanted
+    // from thirty days was sixty numbers; holding the samples alive to produce them is what exhausted
+    // a 256MB heap on a worn 5.0 and crashed the app with an OutOfMemoryError. Reducing here lets each
+    // day's samples become garbage at the end of its own iteration.
+    val aggregates = ArrayList<DaytimeBaselines.DayAggregate>(baselineHistoryDays)
     // Oldest → newest so the EWMA fold replays the history in order.
     for (back in baselineHistoryDays downTo 1) {
         val window = stressLocalDayWindow(todayLocalDay.minusDays(back.toLong()), zone)
@@ -242,15 +316,11 @@ private suspend fun daytimeScoringMode(
             window.toEpochSecondInclusive,
             limit = 200_000,
         )
-        days.add(
-            DaytimeBaselines.DaytimeDayStreams(
-                hr = dayHr,
-                rr = dayRr,
-                tzOffsetSeconds = window.offsetSeconds.toLong(),
-            ),
+        aggregates.add(
+            DaytimeBaselines.dayDaytimeAggregate(dayHr, dayRr, window.offsetSeconds.toLong()),
         )
     }
-    return DaytimeBaselines.scoringMode(days)
+    return DaytimeBaselines.scoringModeFromAggregates(aggregates)
 }
 
 // MARK: - Loaded content
@@ -519,6 +589,22 @@ private fun StressAdvancedCard(
 
 // MARK: - 3 · Daytime timeline (intraday, same 0–3 proxy)
 
+/**
+ * How far behind the clock the newest scored hour has to be before the timeline says so (#2144).
+ *
+ * An hour is scored once its bucket holds [DaytimeStress.minHourHrSamples] heart-rate samples, and
+ * that is the ONLY test: there is no completeness rule, so the hour in progress scores as soon as it
+ * has banked enough, which on a strap streaming at roughly 1 Hz is a few minutes in. What actually
+ * decides how far back the curve ends is therefore sample DENSITY, not the clock, and a strap that
+ * banks history in chunks rather than streaming leaves recent hours under the bar for a while.
+ *
+ * So a healthy curve can end anywhere from minutes to an hour or two back depending on how the day's
+ * data arrived, and a threshold here has to clear all of that to avoid crying wolf. Two and a half
+ * hours is past what any of it explains, which is about where a reader starts wondering whether
+ * syncing has died rather than reading the chart.
+ */
+private const val staleTimelineSeconds: Long = 150L * 60L
+
 @Composable
 private fun StressDaytimeSection(
     day: DaytimeStress.Result,
@@ -535,7 +621,12 @@ private fun StressDaytimeSection(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Overline("Stress through the day", modifier = Modifier.weight(1f))
-                    val peak = day.peak
+                    // The peak of what is DRAWN, not of the whole hours (#2144). A sliding window can
+                    // exceed both hourly neighbours when the busy stretch straddles a boundary, so
+                    // reading `day.peak` here would caption the line with a number below its visible
+                    // maximum. Everything that COUNTS hours still reads `hours`; a maximum is not a
+                    // count, and this one has to describe the picture it sits above.
+                    val peak = day.timeline.filter { it.level != null }.maxByOrNull { it.level!! }
                     val peakLevel = peak?.level
                     if (peak != null && peakLevel != null) {
                         Text(
@@ -552,12 +643,16 @@ private fun StressDaytimeSection(
 
                 // Autonomic-load LINE for the day, drawn in the same blue→green→amber WHOOP
                 // ramp as the hero PipBar (README screen 9 "day autonomic-load line").
-                DaytimeStressLine(day.hours)
+                // The SLIDING series, not the bare hours (#2144). Everything that COUNTS hours keeps
+                // reading `hours`: the totals bar's shares still have to sum to the day, and the
+                // trailing "Nh" is a count of scored hours, not of drawn points. Only the line and its
+                // ruler follow the finer read.
+                DaytimeStressLine(day.timeline)
 
                 // Hour ruler under the line (first / midday / last covered hour).
                 // start padding matches stressYAxisWidth so labels align with the chart area.
-                val lo = day.hours.firstOrNull()?.hour
-                val hi = day.hours.lastOrNull()?.hour
+                val lo = day.timeline.firstOrNull()?.hour
+                val hi = day.timeline.lastOrNull()?.hour
                 if (lo != null && hi != null) {
                     Row(modifier = Modifier.fillMaxWidth().padding(start = stressYAxisWidth)) {
                         Text(hourLabel(lo), style = NoopType.footnote, color = Palette.textTertiary)
@@ -575,6 +670,25 @@ private fun StressDaytimeSection(
                     style = NoopType.footnote,
                     color = Palette.textTertiary,
                 )
+                // Where the curve actually stops, said plainly, and only when it is far enough behind
+                // the clock to look broken (#2144). The caption above gives the rule; a reader looking
+                // at a line that ends at 2pm on an axis running to 4pm wants to know that THIS hour is
+                // the reason, not a sync that has died. Quiet on an ordinary day, when the newest
+                // scored hour is simply the one that has just finished.
+                // The last point actually DRAWN, which is a timeline point now rather than an hour.
+                val lastScored = day.timeline.lastOrNull { it.level != null }?.startTs
+                if (lastScored != null &&
+                    System.currentTimeMillis() / 1000L - lastScored >= staleTimelineSeconds
+                ) {
+                    Text(
+                        uiString(
+                            R.string.l10n_stress_screen_scored_through_1_s_later_hours_fbb7d6c7,
+                            pointTimeLabel(lastScored),
+                        ),
+                        style = NoopType.footnote,
+                        color = Palette.textTertiary,
+                    )
+                }
             }
         }
 
@@ -606,6 +720,9 @@ internal fun StressTodayCard(points: List<StressPoint>, modifier: Modifier = Mod
     val stats = remember(points) { StressTrace.stats(points) }
     val ticks = remember(points) { StressTrace.timeTicks(points) }
     val textTertiary = Palette.textTertiary
+    // #2106: the movement marks read as data, not chrome, so they take the same tone the WIDGET
+    // already uses for them rather than the tertiary one the axis labels use.
+    val markTone = Palette.textSecondary
     val calm = StressRamp.CALM
     val steady = StressRamp.STEADY
     val tense = StressRamp.TENSE
@@ -618,10 +735,10 @@ internal fun StressTodayCard(points: List<StressPoint>, modifier: Modifier = Mod
                 // which shows a number rather than this curve.
                 Overline(uiString(R.string.hosted_card_stress_title), modifier = Modifier.weight(1f))
                 if (stats != null) {
-                    val peakTenths = ((stats.peak.level ?: 0.0) * 10).roundToInt().coerceIn(0, 30)
                     Text(
                         uiString(R.string.trends_peak) +
-                            " ${peakTenths / 10}.${peakTenths % 10} · ${pointTimeLabel(stats.peak.ts)}",
+                            " ${StressTrace.formatLevel(stats.peak.level ?: 0.0)} · " +
+                            pointTimeLabel(stats.peak.ts),
                         style = NoopType.footnote,
                         color = Palette.textSecondary,
                     )
@@ -629,12 +746,23 @@ internal fun StressTodayCard(points: List<StressPoint>, modifier: Modifier = Mod
             }
 
             if (stats == null) {
-                // The SAME "Calibrating" placeholder the pinned Today stress card already shows with no
-                // usable signal, so the two never disagree about what an unscored day looks like. Honest
-                // blank rather than a flat line at zero: only waking hours score, so this is every day's
-                // early morning as well as a day with too little signal.
+                // Two states, two answers, which is the distinction the WIDGET already draws and this card
+                // did not. Outside the 06:00-22:00 scored window nothing is coming until morning, and at
+                // 1am the local day has just rolled over with no waking hour in it at all: saying
+                // "Calibrating" there claims the app is working on something it will not touch for hours.
+                // Inside the window it is the honest word, the day simply not having produced a scorable
+                // hour yet. Both strings already exist and are translated, so this borrows rather than
+                // adds. Honest blank either way, never a flat line at zero.
+                val outsideScoredWindow =
+                    !DaytimeStress.isWakingHourOfDay(java.time.LocalTime.now().hour)
                 Text(
-                    uiString(R.string.l10n_today_screen_calibrating_37c2c9bd),
+                    uiString(
+                        if (outsideScoredWindow) {
+                            R.string.l10n_stress_glance_widget_resumes_in_the_morning_a640b49f
+                        } else {
+                            R.string.l10n_today_screen_calibrating_37c2c9bd
+                        }
+                    ),
                     style = NoopType.footnote,
                     color = textTertiary,
                 )
@@ -658,83 +786,112 @@ internal fun StressTodayCard(points: List<StressPoint>, modifier: Modifier = Mod
                         }
                     }
                     Spacer(Modifier.width(6.dp))
-                    Canvas(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(Metrics.chartHeight),
+                    // The chart and its hour labels share ONE column, so the labels line up with the
+                    // ink they name. As siblings of the whole row they started at the card's edge
+                    // instead, shifted left of the chart by the width of the level scale (#2106).
+                    // The 10.dp is the gap the labels had as a direct child of the card's column,
+                    // carried over so moving them only changes WHERE they start, not how they sit.
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        val w = size.width
-                        val h = size.height
-                        if (w <= 0f || h <= 0f) return@Canvas
-                        val strokeW = 2.dp.toPx()
-                        // Reserve the bottom strip for the movement marks, and build the geometry AT the
-                        // reduced height rather than scaling it afterwards. A calm hour sits at the very
-                        // bottom of a fixed domain, so without the strip its line and the marks share a
-                        // row and read as one thing. (The widget carves the same band out of its bitmap;
-                        // computing against `chartH` here is the same idea without the second mapping
-                        // that had to be got right there.)
-                        val hasMarks = points.any { it.moving }
-                        val markBand = if (hasMarks) (strokeW * 2.5f).coerceAtMost(h / 6f) else 0f
-                        val chartH = (h - markBand).coerceAtLeast(1f)
-                        // Amber at the top through green to blue at the bottom: because the domain is
-                        // fixed, vertical position IS the level, so one shader colours every run by the
-                        // score it actually carries.
-                        val gradient = Brush.verticalGradient(listOf(tense, steady, calm),
-                                                              startY = 0f, endY = chartH)
+                        Canvas(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(Metrics.chartHeight),
+                        ) {
+                            val w = size.width
+                            val h = size.height
+                            if (w <= 0f || h <= 0f) return@Canvas
+                            val strokeW = 2.dp.toPx()
+                            // Reserve the bottom strip for the movement marks, and build the geometry AT the
+                            // reduced height rather than scaling it afterwards. A calm hour sits at the very
+                            // bottom of a fixed domain, so without the strip its line and the marks share a
+                            // row and read as one thing. (The widget carves the same band out of its bitmap;
+                            // computing against `chartH` here is the same idea without the second mapping
+                            // that had to be got right there.)
+                            val hasMarks = points.any { it.moving }
+                            val markBand = if (hasMarks) (strokeW * 2.5f).coerceAtMost(h / 6f) else 0f
+                            val chartH = (h - markBand).coerceAtLeast(1f)
+                            // Amber at the top through green to blue at the bottom: because the domain is
+                            // fixed, vertical position IS the level, so one shader colours every run by the
+                            // score it actually carries.
+                            val gradient = Brush.verticalGradient(listOf(tense, steady, calm),
+                                                                  startY = 0f, endY = chartH)
 
-                        StressTrace.segments(points, w, chartH).forEach { run ->
-                            if (run.isEmpty()) return@forEach
-                            if (run.size == 1) {
-                                // Brushed, not a flat colour: the dot has to carry the level the same way
-                                // the line does, or a lone HIGH hour would draw the calm-day green.
-                                drawCircle(brush = gradient, radius = strokeW,
-                                           center = Offset(run[0].x.coerceAtLeast(strokeW), run[0].y))
-                                return@forEach
+                            StressTrace.segments(points, w, chartH).forEach { run ->
+                                if (run.isEmpty()) return@forEach
+                                if (run.size == 1) {
+                                    // Brushed, not a flat colour: the dot has to carry the level the same way
+                                    // the line does, or a lone HIGH hour would draw the calm-day green.
+                                    drawCircle(brush = gradient, radius = strokeW,
+                                               center = Offset(run[0].x.coerceAtLeast(strokeW), run[0].y))
+                                    return@forEach
+                                }
+                                val line = Path().apply {
+                                    moveTo(run[0].x, run[0].y)
+                                    run.drop(1).forEach { lineTo(it.x, it.y) }
+                                }
+                                // Closed PER RUN, so the fill cannot spread under an hour that was never
+                                // scored and undo the gap the broken line exists to draw.
+                                val fill = Path().apply {
+                                    addPath(line)
+                                    lineTo(run.last().x, chartH)
+                                    lineTo(run[0].x, chartH)
+                                    close()
+                                }
+                                drawPath(fill, brush = gradient, alpha = StrandAlpha.chartFillSoft)
+                                drawPath(line, brush = gradient,
+                                         style = Stroke(width = strokeW, cap = StrokeCap.Round,
+                                                        join = StrokeJoin.Round))
                             }
-                            val line = Path().apply {
-                                moveTo(run[0].x, run[0].y)
-                                run.drop(1).forEach { lineTo(it.x, it.y) }
+                            // Hours in the HIGH band, dotted above the line exactly as the screen marks them.
+                            StressTrace.highPoints(points, w, chartH).forEach {
+                                drawCircle(color = tense, radius = strokeW,
+                                           center = Offset(it.x, (it.y - strokeW * 2f).coerceAtLeast(strokeW)))
                             }
-                            // Closed PER RUN, so the fill cannot spread under an hour that was never
-                            // scored and undo the gap the broken line exists to draw.
-                            val fill = Path().apply {
-                                addPath(line)
-                                lineTo(run.last().x, chartH)
-                                lineTo(run[0].x, chartH)
-                                close()
+                            // The stretches the motion gate masked: exertion raises heart rate on its own, so
+                            // the hour is marked rather than scored.
+                            // #2106: one bar per CONTIGUOUS masked stretch, not a dot per hour, and in a
+                            // colour that is not the one the axis labels use. Reported as "many gaps" by a
+                            // wearer who read the old evenly spaced tertiary dots as tick marks and asked
+                            // whether he needed to enable continuous HRV to fill them. A scale does not
+                            // start and stop with the data, so a bar sitting under the stretch it explains
+                            // cannot be read as one. The span already covers the masked hours edge to edge,
+                            // so the floor below is only for a degenerate series with no width to spread
+                            // across, not the ordinary lone-hour case. It is the WIDGET's floor, and wider
+                            // than the dot this replaced, so even that case is no less visible than before.
+                            val markY = h - markBand / 2f
+                            val markH = (markBand * 0.5f).coerceAtLeast(1f)
+                            val minMarkW = strokeW * 3f
+                            StressTrace.movingSpans(points, w).forEach { span ->
+                                val x1 = maxOf(span.endInclusive, minOf(span.start + minMarkW, w))
+                                val x0 = minOf(span.start, maxOf(x1 - minMarkW, 0f))
+                                drawRoundRect(
+                                    color = markTone,
+                                    topLeft = Offset(x0, markY - markH / 2f),
+                                    size = Size(x1 - x0, markH),
+                                    cornerRadius = CornerRadius(markH / 2f, markH / 2f),
+                                )
                             }
-                            drawPath(fill, brush = gradient, alpha = StrandAlpha.chartFillSoft)
-                            drawPath(line, brush = gradient,
-                                     style = Stroke(width = strokeW, cap = StrokeCap.Round,
-                                                    join = StrokeJoin.Round))
                         }
-                        // Hours in the HIGH band, dotted above the line exactly as the screen marks them.
-                        StressTrace.highPoints(points, w, chartH).forEach {
-                            drawCircle(color = tense, radius = strokeW,
-                                       center = Offset(it.x, (it.y - strokeW * 2f).coerceAtLeast(strokeW)))
-                        }
-                        // The stretches the motion gate masked: exertion raises heart rate on its own, so
-                        // the hour is marked rather than scored.
-                        StressTrace.movingMarks(points, w).forEach {
-                            drawCircle(color = textTertiary, radius = strokeW * 0.6f,
-                                       center = Offset(it, h - markBand / 2f))
+                        // Evenly spread, which is only honest because the ticks now span the same series
+                        // the chart does. While they named the last SCORED hour, the right-hand label sat
+                        // at the right-hand edge and claimed the day ended there (#2106).
+                        if (ticks.size >= 2) {
+                            Row(modifier = Modifier.fillMaxWidth()) {
+                                ticks.forEachIndexed { i, ts ->
+                                    Text(pointTimeLabel(ts), style = NoopType.footnote, color = textTertiary)
+                                    if (i < ticks.size - 1) Spacer(Modifier.weight(1f))
+                                }
+                            }
                         }
                     }
                 }
 
-                if (ticks.size >= 2) {
-                    Row(modifier = Modifier.fillMaxWidth()) {
-                        ticks.forEachIndexed { i, ts ->
-                            Text(pointTimeLabel(ts), style = NoopType.footnote, color = textTertiary)
-                            if (i < ticks.size - 1) Spacer(Modifier.weight(1f))
-                        }
-                    }
-                }
-
-                val avgTenths = (stats.mean * 10).roundToInt().coerceIn(0, 30)
                 Text(
                     uiString(R.string.l10n_stress_screen_avg_a178769d) +
-                        " ${avgTenths / 10}.${avgTenths % 10}",
+                        " ${StressTrace.formatLevel(stats.mean)}",
                     style = NoopType.footnote,
                     color = textTertiary,
                 )
@@ -1164,15 +1321,29 @@ private fun MarkerTile(
     higherIsStress: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val deltaText: String
+    val deltaText: String?
     val deltaColor: Color
-    if (delta != null && kotlin.math.abs(delta) >= 0.5) {
+    if (delta == null) {
+        // NO CHIP, rather than a claim we cannot make. The delta is null when today has no reading or
+        // there is no 30-day baseline to stand it against, and both of those used to render the
+        // at-baseline chip: a tile with no reading read "— at baseline", and a first-week tile said a
+        // reading sat exactly on a baseline that did not exist yet. StatTile draws no chip for null.
+        deltaText = null
+        deltaColor = Palette.textTertiary
+    } else if (kotlin.math.abs(delta) >= 0.5) {
         val up = delta > 0
         val isStressful = (up == higherIsStress)
-        deltaText = "${if (up) "+" else "−"}${kotlin.math.abs(delta).roundToInt()} vs base"
+        // The magnitude alone, signed. TrendChip reads the sign to pick its ▲/▼, and the section
+        // header two lines up already says "vs 30-day baseline", so spelling "vs base" again inside
+        // the chip spent width on a word the reader has just been given (#2145).
+        deltaText = "${if (up) "+" else "−"}${kotlin.math.abs(delta).roundToInt()}"
         deltaColor = if (isStressful) Palette.statusWarning else Palette.statusPositive
     } else {
-        deltaText = "at baseline"
+        // "at baseline" shortens the same way: the header supplies "baseline", the chip supplies the
+        // distance from it, which is none. No glyph, TrendChip showing one only for a signed value.
+        // Reached only with a real delta now, so it says "measured, and it is zero" rather than
+        // standing in for "nothing to measure".
+        deltaText = "±0"
         deltaColor = Palette.textTertiary
     }
     StatTile(
@@ -1182,10 +1353,15 @@ private fun MarkerTile(
         accent = accent,
         delta = deltaText,
         deltaColor = deltaColor,
-        // #492 item 5: on narrow two-column cards the intrinsic-width "vs base" chip used to consume
-        // nearly the whole row and leave the reading as "4…" / "73…". Share the row evenly so the real
-        // physiological value stays intact; the explanatory chip is the element allowed to ellipsize.
-        compactDelta = true,
+        // NO compactDelta, deliberately (#2145). #492 item 5 added it because the intrinsic-width
+        // "vs base" chip ate the row and left the reading as "4…", and an even split then starved
+        // BOTH sides on a two-up tile: "53 bpm" and "+7 vs base" each want more than half, so the
+        // field saw "53 …" beside "▲ +7 vs …". An even split cannot be the answer, because a weighted
+        // child with fill = true is held to exactly its share, so the value stays at half however
+        // little the chip needs. The chip is now the sign and at most three digits at 12sp, so it
+        // measures under 45dp including its pill padding, and the weighted value takes everything
+        // else. The old chip wanted about 90dp of a row that has about 140dp to give, which is what
+        // made it starve the reading in the first place.
     )
 }
 

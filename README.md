@@ -307,9 +307,10 @@ same rules as everything else here.
 > used only to identify that hardware. NOOP does not use, decompile, or redistribute any Oura app
 > code, and does not bypass any login, paywall, or DRM.
 
-**📱 iOS / Android only.** Pairing an Oura ring **does not work on macOS** — `connect()` is issued
-cleanly and no CoreBluetooth callback ever arrives, so it hangs silently rather than failing. This is
-reproducible and independent of the pairing method. Documented in
+**⚠️ macOS pairing needs a factory-reset ring.** Pairing an Oura ring that is still Bluetooth-bonded
+to a phone (i.e. its only prior bond is with the official Oura app) reproducibly hangs on macOS —
+`connect()` is issued cleanly and no CoreBluetooth callback ever arrives. Factory-resetting the ring
+from the official Oura app first, then pairing with NOOP on macOS, works. Documented in
 [`docs/OURA_PROTOCOL.md` §3.8](docs/OURA_PROTOCOL.md).
 
 | Input / output | Status |

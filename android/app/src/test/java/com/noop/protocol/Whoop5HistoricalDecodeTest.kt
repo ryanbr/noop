@@ -18,7 +18,7 @@ class Whoop5HistoricalDecodeTest {
     private fun bytes(s: String): ByteArray =
         s.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
 
-    // Real worn WHOOP 5 v18 frame: hr=102, rr=[602,613] ticks → [588,599] ms, |gravity|≈1, skin temp 30.57 °C.
+    // Real worn WHOOP 5 v18 frame: hr=102, rr=[602,613] ms, |gravity|≈1, skin temp 30.57 °C.
     private val wornV18 =
         "aa01740001003fb12f1280733d8401b69f266a66460066025a0265020000000000007b0a8d656463ff0012163cf6a439bf2924fd3ed763fe3e3200aa000000000000000000f7000901f10b0007010c020c00000000000000000000000000000000000000000000000100656f1e1e0000009d61a7c00000003e862817"
 
@@ -37,7 +37,7 @@ class Whoop5HistoricalDecodeTest {
         assertEquals(1780916150L, p["unix"])
         assertEquals(102, p["heart_rate"])
         assertEquals(2, p["rr_count"])
-        assertEquals(listOf(588, 599), p["rr_intervals"])
+        assertEquals(listOf(602, 613), p["rr_intervals"])
 
         // A physiological sanity check cannot establish units; the complete native arrays match
         // standard 0x2A37 raw tick arrays on firmware 50.41.1.0 (Swift twin).

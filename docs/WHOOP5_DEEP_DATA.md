@@ -33,6 +33,28 @@ that client implementation is not the current 65-byte semantic request contract.
 Acceptance of truncated bodies remains unresolved. This page supplies no bulk
 “unlock” recipe.
 
+## Console record sequencing and text reassembly
+
+WHOOP 5 console records (type 50) carry a **wrapping u8 sequence at frame byte 9**. The Swift
+decoder exposes `console_sequence` and the separate raw `console_header_byte_10`. The previous
+`record_index` u16 interpretation is removed: on firmware **50.41.1.0**, 2,978 CRC-valid records
+from a ten-hour night kept byte 10 at 2, including nine captured 255 → 0 wraps. Reading those
+two bytes together produces 767 → 512, not a monotonic record counter.
+
+Reconstruct text in received order within the same capture, link, characteristic and console
+channel. Check sequence continuity modulo 256. Captured EVENT records can occupy intervening
+positions; realtime, historical and metadata records have separate sequence meanings and can be
+interleaved. Do not bridge an unexplained sequence gap or an invalid frame. Batch timestamps are
+not exact computation times. This reconstruction recovered the complete firmware message
+`generated a valid SPO2 during sleep`; it contains no numeric oxygen result and does not validate
+the byte-82 candidate. Raw captures remain private; tests use synthetic wrap headers.
+
+**Platform scope:** this investigation is explicitly limited to macOS and the shared Swift core.
+The Android console decoder and its parity vectors are therefore deferred; Android still exposes
+the incorrect u16 `record_index`. This is a deliberate scope limit, not a
+cross-platform parity claim. Update the Kotlin twin and matching wrap/header vectors before
+including this correction in a cross-platform release.
+
 ## Existing public sources
 
 These sources contributed earlier protocol observations and client work:

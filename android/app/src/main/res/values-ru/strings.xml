@@ -1723,7 +1723,20 @@
     <string name="l10n_today_screen_recovery_ea924f72">Восстановление</string>
     <string name="l10n_today_screen_sync_chip_now_c9bc849a">сейчас</string>
     <string name="l10n_today_screen_sync_chip_live_98aadb37">в реальном времени</string>
-    <string name="l10n_today_screen_sync_chip_syncing_desc_bfc290e7">Синхронизация истории браслета, %1$d фрагментов</string>
+    <string name="l10n_today_screen_sync_chip_syncing_desc_92daf60c">Синхронизация истории браслета, %1$s</string>
+    <string name="l10n_today_screen_sync_chip_syncing_pages_desc_ad763b39">Синхронизация истории браслета, %1$s, %2$s</string>
+    <plurals name="sync_chip_chunks_count">
+        <item quantity="one">%1$d фрагмент</item>
+        <item quantity="few">%1$d фрагмента</item>
+        <item quantity="many">%1$d фрагментов</item>
+        <item quantity="other">%1$d фрагмента</item>
+    </plurals>
+    <plurals name="sync_chip_pages_behind_count">
+        <item quantity="one">%1$d страница отставания при подключении</item>
+        <item quantity="few">%1$d страницы отставания при подключении</item>
+        <item quantity="many">%1$d страниц отставания при подключении</item>
+        <item quantity="other">%1$d страницы отставания при подключении</item>
+    </plurals>
     <string name="l10n_today_screen_sync_chip_synced_desc_4d255944">История браслета синхронизирована %1$s назад</string>
     <string name="l10n_today_screen_sync_chip_experimental_desc_3de06a70">Подключено; синхронизация истории экспериментальна для этого браслета.</string>
     <string name="l10n_today_screen_recovery_roundtoint_charge_92fbaa5e">%1$s%% Заряда</string>
@@ -2644,4 +2657,8 @@
     <string name="coach_consent_on">Включено: заряд, отдых, ВСР и тренировки отправляются провайдеру, каждая тренировка с видом спорта, длительностью, дистанцией и пульсом.</string>
     <string name="coach_consent_off">Выключено: коуч отвечает в общем виде и не отправляет ваши показатели.</string>
     <string name="l10n_app_changelog_a_today_screen_you_arrange_yourself_6194ccd0">Экран «Сегодня», который вы составляете сами, стресс на главном экране и резервные копии, которые проверяют себя сами</string>
+    <string name="l10n_stress_screen_scored_through_1_s_later_hours_fbb7d6c7">Оценено до %1$s. Для более поздних часов нужно больше измерений пульса.</string>
+    <string name="l10n_today_screen_scan_and_connect_40157030">Найти и подключить</string>
+    <string name="l10n_health_screen_fitness_age_stops_here_vo_max_383d989a">Фитнес-возраст здесь останавливается. VO₂max — нет.</string>
+    <string name="l10n_app_changelog_a_stress_screen_that_keeps_up_f7ec3f36">Экран стресса, который успевает, показания WHOOP 5 в тех единицах, которые шлёт ремешок, и кольцо, которое перестаёт повторяться</string>
 </resources>

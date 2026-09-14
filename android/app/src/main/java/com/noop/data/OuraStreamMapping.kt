@@ -113,6 +113,13 @@ object OuraStreamMapping {
                 }
 
                 is OuraEvent.Spo2 -> {
+                    // Only persist the 0x6F/0x70 channel (unit == "raw"): a real overnight capture
+                    // (2026-07-30/31, 22516 samples) clusters tightly at 95-105, matching a genuine %SpO2
+                    // reading. The 0x77 DC channel (unit == "dc_raw") is a wildly different-scale raw
+                    // PPG/perfusion signal (-9K to +11.7M in the same capture) - not SpO2 at all, so
+                    // blending it into `red` would corrupt any consumer that averages the stream with no
+                    // unit filter. Mirrors the Swift OuraStreamMapping twin.
+                    if (ev.value.unit != "raw") continue
                     // The ring exposes ONE combined SpO2 reading (not separate red/ir channels): its
                     // raw value goes in `red`; `ir` stays 0 (an unread channel, never a fabricated
                     // second reading). `unit` carries the decoder's own scale tag so downstream never
