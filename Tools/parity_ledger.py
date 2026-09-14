@@ -827,10 +827,11 @@ class _NumberExpression:
         token = self._take()
         if not NUMBER_TOKEN.fullmatch(token):
             raise InvalidOperation
-        number = token.replace("_", "").rstrip("fFdDlL")
+        number = token.replace("_", "")
         if number.lower().startswith(("0x", "0b", "0o")):
-            return Decimal(int(number, 0))
-        return Decimal(number)
+            # f/F/d/D are hex digits here; radix literals only take the l/L suffix.
+            return Decimal(int(number.rstrip("lL"), 0))
+        return Decimal(number.rstrip("fFdDlL"))
 
     def _peek(self) -> str | None:
         return self.tokens[self.index] if self.index < len(self.tokens) else None

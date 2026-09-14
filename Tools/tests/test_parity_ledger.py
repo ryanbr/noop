@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from decimal import Decimal
 from pathlib import Path
 from unittest import mock
 
@@ -765,6 +766,32 @@ enum SwiftTwo {
         parsed = parity_ledger._literal("-(2 - 50) * (7_200 / 2) + 0x10 - 0b1")
         self.assertEqual("number:172815", parsed[0])
         self.assertIsNone(parity_ledger._literal("48 * 3_600 trailing"))
+
+    def test_hex_digits_f_and_d_are_not_stripped_as_suffixes(self) -> None:
+        cases = {
+            "0xffff_ffff": "4294967295",
+            "0xffff_ffffL": "4294967295",
+            "0xFFFFFFFF": "4294967295",
+            "0xABCD": "43981",
+            "0x2F": "47",
+            "0b1L": "1",
+            "1.5f": "1.5",
+            "2.0d": "2",
+            "10L": "10",
+        }
+        for raw, expected in cases.items():
+            with self.subTest(raw=raw):
+                canonical = parity_ledger._literal(raw)[0]
+                self.assertEqual(f"number:{Decimal(expected).normalize()}", canonical)
+
+    def test_hex_constant_ending_in_f_is_paired_by_its_full_value(self) -> None:
+        self.swift.write_text("enum Engine { static let mask: UInt32 = 0xffff_ffff }\n")
+        self.kotlin.write_text("object Engine { const val MASK = 0xffff_ffffL }\n")
+        twin_map = parity_ledger.build_twin_map(self.root)
+        self.assertEqual(1, len(twin_map["constant_pairs"]))
+        self.assertFalse(any(item.rule.startswith("constant-") for item in self.findings(twin_map)))
+        self.kotlin.write_text("object Engine { const val MASK = 0xffff_fffdL }\n")
+        self.assertTrue(any(item.rule == "constant-value-mismatch" for item in self.findings(twin_map)))
 
     def test_unparseable_mapped_constant_is_reported(self) -> None:
         self.swift.write_text("enum Engine { static let limit = makeLimit() }\n")
