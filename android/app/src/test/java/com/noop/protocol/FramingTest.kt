@@ -515,6 +515,7 @@ class FramingTest {
         // read as one u16 (0x029F = 671), which is the #2192 misread.
         assertEquals(159, parsed.parsed["console_sequence"])
         assertEquals(2, parsed.parsed["console_header_byte_10"])
+        assertNull("the u16 misread must not come back", parsed.parsed["record_index"])
         assertEquals(1773607251, parsed.parsed["unix"])
         assertEquals(16041, parsed.parsed["subsec"])
     }
@@ -582,6 +583,39 @@ class FramingTest {
         val f = consoleFrame(ByteArray(6))
         val p = Framing.parseFrame(f, DeviceFamily.WHOOP5)
         assertNull(p.parsed["log"])
+    }
+
+    /** The wrap is the whole evidentiary basis for decoding @9 as a u8: byte 10 must NOT move when
+     *  the sequence rolls 255 -> 0. On firmware 50.41.1.0 it held at 2 across nine captured wraps, so
+     *  a carry here would mean the pair really was one u16 after all. Synthetic headers, because a
+     *  capture spanning a wrap is not committed. Twin of Swift `testConsoleSequenceWrapDoesNotCarryIntoHeaderByte`. */
+    @Test
+    fun whoop5_consoleLogs_sequenceWrapDoesNotCarryIntoHeaderByte() {
+        for (sequence in listOf(254, 255, 0, 1)) {
+            val f = consoleFrame("fragment".toByteArray())
+            f[9] = sequence.toByte()
+            f[10] = 2
+            val p = Framing.parseFrame(f, DeviceFamily.WHOOP5).parsed
+            assertEquals(sequence, p["console_sequence"])
+            assertEquals(2, p["console_header_byte_10"])
+            assertNull("console chunks have no monotonic historical index", p["record_index"])
+            assertEquals("fragment", p["log"])
+        }
+    }
+
+    /** The converse: the header byte varies independently and never perturbs the sequence. Together
+     *  with the wrap test this pins the two as separate fields rather than one split value. Twin of
+     *  Swift `testConsoleHeaderByteDoesNotChangeSequence`. */
+    @Test
+    fun whoop5_consoleLogs_headerByteDoesNotChangeSequence() {
+        for (headerByte in listOf(0, 2, 255)) {
+            val f = consoleFrame("fragment".toByteArray())
+            f[9] = 7
+            f[10] = headerByte.toByte()
+            val p = Framing.parseFrame(f, DeviceFamily.WHOOP5).parsed
+            assertEquals(7, p["console_sequence"])
+            assertEquals(headerByte, p["console_header_byte_10"])
+        }
     }
 
     /** Only TRAILING NULs are trimmed; the text before them is kept verbatim. */
