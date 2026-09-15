@@ -69,6 +69,7 @@ struct AutomationsView: View {
             healthInsightsCard
             batteryCard
             strainTargetCard
+            dailyCoachCard
         }
     }
 
@@ -437,6 +438,19 @@ struct AutomationsView: View {
                         // (the reevaluateIllness idiom).
                         model.evaluateStrainTarget()
                     }
+                }
+        }
+    }
+
+    private var dailyCoachCard: some View {
+        Section2(icon: "sparkles", title: String(localized: "Morning brief"),
+                 blurb: String(localized: "A local notification with today's readiness + training plan, generated on-device each morning."),
+                 active: behavior.dailyCoach) {
+            ToggleRow(label: String(localized: "Morning brief"),
+                      help: String(localized: "All stays on \(Platform.deviceNounPhrase). Nothing is sent anywhere."),
+                      isOn: $behavior.dailyCoach)
+                .onChangeCompat(of: behavior.dailyCoach) { on in
+                    if on { DailyCoachNotifier.requestAuthorization() }
                 }
         }
     }

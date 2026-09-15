@@ -48,7 +48,6 @@ import com.noop.notif.IllnessAlertNotifier
 import com.noop.notif.ScheduledReportNotifier
 import com.noop.notif.StrainTargetNotifier
 import com.noop.notif.ScheduledReportPolicy
-import com.noop.notif.scorePctOrNull
 import com.noop.protocol.CommandNumber
 import com.noop.widget.WidgetSnapshot
 import com.noop.widget.WidgetSnapshotStore
@@ -990,11 +989,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 if (previousAlert == null) {
                     _healthAlert.value?.let { IllnessAlertNotifier.onEvaluated(appContext, it) }
                 }
-                // Morning recap (#517) — opt-in, default OFF. Once today's row carries a banked night
-                // (totalSleepMin != null), post a one-per-day Charge + Rest recap. recovery == Charge;
+                // Morning recap (#517/#1736) — opt-in, default OFF. Once today's row carries a banked
+                // night, post a one-per-night summary of the available metrics. recovery == Charge;
                 // Rest is recomputed from the night's totals via RestScorer (the same single source of
-                // truth Trends/Insights use). The notifier's persisted day gate makes this safe to call
-                // on every republish. Honest: a night with only one of the two scores omits the other.
+                // truth Trends/Insights use). The notifier's persisted gate makes this safe on every
+                // republish; missing values are omitted and missing Charge never fabricates advice.
                 _today.value?.let { todayRow ->
                     if (todayRow.totalSleepMin != null) {
                         ScheduledReportNotifier.onMorning(
@@ -1002,8 +1001,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                             // Key the once-per-recap gate on the banked NIGHT's day, not the calendar day —
                             // otherwise the midnight rollover re-fires last night's recap for late-nighters (#567).
                             reportDay = todayRow.day,
-                            chargePct = todayRow.recovery.scorePctOrNull(),
-                            restPct = RestScorer.restFromDaily(todayRow).scorePctOrNull(),
+                            charge = todayRow.recovery,
+                            rest = RestScorer.restFromDaily(todayRow),
+                            hrvMs = todayRow.avgHrv,
+                            restingHr = todayRow.restingHr,
+                            sleepMinutes = todayRow.totalSleepMin,
                         )
                     }
                     // #593: once-a-day optimal-strain-reached nudge. Convert the stored 0-100 Effort to the

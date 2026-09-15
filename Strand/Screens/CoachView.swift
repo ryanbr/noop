@@ -168,16 +168,10 @@ struct CoachView: View {
             CoachBriefScheduler.activateIfEnabled { await coach.generateBrief() }
             await coach.startBriefIfNeeded()
         }
-        // #1862: a question handed over by the Today launcher sheet. Cleared BEFORE sending so a view
-        // rebuild mid-flight cannot send it twice, and gated on `isConfigured` so an unconfigured handoff
-        // (which the launcher does not produce, but a future caller might) degrades to showing setup
-        // rather than a failed request.
-        .task(id: coach.pendingPrompt) {
-            guard let prompt = coach.pendingPrompt, !prompt.isEmpty else { return }
-            coach.pendingPrompt = nil
-            guard coach.isConfigured else { return }
-            await coach.send(prompt)
-        }
+        // #1736: a question handed over by the Today launcher is only prepared as a draft. The user
+        // gets a final review/edit step in the full Coach screen before any provider request is made.
+        .onAppear { takePendingPrompt() }
+        .onChangeCompat(of: coach.pendingPrompt) { _ in takePendingPrompt() }
         // K15: persist the composer draft so it survives an app relaunch.
         .onChangeCompat(of: draft) { newValue in
             UserDefaults.standard.set(newValue, forKey: Self.draftKey)
@@ -1131,6 +1125,13 @@ struct CoachView: View {
         draft = ""
         composerFocused = false
         Task { await coach.send(trimmed) }
+    }
+
+    private func takePendingPrompt() {
+        guard let prompt = coach.pendingPrompt, !prompt.isEmpty else { return }
+        draft = prompt
+        coach.pendingPrompt = nil
+        composerFocused = true
     }
 
     /// K14: Trigger a subtle haptic when the Coach reply arrives. On iOS, a light impact feedback.

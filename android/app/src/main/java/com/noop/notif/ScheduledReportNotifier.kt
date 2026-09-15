@@ -16,7 +16,8 @@ import kotlin.math.roundToInt
 // MARK: - Scheduled report notifications (#517)
 //
 // Two opt-in, default-OFF system notifications, no AI involved:
-//   1. A MORNING RECAP (Charge + Rest) once a fresh night has been processed.
+//   1. A MORNING RECAP (available Charge / Rest / HRV / resting HR / sleep) once a fresh night has
+//      been processed, plus training guidance only when Charge exists.
 //   2. A POST-WORKOUT SUMMARY (Effort + duration + avg HR) when a newly synced workout is first seen.
 //
 // Neither is alarm-precise: NOOP reads the strap over BLE and scores on a ~15-minute analytics pass, so a
@@ -33,17 +34,17 @@ import kotlin.math.roundToInt
  *  by ScheduledReportPolicyTest independently of the notification plumbing. */
 object ScheduledReportPolicy {
 
-    /** Fire the morning recap at most once per REPORTED NIGHT: only when enabled, a recap value exists, and
+    /** Fire the morning recap at most once per REPORTED NIGHT: only when enabled, a metric exists, and
      *  we haven't already posted for [reportDay]. [reportDay] is the day of the banked night the recap is
      *  FOR (the resolved today-row's `day`), NOT the phone's calendar day — keying on the calendar day made
      *  it re-fire at midnight for anyone up late, since the row still resolves to last night's until a new
      *  night is banked (#567). */
     fun shouldNotifyMorning(
         enabled: Boolean,
-        chargeOrRestPresent: Boolean,
+        metricsPresent: Boolean,
         lastNotifiedDay: String?,
         reportDay: String,
-    ): Boolean = enabled && chargeOrRestPresent && lastNotifiedDay != reportDay
+    ): Boolean = enabled && metricsPresent && lastNotifiedDay != reportDay
 
     /** Fire the post-workout summary only for a workout STRICTLY newer than the last one summarised, so a
      *  re-sync of the same backlog never re-notifies. [lastWorkoutTs] is 0 before the first ever. */
@@ -53,18 +54,42 @@ object ScheduledReportPolicy {
         lastWorkoutTs: Long,
     ): Boolean = enabled && newestWorkoutTs != null && newestWorkoutTs > lastWorkoutTs
 
-    /** Title + body for the morning recap. Charge and Rest are each optional (a night can produce one
-     *  without the other); absent ones are simply omitted — never shown as 0 or a guess. Returns null when
-     *  neither is present (the caller shouldn't have been asked to build copy, but stay honest). */
-    fun morningCopy(chargePct: Int?, restPct: Int?): Pair<String, String>? {
-        val parts = ArrayList<String>(2)
-        chargePct?.let { parts.add("Charge $it") }
-        restPct?.let { parts.add("Rest $it") }
-        if (parts.isEmpty()) return null
-        val title = "Good morning: last night's recap"
-        val body = parts.joinToString(" · ") +
-            ". Recovery from your strap, scored after it synced this morning."
-        return title to body
+    enum class MorningTrainingBand { RECOVERY, CONTROLLED, HARDER }
+
+    data class MorningBrief(
+        val charge: Int?,
+        val rest: Int?,
+        val hrvMs: Int?,
+        val restingHr: Int?,
+        val sleepHours: Int?,
+        val trainingBand: MorningTrainingBand?,
+    )
+
+    /** Pure data selection for the morning recap. Every displayed number is rounded here, and that same
+     *  rounded Charge drives the recommendation band so the text can never disagree with the number. A
+     *  missing Charge omits the recommendation instead of fabricating a mid-band value. */
+    fun morningBrief(
+        charge: Double?,
+        rest: Double?,
+        hrvMs: Double? = null,
+        restingHr: Int? = null,
+        sleepMinutes: Double? = null,
+    ): MorningBrief? {
+        val roundedCharge = charge?.roundToInt()
+        val roundedRest = rest?.roundToInt()
+        val roundedHrv = hrvMs?.roundToInt()
+        val roundedSleepHours = sleepMinutes?.div(60.0)?.roundToInt()
+        if (roundedCharge == null && roundedRest == null && roundedHrv == null &&
+            restingHr == null && roundedSleepHours == null
+        ) return null
+        val trainingBand = roundedCharge?.let {
+            when {
+                it >= 67 -> MorningTrainingBand.HARDER
+                it >= 34 -> MorningTrainingBand.CONTROLLED
+                else -> MorningTrainingBand.RECOVERY
+            }
+        }
+        return MorningBrief(roundedCharge, roundedRest, roundedHrv, restingHr, roundedSleepHours, trainingBand)
     }
 
     /** Title + body for the post-workout summary. [effortDisplay] is already formatted on the user's
@@ -104,23 +129,32 @@ object ScheduledReportNotifier {
     private const val WORKOUT_NOTIF_ID = 4209
 
     /**
-     * Post the morning recap if enabled and not already posted today. [chargePct]/[restPct] are the
-     * just-computed Charge/Rest for the night (either may be null). No-op on every path that fails the
-     * policy, so the caller can fire it freely each time the days collector republishes.
+     * Post the morning recap if enabled and not already posted today. Every metric is optional and the
+     * recommendation is omitted when Charge is absent. No-op on every path that fails the policy, so the
+     * caller can fire it freely each time the days collector republishes.
      */
     @SuppressLint("MissingPermission") // guarded by areNotificationsEnabled() + runCatching
-    fun onMorning(context: Context, reportDay: String, chargePct: Int?, restPct: Int?) {
+    fun onMorning(
+        context: Context,
+        reportDay: String,
+        charge: Double?,
+        rest: Double?,
+        hrvMs: Double?,
+        restingHr: Int?,
+        sleepMinutes: Double?,
+    ) {
         // reportDay is the banked night's day (the resolved today-row's `day`), NOT LocalDate.now() — the
         // calendar day rolls at midnight while the row still resolves to last night's until a new night is
         // banked, which re-fired the recap at the start of a new day for late-nighters (#567).
+        val brief = ScheduledReportPolicy.morningBrief(charge, rest, hrvMs, restingHr, sleepMinutes) ?: return
         if (!ScheduledReportPolicy.shouldNotifyMorning(
                 enabled = NoopPrefs.morningReportEnabled(context),
-                chargeOrRestPresent = chargePct != null || restPct != null,
+                metricsPresent = true,
                 lastNotifiedDay = NoopPrefs.reportMorningDay(context),
                 reportDay = reportDay,
             )
         ) return
-        val copy = ScheduledReportPolicy.morningCopy(chargePct, restPct) ?: return
+        val copy = morningCopy(context, brief)
         runCatching {
             if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
             ensureChannel(context)
@@ -129,6 +163,23 @@ object ScheduledReportNotifier {
             // once they're re-enabled while the same night's row is showing.
             NoopPrefs.setReportMorningDay(context, reportDay)
         }
+    }
+
+    private fun morningCopy(context: Context, brief: ScheduledReportPolicy.MorningBrief): Pair<String, String> {
+        val parts = ArrayList<String>(5)
+        brief.charge?.let { parts.add("${context.getString(R.string.today_metric_charge)} $it") }
+        brief.rest?.let { parts.add("${context.getString(R.string.today_metric_rest)} $it") }
+        brief.hrvMs?.let { parts.add("${context.getString(R.string.today_metric_hrv)} $it ms") }
+        brief.restingHr?.let { parts.add("${context.getString(R.string.l10n_insights_screen_rhr_04edf9b3)} $it bpm") }
+        brief.sleepHours?.let { parts.add("${context.getString(R.string.today_card_sleep)} $it h") }
+        val training = when (brief.trainingBand) {
+            ScheduledReportPolicy.MorningTrainingBand.HARDER -> context.getString(R.string.today_readiness_primed_summary)
+            ScheduledReportPolicy.MorningTrainingBand.CONTROLLED -> context.getString(R.string.today_readiness_strained_summary)
+            ScheduledReportPolicy.MorningTrainingBand.RECOVERY -> context.getString(R.string.today_readiness_run_down_summary)
+            null -> null
+        }
+        return context.getString(R.string.coach_morning_brief) to
+            (parts.joinToString(" · ") + (training?.let { ". $it" } ?: ""))
     }
 
     /**
@@ -204,6 +255,3 @@ object ScheduledReportNotifier {
         }
     }
 }
-
-/** Round a 0–100 score to a whole number for display, or null if absent (never fabricate a 0). */
-internal fun Double?.scorePctOrNull(): Int? = this?.roundToInt()

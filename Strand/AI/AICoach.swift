@@ -187,7 +187,8 @@ final class AICoachEngine: ObservableObject {
     /// Kotlin `CoachViewModel.keyRejected`.
     @Published var keyRejected = false
 
-    /// #1862: a question handed over by the Today Coach launcher sheet, for `CoachView` to send on appear.
+    /// #1862/#1736: a question handed over by the Today Coach launcher sheet for `CoachView` to place
+    /// in its composer. The user reviews and explicitly sends it there.
     ///
     /// The launcher owns no send, stream, error or consent surface of its own — duplicating those is how a
     /// second chat UI drifts from the first. It collects a question and hands it here; the Coach screen,
