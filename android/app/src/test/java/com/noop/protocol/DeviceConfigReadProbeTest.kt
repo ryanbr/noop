@@ -637,4 +637,25 @@ class DeviceConfigReadProbeTest {
             )
         }
     }
+
+    /**
+     * The OTHER branch of the two-sentence verdict, and the one I left unpinned on this side while
+     * pinning its twin. Swift has both; Kotlin had neither until now.
+     *
+     * A reply that SUCCEEDED but carried no verified key/value pair is a different finding from one
+     * that was rejected outright, and the verdict has to say which. Found by listing both suites and
+     * comparing them rather than by reading the code again.
+     */
+    @Test
+    fun aSuccessfulReplyWithoutAKeyValueHasADistinctVerdict() {
+        val rep = DeviceConfigReadProbeReport(DeviceFamily.WHOOP5, emptyList(), emptyList())
+        rep.noteReply(
+            DeviceConfigReadProbe.ValueResponse(1, byteArrayOf(1, 0)),
+            DeviceConfigReadProbeReport.Step(128, "enable_r22_packets", DeviceConfigReadProbeReport.Group.DISCOVERY),
+        )
+        assertEquals(
+            "1 of 2 read verbs answered, but no successful reply carried a verified key/value pair; no value is claimed",
+            rep.verdict,
+        )
+    }
 }
