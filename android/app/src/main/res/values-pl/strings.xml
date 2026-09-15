@@ -1939,6 +1939,15 @@
     <string name="recording_chip_detail_connected_no_data">W tej sesji nie ma jeszcze tętna na żywo ani zsynchronizowanej historii.</string>
     <string name="score_state_title_calibrating">Kalibracja</string>
     <string name="l10n_stress_glance_widget_resumes_in_the_morning_a640b49f">Wznowi się rano</string>
+    <string name="stress_screen_subtitle">Obciążenie autonomiczne w ciągu dnia</string>
+    <string name="stress_timeline_caption_day">Linia pokazuje wskaźnik 0–3 dla każdej godziny czuwania, oceniany względem Twoich dzisiejszych spokojnych godzin. Pasek poniżej dzieli dzień na okresy niskiego, umiarkowanego i wysokiego stresu.</string>
+    <string name="stress_timeline_caption_personal">Linia pokazuje wskaźnik 0–3 dla każdej godziny czuwania, oceniany względem Twojej osobistej dziennej linii bazowej (typowego przebiegu Twoich dni). Pasek poniżej dzieli dzień na okresy niskiego, umiarkowanego i wysokiego stresu.</string>
+    <plurals name="stress_hours_excluded_moving">
+        <item quantity="one">Wykluczono %1$d godzinę — wykryto ruch.</item>
+        <item quantity="few">Wykluczono %1$d godziny — wykryto ruch.</item>
+        <item quantity="many">Wykluczono %1$d godzin — wykryto ruch.</item>
+        <item quantity="other">Wykluczono %1$d godziny — wykryto ruch.</item>
+    </plurals>
     <string name="score_state_title_needs_strap">Potrzebuje paska</string>
     <string name="score_state_title_last_night">Ostatnia noc · %1$s</string>
     <string name="score_state_title_latest_sleep">Ostatni sen · %1$s</string>

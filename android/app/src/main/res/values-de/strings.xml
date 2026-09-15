@@ -1982,6 +1982,13 @@
     <string name="recording_chip_detail_connected_no_data">Noch keine Live-Herzfrequenz und kein synchronisierter Verlauf in dieser Sitzung.</string>
     <string name="score_state_title_calibrating">Kalibrierung</string>
     <string name="l10n_stress_glance_widget_resumes_in_the_morning_a640b49f">Wird morgens fortgesetzt</string>
+    <string name="stress_screen_subtitle">Autonome Belastung im Verlauf deines wachen Tages</string>
+    <string name="stress_timeline_caption_day">Die Linie zeigt den 0–3-Näherungswert jeder Wachstunde, bewertet anhand deiner eigenen ruhigen Stunden heute. Der Balken darunter teilt deinen Tag in ruhige, mäßige und hohe Stresszeiten.</string>
+    <string name="stress_timeline_caption_personal">Die Linie zeigt den 0–3-Näherungswert jeder Wachstunde, bewertet anhand deiner persönlichen Tages-Baseline (wie deine Tage normalerweise verlaufen). Der Balken darunter teilt deinen Tag in ruhige, mäßige und hohe Stresszeiten.</string>
+    <plurals name="stress_hours_excluded_moving">
+        <item quantity="one">%1$d Stunde ausgeschlossen — du warst in Bewegung.</item>
+        <item quantity="other">%1$d Stunden ausgeschlossen — du warst in Bewegung.</item>
+    </plurals>
     <string name="score_state_title_needs_strap">Strap erforderlich</string>
     <string name="score_state_title_last_night">Letzte Nacht · %1$s</string>
     <string name="score_state_title_latest_sleep">Letzter Schlaf · %1$s</string>

@@ -1968,6 +1968,13 @@
     <string name="recording_chip_detail_connected_no_data">Aucune fréquence cardiaque en direct ni historique synchronisé durant cette session.</string>
     <string name="score_state_title_calibrating">Calibration en cours</string>
     <string name="l10n_stress_glance_widget_resumes_in_the_morning_a640b49f">Reprend le matin</string>
+    <string name="stress_screen_subtitle">Charge autonome au fil de votre journée éveillée</string>
+    <string name="stress_timeline_caption_day">La ligne représente l\'indice 0–3 de chaque heure éveillée, évalué par rapport à vos propres heures calmes d\'aujourd\'hui. La barre ci-dessous répartit votre journée en périodes de stress faible, modéré et élevé.</string>
+    <string name="stress_timeline_caption_personal">La ligne représente l\'indice 0–3 de chaque heure éveillée, évalué par rapport à votre référence diurne personnelle (le déroulement habituel de vos journées). La barre ci-dessous répartit votre journée en périodes de stress faible, modéré et élevé.</string>
+    <plurals name="stress_hours_excluded_moving">
+        <item quantity="one">%1$d heure exclue — vous étiez en mouvement.</item>
+        <item quantity="other">%1$d heures exclues — vous étiez en mouvement.</item>
+    </plurals>
     <string name="score_state_title_needs_strap">Nécessite le bracelet</string>
     <string name="score_state_title_last_night">La nuit dernière · %1$s</string>
     <string name="score_state_title_latest_sleep">Dernier sommeil · %1$s</string>

@@ -2089,6 +2089,13 @@
     <string name="recording_chip_detail_connected_no_data">No live heart rate or synced history yet this session.</string>
     <string name="score_state_title_calibrating">Calibrating</string>
     <string name="l10n_stress_glance_widget_resumes_in_the_morning_a640b49f">Resumes in the morning</string>
+    <string name="stress_screen_subtitle">Autonomic load across your waking day</string>
+    <string name="stress_timeline_caption_day">The line is each waking hour\'s 0–3 proxy, scored against your own calm hours today. The bar below splits your day into calm, moderate and high stress time.</string>
+    <string name="stress_timeline_caption_personal">The line is each waking hour\'s 0–3 proxy, scored against your personal daytime baseline (how your own days usually run). The bar below splits your day into calm, moderate and high stress time.</string>
+    <plurals name="stress_hours_excluded_moving">
+        <item quantity="one">%1$d hour excluded — you were moving.</item>
+        <item quantity="other">%1$d hours excluded — you were moving.</item>
+    </plurals>
     <string name="score_state_title_needs_strap">Needs the strap</string>
     <string name="score_state_title_last_night">Last night · %1$s</string>
     <string name="score_state_title_latest_sleep">Latest sleep · %1$s</string>
