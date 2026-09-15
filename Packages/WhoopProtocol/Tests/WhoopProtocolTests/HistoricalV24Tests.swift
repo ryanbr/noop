@@ -73,7 +73,12 @@ final class HistoricalV24Tests: XCTestCase {
         var bad = bytes(v24Hex)
         bad[5] = 99  // flip version byte to an unmapped value
         let out = parseFrame(bad)
-        XCTAssertTrue(out.ok)  // parse is defensive (crc will mismatch)
+        // The flipped byte is inside the CRC32-covered inner record, so the frame is NOT intact and
+        // `ok` says so — it used to report a positive verdict for exactly this deliberately corrupted
+        // frame. Decoding stays defensive: the fields are still readable for an inspector.
+        XCTAssertFalse(out.ok)
+        XCTAssertEqual(out.rejectReason, .payloadCRCMismatch)
+        XCTAssertEqual(out.crcOK, false)
         XCTAssertEqual(out.parsed["hist_version"]?.intValue, 99)
     }
 }

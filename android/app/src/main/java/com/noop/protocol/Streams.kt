@@ -314,12 +314,14 @@ private fun toWall(deviceTs: Int?, deviceClockRef: Int, wallClockRef: Int): Int?
  *
  * HR/R-R are taken ONLY from REALTIME_DATA (type 40). REALTIME_RAW_DATA (type 43) also carries an
  * HR byte but streams alongside type-40 during raw collection, so routing both would double-count
- * HR for the same instants. CRC-failed and non-ok frames are skipped.
+ * HR for the same instants. Frames whose full integrity verdict is negative are skipped — that is
+ * the header checksum, the payload CRC32 and the structural length together, not the payload CRC
+ * alone.
  */
 fun extractStreams(parsed: List<ParsedFrame>, deviceClockRef: Int, wallClockRef: Int): Streams {
     val out = Streams()
     for (r in parsed) {
-        if (!r.ok || r.crcOk == false) continue
+        if (!r.ok) continue
         val p = r.parsed
         when (r.typeName) {
             "REALTIME_DATA" -> {

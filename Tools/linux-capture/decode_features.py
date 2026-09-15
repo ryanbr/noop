@@ -81,7 +81,11 @@ _EVENT_TYPE = 48
 def feature_to_rows(rec):
     """Map a normalized decoded record -> {second, rr[], ppg[], event}. See module/spec for rules."""
     out = {"second": None, "rr": [], "ppg": [], "event": None}
-    if not rec.get("crc_ok", True):
+    # The gate is the decoder's FULL verdict (`frame.ok`: start-of-frame, minimum and exact length,
+    # header checksum and payload CRC32 together), not the payload CRC alone — a frame whose CRC32
+    # verifies but whose envelope does not is exactly the class that used to reach these tables. A
+    # record without a verdict is rejected, never assumed to pass.
+    if not rec.get("ok", False):
         return out
     p = rec.get("parsed") or {}
     itype = rec.get("inner_type")
@@ -190,11 +194,16 @@ def _flatten_fields(frame):
 def normalize_decode_record(raw, src_frame, device_id):
     """Adapt one whoop-decode --json object + its source frames row -> the normalized record dict.
 
-    whoop-decode emits {family, char, frame:{crcOK, seq, fields:[{name,value,cat,off},...]}}. We
-    flatten frame.fields (minus envelope/raw cats) into `parsed`, take crc from frame.crcOK, version
-    from the `hist_version` field (whoop4 historical has no such field and is always v24), take unix
-    from the decoded `unix` field (falling back to the source frames row), and inner_type from the
-    source frames row (id,hex,char,recv_ms,unix,hr,inner_type).
+    whoop-decode emits {family, char, frame:{ok, crcOK, rejectReason, seq,
+    fields:[{name,value,cat,off},...]}}. We flatten frame.fields (minus envelope/raw cats) into
+    `parsed`, take the integrity verdict from frame.ok, version from the `hist_version` field (whoop4
+    historical has no such field and is always v24), take unix from the decoded `unix` field (falling
+    back to the source frames row), and inner_type from the source frames row
+    (id,hex,char,recv_ms,unix,hr,inner_type).
+
+    `frame.ok` is the decoder's full verdict; `frame.crcOK` reports the payload CRC32 alone and is
+    therefore not the gate. A missing verdict yields False: absence of the field is a rejection, not
+    a pass. (`frame.rejectReason` names the cause and is available for diagnosis.)
     """
     raw = raw if isinstance(raw, dict) else {}
     frame = raw.get("frame") or {}
@@ -205,7 +214,7 @@ def normalize_decode_record(raw, src_frame, device_id):
     rr = (frame.get("parsed") or {}).get("rr_intervals")
     if rr is not None:
         parsed["rr_intervals"] = rr
-    crc_ok = bool(frame.get("crcOK", True))
+    ok = bool(frame.get("ok", False))
     version = parsed.get("hist_version")
     if version is None and raw.get("family") == "whoop4":
         version = 24
@@ -215,7 +224,7 @@ def normalize_decode_record(raw, src_frame, device_id):
     if unix is None:
         unix = src_frame[4]
     return {"device_id": device_id, "unix": unix, "inner_type": src_frame[6],
-            "version": version, "crc_ok": crc_ok, "parsed": parsed}
+            "version": version, "ok": ok, "parsed": parsed}
 
 
 def find_whoop_decode():

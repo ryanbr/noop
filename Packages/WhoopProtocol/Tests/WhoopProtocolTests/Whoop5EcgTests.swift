@@ -792,4 +792,30 @@ final class Whoop5EcgTests: XCTestCase {
             XCTAssertFalse(text.lowercased().contains(token.lowercased()), "report must not name \(token)")
         }
     }
+
+    // MARK: - direct caller of the verifier (2.5): the useful path is unchanged
+
+    /// `Whoop5Ecg.innerPayload` is the one seam every frame-level ECG entry point goes through, and it
+    /// calls `verifyFrame` itself. The ordinary packet must still reach its field decode, and the frame
+    /// classes the verifier newly rejects must stop here rather than being read as ECG samples.
+    func testTheOrdinaryEcgFrameStillYieldsItsPayload() {
+        let samples: [Int16] = [10, -10, 300]
+        let frame = puffinFrame(type: 0x28, payload: header(samples: UInt16(samples.count)) + i16le(samples))
+        XCTAssertEqual(verifyFrame(frame, family: .whoop5).reason, .none, "precondition: intact")
+        XCTAssertNotNil(Whoop5Ecg.innerPayload(frame), "the useful path must still produce a payload")
+        XCTAssertEqual(Whoop5Ecg.decodeFilteredFrame(frame)?.filteredECGDataRaw, samples)
+    }
+
+    func testAnEcgFrameWithTrailingBytesIsRefused() {
+        let frame = puffinFrame(type: 0x28, payload: header(samples: 2) + i16le([1, 2])) + [0x00]
+        XCTAssertEqual(verifyFrame(frame, family: .whoop5).reason, .lengthMismatch)
+        XCTAssertNil(Whoop5Ecg.innerPayload(frame), "trailing bytes mean we do not know where the frame ends")
+        XCTAssertNil(Whoop5Ecg.decodeFilteredFrame(frame))
+    }
+
+    func testAnEcgFrameBelowTheFamilyMinimumIsRefused() {
+        let runt = FrameIntegrityTests.hex(FrameIntegrityTests.w5Total12)
+        XCTAssertEqual(verifyFrame(runt, family: .whoop5).reason, .belowMinimumLength)
+        XCTAssertNil(Whoop5Ecg.innerPayload(runt))
+    }
 }

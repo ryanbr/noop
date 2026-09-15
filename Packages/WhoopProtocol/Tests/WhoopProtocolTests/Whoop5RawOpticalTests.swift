@@ -426,4 +426,29 @@ final class Whoop5RawOpticalTests: XCTestCase {
         out[end + 3] = UInt8((payloadCRC >> 24) & 0xFF)
         return out
     }
+
+    // MARK: - direct caller of the verifier (2.5): the useful path is unchanged
+
+    /// `Whoop5RawOptical.decode` calls `verifyFrame` directly. The real captured record must still
+    /// decode under the tightened verifier — the 2,140-byte buffer declares 2,132, so its total is
+    /// exact and it clears the structural rules — and the reason on the check must be `none`, not just
+    /// a positive verdict by accident.
+    func testTheRealRecordStillDecodesUnderTheTightenedVerifier() throws {
+        let oracle = try loadOracle()
+        let bytes = hexToBytes(oracle.records[0].hex)
+        let check = verifyFrame(bytes, family: .whoop5)
+        XCTAssertTrue(check.ok)
+        XCTAssertEqual(check.reason, .none)
+        XCTAssertNotNil(Whoop5RawOptical.decode(bytes), "the useful path must be untouched")
+    }
+
+    /// And the frame class the verifier newly rejects is refused before any sample is read.
+    func testARecordWithABrokenHeaderChecksumIsRefused() {
+        var frame = Self.sealedSyntheticFrame()
+        XCTAssertNotNil(Whoop5RawOptical.decode(frame), "control: the sealed frame decodes")
+        frame[6] ^= 0xFF                                  // header CRC16 only; the payload CRC32 stands
+        XCTAssertEqual(verifyFrame(frame, family: .whoop5).crc32OK, true)
+        XCTAssertEqual(verifyFrame(frame, family: .whoop5).reason, .headerChecksumMismatch)
+        XCTAssertNil(Whoop5RawOptical.decode(frame))
+    }
 }

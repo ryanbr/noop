@@ -42,6 +42,34 @@ public func parseFrame(_ frame: [UInt8], family: DeviceFamily) -> ParsedFrame
 `38 PUFFIN_COMMAND_RESPONSE` and `56 PUFFIN_METADATA` are aliased onto `COMMAND_RESPONSE` /
 `METADATA` by `canonicalTypeName(_:schema:)` so they never decode as "unknown".
 
+## Frame integrity verdict
+
+CRC32 is the protocol's **only payload-integrity guarantee**, and it is not the whole gate.
+`verifyFrame` folds the header checksum, the payload CRC32 **and** the structural size rules of the
+[WHOOP 4 envelope](PROTOCOL_WHOOP4.md#21-whoop-40-envelope) and
+[format 1 framing](PROTOCOL_TRANSPORT.md#format-1-framing) into a single verdict, published as
+`FrameCheck.ok` and carried onto `ParsedFrame.ok` ([decoded output](#8-decoded-output-parsedframe)).
+Decode and state-update paths ask for that one verdict:
+
+```swift
+let parsed = parseFrame(frame, family: family)
+guard parsed.ok else { return }   // header checksum + payload CRC32 + structural size, in one step
+```
+
+`FrameRouter.handle(parsed:frame:)` and `classifyHistoricalMeta(_:)` both gate on it. Without that
+gate a garbled or hostile peer could forge a `HISTORY_END`/`HISTORY_COMPLETE` and advance the strap's
+trim cursor, discarding data that was never durably stored — and a payload CRC32 check on its own
+would not stop it, because the forged frame's own payload CRC32 can be correct while its header
+checksum or declared length is not.
+
+The verdict does not establish authenticity ([checksums](PROTOCOL_CONCEPTS.md#checksums)): a peer
+that forms the envelope correctly is not excluded. The scope of the gate is likewise deliberate — six
+state-driving consumers (the router, the historical-metadata classifier, live-stream extraction,
+historical-row extraction, clock correlation, and the data-range reply) require the full verdict, not
+"every frame consumer". Evidence-preserving readers are the documented exception: a raw history frame
+with a negative verdict is archived *because* it failed, so the only durable copy of a frame the strap
+is about to release is not the one that gets dropped.
+
 <a id="26-reassembly"></a>
 
 ## Reassembly
@@ -54,6 +82,13 @@ select the family/format before applying either rule. See [framing](PROTOCOL_TRA
 no SOF is dropped. The app feeds the data/cmd/event notify characteristics through one
 `Reassembler` in `peripheral(_:didUpdateValueFor:error:)`.
 
+The reassembler applies the **same family minimum** as `verifyFrame` (11 / 13 bytes): a `0xAA`
+whose declared total falls below the configured acceptance floor is dropped before its checksum
+trailer can be mistaken for inner fields, and the scan resyncs on the next one. Such a drop is
+counted in `Reassembler.belowMinimumLengthDrops` rather than vanishing silently, because a byte run
+discarded here never reaches a parser and never reaches the evidence-preserving reader either. The
+existing ceiling (`maxFrameBytes`, 8192) resyncs the same way at the other end.
+
 ```swift
 // usage in BLEManager
 for frame in reassembler.feed(bytes) {
@@ -63,8 +98,11 @@ for frame in reassembler.feed(bytes) {
 ```
 
 `frameFromPayload(_:type:seq:cmd:)` reconstructs a complete frame from a bare payload (used when
-a capture stored only the data portion): it rebuilds the envelope with a correct zlib CRC32 and
-a placeholder `0x00` CRC8 byte.
+a capture stored only the data portion): it rebuilds the envelope with a correct zlib CRC32 **and**
+a correctly computed CRC8 header byte. The CRC8 used to be a `0x00` placeholder, which was harmless
+only while the gates asked whether the payload CRC32 was demonstrably wrong; under the full verdict
+a placeholder header makes every rebuilt frame fail, so the rebuild now round-trips through
+`verifyFrame` positively.
 
 ---
 
@@ -484,9 +522,51 @@ written `.withResponse`. A BLE write confirmation is not itself proof of physica
 
 ## Decoded output (`ParsedFrame`)
 
-`parseFrame(_:)` returns a `ParsedFrame` with the validated envelope, a typed field list
+`parseFrame(_:)` returns a `ParsedFrame` with the envelope verdict, a typed field list
 (`[DecodedField]`), and a flat `parsed: [String: ParsedValue]` dictionary that downstream code
-reads. Key entries by packet type:
+reads.
+
+**`ok` means "intact", not "parsed".** It carries `verifyFrame`'s full verdict — header checksum,
+payload CRC32 and structural size together — for the frame as a whole. It is *not* a parsability
+signal: a frame with a broken header still gets decoded, so an inspector surface, a capture export
+or a diagnostic summary keeps the frame's `typeName` and its `parsed` fields even when `ok` is
+false. Code that wants to know whether the decode produced anything must ask for that (the parser
+returns `typeName == "INVALID/FRAGMENT"` when it could not decode at all), not read `ok`.
+
+**`rejectReason` says why.** It is a non-optional `FrameRejectReason` sitting on the parse result
+itself, so a consumer can report the cause from the value it was handed — the frame is parsed
+exactly once and the result threaded onwards, and a consumer that had to re-verify to learn the
+reason would break that invariant. `.none` accompanies a positive verdict and only that:
+
+| `rejectReason` | Meaning |
+|---|---|
+| `none` | Intact: header checksum, payload CRC32 and structural size all agree. |
+| `noStartOfFrame` | No `0xAA` — this byte run is not a frame. |
+| `belowMinimumLength` | Below the family minimum (11 / 13 bytes). |
+| `lengthMismatch` | Byte count ≠ the total the length field declares: truncated, or trailing bytes. |
+| `headerChecksumMismatch` | CRC8 (4.0) or CRC16-Modbus (5.0/MG) disagreed. |
+| `payloadCRCMismatch` | The payload CRC32 was computed and disagreed. |
+
+An unavailable CRC diagnostic is never promoted to a checksum reason: the preceding minimum or
+exact-length rule rejects that byte run first. Thus every declared reason has a real input class and
+is pinned by the shared parity oracle. Decoding a `ParsedFrame` from an older capture that predates
+the field defaults `rejectReason` to `.none` rather than failing.
+
+**Named inner-field reads are bounded by the CRC32 trailer.** Every read of a named field —
+sequence byte, command byte, and the schema-driven fields including the per-type post-hooks — is
+clamped to the **minimum of where the trailer starts and the frame's real size**. The minimum is
+required in both directions: the trailer start follows from the *declared* length and points past
+the buffer on a truncated frame, while the frame size alone is what let a frame sitting at the
+family minimum have its own checksum trailer decoded as a sequence number or a metadata type. A
+field counts as present when its start plus its length does **not exceed** that bound — the
+smallest real WHOOP 4.0 history frame is 11 bytes with its trailer at 7, and its metadata type
+occupies precisely the last payload byte, so a stricter comparison would swallow
+`HISTORY_COMPLETE`. The one exception is the 8-byte `end_data` acknowledgement block that the
+[safe-trim invariant](#74-safe-trim-invariant) echoes back to the strap verbatim: it reaches into the
+CRC32 trailer by construction (on the real 25-byte `HISTORY_END` frame the trailer starts at 21 and
+the block runs 17…25) and is an opaque echo, not a decoded field.
+
+Key `parsed` entries by packet type:
 
 | Packet | `parsed` keys (examples) |
 |--------|--------------------------|

@@ -500,32 +500,21 @@ object Whoop5Ecg {
     }
 
     /**
-     * The inner record's payload from a complete 5/MG frame, or null when the frame fails either CRC or
-     * is too short. Every frame-level entry point goes through here, so no Labrador field is ever read
-     * out of an unverified frame.
+     * The inner record's payload from a complete 5/MG frame, or null when the frame fails the envelope
+     * check. Every frame-level entry point goes through here, so no Labrador field is ever read out of
+     * an unverified frame.
      *
-     * Both CRCs are checked here rather than through `Framing.parseFrame`, whose `crcOk` reports only
-     * the CRC32 payload check — this needs the same gate as the Swift `verifyFrame(_:family:).ok`, which
-     * is the CRC16 header check AND the CRC32 payload check.
+     * The verdict comes from the ONE central verifier ([Framing.verifyFrame]), not from a second
+     * inline copy of the envelope rules: this path used to re-derive them here with looser bounds
+     * (`declaredLength >= 4`, no exact-length check), so a truncated frame or one with trailing bytes
+     * was accepted here while its Swift twin — which has always delegated to the central verifier —
+     * rejected it. Two field logs disagreeing about the same bytes is exactly what the cross-platform
+     * contract forbids.
      */
     fun innerPayload(frame: ByteArray, payloadStart: Int = PUFFIN_PAYLOAD_START): List<Int>? {
-        if (frame.size < 12 || frame[0] != 0xAA.toByte()) return null
+        if (!Framing.frameCrcOk(frame, DeviceFamily.WHOOP5)) return null
         val declaredLength = (frame[2].toInt() and 0xFF) or ((frame[3].toInt() and 0xFF) shl 8)
-        if (declaredLength < 4) return null
-        val total = declaredLength + 8
-        if (frame.size < total) return null
-
-        // CRC16-Modbus over the first six header bytes, stored LE at frame[6..8].
-        val gotHeader = (frame[6].toInt() and 0xFF) or ((frame[7].toInt() and 0xFF) shl 8)
-        if (Crc.crc16Modbus(frame, 0, 6) != gotHeader) return null
-
-        val payloadEnd = total - 4                        // start of the CRC32 trailer
-        val gotCrc32 = (frame[payloadEnd].toLong() and 0xFFL) or
-            ((frame[payloadEnd + 1].toLong() and 0xFFL) shl 8) or
-            ((frame[payloadEnd + 2].toLong() and 0xFFL) shl 16) or
-            ((frame[payloadEnd + 3].toLong() and 0xFFL) shl 24)
-        if (Crc.crc32(frame, 8, payloadEnd) != gotCrc32) return null
-
+        val payloadEnd = declaredLength + 8 - 4           // start of the CRC32 trailer
         if (payloadStart < 0 || payloadStart >= payloadEnd) return null
         return (payloadStart until payloadEnd).map { frame[it].toInt() and 0xFF }
     }

@@ -294,14 +294,51 @@ tail     crc32 (zlib, LE) over the payload, 4 bytes
 total = declaredLength + 8
 ```
 
+**Structural size rules (both families).** `FrameLimits` in `Framing.kt` is the twin of the Swift
+`FrameLimits` and carries the same two numbers:
+
+| Family | Minimum total frame size | Exact total frame size |
+| --- | --- | --- |
+| `WHOOP4` | `WHOOP4_MINIMUM_FRAME_BYTES` = **11** | `length + 4` |
+| `WHOOP5` | `WHOOP5_MINIMUM_FRAME_BYTES` = **13** | `declaredLength + 8` |
+
+The minima have different evidence. Eleven bytes is structural for WHOOP 4.0 and deliberately admits
+real metadata records with no data after `type/seq/cmd`. Thirteen bytes is NOOP's empirical 5.0/MG
+policy: Goose's `v5Payload` accepts a self-consistent 12-byte empty-payload envelope, while the real
+fixtures in this tree include 20-byte command responses and 24-/32-byte frames but no 12-byte case.
+Those captures show valid traffic above the floor; they do not prove the boundary, so NOOP's extra
+inner-type-byte requirement remains an explicit assumption. The exact size is compared for
+**equality**, rejecting truncation and trailing bytes even when the payload CRC32 over the declared
+range checks out. Keep both constants in step with Swift; changing 13 requires new protocol evidence.
+
 `Reassembler.feed(fragment)` accumulates BLE notification fragments and emits complete frames; a
 complete WHOOP 4.0 frame is `length + 4` bytes where `length = u16 LE at buf[1..3]`. Port the
 `firstIndex(of: 0xAA)` resync logic exactly — partial fragments are the norm over GATT notifications.
+The reassembler applies the same family minimum: a `0xAA` whose declared total falls below it is
+dropped, counted, and the scan resyncs on the next SOF.
 
 ### Decode (`Interpreter.swift` → `ParseFrame.kt`, ported)
 
 `parseFrame(frame)` (WHOOP 4.0) and `parseFrame(frame, family)` (WHOOP 5.0) build a `ParsedFrame`
-with `ok`, `typeName`, `seq`, `cmdName`, `crcOK`, `fields`, and a flat `parsed` map. The decoder is
+with `ok`, `typeName`, `seq`, `cmdName`, `crcOK`, `rejectReason`, `fields`, and a flat `parsed` map.
+
+`ok` means **intact**, not **parsed**: it is `verifyFrame`'s full verdict — header checksum, payload
+CRC32 and the structural size rules above, together. A rejected frame is still decoded, so it keeps
+its `typeName` and `parsed` fields for the diagnostic and capture surfaces. `rejectReason` is a
+non-optional `FrameRejectReason` on the parse result, so a consumer reports the cause from the value
+it was handed rather than verifying a second time; `NONE` accompanies a positive verdict and only
+that. Its cases map to the Swift `FrameRejectReason` value for value (`none` → `NONE`,
+`noStartOfFrame` → `NO_START_OF_FRAME`, and so on). If the payload CRC32 cannot be computed safely,
+the preceding size rule supplies the rejection reason; the checksum reason is reserved for a CRC32
+that was computed and disagreed.
+
+Named inner-field reads are bounded by the **minimum of the CRC32 trailer's start and the frame's
+real size**, matching the Swift interpreter, so a frame at the family minimum cannot have its own
+checksum trailer decoded as a sequence number or a metadata type. The one exception is the 8-byte
+history-end acknowledgement block echoed back to the strap verbatim, which reaches into the trailer
+by construction.
+
+The decoder is
 **schema-driven** — it reads static field offsets/dtypes/enums from the bundled
 `whoop_protocol.json`, then applies a per-type post-hook for irregular fields. The Kotlin port:
 
@@ -647,6 +684,14 @@ should be re-verified against a real build, a real device, and a real strap befo
 
 - [x] `Crc.crc8/crc32/crc16Modbus` match the Swift `FramingTests` vectors bit-for-bit.
 - [x] `verifyFrame` + `Reassembler` reproduce `FramingTests` / `ReassemblerTests`.
+- [x] The frame-integrity verdict is pinned by a **shared oracle**, not by reading the two
+      implementations side by side: `frame_integrity_oracle.json` exists in two byte-identical
+      copies (`Packages/WhoopProtocol/Tests/WhoopProtocolTests/Resources/` and
+      `android/app/src/test/resources/`) and lists per frame the verdict, the reject reason **and**
+      the historical-metadata classification. No generator is retained in this repository, so both
+      copies must be updated together and checked by both suites.
+      `FrameIntegrityOracleTests.swift` and `FrameIntegrityOracleTest.kt` each assert every row and
+      all three fields, so a one-sided change fails on the other platform.
 - [x] `parseFrame` (4.0) + `parseFrame(family: whoop5)` reproduce `ParityTests` /
       `StreamsParityTests` / `HistoricalStreamsParityTests` against the same fixtures.
 - [x] `WhoopCommand.frame(seq, payload)` reproduces the macOS command bytes (e.g. CLIENT_HELLO and a

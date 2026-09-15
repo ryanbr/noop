@@ -17,14 +17,23 @@ public struct PuffinCaptureRecord: Codable, Equatable, Sendable {
     /// Live heart rate from the *standard* `2A37` profile at capture time, when known. This is the
     /// ground-truth cross-check: find the byte that tracks this value to locate the puffin HR field.
     public let hr: Int?
-    /// Best-effort decoded packet type (`parseFrame(_:family:.whoop5)`), or nil if it didn't frame.
+    /// Best-effort decoded packet type (`parseFrame(_:family:.whoop5)`), or nil only when the bytes
+    /// could not be read as a frame at all.
+    ///
+    /// A frame that FAILED its integrity check still carries its type here. That is the point of a
+    /// capture: an unmapped or corrupted frame is precisely what a mapper wants to see, and blanking
+    /// its type would throw away the one thing the decoder did learn. The verdict lives in `ok`, the
+    /// cause in `rejectReason` — the record says what happened rather than going quiet.
     public let typeName: String?
     /// Sequence byte — for historical records this doubles as the record *version*, so it matters.
     public let seq: Int?
-    /// Did the family-aware (CRC16-Modbus header + CRC32 payload) check pass?
+    /// Did the payload CRC32 verify? nil when it could not be computed at all.
     public let crcOK: Bool?
-    /// Did the frame parse as a well-formed puffin envelope at all?
+    /// The FULL integrity verdict: header checksum, payload CRC32 and structural length together.
     public let ok: Bool
+    /// Why `ok` is false; `none` on an intact frame. Additive — older capture files that predate this
+    /// key decode with `none`, so nothing that was readable before stops being readable.
+    public let rejectReason: FrameRejectReason
 
     enum CodingKeys: String, CodingKey {
         case hex, char
@@ -34,6 +43,35 @@ public struct PuffinCaptureRecord: Codable, Equatable, Sendable {
         case seq
         case crcOK = "crc_ok"
         case ok
+        case rejectReason = "reject_reason"
+    }
+
+    public init(hex: String, char: String, tsMs: Int, hr: Int?, typeName: String?, seq: Int?,
+                crcOK: Bool?, ok: Bool, rejectReason: FrameRejectReason = .none) {
+        self.hex = hex
+        self.char = char
+        self.tsMs = tsMs
+        self.hr = hr
+        self.typeName = typeName
+        self.seq = seq
+        self.crcOK = crcOK
+        self.ok = ok
+        self.rejectReason = rejectReason
+    }
+
+    /// Decoding tolerates a MISSING `reject_reason` and defaults it to `none`, so a capture file
+    /// written before this key existed still reads.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        hex = try c.decode(String.self, forKey: .hex)
+        char = try c.decode(String.self, forKey: .char)
+        tsMs = try c.decode(Int.self, forKey: .tsMs)
+        hr = try c.decodeIfPresent(Int.self, forKey: .hr)
+        typeName = try c.decodeIfPresent(String.self, forKey: .typeName)
+        seq = try c.decodeIfPresent(Int.self, forKey: .seq)
+        crcOK = try c.decodeIfPresent(Bool.self, forKey: .crcOK)
+        ok = try c.decode(Bool.self, forKey: .ok)
+        rejectReason = try c.decodeIfPresent(FrameRejectReason.self, forKey: .rejectReason) ?? .none
     }
 }
 
@@ -63,10 +101,13 @@ public final class PuffinCapture {
             char: char,
             tsMs: tsMs,
             hr: hr,
-            typeName: parsed.ok ? parsed.typeName : nil,
+            // PARSEABILITY, not integrity: a frame the verifier rejected keeps the packet type the
+            // decoder read out of it. Only a byte run that produced no type at all records nil.
+            typeName: parsed.isParsable ? parsed.typeName : nil,
             seq: parsed.seq,
             crcOK: parsed.crcOK,
-            ok: parsed.ok
+            ok: parsed.ok,
+            rejectReason: parsed.rejectReason
         )
         records.append(rec)
         return rec

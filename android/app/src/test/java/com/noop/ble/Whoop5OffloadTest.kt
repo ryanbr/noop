@@ -1,5 +1,6 @@
 package com.noop.ble
 
+import com.noop.protocol.Crc
 import com.noop.protocol.DeviceFamily
 import com.noop.protocol.Framing
 import org.junit.Assert.assertArrayEquals
@@ -24,6 +25,32 @@ class Whoop5OffloadTest {
         this[off + 1] = ((v shr 8) and 0xFF).toByte()
         this[off + 2] = ((v shr 16) and 0xFF).toByte()
         this[off + 3] = ((v shr 24) and 0xFF).toByte()
+    }
+
+    /**
+     * Seal a hand-built WHOOP 5.0/MG frame: declared length, header CRC-16-Modbus and the payload
+     * CRC32 trailer, in place.
+     *
+     * A fixture that leaves those three at zero is not a frame the strap could ever send. It used to
+     * decode anyway, because field reads were clamped against the array size alone; now they are
+     * clamped against the start of the CRC32 trailer, which is derived from the DECLARED length — and
+     * a declared length of zero puts that boundary at offset 4, i.e. in front of every inner field.
+     * Sealing keeps the assertions below about the 5/MG +4 field layout rather than about how far a
+     * decoder will read into an unsealed buffer. Same shape as `FrameIntegrityTest.whoop5Frame` and
+     * `Whoop5RawOpticalTest.reseal`.
+     */
+    private fun sealWhoop5(frame: ByteArray): ByteArray {
+        frame[0] = 0xAA.toByte()
+        frame[1] = 0x01
+        val declLen = frame.size - 8      // payload + the 4-byte CRC32 trailer
+        frame[2] = (declLen and 0xFF).toByte()
+        frame[3] = ((declLen shr 8) and 0xFF).toByte()
+        val headerCrc = Crc.crc16Modbus(frame, 0, 6)
+        frame[6] = (headerCrc and 0xFF).toByte()
+        frame[7] = ((headerCrc shr 8) and 0xFF).toByte()
+        val payloadEnd = frame.size - 4
+        frame.putU32LE(payloadEnd, Crc.crc32(frame, 8, payloadEnd))
+        return frame
     }
 
     // ---- isOffloadFrame: family-aware type index + the 56 accept-set ----
@@ -84,13 +111,14 @@ class Whoop5OffloadTest {
     @Test
     fun parsesWhoop5HistoryEndMetadata() {
         val f = ByteArray(30)
-        f[0] = 0xAA.toByte()
         f[8] = 56            // PUFFIN_METADATA -> typeName "METADATA"
         f[10] = 2            // meta_type = HISTORY_END(2)
         f.putU32LE(11, 1_780_916_150L)  // unix (the real worn-frame timestamp)
         f.putU32LE(21, 112_193L)        // trim_cursor (the real HISTORY_END trim, Swift Whoop5HistoricalTests)
+        sealWhoop5(f)                   // declared length 22, header CRC-16, payload CRC32 over [8,26)
 
         val p = Framing.parseFrame(f, DeviceFamily.WHOOP5)
+        assertTrue("the sealed fixture must pass the full verdict", p.ok)
         assertEquals("METADATA", p.typeName)
         assertTrue((p.parsed["meta_type"] as String).startsWith("HISTORY_END"))
         assertEquals(1_780_916_150, p.parsed["unix"])

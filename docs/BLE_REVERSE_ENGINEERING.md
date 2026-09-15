@@ -131,6 +131,11 @@ against `my-whoop`'s `WhoopPacket.framed_packet` and is implemented in `Commands
 - **`crc8`** (poly `0x07`, table in `Framing.swift`) guards **only the two length bytes** — a cheap
   header integrity check that lets the reassembler trust the declared length.
 - **`crc32`** is standard zlib CRC-32 (reflected, poly `0xEDB88320`) over the inner bytes.
+- **Size rules.** A 4.0 frame must be **at least 11 bytes** — `type`, `seq`, `cmd`, and the envelope
+  including the CRC32 trailer; real zero-data metadata records sit exactly on this bound —
+  and must be **exactly `len + 4`** bytes. Equality, not "at least": a frame cut short and a frame
+  carrying trailing bytes past its own end are **both** rejected, even when the payload CRC32 over
+  the bytes the length field claims happens to check out.
 
 `type` is the packet type (see §5), `cmd` is the command/event number, `seq` is a rolling sequence
 byte (and, for historical records, doubles as the **record version** — see §3).
@@ -140,6 +145,10 @@ byte (and, for historical records, doubles as the **record version** — see §3
 BLE delivers frames in MTU-sized fragments. The `Reassembler` (`Framing.swift`) accumulates bytes,
 finds the `0xAA` SOF, reads the `len` field, and only emits a frame once `len + 4` bytes are present.
 `BLEManager.didUpdateValueFor` feeds every custom-channel notification through it before routing.
+
+The reassembler knows the same per-family minimum (11 bytes on 4.0, 13 on 5.0/MG): a `0xAA` whose
+declared total is smaller is dropped and the scan resyncs on the next SOF, counted in
+`belowMinimumLengthDrops` so the byte run leaves a trace instead of disappearing.
 
 ### WHOOP 5.0 envelope
 
@@ -160,6 +169,14 @@ total = declaredLength + 8
 The inner record (`[type][seq][cmd][data…]`) starts at **offset 8** instead of offset 4, and the
 payload CRC32 is unchanged from 4.0. The header-check choice is selected through `DeviceFamily.headerCRCKind`; command
 bodies and record layouts have further generation-specific differences.
+
+NOOP accepts a 5.0/MG frame only at **13 bytes or more** (8 header bytes including the CRC16, at
+least the inner type byte, and the 4-byte CRC32 trailer) and exactly `declaredLength + 8` bytes, so
+truncation and trailing bytes are rejected. The 13-byte floor is empirical rather than structural:
+Goose's `v5Payload` accepts the self-consistent 12-byte, zero-payload envelope. The committed real
+fixtures include 20-byte command responses and 24-/32-byte frames, but no 12-byte boundary case;
+they establish valid traffic above the floor, not that 12 is invalid. Keeping 13 is a deliberate
+compatibility assumption that prevents a typeless frame's trailer from being treated as record data.
 
 ---
 

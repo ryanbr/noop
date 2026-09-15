@@ -1,41 +1,64 @@
 import Foundation
 
-// Local LE readers mirroring interpreter._read (nil when out of range).
-private func u8(_ f: [UInt8], _ off: Int) -> Int? { off + 1 <= f.count ? Int(f[off]) : nil }
-private func u16(_ f: [UInt8], _ off: Int) -> Int? {
-    off + 2 <= f.count ? Int(f[off]) | (Int(f[off + 1]) << 8) : nil
+/// The exclusive upper bound for reading a named inner field out of `frame` (D7), computed exactly as
+/// the interpreter's own `payloadLimit`: the MINIMUM of where the CRC32 trailer starts and how many
+/// bytes the frame actually has.
+///
+/// The post-hooks run on the parse path and read the schema-driven fields, so they need the same bound
+/// the interpreter applies to the fields it reads itself — clamping only against the frame size lets a
+/// frame near the family minimum have its own checksum trailer decoded as a metadata value. Neither
+/// half may be dropped: the trailer start follows from the DECLARED length, which on a truncated frame
+/// points past the last byte we hold, and reading to it alone would run off the end of the buffer.
+/// A field counts as present when its start plus its length does not EXCEED this bound.
+///
+/// On WHOOP 4.0 — the only family whose parse dispatches through this registry — the trailer starts at
+/// the declared length, which is exactly the `length` argument every hook is handed.
+private func payloadLimit(_ frame: [UInt8], trailerStart: Int?) -> Int {
+    guard let trailerStart = trailerStart else { return frame.count }
+    return min(max(0, trailerStart), frame.count)
 }
-private func u32(_ f: [UInt8], _ off: Int) -> UInt32? {
-    guard off + 4 <= f.count else { return nil }
+
+// Local LE readers mirroring interpreter._read (nil when out of range). `limit` is the D7 payload bound
+// from `payloadLimit`; it is a required argument, never defaulted, so a field read added later cannot
+// silently skip the decision about where its bytes may come from.
+private func u8(_ f: [UInt8], _ off: Int, _ limit: Int) -> Int? {
+    off >= 0 && off + 1 <= limit ? Int(f[off]) : nil
+}
+private func u16(_ f: [UInt8], _ off: Int, _ limit: Int) -> Int? {
+    off >= 0 && off + 2 <= limit ? Int(f[off]) | (Int(f[off + 1]) << 8) : nil
+}
+private func u32(_ f: [UInt8], _ off: Int, _ limit: Int) -> UInt32? {
+    guard off >= 0, off + 4 <= limit else { return nil }
     return UInt32(f[off]) | (UInt32(f[off + 1]) << 8) | (UInt32(f[off + 2]) << 16) | (UInt32(f[off + 3]) << 24)
 }
 /// signed 24-bit little-endian (mirrors interpreter._read "s24"); nil when out of range.
-private func s24(_ f: [UInt8], _ off: Int) -> Int? {
-    guard off + 3 <= f.count else { return nil }
+private func s24(_ f: [UInt8], _ off: Int, _ limit: Int) -> Int? {
+    guard off >= 0, off + 3 <= limit else { return nil }
     let v = Int(f[off]) | (Int(f[off + 1]) << 8) | (Int(f[off + 2]) << 16)
     return (v & 0x800000) != 0 ? v - 0x1000000 : v
 }
 /// IEEE-754 float32 LE -> Double (exact, NO rounding). nil when out of range.
-private func f32(_ f: [UInt8], _ off: Int) -> Double? {
-    guard let bits = u32(f, off) else { return nil }
+private func f32(_ f: [UInt8], _ off: Int, _ limit: Int) -> Double? {
+    guard let bits = u32(f, off, limit) else { return nil }
     return Double(Float(bitPattern: bits))
 }
 /// Read an unsigned integer dtype (u8/u16/u32) as Int; nil when out of range.
-private func readHistInt(_ f: [UInt8], _ off: Int, _ dtype: String) -> Int? {
+private func readHistInt(_ f: [UInt8], _ off: Int, _ dtype: String, _ limit: Int) -> Int? {
     switch dtype {
-    case "u8": return u8(f, off)
-    case "u16": return u16(f, off)
-    case "u32": return u32(f, off).map { Int($0) }
+    case "u8": return u8(f, off, limit)
+    case "u16": return u16(f, off, limit)
+    case "u32": return u32(f, off, limit).map { Int($0) }
     default: return nil
     }
 }
 
-/// Read `count` signed i16 LE starting at off, clamping count to the available bytes
+/// Read `count` signed i16 LE starting at off, clamping count to the readable payload bytes
 /// (mirrors interpreter._i16_block).
-private func i16Block(_ frame: [UInt8], _ off: Int, _ count: Int) -> [Int] {
+private func i16Block(_ frame: [UInt8], _ off: Int, _ count: Int, _ limit: Int) -> [Int] {
+    guard off >= 0 else { return [] }
     var n = count
-    if off + n * 2 > frame.count {
-        n = max(0, (frame.count - off) / 2)
+    if off + n * 2 > limit {
+        n = max(0, (limit - off) / 2)
     }
     guard n > 0 else { return [] }
     var out: [Int] = []
@@ -104,13 +127,17 @@ private let utcRangeFormatter: DateFormatter = {
 }()
 
 func registerPostHooks() {
-    postHooks["realtime_data"] = { fb, frame, _, _ in
-        let rrn = u8(frame, 13) ?? 0
+    postHooks["realtime_data"] = { fb, frame, length, _ in
+        let limit = payloadLimit(frame, trailerStart: length)
+        // D7: the R-R count is a named inner field, so it comes from payload bytes only. On a frame
+        // whose record is cut short, the byte at 13 is part of the CRC32 trailer — reading it as a
+        // count made the trailer dictate how many "intervals" to decode out of the trailer itself.
+        let rrn = u8(frame, 13, limit) ?? 0
         var rrs: [Int] = []
         for i in 0..<rrn {
             // Drop 0 ms intervals here too, matching the historical path (Streams.extractStreams);
             // a 0 ms R-R is a placeholder, not a beat-to-beat interval.
-            if let v = u16(frame, 14 + i * 2), v > 0 {
+            if let v = u16(frame, 14 + i * 2, limit), v > 0 {
                 fb.add(14 + i * 2, 2, "rr[\(i)]", "rr", value: .int(v), note: "ms")
                 rrs.append(v)
             }
@@ -119,7 +146,8 @@ func registerPostHooks() {
     }
 
     postHooks["event"] = { fb, frame, length, schema in
-        let evVal = frame.count > 6 ? Int(frame[6]) : nil
+        let limit = payloadLimit(frame, trailerStart: length)
+        let evVal = u8(frame, 6, limit)
         let evName = evVal.flatMap { schema.enums["EventNumber"]?[String($0)] }
         guard let length = length else { return }
         if evName == "BATTERY_LEVEL" {
@@ -128,18 +156,18 @@ func registerPostHooks() {
             // u32 event_timestamp@8). Emitted ~every 8 min → a DENSE battery series.
             //   soc% = u16@17/10 · mV = u16@21 · charging = u8@26 bit0
             fb.region(7, length, "BATTERY_LEVEL payload", "battery", note: "soc@17(/10) mv@21 charge@26")
-            if let raw = u16(frame, 17), raw <= 1100 {
+            if let raw = u16(frame, 17, limit), raw <= 1100 {
                 fb.parsed["battery_pct"] = .double(Double(raw) / 10)
             }
-            if let mv = u16(frame, 21), (3000...4300).contains(mv) {
+            if let mv = u16(frame, 21, limit), (3000...4300).contains(mv) {
                 fb.parsed["battery_mV"] = .int(mv)
             }
-            if let ch = u8(frame, 26), ch <= 1 {
+            if let ch = u8(frame, 26, limit), ch <= 1 {
                 fb.parsed["battery_charging"] = .int(ch & 1)
             }
         } else if evName == "EXTENDED_BATTERY_INFORMATION" {
             // Not decoded by the WHOOP app; keep the heuristic mV scan only.
-            let payEnd = min(length, frame.count)
+            let payEnd = limit
             guard 7 < payEnd else { return }
             let pay = Array(frame[7..<payEnd])
             fb.region(7, length, "EXTENDED_BATTERY_INFORMATION payload", "battery", note: "mV (heuristic scan)")
@@ -157,7 +185,9 @@ func registerPostHooks() {
 
     postHooks["command_response"] = { fb, frame, length, schema in
         guard let length = length else { return }
-        let payEnd = min(length, frame.count)
+        // Already the D7 bound: `payloadLimit` is exactly this minimum, so the response payload was
+        // never read out of the CRC32 trailer. Kept as the shared helper so the rule has one spelling.
+        let payEnd = payloadLimit(frame, trailerStart: length)
         guard 7 <= payEnd else { return }
         let pay = Array(frame[7..<payEnd])
         fb.region(7, length, "response payload", "cmd")
@@ -173,7 +203,7 @@ func registerPostHooks() {
         if pay.count >= 2 {
             fb.add(8, 1, "result", "cmd", value: .string(schema.enumName("CommandResult", Int(pay[1]))))
         }
-        let cmd = frame.count > 6 ? Int(frame[6]) : nil
+        let cmd = u8(frame, 6, payEnd)
         let name = cmd.flatMap { schema.enums["CommandNumber"]?[String($0)] }
         switch name {
         case "GET_BATTERY_LEVEL" where pay.count >= 4:
@@ -229,6 +259,7 @@ func registerPostHooks() {
 
     postHooks["raw_data"] = { fb, frame, length, schema in
         guard let length = length else { return }
+        let limit = payloadLimit(frame, trailerStart: length)
         let spec = schema.packet(forType: Int(frame[4]))
         let dataLen = length - 7
         guard let variant = spec?.variants[String(dataLen)] else {
@@ -241,20 +272,20 @@ func registerPostHooks() {
                   let rrFirstOff = variant.rrFirstOff,
                   let samples = variant.samples,
                   let tailFrom = variant.tailFrom else { return }
-            let hr = u8(frame, hrOff)
-            let rrn = u8(frame, rrCountOff) ?? 0
+            let hr = u8(frame, hrOff, limit)
+            let rrn = u8(frame, rrCountOff, limit) ?? 0
             fb.add(hrOff, 1, "heart_rate", "hr", value: hr.map { .int($0) }, note: "bpm")
             fb.add(rrCountOff, 1, "rr_count", "rr", value: .int(rrn))
             var rrVals: [Int] = []
             for i in 0..<min(rrn, 4) {
                 let off = rrFirstOff + i * 2
-                fb.add(off, 2, "rr[\(i)]", "rr", value: u16(frame, off).map { .int($0) }, note: "ms")
-                if let v = u16(frame, off) { rrVals.append(v) }
+                fb.add(off, 2, "rr[\(i)]", "rr", value: u16(frame, off, limit).map { .int($0) }, note: "ms")
+                if let v = u16(frame, off, limit) { rrVals.append(v) }
             }
             fb.parsed["heart_rate"] = hr.map { .int($0) }
             fb.parsed["rr_intervals"] = .intArray(rrVals)
             for axis in variant.axes {
-                let vals = i16Block(frame, axis.off, samples)
+                let vals = i16Block(frame, axis.off, samples, limit)
                 let mean: Double? = vals.isEmpty ? nil
                     : round1(Double(vals.reduce(0, +)) / Double(vals.count))
                 let text: ParsedValue? = mean.map { .string("mean=\(formatMean($0)) (\(vals.count)xi16)") }
@@ -283,7 +314,7 @@ func registerPostHooks() {
             fb.region(configFrom, ppgOff, "optical config header (UNKNOWN)", "unknown", note: variant.note)
             var vals: [Int] = []
             for i in 0..<ppgSamples {
-                guard let v = s24(frame, ppgOff + i * ppgStride) else { break }
+                guard let v = s24(frame, ppgOff + i * ppgStride, limit) else { break }
                 vals.append(v)
             }
             if !vals.isEmpty {
@@ -303,8 +334,12 @@ func registerPostHooks() {
 
     postHooks["historical_data"] = { fb, frame, length, schema in
         guard let length = length else { return }
+        let limit = payloadLimit(frame, trailerStart: length)
         let spec = schema.packet(forType: Int(frame[4]))
-        let version = Int(frame[5])
+        // The layout version is the inner record's seq slot — a named inner field, bounded like any
+        // other. Out of the payload it stays -1, which routes the record to the unmapped branch instead
+        // of letting a checksum byte choose a field map. Mirrors the 5/MG twin in the interpreter.
+        let version = u8(frame, 5, limit) ?? -1
         fb.parsed["hist_version"] = .int(version)
 
         // WHOOP 4.0 **v25** historical layout (issue #30). Reverse-engineered from 45 real records on
@@ -315,12 +350,12 @@ func registerPostHooks() {
         // the sleep stager gates on (it returns no stages without gravity). Additive + version-gated,
         // so v18/v24/v26 straps are untouched.
         if version == 25, frame.count >= 79 {
-            if let unix = u32(frame, 11) {
+            if let unix = u32(frame, 11, limit) {
                 fb.add(11, 4, "unix", "time", value: .int(Int(unix)), note: "real unix seconds")
                 fb.parsed["unix"] = .int(Int(unix))
             }
             func grav(_ off: Int) -> Double? {
-                guard let u = u16(frame, off) else { return nil }
+                guard let u = u16(frame, off, limit) else { return nil }
                 return Double(u >= 32768 ? u - 65536 : u) / 16384.0   // i16 LE, ±2 g full-scale
             }
             if let gx = grav(73), let gy = grav(75), let gz = grav(77) {
@@ -356,14 +391,14 @@ func registerPostHooks() {
             let value: ParsedValue
             switch dtype {
             case "u8", "u16", "u32":
-                guard let v = readHistInt(frame, fld.off, dtype) else { continue }
+                guard let v = readHistInt(frame, fld.off, dtype, limit) else { continue }
                 if let enumKey = fld.`enum` {
                     value = .string(schema.enumName(enumKey, v))
                 } else {
                     value = .int(v)
                 }
             case "f32":
-                guard let d = f32(frame, fld.off) else { continue }
+                guard let d = f32(frame, fld.off, limit) else { continue }
                 value = .double(d)  // NO rounding — float32->Double is exact.
             default:
                 continue
@@ -375,7 +410,7 @@ func registerPostHooks() {
             let rrn = fb.parsed["rr_count"]?.intValue ?? 0
             for i in 0..<min(rrn, 4) {
                 let o = rrFirst + i * 2
-                if let v = u16(frame, o), v != 0 {
+                if let v = u16(frame, o, limit), v != 0 {
                     fb.add(o, 2, "rr[\(i)]", "rr", value: .int(v), note: "ms")
                     rrVals.append(v)
                 }
@@ -406,7 +441,10 @@ func registerPostHooks() {
 
     postHooks["metadata"] = { fb, frame, length, _ in
         guard let length = length else { return }
-        let payEnd = min(length, frame.count)
+        // The metadata TYPE byte is read by the interpreter's schema pass, which is bounded there; this
+        // hook only reads the timestamp/trim block, and `payloadLimit` is the same minimum the previous
+        // `min(length, count)` computed — so no metadata value has ever come out of the CRC32 trailer.
+        let payEnd = payloadLimit(frame, trailerStart: length)
         guard 7 < payEnd else { return }
         let pay = Array(frame[7..<payEnd])
         if pay.count >= 14 {
@@ -426,7 +464,9 @@ func registerPostHooks() {
         guard let length = length else { return }
         var txt = ""
         let lo = 11
-        let hi = length - 1
+        // The log text ends one byte before the CRC32 trailer, and never past the bytes we hold: the
+        // same D7 minimum, so a truncated frame yields a shorter string instead of no string at all.
+        let hi = min(length - 1, payloadLimit(frame, trailerStart: length))
         if lo < hi && hi <= frame.count {
             txt = String(decoding: Array(frame[lo..<hi]), as: UTF8.self)
         }

@@ -136,8 +136,20 @@ public final class Reassembler {                       // accumulate BLE fragmen
 }
 ```
 
-`FrameCheck` reports `ok`, the declared `length`, and the header/payload CRC
-outcomes.
+`FrameCheck` reports `ok` — the **full** verdict: start-of-frame, the family
+minimum size (11 bytes on WHOOP 4.0, 13 on 5.0/MG), the exact size (`length + 4`
+and `declLength + 8` respectively, so trailing bytes and truncation both fail),
+the header checksum and the payload CRC32, all together. Beside it are the
+declared `length`, the individual header/payload CRC outcomes as diagnostics, and
+`reason: FrameRejectReason` — a non-optional enum that is `.none` exactly when
+`ok` is true. If the payload CRC32 cannot be computed safely, the preceding size
+rule supplies the rejection reason; only a computed disagreement is a CRC reason.
+
+The 11-byte 4.0 minimum is structural and admits real zero-data metadata records.
+The 13-byte 5.0/MG minimum is an explicit empirical policy requiring at least the
+inner type byte: Goose permits a 12-byte empty-payload envelope. Real fixtures exist
+at 20 bytes (command responses) and at 24/32 bytes, but no captured boundary case;
+that evidence does not prove the 13-byte floor.
 
 **Schema + parsing** (`Schema.swift`, `Interpreter.swift`, `Values.swift`)
 
@@ -149,10 +161,23 @@ public func parseFrame(_ frame: [UInt8], family: DeviceFamily) -> ParsedFrame
 ```
 
 A `ParsedFrame` carries `ok`, `typeName`, `seq`, optional `cmdName`, `crcOK`,
-the full list of annotated `DecodedField`s, and a flat `parsed: [String:
-ParsedValue]` dictionary. `ParsedValue` is a JSON-round-tripping scalar/array
-enum (`.int`, `.double`, `.string`, `.intArray`, `.bool`, `.null`) with
-`intValue` / `doubleValue` / `stringValue` / `intArrayValue` accessors.
+`rejectReason`, the full list of annotated `DecodedField`s, and a flat `parsed:
+[String: ParsedValue]` dictionary. `ParsedValue` is a JSON-round-tripping
+scalar/array enum (`.int`, `.double`, `.string`, `.intArray`, `.bool`, `.null`)
+with `intValue` / `doubleValue` / `stringValue` / `intArrayValue` accessors.
+
+`ok` here means **"this frame is intact"**, not "this frame could be parsed": it
+is the same full verdict `verifyFrame` produced. A frame that fails it is still
+decoded, so `typeName` and `parsed` stay populated for inspection tools — read
+those, not `ok`, if what you need is parsability. `rejectReason` is non-optional
+and travels on the result so a consumer can report *why* a frame was rejected
+without verifying it a second time; the frame is parsed once and the result
+threaded onwards. Decoding a `ParsedFrame` from an older document that predates
+the field defaults `rejectReason` to `.none`.
+
+Named inner-field reads are bounded by the minimum of the CRC32 trailer's start
+and the frame's real size, so a frame sitting at the family minimum cannot have
+its own trailer decoded as a sequence number or a metadata type.
 
 **Decoded stream rows** (`Streams.swift`) — the durable, compact record shapes
 that `WhoopStore` persists:
@@ -173,8 +198,10 @@ public func extractHistoricalStreams(_ parsed: [ParsedFrame],
 
 `classifyHistoricalMeta(_:)` (`HistoricalMeta.swift`) drives the
 historical-offload state machine by classifying a parsed `METADATA` frame into
-`.start`, `.end(unix:trim:)`, `.complete`, or `.other` — gated on a valid CRC32
-so a garbled peer cannot forge a `HISTORY_END`.
+`.start`, `.end(unix:trim:)`, `.complete`, or `.other` — gated on the full
+integrity verdict, so a garbled or hostile peer cannot forge a `HISTORY_END`
+whose payload CRC32 is right but whose header checksum or declared length is not.
+Acting on one would advance the strap's trim cursor.
 
 ### Minimal usage
 
@@ -188,7 +215,9 @@ var parsedFrames: [ParsedFrame] = []
 func onNotification(_ fragment: [UInt8], family: DeviceFamily) {
     for frame in reassembler.feed(fragment) {
         let parsed = parseFrame(frame, family: family)
-        guard parsed.ok, parsed.crcOK != false else { continue }
+        // One condition: `ok` IS the full verdict — header checksum, payload CRC32
+        // and the structural size rules. `parsed.rejectReason` says why, if it isn't.
+        guard parsed.ok else { continue }
         parsedFrames.append(parsed)
     }
 }

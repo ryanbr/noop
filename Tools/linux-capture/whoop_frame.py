@@ -263,14 +263,28 @@ WHOOP5_META_TYPE_OFF = 10
 WHOOP5_META_TRIM_OFF = 21
 WHOOP5_END_DATA_LEN = 8
 
+# Accepted frame floor per family, mirroring `FrameLimits` in the Swift WhoopProtocol package
+# (whoop4MinimumFrameBytes = 11, whoop5MinimumFrameBytes = 13). The 4.0 value is structural for its
+# type/seq/cmd record. The 5.0 value is empirical: a 12-byte empty-payload envelope is internally
+# consistent (and accepted by Goose's v5Payload), but NOOP requires at least the inner type byte.
+# Captured fixtures exist at 20, 24 and 32 bytes, not at the 12-byte boundary, so they do not prove
+# the configured floor.
+#
+# On the trim-ack path itself this bound is not reachable: `history_end_data*` already requires 25 and
+# 29 bytes before it verifies anything. The bound is here so this tool's verifiers answer the same
+# question as the protocol package's, for their other callers.
+WHOOP4_MIN_FRAME_BYTES = 11
+WHOOP5_MIN_FRAME_BYTES = 13
+
 
 def verify_whoop5_frame(frame: bytes) -> bool:
-    """True if a WHOOP 5.0 frame's declared length, CRC16 header and CRC32 trailer all check out.
+    """True if a WHOOP 5.0 frame clears the family minimum and its declared length, CRC16 header and
+    CRC32 trailer all check out.
 
     The ack must only echo a genuine, intact HISTORY_END — CRC is the protocol's only integrity
     check, so a garbled BLE frame must never advance the strap's trim cursor.
     """
-    if len(frame) < 12 or frame[0] != 0xAA:
+    if len(frame) < WHOOP5_MIN_FRAME_BYTES or frame[0] != 0xAA:
         return False
     decl = frame[2] | (frame[3] << 8)
     total = decl + 8
@@ -327,12 +341,13 @@ WHOOP4_END_DATA_LEN = 8
 
 
 def verify_whoop4_frame(frame: bytes) -> bool:
-    """True if a WHOOP 4.0 frame's declared length, CRC8 header and CRC32 trailer all check out.
+    """True if a WHOOP 4.0 frame clears the family minimum and its declared length, CRC8 header and
+    CRC32 trailer all check out.
 
     As on 5.0, the ack must only echo a genuine, intact HISTORY_END — CRC is the protocol's only
     integrity check, so a garbled BLE frame must never advance the strap's trim cursor.
     """
-    if len(frame) < 8 or frame[0] != 0xAA:
+    if len(frame) < WHOOP4_MIN_FRAME_BYTES or frame[0] != 0xAA:
         return False
     declared = frame[1] | (frame[2] << 8)
     total = declared + 4

@@ -133,7 +133,8 @@ final class FastPathParityTests: XCTestCase {
     /// a full `parseFrame` on TWO things, or the pre-filter's `guard frameTypeName == "EVENT"` could diverge
     /// from the full-parse `guard typeName == "EVENT"` — over-admitting (a wasted parse) or, dangerously,
     /// DROPPING a real gesture:
-    ///   1. for a VALID frame, the exact type name matches;
+    ///   1. for a frame that decodes at all, the exact type name matches (the peek says nothing about
+    ///      INTEGRITY — `parseFrame.ok` is the verifier's verdict, and the two deliberately differ there);
     ///   2. for ANY frame (incl. malformed/short/wrong-SOF), the EVENT *decision* matches — this is the
     ///      property the pre-filter actually rests on, and it must hold even where the two disagree on the
     ///      name (frameTypeName returns nil for a short frame; parseFrame calls it "INVALID/FRAGMENT" — both
@@ -142,7 +143,9 @@ final class FastPathParityTests: XCTestCase {
         func check(_ frame: [UInt8], _ family: DeviceFamily, _ label: String) {
             let peek = frameTypeName(frame, family: family)
             let full = parseFrame(frame, family: family)
-            if full.ok {
+            // Compared on PARSABILITY, not on the integrity verdict: `ok` now reports whether the
+            // frame is intact, and a corrupt frame still decodes a type name the peek must match.
+            if full.typeName != "INVALID/FRAGMENT" {
                 XCTAssertEqual(peek, full.typeName, "frameTypeName != parseFrame.typeName at \(label)")
             }
             // The contract the offload gesture pre-filter depends on: never drop/over-admit an EVENT.
@@ -156,9 +159,9 @@ final class FastPathParityTests: XCTestCase {
         // Malformed / boundary frames the corpus doesn't carry, where a false-negative would silently drop a
         // gesture on real BLE (fragments, corruption). Both peek and full parse must land on "not EVENT".
         check([], .whoop4, "empty")
-        check([0xAA, 0x01, 0x02], .whoop4, "short (below the 8-byte min)")
+        check([0xAA, 0x01, 0x02], .whoop4, "short (below the 11-byte min)")
         check([0x00, 0x18, 0x00, 0xff, 0x28, 0x02, 0x0f, 0x00], .whoop4, "wrong SOF")
-        check(hexToBytes("aa010c000001"), .whoop5, "short 5/MG (below the 12-byte min)")
+        check(hexToBytes("aa010c000001"), .whoop5, "short 5/MG (below the 13-byte min)")
     }
 
     /// The DEFAULT call is the fast path on both entry points, so every live/offload call site
