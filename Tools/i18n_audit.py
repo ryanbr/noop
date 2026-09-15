@@ -852,7 +852,14 @@ def apple_format_gaps(cat: dict, lang: str) -> list[str]:
         # Compare EVERY form independently against the key, never a folded concatenation: folding would
         # make the signature depend on how many plural categories the language HAS (ru/pl carry four,
         # zh one), so a correct translation would read as a format mismatch purely for having more forms.
-        values = [u.get("value", "") for u in _string_units(entry, lang)] or [""]
+        # An ABSENT localization is a coverage gap, reported by the missing/allowance counters, and
+        # must not be read as a format mismatch. `or [""]` used to make one look like the other: the
+        # empty signature differs from any key carrying a specifier. That never showed for the focus
+        # languages, which are held at zero missing, and it turned every ratcheted gap in it/ru/pl
+        # into a false format failure the moment this check was widened past them.
+        values = [u.get("value", "") for u in _string_units(entry, lang)]
+        if not values:
+            continue
         if any(signature(key) != signature(v) for v in values):
             mismatched.append(key)
     return mismatched
@@ -1185,6 +1192,18 @@ def ci_check(base_ref: str) -> int:
                 1 for v in cat.get("strings", {}).values()
                 if v.get("shouldTranslate") is not False and not _is_translated(v, extra)
             )
+            # COVERAGE for these locales is ratcheted, because they carry inherited gaps that would
+            # red-check every open PR. FORMAT is not: a specifier the translation drops or invents is
+            # a runtime substitution bug, not a gap, and it is exactly as broken in Russian as in
+            # German. Checking it only for LANGS left zh, it, ru and pl free to ship a dropped `%@`
+            # through a green board, which is how `%lld app%@ on` and `%lld frame%@ captured this
+            # session.` kept a Russian mismatch each for as long as they existed. Zero tolerance
+            # here is affordable because the count across every catalogue and every locale is now 0.
+            extra_format_gaps = apple_format_gaps(cat, extra)
+            if extra_format_gaps:
+                failed = True
+                print(f"FAIL {catalog_path.relative_to(ROOT)} {extra}: "
+                      f"{len(extra_format_gaps)} format mismatch(es): {extra_format_gaps[:10]}")
         for lang in LANGS:
             missing = sum(
                 1 for v in cat.get("strings", {}).values()
