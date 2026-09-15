@@ -38,6 +38,8 @@ public enum LiftMetrics {
     ///
     /// Good for: tracking progression WITHIN one exercise across weeks. Not comparable between
     /// exercises — 100 kg of leg press is not 100 kg of squat — and not comparable between people.
+    ///
+    /// The Kotlin twin is `LiftMetrics.volumeLoadKg`.
     public static func volumeLoadKg(_ sets: [LiftSetRow]) -> Double? {
         let total = sets.reduce(into: 0.0) { sum, s in
             guard !s.isWarmup, let w = s.weightKg, let r = s.reps, w > 0, r > 0 else { return }
@@ -55,6 +57,8 @@ public enum LiftMetrics {
     /// the app that puts a leg day and a run on one comparable scale.
     ///
     /// Nil when the session was not rated — a skipped rating must never be read as an effortless 0.
+    ///
+    /// The Kotlin twin is `LiftMetrics.sessionLoad`.
     public static func sessionLoad(sessionRpe: Double?, durationSec: Int) -> Double? {
         guard let rpe = sessionRpe, rpe > 0, durationSec > 0 else { return nil }
         return rpe * (Double(durationSec) / 60.0)
@@ -73,6 +77,8 @@ public enum LiftMetrics {
     ///
     /// A single rep returns the weight itself — the formula's own +3.3% at one rep is an artefact of
     /// the fit, not a claim that a single you just completed was really 3% heavier.
+    ///
+    /// The Kotlin twin is `LiftMetrics.estimatedOneRepMaxKg`.
     public static func estimatedOneRepMaxKg(weightKg: Double?, reps: Int?) -> Double? {
         guard let w = weightKg, let r = reps, w > 0, r > 0, r <= oneRepMaxRepCeiling else { return nil }
         guard r > 1 else { return w }
@@ -108,6 +114,8 @@ public enum LiftMetrics {
 
     /// One summary per exercise, in the order the exercises were first performed — which is the
     /// order they were done in, not alphabetical, because that is how a session reads back.
+    ///
+    /// The Kotlin twin is `LiftMetrics.perExercise`.
     public static func perExercise(_ sets: [LiftSetRow]) -> [ExerciseSummary] {
         var order: [String] = []
         var grouped: [String: [LiftSetRow]] = [:]
@@ -170,6 +178,8 @@ public enum LiftMetrics {
     /// what makes a set count biologically. Doing that would compare a smaller number against
     /// reference doses derived from UNFILTERED working-set counts — quietly changing the scale.
     /// `unratedSets` is surfaced so a mean computed from three of twelve sets is visibly thin.
+    ///
+    /// The Kotlin twin is `LiftMetrics.rpeProfile`.
     public static func rpeProfile(_ sets: [LiftSetRow],
                                   threshold: Double = hardSetRpeThreshold) -> RpeProfile {
         let working = sets.filter { !$0.isWarmup }
@@ -209,6 +219,8 @@ public enum LiftMetrics {
     ///
     /// Warm-ups are excluded; nothing else is. An unclassified exercise (nil primary) contributes to
     /// volume and session load but claims no muscle it was never assigned.
+    ///
+    /// The Kotlin twin is `LiftMetrics.muscleCounts`.
     public static func muscleCounts(_ sets: [LiftSetRow]) -> MuscleCounts {
         var fractional: [LiftMuscle: Double] = [:]
         var direct: [LiftMuscle: Int] = [:]
