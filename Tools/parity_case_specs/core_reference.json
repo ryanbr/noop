@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "suiteVersion": "core-reference-v1",
+  "shards": [
+    {
+      "name": "core-reference",
+      "operations": [
+        {
+          "key": "Portable.clamp/3",
+          "cases": [
+            {"id": "above", "expected": 10, "args": {"lower": 0, "upper": 10, "value": 14}},
+            {"id": "inside", "expected": 4, "args": {"lower": 0, "upper": 10, "value": 4}},
+            {"id": "lower", "expected": 0, "args": {"lower": 0, "upper": 10, "value": -2}}
+          ]
+        }
+      ]
+    }
+  ]
+}
