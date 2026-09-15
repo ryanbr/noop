@@ -44,6 +44,18 @@
             "state": "translated",
             "value": "%@ %lld"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ %lld"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ %lld"
+          }
         }
       }
     },
@@ -90,6 +102,18 @@
             "state": "translated",
             "value": "Kalibracja %@"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@校准中"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@校準中"
+          }
         }
       }
     },
@@ -135,6 +159,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ niedostępny"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@不可用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@不可用"
           }
         }
       }
@@ -246,6 +282,18 @@
             "state": "translated",
             "value": "Energia %lld na 100"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "能量 %lld，满分 100"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "能量 %lld，滿分 100"
+          }
         }
       }
     },
@@ -291,6 +339,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Energia %lld · %lld bpm%@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "能量 %lld · %lld bpm%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "能量 %lld · %lld bpm%@"
           }
         }
       }
@@ -338,6 +398,18 @@
             "state": "translated",
             "value": "Energia %lld%@"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "能量 %lld%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "能量 %lld%@"
+          }
         }
       }
     },
@@ -383,6 +455,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Kalibracja Energia"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "能量校准中"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "能量校準中"
           }
         }
       }
@@ -430,6 +514,18 @@
             "state": "translated",
             "value": "Kalibracja Energia, wymaga więcej danych"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "能量校准中，需要更多数据"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "能量校準中，需要更多資料"
+          }
         }
       }
     },
@@ -475,6 +571,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Energia nieaktualny, ostatnia synchronizacja %@. Otwórz NOOP na iPhonie."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "能量数据已过期，上次同步 %@。请在 iPhone 上打开 NOOP。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "能量資料已過期，上次同步 %@。請在 iPhone 上開啟 NOOP。"
           }
         }
       }
@@ -522,6 +630,18 @@
             "state": "translated",
             "value": "Energia nieaktualne · %@"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "能量已过期 · %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "能量已過期 · %@"
+          }
         }
       }
     },
@@ -567,6 +687,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Energia niedostępny"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "能量不可用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "能量不可用"
           }
         }
       }
@@ -614,6 +746,18 @@
             "state": "translated",
             "value": "Energia · %@"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "能量 · %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "能量 · %@"
+          }
         }
       }
     },
@@ -660,6 +804,18 @@
             "state": "translated",
             "value": "Energia · kal"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "能量 · 校准"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "能量 · 校準"
+          }
         }
       }
     },
@@ -705,6 +861,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Energia –"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "能量 –"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "能量 –"
           }
         }
       }
@@ -880,6 +1048,18 @@
             "state": "translated",
             "value": "NOOP · otwórz na iPhonie"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "NOOP · 在 iPhone 上打开"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "NOOP · 在 iPhone 上開啟"
+          }
         }
       }
     },
@@ -925,6 +1105,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "NOOP. %@, %@, %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "NOOP。%@、%@、%@。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "NOOP。%@、%@、%@。"
           }
         }
       }
@@ -972,6 +1164,18 @@
             "state": "translated",
             "value": "NOOP. Nie ma jeszcze danych. Otwórz NOOP na swoim iPhonie, aby przeprowadzić synchronizację."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "NOOP。暂无数据，请在 iPhone 上打开 NOOP 进行同步。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "NOOP。暫無資料，請在 iPhone 上開啟 NOOP 進行同步。"
+          }
         }
       }
     },
@@ -1017,6 +1221,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "NOOP. Wyniki nieaktualne, ostatnia synchronizacja %@. Otwórz NOOP na iPhonie, aby odświeżyć."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "NOOP。评分已过期，上次同步 %@。请在 iPhone 上打开 NOOP 以刷新。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "NOOP。評分已過期，上次同步 %@。請在 iPhone 上開啟 NOOP 以重新整理。"
           }
         }
       }
@@ -1064,6 +1280,18 @@
             "state": "translated",
             "value": "Brak danych, otwórz NOOP na iPhonie"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无数据，请在 iPhone 上打开 NOOP"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無資料，請在 iPhone 上開啟 NOOP"
+          }
         }
       }
     },
@@ -1109,6 +1337,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Otwórz NOOP"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开 NOOP"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟 NOOP"
           }
         }
       }
@@ -1284,6 +1524,18 @@
             "state": "translated",
             "value": "jakiś czas temu"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一段时间前"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一段時間前"
+          }
         }
       }
     },
@@ -1329,6 +1581,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "kal"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "校准"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "校準"
           }
         }
       }
@@ -1376,6 +1640,18 @@
             "state": "translated",
             "value": "stary"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "过期"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "過期"
+          }
         }
       }
     },
@@ -1422,6 +1698,18 @@
             "state": "translated",
             "value": "otwórz iPhone'a"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开 iPhone"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟 iPhone"
+          }
         }
       }
     },
@@ -1467,6 +1755,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "nieświeży"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已过期"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已過期"
           }
         }
       }

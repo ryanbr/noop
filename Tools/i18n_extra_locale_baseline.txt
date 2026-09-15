@@ -12,8 +12,8 @@ NOOPWatch/Localizable.xcstrings:ru 0
 NOOPWatch/Localizable.xcstrings:zh-Hans 0
 NOOPWatch/Localizable.xcstrings:zh-Hant 0
 NOOPWatchComplications/Localizable.xcstrings:it 25
-NOOPWatchComplications/Localizable.xcstrings:zh-Hans 25
-NOOPWatchComplications/Localizable.xcstrings:zh-Hant 25
+NOOPWatchComplications/Localizable.xcstrings:zh-Hans 0
+NOOPWatchComplications/Localizable.xcstrings:zh-Hant 0
 Strand/Resources/Localizable.xcstrings:it 179
 Strand/Resources/Localizable.xcstrings:ru 1
 Strand/Resources/Localizable.xcstrings:zh-Hans 100
