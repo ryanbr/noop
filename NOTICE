@@ -16,10 +16,38 @@ ZIPFoundation — https://github.com/weichsel/ZIPFoundation
   License: MIT
   Used for: reading WHOOP / Apple Health export archives during import.
 
+llama.cpp (and its ggml core) — https://github.com/ggml-org/llama.cpp
+  License: MIT — Copyright (c) 2023-2024 The ggml authors
+  Used for: in-process on-device LLM inference for the optional AI Coach (iOS
+  only). NOOP links a pinned prebuilt xcframework (official ggml-org release
+  b9947); see Packages/LlamaCpp.
+
 The MIT license is permissive: these components may be used, modified, and
 redistributed (including commercially) on their own terms. When they are used as
 part of NOOP's combined work, the combined work as a whole is governed by NOOP's
 PolyForm Noncommercial license.
+
+On-device AI Coach model (downloaded at first run — NOT redistributed by NOOP)
+-----------------------------------------------------------------------------
+
+The optional on-device AI Coach runs Meta's Llama 3.2 3B Instruct. NOOP does NOT
+bundle or redistribute the model weights: the repository and app contain only a
+pinned download URL + SHA-256 (see Strand/AI/OnDevice/ModelCatalog.swift), and the
+device fetches the weights directly from Hugging Face on first run, at the user's
+request.
+
+  Model: Llama 3.2 3B Instruct (Q4_K_M GGUF quantization by "bartowski")
+  License: Llama 3.2 Community License Agreement — Copyright © Meta Platforms,
+           Inc. All Rights Reserved.  https://www.llama.com/llama3_2/license/
+  Acceptable Use Policy: https://www.llama.com/llama3_2/use-policy/
+
+  "Built with Llama." The Llama 3.2 Community License is Meta's own license (not
+  an OSI open-source license): it grants use — including redistribution and
+  commercial use — under its terms (attribution, the Acceptable Use Policy, and a
+  separate license from Meta above 700M monthly active users). It does not
+  relicense NOOP's own code, and NOOP's PolyForm Noncommercial license does not
+  relicense the model. The text-only 3.2 models (1B/3B) are not subject to the
+  license's EU restriction (which applies only to the multimodal Llama models).
 
 Prior reverse-engineering research
 ----------------------------------
