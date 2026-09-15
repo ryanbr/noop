@@ -412,7 +412,11 @@ struct AppleHealthView: View {
                         .fixedSize(horizontal: false, vertical: true)
 
                 case .unknown, .denied:
-                    Text("Read your heart rate, HRV, blood oxygen, respiratory rate, sleep, steps and energy straight from Apple Health, and write NOOP's strap data back: sleep with full stages, continuous heart rate, workouts, and nightly vitals. Everything stays on \(Platform.deviceNounPhrase).")
+                    // #653: narrower than the old copy — this ask now covers ONLY core reads (heart
+                    // rate, HRV, blood oxygen, respiratory rate, sleep, steps, energy) + the nightly
+                    // vitals write-back. Continuous heart rate, workouts, and body composition are
+                    // separate, optional asks surfaced below once connected (see the `.authorized` case).
+                    Text("Read your heart rate, HRV, blood oxygen, respiratory rate, sleep, steps and energy from Apple Health, and write back your nightly resting heart rate, HRV, blood oxygen and respiratory rate. Continuous heart rate, workouts and body composition are optional — turn them on below once this is connected. Everything stays on \(Platform.deviceNounPhrase).")
                         .font(StrandFont.caption)
                         .foregroundStyle(StrandPalette.textTertiary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -467,6 +471,77 @@ struct AppleHealthView: View {
                     .buttonStyle(.bordered)
                     .tint(StrandPalette.metricCyan)
                     .disabled(health.syncing)
+
+                    // #653: optional, narrower extras beyond the core read + nightly vitals write-back
+                    // the button above already covers. Each explains what it reads/writes before its own
+                    // HealthKit prompt fires, instead of bundling everything into one ask.
+                    Divider().overlay(StrandPalette.hairline.opacity(0.4))
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Toggle(isOn: Binding(
+                            get: { health.bodyCompositionEnabled },
+                            set: { on in health.setBodyCompositionEnabled(on) }
+                        )) {
+                            Text("Body composition")
+                                .font(StrandFont.subhead)
+                                .foregroundStyle(StrandPalette.textPrimary)
+                        }
+                        .tint(StrandPalette.metricCyan)
+                        Text("Weight, body fat and lean mass, imported read-only. Never written back.")
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("Continuous heart rate")
+                                .font(StrandFont.subhead)
+                                .foregroundStyle(StrandPalette.textPrimary)
+                            Spacer()
+                            if health.isHeartRateWritebackAuthorized {
+                                StatePill("Enabled", tone: .positive)
+                            }
+                        }
+                        Text("Write NOOP's minute-by-minute heart rate into Apple Health.")
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if !health.isHeartRateWritebackAuthorized {
+                            Button {
+                                Task { await health.requestHeartRateWriteback() }
+                            } label: {
+                                Text("Add continuous heart rate")
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(StrandPalette.metricCyan)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text("Workouts")
+                                .font(StrandFont.subhead)
+                                .foregroundStyle(StrandPalette.textPrimary)
+                            Spacer()
+                            if health.isWorkoutWritebackAuthorized {
+                                StatePill("Enabled", tone: .positive)
+                            }
+                        }
+                        Text("Write your strap and manual workouts, with energy and distance, into Apple Health.")
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if !health.isWorkoutWritebackAuthorized {
+                            Button {
+                                Task { await health.requestWorkoutWriteback() }
+                            } label: {
+                                Text("Add workouts")
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(StrandPalette.metricCyan)
+                        }
+                    }
                 }
 
                 if let err = health.lastError {
