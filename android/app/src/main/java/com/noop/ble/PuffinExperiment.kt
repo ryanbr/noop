@@ -67,6 +67,17 @@ class PuffinExperiment(
         get() = prefs.getBoolean(KEY_ECG_RAW_DATA, false)
         set(v) = prefs.edit().putBoolean(KEY_ECG_RAW_DATA, v).apply()
 
+    /** True if the user opted in to the "MG ECG research probe" (#891/#1100) — the gated, hand-run panel
+     *  that SENDS the WHOOP MG ECG ("Labrador") toggle commands (139/125/124) to learn what a real MG does
+     *  with them. SEPARATE from [ecgRawData]: that opt-in writes ONE persistent device-config value; this
+     *  one dispatches session ECG commands. Every one is on the strict allow-list in
+     *  [com.noop.protocol.EcgResearchAllowList] and additionally gated on an attested MG at the send path
+     *  ([com.noop.ble.WhoopBleClient.ecgSendAdmitted]). Reversible, default false — a plain 5.0 or a 4.0
+     *  never sees these. Mirrors the macOS `PuffinExperiment.ecgEnabled` (`noopWhoop5Ecg`). */
+    var ecgProbe: Boolean
+        get() = prefs.getBoolean(KEY_ECG_PROBE, false)
+        set(v) = prefs.edit().putBoolean(KEY_ECG_PROBE, v).apply()
+
     /** True if the user opted in to "Experimental sleep staging (V2)": detected nights are re-staged with
      *  [com.noop.analytics.SleepStagerV2] (the transparent cardiorespiratory recipe, reimplemented from
      *  contributor PR #600) instead of the older V1 [com.noop.analytics.SleepStager]. Pure analysis switch
@@ -301,6 +312,11 @@ class PuffinExperiment(
          *  `PuffinExperiment.ecgRawDataKey`). (#891) */
         const val KEY_ECG_RAW_DATA = "noopEcgRawDataGate"
 
+        /** "MG ECG research probe" opt-in — dispatches the Labrador ECG session commands from the gated
+         *  research panel. Same UserDefaults key as macOS `PuffinExperiment.ecgEnabledKey`, so a future
+         *  cross-platform settings sync does not have to reconcile two names. (#891/#1100) */
+        const val KEY_ECG_PROBE = "noopWhoop5Ecg"
+
         /** "Ask Android to pair" opt-in — the explicit `createBond()` experiment (#1635). Android-only,
          *  so no macOS key to mirror. */
         const val KEY_EXPLICIT_BOND = "noopWhoop5ExplicitBond"
@@ -319,7 +335,7 @@ class PuffinExperiment(
          *  SettingsScreen watches exactly these for external writes. Two lists would drift. */
         internal val FIVE_MG_GATED_KEYS =
             listOf(KEY, KEY_CAPTURE, KEY_DEEP_DATA, KEY_BROADCAST_HR, KEY_ECG_RAW_DATA, KEY_EXPLICIT_BOND,
-                   KEY_UNBONDED_OFFLOAD, KEY_CLEAR_STALE_BOND)
+                   KEY_UNBONDED_OFFLOAD, KEY_CLEAR_STALE_BOND, KEY_ECG_PROBE)
 
         /** "Experimental sleep staging (V2)" opt-in (mirrors macOS `PuffinExperiment.experimentalSleepV2Key`). */
         const val KEY_EXPERIMENTAL_SLEEP_V2 = "noopExperimentalSleepV2"
