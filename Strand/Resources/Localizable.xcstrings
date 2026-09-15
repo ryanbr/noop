@@ -1802,6 +1802,12 @@
             "state": "translated",
             "value": "%.2f В"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%.2f V"
+          }
         }
       }
     },
@@ -16565,6 +16571,12 @@
             "state": "translated",
             "value": "1 мин"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 分钟"
+          }
         }
       }
     },
@@ -18419,6 +18431,12 @@
             "state": "translated",
             "value": "2 мин"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "2 分钟"
+          }
         }
       }
     },
@@ -19084,6 +19102,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "5 мин"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "5 分钟"
           }
         }
       }
@@ -27501,6 +27525,12 @@
             "state": "translated",
             "value": "После высокоинтенсивной нагрузки"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高强度运动之后"
+          }
         }
       }
     },
@@ -35491,6 +35521,12 @@
             "state": "translated",
             "value": "Проба сведений о батарее (#592 RE)…"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "电池信息探测（#592 RE）…"
+          }
         }
       }
     },
@@ -35530,6 +35566,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Результат пробы батареи (#592)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "电池信息探测结果（#592）"
           }
         }
       }
@@ -37503,6 +37545,12 @@
             "state": "translated",
             "value": "Проба положения на теле (#690 RE)…"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "佩戴位置探测（#690 RE）…"
+          }
         }
       }
     },
@@ -37542,6 +37590,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Результат пробы положения на теле (#690)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "佩戴位置探测结果（#690）"
           }
         }
       }
@@ -62823,6 +62877,12 @@
             "state": "translated",
             "value": "Каждая линия показывает, на сколько ударов в минуту изменился ваш пульс после нагрузки. Учитываются только высокоинтенсивные тренировки с записанным пульсом после тренировки."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每条线显示运动后心率的变化幅度（每分钟心跳次数）。仅包含记录了运动后心率的高强度锻炼。"
+          }
         }
       }
     },
@@ -77203,6 +77263,12 @@
             "state": "translated",
             "value": "Восстановление пульса"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "心率恢复"
+          }
         }
       }
     },
@@ -77654,6 +77720,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Восстановление пульса на %@, %lld ударов в минуту"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ 的心率恢复，每分钟 %lld 次"
           }
         }
       }
@@ -78147,6 +78219,12 @@
             "state": "translated",
             "value": "Тренд восстановления пульса в ударах в минуту"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "心率恢复趋势（每分钟心跳次数）"
+          }
         }
       }
     },
@@ -78186,6 +78264,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Восстановление пульса · %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "心率恢复 · %@"
           }
         }
       }
@@ -117234,6 +117318,12 @@
             "state": "translated",
             "value": "Достигнута оптимальная нагрузка"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已达到最佳负荷"
+          }
         }
       }
     },
@@ -120273,6 +120363,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Пик %lld уд/мин"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "峰值 %lld bpm"
           }
         }
       }
@@ -130095,6 +130191,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Тренд восстановления"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "恢复趋势"
           }
         }
       }
@@ -141578,6 +141680,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Отправить пробу (только чтение)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "发送探测（只读）"
           }
         }
       }
@@ -153743,6 +153851,12 @@
             "state": "translated",
             "value": "Серия"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "连续记录"
+          }
         }
       }
     },
@@ -159850,6 +159964,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Изменение относительно вашего пульса в конце нагрузки. Положительные значения означают, что пульс снизился; прочерк означает, что браслет не записал достаточно данных около этой минуты."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "相对于运动结束时心率的变化。正值表示心率下降；短横线表示手环在该分钟前后未记录到足够的数据。"
           }
         }
       }
@@ -172704,6 +172824,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ожидание ответа браслета…"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在等待手环回复…"
           }
         }
       }
@@ -210586,6 +210712,12 @@
             "state": "translated",
             "value": "Тренировочная нагрузка"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "训练负荷"
+          }
         }
       }
     },
@@ -210625,6 +210757,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "CTL · Форма"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "CTL · 体能"
           }
         }
       }
@@ -210666,6 +210804,12 @@
             "state": "translated",
             "value": "ATL · Усталость"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ATL · 疲劳"
+          }
         }
       }
     },
@@ -210705,6 +210849,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "42-дневная форма против 7-дневной усталости"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "42 天体能与 7 天疲劳对比"
           }
         }
       }
@@ -210746,6 +210896,12 @@
             "state": "translated",
             "value": "Формируется — %lld из %lld дней"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "正在建立：%lld / %lld 天"
+          }
         }
       }
     },
@@ -210785,6 +210941,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Хроническая против острой нагрузки"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "长期负荷与急性负荷对比"
           }
         }
       }
@@ -210826,6 +210988,12 @@
             "state": "translated",
             "value": "Нужно %lld+ подряд дней с Усилием, чтобы начать. Пока %lld."
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "需要连续 %lld 天以上的负荷记录才能开始。目前 %lld 天。"
+          }
         }
       }
     },
@@ -210865,6 +211033,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Форма"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "竞技状态"
           }
         }
       }
