@@ -123,6 +123,12 @@ object LiftMetrics {
     /**
      * One summary per exercise, in the order the exercises were first performed, because that is how
      * a session reads back.
+     *
+     * Assumes `ord` is unique across the rows handed in, which holds because it is assigned 0-based
+     * within one session and the only caller passes one session's sets. If that ever stops being
+     * true the two platforms can disagree on ties: `sortedBy` is stable, Swift's `sorted(by:)` is
+     * not, so Swift would also stop agreeing with itself. Fix it by making `ord` unique rather than
+     * by matching an unspecified order here.
      * The Swift twin is `LiftMetrics.perExercise`.
      */
     fun perExercise(sets: List<Row>): List<ExerciseSummary> {

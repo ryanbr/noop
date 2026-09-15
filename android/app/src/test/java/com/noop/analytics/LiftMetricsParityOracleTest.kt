@@ -1,6 +1,7 @@
 package com.noop.analytics
 
 import com.noop.data.LiftMuscle
+import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -47,7 +48,7 @@ class LiftMetricsParityOracleTest {
         row(8, "Plank", 0.0, 0, null, false, null, emptyList()),
     )
 
-    private fun f(d: Double?) = if (d == null) "nil" else String.format("%.6f", d)
+    private fun f(d: Double?) = if (d == null) "nil" else String.format(Locale.ROOT, "%.6f", d)
     private fun i(v: Int?) = v?.toString() ?: "nil"
 
     /** Verbatim stdout of the Swift build. Do not hand-edit: regenerate from the oracle. */
