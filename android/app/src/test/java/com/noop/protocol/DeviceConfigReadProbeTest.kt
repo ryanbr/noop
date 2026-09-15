@@ -612,4 +612,29 @@ class DeviceConfigReadProbeTest {
         assertEquals("a SUCCESS reply holding 0 is still a real 0", 0, succeeded.readings.first().value)
         assertTrue(succeeded.render().contains("value="))
     }
+
+    /**
+     * Twin of the Swift verdict assertion, which Kotlin was missing entirely.
+     *
+     * The verdict has to separate "every reply was rejected" from "replies succeeded but none carried a
+     * verified key/value pair". Kotlin said only the second, and no Kotlin test asserted the sentence at
+     * all, so changing it failed nothing. Swift pinned it and Kotlin did not, which is how the two
+     * drifted in the first place.
+     */
+    @Test
+    fun theVerdictSaysWhenEveryReplyWasRejectedRatherThanUnverified() {
+        for (result in listOf(0, 2)) {
+            val frame = whoop5Response(121, payload(result, echoRecord("enable_spo2", 0)))
+            val reply = DeviceConfigReadProbe.parse(frame, DeviceFamily.WHOOP5, 121).value
+            assertNotNull(reply)
+            val rep = DeviceConfigReadProbeReport(DeviceFamily.WHOOP5, emptyList(), emptyList())
+            rep.noteReply(reply!!, DeviceConfigReadProbeReport.Step(121, "enable_spo2", DeviceConfigReadProbeReport.Group.CANDIDATE))
+            assertEquals("the shared byte decoder remains unchanged", 0, reply.valueFor("enable_spo2"))
+            assertNull(rep.readings.first().value)
+            assertEquals(
+                "1 of 2 read verbs answered, but no reply reported success; no value is claimed",
+                rep.verdict,
+            )
+        }
+    }
 }
