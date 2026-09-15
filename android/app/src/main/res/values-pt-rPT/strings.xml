@@ -929,6 +929,7 @@
     <string name="l10n_test_centre_screen_report_a_bug_with_my_log_5101ee49">Reportar um erro com o meu registo</string>
     <string name="l10n_test_centre_screen_report_ee45c303">Relatório</string>
     <string name="l10n_test_centre_screen_review_before_sharing_d7050383">Reveja antes de partilhar</string>
+    <string name="raw_diag_export_review_body">Esta exportação contém tramas biométricas em bruto, texto da consola da bracelete e o registo de ligação. Os identificadores são ocultados automaticamente. Partilha-a apenas se estiveres confortável com isso.</string>
     <string name="l10n_test_centre_screen_share_09ca55ca">Partilhar</string>
     <string name="l10n_test_centre_screen_share_strap_log_for_bug_reports_b9802500">Partilhar o registo da bracelete (para relatórios de erros)</string>
     <string name="l10n_test_centre_screen_test_centre_37b36828">Centro de testes</string>
