@@ -662,6 +662,32 @@ class GovernanceRatchetTests(unittest.TestCase):
             errors,
         )
 
+    def test_authority_migration_rejects_a_current_authority_equal_to_the_stale_base(self) -> None:
+        """The sharp case, found by mutating the guard rather than by reading it.
+
+        The general protection against a non-exact current authority only ERRORS when it matches
+        neither the tree nor the base; when it matches the stale base exactly it merely warns
+        "debt decreased". Under migration that shape would otherwise sail through and adopt an
+        unrefreshed authority, which is the one thing migration must not do.
+        """
+        _swift, base = self.stale_base_repair_fixture()
+        stale = parity_ratchet._read_base(self.root, base, "Tools/parity_twin_map.json")
+        self.write("Tools/parity_twin_map.json", stale)
+
+        warnings: list[str] = []
+        errors = parity_ratchet.compare_metadata(
+            self.root, base, offline=True, migrate_authority=True, warnings=warnings,
+        )
+
+        self.assertTrue(
+            any("requires an exactly derived current authority" in error for error in errors),
+            errors,
+        )
+        self.assertFalse(
+            any("migrated onto a freshly derived base" in w for w in warnings),
+            "a stale current authority must not be reported as a completed migration",
+        )
+
     def test_migrate_authority_flag_requires_guarded_refresh(self) -> None:
         output = io.StringIO()
         with mock.patch("sys.stdout", output):
