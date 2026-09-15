@@ -16,7 +16,7 @@ NOOPWatchComplications/Localizable.xcstrings:zh-Hans 0
 NOOPWatchComplications/Localizable.xcstrings:zh-Hant 0
 Strand/Resources/Localizable.xcstrings:it 179
 Strand/Resources/Localizable.xcstrings:ru 1
-Strand/Resources/Localizable.xcstrings:zh-Hans 100
-Strand/Resources/Localizable.xcstrings:zh-Hant 179
+Strand/Resources/Localizable.xcstrings:zh-Hans 0
+Strand/Resources/Localizable.xcstrings:zh-Hant 79
 values-ru/strings.xml 121
 values-zh/strings.xml 0
