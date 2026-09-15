@@ -1,5 +1,6 @@
 package com.noop.ble
 
+import com.noop.protocol.DeviceFamily
 import java.util.UUID
 
 /**
@@ -26,4 +27,22 @@ enum class WhoopModel(val displayName: String, val service: UUID) {
             WHOOP4 -> WHOOP5_MG
             WHOOP5_MG -> WHOOP4
         }
+}
+
+/**
+ * The picker model backed by service-discovery evidence from this connection.
+ *
+ * [family] is deliberately ignored until [familyEstablished] is true. The BLE client keeps its last
+ * discovered family across a disconnect (and starts with WHOOP4), so reading the family alone would
+ * turn either a default or the previous link into a claim about the current strap. (#2068)
+ */
+internal fun establishedWhoopModel(
+    familyEstablished: Boolean,
+    family: DeviceFamily,
+): WhoopModel? {
+    if (!familyEstablished) return null
+    return when (family) {
+        DeviceFamily.WHOOP4 -> WhoopModel.WHOOP4
+        DeviceFamily.WHOOP5 -> WhoopModel.WHOOP5_MG
+    }
 }

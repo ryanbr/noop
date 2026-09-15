@@ -2760,20 +2760,19 @@ class WhoopBleClient(
     /** Address of the strap we last connected to — for persisting it + auto-reconnecting on launch (#67). */
     val lastDeviceAddress: String? get() = lastDevice?.address
 
-    /// Has [connectedFamily] been established from THIS connection's service discovery?
-    ///
-    /// [connectedFamily] defaults to WHOOP4 and is only ever written in onServicesDiscovered, and is NOT
-    /// cleared between connections (this flag is - clearing [connectedFamily] itself would change the
-    /// handleDisconnect paths that read it after teardown). So before discovery it holds either that
-    /// default or the family of the PREVIOUS link. Both are guesses, and the source must not come from a
-    /// guess: the 4.0's standard 0x2A19 characteristic is a stub (#77), so a 4.0 reached while this still
-    /// said WHOOP5 read the stub and BANKED it. In one field log that stub read 81% against a true 39.2%,
-    /// and banked samples feed the discharge-slope estimate (#713), so the error reaches the readout and
-    /// not just the log line. Cleared in [reset] with the rest of the per-connection state.
-    /// @Volatile and always read BEFORE [connectedFamily] (Kotlin evaluates arguments left to right, so
-    /// `batterySource(familyEstablished, connectedFamily)` is the correct order): seeing this true then
-    /// establishes happens-before for the [connectedFamily] write that precedes it at discovery. Swapping
-    /// the two parameters would silently drop that guarantee.
+    /**
+     * The model established from THIS connection's discovered service, or null before discovery.
+     *
+     * The picker is only a request: scan fallback and easy-connect can establish the other family, so
+     * persisting the picker beside [lastDeviceAddress] makes the saved pair untrue and feeds that wrong
+     * family back into the next direct reconnect (#2068). [familyEstablished] must be read BEFORE
+     * [connectedFamily]: it is the volatile publication edge for the family write in service discovery.
+     * Kotlin evaluates arguments left to right, so this call preserves that ordering and never exposes
+     * the default or the previous link's family as evidence for the current one.
+     */
+    internal val establishedModel: WhoopModel?
+        get() = establishedWhoopModel(familyEstablished, connectedFamily)
+
     /** #1634: last firmware-gate line logged, so a stable per-connection value is not repeated on every
      *  hello. Cleared in [reset] with the rest of the per-connection state. */
     @Volatile private var loggedFirmwareGate: String? = null

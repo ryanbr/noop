@@ -889,8 +889,15 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     // and the Buzz-WHOOP companion, arming the single slot to the earliest either wants (#5).
                     reconcileStrapAlarm()
                     // Remember this strap so we can reconnect to it directly on the next launch (#67),
-                    // e.g. after an APK update restarts the process.
-                    ble.lastDeviceAddress?.let { NoopPrefs.setLastDevice(appContext, it, _selectedModel.value) }
+                    // e.g. after an APK update restarts the process. The address and model must both
+                    // describe the link that actually bonded: scan fallback / easy-connect can establish
+                    // a different family from the picker, and saving the pick made the pair lie about its
+                    // own address, then fed that lie back into every direct reconnect (#2068).
+                    val establishedModel = ble.establishedModel
+                    val address = ble.lastDeviceAddress
+                    if (establishedModel != null && address != null) {
+                        NoopPrefs.setLastDevice(appContext, address, establishedModel)
+                    }
                 }
                 lastBonded = state.bonded
             }
