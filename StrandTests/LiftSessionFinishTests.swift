@@ -5,7 +5,7 @@ import WhoopStore
 /// Finishing a session: what saves, and whether the program keeps a changed set count.
 ///
 /// Asked for after a real session, 15 Sep 2026: grey numbers stay grey during the session, finishing
-/// asks once whether the sets without typed numbers are completed with them or left out ("the user
+/// asks once whether the sets without typed numbers are completed with them or discarded ("the user
 /// might not complete all the workout, just a couple of exercises"), and a set count changed with ⊕/⊖
 /// reaches the program only if the user says so.
 @MainActor
@@ -43,18 +43,20 @@ final class LiftSessionFinishTests: XCTestCase {
     }
 
     /// A session run face-down, every set advanced on the strap and nothing typed. Discarding then
-    /// leaves NOTHING: this is the precondition `LiftSessionView.save` guards on, because filing it
-    /// wrote a session with no sets and a manual workout the engine would fill strain into, so an
-    /// hour that recorded nothing read back as a workout. Completing still saves all five.
+    /// leaves no set that counts, only zeros: this is the precondition `LiftSessionView.save` guards
+    /// on, because filing it wrote a session with nothing in it and a manual workout the engine would
+    /// fill strain into, so an hour that recorded nothing read back as a workout. Completing still
+    /// files all five.
     func testAFaceDownSessionDiscardingSavesNothingAtAll() {
         let c = controller()
         c.start(plan: plan(), programId: "p", programName: "Upper A")
         for _ in 0..<10 { c.advance() }                           // every set worked, none typed
         XCTAssertEqual(c.unfinishedSlots.count, 5, "nothing typed, so every slot is unentered")
-        XCTAssertTrue(c.setsToSave(completingUnfinished: false).isEmpty,
-                      "discarding an all-untyped session must leave no set to file")
-        XCTAssertEqual(c.setsToSave(completingUnfinished: true).count, 5,
-                       "completing still files every set with its grey numbers")
+        XCTAssertFalse(LiftSessionController.anyPerformed(c.setsToSave(completingUnfinished: false)),
+                       "discarding an all-untyped session must leave no set to file")
+        let completed = c.setsToSave(completingUnfinished: true)
+        XCTAssertEqual(completed.count, 5, "completing still files every set with its grey numbers")
+        XCTAssertTrue(LiftSessionController.anyPerformed(completed))
     }
 
     func testUnfinishedSetsAreTheUntypedAndTheNeverStarted() {
@@ -74,9 +76,20 @@ final class LiftSessionFinishTests: XCTestCase {
         }
     }
 
-    func testDiscardingLeavesEveryUnfinishedSetOut() {
+    /// Discarding keeps every unfinished set as 0 kg × 0 reps: out of every figure, but still there to fill
+    /// in under Edit sets if the discard was a mistake. A performed one keeps its timing.
+    func testDiscardingSavesUnfinishedSetsAsZeros() {
         let saved = halfDoneSession().setsToSave(completingUnfinished: false)
-        XCTAssertEqual(saved.map(\.slot), [slot(0, 1)])
+        XCTAssertEqual(saved.map(\.slot), [slot(0, 1), slot(0, 2), slot(0, 3), slot(1, 1), slot(1, 2)])
+        XCTAssertEqual(saved[0].weightKg, 55, "the typed set is untouched")
+        for set in saved.dropFirst() {
+            XCTAssertEqual(set.weightKg, 0)
+            XCTAssertEqual(set.reps, 0)
+            XCTAssertNil(set.rpe)
+        }
+        XCTAssertNotNil(saved[1].endTs, "bench 2 was performed, so its timing is kept")
+        XCTAssertNil(saved[2].startTs, "bench 3 was never started")
+        XCTAssertTrue(LiftSessionController.anyPerformed(saved), "one typed set is enough to file the session")
     }
 
     /// Completing saves the untyped and the never-started sets with the grey numbers the sheet showed:

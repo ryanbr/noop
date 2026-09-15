@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import WhoopStore
+import StrandAnalytics
 
 // The live session, owned ABOVE any screen.
 //
@@ -410,7 +411,7 @@ final class LiftSessionController: ObservableObject {
     // MARK: - Finishing
 
     /// Slots with no number typed in — never started, or finished without typing. Finishing asks once
-    /// whether to complete all of them with their grey numbers or leave them out.
+    /// whether to complete all of them with their grey numbers or discard them.
     var unfinishedSlots: [LiftSlot] { engine?.unenteredSlots ?? [] }
 
     /// One set as the finished session saves it. Timing is nil for a set completed at finish without
@@ -427,33 +428,43 @@ final class LiftSessionController: ObservableObject {
         var restSec: Int?
     }
 
-    /// The sets the session saves.
+    /// The sets the session saves — every slot on the sheet.
     ///
-    /// A set with anything typed always saves, and a number left blank takes its grey value, so a set
-    /// that was rated but never weighed does not save empty. Unfinished sets are saved with their grey
-    /// numbers (and anything typed in advance) when `completingUnfinished`, and left out otherwise.
-    /// Performed sets keep the order they happened in; sets completed at finish follow in plan order.
+    /// A set with anything typed saves its numbers, and a number left blank takes its grey value, so a
+    /// set that was rated but never weighed does not save empty. Unfinished sets save with their grey
+    /// numbers (and anything typed in advance) when `completingUnfinished`; otherwise they save as
+    /// 0 kg × 0 reps, which every figure leaves out (`LiftMetrics.isPerformed`) and Edit sets still
+    /// shows, so a discard made by mistake can be filled back in. Performed sets keep the order they
+    /// happened in and their timing; sets never started follow in plan order, with no timing.
     func setsToSave(completingUnfinished: Bool) -> [FinishedSet] {
         guard let engine else { return [] }
         let unfinished = Set(engine.unenteredSlots)
-        var out = engine.sets
-            .filter { completingUnfinished || !unfinished.contains($0.slot) }
-            .map { set -> FinishedSet in
-                let shown = values(of: set.slot)
-                return FinishedSet(slot: set.slot, weightKg: shown.weightKg, reps: shown.reps,
-                                   rpe: set.rpe, isWarmup: set.isWarmup, startTs: set.startTs,
-                                   endTs: set.endTs, restSec: set.restSec)
-            }
-        guard completingUnfinished else { return out }
+        var out = engine.sets.map { set -> FinishedSet in
+            let discarded = unfinished.contains(set.slot) && !completingUnfinished
+            let shown = values(of: set.slot)
+            return FinishedSet(slot: set.slot,
+                               weightKg: discarded ? 0 : shown.weightKg, reps: discarded ? 0 : shown.reps,
+                               rpe: discarded ? nil : set.rpe, isWarmup: set.isWarmup,
+                               startTs: set.startTs, endTs: set.endTs, restSec: set.restSec)
+        }
         for slot in engine.allSlots where !engine.isCompleted(slot) {
             let typed = pendingValues[slot]
             let grey = carry(for: slot)
-            out.append(FinishedSet(slot: slot, weightKg: typed?.weightKg ?? grey.weightKg,
-                                   reps: typed?.reps ?? grey.reps, rpe: typed?.rpe,
+            out.append(FinishedSet(slot: slot,
+                                   weightKg: completingUnfinished ? typed?.weightKg ?? grey.weightKg : 0,
+                                   reps: completingUnfinished ? typed?.reps ?? grey.reps : 0,
+                                   rpe: completingUnfinished ? typed?.rpe : nil,
                                    isWarmup: pendingWarmups.contains(slot),
                                    startTs: nil, endTs: nil, restSec: nil))
         }
         return out
+    }
+
+    /// Whether any of `sets` was performed. When none was (a session run face-down with nothing typed,
+    /// then discarded), there is nothing to file: `LiftSessionView.save` writes no session, no sets and
+    /// no workout, and the finish sheet says so before Save.
+    static func anyPerformed(_ sets: [FinishedSet]) -> Bool {
+        sets.contains { LiftMetrics.isPerformed(reps: $0.reps) }
     }
 
     /// A program line whose set count this session changed.

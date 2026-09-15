@@ -621,29 +621,21 @@ struct LiftSessionView: View {
                 if unfinished > 0 { unfinishedCard(count: unfinished) }
                 if !setCountChanges.isEmpty { programCard }
 
-                HStack {
-                    Button("Skip") { Task { await save() } }
-                        .buttonStyle(.plain)
-                        .font(StrandFont.body)
-                        .foregroundStyle(StrandPalette.textSecondary)
-                        .disabled(saving || !answered)
-                    Spacer()
-                    Button("Save session") { Task { await save() } }
-                        .buttonStyle(.noopPrimary)
-                        .frame(maxWidth: 180)
-                        .disabled(saving || !answered)
-                        .opacity(saving || !answered ? NoopButtonMetrics.disabledOpacity : 1)
-                }
+                // One way to save. Session RPE above is optional, so an empty field is simply no rating;
+                // a separate "Skip" saved exactly the same way and read as a second choice.
+                Button("Save session") { Task { await save() } }
+                    .buttonStyle(.noopPrimary)
+                    .disabled(saving || !answered)
+                    .opacity(saving || !answered ? NoopButtonMetrics.disabledOpacity : 1)
                 if !answered {
                     Text("Choose an option above to save.")
                         .font(StrandFont.footnote)
                         .foregroundStyle(StrandPalette.textTertiary)
                 }
 
-                // A way OUT that records nothing. Until this existed, every route off this screen
-                // saved: "Skip" skips the RPE question, not the session. A session started by a
-                // mis-tap, or to try something out, had to be saved and then lived in the history
-                // and in that day's Effort for good.
+                // A way OUT that records nothing. Until this existed, the only route off this screen
+                // saved. A session started by a mis-tap, or to try something out, had to be saved and
+                // then lived in the history and in that day's Effort for good.
                 Button(role: .destructive) {
                     confirmingDiscard = true
                 } label: {
@@ -679,7 +671,7 @@ struct LiftSessionView: View {
 
     /// Sets nobody typed a number into. One choice covers all of them, because what matters at the end
     /// of a session is simply whether they happened: complete them with the numbers the sheet showed,
-    /// or leave them out.
+    /// or discard them to zeros that every figure leaves out and Edit sets can still fill in.
     private func unfinishedCard(count: Int) -> some View {
         NoopCard {
             VStack(alignment: .leading, spacing: NoopMetrics.gap) {
@@ -694,10 +686,18 @@ struct LiftSessionView: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                Text("Completing saves them with the grey numbers shown. Discarding leaves them out of the session.")
+                Text("Completing saves them with the grey numbers shown. Discarding keeps them out of every figure; they stay under Edit sets as zeros you can fill in later.")
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
+                // Said before Save rather than after: `save` files nothing when no set counts.
+                if unfinishedChoice == .discard,
+                   !LiftSessionController.anyPerformed(session.setsToSave(completingUnfinished: false)) {
+                    Text("Every set would be a zero, so discarding saves no session and no workout.")
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.statusWarning)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
         }
     }
@@ -761,13 +761,14 @@ struct LiftSessionView: View {
         // After `finish`, which closes out the running rest: that set's measured rest belongs to it.
         let finished = session.setsToSave(completingUnfinished: unfinishedChoice == .complete)
 
-        // Nothing to file, so file nothing. Discarding can empty a session completely: a session run
+        // Nothing to file, so file nothing. Discarding can leave no set that counts: a session run
         // face-down and advanced entirely on the strap has nothing typed, so every slot is unentered
-        // and "Discard them" leaves no set behind. Filing it anyway wrote a session row with no sets
-        // AND a manual workout, and the engine fills that workout's strain from the heart rate the
-        // strap measured — so an hour that recorded nothing still read back as a workout. The
-        // program's set counts are a separate thing the user chose explicitly, so those still apply.
-        guard !finished.isEmpty else {
+        // and "Discard them" turns every set into a zero. Filing it anyway wrote a session with nothing
+        // in it AND a manual workout, and the engine fills that workout's strain from the heart rate the
+        // strap measured — so an hour that recorded nothing still read back as a workout. The finish
+        // sheet says so before Save. The program's set counts are a separate thing the user chose
+        // explicitly, so those still apply.
+        guard LiftSessionController.anyPerformed(finished) else {
             if programChoice == .update {
                 await writeSetCountsToProgram(store: store, plan: engine.plan)
             }

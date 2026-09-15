@@ -28,6 +28,20 @@ import WhoopStore
 
 public enum LiftMetrics {
 
+    // MARK: - Performed or not
+
+    /// Whether a set was performed, from its rep count. A set with ZERO reps was not: that is how a
+    /// finished session keeps the sets the user discards, so Edit sets can still fill them in, and it is
+    /// what a user types for a planned set they skipped. Every figure leaves such a set out, since
+    /// counting it would add a set nobody did. A set with no rep count (nil) still counts: it was done,
+    /// the number just was not typed. `WhoopStore.liftSetCounts` and `lastLiftSets` apply the same rule
+    /// in SQL. One function per platform, so the parity ledger pairs the twins unambiguously.
+    ///
+    /// The Kotlin twin is `LiftMetrics.isPerformed`.
+    public static func isPerformed(reps: Int?) -> Bool {
+        reps != 0
+    }
+
     // MARK: - Volume load (tonnage)
 
     /// Σ (weight × reps) over WORKING sets, in kilograms. Nil when nothing countable was logged.
@@ -113,13 +127,14 @@ public enum LiftMetrics {
     }
 
     /// One summary per exercise, in the order the exercises were first performed — which is the
-    /// order they were done in, not alphabetical, because that is how a session reads back.
+    /// order they were done in, not alphabetical, because that is how a session reads back. A set that
+    /// was not performed (`isPerformed`) appears nowhere, and neither does an exercise with only such sets.
     ///
     /// The Kotlin twin is `LiftMetrics.perExercise`.
     public static func perExercise(_ sets: [LiftSetRow]) -> [ExerciseSummary] {
         var order: [String] = []
         var grouped: [String: [LiftSetRow]] = [:]
-        for s in sets.sorted(by: { $0.ord < $1.ord }) {
+        for s in sets.sorted(by: { $0.ord < $1.ord }) where isPerformed(reps: s.reps) {
             if grouped[s.exercise] == nil { order.append(s.exercise) }
             grouped[s.exercise, default: []].append(s)
         }
@@ -182,7 +197,7 @@ public enum LiftMetrics {
     /// The Kotlin twin is `LiftMetrics.rpeProfile`.
     public static func rpeProfile(_ sets: [LiftSetRow],
                                   threshold: Double = hardSetRpeThreshold) -> RpeProfile {
-        let working = sets.filter { !$0.isWarmup }
+        let working = sets.filter { !$0.isWarmup && isPerformed(reps: $0.reps) }
         let rated = working.compactMap(\.rpe)
         let mean = rated.isEmpty ? nil : rated.reduce(0, +) / Double(rated.count)
         return RpeProfile(mean: mean,
@@ -217,15 +232,16 @@ public enum LiftMetrics {
     /// operationalisation, so the credit and the doses have to move together or the comparison
     /// silently stops meaning anything.
     ///
-    /// Warm-ups are excluded; nothing else is. An unclassified exercise (nil primary) contributes to
-    /// volume and session load but claims no muscle it was never assigned.
+    /// Warm-ups and sets never performed (`isPerformed`) are excluded; nothing else is. An unclassified
+    /// exercise (nil primary) contributes to volume and session load but claims no muscle it was never
+    /// assigned.
     ///
     /// The Kotlin twin is `LiftMetrics.muscleCounts`.
     public static func muscleCounts(_ sets: [LiftSetRow]) -> MuscleCounts {
         var fractional: [LiftMuscle: Double] = [:]
         var direct: [LiftMuscle: Int] = [:]
         var indirect: [LiftMuscle: Int] = [:]
-        for s in sets where !s.isWarmup {
+        for s in sets where !s.isWarmup && isPerformed(reps: s.reps) {
             if let p = s.primaryMuscle {
                 direct[p, default: 0] += 1
                 fractional[p, default: 0] += LiftMuscle.directSetCredit

@@ -193,4 +193,26 @@ final class LiftMetricsTests: XCTestCase {
         XCTAssertEqual(LiftMetrics.ReferenceDose.strengthMinimumSetsPerWeek, 1.0)
         XCTAssertEqual(LiftMetrics.ReferenceDose.strengthPlateauSetsPerWeek, 4.0)
     }
+
+    // MARK: - Sets never performed
+
+    /// A set saved at zero reps was discarded or skipped, and counts nowhere: not as a working set, not
+    /// in the RPE profile, not toward a muscle. An exercise with only such sets does not appear.
+    func testASetWithZeroRepsCountsNowhere() {
+        let sets = [set(weight: 100, reps: 5, rpe: 8, primary: .chest),
+                    set(weight: 0, reps: 0, primary: .chest),
+                    set("Row", weight: 0, reps: 0, primary: .lats)]
+        XCTAssertEqual(LiftMetrics.perExercise(sets).map(\.exercise), ["Bench press"])
+        XCTAssertEqual(LiftMetrics.perExercise(sets).first?.workingSets, 1)
+        XCTAssertEqual(LiftMetrics.rpeProfile(sets).unratedSets, 0, "a discarded set is not an unrated one")
+        XCTAssertEqual(LiftMetrics.muscleCounts(sets).direct[.chest], 1)
+        XCTAssertNil(LiftMetrics.muscleCounts(sets).direct[.lats])
+    }
+
+    /// No rep count at all is different: the set was done, the number just was not typed.
+    func testASetWithNoRepCountStillCounts() {
+        let sets = [set(weight: nil, reps: nil, primary: .chest)]
+        XCTAssertTrue(LiftMetrics.isPerformed(reps: sets[0].reps))
+        XCTAssertEqual(LiftMetrics.muscleCounts(sets).direct[.chest], 1)
+    }
 }

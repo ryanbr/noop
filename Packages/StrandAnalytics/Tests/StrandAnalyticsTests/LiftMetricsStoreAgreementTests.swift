@@ -26,7 +26,8 @@ final class LiftMetricsStoreAgreementTests: XCTestCase {
 
     /// Insert sets through raw SQL so the row shapes are exactly what is asked for, including the
     /// one the public API would clean up.
-    private func store(_ rows: [(primary: String?, secondary: String, warmup: Int)]) async throws -> WhoopStore {
+    private func store(_ rows: [(primary: String?, secondary: String, warmup: Int)],
+                       reps: [Int] = []) async throws -> WhoopStore {
         let store = try await WhoopStore.inMemory()
         let writer = store.registryWriter
         try await writer.write { db in
@@ -40,8 +41,9 @@ final class LiftMetricsStoreAgreementTests: XCTestCase {
                     INSERT INTO liftSet (id, deviceId, sessionId, ord, exercise, primaryMuscle,
                                          secondaryMuscles, setIndex, weightKg, reps, rpe, isWarmup,
                                          startTs, endTs, restSec, note)
-                    VALUES (?, 'dev', 's1', ?, 'Exercise', ?, ?, 1, 60, 10, NULL, ?, NULL, NULL, NULL, NULL)
-                    """, arguments: ["set-\(i)", i, r.primary, r.secondary, r.warmup])
+                    VALUES (?, 'dev', 's1', ?, 'Exercise', ?, ?, 1, 60, ?, NULL, ?, NULL, NULL, NULL, NULL)
+                    """, arguments: ["set-\(i)", i, r.primary, r.secondary,
+                                    reps.indices.contains(i) ? reps[i] : 10, r.warmup])
             }
         }
         return store
@@ -114,5 +116,21 @@ final class LiftMetricsStoreAgreementTests: XCTestCase {
         let counts = try await store.liftSetCounts(deviceId: "dev", fromTs: day - 1, toTs: day + 1)
         XCTAssertEqual(counts.indirect[.triceps], 1, "the recognisable half still counts")
         XCTAssertTrue(counts.direct.isEmpty)
+    }
+
+    /// A set saved at zero reps was never performed, and neither implementation counts it. The rule is
+    /// exactly `reps != 0` on both sides, so a nonsensical negative count still counts in both rather
+    /// than in one: an SQL `reps > 0` would drop it where `LiftMetrics.isPerformed` keeps it.
+    func testBothImplementationsAgreeThatASetWithZeroRepsDoesNotCount() async throws {
+        let store = try await store([
+            (primary: "chest", secondary: "triceps", warmup: 0),
+            (primary: "chest", secondary: "triceps", warmup: 0),
+            (primary: "chest", secondary: "triceps", warmup: 0),
+        ], reps: [0, 10, -1])
+        try await assertAgree(store)
+
+        let counts = try await store.liftSetCounts(deviceId: "dev", fromTs: day - 1, toTs: day + 1)
+        XCTAssertEqual(counts.direct[.chest], 2, "the zero-rep set is the only one left out")
+        XCTAssertEqual(counts.indirect[.triceps], 2)
     }
 }

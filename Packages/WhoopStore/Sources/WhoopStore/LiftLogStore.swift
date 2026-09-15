@@ -586,6 +586,21 @@ extension WhoopStore {
         }
     }
 
+    /// Delete individual sets, as editing a finished session does when a set is removed. The session
+    /// itself stays. Returns how many rows went.
+    @discardableResult
+    public func deleteLiftSets(ids: [String]) async throws -> Int {
+        guard !ids.isEmpty else { return 0 }
+        return try syncWrite { db in
+            var n = 0
+            for id in ids {
+                try db.execute(sql: "DELETE FROM liftSet WHERE id = ?", arguments: [id])
+                n += db.changesCount
+            }
+            return n
+        }
+    }
+
     // MARK: Sets
 
     /// Upsert sets by `id`. Called as each set is logged, so a session in progress is durable set by
@@ -644,7 +659,9 @@ extension WhoopStore {
     /// This is the read the whole feature exists for: it pre-fills the next session with what you
     /// actually did last time, which the user then confirms or overrides. Empty when the exercise
     /// has never been logged. `before` excludes the session currently in progress (pass its
-    /// `startTs`) so a running session never pre-fills from itself.
+    /// `startTs`) so a running session never pre-fills from itself. Sets with zero reps were not
+    /// performed (`LiftMetrics.isPerformed`) and are skipped, so a discarded set never becomes the next
+    /// session's grey numbers, and a session holding only such sets is not "last time" for the exercise.
     public func lastLiftSets(deviceId: String, exercise: String, before: Int? = nil) async throws -> [LiftSetRow] {
         try syncRead { db in
             // Two steps rather than a correlated subquery: find the latest qualifying session, then
@@ -654,12 +671,13 @@ extension WhoopStore {
                 SELECT s.sessionId FROM liftSet s
                 JOIN liftSession sess ON sess.id = s.sessionId
                 WHERE s.deviceId = ? AND s.exercise = ? AND sess.startTs < ?
+                  AND (s.reps IS NULL OR s.reps <> 0)
                 ORDER BY sess.startTs DESC
                 LIMIT 1
                 """, arguments: [deviceId, exercise, cutoff]) else { return [] }
             return try Row.fetchAll(db, sql: """
                 SELECT * FROM liftSet
-                WHERE sessionId = ? AND exercise = ?
+                WHERE sessionId = ? AND exercise = ? AND (reps IS NULL OR reps <> 0)
                 ORDER BY ord ASC
                 """, arguments: [sessionId, exercise]).map(LiftSetRow.decode)
         }
@@ -677,7 +695,8 @@ extension WhoopStore {
     /// `direct` and `indirect` are returned alongside so the arithmetic is inspectable rather than
     /// asserted.
     ///
-    /// **Warm-ups are excluded; nothing else is.** In particular this does NOT filter by RPE, even
+    /// **Warm-ups and sets with zero reps (never performed, `LiftMetrics.isPerformed`) are excluded;
+    /// nothing else is.** In particular this does NOT filter by RPE, even
     /// though a hard set is the thing that drives adaptation — because the reference doses were
     /// derived from unfiltered working-set counts, and filtering here would quietly compare a
     /// smaller number against a scale built from a larger one. Proximity to failure is reported
@@ -695,6 +714,7 @@ extension WhoopStore {
                 WHERE s.deviceId = ?
                   AND sess.startTs >= ? AND sess.startTs <= ?
                   AND s.isWarmup = 0
+                  AND (s.reps IS NULL OR s.reps <> 0)
                 """, arguments: [deviceId, fromTs, toTs])
 
             var direct: [LiftMuscle: Int] = [:]

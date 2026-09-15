@@ -52,8 +52,10 @@ struct LiftSessionDetailSheet: View {
                 } else {
                     figuresSection
                     exercisesSection
-                    muscleSection
-                    rpeSection
+                    if !performed.isEmpty {
+                        muscleSection
+                        rpeSection
+                    }
                     footnote
                     NoopButton("Edit sets", systemImage: "pencil", kind: .secondary) { editing = true }
                     deleteSection
@@ -106,7 +108,7 @@ struct LiftSessionDetailSheet: View {
             Button("Delete", role: .destructive) { Task { await deleteSession() } }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("\(sets.count) recorded sets will be removed, and so will the workout this session created. This cannot be undone.")
+            Text("\(performed.count) recorded sets will be removed, and so will the workout this session created. This cannot be undone.")
         }
     }
 
@@ -143,7 +145,7 @@ struct LiftSessionDetailSheet: View {
                 // exercises compares nothing. The per-exercise figure below, with its delta against
                 // last time, is the form that answers "am I progressing" — this one is the tally.
                 tile(String(localized: "Volume"),
-                     LiftFormat.weight(LiftMetrics.volumeLoadKg(sets), system: unitSystem),
+                     LiftFormat.weight(LiftMetrics.volumeLoadKg(performed), system: unitSystem),
                      String(localized: "\(workingSetCount) working sets · compare when you repeat this program"))
 
                 tile(String(localized: "Session load"),
@@ -157,7 +159,11 @@ struct LiftSessionDetailSheet: View {
         }
     }
 
-    private var workingSetCount: Int { sets.filter { !$0.isWarmup }.count }
+    /// The sets that were performed. A set at zero reps was discarded or skipped: it stays in the store
+    /// so Edit sets can fill it in, and out of everything this screen shows.
+    private var performed: [LiftSetRow] { sets.filter { LiftMetrics.isPerformed(reps: $0.reps) } }
+
+    private var workingSetCount: Int { performed.filter { !$0.isWarmup }.count }
 
     private var sessionLoadText: String {
         guard let load = LiftMetrics.sessionLoad(sessionRpe: sessionRpe,
@@ -202,14 +208,22 @@ struct LiftSessionDetailSheet: View {
     private var exercisesSection: some View {
         VStack(alignment: .leading, spacing: NoopMetrics.gap) {
             SectionHeader("Exercises", overline: "As performed")
-            ForEach(LiftMetrics.perExercise(sets), id: \.exercise) { summary in
+            if performed.isEmpty {
+                NoopCard {
+                    Text("No sets were performed. Discarded sets stay under Edit sets as zeros you can fill in.")
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            ForEach(LiftMetrics.perExercise(performed), id: \.exercise) { summary in
                 exerciseCard(summary)
             }
         }
     }
 
     private func exerciseCard(_ summary: LiftMetrics.ExerciseSummary) -> some View {
-        let rows = sets.filter { $0.exercise == summary.exercise }.sorted { $0.ord < $1.ord }
+        let rows = performed.filter { $0.exercise == summary.exercise }.sorted { $0.ord < $1.ord }
         return NoopCard {
             VStack(alignment: .leading, spacing: NoopMetrics.rowSpacing) {
                 Text(summary.exercise)
@@ -320,7 +334,7 @@ struct LiftSessionDetailSheet: View {
     // MARK: - Sets per muscle
 
     private var muscleSection: some View {
-        let counts = LiftMetrics.muscleCounts(sets)
+        let counts = LiftMetrics.muscleCounts(performed)
         let ordered = LiftMuscle.ordered.filter { (counts.fractional[$0] ?? 0) > 0 }
         return VStack(alignment: .leading, spacing: NoopMetrics.gap) {
             SectionHeader("Sets per muscle", overline: "This session · estimated")
@@ -371,7 +385,7 @@ struct LiftSessionDetailSheet: View {
     // MARK: - RPE profile
 
     private var rpeSection: some View {
-        let p = LiftMetrics.rpeProfile(sets)
+        let p = LiftMetrics.rpeProfile(performed)
         return VStack(alignment: .leading, spacing: NoopMetrics.gap) {
             SectionHeader("How hard it felt", overline: "RPE")
             NoopCard {
@@ -434,7 +448,7 @@ struct LiftSessionDetailSheet: View {
 
         // Previous volume per exercise, for the "vs last time" line.
         var previous: [String: Double] = [:]
-        for name in Set(sets.map(\.exercise)) {
+        for name in Set(performed.map(\.exercise)) {
             let before = (try? await store.lastLiftSets(deviceId: repo.deviceId,
                                                         exercise: name,
                                                         before: session.startTs)) ?? []

@@ -541,6 +541,55 @@ final class LiftLogStoreTests: XCTestCase {
         }
     }
 
+    // MARK: - Sets never performed, and removing sets
+
+    /// A set saved at zero reps was discarded at finish or skipped: the weekly counts leave it out.
+    func testSetCountsLeaveOutSetsWithZeroReps() async throws {
+        let store = try await WhoopStore.inMemory()
+        _ = try await store.upsertLiftSessions([mkSession(id: "s1", startTs: 1_000)])
+        _ = try await store.upsertLiftSets([
+            mkSet(id: "done", sessionId: "s1", ord: 0, setIndex: 1, primary: .chest, secondary: []),
+            mkSet(id: "discarded", sessionId: "s1", ord: 1, setIndex: 2, weightKg: 0, reps: 0,
+                  primary: .chest, secondary: []),
+            mkSet(id: "untyped", sessionId: "s1", ord: 2, setIndex: 3, weightKg: nil, reps: nil,
+                  primary: .chest, secondary: []),
+        ])
+        let counts = try await store.liftSetCounts(deviceId: dev, fromTs: 0, toTs: 9_999)
+        XCTAssertEqual(counts.direct[.chest], 2, "the zero-rep set is out; a set with no rep count is still in")
+    }
+
+    /// A discarded set must never become the next session's grey numbers, and a session holding only
+    /// discarded sets for an exercise is not "last time" for it.
+    func testLastLiftSetsSkipsSetsWithZeroReps() async throws {
+        let store = try await WhoopStore.inMemory()
+        _ = try await store.upsertLiftSessions([
+            mkSession(id: "real", startTs: 1_000),
+            mkSession(id: "discarded", startTs: 5_000),
+        ])
+        _ = try await store.upsertLiftSets([
+            mkSet(id: "a", sessionId: "real", ord: 0, setIndex: 1, weightKg: 100, reps: 8),
+            mkSet(id: "b", sessionId: "discarded", ord: 0, setIndex: 1, weightKg: 0, reps: 0),
+        ])
+        let last = try await store.lastLiftSets(deviceId: dev, exercise: "Leg Press")
+        XCTAssertEqual(last.map(\.id), ["a"])
+    }
+
+    func testDeletingSetsRemovesOnlyThoseSets() async throws {
+        let store = try await WhoopStore.inMemory()
+        _ = try await store.upsertLiftSessions([mkSession(id: "s1", startTs: 1_000)])
+        _ = try await store.upsertLiftSets([
+            mkSet(id: "x1", sessionId: "s1", ord: 0, setIndex: 1),
+            mkSet(id: "x2", sessionId: "s1", ord: 1, setIndex: 2),
+            mkSet(id: "x3", sessionId: "s1", ord: 2, setIndex: 3),
+        ])
+        let removed = try await store.deleteLiftSets(ids: ["x2", "missing"])
+        XCTAssertEqual(removed, 1)
+        let left = try await store.liftSets(sessionId: "s1")
+        XCTAssertEqual(left.map(\.id), ["x1", "x3"])
+        let sessions = try await store.liftSessions(deviceId: dev, fromTs: 0, toTs: 9_999)
+        XCTAssertEqual(sessions.count, 1, "the session itself stays")
+    }
+
     // MARK: - Helpers
 
     private let dev = "my-whoop"
