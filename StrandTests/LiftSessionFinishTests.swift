@@ -126,6 +126,21 @@ final class LiftSessionFinishTests: XCTestCase {
         XCTAssertEqual(saved.first { $0.slot == slot(1, 2) }?.isWarmup, true)
     }
 
+    /// A program's max RPE is a ceiling the session SHOWS, never a rating it records: a set done without
+    /// a typed rating, and a set completed at finish, both save no RPE (RULES 34).
+    func testAMaxRpeIsNeverSavedAsASetsRating() {
+        let c = controller()
+        c.start(plan: [LiftPlanItem(exercise: "Squat", targetSets: 2, targetRepsLow: 5, targetRpe: 8)],
+                programId: nil, programName: nil)
+        c.advance()
+        c.advance()                                               // set 1 done, nothing typed
+        for completing in [false, true] {
+            let saved = c.setsToSave(completingUnfinished: completing)
+            XCTAssertEqual(saved.count, 2)
+            XCTAssertTrue(saved.allSatisfy { $0.rpe == nil }, "the ceiling must never become a rating")
+        }
+    }
+
     /// Nothing unfinished means nothing to ask, and every set saves.
     func testAFullyTypedSessionHasNothingUnfinished() {
         let c = controller()

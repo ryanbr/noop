@@ -202,6 +202,9 @@ struct LiftProgramEditorSheet: View {
         if let kg = item.targetWeightKg {
             parts.append(LiftFormat.weight(kg, system: unitSystem))
         }
+        if let rpe = item.targetRpe {
+            parts.append(String(localized: "max RPE \(LiftFormat.trim(rpe))"))
+        }
         if let rest = item.restSec {
             parts.append(String(localized: "\(LiftFormat.duration(rest)) rest"))
         }

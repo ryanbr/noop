@@ -54,6 +54,31 @@ final class LiftProgramSheetImporterTests: XCTestCase {
         XCTAssertEqual(r.programs[0].lines[2].targetWeightKg, 40.5)
     }
 
+    /// Max RPE is a ceiling on the 1-10 scale. The template's header, a decimal comma and the shorter
+    /// spellings a hand-built sheet uses all read; a blank stays nil.
+    func testMaxRpeIsReadFromTheTemplateHeaderAndItsShorterSpellings() throws {
+        let csv = "Exercise,Target max RPE\nBack squat,\"8,5\"\nBench press,\n"
+        let r = try LiftProgramSheetImporter.parse(data: Data(csv.utf8))
+        XCTAssertEqual(r.programs[0].lines[0].targetMaxRpe, 8.5)
+        XCTAssertNil(r.programs[0].lines[1].targetMaxRpe, "a blank cell means no ceiling")
+        for header in ["Max RPE", "RPE"] {
+            let short = try LiftProgramSheetImporter.parse(data: Data("Exercise,\(header)\nRow,7\n".utf8))
+            XCTAssertEqual(short.programs[0].lines[0].targetMaxRpe, 7, "failed on \(header)")
+        }
+    }
+
+    /// Outside 1-10 is a typo, not a ceiling: the line imports without one and the row is named.
+    func testAMaxRpeOutsideTheScaleWarnsAndIsLeftBlank() throws {
+        let csv = "Exercise,Target max RPE\nBack squat,12\nBench press,0\n"
+        let r = try LiftProgramSheetImporter.parse(data: Data(csv.utf8))
+        XCTAssertEqual(r.programs[0].lines.map(\.exercise), ["Back squat", "Bench press"])
+        XCTAssertNil(r.programs[0].lines[0].targetMaxRpe)
+        XCTAssertNil(r.programs[0].lines[1].targetMaxRpe)
+        XCTAssertTrue(r.warnings.contains { $0.hasPrefix("Row 2:") && $0.contains("12") && $0.contains("Back squat") },
+                      "the warning names the row, the value and the exercise: \(r.warnings)")
+        XCTAssertTrue(r.warnings.contains { $0.hasPrefix("Row 3:") }, "0 is outside the scale too")
+    }
+
     func testABlankTargetStaysNilRatherThanBecomingZero() throws {
         let r = try parse("lift_program_filled.xlsx")
         let fly = r.programs[1].lines[1]
@@ -117,7 +142,7 @@ final class LiftProgramSheetImporterTests: XCTestCase {
         let grid = try XlsxSheet.grids(from: data).first ?? []
         let headers = grid.first.map { $0.map { HeaderNorm.normalize($0) } } ?? []
         for expected in ["program", "program_note", "exercise", "primary_muscle",
-                         "secondary_muscles", "sets", "reps", "weight_kg", "rest_sec", "note"] {
+                         "secondary_muscles", "sets", "reps", "weight_kg", "target_max_rpe", "rest_sec", "note"] {
             XCTAssertTrue(headers.contains(expected),
                           "the shipped template lost the \"\(expected)\" column: \(headers)")
         }
@@ -149,6 +174,14 @@ final class LiftProgramSheetImporterTests: XCTestCase {
         XCTAssertFalse(xml.contains("deleteColumns=\"0\""), "deleting columns must stay prevented")
         XCTAssertTrue(xml.contains("insertRows=\"0\""), "a long routine needs more rows")
         XCTAssertTrue(xml.contains("selectUnlockedCells=\"0\""), "the data cells must be typable")
+    }
+
+    /// The max RPE column only accepts the scale, so a typo is caught while filling the sheet rather
+    /// than surfacing as an import warning later.
+    func testTheShippedTemplateLimitsMaxRpeToTheScale() throws {
+        let xml = try templateSheetXml()
+        XCTAssertTrue(xml.contains("type=\"decimal\" operator=\"between\""), "max RPE must be validated")
+        XCTAssertTrue(xml.contains("<formula1>1</formula1><formula2>10</formula2>"), "and bounded to 1-10")
     }
 
     // MARK: - Refusals

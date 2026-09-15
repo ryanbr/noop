@@ -1,7 +1,7 @@
 # Importing a Lift Log program from a spreadsheet
 
 Filling in a program on a phone — a dozen exercises, each with a muscle group, sets, reps, a weight,
-a rest period and a technique note — is the most tedious part of the Lift Log. This lets you do it
+a max RPE, a rest period and a technique note — is the most tedious part of the Lift Log. This lets you do it
 on a computer instead, in a couple of minutes, and bring the file across.
 
 ## The template
@@ -12,7 +12,7 @@ Excel, Numbers, Google Sheets or LibreOffice, and fill in one row per exercise.
 The sheet is protected: the header row cannot be renamed, reordered or deleted, because the import
 matches on those names. Only the data cells accept typing. The two muscle columns are dropdowns over
 the app's closed muscle vocabulary, so a muscle group cannot be misspelled into something the import
-has to reject. A second sheet carries the instructions and a worked example; it is ignored on import.
+has to reject, and the max RPE column only accepts a number from 1 to 10. A second sheet carries the instructions and a worked example; it is ignored on import.
 
 ## The columns
 
@@ -26,6 +26,7 @@ has to reject. A second sheet carries the instructions and a worked example; it 
 | `Sets` | no | Working sets. |
 | `Reps` | no | One rep count, not a range. |
 | `Weight kg` | no | **Always kilograms.** The app displays it in your chosen unit; it is stored in kg. |
+| `Target max RPE` | no | **A ceiling from 1 to 10**: the hardest a set should feel, 10 meaning nothing left. The session shows it grey (`≤8`) as a reminder; it is never saved as how a set felt. Also read from a column named `Max RPE` or `RPE`. Outside 1–10 imports without it, with a warning. |
 | `Rest sec` | no | **Seconds.** `120` is two minutes. |
 | `Note` | no | Your technique cue, verbatim. |
 

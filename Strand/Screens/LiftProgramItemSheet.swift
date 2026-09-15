@@ -31,6 +31,7 @@ struct LiftProgramItemSheet: View {
     @State private var repsText: String = ""
     @State private var weightText: String = ""
     @State private var restText: String = ""
+    @State private var maxRpeText: String = ""
     @State private var note: String = ""
 
     /// The user's own exercise vocabulary, for suggestions and for adopting a known classification.
@@ -50,12 +51,19 @@ struct LiftProgramItemSheet: View {
     }
 
     @FocusState private var focused: Field?
-    private enum Field: Hashable { case exercise, sets, reps, weight, rest, note }
+    private enum Field: Hashable { case exercise, sets, reps, weight, rest, maxRpe, note }
 
     private var trimmedExercise: String {
         exercise.trimmingCharacters(in: .whitespacesAndNewlines)
     }
-    private var canSave: Bool { !trimmedExercise.isEmpty }
+    /// The ceiling as typed, when it is one: 1 to 10. A blank field is no ceiling.
+    private var maxRpe: Double? {
+        LiftFormat.number(maxRpeText).flatMap { (1...10).contains($0) ? $0 : nil }
+    }
+    private var maxRpeInvalid: Bool {
+        !maxRpeText.trimmingCharacters(in: .whitespaces).isEmpty && maxRpe == nil
+    }
+    private var canSave: Bool { !trimmedExercise.isEmpty && !maxRpeInvalid }
 
     /// Vocabulary entries matching what has been typed so far, minus an exact match (no point
     /// suggesting the thing already in the box). Capped — this is a hint, not a browser.
@@ -280,10 +288,25 @@ struct LiftProgramItemSheet: View {
                             numberInput("120", text: $restText, field: .rest)
                         }
                     }
-                    // No target RPE here on purpose. RPE is how hard a set FELT, which you can only
-                    // know once you have done it — planning one means guessing at your own effort in
-                    // advance and then reading the guess back as if it were data. It is recorded per
-                    // set during the session instead.
+                    // Max RPE is a CEILING, not effort planned in advance (Utku, 15 Sep 2026): the
+                    // hardest a set should feel, so a lifter knows where to hold back. How hard a set
+                    // actually FELT is only known afterwards and is still recorded per set; this is
+                    // shown grey in the session and never saved as a rating (RULES 34).
+                    HStack(spacing: NoopMetrics.gap) {
+                        field("Max RPE (1–10)") {
+                            numberInput("8", text: $maxRpeText, field: .maxRpe)
+                        }
+                        Color.clear.frame(maxWidth: .infinity, maxHeight: 0)
+                    }
+                    if maxRpeInvalid {
+                        Text("Max RPE must be between 1 and 10.")
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.statusWarning)
+                    }
+                    Text("Max RPE is a ceiling: the hardest a set should feel, where 10 means nothing left. It shows grey during the session as a reminder and is never saved as how a set felt.")
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
                     Text("Every target is optional — this is the plan, not the record. What you actually lift is entered set by set during the session.")
                         .font(StrandFont.footnote)
                         .foregroundStyle(StrandPalette.textTertiary)
@@ -383,6 +406,7 @@ struct LiftProgramItemSheet: View {
                 LiftFormat.trim(LiftFormat.display(fromKilograms: $0, system: unitSystem))
             } ?? ""
             restText = item.restSec.map(String.init) ?? ""
+            maxRpeText = item.targetRpe.map { LiftFormat.trim($0) } ?? ""
             note = item.note ?? ""
         }
         guard let store = await repo.storeHandle() else { return }
@@ -436,11 +460,10 @@ struct LiftProgramItemSheet: View {
             ord: item?.ord ?? 0,
             exercise: name,
             targetSets: Int(setsText.trimmingCharacters(in: .whitespaces)),
-            // ONE rep count. `targetRepsHigh`/`targetRpe` stay nil: they are schema columns the
-            // editor no longer fills, not part of the plan any more.
+            // ONE rep count: `targetRepsHigh` stays nil, a schema column the editor no longer fills.
             targetRepsLow: Int(repsText.trimmingCharacters(in: .whitespaces)),
             targetRepsHigh: nil,
-            targetRpe: nil,
+            targetRpe: maxRpe,
             targetWeightKg: LiftFormat.number(weightText).map {
                 LiftFormat.kilograms(fromDisplay: $0, system: unitSystem)
             },

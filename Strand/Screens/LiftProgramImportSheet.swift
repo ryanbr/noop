@@ -167,12 +167,13 @@ struct LiftProgramImportSheet: View {
         }
     }
 
-    /// "3 x 10 · 50 kg · 90s", skipping whatever the sheet left blank.
+    /// "3 x 10 · 50 kg · RPE ≤8 · 90s", skipping whatever the sheet left blank.
     private func summary(_ line: ImportedProgramLine) -> String {
         var parts: [String] = []
         if let sets = line.targetSets, let reps = line.targetReps { parts.append("\(sets) x \(reps)") }
         else if let sets = line.targetSets { parts.append("\(sets) x") }
         if let kg = line.targetWeightKg { parts.append(LiftFormat.trim(kg) + " kg") }
+        if let rpe = line.targetMaxRpe { parts.append("RPE ≤" + LiftFormat.trim(rpe)) }
         if let rest = line.restSec { parts.append("\(rest)s") }
         return parts.joined(separator: " · ")
     }
@@ -242,7 +243,7 @@ struct LiftProgramImportSheet: View {
                     targetSets: line.targetSets,
                     // The sheet plans ONE rep count, which is what the editor plans too; the range's
                     // high end stays nil rather than inventing a spread nobody typed.
-                    targetRepsLow: line.targetReps, targetRepsHigh: nil, targetRpe: nil,
+                    targetRepsLow: line.targetReps, targetRepsHigh: nil, targetRpe: line.targetMaxRpe,
                     targetWeightKg: line.targetWeightKg,
                     restSec: line.restSec, note: line.note)
             }

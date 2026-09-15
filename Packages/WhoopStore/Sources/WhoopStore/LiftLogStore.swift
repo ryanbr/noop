@@ -127,7 +127,7 @@ public struct LiftProgramItemRow: Equatable, Codable, Sendable {
     /// Rep range low end — the 8 of "8-10". Nil when the line has no rep target.
     public var targetRepsLow: Int?
     public var targetRepsHigh: Int?
-    /// Target RPE on the user's own 1-10 scale.
+    /// Max RPE on the user's own 1-10 scale: a ceiling the session shows, never a set's recorded rating.
     public var targetRpe: Double?
     /// Planned working weight in kilograms (v41). A program line plans a weight, not only reps.
     public var targetWeightKg: Double?

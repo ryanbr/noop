@@ -2,7 +2,7 @@
 """Generate the Lift Log program template (.xlsx).
 
 The template is the thing a user actually touches: they fill it in on a computer, where typing a
-dozen exercises with sets, reps, weights, rests and technique notes is a two-minute job instead of
+dozen exercises with sets, reps, weights, max RPEs, rests and technique notes is a two-minute job instead of
 the most tedious screen in the app.
 
 It is written by hand rather than with a library so the repository needs no Python dependency to
@@ -14,6 +14,7 @@ WHAT MAKES IT "FILLABLE, NOT EDITABLE":
     reordered or deleted, which is what keeps the importer's column mapping true;
   * the two muscle columns are dropdowns over the app's closed 20-token vocabulary, so a muscle
     cannot be misspelled into something the importer has to reject;
+  * the max RPE column only accepts a number from 1 to 10;
   * a second sheet carries the instructions and a worked example, and is NOT read by the importer,
     which always reads the first sheet.
 
@@ -32,7 +33,7 @@ MUSCLES = [
 
 HEADERS = [
     "Program", "Program note", "Exercise", "Primary muscle", "Secondary muscles",
-    "Sets", "Reps", "Weight kg", "Rest sec", "Note",
+    "Sets", "Reps", "Weight kg", "Target max RPE", "Rest sec", "Note",
 ]
 
 # Generous, so a user can paste a long routine in without running out of validated rows.
@@ -53,15 +54,17 @@ HELP = [
     ("separated by commas: Front delts, Triceps", False),
     ("", False),
     ("Weight is in KILOGRAMS. The app shows it in your chosen unit; it is stored in kg.", False),
+    ("Target max RPE is a CEILING from 1 to 10: the hardest a set should feel, 10 meaning nothing", False),
+    ("left. The app shows it grey during the session as a reminder; it is never saved as how a set felt.", False),
     ("Rest is in SECONDS. 120 means two minutes.", False),
     ("", False),
     ("Do not rename, reorder or delete the header row - the import matches on those names.", False),
     ("", False),
     ("Worked example", True),
-    ("Program        Exercise             Primary   Secondary          Sets Reps Weight Rest", False),
-    ("Lower A        Leg Press midfoot    Quads     Glutes             3    10   50     90", False),
-    ("Lower A        Lying Leg Curl       Hamstrings Calves            3    8    30     90", False),
-    ("Lower A        Leg Extension        Quads                        3    12   40     60", False),
+    ("Program   Exercise            Primary     Secondary   Sets Reps Weight MaxRPE Rest", False),
+    ("Lower A   Leg Press midfoot   Quads       Glutes      3    10   50     8      90", False),
+    ("Lower A   Lying Leg Curl      Hamstrings  Calves      3    8    30     8      90", False),
+    ("Lower A   Leg Extension       Quads                   3    12   40            60", False),
     ("", False),
     ("Muscle groups you can choose from", True),
 ] + [(m, False) for m in MUSCLES]
@@ -99,18 +102,24 @@ def program_sheet():
         cells = "".join(f'<c r="{col_letter(i)}{r}" s="2"/>' for i in range(len(HEADERS)))
         rows.append(f'<row r="{r}">{cells}</row>')
 
-    widths = [16, 26, 30, 16, 26, 7, 7, 11, 10, 34]
+    widths = [16, 26, 30, 16, 26, 7, 7, 11, 15, 10, 34]
     cols = "".join(
         f'<col min="{i+1}" max="{i+1}" width="{w}" customWidth="1"/>'
         for i, w in enumerate(widths))
 
     listing = ",".join(MUSCLES)
+    rpe_col = col_letter(HEADERS.index("Target max RPE"))
     validations = (
-        f'<dataValidations count="2">'
+        f'<dataValidations count="3">'
         f'<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1"'
         f' sqref="D2:D{DATA_ROWS + 1}"><formula1>"{esc(listing)}"</formula1></dataValidation>'
         f'<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="0"'
         f' sqref="E2:E{DATA_ROWS + 1}"><formula1>"{esc(listing)}"</formula1></dataValidation>'
+        f'<dataValidation type="decimal" operator="between" allowBlank="1" showInputMessage="1"'
+        f' showErrorMessage="1" promptTitle="Target max RPE" prompt="The hardest a set should feel: 1 to 10."'
+        f' errorTitle="Target max RPE" error="Enter a number from 1 to 10."'
+        f' sqref="{rpe_col}2:{rpe_col}{DATA_ROWS + 1}"><formula1>1</formula1><formula2>10</formula2>'
+        f'</dataValidation>'
         f'</dataValidations>')
 
     # Sheet protection, and the attribute semantics are the opposite of what they look like.
