@@ -3856,6 +3856,7 @@ private fun HostedCardsSection(
     // card and the widget can never show different curves.
     val needsStressCurve = cards.contains(HostedCard.STRESS_TODAY)
     var stressCurve by remember { mutableStateOf<List<StressPoint>>(emptyList()) }
+    var stressActivityMaskedHours by remember { mutableStateOf(0) }
     // SEEDED from the curve already on disk, so an app update does not show "Calibrating" for a day it
     // has already scored. `stressCurve` starts empty on a cold process, and the card reads an empty
     // curve as an unscored day, which is honest for a genuinely unscored one and wrong the moment the
@@ -3884,6 +3885,7 @@ private fun HostedCardsSection(
     LaunchedEffect(needsStressCurve, days, viewModel.activeStrapId, stressLifecycleOwner) {
         if (!needsStressCurve) {
             stressCurve = emptyList()
+            stressActivityMaskedHours = 0
             return@LaunchedEffect
         }
         // Gated on STARTED, the same reason HealthScreen's live-HR tick is: a LaunchedEffect is tied to
@@ -3900,7 +3902,10 @@ private fun HostedCardsSection(
                 // the last curve matters more here than for a single pass: blanking the card on one bad
                 // tick would be a visible flicker on a screen that is sitting open.
                 StressWidgetProducer.todayCurve(viewModel.repo, viewModel.activeStrapId)
-                    ?.let { stressCurve = it.points }
+                    ?.let {
+                        stressCurve = it.points
+                        stressActivityMaskedHours = it.activityMaskedHours
+                    }
                 delay(StressWidgetProducer.RESCORE_INTERVAL_MS)
             }
         }
@@ -3950,7 +3955,7 @@ private fun HostedCardsSection(
                     .then(if (open != null) Modifier.clickable(onClick = open) else Modifier),
             ) {
             when (card) {
-                HostedCard.STRESS_TODAY -> StressTodayCard(stressCurve)
+                HostedCard.STRESS_TODAY -> StressTodayCard(stressCurve, stressActivityMaskedHours)
                 // The Trends-origin trends. `resolveMetric` walks the `days` already in hand, so these
                 // need no model build and no gate, unlike the sleep and stress cards above.
                 HostedCard.TREND_HRV, HostedCard.TREND_RESTING_HR, HostedCard.TREND_EFFORT ->

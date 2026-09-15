@@ -1936,6 +1936,15 @@
     <string name="recording_chip_detail_connected_no_data">Пока нет ни пульса в реальном времени, ни синхронизированной истории в этой сессии.</string>
     <string name="score_state_title_calibrating">Калибровка</string>
     <string name="l10n_stress_glance_widget_resumes_in_the_morning_a640b49f">Возобновится утром</string>
+    <string name="stress_screen_subtitle">Вегетативная нагрузка в течение дня бодрствования</string>
+    <string name="stress_timeline_caption_day">Линия показывает показатель 0–3 за каждый час бодрствования относительно ваших собственных спокойных часов сегодня. Полоса ниже делит день на периоды низкого, умеренного и высокого стресса.</string>
+    <string name="stress_timeline_caption_personal">Линия показывает показатель 0–3 за каждый час бодрствования относительно вашей личной дневной нормы (обычного хода ваших дней). Полоса ниже делит день на периоды низкого, умеренного и высокого стресса.</string>
+    <plurals name="stress_hours_excluded_moving">
+        <item quantity="one">Исключён %1$d час — вы двигались.</item>
+        <item quantity="few">Исключено %1$d часа — вы двигались.</item>
+        <item quantity="many">Исключено %1$d часов — вы двигались.</item>
+        <item quantity="other">Исключено %1$d часа — вы двигались.</item>
+    </plurals>
     <string name="score_state_title_needs_strap">Нужен ремешок</string>
     <string name="score_state_title_last_night">Прошлая ночь · %1$s</string>
     <string name="score_state_title_latest_sleep">Последний сон · %1$s</string>

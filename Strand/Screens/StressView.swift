@@ -4,6 +4,15 @@ import StrandDesign
 import StrandAnalytics
 import WhoopStore
 
+/// The shared explanation for an activity-masked gap on the Stress screen and hosted Today cards.
+/// Whole-phrase singular/plural variants keep the sentence natural in every catalog locale.
+func stressActivityMaskedHoursCaption(_ count: Int) -> String? {
+    guard count > 0 else { return nil }
+    return count == 1
+        ? String(localized: "1 hour excluded — you were moving.")
+        : String(localized: "\(count) hours excluded — you were moving.")
+}
+
 // MARK: - Stress Monitor
 //
 // A clear, Whoop-style "Stress Monitor": one 0–3 number, a band (LOW/MEDIUM/HIGH),
@@ -64,7 +73,7 @@ struct StressView: View {
     @State private var modelSignature: StressInputs?
 
     var body: some View {
-        ScreenScaffold(title: "Stress", subtitle: "Autonomic load from HRV and resting heart rate",
+        ScreenScaffold(title: "Stress", subtitle: "Autonomic load across your waking day",
                        // PERF (scroll): lazy column — byte-identical layout (LazyVStack == eager VStack
                        // alignment/spacing/header). The content is one inner eager VStack, so the staggered
                        // section reveal is unchanged; this only defers building that stack until it scrolls in.
@@ -315,6 +324,12 @@ struct StressView: View {
                         .font(StrandFont.footnote)
                         .foregroundStyle(StrandPalette.textTertiary)
                         .fixedSize(horizontal: false, vertical: true)
+                    if let maskedCaption = stressActivityMaskedHoursCaption(day.activityMaskedHours) {
+                        Text(maskedCaption)
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.textTertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
             }
 

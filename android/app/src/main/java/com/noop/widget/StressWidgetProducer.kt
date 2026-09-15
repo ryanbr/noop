@@ -31,8 +31,12 @@ import kotlinx.coroutines.withContext
  */
 internal object StressWidgetProducer {
 
-    /** Today's curve and the local day it belongs to. */
-    data class Curve(val points: List<StressPoint>, val epochDay: Long)
+    /** Today's curve, honest activity-masked hour count, and the local day they belong to. */
+    data class Curve(
+        val points: List<StressPoint>,
+        val epochDay: Long,
+        val activityMaskedHours: Int,
+    )
 
     /** What the last computation saw and produced, swapped in as ONE value.
      *
@@ -44,6 +48,7 @@ internal object StressWidgetProducer {
         val fingerprint: Pair<Int, Long>,
         val day: Long,
         val points: List<StressPoint>,
+        val activityMaskedHours: Int,
     )
 
     @Volatile
@@ -144,13 +149,15 @@ internal object StressWidgetProducer {
             // is part of the check because a fingerprint that happens to match across midnight would
             // otherwise serve yesterday's curve as today's.
             val memoHit = memo?.takeIf { it.day == day && it.fingerprint == fingerprint }
-            if (memoHit != null) return@runCatching Curve(memoHit.points, day)
+            if (memoHit != null) {
+                return@runCatching Curve(memoHit.points, day, memoHit.activityMaskedHours)
+            }
 
             val hr = repo.hrSamplesUnion(deviceId, from, nowSeconds, limit = 200_000)
-            val points = if (hr.size < DaytimeStress.minHourHrSamples) {
+            val result = if (hr.size < DaytimeStress.minHourHrSamples) {
                 // Too little signal to score honestly. An EMPTY curve, not a null: this is a real
                 // answer about today, and the widget should drop yesterday's line rather than keep it.
-                emptyList()
+                DaytimeStress.Result.EMPTY
             } else {
                 val rr = repo.rrIntervalsUnion(deviceId, from, nowSeconds, limit = 200_000)
                 // Wrist accelerometer for the motion gate, so an ambulatory hour reads as exertion
@@ -164,16 +171,19 @@ internal object StressWidgetProducer {
                     includeTimeline = true,
                     // The half-step display series rather than the bare hours: same scored window,
                     // same reference, read twice as often, so the curve tracks the day instead of
-                    // stepping through it. Nothing here counts hours, so the overlap is free.
-                ).timeline.map {
-                    // startTs is the wall-clock bucket start with the local shift already undone, so it
-                    // is a true instant and formats correctly against the device's zone.
-                    StressPoint(ts = it.startTs, level = it.level, moving = it.maskedForActivity)
-                }
+                    // stepping through it. Coverage copy reads `activityMaskedHours` from the
+                    // non-overlapping hourly result below; counting these display points would
+                    // double-count the half-step windows.
+                )
+            }
+            val points = result.timeline.map {
+                // startTs is the wall-clock bucket start with the local shift already undone, so it
+                // is a true instant and formats correctly against the device's zone.
+                StressPoint(ts = it.startTs, level = it.level, moving = it.maskedForActivity)
             }
 
-            memo = Memo(fingerprint, day, points)
-            Curve(points, day)
+            memo = Memo(fingerprint, day, points, result.activityMaskedHours)
+            Curve(points, day, result.activityMaskedHours)
         }.getOrNull()
     }
 
