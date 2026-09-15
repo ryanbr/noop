@@ -73,11 +73,12 @@ jobs:
             tests.test_parity_ledger \
             tests.test_parity_governance_acceptance \
             tests.test_rr_legacy_preservation_contract \
+            tests.test_parity_disposition_kinds \
             2>&1 | tee "$RUNNER_TEMP/out.txt"
           ran=$(grep -oE '^Ran [0-9]+ test' "$RUNNER_TEMP/out.txt" | grep -oE '[0-9]+')
           echo "collected ${ran:-0} tests"
-          if [ "${ran:-0}" -lt 113 ]; then
-            echo "::error::expected at least 113 parity-governance tests, collected ${ran:-0} — discovery is broken, not the suite"
+          if [ "${ran:-0}" -lt 115 ]; then
+            echo "::error::expected at least 115 parity-governance tests, collected ${ran:-0} — discovery is broken, not the suite"
             exit 1
           fi
         working-directory: Tools

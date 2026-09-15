@@ -346,14 +346,19 @@ def _required_v3_exemptions(
     current_findings: set[str],
 ) -> set[tuple[str, str]]:
     required: set[tuple[str, str]] = set()
-    for name in (
-        "unpaired_files",
-        "unpaired_functions",
-        "unpaired_properties",
-        "unpaired_constants",
+    # Explicit singulars rather than name[:-1]: "unpaired_properties" stems to
+    # "unpaired-propertie", which _validate_dispositions does not accept, so a one-sided
+    # property could be REQUIRED to carry a disposition that could never be written. Every
+    # other set survives the naive strip, which is why this went unnoticed: no test had a
+    # one-sided property until Lift Log added two.
+    for name, singular in (
+        ("unpaired_files", "unpaired-file"),
+        ("unpaired_functions", "unpaired-function"),
+        ("unpaired_properties", "unpaired-property"),
+        ("unpaired_constants", "unpaired-constant"),
     ):
         for identity in set(current_sets[name]) - set(base_sets[name]):
-            required.add((f"add-{name[:-1].replace('_', '-')}", identity))
+            required.add((f"add-{singular}", identity))
     for name in ("function_pairs", "property_pairs", "constant_pairs"):
         for identity in set(base_sets[name]) - set(current_sets[name]):
             required.add((f"remove-{name[:-1].replace('_', '-')}", identity))
