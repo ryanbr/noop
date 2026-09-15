@@ -316,7 +316,7 @@ func performRequest(_ req: URLRequest, session: URLSession) async throws -> [Str
     case let status where AICoachError.isKeyRejection(status):
         throw AICoachError.badKey
     case 429:
-        throw AICoachError.rateLimited
+        throw AICoachError.rateLimited(providerErrorMessage(from: data))
     default:
         throw AICoachError.server(http.statusCode, providerErrorMessage(from: data))
     }
@@ -377,7 +377,9 @@ func performStreamingRequest(
     case let status where AICoachError.isKeyRejection(status):
         throw AICoachError.badKey
     case 429:
-        throw AICoachError.rateLimited
+        var body = ""
+        for try await line in bytes.0.lines { body += line }
+        throw AICoachError.rateLimited(providerErrorMessage(from: Data(body.utf8)))
     default:
         // For non-200, the body is a (non-streaming) error JSON — collect it and surface the message.
         var body = ""

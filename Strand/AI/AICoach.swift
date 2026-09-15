@@ -121,7 +121,7 @@ enum AICoachError: LocalizedError {
     case noKey
     case emptyQuestion
     case badKey
-    case rateLimited
+    case rateLimited(String)
     case server(Int, String)
     case network(String)
     case decode
@@ -141,8 +141,9 @@ enum AICoachError: LocalizedError {
             return "Type a question for the coach."
         case .badKey:
             return "That API key was rejected. Check the key and the provider you selected."
-        case .rateLimited:
-            return "The provider is rate-limiting requests right now. Wait a moment and try again."
+        case .rateLimited(let detail):
+            let extra = detail.isEmpty ? "" : " (\(detail))"
+            return "The provider is rate-limiting requests right now. Wait a moment and try again.\(extra)"
         case .server(let code, let detail):
             let extra = detail.isEmpty ? "" : " - \(detail)"
             return "The provider returned an error (\(code))\(extra)."
