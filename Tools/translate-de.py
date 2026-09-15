@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-"""Inject German (de) translations into Strand/Resources/Localizable.xcstrings.
+"""Fill legacy German (de) gaps in Strand/Resources/Localizable.xcstrings.
 
-Reads the English (en) base values and adds a `de` stringUnit for each key.
-Format placeholders (%@, %lld, %%) are preserved. Pure symbol / placeholder-only
-strings are passed through unchanged. Re-runnable: existing `de` units are
-overwritten so this file stays the source of truth for the German translation.
+The string catalog is the source of truth. This compatibility helper only adds a
+translation for a key that has no German localization yet; it never overwrites
+reviewed string units or plural variations. The intentionally limited dictionary
+is not a completeness manifest. Use the localization tests to check coverage and
+placeholder/plural parity.
 """
 import json
 from pathlib import Path
@@ -142,7 +143,7 @@ DE: dict[str, str] = {
     "Buzzes your wrist": "Vibriert an deinem Handgelenk",
     "By sport": "Nach Sportart",
     "Calendar": "Kalender",
-    "Calibrating": "Kalibrierung",
+    "Calibrating": "Wird kalibriert …",
     "Calm time": "Ruhezeit",
     "Calories": "Kalorien",
     "Cardiac": "Herz",
@@ -228,7 +229,7 @@ DE: dict[str, str] = {
     "History": "Verlauf",
     "History synced %@": "Verlauf synchronisiert %@",
     "Hours asleep": "Schlafstunden",
-    "Hours vs Needed": "Stunden vs. Bedarf",
+    "Hours vs Needed": "Schlafdauer im Vergleich zum Bedarf",
     "How They Move Together": "Wie sie sich gemeinsam bewegen",
     "How this is computed": "Wie das berechnet wird",
     "How this works": "Wie das funktioniert",
@@ -245,11 +246,11 @@ DE: dict[str, str] = {
     "Interrogate what affects what.": "Untersuche, was was beeinflusst.",
     "Interval Timer": "Intervall-Timer",
     "Intervals": "Intervalle",
-    "Key Metrics": "Kernmetriken",
+    "Key Metrics": "Wichtige Messwerte",
     "Last night": "Letzte Nacht",
     "Last night, read in two seconds.": "Letzte Nacht, in zwei Sekunden erfasst.",
     "Last Workouts": "Letzte Workouts",
-    "Latest": "Aktuellste",
+    "Latest": "Zuletzt",
     "Latest reading": "Aktuellster Messwert",
     "Lean body mass": "Magermasse",
     "Lean Mass": "Magermasse",
@@ -306,7 +307,7 @@ DE: dict[str, str] = {
     "Normalized overlay": "Normalisierte Überlagerung",
     "Not affiliated with, endorsed by, or connected to WHOOP. Interoperability software for hardware you own and your own data. Use it only with a device you own, and not in breach of any agreement that applies to you. Not a medical device.": "Nicht mit WHOOP verbunden, von WHOOP unterstützt oder zu WHOOP gehörend. Interoperabilitätssoftware für Hardware, die dir gehört, und deine eigenen Daten. Nutze sie nur mit einem Gerät, das dir gehört, und nicht unter Verletzung einer für dich geltenden Vereinbarung. Kein medizinisches Gerät.",
     "Not enough data for this window.": "Nicht genug Daten für diesen Zeitraum.",
-    "Not enough nights yet.": "Noch nicht genug Nächte.",
+    "Not enough nights yet.": "Noch nicht genügend Nächte erfasst.",
     "Not enough overlapping history to correlate your metrics yet.": "Noch nicht genug überlappender Verlauf, um deine Metriken zu korrelieren.",
     "Not enough recent days to chart a trend yet. Import a history or keep wearing your strap.": "Noch nicht genug aktuelle Tage, um einen Trend darzustellen. Importiere eine Historie oder trage deinen Strap weiter.",
     "Not synced yet": "Noch nicht synchronisiert",
@@ -363,7 +364,7 @@ DE: dict[str, str] = {
     "Reset key": "Schlüssel zurücksetzen",
     "Respiratory": "Atmung",
     "Respiratory rate": "Atemfrequenz",
-    "Rest": "Ruhe",
+    "Rest": "Erholung",
     "Restart": "Neu starten",
     "Resting heart rate": "Ruheherzfrequenz",
     "Resting HR": "Ruhe-HF",
@@ -397,9 +398,9 @@ DE: dict[str, str] = {
     "Source Apple Health": "Quelle Apple Health",
     "Source Whoop": "Quelle Whoop",
     "Stage breakdown": "Phasen-Aufschlüsselung",
-    "Stages vs typical": "Phasen vs. typisch",
+    "Stages vs typical": "Schlafphasen im Vergleich zum Üblichen",
     "Start": "Start",
-    "Start session": "Sitzung starten",
+    "Start session": "Training starten",
     "State": "Zustand",
     "Steps": "Schritte",
     "Stop session": "Sitzung beenden",
@@ -459,13 +460,30 @@ DE: dict[str, str] = {
     "With": "Mit",
     "Without": "Ohne",
     "Working…": "Arbeite…",
-    "Workouts": "Workouts",
+    "Workouts": "Trainings",
     "Wrist delivery isn't live yet — it needs a small on-device watcher (coming in an update) to read macOS notifications. Everything stays on this Mac. Your choices are saved now and will apply automatically once delivery ships.": "Die Zustellung ans Handgelenk ist noch nicht aktiv — sie benötigt einen kleinen Dienst auf dem Gerät (kommt in einem Update), um macOS-Mitteilungen zu lesen. Alles bleibt auf diesem Mac. Deine Auswahl ist jetzt gespeichert und wird automatisch angewendet, sobald die Zustellung verfügbar ist.",
     "You're connected.": "Du bist verbunden.",
     "Your live heart rate is working from the strap, and recovery, strain and sleep build from it over your next few nights of wear, sharpening as it learns your baseline. Want your full history instantly? Import your WHOOP export in Data Sources and it backfills in about a minute.": "Deine Live-Herzfrequenz funktioniert über den Strap, und Erholung, Belastung und Schlaf bauen sich daraus über deine nächsten Nächte des Tragens auf und werden schärfer, während er deine Basislinie lernt. Willst du sofort deine vollständige Historie? Importiere deinen WHOOP-Export unter Datenquellen, und er wird in etwa einer Minute nachgefüllt.",
     "Your numbers, your strap, and how NOOP works. All on this Mac.": "Deine Werte, dein Strap und wie NOOP funktioniert. Alles auf diesem Mac.",
     "Your strap in real time — heart rate and frames as they arrive.": "Dein Strap in Echtzeit — Herzfrequenz und Frames, sobald sie eintreffen.",
     "Your thread starts here.": "Dein Verlauf beginnt hier.",
+    # Reviewed Today/customization vocabulary. The catalog carries the real
+    # singular/plural variants; these are fallback values for legacy catalogs.
+    "%lld added": "%lld hinzugefügt",
+    "%lld cards shown": "%lld Karten angezeigt",
+    "%lld metrics shown": "%lld Messwerte angezeigt",
+    "Added to Today": "Zu „Heute“ hinzugefügt",
+    "Available": "Verfügbar",
+    "Detailed tiles": "Detaillierte Kacheln",
+    "Good afternoon": "Guten Tag",
+    "Hydration": "Flüssigkeitszufuhr",
+    "None added yet": "Noch keine hinzugefügt",
+    "Readings": "Messwerte",
+    "Shown on Today": "Auf „Heute“ angezeigt",
+    "Sleep-debt ledger": "Schlafdefizit",
+    "Synthesis": "Zusammenfassung",
+    "Synced from": "Synchronisiert von",
+    "Syncing": "Wird synchronisiert …",
     "Zone": "Zone",
 }
 
@@ -485,7 +503,8 @@ def main() -> int:
             missing.append(key)
             continue
         locs = entry.setdefault("localizations", {})
-        locs["de"] = {"stringUnit": {"state": "translated", "value": de}}
+        if "de" not in locs:
+            locs["de"] = {"stringUnit": {"state": "translated", "value": de}}
 
     CATALOG.write_text(json.dumps(catalog, indent=2, ensure_ascii=False) + "\n",
                        encoding="utf-8")

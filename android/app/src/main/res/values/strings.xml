@@ -1793,7 +1793,6 @@
     <string name="l10n_test_centre_screen_bug_report_5a7ee5ac">Bug report</string>
     <string name="l10n_today_screen_arrange_cfdd099c">Arrange</string>
     <string name="l10n_today_screen_arrange_today_sections_9675862b">Arrange Today sections</string>
-    <string name="l10n_today_screen_baselines_learned_on_device_over_14_359f6812">Baselines learned on-device over 14 days. Bars are an approximate read of each</string>
     <string name="l10n_today_screen_blood_oxygen_a8ad9ff5">Blood Oxygen</string>
     <string name="l10n_today_screen_breaths_per_minute_2b197c54">Breaths per minute</string>
     <string name="l10n_today_screen_calories_3e62ecfe">Calories</string>
@@ -2304,6 +2303,7 @@
     <string name="today_section_menstrual_cycle">Menstrual Cycle</string>
     <string name="today_section_journal">Journal</string>
     <string name="today_section_added_cards">Added Cards</string>
+    <string name="today_recovery_vitals_explanation">Baselines are learned on-device over 14 days. Each bar is an approximate reading of one signal against a typical adult range, not medical advice.</string>
     <string name="today_hr_window_today">Today</string>
     <string name="today_hr_window_24h">24h</string>
     <string name="today_hr_window_12h">12h</string>

@@ -1488,7 +1488,6 @@
     <string name="l10n_test_centre_screen_bug_report_5a7ee5ac">Informe de error</string>
     <string name="l10n_today_screen_arrange_cfdd099c">Arreglar</string>
     <string name="l10n_today_screen_arrange_today_sections_9675862b">Organizar secciones Hoy</string>
-    <string name="l10n_today_screen_baselines_learned_on_device_over_14_359f6812">Las líneas de base aprendieron en el dispositivo durante 14 días. Las barras son una lectura aproximada de cada</string>
     <string name="l10n_today_screen_blood_oxygen_a8ad9ff5">Oxígeno en sangre</string>
     <string name="l10n_today_screen_breaths_per_minute_2b197c54">Respiraciones por minuto</string>
     <string name="l10n_today_screen_calories_3e62ecfe">Calorías</string>
@@ -2183,6 +2182,7 @@
     <string name="today_section_menstrual_cycle">Ciclo menstrual</string>
     <string name="today_section_journal">Diario</string>
     <string name="today_section_added_cards">Tarjetas añadidas</string>
+    <string name="today_recovery_vitals_explanation">Las referencias se aprenden en el dispositivo durante 14 días. Cada barra muestra una estimación de una señal frente al intervalo típico de un adulto; no es consejo médico.</string>
     <string name="today_hr_window_today">Hoy</string>
     <string name="today_hr_window_24h">24 h</string>
     <string name="today_hr_window_12h">12 h</string>

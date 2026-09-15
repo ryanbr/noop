@@ -84,8 +84,8 @@ jobs:
           python3 -m unittest -v "${modules[@]}" 2>&1 | tee "$RUNNER_TEMP/out.txt"
           ran=$(grep -oE '^Ran [0-9]+ test' "$RUNNER_TEMP/out.txt" | grep -oE '[0-9]+')
           echo "collected ${ran:-0} tests"
-          if [ "${ran:-0}" -lt 108 ]; then
-            echo "::error::expected at least 108 core Tools tests, collected ${ran:-0} — discovery is broken, not the suite"
+          if [ "${ran:-0}" -lt 117 ]; then
+            echo "::error::expected at least 117 core Tools tests, collected ${ran:-0} — discovery is broken, not the suite"
             exit 1
           fi
         working-directory: Tools
