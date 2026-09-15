@@ -574,7 +574,7 @@
     <string name="l10n_onboarding_screen_all_your_data_none_of_the_6fc6f26d">toutes vos données, sans le cloud</string>
     <string name="l10n_onboarding_screen_back_b52b36b7">Retour</string>
     <string name="l10n_onboarding_screen_bring_your_history_5b8775c9">Apportez votre historique</string>
-    <string name="l10n_onboarding_screen_dark_ae1ef014">Noir</string>
+    <string name="l10n_onboarding_screen_dark_ae1ef014">Sombre</string>
     <string name="l10n_onboarding_screen_estimated_max_heart_rate_profile_hrmax_06356290">Fréquence cardiaque maximale estimée · %1$s bpm</string>
     <string name="l10n_onboarding_screen_estimated_max_heart_rate_profile_hrmax_622da889">Fréquence cardiaque maximale estimée %1$s bpm</string>
     <string name="l10n_onboarding_screen_every_beat_every_night_every_day_ab536123">Chaque battement, chaque nuit, chaque jour, tissé en un portrait silencieux de vous. Bienvenue dans NOOP.</string>
@@ -585,7 +585,7 @@
     <string name="l10n_onboarding_screen_import_apple_health_export_077b5624">Importer un export Apple Santé</string>
     <string name="l10n_onboarding_screen_import_from_health_connect_35d55e21">Importation depuis Health Connect</string>
     <string name="l10n_onboarding_screen_import_whoop_export_zip_16f4176b">Importation d\'exportation WHOOP (.zip)</string>
-    <string name="l10n_onboarding_screen_light_a36ef8ab">Léger</string>
+    <string name="l10n_onboarding_screen_light_a36ef8ab">Clair</string>
     <string name="l10n_onboarding_screen_make_it_yours_54135155">Faites-le vôtre</string>
     <string name="l10n_onboarding_screen_no_whoop_you_can_still_continue_ec58d88d">Pas de WHOOP ? Vous pouvez continuer. Associez un bracelet de fréquence cardiaque (Polar, Wahoo, Coospo, Garmin HRM...)</string>
     <string name="l10n_onboarding_screen_nothing_leaves_your_phone_502d5d0c">Rien ne laisse ton téléphone</string>

@@ -777,7 +777,7 @@
     <string name="l10n_onboarding_screen_import_apple_health_export_077b5624">Импорт экспорта Apple Health</string>
     <string name="l10n_onboarding_screen_import_from_health_connect_35d55e21">Импорт из Health Connect</string>
     <string name="l10n_onboarding_screen_import_whoop_export_zip_16f4176b">Импорт выгрузки WHOOP (.zip)</string>
-    <string name="l10n_onboarding_screen_light_a36ef8ab">Лёгкий</string>
+    <string name="l10n_onboarding_screen_light_a36ef8ab">Светлая</string>
     <string name="l10n_onboarding_screen_make_it_yours_54135155">Сделайте это своим</string>
     <string name="l10n_onboarding_screen_no_whoop_you_can_still_continue_ec58d88d">Нет WHOOP? Вы всё равно можете продолжить. Подключите пульсометр (Polar, Wahoo, Coospo, Garmin HRM…)</string>
     <string name="l10n_onboarding_screen_nothing_leaves_your_phone_502d5d0c">Ничего не покидает ваш телефон</string>
@@ -1964,7 +1964,7 @@
     <string name="settings_choose_language">Выбрать язык</string>
     <string name="settings_language_system">Системный</string>
     <string name="settings_appearance_detail">Выберите светлую, тёмную тему или системную. Тёмная — фирменный почти чёрный вид; светлая сохраняет тот же чистый стиль на светлом фоне.</string>
-    <string name="settings_theme_light">Лёгкий</string>
+    <string name="settings_theme_light">Светлая</string>
     <string name="settings_theme_dark">Тёмная</string>
     <string name="settings_chart_default">По умолчанию</string>
     <string name="settings_chart_classic">Классические</string>
