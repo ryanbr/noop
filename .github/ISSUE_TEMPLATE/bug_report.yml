@@ -16,7 +16,7 @@ body:
         Many "bugs" are expected behaviour or a known limit. **Please check these before filing — it's the fastest way to an answer:**
         - **[FAQ](https://github.com/ryanbr/noop/blob/main/docs/FAQ.md)** — live HR, recovery/sleep, steps, importing, privacy, updates.
         - **[WHOOP 5.0 / MG status](https://github.com/ryanbr/noop/wiki/WHOOP-5.0-and-MG-Status)** — SpO₂, steps, recovery/sleep on the newer straps (the most common topic).
-        - **[Oura ring support](https://github.com/ryanbr/noop/blob/main/README.md#oura-ring-support)** — experimental; what a ring can and cannot give NOOP (no recovery/strain on a ring-only day, no calibrated SpO₂, live HR is partial).
+        - **[Oura ring support](https://github.com/ryanbr/noop/blob/main/README.md#oura-ring-support)** — experimental; what a ring can and cannot give NOOP (Sleep and Strain but no Recovery on a ring-only day, no HRV or respiratory rate, live HR is partial).
         - **[Troubleshooting](https://github.com/ryanbr/noop/wiki/Troubleshooting)** — pairing, "syncs but no data", generic HR straps.
 
         ---
@@ -153,7 +153,7 @@ body:
           required: true
         - label: I checked the [Troubleshooting guide](https://github.com/ryanbr/noop/wiki/Troubleshooting) — especially "history syncs but no data" (most often the strap isn't banking history to flash; charge it to 100% and reconnect).
           required: true
-        - label: I checked the [FAQ](https://github.com/ryanbr/noop/blob/main/docs/FAQ.md) and — if I'm on a WHOOP 5.0 / MG — the [5.0/MG status page](https://github.com/ryanbr/noop/wiki/WHOOP-5.0-and-MG-Status), or — if I'm on an Oura ring — the [Oura ring support](https://github.com/ryanbr/noop/blob/main/README.md#oura-ring-support) table, and this isn't an already-known limit (e.g. SpO₂, recovery/sleep on the 5/MG, or no recovery/strain on a ring-only day).
+        - label: I checked the [FAQ](https://github.com/ryanbr/noop/blob/main/docs/FAQ.md) and — if I'm on a WHOOP 5.0 / MG — the [5.0/MG status page](https://github.com/ryanbr/noop/wiki/WHOOP-5.0-and-MG-Status), or — if I'm on an Oura ring — the [Oura ring support](https://github.com/ryanbr/noop/blob/main/README.md#oura-ring-support) table, and this isn't an already-known limit (e.g. SpO₂, recovery/sleep on the 5/MG, or no Recovery / HRV on a ring-only day).
           required: true
         - label: I've left out anything personal (strap serial, account email, raw export).
           required: true

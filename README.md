@@ -106,8 +106,9 @@ own device in SQLite, imports your existing WHOOP and Apple Health history, and
 computes recovery, strain, HRV, and sleep **locally**, with no WHOOP account and
 no WHOOP cloud.
 
-There is also **experimental** support for the **Oura Ring (Gen 3)** — real overnight data from a ring
-you own, on iOS and Android, with real limits. See [Oura ring support](#oura-ring-support).
+There is also **experimental** support for the **Oura Ring** (measured on a Gen 3; a Ring 5 is
+reported working over the same path) — real overnight data from a ring you own, on iOS and Android,
+with real limits. See [Oura ring support](#oura-ring-support).
 
 It is built on prior community interoperability work and exists for one
 reason: to let someone who owns a WHOOP strap read **their own biometric data**
@@ -245,7 +246,7 @@ NOOP is an independent, **experimental** project — capable, but a work in prog
 |---|---|
 | **WHOOP 4.0** | ✅ The tested, supported path. Live HR, recovery, strain, sleep, history offload — the full experience. (v1.95 also unlocked sleep + recovery on the newer "v25" 4.0 firmware layout that earlier versions could only read live HR from.) |
 | **WHOOP 5.0 / MG** | 🧪 **Live heart rate works** (confirmed on real hardware). Pick "WHOOP 5.0 / MG" before connecting — and see the pairing note below, because you can't just scan for it. Deeper 5/MG metrics (recovery, strain, sleep) are still being mapped; there's an opt-in **Settings → Experimental** toggle for 5/MG owners who want to help document the protocol. |
-| **Oura Ring (Gen 3)** | 🧪 **Experimental, not a supported strap.** Pairs on **iOS / Android only** and reads real overnight data — heart rate, sleep stages, skin temperature, SpO₂, motion — but a ring-only day does **not** produce a recovery/strain score yet, and some metrics are permanently out of reach. See **Oura ring support** below before you expect anything from it. |
+| **Oura Ring (Gen 3 measured; Ring 5 reported)** | 🧪 **Experimental, not a supported strap.** Pairs on **iOS / Android only** and reads real overnight data — heart rate, sleep stages, skin temperature, SpO₂, motion. The ring's night feeds the scorer, so a ring-only day gets a **Sleep** and a **Strain** score but **no Recovery** (it needs an HRV baseline the ring cannot provide), and some metrics are permanently out of reach. See **Oura ring support** below before you expect anything from it. |
 
 > ### WHOOP 5.0 / MG analysis limits
 >
@@ -297,11 +298,21 @@ The app always tells you what's live now versus still building, both in onboardi
 
 ### Oura ring support
 
-NOOP has **experimental, clean-room** support for the **Oura Ring (Gen 3)**. It is not a supported
-strap and it is not on the same footing as a WHOOP 4.0: it lives behind the experimental-device path
-in the pairing wizard, and parts of it are permanently limited by what the ring will hand over. It
-reads real data from a ring you own, over Bluetooth, with no Oura account and no Oura cloud — the
-same rules as everything else here.
+NOOP has **experimental, clean-room** support for the **Oura Ring**. It is not a supported strap and
+it is not on the same footing as a WHOOP 4.0: it lives behind the experimental-device path in the
+pairing wizard, and parts of it are permanently limited by what the ring will hand over. It reads real
+data from a ring you own, over Bluetooth, with no Oura account and no Oura cloud — the same rules as
+everything else here.
+
+**Which ring.** Every row in the table below was measured on a **Gen 3**. The framing, the auth
+handshake and the event-record dictionary are the same across Gen 3, Ring 4 and Ring 5
+([`docs/OURA_PROTOCOL.md` §7.2](docs/OURA_PROTOCOL.md)); what changes per generation is the MTU, which
+characteristics are discovered and the live-HR enable command set — verified on Gen 3, expected the same
+on 4/5. A **Ring 5** has been reported working over that path (#2075: pairing/auth, live HR and
+inter-beat intervals, skin temperature, battery), which is marked per row as *Ring 5 ✓*. Nothing has
+been run on a **Ring 4** yet. The two rows marked *not possible from this data* are about what the ring
+banks, not which ring banks it, so they hold across the three until a newer ring is shown transmitting
+true beat-to-beat intervals.
 
 > **Not affiliated with Oura.** Independent interoperability work with hardware you own. "Oura" is
 > used only to identify that hardware. NOOP does not use, decompile, or redistribute any Oura app
@@ -315,14 +326,14 @@ from the official Oura app first, then pairing with NOOP on macOS, works. Docume
 
 | Input / output | Status |
 |---|---|
-| **Overnight heart rate** | ✅ Works. Reconstructed from the ring's banked inter-beat intervals; validated against a WHOOP strap worn the same night. |
+| **Overnight heart rate** | ✅ Works. Reconstructed from the ring's banked inter-beat intervals; validated against a WHOOP strap worn the same night. *Ring 5 ✓* (intervals stream). |
 | **Sleep stages & timeline** | ✅ Works. Uses the **ring's own** hypnogram rather than re-staging it, so the stages are Oura's, shown in NOOP's Sleep screen. |
-| **Skin temperature** | ✅ Works. |
+| **Skin temperature** | ✅ Works. *Ring 5 ✓* |
 | **Motion** | ✅ Stored. |
 | **Live wear status** | ✅ Works — NOOP can tell whether the ring is on your finger. |
-| **Live heart rate** | 🟡 Partial. Only one of the ring's channels ever arrives near-live, and it is quality-filtered, so it does not tile continuously the way a chest-strap or WHOOP feed does. |
-| **SpO₂** | 🟡 Raw channel captured and stored; a **calibrated percentage** is still open (~47% of decoded samples read above 100%, which no ground truth yet explains — so NOOP does **not** surface a Blood Oxygen number it can't stand behind). |
-| **Recovery / strain score on a ring-only day** | 🚧 **Not yet.** The ring's night is stored and visible, but it does not currently feed the scorer, so a ring-only day shows no recovery or strain. This is the single biggest gap and it is actively being worked on. |
+| **Live heart rate** | 🟡 Partial. Only one of the ring's channels ever arrives near-live, and it is quality-filtered, so it does not tile continuously the way a chest-strap or WHOOP feed does. *Ring 5 ✓* |
+| **SpO₂** | 🟡 Mostly there. The ring's own overnight SpO₂ percentage is decoded, stored and drawn on the Deep Timeline, and NOOP can switch the ring's SpO₂ sensing on from its own Test Centre (iOS/macOS) — no Oura account needed. A nightly **Blood Oxygen** number (the per-sample ceiling-at-100 mean the wire's positive bias calls for) is available behind the SpO₂ candidate display toggle in Settings, default off; it has round-matched the value the Oura app displays on every paired night measured so far (4 of 4), which is why it is still labelled a candidate rather than promoted to a scored metric. |
+| **Recovery / strain score on a ring-only day** | 🟡 **Sleep and Strain, not Recovery.** The ring's own hypnogram feeds the scorer (#1183), so a ring-only day gets a Sleep score and a Strain score (from the ring's banked and live HR — light on exercise HR, which stays server-gated, see the last row). **Recovery does not score:** it requires an HRV baseline, and the ring's banked intervals cannot give one (see the HRV row), so the Today screen shows no Recovery on a ring-only day. |
 | **Step count** | 🚧 Estimated only, and not shown as a step count. The ring does **not** transmit a step total NOOP can read; what exists is a research estimate derived from activity intensity, which over-reads badly on very active days. |
 | **HRV (RMSSD / SDNN) and the Rhythm screen** | ❌ **Not possible from this data.** The ring banks its intervals in records rather than sending true beat-to-beat values, which inflates HRV spread beyond anything physiological. NOOP **refuses** to show a number here rather than showing a plausible-looking wrong one. |
 | **Respiratory rate** | ❌ **Not possible from this data**, for the same reason — it is derived from beat timing, and the ring's banked intervals carry no breathing signal (shuffling them at random produces the identical answer). The Oura app shows respiration because it computes it from data the ring does not transmit. |
