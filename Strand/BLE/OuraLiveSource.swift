@@ -2922,11 +2922,15 @@ extension OuraLiveSource: @preconcurrency CBPeripheralDelegate {
 
     /// Anchor from the 0x13 SyncTime response (ringverse BLE.md `13 05 <device_ts:4LE> <status:1>`):
     /// the ring's clock counter at the moment it processed our SyncTime, paired with the host wall-clock
-    /// at receipt. The tick unit is disambiguated against a known-earlier ring-time
-    /// (OuraDriver.syncTimeAnchorCandidate — raw ticks vs seconds×10, exactly one must be plausible).
+    /// at receipt. The tick unit is disambiguated against a known ring-time
+    /// (OuraDriver.syncTimeAnchorCandidate — raw ticks vs seconds×10: exactly one must be plausible, or,
+    /// on a ring under ~5 days of clock where both are, exactly one must sit within an hour of the floor).
     /// At connect the only reference is the resume cursor, which is 0 on a fresh pair and may be far
     /// staler than the ring's clock; rather than discard the reply, PARK it and retry once history starts
-    /// landing (2026-09-02/03 captures). Still adopts NOTHING on ambiguity — an honest missing anchor beats a guessed one.
+    /// landing (2026-09-02/03 captures). The retry's floor (`drain.maxSeenRingTime`) is fed by records that
+    /// land AFTER the reply, so it may sit a few ticks past it — the candidate rule allows that trail; the
+    /// old rule did not, and adopted ×10 on a young ring (#2239). Still adopts NOTHING on ambiguity — an
+    /// honest missing anchor beats a guessed one.
     private func handleSyncTimeResponse(_ resp: (deviceTimestamp: UInt32, status: UInt8)) {
         let now = Int64(Date().timeIntervalSince1970)
         if adoptSyncTimeAnchor(deviceTimestamp: resp.deviceTimestamp, status: resp.status,

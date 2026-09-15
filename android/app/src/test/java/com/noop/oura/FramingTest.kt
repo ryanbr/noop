@@ -101,24 +101,29 @@ class FramingTest {
     }
 
     /**
-     * Parity oracle for [OuraDriver.syncTimeAnchorCandidate] (2026-09-02/03 captures). Expected values are the VERBATIM
-     * stdout of the shipped Swift twin compiled standalone (`swiftc -O twin.swift main.swift`), one
-     * `responseValue / lowerBoundTicks / result` row per line — not values read off the Kotlin. The
-     * spread covers the shipped unit cases, the 2026-09-02/03 capture values behind this fix, both halves
-     * of the cursor↔anchor deadlock, the exact window edges, the ambiguity band around the 9× boundary,
-     * and the UInt32 ceiling. Guards the Kotlin direction only; the Swift test in FramingTests.swift is
-     * what stops Swift drifting.
+     * Parity oracle for [OuraDriver.syncTimeAnchorCandidate] (2026-09-02/03 captures; adjacency rule added for
+     * #2239, the 2026-09-15 Ring 5 capture). Expected values are the VERBATIM stdout of the shipped Swift twin
+     * compiled standalone (`swiftc -O twin.swift main.swift`), one `responseValue / lowerBoundTicks / result`
+     * row per line — not values read off the Kotlin. The spread covers the shipped unit cases, the 2026-09-02/03
+     * capture values behind the deadlock fix, both halves of the cursor↔anchor deadlock, the exact window edges,
+     * the young-ring band where both readings fit (settled by adjacency, or null when neither is adjacent), the
+     * #2239 capture's own replies against the floors they met (cursor at connect, `maxSeenRingTime` 22 ticks
+     * past the reply on the retry, a floor an hour ahead), the exact adjacency edges on both sides, a
+     * seconds-unit reply adopted only when the drain corroborates it, and the UInt32 ceiling. Guards the
+     * Kotlin direction only; the Swift test in FramingTests.swift is what stops Swift drifting.
      */
     @Test
     fun testSyncTimeAnchorCandidateMatchesTheSwiftOracle() {
         // responseValue, lowerBoundTicks, expected (null = no unambiguous reading)
         val oracle: List<Triple<Long, Long, Long?>> = listOf(
             Triple(4_810_000L, 4_413_933L, 4_810_000L),
-            Triple(481_000L, 4_413_933L, 4_810_000L),
+            Triple(481_000L, 4_413_933L, null),
+            Triple(481_000L, 4_810_020L, 4_810_000L),
             Triple(100_000L, 4_413_933L, null),
             Triple(50_000_000L, 4_413_933L, null),
             Triple(4_810_000L, 0L, null),
-            Triple(150_000L, 140_000L, null),
+            Triple(150_000L, 140_000L, 150_000L),
+            Triple(500_000L, 400_000L, null),
             Triple(35_157_631L, 28_073_725L, 35_157_631L),
             Triple(35_159_272L, 28_073_725L, 35_159_272L),
             Triple(35_168_206L, 28_073_725L, 35_168_206L),
@@ -131,12 +136,25 @@ class FramingTest {
             Triple(28_073_725L, 28_073_725L, 28_073_725L),
             Triple(66_953_725L, 28_073_725L, 66_953_725L),
             Triple(66_953_726L, 28_073_725L, null),
-            Triple(28_073_724L, 28_073_725L, null),
-            Triple(500_000L, 400_000L, null),
-            Triple(4_320_000L, 4_320_000L, null),
+            Triple(28_073_724L, 28_073_725L, 28_073_724L),
+            Triple(28_037_725L, 28_073_725L, 28_037_725L),
+            Triple(28_037_724L, 28_073_725L, null),
+            Triple(4_320_000L, 4_320_000L, 4_320_000L),
             Triple(4_320_001L, 4_320_001L, 4_320_001L),
             Triple(4_294_967_295L, 4_294_000_000L, 4_294_967_295L),
             Triple(500_000_000L, 100_000_000L, null),
+            Triple(4_006_498L, 4_006_520L, 4_006_498L),
+            Triple(4_016_404L, 4_016_416L, 4_016_404L),
+            Triple(4_006_498L, 3_995_770L, 4_006_498L),
+            Triple(4_006_498L, 4_050_000L, null),
+            Triple(4_006_498L, 4_042_498L, 4_006_498L),
+            Triple(4_006_498L, 4_042_499L, null),
+            Triple(400_650L, 4_006_520L, 4_006_500L),
+            Triple(400_650L, 4_042_520L, null),
+            Triple(400_650L, 4_042_521L, null),
+            Triple(3_000L, 2_000L, null),
+            Triple(4_000L, 4_000L, null),
+            Triple(4_001L, 4_001L, 4_001L),
         )
         for ((value, lowerBound, expected) in oracle) {
             assertEquals(
@@ -163,6 +181,27 @@ class FramingTest {
             "the window must cover the observed 8.2-day staleness",
             OuraDriver.SYNC_TIME_ANCHOR_WINDOW_TICKS > 35_157_631L - staleCursor,
         )
+    }
+
+    /**
+     * #2239, stated as the behaviour: a ring under ~5 days of clock (the 2026-09-15 Ring 5 capture). Both
+     * readings fit the 45-day window, and on the retry the floor (`maxSeenRingTime`) had already been carried
+     * 22 ticks PAST the reply by the records that landed after it. The old rule excluded the ticks reading as
+     * "before the floor" and adopted ×10 (`device rt 40064980 [seconds x10, raw 0x003d2262]`), filing the
+     * session 41 days in the past. Adjacency now settles it: the reply is 22 ticks from the drain's newest
+     * record, the ×10 reading is 36 M ticks away.
+     */
+    @Test
+    fun testSyncTimeAnchorCandidateYoungRingResolvesToTicksNotSecondsX10() {
+        val reply = 0x003d2262L   // 4_006_498, 10:13:20 local
+        assertEquals(4_006_498L, OuraDriver.syncTimeAnchorCandidate(reply, 4_006_520L))   // retry floor
+        assertEquals(4_006_498L, OuraDriver.syncTimeAnchorCandidate(reply, 3_995_770L))   // connect floor (cursor)
+        // Floor more than an hour ahead of the reply: the ticks reading is gone and ×10 is not adjacent -> null,
+        // never ×10.
+        assertNull(OuraDriver.syncTimeAnchorCandidate(reply, 4_050_000L))
+        // The seconds unit is still reachable, but only when the drain's own ring-times corroborate it.
+        assertEquals(4_006_500L, OuraDriver.syncTimeAnchorCandidate(400_650L, 4_006_520L))
+        assertNull(OuraDriver.syncTimeAnchorCandidate(400_650L, 4_413_933L))
     }
 
     /**

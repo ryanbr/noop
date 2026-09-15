@@ -654,21 +654,47 @@ class OuraDriver(
          * the ring's clock by the ring's whole banked depth (~14 days) plus however long the cursor has
          * been stuck — the original 7-day window silently excluded exactly that case: in the 2026-09-02/03
          * iOS captures an 8.2-day-stale cursor could never be re-anchored, so it could never advance, so
-         * the staleness only grew — one full re-serve of the same window per launch, forever. Widening
-         * costs no honesty: both readings fit the window only when
-         * `window >= 9 × lowerBound`, i.e. a ring under ~5 days of clock — and that case still resolves
-         * to null below, exactly as before. Byte-identical twin of Swift's syncTimeAnchorWindowTicks.
+         * the staleness only grew — one full re-serve of the same window per launch, forever. Both
+         * readings fit the window only when `window >= 9 × lowerBound`, i.e. a ring under ~5 days of
+         * clock; that case is settled by [SYNC_TIME_ANCHOR_ADJACENCY_TICKS], never by preference.
+         * Byte-identical twin of Swift's syncTimeAnchorWindowTicks.
          */
         const val SYNC_TIME_ANCHOR_WINDOW_TICKS = 38_880_000L   // 45 days of 100 ms ticks
+
+        /**
+         * How close to [lowerBoundTicks] a reading must sit to be IDENTIFIED rather than merely plausible,
+         * and how far a ticks reading may trail the bound. One hour of 100 ms ticks. Two facts set it:
+         * (1) the bound can post-date the reply — [OuraHistoryDrain.maxSeenRingTime] is fed by records
+         * that land AFTER the 0x13 was answered, and the ring keeps ticking, so the reply's own clock
+         * legitimately sits a few ticks (or a whole drain's worth) BELOW the newest record; (2) the two
+         * readings differ by `9 × value`, so once the drain's ring-times are within an hour of one of
+         * them, the other is days away and the unit is settled by the ring's own records, not by a guess.
+         * Found on a Ring 5 with under five days of clock (2026-09-15, a user bundle, #2239): a reply 22
+         * ticks below the drain's newest record was excluded as "before the floor", the ×10 reading was
+         * the only one left inside the 45-day window, and the whole session was filed 41 days in the
+         * past. Byte-identical twin of Swift's syncTimeAnchorAdjacencyTicks.
+         */
+        const val SYNC_TIME_ANCHOR_ADJACENCY_TICKS = 36_000L   // 1 hour of 100 ms ticks
 
         /**
          * Resolve the 0x13 SyncTime-response device timestamp into ring TICKS, or null when no
          * unambiguous reading exists. ringverse BLE.md labels the field "seconds" but the ring's record
          * clock runs in 100 ms ticks, so both readings are tried: the raw value (already ticks) and
-         * value×10 (seconds→ticks). The ring's clock at connect must sit AFTER any ring-time we already
-         * know about, so a candidate is plausible iff it falls in `[lowerBoundTicks, lowerBoundTicks +
-         * SYNC_TIME_ANCHOR_WINDOW_TICKS]`; exactly one must fit (ambiguity or no reference at all → null
-         * → the caller logs raw instead of guessing).
+         * value×10 (seconds→ticks). A candidate is plausible iff it falls in `[lowerBoundTicks −
+         * adjacency, lowerBoundTicks + SYNC_TIME_ANCHOR_WINDOW_TICKS]` — the ring's clock at the reply
+         * sits after any ring-time known BEFORE the reply, and at most
+         * [SYNC_TIME_ANCHOR_ADJACENCY_TICKS] before one learned after it. Then:
+         *
+         * - only the ticks reading fits → ticks (the ordinary case on a ring with days of clock: ×10
+         *   lands beyond the window);
+         * - both fit (a ring under ~5 days of clock) → the reading within
+         *   [SYNC_TIME_ANCHOR_ADJACENCY_TICKS] of the bound, if exactly one is — the drain's own
+         *   ring-times identify the unit; otherwise null, and the caller parks the reply until the drain
+         *   has caught up to the present;
+         * - only the ×10 reading fits → it, but ONLY when adjacent. No capture on either ring generation
+         *   has ever produced a seconds-unit reply (every anchor on file resolved as ticks), so the label
+         *   alone does not earn adoption; the drain's ring-times must corroborate it. A ticks reply that
+         *   has fallen more than an hour behind the bound is therefore null, never silently ×10.
          *
          * [lowerBoundTicks] is any ring-time known to precede the ring's clock NOW: the persisted resume
          * cursor at connect, or — when that is 0 (fresh pair / post-reboot reset) or too stale — the
@@ -680,11 +706,24 @@ class OuraDriver(
         fun syncTimeAnchorCandidate(responseValue: Long, lowerBoundTicks: Long): Long? {
             if (lowerBoundTicks <= 0) return null
             val lower = lowerBoundTicks
+            val floor = lower - SYNC_TIME_ANCHOR_ADJACENCY_TICKS
             val upper = lower + SYNC_TIME_ANCHOR_WINDOW_TICKS
-            val readings = listOf(responseValue, responseValue * 10)
-            val fits = readings.filter { it in lower..upper && it <= 0xFFFF_FFFFL }
-            if (fits.size != 1) return null
-            return fits[0]
+            val ticks = responseValue
+            val secondsX10 = responseValue * 10
+            fun plausible(v: Long) = v >= floor && v <= upper && v <= 0xFFFF_FFFFL
+            fun adjacent(v: Long) = kotlin.math.abs(v - lower) <= SYNC_TIME_ANCHOR_ADJACENCY_TICKS
+            val ticksFit = plausible(ticks)
+            val x10Fit = plausible(secondsX10)
+            return when {
+                ticksFit && !x10Fit -> ticks
+                !ticksFit && x10Fit -> if (adjacent(secondsX10)) secondsX10 else null
+                ticksFit && x10Fit -> when {
+                    adjacent(ticks) && !adjacent(secondsX10) -> ticks
+                    adjacent(secondsX10) && !adjacent(ticks) -> secondsX10
+                    else -> null
+                }
+                else -> null
+            }
         }
     }
 }

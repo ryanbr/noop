@@ -978,9 +978,13 @@ class OuraLiveSource(
     /**
      * Anchor from the 0x13 SyncTime response (ringverse: the ring's clock counter when it processed
      * our SyncTime, paired with host wall-clock at receipt). The tick unit is disambiguated against a
-     * known-earlier ring-time. At connect the only reference is the resume cursor, which is 0 on a fresh
-     * pair and may be far staler than the ring's clock; rather than discard the reply, PARK it and retry
-     * once history starts landing (2026-09-02/03 captures). Still adopts NOTHING on ambiguity — an honest missing anchor
+     * known ring-time (raw ticks vs seconds×10: exactly one must be plausible, or, on a ring under ~5 days
+     * of clock where both are, exactly one must sit within an hour of the floor). At connect the only
+     * reference is the resume cursor, which is 0 on a fresh pair and may be far staler than the ring's
+     * clock; rather than discard the reply, PARK it and retry once history starts landing (2026-09-02/03
+     * captures). The retry's floor (`drain.maxSeenRingTime`) is fed by records that land AFTER the reply,
+     * so it may sit a few ticks past it — the candidate rule allows that trail; the old rule did not, and
+     * adopted ×10 on a young ring (#2239). Still adopts NOTHING on ambiguity — an honest missing anchor
      * beats a guessed one. Kotlin twin of Swift's handleSyncTimeResponse.
      */
     private fun handleSyncTimeResponse(d: OuraDriver, resp: com.noop.oura.SyncTimeResponse) {

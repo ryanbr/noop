@@ -224,8 +224,13 @@ final class FramingTests: XCTestCase {
         // the seconds x10 reading does not -> unambiguous ticks.
         XCTAssertEqual(OuraDriver.syncTimeAnchorCandidate(responseValue: 4_810_000, lowerBoundTicks: 4_413_933),
                        4_810_000)
-        // A seconds-unit response (481_000 s = 4.81M ticks) only fits when multiplied x10.
-        XCTAssertEqual(OuraDriver.syncTimeAnchorCandidate(responseValue: 481_000, lowerBoundTicks: 4_413_933),
+        // A seconds-unit response (481_000 s = 4.81M ticks) fits only when multiplied x10 - but that unit
+        // has never been observed, so it is adopted only when the x10 reading is ADJACENT to the floor.
+        // 396_067 ticks (11 h) away from it -> nil: the reply parks until the drain corroborates it.
+        XCTAssertNil(OuraDriver.syncTimeAnchorCandidate(responseValue: 481_000, lowerBoundTicks: 4_413_933))
+        // ...and the same seconds-unit reply against a floor the drain has carried to the present ->
+        // adjacent (20 ticks) -> the x10 reading is identified by the ring's own records.
+        XCTAssertEqual(OuraDriver.syncTimeAnchorCandidate(responseValue: 481_000, lowerBoundTicks: 4_810_020),
                        4_810_000)
         // Below the floor in both readings (ring reboot / stale value) -> nil.
         XCTAssertNil(OuraDriver.syncTimeAnchorCandidate(responseValue: 100_000, lowerBoundTicks: 4_413_933))
@@ -233,9 +238,42 @@ final class FramingTests: XCTestCase {
         XCTAssertNil(OuraDriver.syncTimeAnchorCandidate(responseValue: 50_000_000, lowerBoundTicks: 4_413_933))
         // No reference at all -> nil (never guess).
         XCTAssertNil(OuraDriver.syncTimeAnchorCandidate(responseValue: 4_810_000, lowerBoundTicks: 0))
-        // Ambiguity guard: BOTH readings inside the window -> nil. Reachable only while the floor is
-        // under window/9 (~5 days of ring clock), i.e. a barely-run ring.
-        XCTAssertNil(OuraDriver.syncTimeAnchorCandidate(responseValue: 150_000, lowerBoundTicks: 140_000))
+        // Young ring (floor under window/9 ~ 5 days): BOTH readings inside the window. Adjacency decides:
+        // 10_000 ticks (17 min) from the floor -> ticks; the x10 reading is 1.36M ticks away.
+        XCTAssertEqual(OuraDriver.syncTimeAnchorCandidate(responseValue: 150_000, lowerBoundTicks: 140_000),
+                       150_000)
+        // Young ring, both fit, NEITHER adjacent (a stale cursor 100_000 ticks = 2.8 h behind) -> nil,
+        // parked until the drain's ring-times reach the present.
+        XCTAssertNil(OuraDriver.syncTimeAnchorCandidate(responseValue: 500_000, lowerBoundTicks: 400_000))
+    }
+
+    /// The 2026-09-15 Ring 5 capture (a user bundle): the ring had restarted five days earlier, so its
+    /// clock was under window/9 and both readings fit the window all week. At connect the reply parked
+    /// (floor = the 18-min-stale cursor); on the retry the floor was `maxSeenRingTime`, which the drain
+    /// had already pushed 22 ticks PAST the reply - the old rule excluded the ticks reading as "before
+    /// the floor", the x10 reading was the only one left, and the whole session was filed 41 days in the
+    /// past (`device rt 40064980 [seconds x10, raw 0x003d2262]`). Every value below is verbatim from
+    /// that capture's `report.txt` / `oura-raw.jsonl`.
+    func testSyncTimeAnchorCandidateYoungRingDoesNotAdoptTheSecondsX10Reading() {
+        // 10:13:20 reply raw 0x003d2262 = 4_006_498; the 0x42 served two seconds later carries rt 4_006_520.
+        // Retry floor = maxSeenRingTime = 4_006_520 -> the ticks reading trails it by 22 -> still plausible,
+        // adjacent -> ticks. The x10 reading (40_064_980) fits the window too but is 36M ticks away.
+        XCTAssertEqual(OuraDriver.syncTimeAnchorCandidate(responseValue: 4_006_498, lowerBoundTicks: 4_006_520),
+                       4_006_498)
+        // The 10:29:50 connect: raw 0x003d4914 = 4_016_404 against maxSeenRingTime 4_016_416.
+        XCTAssertEqual(OuraDriver.syncTimeAnchorCandidate(responseValue: 4_016_404, lowerBoundTicks: 4_016_416),
+                       4_016_404)
+        // At connect the floor was the persisted cursor 3_995_770, 18 min stale: within the adjacency
+        // window, so the new rule resolves it at connect instead of parking it.
+        XCTAssertEqual(OuraDriver.syncTimeAnchorCandidate(responseValue: 4_006_498, lowerBoundTicks: 3_995_770),
+                       4_006_498)
+        // A young-ring reply whose floor has run more than an hour AHEAD of it (a retry long after receipt):
+        // the ticks reading is no longer plausible, the x10 reading fits but is not adjacent -> nil. The
+        // honest answer; the old rule returned 40_064_980 here.
+        XCTAssertNil(OuraDriver.syncTimeAnchorCandidate(responseValue: 4_006_498, lowerBoundTicks: 4_050_000))
+        // A reading exactly one tick below the floor (the smallest possible post-reply advance) -> ticks.
+        XCTAssertEqual(OuraDriver.syncTimeAnchorCandidate(responseValue: 28_073_724, lowerBoundTicks: 28_073_725),
+                       28_073_724)
     }
 
     /// Regression from the 2026-09-02/03 iOS captures. The ring's 0x13 reply reads 0x0218767f =
