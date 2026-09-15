@@ -58,6 +58,18 @@ object LiftMetrics {
             LiftMuscle.decodeList(LiftMuscle.encodeList(secondaryMuscles, primaryMuscle))
     }
 
+    // MARK: - Performed or not
+
+    /**
+     * Whether a set was performed, from its rep count. A set with ZERO reps was not: that is how a
+     * finished session keeps the sets the user discards, so they can still be filled in later, and it
+     * is what a user types for a planned set they skipped. Every figure leaves such a set out, since
+     * counting it would add a set nobody did. A set with no rep count (null) still counts: it was
+     * done, the number just was not typed.
+     * The Swift twin is `LiftMetrics.isPerformed`.
+     */
+    fun isPerformed(reps: Int?): Boolean = reps != 0
+
     // MARK: - Volume load (tonnage)
 
     /**
@@ -141,7 +153,8 @@ object LiftMetrics {
 
     /**
      * One summary per exercise, in the order the exercises were first performed, because that is how
-     * a session reads back.
+     * a session reads back. A set that was not performed ([isPerformed]) appears nowhere, and neither
+     * does an exercise with only such sets.
      *
      * Assumes `ord` is unique across the rows handed in, which holds because it is assigned 0-based
      * within one session and the only caller passes one session's sets. If that ever stops being
@@ -154,6 +167,7 @@ object LiftMetrics {
         val order = ArrayList<String>()
         val grouped = LinkedHashMap<String, MutableList<Row>>()
         for (s in sets.sortedBy { it.ord }) {
+            if (!isPerformed(s.reps)) continue
             if (grouped[s.exercise] == null) {
                 order.add(s.exercise)
                 grouped[s.exercise] = ArrayList()
@@ -213,7 +227,7 @@ object LiftMetrics {
      * The Swift twin is `LiftMetrics.rpeProfile`.
      */
     fun rpeProfile(sets: List<Row>, threshold: Double = hardSetRpeThreshold): RpeProfile {
-        val working = sets.filter { !it.isWarmup }
+        val working = sets.filter { !it.isWarmup && isPerformed(it.reps) }
         val rated = working.mapNotNull { it.rpe }
         val mean = if (rated.isEmpty()) null else rated.sum() / rated.size.toDouble()
         return RpeProfile(
@@ -243,8 +257,9 @@ object LiftMetrics {
      * models. The reference doses in [ReferenceDose] were derived under that same operationalisation,
      * so the credit and the doses have to move together or the comparison stops meaning anything.
      *
-     * Warm-ups are excluded; nothing else is. An unclassified exercise (null primary) contributes to
-     * volume and session load but claims no muscle it was never assigned.
+     * Warm-ups and sets never performed ([isPerformed]) are excluded; nothing else is. An unclassified
+     * exercise (null primary) contributes to volume and session load but claims no muscle it was never
+     * assigned.
      * The Swift twin is `LiftMetrics.muscleCounts`.
      */
     fun muscleCounts(sets: List<Row>): MuscleCounts {
@@ -252,7 +267,7 @@ object LiftMetrics {
         val direct = LinkedHashMap<LiftMuscle, Int>()
         val indirect = LinkedHashMap<LiftMuscle, Int>()
         for (s in sets) {
-            if (s.isWarmup) continue
+            if (s.isWarmup || !isPerformed(s.reps)) continue
             s.primaryMuscle?.let { p ->
                 direct[p] = (direct[p] ?: 0) + 1
                 fractional[p] = (fractional[p] ?: 0.0) + LiftMuscle.directSetCredit

@@ -22,6 +22,9 @@ import org.junit.Test
  *  - Curl has one set with no weight and one with no reps, so the fallback compares 0.0 against 20.
  *  - Set 2 lists `chest` as both primary and secondary; it must be counted once.
  *  - Set 4 is 13 reps, one past the ceiling, so it estimates nil rather than a number.
+ *  - Sets 8 and 10 have ZERO reps, which is how a discarded set is saved: not performed, so they
+ *    count nowhere. Set 10 carries muscles and an RPE, so a port that skips `isPerformed` in
+ *    `muscleCounts` or `rpeProfile` shows up as an extra chest set or rating, not just a missing row.
  *  - Dip lists `triceps` three times and the primary `chest` once. Swift's `LiftSetRow.init`
  *    normalises a row's secondaries at construction, so `LiftMetrics` never sees a repeat;
  *    `LiftMetrics.Row` has to carry the same invariant or the muscle is counted once per
@@ -55,6 +58,7 @@ class LiftMetricsParityOracleTest {
         row(9, "Dip", 50.0, 6, 8.5, false, LiftMuscle.chest,
             listOf(LiftMuscle.triceps, LiftMuscle.triceps, LiftMuscle.chest,
                 LiftMuscle.frontDelts, LiftMuscle.triceps)),
+        row(10, "Bench", 100.0, 0, 9.0, false, LiftMuscle.chest, listOf(LiftMuscle.triceps)),
     )
 
     private fun f(d: Double?) = if (d == null) "nil" else String.format(Locale.ROOT, "%.6f", d)
@@ -82,6 +86,11 @@ class LiftMetricsParityOracleTest {
         nil
         nil
         nil
+        == isPerformed ==
+        false
+        true
+        true
+        9
         == normalisedSecondaries ==
         0|triceps,frontDelts
         1|triceps,frontDelts
@@ -93,15 +102,15 @@ class LiftMetricsParityOracleTest {
         7|[]
         8|[]
         9|triceps,frontDelts
+        10|triceps
         == perExercise ==
         Bench|3|1|1520.000000|90.000000|10|120.000000
         Row|2|0|1600.000000|70.000000|8|88.666667
         Curl|2|0|nil|20.000000|nil|nil
-        Plank|1|0|nil|0.000000|0|nil
         Dip|1|0|300.000000|50.000000|6|60.000000
         == rpeProfile ==
-        8.000000|6|3|5|8.000000
-        8.000000|6|3|5|7.000000
+        8.000000|6|2|5|8.000000
+        8.000000|6|2|5|7.000000
         nil|0|0|0|8.000000
         == muscleCounts ==
         chest|4.000000|4|nil
@@ -138,6 +147,12 @@ class LiftMetricsParityOracleTest {
         }
         out.appendLine(f(LiftMetrics.estimatedOneRepMaxKg(null, 5)))
         out.appendLine(f(LiftMetrics.estimatedOneRepMaxKg(100.0, null)))
+
+        out.appendLine("== isPerformed ==")
+        for (r in listOf(0, null, 5)) {
+            out.appendLine(LiftMetrics.isPerformed(r).toString())
+        }
+        out.appendLine(sets.count { LiftMetrics.isPerformed(it.reps) }.toString())
 
         out.appendLine("== normalisedSecondaries ==")
         for (s in sets) {
