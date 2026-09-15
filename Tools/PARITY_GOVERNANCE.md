@@ -115,6 +115,36 @@ dispositions are unchanged between them and both regenerated snapshots exactly
 match that shared state. Any source debt introduced on the repair branch still
 fails closed, as does a hand-edited or partial snapshot.
 
+Repair therefore covers a base that is stale and OTHERWISE UNCHANGED. It cannot
+cover a base whose stored authority no longer reproduces at all, which is what
+merged product files leave behind: the governed state genuinely differs, so the
+equality repair insists on can never hold. That case fails with
+
+```
+base authority cannot be reproduced with the current derivation; migration
+required (see --migrate-authority)
+```
+
+and its remedy is the migration variant:
+
+```sh
+python3 Tools/parity_ledger.py --refresh-derived --migrate-authority --base origin/main
+```
+
+Migration re-bases the comparison onto a freshly derived base authority. It
+waives exactly one thing, whether the base's STORED manifest can be reproduced,
+and it is not a force switch either. New one-sided declarations are still
+computed from the freshly derived base and current sets, so anything this branch
+adds still needs its own issue-bound disposition and an undeclared one still
+fails closed. A hand-edited current authority is refused outright.
+
+Be clear-eyed about what a post-merge refresh does: it ADOPTS the one-sided
+declarations already on `main` into the authority, because the ratchet governs
+debt relative to the base and merged debt is the base. That is the intended
+maintenance action, and it is also why the daily schedule matters. It finds the
+drift within a day rather than letting it accumulate until a contributor
+inherits it.
+
 For a new one-sided declaration, choose explicitly:
 
 The `add-unpaired-function` diagnostic defines "new" by absence of the
