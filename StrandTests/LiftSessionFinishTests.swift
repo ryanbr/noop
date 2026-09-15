@@ -42,6 +42,21 @@ final class LiftSessionFinishTests: XCTestCase {
         return c
     }
 
+    /// A session run face-down, every set advanced on the strap and nothing typed. Discarding then
+    /// leaves NOTHING: this is the precondition `LiftSessionView.save` guards on, because filing it
+    /// wrote a session with no sets and a manual workout the engine would fill strain into, so an
+    /// hour that recorded nothing read back as a workout. Completing still saves all five.
+    func testAFaceDownSessionDiscardingSavesNothingAtAll() {
+        let c = controller()
+        c.start(plan: plan(), programId: "p", programName: "Upper A")
+        for _ in 0..<10 { c.advance() }                           // every set worked, none typed
+        XCTAssertEqual(c.unfinishedSlots.count, 5, "nothing typed, so every slot is unentered")
+        XCTAssertTrue(c.setsToSave(completingUnfinished: false).isEmpty,
+                      "discarding an all-untyped session must leave no set to file")
+        XCTAssertEqual(c.setsToSave(completingUnfinished: true).count, 5,
+                       "completing still files every set with its grey numbers")
+    }
+
     func testUnfinishedSetsAreTheUntypedAndTheNeverStarted() {
         XCTAssertEqual(halfDoneSession().unfinishedSlots,
                        [slot(0, 2), slot(0, 3), slot(1, 1), slot(1, 2)])

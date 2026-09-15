@@ -761,6 +761,20 @@ struct LiftSessionView: View {
         // After `finish`, which closes out the running rest: that set's measured rest belongs to it.
         let finished = session.setsToSave(completingUnfinished: unfinishedChoice == .complete)
 
+        // Nothing to file, so file nothing. Discarding can empty a session completely: a session run
+        // face-down and advanced entirely on the strap has nothing typed, so every slot is unentered
+        // and "Discard them" leaves no set behind. Filing it anyway wrote a session row with no sets
+        // AND a manual workout, and the engine fills that workout's strain from the heart rate the
+        // strap measured — so an hour that recorded nothing still read back as a workout. The
+        // program's set counts are a separate thing the user chose explicitly, so those still apply.
+        guard !finished.isEmpty else {
+            if programChoice == .update {
+                await writeSetCountsToProgram(store: store, plan: engine.plan)
+            }
+            await finishAndDismiss()
+            return
+        }
+
         let row = LiftSessionRow(
             id: sessionId, deviceId: repo.deviceId,
             startTs: engine.startTs, endTs: endTs, sport: LiftSessionView.sport,
@@ -802,6 +816,12 @@ struct LiftSessionView: View {
             distanceM: nil, zonesJSON: nil, notes: session.programName, steps: nil)
         await repo.saveManualWorkout(workout)
 
+        await finishAndDismiss()
+    }
+
+    /// Close the session down and leave the sheet. Shared by the normal save and the nothing-to-file
+    /// path above, so the two cannot drift about what ending a session means.
+    private func finishAndDismiss() async {
         session.finishedSaving()
         await repo.refresh()
         await onFinished()
