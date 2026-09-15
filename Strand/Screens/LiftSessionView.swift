@@ -404,11 +404,11 @@ struct LiftSessionView: View {
         session.carry(for: slot).reps.map(String.init) ?? "—"
     }
 
-    /// RPE is never carried. Its ghost is the line's max RPE when the program sets one — "≤8", a ceiling
-    /// to stay under — else the previous set's own rating as a reminder. Neither is a value any set
-    /// saves: only a typed rating is recorded (RULES 5, 34).
+    /// Grey RPE is the line's max RPE when the program sets one — and, like every other grey number, it is
+    /// what the set saves if nothing is typed over it (RULES 34). A previous set's own rating is shown as a
+    /// reminder when the plan sets no maximum, and that one is never saved: it belongs to another set.
     private func ghostRpe(_ engine: LiftSessionEngine, slot: LiftSlot) -> String {
-        if let ceiling = engine.planItem(for: slot)?.targetRpe { return "≤" + LiftFormat.trim(ceiling) }
+        if let planned = engine.planItem(for: slot)?.targetRpe { return LiftFormat.trim(planned) }
         return engine.previousSetInSession(for: slot)?.rpe.map { LiftFormat.trim($0) } ?? "—"
     }
 

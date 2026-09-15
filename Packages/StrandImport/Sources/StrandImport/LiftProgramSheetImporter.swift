@@ -123,7 +123,6 @@ public enum LiftProgramSheetImporter {
     private static let setsKeys = ["sets", "working_sets", "target_sets"]
     private static let repsKeys = ["reps", "rep", "target_reps", "repetitions"]
     private static let weightKeys = ["weight_kg", "weight", "kg", "load", "load_kg"]
-    private static let maxRpeKeys = ["target_max_rpe", "max_rpe", "rpe_max", "target_rpe", "rpe"]
     private static let restKeys = ["rest_sec", "rest_seconds", "rest", "rest_s"]
     private static let noteKeys = ["note", "technique_note", "notes", "cue"]
 
@@ -202,11 +201,12 @@ public enum LiftProgramSheetImporter {
 
             // A max RPE outside the scale is refused with a warning rather than clamped: 12 is a typo,
             // and guessing whether it meant 10 or 1.2 would put a ceiling in the plan nobody chose.
-            var maxRpe = doubleValue(row, maxRpeKeys)
+            var maxRpe = doubleValue(row, ["target_max_rpe", "max_rpe", "rpe_max", "target_rpe", "rpe"])
             if let rpe = maxRpe, !(1...10).contains(rpe) {
                 maxRpe = nil
                 if warnings.count < maxWarnings {
-                    warnings.append(rowMessage(i, "max RPE \(trimmed(rpe)) is not between 1 and 10, so \"\(exercise)\" has none"))
+                    let shown = rpe == rpe.rounded() ? String(Int(rpe)) : String(rpe)
+                    warnings.append(rowMessage(i, "max RPE \(shown) is not between 1 and 10, so \"\(exercise)\" has none"))
                 }
             }
 
@@ -262,11 +262,6 @@ public enum LiftProgramSheetImporter {
     /// row 1, so the first data row is row 2.
     private static func rowMessage(_ i: Int, _ text: String) -> String {
         "Row \(i + 2): \(text)"
-    }
-
-    /// "8", "8.5" — a number as a person typed it, for a warning.
-    private static func trimmed(_ value: Double) -> String {
-        value == value.rounded() ? String(Int(value)) : String(value)
     }
 
     private static func programNote(_ row: [String: String]) -> String? {

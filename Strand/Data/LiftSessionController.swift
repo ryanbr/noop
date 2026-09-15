@@ -431,7 +431,10 @@ final class LiftSessionController: ObservableObject {
     /// The sets the session saves — every slot on the sheet.
     ///
     /// A set with anything typed saves its numbers, and a number left blank takes its grey value, so a
-    /// set that was rated but never weighed does not save empty. Unfinished sets save with their grey
+    /// set that was rated but never weighed does not save empty. That includes RPE: a set left unrated
+    /// saves the program line's max RPE (Utku, 16 Sep 2026), which is the number the session showed grey.
+    /// A rating typed for the set always wins, and a previous set's rating is never copied onto another —
+    /// only the plan's own number fills a blank. Unfinished sets save with their grey
     /// numbers (and anything typed in advance) when `completingUnfinished`; otherwise they save as
     /// 0 kg × 0 reps, which every figure leaves out (`LiftMetrics.isPerformed`) and Edit sets still
     /// shows, so a discard made by mistake can be filled back in. Performed sets keep the order they
@@ -439,12 +442,14 @@ final class LiftSessionController: ObservableObject {
     func setsToSave(completingUnfinished: Bool) -> [FinishedSet] {
         guard let engine else { return [] }
         let unfinished = Set(engine.unenteredSlots)
+        // The plan's max RPE, which the session shows grey in the RPE field.
+        func planned(_ slot: LiftSlot) -> Double? { engine.planItem(for: slot)?.targetRpe }
         var out = engine.sets.map { set -> FinishedSet in
             let discarded = unfinished.contains(set.slot) && !completingUnfinished
             let shown = values(of: set.slot)
             return FinishedSet(slot: set.slot,
                                weightKg: discarded ? 0 : shown.weightKg, reps: discarded ? 0 : shown.reps,
-                               rpe: discarded ? nil : set.rpe, isWarmup: set.isWarmup,
+                               rpe: discarded ? nil : (set.rpe ?? planned(set.slot)), isWarmup: set.isWarmup,
                                startTs: set.startTs, endTs: set.endTs, restSec: set.restSec)
         }
         for slot in engine.allSlots where !engine.isCompleted(slot) {
@@ -453,7 +458,7 @@ final class LiftSessionController: ObservableObject {
             out.append(FinishedSet(slot: slot,
                                    weightKg: completingUnfinished ? typed?.weightKg ?? grey.weightKg : 0,
                                    reps: completingUnfinished ? typed?.reps ?? grey.reps : 0,
-                                   rpe: completingUnfinished ? typed?.rpe : nil,
+                                   rpe: completingUnfinished ? typed?.rpe ?? planned(slot) : nil,
                                    isWarmup: pendingWarmups.contains(slot),
                                    startTs: nil, endTs: nil, restSec: nil))
         }

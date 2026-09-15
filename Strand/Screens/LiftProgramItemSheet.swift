@@ -289,9 +289,9 @@ struct LiftProgramItemSheet: View {
                         }
                     }
                     // Max RPE is a CEILING, not effort planned in advance (Utku, 15 Sep 2026): the
-                    // hardest a set should feel, so a lifter knows where to hold back. How hard a set
-                    // actually FELT is only known afterwards and is still recorded per set; this is
-                    // shown grey in the session and never saved as a rating (RULES 34).
+                    // hardest a set should feel, so a lifter knows where to hold back. It is shown grey in
+                    // the session and, like every other grey number, a set left unrated saves it
+                    // (Utku, 16 Sep 2026; RULES 34) — typing a rating always wins.
                     HStack(spacing: NoopMetrics.gap) {
                         field("Max RPE (1–10)") {
                             numberInput("8", text: $maxRpeText, field: .maxRpe)
@@ -303,7 +303,7 @@ struct LiftProgramItemSheet: View {
                             .font(StrandFont.footnote)
                             .foregroundStyle(StrandPalette.statusWarning)
                     }
-                    Text("Max RPE is a ceiling: the hardest a set should feel, where 10 means nothing left. It shows grey during the session as a reminder and is never saved as how a set felt.")
+                    Text("Max RPE is a ceiling: the hardest a set should feel, where 10 means nothing left. It shows grey during the session, and a set you leave unrated saves it as its rating.")
                         .font(StrandFont.footnote)
                         .foregroundStyle(StrandPalette.textTertiary)
                         .fixedSize(horizontal: false, vertical: true)

@@ -55,7 +55,7 @@ HELP = [
     ("", False),
     ("Weight is in KILOGRAMS. The app shows it in your chosen unit; it is stored in kg.", False),
     ("Target max RPE is a CEILING from 1 to 10: the hardest a set should feel, 10 meaning nothing", False),
-    ("left. The app shows it grey during the session as a reminder; it is never saved as how a set felt.", False),
+    ("left. The app shows it grey during the session, and a set you leave unrated saves it as its rating.", False),
     ("Rest is in SECONDS. 120 means two minutes.", False),
     ("", False),
     ("Do not rename, reorder or delete the header row - the import matches on those names.", False),

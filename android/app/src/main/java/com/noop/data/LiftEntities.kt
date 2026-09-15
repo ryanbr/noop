@@ -108,7 +108,7 @@ data class LiftProgramItemRow(
     /** Rep-range low end — the 8 of "8-10". */
     val targetRepsLow: Int? = null,
     val targetRepsHigh: Int? = null,
-    /** Max RPE on the user's own 1-10 scale: a ceiling the session shows, never a set's recorded rating. */
+    /** Max RPE on the user's own 1-10 scale: the ceiling the session shows grey, and what a set left unrated records. */
     val targetRpe: Double? = null,
     val targetWeightKg: Double? = null,
     /** Intended rest after each set, seconds. */

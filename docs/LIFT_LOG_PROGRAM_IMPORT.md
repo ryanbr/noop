@@ -26,7 +26,7 @@ has to reject, and the max RPE column only accepts a number from 1 to 10. A seco
 | `Sets` | no | Working sets. |
 | `Reps` | no | One rep count, not a range. |
 | `Weight kg` | no | **Always kilograms.** The app displays it in your chosen unit; it is stored in kg. |
-| `Target max RPE` | no | **A ceiling from 1 to 10**: the hardest a set should feel, 10 meaning nothing left. The session shows it grey (`≤8`) as a reminder; it is never saved as how a set felt. Also read from a column named `Max RPE` or `RPE`. Outside 1–10 imports without it, with a warning. |
+| `Target max RPE` | no | **A ceiling from 1 to 10**: the hardest a set should feel, 10 meaning nothing left. The session shows it grey in the RPE box, and a set you leave unrated saves it as its rating. Also read from a column named `Max RPE` or `RPE`. Outside 1–10 imports without it, with a warning. |
 | `Rest sec` | no | **Seconds.** `120` is two minutes. |
 | `Note` | no | Your technique cue, verbatim. |
 
