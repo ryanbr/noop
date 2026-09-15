@@ -575,4 +575,41 @@ class DeviceConfigReadProbeTest {
             "  GET_FF_VALUE(128) key=\"enable_spo2\" → result=FAILURE(0) record=[01 00]\n"
         assertEquals(golden, rep.render())
     }
+
+    /**
+     * Twin of the Swift guard test (#2193). A FAILURE reply echoes the key back with zero padding, so
+     * the report must not present it as a stored 0.
+     *
+     * Built the same way round as the Swift one, which is what makes it a guard test rather than a
+     * shape test: it first asserts the fixture really is the dangerous frame, then asserts the report
+     * declines it, and a SUCCESS reply carrying the identical record still reports a real 0 so the test
+     * cannot pass by the report having stopped rendering values at all.
+     */
+    @Test
+    fun aFailedReadIsNotReportedAsAStoredValue() {
+        val record = echoRecord("enable_rocky2", 0)
+        fun report(result: Int): DeviceConfigReadProbeReport {
+            val frame = whoop5Response(128, payload(result, record))
+            val reply = DeviceConfigReadProbe.parse(frame, DeviceFamily.WHOOP5, 128).value
+            assertNotNull("the response is valid framing even when the read failed", reply)
+            reply!!
+            assertEquals(
+                "the fixture must be the dangerous shape: key echoed, zero byte after the field",
+                0, reply.valueFor("enable_rocky2"),
+            )
+            val out = DeviceConfigReadProbeReport(DeviceFamily.WHOOP5, emptyList(), emptyList())
+            out.noteReply(reply, DeviceConfigReadProbeReport.Step(128, "enable_rocky2", DeviceConfigReadProbeReport.Group.KNOWN_FLAG))
+            return out
+        }
+
+        val failed = report(0)
+        assertEquals("the rejected read is still recorded", 1, failed.readings.size)
+        assertEquals(0, failed.readings.first().resultCode)
+        assertNull("a FAILURE reply must not be reported as a stored 0", failed.readings.first().value)
+        assertFalse(failed.render().contains("value="))
+
+        val succeeded = report(1)
+        assertEquals("a SUCCESS reply holding 0 is still a real 0", 0, succeeded.readings.first().value)
+        assertTrue(succeeded.render().contains("value="))
+    }
 }

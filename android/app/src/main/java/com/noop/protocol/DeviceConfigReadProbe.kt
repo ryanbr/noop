@@ -422,7 +422,14 @@ class DeviceConfigReadProbeReport(
     /** Record one decoded reply. */
     fun noteReply(r: DeviceConfigReadProbe.ValueResponse, step: Step) {
         setStatus(if (r.isUnsupported) VerbStatus.UNSUPPORTED else VerbStatus.ANSWERED, step.opcode)
-        val value = r.valueFor(step.key)
+        // Twin of the Swift guard (#2193, @Trillient). A FAILURE reply echoes the requested key back
+        // with zero padding, so taking valueFor() regardless of the result code renders a rejected read
+        // as a stored 0, indistinguishable from a key that genuinely holds 0. Found on a WHOOP 5 where
+        // eight guessed keys came back FAILURE and every one of them was reported as a value.
+        //
+        // valueFor() itself is untouched and still answers what the bytes say; this is the report
+        // declining to claim it.
+        val value = if (r.resultCode == null || r.resultCode == 1) r.valueFor(step.key) else null
         _readings.add(
             Reading(step.group, step.opcode, step.key, value, r.resultCode, r.recordHex),
         )
@@ -522,7 +529,13 @@ class DeviceConfigReadProbeReport(
             }
             val named = _readings.count { it.value != null }
             if (named == 0) {
-                return "$answered of 2 read verbs answered, but no reply echoed its key so no value is claimed"
+                // Two sentences, matching Swift: "every reply was rejected" and "replies succeeded but
+                // none carried a verified pair" are different findings, and the single sentence said
+                // only the second, which is the wrong one for a strap that refused every read.
+                if (_readings.all { it.resultCode != null && it.resultCode != 1 }) {
+                    return "$answered of 2 read verbs answered, but no reply reported success; no value is claimed"
+                }
+                return "$answered of 2 read verbs answered, but no successful reply carried a verified key/value pair; no value is claimed"
             }
             return "$answered of 2 read verbs answered; read $named config value(s)"
         }

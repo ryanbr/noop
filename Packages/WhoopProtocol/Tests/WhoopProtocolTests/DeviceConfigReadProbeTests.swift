@@ -159,7 +159,10 @@ final class DeviceConfigReadProbeTests: XCTestCase {
         XCTAssertNil(r.value(for: "whatever"), "an UNSUPPORTED reply must never yield a value")
     }
 
-    #if os(macOS)
+    // These were gated to macOS because that is where the hardware run happened. The behaviour they
+    // pin is not macOS-specific, and gating them meant the guard-only test could not compile on the
+    // platform where the guard was missing: `Executed 0 tests` off macOS, against a probe that builds
+    // for iOS. A test that only runs where the bug is already fixed cannot catch the bug. (#2193)
     func testEchoedFailureBytesAreNotReportedAsStoredValues() {
         // The live WHOOP 5 oxygen-key reads returned FAILURE with the requested key and zeroes.
         for result in [UInt8(0), 2, 3] {
@@ -222,7 +225,6 @@ final class DeviceConfigReadProbeTests: XCTestCase {
         XCTAssertEqual(succeeded.readings.first?.value, 0, "a SUCCESS reply holding 0 is still a real 0")
         XCTAssertTrue(succeeded.render().contains("value=0x00"))
     }
-    #endif
 
     func testNoValueIsClaimedWhenTheReplyDoesNotEchoTheKey() {
         // A plausible-looking record that simply isn't the key we asked for.

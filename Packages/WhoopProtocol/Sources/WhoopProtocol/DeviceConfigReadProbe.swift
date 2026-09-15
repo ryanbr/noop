@@ -472,13 +472,16 @@ public struct DeviceConfigReadProbeReport: Equatable, Sendable {
     /// Record one decoded reply.
     public mutating func noteReply(_ r: DeviceConfigReadProbe.ValueResponse, for step: Step) {
         setStatus(r.isUnsupported ? .unsupported : .answered, for: step.opcode)
-        #if os(macOS)
-        // The macOS hardware run returned FAILURE with an echoed key and zero padding. Keep the
-        // low-level cross-platform decoder intact; this scoped report must not claim a failed value.
+        // The hardware run that found this was on macOS, but the fault is not: a FAILURE reply echoes
+        // the requested key back with zero padding, so taking `value(for:)` regardless of the result
+        // code renders a rejected read as a stored 0, indistinguishable from a key that holds 0. This
+        // file has no platform gate and builds for iOS too, so scoping the guard left the bug live
+        // there, with the test that catches it compiled out by the same condition. A report that
+        // fabricates a value is wrong wherever it runs. (#2193)
+        //
+        // The low-level cross-platform decoder is untouched: `value(for:)` still answers what the
+        // bytes say. This is the report declining to claim it.
         let value = r.resultCode == nil || r.resultCode == 1 ? r.value(for: step.key) : nil
-        #else
-        let value = r.value(for: step.key)
-        #endif
         readings.append(Reading(group: step.group, opcode: step.opcode, key: step.key, value: value,
                                 resultCode: r.resultCode, recordHex: r.recordHex))
         var line = "\(DeviceConfigReadProbeReport.opcodeLabel(step.opcode)) key=\"\(step.key)\""
@@ -566,14 +569,14 @@ public struct DeviceConfigReadProbeReport: Equatable, Sendable {
         }
         let named = readings.filter { $0.value != nil }.count
         if named == 0 {
-            #if os(macOS)
+            // Same reasoning as the guard above: the verdict has to distinguish "every reply was
+            // rejected" from "replies succeeded but none carried a verified pair", on every platform.
+            // The old `#else` said only the second, which is the wrong sentence for a run where the
+            // strap refused every read. (#2193)
             if readings.allSatisfy({ $0.resultCode != nil && $0.resultCode != 1 }) {
                 return "\(answered) of 2 read verbs answered, but no reply reported success; no value is claimed"
             }
             return "\(answered) of 2 read verbs answered, but no successful reply carried a verified key/value pair; no value is claimed"
-            #else
-            return "\(answered) of 2 read verbs answered, but no reply echoed its key so no value is claimed"
-            #endif
         }
         return "\(answered) of 2 read verbs answered; read \(named) config value(s)"
     }
