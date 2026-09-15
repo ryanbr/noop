@@ -243,10 +243,18 @@ public enum AppearanceMode: String, CaseIterable, Identifiable, Sendable {
     public static let storageKey = "theme.appearance"
 
     /// Human label for the Settings control.
+    ///
+    /// `.light` carries an EXPLICIT key rather than using its English text as the key, because
+    /// "Light" is also the name of a SLEEP STAGE (`Palette.swift`, Awake / Light / Deep / REM) and a
+    /// catalogue key IS its English string, so both shared one entry and one translation. Every
+    /// locale then had to pick a meaning, and each picked the sleep one: French offered "Léger"
+    /// (lightweight) as an appearance, Portuguese and Polish offered "Luz" and "Światło"
+    /// (illumination), and Chinese offered 浅睡, "shallow sleep", as a theme. No translation could
+    /// fix that while one key served both. `.dark` and `.system` are unambiguous and keep theirs.
     public var label: String {
         switch self {
         case .system: return String(localized: "System", bundle: .module)
-        case .light:  return String(localized: "Light", bundle: .module)
+        case .light:  return String(localized: "appearance.light", defaultValue: "Light", bundle: .module)
         case .dark:   return String(localized: "Dark", bundle: .module)
         }
     }
