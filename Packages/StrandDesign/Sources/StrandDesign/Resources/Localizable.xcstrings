@@ -44,6 +44,18 @@
             "state": "translated",
             "value": "%lld kilka dni temu"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 天前"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 天前"
+          }
         }
       }
     },
@@ -154,6 +166,18 @@
             "state": "translated",
             "value": "%lld minut"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 分钟"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 分鐘"
+          }
         }
       }
     },
@@ -199,6 +223,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld punkty, średnia %@, zakres %@ do %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 个数据点，平均 %@，范围 %@ 至 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個資料點，平均 %@，範圍 %@ 至 %@"
           }
         }
       }
@@ -246,6 +282,18 @@
             "state": "translated",
             "value": "Odczyty %lld"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 次读数"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 次讀數"
+          }
         }
       }
     },
@@ -292,6 +340,18 @@
             "state": "translated",
             "value": "Treningi %lld"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 次锻炼"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 次鍛鍊"
+          }
         }
       }
     },
@@ -337,6 +397,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lldd temu"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld天前"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld天前"
           }
         }
       }
@@ -448,6 +520,18 @@
             "state": "translated",
             "value": "%lldm temu"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld分钟前"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld分鐘前"
+          }
         }
       }
     },
@@ -558,6 +642,18 @@
             "state": "translated",
             "value": "1 minuta"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 分钟"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 分鐘"
+          }
         }
       }
     },
@@ -604,6 +700,18 @@
             "state": "translated",
             "value": "1 trening"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 次锻炼"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 次鍛鍊"
+          }
         }
       }
     },
@@ -649,6 +757,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "CAŁOŚĆ"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全力"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "全力"
           }
         }
       }
@@ -760,6 +880,18 @@
             "state": "translated",
             "value": "Klasyczny"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "经典"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "經典"
+          }
         }
       }
     },
@@ -805,6 +937,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "WYKOŃCZONY"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已耗尽"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已耗盡"
           }
         }
       }
@@ -857,6 +1001,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ciemny"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "深色"
           }
         }
       }
@@ -1096,6 +1246,18 @@
             "state": "translated",
             "value": "ŚWIATŁO"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "轻度"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "輕度"
+          }
         }
       }
     },
@@ -1270,6 +1432,18 @@
             "state": "translated",
             "value": "UMIARKOWANY"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中等"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "中等"
+          }
         }
       }
     },
@@ -1379,6 +1553,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Brak danych dotyczących tętna"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无心率数据"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無心率資料"
           }
         }
       }
@@ -1490,6 +1676,18 @@
             "state": "translated",
             "value": "GRUNTOWANY"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已就绪"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "就緒"
+          }
         }
       }
     },
@@ -1535,6 +1733,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Regeneracja kalendarz, %lld dni, średnia %lld, niska %lld, wysoka %lld"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "恢复日历，%lld 天，平均 %lld，最低 %lld，最高 %lld"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "恢復日曆，%lld 天，平均 %lld，最低 %lld，最高 %lld"
           }
         }
       }
@@ -1582,6 +1792,18 @@
             "state": "translated",
             "value": "Kalendarz Regeneracja, brak danych"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "恢复日历，无数据"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "恢復日曆，無資料"
+          }
         }
       }
     },
@@ -1627,6 +1849,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "INTENSYWNY"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "吃力"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "吃力"
           }
         }
       }
@@ -1674,6 +1908,18 @@
             "state": "translated",
             "value": "Etapy snu, %@"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "睡眠阶段，%@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "睡眠階段，%@"
+          }
         }
       }
     },
@@ -1719,6 +1965,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Fazy ​​snu, brak danych"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "睡眠阶段，无数据"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "睡眠階段，無資料"
           }
         }
       }
@@ -1830,6 +2088,18 @@
             "state": "translated",
             "value": "Systemowy"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟随系统"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "跟隨系統"
+          }
         }
       }
     },
@@ -1939,6 +2209,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "Trend, punkty %lld, najnowsze %@, niskie %@, wysokie %@"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "趋势，%lld 个数据点，最新 %@，最低 %@，最高 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "趨勢，%lld 個資料點，最新 %@，最低 %@，最高 %@"
           }
         }
       }
@@ -2050,6 +2332,18 @@
             "state": "translated",
             "value": "śpi %@"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "睡眠 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "睡眠 %@"
+          }
         }
       }
     },
@@ -2095,6 +2389,18 @@
           "stringUnit": {
             "state": "translated",
             "value": "średnia %@ bpm"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "平均 %@ bpm"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "平均 %@ bpm"
           }
         }
       }
@@ -2206,6 +2512,18 @@
             "state": "translated",
             "value": "zakres od %@ do %@"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "范围 %@ 至 %@"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "範圍 %@ 至 %@"
+          }
         }
       }
     },
@@ -2240,10 +2558,23 @@
             "state": "translated",
             "value": "%lld"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld"
+          }
         }
       }
     },
     "0xAA 41 00 1c crc32=f3a1  mono 13": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2275,9 +2606,11 @@
             "value": "0xAA 41 00 1c crc32=f3a1 mono 13"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "51 bpm": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2315,9 +2648,11 @@
             "value": "51 уд/мин"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "7h 42m asleep · 92% efficiency": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2355,9 +2690,11 @@
             "value": "7 ч 42 мин сна · эффективность 92%"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "87% · streaming": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2395,9 +2732,11 @@
             "value": "87% · передача"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Add": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2441,9 +2780,11 @@
             "value": "Dodać"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Adopted via NoopButtonStyle": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2481,9 +2822,11 @@
             "value": "Применяется через NoopButtonStyle"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Bar only": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2521,9 +2864,11 @@
             "value": "Только полоса"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Body / Regular 15 — the thread of you, read in full.": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2561,9 +2906,11 @@
             "value": "Body / Regular 15 — нить о вас, прочитанная целиком."
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "COUNT-UP SCORE": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2601,9 +2948,11 @@
             "value": "ОЦЕНКА С ОТСЧЁТОМ"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Calm night": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2641,9 +2990,11 @@
             "value": "Спокойная ночь"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Caption 12": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2675,9 +3026,11 @@
             "value": "Podpis 12"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Card %lld": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2715,7 +3068,8 @@
             "value": "Карточка %lld"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Done": {
       "localizations": {
@@ -2760,10 +3114,17 @@
             "state": "translated",
             "value": "Gotowe"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "完成"
+          }
         }
       }
     },
     "Footnote 11": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2795,9 +3156,11 @@
             "value": "Przypis 11"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "HRV (ms) — 30 days": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2835,9 +3198,11 @@
             "value": "ВСР (мс) — 30 дней"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Headline / Semibold 17": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2869,7 +3234,8 @@
             "value": "Nagłówek / Półpogrubiony 17"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Heart rate, 24 hours": {
       "localizations": {
@@ -2908,10 +3274,23 @@
             "state": "translated",
             "value": "Пульс, 24 часа"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "心率，24 小时"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "心率，24 小時"
+          }
         }
       }
     },
     "Hover a band: stage name, clock start–end and duration.": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2949,9 +3328,11 @@
             "value": "Наведите на полосу: название стадии, время начала и конца и длительность."
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Hover a cell: ring + date, score and recovery-state tooltip.": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -2989,9 +3370,11 @@
             "value": "Наведите на ячейку: кольцо и дата, оценка и подсказка о состоянии восстановления."
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Hover a gauge for a strain + load-word tooltip.": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3029,9 +3412,11 @@
             "value": "Наведите на индикатор, чтобы увидеть подсказку с нагрузкой и её словесной оценкой."
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Hover a ring for a recovery + state-word tooltip.": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3069,9 +3454,11 @@
             "value": "Наведите на кольцо, чтобы увидеть подсказку с восстановлением и его словесной оценкой."
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Hover any sparkline to read the exact sample under the cursor.": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3109,9 +3496,11 @@
             "value": "Наведите на любой мини-график, чтобы прочитать точное значение под курсором."
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Hover the cards to see the lift.": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3149,9 +3538,11 @@
             "value": "Наведите на карточки, чтобы увидеть подъём."
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Hover the line: crosshair + dot + date/value tooltip.": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3189,9 +3580,11 @@
             "value": "Наведите на линию: перекрестие, точка и подсказка с датой и значением."
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Hover to read each day's HRV in ms.": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3229,9 +3622,11 @@
             "value": "Наведите, чтобы прочитать ВСР каждого дня в мс."
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "In a card": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3269,9 +3664,11 @@
             "value": "В карточке"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Last night": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3309,7 +3706,8 @@
             "value": "Последняя ночь"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Movement during sleep": {
       "localizations": {
@@ -3348,10 +3746,23 @@
             "state": "translated",
             "value": "Движение во сне"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "睡眠期间的身体活动"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "睡眠期間的身體活動"
+          }
         }
       }
     },
     "Overline": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3383,7 +3794,8 @@
             "value": "Nadkreśl"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Overview HR": {
       "localizations": {
@@ -3422,10 +3834,23 @@
             "state": "translated",
             "value": "Пульс, обзор"
           }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "概览心率"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "概覽心率"
+          }
         }
       }
     },
     "RECOVERY GRADIENT": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3463,9 +3888,11 @@
             "value": "ГРАДИЕНТ ВОССТАНОВЛЕНИЯ"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Recovery — 30 days": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3503,9 +3930,11 @@
             "value": "Восстановление — 30 дней"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Recovery — past year": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3543,9 +3972,11 @@
             "value": "Восстановление — за прошлый год"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Reduce Motion renders static at the final frame.": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3583,9 +4014,11 @@
             "value": "При включённом «Уменьшении движения» отображается статичный последний кадр."
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Remove": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3629,9 +4062,11 @@
             "value": "Usunąć"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Replay reveal": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3669,9 +4104,11 @@
             "value": "Повторить появление"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Resting HR": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3715,9 +4152,11 @@
             "value": "Odpoczynkowe tętno"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Restless night": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3755,9 +4194,11 @@
             "value": "Беспокойная ночь"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Roll the number": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3795,9 +4236,11 @@
             "value": "Прокрутить число"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "SOFT CARD TRANSITION": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3835,9 +4278,11 @@
             "value": "МЯГКИЙ ПЕРЕХОД КАРТОЧКИ"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "STAGGERED APPEAR": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3875,9 +4320,11 @@
             "value": "ПОСЛЕДОВАТЕЛЬНОЕ ПОЯВЛЕНИЕ"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "STRAIN RAMP": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3915,7 +4362,8 @@
             "value": "НАРАСТАНИЕ НАГРУЗКИ"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Save": {
       "localizations": {
@@ -3960,10 +4408,17 @@
             "state": "translated",
             "value": "Zapisz"
           }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "儲存"
+          }
         }
       }
     },
     "Segment counts & heights": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -4001,9 +4456,11 @@
             "value": "Количество и высота сегментов"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Sleep performance": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -4041,9 +4498,11 @@
             "value": "Качество сна"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Sleep stages": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -4081,9 +4540,11 @@
             "value": "Стадии сна"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Subhead 13": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -4115,9 +4576,11 @@
             "value": "Podtytuł 13"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Title 1 / Bold 28": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -4149,9 +4612,11 @@
             "value": "Tytuł 1 / Pogrubienie 28"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Title 2 / Semibold 22": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -4183,9 +4648,11 @@
             "value": "Tytuł 2 / Półgruby 22"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Toggle gentle spring": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -4223,9 +4690,11 @@
             "value": "Переключить мягкую пружину"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Values": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -4263,9 +4732,11 @@
             "value": "Значения"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Whoop 4.0": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -4297,9 +4768,11 @@
             "value": "Whoop 4.0"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "hour %lld": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -4337,7 +4810,8 @@
             "value": "час %lld"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "Clear search": {
       "localizations": {
