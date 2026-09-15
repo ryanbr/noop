@@ -1,0 +1,170 @@
+{
+  "schemaVersion": 1,
+  "note": "Canonical cross-platform contract for calendar-windowed step-detail buckets.",
+  "cases": [
+    {
+      "id": "week_daily_sparse_leap_and_invalid_days",
+      "range": "W",
+      "anchorDay": "2024-02-29",
+      "readings": [
+        {"day": "2024-02-22", "value": 100},
+        {"day": "2024-02-23", "value": 200},
+        {"day": "2024-02-25", "value": 0},
+        {"day": "2024-02-29", "value": 300},
+        {"day": "2023-02-29", "value": 900},
+        {"day": "2024-02-30", "value": 800},
+        {"day": "2024-2-29", "value": 700},
+        {"day": "not-a-day", "value": 600}
+      ],
+      "expected": [
+        {"key": "2024-02-23", "displayDay": "2024-02-23", "sum": 200, "observedDayCount": 1, "mean": 200},
+        {"key": "2024-02-25", "displayDay": "2024-02-25", "sum": 0, "observedDayCount": 1, "mean": 0},
+        {"key": "2024-02-29", "displayDay": "2024-02-29", "sum": 300, "observedDayCount": 1, "mean": 300}
+      ]
+    },
+    {
+      "id": "two_weeks_daily_inclusive_boundary",
+      "range": "2W",
+      "anchorDay": "2024-03-31",
+      "readings": [
+        {"day": "2024-03-17", "value": 9},
+        {"day": "2024-03-18", "value": 10},
+        {"day": "2024-03-31", "value": 20},
+        {"day": "2024-04-01", "value": 30}
+      ],
+      "expected": [
+        {"key": "2024-03-18", "displayDay": "2024-03-18", "sum": 10, "observedDayCount": 1, "mean": 10},
+        {"key": "2024-03-31", "displayDay": "2024-03-31", "sum": 20, "observedDayCount": 1, "mean": 20}
+      ]
+    },
+    {
+      "id": "three_weeks_daily_inclusive_boundary",
+      "range": "3W",
+      "anchorDay": "2024-04-30",
+      "readings": [
+        {"day": "2024-04-09", "value": 9},
+        {"day": "2024-04-10", "value": 10},
+        {"day": "2024-04-30", "value": 30}
+      ],
+      "expected": [
+        {"key": "2024-04-10", "displayDay": "2024-04-10", "sum": 10, "observedDayCount": 1, "mean": 10},
+        {"key": "2024-04-30", "displayDay": "2024-04-30", "sum": 30, "observedDayCount": 1, "mean": 30}
+      ]
+    },
+    {
+      "id": "month_daily_thirty_calendar_days",
+      "range": "M",
+      "anchorDay": "2024-05-30",
+      "readings": [
+        {"day": "2024-04-30", "value": 4},
+        {"day": "2024-05-01", "value": 5},
+        {"day": "2024-05-30", "value": 15}
+      ],
+      "expected": [
+        {"key": "2024-05-01", "displayDay": "2024-05-01", "sum": 5, "observedDayCount": 1, "mean": 5},
+        {"key": "2024-05-30", "displayDay": "2024-05-30", "sum": 15, "observedDayCount": 1, "mean": 15}
+      ]
+    },
+    {
+      "id": "three_months_weekly_sparse_observed_zero_and_half_up",
+      "range": "3M",
+      "anchorDay": "2024-03-31",
+      "readings": [
+        {"day": "2024-01-01", "value": 999},
+        {"day": "2024-01-02", "value": 100},
+        {"day": "2024-01-07", "value": 200},
+        {"day": "2024-02-28", "value": 0},
+        {"day": "2024-03-01", "value": 101},
+        {"day": "2024-03-31", "value": 50}
+      ],
+      "expected": [
+        {"key": "2024-01-01", "displayDay": "2024-01-01", "sum": 300, "observedDayCount": 2, "mean": 150},
+        {"key": "2024-02-26", "displayDay": "2024-02-26", "sum": 101, "observedDayCount": 2, "mean": 51},
+        {"key": "2024-03-25", "displayDay": "2024-03-25", "sum": 50, "observedDayCount": 1, "mean": 50}
+      ]
+    },
+    {
+      "id": "six_months_monthly_sparse_and_zero_only_bucket",
+      "range": "6M",
+      "anchorDay": "2024-06-30",
+      "readings": [
+        {"day": "2024-01-02", "value": 999},
+        {"day": "2024-01-03", "value": 100},
+        {"day": "2024-01-31", "value": 300},
+        {"day": "2024-06-30", "value": 0}
+      ],
+      "expected": [
+        {"key": "2024-01", "displayDay": "2024-01-01", "sum": 400, "observedDayCount": 2, "mean": 200},
+        {"key": "2024-06", "displayDay": "2024-06-01", "sum": 0, "observedDayCount": 1, "mean": 0}
+      ]
+    },
+    {
+      "id": "year_monthly_leap_year_boundary",
+      "range": "1Y",
+      "anchorDay": "2024-12-31",
+      "readings": [
+        {"day": "2024-01-01", "value": 999},
+        {"day": "2024-01-02", "value": 1},
+        {"day": "2024-01-31", "value": 2},
+        {"day": "2024-02-29", "value": 4},
+        {"day": "2024-12-31", "value": 5}
+      ],
+      "expected": [
+        {"key": "2024-01", "displayDay": "2024-01-01", "sum": 3, "observedDayCount": 2, "mean": 2},
+        {"key": "2024-02", "displayDay": "2024-02-01", "sum": 4, "observedDayCount": 1, "mean": 4},
+        {"key": "2024-12", "displayDay": "2024-12-01", "sum": 5, "observedDayCount": 1, "mean": 5}
+      ]
+    },
+    {
+      "id": "all_monthly_has_no_lower_boundary",
+      "range": "ALL",
+      "anchorDay": "2024-03-01",
+      "readings": [
+        {"day": "2020-01-31", "value": 10},
+        {"day": "2020-02-29", "value": 20},
+        {"day": "2024-03-01", "value": 30},
+        {"day": "2024-03-02", "value": 40}
+      ],
+      "expected": [
+        {"key": "2020-01", "displayDay": "2020-01-01", "sum": 10, "observedDayCount": 1, "mean": 10},
+        {"key": "2020-02", "displayDay": "2020-02-01", "sum": 20, "observedDayCount": 1, "mean": 20},
+        {"key": "2024-03", "displayDay": "2024-03-01", "sum": 30, "observedDayCount": 1, "mean": 30}
+      ]
+    },
+    {
+      "id": "duplicates_last_valid_nonnegative_value_wins",
+      "range": "W",
+      "anchorDay": "2024-07-07",
+      "readings": [
+        {"day": "2024-07-07", "value": 10},
+        {"day": "2024-07-07", "value": 20},
+        {"day": "2024-07-07", "value": -5}
+      ],
+      "expected": [
+        {"key": "2024-07-07", "displayDay": "2024-07-07", "sum": 20, "observedDayCount": 1, "mean": 20}
+      ]
+    },
+    {
+      "id": "single_observed_day_stays_one_week_bucket",
+      "range": "3M",
+      "anchorDay": "2024-08-14",
+      "readings": [
+        {"day": "2024-08-14", "value": 1234}
+      ],
+      "expected": [
+        {"key": "2024-08-12", "displayDay": "2024-08-12", "sum": 1234, "observedDayCount": 1, "mean": 1234}
+      ]
+    },
+    {
+      "id": "daily_positive_half_rounds_up",
+      "range": "M",
+      "anchorDay": "2024-09-01",
+      "readings": [
+        {"day": "2024-09-01", "value": 1.5}
+      ],
+      "expected": [
+        {"key": "2024-09-01", "displayDay": "2024-09-01", "sum": 1.5, "observedDayCount": 1, "mean": 2}
+      ]
+    }
+  ]
+}

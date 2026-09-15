@@ -1,0 +1,26 @@
+<resources>
+    <string name="steps_history">Ваша история шагов.</string>
+    <string name="steps_loading">Загрузка истории шагов.</string>
+    <string name="steps_loading_title">Загрузка…</string>
+    <string name="steps_empty_title">Записей о шагах пока нет</string>
+    <string name="steps_empty_body">Здесь появятся записанные или импортированные данные о шагах.</string>
+    <string name="steps_empty_range">За этот период шаги не записаны. Выберите более длительный период.</string>
+    <string name="steps_ranges_hint">Более длительные периоды станут доступны по мере накопления данных.</string>
+    <string name="steps_as_of">По состоянию на %1$s</string>
+    <string name="steps_latest">Последнее</string>
+    <string name="steps_readings">Измерения</string>
+    <string name="steps_min">Минимум</string>
+    <string name="steps_avg">Среднее</string>
+    <string name="steps_max">Максимум</string>
+    <string name="steps_unit">шаги</string>
+    <string name="steps_value">Шаги: %1$s</string>
+    <string name="steps_mean_value">В среднем %1$s шагов за день с данными</string>
+    <string name="steps_chart_mean">В среднем %1$s шагов/день</string>
+    <string name="steps_week_of">Неделя с %1$s</string>
+    <string name="steps_chart_summary">Шаги, столбцов: %1$d. %2$s</string>
+    <string name="steps_no_data">Шаги, нет данных</string>
+    <string name="steps_average_30">Среднее число шагов за 30 дней</string>
+    <string name="steps_average_subtitle">Скользящее среднее за последние 30 дней</string>
+    <string name="steps_average_coverage">Дней с данными: %1$d из 30</string>
+    <string-array name="steps_ranges"><item>1Н</item><item>2Н</item><item>3Н</item><item>1М</item><item>3М</item><item>6М</item><item>1Г</item><item>ВСЁ</item></string-array>
+</resources>

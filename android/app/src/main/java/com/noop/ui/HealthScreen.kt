@@ -1793,7 +1793,7 @@ private fun TileSparkline(values: List<Double>, color: Color, modifier: Modifier
     }
 }
 
-private data class VitalDetailModel(
+internal data class VitalDetailModel(
     val key: String,
     val title: String,
     val unit: String,
@@ -1919,6 +1919,7 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
     // Profile drives the Fitness Age readiness/countdown shown when that vital has no value yet.
     val profile = remember { ProfileStore.from(context.applicationContext) }
     val isSeriesBacked = key in SERIES_BACKED_VITAL_KEYS
+    val isStepsDetail = key == "steps_est"
     // #1617: the ACTIVE strap's family, resolved brand-aware from the registry rather than from a live
     // flag. Null until the row loads, and null for a non-WHOOP device; both fall through to the neutral
     // empty-state copy, so this never claims a generation it has not established.
@@ -1978,8 +1979,9 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
     val showDayCycleBackground = remember { NoopPrefs.showDayCycleBackground(context) }
     val skyBehindCards = remember { NoopPrefs.skyBehindCards(context) }
     ScreenScaffold(
-        title = detail?.title ?: "Vital Signs",
+        title = detail?.title ?: if (isStepsDetail) uiString(R.string.l10n_health_screen_steps_cdde4f20) else "Vital Signs",
         subtitle = when {
+            isStepsDetail -> uiString(R.string.steps_history)
             key == "fitness_age" && loadedPoints == 0 -> "What your Fitness Age still needs."
             loadedPoints == 1 -> "Your latest reading — trend to follow."
             else -> "Historical trend from cached daily metrics."
@@ -1991,12 +1993,16 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
     ) {
         if (isSeriesBacked && !seriesLoaded) {
             DataPendingNote(
-                title = uiString(R.string.l10n_health_screen_loading_33ce4174),
-                body = "Fetching this metric's history.",
+                title = uiString(if (isStepsDetail) R.string.steps_loading_title else R.string.l10n_health_screen_loading_33ce4174),
+                body = if (isStepsDetail) uiString(R.string.steps_loading) else "Fetching this metric's history.",
             )
             return@ScreenScaffold
         }
-        if (detail == null || detail.points.size < 2) {
+        if (detail == null || detail.points.isEmpty()) {
+            if (isStepsDetail) {
+                DataPendingNote(title = uiString(R.string.steps_empty_title), body = uiString(R.string.steps_empty_body))
+                return@ScreenScaffold
+            }
             // Fitness Age with NO value yet (zero points): show the readiness checklist + the "N more
             // nights of wear" countdown — what it actually needs — instead of the generic "needs two
             // readings to chart" note, which describes the trend line and left the Today card's tap-through
@@ -2028,7 +2034,7 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
             // needs a second point. Show the value + when the chart fills in, never a no-data dead end.
             // Matches iOS, which renders the value hero at a single point. First hit on Fitness Age, then
             // Vitality — both weekly-ish computed scores that sit at one reading for a while.
-            if (detail != null && detail.points.size == 1) {
+            if (!isStepsDetail && detail != null && detail.points.size == 1) {
                 val one = detail.points.last()   // size 1: the single reading (last == the latest)
                 NoopCard {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -2076,12 +2082,18 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
         // The trend chart, the "N readings" header, AND the readings table all derive from this ONE
         // windowed list, so the count and the rows can never disagree (task #8). filteredPoints is just
         // its (day, value) projection for the existing chart/stat code.
-        val filteredReadings = remember(detail, effectiveRange) { filterVitalReadings(detail.readings, effectiveRange) }
-        val filteredPoints = filteredReadings.map { it.day to it.value }
-        if (filteredPoints.size < 2) {
+        val filteredReadings = remember(detail, effectiveRange, isStepsDetail) {
+            if (isStepsDetail) filterStepReadings(detail.readings, effectiveRange)
+            else filterVitalReadings(detail.readings, effectiveRange)
+        }
+        val stepsSeries = remember(detail, effectiveRange, isStepsDetail) {
+            if (isStepsDetail) projectStepsDetail(detail.readings, effectiveRange) else null
+        }
+        val filteredPoints = stepsSeries?.points ?: filteredReadings.map { it.day to it.value }
+        if (filteredPoints.isEmpty() || (!isStepsDetail && filteredPoints.size < 2)) {
             DataPendingNote(
                 title = uiString(R.string.l10n_health_screen_not_enough_history_in_this_range_2da72f80),
-                body = "Try a longer interval like 3M, 6M, 1Y, or ALL to see this vital’s trend.",
+                body = if (isStepsDetail) uiString(R.string.steps_empty_range) else "Try a longer interval like 3M, 6M, 1Y, or ALL to see this vital’s trend.",
             )
             return@ScreenScaffold
         }
@@ -2094,23 +2106,28 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
         // across recompositions that do not change the window.
         val dayLabels = remember(filteredPoints) { filteredPoints.map { shortDayLabel(it.first) } }
         val latest = filteredPoints.last()
+        val latestLabel = stepsSeries?.selectionLabels?.lastOrNull() ?: latest.first
         val min = values.minOrNull()
         val max = values.maxOrNull()
         val avg = values.average()
 
-        SectionHeader(detail.title, overline = "Vital Signs", trailing = "${filteredReadings.size} readings")
+        if (!isStepsDetail) SectionHeader(
+            detail.title,
+            overline = "Vital Signs",
+            trailing = stepsSeries?.let { "${it.buckets.size} bars" } ?: "${filteredReadings.size} readings",
+        )
         NoopCard {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(verticalAlignment = Alignment.Top) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Overline("Latest")
+                        Overline(uiString(R.string.steps_latest))
                         Text(
                             text = uiString(R.string.l10n_health_screen_detail_format_latest_second_detail_unit_9664278b, detail.format(latest.second), detail.unit).trim(),
                             style = NoopType.chartValueLarge,
                             color = detail.color,
                         )
                         Text(
-                            text = uiString(R.string.l10n_health_screen_as_of_latest_first_726f20bb, latest.first),
+                            text = uiString(if (isStepsDetail) R.string.steps_as_of else R.string.l10n_health_screen_as_of_latest_first_726f20bb, latestLabel),
                             style = NoopType.footnote,
                             color = Palette.textTertiary,
                         )
@@ -2127,14 +2144,14 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
                 SegmentedPillControl(
                     items = VitalDetailRange.entries,
                     selection = effectiveRange,
-                    label = { it.label },
+                    label = { if (isStepsDetail) context.resources.getStringArray(R.array.steps_ranges)[it.ordinal] else it.label },
                     onSelect = { range = it },
                     adaptsToAvailableWidth = true,
                     enabled = { it in unlockedRanges },
                 )
                 if (unlockedRanges.size < VitalDetailRange.entries.size) {
                     Text(
-                        uiString(R.string.l10n_health_screen_longer_ranges_unlock_as_more_history_d7da5fee),
+                        uiString(if (isStepsDetail) R.string.steps_ranges_hint else R.string.l10n_health_screen_longer_ranges_unlock_as_more_history_d7da5fee),
                         style = NoopType.footnote,
                         color = Palette.textTertiary,
                     )
@@ -2161,21 +2178,47 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
                 // normal, which does not change because they narrowed the range to a week. Null for every
                 // metric but HRV and resting HR, and null until the baseline is trusted.
                 val baseline = remember(detail.readings, key) { vitalBaseline(key, detail.readings) }
-                val bars = remember(filteredReadings, key, chartStyle) {
-                    if (vitalChartIsBars(chartStyle)) densifyByDay(filteredReadings) else null
+                val bars = remember(filteredReadings, stepsSeries, key, chartStyle) {
+                    when {
+                        stepsSeries != null -> stepsSeries.points
+                        vitalChartIsBars(key, chartStyle) -> densifyByDay(filteredReadings)
+                        else -> null
+                    }
                 }
                 val barValues = remember(bars) { bars?.map { it.second } }
-                val barLabels = remember(bars) { bars?.map { shortDayLabel(it.first) } }
+                val barLabels = remember(bars, stepsSeries) {
+                    stepsSeries?.selectionLabels ?: bars?.map { shortDayLabel(it.first) }
+                }
                 if (barValues != null && barLabels != null) {
-                    BarChart(
-                        baselineValue = baseline,
-                        values = barValues,
-                        modifier = Modifier.height(Metrics.chartHeight),
-                        color = detail.color,
-                        selectionEnabled = true,
-                        selectionLabels = barLabels,
-                        formatValue = { "${detail.format(it)} ${detail.unit}".trim() },
-                    )
+                    val chart: @Composable () -> Unit = {
+                        BarChart(
+                            baselineValue = baseline,
+                            values = barValues,
+                            modifier = Modifier.height(if (isStepsDetail) 300.dp else Metrics.chartHeight),
+                            color = detail.color,
+                            selectionEnabled = true,
+                            selectionLabels = barLabels,
+                            axisStep = if (isStepsDetail) 5000.0 else null,
+                            showValueLabels = isStepsDetail && (effectiveRange == VitalDetailRange.WEEK || effectiveRange == VitalDetailRange.TWO_WEEK),
+                            largeSelectionReadout = isStepsDetail,
+                            formatValue = { value ->
+                                stepsSeries?.let {
+                                    if (it.granularity == com.noop.analytics.StepsDetailGranularity.DAILY) stepsBucketValueLabel(value, it.granularity)
+                                    else uiString(R.string.steps_chart_mean, java.text.NumberFormat.getIntegerInstance().format(value))
+                                }
+                                    ?: "${detail.format(value)} ${detail.unit}".trim()
+                            },
+                        )
+                    }
+                    if (stepsSeries != null) {
+                        Box(
+                            modifier = Modifier.clearAndSetSemantics {
+                                contentDescription = stepsSeries.accessibilitySummary
+                            },
+                        ) { chart() }
+                    } else {
+                        chart()
+                    }
                 } else {
                 LineChart(
                     values = values,
@@ -2238,9 +2281,9 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
                 )
                 Row(modifier = Modifier.fillMaxWidth()) {
                     listOf(
-                        "Min" to min,
-                        "Avg" to avg,
-                        "Max" to max,
+                        uiString(R.string.steps_min) to min,
+                        uiString(R.string.steps_avg) to avg,
+                        uiString(R.string.steps_max) to max,
                     ).forEach { (label, metric) ->
                         Column(modifier = Modifier.weight(1f)) {
                             Overline(label, color = Palette.textTertiary)
@@ -2275,7 +2318,7 @@ private fun VitalReadingsTable(rows: List<VitalReadingRow>) {
     if (rows.isEmpty()) return
     NoopCard {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Overline("Readings")
+            Overline(uiString(R.string.steps_readings))
             // Slim column header naming the three columns — SAME weights as the data rows below so each
             // label sits over its column. Swift twin (MetricExplorerView.readingsTable) mirrors this.
             Row(
@@ -2502,7 +2545,7 @@ private fun buildVitalDetail(
  *  the repo (async): Fitness Age + Vitality off the computed strap the IntelligenceEngine writes, Steps
  *  off the resolved step series (imported ∪ estimated), Active Energy off the Apple-Health import. Colours
  *  match each card's dashboard tint. Returns null for an unknown key. */
-private suspend fun buildSeriesVitalDetail(vm: AppViewModel, key: String): VitalDetailModel? = when (key) {
+internal suspend fun buildSeriesVitalDetail(vm: AppViewModel, key: String): VitalDetailModel? = when (key) {
     // The Today Key-Metrics Rest tile's drill-in: the Rest composite (sleep_performance) trend, read via
     // the SAME imported-wins resolvedSeries merge the tile's score/sparkline use, so the detail can never
     // disagree with the tile (#248 lineage). Each reading names its winning source for the caption.
@@ -2577,23 +2620,27 @@ private suspend fun buildSeriesVitalDetail(vm: AppViewModel, key: String): Vital
         // per-day `?:` chain never double-counts.
         val real = vm.repo.resolvedSeries("steps", "my-whoop", "0000-00-00", "9999-99-99",
             strapDeviceId = vm.activeStrapId)
-            .points.associateBy({ it.day }, { VitalReading(it.day, it.value, it.source) })
+            .points.asSequence()
+            .filter { it.value.isFinite() && it.value >= 0.0 }
+            .associateBy({ it.day }, { VitalReading(it.day, it.value, it.source) })
         val imported = LinkedHashMap<String, VitalReading>()
         for (r in vm.repo.appleDaily("apple-health", "0000-01-01", "9999-12-31") +
             vm.repo.appleDaily("health-connect", "0000-01-01", "9999-12-31")) {
             val s = r.steps
-            if (s != null && s > 0) imported.putIfAbsent(r.day, VitalReading(r.day, s.toDouble(), r.deviceId))
+            if (s != null && s >= 0) imported.putIfAbsent(r.day, VitalReading(r.day, s.toDouble(), r.deviceId))
         }
         val est = vm.repo.resolvedSeries("steps_est", "my-whoop", "0000-00-00", "9999-99-99",
             strapDeviceId = vm.activeStrapId)
-            .points.associateBy({ it.day }, { VitalReading(it.day, it.value, it.source) })
+            .points.asSequence()
+            .filter { it.value.isFinite() && it.value >= 0.0 }
+            .associateBy({ it.day }, { VitalReading(it.day, it.value, it.source) })
         VitalDetailModel(
             key = key,
             title = uiString(R.string.l10n_health_screen_steps_cdde4f20),
-            unit = "steps",
+            unit = uiString(R.string.steps_unit),
             color = Palette.metricCyan,
             readings = mergeStepsReadings(real, imported, est),
-            format = { it.roundToInt().toString() },
+            format = { java.text.NumberFormat.getIntegerInstance().format(it.roundToInt()) },
         )
     }
     "active_kcal" -> {

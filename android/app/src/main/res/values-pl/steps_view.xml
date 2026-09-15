@@ -1,0 +1,26 @@
+<resources>
+    <string name="steps_history">Twoja historia kroków.</string>
+    <string name="steps_loading">Wczytywanie historii kroków.</string>
+    <string name="steps_loading_title">Wczytywanie…</string>
+    <string name="steps_empty_title">Brak zarejestrowanych kroków</string>
+    <string name="steps_empty_body">Zarejestrowane lub zaimportowane liczby kroków pojawią się tutaj.</string>
+    <string name="steps_empty_range">Brak zarejestrowanych kroków w tym okresie. Wybierz dłuższy okres.</string>
+    <string name="steps_ranges_hint">Dłuższe okresy będą dostępne po zarejestrowaniu większej liczby dni.</string>
+    <string name="steps_as_of">Stan na %1$s</string>
+    <string name="steps_latest">Ostatni</string>
+    <string name="steps_readings">Odczyty</string>
+    <string name="steps_min">Minimum</string>
+    <string name="steps_avg">Średnia</string>
+    <string name="steps_max">Maksimum</string>
+    <string name="steps_unit">kroki</string>
+    <string name="steps_value">Liczba kroków: %1$s</string>
+    <string name="steps_mean_value">Średnio %1$s kroków na zarejestrowany dzień</string>
+    <string name="steps_chart_mean">Śr. %1$s kroków/dzień</string>
+    <string name="steps_week_of">Tydzień od %1$s</string>
+    <string name="steps_chart_summary">Kroki, liczba słupków: %1$d. %2$s</string>
+    <string name="steps_no_data">Kroki, brak danych</string>
+    <string name="steps_average_30">Średnia kroków z 30 dni</string>
+    <string name="steps_average_subtitle">Średnia krocząca z ostatnich 30 dni</string>
+    <string name="steps_average_coverage">Zarejestrowane dni: %1$d z 30</string>
+    <string-array name="steps_ranges"><item>1T</item><item>2T</item><item>3T</item><item>1M</item><item>3M</item><item>6M</item><item>1R</item><item>CAŁOŚĆ</item></string-array>
+</resources>

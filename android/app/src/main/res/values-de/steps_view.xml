@@ -1,0 +1,26 @@
+<resources>
+    <string name="steps_history">Dein Schritteverlauf.</string>
+    <string name="steps_loading">Schritteverlauf wird geladen.</string>
+    <string name="steps_loading_title">Wird geladen…</string>
+    <string name="steps_empty_title">Noch keine Schrittzahlen</string>
+    <string name="steps_empty_body">Aufgezeichnete oder importierte Schrittzahlen werden hier angezeigt.</string>
+    <string name="steps_empty_range">Keine Schrittzahlen in diesem Zeitraum erfasst. Wähle einen längeren Zeitraum.</string>
+    <string name="steps_ranges_hint">Längere Zeiträume werden verfügbar, sobald weitere Tage erfasst sind.</string>
+    <string name="steps_as_of">Stand: %1$s</string>
+    <string name="steps_latest">Zuletzt</string>
+    <string name="steps_readings">Messwerte</string>
+    <string name="steps_min">Minimum</string>
+    <string name="steps_avg">Durchschnitt</string>
+    <string name="steps_max">Maximum</string>
+    <string name="steps_unit">Schritte</string>
+    <string name="steps_value">%1$s Schritte</string>
+    <string name="steps_mean_value">%1$s Schritte im Schnitt pro erfasstem Tag</string>
+    <string name="steps_chart_mean">Ø %1$s Schritte/Tag</string>
+    <string name="steps_week_of">Woche ab %1$s</string>
+    <string name="steps_chart_summary">Schritte, %1$d Balken. %2$s</string>
+    <string name="steps_no_data">Schritte, keine Daten</string>
+    <string name="steps_average_30">30-Tage-Schrittedurchschnitt</string>
+    <string name="steps_average_subtitle">Fließender Durchschnitt der letzten 30 Tage</string>
+    <string name="steps_average_coverage">%1$d von 30 Tagen erfasst</string>
+    <string-array name="steps_ranges"><item>1W</item><item>2W</item><item>3W</item><item>1M</item><item>3M</item><item>6M</item><item>1J</item><item>ALLE</item></string-array>
+</resources>

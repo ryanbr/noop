@@ -22,6 +22,7 @@ enum DashboardCard: String, CaseIterable, Identifiable {
     case restingHr
     case respiratory
     case steps
+    case stepsAverage30
     case stress
     case fitnessAge
     case vo2max
@@ -55,6 +56,7 @@ enum DashboardCard: String, CaseIterable, Identifiable {
         case .restingHr:   return String(localized: "Resting HR")
         case .respiratory: return String(localized: "Respiratory")
         case .steps:       return String(localized: "Steps")
+        case .stepsAverage30: return String(localized: "30-day step average")
         case .stress:      return String(localized: "Stress")
         case .fitnessAge:  return String(localized: "Fitness Age")
         case .vo2max:      return String(localized: "VO₂ Max")
@@ -77,6 +79,7 @@ enum DashboardCard: String, CaseIterable, Identifiable {
         case .restingHr:   return String(localized: "Resting heart rate")
         case .respiratory: return String(localized: "Breaths per minute")
         case .steps:       return String(localized: "Today")
+        case .stepsAverage30: return String(localized: "Rolling average over the last 30 days")
         case .stress:      return String(localized: "Autonomic load")
         case .fitnessAge:  return String(localized: "Updated weekly")
         case .vo2max:      return String(localized: "Estimated, updated weekly")
@@ -99,7 +102,7 @@ enum DashboardCard: String, CaseIterable, Identifiable {
         case .hrv:         return "waveform.path.ecg"
         case .restingHr:   return "heart.fill"
         case .respiratory: return "lungs.fill"
-        case .steps:       return "figure.walk"
+        case .steps, .stepsAverage30: return "figure.walk"
         case .stress:      return "bolt.heart"
         case .fitnessAge:  return "figure.run"
         case .vo2max:      return "lungs"
@@ -120,7 +123,7 @@ enum DashboardCard: String, CaseIterable, Identifiable {
         case .hrv:         return "ms"
         case .restingHr:   return "bpm"
         case .respiratory: return "rpm"
-        case .steps:       return ""
+        case .steps, .stepsAverage30: return ""
         case .stress:      return ""
         case .fitnessAge:  return "yrs"
         case .vo2max:      return ""    // the estimated VO₂max number alone; ml/kg/min is too long for a tile
@@ -152,6 +155,17 @@ enum DashboardCard: String, CaseIterable, Identifiable {
 enum DashboardCardPrefs {
     /// UserDefaults key, a JSON array of `DashboardCard` ids in display order.
     static let selectionKey = "today.dashboardCards"
+
+    /// Preserve a prior explicit opt-in once, then let Your Cards own the preference.
+    static func migrateLegacyStepsAverage(defaults: UserDefaults = .standard) {
+        let legacy = (defaults.string(forKey: "today.keyMetrics") ?? "")
+            .split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        guard legacy.contains("stepsAverage30") else { return }
+        var enabled = decodeEnabled(defaults.string(forKey: selectionKey) ?? "")
+        if !enabled.contains(.stepsAverage30) { enabled.append(.stepsAverage30) }
+        defaults.set(encode(enabled), forKey: selectionKey)
+        defaults.set(legacy.filter { $0 != "stepsAverage30" }.joined(separator: ","), forKey: "today.keyMetrics")
+    }
 
     /// Encode an ordered list of enabled cards into the stored JSON string. Falls back to a comma-joined
     /// string if JSON encoding ever fails (it won't for [String]), so the value is always decodable.

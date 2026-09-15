@@ -1,0 +1,26 @@
+<resources>
+    <string name="steps_history">你的步数历史。</string>
+    <string name="steps_loading">正在加载步数历史。</string>
+    <string name="steps_loading_title">正在加载…</string>
+    <string name="steps_empty_title">暂无步数记录</string>
+    <string name="steps_empty_body">记录或导入的步数将显示在这里。</string>
+    <string name="steps_empty_range">此时间段内没有步数记录。请选择更长的时间段。</string>
+    <string name="steps_ranges_hint">随着记录天数的增加，可查看更长的时间段。</string>
+    <string name="steps_as_of">截至 %1$s</string>
+    <string name="steps_latest">最新</string>
+    <string name="steps_readings">记录</string>
+    <string name="steps_min">最小值</string>
+    <string name="steps_avg">平均值</string>
+    <string name="steps_max">最大值</string>
+    <string name="steps_unit">步</string>
+    <string name="steps_value">%1$s 步</string>
+    <string name="steps_mean_value">有记录日平均 %1$s 步</string>
+    <string name="steps_chart_mean">平均 %1$s 步/天</string>
+    <string name="steps_week_of">%1$s 所在周</string>
+    <string name="steps_chart_summary">步数，共 %1$d 个柱形。%2$s</string>
+    <string name="steps_no_data">步数，无数据</string>
+    <string name="steps_average_30">30 天平均步数</string>
+    <string name="steps_average_subtitle">最近 30 天的滚动平均值</string>
+    <string name="steps_average_coverage">30 天中有 %1$d 天有记录</string>
+    <string-array name="steps_ranges"><item>1周</item><item>2周</item><item>3周</item><item>1月</item><item>3月</item><item>6月</item><item>1年</item><item>全部</item></string-array>
+</resources>

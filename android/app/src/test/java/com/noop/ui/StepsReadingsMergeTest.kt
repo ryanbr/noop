@@ -39,4 +39,21 @@ class StepsReadingsMergeTest {
     fun emptyInputsYieldEmpty() {
         assertEquals(emptyList<VitalReading>(), mergeStepsReadings(emptyMap(), emptyMap(), emptyMap()))
     }
+
+    @Test
+    fun invalidHigherPrecedenceValuesYieldToTheNextValidSourceAndZeroIsObserved() {
+        val real = mapOf(
+            "2026-07-10" to r("2026-07-10", Double.NaN, "real"),
+            "2026-07-11" to r("2026-07-11", -1.0, "real"),
+        )
+        val imported = mapOf(
+            "2026-07-10" to r("2026-07-10", 0.0, "health-connect"),
+            "2026-07-11" to r("2026-07-11", 42.0, "apple-health"),
+        )
+
+        assertEquals(
+            listOf(0.0, 42.0),
+            mergeStepsReadings(real, imported, emptyMap()).map { it.value },
+        )
+    }
 }

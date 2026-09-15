@@ -1551,6 +1551,7 @@ struct TodayView: View {
             derivedKey = newKey
         }
         .onAppear {
+            DashboardCardPrefs.migrateLegacyStepsAverage()
             if derivedKey != todayInputKey {
                 derived = buildDerived()
                 derivedKey = todayInputKey
@@ -2670,6 +2671,8 @@ struct TodayView: View {
     private func dashboardCardRow(_ card: DashboardCard) -> some View {
         let tint = dashboardTint(card)
         switch card {
+        case .stepsAverage30:
+            RollingStepsAverageCard(day: selectedDayKey)
         case .stress:
             pinnedCardRow(icon: card.icon, tint: tint, title: card.title, subtitle: card.subtitle,
                           value: dashboardValue(card), route: .stress)
@@ -2718,7 +2721,7 @@ struct TodayView: View {
         case .bloodOxygen: return StrandPalette.metricCyan
         case .skinTemp:    return StrandPalette.metricAmber
         case .sleep:       return StrandPalette.restColor
-        case .steps:       return StrandPalette.metricCyan
+        case .steps, .stepsAverage30: return StrandPalette.metricCyan
         case .calories:    return StrandPalette.metricAmber
         case .hydration:   return StrandPalette.metricCyan
         case .coupled:     return StrandPalette.chargeColor
@@ -2737,6 +2740,8 @@ struct TodayView: View {
             return card.unit.isEmpty ? s : "\(s) \(card.unit)"
         }
         switch card {
+        case .stepsAverage30:
+            return "" // The self-loading card owns its result and coverage together.
         case .hrv:
             #if DEBUG
             if let f = DemoDayHarness.active { return withUnit("\(f.hrvMs)") }

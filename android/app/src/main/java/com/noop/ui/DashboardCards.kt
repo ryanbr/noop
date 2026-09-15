@@ -51,6 +51,7 @@ enum class DashboardCard(
     RESTING_HR("restingHr", R.string.today_card_resting_hr, R.string.today_card_resting_hr_subtitle, "bpm", Icons.Filled.Favorite),
     RESPIRATORY("respiratory", R.string.today_card_respiratory, R.string.today_card_respiratory_subtitle, "rpm", Icons.Filled.Air),
     STEPS("steps", R.string.today_card_steps, R.string.today_card_steps_subtitle, "", Icons.AutoMirrored.Filled.DirectionsWalk),
+    STEPS_AVERAGE_30("stepsAverage30", R.string.steps_average_30, R.string.steps_average_subtitle, "", Icons.AutoMirrored.Filled.DirectionsWalk),
     STRESS("stress", R.string.today_card_stress, R.string.today_card_stress_subtitle, "", Icons.Filled.Bolt),
     FITNESS_AGE("fitnessAge", R.string.today_card_fitness_age, R.string.today_card_fitness_age_subtitle, "yrs", Icons.AutoMirrored.Filled.DirectionsRun),
     VO2MAX("vo2max", R.string.today_card_vo2max, R.string.today_card_vo2max_subtitle, "", Icons.Filled.Air),
@@ -89,6 +90,8 @@ enum class DashboardCard(
 
         /** Canonical order used to list the disabled remainder in the editor (matches iOS allCases order). */
         val canonicalOrder: List<DashboardCard> = entries.toList()
+
+        fun hiddenOptions(shown: List<DashboardCard>): List<DashboardCard> = canonicalOrder.filter { it !in shown }
     }
 }
 
@@ -104,8 +107,18 @@ object DashboardCardPrefs {
     private const val KEY_SELECTION = "today.dashboardCards"
 
     /** The enabled cards in display order. An empty/unset value yields the default selection. */
-    fun enabled(context: Context): List<DashboardCard> =
-        decodeEnabled(NoopPrefs.of(context).getString(KEY_SELECTION, null))
+    fun enabled(context: Context): List<DashboardCard> {
+        val prefs = NoopPrefs.of(context)
+        val enabled = decodeEnabled(prefs.getString(KEY_SELECTION, null))
+        // Move an explicit prior opt-in once; removing the old token prevents re-enabling after hiding.
+        val legacy = prefs.getString("today.keyMetrics", null)?.split(",")?.map { it.trim() }.orEmpty()
+        if ("stepsAverage30" !in legacy) return enabled
+        val migrated = (enabled + DashboardCard.STEPS_AVERAGE_30).distinct()
+        prefs.edit().putString(KEY_SELECTION, encode(migrated))
+            .putString("today.keyMetrics", legacy.filter { it != "stepsAverage30" }.joinToString(","))
+            .apply()
+        return migrated
+    }
 
     /** Persist the enabled cards in order. Disabled cards are simply omitted from the stored string. */
     fun setEnabled(context: Context, cards: List<DashboardCard>) {

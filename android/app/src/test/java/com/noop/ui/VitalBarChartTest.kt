@@ -25,7 +25,7 @@ class VitalBarChartTest {
      */
     @Test
     fun `a chosen line draws lines, including for the daily scores`() {
-        assertFalse(vitalChartIsBars(TrendChartStyle.LINE))
+        assertFalse(vitalChartIsBars("recovery", TrendChartStyle.LINE))
     }
 
     /**
@@ -34,7 +34,7 @@ class VitalBarChartTest {
      */
     @Test
     fun `a chosen bar draws bars`() {
-        assertTrue(vitalChartIsBars(TrendChartStyle.BAR))
+        assertTrue(vitalChartIsBars("recovery", TrendChartStyle.BAR))
     }
 
     /**
@@ -51,7 +51,7 @@ class VitalBarChartTest {
         )
         for (style in TrendChartStyle.entries) {
             val expected = style == TrendChartStyle.BAR
-            keys.forEach { assertEquals("$it under $style", expected, vitalChartIsBars(style)) }
+            keys.forEach { assertEquals("$it under $style", expected, vitalChartIsBars(it, style)) }
         }
     }
 
@@ -64,7 +64,7 @@ class VitalBarChartTest {
     @Test
     fun `an unset preference resolves to line`() {
         assertEquals(TrendChartStyle.LINE, TrendChartStyle.fromRaw(null))
-        assertFalse(vitalChartIsBars(TrendChartStyle.fromRaw(null)))
+        assertFalse(vitalChartIsBars("hrv", TrendChartStyle.fromRaw(null)))
     }
 
     // --- one slot per day ---

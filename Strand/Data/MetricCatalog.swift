@@ -212,8 +212,14 @@ enum MetricCatalog {
 
     static func inCategory(_ c: String) -> [MetricDescriptor] { all.filter { $0.category == c } }
 
+    /// Explicit fused view for the rolling-average tile, not a replacement for source-specific entries.
+    static let combinedStepsSource = "noop-combined-steps"
+
     static func metric(key: String, source: String) -> MetricDescriptor? {
-        all.first { $0.key == key && $0.source == source }
+        if key == "steps", source == combinedStepsSource {
+            return d("steps", String(localized: "Steps"), "Effort", "", source, "figure.walk", 0, true)
+        }
+        return all.first { $0.key == key && $0.source == source }
     }
 
     /// The source the Today steps tile taps through to, matching the value it displays. Precedence

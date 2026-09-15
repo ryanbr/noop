@@ -1,0 +1,26 @@
+<resources>
+    <string name="steps_history">O teu histórico de passos.</string>
+    <string name="steps_loading">A carregar o histórico de passos.</string>
+    <string name="steps_loading_title">A carregar…</string>
+    <string name="steps_empty_title">Ainda não há registos de passos</string>
+    <string name="steps_empty_body">As contagens de passos registadas ou importadas aparecerão aqui.</string>
+    <string name="steps_empty_range">Não há passos registados neste período. Seleciona um período mais longo.</string>
+    <string name="steps_ranges_hint">Ficarão disponíveis períodos mais longos à medida que forem registados mais dias.</string>
+    <string name="steps_as_of">À data de %1$s</string>
+    <string name="steps_latest">Mais recente</string>
+    <string name="steps_readings">Registos</string>
+    <string name="steps_min">Mínimo</string>
+    <string name="steps_avg">Média</string>
+    <string name="steps_max">Máximo</string>
+    <string name="steps_unit">passos</string>
+    <string name="steps_value">%1$s passos</string>
+    <string name="steps_mean_value">Média de %1$s passos por dia registado</string>
+    <string name="steps_chart_mean">Média: %1$s passos/dia</string>
+    <string name="steps_week_of">Semana de %1$s</string>
+    <string name="steps_chart_summary">Passos, %1$d barras. %2$s</string>
+    <string name="steps_no_data">Passos, sem dados</string>
+    <string name="steps_average_30">Média de passos de 30 dias</string>
+    <string name="steps_average_subtitle">Média móvel dos últimos 30 dias</string>
+    <string name="steps_average_coverage">%1$d de 30 dias registados</string>
+    <string-array name="steps_ranges"><item>1S</item><item>2S</item><item>3S</item><item>1M</item><item>3M</item><item>6M</item><item>1A</item><item>TUDO</item></string-array>
+</resources>

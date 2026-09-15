@@ -1,9 +1,15 @@
 package com.noop.ui
 
 import com.noop.analytics.Baselines
+import com.noop.analytics.StepsDetailBucket
+import com.noop.analytics.StepsDetailDensity
+import com.noop.analytics.StepsDetailGranularity
+import com.noop.analytics.StepsDetailRange
+import com.noop.analytics.StepsDetailReading
 import com.noop.data.Vo2MaxEstimator
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import java.time.format.ResolverStyle
 import java.util.Locale
 
 /** One windowed reading behind a vital's detail chart: its day ("YYYY-MM-DD"), the value, and the RAW
@@ -114,7 +120,8 @@ internal fun vitalBaseline(key: String, readings: List<VitalReading>): Double? {
 }
 
 /**
- * Whether this screen draws BARS rather than a line: the user's chart-style setting, and nothing else.
+ * Whether this screen draws BARS rather than a line. Steps are the one domain override; every other
+ * vital keeps the user's chart-style setting unchanged.
  *
  * #2011 chose bars per METRIC instead, forcing them for the daily scores because a line asserts continuity
  * between points and a daily score never travelled between its readings. The reasoning holds, but the rule
@@ -122,16 +129,15 @@ internal fun vitalBaseline(key: String, readings: List<VitalReading>): Double? {
  * bars anyway. It also left the inverse broken in the other direction, where a chosen `BAR` still got lines
  * here for every metric outside those three.
  *
- * The setting is the setting. Trends already applies it to every metric ([TrendsScreen] reads the same
- * preference), so a detail chart reached from a Today ring now agrees with the trend chart for the same
- * metric rather than contradicting it.
+ * Steps are discrete counts and their shared density contract requires daily, weekly or monthly bars.
+ * For every other metric Trends already applies the same preference ([TrendsScreen] reads it too), so a
+ * detail chart reached from a Today ring agrees with the trend chart rather than contradicting it.
  *
- * That leaves #2011's argument attached to the DEFAULT rather than to an override, which is where it can be
- * acted on visibly: if bars really are the honest shape for a daily score, the default belongs on bars, in
- * the picker, where the setting and the chart say the same thing. Overriding a user silently is not the
- * same claim and should not be made on its behalf.
+ * No source-specific key participates: the Android detail key represents the fachliche steps metric after
+ * source resolution, so WHOOP, imports and estimates all receive the same chart contract.
  */
-internal fun vitalChartIsBars(style: TrendChartStyle): Boolean = style == TrendChartStyle.BAR
+internal fun vitalChartIsBars(key: String, style: TrendChartStyle): Boolean =
+    key == "steps_est" || style == TrendChartStyle.BAR
 
 /**
  * One slot per DAY across the window, rather than one per reading.
@@ -200,7 +206,10 @@ internal fun mergeStepsReadings(
     est: Map<String, VitalReading>,
 ): List<VitalReading> =
     (real.keys + imported.keys + est.keys).toSortedSet()
-        .mapNotNull { d -> real[d] ?: imported[d] ?: est[d] }
+        .mapNotNull { day ->
+            listOf(real[day], imported[day], est[day])
+                .firstOrNull { it != null && it.value.isFinite() && it.value >= 0.0 }
+        }
 
 /** #616: per-day precedence merge for a metric with disjoint stores (first non-null per day wins),
  *  ascending. The N-store generalisation of [mergeStepsReadings]; calories reuse it as the two-store
@@ -262,6 +271,100 @@ internal enum class VitalDetailRange(val label: String, val days: Long?) {
     SIX_MONTH("6M", 180),
     YEAR("1Y", 365),
     ALL("ALL", null),
+}
+
+/** Android-facing view of the shared steps projection. Every chart-facing surface consumes this one
+ * bucket list; the daily readings table deliberately continues to consume [VitalReading] instead. */
+internal data class StepsDetailUiSeries(
+    val buckets: List<StepsDetailBucket>,
+    val granularity: StepsDetailGranularity,
+    val points: List<Pair<String, Double>>,
+    val selectionLabels: List<String>,
+    val accessibilitySummary: String,
+)
+
+private fun VitalDetailRange.stepsRange(): StepsDetailRange = when (this) {
+    VitalDetailRange.WEEK -> StepsDetailRange.WEEK
+    VitalDetailRange.TWO_WEEK -> StepsDetailRange.TWO_WEEKS
+    VitalDetailRange.THREE_WEEK -> StepsDetailRange.THREE_WEEKS
+    VitalDetailRange.MONTH -> StepsDetailRange.MONTH
+    VitalDetailRange.THREE_MONTH -> StepsDetailRange.THREE_MONTHS
+    VitalDetailRange.SIX_MONTH -> StepsDetailRange.SIX_MONTHS
+    VitalDetailRange.YEAR -> StepsDetailRange.YEAR
+    VitalDetailRange.ALL -> StepsDetailRange.ALL
+}
+
+/** Project the already source-resolved daily readings through P1's calendar contract. */
+internal fun projectStepsDetail(
+    readings: List<VitalReading>,
+    range: VitalDetailRange,
+    resolveString: (Int, Array<out Any>) -> String = ::uiString,
+): StepsDetailUiSeries {
+    val sharedRange = range.stepsRange()
+    val buckets = StepsDetailDensity.project(
+        readings.map { StepsDetailReading(day = it.day, value = it.value) },
+        sharedRange,
+    )
+    val granularity = sharedRange.granularity()
+    val points = buckets.map { it.displayDay to it.mean.toDouble() }
+    val labels = buckets.map { bucket -> stepsBucketLabel(bucket.displayDay, granularity, resolveString) }
+    val accessibility = if (buckets.isEmpty()) {
+        resolveString(com.noop.R.string.steps_no_data, emptyArray())
+    } else {
+        resolveString(com.noop.R.string.steps_chart_summary, arrayOf(buckets.size, labels.zip(buckets).joinToString(
+            separator = "; ",
+        ) { (label, bucket) ->
+            "$label, ${stepsBucketValueLabel(bucket.mean.toDouble(), granularity, resolveString)}"
+        }))
+    }
+    return StepsDetailUiSeries(buckets, granularity, points, labels, accessibility)
+}
+
+internal fun stepsBucketValueLabel(
+    value: Double,
+    granularity: StepsDetailGranularity,
+    resolveString: (Int, Array<out Any>) -> String = ::uiString,
+): String =
+    if (granularity == StepsDetailGranularity.DAILY) {
+        resolveString(com.noop.R.string.steps_value, arrayOf(java.text.NumberFormat.getIntegerInstance().format(value.toInt())))
+    } else {
+        resolveString(com.noop.R.string.steps_mean_value, arrayOf(java.text.NumberFormat.getIntegerInstance().format(value.toInt())))
+    }
+
+private fun stepsBucketLabel(
+    day: String,
+    granularity: StepsDetailGranularity,
+    resolveString: (Int, Array<out Any>) -> String,
+): String {
+    val parsed = strictLocalDay(day) ?: return day
+    return when (granularity) {
+        StepsDetailGranularity.DAILY -> parsed.format(DateTimeFormatter.ofPattern("d MMM", Locale.getDefault()))
+        StepsDetailGranularity.WEEKLY ->
+            resolveString(com.noop.R.string.steps_week_of, arrayOf(parsed.format(DateTimeFormatter.ofPattern("d MMM", Locale.getDefault()))))
+        StepsDetailGranularity.MONTHLY -> parsed.format(DateTimeFormatter.ofPattern("MMM yyyy", Locale.getDefault()))
+    }
+}
+
+private val STRICT_LOCAL_DAY = DateTimeFormatter.ISO_LOCAL_DATE.withResolverStyle(ResolverStyle.STRICT)
+
+private fun strictLocalDay(text: String): LocalDate? =
+    if (!text.matches(Regex("\\d{4}-\\d{2}-\\d{2}"))) null
+    else runCatching { LocalDate.parse(text, STRICT_LOCAL_DAY) }.getOrNull()
+
+/** Calendar-window the raw table without ever substituting a number-of-readings fallback. Malformed day
+ * keys remain visible in the table, as required by the projection contract, but never enter buckets. */
+internal fun filterStepReadings(
+    readings: List<VitalReading>,
+    range: VitalDetailRange,
+): List<VitalReading> {
+    val validValues = readings.filter { it.value.isFinite() && it.value >= 0.0 }
+    val windowDays = range.days ?: return validValues
+    val anchor = validValues.mapNotNull { strictLocalDay(it.day) }.maxOrNull()
+        ?: return validValues.filter { strictLocalDay(it.day) == null }
+    val cutoff = anchor.minusDays(windowDays - 1)
+    return validValues.filter { reading ->
+        strictLocalDay(reading.day)?.let { !it.isBefore(cutoff) && !it.isAfter(anchor) } ?: true
+    }
 }
 
 /** Days spanned by a vital's history: last point's day minus first point's day in epoch days (0 for
