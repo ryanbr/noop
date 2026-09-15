@@ -19,4 +19,4 @@ Strand/Resources/Localizable.xcstrings:ru 1
 Strand/Resources/Localizable.xcstrings:zh-Hans 129
 Strand/Resources/Localizable.xcstrings:zh-Hant 179
 values-ru/strings.xml 121
-values-zh/strings.xml 49
+values-zh/strings.xml 0

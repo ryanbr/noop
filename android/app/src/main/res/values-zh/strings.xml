@@ -2685,4 +2685,67 @@
     <string name="l10n_today_screen_scan_and_connect_40157030">扫描并连接</string>
     <string name="l10n_health_screen_fitness_age_stops_here_vo_max_383d989a">体能年龄到此为止，VO₂max 仍在变化。</string>
     <string name="l10n_app_changelog_a_stress_screen_that_keeps_up_f7ec3f36">跟得上的压力页面、以手环实际发送单位读取的 WHOOP 5 数值，以及不再重复上报的指环</string>
+    <string name="l10n_devices_screen_battery_info_probe_592_re_1dbd4c0f">电池信息探测（#592 RE）…</string>
+    <string name="l10n_devices_screen_battery_info_probe_result_592_b97c0bb8">电池信息探测结果（#592）</string>
+    <string name="l10n_devices_screen_body_location_probe_690_re_7def8c39">佩戴位置探测（#690 RE）…</string>
+    <string name="l10n_devices_screen_body_location_probe_result_690_60c5ee79">佩戴位置探测结果（#690）</string>
+    <string name="l10n_devices_screen_body_location_probe_explainer_a9363239">发送只读的佩戴位置命令（0x54），并将手环的完整原始回复转储到手环日志；在 WHOOP 4.0 上会解码该记录（版本／位置／置信度／状态）。不会向手环写入任何内容，也不会改变佩戴检测或评分。</string>
+    <string name="l10n_devices_screen_battery_probe_explainer_2858bb6a">两份独立的协议表对扩展电池操作码存在分歧（98 与 87）。此操作发送经整理的只读 98，并将手环的完整原始回复转储到手环日志。返回电池格式的负载即可确认你的固件使用 98；若只返回简短存根，则仍无法确定。不会向手环写入任何内容。请在之后导出并分享手环日志。</string>
+    <string name="l10n_devices_screen_close_bbfa773e">关闭</string>
+    <string name="l10n_devices_screen_copy_af74f7c5">复制</string>
+    <string name="l10n_devices_screen_pack_voltage_9af3c3ff">%1$.2f V</string>
+    <string name="l10n_devices_screen_send_probe_read_only_36b318bc">发送探测（只读）</string>
+    <string name="l10n_devices_screen_waiting_for_the_straps_reply_5a06e7ac">正在等待手环回复…</string>
+    <string name="l10n_live_workout_screen_cancel_77dfd213">取消</string>
+    <string name="l10n_live_workout_screen_end_this_workout_4869c76a">结束此次运动？</string>
+    <string name="l10n_live_workout_screen_this_stops_recording_and_saves_what_3e17a23e">这将停止记录并保存目前已采集的内容，且无法继续。</string>
+    <string name="l10n_notifications_settings_screen_optimal_strain_reached_2862ec2b">已达到最佳负荷</string>
+    <string name="l10n_app_changelog_optimal_strain_alerts_faster_history_sync_6488a27a">最佳负荷提醒、更快的历史同步，以及一批准确性修复</string>
+    <string name="l10n_workouts_screen_heart_rate_recovery_516">心率恢复</string>
+    <string name="l10n_workouts_screen_after_high_intensity_effort_516">高强度运动之后</string>
+    <string name="l10n_workouts_screen_peak_hr_bpm_516">峰值 %1$d bpm</string>
+    <string name="l10n_workouts_screen_hrr_one_minute_516">1 分钟</string>
+    <string name="l10n_workouts_screen_hrr_two_minutes_516">2 分钟</string>
+    <string name="l10n_workouts_screen_hrr_five_minutes_516">5 分钟</string>
+    <string name="l10n_workouts_screen_hrr_bpm_516">bpm</string>
+    <string name="l10n_workouts_screen_hrr_not_available_516">暂无数据</string>
+    <string name="l10n_workouts_screen_hrr_accessibility_516">%1$s 的心率恢复，每分钟 %2$s 次</string>
+    <string name="l10n_workouts_screen_hrr_explanation_516">相对于运动结束时心率的变化。正值表示心率下降；短横线表示手环在该分钟前后未记录到足够的数据。</string>
+    <string name="l10n_workouts_screen_recovery_trend_516">恢复趋势</string>
+    <string name="l10n_workouts_screen_hrr_range_516">心率恢复 · %1$s</string>
+    <string name="l10n_workouts_screen_hrr_trend_explanation_516">每条线显示运动后心率的变化幅度（每分钟心跳次数）。仅包含记录了运动后心率的高强度运动。</string>
+    <string name="l10n_workouts_screen_hrr_chart_accessibility_516">心率恢复趋势（每分钟心跳次数）</string>
+    <string name="l10n_workouts_screen_hrr_last_7_days_516">最近 7 天</string>
+    <string name="l10n_workouts_screen_hrr_last_30_days_516">最近 30 天</string>
+    <string name="l10n_workouts_screen_hrr_last_90_days_516">最近 90 天</string>
+    <string name="settings_streak_title">连续记录</string>
+    <string name="trends_training_load">训练负荷</string>
+    <string name="trends_tl_legend_ctl">CTL · 体能</string>
+    <string name="trends_tl_legend_atl">ATL · 疲劳</string>
+    <string name="trends_tl_established">42 天体能与 7 天疲劳对比</string>
+    <string name="trends_tl_building">正在建立：%1$d / %2$d 天</string>
+    <string name="trends_tl_unavailable">长期负荷与急性负荷对比</string>
+    <string name="trends_tl_needs">需要连续 %1$d 天以上的负荷记录才能开始。目前 %2$d 天。</string>
+    <string name="trends_tl_form">竞技状态</string>
+    <plurals name="intelligence_days_count">
+        <item quantity="other">%1$d 天</item>
+    </plurals>
+    <plurals name="lab_book_readings_count">
+        <item quantity="other">%1$d 条记录 · 你自己的条目</item>
+    </plurals>
+    <plurals name="trends_weeks_ago">
+        <item quantity="other">%1$d 周前</item>
+    </plurals>
+    <plurals name="explore_n_days">
+        <item quantity="other">%1$d 天</item>
+    </plurals>
+    <plurals name="l10n_workouts_screen_hrr_workout_count_516">
+        <item quantity="other">%1$d 次运动</item>
+    </plurals>
+    <plurals name="settings_streak_run">
+        <item quantity="other">连续 %1$d 天</item>
+    </plurals>
+    <plurals name="settings_streak_longest">
+        <item quantity="other">最长：%1$d 天</item>
+    </plurals>
 </resources>
