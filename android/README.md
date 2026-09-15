@@ -10,7 +10,7 @@ the user owns.
 This is an independent Kotlin / Jetpack Compose reimplementation of the macOS/iOS
 reference app (`Strand/`, Swift). The protocol, framing, and BLE handshake are
 translated from that hardware-verified implementation, not invented here, and kept in
-byte-for-byte parity with it (see the repo root [`CLAUDE.md`](../CLAUDE.md)).
+byte-for-byte parity with it (see the repo root [`AGENTS.md`](../AGENTS.md)).
 
 ---
 

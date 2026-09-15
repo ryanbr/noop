@@ -146,7 +146,7 @@ The Android coordinator (`android/app/src/main/java/com/noop/ble/…`) mirrors t
 
 ## What validates this change
 
-Per `CLAUDE.md`, know the coverage before claiming it works:
+Per [AGENTS.md](../AGENTS.md), know the coverage before claiming it works:
 
 - **`swift test` (`Packages/**`)** does **not** cover this — the coordinator and drivers live under
   `Strand/BLE`, i.e. **app-target Swift with no default CI** (`app-build.yml` is disabled). So:

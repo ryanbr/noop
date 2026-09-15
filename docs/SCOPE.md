@@ -3,7 +3,7 @@
 NOOP exists to give you **your own strap data, offline and on-device**. That mission sets hard limits
 on what belongs in the app. This page names the WHOOP-app features that stay **out of scope** — and the
 local equivalents that stay **in scope** — so a parity proposal has a standing answer before a PR is
-opened. It does not change the constraints stated in [CLAUDE.md](../CLAUDE.md), the
+opened. It does not change the constraints stated in [AGENTS.md](../AGENTS.md), the
 [Contributing guide](CONTRIBUTING.md), or the [Disclaimer](../DISCLAIMER.md); it maps them onto specific
 features so the boundary is discoverable.
 
@@ -36,7 +36,7 @@ on-device from NOOP's own data and make no medical claim.
   curiosity is fine **only** as **default-off instrumentation** with explicit **non-diagnostic** wording
   — never an alert, never a health warning, never "possible arrhythmia" language, and never feeding a
   downstream gate. This mirrors the physiological-signal rule in
-  [CLAUDE.md](../CLAUDE.md): an unproven derivation lands as instrumentation, not a shipped feature.
+  [AGENTS.md](../AGENTS.md): an unproven derivation lands as instrumentation, not a shipped feature.
 - **Local notifications from NOOP's own metrics** — charge, alarm, sync state — computed on-device.
 - **Local export / import / reporting** — your data leaves only when *you* export it, including the
   explicit, default-off standing export described below.
