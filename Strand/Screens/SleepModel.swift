@@ -105,7 +105,18 @@ struct Night {
         let onsetDay = Date(timeIntervalSince1970: TimeInterval(session.effectiveStartTs))
         let wakeDay  = Date(timeIntervalSince1970: TimeInterval(session.endTs))
         let cal = Calendar.current
-        if cal.isDate(onsetDay, inSameDayAs: wakeDay) { return Night.dateFmt.string(from: onsetDay) }
+        // A night that BEGINS after midnight has onset and wake on one calendar date, and naming it
+        // by that date makes it repeat the date the row above already leads with: the carousel is
+        // keyed by wake day, so the night before it woke on this same date. Name it by the evening it
+        // belongs to instead, its wake day minus one, which is what the cross-midnight branch below
+        // already leads with and what Android prints (#2199).
+        //
+        // `byAdding:` rather than subtracting 86_400 seconds: a DST day is 23 or 25 hours long and
+        // the arithmetic form lands on the wrong calendar date.
+        if cal.isDate(onsetDay, inSameDayAs: wakeDay) {
+            let nightDay = cal.date(byAdding: .day, value: -1, to: wakeDay) ?? wakeDay
+            return Night.dateFmt.string(from: nightDay)
+        }
         return "\(Night.spanFmt.string(from: onsetDay)) → \(Night.dateFmt.string(from: wakeDay))"
     }
 
