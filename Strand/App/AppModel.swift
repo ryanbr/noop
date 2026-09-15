@@ -671,8 +671,19 @@ final class AppModel: ObservableObject {
     /// a question whose answer is already known to be "yes, there is work".
     func runDeferredRescoreIfOwed() async {
         guard RescoreBackgroundScheduler.isRescoreOwed else { return }
-        live.append(log: "re-score: resuming a pass an earlier attempt could not finish (#1538)")
-        await intelligence.analyzeRecent()
+        // #2238: force only when the debt is UNPROVEN — an interrupted pass, whose watermark was
+        // deliberately never advanced. A pass that COMPLETED and was merely outvoted by a token recorded
+        // mid-pass did advance it, so asking the fingerprint is a real question with a real answer, and a
+        // "nothing changed" answer is the only thing that lets this chain stop.
+        //
+        // Without it a ring draining every 5 minutes re-scores 21 nights continuously while the app is
+        // awake: each pass runs longer than the drain interval, so it always finishes owing a newer debt,
+        // and the resume forces the next one whether or not a single row moved.
+        let fromCompletedPass = RescoreBackgroundScheduler.isOwedAfterCompletedPass
+        live.append(log: "re-score: resuming a pass an earlier attempt could not finish (#1538)"
+                    + (fromCompletedPass ? " — debt is from a completed pass, gating on the fingerprint (#2238)" : ""))
+        await intelligence.analyzeRecent(skipIfUnchanged: fromCompletedPass,
+                                         triggerLabel: fromCompletedPass ? "resume-gated" : "resume-forced")
         #if os(iOS)
         // The deferred pass is the one that finally produces today's score, and it runs with no UI
         // attached — so publish the snapshot here too, for the same reason the post-offload path does.

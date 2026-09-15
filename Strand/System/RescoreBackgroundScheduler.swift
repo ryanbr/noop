@@ -44,7 +44,26 @@ enum RescoreBackgroundScheduler {
     /// marks each produce a distinct one, the last wins, and it cannot equal any pass's captured token.
     static let owedTokenKey = "noop.rescoreOwedToken"
 
+    /// Whether the outstanding debt was left by a pass that COMPLETED but could not settle, as opposed to
+    /// one that was killed partway.
+    ///
+    /// #2238: the two are not the same question, and `isRescoreOwed` alone cannot tell them apart. A killed
+    /// pass deliberately never advanced `analyzeWatermarkKey`, so its resume must force. A pass that
+    /// completed and was merely out-voted by a newer token DID advance the watermark on its way out, so its
+    /// resume can ask the fingerprint whether anything actually changed and stand down when nothing did.
+    ///
+    /// Forcing both is what lets an Oura ring draining every 5 minutes re-score 21 nights back to back for
+    /// as long as the app is awake: each pass outlives its own debt, the resume forces a fresh one, and the
+    /// chain never reaches a quiet interval it can stop at.
+    static let owedAfterCompletedPassKey = "noop.rescoreOwedAfterCompletedPass"
+
     static var isRescoreOwed: Bool { UserDefaults.standard.bool(forKey: owedKey) }
+
+    /// True only while the outstanding debt came from a completed-but-unsettled pass. Cleared by the next
+    /// `markRescoreOwed()`, so a debt recorded by a pass that then dies reverts to forcing.
+    static var isOwedAfterCompletedPass: Bool {
+        UserDefaults.standard.bool(forKey: owedAfterCompletedPassKey)
+    }
 
     static var currentOwedToken: String? { UserDefaults.standard.string(forKey: owedTokenKey) }
 
@@ -64,6 +83,10 @@ enum RescoreBackgroundScheduler {
         let token = UUID().uuidString
         UserDefaults.standard.set(true, forKey: owedKey)
         UserDefaults.standard.set(token, forKey: owedTokenKey)
+        // A fresh debt is unproven until the pass that owns it finishes: if THIS pass is killed, the
+        // watermark never advances and its resume must force. Cleared here rather than at completion so
+        // the flag describes the CURRENT debt, never the previous one (#2238).
+        UserDefaults.standard.set(false, forKey: owedAfterCompletedPassKey)
         return token
     }
 
@@ -99,6 +122,11 @@ enum RescoreBackgroundScheduler {
         let settled = maySettleDebt(capturedToken: owedToken, currentToken: currentOwedToken)
         if settled {
             UserDefaults.standard.set(false, forKey: owedKey)
+        } else {
+            // #2238: this pass finished and advanced the watermark; only a newer token outvoted it. Record
+            // that, so the resume can gate on the fingerprint instead of forcing a pass whose inputs may be
+            // byte-identical to the one that just ran.
+            UserDefaults.standard.set(true, forKey: owedAfterCompletedPassKey)
         }
         if seconds.isFinite, seconds > 0 {
             UserDefaults.standard.set(seconds, forKey: lastPassSecondsKey)

@@ -650,7 +650,8 @@ final class IntelligenceEngine: ObservableObject {
     /// Compute on-device scores for each of the last `maxDays` that actually has raw HR data.
     /// Personal baselines (HRV / resting HR) are folded from the imported history, so even the first
     /// live night can be scored against your norm.
-    func analyzeRecent(maxDays: Int = 21, force: Bool = true, skipIfUnchanged: Bool = false) async {
+    func analyzeRecent(maxDays: Int = 21, force: Bool = true, skipIfUnchanged: Bool = false,
+                       triggerLabel: String? = nil) async {
         // #899-A: a concurrent pass already holds the lock. A NON-forced idle tick is safe to drop (the
         // in-flight pass already covers the same window). But a FORCED call is a real update path (a
         // post-backfill rescore after a sync) , dropping it would leave a freshly-synced night unscored
@@ -695,7 +696,11 @@ final class IntelligenceEngine: ObservableObject {
         // import/edit/settings/recalibrate re-score — which changes scores WITHOUT changing the HR
         // fingerprint — always runs. Twin of the Android WhoopBleClient post-offload `newData` gate.
         if force, skipIfUnchanged, !wmKey.isEmpty, storedWatermark == wmKey {
-            diagnosticSink?("re-score: trigger=post-offload newData=no — skipped (nothing changed since last run)", nil)
+            // #2238: name the caller that actually skipped. This label was hardcoded while the post-offload
+            // path was the only one opting in; the resume opts in now, and a skip reported under someone
+            // else's name is the same wrong-caller trail #1538 lost three nights to.
+            let skipped = triggerLabel ?? "post-offload"
+            diagnosticSink?("re-score: trigger=\(skipped) newData=no — skipped (nothing changed since last run)", nil)
             return
         }
         // Attribute the re-score that is ABOUT TO RUN. `trigger=post-offload` was previously logged only on
@@ -714,7 +719,12 @@ final class IntelligenceEngine: ObservableObject {
         // `newData=no` means the fingerprint already equals the watermark the last run advanced: a re-score
         // driven by the trigger, not by data (#1005 background battery). Diagnostic only; the pass runs
         // either way. Twin of the Android WhoopBleClient / AppViewModel attribution.
-        let trigger = !force ? "idle" : (skipIfUnchanged ? "post-offload" : "forced")
+        // #2238: a caller that knows its own name says so. The derivation below reads
+        // `skipIfUnchanged` as "post-offload", which was an exact witness while that was the only
+        // caller opting in; the #1538 resume now opts in too when its debt came from a completed
+        // pass, and labelling it post-offload would put the investigation on the wrong caller for
+        // the second time in this area.
+        let trigger = triggerLabel ?? (!force ? "idle" : (skipIfUnchanged ? "post-offload" : "forced"))
         let hadNew = wmKey.isEmpty || storedWatermark != wmKey
         diagnosticSink?("re-score: trigger=\(trigger) "
                         + "newData=\(hadNew ? "yes" : "no (nothing changed since last run)")", nil)
