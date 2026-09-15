@@ -19,11 +19,22 @@ internal fun shortDayLabel(day: String): String =
 
 internal fun clockLabel(latest: DailyMetric, session: SleepSession?, is24h: Boolean): String {
     if (session != null) return sessionClockLabel(session, is24h)
-    // Fall back to the daily metric's day string (YYYY-MM-DD), formatted to "EEE d MMM".
-    val dateFmt = SimpleDateFormat("EEE d MMM", Locale.US)
+    // Fall back to the daily metric's day string, which is the night's WAKE day: sleep rows are keyed
+    // by `dayString(endTs)`, "the day its night ENDS on". Subtract a day so this names the night the
+    // same way [clockLabelFor] does on the branch above (#2199).
+    //
+    // Both branches fill ONE slot, so a night with stages and the same night without must not print
+    // dates a day apart. They did before this: the session branch showed the onset and this one the
+    // wake day, which agreed only for a night that began after midnight. That is the two-paths-one-
+    // night shape of #2201, and it is worth keeping the two ends together rather than only the case
+    // that was reported.
+    //
+    // `LocalDate` rather than the old SimpleDateFormat pair: that parsed the key at UTC midnight and
+    // formatted it in the DEVICE zone, so west of UTC it already printed the previous day. A plain
+    // calendar date has no instant to misplace.
     return runCatching {
-        val parser = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }
-        parser.parse(latest.day)?.let { dateFmt.format(it) }
+        LocalDate.parse(latest.day).minusDays(1)
+            .format(DateTimeFormatter.ofPattern("EEE d MMM", Locale.US))
     }.getOrNull() ?: latest.day
 }
 

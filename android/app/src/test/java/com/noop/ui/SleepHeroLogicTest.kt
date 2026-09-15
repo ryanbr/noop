@@ -1,5 +1,6 @@
 package com.noop.ui
 
+import com.noop.data.DailyMetric
 import com.noop.data.SleepSession
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
@@ -253,6 +254,32 @@ class SleepHeroLogicTest {
      * Naming a row by its own wake date minus one day makes it agree with the key the row is
      * selected by, which is what "keep the logic from start to end" asks for, and it cannot repeat.
      */
+
+    /**
+     * `clockLabel` fills ONE slot from two branches: the session when the night decoded, the daily
+     * metric's day key when it did not. They must name the night identically, or the same night reads
+     * a day apart depending on whether its stages happened to decode. That is the two-paths-one-night
+     * shape of #2201, and it survived into the #2199 anchor until both ends were moved together.
+     */
+    @Test
+    fun clockLabelNamesTheSameNightFromEitherBranch_issue2199() {
+        val wakeDay = LocalDate.of(2026, 9, 13)                 // an after-midnight night: 00:30 - 07:00
+        val session = afterMidnightNight(wakeDay).first()
+        val metric = DailyMetric(deviceId = "d", day = wakeDay.toString())
+
+        val fromSession = clockLabel(metric, session, is24h = true)
+        val fromDayKey = clockLabel(metric, null, is24h = true)
+
+        assertTrue(
+            "session branch printed $fromSession, expected it to name Sat 12 Sep",
+            fromSession.startsWith("Sat 12 Sep"),
+        )
+        assertEquals(
+            "the same night must not read a day apart depending on whether its stages decoded",
+            fromSession.substringBefore(" \u00b7"), fromDayKey.substringBefore(" \u00b7"),
+        )
+    }
+
     @Test
     fun afterMidnightNightDoesNotRepeatTheDateAboveIt_issue2199() {
         val utc = TimeZone.getTimeZone("UTC")
