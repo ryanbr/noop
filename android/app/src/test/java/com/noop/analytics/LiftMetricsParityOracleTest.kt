@@ -22,6 +22,12 @@ import org.junit.Test
  *  - Curl has one set with no weight and one with no reps, so the fallback compares 0.0 against 20.
  *  - Set 2 lists `chest` as both primary and secondary; it must be counted once.
  *  - Set 4 is 13 reps, one past the ceiling, so it estimates nil rather than a number.
+ *  - Dip lists `triceps` three times and the primary `chest` once. Swift's `LiftSetRow.init`
+ *    normalises a row's secondaries at construction, so `LiftMetrics` never sees a repeat;
+ *    `LiftMetrics.Row` has to carry the same invariant or the muscle is counted once per
+ *    mention. Unnormalised, this row credited triceps 1.0 across two indirect sets where
+ *    Swift credits 0.5 across one. The `normalisedSecondaries` block pins the list itself,
+ *    not just the totals it feeds, so a regression names the cause rather than a stray sum.
  *
  * The oracle only guards this direction. `LiftMetricsTests` on the Swift side is what stops Swift
  * drifting away from Kotlin.
@@ -46,6 +52,9 @@ class LiftMetricsParityOracleTest {
         row(6, "Curl", null, 10, 8.0, false, LiftMuscle.biceps, emptyList()),
         row(7, "Curl", 20.0, null, 8.0, false, LiftMuscle.biceps, emptyList()),
         row(8, "Plank", 0.0, 0, null, false, null, emptyList()),
+        row(9, "Dip", 50.0, 6, 8.5, false, LiftMuscle.chest,
+            listOf(LiftMuscle.triceps, LiftMuscle.triceps, LiftMuscle.chest,
+                LiftMuscle.frontDelts, LiftMuscle.triceps)),
     )
 
     private fun f(d: Double?) = if (d == null) "nil" else String.format(Locale.ROOT, "%.6f", d)
@@ -54,7 +63,7 @@ class LiftMetricsParityOracleTest {
     /** Verbatim stdout of the Swift build. Do not hand-edit: regenerate from the oracle. */
     private val expected = """
         == volumeLoadKg ==
-        3120.000000
+        3420.000000
         nil
         nil
         == sessionLoad ==
@@ -73,19 +82,31 @@ class LiftMetricsParityOracleTest {
         nil
         nil
         nil
+        == normalisedSecondaries ==
+        0|triceps,frontDelts
+        1|triceps,frontDelts
+        2|triceps
+        3|[]
+        4|biceps
+        5|biceps
+        6|[]
+        7|[]
+        8|[]
+        9|triceps,frontDelts
         == perExercise ==
         Bench|3|1|1520.000000|90.000000|10|120.000000
         Row|2|0|1600.000000|70.000000|8|88.666667
         Curl|2|0|nil|20.000000|nil|nil
         Plank|1|0|nil|0.000000|0|nil
+        Dip|1|0|300.000000|50.000000|6|60.000000
         == rpeProfile ==
-        7.900000|5|3|4|8.000000
-        7.900000|5|3|4|7.000000
+        8.000000|6|3|5|8.000000
+        8.000000|6|3|5|7.000000
         nil|0|0|0|8.000000
         == muscleCounts ==
-        chest|3.000000|3|nil
-        frontDelts|0.500000|nil|1
-        triceps|1.000000|nil|2
+        chest|4.000000|4|nil
+        frontDelts|1.000000|nil|2
+        triceps|1.500000|nil|3
         lats|2.000000|2|nil
         biceps|3.000000|2|2
         == constants ==
@@ -117,6 +138,12 @@ class LiftMetricsParityOracleTest {
         }
         out.appendLine(f(LiftMetrics.estimatedOneRepMaxKg(null, 5)))
         out.appendLine(f(LiftMetrics.estimatedOneRepMaxKg(100.0, null)))
+
+        out.appendLine("== normalisedSecondaries ==")
+        for (s in sets) {
+            val sec = s.secondaryMuscles
+            out.appendLine("${s.ord}|" + if (sec.isEmpty()) "[]" else sec.joinToString(",") { it.name })
+        }
 
         out.appendLine("== perExercise ==")
         for (s in LiftMetrics.perExercise(sets)) {

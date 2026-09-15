@@ -27,8 +27,24 @@ import com.noop.data.LiftMuscle
  */
 object LiftMetrics {
 
-    /** The fields of a logged set this file needs. Mirrors Swift `LiftSetRow`'s countable surface. */
-    data class Row(
+    /**
+     * The fields of a logged set this file needs. Mirrors Swift `LiftSetRow`'s countable surface,
+     * INCLUDING its invariant: the secondary list is normalised at construction, so it never
+     * repeats a muscle and never contains the primary.
+     *
+     * Swift gets that from `LiftSetRow.init`, which runs the secondaries it is handed through
+     * `decodeList(encodeList(_:excluding:))` before storing them. The normalisation has to live
+     * here rather than in [muscleCounts] because it is the row that carries the guarantee on the
+     * other side, and any future reader of `secondaryMuscles` should see the same list Swift would.
+     *
+     * Measured rather than assumed: for a set with `[triceps, triceps, chest]` secondary and
+     * `chest` primary, Swift credits triceps 0.5 across one indirect set. Before this step Kotlin
+     * credited it 1.0 across two, double-counting the muscle.
+     *
+     * Not a `data class`: the generated `copy()` would rebuild the object through the constructor
+     * it bypasses, reintroducing an unnormalised list.
+     */
+    class Row(
         val ord: Int,
         val exercise: String,
         val isWarmup: Boolean,
@@ -36,8 +52,11 @@ object LiftMetrics {
         val reps: Int? = null,
         val rpe: Double? = null,
         val primaryMuscle: LiftMuscle? = null,
-        val secondaryMuscles: List<LiftMuscle> = emptyList(),
-    )
+        secondaryMuscles: List<LiftMuscle> = emptyList(),
+    ) {
+        val secondaryMuscles: List<LiftMuscle> =
+            LiftMuscle.decodeList(LiftMuscle.encodeList(secondaryMuscles, primaryMuscle))
+    }
 
     // MARK: - Volume load (tonnage)
 
