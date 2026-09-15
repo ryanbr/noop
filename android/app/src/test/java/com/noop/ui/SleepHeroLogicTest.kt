@@ -205,7 +205,6 @@ class SleepHeroLogicTest {
         assertTrue("expected the browsed night's own date, got $browsed", browsed!!.startsWith("Tue 11 Aug"))
     }
 
-    /** A night that really crosses midnight: onset 22:50 on [onsetDate], wake 06:48 the next morning. */
     /**
      * A night that BEGINS after midnight: onset and wake land on the same calendar date. Sleeping
      * from 00:30 to 07:00 is an ordinary night, and #2199 is the row it produces.
@@ -216,6 +215,7 @@ class SleepHeroLogicTest {
         return listOf(SleepSession(deviceId = "d", startTs = onset, endTs = wake))
     }
 
+    /** A night that really crosses midnight: onset 22:50 on [onsetDate], wake 06:48 the next morning. */
     private fun crossMidnightNight(onsetDate: LocalDate): List<SleepSession> {
         val onset = onsetDate.atStartOfDay(ZoneOffset.UTC).plusHours(22).plusMinutes(50).toEpochSecond()
         val wake = onsetDate.plusDays(1).atStartOfDay(ZoneOffset.UTC).plusHours(6).plusMinutes(48).toEpochSecond()
