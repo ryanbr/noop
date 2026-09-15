@@ -750,7 +750,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "TOUT"
+            "value": "MAXIMAL"
           }
         },
         "pl": {
@@ -930,7 +930,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "DÉPLACÉ"
+            "value": "ÉPUISÉ"
           }
         },
         "pl": {
@@ -1238,7 +1238,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "LUMIÈRE"
+            "value": "LÉGER"
           }
         },
         "pl": {
@@ -1424,7 +1424,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "MODÉRATE"
+            "value": "MODÉRÉ"
           }
         },
         "pl": {
@@ -1668,7 +1668,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "PRIMAIRE"
+            "value": "PRÉPARÉ"
           }
         },
         "pl": {
@@ -1842,7 +1842,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "STRÈNE"
+            "value": "SOUTENU"
           }
         },
         "pl": {
