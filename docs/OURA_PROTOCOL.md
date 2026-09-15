@@ -97,6 +97,16 @@ Returned during history fetch (`0x10`/`0x11`) and live streaming. Each record: [
 
 - **Total record length = `len + 2`.** [ringverse]
 - Several records may pack into one notification; consume `2 + len` per record and loop. [open_ring]
+  **Measured 2026-09-15 (Gen 3, iOS, raw sidecar):** the ring does both, per session. Every NOOP history
+  drain captured to date arrives one packet per ≤ 20-byte notification (40,696 notifications across two
+  bundles, each one exactly `2 + len` long); the same ring serving the official app on the same link
+  (same negotiated MTU 203, same `10 09 <cursor> ff ffffffff` get_events bytes) packs ~10 packets into
+  each 196–200-byte notification (3,613 notifications, 38,136 packets, every value tiling exactly on
+  `2 + len` boundaries) — ≈ 19 KB/s against NOOP's ≈ 2.1 KB/s at the same notification rate. What flips
+  the ring between the modes is not yet identified; the candidates are the SetNotification mask
+  (`1c 01 ff` in the app's session vs NOOP's `3f`, `0x1C` in §4) and the app's unexplained `16 01 02` write.
+  NOOP's reassembler walks a value only when it tiles exactly into two or more well-formed packets and
+  otherwise reads the single lenient packet (the phantom-storm rule) — see `OuraReassembler.feed`.
 
 ### 2.4 Multi-packet payloads
 There is no application-level fragmentation header beyond the TLV `len`. A record never spans two notifications in the verified corpus; each notification contains whole frames/records. NOOP's parser must still be defensive: buffer partial trailing bytes across notifications and only emit complete `2+len` records.

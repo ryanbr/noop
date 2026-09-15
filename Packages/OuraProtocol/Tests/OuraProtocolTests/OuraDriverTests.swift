@@ -659,13 +659,25 @@ final class OuraDriverTests: XCTestCase {
         ])
     }
 
-    func testIngestNotificationDecodesOnlyFirstPacketWhenBytesLookPacked() {
-        // Defensive: if a notification ever carries bytes that LOOK like two packed records, only the
-        // first is decoded (one lenient packet per notification) — the trailing bytes are ignored, never
-        // walked into phantom records. Documents the open_oura contract.
+    func testIngestNotificationDecodesEveryPacketWhenTheValueTilesExactly() {
+        // A notification that tiles exactly into two complete packets decodes BOTH (the ring packs like
+        // this when serving the official app, 2026-09-15 — see `OuraReassembler.feed`). The 0x46 temp
+        // record carries two 0.05 °C samples, so three events come out of the one value.
         let d = OuraDriver(ringGen: .gen3, authKey: key)
         let reassembler = OuraReassembler()
         let value = bytes("7b060200010003ca" + "460802000100420e470e")
+        let events = d.ingest(notification: value, reassembler: reassembler)
+        XCTAssertEqual(events, [.spo2(OuraSpO2(ringTimestamp: rt, value: 970)),
+                                .temp(OuraTemp(ringTimestamp: rt, celsius: 36.5)),
+                                .temp(OuraTemp(ringTimestamp: rt, celsius: 36.55))])
+    }
+
+    func testIngestNotificationDecodesOnlyFirstPacketWhenTheTailDoesNotTile() {
+        // Defensive, the phantom-storm guarantee: bytes after the first packet that do NOT form whole
+        // packets ending on the value's last byte are ignored, never walked into phantom records.
+        let d = OuraDriver(ringGen: .gen3, authKey: key)
+        let reassembler = OuraReassembler()
+        let value = bytes("7b060200010003ca" + "460802000100420e47")   // 0x46's declared len overshoots
         let events = d.ingest(notification: value, reassembler: reassembler)
         XCTAssertEqual(events, [.spo2(OuraSpO2(ringTimestamp: rt, value: 970))])
     }

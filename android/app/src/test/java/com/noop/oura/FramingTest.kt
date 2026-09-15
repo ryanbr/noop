@@ -17,6 +17,7 @@ import org.junit.Test
  */
 class FramingTest {
     private fun bytes(s: String) = OuraTestHex.bytes(s)
+    private fun hex(b: IntArray) = OuraTestHex.hex(b)
 
     // MARK: - Outer frame
 
@@ -263,14 +264,90 @@ class FramingTest {
     }
 
     @Test
-    fun testFeedReturnsAtMostOneRecordPerNotification() {
-        // Two records packed into one value: the one-packet model parses the FIRST leniently and
-        // ignores the tail (the ring sends one packet per notification; a packed tail is padding).
+    fun testFeedWalksANotificationThatTilesExactlyIntoSeveralPackets() {
+        // Two complete packets whose declared lengths land exactly on each other and on the value's
+        // last byte are BOTH returned (the ring packs like this when serving the official app,
+        // 2026-09-15). Expected literals = the Swift standalone twin's output over the same bytes.
         val r = OuraReassembler()
         val recs = r.feed(bytes("7b060200010003ca" + "4e0602000100006c"))
+        assertEquals(listOf(0x7B, 0x4E), recs.map { it.type })
+        assertEquals(listOf(65538L, 65538L), recs.map { it.ringTimestamp })
+        assertEquals(listOf("03ca", "006c"), recs.map { hex(it.payload) })
+        assertEquals(0, r.bufferedByteCount)
+    }
+
+    @Test
+    fun testFeedFallsBackToOneLenientPacketWhenTheTailDoesNotTile() {
+        // Three trailing bytes that do not form a packet: the tiling fails, so the value is read as
+        // ONE lenient packet (the pre-packed behaviour) — the tail is neither walked nor buffered.
+        val r = OuraReassembler()
+        val recs = r.feed(bytes("7b060200010003ca" + "4e0602"))
         assertEquals(1, recs.size)
         assertEquals(0x7B, recs[0].type)
+        assertEquals("03ca", hex(recs[0].payload))
+    }
+
+    @Test
+    fun testFeedKeepsALonePacketWhoseLenDisagreesWithTheNotification() {
+        // A 20-byte value whose `len` says 10: the lenient single read clamps the payload and the
+        // remaining bytes (`d5 55 ...`) do not tile, so nothing is minted from them.
+        val r = OuraReassembler()
+        val recs = r.feed(bytes("5a0a1dbdb40200fffffff7d7d555555555543fff"))
+        assertEquals(1, recs.size)
+        assertEquals(45399325L, recs[0].ringTimestamp)
+        assertEquals("00fffffff7d7", hex(recs[0].payload))
+    }
+
+    @Test
+    fun testFeedOnRealPackedNotificationsFromTheRing() {
+        // Two notifications captured verbatim from a Gen 3 ring on 2026-09-15 07:39:25 while it served
+        // the official app's history request. Expected = the Swift twin's stdout, pasted verbatim.
+        val r = OuraReassembler()
+        val a = r.feed(bytes(
+            "5a1209e7b30206f00000005555555555555555405a120ae7b302070000014555555555555545f0ff5a120be7b30208" +
+            "fffffffffffffffffffff7f555580b0ce7b302185f1033563c645a120de7b302095555555555555555555555557f4f" +
+            "0f0ee7b302772514020d0100008000004c120fe7b30201001f00d9007f0047013b3405146e1118e7b3028a7c7b797b" +
+            "7a7a947c919051616e1127e7b30204797a7d797b80d0dfe7a7bdca60122ee7b3027a7c797a8180bbb96572889d1761"))
+        assertEquals(listOf(
+            "5a rt=45344521 payload=06f0000000555555555555555540",
+            "5a rt=45344522 payload=070000014555555555555545f0ff",
+            "5a rt=45344523 payload=08fffffffffffffffffffff7f555",
+            "58 rt=45344524 payload=185f1033563c64",
+            "5a rt=45344525 payload=095555555555555555555555557f",
+            "4f rt=45344526 payload=772514020d010000800000",
+            "4c rt=45344527 payload=01001f00d9007f0047013b340514",
+            "6e rt=45344536 payload=8a7c7b797b7a7a947c91905161",
+            "6e rt=45344551 payload=04797a7d797b80d0dfe7a7bdca",
+            "60 rt=45344558 payload=7a7c797a8180bbb96572889d1761",
+        ), a.map { "%02x rt=%d payload=%s".format(it.type, it.ringTimestamp, hex(it.payload)) })
+        val b = r.feed(bytes(
+            "751231e7b3028d0d8d0d8d0d8d0d8d0d870d870d461232e7b302870dfc0c4c0b640d7a0d8d0d7d0d690633e7b302ed0d" +
+            "6f123ce7b3024d66666666666666676767676768771243e7b302beff03fef6fe0100020d0e06ff016e1152e7b30280" +
+            "80807c7c7e2f5e795c879a00771260e7b3023afc020805040a09fcf5fcfdfd036e1161e7b3020a807d7b7e7d76e1d0" +
+            "e5dfd4b0601267e7b3027d7b7e7d777996b4cdb38d92886161107ae7b3021a1800288a0000ac3f0000cb"))
+        assertEquals(listOf(
+            "75 rt=45344561 payload=8d0d8d0d8d0d8d0d8d0d870d870d",
+            "46 rt=45344562 payload=870dfc0c4c0b640d7a0d8d0d7d0d",
+            "69 rt=45344563 payload=ed0d",
+            "6f rt=45344572 payload=4d66666666666666676767676768",
+            "77 rt=45344579 payload=beff03fef6fe0100020d0e06ff01",
+            "6e rt=45344594 payload=8080807c7c7e2f5e795c879a00",
+            "77 rt=45344608 payload=3afc020805040a09fcf5fcfdfd03",
+            "6e rt=45344609 payload=0a807d7b7e7d76e1d0e5dfd4b0",
+            "60 rt=45344615 payload=7d7b7e7d777996b4cdb38d928861",
+            "61 rt=45344634 payload=1a1800288a0000ac3f0000cb",
+        ), b.map { "%02x rt=%d payload=%s".format(it.type, it.ringTimestamp, hex(it.payload)) })
         assertEquals(0, r.bufferedByteCount)
+    }
+
+    @Test
+    fun testFeedOnAnOrdinarySinglePacketNotificationIsUnchanged() {
+        // A 20-byte one-packet value from a NOOP drain (2026-09-15 04:20): one record, whole payload.
+        val r = OuraReassembler()
+        val recs = r.feed(bytes("5a121dbdb40200fffffff7d7d555555555543fff"))
+        assertEquals(1, recs.size)
+        assertEquals(45399325L, recs[0].ringTimestamp)
+        assertEquals("00fffffff7d7d555555555543fff", hex(recs[0].payload))
     }
 
     @Test

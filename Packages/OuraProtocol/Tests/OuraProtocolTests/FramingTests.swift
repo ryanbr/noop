@@ -16,6 +16,10 @@ final class FramingTests: XCTestCase {
         return out
     }
 
+    private func hexString(_ b: [UInt8]) -> String {
+        b.map { String(format: "%02x", $0) }.joined()
+    }
+
     // MARK: - Outer frame
 
     func testParseOuterFrame() {
@@ -165,15 +169,91 @@ final class FramingTests: XCTestCase {
 
     // MARK: - One packet per notification (no buffering, no multi-record loop, no resync)
 
-    func testFeedReturnsAtMostOneRecordPerNotification() {
-        // What LOOKS like two packed records is treated as ONE lenient packet: the first record only,
-        // trailing bytes ignored. The ring never packs several events into one notification (it streams
-        // one event per notification + a 0x11 summary), so this is the honest interpretation.
+    func testFeedWalksANotificationThatTilesExactlyIntoSeveralPackets() {
+        // Two complete packets whose declared lengths land exactly on each other and on the value's last
+        // byte are BOTH returned. The ring packs like this when serving the official app (2026-09-15,
+        // 38,136 packets in 3,613 notifications, every value tiling exactly); reading only the first
+        // packet dropped nine in ten.
         let r = OuraReassembler()
         let recs = r.feed(bytes("7b060200010003ca" + "4e0602000100006c"))
+        XCTAssertEqual(recs.map { $0.type }, [0x7B, 0x4E])
+        XCTAssertEqual(recs.map { $0.ringTimestamp }, [65538, 65538])
+        XCTAssertEqual(recs.map { $0.payload }, [bytes("03ca"), bytes("006c")])
+    }
+
+    func testFeedFallsBackToOneLenientPacketWhenTheTailDoesNotTile() {
+        // The first packet is followed by three bytes that do not form a packet: the tiling fails, so
+        // the notification is read as ONE lenient packet (the pre-packed behaviour, byte-identical) —
+        // the tail is neither walked nor buffered. This is the phantom-storm guarantee kept.
+        let r = OuraReassembler()
+        let recs = r.feed(bytes("7b060200010003ca" + "4e0602"))
         XCTAssertEqual(recs.count, 1)
         XCTAssertEqual(recs[0].type, 0x7B)
         XCTAssertEqual(recs[0].payload, bytes("03ca"))
+    }
+
+    func testFeedKeepsALonePacketWhoseLenDisagreesWithTheNotification() {
+        // A 20-byte value whose `len` says 10: the lenient single read clamps the payload to `len` (as
+        // before) and the remaining bytes (`d5 55 …`) do not tile into a packet, so nothing is minted
+        // from them. Oracle: standalone twin, 2026-09-15.
+        let r = OuraReassembler()
+        let recs = r.feed(bytes("5a0a1dbdb40200fffffff7d7d555555555543fff"))
+        XCTAssertEqual(recs.count, 1)
+        XCTAssertEqual(recs[0].ringTimestamp, 45399325)
+        XCTAssertEqual(recs[0].payload, bytes("00fffffff7d7"))
+    }
+
+    func testFeedOnRealPackedNotificationsFromTheRing() {
+        // Two 184/188-byte notifications captured verbatim from a Gen 3 ring on 2026-09-15 07:39:25
+        // (raw diagnostics sidecar), while it served the official app's history request. Expected
+        // records are the standalone Swift twin's output over the same bytes, pasted verbatim (the same
+        // literal gates the Kotlin twin). Ten packets each, of mixed tags, ring-times ascending.
+        let r = OuraReassembler()
+        let a = r.feed(bytes(
+            "5a1209e7b30206f00000005555555555555555405a120ae7b302070000014555555555555545f0ff5a120be7b30208"
+            + "fffffffffffffffffffff7f555580b0ce7b302185f1033563c645a120de7b302095555555555555555555555557f4f"
+            + "0f0ee7b302772514020d0100008000004c120fe7b30201001f00d9007f0047013b3405146e1118e7b3028a7c7b797b"
+            + "7a7a947c919051616e1127e7b30204797a7d797b80d0dfe7a7bdca60122ee7b3027a7c797a8180bbb96572889d1761"))
+        XCTAssertEqual(a.map { String(format: "%02x rt=%u payload=%@", $0.type, $0.ringTimestamp, hexString($0.payload)) }, [
+            "5a rt=45344521 payload=06f0000000555555555555555540",
+            "5a rt=45344522 payload=070000014555555555555545f0ff",
+            "5a rt=45344523 payload=08fffffffffffffffffffff7f555",
+            "58 rt=45344524 payload=185f1033563c64",
+            "5a rt=45344525 payload=095555555555555555555555557f",
+            "4f rt=45344526 payload=772514020d010000800000",
+            "4c rt=45344527 payload=01001f00d9007f0047013b340514",
+            "6e rt=45344536 payload=8a7c7b797b7a7a947c91905161",
+            "6e rt=45344551 payload=04797a7d797b80d0dfe7a7bdca",
+            "60 rt=45344558 payload=7a7c797a8180bbb96572889d1761",
+        ])
+        let b = r.feed(bytes(
+            "751231e7b3028d0d8d0d8d0d8d0d8d0d870d870d461232e7b302870dfc0c4c0b640d7a0d8d0d7d0d690633e7b302ed0d"
+            + "6f123ce7b3024d66666666666666676767676768771243e7b302beff03fef6fe0100020d0e06ff016e1152e7b30280"
+            + "80807c7c7e2f5e795c879a00771260e7b3023afc020805040a09fcf5fcfdfd036e1161e7b3020a807d7b7e7d76e1d0"
+            + "e5dfd4b0601267e7b3027d7b7e7d777996b4cdb38d92886161107ae7b3021a1800288a0000ac3f0000cb"))
+        XCTAssertEqual(b.map { String(format: "%02x rt=%u payload=%@", $0.type, $0.ringTimestamp, hexString($0.payload)) }, [
+            "75 rt=45344561 payload=8d0d8d0d8d0d8d0d8d0d870d870d",
+            "46 rt=45344562 payload=870dfc0c4c0b640d7a0d8d0d7d0d",
+            "69 rt=45344563 payload=ed0d",
+            "6f rt=45344572 payload=4d66666666666666676767676768",
+            "77 rt=45344579 payload=beff03fef6fe0100020d0e06ff01",
+            "6e rt=45344594 payload=8080807c7c7e2f5e795c879a00",
+            "77 rt=45344608 payload=3afc020805040a09fcf5fcfdfd03",
+            "6e rt=45344609 payload=0a807d7b7e7d76e1d0e5dfd4b0",
+            "60 rt=45344615 payload=7d7b7e7d777996b4cdb38d928861",
+            "61 rt=45344634 payload=1a1800288a0000ac3f0000cb",
+        ])
+        XCTAssertEqual(r.bufferedByteCount, 0, "a packed value is walked in place, never buffered")
+    }
+
+    func testFeedOnAnOrdinarySinglePacketNotificationIsUnchanged() {
+        // A 20-byte one-packet value from a NOOP drain (2026-09-15 04:20): exactly one record, the
+        // whole payload — the tiling walk yields a single packet and the single lenient read wins.
+        let r = OuraReassembler()
+        let recs = r.feed(bytes("5a121dbdb40200fffffff7d7d555555555543fff"))
+        XCTAssertEqual(recs.count, 1)
+        XCTAssertEqual(recs[0].ringTimestamp, 45399325)
+        XCTAssertEqual(recs[0].payload, bytes("00fffffff7d7d555555555543fff"))
     }
 
     func testFeedNeverBuffersAcrossNotifications() {

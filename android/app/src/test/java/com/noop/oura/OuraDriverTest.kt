@@ -790,15 +790,21 @@ class OuraDriverTest {
     // MARK: - Notification-level ingest (one-packet-per-notification, twin of Swift dae3d7a4)
 
     @Test
-    fun testIngestNotificationParsesOnePacketPerValue() {
+    fun testIngestNotificationDecodesEveryPacketWhenTheValueTilesExactly() {
         val d = OuraDriver(ringGen = OuraRingGen.GEN3, authKey = key)
         val reassembler = OuraReassembler()
-        // A second record packed behind the first is padding under the one-packet model: only the
-        // FIRST record decodes (the old buffering loop minted phantom records from such tails).
+        // A value that tiles exactly into two complete packets decodes BOTH (the ring packs like this
+        // when serving the official app, 2026-09-15): the SpO2 record plus the temp record's two samples.
         val value = bytes("7b060200010003ca" + "460802000100420e470e")
         val events = d.ingest(notification = value, reassembler = reassembler)
-        assertEquals(1, events.size)
+        assertEquals(3, events.size)
         assertEquals(OuraEvent.Spo2(OuraSpO2(ringTimestamp = rt, value = 970)), events[0])
+        assertEquals(36.50, (events[1] as OuraEvent.Temp).value.celsius, 1e-9)
+        assertEquals(36.55, (events[2] as OuraEvent.Temp).value.celsius, 1e-9)
+        // The phantom-storm guarantee kept: a tail that does NOT tile (the 0x46's declared length
+        // overshoots the value) is ignored, never walked into records.
+        val cut = d.ingest(notification = bytes("7b060200010003ca" + "460802000100420e47"), reassembler = reassembler)
+        assertEquals(listOf<OuraEvent>(OuraEvent.Spo2(OuraSpO2(ringTimestamp = rt, value = 970))), cut)
         // Each notification decodes on its own: the temp record in its OWN value decodes fully.
         val tempEvents = d.ingest(notification = bytes("460802000100420e470e"), reassembler = reassembler)
         assertEquals(2, tempEvents.size)

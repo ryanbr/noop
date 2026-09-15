@@ -173,23 +173,50 @@ public extension OuraFraming {
         let payload = end > 6 ? Array(bytes[6..<end]) : []
         return OuraRecord(type: type, ringTimestamp: rt, payload: payload)
     }
+
+    /// The records of a notification that tiles EXACTLY into consecutive `tag | len | payload` packets —
+    /// every packet with `len >= minRecordLen`, every declared end inside the value, and the last one
+    /// ending on the value's last byte — or nil when it does not. This is the strict counterpart of the
+    /// lenient single-packet `parseRecord` above: it never clamps, never guesses, and a value that fails
+    /// the tiling at any packet is rejected whole (the caller then falls back to the one lenient packet).
+    /// Byte-identical twin of Kotlin `OuraFraming.tiledRecords`.
+    static func tiledRecords(_ bytes: [UInt8]) -> [OuraRecord]? {
+        var out: [OuraRecord] = []
+        var i = 0
+        while i < bytes.count {
+            guard i + 2 <= bytes.count else { return nil }
+            let len = Int(bytes[i + 1])
+            let end = i + 2 + len
+            guard len >= minRecordLen, end <= bytes.count,
+                  let rec = parseRecord(Array(bytes[i..<end])) else { return nil }
+            out.append(rec)
+            i = end
+        }
+        return out.isEmpty ? nil : out
+    }
 }
 
 // MARK: - Notification → record (open_oura one-packet-per-notification model)
 
-/// Turn each BLE notification into (at most) one TLV inner record, matching open_oura's `Packet::parse`
-/// (protocol.rs): ONE packet per notification, parsed leniently, with NO cross-notification buffering,
-/// NO multi-record loop, and NO byte-drop "resync". The ring emits each event as its own notification —
-/// `get_events` streams up to `max_events` separate event notifications, then a `0x11` summary reporting
-/// `events_received` (OURA_PROTOCOL.md s5.2); records are neither packed several-to-a-notification nor
-/// split across notifications.
+/// Turn each BLE notification into its TLV inner record(s): ONE lenient packet per notification, matching
+/// open_oura's `Packet::parse` (protocol.rs), with NO cross-notification buffering and NO byte-drop
+/// "resync" — plus the one case the ring has been seen to send that the one-packet model loses: a
+/// notification that tiles EXACTLY into several complete packets. `get_events` streams events as
+/// separate ≤ 20-byte notifications on every NOOP session captured, then a `0x11` summary reporting
+/// `events_received` (OURA_PROTOCOL.md s5.2); records are never split across notifications. But the same
+/// ring, serving the official app on the same link with the same MTU and the same get_events bytes,
+/// packs ~10 packets per 196–200-byte notification (2026-09-15: 38,136 packets in 3,613 notifications,
+/// every value tiling exactly). What flips the ring between the two modes is not yet known; what is
+/// known is that reading one packet from a packed value drops nine.
 ///
 /// HISTORY (why this replaced a buffering reassembler): the old design accumulated bytes across feeds
 /// and looped extracting `2+len` records. Whenever a packet's `len` disagreed with the notification
 /// length — which open_oura explicitly tolerates — a too-small `len` made the loop mint phantom records
 /// from the leftover bytes (aliased `0x42`/`0x85`/`0x57`/`0x70` tags → the reject/drop storm), and a
 /// too-big `len` made it wait and swallow the following notification. Parsing exactly one lenient packet
-/// per notification removes both failure modes at the source.
+/// per notification removes both failure modes at the source — and the packed walk keeps them removed:
+/// it runs only when every packet's declared length lands exactly on the next tag and the last one on the
+/// value's final byte, so a lone packet with a disagreeing `len` is still read as that one packet.
 ///
 /// The type name and `feed`/`reset` API are kept so the driver call sites are unchanged; there is simply
 /// no longer any state to carry. Platform-pure, value types only.
@@ -201,6 +228,18 @@ public final class OuraReassembler {
     /// never spans, never resyncs — a garbled notification is dropped whole, not walked byte-by-byte.
     public func feed(_ fragment: [UInt8]) -> [OuraRecord] {
         guard let rec = OuraFraming.parseRecord(fragment) else { return [] }
+        // A PACKED notification carries several complete packets back to back. The ring does this on
+        // some sessions and not others: every NOOP drain captured to date arrives one packet per
+        // ≤ 20-byte notification, but the same ring serving the official app on the same link (same
+        // MTU 203, same get_events bytes) packs ~10 packets into each 196–200-byte notification —
+        // 38,136 packets in 3,613 notifications on 2026-09-15, every one tiling the value exactly, and
+        // the one-packet read above kept 3,613 of them. Walk the packets ONLY when the whole value tiles
+        // into two or more well-formed ones; anything else is the single lenient packet, byte-identical
+        // to before. That keeps the phantom-storm guarantee: a lone packet whose `len` disagrees with
+        // the notification length still yields exactly that packet unless its tail happens to tile
+        // into whole packets ending on the last byte — which no value in 40,696 captured notifications
+        // does.
+        if let packed = OuraFraming.tiledRecords(fragment), packed.count >= 2 { return packed }
         return [rec]
     }
 
