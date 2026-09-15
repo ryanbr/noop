@@ -3798,6 +3798,7 @@
       "shouldTranslate": false
     },
     "Overview HR": {
+      "comment": "Xcode #Preview specimen: this literal exists only inside a preview block, so no release build can reach it and it is not user-facing copy. Unlike its neighbours this preview is not wrapped in `#if DEBUG`, which is why the first pass over this catalogue read it as shipped copy and translated it.",
       "localizations": {
         "de": {
           "stringUnit": {
@@ -3847,7 +3848,8 @@
             "value": "概覽心率"
           }
         }
-      }
+      },
+      "shouldTranslate": false
     },
     "RECOVERY GRADIENT": {
       "comment": "Xcode #Preview specimen: this literal exists only inside an `#if DEBUG` preview block, so no release build can reach it and it is not user-facing copy. Translating it produced nonsense in the locales held to zero tolerance (fr rendered \"Bold\" as \"Or\", four languages read the animation \"lift\" as an elevator), which is what this flag prevents.",
