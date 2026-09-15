@@ -28,6 +28,14 @@ on:
       - 'StrandiOS/**'
       - 'StrandiOSShared/**'
       - 'StrandiOSWidgets/**'
+      # The watch app and its complications, for the same reason StrandTests is named above: the
+      # NOOPiOS scheme BUILDS them (NOOPiOS embeds NOOPWatch, which embeds NOOPWatchComplications),
+      # but neither directory sits under any glob here, so a PR touching only them matched nothing
+      # and compiled nothing. A broken watch target merged unverified and surfaced on the next PR
+      # that happened to touch Strand/**, pointing at the wrong change. #2227 translated 25
+      # complication strings and got no build at all, which is what surfaced this.
+      - 'NOOPWatch/**'
+      - 'NOOPWatchComplications/**'
       - 'Packages/**'
       - 'project.yml'
       - '.github/workflows/app-build.yml'
