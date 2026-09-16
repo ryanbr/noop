@@ -291,14 +291,29 @@ final class Repository: ObservableObject {
     /// Deriving both sides from one function is the point. Spelling the union out twice is what let them
     /// disagree, and a future namespace added to the read alone would reintroduce exactly this bug.
     nonisolated static func workoutNamespaces(rawIds: [String]) -> [String] {
-        var out: [String] = []
-        out += rawIds
-        // The computed sibling of each raw id, the same expansion the read performs.
-        out += rawIds.map { $0.hasSuffix("-noop") ? $0 : $0 + "-noop" }
-        out += [WorkoutSource.appleHealthSource, "lifting", "activity-file"]
-        return out.reduce(into: [String]()) { acc, id in
-            if !acc.contains(id) { acc.append(id) }
-        }
+        deletableWorkoutNamespaces(rawIds: rawIds)
+            + [WorkoutSource.appleHealthSource, "lifting", "activity-file"]
+    }
+
+    /// The subset of [workoutNamespaces] a DELETE may touch: the strap namespaces only.
+    ///
+    /// Imported history is read-only, and that is enforced everywhere else: the row menu offers only
+    /// "Duplicate as manual…" for an imported row, `bulkDeleteWorkouts` skips those classes outright, and
+    /// `mergeWorkouts` refuses them with "never rewrite imported history". A delete that swept the import
+    /// namespaces would reach underneath all three guards and destroy a wearer's imported Apple Health,
+    /// Hevy/Liftosaur or FIT/GPX/TCX row, which nothing in the UI ever offers to remove.
+    ///
+    /// That a cross-source twin is COLLAPSED into one row at display time does not license deleting the
+    /// imported half of the pair: the dedup is a presentation decision, and the surviving import is
+    /// exactly the history this repository promises not to rewrite.
+    ///
+    /// A `.manual` row, the only class the delete button is offered for, is written under a strap id, so
+    /// this set is what a delete actually needs.
+    nonisolated static func deletableWorkoutNamespaces(rawIds: [String]) -> [String] {
+        (rawIds + rawIds.map { $0.hasSuffix("-noop") ? $0 : $0 + "-noop" })
+            .reduce(into: [String]()) { acc, id in
+                if !acc.contains(id) { acc.append(id) }
+            }
     }
 
     /// Pure ordering contract shared with Android's parity guard: current active source first, every other
@@ -2990,16 +3005,19 @@ final class Repository: ObservableObject {
     func deleteWorkout(_ row: WorkoutRow) async {
         if WorkoutSource.classify(row.source) == .detected { await dismissDetected(row); return }
         guard let store = await ensureStore() else { return }
-        // Sweep every namespace the LIST reads from, not just the active strap. A row banked under a
-        // retained strap, a computed sibling or an import namespace is shown by `workoutRows` and was
-        // previously undeletable: the delete touched one namespace, the reload re-read the row from
-        // another, and it reappeared (#2278).
+        // Sweep every STRAP namespace, not just the active one. A manual row banked under a retained
+        // strap or a computed sibling is shown by `workoutRows` and was previously undeletable: the
+        // delete touched one namespace, the reload re-read the row from another, and it reappeared
+        // (#2278).
         //
-        // Narrow by construction. The natural key is exact (`sport` plus a single `startTs`), so this can
-        // only remove the row the wearer tapped and a byte-identical twin of it in another namespace,
-        // which is the row that would otherwise come straight back. An overlapping-but-differently-keyed
-        // session is NOT touched; collapsing those is the dedup's job at display time, not a delete's.
-        for id in Self.workoutNamespaces(rawIds: rawPhysiologyReadIds(store: store)) {
+        // Import namespaces are deliberately excluded, see `deletableWorkoutNamespaces`: imported
+        // history is read-only and no UI offers to remove it.
+        //
+        // Narrow by construction. The natural key is exact (`sport` plus a single `startTs`), so this
+        // removes the row the wearer tapped and its copies in the strap namespaces, nothing else. An
+        // overlapping-but-differently-keyed session is NOT touched; collapsing those is the dedup's job
+        // at display time, not a delete's.
+        for id in Self.deletableWorkoutNamespaces(rawIds: rawPhysiologyReadIds(store: store)) {
             _ = try? await store.deleteWorkouts(deviceId: id, sport: row.sport,
                                                 from: row.startTs, to: row.startTs)
         }

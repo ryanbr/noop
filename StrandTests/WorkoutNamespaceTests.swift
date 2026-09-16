@@ -23,19 +23,45 @@ final class WorkoutNamespaceTests: XCTestCase {
         XCTAssertFalse(ids.contains("my-whoop-noop-noop"), "suffixing must be idempotent")
     }
 
-    func testImportNamespacesAreIncluded() {
-        // A workout imported from Apple Health, Hevy/Liftosaur or a FIT/GPX/TCX file is shown by the list,
-        // so it has to be deletable too. These were the namespaces the old delete could never reach.
+    func testTheReadIncludesImportNamespaces() {
+        // A workout imported from Apple Health, Hevy/Liftosaur or a FIT/GPX/TCX file is SHOWN by the list.
         let ids = Repository.workoutNamespaces(rawIds: ["strap-a"])
         XCTAssertTrue(ids.contains("apple-health"))
         XCTAssertTrue(ids.contains("lifting"))
         XCTAssertTrue(ids.contains("activity-file"))
     }
 
+    func testDeleteNeverReachesImportNamespaces() {
+        // Imported history is read-only, enforced in the row menu (imported rows are offered only
+        // "Duplicate as manual…"), in bulkDeleteWorkouts and in mergeWorkouts ("never rewrite imported
+        // history"). A delete sweeping the import namespaces would reach underneath all three and destroy
+        // a row nothing in the UI ever offers to remove, so the deletable set must stay strap-only.
+        let ids = Repository.deletableWorkoutNamespaces(rawIds: ["strap-a"])
+        XCTAssertFalse(ids.contains("apple-health"), "imported Apple Health history must survive a delete")
+        XCTAssertFalse(ids.contains("lifting"), "imported Hevy / Liftosaur history must survive a delete")
+        XCTAssertFalse(ids.contains("activity-file"), "imported FIT / GPX / TCX history must survive")
+    }
+
+    func testDeleteStillCoversEveryStrapNamespace() {
+        // The actual bug: a manual row under a retained strap or a computed sibling was undeletable.
+        let ids = Repository.deletableWorkoutNamespaces(rawIds: ["active", "retained"])
+        XCTAssertEqual(ids, ["active", "retained", "active-noop", "retained-noop"])
+    }
+
+    func testTheDeletableSetIsASubsetOfWhatTheListReads() {
+        // If a delete could target a namespace the list never reads, it would be deleting something the
+        // wearer cannot see. Pin the containment rather than the two lists separately.
+        let raw = ["active", "retained", "my-whoop-noop"]
+        let readable = Set(Repository.workoutNamespaces(rawIds: raw))
+        for id in Repository.deletableWorkoutNamespaces(rawIds: raw) {
+            XCTAssertTrue(readable.contains(id), "\(id) is deletable but never read")
+        }
+    }
+
     func testNoDuplicatesAndReadOrderIsStable() {
         // Duplicates would make the delete issue the same statement twice and the read return the same row
         // twice, which the natural-key dedup would then have to clean up.
-        let ids = Repository.workoutNamespaces(rawIds: ["a", "a", "b"])
+        let ids = Repository.deletableWorkoutNamespaces(rawIds: ["a", "a", "b"])
         XCTAssertEqual(ids.count, Set(ids).count, "duplicates must collapse")
         XCTAssertEqual(ids.firstIndex(of: "a"), 0, "the active id stays first, preserving read order")
     }
