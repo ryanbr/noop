@@ -242,6 +242,8 @@ struct StrandiOSApp: App {
                 // pushing, since the widget's clocks tick on their own.
                 .onReceive(liftSession.$now) { _ in pushLiftActivity() }
                 .onReceive(liftSession.$engine) { _ in pushLiftActivity() }
+                // A strap double-tap lights the Lock Screen on the step it took.
+                .onReceive(liftSession.strapStepTaken) { _ in pushLiftActivity(alert: true) }
                 // #911/#759: republish the Home/Lock-Screen widget whenever the dashboard caches actually
                 // change mid-session. The only other publish site is the scenePhase .active handler, so
                 // during a long foreground session the widget froze at the last-foreground snapshot while
@@ -397,9 +399,10 @@ struct StrandiOSApp: App {
     /// The wording and the numbers come from `LiftSessionController.presentation`, the same
     /// resolution the in-app minimised bar renders, so the two surfaces cannot disagree. The heart
     /// rate is the app's smoothed value, and only while the strap is actually connected — a frozen
-    /// last-known bpm on a Lock Screen reads as live and is not.
+    /// last-known bpm on a Lock Screen reads as live and is not. `alert` lights the Lock Screen for this
+    /// push — see `LiftLiveActivityController.update`.
     @MainActor
-    private func pushLiftActivity() {
+    private func pushLiftActivity(alert: Bool = false) {
         let system = UnitSystem(rawValue: unitSystemRaw) ?? .metric
         guard let p = liftSession.presentation(system: system) else {
             liftActivity.update(programName: "", state: nil)
@@ -413,9 +416,10 @@ struct StrandiOSApp: App {
                 status: p.status,
                 detail: p.detail,
                 bpm: model.live.connected ? (model.bpm ?? model.live.heartRate) : nil,
-                progress: String(localized: "\(p.setsDone) of \(p.setsPlanned) sets done"),
+                next: p.next,
                 stageStartedAt: p.stageStartedAt,
-                restEndsAt: p.restEndsAt))
+                restEndsAt: p.restEndsAt),
+            alert: alert)
     }
 }
 

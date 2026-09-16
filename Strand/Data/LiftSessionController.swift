@@ -36,6 +36,11 @@ final class LiftSessionController: ObservableObject {
     /// screen, so its save cannot call back into the one listing sessions; that screen reloads on this.
     @Published private(set) var savedSessions = 0
 
+    /// Sends after a strap double-tap has moved the session on, once the new state is in place — unlike
+    /// `$engine`, which publishes before the change lands. The Lock Screen banner uses it to light the
+    /// screen for the step the lifter just took.
+    let strapStepTaken = PassthroughSubject<Void, Never>()
+
     var isActive: Bool { engine != nil && engine?.isFinished == false }
 
     /// Rest period the five-second warning has already fired for. Lives HERE, not in a view, so
@@ -223,6 +228,7 @@ final class LiftSessionController: ObservableObject {
         now = stamp
         warnedFor = nil
         persist()
+        if fromStrap { strapStepTaken.send() }
     }
 
     /// Whether a strap double-tap `secondsSinceLastStep` after the last one the session acted on is a
@@ -254,14 +260,14 @@ final class LiftSessionController: ObservableObject {
 
     struct Presentation: Equatable {
         var isResting: Bool
-        /// The exercise being worked or rested from; the program's name when neither applies.
+        /// The exercise being worked or rested from; the program's name during the warm-up.
         var exercise: String
-        /// "Set 2", "Resting after set 2", "Ready for the next set", "3 of 19 sets done".
+        /// "Set 2", "Resting after set 2", "Ready for the next set", "Warm-up".
         var status: String
         /// "8 x 30 kg", already unit-converted. Nil when neither reps nor weight is known.
         var detail: String?
-        var setsDone: Int
-        var setsPlanned: Int
+        /// "Next: Set 3 · Bench press" — see `nextLine(_:)`.
+        var next: String
         var stageStartedAt: Date
         /// When the running rest is due to end. Nil while working.
         var restEndsAt: Date?
@@ -269,16 +275,13 @@ final class LiftSessionController: ObservableObject {
 
     func presentation(system: UnitSystem) -> Presentation? {
         guard let engine, !engine.isFinished else { return nil }
-        let done = engine.completedWorkingSets
-        let planned = engine.plannedWorkingSets
         let started = Date(timeIntervalSince1970: TimeInterval(engine.stageStartedAt))
-        let fallback = String(localized: "\(done) of \(planned) sets done")
+        let next = Self.nextLine(engine)
 
         guard let slot = engine.currentSlot, let item = engine.planItem(for: slot) else {
             return Presentation(isResting: false,
                                 exercise: programName ?? String(localized: "Session"),
-                                status: fallback, detail: nil,
-                                setsDone: done, setsPlanned: planned,
+                                status: String(localized: "Warm-up"), detail: nil, next: next,
                                 stageStartedAt: started, restEndsAt: nil)
         }
 
@@ -290,23 +293,42 @@ final class LiftSessionController: ObservableObject {
                 isResting: true, exercise: item.exercise,
                 status: ready ? String(localized: "Ready for the next set")
                               : String(localized: "Resting after set \(slot.setIndex)"),
-                detail: detail, setsDone: done, setsPlanned: planned,
+                detail: detail, next: next,
                 stageStartedAt: started,
                 restEndsAt: Date(timeIntervalSince1970: TimeInterval(endsAt)))
         default:
             return Presentation(
                 isResting: false, exercise: item.exercise,
                 status: String(localized: "Set \(slot.setIndex)"),
-                detail: detail, setsDone: done, setsPlanned: planned,
+                detail: detail, next: next,
                 stageStartedAt: started, restEndsAt: nil)
         }
     }
 
-    /// Reps x weight for a slot, as "8 x 30 kg": what the set counts as — typed numbers, else the grey
-    /// ones the sheet shows.
+    /// The set after this one, as the bar and the Lock Screen show it on one line.
+    ///
+    /// It replaced "3 of 19 sets done", which answered nothing a lifter acts on mid-session, while the
+    /// set coming up says where to walk (Utku, 16 Sep 2026). It is always a SET, never the rest before
+    /// it. The set number comes before the exercise so that a narrow line cuts the name, not the
+    /// number. "Last set" while the final set is worked; "All sets done" once it is.
+    static func nextLine(_ engine: LiftSessionEngine) -> String {
+        if let upcoming = engine.upcomingSlot, let item = engine.planItem(for: upcoming) {
+            return String(localized: "Next: Set \(upcoming.setIndex) · \(item.exercise)")
+        }
+        return engine.allCompleted ? String(localized: "All sets done") : String(localized: "Last set")
+    }
+
+    /// Reps x weight for a slot, as "8 x 30 kg": what the set's row on the sheet shows — typed numbers,
+    /// else the grey ones.
+    ///
+    /// That includes numbers typed into a set BEFORE it is recorded (`pendingValues`), which the row shows
+    /// black. Without them the bar and the Lock Screen showed the grey plan for the set being lifted while
+    /// its row showed what was typed (simulator, 16 Sep 2026: 70 kg × 9 typed, "8 x 60 kg" on the bar).
     func setNumbers(for slot: LiftSlot, system: UnitSystem) -> String? {
         guard engine != nil else { return nil }
-        let shown = values(of: slot)
+        let grey = values(of: slot)
+        let typed = pendingValues[slot]
+        let shown = LiftSetCarry(weightKg: typed?.weightKg ?? grey.weightKg, reps: typed?.reps ?? grey.reps)
 
         let weight = shown.weightKg.map {
             LiftFormat.trim(LiftFormat.display(fromKilograms: $0, system: system))

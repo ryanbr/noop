@@ -27,24 +27,24 @@ public struct LiftActivityAttributes: ActivityAttributes {
         /// Nil when neither reps nor weight is known.
         public var detail: String?
         public var bpm: Int?
-        /// "3 of 19 sets done", localized APP-SIDE. The widget extension ships no string catalog, so
-        /// every word it renders has to arrive already translated — the same reason `status` and
-        /// `detail` are strings rather than numbers.
-        public var progress: String
+        /// "Next: Set 3 · Bench press", localized APP-SIDE (`LiftSessionController.nextLine`). The widget
+        /// extension ships no string catalog, so every word it renders has to arrive already translated
+        /// — the same reason `status` and `detail` are strings rather than numbers.
+        public var next: String
         /// When the current stage began — the widget counts UP from here while working.
         public var stageStartedAt: Date
         /// When the running rest is due to end; the widget counts DOWN to it. Nil while working.
         public var restEndsAt: Date?
 
         public init(isResting: Bool, exercise: String, status: String, detail: String?,
-                    bpm: Int?, progress: String,
+                    bpm: Int?, next: String,
                     stageStartedAt: Date, restEndsAt: Date?) {
             self.isResting = isResting
             self.exercise = exercise
             self.status = status
             self.detail = detail
             self.bpm = bpm
-            self.progress = progress
+            self.next = next
             self.stageStartedAt = stageStartedAt
             self.restEndsAt = restEndsAt
         }

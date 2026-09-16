@@ -43,6 +43,15 @@ struct LiftSessionBar: View {
                             .font(StrandFont.footnote)
                             .foregroundStyle(StrandPalette.textSecondary)
                             .lineLimit(1)
+                        // The set coming up, on one line that cuts the exercise name before the
+                        // set number (`LiftSessionController.nextLine`).
+                        if let next = session.presentation(system: unitSystem)?.next {
+                            Text(next)
+                                .font(StrandFont.footnote)
+                                .foregroundStyle(StrandPalette.textTertiary)
+                                .lineLimit(1)
+                                .truncationMode(.tail)
+                        }
                     }
 
                     Spacer(minLength: 0)
@@ -108,9 +117,7 @@ struct LiftSessionBar: View {
     }
 
     private func subtitle(_ engine: LiftSessionEngine) -> String {
-        guard let p = session.presentation(system: unitSystem) else {
-            return String(localized: "\(engine.completedWorkingSets) of \(engine.plannedWorkingSets) sets done")
-        }
+        guard let p = session.presentation(system: unitSystem) else { return "" }
         guard let detail = p.detail else { return p.status }
         return "\(p.status) — \(detail)"
     }

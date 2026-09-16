@@ -1,6 +1,7 @@
 #if os(iOS)
 import Foundation
 import ActivityKit
+import UIKit
 
 /// Starts, updates and ends the Lift Log session Live Activity.
 ///
@@ -31,9 +32,19 @@ final class LiftLiveActivityController {
     /// rest legitimately produces no content change at all — the clock is ticking client-side.
     private static let staleAfter: TimeInterval = 15 * 60
 
+    /// A bundled sound file of silence. ActivityKit offers an alert only the default sound or a named
+    /// file, and a chime from a phone on a bench every set is not what the lifter asked for; the strap
+    /// has already buzzed.
+    static let silentAlertSound = "lift-step-silence.caf"
+
     /// Drive the activity from the session's current state. `state` nil means no session is running,
     /// which ends any activity that is showing.
-    func update(programName: String, state: LiftActivityAttributes.ContentState?) {
+    ///
+    /// `alert` is set for the push that follows a strap double-tap. It lights the Lock Screen on the
+    /// new step, so a lifter who glances at a dark phone sees what they are on (Utku, 16 Sep 2026) —
+    /// an ActivityKit alert, not a notification: it wakes the screen without unlocking anything. It is
+    /// skipped while the app is on screen, where there is nothing to light and iOS would only vibrate.
+    func update(programName: String, state: LiftActivityAttributes.ContentState?, alert: Bool = false) {
         guard authInfo.areActivitiesEnabled else { return }
 
         // Re-adopt an activity that outlived a previous app session — ActivityKit keeps them alive
@@ -52,7 +63,7 @@ final class LiftLiveActivityController {
         // heart rate (handled by its own interval below).
         let signature = [
             state.isResting ? "rest" : "work", state.exercise, state.status,
-            state.detail ?? "", state.progress,
+            state.detail ?? "", state.next,
             "\(state.stageStartedAt.timeIntervalSince1970)",
             "\(state.restEndsAt?.timeIntervalSince1970 ?? 0)",
         ].joined(separator: "|")
@@ -63,10 +74,20 @@ final class LiftLiveActivityController {
                                       staleDate: Date().addingTimeInterval(Self.staleAfter))
 
         if let activity {
-            guard contentChanged || heartRateDue else { return }
+            let lightsScreen = alert && UIApplication.shared.applicationState != .active
+            guard contentChanged || heartRateDue || lightsScreen else { return }
             lastSignature = signature
             lastPush = Date()
-            Task { await activity.update(content) }
+            if lightsScreen {
+                let stepAlert = AlertConfiguration(
+                    title: LocalizedStringResource(stringLiteral: state.exercise),
+                    body: LocalizedStringResource(stringLiteral: state.detail.map { "\(state.status) — \($0)" }
+                                                  ?? state.status),
+                    sound: .named(Self.silentAlertSound))
+                Task { await activity.update(content, alertConfiguration: stepAlert) }
+            } else {
+                Task { await activity.update(content) }
+            }
         } else {
             // Set synchronously before any await, so a second tick arriving while `Activity.request`
             // is still in flight bails here instead of creating a duplicate activity.

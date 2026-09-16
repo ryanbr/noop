@@ -17,7 +17,7 @@ import StrandDesign
 struct LiftLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: LiftActivityAttributes.self) { context in
-            lockScreen(context.state, program: context.attributes.programName)
+            lockScreen(context.state)
                 .activityBackgroundTint(StrandPalette.surfaceBase)
                 .activitySystemActionForegroundColor(StrandPalette.textPrimary)
         } dynamicIsland: { context in
@@ -65,8 +65,7 @@ struct LiftLiveActivity: Widget {
         state.isResting ? StrandPalette.metricAmber : StrandPalette.statusPositive
     }
 
-    private func lockScreen(_ state: LiftActivityAttributes.ContentState,
-                            program: String) -> some View {
+    private func lockScreen(_ state: LiftActivityAttributes.ContentState) -> some View {
         HStack(spacing: 12) {
             Image(systemName: "dumbbell.fill")
                 .font(.system(size: 18, weight: .semibold))
@@ -81,16 +80,14 @@ struct LiftLiveActivity: Widget {
                     .font(.caption)
                     .foregroundStyle(StrandPalette.textSecondary)
                     .lineLimit(1)
-                // Two variables in an HStack rather than one interpolated string: the extension has
-                // no catalog, so a literal separator here would be untranslatable copy shipped to
-                // ten locales. Everything user-facing arrives pre-localized from the app.
-                HStack(spacing: 6) {
-                    Text(state.progress)
-                    Text(program)
-                }
-                .font(.caption2)
-                .foregroundStyle(StrandPalette.textTertiary)
-                .lineLimit(1)
+                // The set coming up, alone on the line, arriving pre-localized from the app (the
+                // extension has no catalog). It puts the set number before the exercise, so the tail
+                // truncation a long name needs cuts the name and keeps the number.
+                Text(state.next)
+                    .font(.caption2)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
             }
 
             Spacer(minLength: 8)
@@ -128,19 +125,29 @@ struct LiftLiveActivity: Widget {
     /// the Lock Screen it rendered "25 minutes" — a rounded, prose duration — where a gym timer has
     /// to read 25:02. Verified in the simulator, which is the only reason it was caught.
     ///
-    /// An overrun rest (`restEndsAt` already past) counts UP from when it was due, which is the
-    /// honest reading: you are over, and by how much. A zero-length range would render nothing, so
-    /// the end is pushed a day out — well beyond any session.
+    /// A rest that is over reads 0:00 and stays there, as the in-app bar does
+    /// (`LiftSessionEngine.restRemaining` floors at zero). It used to count UP past the end, and a
+    /// clock climbing from zero on the Lock Screen read as a new timer rather than a finished rest
+    /// (gym session, 16 Sep 2026). The countdown's range therefore starts at the REST'S start, not at
+    /// `.now`: a widget re-rendered after the end — for a heart-rate push, say — still gets a range
+    /// that is entirely past, which `Text(timerInterval:)` shows as its end value instead of switching
+    /// to a count-up. A rest with no length (the sheet is complete) has no range to count and shows
+    /// the same 0:00. A working set counts up from its start; a zero-length range would render
+    /// nothing, so that end is pushed a day out — well beyond any session.
     private func clock(_ state: LiftActivityAttributes.ContentState, tint: Color) -> some View {
-        let counter: some View = {
-            if let ends = state.restEndsAt, ends > .now {
-                return Text(timerInterval: .now...ends, countsDown: true)
+        Group {
+            if let ends = state.restEndsAt {
+                if ends > state.stageStartedAt {
+                    Text(timerInterval: state.stageStartedAt...ends, countsDown: true)
+                } else {
+                    Text(verbatim: "0:00")
+                }
+            } else {
+                Text(timerInterval: state.stageStartedAt...state.stageStartedAt.addingTimeInterval(86_400),
+                     countsDown: false)
             }
-            let from = state.restEndsAt ?? state.stageStartedAt
-            return Text(timerInterval: from...from.addingTimeInterval(86_400), countsDown: false)
-        }()
-        return counter
-            .monospacedDigit()
-            .foregroundStyle(tint)
+        }
+        .monospacedDigit()
+        .foregroundStyle(tint)
     }
 }

@@ -219,6 +219,23 @@ struct LiftSessionEngine: Equatable {
         slots(forExercise: slot.exerciseIndex).first { !isCompleted($0) } ?? nextPendingSlot
     }
 
+    /// The set the session is heading to after the current one — what the minimised bar and the Lock
+    /// Screen name as "next". During the warm-up it is the set `advance` starts; while a set is worked
+    /// or rested from, it is where `advance` goes once that set is done: `slotAfter(_:)`, with the
+    /// current set counted as done. Never a rest, which sits between sets rather than being one of
+    /// them. Nil when nothing is left to do after the current set.
+    var upcomingSlot: LiftSlot? {
+        switch stage {
+        case .warmup:
+            return nextPendingSlot
+        case .working(let slot), .resting(let slot, _):
+            return slots(forExercise: slot.exerciseIndex).first { !isCompleted($0) && $0 != slot }
+                ?? allSlots.first { !isCompleted($0) && $0 != slot }
+        case .finished:
+            return nil
+        }
+    }
+
     var allCompleted: Bool { nextPendingSlot == nil }
     var isFinished: Bool { stage == .finished }
     var canUndo: Bool { !history.isEmpty }

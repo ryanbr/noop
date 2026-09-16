@@ -82,6 +82,21 @@ final class LiftSessionPendingInputTests: XCTestCase {
                        "and still count as the carried value, not as nothing")
     }
 
+    /// The bar and the Lock Screen show the set being lifted with the numbers its row shows, typed
+    /// ones included — not the grey plan behind them (simulator, 16 Sep 2026: 70 kg × 9 typed into the
+    /// running set, "8 x 60 kg" on the bar). A field left alone still shows its grey value.
+    func testTheBarShowsNumbersTypedIntoTheSetBeingLifted() {
+        let c = controller()
+        c.start(plan: plan(), programId: nil, programName: "Upper A")
+        c.advance()                                               // set 1 active
+        XCTAssertEqual(c.setNumbers(for: slot(0, 1), system: .metric), "10 x 50 kg", "the plan, grey")
+
+        c.updateSet(slot(0, 1), weightKg: 70, reps: nil, rpe: nil, isWarmup: false)
+        XCTAssertEqual(c.setNumbers(for: slot(0, 1), system: .metric), "10 x 70 kg")
+        c.updateSet(slot(0, 1), weightKg: 70, reps: 9, rpe: nil, isWarmup: false)
+        XCTAssertEqual(c.presentation(system: .metric)?.detail, "9 x 70 kg")
+    }
+
     /// Clearing the field puts the row back to showing the plan's grey ghost, rather than pinning an
     /// empty entry that would record a blank set.
     func testClearingTheFieldDropsTheHeldEntry() {
