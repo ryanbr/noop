@@ -61,6 +61,21 @@ enum CoachBriefScheduler {
         return UserDefaults.standard.bool(forKey: "noop.coachEnabled")
     }
 
+    /// Tear down whatever the brief has left lying around when the Coach master switch goes off.
+    ///
+    /// Gating `isEnabled` alone stops the NEXT brief being generated, which is the network half, but it
+    /// leaves the LAST one on the wearer's home screen: the widget renders whatever was last published,
+    /// so AI output would go on being displayed after the AI was switched off. Mirrors what
+    /// `setEnabled(false)` already does for the brief's own flag, and what Android's `reschedule` does
+    /// when it sees the master switch is off.
+    static func applyMasterSwitch(_ on: Bool) {
+        guard !on else { return }
+        cancel()
+        #if os(iOS)
+        publishToWidget(nil)
+        #endif
+    }
+
     /// Whether the daily brief should run. Both gates, so the brief's own default-off flag keeps its
     /// meaning while the master switch can veto it outright.
     static var isEnabled: Bool { coachMasterEnabled && UserDefaults.standard.bool(forKey: K.enabled) }

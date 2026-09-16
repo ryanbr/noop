@@ -467,7 +467,11 @@ object BottomBarStyleStore {
         coachEnabled = value
         val app = ctx.applicationContext
         NoopPrefs.setCoachEnabled(app, value)
-        if (!value) CoachBriefScheduler.cancel(app)
+        // Routed through `reschedule` rather than `cancel`, because cancelling the work is only half of
+        // switching the brief off: the widget keeps displaying the LAST generated brief, which is AI output
+        // still on the wearer's home screen after they turned the AI off. `reschedule` sees the master
+        // switch is now false, cancels the work AND clears the widget, so both halves happen here.
+        if (!value) CoachBriefScheduler.reschedule(app)
     }
 
     fun load(ctx: Context) {

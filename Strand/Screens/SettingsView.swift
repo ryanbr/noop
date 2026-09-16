@@ -1218,6 +1218,12 @@ struct SettingsView: View {
                         .tint(StrandPalette.accent)
                         .accessibilityLabel("AI Coach")
                 }
+                .onChangeCompat(of: coachEnabled) { on in
+                    // Switching the AI off has to TAKE DOWN what the brief already published, not just stop the
+                    // next one: the widget renders the last brief it was given, so without this a wearer would
+                    // still be looking at AI output on their home screen after turning the AI off.
+                    CoachBriefScheduler.applyMasterSwitch(on)
+                }
                 #if os(iOS)
                 rowDivider
                 // #1841: the same preference Android drives its own bar with, by name and meaning. Here
