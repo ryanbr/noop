@@ -83,9 +83,55 @@ fun CoachSettingsScreen(vm: CoachViewModel) {
         // stays on the coach page). A "not connected yet" card would be unreachable, and the Swift twin
         // has no equivalent.
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            CoachModelCard(vm = vm)
             CoachConsentCard(vm = vm)
             CoachInstructions(vm = vm)
             MorningBriefCard(vm = vm)
+        }
+    }
+}
+
+/**
+ * Which model answers, and the control that refreshes the list of them.
+ *
+ * This lives HERE rather than on the setup card because of where a key exists. The setup card renders
+ * only while `isConfigured` is false, which for a cloud provider means no key is stored, and the
+ * Refresh control is gated on having one: `enabled = hasKey` inside a screen that only appears when
+ * `!hasKey` can never be true. So for OpenAI, Anthropic and Gemini that button was permanently
+ * disabled, and the live catalogue those three publish was unreachable. A key exists by definition on
+ * this screen, so both the picker and the refresh work.
+ *
+ * The PROVIDER deliberately stays on the setup card. A stored key records which provider it belongs to
+ * and is never sent anywhere else (AiKeyStore.read(ctx, provider)), so switching provider here would
+ * leave a key that cannot be used and a screen that cannot fix it.
+ */
+@Composable
+private fun CoachModelCard(vm: CoachViewModel) {
+    val context = LocalContext.current
+    val provider by vm.provider.collectAsStateWithLifecycle()
+    val model by vm.model.collectAsStateWithLifecycle()
+    val availableModels by vm.availableModels.collectAsStateWithLifecycle()
+    val refreshingModels by vm.refreshingModels.collectAsStateWithLifecycle()
+
+    NoopCard(padding = 14.dp, tint = Palette.chargeColor) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    uiString(R.string.l10n_coach_screen_provider_displayname_model_8b39f761, provider.displayName, model),
+                    style = NoopType.subhead, color = Palette.textPrimary,
+                    modifier = Modifier.weight(1f),
+                )
+                RefreshModelsButton(
+                    refreshing = refreshingModels,
+                    enabled = vm.hasKey(context),
+                    onClick = { vm.refreshModels(context) },
+                )
+            }
+            ModelDropdown(
+                models = availableModels,
+                selected = model,
+                onSelect = { vm.selectModel(context, it) },
+            )
         }
     }
 }

@@ -48,6 +48,7 @@ struct CoachSettingsView: View {
                                .foregroundStyle(StrandPalette.accent)
                                .accessibilityLabel("Close coach settings")
                        }) {
+            modelBar
             consentBar
             // v5: a SECOND opt-in, only meaningful once data access is on, folds a summary of the
             // new on-device signals (your strongest patterns + Lab Book) into the coach context.
@@ -55,6 +56,52 @@ struct CoachSettingsView: View {
             if coach.dataConsent && coach.provider == .gemini { multimodalChartBar }
             systemPromptBar
             morningBriefBar
+        }
+        // Opening this screen is the moment a stale catalogue is worth refreshing: a key exists here by
+        // definition, and the picker above is about to be read. Rate-limited and silent on failure.
+        .task { await coach.refreshModelsIfStale() }
+    }
+
+    /// Which model answers, and the control that refreshes the list of them.
+    ///
+    /// This lives HERE rather than on the setup card because of where a key exists. `setupCard` renders
+    /// only while `isConfigured` is false, which for a cloud provider means no key is stored, and the
+    /// Refresh control is `.disabled(!coach.hasKey)` — gated on having a key inside a screen that only
+    /// appears when there is none. So for OpenAI, Anthropic and Gemini that button was permanently
+    /// disabled and the live catalogue those three publish was unreachable. A key exists by definition
+    /// on this screen, so the picker and the refresh both work.
+    ///
+    /// The PROVIDER deliberately stays on the setup card. A stored key records which provider it
+    /// belongs to and is never sent anywhere else, so switching provider here would leave a key that
+    /// cannot be used and a screen that cannot fix it. Kotlin twin: `CoachModelCard`.
+    private var modelBar: some View {
+        NoopCard(padding: 14, tint: StrandPalette.chargeColor) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("\(coach.provider.displayName) · \(coach.model)")
+                        .font(StrandFont.subhead).foregroundStyle(StrandPalette.textPrimary)
+                    Spacer(minLength: 8)
+                    Button {
+                        Task { await coach.refreshModels() }
+                    } label: {
+                        Label("Refresh models", systemImage: "arrow.clockwise")
+                            .font(StrandFont.footnote)
+                            .labelStyle(.titleAndIcon)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(StrandPalette.accent)
+                    .disabled(!coach.hasKey)
+                    .accessibilityLabel("Refresh models from provider")
+                }
+                Picker("Model", selection: $coach.model) {
+                    ForEach(coach.availableModels, id: \.self) { m in
+                        Text(m).tag(m)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .accessibilityLabel("Model")
+            }
         }
     }
 

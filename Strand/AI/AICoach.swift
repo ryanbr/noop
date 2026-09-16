@@ -526,6 +526,44 @@ final class AICoachEngine: ObservableObject {
     /// Best-effort: GET the chosen provider's models endpoint with the saved key and merge the
     /// returned ids into `availableModels`. Never crashes; failures land in `errorText` and leave
     /// the existing list intact. Requires a saved key.
+    /// When the live catalogue was last pulled for `provider`, keyed per provider so switching does
+    /// not hide one provider's stale list behind another's refresh. Kotlin twin:
+    /// `NoopPrefs.coachModelsRefreshedAt`.
+    static func modelsRefreshedKey(_ provider: AIProvider) -> String {
+        "ai.modelsRefreshed.\(provider.rawValue)"
+    }
+
+    /// How long a pulled catalogue is trusted. Kotlin twin: `MODEL_REFRESH_INTERVAL_MS`.
+    static let modelRefreshInterval: TimeInterval = 7 * 24 * 60 * 60
+
+    /// Pull the live catalogue at most once a week, so the picker offers what the provider sells today
+    /// without this app shipping a build for every model release.
+    ///
+    /// Quiet by design: failures leave the built-in list in place, which is what the user would have
+    /// seen anyway, and the explicit Refresh control remains for anyone who wants to know whether it
+    /// worked. `refreshModels()` surfaces errors; this deliberately discards them, including the
+    /// key-rejected flag it may raise, so opening settings cannot paint a red banner the user did not
+    /// ask for.
+    ///
+    /// Requires a stored key, so it cannot fire during first-run setup where there is nothing to
+    /// authenticate with. Custom is excluded: `connectCustom()` already pulls its list, and its server
+    /// is the user's own machine rather than a vendor catalogue.
+    ///
+    /// Only the LIST moves. The selected model is never changed underneath the user. Kotlin twin:
+    /// `CoachViewModel.refreshModelsIfStale`.
+    func refreshModelsIfStale() async {
+        guard provider != .custom, hasKey else { return }
+        let last = UserDefaults.standard.double(forKey: Self.modelsRefreshedKey(provider))
+        guard Date().timeIntervalSince1970 - last >= Self.modelRefreshInterval else { return }
+        let priorError = errorText
+        let priorRejected = keyRejected
+        await refreshModels()
+        // Restore whatever the screen was already saying: this refresh was not user-initiated, so it
+        // must not introduce an error banner, nor clear one that a real action produced.
+        errorText = priorError
+        keyRejected = priorRejected
+    }
+
     func refreshModels() async {
         guard let key = resolvedKey else {
             errorText = AICoachError.noKey.errorDescription
@@ -567,6 +605,10 @@ final class AICoachEngine: ObservableObject {
             var merged = builtin + discovered
             if !merged.contains(model) { merged.insert(model, at: 0) }
             availableModels = merged
+            // Stamp only on a SUCCESSFUL pull, so a provider that is down does not buy itself a week
+            // of silence from `refreshModelsIfStale()`.
+            UserDefaults.standard.set(Date().timeIntervalSince1970,
+                                      forKey: Self.modelsRefreshedKey(capturedProvider))
         } catch let e as AICoachError {
             // A switch mid-flight makes any error moot for the old provider, so don't surface it.
             guard provider == capturedProvider else { return }

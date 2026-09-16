@@ -662,7 +662,7 @@ private fun SuggestedPrompts(prompts: List<String>, onPick: (String) -> Unit) {
 // MARK: - Model dropdown
 
 @Composable
-private fun ModelDropdown(
+internal fun ModelDropdown(
     models: List<String>,
     selected: String,
     onSelect: (String) -> Unit,
@@ -783,7 +783,7 @@ private fun CustomModelDialog(
 // MARK: - Refresh models (fetch live list)
 
 @Composable
-private fun RefreshModelsButton(
+internal fun RefreshModelsButton(
     refreshing: Boolean,
     enabled: Boolean,
     onClick: () -> Unit,

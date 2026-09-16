@@ -275,6 +275,9 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
                     if (p == AiProvider.CUSTOM && _model.value.isBlank() && merged.isNotEmpty()) {
                         selectModel(appCtx, merged.first())
                     }
+                    // Stamp only on a SUCCESSFUL pull, so a provider that is down does not buy itself
+                    // a week of silence from [refreshModelsIfStale].
+                    NoopPrefs.setCoachModelsRefreshedAt(appCtx, p.name, System.currentTimeMillis())
                 }
             } catch (e: Exception) {
                 // Best-effort about the LIST: whatever we already have stays. But a key the provider
@@ -290,6 +293,31 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
                 _refreshingModels.value = false
             }
         }
+    }
+
+    /**
+     * Pull the live catalogue at most once every [MODEL_REFRESH_INTERVAL_MS], so the picker offers what
+     * the provider sells today without this app shipping a build for every model release (#2255 had to
+     * hand-edit two lists to add one generation).
+     *
+     * Quiet by design: no spinner and no error surface. A failure leaves the built-in list in place,
+     * which is exactly what the user would have seen anyway, and the explicit Refresh control is still
+     * there for someone who wants to know whether it worked.
+     *
+     * Requires a stored key, so it cannot fire during first-run setup where there is nothing to
+     * authenticate with. Custom is excluded: [connectCustom] already pulls its list on connect, and its
+     * server is the user's own machine rather than a vendor catalogue.
+     *
+     * Only the LIST moves. The selected model is never changed underneath the user: a new generation
+     * appears in the picker, it does not silently become what answers their questions.
+     */
+    fun refreshModelsIfStale(ctx: Context) {
+        val appCtx = ctx.applicationContext
+        val p = _provider.value
+        if (p == AiProvider.CUSTOM || !hasKey(appCtx)) return
+        val last = NoopPrefs.coachModelsRefreshedAt(appCtx, p.name)
+        if (System.currentTimeMillis() - last < MODEL_REFRESH_INTERVAL_MS) return
+        refreshModels(appCtx)
     }
 
     /**
@@ -640,6 +668,9 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
          * what's sent. (parity with Swift `maxStoredMessages`)
          */
         private const val MAX_STORED_MESSAGES = 40
+
+        /** How long a pulled model catalogue is trusted before [refreshModelsIfStale] pulls again. */
+        internal const val MODEL_REFRESH_INTERVAL_MS = 7L * 24 * 60 * 60 * 1000
 
         /**
          * The LOCAL epoch day an epoch-SECONDS instant falls on: the same value

@@ -1091,6 +1091,20 @@ object NoopPrefs {
         of(context).edit().putBoolean(KEY_QUIET_MOTION, enabled).apply()
     }
 
+    /**
+     * When the live /models catalogue was last pulled for a provider, epoch millis, keyed per
+     * provider so switching does not hide a stale list behind another provider's refresh.
+     *
+     * Exists so the model picker can carry what the provider offers TODAY without this app shipping a
+     * new build for every model release. The built-in lists stay as the offline seed.
+     */
+    fun coachModelsRefreshedAt(context: Context, provider: String): Long =
+        of(context).getLong("noop.coachModelsRefreshed.$provider", 0L)
+
+    fun setCoachModelsRefreshedAt(context: Context, provider: String, atMillis: Long) {
+        of(context).edit().putLong("noop.coachModelsRefreshed.$provider", atMillis).apply()
+    }
+
     /** Coach on-device signals (v5): when ON, the opt-in BYO-key Coach's grounding context may include a
      *  SUMMARY-ONLY line of on-device correlations + Lab Book markers (no raw egress). A SECOND opt-in on
      *  top of the existing "let the coach use my data" consent. Default OFF, keeps the anonymity posture. */
