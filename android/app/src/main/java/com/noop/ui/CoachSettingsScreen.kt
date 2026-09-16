@@ -31,7 +31,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 
 /**
  * Coach settings, split out of [CoachScreen] so the coach tab is the conversation and nothing else
@@ -52,12 +51,13 @@ import androidx.lifecycle.viewmodel.compose.viewModel
  * `CoachSettingsView`.
  */
 @Composable
-fun CoachSettingsScreen(vm: CoachViewModel = viewModel()) {
+// `vm` is deliberately REQUIRED. The default `viewModel()` resolves against the NavBackStackEntry, so
+// it would hand this destination its own CoachViewModel rather than the conversation's, which is the
+// defect this screen shipped with: consent is held in memory and read by `send`, so a revoke made
+// against a second instance persisted to storage and still left the conversation sending on the old
+// one. AppRoot passes the Coach entry's view model.
+fun CoachSettingsScreen(vm: CoachViewModel) {
     val context = LocalContext.current
-    val keyVersion by vm.keyVersion.collectAsStateWithLifecycle()
-    val provider by vm.provider.collectAsStateWithLifecycle()
-    val customConnected by vm.customConnected.collectAsStateWithLifecycle()
-    val configured = remember(keyVersion, provider, customConnected) { vm.isConfigured(context) }
 
     // The brief settings are read from prefs on show, the same as the coach page did before the
     // split: this screen can now be the first one to render them.
@@ -71,21 +71,14 @@ fun CoachSettingsScreen(vm: CoachViewModel = viewModel()) {
         topBackground = screenBackdropSlot(showDayCycleBackground, skyBehindCards),
         fullBleedBackground = screenBackdropFullBleed(showDayCycleBackground, skyBehindCards),
     ) {
+        // No unconfigured branch: the strip that reaches this screen is drawn inside CoachChat, which
+        // only renders once a provider is connected, and nothing here can disconnect one (Disconnect
+        // stays on the coach page). A "not connected yet" card would be unreachable, and the Swift twin
+        // has no equivalent.
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            if (!configured) {
-                // Nothing here applies until a provider is connected, and the control that connects
-                // one lives on the coach page. Say so rather than showing dead switches.
-                NoopCard(padding = 14.dp, tint = Palette.chargeColor) {
-                    Text(
-                        stringResource(R.string.coach_settings_not_connected),
-                        style = NoopType.footnote, color = Palette.textTertiary,
-                    )
-                }
-            } else {
-                CoachConsentCard(vm = vm)
-                CoachInstructions(vm = vm)
-                MorningBriefCard(vm = vm)
-            }
+            CoachConsentCard(vm = vm)
+            CoachInstructions(vm = vm)
+            MorningBriefCard(vm = vm)
         }
     }
 }

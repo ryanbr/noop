@@ -2714,7 +2714,6 @@
     <string name="l10n_coach_settings_screen_collapse_coach_instructions_0933974a">Recolher instruções do treinador</string>
     <string name="l10n_coach_settings_screen_edit_coach_instructions_63a38c3a">Editar instruções do treinador</string>
     <string name="coach_settings">Definições do coach</string>
-    <string name="coach_settings_not_connected">Liga um fornecedor na página Coach para usar estas definições.</string>
     <string name="coach_morning_brief">Resumo matinal</string>
     <string name="coach_morning_brief_desc">Uma notificação local com a prontidão + plano de treino de hoje, gerada no dispositivo todas as manhãs.</string>
     <string name="coach_morning_brief_off">Desativado: nada é gerado nem enviado num agendamento.</string>

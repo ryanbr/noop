@@ -2735,7 +2735,6 @@
     <string name="l10n_coach_settings_screen_collapse_coach_instructions_0933974a">Coach-Anweisungen einklappen</string>
     <string name="l10n_coach_settings_screen_edit_coach_instructions_63a38c3a">Coach-Anweisungen bearbeiten</string>
     <string name="coach_settings">Coach-Einstellungen</string>
-    <string name="coach_settings_not_connected">Verbinde auf der Coach-Seite einen Anbieter, um diese Einstellungen zu nutzen.</string>
     <string name="coach_morning_brief">Morgenbrief</string>
     <string name="coach_morning_brief_desc">Eine lokale Benachrichtigung mit heutiger Bereitschaft + Trainingsplan, jeden Morgen auf dem Gerät erstellt.</string>
     <string name="coach_morning_brief_off">Aus: Es wird nichts generiert oder nach Zeitplan gesendet.</string>

@@ -316,7 +316,8 @@ private fun CoachChat(vm: CoachViewModel, onOpenSettings: () -> Unit) {
     // never appends a duplicate brief onto a transcript K2 just repopulated.
     LaunchedEffect(Unit) {
         vm.loadPersistedMessagesIfNeeded()
-        vm.loadBriefSettings(context)
+        // loadBriefSettings is NOT called here any more: it only populates the brief's UI state, which
+        // CoachSettingsScreen owns since #2243, and consumeScheduledBriefIfAny reads storage directly.
         vm.consumeScheduledBriefIfAny(context)
     }
 
