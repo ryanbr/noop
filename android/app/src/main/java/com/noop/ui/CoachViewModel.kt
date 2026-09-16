@@ -418,15 +418,21 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
 
         viewModelScope.launch {
             try {
+                // Re-read the stored grant rather than trusting the copy this instance was built
+                // with. Consent is editable from CoachSettingsScreen, and the system prompt already
+                // works this way (`resolveSystemPrompt` is read fresh per send); a revoked grant
+                // must not be able to survive in memory on the one call that egresses data.
+                val consentNow = AiKeyStore.readConsent(appCtx)
+                _consent.value = consentNow
                 aiCoach.chatStream(
                     ctx = appCtx,
                     history = _messages.value.dropLast(1), // exclude the placeholder
                     provider = _provider.value,
                     model = _model.value,
-                    consent = _consent.value,
+                    consent = consentNow,
                     customBaseUrl = _customBaseUrl.value,
                     customAuthHeader = _customAuthHeader.value,
-                    includeSignals = _consent.value && NoopPrefs.coachSignals(appCtx),
+                    includeSignals = consentNow && NoopPrefs.coachSignals(appCtx),
                 ) { delta ->
                     accumulated += delta
                     // Replace the placeholder's text with the accumulated stream so far.

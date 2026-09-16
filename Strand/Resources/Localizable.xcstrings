@@ -1,6 +1,9 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Close coach settings": { "localizations": {
+      "de": {"stringUnit": {"state": "translated", "value": "Coach-Einstellungen schließen"}}, "en": {"stringUnit": {"state": "translated", "value": "Close coach settings"}}, "es": {"stringUnit": {"state": "translated", "value": "Cerrar los ajustes del coach"}}, "fr": {"stringUnit": {"state": "translated", "value": "Fermer les réglages du coach"}}, "it": {"stringUnit": {"state": "translated", "value": "Chiudi le impostazioni del coach"}}, "pl": {"stringUnit": {"state": "translated", "value": "Zamknij ustawienia trenera"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Fechar as definições do coach"}}, "ru": {"stringUnit": {"state": "translated", "value": "Закрыть настройки тренера"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "关闭教练设置"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "關閉教練設定"}}
+    } },
     "Coach settings": { "localizations": {
       "de": {"stringUnit": {"state": "translated", "value": "Coach-Einstellungen"}}, "en": {"stringUnit": {"state": "translated", "value": "Coach settings"}}, "es": {"stringUnit": {"state": "translated", "value": "Ajustes del coach"}}, "fr": {"stringUnit": {"state": "translated", "value": "Réglages du coach"}}, "it": {"stringUnit": {"state": "translated", "value": "Impostazioni del coach"}}, "pl": {"stringUnit": {"state": "translated", "value": "Ustawienia trenera"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Definições do coach"}}, "ru": {"stringUnit": {"state": "translated", "value": "Настройки тренера"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "教练设置"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "教練設定"}}
     } },

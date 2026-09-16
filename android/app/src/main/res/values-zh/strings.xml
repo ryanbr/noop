@@ -2624,6 +2624,10 @@
     <string name="coach_clear_action">清除</string>
     <string name="coach_token_estimate">~%1$d 个 token</string>
     <string name="coach_token_warning">" · 可能超出小型上下文窗口"</string>
+    <string name="l10n_coach_settings_screen_customised_your_edited_instructions_frame_every_reply_bab91200">已自定义。你编辑的指令会影响每一条回复。</string>
+    <string name="l10n_coach_settings_screen_edit_how_the_coach_thinks_and_talks_takes_5104835d">编辑教练的思考和说话方式。下一条消息起生效。</string>
+    <string name="l10n_coach_settings_screen_collapse_coach_instructions_0933974a">收起教练指令</string>
+    <string name="l10n_coach_settings_screen_edit_coach_instructions_63a38c3a">编辑教练指令</string>
     <string name="coach_settings">教练设置</string>
     <string name="coach_settings_not_connected">请在教练页面连接服务商后使用这些设置。</string>
     <string name="coach_morning_brief">晨间简报</string>

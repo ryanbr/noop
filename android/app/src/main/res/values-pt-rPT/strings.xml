@@ -2709,6 +2709,10 @@
     <string name="coach_clear_action">Apagar</string>
     <string name="coach_token_estimate">~%1$d tokens</string>
     <string name="coach_token_warning">" · pode exceder janelas de contexto pequenas"</string>
+    <string name="l10n_coach_settings_screen_customised_your_edited_instructions_frame_every_reply_bab91200">Personalizado. As tuas instruções editadas enquadram cada resposta.</string>
+    <string name="l10n_coach_settings_screen_edit_how_the_coach_thinks_and_talks_takes_5104835d">Edite como o treinador pensa e fala. Entra em vigor na tua próxima mensagem.</string>
+    <string name="l10n_coach_settings_screen_collapse_coach_instructions_0933974a">Recolher instruções do treinador</string>
+    <string name="l10n_coach_settings_screen_edit_coach_instructions_63a38c3a">Editar instruções do treinador</string>
     <string name="coach_settings">Definições do coach</string>
     <string name="coach_settings_not_connected">Liga um fornecedor na página Coach para usar estas definições.</string>
     <string name="coach_morning_brief">Resumo matinal</string>

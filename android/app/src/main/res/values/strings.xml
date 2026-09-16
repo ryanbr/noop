@@ -2753,6 +2753,10 @@
     <string name="coach_clear_action">Clear</string>
     <string name="coach_token_estimate">~%1$d tokens</string>
     <string name="coach_token_warning">" · may exceed small context windows"</string>
+    <string name="l10n_coach_settings_screen_customised_your_edited_instructions_frame_every_reply_bab91200">Customised. Your edited instructions frame every reply.</string>
+    <string name="l10n_coach_settings_screen_edit_how_the_coach_thinks_and_talks_takes_5104835d">Edit how the coach thinks and talks. Takes effect on your next message.</string>
+    <string name="l10n_coach_settings_screen_collapse_coach_instructions_0933974a">Collapse coach instructions</string>
+    <string name="l10n_coach_settings_screen_edit_coach_instructions_63a38c3a">Edit coach instructions</string>
     <string name="coach_settings">Coach settings</string>
     <string name="coach_settings_not_connected">Connect a provider on the Coach page to use these settings.</string>
     <string name="coach_morning_brief">Morning brief</string>

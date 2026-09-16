@@ -30,9 +30,24 @@ struct CoachSettingsView: View {
     @State private var promptDraft: String = ""
 
     var body: some View {
-        ScreenScaffold(title: String(localized: "Coach settings"),
-                       subtitle: String(localized: "What the coach may read, how it is told to answer, and when it writes to you."),
-                       topBackground: liquidScaffoldSky()) {
+        // Literals, not String(localized:): `title`/`subtitle` are LocalizedStringKey, which converts
+        // from a string LITERAL only, so a String value does not type-check here. The catalog keys are
+        // these exact English strings.
+        //
+        // Done goes in the scaffold's `trailing` slot rather than a .toolbar. ScreenScaffold is a bare
+        // ScrollView with no NavigationStack, so a toolbar item presented in a sheet would render
+        // nowhere, and a macOS sheet has no swipe-to-dismiss: that combination would leave this screen
+        // with no way out. (#2206 is the same mistake in the other direction.)
+        ScreenScaffold(title: "Coach settings",
+                       subtitle: "What the coach may read, how it is told to answer, and when it writes to you.",
+                       topBackground: liquidScaffoldSky(),
+                       trailing: {
+                           Button("Done") { dismiss() }
+                               .buttonStyle(.plain)
+                               .font(StrandFont.subhead)
+                               .foregroundStyle(StrandPalette.accent)
+                               .accessibilityLabel("Close coach settings")
+                       }) {
             consentBar
             // v5: a SECOND opt-in, only meaningful once data access is on, folds a summary of the
             // new on-device signals (your strongest patterns + Lab Book) into the coach context.
@@ -40,11 +55,6 @@ struct CoachSettingsView: View {
             if coach.dataConsent && coach.provider == .gemini { multimodalChartBar }
             systemPromptBar
             morningBriefBar
-        }
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button(String(localized: "Done")) { dismiss() }
-            }
         }
     }
 

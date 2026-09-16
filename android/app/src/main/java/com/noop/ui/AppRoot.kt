@@ -660,7 +660,19 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                     // A normal push, so Back returns to the conversation (#2243).
                     CoachScreen(onOpenSettings = { nav.navigate(Destination.CoachSettings.route) })
                 }
-                composable(Destination.CoachSettings.route) { CoachSettingsScreen() }
+                composable(Destination.CoachSettings.route) {
+                    // The SAME CoachViewModel the conversation is using, not a fresh one.
+                    // `viewModel()` resolves against LocalViewModelStoreOwner, which under
+                    // Navigation Compose is the NavBackStackEntry, so the default would hand this
+                    // destination its own instance. CoachViewModel keeps consent in memory
+                    // (`_consent`, seeded once at construction) and `send` passes that value to
+                    // `chatStream`, so a revoke made against a second instance would persist to
+                    // storage and still leave the conversation sending on the old one until its
+                    // entry was destroyed. Coach is always below this on the back stack: this
+                    // destination is reachable only from the strip on that screen.
+                    val coachEntry = remember(it) { nav.getBackStackEntry(Destination.Coach.route) }
+                    CoachSettingsScreen(vm = viewModel(coachEntry))
+                }
                 composable(Destination.Explore.route) { TrendsExploreScreen(viewModel) }
                 composable(Destination.Automations.route) { AutomationsScreen(viewModel) }
                 composable(Destination.SmartAlarm.route) { SmartAlarmScreen(viewModel) }

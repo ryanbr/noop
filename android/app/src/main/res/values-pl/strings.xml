@@ -2725,6 +2725,10 @@
     <string name="coach_clear_action">Wyczyść</string>
     <string name="coach_token_estimate">~%1$d tokenów</string>
     <string name="coach_token_warning">" · może przekroczyć małe okna kontekstu"</string>
+    <string name="l10n_coach_settings_screen_customised_your_edited_instructions_frame_every_reply_bab91200">Dostosowane. Zmienione instrukcje stanowią ramę każdej odpowiedzi.</string>
+    <string name="l10n_coach_settings_screen_edit_how_the_coach_thinks_and_talks_takes_5104835d">Edytuj sposób, w jaki coach myśli i mówi. Zacznie obowiązywać od następnej wiadomości.</string>
+    <string name="l10n_coach_settings_screen_collapse_coach_instructions_0933974a">Zwiń instrukcje trenera</string>
+    <string name="l10n_coach_settings_screen_edit_coach_instructions_63a38c3a">Edytuj instrukcje trenera</string>
     <string name="coach_settings">Ustawienia trenera</string>
     <string name="coach_settings_not_connected">Połącz dostawcę na stronie Trener, aby korzystać z tych ustawień.</string>
     <string name="coach_morning_brief">Poranne podsumowanie</string>

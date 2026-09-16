@@ -1365,6 +1365,10 @@
     <string name="coach_clear_action">Очистить</string>
     <string name="coach_token_estimate">~%1$d токенов</string>
     <string name="coach_token_warning">" · может превысить небольшой контекст"</string>
+    <string name="l10n_coach_settings_screen_customised_your_edited_instructions_frame_every_reply_bab91200">Настроено. Ваши изменённые инструкции формируют каждый ответ.</string>
+    <string name="l10n_coach_settings_screen_edit_how_the_coach_thinks_and_talks_takes_5104835d">Настройте, как тренер думает и общается. Вступит в силу со следующего сообщения.</string>
+    <string name="l10n_coach_settings_screen_collapse_coach_instructions_0933974a">Свернуть инструкции для ИИ-тренера</string>
+    <string name="l10n_coach_settings_screen_edit_coach_instructions_63a38c3a">Изменить инструкции для тренера</string>
     <string name="coach_settings">Настройки тренера</string>
     <string name="coach_settings_not_connected">Подключите провайдера на странице тренера, чтобы использовать эти настройки.</string>
     <string name="coach_morning_brief">Утренний брифинг</string>

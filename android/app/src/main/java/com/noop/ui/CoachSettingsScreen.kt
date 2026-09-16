@@ -190,6 +190,11 @@ private fun CoachInstructions(vm: CoachViewModel) {
     var expanded by remember { mutableStateOf(false) }
 
     val headerInteraction = remember { MutableInteractionSource() }
+    // Read outside the semantics block: uiString is @Composable and that lambda is not a
+    // composable scope. Routing through resources rather than literals also keeps the i18n audit
+    // green, which the plain (non --ci) run does not check.
+    val collapseLabel = uiString(R.string.l10n_coach_settings_screen_collapse_coach_instructions_0933974a)
+    val editLabel = uiString(R.string.l10n_coach_settings_screen_edit_coach_instructions_63a38c3a)
     NoopCard(padding = 14.dp, tint = Palette.chargeColor) {
         Column(verticalArrangement = Arrangement.spacedBy(if (expanded) 10.dp else 0.dp)) {
             Row(
@@ -199,15 +204,16 @@ private fun CoachInstructions(vm: CoachViewModel) {
                     .liquidPress(headerInteraction)
                     .clickable(interactionSource = headerInteraction, indication = null) { expanded = !expanded }
                     .semantics {
-                        contentDescription = if (expanded) "Collapse coach instructions" else "Edit coach instructions"
+                        contentDescription = if (expanded)
+                            collapseLabel else editLabel
                     },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(uiString(R.string.l10n_coach_screen_coach_instructions_28a07975), style = NoopType.subhead, color = Palette.textPrimary)
                     Text(
-                        if (hasCustom) "Customised. Your edited instructions frame every reply."
-                        else "Edit how the coach thinks and talks. Takes effect on your next message.",
+                        if (hasCustom) uiString(R.string.l10n_coach_settings_screen_customised_your_edited_instructions_frame_every_reply_bab91200)
+                        else uiString(R.string.l10n_coach_settings_screen_edit_how_the_coach_thinks_and_talks_takes_5104835d),
                         style = NoopType.footnote, color = Palette.textTertiary,
                     )
                 }
