@@ -136,15 +136,40 @@ struct StressView: View {
         // decides how often that hour is re-read, so a thin ten minutes costs the windows that overlap
         // it rather than a whole hour of chart. The Today card and the widget have always asked for
         // this; the screen people actually study was the one still stepping. Twin of the Kotlin change.
-        daytime = DaytimeStress.analyze(hr: hr, rr: rr, gravity: gravity, tzOffsetSeconds: tz, mode: mode,
-                                        includeTimeline: true)
+        // #2181: this is pure, database-free computation over a whole local day of samples, and it used
+        // to run inline on this view's (main) actor. `analyze` memoises behind a lock-guarded
+        // `AnalyticsMemoCache`, so it is safe off the main actor and the Today card already reads its own
+        // stress the same way. Moving it here is what lets the timeline be published — and drawn — before
+        // the advanced readouts below are started.
+        //
+        // `runUnescalated`, NOT `await Task.detached(...).value`: awaiting a task from a @MainActor
+        // caller makes it a child and hands it the caller's priority, so a `.utility` label on a
+        // detached task is decorative and the work races the UI for cores anyway. StressDayCurve
+        // learned that on this same issue; the continuation in UnescalatedWork is what keeps the
+        // priority honest.
+        daytime = await runUnescalated(priority: .userInitiated) {
+            DaytimeStress.analyze(hr: hr, rr: rr, gravity: gravity, tzOffsetSeconds: tz, mode: mode,
+                                  includeTimeline: true)
+        }
 
         // ADDITIVE advanced readouts, computed on-demand from the SAME `rr` (no extra fetch, no
         // DB / schema change, and no effect on the 0..3 score above). Each engine returns nil when
         // its own gate is not met (Baevsky needs >= 20 clean beats; freq-HRV needs >= 60 s span),
         // in which case its row is simply hidden.
-        stressIndex = StressIndex.components(rr: rr)
-        freqHRV = HRVFreqDomain.freqDomain(rr: rr)
+        // A SECOND hop on purpose (#2181). `HRVFreqDomain` is a Lomb-Scargle periodogram: its cost is
+        // (clean beats x frequency-grid steps) with a transcendental per step, and it takes whatever beat
+        // count the day's read returned — the store read above is bounded at 200 000, this is not bounded
+        // at all. On a live-banked day that is seconds of arithmetic, and run inline it held the main
+        // thread for all of them, which is why the screen stayed blank rather than drawing the timeline it
+        // already had. Both engines are pure statics over the same `rr`, so they compute together off the
+        // main actor and publish when done; their card is hidden until then, exactly as it is when a gate
+        // is unmet. Same `runUnescalated` reasoning as above, and the default `.utility` is real here
+        // because nothing escalates it: this is the phase that must yield to the UI.
+        let advanced = await runUnescalated {
+            (index: StressIndex.components(rr: rr), freq: HRVFreqDomain.freqDomain(rr: rr))
+        }
+        stressIndex = advanced.index
+        freqHRV = advanced.freq
     }
 
     /// Trailing local days folded into the personal daytime baselines the `.baselineRelative` mode
