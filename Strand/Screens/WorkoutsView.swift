@@ -666,7 +666,12 @@ struct WorkoutsView: View {
     enum Scope: String, CaseIterable, Identifiable {
         case current, archived
         var id: String { rawValue }
-        var label: String { self == .current ? "Current" : "Archived" }
+        /// `LocalizedStringKey`, not `String`. A plain String returned from here reaches `Text` as an
+        /// already-resolved value, so it renders in English forever AND the i18n audit cannot see it: the
+        /// literal is not in a position the scanner treats as user-facing copy. The gate caught the
+        /// Picker's "Scope" label and said nothing about these two, which are the words wearers actually
+        /// read on the tabs.
+        var label: LocalizedStringKey { self == .current ? "Current" : "Archived" }
     }
 
     /// How many of the most recent sessions "Current" holds.
