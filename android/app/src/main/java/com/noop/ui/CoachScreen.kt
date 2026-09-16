@@ -330,8 +330,9 @@ private fun CoachChat(vm: CoachViewModel, onOpenSettings: () -> Unit) {
         // Disconnect stays HERE rather than moving with them. It is the only route back to the setup
         // card, which is the only place a key can be typed (#2206 has the iOS version of this, where
         // the same control had been placed in a toolbar the tab never renders). Keeping connection
-        // management on the conversation screen on both platforms also keeps the two settings screens
-        // holding the same four things.
+        // management on the conversation screen on both platforms also keeps that one split identical,
+        // which is the part worth keeping identical. The two settings screens do NOT hold the same
+        // cards: see CoachSettingsScreen's own note on the two Gemini/signals opt-ins.
         NoopCard(padding = 14.dp, tint = Palette.chargeColor) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // The pill takes the flexible space (ellipsizing a long model id); the two affordances

@@ -2721,6 +2721,7 @@
     <string name="l10n_coach_settings_screen_collapse_coach_instructions_0933974a">Réduire les instructions du coach</string>
     <string name="l10n_coach_settings_screen_edit_coach_instructions_63a38c3a">Modifier les instructions du coach</string>
     <string name="coach_settings">Réglages du coach</string>
+    <string name="coach_settings_subtitle">Ce que le coach peut lire, comment il doit répondre et quand il vous écrit.</string>
     <string name="coach_morning_brief">Brief matinal</string>
     <string name="coach_morning_brief_desc">"Une notification locale avec la préparation + le plan d'entraînement du jour, générée sur l'appareil chaque matin."</string>
     <string name="coach_morning_brief_off">"Désactivé : rien n'est généré ni envoyé selon un calendrier."</string>

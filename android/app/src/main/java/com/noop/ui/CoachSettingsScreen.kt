@@ -46,6 +46,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
  * coach, and someone who has not connected a provider arrives on the Coach tab, not here, so moving
  * it would leave that screen an empty chat with no way out.
  *
+ * NOT a card-for-card twin of `CoachSettingsView`, which carries five. The two further opt-ins this
+ * screen lacks are a pre-existing divergence, not part of the #2243 move: the on-device-signals toggle
+ * already lives on the main Settings screen on Android (NoopPrefs.coachSignals, read by both
+ * CoachViewModel.send and CoachBriefScheduler), and the Gemini multimodal chart has no Android UI at
+ * all, only the unread NoopPrefs.coachMultimodal stub. Worth folding in, separately.
+ *
  * Reached by the strip on the coach page rather than from the More drawer: the drawer groups mirror
  * the iOS More list one-for-one, and this hangs off Coach on both platforms instead. Swift twin:
  * `CoachSettingsView`.
@@ -68,6 +74,7 @@ fun CoachSettingsScreen(vm: CoachViewModel) {
 
     ScreenScaffold(
         title = stringResource(R.string.coach_settings),
+        subtitle = stringResource(R.string.coach_settings_subtitle),
         topBackground = screenBackdropSlot(showDayCycleBackground, skyBehindCards),
         fullBleedBackground = screenBackdropFullBleed(showDayCycleBackground, skyBehindCards),
     ) {

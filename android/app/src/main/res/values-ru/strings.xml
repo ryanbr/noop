@@ -1370,6 +1370,7 @@
     <string name="l10n_coach_settings_screen_collapse_coach_instructions_0933974a">Свернуть инструкции для ИИ-тренера</string>
     <string name="l10n_coach_settings_screen_edit_coach_instructions_63a38c3a">Изменить инструкции для тренера</string>
     <string name="coach_settings">Настройки тренера</string>
+    <string name="coach_settings_subtitle">Что тренер может читать, как ему отвечать и когда он вам пишет.</string>
     <string name="coach_morning_brief">Утренний брифинг</string>
     <string name="coach_morning_brief_desc">Локальное уведомление с сегодняшней готовностью и планом тренировок, генерируется на устройстве каждое утро.</string>
     <string name="coach_morning_brief_off">Выкл.: ничего не генерируется и не отправляется по расписанию.</string>

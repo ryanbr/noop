@@ -2758,6 +2758,7 @@
     <string name="l10n_coach_settings_screen_collapse_coach_instructions_0933974a">Collapse coach instructions</string>
     <string name="l10n_coach_settings_screen_edit_coach_instructions_63a38c3a">Edit coach instructions</string>
     <string name="coach_settings">Coach settings</string>
+    <string name="coach_settings_subtitle">What the coach may read, how it is told to answer, and when it writes to you.</string>
     <string name="coach_morning_brief">Morning brief</string>
     <string name="coach_morning_brief_desc">A local notification with today\'s readiness + training plan, generated on-device each morning.</string>
     <string name="coach_morning_brief_off">Off: nothing is generated or sent on a schedule.</string>

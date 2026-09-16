@@ -2730,6 +2730,7 @@
     <string name="l10n_coach_settings_screen_collapse_coach_instructions_0933974a">Zwiń instrukcje trenera</string>
     <string name="l10n_coach_settings_screen_edit_coach_instructions_63a38c3a">Edytuj instrukcje trenera</string>
     <string name="coach_settings">Ustawienia trenera</string>
+    <string name="coach_settings_subtitle">Co trener może odczytywać, jak ma odpowiadać i kiedy pisze do Ciebie.</string>
     <string name="coach_morning_brief">Poranne podsumowanie</string>
     <string name="coach_morning_brief_desc">Lokalne powiadomienie z dzisiejszą gotowością + planem treningu, generowane na urządzeniu każdego ranka.</string>
     <string name="coach_morning_brief_off">Wyłączone: nic nie jest generowane ani wysyłane według harmonogramu.</string>
