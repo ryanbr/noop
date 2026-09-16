@@ -67,6 +67,55 @@ class AngleBracketRegressionTests(unittest.TestCase):
         self.assertEqual(arity_of("reset()"), 0)
 
 
+class OperatorAngleBracketTests(unittest.TestCase):
+    """Why this exists: `<` is the only genuinely ambiguous character in the walk. A generic argument
+    list needs it treated as a bracket; `a << b` and `a<b` need it treated as an operator; and no
+    lexical rule separates the two. Guarding one spelling at a time does not converge: exempting the
+    half-open range operator still leaves every shift expression erased, 35 of them here, in decoders
+    and importers alike.
+
+    So the ambiguity is resolved by outcome: if the walk cannot balance, retry with angle brackets
+    demoted to ordinary characters, and if THAT balances it was an operator. A call that already
+    balanced returns before the retry, so no successful parse can change.
+    """
+
+    def test_left_shift_argument(self):
+        self.assertEqual(arity_of("write(mask << 8)"), 1)
+
+    def test_left_shift_does_not_swallow_the_following_arguments(self):
+        self.assertEqual(arity_of("write(mask << 3, flags)"), 2)
+
+    def test_right_shift_argument(self):
+        self.assertEqual(arity_of("write(mask >> 8)"), 1)
+
+    def test_comparison_without_surrounding_space(self):
+        self.assertEqual(arity_of("assert(i<n)"), 1)
+
+    def test_comparison_without_surrounding_space_keeps_later_arguments(self):
+        self.assertEqual(arity_of("assert(i<n, message)"), 2)
+
+    def test_generic_and_operator_in_the_same_call(self):
+        self.assertEqual(arity_of("register(Set<Int>(), flags << 2)"), 2)
+
+    def test_retry_only_runs_when_the_strict_walk_fails(self):
+        """The retry is lossy for a generic carrying a comma, because demoting the angle brackets
+        exposes that comma as a separator. This is tolerable ONLY because a call that parses
+        strictly never reaches the retry. Pin that ordering, since losing it would silently
+        re-arity every generic call in the repository."""
+        source = "store(Dictionary<String, Int>(), key)"
+        self.assertEqual(arity_of(source), 2)
+        self.assertEqual(
+            parity_ledger._arity(source, source.index("("), angles_are_brackets=False),
+            3,
+            "retry is expected to over-count here; the strict walk must therefore win",
+        )
+
+    def test_half_open_range_is_kept_off_the_lossy_retry(self):
+        """`..<` is exempted in the strict walk rather than left to the retry, so a call that pairs
+        it with a comma-carrying generic still parses accurately."""
+        self.assertEqual(arity_of("f(Dictionary<String, Int>(), x..<y)"), 2)
+
+
 class ProductionCallsiteTests(unittest.TestCase):
     """The real call this bug hid, asserted against the real file rather than a transcription."""
 
