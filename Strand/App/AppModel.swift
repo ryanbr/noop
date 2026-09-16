@@ -906,6 +906,18 @@ final class AppModel: ObservableObject {
     /// Finish the active workout: finalize the GPS route (#524), score the captured HR window, and save it
     /// as a `WorkoutRow`. A session with no HR window AND no real GPS route is discarded quietly (parity
     /// with Android) , but a GPS-only walk with HR not streaming still saves. Double-buzz confirms.
+    /// Shortest live session worth keeping. Below this a start/stop is an accident, not training (#2278).
+    static let minimumWorkoutSeconds: TimeInterval = 60
+
+    /// Whether a finished live session is too short to save.
+    ///
+    /// A named predicate rather than an inline comparison so the boundary is pinned by a test and so the
+    /// Android twin has one thing to mirror. Exactly `minimumWorkoutSeconds` is KEPT: a wearer who logs a
+    /// deliberate one-minute effort gets to keep it, and the discard is for what falls short of that.
+    nonisolated static func isTooShortToSave(elapsedSeconds: TimeInterval) -> Bool {
+        elapsedSeconds < minimumWorkoutSeconds
+    }
+
     func endWorkout() {
         guard let w = activeWorkout else { return }
         activeWorkout = nil
@@ -935,6 +947,26 @@ final class AppModel: ObservableObject {
             return
         }
         let end = Date()
+        // A session under a minute is a start/stop the wearer did not mean to keep, and it was the thing
+        // that made deletion feel broken: the list filled with 5-30 second entries (#2278). Discarded HERE,
+        // at save, rather than retained and pruned later, which is the whole difference between dropping
+        // something that never had training data in it and deleting a wearer's history. NOOP has no server
+        // and no cloud copy, so a later prune would be irreversible; this is not, because nothing with real
+        // data is ever removed.
+        //
+        // Sits after the sample/route gate above so that gate's meaning is unchanged: a 30-second session
+        // can easily carry two HR samples and would otherwise have been saved.
+        let elapsed = w.elapsed(at: end)
+        if Self.isTooShortToSave(elapsedSeconds: elapsed) {
+            emitWorkoutsTrace(WorkoutsTrace.sessionLine(
+                event: "discarded", sportKey: WorkoutSource.traceSportKey(w.sport),
+                hrSamples: samples.count, durationSec: Int(elapsed),
+                gpsPoints: wasGps ? gpsRecorder.pointCount : nil))
+            // Drop the route too: keeping a polyline for a session that was never saved would orphan it in
+            // RouteStore under a natural key no row claims.
+            lastWorkout = nil
+            return
+        }
         let avg = samples.isEmpty ? nil
             : Int((Double(samples.map(\.bpm).reduce(0, +)) / Double(samples.count)).rounded())
         let peak = samples.map(\.bpm).max()
