@@ -340,6 +340,28 @@ public enum AnalyticsEngine {
                                   dayHr: [HRSample]? = nil,
                                   daySteps: [StepSample]? = nil,
                                   dayGravity: [GravitySample]? = nil,
+                                  // The day owner's OWN per-minute MET series (an Oura ring's 0x50,
+                                  // #2242), calendar-day scoped like dayHr. When present and non-empty
+                                  // it REPLACES the HR-only Keytel path for `activeKcalEst`
+                                  // (`Calories.estimateDayEnergyFromMET`, Oura's documented method);
+                                  // when the stream covers less than `Calories.metMinCoverageFraction`
+                                  // of the day the estimate is withheld (nil) rather than minted from a
+                                  // mostly-unknown day — and the HR path is NOT used as a stand-in,
+                                  // since on a ring day it runs over the ring's sparse banked HR and
+                                  // does not track Oura's own number (r ≈ −0.1). nil (every WHOOP /
+                                  // pure-function caller, and the Experimental toggle OFF) keeps the
+                                  // HR path byte-identical. Supplied by IntelligenceEngine only when
+                                  // the toggle is on.
+                                  dayMet: [Calories.MetSample]? = nil,
+                                  // Unix `now` for TODAY so MET coverage is judged against the hours
+                                  // that have elapsed, not against 24 h (a 09:00 pass would otherwise
+                                  // read 37 % and withhold every morning). nil = the full local day
+                                  // (a past day). Only read on the MET path.
+                                  dayMetNow: Int? = nil,
+                                  // One line per day when the MET path decides `activeKcalEst`
+                                  // (taken, or withheld for coverage) — always-on evidence for a
+                                  // "my calories changed" report. nil builds nothing.
+                                  caloriesDiag: ((String) -> Void)? = nil,
                                   // Wear-gated nightly skin-temp mean is harvested here
                                   // (baseline-independent); IntelligenceEngine seeds a personal
                                   // baseline from these means across nights and re-derives
@@ -962,9 +984,29 @@ public enum AnalyticsEngine {
         // night-window hr for pure-function callers that don't supply dayHr. Strain keeps the full
         // window (bounded log).
         let dayHrFiltered = (dayHr ?? hr).filter { tsInDay($0.ts) }
-        let activeKcalEst: Double? = dayHrFiltered.isEmpty ? nil : Calories.estimateDayCalories(
-            dayHrFiltered, profile: profile, hrmax: effMaxHR,
-            restingHR: restingHRDaily.map(Double.init))
+        // #2242: a device that measures its own minute-by-minute intensity (the Oura ring's 0x50 MET)
+        // decides the day's energy by that stream, not by Keytel over its sparse banked HR. The window is
+        // the same local day `tsInDay` uses, in real unix seconds; today is cut at `dayMetNow` so coverage
+        // means "of the hours so far". Below the coverage floor the number is withheld, not substituted.
+        let activeKcalEst: Double?
+        if let dayMet, !dayMet.isEmpty {
+            let metDayStart = dayStartUtc - tzOffsetSeconds
+            let metDayEnd = min(metDayStart + 86_400, dayMetNow ?? Int.max)
+            let met = Calories.estimateDayEnergyFromMET(dayMet, profile: profile,
+                                                        dayStart: metDayStart, dayEnd: metDayEnd)
+            let coveragePct = Int((met.coverageFraction * 100).rounded())
+            if met.coverageFraction >= Calories.metMinCoverageFraction {
+                activeKcalEst = met.totalKcal
+                caloriesDiag?("calories \(day): MET path - coverage \(coveragePct)% (\(dayMet.count) samples), active \(Int(met.activeKcal.rounded())) kcal, resting \(Int(met.restingKcal.rounded())) kcal, total \(Int(met.totalKcal.rounded())) kcal")
+            } else {
+                activeKcalEst = nil
+                caloriesDiag?("calories \(day): MET path - coverage \(coveragePct)% (\(dayMet.count) samples) below \(Int((Calories.metMinCoverageFraction * 100).rounded()))% floor, estimate withheld (HR path not substituted on a MET day)")
+            }
+        } else {
+            activeKcalEst = dayHrFiltered.isEmpty ? nil : Calories.estimateDayCalories(
+                dayHrFiltered, profile: profile, hrmax: effMaxHR,
+                restingHR: restingHRDaily.map(Double.init))
+        }
 
         // ── Assemble DailyMetric ──────────────────────────────────────────────
         let daily = DailyMetric(
