@@ -24,13 +24,27 @@ enum class AiProvider(
 ) {
     OPENAI(
         displayName = "OpenAI",
-        defaultModel = "gpt-4o-mini",
+        defaultModel = "gpt-5-mini",
+        // Pinned ids, not aliases: OpenAI has no stable per-tier "-latest" alias the way Gemini does
+        // (#400), so this list is bumped by hand. The live /models refresh stays the authority for
+        // anything released after this.
+        //
+        // The reasoning tiers (o3, o4-mini) and the GPT-5 family reject `temperature` and
+        // `max_tokens`. Nothing special is needed for them here: [AiCoach] sends the classic
+        // parameters and, on a 400 naming one of them, retries with `max_completion_tokens` and no
+        // temperature. One extra round trip on the first message, not a per-model table to maintain.
+        // Twin of the Swift `AIProvider.modelOptions`.
         models = listOf(
-            "gpt-4o",
-            "gpt-4o-mini",
+            "gpt-5",
+            "gpt-5-mini",
+            "gpt-5-nano",
             "gpt-4.1",
             "gpt-4.1-mini",
             "gpt-4.1-nano",
+            "gpt-4o",
+            "gpt-4o-mini",
+            "o3",
+            "o4-mini",
         ),
         endpoint = "https://api.openai.com/v1/chat/completions",
         modelsEndpoint = "https://api.openai.com/v1/models",

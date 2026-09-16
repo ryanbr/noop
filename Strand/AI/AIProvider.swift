@@ -22,7 +22,7 @@ enum AIProvider: String, CaseIterable, Identifiable {
 
     var defaultModel: String {
         switch self {
-        case .openAI:    return "gpt-4o-mini"
+        case .openAI:    return "gpt-5-mini"
         case .anthropic: return "claude-sonnet-4-6"
         case .gemini:    return "gemini-flash-latest"   // stable alias → current Flash, no version churn (#400)
         case .custom:    return ""   // the user picks the model their server serves
@@ -34,7 +34,27 @@ enum AIProvider: String, CaseIterable, Identifiable {
     var modelOptions: [String] {
         switch self {
         case .openAI:
-            return ["gpt-4o", "gpt-4o-mini", "gpt-4.1", "gpt-4.1-mini", "gpt-4.1-nano"]
+            // Pinned ids, not aliases: OpenAI has no stable per-tier "-latest" alias the way Gemini
+            // does (#400), so this list is bumped by hand. `refreshModels()` merges the live /models
+            // catalogue, which stays the authority for anything released after this.
+            //
+            // The reasoning tiers (o3, o4-mini) and the GPT-5 family reject `temperature` and
+            // `max_tokens`. Nothing special is needed for them here: the request path sends the
+            // classic parameters, and on a 400 naming one of them retries with
+            // `max_completion_tokens` and no temperature (see AiCoach's modernParams leg). The cost
+            // is one extra round trip on the first message, not a per-model table to maintain.
+            return [
+                "gpt-5",
+                "gpt-5-mini",
+                "gpt-5-nano",
+                "gpt-4.1",
+                "gpt-4.1-mini",
+                "gpt-4.1-nano",
+                "gpt-4o",
+                "gpt-4o-mini",
+                "o3",
+                "o4-mini"
+            ]
         case .anthropic:
             return [
                 "claude-opus-4-8",
