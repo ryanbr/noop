@@ -282,9 +282,15 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
                     if (p == AiProvider.CUSTOM && _model.value.isBlank() && merged.isNotEmpty()) {
                         selectModel(appCtx, merged.first())
                     }
-                    // Stamp only on a SUCCESSFUL pull, so a provider that is down does not buy itself
-                    // a week of silence from [refreshModelsIfStale].
-                    NoopPrefs.setCoachModelsRefreshedAt(appCtx, p.name, System.currentTimeMillis())
+                    // Stamp only on a pull that actually returned something, so a provider that is
+                    // down does not buy itself a week of silence from [refreshModelsIfStale]. An empty
+                    // list is a failed pull in substance even though the call returned: a 200 with no
+                    // models is what a misconfigured proxy or a changed API looks like, and stamping it
+                    // would freeze the catalogue for a week with nothing to show for it. The Swift twin
+                    // reaches the same point through its `guard !ids.isEmpty`.
+                    if (live.isNotEmpty()) {
+                        NoopPrefs.setCoachModelsRefreshedAt(appCtx, p.name, System.currentTimeMillis())
+                    }
                 }
             } catch (e: Exception) {
                 // Best-effort about the LIST: whatever we already have stays. But a key the provider
@@ -329,7 +335,7 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
         val p = _provider.value
         if (p == AiProvider.CUSTOM || !hasKey(appCtx)) return
         val last = NoopPrefs.coachModelsRefreshedAt(appCtx, p.name)
-        if (System.currentTimeMillis() - last < MODEL_REFRESH_INTERVAL_MS) return
+        if (!isCatalogueStale(last, System.currentTimeMillis())) return
         refreshModels(appCtx, silent = true)
     }
 
@@ -684,6 +690,22 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
 
         /** How long a pulled model catalogue is trusted before [refreshModelsIfStale] pulls again. */
         internal const val MODEL_REFRESH_INTERVAL_MS = 7L * 24 * 60 * 60 * 1000
+
+        /**
+         * Whether a catalogue last pulled at [lastMillis] is due another pull at [nowMillis].
+         *
+         * Pure, and deliberately a companion function rather than logic buried in
+         * [refreshModelsIfStale]: CoachViewModel needs an Application, so nothing that lives on the
+         * instance can be pinned by a JVM test. [isStaleConversation] is split out for the same reason
+         * and tested the same way.
+         *
+         * A never-pulled catalogue (0) is stale, so the first visit fetches. A clock that has moved
+         * BACKWARDS yields a negative age and is treated as fresh, which keeps the cached list rather
+         * than refetching on every visit until the clock catches up. That matches the direction
+         * [isStaleConversation] chose for the same situation.
+         */
+        internal fun isCatalogueStale(lastMillis: Long, nowMillis: Long): Boolean =
+            nowMillis - lastMillis >= MODEL_REFRESH_INTERVAL_MS
 
         /**
          * The LOCAL epoch day an epoch-SECONDS instant falls on: the same value

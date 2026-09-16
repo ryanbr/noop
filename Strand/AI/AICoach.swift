@@ -536,6 +536,17 @@ final class AICoachEngine: ObservableObject {
     /// How long a pulled catalogue is trusted. Kotlin twin: `MODEL_REFRESH_INTERVAL_MS`.
     static let modelRefreshInterval: TimeInterval = 7 * 24 * 60 * 60
 
+    /// Whether a catalogue last pulled at `last` is due another pull at `now`.
+    ///
+    /// Split out and `static` so the rule can be pinned without an engine: it decides how often the app
+    /// talks to a provider unasked. A never-pulled catalogue (0) is stale, so the first visit fetches. A
+    /// clock moved BACKWARDS gives a negative age and reads as fresh, keeping the cached list rather
+    /// than refetching every visit until the clock catches up. Kotlin twin:
+    /// `CoachViewModel.isCatalogueStale`.
+    static func isCatalogueStale(last: TimeInterval, now: TimeInterval) -> Bool {
+        now - last >= modelRefreshInterval
+    }
+
     /// Pull the live catalogue at most once a week, so the picker offers what the provider sells today
     /// without this app shipping a build for every model release.
     ///
@@ -553,7 +564,7 @@ final class AICoachEngine: ObservableObject {
     func refreshModelsIfStale() async {
         guard provider != .custom, hasKey else { return }
         let last = UserDefaults.standard.double(forKey: Self.modelsRefreshedKey(provider))
-        guard Date().timeIntervalSince1970 - last >= Self.modelRefreshInterval else { return }
+        guard Self.isCatalogueStale(last: last, now: Date().timeIntervalSince1970) else { return }
         await refreshModels(silent: true)
     }
 
