@@ -172,6 +172,25 @@ final class FrameRouterDoubleTapDedupTests: XCTestCase {
         XCTAssertEqual(fired, 3, "re-walking the banked log adds no gestures")
     }
 
+    // MARK: - The confirming buzz
+
+    /// The double-tap is handed on before the same event kicks a sync. Whatever the tap triggers —
+    /// the Lift Log's confirming buzz — is then written to the strap ahead of the sync request, which
+    /// the strap would otherwise answer with a history transfer before playing the buzz (strap log,
+    /// 16 Sep 2026: those taps buzzed 1.0–2.8 s late).
+    @MainActor
+    func testADoubleTapIsHandedOnBeforeItsEventKicksASync() {
+        let live = LiveState()
+        var order: [String] = []
+        live.onDoubleTap = { order.append("double-tap") }
+        let r = router(live)
+        r.onSyncTrigger = { order.append("sync") }
+
+        r.handle(frame: bytes(doubleTapHex))
+
+        XCTAssertEqual(order, ["double-tap", "sync"])
+    }
+
     // MARK: - Evidence for a tap that "did not register"
 
     /// A held-back replay leaves a line, so a missed tap can be told apart from a suppressed replay.

@@ -1712,7 +1712,7 @@ final class AppModel: ObservableObject {
     ///
     /// A double tap rather than a single one because a strap takes knocks against bars and benches all
     /// session, and two deliberate taps are not something a rack does by accident.
-    var strapDoubleTapOverride: (() -> Void)?
+    var strapDoubleTapOverride: (@MainActor () -> Void)?
 
     private func handleDoubleTap() {
         let now = Date()

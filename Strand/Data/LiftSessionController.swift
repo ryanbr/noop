@@ -84,7 +84,13 @@ final class LiftSessionController: ObservableObject {
     /// Fires the strap buzz. Injected so the controller has no opinion about BLE and stays testable.
     private let buzz: (UInt8) -> Void
     /// Claims/releases the strap's double-tap for the session's lifetime.
-    private let setStrapHandler: ((() -> Void)?) -> Void
+    private let setStrapHandler: ((@MainActor () -> Void)?) -> Void
+    /// Writes a line to the strap log — how a double-tap the session holds back is accounted for.
+    private let log: (String) -> Void
+
+    /// When the session last acted on a strap double-tap (unix seconds). Nil until it has, and after a
+    /// relaunch: a knock is judged against a tap in the same sitting, never one from before it.
+    private var lastStrapStepAt: Int?
 
     /// One pulse confirms a strap double-tap registered — with the phone face-down there is
     /// otherwise no way to know. Three means the rest is nearly up. Two patterns that cannot be
@@ -93,11 +99,16 @@ final class LiftSessionController: ObservableObject {
     static let restWarningBuzzes: UInt8 = 3
     /// How long before the rest ends the warning fires.
     static let restWarningLeadSec = 5
+    /// A strap double-tap this soon after the last one the session acted on is taken as a knock. See
+    /// `isKnock(secondsSinceLastStep:stage:now:)`.
+    static let strapKnockWindowSec = 8
 
     init(buzz: @escaping (UInt8) -> Void,
-         setStrapHandler: @escaping ((() -> Void)?) -> Void) {
+         setStrapHandler: @escaping ((@MainActor () -> Void)?) -> Void,
+         log: @escaping (String) -> Void = { _ in }) {
         self.buzz = buzz
         self.setStrapHandler = setStrapHandler
+        self.log = log
     }
 
     // MARK: - Lifecycle
@@ -159,6 +170,7 @@ final class LiftSessionController: ObservableObject {
         programId = nil
         programName = nil
         warnedFor = nil
+        lastStrapStepAt = nil
         pendingWarmups = []
         pendingValues = [:]
         isPresented = false
@@ -167,10 +179,12 @@ final class LiftSessionController: ObservableObject {
         setStrapHandler(nil)
     }
 
+    /// The handler runs SYNCHRONOUSLY, inside the frame handling that delivered the tap. It used to hop
+    /// through a `Task`, which let the sync request the same strap event triggers reach the strap
+    /// first; the strap then started a history transfer before playing the confirming buzz, and those
+    /// buzzes came 1–2.8 s after the tap, where most others came in under one (strap log, 16 Sep 2026).
     private func claimStrap() {
-        setStrapHandler({ [weak self] in
-            Task { @MainActor in self?.advance(fromStrap: true) }
-        })
+        setStrapHandler({ [weak self] in self?.advance(fromStrap: true) })
     }
 
     private func startTicking() {
@@ -186,19 +200,49 @@ final class LiftSessionController: ObservableObject {
 
     // MARK: - Actions
 
-    /// The one action. `fromStrap` earns a single confirming buzz.
+    /// The one action. `fromStrap` earns a single confirming buzz, unless the tap reads as a knock.
     func advance(fromStrap: Bool = false) {
-        guard engine != nil else { return }
-        // BUZZ FIRST, before any state work. The confirmation is a latency signal — its whole job is
-        // to say "that registered" — so it must not queue behind a JSON encode and a defaults write.
-        if fromStrap { buzz(LiftSessionController.advanceConfirmBuzzes) }
-
+        guard let current = engine else { return }
         let stamp = Int(Date().timeIntervalSince1970)
+        if fromStrap {
+            if let last = lastStrapStepAt,
+               Self.isKnock(secondsSinceLastStep: stamp - last, stage: current.stage, now: stamp) {
+                // No buzz: the missing confirmation is the lifter's cue to tap again.
+                log("Lift Log: that double-tap was not acted on — \(stamp - last) s after the last one it "
+                    + "acted on (under \(Self.strapKnockWindowSec) s is taken as a knock)")
+                return
+            }
+            lastStrapStepAt = stamp
+            // BUZZ FIRST, before any state work. The confirmation is a latency signal — its whole job
+            // is to say "that registered" — so it must not queue behind a JSON encode and a defaults write.
+            buzz(LiftSessionController.advanceConfirmBuzzes)
+        }
+
         engine?.advance(now: stamp)
         applyPendingInput()
         now = stamp
         warnedFor = nil
         persist()
+    }
+
+    /// Whether a strap double-tap `secondsSinceLastStep` after the last one the session acted on is a
+    /// knock rather than a tap.
+    ///
+    /// The strap's own sensor log for the 16 Sep 2026 session shows two double-taps it detected 3 s
+    /// and 4 s after one that had just started a set — the arm going onto the bar, not a second tap.
+    /// Each was a genuine detection with its own timestamp, so the de-duplication in `FrameRouter`
+    /// rightly let it through, and each finished a set seconds old and started its rest: "it skipped
+    /// two things when it should have done only one". Only the timing tells such a knock from a tap.
+    ///
+    /// Under `strapKnockWindowSec` counts as a knock, because no set a lifter means to finish, and no
+    /// rest a lifter means to end, is that short. The exception is a rest that is already over — a
+    /// line planned with no rest, or the one left once every set is done — where going straight on is
+    /// the plan. The on-screen button is never held back: a knock does not press it. A tap held back
+    /// gets no buzz, which tells the lifter to tap again.
+    static func isKnock(secondsSinceLastStep: Int, stage: LiftSessionEngine.Stage, now: Int) -> Bool {
+        guard (0..<strapKnockWindowSec).contains(secondsSinceLastStep) else { return false }
+        if case .resting(_, let endsAt) = stage, endsAt <= now { return false }
+        return true
     }
 
     // MARK: - Presentation

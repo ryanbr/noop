@@ -96,6 +96,9 @@ struct StrandiOSApp: App {
             },
             setStrapHandler: { [weak model] handler in
                 model?.strapDoubleTapOverride = handler
+            },
+            log: { [weak model] line in
+                model?.live.append(log: line)
             }))
         // #1538: a strap offload completes while the app is BACKGROUNDED — it stays alive as a
         // bluetooth-central to receive it — and the re-score it triggers took nearly eight minutes on the
