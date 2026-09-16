@@ -24,7 +24,9 @@ struct LiftSessionBar: View {
     private var unitSystem: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .metric }
 
     var body: some View {
-        if let engine = session.engine, !engine.isFinished {
+        // `LiftSessionController.presentation`, the same resolution the Lock Screen renders, so the two
+        // cannot word the session differently. Resolved once per render; all three lines read it.
+        if let engine = session.engine, let shown = session.presentation(system: unitSystem) {
             Button {
                 session.isPresented = true
             } label: {
@@ -35,23 +37,21 @@ struct LiftSessionBar: View {
                         .accessibilityHidden(true)
 
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(title(engine))
+                        Text(shown.exercise)
                             .font(StrandFont.caption)
                             .foregroundStyle(StrandPalette.textPrimary)
                             .lineLimit(1)
-                        Text(subtitle(engine))
+                        Text(shown.detail.map { "\(shown.status) — \($0)" } ?? shown.status)
                             .font(StrandFont.footnote)
                             .foregroundStyle(StrandPalette.textSecondary)
                             .lineLimit(1)
                         // The set coming up, on one line that cuts the exercise name before the
                         // set number (`LiftSessionController.nextLine`).
-                        if let next = session.presentation(system: unitSystem)?.next {
-                            Text(next)
-                                .font(StrandFont.footnote)
-                                .foregroundStyle(StrandPalette.textTertiary)
-                                .lineLimit(1)
-                                .truncationMode(.tail)
-                        }
+                        Text(shown.next)
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.textTertiary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
                     }
 
                     Spacer(minLength: 0)
@@ -106,20 +106,6 @@ struct LiftSessionBar: View {
         case .resting:  return StrandPalette.metricAmber
         default:        return StrandPalette.effortColor
         }
-    }
-
-
-    /// Title and subtitle come from `LiftSessionController.presentation` — the SAME resolution the
-    /// Lock Screen Live Activity renders, so the two surfaces cannot word the session differently.
-    private func title(_ engine: LiftSessionEngine) -> String {
-        session.presentation(system: unitSystem)?.exercise
-            ?? session.programName ?? String(localized: "Session")
-    }
-
-    private func subtitle(_ engine: LiftSessionEngine) -> String {
-        guard let p = session.presentation(system: unitSystem) else { return "" }
-        guard let detail = p.detail else { return p.status }
-        return "\(p.status) — \(detail)"
     }
 
     /// Rest counts DOWN (that is the number you act on); everything else counts up.

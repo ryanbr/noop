@@ -47,7 +47,7 @@ final class LiftLiveActivityController {
     /// whenever the phone is not locked — in the app there is nothing to light, and in another app it
     /// would pop the Dynamic Island. Locked is read as protected data being unavailable, which is how a
     /// passcode-locked iPhone reports it. ActivityKit offers no setting for vibration; the sound is silence.
-    func update(programName: String, state: LiftActivityAttributes.ContentState?, alert: Bool = false) {
+    func update(state: LiftActivityAttributes.ContentState?, alert: Bool = false) {
         guard authInfo.areActivitiesEnabled else { return }
 
         // Re-adopt an activity that outlived a previous app session — ActivityKit keeps them alive
@@ -99,7 +99,7 @@ final class LiftLiveActivityController {
             isStarting = true
             do {
                 activity = try Activity.request(
-                    attributes: LiftActivityAttributes(programName: programName),
+                    attributes: LiftActivityAttributes(),
                     content: content,
                     pushType: nil)
                 lastSignature = signature

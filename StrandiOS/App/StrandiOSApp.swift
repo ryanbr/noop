@@ -405,11 +405,10 @@ struct StrandiOSApp: App {
     private func pushLiftActivity(alert: Bool = false) {
         let system = UnitSystem(rawValue: unitSystemRaw) ?? .metric
         guard let p = liftSession.presentation(system: system) else {
-            liftActivity.update(programName: "", state: nil)
+            liftActivity.update(state: nil)
             return
         }
         liftActivity.update(
-            programName: liftSession.programName ?? String(localized: "Session"),
             state: LiftActivityAttributes.ContentState(
                 isResting: p.isResting,
                 exercise: p.exercise,

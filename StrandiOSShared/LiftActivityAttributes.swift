@@ -50,11 +50,8 @@ public struct LiftActivityAttributes: ActivityAttributes {
         }
     }
 
-    /// The program's name, fixed for the life of the session.
-    public var programName: String
-
-    public init(programName: String) {
-        self.programName = programName
-    }
+    /// Nothing is fixed for the life of a session: everything the banner shows can change mid-session and
+    /// travels in `ContentState`.
+    public init() {}
 }
 #endif
