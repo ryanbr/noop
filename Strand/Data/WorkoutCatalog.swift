@@ -125,24 +125,6 @@ enum WorkoutCatalog {
         // isDistanceSport = false regardless of whether it has a route (Mountain biking and Rucking
         // sit the same way). Worth revisiting for all of them together rather than singling this out.
         Sport(name: "Nordic walking", isDistanceSport: false),
-        // WHOOP-parity batch 2 (twin of ExerciseTypes EXTRA). GPS off throughout, matching the
-        // Android EXTRA convention.
-        Sport(name: "Ballet", isDistanceSport: false),
-        Sport(name: "Billiards", isDistanceSport: false),
-        Sport(name: "Breakdancing", isDistanceSport: false),
-        Sport(name: "Cheerleading", isDistanceSport: false),
-        Sport(name: "Darts", isDistanceSport: false),
-        Sport(name: "Disc golf", isDistanceSport: false),
-        Sport(name: "Hurling/Camogie", isDistanceSport: false),
-        Sport(name: "Jiu jitsu", isDistanceSport: false),
-        Sport(name: "Judo", isDistanceSport: false),
-        Sport(name: "Kiteboarding", isDistanceSport: false),
-        Sport(name: "Motocross", isDistanceSport: false),
-        Sport(name: "Muay Thai", isDistanceSport: false),
-        Sport(name: "Paintball", isDistanceSport: false),
-        Sport(name: "Parkour", isDistanceSport: false),
-        Sport(name: "Polo", isDistanceSport: false),
-        Sport(name: "Skydiving", isDistanceSport: false),
         Sport(name: "Other", isDistanceSport: false),
     ]
 

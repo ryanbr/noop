@@ -15,6 +15,7 @@ import AppKit
 public enum KnownWorkoutType: String, CaseIterable, Sendable {
     case running = "Running"
     case walking = "Walking"
+    case nordicWalking = "Nordic walking"
     case hiking = "Hiking"
     case cycling = "Cycling"
     case openWaterSwim = "Open-water swim"
@@ -210,6 +211,10 @@ public enum WorkoutTypeIconography {
             return .system("figure.run")
         case .walking:
             return .system("figure.walk")
+        case .nordicWalking:
+            // Poles make it a different gait from a plain walk, and the live-workout control requires
+            // a glyph no other sport uses. Falls back to the plain walk where the symbol is absent.
+            return systemOrCustom("figure.walk.motion", fallbackSystem: "figure.walk")
         case .hiking:
             return systemOrCustom("figure.hiking", .hikingStick)
         case .cycling:
@@ -339,6 +344,7 @@ public enum WorkoutTypeIconography {
         switch type {
         case .running:          return "system:figure.run"
         case .walking:          return "system:figure.walk"
+        case .nordicWalking:    return "system:figure.walk.motion"
         case .hiking:           return "system:figure.hiking"
         case .cycling:          return "system:figure.outdoor.cycle"
         case .openWaterSwim:    return "system:figure.open.water.swim"

@@ -3,10 +3,11 @@ import XCTest
 
 final class WorkoutTypeIconTests: XCTestCase {
 
-    /// The WHOOP-parity sports (#2260). Resolution is token-based, so a new catalogue name silently
-    /// falls to the generic icon unless a token already covers it; these are the ones that should not.
+    /// Free-text resolution for sports WHOOP names and NOOP does not carry as catalogue entries.
+    /// These arrive as typed or imported labels, so the token chain is what they have.
     func testWhoopParitySportsResolveToARealIcon() {
-        XCTAssertEqual(KnownWorkoutType.resolving("Nordic walking"), .walking)
+        // Now an exact catalogue case of its own, so it resolves to itself rather than to Walking.
+        XCTAssertEqual(KnownWorkoutType.resolving("Nordic walking"), .nordicWalking)
         XCTAssertEqual(KnownWorkoutType.resolving("Jiu jitsu"), .martialArts)
         XCTAssertEqual(KnownWorkoutType.resolving("Judo"), .martialArts)
         // "muay" was missing from a bucket that already listed karate and mma.

@@ -14,16 +14,6 @@ final class WorkoutCatalogTests: XCTestCase {
         XCTAssertTrue(WorkoutCatalog.all.contains { $0.name == "Nordic walking" })
     }
 
-    /// The WHOOP-parity batch. Labels only on this side, but they are the stored cross-platform value,
-    /// so a rename here silently splits one sport into two across the two apps.
-    func testWhoopParitySportsAreOffered() {
-        let names = Set(WorkoutCatalog.all.map(\.name))
-        for expected in ["Ballet", "Billiards", "Breakdancing", "Cheerleading", "Darts", "Disc golf",
-                         "Hurling/Camogie", "Jiu jitsu", "Judo", "Kiteboarding", "Motocross",
-                         "Muay Thai", "Paintball", "Parkour", "Polo", "Skydiving"] {
-            XCTAssertTrue(names.contains(expected), "missing \(expected)")
-        }
-    }
 
     func testTreadmillWalkPresetExistsWithGpsOff() {
         let s = WorkoutCatalog.sport(named: "Treadmill walk")
