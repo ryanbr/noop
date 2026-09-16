@@ -27,6 +27,24 @@ class WorkoutSportTest {
         assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_WALKING, sport.exerciseType)
     }
 
+    /** The batch added for WHOOP parity. Pins the writeback type per sport, because a wrong one is
+     *  invisible in NOOP and only shows up in whatever reads Health Connect afterwards. */
+    @Test fun whoopParitySports_writeBackAsTheTypeTheyBelongTo() {
+        fun typeOf(name: String) = WorkoutSport.all.first { it.name == name }.exerciseType
+        // Martial arts, not "other": these are the three most-logged styles under that umbrella.
+        assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_MARTIAL_ARTS, typeOf("Jiu jitsu"))
+        assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_MARTIAL_ARTS, typeOf("Judo"))
+        assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_MARTIAL_ARTS, typeOf("Muay Thai"))
+        assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_DANCING, typeOf("Ballet"))
+        assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_DANCING, typeOf("Breakdancing"))
+        assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_GYMNASTICS, typeOf("Cheerleading"))
+        assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_FRISBEE_DISC, typeOf("Disc golf"))
+        assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_SURFING, typeOf("Kiteboarding"))
+        // Deliberately generic: no HC type is close enough to claim.
+        assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT, typeOf("Parkour"))
+        assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_OTHER_WORKOUT, typeOf("Hurling/Camogie"))
+    }
+
     @Test fun unknownType_fallsBackToOther() {
         assertEquals("Workout", WorkoutSport.nameFor(Int.MIN_VALUE))
     }
