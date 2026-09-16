@@ -272,6 +272,26 @@ data class SleepStateSampleEntity(
     val rawByte: Int? = null,
 )
 
+/**
+ * The Oura ring's OWN per-minute activity intensity (0x50 MET), one row per sample — Swift WhoopStore
+ * `ouraMetSample` (v47, #2242). Until this table the series existed only as the diagnostic JSONL sidecar
+ * ([com.noop.ble.OuraActivityDump]), so nothing scored could read it; the MET-derived active-calorie
+ * estimate ([com.noop.analytics.Calories.estimateDayEnergyFromMet]) reads the day's rows back from here on
+ * every analyze pass. [ts] is the unix second the sample's interval STARTS; [epochS] how long it covers (60
+ * on every ring observed, carried per row so a different cadence scales the estimate rather than skewing
+ * it); [met] the decoded value (OURA_PROTOCOL.md s6.13); [state] the record's leading state byte, verbatim.
+ * Column order IS the Swift column order. The writer is gated behind the Experimental toggle, so an OFF
+ * install keeps this table empty.
+ */
+@Entity(tableName = "ouraMetSample", primaryKeys = ["deviceId", "ts"])
+data class OuraMetSampleEntity(
+    val deviceId: String,
+    val ts: Long,
+    val met: Double,
+    val state: Int,
+    val epochS: Int,
+)
+
 /** Respiration raw-ADC sample (type-47). Swift `respSample` (v3). PK (deviceId, ts). */
 @Entity(tableName = "respSample", primaryKeys = ["deviceId", "ts"])
 data class RespSample(

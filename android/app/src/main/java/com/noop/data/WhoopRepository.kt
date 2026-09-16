@@ -1445,6 +1445,17 @@ class WhoopRepository(
         dao.sleepStateSamples(deviceId, from, to, limit).map { SleepStateRow(it.ts, it.state) }
 
     /**
+     * Insert the Oura ring's own per-minute MET samples (#2242). Idempotent by (deviceId, ts). Returns the
+     * rows actually inserted. Swift `insertOuraMetSamples`.
+     */
+    suspend fun insertOuraMetSamples(rows: List<OuraMetSampleEntity>): Int =
+        if (rows.isEmpty()) 0 else dao.insertOuraMet(rows).count { it != -1L }
+
+    /** The ring's MET samples in [from, to], ascending (#2242). Swift `ouraMetSamples`. */
+    suspend fun ouraMetSamples(deviceId: String, from: Long, to: Long, limit: Int = DEFAULT_LIMIT):
+        List<OuraMetSampleEntity> = dao.ouraMetSamples(deviceId, from, to, limit)
+
+    /**
      * The latest (greatest-ts) non-null @63 activity class over [from, to], read across the active strap ∪
      * canonical "my-whoop" union ([importedSourceIds]), for the Steps tile icon (#316 / @63). Kotlin twin of
      * the Swift Repository.stepActivityClassLatest(from:to:). #908 family: a re-added strap banks its LIVE step

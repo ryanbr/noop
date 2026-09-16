@@ -102,6 +102,7 @@ class SourceCoordinatorAdoptionTest {
         override suspend fun deleteLiftSessionsFor(deviceId: String) {}
         override suspend fun deleteLiftSetsFor(deviceId: String) {}
         override suspend fun deleteLiftSets(ids: List<String>) {}
+        override suspend fun deleteOuraMetFor(deviceId: String) {}
         override suspend fun deleteDayOwnershipFor(deviceId: String) {
             owners.entries.removeIf { it.value.deviceId == deviceId }
         }
