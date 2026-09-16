@@ -459,6 +459,14 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     /// True once the live-HR stream has been requested, so the disconnect handler can tell "we never got
     /// authenticated/streaming" (-> honest note) from "the link just dropped".
     private var reachedStreaming = false
+    /// True while THIS session has actually put the ring into daytime-HR mode: the driver's enable
+    /// triplet completed, `reengageLiveHR()` wrote an enable, or a live push proved the ring is streaming
+    /// regardless of what we asked. `disableLiveHR()` keys off it so a connect made while suspended —
+    /// which now skips the triplet (`OuraDriver.liveHRWanted`) — does not follow up with a `mode 0x00`
+    /// write for a mode it never set: that write is itself a state change on the ring, and the whole
+    /// point of the suspended connect is to leave the ring's own night suite untouched. Cleared with
+    /// `reachedStreaming` and after a disable is sent.
+    private var liveHRArmedThisSession = false
     /// The freshly-generated 16-byte key written to the ring during an adopt key install. Held in memory
     /// ONLY between writing the `0x24` install and receiving the `0x25` ack: it is persisted to the keystore
     /// ONLY on an OK ack (so a failed/absent ack never leaves a key the next session would wrongly trust).
@@ -1633,6 +1641,7 @@ public final class OuraLiveSource: NSObject, ObservableObject {
         chainedDrainTimer?.invalidate()
         chainedDrainTimer = nil
         reachedStreaming = false
+        liveHRArmedThisSession = false
         pendingInstallKey = nil
         adoptPhase = .idle
         batteryPct = nil
@@ -1764,12 +1773,13 @@ public final class OuraLiveSource: NSObject, ObservableObject {
                 linkPhase = .authenticated
                 adoptPhase = .streaming   // re-auth after an install (or a normal auth) reached the stream: adoption complete
                 pendingInstallKey = nil   // an OK ack already persisted the key; nothing left in flight
-                // The driver's own auth-success path (OuraDriver.nextStep, .authCompleted(.success)) has no
-                // suspend awareness - it unconditionally re-runs the live-HR enable triplet on EVERY connect,
-                // including a reconnect during a suspended night (08-17/18: 25 reconnects, green never hit
-                // zero any hour). Only claim the stream is wanted, and only start the keep-alive, when the
-                // screen is actually on; startReengageTimer's own suspended guard sends the explicit disable
-                // that undoes what the triplet above just armed.
+                // The driver ran its live-HR enable triplet only if `liveHRWanted` was set at auth
+                // (`handleSecure`, `.authStatus`); a suspended connect skipped it and arrives here having
+                // written nothing to the daytime-HR feature. (Before that flag the triplet ran on EVERY
+                // connect — 08-17/18: 25 reconnects, green never hit zero any hour — and
+                // `startReengageTimer()`'s suspended guard sent the disable that undid it.) Only claim the
+                // stream is wanted, and only start the keep-alive, when the screen is actually on.
+                if driver.liveHRWanted { liveHRArmedThisSession = true }
                 if !liveHRSuspended {
                     if feedsLive { live.streamingLiveHR = true }   // drive the green menu-bar STREAMING pill (no WHOOP bond)
                     log("Oura: live-HR enabled - streaming HR / IBI")
@@ -2038,6 +2048,7 @@ public final class OuraLiveSource: NSObject, ObservableObject {
                         log("Oura: live-HR push arrived while SUSPENDED (\(hr.bpm) bpm) - dhr_disable did not "
                             + "stop the stream, self-healing now")
                     }
+                    liveHRArmedThisSession = true   // the push is the proof; let the disable go out
                     startReengageTimer()
                 }
                 // Drop the first (settling) live-HR sample of the session — it is frequently an artifact.
@@ -2574,9 +2585,15 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     /// intentional teardown must hand the ring back out of daytime mode for the same reason a suspend
     /// must. The `.streaming` guard covers both callers -- there is nothing to disable if the session
     /// never got that far.
+    /// Additionally gated on `liveHRArmedThisSession`: a connect made while suspended never armed
+    /// daytime HR (the driver skipped its triplet), so there is nothing to hand back and the `mode 0x00`
+    /// write would be a gratuitous state change on a ring we are trying to leave alone. A live push while
+    /// suspended marks the session armed first (the ring is evidently streaming), so the self-heal path
+    /// still sends the disable.
     private func disableLiveHR() {
-        guard let driver, driver.phase == .streaming else { return }
+        guard let driver, driver.phase == .streaming, liveHRArmedThisSession else { return }
         write([OuraCommands.liveHRDisable(), OuraCommands.liveHRUnsubscribe()])
+        liveHRArmedThisSession = false
         if feedsLive { live.streamingLiveHR = false }
     }
 
@@ -2599,6 +2616,7 @@ public final class OuraLiveSource: NSObject, ObservableObject {
         }
         guard let driver, reachedStreaming, driver.phase != .fetchingHistory else { return }
         write(driver.reengageLiveHRCommands())
+        liveHRArmedThisSession = true
         // Live-HR watchdog: if the stream has gone silent past the grace window while we were WORN, the
         // ring came off the finger (no "removed" event exists) -> NOT WORN. Only meaningful once we have
         // seen at least one live beat this session.
@@ -2776,6 +2794,7 @@ extension OuraLiveSource: @preconcurrency CBCentralManagerDelegate {
         clearAuthWatchdog()   // a fresh session starts with a clean escalation count
         authEscalations = 0
         authToggleInFlight = false
+        liveHRArmedThisSession = false
         loggedFirstHR = false
         droppedFirstLiveHR = false
         loggedFirstTemp = false
@@ -2894,6 +2913,7 @@ extension OuraLiveSource: @preconcurrency CBCentralManagerDelegate {
         lastPhaseUtc = nil
         lastPhaseCodeCount = 0
         reachedStreaming = false
+        liveHRArmedThisSession = false
         pendingInstallKey = nil
         // A disconnect MID-install is an honest failure (no ack came); a disconnect after streaming leaves
         // the completed `.streaming` outcome intact so the wizard's success transition isn't undone.
@@ -3187,7 +3207,17 @@ extension OuraLiveSource: @preconcurrency CBPeripheralDelegate {
             advance(.nonceReceived(nonce))
         case .authStatus(let status):
             if status.isSuccess {
-                log("Oura: auth OK - enabling live HR")
+                // Decide HERE, before the driver's next step, whether this connect arms daytime HR at all.
+                // A reconnect during a suspended night used to run the enable triplet regardless and have
+                // `startReengageTimer()` undo it one second later — `DHR_mode:3` → `DHR_mode:0` on the
+                // ring for every overnight visit. On a Ring 5 overnight capture (#2075's reporter,
+                // 2026-09-16) four of the five interruptions of the ring's own SpO2 session began on the
+                // exact second of such a visit (3–49 min each, ≈ 2 h of a 9 h night). Suspended ⇒ the
+                // driver goes straight to `.streaming` with no daytime-HR write; the log says which.
+                let wanted = !liveHRSuspended
+                driver?.liveHRWanted = wanted
+                log(wanted ? "Oura: auth OK - enabling live HR"
+                           : "Oura: auth OK - live HR suspended (screen off), daytime HR left untouched")
             } else {
                 log("Oura: WARNING auth status \(status.rawValue)")
             }

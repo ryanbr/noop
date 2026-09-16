@@ -59,6 +59,46 @@ final class OuraDriverTests: XCTestCase {
         XCTAssertEqual(d.phase, .streaming)
     }
 
+    // MARK: - Suspended connect: auth success without the live-HR triplet
+
+    /// With `liveHRWanted` cleared (the app's screen-off suspend is in force), auth success goes straight
+    /// to `.streaming` and writes NOTHING to the daytime-HR feature: no `dhr_read`, no `dhr_enable`, no
+    /// `dhr_subscribe`. The history path still works from that phase, and a stray enable ACK (the ring
+    /// answering something else on the shared sub-op) cannot restart the triplet.
+    func testAuthSuccessSkipsLiveHRTripletWhenNotWanted() {
+        let d = OuraDriver(ringGen: .gen3, authKey: key)
+        d.liveHRWanted = false
+        _ = d.nextStep(after: .ready)
+        _ = d.nextStep(after: .nonceReceived(bytes("0102030405060708090a0b0c0d0e0f")))
+
+        let onAuth = d.nextStep(after: .authCompleted(.success))
+        XCTAssertTrue(onAuth.isEmpty, "a suspended connect must not arm daytime HR")
+        XCTAssertEqual(d.phase, .streaming)
+
+        // A stray enable ACK outside `.enablingLiveHR` is inert — the triplet does not start late.
+        XCTAssertTrue(d.nextStep(after: .enableAckReceived).isEmpty)
+        XCTAssertEqual(d.phase, .streaming)
+
+        // The drain runs from `.streaming` exactly as after a full triplet.
+        let fetch = d.nextStep(after: .startHistoryFetch(cursor: 0))
+        XCTAssertEqual(fetch.map { $0.label }, ["flush_buffer", "get_events"])
+        XCTAssertEqual(d.phase, .fetchingHistory)
+        _ = d.nextStep(after: .historyCursorAdvanced(cursor: 0, moreData: false))
+        XCTAssertEqual(d.phase, .streaming)
+    }
+
+    /// The default is the historical behaviour: `liveHRWanted` is true and auth success starts the
+    /// triplet with `dhr_read` (byte-for-byte the sequence `testFullEnableSequence` pins).
+    func testLiveHRWantedDefaultsToArmingTheTriplet() {
+        let d = OuraDriver(ringGen: .gen3, authKey: key)
+        XCTAssertTrue(d.liveHRWanted)
+        _ = d.nextStep(after: .ready)
+        _ = d.nextStep(after: .nonceReceived(bytes("0102030405060708090a0b0c0d0e0f")))
+        let onAuth = d.nextStep(after: .authCompleted(.success))
+        XCTAssertEqual(onAuth.map { $0.label }, ["dhr_read"])
+        XCTAssertEqual(d.phase, .enablingLiveHR)
+    }
+
     // MARK: - Honest pairing path when no key
 
     func testNoKeyDrivesNeedsKeyInstall() {

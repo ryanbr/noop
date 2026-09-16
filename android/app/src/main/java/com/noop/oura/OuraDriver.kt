@@ -107,6 +107,21 @@ class OuraDriver(
     private var liveHREnableStep = 0
 
     /**
+     * Whether auth success should arm the live-HR enable triplet (`dhr_read` / `dhr_enable` /
+     * `dhr_subscribe`). Default true — the historical behaviour. The app clears it for a connect it
+     * makes while its live-HR stream is suspended (screen off overnight): before this flag every
+     * reconnect ran the triplet unconditionally, the app's suspend guard undid it one second later,
+     * and the ring logged `DHR_mode:3` → `DHR_mode:0` on each visit. On a Ring 5 overnight capture
+     * (issue #2075's reporter, 2026-09-16) four of the five interruptions of the ring's own SpO2
+     * session started on exactly the second of such a connect (3–49 min each, ≈ 2 h of a 9 h night).
+     * With the flag false the driver goes straight to `Streaming` — authenticated and idle — so the
+     * history drain, SyncTime and status reads run as before and no daytime-HR write is made at all.
+     * Read once, at the auth-success step. Twin of the Swift `OuraDriver.liveHRWanted`; Android's
+     * `OuraLiveSource` has no screen-off suspend yet (#1546), so nothing clears it there today.
+     */
+    var liveHRWanted: Boolean = true
+
+    /**
      * The most recent ring time seen on any record, used to stamp live-HR pushes (which are not TLV
      * records and carry no timestamp of their own).
      */
@@ -182,10 +197,18 @@ class OuraDriver(
 
         is OuraTransition.AuthCompleted -> when (after.status) {
             OuraAuthStatus.SUCCESS -> {
-                phase = OuraDriverPhase.EnablingLiveHR
-                liveHREnableStep = 0
-                // Begin the live-HR enable triplet (gen-appropriate; gen3 verified, gen4/5 same path).
-                listOf(OuraCommands.liveHREnableSequence()[0])
+                // A connect the app does not want live HR for (suspended night) skips the triplet
+                // entirely: `Streaming` here means "authenticated, idle", which is all the history
+                // fetch / SyncTime / status reads need. Nothing is written to the daytime-HR feature.
+                if (!liveHRWanted) {
+                    phase = OuraDriverPhase.Streaming
+                    emptyList()
+                } else {
+                    phase = OuraDriverPhase.EnablingLiveHR
+                    liveHREnableStep = 0
+                    // Begin the live-HR enable triplet (gen-appropriate; gen3 verified, gen4/5 same path).
+                    listOf(OuraCommands.liveHREnableSequence()[0])
+                }
             }
             OuraAuthStatus.IN_FACTORY_RESET -> {
                 // Ring needs a key install first; this is an explicit, named provisioning step the app
