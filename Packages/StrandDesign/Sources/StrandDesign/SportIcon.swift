@@ -154,8 +154,12 @@ public enum KnownWorkoutType: String, CaseIterable, Sendable {
         case s.contains("baseball"):                        return .baseball
         case s.contains("volley"):                          return .volleyball
         case s.contains("martial") || s.contains("jiu") || s.contains("judo")
-            || s.contains("karate") || s.contains("mma"):   return .martialArts
-        case s.contains("dance"):                           return .dancing
+            || s.contains("karate") || s.contains("mma") || s.contains("muay"):
+                                                            return .martialArts
+        // "danc" rather than "dance": the common inflection is "dancing", which does not contain
+        // "dance", so the exact catalogue name was the only thing matching. Breakdancing and any
+        // free-typed "dancing" fell through to the generic icon.
+        case s.contains("danc") || s.contains("ballet"):    return .dancing
         case s.contains("golf"):                            return .golf
         case s.contains("climb"):                           return .climbing
         case s.contains("stretch") || s.contains("mobility") || s.contains("flex"):
