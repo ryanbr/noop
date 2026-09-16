@@ -123,6 +123,13 @@ interface DeviceRegistryDao {
     @Query("DELETE FROM liftSession WHERE deviceId = :deviceId") suspend fun deleteLiftSessionsFor(deviceId: String)
     @Query("DELETE FROM liftSet WHERE deviceId = :deviceId") suspend fun deleteLiftSetsFor(deviceId: String)
 
+    /**
+     * Delete individual sets by id, as editing a finished session does when a set is removed. The
+     * session itself stays. Ported ahead of its consumer: Android has no Lift Log screen yet.
+     * The Swift twin is `WhoopStore.deleteLiftSets`.
+     */
+    @Query("DELETE FROM liftSet WHERE id IN (:ids)") suspend fun deleteLiftSets(ids: List<String>)
+
     // #771 adopt-serial: re-key one device's rows onto the serial id across every device-scoped table.
     // `UPDATE OR IGNORE` so the canonical (serial) row wins any (deviceId, ts…) primary-key clash; the
     // leftover clashing rows are then cleared by the matching delete*For(from) above. One per table (Room

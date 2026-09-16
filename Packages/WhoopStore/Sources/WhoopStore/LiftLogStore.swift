@@ -588,6 +588,8 @@ extension WhoopStore {
 
     /// Delete individual sets, as editing a finished session does when a set is removed. The session
     /// itself stays. Returns how many rows went.
+    ///
+    /// The Kotlin twin is `DeviceRegistryDao.deleteLiftSets`.
     @discardableResult
     public func deleteLiftSets(ids: [String]) async throws -> Int {
         guard !ids.isEmpty else { return 0 }

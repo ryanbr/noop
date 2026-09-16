@@ -88,6 +88,7 @@ class RegistryDayOwnerSourceTest {
         override suspend fun deleteLiftProgramItemsFor(deviceId: String) {}
         override suspend fun deleteLiftSessionsFor(deviceId: String) {}
         override suspend fun deleteLiftSetsFor(deviceId: String) {}
+        override suspend fun deleteLiftSets(ids: List<String>) {}
 
         // #771 adopt-serial re-key: sample-table re-keys are unmodelled here (no per-table storage in
         // this fake), same as the delete*For no-ops above. dayOwnership IS modelled ([owners]), so its

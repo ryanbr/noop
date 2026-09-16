@@ -124,6 +124,8 @@ class DeviceRegistryTest {
         override suspend fun deleteLiftProgramItemsFor(deviceId: String) { deletedTables += "liftProgramItem" to deviceId }
         override suspend fun deleteLiftSessionsFor(deviceId: String) { deletedTables += "liftSession" to deviceId }
         override suspend fun deleteLiftSetsFor(deviceId: String) { deletedTables += "liftSet" to deviceId }
+        // Editing a finished session, not a device wipe: this fake models per-device deletes only.
+        override suspend fun deleteLiftSets(ids: List<String>) {}
 
         // #771 adopt-serial re-key: sample-table re-keys are unmodelled here (no per-table storage in
         // this fake), same as the delete*For no-ops above for those tables. dayOwnership IS modelled
