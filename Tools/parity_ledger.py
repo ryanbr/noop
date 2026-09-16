@@ -224,10 +224,49 @@ class CallSite:
     lexical_owner: str | None = None
 
 
+# Directories that hold BUILD OUTPUT rather than source. Every glob here ends in `**`, and `**`
+# descends into these exactly as happily as into a source tree: a dependency checked out under
+# `Packages/StrandAnalytics/.build/checkouts/...` matches `Packages/**/Sources/**/*.swift` whenever the
+# dependency happens to lay itself out with a `Sources` directory, which SwiftPM packages do by
+# convention.
+#
+# Left unfiltered this is worse than noise, because the pollution is SUBTRACTIVE. It does not add
+# findings a reader would question; it REMOVES them, by handing a declaration a callsite that only
+# exists in a vendored copy of somebody else's library. That is how a scan on a working tree came back
+# one `test-only-callsite` short for Packages/StrandAnalytics, against a baseline derived on a clean
+# checkout, and the local acceptance test passed anyway because both sides of its comparison came from
+# the same polluted tree. CI checks out clean, so it never saw any of it and could not warn.
+#
+# Filtering here rather than in each glob because `_paths` is the ONLY place this module globs: the
+# declaration scan, the reference scan and both callsite corpora all come through it.
+#
+# The invariant that makes this safe is checked by a test rather than asserted here: everything this
+# drops is untracked by git, so no file the repository actually contains can be hidden by it.
+_ARTEFACT_DIRS = frozenset({
+    ".build",        # SwiftPM: checkouts, index-build, the lot
+    ".swiftpm",
+    "DerivedData",   # Xcode
+    "build",         # Gradle output, incl. anything KSP or the AGP generates
+    ".gradle",
+    "node_modules",
+    "Pods",          # CocoaPods, if it ever appears
+})
+
+
+def _is_build_artefact(root: Path, path: Path) -> bool:
+    """True when `path` sits inside a build-output directory rather than the source tree."""
+    try:
+        parts = path.relative_to(root).parts
+    except ValueError:
+        parts = path.parts
+    return any(part in _ARTEFACT_DIRS for part in parts)
+
+
 def _paths(root: Path, globs: Iterable[str]) -> list[Path]:
     found: set[Path] = set()
     for pattern in globs:
-        found.update(path for path in root.glob(pattern) if path.is_file())
+        found.update(path for path in root.glob(pattern)
+                     if path.is_file() and not _is_build_artefact(root, path))
     return sorted(found)
 
 
