@@ -740,6 +740,12 @@ final class AICoachEngine: ObservableObject {
     func send(_ userText: String) async {
         let trimmed = userText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { errorText = AICoachError.emptyQuestion.errorDescription; return }
+        // The master switch, checked at the EGRESS rather than only on the routes in. Every way into Coach
+        // is gated, but "gated everywhere I thought of" is what #2254 got wrong once: a revoked consent
+        // survived in memory because the conversation never re-read it. A wearer can be STANDING on this
+        // screen when the switch goes off, and that path passes no tab. Refusing here makes "the AI is off"
+        // true however the screen was reached.
+        guard CoachBriefScheduler.coachMasterEnabled else { return }
         guard let key = resolvedKey else { errorText = AICoachError.noKey.errorDescription; return }
 
         // A transcript from an earlier local day is retired before the new turn is appended (#1542,
@@ -922,6 +928,10 @@ final class AICoachEngine: ObservableObject {
     /// context has no UI to stream into). Returns nil when not configured/consented, on any network
     /// failure, or when the reply is empty — the caller treats nil as "brief unavailable"; never throws.
     func generateBrief() async -> String? {
+        // Same master-switch gate as `send`, because this entry has NO UI at all: it is what the scheduler
+        // calls, and a caller that skipped the scheduler's own gate would otherwise reach a provider with
+        // the AI switched off.
+        guard CoachBriefScheduler.coachMasterEnabled else { return nil }
         guard isConfigured, dataConsent, let key = resolvedKey else { return nil }
         let context = await buildFullContext()
         let wire: [(role: ChatMessage.Role, content: String)] =

@@ -113,6 +113,11 @@ object CoachBriefScheduler {
      * null on failure (no key/consent/network) — the caller surfaces that.
      */
     suspend fun generateNow(context: Context): String? {
+        // Same master-switch gate as the iOS `generateBrief`, because this entry has NO UI: it is what the
+        // worker calls. `reschedule` cancels the work when the switch goes off, but an already-enqueued run
+        // can still be in flight when that happens, and it would otherwise reach a provider with the AI
+        // switched off.
+        if (!NoopPrefs.coachEnabled(context.applicationContext)) return null
         val ctx = context.applicationContext
         val provider = AiKeyStore.readProvider(ctx)
         val model = AiKeyStore.readModel(ctx, provider)

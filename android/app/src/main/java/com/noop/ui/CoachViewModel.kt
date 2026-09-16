@@ -439,6 +439,17 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
         val question = text.trim()
         if (question.isEmpty() || _sending.value) return
 
+        // The master switch, checked at the EGRESS rather than only on the routes in. Every way into this
+        // screen is gated, but "gated everywhere I thought of" is what #2254 already got wrong once: a
+        // revoked consent survived in memory because the conversation itself never re-read it. A wearer
+        // can be STANDING on this screen when the switch goes off, or come back to it through the
+        // navigation stack, and neither path passes the tab again. Refusing here makes "the AI is off"
+        // true however the screen was reached.
+        //
+        // Before any state is touched, so there is no placeholder turn to unwind and the typed question
+        // stays in the composer.
+        if (!NoopPrefs.coachEnabled(ctx.applicationContext)) return
+
         // A transcript from an earlier local day is retired before the new turn is appended. The
         // ViewModel outlives a night (Android keeps the process around for days), so without this the
         // coach answers TODAY's question inside YESTERDAY's conversation: buildContext() re-reads the
