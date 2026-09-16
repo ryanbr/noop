@@ -3,25 +3,27 @@ import XCTest
 
 final class WorkoutTypeIconTests: XCTestCase {
 
-    /// Free-text resolution for sports WHOOP names and NOOP does not carry as catalogue entries.
-    /// These arrive as typed or imported labels, so the token chain is what they have.
+    /// The WHOOP-parity sports (#2260). Resolution is token-based, so a new catalogue name silently
+    /// falls to the generic icon unless a token already covers it; these are the ones that should not.
     func testWhoopParitySportsResolveToARealIcon() {
-        // Now an exact catalogue case of its own, so it resolves to itself rather than to Walking.
         XCTAssertEqual(KnownWorkoutType.resolving("Nordic walking"), .nordicWalking)
-        XCTAssertEqual(KnownWorkoutType.resolving("Jiu jitsu"), .martialArts)
-        XCTAssertEqual(KnownWorkoutType.resolving("Judo"), .martialArts)
+        XCTAssertEqual(KnownWorkoutType.resolving("Jiu jitsu"), .jiuJitsu)
+        XCTAssertEqual(KnownWorkoutType.resolving("Judo"), .judo)
         // "muay" was missing from a bucket that already listed karate and mma.
-        XCTAssertEqual(KnownWorkoutType.resolving("Muay Thai"), .martialArts)
-        XCTAssertEqual(KnownWorkoutType.resolving("Ballet"), .dancing)
-        XCTAssertEqual(KnownWorkoutType.resolving("Breakdancing"), .dancing)
-        XCTAssertEqual(KnownWorkoutType.resolving("Disc golf"), .golf)
+        XCTAssertEqual(KnownWorkoutType.resolving("Muay Thai"), .muayThai)
+        XCTAssertEqual(KnownWorkoutType.resolving("Ballet"), .ballet)
+        XCTAssertEqual(KnownWorkoutType.resolving("Breakdancing"), .breakdancing)
+        XCTAssertEqual(KnownWorkoutType.resolving("Disc golf"), .discGolf)
     }
 
     /// The token was "dance", which the common inflection "dancing" does not contain, so only the exact
     /// catalogue name matched and any free-typed variant fell through. Pinned so it cannot regress.
     func testFreeTypedDancingResolves() {
-        XCTAssertEqual(KnownWorkoutType.resolving("dancing"), .dancing)
+        // NOT "dancing" on its own: exact(matching:) is case-insensitive, so that hits the catalogue's
+        // own "Dancing" and never reaches the token chain. It passed before the fix too, which makes it
+        // useless as a regression test. These have no exact match and must go through the token.
         XCTAssertEqual(KnownWorkoutType.resolving("Salsa dancing"), .dancing)
+        XCTAssertEqual(KnownWorkoutType.resolving("evening dancing class"), .dancing)
     }
 
     func testPreferredIdentitiesAreUnique() {
