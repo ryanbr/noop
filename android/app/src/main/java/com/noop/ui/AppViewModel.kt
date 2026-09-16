@@ -1304,6 +1304,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         // #103: SpO₂ candidate @82 display toggle — when ON, the engine computes and
                         // persists the nightly @82 mean as "spo2_candidate" in metricSeries.
                         spo2CandidateDisplay = NoopPrefs.spo2CandidateDisplay(appContext),
+                        ouraMetCalories = NoopPrefs.ouraMetCalories(appContext),   // #2242
                         effortMethod = NoopPrefs.effortMethod(appContext),
                         dayCycleMode = NoopPrefs.dayCycleMode(appContext),
                     )
@@ -1984,6 +1985,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 useMotionAwareWake = PuffinExperiment.from(appContext).motionAwareWake,
                 // #103: SpO₂ candidate @82 display toggle — same flag the 15-min loop reads.
                 spo2CandidateDisplay = NoopPrefs.spo2CandidateDisplay(appContext),
+                ouraMetCalories = NoopPrefs.ouraMetCalories(appContext),   // #2242
                 effortMethod = NoopPrefs.effortMethod(appContext),
                 dayCycleMode = NoopPrefs.dayCycleMode(appContext),
             )

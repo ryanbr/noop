@@ -61,6 +61,16 @@ object IntelligenceEngine {
      */
     private val analyzeGate = Mutex()
 
+    /**
+     * #2242: the Experimental MET-calories toggle for the pass in flight. Carried on a field, NOT as a parameter
+     * of [analyzeRecentOnCpu], for a reason worth knowing: adding ONE parameter to that method shifts every local
+     * variable slot by one, and in a method that size that pushes hundreds of slot accesses across the 255
+     * boundary into the `wide` form — +1.9 KB of bytecode for a single Boolean, straight through the JaCoCo
+     * budget (IntelligenceEngineJacocoBudgetTest). Written by [analyzeRecent] under [analyzeGate] immediately
+     * before the pass and read only inside it, so — like [dayScanCache] — there is no concurrent access.
+     */
+    private var ouraMetCaloriesForPass: Boolean = false
+
     /** #1816: optional sink for whether the strap banked ANY motion in the calibration scan window.
      *  Set by the caller (AppViewModel / WhoopBleClient) before calling [analyzeRecent] and cleared
      *  after, so the Today tile can distinguish "Need N more phone-step days" (motion exists, phone
@@ -492,6 +502,11 @@ object IntelligenceEngine {
         // and passes it down, keeping this layer Context-free. EDWARDS default = byte-identical.
         effortMethod: StrainScorer.Method = StrainScorer.Method.EDWARDS,
         dayCycleMode: DayCycleMode = DayCycleMode.SLEEP_ONSET,
+        // #2242: the Experimental "active calories from the ring's MET stream" toggle. Same Context-free
+        // threading: the caller reads NoopPrefs.ouraMetCalories(context). When true each ring day's
+        // persisted 0x50 MET rows are read and handed to analyzeDay, which scores `activeKcalEst` by
+        // Oura's method instead of the HR path. Default false = byte-identical.
+        ouraMetCalories: Boolean = false,
         // Persisted backing for [stepsMotionCache]. Context-free like the rest of this layer, mirroring
         // manualStepCoefficient / persistStepsCalibration above: the Context-aware caller (AppViewModel)
         // reads and writes SharedPreferences and passes the accessors down. The defaults are no-ops, so a
@@ -516,6 +531,7 @@ object IntelligenceEngine {
             // across the back-to-back passes an offload storm is made of. Reset and emit both live in this
             // wrapper, never in `analyzeRecentOnCpu`, whose ratchet margin has no room for either.
             StoreProbeTally.reset()
+            ouraMetCaloriesForPass = ouraMetCalories   // #2242: see the field
             if (!stepsMotionCacheLoaded && stepsMotionCacheGet != null) {
                 stepsMotionCacheLoaded = true
                 val raw = stepsMotionCacheGet()
@@ -863,6 +879,7 @@ object IntelligenceEngine {
             // window of days scored by a recipe the user just turned off, with nothing to explain it.
             effortMethod.toString(),
             dayCycleMode.persistedValue,
+            ouraMetCaloriesForPass.toString(),   // #2242
         ).joinToString("|")
         // Drop the whole cache on a config change. Under [analyzeGate] (this whole pass runs holding the
         // lock), so mutating the object-level cache here is race-free.
@@ -1033,9 +1050,16 @@ object IntelligenceEngine {
             val vendorResp = OuraRespScale.forVendorRate(respRows, owner)
             val grav = repo.gravitySamplesForDevice(owner, from, to, StreamReadCap.GRAVITY)
             val steps = repo.stepSamples(owner, from, to, STREAM_LIMIT)
+            // Calendar-day window — defined here, ahead of its explanation below, because the skin/MET
+            // read helper takes it (#2242 reads the day's MET rows inside that helper on purpose: a
+            // NEW suspend call in this method spills every live local into the continuation, ~+700
+            // instructions, straight through the JaCoCo budget; riding an existing one costs nothing).
+            val dayMidnight = midnightLocal(dayStart, tzOffsetSeconds)
+            val dayEnd = dayMidnight + SECONDS_PER_DAY - 1
             val skinReads = readDaySkinAndWristOff(
                 repo, owner, from, to, ownerSource, skinFamilyByOwner, skinWornToleranceByOwner,
                 skinAnchorByOwner, skinAnchorResolvedOwners, skinAnchorScanFrom, skinAnchorScanTo,
+                dayMidnight, dayEnd, ouraMetCaloriesForPass,
             )
             val skin = skinReads.skin
             val spo2 = skinReads.spo2
@@ -1052,8 +1076,7 @@ object IntelligenceEngine {
             // MIN_HR_SAMPLES gate above stays on the night window so empty days are still skipped.
             // `dayStart` is already a LOCAL midnight; midnightLocal is idempotent on it (the DAO range
             // is inclusive, so end at +86400-1s; analyzeDay also filters to the day). (#277)
-            val dayMidnight = midnightLocal(dayStart, tzOffsetSeconds)
-            val dayEnd = dayMidnight + SECONDS_PER_DAY - 1
+            // (`dayMidnight` / `dayEnd` are declared above the skin/MET read, see there.)
             // Same [owner] as the night window above (I2): the additive day totals must come from the one
             // device that owns the day, never a mix.
             // #997: for a PAST day the [from, to] night read above already spans this calendar day (to =
@@ -1154,6 +1177,11 @@ object IntelligenceEngine {
                 // #1770 follow-up: route the Effort funnel through the SAME per-day recorder as the
                 // `workout detect` and `sleep-detect` lines, so a report explains all three the same way.
                 strainDiag = ::dayDiag,
+                // #2242: the owner's own MET series for the calorie path, or null = the HR path — read
+                // inside readDaySkinAndWristOff (see the note at its call) and taken straight off the holder.
+                dayMet = skinReads.dayMet,
+                dayMetNow = nowSeconds,
+                caloriesDiag = ::dayDiag,                  // same per-day recorder
                 hr = hr,
                 rr = rr,
                 resp = resp,
@@ -2898,7 +2926,7 @@ object IntelligenceEngine {
         "hrvBaseline", "rhrBaseline", "age", "sex", "stepTicksPerStep", "maxHROverride",
         "tzOffset", "sleepNeedHours", "sleepConsistency", "habitualMidsleep",
         "experimentalSleepV2", "motionAwareWake", "deepHrvWindow", "spo2CandidateDisplay",
-        "effortMethod", "dayCycleMode",
+        "effortMethod", "dayCycleMode", "ouraMetCalories",
     )
 
     /** Which config field(s) changed between two signatures, for the `configDropped` tally.
@@ -3033,6 +3061,9 @@ object IntelligenceEngine {
         skinAnchorResolvedOwners: HashSet<String>,
         skinAnchorScanFrom: Long,
         skinAnchorScanTo: Long,
+        dayMidnight: Long,
+        dayEnd: Long,
+        ouraMetCalories: Boolean,
     ): DaySkinReads {
         val skin = repo.skinTempSamples(owner, from, to, StreamReadCap.SKIN)
         // #93: WHOOP 4.0 raw SpO2 PPG samples for the night; analyzeDay banks the nightly red/IR ADC
@@ -3079,7 +3110,20 @@ object IntelligenceEngine {
         // short off-wrist tail survives. Pairing needs WRIST_ON too (to bound each interval); a span
         // still open at the window end closes at `to`. Empty when the strap emitted no wrist events.
         val wristOff = AnalyticsEngine.offWristIntervals(repo.events(owner, from, to, STREAM_LIMIT), to)
-        return DaySkinReads(skin, spo2, skinFamily, skinWornToleranceSec, skinAnchorRaw, wristOff)
+        // #2242: the day owner's OWN per-minute MET series (an Oura ring's persisted 0x50 rows), calendar-day
+        // scoped like dayHr, read only while the Experimental toggle is on. Same `owner` as every other read
+        // — the registry's active id, never a raw address — so a WHOOP owner reads an empty table and stays
+        // on the HR path. null when empty or off = analyzeDay's byte-identical HR path. A past day's rows
+        // are re-read on every pass, so the wake drain that lands a whole day at once is picked up by the
+        // next re-score. Lives in THIS helper, not in analyzeRecentOnCpu, for the reason at the call site.
+        val dayMet: List<Calories.MetSample>? = if (ouraMetCalories) {
+            repo.ouraMetSamples(owner, dayMidnight, dayEnd, 4_000)
+                .map { Calories.MetSample(it.ts, it.met, it.epochS) }
+                .ifEmpty { null }
+        } else {
+            null
+        }
+        return DaySkinReads(skin, spo2, skinFamily, skinWornToleranceSec, skinAnchorRaw, wristOff, dayMet)
     }
 
     /** What [readDaySkinAndWristOff] hands back. A holder rather than loose returns so the call site
@@ -3091,6 +3135,8 @@ object IntelligenceEngine {
         val skinWornToleranceSec: Long,
         val skinAnchorRaw: Double?,
         val wristOff: List<Pair<Long, Long>>,
+        /** #2242: the day's MET samples for the calorie path, or null = HR path. */
+        val dayMet: List<Calories.MetSample>?,
     )
 
     /**
