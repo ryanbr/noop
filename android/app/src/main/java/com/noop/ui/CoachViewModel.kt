@@ -255,15 +255,22 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
      * the returned ids into [availableModels] (curated ids first, then any new live ids). Never
      * throws and never changes the current selection; a failure simply leaves the list as-is.
      */
-    fun refreshModels(ctx: Context) {
+    fun refreshModels(ctx: Context, silent: Boolean = false) {
         if (_refreshingModels.value) return
         val appCtx = ctx.applicationContext
         val p = _provider.value
         val url = _customBaseUrl.value
         // Clear before trying, not only on success. The setup card renders this now, so without it a
         // stale message from the previous attempt would sit under a refresh that has just succeeded.
-        _error.value = null
-        _keyRejected.value = false
+        //
+        // [silent] leaves the error surface entirely alone, in both directions. An automatic refresh
+        // must not wipe a message the user is still reading, and must not raise one they never asked
+        // for: they opened a settings screen, they did not ask this provider anything. Matches the
+        // save/restore the Swift twin does around `refreshModels()`.
+        if (!silent) {
+            _error.value = null
+            _keyRejected.value = false
+        }
         _refreshingModels.value = true
         viewModelScope.launch {
             try {
@@ -285,7 +292,7 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
                 // simply did nothing. Refresh is one of the two places a wrong key shows itself, so it
                 // now says so and opens the field to fix it. Every other failure stays quiet, which is
                 // what "best-effort" was protecting. Mirrors the typed catch in Swift refreshModels.
-                if (e is AiKeyRejectedException) {
+                if (!silent && e is AiKeyRejectedException) {
                     _error.value = e.message
                     _keyRejected.value = true
                 }
@@ -300,9 +307,15 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
      * the provider sells today without this app shipping a build for every model release (#2255 had to
      * hand-edit two lists to add one generation).
      *
-     * Quiet by design: no spinner and no error surface. A failure leaves the built-in list in place,
-     * which is exactly what the user would have seen anyway, and the explicit Refresh control is still
-     * there for someone who wants to know whether it worked.
+     * Quiet about FAILURE: `silent` leaves the error surface untouched in both directions, so this
+     * neither wipes a message the user is reading nor raises one they never asked for. A failure leaves
+     * the built-in list in place, which is what they would have seen anyway, and the explicit Refresh
+     * control still reports properly for anyone who wants to know whether it worked.
+     *
+     * The refresh indicator DOES run while this is in flight: `_refreshingModels` is the re-entrancy
+     * guard as well as the spinner, so suppressing it would let a manual tap race this one for the
+     * model list. A briefly spinning control on a screen the user just opened is honest about what the
+     * app is doing; a banner about a provider they did not address is not.
      *
      * Requires a stored key, so it cannot fire during first-run setup where there is nothing to
      * authenticate with. Custom is excluded: [connectCustom] already pulls its list on connect, and its
@@ -317,7 +330,7 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
         if (p == AiProvider.CUSTOM || !hasKey(appCtx)) return
         val last = NoopPrefs.coachModelsRefreshedAt(appCtx, p.name)
         if (System.currentTimeMillis() - last < MODEL_REFRESH_INTERVAL_MS) return
-        refreshModels(appCtx)
+        refreshModels(appCtx, silent = true)
     }
 
     /**

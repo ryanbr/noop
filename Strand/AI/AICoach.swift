@@ -539,11 +539,10 @@ final class AICoachEngine: ObservableObject {
     /// Pull the live catalogue at most once a week, so the picker offers what the provider sells today
     /// without this app shipping a build for every model release.
     ///
-    /// Quiet by design: failures leave the built-in list in place, which is what the user would have
-    /// seen anyway, and the explicit Refresh control remains for anyone who wants to know whether it
-    /// worked. `refreshModels()` surfaces errors; this deliberately discards them, including the
-    /// key-rejected flag it may raise, so opening settings cannot paint a red banner the user did not
-    /// ask for.
+    /// Quiet about FAILURE: it passes `silent`, so `refreshModels` leaves the error surface untouched
+    /// in both directions rather than this restoring it afterwards. Restoring would have raced — there
+    /// is no re-entrancy guard here, so a manual Refresh tapped during the await would have had its
+    /// result stomped by a stale snapshot on resume. Not touching the state cannot race with anything.
     ///
     /// Requires a stored key, so it cannot fire during first-run setup where there is nothing to
     /// authenticate with. Custom is excluded: `connectCustom()` already pulls its list, and its server
@@ -555,21 +554,18 @@ final class AICoachEngine: ObservableObject {
         guard provider != .custom, hasKey else { return }
         let last = UserDefaults.standard.double(forKey: Self.modelsRefreshedKey(provider))
         guard Date().timeIntervalSince1970 - last >= Self.modelRefreshInterval else { return }
-        let priorError = errorText
-        let priorRejected = keyRejected
-        await refreshModels()
-        // Restore whatever the screen was already saying: this refresh was not user-initiated, so it
-        // must not introduce an error banner, nor clear one that a real action produced.
-        errorText = priorError
-        keyRejected = priorRejected
+        await refreshModels(silent: true)
     }
 
-    func refreshModels() async {
+    /// `silent` leaves the error surface entirely alone, in both directions: an automatic refresh must
+    /// neither wipe a message the user is still reading nor raise one they never asked for. Kotlin twin:
+    /// the `silent` parameter on `CoachViewModel.refreshModels`.
+    func refreshModels(silent: Bool = false) async {
         guard let key = resolvedKey else {
-            errorText = AICoachError.noKey.errorDescription
+            if !silent { errorText = AICoachError.noKey.errorDescription }
             return
         }
-        errorText = nil
+        if !silent { errorText = nil }
 
         // Snapshot the provider BEFORE the await. The Picker isn't disabled during a refresh, so the
         // user can switch providers mid-flight (#873). We fetch this provider's ids, then re-check on
@@ -594,7 +590,7 @@ final class AICoachEngine: ObservableObject {
             guard provider == capturedProvider else { return }
 
             guard !ids.isEmpty else {
-                errorText = AICoachError.decode.errorDescription
+                if !silent { errorText = AICoachError.decode.errorDescription }
                 return
             }
 
@@ -611,7 +607,7 @@ final class AICoachEngine: ObservableObject {
                                       forKey: Self.modelsRefreshedKey(capturedProvider))
         } catch let e as AICoachError {
             // A switch mid-flight makes any error moot for the old provider, so don't surface it.
-            guard provider == capturedProvider else { return }
+            guard provider == capturedProvider, !silent else { return }
             // Typed first, because this used to report EVERY failure as a network problem, including a
             // key the provider had just turned away. Refresh is one of the two places a wrong key shows
             // itself, and it was the one that blamed the wrong thing: the wearer read "Network problem"
@@ -621,7 +617,7 @@ final class AICoachEngine: ObservableObject {
             if case .badKey = e { keyRejected = true } else { keyRejected = false }
             return
         } catch {
-            guard provider == capturedProvider else { return }
+            guard provider == capturedProvider, !silent else { return }
             errorText = AICoachError.network(error.localizedDescription).errorDescription
             keyRejected = false
             return
