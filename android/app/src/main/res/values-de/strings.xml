@@ -2730,6 +2730,8 @@
     <string name="coach_clear_action">Löschen</string>
     <string name="coach_token_estimate">~%1$d Token</string>
     <string name="coach_token_warning">" · kann kleine Kontextfenster überschreiten"</string>
+    <string name="coach_settings">Coach-Einstellungen</string>
+    <string name="coach_settings_not_connected">Verbinde auf der Coach-Seite einen Anbieter, um diese Einstellungen zu nutzen.</string>
     <string name="coach_morning_brief">Morgenbrief</string>
     <string name="coach_morning_brief_desc">Eine lokale Benachrichtigung mit heutiger Bereitschaft + Trainingsplan, jeden Morgen auf dem Gerät erstellt.</string>
     <string name="coach_morning_brief_off">Aus: Es wird nichts generiert oder nach Zeitplan gesendet.</string>

@@ -2624,6 +2624,8 @@
     <string name="coach_clear_action">清除</string>
     <string name="coach_token_estimate">~%1$d 个 token</string>
     <string name="coach_token_warning">" · 可能超出小型上下文窗口"</string>
+    <string name="coach_settings">教练设置</string>
+    <string name="coach_settings_not_connected">请在教练页面连接服务商后使用这些设置。</string>
     <string name="coach_morning_brief">晨间简报</string>
     <string name="coach_morning_brief_desc">一条本地通知，包含今天的准备状态和训练计划，每天早晨在设备上生成。</string>
     <string name="coach_morning_brief_off">关闭：不会按计划生成或发送任何内容。</string>

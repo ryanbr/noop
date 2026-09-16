@@ -2725,6 +2725,8 @@
     <string name="coach_clear_action">Wyczyść</string>
     <string name="coach_token_estimate">~%1$d tokenów</string>
     <string name="coach_token_warning">" · może przekroczyć małe okna kontekstu"</string>
+    <string name="coach_settings">Ustawienia trenera</string>
+    <string name="coach_settings_not_connected">Połącz dostawcę na stronie Trener, aby korzystać z tych ustawień.</string>
     <string name="coach_morning_brief">Poranne podsumowanie</string>
     <string name="coach_morning_brief_desc">Lokalne powiadomienie z dzisiejszą gotowością + planem treningu, generowane na urządzeniu każdego ranka.</string>
     <string name="coach_morning_brief_off">Wyłączone: nic nie jest generowane ani wysyłane według harmonogramu.</string>

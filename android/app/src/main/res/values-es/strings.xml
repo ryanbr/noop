@@ -2717,6 +2717,8 @@
     <string name="coach_clear_action">Borrar</string>
     <string name="coach_token_estimate">~%1$d tokens</string>
     <string name="coach_token_warning">" · puede superar ventanas de contexto pequeñas"</string>
+    <string name="coach_settings">Ajustes del coach</string>
+    <string name="coach_settings_not_connected">Conecta un proveedor en la página Coach para usar estos ajustes.</string>
     <string name="coach_morning_brief">Resumen matutino</string>
     <string name="coach_morning_brief_desc">Una notificación local con la preparación + plan de entrenamiento de hoy, generada en el dispositivo cada mañana.</string>
     <string name="coach_morning_brief_off">Desactivado: no se genera ni se envía nada según un horario.</string>

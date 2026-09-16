@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -74,7 +75,7 @@ import com.noop.ai.CustomAiAuthHeader
  * Palette / StatePill / SegmentedPillControl), dark Material3.
  */
 @Composable
-fun CoachScreen(vm: CoachViewModel = viewModel()) {
+fun CoachScreen(vm: CoachViewModel = viewModel(), onOpenSettings: () -> Unit = {}) {
     val context = LocalContext.current
     val keyVersion by vm.keyVersion.collectAsStateWithLifecycle()
     val provider by vm.provider.collectAsStateWithLifecycle()
@@ -107,7 +108,7 @@ fun CoachScreen(vm: CoachViewModel = viewModel()) {
         if (!configured) {
             CoachSetup(vm = vm)
         } else {
-            CoachChat(vm = vm)
+            CoachChat(vm = vm, onOpenSettings = onOpenSettings)
         }
     }
 }
@@ -264,7 +265,7 @@ private fun CoachSetup(vm: CoachViewModel) {
 // MARK: - Chat (key saved)
 
 @Composable
-private fun CoachChat(vm: CoachViewModel) {
+private fun CoachChat(vm: CoachViewModel, onOpenSettings: () -> Unit) {
     val context = LocalContext.current
     val messages by vm.messages.collectAsStateWithLifecycle()
     val sending by vm.sending.collectAsStateWithLifecycle()
@@ -321,17 +322,39 @@ private fun CoachChat(vm: CoachViewModel) {
 
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
 
-        // Active-provider strip + reset-key affordance.
+        // Active-provider strip. The consent toggle, the coach instructions and the morning brief
+        // moved to CoachSettingsScreen (#2243) so this tab is the conversation; what stays is the one
+        // line saying which model is answering, and the way through to the rest.
+        //
+        // Disconnect stays HERE rather than moving with them. It is the only route back to the setup
+        // card, which is the only place a key can be typed (#2206 has the iOS version of this, where
+        // the same control had been placed in a toolbar the tab never renders). Keeping connection
+        // management on the conversation screen on both platforms also keeps the two settings screens
+        // holding the same four things.
         NoopCard(padding = 14.dp, tint = Palette.chargeColor) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // The pill takes the flexible space (ellipsizing a long model id); the Disconnect keeps
-                // its intrinsic single-line width so it can never be squeezed into a vertical stack (#1074).
+                // The pill takes the flexible space (ellipsizing a long model id); the two affordances
+                // keep their intrinsic single-line width so they can never be squeezed into a vertical
+                // stack (#1074).
                 StatePill(
                     title = uiString(R.string.l10n_coach_screen_provider_displayname_model_8b39f761, provider.displayName, model),
                     tone = StrandTone.Accent, showsDot = true,
                     modifier = Modifier.weight(1f),
                 )
                 Spacer(Modifier.width(8.dp))
+                val settingsInteraction = remember { MutableInteractionSource() }
+                Icon(
+                    Icons.Filled.Tune,
+                    contentDescription = uiString(R.string.coach_settings),
+                    tint = Palette.textSecondary,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .liquidPress(settingsInteraction)
+                        .clickable(interactionSource = settingsInteraction, indication = null) { onOpenSettings() }
+                        .padding(6.dp)
+                        .size(20.dp),
+                )
+                Spacer(Modifier.width(4.dp))
                 val disconnectInteraction = remember { MutableInteractionSource() }
                 Text(
                     uiString(R.string.l10n_coach_screen_disconnect_ed28e068),
@@ -364,39 +387,6 @@ private fun CoachChat(vm: CoachViewModel) {
                 },
             )
         }
-
-        // Data-access consent, off by default; no metrics are sent until this is on.
-        //
-        // The ON line NAMES what a session carries, rather than saying "workouts" and leaving the
-        // reader to guess how much that is. It used to mean a count and an effort figure; since #2033
-        // it means the sport, how long, how far and how hard, per session. That is a materially
-        // different disclosure and the toggle is the only place someone is asked to agree to it, so it
-        // says so instead of making them read a PR to find out. Localised rather than inline, which the
-        // i18n baseline also wanted: an English literal here reached every locale untranslated.
-        val consent by vm.consent.collectAsStateWithLifecycle()
-        NoopCard(padding = 14.dp, tint = Palette.chargeColor) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(uiString(R.string.l10n_coach_screen_let_the_coach_use_my_data_405d1188), style = NoopType.subhead, color = Palette.textPrimary)
-                    Text(
-                        if (consent) uiString(R.string.coach_consent_on)
-                        else uiString(R.string.coach_consent_off),
-                        style = NoopType.footnote, color = Palette.textTertiary,
-                    )
-                }
-                androidx.compose.material3.Switch(
-                    checked = consent,
-                    onCheckedChange = { vm.setConsent(context, it) },
-                )
-            }
-        }
-
-        // Editable system prompt, inline in the settings, collapsed by default. Edits persist and
-        // take effect on the next message (the engine reads the stored prompt fresh per send).
-        CoachInstructions(vm = vm)
-
-        // K5: the scheduled morning-brief notification.
-        MorningBriefCard(vm = vm)
 
         // Transcript or empty-state with suggested prompts.
         if (messages.isEmpty()) {
@@ -513,134 +503,6 @@ private fun CoachChat(vm: CoachViewModel) {
 
         // Privacy note repeated under the input so it's always on screen.
         PrivacyNote(local = provider == AiProvider.CUSTOM)
-    }
-}
-
-/**
- * K5: the scheduled morning-brief notification settings — enable switch, time-of-day chip, and an
- * explicit "Generate now" action. Mirrors the daily-debug-export settings row shape
- * ([DebugExportScheduler]) and the Swift twin's `morningBriefBar`.
- */
-@Composable
-private fun MorningBriefCard(vm: CoachViewModel) {
-    val context = LocalContext.current
-    val enabled by vm.briefEnabled.collectAsStateWithLifecycle()
-    val minutes by vm.briefMinutes.collectAsStateWithLifecycle()
-    val generating by vm.briefGenerating.collectAsStateWithLifecycle()
-    val status by vm.briefStatus.collectAsStateWithLifecycle()
-
-    NoopCard(padding = 14.dp, tint = Palette.chargeColor) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(stringResource(R.string.coach_morning_brief), style = NoopType.subhead, color = Palette.textPrimary)
-                    Text(
-                        if (enabled)
-                            stringResource(R.string.coach_morning_brief_desc)
-                        else stringResource(R.string.coach_morning_brief_off),
-                        style = NoopType.footnote, color = Palette.textTertiary,
-                    )
-                }
-                androidx.compose.material3.Switch(
-                    checked = enabled,
-                    onCheckedChange = { vm.setBriefEnabled(context, it) },
-                )
-            }
-            if (enabled) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.coach_morning_brief_time), style = NoopType.subhead, color = Palette.textPrimary, modifier = Modifier.weight(1f))
-                    TimeChip(
-                        minutes = minutes,
-                        accessibilityLabel = "Morning brief time",
-                        onPicked = { vm.setBriefMinutes(context, it) },
-                    )
-                }
-                Text(
-                    stringResource(R.string.coach_morning_brief_best_effort),
-                    style = NoopType.caption, color = Palette.textTertiary,
-                )
-                CoachPrimaryButton(
-                    label = if (generating) stringResource(R.string.coach_generating) else stringResource(R.string.coach_generate_now),
-                    enabled = !generating,
-                    onClick = { vm.generateBriefNow(context) },
-                )
-                if (status != null) {
-                    Text(status.orEmpty(), style = NoopType.footnote, color = Palette.textTertiary)
-                }
-            }
-        }
-    }
-}
-
-/**
- * Editable system prompt, the instructions that frame the coach. Collapsed by default; expanding
- * reveals a multi-line field bound to the view model (edits persist to [NoopPrefs] and take effect on
- * the next message) plus a Reset-to-default control. Inline in the settings, not a separate sheet.
- */
-@Composable
-private fun CoachInstructions(vm: CoachViewModel) {
-    val context = LocalContext.current
-    val prompt by vm.systemPrompt.collectAsStateWithLifecycle()
-    val hasCustom by vm.hasCustomPrompt.collectAsStateWithLifecycle()
-    var expanded by remember { mutableStateOf(false) }
-
-    val headerInteraction = remember { MutableInteractionSource() }
-    NoopCard(padding = 14.dp, tint = Palette.chargeColor) {
-        Column(verticalArrangement = Arrangement.spacedBy(if (expanded) 10.dp else 0.dp)) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .liquidPress(headerInteraction)
-                    .clickable(interactionSource = headerInteraction, indication = null) { expanded = !expanded }
-                    .semantics {
-                        contentDescription = if (expanded) "Collapse coach instructions" else "Edit coach instructions"
-                    },
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(uiString(R.string.l10n_coach_screen_coach_instructions_28a07975), style = NoopType.subhead, color = Palette.textPrimary)
-                    Text(
-                        if (hasCustom) "Customised. Your edited instructions frame every reply."
-                        else "Edit how the coach thinks and talks. Takes effect on your next message.",
-                        style = NoopType.footnote, color = Palette.textTertiary,
-                    )
-                }
-                Icon(
-                    Icons.Filled.ArrowDropDown,
-                    contentDescription = null,
-                    tint = Palette.textTertiary,
-                    modifier = Modifier.size(20.dp),
-                )
-            }
-
-            if (expanded) {
-                OutlinedTextField(
-                    value = prompt,
-                    onValueChange = { vm.setSystemPrompt(context, it) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 140.dp, max = 260.dp)
-                        .semantics { contentDescription = uiString(R.string.l10n_coach_screen_coach_instructions_editor_b8f3ad31) },
-                    textStyle = NoopType.body,
-                    singleLine = false,
-                    colors = coachFieldColors(),
-                    shape = RoundedCornerShape(14.dp),
-                )
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(
-                        onClick = { vm.resetSystemPrompt(context) },
-                        enabled = hasCustom,
-                    ) {
-                        Text(
-                            uiString(R.string.l10n_coach_screen_reset_to_default_39c90eb7),
-                            style = NoopType.footnote,
-                            color = if (hasCustom) Palette.accent else Palette.textTertiary,
-                        )
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -989,7 +851,7 @@ private fun CoachKeyField(
 // MARK: - Buttons
 
 @Composable
-private fun CoachPrimaryButton(label: String, enabled: Boolean, onClick: () -> Unit) {
+internal fun CoachPrimaryButton(label: String, enabled: Boolean, onClick: () -> Unit) {
     val shape = RoundedCornerShape(14.dp)
     val bg = if (enabled) Palette.accent else Palette.accent.copy(alpha = Palette.disabledOpacity)
     val interaction = remember { MutableInteractionSource() }
@@ -1241,7 +1103,7 @@ private fun PrivacyNote(local: Boolean = false) {
 // MARK: - Shared field colors (dark, design-system tinted)
 
 @Composable
-private fun coachFieldColors() = OutlinedTextFieldDefaults.colors(
+internal fun coachFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedTextColor = Palette.textPrimary,
     unfocusedTextColor = Palette.textPrimary,
     disabledTextColor = Palette.textTertiary,

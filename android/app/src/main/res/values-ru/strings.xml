@@ -1365,6 +1365,8 @@
     <string name="coach_clear_action">Очистить</string>
     <string name="coach_token_estimate">~%1$d токенов</string>
     <string name="coach_token_warning">" · может превысить небольшой контекст"</string>
+    <string name="coach_settings">Настройки тренера</string>
+    <string name="coach_settings_not_connected">Подключите провайдера на странице тренера, чтобы использовать эти настройки.</string>
     <string name="coach_morning_brief">Утренний брифинг</string>
     <string name="coach_morning_brief_desc">Локальное уведомление с сегодняшней готовностью и планом тренировок, генерируется на устройстве каждое утро.</string>
     <string name="coach_morning_brief_off">Выкл.: ничего не генерируется и не отправляется по расписанию.</string>

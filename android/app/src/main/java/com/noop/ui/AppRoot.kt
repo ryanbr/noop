@@ -155,6 +155,10 @@ internal enum class Destination(
 
     // Group: Insight
     Coach("coach", R.string.nav_coach, Icons.Filled.AutoAwesome),
+    // Coach settings (#2243), reached ONLY from the strip on the Coach page, so like [CoupledView]
+    // it is deliberately absent from every [DrawerGroup]: the drawer groups mirror the iOS More list
+    // one-for-one, and the iOS twin hangs off Coach in the same way.
+    CoachSettings("coach_settings", R.string.coach_settings, Icons.Filled.Tune),
     InsightsHub("insights_hub", R.string.nav_insights_hub, Icons.Filled.Insights),
     Insights("insights", R.string.nav_insights, Icons.Filled.Insights),
     Explore("explore", R.string.nav_explore, Icons.Filled.Explore),
@@ -652,7 +656,11 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                 }
                 composable(Destination.Intervals.route) { IntervalsScreen(viewModel) }
                 composable(Destination.Breathe.route) { BreatheScreen(viewModel) }
-                composable(Destination.Coach.route) { CoachScreen() }
+                composable(Destination.Coach.route) {
+                    // A normal push, so Back returns to the conversation (#2243).
+                    CoachScreen(onOpenSettings = { nav.navigate(Destination.CoachSettings.route) })
+                }
+                composable(Destination.CoachSettings.route) { CoachSettingsScreen() }
                 composable(Destination.Explore.route) { TrendsExploreScreen(viewModel) }
                 composable(Destination.Automations.route) { AutomationsScreen(viewModel) }
                 composable(Destination.SmartAlarm.route) { SmartAlarmScreen(viewModel) }
