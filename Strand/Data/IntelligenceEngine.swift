@@ -1062,7 +1062,9 @@ final class IntelligenceEngine: ObservableObject {
                 try? await store.rrIntervals(deviceId: o, from: f, to: t, limit: StreamReadCap.rr,
                                             unlabelledAliasOfWhoop5: activeWhoop5RR && o == Repository.whoopSource)
             }
+            var paceMark = DispatchTime.now().uptimeNanoseconds
             for offset in 0..<maxDays {
+                if offset > 0 { await RescoreBackgroundScheduler.paceIfBackgrounded(since: &paceMark) }
                 let dayStart = nowLocalMidnight - offset * 86_400
                 let day = AnalyticsEngine.dayString(dayStart, offsetSec: tzOffset)
                 // Read a generous window around the night that ends on `day`; the stager finds the span.
@@ -2052,7 +2054,9 @@ final class IntelligenceEngine: ObservableObject {
             nowLocalMidnight: nowLocalMidnight, now: now, offsetSec: tzOffset,
             maxDays: maxDays, strictCanonicalAlias: strictCanonicalAlias)
         var appliedLegacySnapshots: [String: LegacyScoreSnapshot] = [:]
+        var paceMark = DispatchTime.now().uptimeNanoseconds
         for night in scoredNights {
+            await RescoreBackgroundScheduler.paceIfBackgrounded(since: &paceMark)
             // #299: scope the edits to THIS day before folding. A userEdited row / hand-logged nap belongs
             // to exactly ONE day — the day its night ENDS on, matching the daily's end-day bucket. `endTs`
             // is stable under a bedtime edit (only the onset/`startTsAdjusted` moves), so end-day is the

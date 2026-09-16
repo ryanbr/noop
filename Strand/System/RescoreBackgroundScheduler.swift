@@ -164,14 +164,18 @@ enum RescoreBackgroundScheduler {
     ///   would conjure a forced full pass for a processing task to run when very likely nothing changed,
     ///   which is the churn #1146 exists to avoid. A debt an earlier real pass already recorded is
     ///   untouched either way.
+    /// - Parameter passInProgress: a pass is already running in this process; see
+    ///   `RescoreBackgroundPolicy.decide`.
     static func run(isBackground: Bool? = nil,
                     owesOnDefer: Bool = true,
+                    passInProgress: Bool = false,
                     log: @escaping (String) -> Void,
                     work: () async -> Void) async {
         let decision = RescoreBackgroundPolicy.decide(
             isBackground: isBackground ?? isBackgrounded,
+            isRealUpdate: owesOnDefer,
             rescoreAlreadyOwed: isRescoreOwed,
-            lastCompletedPassSeconds: lastCompletedPassSeconds)
+            passInProgress: passInProgress)
 
         switch decision {
         case .deferToBackgroundTask(let reason):
@@ -193,6 +197,17 @@ enum RescoreBackgroundScheduler {
         }
     }
 
+    /// Rest after a unit of re-score work when backgrounded, so the pass stays under iOS's background CPU
+    /// limit instead of being killed by it (`RescoreBackgroundPolicy.backgroundRestPerWorkSecond`). `mark` is
+    /// the uptime the unit started at, in nanoseconds; it is reset to the end of the rest for the next unit.
+    nonisolated static func paceIfBackgrounded(since mark: inout UInt64) async {
+        let workSeconds = Double(DispatchTime.now().uptimeNanoseconds &- mark) / 1_000_000_000
+        let background = await MainActor.run { isBackgrounded }
+        let rest = RescoreBackgroundPolicy.restSeconds(afterWorkSeconds: workSeconds, isBackground: background)
+        if rest > 0 { try? await Task.sleep(nanoseconds: UInt64(rest * 1_000_000_000)) }
+        mark = DispatchTime.now().uptimeNanoseconds
+    }
+
     /// Hold an execution assertion for the duration of `work` so a SHORT pass is not suspended halfway.
     /// A long one still outlives the grant; the assertion's expiry handler is where that becomes visible
     /// in the log and where the work is escalated, rather than the process simply vanishing.
@@ -206,7 +221,7 @@ enum RescoreBackgroundScheduler {
             // the owed mark is still set (only a completed pass clears it) and that is what the next
             // decision reads.
             MainActor.assumeIsolated {
-                log("re-score: background time expired before the pass finished — escalating (#1538)")
+                log("re-score: background time expired mid-pass — it resumes on the next wake (#1538)")
                 schedule()
                 assertion.end()
             }

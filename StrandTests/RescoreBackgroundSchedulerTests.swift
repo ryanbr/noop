@@ -76,9 +76,8 @@ final class RescoreBackgroundSchedulerTests: XCTestCase {
     /// The bug this file exists for: deferring has to record the debt, or the background task it defers
     /// to has nothing to find.
     func testDeferringMarksTheWorkOwedAndDoesNotRunIt() async {
-        // A measured pass far over the background budget, so the policy defers.
-        RescoreBackgroundScheduler.markRescoreCompleted(seconds: 474.778, owedToken: nil)   // fixture: bank a duration, settle nothing
-        XCTAssertFalse(RescoreBackgroundScheduler.isRescoreOwed)
+        // An earlier pass was killed: its mark is set and nothing runs now, so the policy defers.
+        let killedToken = RescoreBackgroundScheduler.markRescoreOwed()
 
         var ran = false
         var logged: [String] = []
@@ -89,9 +88,11 @@ final class RescoreBackgroundSchedulerTests: XCTestCase {
         XCTAssertFalse(ran, "the pass must not be started in a context that cannot finish it")
         XCTAssertTrue(RescoreBackgroundScheduler.isRescoreOwed,
                       "the deferred work must be recorded, or the background task does nothing")
+        XCTAssertNotEqual(RescoreBackgroundScheduler.currentOwedToken, killedToken,
+                          "the deferral records its own debt for the processing task to settle")
         XCTAssertEqual(logged.count, 1)
         XCTAssertTrue(logged[0].contains("deferred"), logged[0])
-        XCTAssertTrue(logged[0].contains("475"), logged[0])
+        XCTAssertTrue(logged[0].contains("outstanding"), logged[0])
     }
 
     /// A foregrounded pass runs, whatever the measurement says. This is the case the mechanism must not
@@ -109,9 +110,9 @@ final class RescoreBackgroundSchedulerTests: XCTestCase {
         XCTAssertTrue(logged.isEmpty, "a pass that simply runs should not narrate itself")
     }
 
-    /// A background pass with no measurement yet is allowed to run — that is how the measurement is
-    /// acquired, and a first attempt costs at most one pass.
+    /// A background offload with nothing outstanding runs now, paced, however long the last pass took.
     func testAnUnmeasuredBackgroundPassRuns() async {
+        RescoreBackgroundScheduler.markRescoreCompleted(seconds: 474.778, owedToken: nil)   // fixture: bank a duration, settle nothing
         var ran = false
         await RescoreBackgroundScheduler.run(isBackground: true, log: { _ in }) { ran = true }
         XCTAssertTrue(ran)
@@ -126,6 +127,17 @@ final class RescoreBackgroundSchedulerTests: XCTestCase {
         var ran = false
         await RescoreBackgroundScheduler.run(isBackground: true, log: { _ in }) { ran = true }
         XCTAssertFalse(ran)
+    }
+
+    /// ...unless the owed mark is the running pass's own. The trigger then reaches the engine, which
+    /// re-arms one follow-up pass, and records no newer debt for the running pass to fail to settle.
+    func testATriggerDuringARunningPassReachesTheEngine() async {
+        let runningToken = RescoreBackgroundScheduler.markRescoreOwed()
+
+        var ran = false
+        await RescoreBackgroundScheduler.run(isBackground: true, passInProgress: true, log: { _ in }) { ran = true }
+        XCTAssertTrue(ran)
+        XCTAssertEqual(RescoreBackgroundScheduler.currentOwedToken, runningToken)
     }
 
     // MARK: - The backstop tick owes nothing
@@ -160,19 +172,19 @@ final class RescoreBackgroundSchedulerTests: XCTestCase {
         XCTAssertTrue(RescoreBackgroundScheduler.isRescoreOwed)
     }
 
-    /// A backstop still RUNS in the foreground, and in a background that can afford it — the flag changes
-    /// only what a deferral records, never whether the pass happens.
-    func testABackstopStillRunsWhenItCan() async {
+    /// A backstop still RUNS in the foreground. In the background it does not, however fast the last pass
+    /// was: a paced pass costs minutes, and every real update runs its own.
+    func testABackstopRunsOnlyInTheForeground() async {
         var foreground = false
         await RescoreBackgroundScheduler.run(isBackground: false, owesOnDefer: false,
                                              log: { _ in }) { foreground = true }
         XCTAssertTrue(foreground)
 
-        var affordable = false
+        var background = false
         RescoreBackgroundScheduler.markRescoreCompleted(seconds: 3, owedToken: nil)   // fixture: bank a duration, settle nothing
         await RescoreBackgroundScheduler.run(isBackground: true, owesOnDefer: false,
-                                             log: { _ in }) { affordable = true }
-        XCTAssertTrue(affordable)
+                                             log: { _ in }) { background = true }
+        XCTAssertFalse(background)
     }
 
     // MARK: - #1681: whose debt is it?
