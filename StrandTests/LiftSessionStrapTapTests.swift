@@ -1,4 +1,5 @@
 import XCTest
+import Combine
 @testable import Strand
 import WhoopStore
 
@@ -81,6 +82,22 @@ final class LiftSessionStrapTapTests: XCTestCase {
         strapHandler?()                                    // straight into set 2
         XCTAssertEqual(c.engine?.stage, .working(slot(0, 2)))
         XCTAssertTrue(logged.isEmpty)
+    }
+
+    /// The Lock Screen lights on a strap step, once, with the new stage already in place, so that one
+    /// update shows where the lifter is now. A held-back knock and the on-screen button light nothing.
+    func testAStrapStepSignalsTheLockScreenOnceWithTheNewStage() {
+        let c = controller()
+        var seen: [LiftSessionEngine.Stage?] = []
+        let watch = c.strapStepTaken.sink { [unowned c] in seen.append(c.engine?.stage) }
+        defer { watch.cancel() }
+        c.start(plan: plan(), programId: nil, programName: "Pull")
+
+        strapHandler?()                                   // set 1 starts
+        XCTAssertEqual(seen, [.working(slot(0, 1))])
+        strapHandler?()                                   // a knock: held back
+        c.advance()                                       // the on-screen button
+        XCTAssertEqual(seen.count, 1, "neither a knock nor the button lights the screen")
     }
 
     func testAKnockIsJudgedByTimeAndByWhetherTheRestIsOver() {

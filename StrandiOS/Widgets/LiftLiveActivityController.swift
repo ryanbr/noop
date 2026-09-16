@@ -40,10 +40,13 @@ final class LiftLiveActivityController {
     /// Drive the activity from the session's current state. `state` nil means no session is running,
     /// which ends any activity that is showing.
     ///
-    /// `alert` is set for the push that follows a strap double-tap. It lights the Lock Screen on the
-    /// new step, so a lifter who glances at a dark phone sees what they are on (Utku, 16 Sep 2026) —
-    /// an ActivityKit alert, not a notification: it wakes the screen without unlocking anything. It is
-    /// skipped while the app is on screen, where there is nothing to light and iOS would only vibrate.
+    /// `alert` is set for the push a strap double-tap causes. On a LOCKED phone it lights the Lock Screen
+    /// on the new step, so a lifter sees what they are on, and the screen goes dark again on the phone's
+    /// own timer (Utku, 16–17 Sep 2026: "just light up", nothing else). It is an ActivityKit alert, the only
+    /// way iOS lets an app light the screen, carried on the update the step needs anyway. It is skipped
+    /// whenever the phone is not locked — in the app there is nothing to light, and in another app it
+    /// would pop the Dynamic Island. Locked is read as protected data being unavailable, which is how a
+    /// passcode-locked iPhone reports it. ActivityKit offers no setting for vibration; the sound is silence.
     func update(programName: String, state: LiftActivityAttributes.ContentState?, alert: Bool = false) {
         guard authInfo.areActivitiesEnabled else { return }
 
@@ -75,6 +78,7 @@ final class LiftLiveActivityController {
 
         if let activity {
             let lightsScreen = alert && UIApplication.shared.applicationState != .active
+                && !UIApplication.shared.isProtectedDataAvailable
             guard contentChanged || heartRateDue || lightsScreen else { return }
             lastSignature = signature
             lastPush = Date()

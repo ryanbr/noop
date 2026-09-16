@@ -36,9 +36,10 @@ final class LiftSessionController: ObservableObject {
     /// screen, so its save cannot call back into the one listing sessions; that screen reloads on this.
     @Published private(set) var savedSessions = 0
 
-    /// Sends after a strap double-tap has moved the session on, once the new state is in place — unlike
+    /// Sends the moment a strap double-tap has moved the session on, with the new stage in place — unlike
     /// `$engine`, which publishes before the change lands. The Lock Screen banner uses it to light the
-    /// screen for the step the lifter just took.
+    /// screen on the step just taken, and because it comes before anything else about the step reaches
+    /// the banner, that one lit update is usually the only update the step causes.
     let strapStepTaken = PassthroughSubject<Void, Never>()
 
     var isActive: Bool { engine != nil && engine?.isFinished == false }
@@ -224,11 +225,14 @@ final class LiftSessionController: ObservableObject {
         }
 
         engine?.advance(now: stamp)
+        // Straight after the stage moves, so the screen lights with no wait behind the bookkeeping below.
+        // What follows cannot change what the banner shows: numbers typed into a set are already shown
+        // before they are applied (`setNumbers`).
+        if fromStrap { strapStepTaken.send() }
         applyPendingInput()
         now = stamp
         warnedFor = nil
         persist()
-        if fromStrap { strapStepTaken.send() }
     }
 
     /// Whether a strap double-tap `secondsSinceLastStep` after the last one the session acted on is a
