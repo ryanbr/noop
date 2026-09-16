@@ -882,7 +882,12 @@ final class HealthKitBridge: ObservableObject {
         let imported = (try? await whoopStore.dailyMetrics(deviceId: noopDeviceId, from: from, to: to)) ?? []
         var byDay: [String: DailyMetric] = [:]
         for r in computed { byDay[r.day] = r }   // computed first
-        for r in imported { byDay[r.day] = r }   // imported overrides
+        // Imported overrides, EXCEPT for a field the importer cannot populate. See HealthExportMerge: a
+        // CSV carries no raw R-R, so an imported row never has `avgSdnn`, and replacing the row wholesale
+        // threw away a computed SDNN that was already correct. The export then fell back to `avgHrv`
+        // (RMSSD for a strap row) under the SDNN type, turning a right value into a wrong one on every day
+        // an import happened to cover (#2264).
+        for r in imported { byDay[r.day] = HealthExportMerge.merged(computed: byDay[r.day], imported: r) }
         let rows = byDay.keys.sorted().map { byDay[$0]! }
 
         struct Candidate { let type: HKQuantityType; let key: String; let sample: HKQuantitySample }
