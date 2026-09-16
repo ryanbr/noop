@@ -2851,6 +2851,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { rescoreAfterEdit() }
     }
 
+    /** #2242: the MET-calories toggle is part of the day-cache config signature, so re-score now and every
+     *  cached day flips path on the toggle instead of waiting for the next analyze loop. */
+    fun setOuraMetCalories(enabled: Boolean) {
+        NoopPrefs.setOuraMetCalories(appContext, enabled)
+        viewModelScope.launch { rescoreAfterEdit() }
+    }
+
     /** #1545: the Effort TRIMP recipe changes stored Effort for EVERY day in the window, so re-score on
      *  the flip rather than leaving the user on the old recipe's numbers until the next analyze tick —
      *  which the toggle's own copy promises. Twin of the iOS onChange handler. */
