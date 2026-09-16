@@ -68,9 +68,29 @@ enum CoachBriefScheduler {
     /// so AI output would go on being displayed after the AI was switched off. Mirrors what
     /// `setEnabled(false)` already does for the brief's own flag, and what Android's `reschedule` does
     /// when it sees the master switch is off.
+    ///
+    /// Deliberately one-directional. Re-arming is not done here because this type is armed by
+    /// `activateIfEnabled`, which `CoachView` calls when it appears -- a route that is reachable again the
+    /// moment the switch goes back on, since the tab returns with it. Android re-arms on the flip instead,
+    /// because there the brief is armed from app start rather than from the Coach screen.
     static func applyMasterSwitch(_ on: Bool) {
         guard !on else { return }
         cancel()
+        // A brief already DELIVERED sits in Notification Centre until the wearer clears it, and tapping it
+        // routes to Coach. Same leak as the widget, one surface over: AI output still on display, and in
+        // this case still interactive, after the AI was switched off. Pending requests go too, so nothing
+        // already queued can arrive afterwards.
+        let centre = UNUserNotificationCenter.current()
+        centre.getDeliveredNotifications { delivered in
+            let ids = delivered.map(\.request.identifier).filter { $0.hasPrefix(requestIdPrefix) }
+            guard !ids.isEmpty else { return }
+            centre.removeDeliveredNotifications(withIdentifiers: ids)
+        }
+        centre.getPendingNotificationRequests { pending in
+            let ids = pending.map(\.identifier).filter { $0.hasPrefix(requestIdPrefix) }
+            guard !ids.isEmpty else { return }
+            centre.removePendingNotificationRequests(withIdentifiers: ids)
+        }
         #if os(iOS)
         publishToWidget(nil)
         #endif

@@ -460,8 +460,13 @@ object BottomBarStyleStore {
      * one Coach surface that runs with no UI attached: it is a separate default-off feature with its own
      * `enabled` flag that calls a provider from the background and posts a notification. Hiding the tab
      * alone would leave a wearer who had switched briefs on still getting AI output from a feature they
-     * had just turned off. Re-enabling deliberately does NOT restart it -- the brief keeps its own flag,
-     * and resuming it is that switch's job, not this one's.
+     * had just turned off.
+     *
+     * Called in BOTH directions. `reschedule` already reads the master switch first and the brief's own
+     * flag second, so off cancels the work and clears the widget, and on re-arms it only if the wearer
+     * had briefs switched on. Doing this on the flip rather than leaving it to the next app start (where
+     * MainActivity reschedules anyway) keeps the brief's own settings row honest: it would otherwise read
+     * ON while nothing was scheduled, until something happened to relaunch the app.
      */
     fun setCoachEnabled(ctx: Context, value: Boolean) {
         coachEnabled = value
@@ -470,8 +475,8 @@ object BottomBarStyleStore {
         // Routed through `reschedule` rather than `cancel`, because cancelling the work is only half of
         // switching the brief off: the widget keeps displaying the LAST generated brief, which is AI output
         // still on the wearer's home screen after they turned the AI off. `reschedule` sees the master
-        // switch is now false, cancels the work AND clears the widget, so both halves happen here.
-        if (!value) CoachBriefScheduler.reschedule(app)
+        // switch and does the right thing in both directions, so this is unconditional.
+        CoachBriefScheduler.reschedule(app)
     }
 
     fun load(ctx: Context) {

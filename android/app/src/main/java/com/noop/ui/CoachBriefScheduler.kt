@@ -57,6 +57,11 @@ object CoachBriefScheduler {
         if (!NoopPrefs.coachEnabled(context.applicationContext)) {
             wm.cancelUniqueWork(WORK_NAME)
             publishToWidgetSync(context, null)
+            // A brief already posted stays in the shade until it is swiped away, and tapping it opens Coach.
+            // Same leak as the widget, one surface over: AI output still on display, and still interactive,
+            // after the AI was switched off.
+            NotificationManagerCompat.from(context).cancel(NOTIF_ID)
+            NotificationManagerCompat.from(context).cancel(NOTIF_ID_UNAVAILABLE)
             return
         }
         if (!settings.enabled) {

@@ -213,6 +213,16 @@ struct RootTabView: View {
             case .coach:
                 // K3: Coach is now a top-level tab (tag 3) — switch to it directly instead of
                 // presenting it as a pillar sheet.
+                //
+                // Guarded on the master switch, because this route is reachable with Coach OFF. A brief
+                // notification already sitting in Notification Centre still calls `openCoach()` when it is
+                // tapped (StrandApp wires `onCoachBriefTapped` to it), and with no tab claiming tag 3 the
+                // wearer would land on a BLANK tab. Dropping the request leaves them where they were, which
+                // is the honest answer for a feature that is switched off.
+                guard coachEnabled else {
+                    router.requestedDestination = nil
+                    break
+                }
                 withAnimation(.timingCurve(0.22, 1, 0.36, 1, duration: 0.24)) { selectedTab = 3 }
                 router.requestedDestination = nil
             case .trends:
