@@ -545,7 +545,17 @@ def _arity(masked: str, opening: int) -> int | None:
             stack.append(char)
         elif char == "<":
             # Parameter lists use angle brackets for types. Do not treat Kotlin/Swift arrows as generics.
-            if i + 1 >= len(masked) or masked[i + 1] not in "= ":
+            #
+            # Nor Swift's half-open range operator. `a[x..<y]` ends in a `<` whose next character is the
+            # start of the upper bound, so the arrow guard below lets it through and pushes a bracket that
+            # nothing ever closes; the walk then runs to the end of the file and returns None, and the
+            # CALLER SILENTLY DISAPPEARS (`if arity is None: continue`). That is how
+            # Interpreter.hexString/1 came to have "no production callsite" while being called on the very
+            # next line of its own file: its one call passes `frame[max(0, off)..<max(off, end)]`.
+            # A declaration whose only real call is invisible then reports as test-only the moment any
+            # test-local helper of the same name lends it a callsite (#2257).
+            is_half_open_range = masked[max(0, i - 2) : i] == ".."
+            if not is_half_open_range and (i + 1 >= len(masked) or masked[i + 1] not in "= "):
                 stack.append(char)
         elif char in pairs:
             if char == ")" and not stack:
