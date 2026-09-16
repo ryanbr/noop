@@ -202,6 +202,9 @@ struct RootView: View {
     @EnvironmentObject var router: NavRouter
     /// The liquid Today (default) vs the classic Today, same flag the iOS shell + Settings toggle read.
     @AppStorage("noop.liquidTodayEnabled") private var liquidTodayEnabled = true
+    /// The Coach master switch (`noop.coachEnabled`, shared by name with Android and iOS). Default ON.
+    @AppStorage("noop.coachEnabled") private var coachEnabled = true
+
     @State private var selection: NavItem? = .today
     /// Which sidebar groups are expanded (S1, #805). Default = the group owning the launch selection
     /// (`.today`). The single-item Today/Sleep sections always read expanded so their one row shows; the
@@ -381,9 +384,15 @@ struct RootView: View {
     /// user-search semantics (case-insensitive, diacritic-insensitive, locale-aware) in one call.
     /// ALL groups filter, including single-item Today/Sleep; a group with no hits disappears entirely.
     private func visibleItems(in group: NavGroup) -> [NavItem] {
+        // Coach is dropped here, at the RENDER site, rather than out of `NavGroup.all`. That catalogue is
+        // asserted complete -- every NavItem appears in it exactly once (the M5 routability test) -- so
+        // filtering the source would trade a hidden row for a failing invariant. Hiding it here keeps the
+        // catalogue honest and still leaves the destination routable, which matters because a saved
+        // `selection` or a deep link can still name `.coach` after the switch goes off.
+        let items = coachEnabled ? group.items : group.items.filter { $0 != .coach }
         let query = trimmedQuery
-        guard !query.isEmpty else { return group.items }
-        return group.items.filter { $0.localizedTitle.localizedStandardContains(query) }
+        guard !query.isEmpty else { return items }
+        return items.filter { $0.localizedTitle.localizedStandardContains(query) }
     }
 
     /// One selectable destination row (same Label styling the flat list used), tagged for selection.

@@ -50,7 +50,20 @@ enum CoachBriefScheduler {
     static let notificationCategoryId = "coach-brief"
     private static let requestIdPrefix = "coach-brief-"
 
-    static var isEnabled: Bool { UserDefaults.standard.bool(forKey: K.enabled) }
+    /// The Coach master switch, under the same `noop.` key Android writes and `RootTabView` binds.
+    ///
+    /// Read through `object(forKey:)` rather than `bool(forKey:)` because this pref defaults to TRUE and
+    /// `bool(forKey:)` answers FALSE for a key that was never written. Taking the shorter spelling here
+    /// would have disabled the Coach for every install that had never opened the toggle, which is exactly
+    /// the population whose behaviour must not change.
+    static var coachMasterEnabled: Bool {
+        guard UserDefaults.standard.object(forKey: "noop.coachEnabled") != nil else { return true }
+        return UserDefaults.standard.bool(forKey: "noop.coachEnabled")
+    }
+
+    /// Whether the daily brief should run. Both gates, so the brief's own default-off flag keeps its
+    /// meaning while the master switch can veto it outright.
+    static var isEnabled: Bool { coachMasterEnabled && UserDefaults.standard.bool(forKey: K.enabled) }
 
     /// Time-of-day to generate, minutes since local midnight. Clamped to a valid minute. Default 07:00.
     static var timeMinutes: Int {

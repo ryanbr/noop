@@ -14,6 +14,13 @@ struct RootTabView: View {
     /// `NavigationStack(path:)` — which is every primary tab in this file, bound deliberately so a tab
     /// root can pop and re-scroll. So this may well be inert on our structure, and defaulting ON would
     /// advertise a behaviour that never happens. Off until someone confirms it on an iOS 26 device.
+    /// The Coach master switch, under the same `noop.` key Android writes. Default ON, so every install
+    /// that shipped with the tab is unchanged.
+    ///
+    /// Not tab chrome: with this off the AI is off. The tab goes, the Today launcher card goes, and the
+    /// daily brief is cancelled, because the brief calls a provider from the BACKGROUND with no UI
+    /// attached and would otherwise keep posting AI notifications for a feature the wearer switched off.
+    @AppStorage("noop.coachEnabled") private var coachEnabled = true
     @AppStorage("noop.bottomBarAutoHide") private var bottomBarAutoHide = false
 
     /// The live gym session, owned at the app root — see `LiftSessionController`.
@@ -124,10 +131,22 @@ struct RootTabView: View {
             tab(SleepView(), "Sleep", "bed.double", path: $tabPaths[2], scrollSignal: scrollTop[2]).tag(2)
             // K3: Coach promoted to a top-level tab (was behind the More list). The sparkles icon
             // matches the More-tab row and the macOS sidebar entry.
-            tab(CoachView(), "Coach", "sparkles", path: $tabPaths[3], scrollSignal: scrollTop[3]).tag(3)
+            // Conditional on the master switch. The tags stay LITERAL rather than being renumbered when
+            // Coach is absent: `tabPaths` and `scrollTop` are indexed by tag, and More stays tag 4 in both
+            // shapes, so a wearer's More tab keeps its identity, its navigation path and its scroll
+            // position across a flip instead of inheriting Coach's.
+            if coachEnabled {
+                tab(CoachView(), "Coach", "sparkles", path: $tabPaths[3], scrollSignal: scrollTop[3]).tag(3)
+            }
             moreTab(path: $tabPaths[4], scrollSignal: scrollTop[4]).tag(4)
         }
         .tint(StrandPalette.accent)
+        // Switching Coach off while STANDING on it leaves `selectedTab` pointing at a tag no tab claims
+        // any more, which renders as an empty tab rather than as an error. Send that wearer to Today, and
+        // only in that case, so a flip made from anywhere else does not move them.
+        .onChangeCompat(of: coachEnabled) { enabled in
+            if !enabled && selectedTab == 3 { selectedTab = 0 }
+        }
         // #1841: the same "Hide bar when scrolling" preference Android drives its own bar with. Here the
         // system owns the behaviour — iOS 26's tab bar MINIMISES to a pill on scroll down rather than
         // sliding away entirely, so this is the platform's read of the same intent, not a copy of ours.

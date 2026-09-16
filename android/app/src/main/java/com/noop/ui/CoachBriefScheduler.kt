@@ -50,6 +50,15 @@ object CoachBriefScheduler {
      */
     fun reschedule(context: Context, settings: CoachBriefSettings = CoachBriefSettings.from(context)) {
         val wm = WorkManager.getInstance(context.applicationContext)
+        // The Coach master switch vetoes the brief outright. Checked HERE as well as where the switch is
+        // flipped, because cancelling once is not enough: anything that reschedules later (a settings
+        // change, a boot receiver, a time edit) would re-arm a background provider call for a wearer who
+        // has Coach switched off, and the brief's own flag would still read true.
+        if (!NoopPrefs.coachEnabled(context.applicationContext)) {
+            wm.cancelUniqueWork(WORK_NAME)
+            publishToWidgetSync(context, null)
+            return
+        }
         if (!settings.enabled) {
             wm.cancelUniqueWork(WORK_NAME)
             publishToWidgetSync(context, null)  // K10: clear the widget when the feature is turned off

@@ -2754,4 +2754,5 @@
     <plurals name="settings_streak_longest">
         <item quantity="other">最长：%1$d 天</item>
     </plurals>
+    <string name="l10n_settings_screen_ai_coach_130c3eab">AI 教练</string>
 </resources>

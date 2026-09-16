@@ -2772,4 +2772,5 @@
     <string name="l10n_today_screen_scan_and_connect_40157030">Procurar e ligar</string>
     <string name="l10n_health_screen_fitness_age_stops_here_vo_max_383d989a">A idade de forma física para aqui. O VO₂máx não.</string>
     <string name="l10n_app_changelog_a_stress_screen_that_keeps_up_f7ec3f36">Um ecrã de stress que acompanha, leituras do WHOOP 5 nas unidades que a pulseira envia, e um anel que deixa de se repetir</string>
+    <string name="l10n_settings_screen_ai_coach_130c3eab">Treinador de IA</string>
 </resources>

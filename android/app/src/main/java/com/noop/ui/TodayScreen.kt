@@ -1624,7 +1624,12 @@ fun TodayScreen(
             // the hero and the beta flag is off for most users. The section keeps its place in the saved
             // order; its item simply reappears when eligible.
             val visibleDashboardCards = enabledDashboardCards.filter {
-                it != DashboardCard.HYDRATION || hydrationEnabled
+                    (it != DashboardCard.HYDRATION || hydrationEnabled) &&
+                        // Coach off is not just "no tab": the launcher card is the OTHER way into
+                        // the AI, and leaving it on Today would offer a feature the wearer has just
+                        // switched off. Same shape as the hydration gate, so a card the wearer had
+                        // added keeps its place in the saved order and returns when Coach comes back.
+                        (it != DashboardCard.COACH || BottomBarStyleStore.coachEnabled)
             }
             val sectionVisible = when (section) {
                 TodaySection.LIVE_SESSION ->

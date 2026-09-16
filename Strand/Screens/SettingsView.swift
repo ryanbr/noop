@@ -176,6 +176,10 @@ struct SettingsView: View {
     /// #1841: shared with Android by name and meaning; each platform keeps its own store. Default FALSE
     /// on Apple (Android defaults true) because the system behaviour may not fire on our
     /// `NavigationStack(path:)` tabs — see RootTabView.
+    /// The Coach master switch, under the same `noop.` key Android writes. Default ON, so nothing changes
+    /// for an install that never opens this row. Read by `RootTabView` (the tab), Today (the launcher card)
+    /// and `CoachBriefScheduler` (the daily background brief).
+    @AppStorage("noop.coachEnabled") private var coachEnabled = true
     @AppStorage("noop.bottomBarAutoHide") private var bottomBarAutoHide = false
     @AppStorage(ClockFormatPreference.defaultsKey)
     private var clockFormatRaw = ClockFormatPreference.system.rawValue
@@ -1200,6 +1204,19 @@ struct SettingsView: View {
                     // #1829: the resolved clock is memoised, so the write has to drop the memo or the
                     // picker would appear to do nothing until the app restarted.
                     .onChangeCompat(of: clockFormatRaw) { _ in AppClock.invalidate() }
+                }
+                rowDivider
+                // The Coach master switch. Offered on BOTH platforms, not only where the bottom bar is: it
+                // does not hide chrome, it turns the AI off, and macOS reaches the same Coach from its
+                // sidebar. With this off the tab (or sidebar row) goes, the Today launcher card goes, and
+                // the daily brief is cancelled -- the brief being the surface that would otherwise keep
+                // calling a provider from the background with no UI to reveal it. The saved provider key is
+                // kept, so this is a flip rather than a re-setup.
+                FormRow(label: "AI Coach") {
+                    Toggle("", isOn: $coachEnabled)
+                        .labelsHidden()
+                        .tint(StrandPalette.accent)
+                        .accessibilityLabel("AI Coach")
                 }
                 #if os(iOS)
                 rowDivider

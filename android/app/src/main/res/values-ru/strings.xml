@@ -2667,4 +2667,5 @@
     <string name="l10n_today_screen_scan_and_connect_40157030">Найти и подключить</string>
     <string name="l10n_health_screen_fitness_age_stops_here_vo_max_383d989a">Фитнес-возраст здесь останавливается. VO₂max — нет.</string>
     <string name="l10n_app_changelog_a_stress_screen_that_keeps_up_f7ec3f36">Экран стресса, который успевает, показания WHOOP 5 в тех единицах, которые шлёт ремешок, и кольцо, которое перестаёт повторяться</string>
+    <string name="l10n_settings_screen_ai_coach_130c3eab">ИИ-тренер</string>
 </resources>

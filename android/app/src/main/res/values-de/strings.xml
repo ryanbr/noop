@@ -2793,4 +2793,5 @@
     <string name="l10n_today_screen_scan_and_connect_40157030">Suchen und verbinden</string>
     <string name="l10n_health_screen_fitness_age_stops_here_vo_max_383d989a">Das Fitnessalter endet hier. VO₂max nicht.</string>
     <string name="l10n_app_changelog_a_stress_screen_that_keeps_up_f7ec3f36">Ein Stress-Bildschirm, der mitkommt, WHOOP-5-Werte in den Einheiten, die das Band sendet, und ein Ring, der sich nicht mehr wiederholt</string>
+    <string name="l10n_settings_screen_ai_coach_130c3eab">KI-Coach</string>
 </resources>

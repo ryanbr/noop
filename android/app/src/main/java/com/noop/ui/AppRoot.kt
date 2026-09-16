@@ -443,10 +443,38 @@ object BottomBarStyleStore {
             .putBoolean(NoopPrefs.KEY_BOTTOM_BAR_AUTO_HIDE, value).apply()
     }
 
+    /**
+     * Whether the AI Coach is offered at all. Default ON, so every existing install is unchanged.
+     *
+     * Lives here rather than being read straight from prefs at the call site because the bar has to
+     * RECOMPOSE when it flips: a plain `NoopPrefs.coachEnabled(ctx)` read inside the bar would be a
+     * snapshot taken once, and the tab would not appear or vanish until the next process start.
+     */
+    var coachEnabled by mutableStateOf(true)
+        private set
+
+    /**
+     * Flip the Coach master switch.
+     *
+     * Cancels the daily brief here rather than leaving each surface to notice, because the brief is the
+     * one Coach surface that runs with no UI attached: it is a separate default-off feature with its own
+     * `enabled` flag that calls a provider from the background and posts a notification. Hiding the tab
+     * alone would leave a wearer who had switched briefs on still getting AI output from a feature they
+     * had just turned off. Re-enabling deliberately does NOT restart it -- the brief keeps its own flag,
+     * and resuming it is that switch's job, not this one's.
+     */
+    fun setCoachEnabled(ctx: Context, value: Boolean) {
+        coachEnabled = value
+        val app = ctx.applicationContext
+        NoopPrefs.setCoachEnabled(app, value)
+        if (!value) CoachBriefScheduler.cancel(app)
+    }
+
     fun load(ctx: Context) {
         val prefs = NoopPrefs.of(ctx.applicationContext)
         overlay = prefs.getBoolean(NoopPrefs.KEY_OVERLAY_BOTTOM_BAR, true)
         autoHide = prefs.getBoolean(NoopPrefs.KEY_BOTTOM_BAR_AUTO_HIDE, true)
+        coachEnabled = NoopPrefs.coachEnabled(ctx.applicationContext)
         // Both are read through the same clamps the setters use, so a hand-edited or downgraded pref
         // cannot put the bar in a state the UI has no way to leave.
         opacityStep = prefs.getInt(NoopPrefs.KEY_BOTTOM_BAR_OPACITY_STEP, DEFAULT_OPACITY_STEP)
@@ -1077,6 +1105,10 @@ internal val barLeadingTabs = listOf(
     // chart.line.uptrend.xyaxis on iOS — the rising-trend glyph, not a flat bar chart.
     BarTab(Destination.Trends, Icons.AutoMirrored.Filled.TrendingUp, R.string.nav_trends),
 )
+/**
+ * The trailing tabs, as shipped. [barTrailingTabsFor] is what the bar actually draws: Coach is
+ * conditional, so this list is the full set rather than the visible one.
+ */
 internal val barTrailingTabs = listOf(
     BarTab(Destination.Sleep, Icons.Filled.Bedtime, R.string.nav_sleep),
     // #2218: Coach was promoted to a top-level tab on iOS and this side did not follow, so it sat in
@@ -1086,12 +1118,26 @@ internal val barTrailingTabs = listOf(
     BarTab(Destination.Coach, Icons.Filled.AutoAwesome, R.string.nav_coach),
 )
 
+/**
+ * The trailing tabs to draw for a given Coach setting.
+ *
+ * A function rather than a filter written inline at the bar so the Kotlin unit tests can assert the
+ * two shapes directly, and so every surface that needs "which tabs are there" agrees by construction
+ * instead of by two copies of the same predicate.
+ */
+internal fun barTrailingTabsFor(coachEnabled: Boolean): List<BarTab> =
+    if (coachEnabled) barTrailingTabs else barTrailingTabs.filterNot { it.dest == Destination.Coach }
+
 @Composable
 private fun GlassBottomBar(
     current: Destination,
     onTabSelected: (Destination) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // One binding, used by BOTH the slots and the More-lit predicate below. #2218's note applies here
+    // twice over: a second copy of "which tabs exist" is what let Coach light two slots at once, and a
+    // conditional tab makes that failure available again to anyone who filters in one place only.
+    val visibleTrailing = barTrailingTabsFor(BottomBarStyleStore.coachEnabled)
     val barShape = RoundedCornerShape(50)
     Box(
         modifier = modifier
@@ -1140,7 +1186,7 @@ private fun GlassBottomBar(
                         onClick = { onTabSelected(tab.dest) },
                     )
                 }
-                barTrailingTabs.forEach { tab ->
+                visibleTrailing.forEach { tab ->
                     BarSlot(
                         icon = tab.icon,
                         label = stringResource(tab.labelRes),
@@ -1160,7 +1206,7 @@ private fun GlassBottomBar(
                     // is what made adding Coach a two-part change: the slot alone would have lit Coach
                     // AND More together, because this predicate had never heard of it. (#2218)
                     active = barLeadingTabs.none { it.dest == current } &&
-                        barTrailingTabs.none { it.dest == current },
+                        visibleTrailing.none { it.dest == current },
                     modifier = Modifier.weight(1f),
                     onClick = { onTabSelected(Destination.More) },
                 )

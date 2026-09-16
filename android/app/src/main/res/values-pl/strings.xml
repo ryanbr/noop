@@ -2788,4 +2788,5 @@
     <string name="l10n_today_screen_scan_and_connect_40157030">Skanuj i połącz</string>
     <string name="l10n_health_screen_fitness_age_stops_here_vo_max_383d989a">Wiek sprawności zatrzymuje się tutaj. VO₂max nie.</string>
     <string name="l10n_app_changelog_a_stress_screen_that_keeps_up_f7ec3f36">Ekran stresu, który nadąża, odczyty WHOOP 5 w jednostkach wysyłanych przez opaskę i pierścień, który przestaje się powtarzać</string>
+    <string name="l10n_settings_screen_ai_coach_130c3eab">Trener AI</string>
 </resources>
