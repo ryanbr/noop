@@ -666,11 +666,15 @@ struct WorkoutsView: View {
     enum Scope: String, CaseIterable, Identifiable {
         case current, archived
         var id: String { rawValue }
-        /// `LocalizedStringKey`, not `String`. A plain String returned from here reaches `Text` as an
-        /// already-resolved value, so it renders in English forever AND the i18n audit cannot see it: the
-        /// literal is not in a position the scanner treats as user-facing copy. The gate caught the
-        /// Picker's "Scope" label and said nothing about these two, which are the words wearers actually
-        /// read on the tabs.
+        /// `LocalizedStringKey` rather than `String`, because this is only ever handed to `Text`, so the
+        /// resolution belongs to the view environment.
+        ///
+        /// The sibling enums on other screens return `String(localized:)` instead, which is equally correct
+        /// for a value that has to be a String. What is NOT correct, and is what this property shipped as
+        /// first, is a BARE literal returned as a String: it renders in English forever, and the i18n gate
+        /// does not catch it, because a literal in that position is not somewhere the scanner looks. The
+        /// gate flagged the Picker's "Scope" key and said nothing about these two, which are the words
+        /// actually printed on the tabs.
         var label: LocalizedStringKey { self == .current ? "Current" : "Archived" }
     }
 
