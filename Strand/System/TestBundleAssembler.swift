@@ -213,9 +213,14 @@ enum TestBundleAssembler {
         // the same strap diff cleanly. Either may be absent (no range reported yet; a device the WHOOP 5
         // unit policy does not govern), and an absent line is simply omitted rather than stubbed, so a
         // WHOOP 4 report is byte-unchanged by this existing.
+        // #2252: the ring-epoch line is derived from the SAME sidecar entries the bundle already collects
+        // below, so this reads nothing new off disk and cannot fail on a device that never used a ring:
+        // no sidecars, no rows, no line. Hoisted above `universalLines` only so the line can join them.
+        let ouraDiagnostics = ouraDiagnosticEntries()
         let universalLines = [
             universalClockDriftLine(range: live.strapRange),
             universalRRTransportLine(transport: live.rrTransport),
+            universalOuraRingEpochLine(entries: ouraDiagnostics),
         ].compactMap { $0 }
         let reportText = universalLines.isEmpty
             ? baseReport
@@ -261,7 +266,7 @@ enum TestBundleAssembler {
         //     (JSON lines) whose only PII is the ring UUID inside each line, which the redactEntries pass
         //     below masks to <device>; the ENTRY name is normalized (id dropped) since redaction never
         //     touches names. Trimmed to the cap alongside raw-capture via `trimmableNames`.
-        let ouraDiagnostics = ouraDiagnosticEntries()
+        // (collected above, so the ring-epoch universal line could be derived from it)
 
         // 2. Redact the TEXT files (report.txt, raw-capture.jsonl, last-crash.txt, oura-*.jsonl), then cap. The screenshot
         //    is included in the cap input (NOT the redact input) so its bytes COUNT against the 20 MB cap:
@@ -335,6 +340,63 @@ enum TestBundleAssembler {
     /// score. nil when nothing has been resolved this session, or for a device the policy does not govern.
     /// The judgement is `UniversalTrace.rrTransportLine`, shared byte for byte with Android; this is the
     /// hand-off.
+    /// #2252: one `[universal]` line when the Oura sidecars disagree about where the ring's clock started,
+    /// or nil when they agree, which is the healthy case and the common one.
+    ///
+    /// The ticks×10 defect (#2239) filed whole sessions in the past, and the store keeps no ring-time, so
+    /// nothing in it can say which rows those were. The decoded sidecars keep both axes, so the epoch each
+    /// row implies (`utc - ringTs/10`) separates a mis-anchored session from an honest one. Derived from the
+    /// entries the bundle already collected rather than re-reading the directory: a ring that was never used
+    /// contributes no files, so the line is simply absent.
+    ///
+    /// `oura-raw.jsonl` has no `ringTs` and contributes nothing, which is correct; it is undecoded bytes.
+    ///
+    /// DESCRIBES, does not classify: a ring that genuinely restarted also starts a new epoch, and the
+    /// reader has the registration date this code does not.
+    static func universalOuraRingEpochLine(entries: [FileExport.BundleEntry]) -> String? {
+        let rows = entries
+            .filter { $0.name.hasPrefix("oura-") }
+            .flatMap { ouraSidecarRows(String(decoding: $0.data, as: UTF8.self)) }
+        guard !rows.isEmpty else { return nil }
+        return OuraRingEpochScan.summaryLine(OuraRingEpochScan.cluster(rows))
+    }
+
+    /// Pull `(ringTs, utc)` out of a decoded Oura sidecar's JSONL text.
+    ///
+    /// App-layer rather than beside `OuraRingEpochScan` in WhoopStore, which is where the epoch
+    /// MATHEMATICS lives and is kept in lockstep with Android. Reading these files is not shared work:
+    /// Android's own `TestBundleAssembler` collects no Oura sidecars, so a twin of this would be dead code
+    /// on that side, and dead code in a twin is worse than platform-local parsing that can be twinned the
+    /// day Android grows the same surface.
+    ///
+    /// Scans for the two fields rather than decoding each line as JSON: the sidecars are megabytes of
+    /// hand-built objects, and a line that is truncated or from an unknown schema is skipped rather than
+    /// failing the whole read. A sidecar's last line is routinely a partial write. `oura-raw.jsonl` has no
+    /// `ringTs` at all and so contributes nothing, which is correct: it is undecoded bytes.
+    static func ouraSidecarRows(_ text: String) -> [(ringTs: UInt32, utc: Int)] {
+        var out: [(ringTs: UInt32, utc: Int)] = []
+        for line in text.split(separator: "\n", omittingEmptySubsequences: true) {
+            guard let rt = ouraSidecarInt("ringTs", in: line), let utc = ouraSidecarInt("utc", in: line),
+                  rt > 0, rt <= Int(UInt32.max) else { continue }
+            out.append((UInt32(rt), utc))
+        }
+        return out
+    }
+
+    /// The integer value of `"name":<digits>` in `line`, or nil. Matches the QUOTED key so a field whose
+    /// name contains another ("utc" inside "utcOffset") cannot be read as it.
+    static func ouraSidecarInt(_ name: String, in line: Substring) -> Int? {
+        guard let keyRange = line.range(of: "\"\(name)\":") else { return nil }
+        var digits = ""
+        var i = keyRange.upperBound
+        if i < line.endIndex, line[i] == "-" { digits.append("-"); i = line.index(after: i) }
+        while i < line.endIndex, line[i].isNumber {
+            digits.append(line[i])
+            i = line.index(after: i)
+        }
+        return Int(digits)
+    }
+
     static func universalRRTransportLine(transport: LiveState.RRTransport?) -> String? {
         guard let transport else { return nil }
         return UniversalTrace.rrTransportLine(strictWhoop5: transport.strictWhoop5,
