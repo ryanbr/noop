@@ -16,7 +16,7 @@ final class FramingTests: XCTestCase {
         return out
     }
 
-    private func hexString(_ b: [UInt8]) -> String {
+    private func hexBytes(_ b: [UInt8]) -> String {
         b.map { String(format: "%02x", $0) }.joined()
     }
 
@@ -214,7 +214,7 @@ final class FramingTests: XCTestCase {
             + "fffffffffffffffffffff7f555580b0ce7b302185f1033563c645a120de7b302095555555555555555555555557f4f"
             + "0f0ee7b302772514020d0100008000004c120fe7b30201001f00d9007f0047013b3405146e1118e7b3028a7c7b797b"
             + "7a7a947c919051616e1127e7b30204797a7d797b80d0dfe7a7bdca60122ee7b3027a7c797a8180bbb96572889d1761"))
-        XCTAssertEqual(a.map { String(format: "%02x rt=%u payload=%@", $0.type, $0.ringTimestamp, hexString($0.payload)) }, [
+        XCTAssertEqual(a.map { String(format: "%02x rt=%u payload=%@", $0.type, $0.ringTimestamp, hexBytes($0.payload)) }, [
             "5a rt=45344521 payload=06f0000000555555555555555540",
             "5a rt=45344522 payload=070000014555555555555545f0ff",
             "5a rt=45344523 payload=08fffffffffffffffffffff7f555",
@@ -231,7 +231,7 @@ final class FramingTests: XCTestCase {
             + "6f123ce7b3024d66666666666666676767676768771243e7b302beff03fef6fe0100020d0e06ff016e1152e7b30280"
             + "80807c7c7e2f5e795c879a00771260e7b3023afc020805040a09fcf5fcfdfd036e1161e7b3020a807d7b7e7d76e1d0"
             + "e5dfd4b0601267e7b3027d7b7e7d777996b4cdb38d92886161107ae7b3021a1800288a0000ac3f0000cb"))
-        XCTAssertEqual(b.map { String(format: "%02x rt=%u payload=%@", $0.type, $0.ringTimestamp, hexString($0.payload)) }, [
+        XCTAssertEqual(b.map { String(format: "%02x rt=%u payload=%@", $0.type, $0.ringTimestamp, hexBytes($0.payload)) }, [
             "75 rt=45344561 payload=8d0d8d0d8d0d8d0d8d0d870d870d",
             "46 rt=45344562 payload=870dfc0c4c0b640d7a0d8d0d7d0d",
             "69 rt=45344563 payload=ed0d",
