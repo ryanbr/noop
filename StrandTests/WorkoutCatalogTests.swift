@@ -8,6 +8,12 @@ import StrandDesign
 /// WorkoutSportTest intent for the same two sports.
 final class WorkoutCatalogTests: XCTestCase {
 
+    /// Asked for by a user. The Swift catalogue carries no Health Connect type, so what is pinned here
+    /// is the label: it is the stored, cross-platform value and must read identically on Android.
+    func testNordicWalkingIsOffered() {
+        XCTAssertTrue(WorkoutCatalog.all.contains { $0.name == "Nordic walking" })
+    }
+
     func testTreadmillWalkPresetExistsWithGpsOff() {
         let s = WorkoutCatalog.sport(named: "Treadmill walk")
         XCTAssertNotNil(s, "Treadmill walk must be in the suggestion catalogue (#714)")

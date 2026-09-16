@@ -121,6 +121,10 @@ enum WorkoutCatalog {
         Sport(name: "Wheelchair", isDistanceSport: false),
         Sport(name: "Gaming", isDistanceSport: false),
         Sport(name: "Motor racing", isDistanceSport: false),
+        // Asked for by a user. GPS off to match Android, where every EXTRA sport is built with
+        // isDistanceSport = false regardless of whether it has a route (Mountain biking and Rucking
+        // sit the same way). Worth revisiting for all of them together rather than singling this out.
+        Sport(name: "Nordic walking", isDistanceSport: false),
         Sport(name: "Other", isDistanceSport: false),
     ]
 

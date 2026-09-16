@@ -20,6 +20,13 @@ class WorkoutSportTest {
         assertFalse(WorkoutSport.all.first { it.name == "Yoga" }.isDistanceSport)
     }
 
+    /** Asked for by a user. Pinned because the label is what NOOP stores and shows, while the type is
+     *  only what Health Connect is told: a rename of either half silently changes one of those. */
+    @Test fun nordicWalking_isOffered_andWritesBackAsWalking() {
+        val sport = WorkoutSport.all.first { it.name == "Nordic walking" }
+        assertEquals(ExerciseSessionRecord.EXERCISE_TYPE_WALKING, sport.exerciseType)
+    }
+
     @Test fun unknownType_fallsBackToOther() {
         assertEquals("Workout", WorkoutSport.nameFor(Int.MIN_VALUE))
     }

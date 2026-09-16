@@ -122,6 +122,10 @@ object ExerciseTypes {
         "Wheelchair" to EX.EXERCISE_TYPE_OTHER_WORKOUT,
         "Gaming" to EX.EXERCISE_TYPE_OTHER_WORKOUT,
         "Motor racing" to EX.EXERCISE_TYPE_OTHER_WORKOUT,
+        // Asked for by a user. Rides WALKING for writeback, as Rucking and Treadmill walk do: Health
+        // Connect has no pole-walking type, and WALKING is what it actually is. Keeps its own label
+        // because the strain is not a plain walk.
+        "Nordic walking" to EX.EXERCISE_TYPE_WALKING,
     )
 
     /** Types where a route makes sense -> GPS defaults on. */
