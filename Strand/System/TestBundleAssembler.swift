@@ -354,8 +354,14 @@ enum TestBundleAssembler {
     /// DESCRIBES, does not classify: a ring that genuinely restarted also starts a new epoch, and the
     /// reader has the registration date this code does not.
     static func universalOuraRingEpochLine(entries: [FileExport.BundleEntry]) -> String? {
+        // `oura-raw.jsonl` is skipped by NAME rather than left to fall out of the parse: it is the
+        // undecoded byte capture, it carries no `ringTs` by construction (`OuraRawDumpLine` encodes
+        // deviceId/utc/bytes and nothing else), and it is routinely the LARGEST sidecar. Scanning it
+        // costs a full pass over the biggest file in the bundle to find a field that cannot be there.
+        // Every other kind stays eligible, so a sidecar that does carry ring-times still contributes
+        // even if it is one this build does not know about.
         let rows = entries
-            .filter { $0.name.hasPrefix("oura-") }
+            .filter { $0.name.hasPrefix("oura-") && $0.name != "oura-raw.jsonl" }
             .flatMap { ouraSidecarRows(String(decoding: $0.data, as: UTF8.self)) }
         guard !rows.isEmpty else { return nil }
         return OuraRingEpochScan.summaryLine(OuraRingEpochScan.cluster(rows))
