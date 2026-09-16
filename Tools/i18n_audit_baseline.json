@@ -1015,6 +1015,10 @@
       "Your WHOOP 5.0/MG sends a strap-computed SpO₂ percentage (the @82 candidate byte) every second — an 8-night independent validation tracked it at corr +0.99 against the WHOOP app, but two nights on the original test device moved the OPPOSITE direction, so device/firmware variance is unresolved. An Oura ring's own SpO₂ reading runs high on the wire (over 100% on a fifth to a half of samples on a clean night); this instead surfaces the ring's mean with each sample capped at 100% first, which has matched the Oura app's own displayed value on every full night checked against it so far, though only a few nights. Turning this on surfaces whichever applies to your device as \\\"strap estimate (unverified)\\\" in the Blood Oxygen tile when no calibrated import exists. It never feeds recovery or illness scoring. WHOOP 4.0 has no @82 stream, so this does nothing there."
     ],
     [
+      "Strand/Screens/SleepModel.swift",
+      "\\(Night.spanFmt.string(from: onsetDay)) → \\(Night.dateFmt.string(from: wakeDay))"
+    ],
+    [
       "Strand/Screens/SleepView.swift",
       "Removes this recorded sleep and recomputes the day without it. NOOP won't re-detect sleep in this window. You can undo for a few seconds after."
     ],
@@ -1063,12 +1067,20 @@
       "Opens the full \\(accessibilityTitle) metric."
     ],
     [
+      "Strand/Screens/VitalSignsSummary.swift",
+      "unverified · over-reports R-R"
+    ],
+    [
       "Strand/Screens/WorkoutDetailView.swift",
       "Effort \\(UnitFormatter.effortDisplay(strain, scale: effortScale)) \\(effortScale == .whoop ? \"of 21\" : \"of 100\")"
     ],
     [
       "Strand/Screens/WorkoutDetailView.swift",
       "of 21"
+    ],
+    [
+      "Strand/Screens/WorkoutSelectionScreen.swift",
+      "\\(sport.name) workout, \\(labels.joined(separator: \", \"))"
     ],
     [
       "Strand/Screens/WorkoutsView.swift",
