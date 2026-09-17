@@ -5,6 +5,7 @@ import Security
 import WhoopProtocol
 import WhoopStore
 import OuraProtocol
+import StrandAnalytics   // item 27: NightStandDown, the learned night band the all-day HR hold stands down for
 // The live-HR suspend listens for the screen going dark, which is a UIKit notification on iOS and an
 // NSWorkspace one on macOS (see installScreenStateObservers).
 #if os(iOS)
@@ -261,6 +262,13 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     /// SetNotification is the official app's `ff` instead of `3f` (OURA_PROTOCOL.md s2.3). The next
     /// connect re-reads it, so switching the toggle off restores the default with nothing left on the ring.
     private let notifyMaskFull: () -> Bool
+    /// Item 27: the Experimental "All-day heart rate & HRV" toggle, read at every decision so a flip takes
+    /// effect within one re-engage tick / one history-fetch tick, never at the next launch.
+    private let allDayLiveHR: () -> Bool
+    /// Item 27: the learned night band the daytime-HR hold stands down for while the toggle is on; nil at
+    /// cold start (the screen rule then applies as before). Supplied by the app layer from the same sleep
+    /// learner the battery night-guard reads.
+    private let nightBand: () -> NightStandDown.Band?
     private let log: (String) -> Void
     private let onBattery: (Int) -> Void
     /// Fired with the ring's TRUE model label ("Oura Ring 3/4/5") once the GetProductInfo hardware id resolves
@@ -728,6 +736,7 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     /// overlaps a fetch already in flight - the driver's own phase is the guard, so this is safe to call
     /// both right after reaching `.streaming` and from the periodic timer).
     private func fetchHistoryIfIdle() {
+        resumeAfterStandDownIfReleased()   // item 27: the one tick that still runs while suspended
         guard let driver, driver.phase == .streaming else { return }
         // Arm the per-drain state: where we sought from (reboot detection), the stored-sample high-water
         // mark the cursor will commit from, and the stall/deadline guards.
@@ -1236,10 +1245,43 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     /// exceeds a genuine glance-and-pocket.
     private let liveHRSuspendDelay: TimeInterval = 300
 
-    /// True once the screen has been off long enough that the ring should be left alone. Everything else
-    /// keys off this one predicate, so the suspend and the resume can never disagree about the rule.
+    /// True once the ring should be left alone. Everything else keys off this one predicate — the
+    /// suspend, the resume, and `OuraDriver.liveHRWanted` at auth — so no two gates can disagree.
     private var liveHRSuspended: Bool {
-        Self.shouldSuspendLiveHR(screenOffAt: screenOffAt, now: Date(), delay: liveHRSuspendDelay)
+        Self.shouldSuspendLiveHR(screenOffAt: screenOffAt, now: Date(), delay: liveHRSuspendDelay,
+                                 allDay: allDayPolicyNow())
+    }
+
+    /// Item 27: what the all-day toggle contributes to the stand-down decision, sampled now.
+    private func allDayPolicyNow(_ now: Date = Date()) -> AllDayLiveHR {
+        guard allDayLiveHR() else { return .off }
+        return .on(band: nightBand(), nowSecOfDay: Self.localSecOfDay(now))
+    }
+
+    /// Local time-of-day in seconds [0, 86400), in the CURRENT zone so a traveller's night follows them.
+    nonisolated static func localSecOfDay(_ now: Date) -> Int {
+        let c = Calendar.current.dateComponents([.hour, .minute, .second], from: now)
+        return (c.hour ?? 0) * 3_600 + (c.minute ?? 0) * 60 + (c.second ?? 0)
+    }
+
+    /// Item 27 — the Experimental "All-day heart rate & HRV" toggle as the suspend policy sees it.
+    ///
+    /// WHY. The ring produces daytime HR ONLY while a client holds it in daytime-HR mode; there is no
+    /// banked daytime family it emits on its own. The screen-off suspend was built for the night (holding
+    /// the ring overnight killed its sleep suite, r = −0.93 over 11 nights) but its gate — the screen —
+    /// is also dark for most of a working day, so from the night that build shipped the daytime 5-min HR
+    /// bins fell from 123–144/144 to a median of ~16, and windowed rMSSD by day emptied with them. With
+    /// the toggle ON the stand-down keys on the learned NIGHT band instead: outside it a dark screen no
+    /// longer suspends (the 15 s re-engage keeps the ring in daytime mode and the ring banks `0x80` for
+    /// the 300 s drain, exactly the pre-#1526 daytime behaviour); inside it the screen-off grace applies
+    /// unchanged, so the merged night fix is untouched. The trade — the ring's own daytime PPG costs
+    /// charge — is the user's, which is why this is a default-OFF toggle and not a new default.
+    enum AllDayLiveHR: Equatable {
+        /// Toggle off: the screen rule alone, byte-identical to before this policy existed.
+        case off
+        /// Toggle on. `band` nil = no learned sleep schedule yet (cold start): the screen rule applies
+        /// rather than a made-up clock, and the suspend line says so.
+        case on(band: NightStandDown.Band?, nowSecOfDay: Int)
     }
 
     /// Pure policy so it is testable without a `CBCentralManager` (this class owns one and cannot be built
@@ -1249,9 +1291,16 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     ///   - screenOffAt: when the screen went dark, nil while the user is present.
     ///   - now: the clock, injected so a test need not sleep for the grace window.
     ///   - delay: the grace window.
-    nonisolated static func shouldSuspendLiveHR(screenOffAt: Date?, now: Date, delay: TimeInterval) -> Bool {
-        guard let off = screenOffAt else { return false }
-        return now.timeIntervalSince(off) >= delay
+    ///   - allDay: the all-day toggle's contribution; `.off` is the pre-item-27 rule exactly.
+    nonisolated static func shouldSuspendLiveHR(screenOffAt: Date?, now: Date, delay: TimeInterval,
+                                                allDay: AllDayLiveHR = .off) -> Bool {
+        guard let off = screenOffAt, now.timeIntervalSince(off) >= delay else { return false }
+        switch allDay {
+        case .off: return true
+        case .on(let band, let secOfDay):
+            guard let band else { return true }   // cold start: no learned night, keep the screen rule
+            return NightStandDown.contains(band, secOfDay: secOfDay)
+        }
     }
 
     /// What `screenOffAt` must be at construction time, given whether the screen is ALREADY dark.
@@ -1318,6 +1367,8 @@ public final class OuraLiveSource: NSObject, ObservableObject {
                 authKey: @escaping () -> Data?,
                 persist: @escaping (Streams) -> Void = { _ in },
                 persistSleepSession: @escaping (CachedSleepSession) -> Void = { _ in },
+                allDayLiveHR: @escaping () -> Bool = { false },
+                nightBand: @escaping () -> NightStandDown.Band? = { nil },
                 log: @escaping (String) -> Void = { _ in },
                 onBattery: @escaping (Int) -> Void = { _ in },
                 onModel: @escaping (String) -> Void = { _ in },
@@ -1332,6 +1383,8 @@ public final class OuraLiveSource: NSObject, ObservableObject {
         self.authKey = authKey
         self.persist = persist
         self.persistSleepSession = persistSleepSession
+        self.allDayLiveHR = allDayLiveHR
+        self.nightBand = nightBand
         self.log = log
         self.onBattery = onBattery
         self.onModel = onModel
@@ -2546,8 +2599,32 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     private func logLiveHRSuspendOnce() {
         guard !loggedLiveHRSuspend else { return }
         loggedLiveHRSuspend = true
-        log("Oura: live-HR re-engage SUSPENDED - screen off \(Int(liveHRSuspendDelay / 60)) min, leaving the "
+        let why: String
+        switch allDayPolicyNow() {
+        case .off: why = ""
+        case .on(let band, _):
+            why = band.map { " inside the night stand-down \(NightStandDown.describe($0)) (all-day HR on)" }
+                ?? " (all-day HR on, but no learned sleep schedule yet - screen rule applies)"
+        }
+        log("Oura: live-HR re-engage SUSPENDED - screen off \(Int(liveHRSuspendDelay / 60)) min\(why), leaving the "
             + "ring free to run its own night suite (history fetch continues every \(Int(historyFetchInterval))s)")
+    }
+
+    /// Item 27: the stand-down ended while the screen stayed dark — the learned night band closed (or the
+    /// toggle was flipped on during the day). The screen-on path re-arms via `handleScreenCameBack`; with
+    /// nothing touching the phone, the ONLY tick still running while suspended is the 300 s history fetch,
+    /// so that is where this is checked (the re-engage timer was stopped by the suspend and cannot notice
+    /// its own release). Mirrors the screen-on resume minus clearing `screenOffAt`: the screen IS still
+    /// off, and the next band entry must find the clock already past the grace.
+    private func resumeAfterStandDownIfReleased() {
+        guard loggedLiveHRSuspend, reengageTimer == nil, !liveHRSuspended else { return }
+        loggedLiveHRSuspend = false
+        loggedUnexpectedLiveHRWhileSuspended = false
+        log("Oura: live-HR re-engage RESUMED - night stand-down ended (all-day HR on), screen still off")
+        guard reachedStreaming, driver != nil else { return }   // a reconnect will arm it at .streaming
+        lastLivePulseAt = Date()   // same watchdog re-stamp as the screen-on resume
+        startReengageTimer()
+        reengageLiveHR()
     }
 
     /// Actively turn daytime-HR mode off rather than merely declining to re-arm it. `reengageLiveHR`'s own
@@ -3216,8 +3293,12 @@ extension OuraLiveSource: @preconcurrency CBPeripheralDelegate {
                 // driver goes straight to `.streaming` with no daytime-HR write; the log says which.
                 let wanted = !liveHRSuspended
                 driver?.liveHRWanted = wanted
+                var inBand = ""
+                if case .on(let band?, _) = allDayPolicyNow() {
+                    inBand = ", night stand-down \(NightStandDown.describe(band))"
+                }
                 log(wanted ? "Oura: auth OK - enabling live HR"
-                           : "Oura: auth OK - live HR suspended (screen off), daytime HR left untouched")
+                           : "Oura: auth OK - live HR suspended (screen off\(inBand)), daytime HR left untouched")
             } else {
                 log("Oura: WARNING auth status \(status.rawValue)")
             }

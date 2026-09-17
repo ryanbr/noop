@@ -1,4 +1,5 @@
 import XCTest
+import StrandAnalytics
 @testable import Strand
 
 /// `OuraLiveSource.shouldSuspendLiveHR` — when the live-HR re-engage stands down because nobody is looking.
@@ -101,5 +102,60 @@ final class OuraLiveHRSuspendPolicyTests: XCTestCase {
         // 15 s re-engage runs all night and holds the ring in daytime-HR mode.
         XCTAssertFalse(OuraLiveSource.shouldSuspendLiveHR(
             screenOffAt: nil, now: t0.addingTimeInterval(8 * 3600), delay: delay))
+    }
+}
+
+// MARK: - Item 27: the all-day HR toggle keys the stand-down on the learned night, not the screen
+
+/// Why: the ring emits daytime HR only while a client holds daytime-HR mode, so the screen-keyed suspend
+/// emptied every working day from the night it shipped (daytime 5-min bins 123–144/144 → median ~16).
+/// With the toggle ON the same predicate stands down only inside `NightStandDown`'s learned band; OFF is
+/// byte-identical to the rule above. Pinned here; that the ring then banks a full day and still runs its
+/// night suite is a strap claim, owed on hardware.
+extension OuraLiveHRSuspendPolicyTests {
+
+    private var night: NightStandDown.Band { NightStandDown.Band(startSec: 21 * 3_600 + 1_800, endSec: 7 * 3_600 + 1_800) }
+    private var pastGrace: Date { Date(timeIntervalSince1970: 1_760_000_000).addingTimeInterval(3_600) }
+    private var screenOff: Date { Date(timeIntervalSince1970: 1_760_000_000) }
+
+    func testToggleOffIsTheScreenRuleExactly() {
+        XCTAssertTrue(OuraLiveSource.shouldSuspendLiveHR(screenOffAt: screenOff, now: pastGrace, delay: 300, allDay: .off))
+        XCTAssertFalse(OuraLiveSource.shouldSuspendLiveHR(screenOffAt: nil, now: pastGrace, delay: 300, allDay: .off))
+    }
+
+    func testToggleOnDoesNotSuspendOutsideTheNightBand() {
+        // Midday, phone in a pocket for an hour: keep holding the ring.
+        for sec in [7 * 3_600 + 1_800, 9 * 3_600, 12 * 3_600, 18 * 3_600, 21 * 3_600 + 1_799] {
+            XCTAssertFalse(OuraLiveSource.shouldSuspendLiveHR(
+                screenOffAt: screenOff, now: pastGrace, delay: 300, allDay: .on(band: night, nowSecOfDay: sec)),
+                "\(sec / 3_600)h is daytime")
+        }
+    }
+
+    func testToggleOnSuspendsInsideTheNightBandAfterTheGrace() {
+        for sec in [21 * 3_600 + 1_800, 23 * 3_600, 0, 3 * 3_600, 7 * 3_600 + 1_799] {
+            XCTAssertTrue(OuraLiveSource.shouldSuspendLiveHR(
+                screenOffAt: screenOff, now: pastGrace, delay: 300, allDay: .on(band: night, nowSecOfDay: sec)),
+                "\(sec / 3_600)h is inside the night")
+        }
+        // The screen-off grace still applies inside the band: an evening on the phone keeps live HR.
+        XCTAssertFalse(OuraLiveSource.shouldSuspendLiveHR(
+            screenOffAt: screenOff, now: screenOff.addingTimeInterval(60), delay: 300,
+            allDay: .on(band: night, nowSecOfDay: 23 * 3_600)))
+        // And presence always wins.
+        XCTAssertFalse(OuraLiveSource.shouldSuspendLiveHR(
+            screenOffAt: nil, now: pastGrace, delay: 300, allDay: .on(band: night, nowSecOfDay: 23 * 3_600)))
+    }
+
+    func testToggleOnWithoutALearnedNightKeepsTheScreenRule() {
+        // Cold start: no band ⇒ do not invent a clock; behave as if the toggle were off.
+        XCTAssertTrue(OuraLiveSource.shouldSuspendLiveHR(
+            screenOffAt: screenOff, now: pastGrace, delay: 300, allDay: .on(band: nil, nowSecOfDay: 12 * 3_600)))
+    }
+
+    /// The band the app layer hands the policy is the learner's own (midsleep ± half the typical night, ±1 h).
+    func testBandComesFromTheLearnedSchedule() {
+        let band = NightStandDown.band(habitualMidsleepSec: 2 * 3_600 + 1_800, typicalSleepHours: 8)
+        XCTAssertEqual(band, night)
     }
 }
