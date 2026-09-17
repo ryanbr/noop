@@ -669,44 +669,58 @@ struct LiquidTodayView: View {
     }
 
     private var heroCard: some View {
-        HStack(alignment: .top, spacing: 4) {
-            // #543 carry: an unscored today shows the last scored night's REAL Charge (labelled as prior by
-            // the state pill) rather than an empty vessel, matching the classic Today, the widget/watch/Live
-            // Activity (`Repository.widgetAnchor`) and Android. Effort deliberately does NOT carry — it is
-            // today's own accumulation, so yesterday's number would be a false statement, not a stale one.
-            HeroScoreCell(label: String(localized: "Charge"), score: chargeDisplay.pct, tint: StrandPalette.chargeColor,
-                          animated: dataLoaded, onGuide: { guideSection = .charge },
-                          detailRoute: .metric(HeroRingMetric.charge))
-            // #45: the hero Effort must honour the user's Effort scale like every other Effort read-out.
-            // Show the value on the chosen scale (0–100 or WHOOP 0–21) with the matching vessel max, and
-            // one decimal on the compressed 0–21 axis to match the app-wide `effortDisplay` convention
-            // (12.6, not a rounded "13"); the 0–100 hero stays a whole number as before.
-            HeroScoreCell(label: String(localized: "Effort"),
-                          score: effortStrain(displayDay).map { UnitFormatter.effortValue($0, scale: effortScale) },
-                          tint: StrandPalette.effortColor, animated: dataLoaded,
-                          onGuide: { guideSection = .effort },
-                          maxValue: effortScale == .whoop ? 21 : 100,
-                          decimals: effortScale == .whoop ? 1 : 0,
-                          detailRoute: .metric(HeroRingMetric.effort))
-            HeroScoreCell(label: String(localized: "Rest"), score: restScore, tint: StrandPalette.restColor,
-                          animated: dataLoaded, onGuide: { guideSection = .rest },
-                          detailRoute: .metric(HeroRingMetric.rest))
-                .overlay(alignment: .top) {
-                    if let sourceLabel = heroSourceLabel {
-                        SourceBadge("\(sourceLabel)", tint: StrandPalette.textSecondary)
-                            // Match the badge's trailing edge to the Rest vessel and centre it on the card border.
-                            .fixedSize()
-                            .frame(width: HeroScoreCell.vesselDiameter, alignment: .trailing)
-                            .offset(y: -(NoopMetrics.space4 + NoopMetrics.sourceBadgeHeight / 2))
-                            .allowsHitTesting(false)
-                            .accessibilityLabel(Text("Source: \(sourceLabel)"))
-                    }
+        // Dynamic color for the Charge ring based on WHOOP recovery zones (67-100 green, 34-66 yellow, 0-33 red)
+        let chargeScore = chargeDisplay.pct ?? 0
+            let dynamicChargeTint: Color = {
+                guard chargeDisplay.pct != nil else { return StrandPalette.chargeColor }
+                switch chargeScore {
+                case 67...:
+                    return .green
+                case 34..<67:
+                    return .yellow
+                default:
+                    return .red
                 }
+            }()
+
+            return HStack(alignment: .top, spacing: 4) {
+                // #543 carry: an unscored today shows the last scored night's REAL Charge (labelled as prior by
+                // the state pill) rather than an empty vessel, matching the classic Today, the widget/watch/Live
+                // Activity (`Repository.widgetAnchor`) and Android. Effort deliberately does NOT carry — it is
+                // today's own accumulation, so yesterday's number would be a false statement, not a stale one.
+                HeroScoreCell(label: String(localized: "Charge"), score: chargeDisplay.pct, tint: dynamicChargeTint,
+                              animated: dataLoaded, onGuide: { guideSection = .charge },
+                              detailRoute: .metric(HeroRingMetric.charge))
+                // #45: the hero Effort must honour the user's Effort scale like every other Effort read-out.
+                // Show the value on the chosen scale (0–100 or WHOOP 0–21) with the matching vessel max, and
+                // one decimal on the compressed 0–21 axis to match the app-wide `effortDisplay` convention
+                // (12.6, not a rounded "13"); the 0–100 hero stays a whole number as before.
+                HeroScoreCell(label: String(localized: "Effort"),
+                              score: effortStrain(displayDay).map { UnitFormatter.effortValue($0, scale: effortScale) },
+                              tint: StrandPalette.effortColor, animated: dataLoaded,
+                              onGuide: { guideSection = .effort },
+                              maxValue: effortScale == .whoop ? 21 : 100,
+                              decimals: effortScale == .whoop ? 1 : 0,
+                              detailRoute: .metric(HeroRingMetric.effort))
+                HeroScoreCell(label: String(localized: "Rest"), score: restScore, tint: StrandPalette.restColor,
+                              animated: dataLoaded, onGuide: { guideSection = .rest },
+                              detailRoute: .metric(HeroRingMetric.rest))
+                    .overlay(alignment: .top) {
+                        if let sourceLabel = heroSourceLabel {
+                            SourceBadge("\(sourceLabel)", tint: StrandPalette.textSecondary)
+                                // Match the badge's trailing edge to the Rest vessel and centre it on the card border.
+                                .fixedSize()
+                                .frame(width: HeroScoreCell.vesselDiameter, alignment: .trailing)
+                                .offset(y: -(NoopMetrics.space4 + NoopMetrics.sourceBadgeHeight / 2))
+                                .allowsHitTesting(false)
+                                .accessibilityLabel(Text("Source: \(sourceLabel)"))
+                        }
+                    }
+            }
+            .padding(.vertical, NoopMetrics.space4)
+            .padding(.horizontal, NoopMetrics.space3)
+            .background(NoopPanelSurface(cornerRadius: 26, elevated: true, surfaceOpacity: cardOpacity))
         }
-        .padding(.vertical, NoopMetrics.space4)
-        .padding(.horizontal, NoopMetrics.space3)
-        .background(NoopPanelSurface(cornerRadius: 26, elevated: true, surfaceOpacity: cardOpacity))
-    }
 
     // MARK: - Heart rate
 
