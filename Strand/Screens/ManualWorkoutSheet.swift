@@ -471,6 +471,12 @@ struct ManualWorkoutSheet: View {
         // The failure this feature introduces, so it gets its own line rather than the catch-all below.
         if end <= start { return String(localized: "End must be after the start.") }
         if end > Date() { return String(localized: "End can't be in the future.") }
+        // Its own line rather than the catch-all below: "Check the values and try again." gives a wearer
+        // no way to know a 30-second entry is the thing being refused. Matches the live-session floor, so
+        // the same session is treated the same whether it was tracked or typed in.
+        if Int(end.timeIntervalSince1970) - Int(start.timeIntervalSince1970) < WorkoutSource.minManualSpanSeconds {
+            return String(localized: "A workout must be at least 1 minute.")
+        }
         if !avgHrText.trimmingCharacters(in: .whitespaces).isEmpty, avgHr == nil || !(25...250).contains(avgHr ?? -1) {
             return String(localized: "Average HR must be 25-250 bpm.")
         }

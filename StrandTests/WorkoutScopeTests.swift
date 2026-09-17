@@ -68,6 +68,28 @@ final class WorkoutScopeTests: XCTestCase {
         XCTAssertTrue(AppModel.isTooShortToSave(elapsedSeconds: 59.9))
     }
 
+    func testManualEntryHonoursTheSameFloor() {
+        // The span-shaped builder is the one the Add/Edit sheet uses, and it had no floor: a start and end
+        // thirty seconds apart made a row the live path would have discarded. The duration-shaped builder
+        // enforced it only by accident, counting whole minutes.
+        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        let now = start.addingTimeInterval(86_400)
+        func build(_ seconds: TimeInterval) -> WorkoutRow? {
+            WorkoutSource.buildManualRowFromSpan(start: start, end: start.addingTimeInterval(seconds),
+                                                 sport: "Running", avgHr: nil, energyKcal: nil, now: now)
+        }
+        XCTAssertNil(build(30), "a 30-second manual entry is refused")
+        XCTAssertNil(build(59), "just under the floor is refused")
+        XCTAssertNotNil(build(60), "exactly a minute is kept, matching the live-session floor")
+        XCTAssertNotNil(build(3600), "an ordinary session is unaffected")
+    }
+
+    func testTheTwoFloorsAgree() {
+        // One rule, whether a session was tracked or typed in. If these ever diverge, the same workout
+        // would be accepted by one door and refused by the other.
+        XCTAssertEqual(Double(WorkoutSource.minManualSpanSeconds), AppModel.minimumWorkoutSeconds)
+    }
+
     func testExactlyAMinuteIsKept() {
         // A deliberate one-minute effort is training. The gate is for what falls SHORT of a minute.
         XCTAssertFalse(AppModel.isTooShortToSave(elapsedSeconds: 60))

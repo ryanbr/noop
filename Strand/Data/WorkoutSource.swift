@@ -333,6 +333,16 @@ enum WorkoutSource: Equatable {
     /// The span cap a manual workout may cover, shared by both builders and the sheet's binding.
     static let maxManualSpanSeconds = 24 * 60 * 60
 
+    /// Shortest manual session worth keeping, matching the live-session floor in `AppModel.endWorkout`.
+    ///
+    /// The duration-shaped front door already enforced this by accident, since it counts whole minutes and
+    /// rejects zero. The SPAN-shaped door did not, and that is the one the Add/Edit sheet uses, so a
+    /// start and end thirty seconds apart made a row the live path would have discarded.
+    ///
+    /// Enforcing it here rather than at the sheet means the Save button disables itself and the sheet's
+    /// existing validation note explains why, with no new UI and no new string.
+    static let minManualSpanSeconds = 60
+
     /// The end a given duration implies. The sheet uses this when the user types a duration, so a typed
     /// duration and a picked end produce identical rows.
     static func endForDuration(start: Date, durationMin: Int) -> Date {
@@ -380,6 +390,7 @@ enum WorkoutSource: Equatable {
         let e = Int(end.timeIntervalSince1970)
         guard s > 0, e > s else { return nil }
         let spanSeconds = e - s
+        guard spanSeconds >= minManualSpanSeconds else { return nil }
         guard spanSeconds <= maxManualSpanSeconds else { return nil }
         guard e <= Int(now.timeIntervalSince1970) else { return nil }
         if let hr = avgHr, !(25...250).contains(hr) { return nil }
