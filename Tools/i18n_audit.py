@@ -619,6 +619,13 @@ SWIFT_CALL_START_PATTERN = re.compile(
     r"\b(?:Text|Button|Label|Toggle|Menu|Picker|ProgressView|SectionHeader)\s*\("
     r"|"
     r"\.(?:navigationTitle|confirmationDialog|alert|accessibilityLabel|help)\s*\("
+    r"|"
+    # `String(localized:)` is the sanctioned spelling for copy that has to be a `String`, and it
+    # still has to EXIST in the catalog to render in anything but English. Without this alternative
+    # the spelling was invisible here, so nothing checked its key: 242 of them resolve to no catalog
+    # entry and ship English in every locale, the app's legal terms among them. The lookahead keeps
+    # `String(format:)`/`String(describing:)` out, which are not copy.
+    r"\bString\s*\((?=\s*localized:)"
 )
 
 # A computed property that RETURNS user-facing copy as a `String`, e.g.
@@ -789,8 +796,9 @@ def swift_returned_copy_literals(text: str):
                     or "?" in line                         # `cond ? "Alpha" : "Beta"`
                     or stripped.startswith(("case ", "default"))  # `case .a: "Alpha"` (implicit return)
                 )
-                # `String(localized: "...")` is the sanctioned spelling for a String-typed value: the
-                # literal already sits in a localized position and the normal scan handles it.
+                # `String(localized: "...")` is the sanctioned spelling for a String-typed value, so this
+                # rule leaves it alone. SWIFT_CALL_START_PATTERN is what checks its catalog key, a
+                # delegation that was only asserted in this comment until it was made true.
                 if returned and "localized:" not in prefix:
                     yield i, text[i + 1:literal_end - 1]
                 i = literal_end

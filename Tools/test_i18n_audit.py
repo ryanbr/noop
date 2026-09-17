@@ -566,3 +566,39 @@ class SwiftReturnedCopyTests(unittest.TestCase):
             '}'
         )
         self.assertNotIn("x", self.found(src))
+
+
+class SwiftLocalizedStringScanning(unittest.TestCase):
+    """`String(localized:)` copy must reach the catalog-membership check.
+
+    The scanner keys off SWIFT_CALL_START_PATTERN, which listed the SwiftUI views and modifiers that
+    localize but not `String(localized:)`. So the sanctioned spelling for copy that has to be a `String`
+    was the one spelling nothing checked a key for. `swift_returned_copy_literals` deliberately skips it
+    and said so in a comment, delegating to "the normal scan" that in fact never looked, which is how the
+    hole stayed invisible: 242 such strings resolve to no catalog entry and render English in every
+    locale, the app's legal terms in `Strand/App/Terms.swift` among them.
+    """
+
+    def found(self, text: str) -> list[str]:
+        return [lit for _, lit in ia.swift_string_literals(text)]
+
+    def test_localized_string_is_seen(self):
+        self.assertEqual(self.found('let x = String(localized: "Alpha")'), ["Alpha"])
+
+    def test_interpolated_localized_string_is_seen(self):
+        # The shape that shipped unlocalized: a tooltip built as `String(localized: "1m \(v)")`.
+        self.assertEqual(self.found('let x = String(localized: "1m \\(v)")'), ["1m \\(v)"])
+
+    def test_string_format_is_not_copy(self):
+        # `String(format:)` carries a format spec, not user-facing copy.
+        self.assertEqual(self.found('let x = String(format: "%.1f", v)'), [])
+
+    def test_string_describing_is_not_copy(self):
+        self.assertEqual(self.found('let x = String(describing: "raw")'), [])
+
+    def test_spacing_variants_are_seen(self):
+        self.assertEqual(self.found('let x = String( localized: "Alpha")'), ["Alpha"])
+
+    def test_localized_alongside_a_view_literal(self):
+        src = 'Text("Shown")\nlet x = String(localized: "Also shown")'
+        self.assertEqual(self.found(src), ["Shown", "Also shown"])
