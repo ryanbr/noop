@@ -838,7 +838,11 @@ public func extractStreams(_ parsed: [ParsedFrame],
             // Unlike Python, drop RR rows when timestamp is absent (a ts-less RR row is unstorable).
             if let ts = ts, let rrs = p["rr_intervals"]?.intArrayValue {
                 let source = p["rr_source_channel"]?.intValue.flatMap(RRSourceChannel.init(rawValue:))
-                for rr in rrs { out.rr.append(RRInterval(ts: ts, rrMs: rr, srcChannel: source)) }
+                // The batch is spread across the time it describes: stamping every interval at
+                // the frame recorded distinct beats as simultaneous. See RrBatchTimestamps.
+                for placed in RrBatchTimestamps.spread(frameTs: ts, rrMs: rrs) {
+                    out.rr.append(RRInterval(ts: placed.ts, rrMs: placed.rrMs, srcChannel: source))
+                }
             }
         case "EVENT":
             // EVENT timestamps are real RTC unix seconds — already wall-clock, NOT offset.

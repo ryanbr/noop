@@ -331,7 +331,11 @@ fun extractStreams(parsed: List<ParsedFrame>, deviceClockRef: Int, wallClockRef:
                     // Drop RR rows when timestamp is absent (a ts-less RR row is unstorable).
                     p.intArrayOrNull("rr_intervals")?.let { rrs ->
                         val source = RrSourceChannel.fromCode(p.intOrNull("rr_source_channel"))
-                        for (rr in rrs) out.rr.add(RrInterval(ts, rr, source))
+                        // The batch is spread across the time it describes: stamping every interval at the
+                        // frame recorded distinct beats as simultaneous. See RrBatchTimestamps.
+                        for (placed in RrBatchTimestamps.spread(ts.toLong(), rrs.toList())) {
+                            out.rr.add(RrInterval(placed.ts.toInt(), placed.rrMs, source))
+                        }
                     }
                 }
             }

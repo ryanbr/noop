@@ -298,7 +298,11 @@ public func extractHistoricalStreams(_ parsed: [ParsedFrame],
             }
             if let rrs = p["rr_intervals"]?.intArrayValue {
                 let source = p["rr_source_channel"]?.intValue.flatMap(RRSourceChannel.init(rawValue:))
-                for rr in rrs { out.rr.append(RRInterval(ts: ts, rrMs: rr, srcChannel: source)) }
+                // The batch is spread across the time it describes: stamping every interval at
+                // the frame recorded distinct beats as simultaneous. See RrBatchTimestamps.
+                for placed in RrBatchTimestamps.spread(frameTs: ts, rrMs: rrs) {
+                    out.rr.append(RRInterval(ts: placed.ts, rrMs: placed.rrMs, srcChannel: source))
+                }
             }
             if let red = p["spo2_red"]?.intValue {
                 out.spo2.append(SpO2Sample(ts: ts, red: red, ir: p["spo2_ir"]?.intValue ?? 0))
@@ -422,7 +426,11 @@ public func extractHistoricalStreams(_ parsed: [ParsedFrame],
                 out.hr.append(HRSample(ts: ts, bpm: bpm))
             }
             if let ts = rtTs, let rrs = p["rr_intervals"]?.intArrayValue {
-                for rr in rrs { out.rr.append(RRInterval(ts: ts, rrMs: rr)) }
+                // The batch is spread across the time it describes: stamping every interval at
+                // the frame recorded distinct beats as simultaneous. See RrBatchTimestamps.
+                for placed in RrBatchTimestamps.spread(frameTs: ts, rrMs: rrs) {
+                    out.rr.append(RRInterval(ts: placed.ts, rrMs: placed.rrMs))
+                }
             }
         case "EVENT":
             // EVENT carries the strap RTC's real-unix seconds. Correct for a grossly-stale RTC
