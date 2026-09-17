@@ -867,6 +867,70 @@
   ],
   "ios": [
     [
+      "NOOPWatch/WatchBreatheView.swift",
+      "Follow the guided cue"
+    ],
+    [
+      "NOOPWatch/WatchBreatheView.swift",
+      "Hold for \\(secs) seconds"
+    ],
+    [
+      "NOOPWatch/WatchBreatheView.swift",
+      "Push"
+    ],
+    [
+      "NOOPWatch/WatchBreatheView.swift",
+      "Regular"
+    ],
+    [
+      "NOOPWatch/WatchBreatheView.swift",
+      "\\(breathCount) breaths · \\(timeString(sessionSeconds))/\\(timeString(target))"
+    ],
+    [
+      "NOOPWatch/WatchBreatheView.swift",
+      "\\(title) · \\(sessionLength.label)"
+    ],
+    [
+      "NOOPWatch/WatchBreatheView.swift",
+      "\\(title) · guided"
+    ],
+    [
+      "Packages/StrandDesign/Sources/StrandDesign/Appearance.swift",
+      "Custom"
+    ],
+    [
+      "Packages/StrandDesign/Sources/StrandDesign/Appearance.swift",
+      "Fit"
+    ],
+    [
+      "Packages/StrandDesign/Sources/StrandDesign/Appearance.swift",
+      "Frosted"
+    ],
+    [
+      "Packages/StrandDesign/Sources/StrandDesign/Appearance.swift",
+      "Midnight"
+    ],
+    [
+      "Packages/StrandDesign/Sources/StrandDesign/Appearance.swift",
+      "Mint"
+    ],
+    [
+      "Packages/StrandDesign/Sources/StrandDesign/Appearance.swift",
+      "Ocean"
+    ],
+    [
+      "Packages/StrandDesign/Sources/StrandDesign/Appearance.swift",
+      "Stretch"
+    ],
+    [
+      "Packages/StrandDesign/Sources/StrandDesign/Appearance.swift",
+      "Tile"
+    ],
+    [
+      "Packages/StrandDesign/Sources/StrandDesign/Appearance.swift",
+      "WHOOP Blue"
+    ],
+    [
       "Packages/StrandDesign/Sources/StrandDesign/ChartHover.swift",
       "\\(value), \\(label!)"
     ],
@@ -875,12 +939,172 @@
       "\\(DateFormatterCache.day.string(from: day.date)) · recovery \\(Int(score.rounded()))"
     ],
     [
+      "Strand/BLE/PuffinDeepBufferLog.swift",
+      "End experiment"
+    ],
+    [
+      "Strand/BLE/PuffinDeepBufferLog.swift",
+      "Off wrist · room light"
+    ],
+    [
+      "Strand/BLE/PuffinDeepBufferLog.swift",
+      "Off wrist · sensor covered"
+    ],
+    [
+      "Strand/BLE/PuffinDeepBufferLog.swift",
+      "On wrist · again"
+    ],
+    [
+      "Strand/BLE/PuffinDeepBufferLog.swift",
+      "On wrist · gentle pressure"
+    ],
+    [
+      "Strand/BLE/PuffinDeepBufferLog.swift",
+      "On wrist · normal breathing"
+    ],
+    [
+      "Strand/BLE/PuffinDeepBufferLog.swift",
+      "On wrist · slow paced breathing"
+    ],
+    [
+      "Strand/BLE/PuffinDeepBufferLog.swift",
+      "On wrist · still"
+    ],
+    [
+      "Strand/Data/DataBackup.swift",
+      "Import failed its post-restore integrity check (SQLite reports: \\(DatabaseIntegrity.readableComplaint(complaint))). The damaged file was removed; there was no previous data to roll back."
+    ],
+    [
+      "Strand/Data/DataBackup.swift",
+      "Import failed its post-restore integrity check (SQLite reports: \\(DatabaseIntegrity.readableComplaint(complaint))). Your previous data was rolled back automatically and is unchanged."
+    ],
+    [
+      "Strand/Data/DataBackup.swift",
+      "This backup file is damaged and can't be restored (SQLite reports: \\(DatabaseIntegrity.readableComplaint(complaint))). Your current data was left untouched. Try an earlier backup file."
+    ],
+    [
+      "Strand/Data/DataBackup.swift",
+      "the NOOP database failed its integrity check (SQLite reports: \\(DatabaseIntegrity.readableComplaint(complaint))). A backup of it would not restore. Export the WHOOP-format CSV (Settings → Export data) to save what's still readable."
+    ],
+    [
+      "Strand/Data/MetricCatalog.swift",
+      "Cardiovascular load for the day, on a 0-100 scale (was 0-21)."
+    ],
+    [
+      "Strand/Data/MetricCatalog.swift",
+      "HR Zones 1-3"
+    ],
+    [
+      "Strand/Data/MetricCatalog.swift",
+      "HR Zones 4-5"
+    ],
+    [
+      "Strand/Data/MetricCatalog.swift",
+      "Heart"
+    ],
+    [
+      "Strand/Data/Repository.swift",
+      "Band Sleep State"
+    ],
+    [
+      "Strand/Data/TodayLayoutPrefs.swift",
+      "Charge / Effort / Rest"
+    ],
+    [
+      "Strand/Data/TodayLayoutPrefs.swift",
+      "Recovery Vitals"
+    ],
+    [
+      "Strand/Data/TodayLayoutPrefs.swift",
+      "Your Cards"
+    ],
+    [
       "Strand/Liquid/LiquidPrimitives.swift",
       "%.\\(decimals)f"
     ],
     [
+      "Strand/Onboarding/OnboardingWizard.swift",
+      "Date of birth"
+    ],
+    [
+      "Strand/Screens/AddDeviceWizard.swift",
+      "Newer WHOOP band with live data and history sync"
+    ],
+    [
       "Strand/Screens/AddDeviceWizard.swift",
       "The most common cause is the ring was not fully reset in the Oura app, or the Oura app is still running. Reset the ring again, force-quit Oura, then try once more. If it keeps failing, your ring may be a generation NOOP cannot adopt yet. The ring is not bricked: re-pair it in the Oura app to recover it. You can still use file import."
+    ],
+    [
+      "Strand/Screens/AutomationsView.swift",
+      "A buzz confirms a workout starting and saving."
+    ],
+    [
+      "Strand/Screens/AutomationsView.swift",
+      "An early \\\"recharge tonight\\\" heads-up when the strap has about a day of estimated runtime left, at most once per discharge cycle. Turn off to keep only the 15% warning."
+    ],
+    [
+      "Strand/Screens/AutomationsView.swift",
+      "Breathing pacer"
+    ],
+    [
+      "Strand/Screens/AutomationsView.swift",
+      "Buzz each inhale and exhale during a breathing or resonance session."
+    ],
+    [
+      "Strand/Screens/AutomationsView.swift",
+      "Buzz on each interval change."
+    ],
+    [
+      "Strand/Screens/AutomationsView.swift",
+      "Choose which in-session cues buzz your wrist during a breathing session, timer, or workout."
+    ],
+    [
+      "Strand/Screens/AutomationsView.swift",
+      "Coaching buzzes during a live workout session."
+    ],
+    [
+      "Strand/Screens/AutomationsView.swift",
+      "Haptics"
+    ],
+    [
+      "Strand/Screens/AutomationsView.swift",
+      "Interval timer"
+    ],
+    [
+      "Strand/Screens/AutomationsView.swift",
+      "Live Session cues"
+    ],
+    [
+      "Strand/Screens/AutomationsView.swift",
+      "Predictive runtime warning"
+    ],
+    [
+      "Strand/Screens/AutomationsView.swift",
+      "Suppress auto-nudges overnight (10pm-7am)."
+    ],
+    [
+      "Strand/Screens/AutomationsView.swift",
+      "Workout start & end"
+    ],
+    [
+      "Strand/Screens/BackupSyncView.swift",
+      "Backups will be saved inside NOOP. Open the Files app → On My iPhone → NOOP → Backups to see them, or drag that folder into iCloud Drive to read it on your Mac. To use a different folder later, tap Change folder."
+    ],
+    [
+      "Strand/Screens/BackupSyncView.swift",
+      "NOOP didn't get a folder back from the picker. If the Open button won't do anything, tap \\\"Use NOOP's own folder\\\" below to back up inside NOOP instead — you can read those backups from the Files app."
+    ],
+    [
+      "Strand/Screens/BackupSyncView.swift",
+      "No folder selected"
+    ],
+    [
+      "Strand/Screens/BackupSyncView.swift",
+      "Using NOOP's folder"
+    ],
+    [
+      "Strand/Screens/BackupSyncView.swift",
+      "\\(name) is larger than the \\(cap) NOOP restores without asking. You can still restore it from Settings → Backup & restore → Import, which will ask you to confirm."
     ],
     [
       "Strand/Screens/BreathingView.swift",
@@ -891,12 +1115,96 @@
       "%.1f br/min"
     ],
     [
+      "Strand/Screens/ChargeBreakdownFormat.swift",
+      "No deep sleep detected"
+    ],
+    [
+      "Strand/Screens/ChargeBreakdownFormat.swift",
+      "The Deep sleep HRV window needs a night with deep-stage sleep to score Charge. Switch to Whole night in Settings, or wait for a night with more deep sleep."
+    ],
+    [
+      "Strand/Screens/CompareView.swift",
+      "Each line min-max normalized within \\(range.phrase) · \\(inspectHint)"
+    ],
+    [
+      "Strand/Screens/CompareView.swift",
+      "Min-max normalized · sparse series widened past \\(range.phrase) · \\(inspectHint)"
+    ],
+    [
+      "Strand/Screens/ConsistencyCard.swift",
+      "vs typical - "
+    ],
+    [
+      "Strand/Screens/CoupledView.swift",
+      "Recovery \\(Int(r.rounded())) percent"
+    ],
+    [
+      "Strand/Screens/CoupledView.swift",
+      "Recovery calibrating, \\(banked) of \\(Baselines.minNightsSeed) nights"
+    ],
+    [
+      "Strand/Screens/CoupledView.swift",
+      "Recovery, no data yet"
+    ],
+    [
+      "Strand/Screens/CoupledView.swift",
+      "Sleep performance \\(Int(p.rounded())) percent"
+    ],
+    [
+      "Strand/Screens/CoupledView.swift",
+      "Sleep performance \\(Int(p.rounded())) percent. \\(Self.hoursMinutes(asleep)) slept, \\(Self.hoursMinutes(sleepNeedForDay)) needed"
+    ],
+    [
+      "Strand/Screens/CoupledView.swift",
+      "Sleep performance not available"
+    ],
+    [
+      "Strand/Screens/CoupledView.swift",
+      "Strenuous"
+    ],
+    [
+      "Strand/Screens/CoupledView.swift",
+      "\\(band.lowerBound) to \\(band.upperBound)"
+    ],
+    [
+      "Strand/Screens/DashboardCards.swift",
+      "Estimated, updated weekly"
+    ],
+    [
+      "Strand/Screens/DataSourcesView.swift",
+      "A one-time import of your own Oura history over the Oura API. Runs only when you tap it."
+    ],
+    [
       "Strand/Screens/DataSourcesView.swift",
       "Import your Oura history"
     ],
     [
+      "Strand/Screens/DataSourcesView.swift",
+      "Oura history import"
+    ],
+    [
+      "Strand/Screens/DevicesView.swift",
+      "1 paired"
+    ],
+    [
+      "Strand/Screens/DevicesView.swift",
+      "Clock latched: \\(latched) · last frame \\(frame)"
+    ],
+    [
+      "Strand/Screens/DevicesView.swift",
+      "Connected, but not paired"
+    ],
+    [
+      "Strand/Screens/DevicesView.swift",
+      "Data kept"
+    ],
+    [
       "Strand/Screens/DevicesView.swift",
       "Historical record layout v\\(layout)"
+    ],
+    [
+      "Strand/Screens/DevicesView.swift",
+      "\\(activeDevices.count) paired"
     ],
     [
       "Strand/Screens/FullDayChartView.swift",
@@ -904,7 +1212,43 @@
     ],
     [
       "Strand/Screens/FullDayChartView.swift",
+      "This strap doesn’t send SpO₂ over Bluetooth. Import a WHOOP export or Health Connect to see it."
+    ],
+    [
+      "Strand/Screens/FullDayChartView.swift",
+      "This strap sends no raw respiration stream. Your estimated respiratory rate appears on the Health screen."
+    ],
+    [
+      "Strand/Screens/FullDayChartView.swift",
       "Zoomed in. Drag to pan · hold to read"
+    ],
+    [
+      "Strand/Screens/HealthView.swift",
+      "1 more night of wear and we can show your Fitness Age."
+    ],
+    [
+      "Strand/Screens/HealthView.swift",
+      "1 more night of wear, plus your age and sex below, and we can show your Fitness Age."
+    ],
+    [
+      "Strand/Screens/HealthView.swift",
+      "Add your age and sex below and we can show your Fitness Age."
+    ],
+    [
+      "Strand/Screens/HealthView.swift",
+      "At least 1 year older than your age"
+    ],
+    [
+      "Strand/Screens/HealthView.swift",
+      "At least 1 year younger than your age"
+    ],
+    [
+      "Strand/Screens/HealthView.swift",
+      "At least \\(years) years older than your age"
+    ],
+    [
+      "Strand/Screens/HealthView.swift",
+      "At least \\(years) years younger than your age"
     ],
     [
       "Strand/Screens/HealthView.swift",
@@ -917,6 +1261,26 @@
     [
       "Strand/Screens/HealthView.swift",
       "Vitality \\(Int(v.rounded())) out of 100"
+    ],
+    [
+      "Strand/Screens/HealthView.swift",
+      "\\(Int(FitnessAgeEngine.maxAge)) or older"
+    ],
+    [
+      "Strand/Screens/HealthView.swift",
+      "\\(Int(FitnessAgeEngine.minAge)) or younger"
+    ],
+    [
+      "Strand/Screens/HealthView.swift",
+      "\\(n) more nights of wear and we can show your Fitness Age."
+    ],
+    [
+      "Strand/Screens/HealthView.swift",
+      "\\(n) more nights of wear, plus your age and sex below, and we can show your Fitness Age."
+    ],
+    [
+      "Strand/Screens/HoursVsNeededCard.swift",
+      "vs typical - "
     ],
     [
       "Strand/Screens/HydrationView.swift",
@@ -980,11 +1344,71 @@
     ],
     [
       "Strand/Screens/LabBookView.swift",
+      "Imported \\(result.importedReadings) readings (\\(result.distinctMarkers) markers)"
+    ],
+    [
+      "Strand/Screens/LabBookView.swift",
+      "No usable rows found. Check the file has date, marker and value columns."
+    ],
+    [
+      "Strand/Screens/LabBookView.swift",
+      "That file is too large for a markers CSV import."
+    ],
+    [
+      "Strand/Screens/LabBookView.swift",
       "the signal"
+    ],
+    [
+      "Strand/Screens/LiveView.swift",
+      "Authenticated ring stream"
+    ],
+    [
+      "Strand/Screens/LiveView.swift",
+      "Streaming"
+    ],
+    [
+      "Strand/Screens/ManualWorkoutSheet.swift",
+      "Average HR must be 25-250 bpm."
+    ],
+    [
+      "Strand/Screens/ManualWorkoutSheet.swift",
+      "Calories must be 0-20,000."
+    ],
+    [
+      "Strand/Screens/MetricExplorerView.swift",
+      "No measured temperature for these nights — showing the difference from your baseline instead. A re-score refills temperatures for nights that have one."
+    ],
+    [
+      "Strand/Screens/MetricExplorerView.swift",
+      "Only nights with a measured temperature are shown — the others only have a baseline difference."
     ],
     [
       "Strand/Screens/MetricExplorerView.swift",
       "\\(row.time), \\(row.value), \\(row.source)"
+    ],
+    [
+      "Strand/Screens/NightDetailCard.swift",
+      "vs typical - "
+    ],
+    [
+      "Strand/Screens/RhythmView.swift",
+      "More varied"
+    ],
+    [
+      "Strand/Screens/RhythmView.swift",
+      "No clear reading"
+    ],
+    [
+      "Strand/Screens/RhythmView.swift",
+      "Some variation"
+    ],
+    [
+      "Strand/Screens/ScoringGuideView.swift",
+      "Same cardiovascular-load idea as WHOOP's Day Strain (0-21). We rescaled the top of the ladder from 21 to 100 so all three scores share one scale. The rungs didn't move, so a 100 is as rare as a 21.0 was."
+    ],
+    [
+      "Strand/Screens/ScoringGuideView.swift",
+      "Your cardiovascular load. NOOP turns every second of heart rate into a training-impulse using heart-rate-reserve zones (Karvonen), weights time in harder zones more heavily (Edwards / Banister), and places it on a logarithmic 0-100 scale, so easy days sit low and an all-out day approaches 100, which stays genuinely rare. A long walk with little cardio still counts, through a steps / active-energy floor."
     ],
     [
       "Strand/Screens/SettingsView.swift",
@@ -1000,11 +1424,47 @@
     ],
     [
       "Strand/Screens/SettingsView.swift",
+      "Deep data is on — open NOOP near your strap and let it sync its motion history (a full first-run sync can take a while). Once a day or two of motion lands, your step estimate and the calibration below fill in."
+    ],
+    [
+      "Strand/Screens/SettingsView.swift",
+      "Marked: \\(phase.displayName)"
+    ],
+    [
+      "Strand/Screens/SettingsView.swift",
+      "Marker wasn't saved. Keep frame recording on and try again."
+    ],
+    [
+      "Strand/Screens/SettingsView.swift",
+      "Needs the full encrypted bond: close the official WHOOP app and pair the strap to NOOP first (a live-HR-only link can't carry a config write)."
+    ],
+    [
+      "Strand/Screens/SettingsView.swift",
+      "No WHOOP 5/MG deep buffers or phase markers have been recorded yet."
+    ],
+    [
+      "Strand/Screens/SettingsView.swift",
+      "One tap writes the key; NOOP then reads it back off the strap and reports the value it actually stores — the write's own \\\"success\\\" is not treated as proof."
+    ],
+    [
+      "Strand/Screens/SettingsView.swift",
+      "Open NOOP near the strap and let WHOOP 5/MG history finish syncing. The step estimate and calibration fill in once enough stored motion has arrived; the legacy R22 experiment is not required."
+    ],
+    [
+      "Strand/Screens/SettingsView.swift",
+      "Saved to \\(url.lastPathComponent). Your database is \\(size), over the \\(cap) NOOP restores without asking — the backup is complete and valid, and restoring it will ask you to confirm once."
+    ],
+    [
+      "Strand/Screens/SettingsView.swift",
       "Scores your hour-by-hour stress timeline against YOUR own cross-day baseline (how your days usually run, Oura-style) instead of the day's own calm hours. Needs a few worn days; until then it stays on the default. The high-stress cutoff is tuned from a single-subject reference so far, so it's an alternative lens rather than the default. HR-only, and it never feeds recovery or illness scoring. Off by default."
     ],
     [
       "Strand/Screens/SettingsView.swift",
       "Stress: personal daytime baseline"
+    ],
+    [
+      "Strand/Screens/SettingsView.swift",
+      "The ECG gate needs an iPhone or Android. A Mac can't form the encrypted bond a 5/MG requires."
     ],
     [
       "Strand/Screens/SettingsView.swift",
@@ -1016,11 +1476,35 @@
     ],
     [
       "Strand/Screens/SettingsView.swift",
+      "Waiting for your strap to identify itself as an MG. Only a WHOOP MG has ECG electrodes, so NOOP won't write this key to anything else."
+    ],
+    [
+      "Strand/Screens/SettingsView.swift",
+      "We're not seeing motion from your WHOOP 5.0 / MG yet. Keep NOOP connected and let strap history finish syncing; the experimental R22 flags are not required. Account or Apple Health imports do not contain the raw strap motion this estimate needs."
+    ],
+    [
+      "Strand/Screens/SettingsView.swift",
       "Your WHOOP 5.0/MG sends a strap-computed SpO₂ percentage (the @82 candidate byte) every second — an 8-night independent validation tracked it at corr +0.99 against the WHOOP app, but two nights on the original test device moved the OPPOSITE direction, so device/firmware variance is unresolved. An Oura ring's own SpO₂ reading runs high on the wire (over 100% on a fifth to a half of samples on a clean night); this instead surfaces the ring's mean with each sample capped at 100% first, which has matched the Oura app's own displayed value on every full night checked against it so far, though only a few nights. Turning this on surfaces whichever applies to your device as \\\"strap estimate (unverified)\\\" in the Blood Oxygen tile when no calibrated import exists. It never feeds recovery or illness scoring. WHOOP 4.0 has no @82 stream, so this does nothing there."
+    ],
+    [
+      "Strand/Screens/SettingsView.swift",
+      "\\(name) is larger than the \\(cap) NOOP restores without asking. That limit guards against a malicious archive expanding to fill this \\(Platform.deviceNoun) — a backup you exported yourself is not that. Restoring it needs the space the database will take. You'll be asked to choose the file again."
+    ],
+    [
+      "Strand/Screens/SleepDebtLedgerCard.swift",
+      "Add about \\(mag) to your base sleep target tonight. Meeting that complete sleep need clears the displayed debt; recent shortfalls carry forward at a reduced weight."
+    ],
+    [
+      "Strand/Screens/SleepDebtLedgerCard.swift",
+      "You've effectively met your current sleep need across \\(span)."
     ],
     [
       "Strand/Screens/SleepModel.swift",
       "\\(Night.spanFmt.string(from: onsetDay)) → \\(Night.dateFmt.string(from: wakeDay))"
+    ],
+    [
+      "Strand/Screens/SleepView.swift",
+      "Oura"
     ],
     [
       "Strand/Screens/SleepView.swift",
@@ -1032,7 +1516,39 @@
     ],
     [
       "Strand/Screens/SleepView.swift",
+      "Sleep deleted."
+    ],
+    [
+      "Strand/Screens/SleepView.swift",
+      "Sleep deleted. NOOP won't detect sleep between \\(clockTime(banner.displayStart)) and \\(clockTime(banner.windowEnd)) again."
+    ],
+    [
+      "Strand/Screens/SleepView.swift",
       "Undo sleep deletion"
+    ],
+    [
+      "Strand/Screens/SleepView.swift",
+      "\\(durationText(night.timeInBed)) in bed · \\(efficiencyText(night)) efficiency · \\(stageCaption)"
+    ],
+    [
+      "Strand/Screens/SleepView.swift",
+      "about your usual"
+    ],
+    [
+      "Strand/Screens/SleepView.swift",
+      "above your usual"
+    ],
+    [
+      "Strand/Screens/SleepView.swift",
+      "below your usual"
+    ],
+    [
+      "Strand/Screens/SleepView.swift",
+      "raw on-device stages"
+    ],
+    [
+      "Strand/Screens/SleepView.swift",
+      "stages approximate (on-device)"
     ],
     [
       "Strand/Screens/SmartAlarmView.swift",
@@ -1043,12 +1559,56 @@
       "Open Settings"
     ],
     [
+      "Strand/Screens/StagesCard.swift",
+      "\\(durationText(night.timeInBed)) in bed · \\(efficiencyText(night)) efficiency · \\(stageCaption)"
+    ],
+    [
+      "Strand/Screens/StagesCard.swift",
+      "about your usual"
+    ],
+    [
+      "Strand/Screens/StagesCard.swift",
+      "above your usual"
+    ],
+    [
+      "Strand/Screens/StagesCard.swift",
+      "below your usual"
+    ],
+    [
+      "Strand/Screens/StagesCard.swift",
+      "raw on-device stages"
+    ],
+    [
+      "Strand/Screens/StagesCard.swift",
+      "stages approximate (on-device)"
+    ],
+    [
+      "Strand/Screens/StressView.swift",
+      "Daily 0-3 proxy"
+    ],
+    [
       "Strand/Screens/StressView.swift",
       "Today's value is your recorded daily stress score (0-3)."
     ],
     [
       "Strand/Screens/TestCentreView.swift",
+      "Backfilling…"
+    ],
+    [
+      "Strand/Screens/TestCentreView.swift",
+      "Clock latched"
+    ],
+    [
+      "Strand/Screens/TestCentreView.swift",
+      "Connected live"
+    ],
+    [
+      "Strand/Screens/TestCentreView.swift",
       "Keys each Oura sleep night on its stable 0x49 onset and suppresses duplicate re-serves at the source, instead of the shipped end-anchored persist (#1284). Off by default — a hardware-validation toggle. Watch the strap log for \\u{201C}onset-key(#1284)\\u{201D} lines."
+    ],
+    [
+      "Strand/Screens/TestCentreView.swift",
+      "Last frame"
     ],
     [
       "Strand/Screens/TestCentreView.swift",
@@ -1060,7 +1620,35 @@
     ],
     [
       "Strand/Screens/TestCentreView.swift",
+      "Requested"
+    ],
+    [
+      "Strand/Screens/TestCentreView.swift",
+      "Rows drained (all time)"
+    ],
+    [
+      "Strand/Screens/TestCentreView.swift",
+      "Rows drained (session)"
+    ],
+    [
+      "Strand/Screens/TestCentreView.swift",
       "\\(identity). Logs this to the strap log on each connect, so a Polar bug report shows the model NOOP resolved your strap to."
+    ],
+    [
+      "Strand/Screens/TestCentreView.swift",
+      "no PPG"
+    ],
+    [
+      "Strand/Screens/TrainingLoadChart.swift",
+      "CTL \\(fmt(p.ctl)) · ATL \\(fmt(p.atl))"
+    ],
+    [
+      "Strand/Screens/TrendsReportView.swift",
+      "\\(prettyDate(report.start))-\\(prettyDate(report.end))  ·  1 day"
+    ],
+    [
+      "Strand/Screens/TrendsReportView.swift",
+      "\\(prettyDate(report.start))-\\(prettyDate(report.end))  ·  \\(span) days"
     ],
     [
       "Strand/Screens/TrendsView.swift",
@@ -1069,6 +1657,22 @@
     [
       "Strand/Screens/TrendsView.swift",
       "Opens the full \\(accessibilityTitle) metric."
+    ],
+    [
+      "Strand/Screens/VitalSignsSummary.swift",
+      "No raw SpO₂ decode for the night"
+    ],
+    [
+      "Strand/Screens/VitalSignsSummary.swift",
+      "Raw SpO₂"
+    ],
+    [
+      "Strand/Screens/VitalSignsSummary.swift",
+      "Uncalibrated"
+    ],
+    [
+      "Strand/Screens/VitalSignsSummary.swift",
+      "unverified · over-reports R-R"
     ],
     [
       "Strand/Screens/WorkoutDetailView.swift",
@@ -1080,7 +1684,23 @@
     ],
     [
       "Strand/Screens/WorkoutSelectionScreen.swift",
+      "Choose a workout"
+    ],
+    [
+      "Strand/Screens/WorkoutSelectionScreen.swift",
+      "Pick an activity to begin recording heart rate, effort, peak, and average."
+    ],
+    [
+      "Strand/Screens/WorkoutSelectionScreen.swift",
+      "Search workouts"
+    ],
+    [
+      "Strand/Screens/WorkoutSelectionScreen.swift",
       "\\(sport.name) workout, \\(labels.joined(separator: \", \"))"
+    ],
+    [
+      "Strand/Screens/WorkoutsView.swift",
+      " · filtered"
     ],
     [
       "Strand/Screens/WorkoutsView.swift",
@@ -1100,11 +1720,39 @@
     ],
     [
       "Strand/Screens/WorkoutsView.swift",
+      "Double-tap to select"
+    ],
+    [
+      "Strand/Screens/WorkoutsView.swift",
+      "Effort \\(Self.effortCellLabel(strain: row.strain, scale: effortScale))"
+    ],
+    [
+      "Strand/Screens/WorkoutsView.swift",
+      "Filter by source"
+    ],
+    [
+      "Strand/Screens/WorkoutsView.swift",
+      "Filter by sport"
+    ],
+    [
+      "Strand/Screens/WorkoutsView.swift",
       "Finish selecting"
     ],
     [
       "Strand/Screens/WorkoutsView.swift",
+      "Imported history can't be merged"
+    ],
+    [
+      "Strand/Screens/WorkoutsView.swift",
+      "Merge"
+    ],
+    [
+      "Strand/Screens/WorkoutsView.swift",
       "Merge (\\(chosen.count))"
+    ],
+    [
+      "Strand/Screens/WorkoutsView.swift",
+      "Name the merged session"
     ],
     [
       "Strand/Screens/WorkoutsView.swift",
@@ -1116,6 +1764,10 @@
     ],
     [
       "Strand/Screens/WorkoutsView.swift",
+      "These sessions have no sport label yet. Pick one for the merged session."
+    ],
+    [
+      "Strand/Screens/WorkoutsView.swift",
       "Typical effort \\(UnitFormatter.effortDisplay(avgStrain, scale: effortScale))"
     ],
     [
@@ -1124,7 +1776,51 @@
     ],
     [
       "Strand/Screens/WorkoutsView.swift",
+      "\\(WorkoutSource.displaySport(row.sport)), \\(compactRowSubtitle(row)), \\(effort)"
+    ],
+    [
+      "Strand/Screens/WorkoutsView.swift",
+      "\\(base). Imported, can't be merged."
+    ],
+    [
+      "Strand/Screens/WorkoutsView.swift",
+      "\\(base). Not selected."
+    ],
+    [
+      "Strand/Screens/WorkoutsView.swift",
+      "\\(base). Selected."
+    ],
+    [
+      "Strand/Screens/WorkoutsView.swift",
+      "\\(grouped(k)) kcal"
+    ],
+    [
+      "Strand/Screens/WorkoutsView.swift",
+      "no Effort recorded"
+    ],
+    [
+      "Strand/Screens/WorkoutsView.swift",
       "of 21"
+    ],
+    [
+      "Strand/System/CoachBriefScheduler.swift",
+      "Coach brief unavailable"
+    ],
+    [
+      "Strand/System/CoachBriefScheduler.swift",
+      "Couldn't generate today's brief. Tap to try again in Coach."
+    ],
+    [
+      "Strand/System/CoachBriefScheduler.swift",
+      "Today's coaching brief"
+    ],
+    [
+      "StrandiOSWidgets/StressWidget.swift",
+      "Stress \\(now) of 3, average \\(meanText), peak \\(peakText)"
+    ],
+    [
+      "StrandiOSWidgets/StressWidget.swift",
+      "Stress, no reading today"
     ]
   ]
 }
