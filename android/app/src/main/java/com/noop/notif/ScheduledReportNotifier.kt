@@ -33,6 +33,19 @@ import kotlin.math.roundToInt
  *  by ScheduledReportPolicyTest independently of the notification plumbing. */
 object ScheduledReportPolicy {
 
+    /**
+     * Earliest local minute-of-day a "Good morning" may be posted. 05:00.
+     *
+     * The recap had no time in it at all: it fired the moment the night's row landed carrying a score, and
+     * that moment is whenever the strap finished syncing, not whenever the wearer woke. A night banked at
+     * 00:40 posted a "Good morning" at 00:40, to someone asleep (#2289).
+     *
+     * A floor rather than a window, deliberately. The recap is about LAST night, so there is no upper bound
+     * worth enforcing: someone who opens the app at 16:00 having not synced all day should still get the
+     * recap for the night they slept, rather than silence.
+     */
+    const val EARLIEST_MORNING_MINUTE = 5 * 60
+
     /** Fire the morning recap at most once per REPORTED NIGHT: only when enabled, a recap value exists, and
      *  we haven't already posted for [reportDay]. [reportDay] is the day of the banked night the recap is
      *  FOR (the resolved today-row's `day`), NOT the phone's calendar day — keying on the calendar day made
@@ -43,7 +56,12 @@ object ScheduledReportPolicy {
         chargeOrRestPresent: Boolean,
         lastNotifiedDay: String?,
         reportDay: String,
-    ): Boolean = enabled && chargeOrRestPresent && lastNotifiedDay != reportDay
+        nowMinuteOfDay: Int,
+        earliestMinuteOfDay: Int = EARLIEST_MORNING_MINUTE,
+    ): Boolean = enabled &&
+        chargeOrRestPresent &&
+        lastNotifiedDay != reportDay &&
+        nowMinuteOfDay >= earliestMinuteOfDay
 
     /** Fire the post-workout summary only for a workout STRICTLY newer than the last one summarised, so a
      *  re-sync of the same backlog never re-notifies. [lastWorkoutTs] is 0 before the first ever. */
@@ -118,6 +136,9 @@ object ScheduledReportNotifier {
                 chargeOrRestPresent = chargePct != null || restPct != null,
                 lastNotifiedDay = NoopPrefs.reportMorningDay(context),
                 reportDay = reportDay,
+                // The clock the floor compares against. Read here rather than inside the policy, so the policy
+                // stays pure and the test can pin 00:40 and 07:00 without a fake clock.
+                nowMinuteOfDay = java.time.LocalTime.now().let { it.hour * 60 + it.minute },
             )
         ) return
         val copy = ScheduledReportPolicy.morningCopy(chargePct, restPct) ?: return

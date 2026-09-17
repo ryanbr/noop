@@ -16,10 +16,65 @@ class ScheduledReportPolicyTest {
 
     // MARK: - shouldNotifyMorning (once-per-day gate)
 
+    // MARK: - the morning floor (#2289)
+
+    @Test fun morningSuppressedJustAfterMidnight() {
+        // The reported shape: a night banked at 00:40 posted a "Good morning" at 00:40, to someone asleep.
+        assertFalse(
+            ScheduledReportPolicy.shouldNotifyMorning(
+                enabled = true, chargeOrRestPresent = true, lastNotifiedDay = null,
+                reportDay = "2026-06-21", nowMinuteOfDay = 40,
+            ),
+        )
+    }
+
+    @Test fun morningFiresOnceThePhoneReachesTheFloor() {
+        // Nothing is lost by waiting: the same inputs that were held at 00:40 post at 07:00, because the
+        // gate is re-evaluated on every republish and the once-per-night key has not been consumed.
+        assertTrue(
+            ScheduledReportPolicy.shouldNotifyMorning(
+                enabled = true, chargeOrRestPresent = true, lastNotifiedDay = null,
+                reportDay = "2026-06-21", nowMinuteOfDay = 7 * 60,
+            ),
+        )
+    }
+
+    @Test fun theFloorIsInclusive() {
+        assertTrue(
+            ScheduledReportPolicy.shouldNotifyMorning(
+                enabled = true, chargeOrRestPresent = true, lastNotifiedDay = null,
+                reportDay = "2026-06-21",
+                nowMinuteOfDay = ScheduledReportPolicy.EARLIEST_MORNING_MINUTE,
+            ),
+        )
+    }
+
+    @Test fun aLateSyncStillDelivers() {
+        // A floor, not a window. Someone who has not synced all day must still get last night's recap when
+        // they finally do, rather than silence because "morning" had passed.
+        assertTrue(
+            ScheduledReportPolicy.shouldNotifyMorning(
+                enabled = true, chargeOrRestPresent = true, lastNotifiedDay = null,
+                reportDay = "2026-06-21", nowMinuteOfDay = 16 * 60,
+            ),
+        )
+    }
+
+    @Test fun theFloorDoesNotOverrideTheOncePerNightKey() {
+        // Deferring must not become a way to post twice: the day key still wins after the floor passes.
+        assertFalse(
+            ScheduledReportPolicy.shouldNotifyMorning(
+                enabled = true, chargeOrRestPresent = true, lastNotifiedDay = "2026-06-21",
+                reportDay = "2026-06-21", nowMinuteOfDay = 9 * 60,
+            ),
+        )
+    }
+
     @Test fun morningFiresWhenEnabledScorePresentAndNotYetToday() {
         assertTrue(
             ScheduledReportPolicy.shouldNotifyMorning(
                 enabled = true, chargeOrRestPresent = true, lastNotifiedDay = "2026-06-20", reportDay = "2026-06-21",
+                nowMinuteOfDay = 7 * 60,
             ),
         )
     }
@@ -28,6 +83,7 @@ class ScheduledReportPolicyTest {
         assertFalse(
             ScheduledReportPolicy.shouldNotifyMorning(
                 enabled = false, chargeOrRestPresent = true, lastNotifiedDay = null, reportDay = "2026-06-21",
+                nowMinuteOfDay = 7 * 60,
             ),
         )
     }
@@ -36,6 +92,7 @@ class ScheduledReportPolicyTest {
         assertFalse(
             ScheduledReportPolicy.shouldNotifyMorning(
                 enabled = true, chargeOrRestPresent = true, lastNotifiedDay = "2026-06-21", reportDay = "2026-06-21",
+                nowMinuteOfDay = 7 * 60,
             ),
         )
     }
@@ -44,6 +101,7 @@ class ScheduledReportPolicyTest {
         assertFalse(
             ScheduledReportPolicy.shouldNotifyMorning(
                 enabled = true, chargeOrRestPresent = false, lastNotifiedDay = null, reportDay = "2026-06-21",
+                nowMinuteOfDay = 7 * 60,
             ),
         )
     }
@@ -58,6 +116,7 @@ class ScheduledReportPolicyTest {
         assertFalse(
             ScheduledReportPolicy.shouldNotifyMorning(
                 enabled = true, chargeOrRestPresent = true, lastNotifiedDay = "2026-06-20", reportDay = "2026-06-20",
+                nowMinuteOfDay = 7 * 60,
             ),
         )
     }
