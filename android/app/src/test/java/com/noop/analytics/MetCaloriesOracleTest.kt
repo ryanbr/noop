@@ -11,7 +11,7 @@ import java.util.Locale
  *
  * [EXPECTED] is the VERBATIM stdout of the Swift twin compiled standalone (`swiftc -O twin.swift
  * main.swift`, the real `Calories` enum extracted from `WorkoutDetector.swift`) over the case spread
- * rebuilt below, one `%.6f` line per case and profile. The CLAUDE.md parity rule: verify by oracle, not
+ * rebuilt below, one `%.6f` line per case and profile (80 lines: 17 shapes + the three 2026-09-17 overlap shapes, × 4 profiles). The CLAUDE.md parity rule: verify by oracle, not
  * by reading the two implementations side by side. Regenerate the literal from Swift whenever the
  * estimator changes on either side — never hand-edit a number here.
  *
@@ -92,6 +92,17 @@ class MetCaloriesOracleTest {
             for (i in 1080 until 1125) real[i] = MetSample(day0 + i * 60L, 7.5)
             real.subList(300, 360).clear()   // a one-hour ring-side hole
             out += line("$pn/realistic-day", real, p)
+            // 2026-09-17: a re-served minute lands 3–4 s off its first copy under a fresh session anchor; the twin is dropped.
+            out += line(
+                "$pn/overlap-3s-twins",
+                listOf(MetSample(day0, 4.0), MetSample(day0 + 3, 4.0), MetSample(day0 + 60, 0.9), MetSample(day0 + 64, 9.0), MetSample(day0 + 120, 4.0)), p,
+            )
+            // Overlap is judged against the interval just counted: a 57-s-late twin of minute 0 loses; minute 2 is kept.
+            out += line("$pn/overlap-57s-twin", listOf(MetSample(day0, 1.0), MetSample(day0 + 57, 5.0), MetSample(day0 + 120, 1.0)), p)
+            // The phone's shape: a full day where every 7th minute also arrived 4 s late from a second session.
+            val twins = fullDay(1.1)
+            for (i in 0 until 1440 step 7) twins += MetSample(day0 + i * 60L + 4, 3.0)
+            out += line("$pn/overlap-phone-day", twins, p)
         }
         return out
     }
@@ -122,6 +133,9 @@ class MetCaloriesOracleTest {
         "default/bad-epoch-dropped|1.098373|3.062500|60.000000|0.000694|4.160873",
         "default/zero-length-day|0.000000|0.000000|0.000000|0.000000|0.000000",
         "default/realistic-day|1515.755104|493.675000|82800.000000|0.958333|2009.430104",
+        "default/overlap-3s-twins|3.295120|6.125000|180.000000|0.002083|9.420120",
+        "default/overlap-57s-twin|2.196747|0.000000|120.000000|0.001389|2.196747",
+        "default/overlap-phone-day|1581.657500|0.000000|86400.000000|1.000000|1581.657500",
         "male-82-181-45/empty|0.000000|0.000000|0.000000|0.000000|0.000000",
         "male-82-181-45/rest-0.9-all-day|1800.070000|0.000000|86400.000000|1.000000|1800.070000",
         "male-82-181-45/one-30min-4.0-bout|1800.070000|107.625000|86400.000000|1.000000|1907.695000",
@@ -139,6 +153,9 @@ class MetCaloriesOracleTest {
         "male-82-181-45/bad-epoch-dropped|1.250049|3.587500|60.000000|0.000694|4.837549",
         "male-82-181-45/zero-length-day|0.000000|0.000000|0.000000|0.000000|0.000000",
         "male-82-181-45/realistic-day|1725.067083|578.305000|82800.000000|0.958333|2303.372083",
+        "male-82-181-45/overlap-3s-twins|3.750146|7.175000|180.000000|0.002083|10.925146",
+        "male-82-181-45/overlap-57s-twin|2.500097|0.000000|120.000000|0.001389|2.500097",
+        "male-82-181-45/overlap-phone-day|1800.070000|0.000000|86400.000000|1.000000|1800.070000",
         "female-60-165-30/empty|0.000000|0.000000|0.000000|0.000000|0.000000",
         "female-60-165-30/rest-0.9-all-day|1383.683000|0.000000|86400.000000|1.000000|1383.683000",
         "female-60-165-30/one-30min-4.0-bout|1383.683000|78.750000|86400.000000|1.000000|1462.433000",
@@ -156,6 +173,9 @@ class MetCaloriesOracleTest {
         "female-60-165-30/bad-epoch-dropped|0.960891|2.625000|60.000000|0.000694|3.585891",
         "female-60-165-30/zero-length-day|0.000000|0.000000|0.000000|0.000000|0.000000",
         "female-60-165-30/realistic-day|1326.029542|423.150000|82800.000000|0.958333|1749.179542",
+        "female-60-165-30/overlap-3s-twins|2.882673|5.250000|180.000000|0.002083|8.132673",
+        "female-60-165-30/overlap-57s-twin|1.921782|0.000000|120.000000|0.001389|1.921782",
+        "female-60-165-30/overlap-phone-day|1383.683000|0.000000|86400.000000|1.000000|1383.683000",
         "zeroed-profile/empty|0.000000|0.000000|0.000000|0.000000|0.000000",
         "zeroed-profile/rest-0.9-all-day|1671.672000|0.000000|86400.000000|1.000000|1671.672000",
         "zeroed-profile/one-30min-4.0-bout|1671.672000|91.875000|86400.000000|1.000000|1763.547000",
@@ -173,5 +193,8 @@ class MetCaloriesOracleTest {
         "zeroed-profile/bad-epoch-dropped|1.160883|3.062500|60.000000|0.000694|4.223383",
         "zeroed-profile/zero-length-day|0.000000|0.000000|0.000000|0.000000|0.000000",
         "zeroed-profile/realistic-day|1602.019000|493.675000|82800.000000|0.958333|2095.694000",
+        "zeroed-profile/overlap-3s-twins|3.482650|6.125000|180.000000|0.002083|9.607650",
+        "zeroed-profile/overlap-57s-twin|2.321767|0.000000|120.000000|0.001389|2.321767",
+        "zeroed-profile/overlap-phone-day|1671.672000|0.000000|86400.000000|1.000000|1671.672000",
     )
 }

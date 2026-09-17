@@ -16,6 +16,54 @@ final class OuraMetStoreTests: XCTestCase {
         XCTAssertEqual(cols, ["deviceId", "ts", "met", "state", "epochS"])
     }
 
+    /// 2026-09-17, first hardware day: `ts` is anchored ring time and the `0x13` anchor is per session, so
+    /// the same ring record re-served under a second session (an Oura-app replay from the app's older
+    /// cursor) landed 3–4 s off its first copy and the (deviceId, ts) key kept both — 157 twins in 1,035
+    /// rows, +8 % on the day. The insert now judges by interval overlap: the first copy stays.
+    func testReserveUnderAnotherSessionAnchorIsTheSameMinute() async throws {
+        let store = try await WhoopStore.inMemory()
+        let t = 1_755_208_800
+        let first = try await store.insertOuraMetSamples(
+            [OuraMetSample(ts: t, met: 1.1, state: 2), OuraMetSample(ts: t + 60, met: 3.0, state: 2)],
+            deviceId: "oura-A")
+        XCTAssertEqual(first, 2)
+        // The same two minutes served again 4 s later, plus a genuinely new third minute.
+        let replay = try await store.insertOuraMetSamples(
+            [OuraMetSample(ts: t + 4, met: 1.1, state: 2), OuraMetSample(ts: t + 64, met: 3.0, state: 2),
+             OuraMetSample(ts: t + 124, met: 0.9, state: 2)],
+            deviceId: "oura-A")
+        XCTAssertEqual(replay, 1, "only the new minute lands; the two 4-s twins are the stored minutes again")
+        let read = try await store.ouraMetSamples(deviceId: "oura-A", from: t, to: t + 200, limit: 10)
+        XCTAssertEqual(read.map(\.ts), [t, t + 60, t + 124])
+        // Twins INSIDE one batch collapse the same way (earlier start wins, lower MET on an exact tie).
+        let batch = try await store.insertOuraMetSamples(
+            [OuraMetSample(ts: t + 300, met: 5.0, state: 2), OuraMetSample(ts: t + 303, met: 2.0, state: 2),
+             OuraMetSample(ts: t + 300, met: 4.0, state: 2)],
+            deviceId: "oura-A")
+        XCTAssertEqual(batch, 1)
+        let kept = try await store.ouraMetSamples(deviceId: "oura-A", from: t + 300, to: t + 400, limit: 10)
+        XCTAssertEqual(kept, [OuraMetSample(ts: t + 300, met: 4.0, state: 2)])
+        // Another device is its own namespace.
+        let other = try await store.insertOuraMetSamples([OuraMetSample(ts: t + 4, met: 1.1, state: 2)],
+                                                         deviceId: "oura-B")
+        XCTAssertEqual(other, 1)
+    }
+
+    /// The pure rule behind the insert (twin: Kotlin `OuraMetSampleEntity.droppingOverlaps`).
+    func testDroppingOverlapsIsPureAndOrderIndependent() {
+        let t = 1_000
+        let existing = [OuraMetSample(ts: t, met: 1.0, state: 0), OuraMetSample(ts: t + 120, met: 1.0, state: 0, epochS: 120)]
+        let incoming = [OuraMetSample(ts: t + 230, met: 2.0, state: 0),   // overlaps the 120-s row [t+120, t+240)
+                        OuraMetSample(ts: t + 60, met: 2.0, state: 0),    // free minute
+                        OuraMetSample(ts: t + 59, met: 9.0, state: 0),    // overlaps [t, t+60) by one second
+                        OuraMetSample(ts: t + 240, met: 2.0, state: 0),   // touches, does not overlap
+                        OuraMetSample(ts: t + 241, met: 2.0, state: 0)]   // overlaps the accepted t+240
+        let out = OuraMetSample.droppingOverlaps(incoming, existing: existing)
+        XCTAssertEqual(out.map(\.ts), [t + 60, t + 240])
+        XCTAssertEqual(OuraMetSample.droppingOverlaps(incoming.reversed(), existing: existing).map(\.ts), [t + 60, t + 240])
+        XCTAssertEqual(OuraMetSample.droppingOverlaps([], existing: existing), [])
+    }
+
     func testInsertRoundTripAndDedup() async throws {
         let store = try await WhoopStore.inMemory()
         let rows = [

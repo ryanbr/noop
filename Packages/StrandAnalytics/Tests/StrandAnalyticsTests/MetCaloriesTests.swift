@@ -102,6 +102,29 @@ final class MetCaloriesTests: XCTestCase {
         XCTAssertEqual(r.activeKcal, 0.5 * kcalPerMetMin, accuracy: 1e-9)
     }
 
+    /// 2026-09-17, first hardware day: 157 of 1,035 stored rows were the same minute re-served under a
+    /// fresh per-session `0x13` anchor, 3–4 s off the first copy, and the day read +8 %. A sample that
+    /// starts inside the interval already counted is that minute again: skipped, the first copy wins.
+    func testOverlappingReserveIsTheSameMinuteAndCountsOnce() {
+        let r = Calories.estimateDayEnergyFromMET(
+            [M(ts: day0, met: 4.0), M(ts: day0 + 3, met: 4.0), M(ts: day0 + 60, met: 0.9),
+             M(ts: day0 + 64, met: 9.0), M(ts: day0 + 120, met: 4.0)],
+            profile: UserProfile(), dayStart: day0, dayEnd: day1)
+        XCTAssertEqual(r.observedSeconds, 180)                       // three minutes, not five
+        XCTAssertEqual(r.activeKcal, 2 * 2.5 * kcalPerMetMin, accuracy: 1e-9)   // the 9.0 twin is dropped
+    }
+
+    /// The first-starting copy wins even when the twin starts a second earlier than a LATER minute's own
+    /// sample would — overlap is judged against the interval just counted, so a 57-s-late twin of minute
+    /// 0 loses to minute 0, and minute 2 (which does not overlap minute 0) is kept.
+    func testOverlapIsAgainstTheCountedIntervalNotTheGrid() {
+        let r = Calories.estimateDayEnergyFromMET(
+            [M(ts: day0, met: 1.0), M(ts: day0 + 57, met: 5.0), M(ts: day0 + 120, met: 1.0)],
+            profile: UserProfile(), dayStart: day0, dayEnd: day1)
+        XCTAssertEqual(r.observedSeconds, 120)
+        XCTAssertEqual(r.activeKcal, 0, accuracy: 1e-12)
+    }
+
     func testWindowIsHalfOpenAndOutsideSamplesAreIgnored() {
         let r = Calories.estimateDayEnergyFromMET(
             [M(ts: day0 - 60, met: 9.0), M(ts: day0, met: 2.0), M(ts: day1 - 60, met: 2.0), M(ts: day1, met: 9.0)],

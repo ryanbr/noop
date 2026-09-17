@@ -55,3 +55,40 @@ class OuraMetSampleMigrationTest {
         assertEquals(60, e.epochS)
     }
 }
+
+/**
+ * The insert's minute-level dedupe (#2242, 2026-09-17). `ts` is anchored ring time under a per-session
+ * `0x13` anchor, so the same ring record re-served under a second session lands 2–5 s off its first copy
+ * and the (deviceId, ts) key keeps both — 157 twins in 1,035 rows on the first hardware day, +8 % on the
+ * day. Twin of Swift `OuraMetStoreTests.testDroppingOverlapsIsPureAndOrderIndependent`.
+ */
+class OuraMetSampleOverlapTest {
+    private fun s(ts: Long, met: Double = 1.0, epochS: Int = 60) = OuraMetSampleEntity("oura-A", ts, met, 0, epochS)
+
+    @Test
+    fun droppingOverlaps_isPureAndOrderIndependent() {
+        val t = 1_000L
+        val existing = listOf(s(t), s(t + 120, epochS = 120))
+        val incoming = listOf(
+            s(t + 230, 2.0),   // overlaps the 120-s row [t+120, t+240)
+            s(t + 60, 2.0),    // free minute
+            s(t + 59, 9.0),    // overlaps [t, t+60) by one second
+            s(t + 240, 2.0),   // touches, does not overlap
+            s(t + 241, 2.0),   // overlaps the accepted t+240
+        )
+        assertEquals(listOf(t + 60, t + 240), OuraMetSampleEntity.droppingOverlaps(incoming, existing).map { it.ts })
+        assertEquals(
+            listOf(t + 60, t + 240),
+            OuraMetSampleEntity.droppingOverlaps(incoming.reversed(), existing).map { it.ts },
+        )
+        assertEquals(emptyList<OuraMetSampleEntity>(), OuraMetSampleEntity.droppingOverlaps(emptyList(), existing))
+    }
+
+    /** Twins inside one batch collapse the same way: earlier start wins, lower MET on an exact tie. */
+    @Test
+    fun droppingOverlaps_withinOneBatch() {
+        val t = 1_000L
+        val out = OuraMetSampleEntity.droppingOverlaps(listOf(s(t, 5.0), s(t + 3, 2.0), s(t, 4.0)), emptyList())
+        assertEquals(listOf(s(t, 4.0)), out)
+    }
+}

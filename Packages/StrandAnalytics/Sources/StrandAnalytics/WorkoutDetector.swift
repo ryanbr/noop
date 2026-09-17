@@ -901,11 +901,14 @@ public enum Calories {
     /// A MET→kcal figure is still an ESTIMATE of true expenditure (free-living MAPE 46–90 % against
     /// accelerometry in Kristiansson 2023) — label it so.
     ///
-    /// Coverage: `observedSeconds` is the sum of the covered sample intervals (a duplicate `ts` counts
-    /// once — the LOWER MET wins the tie, the conservative direction), capped at the day span. Missing
-    /// minutes are UNKNOWN and contribute nothing to either term: never extrapolate a gap to activity,
-    /// and never bank resting energy for time nobody observed. `restingKcal` therefore scales with
-    /// coverage exactly as the HR path's does.
+    /// Coverage: `observedSeconds` is the sum of the covered sample intervals, capped at the day span.
+    /// A minute counts ONCE: a duplicate `ts` keeps the LOWER MET (the conservative direction), and a
+    /// sample whose interval OVERLAPS the one already counted is dropped — the ring re-serves a record
+    /// under a fresh per-session `0x13` anchor a few seconds off the first copy (2026-09-17: 157 of
+    /// 1,035 stored rows were 3–4 s twins of another minute, +8 % on the day), and two rows 3 s apart
+    /// are one minute, not two. Missing minutes are UNKNOWN and contribute nothing to either term:
+    /// never extrapolate a gap to activity, and never bank resting energy for time nobody observed.
+    /// `restingKcal` therefore scales with coverage exactly as the HR path's does.
     public static func estimateDayEnergyFromMET(_ samples: [MetSample],
                                                 profile: UserProfile,
                                                 dayStart: Int,
@@ -924,15 +927,17 @@ public enum Calories {
         // kcal per excess-MET-minute for THIS wearer (the MET definition scales with body mass).
         let kcalPerMetMin = kcalPerKgPerMetMinute * weightKg
 
-        // Ties on ts: the store's (deviceId, ts) key makes them unreachable from a single device, but a
-        // caller unioning devices could produce one. Ascending MET on a tie keeps the LOWER reading.
+        // Ties on ts: ascending MET on a tie keeps the LOWER reading. Overlaps: a sample that starts
+        // before the previously counted interval ends is the same minute served again (see the doc
+        // above) — the earlier-starting copy wins and the twin is skipped, so neither coverage nor
+        // active energy counts a minute twice.
         let ordered = inDay.sorted { $0.ts != $1.ts ? $0.ts < $1.ts : $0.met < $1.met }
         var covered = 0.0
         var activeKcal = 0.0
-        var lastTs = Int.min
+        var lastEnd = Int.min
         for s in ordered {
-            if s.ts == lastTs { continue }
-            lastTs = s.ts
+            if s.ts < lastEnd { continue }
+            lastEnd = s.ts + s.secPerSample
             let minutes = Double(s.secPerSample) / 60.0
             covered += Double(s.secPerSample)
             guard s.met >= metActiveThreshold else { continue }

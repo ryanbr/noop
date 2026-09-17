@@ -1445,11 +1445,26 @@ class WhoopRepository(
         dao.sleepStateSamples(deviceId, from, to, limit).map { SleepStateRow(it.ts, it.state) }
 
     /**
-     * Insert the Oura ring's own per-minute MET samples (#2242). Idempotent by (deviceId, ts). Returns the
-     * rows actually inserted. Swift `insertOuraMetSamples`.
+     * Insert the Oura ring's own per-minute MET samples (#2242). Idempotent by MINUTE, not only by
+     * (deviceId, ts): `ts` is anchored ring time under a per-session `0x13` anchor, so the same ring
+     * record re-served across sessions lands 2-5 s apart and the key alone sees two rows (2026-09-17:
+     * 157 of 1,035 rows were such twins, +8 % on the day). A sample whose interval overlaps a stored one,
+     * or one accepted earlier in the same batch, is dropped; the first copy stays. Rows are assumed to
+     * belong to one device (the writer's batch), read back per device. Returns the rows actually
+     * inserted. Swift `insertOuraMetSamples`.
      */
-    suspend fun insertOuraMetSamples(rows: List<OuraMetSampleEntity>): Int =
-        if (rows.isEmpty()) 0 else dao.insertOuraMet(rows).count { it != -1L }
+    suspend fun insertOuraMetSamples(rows: List<OuraMetSampleEntity>): Int {
+        if (rows.isEmpty()) return 0
+        var inserted = 0
+        for ((deviceId, batch) in rows.groupBy { it.deviceId }) {
+            val lo = batch.minOf { it.ts } - batch.maxOf { it.epochS }
+            val hi = batch.maxOf { it.ts + it.epochS }
+            val existing = dao.ouraMetSamples(deviceId, lo, hi - 1, Int.MAX_VALUE)
+            val accepted = OuraMetSampleEntity.droppingOverlaps(batch, existing)
+            if (accepted.isNotEmpty()) inserted += dao.insertOuraMet(accepted).count { it != -1L }
+        }
+        return inserted
+    }
 
     /** The ring's MET samples in [from, to], ascending (#2242). Swift `ouraMetSamples`. */
     suspend fun ouraMetSamples(deviceId: String, from: Long, to: Long, limit: Int = DEFAULT_LIMIT):

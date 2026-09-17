@@ -290,7 +290,30 @@ data class OuraMetSampleEntity(
     val met: Double,
     val state: Int,
     val epochS: Int,
-)
+) {
+    companion object {
+        /**
+         * The samples of [incoming] that overlap neither a row of [existing] nor an earlier-starting sample
+         * of [incoming] itself. Two intervals overlap when `a.ts < b.ts + b.epochS && b.ts < a.ts + a.epochS`.
+         * Pure (incoming is sorted by ts, lower MET first on a tie, before the walk) so the insert's dedupe
+         * rule is testable without a database. Twin of Swift `OuraMetSample.droppingOverlaps`.
+         */
+        fun droppingOverlaps(
+            incoming: List<OuraMetSampleEntity>,
+            existing: List<OuraMetSampleEntity>,
+        ): List<OuraMetSampleEntity> {
+            val kept = existing.map { it.ts to it.ts + it.epochS }.toMutableList()
+            val out = mutableListOf<OuraMetSampleEntity>()
+            for (s in incoming.sortedWith(compareBy<OuraMetSampleEntity> { it.ts }.thenBy { it.met })) {
+                val end = s.ts + s.epochS
+                if (kept.any { s.ts < it.second && it.first < end }) continue
+                kept += s.ts to end
+                out += s
+            }
+            return out
+        }
+    }
+}
 
 /** Respiration raw-ADC sample (type-47). Swift `respSample` (v3). PK (deviceId, ts). */
 @Entity(tableName = "respSample", primaryKeys = ["deviceId", "ts"])
