@@ -920,23 +920,15 @@ private fun HealthHeroVessel(
     animated: Boolean = true,
     format: (Double) -> String = { it.roundToInt().toString() },
 ) {
-    Box(modifier = modifier.size(diameter), contentAlignment = Alignment.Center) {
-        LiquidVessel(
-            value = fraction.coerceIn(0.0, 1.0),
-            tint = tint,
-            animated = animated,
-            modifier = Modifier.size(diameter),
-        )
-        val numberSp = (diameter.value * 0.27f).coerceIn(20f, 30f)
-        CountUpText(
-            value = value,
-            format = format,
-            style = NoopType.number(numberSp, weight = FontWeight.Bold)
-                .copy(shadow = Shadow(color = Color.Black.copy(alpha = 0.5f), offset = Offset(0f, 1f), blurRadius = 6f)),
-            color = Color.White,
-            modifier = Modifier.clearAndSetSemantics {},
-        )
-    }
+    GlowRing(
+        fraction = fraction.coerceIn(0.0, 1.0).toFloat(),
+        value = value,
+        color = tint,
+        diameter = diameter,
+        lineWidth = diameter * 0.10f,
+        modifier = modifier,
+        format = format,
+    )
 }
 
 /**

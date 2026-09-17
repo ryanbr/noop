@@ -1243,25 +1243,13 @@ private fun RestHero(score: Double?, asleepMin: Double?, source: String, overlin
  */
 @Composable
 private fun SleepHeroVessel(fraction: Double, value: Double, tint: Color, diameter: Dp) {
-    Box(modifier = Modifier.size(diameter), contentAlignment = Alignment.Center) {
-        LiquidVessel(
-            value = fraction.coerceIn(0.0, 1.0),
-            tint = tint,
-            animated = true,
-            modifier = Modifier.size(diameter),
-        )
-        // Count-up number over the vessel — white, tabular, a soft shadow for legibility, hit-transparent so
-        // the tap reaches the vessel (splash). Size ≈ diameter × 0.27 (the Today 96→26 ratio), capped.
-        val numberSp = (diameter.value * 0.27f).coerceIn(20f, 52f)
-        CountUpText(
-            value = value,
-            format = { it.roundToInt().toString() },
-            style = NoopType.number(numberSp, weight = FontWeight.Bold)
-                .copy(shadow = Shadow(color = Color.Black.copy(alpha = 0.5f), offset = Offset(0f, 1f), blurRadius = 6f)),
-            color = Color.White,
-            modifier = Modifier.clearAndSetSemantics {},
-        )
-    }
+    GlowRing(
+        fraction = fraction.coerceIn(0.0, 1.0).toFloat(),
+        value = value,
+        color = tint,
+        diameter = diameter,
+        lineWidth = diameter * 0.10f,
+    )
 }
 
 // MARK: - 1. HERO — stage breakdown for the navigated night

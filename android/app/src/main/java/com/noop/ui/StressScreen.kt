@@ -435,21 +435,13 @@ private fun StressHeroCard(model: StressModel, modifier: Modifier = Modifier) {
                         },
                     contentAlignment = Alignment.Center,
                 ) {
-                    LiquidVessel(
-                        value = fraction,
-                        tint = bandColor,
-                        animated = true,
-                        modifier = Modifier.size(112.dp),
-                    )
-                    // Count-up value over the vessel — white, tabular, a soft shadow for legibility, and
-                    // hit-transparent so the tap reaches the vessel (splash). Mirrors HeroScoreVessel.
-                    CountUpText(
+                    GlowRing(
+                        fraction = fraction.coerceIn(0.0, 1.0).toFloat(),
                         value = model.score,
+                        color = bandColor,
+                        diameter = 112.dp,
+                        lineWidth = 11.2.dp,
                         format = { String.format(Locale.US, "%.1f", it) },
-                        style = NoopType.number(30f, weight = FontWeight.Bold)
-                            .copy(shadow = Shadow(color = Color.Black.copy(alpha = 0.5f), offset = Offset(0f, 1f), blurRadius = 6f)),
-                        color = Color.White,
-                        modifier = Modifier.clearAndSetSemantics {},
                     )
                 }
 

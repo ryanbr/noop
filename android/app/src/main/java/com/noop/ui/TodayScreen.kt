@@ -3723,11 +3723,13 @@ private fun HeroVitalRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Metrics.space12),
     ) {
-        LiquidVessel(
-            value = fraction,
-            tint = tint,
-            animated = false,
-            modifier = Modifier.size(26.dp),
+        GlowRing(
+            fraction = (fraction ?: 0.0).coerceIn(0.0, 1.0).toFloat(),
+            value = 0.0,
+            color = tint,
+            diameter = 26.dp,
+            lineWidth = 2.6.dp,
+            showsLabel = false,
         )
         Text(label, style = NoopType.subhead, color = Palette.textSecondary, modifier = Modifier.weight(1f))
         Text(
@@ -4439,14 +4441,15 @@ private fun DashboardCardRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // THE fix: a 30dp mini LIQUID VESSEL filled to this card's fraction, tinted its domain colour — the
-        // "small liquid circle per icon" iOS shows and Android was missing (a flat Material-icon square).
-        // Static (animated=false) so the many small gauges cost nothing per frame, matching iOS `cardLink`.
-        LiquidVessel(
-            value = fraction,
-            tint = tint,
-            animated = false,
-            modifier = Modifier.size(30.dp),
+        // A 30dp mini GlowRing filled to this card's fraction, tinted its domain colour — the
+        // "small ring per icon" iOS shows. Static (GlowRing starts empty, springs to target once).
+        GlowRing(
+            fraction = (fraction ?: 0.0).coerceIn(0.0, 1.0).toFloat(),
+            value = 0.0,
+            color = tint,
+            diameter = 30.dp,
+            lineWidth = 3.dp,
+            showsLabel = false,
         )
         Column(
             modifier = Modifier.weight(1f),
