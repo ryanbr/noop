@@ -34,11 +34,11 @@ public struct MotionTrace: View {
     /// The peak magnitude used to normalise the fill height. A non-positive peak (all-zero / empty) maps
     /// everything to the baseline so the strip is flat rather than dividing by zero.
     ///
-    /// Computed ONCE per body evaluation and threaded down, never read inside a per-epoch loop. As a
+    /// Computed ONCE where it is needed and threaded down, never read inside a per-epoch loop. As a
     /// computed property it rescanned every epoch on each read, and it was read from inside the `map` in
     /// `points(in:)` and the `filter` in `accessibilitySummary`, so a night cost a scan per epoch. With
-    /// 30-second epochs an 8-hour night is ~960 of them, about 1.8 million comparisons per body
-    /// evaluation, and SwiftUI re-runs `body` on hover, animation and the 1 Hz HR tick (#2283).
+    /// 30-second epochs an 8-hour night is ~960 of them, about 1.8 million comparisons every time the
+    /// strip is laid out, and SwiftUI re-runs `body` on hover, animation and the 1 Hz HR tick (#2283).
     ///
     /// Android already hoists the same value (`SleepScreen.kt`), so this removes a divergence rather than
     /// creating one.
@@ -48,7 +48,11 @@ public struct MotionTrace: View {
         GeometryReader { geo in
             let w = geo.size.width
             let h = geo.size.height
-            // One scan per body evaluation, threaded into everything below. See `peak(of:)`.
+            // ONE scan, threaded into everything below, rather than a scan per epoch. See `peak(of:)`.
+            //
+            // Sits inside the GeometryReader, so it is recomputed per LAYOUT pass rather than per body
+            // evaluation. That distinction does not matter here (both are O(n) against the O(n^2) this
+            // replaces) and keeping it here avoids restructuring `body` around the ViewBuilder.
             let peak = Self.peak(of: epochs)
             ZStack {
                 // Faint baseline so the strip reads as a grounded trace even on a calm night.

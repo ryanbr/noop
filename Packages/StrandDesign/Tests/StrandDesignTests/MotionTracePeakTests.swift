@@ -6,8 +6,8 @@ import CoreGraphics
 ///
 /// `peak` was a computed property that rescanned every epoch, read from inside the `map` in `points` and
 /// the `filter` in `accessibilitySummary`. That is a scan per epoch: with 30-second epochs an 8-hour
-/// night is ~960 of them, about 1.8 million comparisons per body evaluation, repeated because SwiftUI
-/// re-runs `body` on hover, animation and the 1 Hz HR tick.
+/// night is ~960 of them, about 1.8 million comparisons every time the strip is laid out, repeated
+/// because SwiftUI re-runs `body` on hover, animation and the 1 Hz HR tick.
 ///
 /// These pin the OUTPUT rather than the speed. A performance change that alters what is drawn is not a
 /// performance change, it is a regression, and the normalisation, the half-peak threshold and the
@@ -70,6 +70,23 @@ final class MotionTracePeakTests: XCTestCase {
         // boundary is the one that would move if the peak were computed differently.
         assertMatches([10, 5, 4.999, 0], "values straddling half peak")
         assertMatches([1, 1, 1], "every epoch at the peak")
+    }
+
+    func testTheStripsOwnHelpersAgreeOnTheSamePeak() {
+        // The gap these tests cannot close: nothing here checks that `body` passes the peak it computed
+        // into both helpers. Pin the next best thing, that the helpers agree when handed the peak the
+        // hoisted accessor produces, so a caller threading a DIFFERENT value is the only way to break it.
+        let epochs: [Double] = [0, 3, 9, 4.5, 4.4, 0]
+        let peak = MotionTrace.peak(of: epochs)
+        XCTAssertEqual(peak, 9)
+        let pts = MotionTrace.points(in: size, epochs: epochs, peak: peak)
+        XCTAssertEqual(pts.count, epochs.count)
+        // 9 is the peak, so it must land at the very top of the usable band, and 0 at the baseline.
+        XCTAssertEqual(pts[2].y, size.height - (size.height - 2), accuracy: 0.0001)
+        XCTAssertEqual(pts[0].y, size.height, accuracy: 0.0001)
+        // 4.5 is exactly half the peak and counts as restless; 4.4 does not. Two of six is 33%.
+        XCTAssertEqual(MotionTrace.accessibilitySummary(epochs: epochs, peak: peak),
+                       "33% of the night had elevated movement")
     }
 
     func testPeakIgnoresNegativesAndEmpties() {
