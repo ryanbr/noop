@@ -3293,11 +3293,24 @@ extension OuraLiveSource: @preconcurrency CBPeripheralDelegate {
                 // driver goes straight to `.streaming` with no daytime-HR write; the log says which.
                 let wanted = !liveHRSuspended
                 driver?.liveHRWanted = wanted
+                // Item 27: say which policy decided, on BOTH outcomes. With the toggle off the line is the
+                // pre-item-27 text byte for byte; with it on, an enabling connect names the band and which
+                // side of it the clock is on, so a day of "enabling live HR" with no SUSPENDED line reads as
+                // the band excluding the day rather than as a screen that never went dark (the 09-17 16:11
+                // read-out had to infer that from the 5 min grace — the toggle's state was in no line).
                 var inBand = ""
-                if case .on(let band?, _) = allDayPolicyNow() {
+                var policy = ""
+                switch allDayPolicyNow() {
+                case .off:
+                    break
+                case .on(let band?, let sec):
                     inBand = ", night stand-down \(NightStandDown.describe(band))"
+                    let side = NightStandDown.contains(band, secOfDay: sec) ? "inside" : "outside"
+                    policy = " (all-day HR on, \(side) night stand-down \(NightStandDown.describe(band)))"
+                case .on(nil, _):
+                    policy = " (all-day HR on, no learned sleep schedule yet - screen rule applies)"
                 }
-                log(wanted ? "Oura: auth OK - enabling live HR"
+                log(wanted ? "Oura: auth OK - enabling live HR\(policy)"
                            : "Oura: auth OK - live HR suspended (screen off\(inBand)), daytime HR left untouched")
             } else {
                 log("Oura: WARNING auth status \(status.rawValue)")
