@@ -50,8 +50,15 @@ class ScheduledReportPolicyTest {
     }
 
     @Test fun aLateSyncStillDelivers() {
-        // A floor, not a window. Someone who has not synced all day must still get last night's recap when
-        // they finally do, rather than silence because "morning" had passed.
+        // A floor, not a window: someone who has not synced all day still gets last night's recap when they
+        // finally do, rather than silence because "morning" had passed.
+        //
+        // This is a TRADE, not a clean win, and pinning it here is what makes that a decision rather than
+        // an accident. A floor fixes "too early" and does nothing about "too late": a wearer who wakes at
+        // 04:30 while the recap is still held, and does not open the app again until 23:00, now gets a
+        // "Good morning" at 23:00 where before they would have got one at 04:30. Delivering late still
+        // beats delivering to someone asleep, and beats dropping the recap, which is why it stands, but it
+        // is the reason a floor is a stopgap and the wake-based version (#2289) is the real answer.
         assertTrue(
             ScheduledReportPolicy.shouldNotifyMorning(
                 enabled = true, chargeOrRestPresent = true, lastNotifiedDay = null,
