@@ -3189,13 +3189,13 @@ private fun HeroRingColumn(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         if (onRingTap != null) {
-            // liquidPress on the tappable Charge vessel so it settles inward on press (the vessel itself
-            // also splashes via LiquidVessel's own tap). Same interactionSource on the clickable + press.
+            // liquidPress on the tappable Charge ring so it settles inward on press. Same interactionSource
+            // on the clickable + press. No CircleShape clip — the GlowRing is already round, and the clip
+            // cut the outer bloom off at the arc edge (visible as a hard ring boundary on the hero row).
             val ringInteraction = remember { MutableInteractionSource() }
             Box(
                 modifier = Modifier
                     .liquidPress(ringInteraction)
-                    .clip(CircleShape)
                     .clickable(
                         interactionSource = ringInteraction,
                         indication = null,
