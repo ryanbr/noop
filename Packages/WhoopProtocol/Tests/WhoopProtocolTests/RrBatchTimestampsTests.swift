@@ -61,4 +61,24 @@ final class RrBatchTimestampsTests: XCTestCase {
         XCTAssertTrue(out.map(\.ts).allSatisfy { $0 <= 1000 })
         XCTAssertEqual(out.map(\.ts), out.map(\.ts).sorted())
     }
+
+    func testStreamStaysOrderedAtTheObservedFourZeroCoverage() {
+        // Two ~740 ms intervals per 1 s frame is the 4.0 pathology this targets (coverage ~1.48). The
+        // earliest beat lands exactly ON the previous frame's second, never before it, so the stream
+        // stays non-decreasing across frame boundaries.
+        var rows: [(ts: Int, rrMs: Int)] = []
+        for second in 0..<20 { rows += RrBatchTimestamps.spread(frameTs: second, rrMs: [740, 740]) }
+        XCTAssertEqual(rows.map(\.ts), rows.map(\.ts).sorted(), "must not step backwards at observed coverage")
+    }
+
+    func testABatchWiderThanTheGapStepsBehindThePreviousFrame() {
+        // The documented limit: four 740 ms intervals between 1 s frames is coverage ~2.96, where a
+        // batch spans more than the gap and back-dating reaches behind a row already emitted. No beat is
+        // lost (seq keys on (ts, rrMs)), but reads sorted by ts interleave the frames. Pinned so a future
+        // device that batches harder cannot cross this quietly.
+        let first = RrBatchTimestamps.spread(frameTs: 10, rrMs: [740, 740, 740, 740])
+        let second = RrBatchTimestamps.spread(frameTs: 11, rrMs: [740, 740, 740, 740])
+        XCTAssertLessThan(second.first!.ts, first.last!.ts, "the limit this test exists to record")
+        XCTAssertEqual(second.map(\.rrMs).reduce(0, +), 740 * 4, "no beat is dropped when it happens")
+    }
 }

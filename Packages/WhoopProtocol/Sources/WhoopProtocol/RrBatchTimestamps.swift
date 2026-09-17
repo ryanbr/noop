@@ -37,6 +37,18 @@ import Foundation
 /// not touch, so neither moves. What a whole-batch offset could nudge is which stage a beat at a
 /// boundary falls in, which is noise at this scale.
 ///
+///
+/// ## Ordering holds only while a batch fits the gap
+///
+/// Back-dating reaches at most one batch width behind the frame. While that is no more than the gap
+/// to the previous frame, the stream stays non-decreasing: at the 4.0's observed coverage of 1.5 to
+/// 2.4 the earliest beat lands exactly on the previous frame's second, never before it. A batch that
+/// spans MORE than the gap (coverage around 3 and above, four or more intervals between 1 s frames)
+/// emits a timestamp earlier than a row already emitted. Nothing is lost when that happens, since
+/// `seq` keys on (ts, rrMs) and distinct beats keep their own key, but reads that sort by ts will
+/// interleave the two frames. No shipped device is near that, and the test suite pins both sides of
+/// the boundary so a future one cannot cross it unnoticed.
+///
 /// ## Safe where there is nothing to spread
 ///
 /// A single-interval array returns unchanged, so a strap whose frames arrive at about its beat rate is

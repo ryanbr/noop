@@ -65,4 +65,22 @@ class RrBatchTimestampsTest {
         assertTrue(out.all { it.ts <= 1000L })
         assertEquals(out.map { it.ts }.sorted(), out.map { it.ts })
     }
+
+    @Test
+    fun `stream stays ordered at the observed 4_0 coverage`() {
+        // Two ~740 ms intervals per 1 s frame is the 4.0 pathology (coverage ~1.48): the earliest beat
+        // lands exactly ON the previous frame's second, so the stream stays non-decreasing.
+        val rows = (0 until 20).flatMap { spread(it.toLong(), listOf(740, 740)) }
+        assertEquals(rows.map { it.ts }.sorted(), rows.map { it.ts })
+    }
+
+    @Test
+    fun `a batch wider than the gap steps behind the previous frame`() {
+        // The documented limit: coverage ~2.96, where back-dating reaches behind a row already emitted.
+        // No beat is lost (seq keys on (ts, rrMs)); reads sorted by ts interleave the frames.
+        val first = spread(10L, listOf(740, 740, 740, 740))
+        val second = spread(11L, listOf(740, 740, 740, 740))
+        assertTrue(second.first().ts < first.last().ts)
+        assertEquals(740 * 4, second.sumOf { it.rrMs })
+    }
 }
