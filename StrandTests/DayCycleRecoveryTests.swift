@@ -1,6 +1,7 @@
 import XCTest
 import StrandAnalytics
 import WhoopStore
+import WhoopProtocol
 @testable import Strand
 
 @MainActor
@@ -159,5 +160,107 @@ final class DayCycleRecoveryTests: XCTestCase {
             respBaseline: nil,
             sleepPerf: AnalyticsEngine.Rest.composite(daily: daily).map { $0 / 100.0 } ?? daily.efficiency,
             skinTempDev: skinDev)
+    }
+}
+
+// MARK: - #2242: the fold makes analyzeDay's MET-vs-HR energy decision over its own window
+
+/// 2026-09-17, first hardware day of the MET-calories toggle: `AnalyticsEngine.analyzeDay` logged the ring's
+/// MET number (1220 kcal) and the export held 743 — Keytel over the wake-to-wake HR window, which this
+/// fold recomputed unconditionally and `applying()` wrote over the day's `activeKcalEst`. These pin the
+/// three outcomes: a covered MET cycle carries the MET total, a thin one is WITHHELD (no HR substitute),
+/// and no MET reader (toggle off) is the byte-identical Keytel path.
+extension DayCycleRecoveryTests {
+
+    private struct CycleFixture {
+        let store: WhoopStore
+        let night: DayCycleIntelligenceIntegration.Night
+        let onset: Int
+        let now: Int
+        let day: String
+        static let owner = "oura-ring"
+    }
+
+    /// One 8-h main sleep 22:00 → 06:00 UTC, `now` 12 h after wake, 1 Hz HR across the whole cycle so the
+    /// Keytel path has something to say when it is allowed to.
+    private func cycleFixture() async throws -> CycleFixture {
+        let store = try await WhoopStore.inMemory()
+        let onset = 1_755_208_800 - 2 * 3_600            // 2026-08-14 22:00 UTC
+        let wake = onset + 8 * 3_600
+        let now = wake + 12 * 3_600
+        let day = AnalyticsEngine.dayString(wake, offsetSec: 0)
+        try await store.upsertDevice(id: CycleFixture.owner, mac: nil, name: "Oura")
+        let hr = stride(from: onset, to: now, by: 1).map { HRSample(ts: $0, bpm: $0 < wake ? 52 : 74) }
+        try await store.insert(Streams(hr: hr), deviceId: CycleFixture.owner)
+        let sleep = CachedSleepSession(startTs: onset, endTs: wake, efficiency: 0.9, restingHr: 50,
+                                       avgHrv: nil, stagesJSON: nil, deviceId: CycleFixture.owner)
+        let daily = DailyMetric(
+            day: day, totalSleepMin: 460, efficiency: 0.9, deepMin: 80, remMin: 90, lightMin: 290,
+            disturbances: 3, restingHr: 50, avgHrv: nil, recovery: nil, strain: nil, exerciseCount: nil,
+            steps: nil, activeKcalEst: nil, skinTempC: nil, sleepHrOnly: nil)
+        let night = DayCycleIntelligenceIntegration.Night(daily: daily, sleeps: [sleep], workouts: [],
+                                                          owner: CycleFixture.owner)
+        return CycleFixture(store: store, night: night, onset: onset, now: now, day: day)
+    }
+
+    private func computeCycle(_ f: CycleFixture,
+                              metReader: DayCycleIntelligenceIntegration.MetReader?) async
+        -> DayCycleIntelligenceIntegration.Result {
+        await DayCycleIntelligenceIntegration.compute(
+            nights: [f.night], editedRows: [], store: f.store,
+            candidates: [(owner: CycleFixture.owner, priority: 0)],
+            physiologyOwners: [CycleFixture.owner], workouts: [],
+            windowStart: f.onset - 86_400, now: f.now, offsetSec: 0,
+            habitualMidsleepSec: nil, ticksPerStep: 1, mode: .sleepOnset,
+            cache: DayCycleIntelligenceIntegration.Cache(), profile: UserProfile(),
+            maxHROverride: nil, effortMethod: .edwards,
+            recoveryReader: DayCycleIntelligenceIntegration.BoundaryRecoveryReader(
+                sleepSessions: { _, _, _ in [] }, markers: { _, _, _ in [] }),
+            metReader: metReader)
+    }
+
+    func testCycleEnergyIsTheMetTotalWhenTheCycleIsCovered() async throws {
+        let f = try await cycleFixture()
+        // Every minute of the cycle at 1.1 MET, one 30-min 4.0 bout after wake.
+        let wake = f.onset + 8 * 3_600
+        let met = stride(from: f.onset, to: f.now, by: 60).map {
+            Calories.MetSample(ts: $0, met: ($0 >= wake + 3_600 && $0 < wake + 5_400) ? 4.0 : 1.1)
+        }
+        var asked: [(String, Int, Int)] = []
+        let result = await computeCycle(f) { owner, from, to in asked.append((owner, from, to)); return met }
+
+        let expected = Calories.estimateDayEnergyFromMET(met, profile: UserProfile(),
+                                                         dayStart: f.onset, dayEnd: f.now)
+        XCTAssertEqual(expected.coverageFraction, 1.0, accuracy: 1e-9)
+        XCTAssertEqual(result.caloriesByWakeDay[f.day], expected.totalKcal, "the MET total, not Keytel over the cycle HR")
+        XCTAssertEqual(asked.count, 1)
+        XCTAssertEqual(asked.first?.0, CycleFixture.owner)
+        XCTAssertEqual(asked.first?.1, f.onset)
+        XCTAssertEqual(asked.first?.2, f.now - 1, "the cycle window, inclusive end like every store read")
+        // And the fold carries it onto the row (the write that used to bring Keytel back).
+        let applied = DayCycleIntelligenceIntegration.applying(result, to: f.night.daily)
+        XCTAssertEqual(applied.activeKcalEst, expected.totalKcal)
+    }
+
+    func testThinMetCoverageWithholdsTheCycleAndDoesNotSubstituteKeytel() async throws {
+        let f = try await cycleFixture()
+        // 10 % of the cycle covered — below the floor — with plenty of HR alongside.
+        let met = stride(from: f.onset, to: f.onset + 2 * 3_600, by: 60).map { Calories.MetSample(ts: $0, met: 3.0) }
+        let result = await computeCycle(f) { _, _, _ in met }
+        XCTAssertNil(result.caloriesByWakeDay[f.day], "withheld: no entry, no HR figure in its place")
+        let applied = DayCycleIntelligenceIntegration.applying(result, to: f.night.daily)
+        XCTAssertNil(applied.activeKcalEst)
+        // The rest of the fold is untouched by the decision.
+        XCTAssertNotNil(result.strainByWakeDay[f.day])
+    }
+
+    func testNoMetReaderIsTheKeytelPath() async throws {
+        let f = try await cycleFixture()
+        let result = await computeCycle(f, metReader: nil)
+        let keytel = try XCTUnwrap(result.caloriesByWakeDay[f.day])
+        XCTAssertGreaterThan(keytel, 0)
+        // An empty MET read is the same as no reader: the HR path, byte for byte.
+        let empty = await computeCycle(f) { _, _, _ in [] }
+        XCTAssertEqual(empty.caloriesByWakeDay[f.day], keytel)
     }
 }

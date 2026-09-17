@@ -1665,6 +1665,7 @@ object IntelligenceEngine {
             tzOffsetSeconds, habitualMidsleepSec, windowStart, nowSeconds, profile.stepTicksPerStep,
             stepsTraceSink, dayCycleMode,
             profile, maxHROverride, effortMethod,
+            ouraMetCaloriesForPass,   // #2242: the fold makes analyzeDay's MET-vs-HR decision over its window
         )
 
         for (res in scoredNights) {

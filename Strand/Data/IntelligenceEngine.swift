@@ -2072,6 +2072,11 @@ final class IntelligenceEngine: ObservableObject {
             profile: up,
             maxHROverride: maxHR,
             effortMethod: effortMethodGlobal,
+            // #2242: the fold makes the same MET-vs-HR energy decision as analyzeDay, over its own window.
+            metReader: ouraMetCaloriesOn ? { owner, from, to in
+                let rows = (try? await store.ouraMetSamples(deviceId: owner, from: from, to: to, limit: 4_000)) ?? []
+                return rows.map { Calories.MetSample(ts: $0.ts, met: $0.met, secPerSample: $0.epochS) }
+            } : nil,
             trace: stepsTraceActive ? { self.diagnosticSink?($0, .steps) } : nil)
         // #299: `editsByStart` is now built PER DAY inside the scoring loop (scoped to the day each edit
         // belongs to), NOT window-wide here. sleepEditedDaily folds any edited row that isn't a twin of THIS
