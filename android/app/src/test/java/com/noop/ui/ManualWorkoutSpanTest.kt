@@ -108,3 +108,39 @@ class ManualWorkoutSpanTest {
         assertNull(WorkoutEditing.buildManualRow("my-whoop", Long.MAX_VALUE - 10, 45, "Run", null, null, now))
     }
 }
+
+/**
+ * The one-minute floor on manual entry, twin of Swift `WorkoutSource.minManualSpanSeconds`.
+ *
+ * The duration-shaped front door already enforced this by accident, counting whole minutes and rejecting
+ * zero. The SPAN-shaped door did not, and that is the one the Add/Edit sheet uses, so a start and end
+ * thirty seconds apart made a row the live path discards. Two doors, two answers, for the same workout.
+ */
+class ManualWorkoutFloorTest {
+    private val now = 1_700_000_000L
+    private val start = now - 7_200L
+
+    private fun build(seconds: Long) = WorkoutEditing.buildManualRowFromSpan(
+        "my-whoop", start, start + seconds, "Run", null, null, now,
+    )
+
+    @Test
+    fun `a sub minute manual entry is refused`() {
+        assertNull("a 30-second manual entry is refused", build(30))
+        assertNull("just under the floor is refused", build(59))
+    }
+
+    @Test
+    fun `exactly a minute is kept`() {
+        // A deliberate one-minute effort is training. The floor is for what falls SHORT of a minute.
+        assertNotNull("exactly a minute is kept", build(60))
+        assertNotNull("an ordinary session is unaffected", build(3600))
+    }
+
+    @Test
+    fun `the floor matches the live session gate`() {
+        // One rule whether a session was tracked or typed in. AppViewModel.endWorkout reads this same
+        // constant, so a change to one cannot leave the two doors disagreeing.
+        assertEquals(60L, WorkoutEditing.MIN_MANUAL_SPAN_SECONDS)
+    }
+}

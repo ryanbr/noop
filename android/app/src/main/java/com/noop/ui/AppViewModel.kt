@@ -1698,6 +1698,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         val endMs = System.currentTimeMillis()
+        // A session under a minute is a start/stop nobody meant to keep. Twin of Swift
+        // `AppModel.endWorkout`, and the same floor the manual doors enforce, so a workout is treated
+        // identically whether it was tracked or typed in. Discarded at SAVE rather than pruned later:
+        // nothing that ever held training data is removed.
+        val elapsedSeconds = (endMs - w.startMs) / 1000L
+        if (elapsedSeconds < WorkoutEditing.MIN_MANUAL_SPAN_SECONDS) {
+            emitWorkoutsTrace {
+                com.noop.analytics.WorkoutsTrace.sessionLine(
+                    event = "discarded", sportKey = WorkoutEditing.traceSportKey(w.sport.name),
+                    hrSamples = samples.size, durationSec = elapsedSeconds.toInt(),
+                    gpsPoints = if (w.gpsEnabled) track.size else null,
+                )
+            }
+            _lastWorkout.value = null
+            return
+        }
         val pausedMs = w.pausedDurationMs + (w.pausedAtMs?.let { endMs - it } ?: 0L)
         val activeDurationMs = (endMs - w.startMs - pausedMs).coerceAtLeast(0L)
         val avg = if (samples.isNotEmpty()) samples.sumOf { it.bpm } / samples.size else null

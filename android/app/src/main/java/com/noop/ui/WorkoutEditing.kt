@@ -378,6 +378,15 @@ object WorkoutEditing {
     const val MAX_MANUAL_SPAN_SECONDS: Long = 24L * 60L * 60L
 
     /**
+     * Shortest manual session worth keeping, the twin of Swift `WorkoutSource.minManualSpanSeconds`.
+     *
+     * The duration-shaped front door already enforced this by accident, counting whole minutes and
+     * rejecting zero. The SPAN-shaped door did not, and that is the one the Add/Edit sheet uses, so a
+     * start and end thirty seconds apart made a row the live path discards.
+     */
+    const val MIN_MANUAL_SPAN_SECONDS: Long = 60L
+
+    /**
      * The end a given duration implies. The sheet uses this when the user types a duration, so a typed
      * duration and a picked end produce byte-identical rows.
      */
@@ -432,6 +441,7 @@ object WorkoutEditing {
         if (trimmed.isEmpty() || startSeconds <= 0 || startSeconds > nowSeconds) return null
         if (endSeconds <= startSeconds) return null
         val spanSeconds = endSeconds - startSeconds
+        if (spanSeconds < MIN_MANUAL_SPAN_SECONDS) return null
         if (spanSeconds > MAX_MANUAL_SPAN_SECONDS) return null
         if (endSeconds > nowSeconds) return null
         if (avgHr != null && avgHr !in 25..250) return null
