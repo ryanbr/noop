@@ -1654,11 +1654,11 @@ fun TodayScreen(
                     onDrop = { TodayLayoutPrefs.setOrder(context, sectionOrder) },
                 ) {
                     when (section) {
-                        // HERO, three equal Charge / Effort / Rest liquid vessels in the compact pinned-dark
+                        // HERO, three equal Charge / Effort / Rest GlowRings in the compact pinned-dark
                         // card used by LiquidTodayView. Effort prefers today's live in-progress strain and
                         // falls back to the stored value (#402); the floating badge names the real score
                         // sources. The honest "why is Effort 0?" caption (#482/#480) travels WITH the hero
-                        // (folded into this section) so wherever the vessels sit, their explanation follows.
+                        // (folded into this section) so wherever the rings sit, their explanation follows.
                         TodaySection.HERO -> Column(
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -2944,10 +2944,11 @@ internal const val HERO_CHARGE_METRIC_KEY = "recovery"
 internal const val HERO_EFFORT_METRIC_KEY = "strain"
 internal const val HERO_REST_METRIC_KEY = "rest"
 
-// MARK: - Score hero row, three Charge / Effort / Rest score vessels
+// MARK: - Score hero row, three Charge / Effort / Rest score rings
 //
-// The liquid Today hero: three equal daily-score vessels in Charge / Effort / Rest order, with a tappable
-// label beneath each one and one card-level provenance badge aligned to the Rest vessel's trailing edge.
+// The ring-style Today hero: three equal daily-score GlowRings in Charge / Effort / Rest order, with a
+// tappable label beneath each one and one card-level provenance badge aligned to the Rest ring's trailing
+// edge. Same GlowRing primitive the Intelligence forecast card uses, with its spring arc + count-up anim.
 
 @Composable
 private fun ScoreHeroRow(
@@ -2984,13 +2985,6 @@ private fun ScoreHeroRow(
     val effortOutOf = if (effortScale == EffortScale.WHOOP) 21.0 else 100.0
     val effortVal = strain?.let { UnitFormatter.effortValue(it, effortScale) } ?: 0.0
 
-    // The vessels run LIVE (per-frame slosh + tilt) once the row has any real score to show; a wholly
-    // empty/calibrating hero poses them static so a brand-new user's launch churn isn't fighting live
-    // canvases (the Android equivalent of the iOS `dataLoaded` gate on HeroScoreCell). LiquidVessel + the
-    // count-up both honour Reduce Motion internally, so this is purely a "don't animate an empty hero" cost
-    // gate. A carried Charge counts as data (its dimmed vessel should slosh like the Rest one).
-    val animated = recovery != null || strain != null || restScore != null || lastScoredCharge != null
-
     Box(
         modifier = Modifier
             .fillMaxWidth(),
@@ -3022,7 +3016,7 @@ private fun ScoreHeroRow(
                 horizontalArrangement = Arrangement.spacedBy(ringGap, Alignment.CenterHorizontally),
                 verticalAlignment = Alignment.Top,
             ) {
-                // CHARGE, recovery 0–100, as a liquid VESSEL with the value counting up over it. Honest
+                // CHARGE, recovery 0–100, as a GlowRing with the value counting up in the centre. Honest
                 // empty / calibrating overlay; badges its recovery winner.
                 val effortRingTap = onOpenMetric?.let { open -> { open(HERO_EFFORT_METRIC_KEY) } }
                 val restRingTap = onOpenMetric?.let { open -> { open(HERO_REST_METRIC_KEY) } }
@@ -3046,9 +3040,7 @@ private fun ScoreHeroRow(
                                 value = carried.value,
                                 tint = Palette.recoveryColor(carried.value),
                                 diameter = ring,
-                                animated = animated,
                                 showsValue = true,
-                                onTap = onChargeTap,
                             )
                         } else {
                             HeroScoreVessel(
@@ -3056,9 +3048,7 @@ private fun ScoreHeroRow(
                                 value = recovery ?: 0.0,
                                 tint = Palette.recoveryColor(recovery ?: 0.0),
                                 diameter = ring,
-                                animated = animated,
                                 showsValue = recovery != null,
-                                onTap = onChargeTap,
                             )
                             // Empty vessel + calibrating / no-data overlay (the carried case is above).
                             if (recovery == null) RingEmptyOverlay(recoveryCalibration, diameter = ring)
@@ -3067,7 +3057,7 @@ private fun ScoreHeroRow(
                         // the vessel (HeroRingColumn), matching iOS where the in-ring cue was removed.
                     }
                 }
-                // EFFORT, strain on the gauge, on the user's selected scale, as a liquid vessel.
+                // EFFORT, strain on the gauge, on the user's selected scale, as a GlowRing.
                 HeroRingColumn(
                     modifier = Modifier.width(col),
                     domain = DomainTheme.Effort,
@@ -3084,10 +3074,8 @@ private fun ScoreHeroRow(
                             value = effortVal,
                             tint = Palette.effortTint((strain ?: 0.0) / 100.0),
                             diameter = ring,
-                            animated = animated,
                             showsValue = strain != null,
                             format = { if (effortScale == EffortScale.WHOOP) String.format(Locale.getDefault(), "%.1f", it) else it.toInt().toString() },
-                            onTap = effortRingTap,
                         )
                         if (strain == null) RingNoData(diameter = ring)
                     }
@@ -3118,9 +3106,7 @@ private fun ScoreHeroRow(
                                 value = restScore ?: 0.0,
                                 tint = Palette.recoveryColor(restScore ?: 0.0),
                                 diameter = ring,
-                                animated = animated,
                                 showsValue = restScore != null,
-                                onTap = restRingTap,
                             )
                             if (restScore == null) {
                                 // #898: an aggregate-import user (a daily HRV/RHR import, no in-bed session) gets a
@@ -3283,18 +3269,16 @@ private fun HeroRingColumn(
 }
 
 /**
- * One hero score as a liquid VESSEL with the value counting up over it — the signature liquid Today hero
- * element. A [LiquidVessel] (Compose primitive, LiquidPrimitives.kt) fills to [fraction] (0..1) in the
- * domain [tint], sized to [diameter]; over it a [CountUpText] rolls the number up to [value] (white,
- * tabular, a soft shadow so it reads on the vessel), matching the iOS `HeroScoreCell` (a count-up number
- * over a filling vessel). The number is hit-transparent (clearAndSetSemantics + no clickable) so a tap
- * falls THROUGH to the vessel — LiquidVessel owns its own tap→splash+haptic; the enclosing HeroRingColumn
- * adds the Charge breakdown tap. When [showsValue] is false (no score yet) the vessel draws empty and the
- * caller overlays the calibrating / No-Data text, so the number is simply omitted here.
+ * One hero score as a [GlowRing] — the ring-style gauge shared with the Intelligence forecast card.
+ * Replaces the former liquid-vessel hero with the same crisp-arc + count-up primitive the rest of the
+ * app already uses: a 10%-of-diameter stroke, spring arc from 12 o'clock, and a tween count-up number
+ * at `diameter * 0.36` Bold (the [glowRingCenterTextStyle] house numeral). The caller overlays the
+ * calibrating / No-Data / Needs-a-Tracked-Night text when [showsValue] is false, matching the prior
+ * liquid-vessel branch structure.
  *
- * The number size tracks the diameter (≈ 0.27×, capped) so the three equal vessels stay balanced; it
- * mirrors the iOS 96dp-vessel → 26pt-number ratio. Values/bindings are UNCHANGED from the GlowRing this
- * replaced — same fraction, same value, same value-sampled tint.
+ * Values/bindings are UNCHANGED from the LiquidVessel this replaced — same fraction, same value, same
+ * value-sampled tint — so the ring colour, fill and number agree with every other surface that shows
+ * the metric.
  */
 @Composable
 private fun HeroScoreVessel(
@@ -3303,35 +3287,19 @@ private fun HeroScoreVessel(
     tint: Color,
     diameter: Dp,
     modifier: Modifier = Modifier,
-    animated: Boolean = true,
     showsValue: Boolean = true,
     format: (Double) -> String = { it.roundToInt().toString() },
-    // #1995: forwarded to LiquidVessel so the ring can act on a tap as well as splash. Wrapping the
-    // vessel in a clickable parent does NOT work: its own clickable consumes the event first.
-    onTap: (() -> Unit)? = null,
 ) {
-    Box(modifier = modifier.size(diameter), contentAlignment = Alignment.Center) {
-        LiquidVessel(
-            value = fraction.coerceIn(0.0, 1.0),
-            tint = tint,
-            animated = animated,
-            modifier = Modifier.size(diameter),
-            onTap = onTap,
-        )
-        if (showsValue) {
-            // Count-up number over the vessel — white, tabular, a soft shadow for legibility, hit-transparent
-            // so the tap reaches the vessel (splash). Size ≈ diameter × 0.27 (iOS 96→26 ratio), capped.
-            val numberSp = (diameter.value * 0.27f).coerceIn(20f, 30f)
-            CountUpText(
-                value = value,
-                format = format,
-                style = NoopType.number(numberSp, weight = FontWeight.Bold)
-                    .copy(shadow = Shadow(color = Color.Black.copy(alpha = 0.5f), offset = Offset(0f, 1f), blurRadius = 6f)),
-                color = Color.White,
-                modifier = Modifier.clearAndSetSemantics {},
-            )
-        }
-    }
+    GlowRing(
+        fraction = fraction.coerceIn(0.0, 1.0).toFloat(),
+        value = value,
+        color = tint,
+        diameter = diameter,
+        lineWidth = diameter * 0.10f,
+        modifier = modifier,
+        showsLabel = showsValue,
+        format = format,
+    )
 }
 
 /**
