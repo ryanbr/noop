@@ -317,8 +317,24 @@ struct IntervalTimerView: View {
 
     private func overviewStat(_ label: String, _ value: String, _ color: Color) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(label.uppercased()).font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
-            Text(value).font(StrandFont.number(18)).foregroundStyle(color)
+            // Same shape, and the same hazard, as IntelligenceView's day-row stat: four equal columns
+            // with NO gap (`HStack(spacing: 0)` above), so a label wide enough to fill its column runs
+            // into the next. "REMAINING" is the longest label on either screen at nine characters, and
+            // the value here is a time string that grows to "1:23:45" on a long session, so BOTH are
+            // protected rather than just the label.
+            //
+            // Not yet reported here; found by sweeping for the shape after the Intelligence card was
+            // seen rendering "CHARGEEFFORT" on a device. Larger Dynamic Type is where either bites.
+            Text(label.uppercased())
+                .font(StrandFont.footnote)
+                .foregroundStyle(StrandPalette.textTertiary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Text(value)
+                .font(StrandFont.number(18))
+                .foregroundStyle(color)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

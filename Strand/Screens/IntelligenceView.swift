@@ -309,7 +309,24 @@ struct IntelligenceView: View {
 
     private func stat(_ label: String, _ value: String, _ color: Color) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(label.uppercased()).font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+            // `lineLimit` + `minimumScaleFactor` so a long label shrinks instead of running into its
+            // neighbour. The five stats share the width as equal columns with NO gap between them
+            // (`HStack(spacing: 0)` above), so a label wide enough to fill its column touches the next
+            // one: "CHARGE" and "EFFORT" are the two longest and collide first, while REST / HRV / RHR
+            // still look spaced. Reported from a device screenshot reading "CHARGEEFFORT".
+            //
+            // The VALUE below has carried this protection all along; only the label went without. The
+            // Android twin's label already sets `maxLines = 1` with `TextOverflow.Ellipsis`, so this was
+            // an iOS-only gap rather than a shared one.
+            //
+            // Scaled rather than truncated, matching how the value directly beneath is treated: "CHARG…"
+            // reads worse than a slightly smaller "CHARGE". Larger Dynamic Type is where this bites, so
+            // the floor has to leave room for the longest label at the widest text size.
+            Text(label.uppercased())
+                .font(StrandFont.footnote)
+                .foregroundStyle(StrandPalette.textTertiary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
             Text(value).font(StrandFont.number(20)).foregroundStyle(color).lineLimit(1).minimumScaleFactor(0.6)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
