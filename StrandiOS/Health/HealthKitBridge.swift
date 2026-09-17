@@ -279,9 +279,10 @@ final class HealthKitBridge: ObservableObject {
 
     // MARK: - Live delivery (continuous ingestion)
 
-    /// The scored read types we want a live observer + hourly background delivery on. This is the
-    /// subset of `quantityReadIds` (plus sleep) that actually feeds Charge/Rest/Effort/Fitness Age, so
-    /// a watch-only user's numbers refresh on their own rather than only when the app is foregrounded.
+    /// The QUANTITY types we want a live observer + hourly background delivery on. This is the subset of
+    /// `quantityReadIds` that actually feeds Charge/Rest/Effort/Fitness Age, so a watch-only user's numbers
+    /// refresh on their own rather than only when the app is foregrounded. `enableLiveDelivery` observes
+    /// these plus sleep and workouts; this list is not the whole observed set.
     /// We deliberately do NOT observe the body-composition reads (weight/BMI/etc.) — those don't move a
     /// score and a manual weigh-in shouldn't wake the app every hour.
     private static let liveQuantityIds: [HKQuantityTypeIdentifier] = [
@@ -305,6 +306,24 @@ final class HealthKitBridge: ObservableObject {
             if let t = HKObjectType.quantityType(forIdentifier: id) { types.append(t) }
         }
         if let sleep = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) { types.append(sleep) }
+        // Workouts, for the same reason the scored reads are here: without an observer a Watch workout
+        // reached NOOP only at the next foreground open, or whenever an unrelated type happened to wake
+        // the app, so up to an hour late and sometimes longer (#2265).
+        //
+        // The lag is not only cosmetic. A strap offload can score, detect a bout and write it to Apple
+        // Health entirely in the background while the Watch workout covering the same session is still
+        // unknown here, so the overlap check that would have suppressed that bout has nothing to compare
+        // against, and the wearer is asked to confirm a session the Watch already recorded.
+        //
+        // Nothing else needs widening: the loop below is already over `HKSampleType`, and
+        // `collectWorkouts` already filters on `notNoopAuthored`, so a workout THIS app wrote cannot wake
+        // it into re-importing its own row.
+        //
+        // This NARROWS the race rather than closing it. An observer wake is not instantaneous, so an
+        // offload that completes inside the wake latency still sees no Apple workout. Whether HealthKit
+        // honours background delivery on `workoutType` at the quantity-type cadence is also unverified,
+        // and unverifiable off-device: HealthKit has no simulator support.
+        types.append(HKObjectType.workoutType())
 
         for type in types {
             let key = type.identifier
@@ -369,7 +388,8 @@ final class HealthKitBridge: ObservableObject {
         let window = max(1, min(31, daysBack + 1))
         // A sync completed moments ago and covered at least this wake's window, so a second full pass
         // would burn ~15 HealthKit aggregate queries and a write-back to re-derive rows that sync just
-        // wrote. Stand down. This is what collapses the hourly burst of six observers into one sync.
+        // wrote. Stand down. This is what collapses the hourly burst of observers into one sync (seven of
+        // them since workouts joined the set, #2265 — a count worth not restating as a literal again).
         // FOREGROUND catch-up deliberately does not consult this: an explicit resume should always read.
         // `age >= 0` is not defensive noise. This is WALL-CLOCK time, and it can move backwards — an NTP
         // correction, or a user changing the date. A negative age satisfies `< window`, so every wake would
