@@ -50,7 +50,22 @@ object ScheduledReportPolicy {
      *  we haven't already posted for [reportDay]. [reportDay] is the day of the banked night the recap is
      *  FOR (the resolved today-row's `day`), NOT the phone's calendar day — keying on the calendar day made
      *  it re-fire at midnight for anyone up late, since the row still resolves to last night's until a new
-     *  night is banked (#567). */
+     *  night is banked (#567).
+     *
+     *  [nowMinuteOfDay] holds the recap until [earliestMinuteOfDay]. A suppressed recap posts on the next
+     *  evaluation of this gate, and the once-per-night key is untouched while it waits, so deferring cannot
+     *  produce a second copy.
+     *
+     *  What deferring CAN do is lose one, and the bound is worth knowing rather than discovering. This gate
+     *  runs from `AppViewModel`'s `recentDays` collector, a Room-backed StateFlow with
+     *  `WhileSubscribed(5_000)`: it re-evaluates on a database write or on re-subscription, NOT on a clock.
+     *  A connected strap writes rows through the night, and backgrounding the app drops the subscription so
+     *  reopening replays, which covers the ordinary paths. But a process that stays alive from 00:40 past
+     *  the floor with no write in between never re-evaluates, and that day's recap does not arrive at all,
+     *  where before it would have arrived at 00:40 to someone asleep.
+     *
+     *  That is the second cost of a floor, beside a late recap still calling itself "Good morning". Both
+     *  are why this is a stopgap and the wake-based version is the real answer (#2289). */
     fun shouldNotifyMorning(
         enabled: Boolean,
         chargeOrRestPresent: Boolean,
