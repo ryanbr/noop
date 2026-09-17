@@ -771,9 +771,27 @@ def swift_returned_copy_literals(text: str):
             if ch == '"':
                 literal_end = _skip_swift_string_literal(text, i)
                 prefix = text[max(body_start, i - 60):i]
+                line = prefix.rsplit("\n", 1)[-1]
+                # Returned copy, in the spellings a label property actually uses: a `switch` arm
+                # (`case .a: return "Alpha"`, or the implicit-return form), or a ternary.
+                #
+                # A bare "ends with a colon" test is NOT enough to spot a case arm: every argument label
+                # ends the same way, so `joined(separator: ", ")` looked like returned copy and the
+                # separator was reported as untranslated UI.
+                #
+                # Keyed on the RETURN, not on brace depth. Depth alone looked right and silently missed
+                # the commoner shape: a `switch` opens a second brace level, so every `case ... return`
+                # arm sat a level deeper than the ternary this rule was first written against, and the
+                # dominant form in this repository went unchecked.
+                stripped = line.lstrip()
+                returned = (
+                    "return" in line                       # `return "Alpha"`
+                    or "?" in line                         # `cond ? "Alpha" : "Beta"`
+                    or stripped.startswith(("case ", "default"))  # `case .a: "Alpha"` (implicit return)
+                )
                 # `String(localized: "...")` is the sanctioned spelling for a String-typed value: the
                 # literal already sits in a localized position and the normal scan handles it.
-                if depth == 1 and "localized:" not in prefix:
+                if returned and "localized:" not in prefix:
                     yield i, text[i + 1:literal_end - 1]
                 i = literal_end
                 continue

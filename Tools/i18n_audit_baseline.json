@@ -884,6 +884,10 @@
     ],
     [
       "Strand/Screens/BreathingView.swift",
+      "%.0f / %.0fs"
+    ],
+    [
+      "Strand/Screens/BreathingView.swift",
       "%.1f br/min"
     ],
     [
@@ -1065,10 +1069,6 @@
     [
       "Strand/Screens/TrendsView.swift",
       "Opens the full \\(accessibilityTitle) metric."
-    ],
-    [
-      "Strand/Screens/VitalSignsSummary.swift",
-      "unverified · over-reports R-R"
     ],
     [
       "Strand/Screens/WorkoutDetailView.swift",
