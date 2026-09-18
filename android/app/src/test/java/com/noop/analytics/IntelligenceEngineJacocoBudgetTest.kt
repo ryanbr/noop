@@ -1,7 +1,6 @@
 package com.noop.analytics
 
 import com.noop.data.DailyMetric
-import com.noop.data.GravityWitness
 import com.noop.data.WhoopDao
 import com.noop.data.WhoopRepository
 import java.lang.reflect.InvocationTargetException

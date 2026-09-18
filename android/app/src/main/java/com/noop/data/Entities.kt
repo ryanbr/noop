@@ -92,18 +92,9 @@ data class HrBucket(
     val maxBpm: Double,
 )
 
-/** The per-day gravity witness the steps-calibration motion cache keys on: [c] rows in the window and
- *  [m] the newest timestamp among them. Query result of [WhoopDao.gravityWitnessInWindow], not a table.
- *  Both columns come from ONE aggregate so the pair always describes a state the day was actually in;
- *  mirrors the tuple Swift's `WhoopStore.gravityFingerprint` returns. */
-data class GravityWitness(
-    val c: Int,
-    val m: Long,
-)
-
 /**
  * One local day's gravity witness from the BATCHED scan: the day bucket plus the same (count, newestTs)
- * pair [GravityWitness] carries for a single day. `d` is `(ts + tzOffset) / 86400`, the local-day index
+ * pair the witness carries for a single day. `d` is `(ts + tzOffset) / 86400`, the local-day index
  * the caller derives its day boundaries from, so a bucket maps back to exactly one calendar day under
  * the SAME single offset the steps window already uses. Query result of `WhoopDao.gravityWitnessByDay`.
  */
