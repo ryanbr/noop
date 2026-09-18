@@ -1,4 +1,29 @@
 {
   "schema_version": 1,
-  "dispositions": []
+  "dispositions": [
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-constant",
+      "identity": "swift\u0000Packages/StrandImport/Sources/StrandImport/HealthWriteback.swift::unchangedRewriteIntervalSeconds",
+      "identity_sha256": "21b652991cbcccbade6fb8090505d865c3f0151babdfab3b216cd92c2d3b2f80",
+      "platform": "swift",
+      "rationale": "Used only by the iOS HealthKitBridge write-back to skip rewriting an unchanged batch; the Android Health Connect exporter does not call it yet (tracked in the PR)."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/StrandImport/Sources/StrandImport/HealthWriteback.swift::batchFingerprint/1#1",
+      "identity_sha256": "d7af38b439901b5da88eb4dd28f901538d156e1ccd91ccf099d7cd8b91b88e48",
+      "platform": "swift",
+      "rationale": "Used only by the iOS HealthKitBridge write-back to skip rewriting an unchanged batch; the Android Health Connect exporter does not call it yet (tracked in the PR)."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/StrandImport/Sources/StrandImport/HealthWriteback.swift::canSkipUnchangedWrite/4#1",
+      "identity_sha256": "85fc78a25cbd9987c5b651e223328b88e20549bc28c2be239c13a2c44ae572df",
+      "platform": "swift",
+      "rationale": "Used only by the iOS HealthKitBridge write-back to skip rewriting an unchanged batch; the Android Health Connect exporter does not call it yet (tracked in the PR)."
+    }
+  ]
 }

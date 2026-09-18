@@ -181,6 +181,35 @@ public enum HealthWriteback {
         appleHealthExternalUUID(kind: metricId, identity: day)
     }
 
+    // MARK: - Skipping an unchanged rewrite
+
+    /// How long an unchanged batch may go without being rewritten. The skip trusts that Health still holds
+    /// what was written; a daily rewrite restores anything removed there since (a user clearing NOOP's data
+    /// in the Health app, say) without paying for a rewrite on every sync.
+    public static let unchangedRewriteIntervalSeconds = 24 * 3_600
+
+    /// A fingerprint of a batch about to be written: one descriptor per sample, order-independent. FNV-1a
+    /// over the sorted descriptors, so it is stable across launches and devices, unlike `Hasher`.
+    public static func batchFingerprint(_ descriptors: [String]) -> String {
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        for descriptor in descriptors.sorted() {
+            for byte in descriptor.utf8 { hash = (hash ^ UInt64(byte)) &* 0x0000_0100_0000_01b3 }
+            hash = (hash ^ 0x0a) &* 0x0000_0100_0000_01b3
+        }
+        return "\(descriptors.count):" + String(hash, radix: 16)
+    }
+
+    /// Whether a write can be skipped: the batch is identical to the last one that saved, and that save is
+    /// recent enough to trust (`unchangedRewriteIntervalSeconds`).
+    ///
+    /// The write-back runs after every completed offload, about every 10 minutes while a strap is connected,
+    /// and each run deleted and re-saved fourteen days of sleep, vitals and workouts that had not changed.
+    public static func canSkipUnchangedWrite(fingerprint: String, lastFingerprint: String?, lastWrittenAt: Int?,
+                                             now: Int) -> Bool {
+        guard let lastFingerprint, let lastWrittenAt else { return false }
+        return lastFingerprint == fingerprint && now - lastWrittenAt < unchangedRewriteIntervalSeconds
+    }
+
     /// The sleep key: `noop:sleep:<startTs>`.
     public static func appleHealthSleepKey(startTs: Int) -> String {
         appleHealthExternalUUID(kind: "sleep", identity: "\(startTs)")
