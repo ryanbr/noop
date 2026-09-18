@@ -62,4 +62,49 @@ class AlarmReadbackTest {
         assertEquals("  (readback is from a different strap — not comparable)", AlarmReadback.suffix(Verdict.DIFFERENT_STRAP))
         assertEquals("  (no strap recorded for one of these — not comparable)", AlarmReadback.suffix(Verdict.UNATTRIBUTED))
     }
+
+    // --- #2322: same strap, but was it the same ARM? ---
+
+    private val armedAt = 1_789_728_000_000L   // wall clock when the arm went out, millis
+
+    @Test fun aReadbackOlderThanTheArmIsNotComparable() {
+        // The shape from #2322: an arm goes out, its readback frame fails to decode, so the PREVIOUS
+        // readback is still what is stored. Judging it blames the strap for answering a question it was
+        // never asked on this arm.
+        val v = AlarmReadback.verdict(sent, reported, "whoop-a", "whoop-a",
+                                      sentAt = armedAt, reportedAt = armedAt - 60_000L)
+        assertEquals(Verdict.STALE_READBACK, v)
+        assertFalse("a readback from an earlier arm must not climb the streak",
+                    AlarmReadback.countsAsRejection(v))
+        assertFalse("nor may it clear a real refusal", AlarmReadback.clearsRejectionStreak(v))
+    }
+
+    @Test fun aReadbackThatAnsweredThisArmIsStillJudged() {
+        // The guard must not swallow the real signal it sits in front of.
+        assertEquals(Verdict.MISMATCH, AlarmReadback.verdict(sent, reported, "whoop-a", "whoop-a",
+                                                            sentAt = armedAt, reportedAt = armedAt + 900L))
+        assertEquals(Verdict.MATCHES, AlarmReadback.verdict(sent, sent + 5, "whoop-a", "whoop-a",
+                                                           sentAt = armedAt, reportedAt = armedAt + 900L))
+    }
+
+    @Test fun anInstallWithNoArrivalStampsJudgesAsBefore() {
+        // 0 means the key was never written (an install predating them). Staleness is then not judged
+        // rather than guessed, so behaviour is byte-identical to the pre-#2322 verdict.
+        assertEquals(Verdict.MISMATCH, AlarmReadback.verdict(sent, reported, "whoop-a", "whoop-a",
+                                                             sentAt = 0L, reportedAt = 0L))
+        assertEquals(Verdict.MISMATCH, AlarmReadback.verdict(sent, reported, "whoop-a", "whoop-a",
+                                                             sentAt = armedAt, reportedAt = 0L))
+    }
+
+    @Test fun aCrossStrapPairIsNamedBeforeStaleness() {
+        // Both faults at once: the strap problem is the one that sends the reader to the right device.
+        assertEquals(Verdict.DIFFERENT_STRAP,
+                     AlarmReadback.verdict(sent, reported, "whoop-a", "whoop-b",
+                                           sentAt = armedAt, reportedAt = armedAt - 60_000L))
+    }
+
+    @Test fun staleHasItsOwnSuffix() {
+        assertEquals("  (readback predates this arm — not comparable)",
+                     AlarmReadback.suffix(Verdict.STALE_READBACK))
+    }
 }

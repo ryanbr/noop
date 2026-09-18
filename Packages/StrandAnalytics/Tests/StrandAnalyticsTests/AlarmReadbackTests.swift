@@ -62,4 +62,53 @@ final class AlarmReadbackTests: XCTestCase {
         XCTAssertEqual(AlarmReadback.suffix(.differentStrap), "  (readback is from a different strap — not comparable)")
         XCTAssertEqual(AlarmReadback.suffix(.unattributed), "  (no strap recorded for one of these — not comparable)")
     }
+
+    // MARK: - #2322: same strap, but was it the same ARM?
+
+    private let armedAt: Double = 1_789_728_000   // wall clock when the arm went out, seconds
+
+    func testAReadbackOlderThanTheArmIsNotComparable() {
+        // The shape from #2322: an arm goes out, its readback frame fails to decode, so the PREVIOUS
+        // readback is still what is stored. Judging it blames the strap for answering a question it was
+        // never asked on this arm.
+        let v = AlarmReadback.verdict(sentEpoch: sent, reportedEpoch: reported,
+                                      sentDeviceId: "whoop-a", reportedDeviceId: "whoop-a",
+                                      sentAt: armedAt, reportedAt: armedAt - 60)
+        XCTAssertEqual(v, .staleReadback)
+        XCTAssertFalse(AlarmReadback.countsAsRejection(v),
+                       "a readback from an earlier arm must not climb the streak")
+        XCTAssertFalse(AlarmReadback.clearsRejectionStreak(v), "nor may it clear a real refusal")
+    }
+
+    func testAReadbackThatAnsweredThisArmIsStillJudged() {
+        // The guard must not swallow the real signal it sits in front of.
+        XCTAssertEqual(AlarmReadback.verdict(sentEpoch: sent, reportedEpoch: reported,
+                                             sentDeviceId: "whoop-a", reportedDeviceId: "whoop-a",
+                                             sentAt: armedAt, reportedAt: armedAt + 1), .mismatch)
+        XCTAssertEqual(AlarmReadback.verdict(sentEpoch: sent, reportedEpoch: sent + 5,
+                                             sentDeviceId: "whoop-a", reportedDeviceId: "whoop-a",
+                                             sentAt: armedAt, reportedAt: armedAt + 1), .matches)
+    }
+
+    func testAnInstallWithNoArrivalStampsJudgesAsBefore() {
+        // nil means the key was never written (an install predating them). Staleness is then not judged
+        // rather than guessed, so behaviour is byte-identical to the pre-#2322 verdict.
+        XCTAssertEqual(AlarmReadback.verdict(sentEpoch: sent, reportedEpoch: reported,
+                                             sentDeviceId: "whoop-a", reportedDeviceId: "whoop-a"),
+                       .mismatch)
+        XCTAssertEqual(AlarmReadback.verdict(sentEpoch: sent, reportedEpoch: reported,
+                                             sentDeviceId: "whoop-a", reportedDeviceId: "whoop-a",
+                                             sentAt: armedAt, reportedAt: nil), .mismatch)
+    }
+
+    func testACrossStrapPairIsNamedBeforeStaleness() {
+        // Both faults at once: the strap problem is the one that sends the reader to the right device.
+        XCTAssertEqual(AlarmReadback.verdict(sentEpoch: sent, reportedEpoch: reported,
+                                             sentDeviceId: "whoop-a", reportedDeviceId: "whoop-b",
+                                             sentAt: armedAt, reportedAt: armedAt - 60), .differentStrap)
+    }
+
+    func testStaleHasItsOwnSuffix() {
+        XCTAssertEqual(AlarmReadback.suffix(.staleReadback), "  (readback predates this arm — not comparable)")
+    }
 }

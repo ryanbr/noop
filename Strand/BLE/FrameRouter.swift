@@ -254,11 +254,25 @@ public final class FrameRouter {
                                 sentEpoch: sent,
                                 reportedEpoch: Int(epoch),
                                 sentDeviceId: d.string(forKey: "alarm.lastArmDeviceId"),
-                                reportedDeviceId: deviceId)   // the local, not a re-read of what we just wrote
+                                reportedDeviceId: deviceId,   // the local, not a re-read of what we just wrote
+                                // #2322: this readback is arriving NOW, so it cannot be stale here and the
+                                // guard is a no-op on this path. Passed anyway so both call sites ask the
+                                // same question: a future caller that judges a STORED readback gets the
+                                // staleness check for free rather than rediscovering the gap.
+                                sentAt: d.object(forKey: "alarm.lastArmAt") as? Double,
+                                reportedAt: Date().timeIntervalSince1970)
                             if AlarmReadback.countsAsRejection(verdict) {
                                 d.set(d.integer(forKey: "alarm.rejectStreak") + 1, forKey: "alarm.rejectStreak")
                             } else if AlarmReadback.clearsRejectionStreak(verdict) {
                                 d.set(0, forKey: "alarm.rejectStreak")
+                            } else if verdict == .staleReadback {
+                                // #2322: deliberately does NOTHING to the streak, and deliberately does
+                                // NOT repeat the one-time discard below. #1706 could discard because
+                                // EVERY comparison it replaced was cross-strap and therefore invalid. A
+                                // streak standing here is not like that: most of its increments came from
+                                // readbacks that did answer their arm, so wiping it would hide a real
+                                // refusal to spare a few false ones. Leaving it untouched is the same
+                                // "no evidence either way" stance the verdict itself takes.
                             } else if verdict == .unattributed {
                                 // Any streak standing here was built by the cross-strap comparison this
                                 // replaces, so it cannot be trusted — and since only a proven match clears

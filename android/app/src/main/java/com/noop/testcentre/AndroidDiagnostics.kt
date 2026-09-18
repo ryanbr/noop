@@ -535,8 +535,11 @@ object AndroidDiagnostics {
             val sent = p.getLong("alarm.lastArmSentEpoch", 0L)
             if (sent > 0L) {
                 val at = p.getLong("alarm.lastArmAt", 0L)
-                var line = "Last arm: sent ${alarmStamp(sent)}"
-                if (at > 0L) line += " · ${relTime(System.currentTimeMillis() - at)}"
+                // #2322: "for <alarm time> · sent <ago>". The old shape put both clocks on one line as
+                // "sent <alarm time> · <ago>", which reads as "we sent that time, that long ago" — but the
+                // stamp is the FUTURE instant armed and the relative time is when the command went out.
+                var line = "Last arm: for ${alarmStamp(sent)}"
+                if (at > 0L) line += " · sent ${relTime(System.currentTimeMillis() - at)}"
                 if (!p.getBoolean("alarm.lastArmConnected", false)) line += " · strap NOT connected (queued)"
                 // #34: live HR at arm, logged only to test whether the strap's own sleep/rest detection
                 // (not anything NOOP sends) gates the physical haptic — see recordAlarmArm's doc comment.
@@ -547,13 +550,23 @@ object AndroidDiagnostics {
                     // #1706: only judge when both halves are known to be the SAME strap. The readback is
                     // written on the WHOOP 4.0 path alone, so a 5.0-active install comparing these was
                     // always comparing two devices and then blaming one of them.
+                    // #2322: and only when the readback ANSWERED this arm. A readback that failed to
+                    // decode leaves the previous one standing, so without the arrival stamps this line
+                    // compared two different arms and blamed the strap for the difference.
+                    val reportedAt = p.getLong("alarm.lastReportedAt", 0L)
                     val verdict = com.noop.analytics.AlarmReadback.verdict(
                         sentEpoch = sent,
                         reportedEpoch = reported,
                         sentDeviceId = p.getString("alarm.lastArmDeviceId", null),
                         reportedDeviceId = p.getString("alarm.lastReportedDeviceId", null),
+                        sentAt = at,
+                        reportedAt = reportedAt,
                     )
-                    add("Strap reports: ${alarmStamp(reported)}" + com.noop.analytics.AlarmReadback.suffix(verdict))
+                    var rl = "Strap reports: ${alarmStamp(reported)}" + com.noop.analytics.AlarmReadback.suffix(verdict)
+                    // When the readback landed, so a reader can see the provenance of both halves rather
+                    // than having to trust that they belong together.
+                    if (reportedAt > 0L) rl += " · read ${relTime(System.currentTimeMillis() - reportedAt)}"
+                    add(rl)
                     // The bytes the epoch was decoded from: what tells a stored stale alarm from a misdecode.
                     p.getString("alarm.lastReportedRaw", null)
                         ?.takeIf { it.isNotBlank() }
