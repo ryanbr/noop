@@ -1,4 +1,29 @@
 {
   "schema_version": 1,
-  "dispositions": []
+  "dispositions": [
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-constant",
+      "identity": "swift\u0000Packages/StrandImport/Sources/StrandImport/HealthWriteback.swift::openNightMarginSeconds",
+      "identity_sha256": "7f2231de6355adc6b5897cb6f0addc8b708bf08dd0277f465dcb794f4fd29b2a",
+      "platform": "swift",
+      "rationale": "Used only by the iOS HealthKitBridge write-back to hold a still-open night out of Apple Health; the Android Health Connect exporter does not call it (this PR is Swift-only)."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-constant",
+      "identity": "swift\u0000Packages/StrandImport/Sources/StrandImport/HealthWriteback.swift::openNightMaxHoldSeconds",
+      "identity_sha256": "a497335d1554bb0604aa79b1ae05fedaca8d0a812141c038e7e5151d2a8348e5",
+      "platform": "swift",
+      "rationale": "Used only by the iOS HealthKitBridge write-back to hold a still-open night out of Apple Health; the Android Health Connect exporter does not call it (this PR is Swift-only)."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/StrandImport/Sources/StrandImport/HealthWriteback.swift::nightIsStillOpen/3#1",
+      "identity_sha256": "88a1bdfb13c227664f15d962fb6d41a5733fb4c2956e445e42c5e4d495bde0cb",
+      "platform": "swift",
+      "rationale": "Used only by the iOS HealthKitBridge write-back to hold a still-open night out of Apple Health; the Android Health Connect exporter does not call it (this PR is Swift-only)."
+    }
+  ]
 }

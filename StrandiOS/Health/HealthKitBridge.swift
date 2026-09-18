@@ -788,7 +788,18 @@ final class HealthKitBridge: ObservableObject {
         var sleepsByStart: [Int: CachedSleepSession] = [:]
         for s in computedSleeps { sleepsByStart[s.startTs] = s }
         for s in importedSleeps { sleepsByStart[s.startTs] = s }
-        let sessions = sleepsByStart.keys.sorted().map { sleepsByStart[$0]! }
+        // A night the strap may still be recording is held back, with its day's vitals, until it closes
+        // (`HealthWriteback.nightIsStillOpen`).
+        // The strap's own heart rate, the same stream the HR write reads, so an Apple Watch still recording
+        // cannot make a strap night that stopped at its sync frontier look finished.
+        let newestHeartRateTs = (try? await whoopStore.hrFingerprint(deviceId: noopDeviceId, from: nowTs - 2 * 86_400,
+                                                                     to: nowTs).maxTs) ?? 0
+        let openStarts = Set(computedSleeps.filter {
+            HealthWriteback.nightIsStillOpen(endTs: $0.endTs, newestHeartRateTs: newestHeartRateTs, now: nowTs)
+        }.map(\.startTs))
+        let sessions = sleepsByStart.keys.sorted().filter { !openStarts.contains($0) }.map { sleepsByStart[$0]! }
+        let openDays = Set(computedSleeps.filter { openStarts.contains($0.startTs) }
+            .map { HealthKitBridge.dayString(Date(timeIntervalSince1970: TimeInterval($0.endTs))) })
 
         var firstError: Error?
         func attempt(_ op: () async throws -> Void) async {
@@ -802,7 +813,7 @@ final class HealthKitBridge: ObservableObject {
         // the HR path uses), then the normal writes re-add them under the new keys. Runs once,
         // gated by a UserDefaults flag, BEFORE the new-key writes so nothing is lost.
         await attempt { try await migrateStrandedHealthRecords(fromTs: fromTs, nowTs: nowTs) }
-        await attempt { try await writeVitals(whoopStore: whoopStore, days: days, sessions: sessions) }
+        await attempt { try await writeVitals(whoopStore: whoopStore, days: days, sessions: sessions, holdingDays: openDays) }
         await attempt { try await writeSleep(sessions: sessions) }
         await attempt { try await writeHeartRate(whoopStore: whoopStore, fromTs: fromTs, nowTs: nowTs) }
         await attempt { try await writeWorkouts(whoopStore: whoopStore, fromTs: fromTs, toTs: nowTs) }
@@ -881,7 +892,8 @@ final class HealthKitBridge: ObservableObject {
     /// The nightly vitals write (the original write-back), now stamped at the day's wake time when
     /// that day has a sleep session — a real timestamp inside the night the value describes, instead
     /// of a fabricated noon. Keys are unchanged, so re-stamped samples replace their noon ancestors.
-    private func writeVitals(whoopStore: WhoopStore, days: Int, sessions: [CachedSleepSession]) async throws {
+    private func writeVitals(whoopStore: WhoopStore, days: Int, sessions: [CachedSleepSession],
+                             holdingDays: Set<String> = []) async throws {
         let cal = Calendar.current
         let to = HealthKitBridge.dayString(Date())
         guard let fromDate = cal.date(byAdding: .day, value: -days, to: Date()) else { return }
@@ -908,7 +920,7 @@ final class HealthKitBridge: ObservableObject {
         // (RMSSD for a strap row) under the SDNN type, turning a right value into a wrong one on every day
         // an import happened to cover (#2264).
         for r in imported { byDay[r.day] = HealthExportMerge.merged(computed: byDay[r.day], imported: r) }
-        let rows = byDay.keys.sorted().map { byDay[$0]! }
+        let rows = byDay.keys.sorted().filter { !holdingDays.contains($0) }.map { byDay[$0]! }
 
         struct Candidate { let type: HKQuantityType; let key: String; let sample: HKQuantitySample }
         var candidates: [Candidate] = []
