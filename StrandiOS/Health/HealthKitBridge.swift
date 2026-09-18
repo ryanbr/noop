@@ -111,6 +111,7 @@ final class HealthKitBridge: ObservableObject {
         }
         if let sleep = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) { s.insert(sleep) }
         s.insert(HKObjectType.workoutType())
+        s.insert(HKSeriesType.heartbeat())
         return s
     }
 
@@ -760,7 +761,7 @@ final class HealthKitBridge: ObservableObject {
 
     /// Write NOOP's strap-derived data into Apple Health: sleep sessions with full stage segments,
     /// the continuous 1-minute heart-rate stream, strap/manual workouts, and the nightly vitals
-    /// (resting HR, HRV, SpO₂, respiratory rate) stamped at that day's wake time.
+    /// (resting HR, HRV, SpO₂, respiratory rate) stamped at the midpoint of that day's night.
     ///
     /// Each feature saves independently and guards on ITS OWN type's share status, so one declined
     /// Health checkbox (or a save error) skips that feature without sinking the rest; the first error
@@ -780,7 +781,7 @@ final class HealthKitBridge: ObservableObject {
         let fromTs = Int(fromDate.timeIntervalSince1970)
         let nowTs = Int(now.timeIntervalSince1970)
 
-        // Sleep sessions drive both the sleep write and the vitals' wake-time stamps: computed
+        // Sleep sessions drive both the sleep write and the vitals' in-night stamps: computed
         // sessions (deviceId + "-noop") first, imported rows override on startTs collision — the
         // same source precedence as the dailies union below and IntelligenceEngine's sleep reads.
         let computedSleeps = (try? await whoopStore.sleepSessions(deviceId: computedDeviceId, from: fromTs, to: nowTs, limit: 200)) ?? []
@@ -804,6 +805,7 @@ final class HealthKitBridge: ObservableObject {
         await attempt { try await migrateStrandedHealthRecords(fromTs: fromTs, nowTs: nowTs) }
         await attempt { try await writeVitals(whoopStore: whoopStore, days: days, sessions: sessions) }
         await attempt { try await writeSleep(sessions: sessions) }
+        await attempt { try await writeHeartbeats(whoopStore: whoopStore, sessions: sessions) }
         await attempt { try await writeHeartRate(whoopStore: whoopStore, fromTs: fromTs, nowTs: nowTs) }
         await attempt { try await writeWorkouts(whoopStore: whoopStore, fromTs: fromTs, toTs: nowTs) }
         if let firstError { throw firstError }
@@ -878,21 +880,19 @@ final class HealthKitBridge: ObservableObject {
         }
     }
 
-    /// The nightly vitals write (the original write-back), now stamped at the day's wake time when
-    /// that day has a sleep session — a real timestamp inside the night the value describes, instead
-    /// of a fabricated noon. Keys are unchanged, so re-stamped samples replace their noon ancestors.
+    /// The nightly vitals write (the original write-back), stamped at the midpoint of the day's night
+    /// when it has one (`HealthWriteback.vitalsInstantByDay`) — a timestamp inside the night the value
+    /// describes, instead of a fabricated noon. Keys are unchanged, so re-stamped samples replace their
+    /// earlier wake- or noon-stamped ancestors.
     private func writeVitals(whoopStore: WhoopStore, days: Int, sessions: [CachedSleepSession]) async throws {
         let cal = Calendar.current
         let to = HealthKitBridge.dayString(Date())
         guard let fromDate = cal.date(byAdding: .day, value: -days, to: Date()) else { return }
         let from = HealthKitBridge.dayString(fromDate)
 
-        // day (of wake) → wake instant. Ascending session order means the latest wake of a day wins,
-        // matching collectSleep's end-date day attribution.
-        var wakeByDay: [String: Date] = [:]
-        for s in sessions where s.endTs > s.effectiveStartTs {
-            let wake = Date(timeIntervalSince1970: TimeInterval(s.endTs))
-            wakeByDay[HealthKitBridge.dayString(wake)] = wake
+        // day (of wake) → mid-night instant, attributed by wake like collectSleep's end-date attribution.
+        let instantByDay = HealthWriteback.vitalsInstantByDay(sleepPlan(sessions: sessions)) {
+            HealthKitBridge.dayString(Date(timeIntervalSince1970: TimeInterval($0)))
         }
         // Read NOOP's COMPUTED dailies (deviceId + "-noop"), which is the only place a strap-only
         // user's recovery/HRV/RHR/SpO₂/resp lives, then union with any imported `noopDeviceId` rows so
@@ -932,7 +932,7 @@ final class HealthKitBridge: ObservableObject {
         for row in rows {
             guard let date = HealthKitBridge.date(from: row.day) else { continue }
             let noon = cal.date(bySettingHour: 12, minute: 0, second: 0, of: date) ?? date
-            let at = wakeByDay[row.day] ?? noon
+            let at = instantByDay[row.day].map { Date(timeIntervalSince1970: TimeInterval($0)) } ?? noon
             if let rhr = row.restingHr {
                 add(.restingHeartRate, HKUnit.count().unitDivided(by: .minute()), Double(rhr), row.day, at)
             }
@@ -972,6 +972,21 @@ final class HealthKitBridge: ObservableObject {
         try await self.store.save(candidates.map { $0.sample })
     }
 
+    /// The bridged nights (#364) the write-back exports, shared by the sleep write and the vitals stamps so
+    /// both describe the same night.
+    private func sleepPlan(sessions: [CachedSleepSession]) -> [HealthWriteback.MergedSleepEntry] {
+        let blocks = sessions.map { SleepStageTotals.NightBlock(start: $0.effectiveStartTs, end: $0.endTs) }
+        let groups = SleepStageTotals.bridgedNightGroups(blocks, offsetSec: TimeZone.current.secondsFromGMT())
+            .map { g in
+                g.indices.map { i -> HealthWriteback.SleepFragment in
+                    let s = sessions[i]
+                    return .init(startTs: s.startTs, effectiveStartTs: s.effectiveStartTs,
+                                 endTs: s.endTs, stagesJSON: s.stagesJSON)
+                }
+            }
+        return HealthWriteback.mergedSleepPlan(groups: groups)
+    }
+
     /// Write each BRIDGED NIGHT (#364) as one `.inBed` sample plus one category sample per stage
     /// segment (`deep → .asleepDeep`, `rem → .asleepREM`, `light → .asleepCore`, `wake → .awake`) —
     /// the same shape Oura and Apple Watch write, so Health renders the full hypnogram. A night the
@@ -991,18 +1006,9 @@ final class HealthKitBridge: ObservableObject {
     private func writeSleep(sessions: [CachedSleepSession]) async throws {
         guard let type = HKObjectType.categoryType(forIdentifier: .sleepAnalysis),
               store.authorizationStatus(for: type) == .sharingAuthorized else { return }
-        let blocks = sessions.map { SleepStageTotals.NightBlock(start: $0.effectiveStartTs, end: $0.endTs) }
-        let groups = SleepStageTotals.bridgedNightGroups(blocks, offsetSec: TimeZone.current.secondsFromGMT())
-            .map { g in
-                g.indices.map { i -> HealthWriteback.SleepFragment in
-                    let s = sessions[i]
-                    return .init(startTs: s.startTs, effectiveStartTs: s.effectiveStartTs,
-                                 endTs: s.endTs, stagesJSON: s.stagesJSON)
-                }
-            }
         var samples: [HKCategorySample] = []
         var keys: [String] = []
-        for entry in HealthWriteback.mergedSleepPlan(groups: groups) {
+        for entry in sleepPlan(sessions: sessions) {
             let key = HealthWriteback.appleHealthSleepKey(startTs: entry.keyStartTs)
             let meta = [HKMetadataKeyExternalUUID: key]
             keys.append(contentsOf: entry.allKeyStartTs.map { HealthWriteback.appleHealthSleepKey(startTs: $0) })
@@ -1033,6 +1039,78 @@ final class HealthKitBridge: ObservableObject {
         ])
         _ = try? await store.deleteObjects(of: type, predicate: pred)
         try await store.save(samples)
+    }
+
+    /// UserDefaults key for the fingerprint of each night's heartbeat series as last written, keyed by
+    /// `HealthWriteback.appleHealthHeartbeatKey`.
+    private static let heartbeatWrittenKey = "hkHeartbeatWritten.v1"
+
+    /// Write each finished night's R-R intervals as heartbeat series (`HKHeartbeatSeriesSample`), in the
+    /// 5-minute chunks `HealthWriteback.heartbeatSeriesPlan` lays out. This is the beat-to-beat data a
+    /// reader computes its own HRV from: Bevel's Recovery reads HRV from beat-to-beat measurements inside
+    /// the sleep window, and a single nightly SDNN sample gives it nothing to compute from.
+    ///
+    /// Only nights whose beats clear `HRVAnalyzer.beatSeriesIsExportable` are written, so no reader is
+    /// handed intervals NOOP would refuse to compute the same statistic from. A night is rewritten only
+    /// when its fingerprint moves, and cleared if it stops being exportable. Series are immutable, so a
+    /// rewrite deletes the night's series by key (scoped to our own `HKSource`) before writing; the
+    /// fingerprint is recorded only after the whole night is written, so a failure mid-night retries.
+    private func writeHeartbeats(whoopStore: WhoopStore, sessions: [CachedSleepSession]) async throws {
+        let type = HKSeriesType.heartbeat()
+        guard store.authorizationStatus(for: type) == .sharingAuthorized else { return }
+        let nowTs = Int(Date().timeIntervalSince1970)
+        let strictWhoop5 = (try? await whoopStore.isWhoop5RRSource(deviceId: noopDeviceId)) ?? true
+        var nights: [(key: String, fingerprint: String?)] = []
+        var beatsByKey: [String: (ts: [Int], rr: [Int])] = [:]
+        for entry in sleepPlan(sessions: sessions) where entry.spanEnd <= nowTs {
+            let key = HealthWriteback.appleHealthHeartbeatKey(startTs: entry.keyStartTs)
+            let rows = (try? await whoopStore.rrIntervals(deviceId: noopDeviceId, from: entry.spanStart,
+                                                          to: entry.spanEnd, limit: StreamReadCap.rr,
+                                                          unlabelledAliasOfWhoop5: strictWhoop5)) ?? []
+            let ts = rows.map { $0.ts }
+            let rr = rows.map { $0.rrMs }
+            guard !rows.isEmpty,
+                  HRVAnalyzer.beatSeriesIsExportable(tsSec: ts, rrMs: rr.map { Double($0) }) else {
+                nights.append((key, nil))
+                continue
+            }
+            nights.append((key, HealthWriteback.heartbeatFingerprint(tsSec: ts, rrMs: rr)))
+            beatsByKey[key] = (ts, rr)
+        }
+        let written = UserDefaults.standard.dictionary(forKey: Self.heartbeatWrittenKey) as? [String: String] ?? [:]
+        let plan = HealthWriteback.heartbeatSyncPlan(nights: nights, written: written)
+        var record = plan.kept
+        UserDefaults.standard.set(record, forKey: Self.heartbeatWrittenKey)
+
+        let bySource = HKQuery.predicateForObjects(from: HKSource.default())
+        func deleteSeries(_ key: String) async {
+            let byKey = HKQuery.predicateForObjects(withMetadataKey: HKMetadataKeyExternalUUID, allowedValues: [key])
+            _ = try? await store.deleteObjects(
+                of: type, predicate: NSCompoundPredicate(andPredicateWithSubpredicates: [bySource, byKey]))
+        }
+        for key in plan.clear { await deleteSeries(key) }
+        for night in plan.rewrite {
+            guard let beats = beatsByKey[night.key] else { continue }
+            await deleteSeries(night.key)
+            for chunk in HealthWriteback.heartbeatSeriesPlan(tsSec: beats.ts, rrMs: beats.rr) {
+                let builder = HKHeartbeatSeriesBuilder(healthStore: store, device: nil,
+                                                       start: Date(timeIntervalSince1970: chunk.start))
+                for beat in chunk.beats {
+                    try await withCheckedThrowingContinuation { (done: CheckedContinuation<Void, Error>) in
+                        builder.addHeartbeatWithTimeInterval(sinceSeriesStartDate: beat.offset,
+                                                             precededByGap: beat.precededByGap) { added, error in
+                            if let error { done.resume(throwing: error) }
+                            else if !added { done.resume(throwing: HKError(.errorInvalidArgument)) }
+                            else { done.resume() }
+                        }
+                    }
+                }
+                try await builder.addMetadata([HKMetadataKeyExternalUUID: night.key])
+                _ = try await builder.finishSeries()
+            }
+            record[night.key] = night.fingerprint
+            UserDefaults.standard.set(record, forKey: Self.heartbeatWrittenKey)
+        }
     }
 
     /// UserDefaults key for the HR write cursor (the newest bucket ts we've written). Per-strap so a

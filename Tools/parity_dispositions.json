@@ -1,4 +1,69 @@
 {
   "schema_version": 1,
-  "dispositions": []
+  "dispositions": [
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/StrandImport/Sources/StrandImport/HealthWriteback.swift::vitalsInstantByDay/2#1",
+      "identity_sha256": "cc1a46149abee1ead9df3a0da97441674f2ac5e5e966f178abd12b558bf24294",
+      "platform": "swift",
+      "rationale": "Used only by the iOS HealthKitBridge write-back to stamp nightly HKQuantitySamples inside the sleep window they describe; the Android Health Connect exporter does not call it."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/StrandAnalytics/Sources/StrandAnalytics/HRVAnalyzer.swift::beatSeriesIsExportable/2#1",
+      "identity_sha256": "d138f08905829685f03b6e13ff999fe008c28eeaf40b96e0a0056aeabe0a14b6",
+      "platform": "swift",
+      "rationale": "Gates the iOS-only Apple Health heartbeat-series export (HKHeartbeatSeriesSample). Health Connect has no beat-to-beat record type, so Android has nothing to gate; it composes the already-twinned successiveDiffIsTrustworthy and beatValuesAreTrustworthy."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/StrandImport/Sources/StrandImport/HealthWriteback.swift::appleHealthHeartbeatKey/1#1",
+      "identity_sha256": "ae75baa928dad6d98d6be8de61a253598e19acea30ce186f94232934ed9b428b",
+      "platform": "swift",
+      "rationale": "External-UUID key for Apple Health heartbeat-series samples written by the iOS HealthKitBridge; Health Connect has no beat-to-beat record type to key."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/StrandImport/Sources/StrandImport/HealthWriteback.swift::heartbeatSeriesPlan/2#1",
+      "identity_sha256": "5039e153e955c609dd29d656fddfaa30a319bf13687f1484e308cded8e7d266d",
+      "platform": "swift",
+      "rationale": "Lays out beat offsets for HKHeartbeatSeriesBuilder, an Apple HealthKit API; Health Connect has no beat-to-beat record type, so there is no Kotlin writer to share it."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/StrandImport/Sources/StrandImport/HealthWriteback.swift::heartbeatFingerprint/2#1",
+      "identity_sha256": "e0477925cbd1b61105072624d205f022b916d9d25a732008ea971bdba43ee99f",
+      "platform": "swift",
+      "rationale": "Change detection for the iOS-only Apple Health heartbeat-series export; Health Connect has no beat-to-beat record type."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/StrandImport/Sources/StrandImport/HealthWriteback.swift::heartbeatSyncPlan/2#1",
+      "identity_sha256": "9a74354c4e9f458d23838e667bd6ba543ff4981273056807824046f84ce4334b",
+      "platform": "swift",
+      "rationale": "Decides which nights the iOS-only Apple Health heartbeat-series export rewrites or clears; Health Connect has no beat-to-beat record type."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-constant",
+      "identity": "swift\u0000Packages/StrandImport/Sources/StrandImport/HealthWriteback.swift::heartbeatChunkSeconds",
+      "identity_sha256": "1e7c6d906fdc01347930aca59d33dc644f520db944e7b6893525a93e5706a473",
+      "platform": "swift",
+      "rationale": "Chunk length for the iOS-only Apple Health heartbeat-series export (HKHeartbeatSeriesBuilder); Health Connect has no beat-to-beat record type."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-constant",
+      "identity": "swift\u0000Packages/StrandImport/Sources/StrandImport/HealthWriteback.swift::heartbeatGapToleranceSeconds",
+      "identity_sha256": "9ecb620cdc093557e5f70df1bb80d549e71b074e6f575515b66988d590a00374",
+      "platform": "swift",
+      "rationale": "Gap tolerance for laying out beats in the iOS-only Apple Health heartbeat-series export; Health Connect has no beat-to-beat record type."
+    }
+  ]
 }

@@ -557,6 +557,18 @@ public enum HRVAnalyzer {
         !(beatAccurateFraction < beatAccuracyMinFraction)
     }
 
+    /// Whether a night's intervals may be handed to another app as beat-to-beat data (Apple Health's
+    /// heartbeat series). A reader computes its own successive-difference HRV from them, so they must clear
+    /// both gates NOOP applies before trusting the same statistic itself: no over-counted beats
+    /// (`successiveDiffIsTrustworthy`) and individually accurate values rather than a record period
+    /// decomposed across one timestamp (`beatValuesAreTrustworthy`). Pure; `tsSec` and `rrMs` are parallel.
+    public static func beatSeriesIsExportable(tsSec: [Int], rrMs: [Double]) -> Bool {
+        let verdict = classifyCoverage(coverage: rrCoverage(tsSec: tsSec, rrMs: rrMs),
+                                       collapsed: collapsedCoverage(tsSec: tsSec, rrMs: rrMs))
+        return successiveDiffIsTrustworthy(verdict)
+            && beatValuesAreTrustworthy(beatAccurateFraction: beatAccurateFraction(tsSec: tsSec, rrMs: rrMs))
+    }
+
     /// Tolerance BELOW 1.0 treated as "fits", the mirror of `coveragePlausibleCeiling`. Same allowance,
     /// same caveat: a ROUNDING allowance rather than a tuned threshold, because whole-second timestamps
     /// under-report as easily as they over-report. Where the real boundary sits still needs coverage

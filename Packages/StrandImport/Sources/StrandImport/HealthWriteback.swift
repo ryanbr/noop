@@ -176,6 +176,49 @@ public enum HealthWriteback {
         "noop:\(kind):\(identity)"
     }
 
+    /// When each day's nightly vitals are stamped: the midpoint of the LONGEST night whose wake falls on
+    /// that day. `dayOf` maps a unix second to the day string the vitals rows are keyed by.
+    ///
+    /// Inside the night, not on its edge. The values are nightly aggregates, and a reader of Health picks
+    /// them by the sleep window they describe — Bevel shows no Recovery when HRV or resting HR is not
+    /// captured during the sleep window. A sample stamped exactly at wake sits on that boundary. The
+    /// longest night rather than the latest, so a nap after the main sleep does not carry the night's
+    /// values out of the night they came from.
+    ///
+    /// The midpoint of a bridged night can fall in the awake gap between its fragments, or in an awake
+    /// segment of one. It is still inside the `.inBed` sample, but a reader that keys off asleep samples
+    /// would not see it, so an instant that lands outside every asleep interval moves to the nearest
+    /// asleep second. A night whose stages carry no timing has only `.unspecified` asleep intervals and
+    /// keeps its midpoint.
+    public static func vitalsInstantByDay(_ entries: [MergedSleepEntry],
+                                          dayOf: (Int) -> String) -> [String: Int] {
+        var longest: [String: MergedSleepEntry] = [:]
+        for entry in entries where entry.spanEnd > entry.spanStart {
+            let day = dayOf(entry.spanEnd)
+            if let current = longest[day],
+               current.spanEnd - current.spanStart >= entry.spanEnd - entry.spanStart { continue }
+            longest[day] = entry
+        }
+        return longest.mapValues { entry in
+            let mid = entry.spanStart + (entry.spanEnd - entry.spanStart) / 2
+            let asleep = entry.intervals.filter { $0.kind != .awake && $0.end > $0.start }
+            if asleep.isEmpty || asleep.contains(where: { $0.start <= mid && mid < $0.end }) { return mid }
+            // Closest second inside each asleep interval; the nearest wins, the earlier on a tie. A plain loop:
+            // the equivalent `map { }.min { }` chain exceeded the type-checker's budget on CI.
+            var best = mid
+            var bestDistance = Int.max
+            for interval in asleep {
+                let candidate: Int = min(max(mid, interval.start), interval.end - 1)
+                let distance: Int = abs(candidate - mid)
+                if distance < bestDistance || (distance == bestDistance && candidate < best) {
+                    best = candidate
+                    bestDistance = distance
+                }
+            }
+            return best
+        }
+    }
+
     /// The vitals key: `noop:<metricId>:<day>`.
     public static func appleHealthVitalKey(metricId: String, day: String) -> String {
         appleHealthExternalUUID(kind: metricId, identity: day)
@@ -197,6 +240,105 @@ public enum HealthWriteback {
     /// The workout key: `noop:workout:<startTs>`.
     public static func appleHealthWorkoutKey(startTs: Int) -> String {
         appleHealthExternalUUID(kind: "workout", identity: "\(startTs)")
+    }
+
+    /// The beat-to-beat key: `noop:heartbeat:<startTs>`, the night's sleep key identity. Carried by every
+    /// heartbeat-series sample written for that night, so the night can be cleared as a unit.
+    public static func appleHealthHeartbeatKey(startTs: Int) -> String {
+        appleHealthExternalUUID(kind: "heartbeat", identity: "\(startTs)")
+    }
+
+    // MARK: - Beat-to-beat (heartbeat series)
+
+    /// One heartbeat-series sample: its start (unix seconds) and each beat's offset from it.
+    public struct HeartbeatSeriesChunk: Equatable {
+        public struct Beat: Equatable {
+            public let offset: Double
+            /// The beat does not follow the previous one directly: beats between them were not recorded.
+            public let precededByGap: Bool
+            public init(offset: Double, precededByGap: Bool) {
+                self.offset = offset; self.precededByGap = precededByGap
+            }
+        }
+        public let start: Double
+        public let beats: [Beat]
+        public init(start: Double, beats: [Beat]) { self.start = start; self.beats = beats }
+    }
+
+    /// The longest heartbeat-series sample, in seconds — the 5-minute window NOOP's own SDNN index uses,
+    /// short enough for a reader to window its own statistics over.
+    public static let heartbeatChunkSeconds: Double = 300
+
+    /// How far a beat may sit from the time its interval predicts before it is read as a gap. The row
+    /// stamps are whole seconds, so a continuous train drifts by up to one second against them.
+    public static let heartbeatGapToleranceSeconds: Double = 2
+
+    /// Beat times from stored R-R rows (`tsSec` parallel to `rrMs`, ascending). Each beat lands one interval
+    /// after the previous; a row whose stamp disagrees with that by more than the tolerance starts again from
+    /// its own stamp as a gap. Chunks split at `heartbeatChunkSeconds`. Non-positive intervals are skipped.
+    ///
+    /// A row stamped at or before the beat already placed is dropped. HealthKit refuses a series whose beats
+    /// do not strictly advance ("Heartbeats must be added in order"), and one such row failed the whole
+    /// night. It happens when the placed beats run ahead of their whole-second stamps: a phone copy of 15
+    /// real nights had 0 to 29 per night, the previous beat sitting 0 to 1.9 s past the late row's stamp.
+    /// The beat after a dropped one is still predicted from the last beat placed, so the train carries on.
+    public static func heartbeatSeriesPlan(tsSec: [Int], rrMs: [Int]) -> [HeartbeatSeriesChunk] {
+        guard tsSec.count == rrMs.count else { return [] }
+        var chunks: [HeartbeatSeriesChunk] = []
+        var chunkStart = 0.0
+        var beats: [HeartbeatSeriesChunk.Beat] = []
+        var previous: Double?
+        for (ts, rr) in zip(tsSec, rrMs) where rr > 0 {
+            let stamp = Double(ts)
+            var time = stamp
+            var gap = true
+            if let previous {
+                let predicted = previous + Double(rr) / 1_000
+                if abs(predicted - stamp) <= heartbeatGapToleranceSeconds { time = predicted; gap = false }
+                else if stamp <= previous { continue }
+            }
+            if beats.isEmpty || time - chunkStart >= heartbeatChunkSeconds {
+                if !beats.isEmpty { chunks.append(.init(start: chunkStart, beats: beats)) }
+                chunkStart = time
+                beats = []
+                gap = false
+            }
+            beats.append(.init(offset: time - chunkStart, precededByGap: gap))
+            previous = time
+        }
+        if !beats.isEmpty { chunks.append(.init(start: chunkStart, beats: beats)) }
+        return chunks
+    }
+
+    /// What identifies a night's exported beats: a change in any of these rewrites the night.
+    public static func heartbeatFingerprint(tsSec: [Int], rrMs: [Int]) -> String {
+        "\(tsSec.count):\(tsSec.first ?? 0):\(tsSec.last ?? 0):\(rrMs.reduce(0, +))"
+    }
+
+    /// Which nights' heartbeat series to rewrite or clear. `nights` pairs each night's key with its current
+    /// fingerprint, nil when it has no exportable beats; `written` is what was last written per key.
+    /// A night is rewritten when its fingerprint moved, cleared when it was written and is no longer
+    /// exportable, and left alone otherwise. `kept` is the written record for the nights left alone; a key
+    /// outside `nights` has aged out of the window and drops out of the record without touching Health.
+    public static func heartbeatSyncPlan(nights: [(key: String, fingerprint: String?)],
+                                         written: [String: String])
+        -> (rewrite: [(key: String, fingerprint: String)], clear: [String], kept: [String: String]) {
+        var rewrite: [(key: String, fingerprint: String)] = []
+        var clear: [String] = []
+        var kept: [String: String] = [:]
+        for night in nights {
+            switch (night.fingerprint, written[night.key]) {
+            case let (current?, previous) where current != previous:
+                rewrite.append((night.key, current))
+            case let (current?, _):
+                kept[night.key] = current
+            case (nil, _?):
+                clear.append(night.key)
+            case (nil, nil):
+                break
+            }
+        }
+        return (rewrite, clear, kept)
     }
 
     // MARK: - #1503 stranded-records sweep completion tracking

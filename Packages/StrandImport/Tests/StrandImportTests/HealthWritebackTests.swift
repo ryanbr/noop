@@ -339,4 +339,126 @@ final class HealthWritebackTests: XCTestCase {
         swept = HealthWriteback.strandedSweepResult(swept: swept, succeededThisRun: ["sleepAnalysis"])
         XCTAssertEqual(swept, ["restingHeartRate", "sleepAnalysis"])
     }
+
+    // MARK: - Vitals stamp inside the night
+
+    private func entry(_ spanStart: Int, _ spanEnd: Int) -> HealthWriteback.MergedSleepEntry {
+        .init(keyStartTs: spanStart, spanStart: spanStart, spanEnd: spanEnd, intervals: [], allKeyStartTs: [spanStart])
+    }
+
+    /// Day = whole days since `start`, so attribution is by wake and independent of the test host's zone.
+    private func dayOf(_ ts: Int) -> String { "d\((ts - start) / 86_400)" }
+
+    func testVitalsAreStampedAtTheNightsMidpointNotItsWake() {
+        let night = entry(start, start + 8 * 3600)
+        XCTAssertEqual(HealthWriteback.vitalsInstantByDay([night], dayOf: dayOf), ["d0": start + 4 * 3600])
+    }
+
+    /// A nap that wakes later the same day must not pull the night's values out of the night.
+    func testTheLongestNightOwnsTheDayNotTheLatest() {
+        let night = entry(start, start + 8 * 3600)
+        let nap = entry(start + 14 * 3600, start + 15 * 3600)
+        XCTAssertEqual(HealthWriteback.vitalsInstantByDay([night, nap], dayOf: dayOf), ["d0": start + 4 * 3600])
+        XCTAssertEqual(HealthWriteback.vitalsInstantByDay([nap, night], dayOf: dayOf), ["d0": start + 4 * 3600])
+    }
+
+    func testEachDayIsStampedByTheNightThatWokeOnIt() {
+        let first = entry(start, start + 8 * 3600)
+        let second = entry(start + 86_400, start + 86_400 + 6 * 3600)
+        XCTAssertEqual(HealthWriteback.vitalsInstantByDay([first, second], dayOf: dayOf),
+                       ["d0": start + 4 * 3600, "d1": start + 86_400 + 3 * 3600])
+    }
+
+    /// A bridged night whose midpoint falls in the awake gap between fragments is stamped at the nearest
+    /// asleep second instead.
+    func testAMidpointInABridgedWakeGapMovesToTheNearestAsleepSecond() {
+        let bridged = HealthWriteback.MergedSleepEntry(
+            keyStartTs: start, spanStart: start, spanEnd: start + 8 * 3600,
+            intervals: [.init(start: start, end: start + 3 * 3600, kind: .light),
+                        .init(start: start + 3 * 3600, end: start + 4 * 3600 + 1800, kind: .awake),
+                        .init(start: start + 4 * 3600 + 1800, end: start + 8 * 3600, kind: .deep)],
+            allKeyStartTs: [start, start + 4 * 3600 + 1800])
+        XCTAssertEqual(HealthWriteback.vitalsInstantByDay([bridged], dayOf: dayOf), ["d0": start + 4 * 3600 + 1800])
+    }
+
+    func testAMidpointInsideAnAsleepIntervalStays() {
+        let night = HealthWriteback.MergedSleepEntry(
+            keyStartTs: start, spanStart: start, spanEnd: start + 8 * 3600,
+            intervals: [.init(start: start, end: start + 8 * 3600, kind: .unspecified)], allKeyStartTs: [start])
+        XCTAssertEqual(HealthWriteback.vitalsInstantByDay([night], dayOf: dayOf), ["d0": start + 4 * 3600])
+    }
+
+    func testANightWithNoSpanStampsNothing() {
+        XCTAssertEqual(HealthWriteback.vitalsInstantByDay([entry(start, start)], dayOf: dayOf), [:])
+    }
+
+    // MARK: - Beat-to-beat (heartbeat series)
+
+    private func assertOffsets(_ chunk: HealthWriteback.HeartbeatSeriesChunk, _ expected: [Double],
+                               file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertEqual(chunk.beats.count, expected.count, file: file, line: line)
+        for (beat, offset) in zip(chunk.beats, expected) {
+            XCTAssertEqual(beat.offset, offset, accuracy: 1e-9, file: file, line: line)
+        }
+    }
+
+    func testBeatsLandOneIntervalAfterThePreviousNotOnTheirWholeSecondStamp() {
+        // 800 ms beats stamped to whole seconds: 1000, 1000, 1001, 1002, 1003
+        let plan = HealthWriteback.heartbeatSeriesPlan(tsSec: [1_000, 1_000, 1_001, 1_002, 1_003],
+                                                       rrMs: [800, 800, 800, 800, 800])
+        XCTAssertEqual(plan.count, 1)
+        XCTAssertEqual(plan[0].start, 1_000)
+        assertOffsets(plan[0], [0, 0.8, 1.6, 2.4, 3.2])
+        XCTAssertEqual(plan[0].beats.map(\.precededByGap), [false, false, false, false, false])
+    }
+
+    func testAStampFarFromItsPredictedTimeIsAGap() {
+        let plan = HealthWriteback.heartbeatSeriesPlan(tsSec: [1_000, 1_001, 1_060], rrMs: [1_000, 1_000, 1_000])
+        assertOffsets(plan[0], [0, 1, 60])
+        XCTAssertEqual(plan[0].beats.map(\.precededByGap), [false, false, true])
+    }
+
+    func testARowStampedBehindThePlacedBeatsIsDroppedSoTheSeriesStaysInOrder() {
+        // Shape from a real night: the placed beats run 1.8 s ahead of the stamps, then a 676 ms row also
+        // stamped 1 002 predicts 1 004.476, outside the tolerance, and its own stamp is behind the beat
+        // already placed at 1 003.8. Placing it there is the out-of-order add HealthKit rejects.
+        let plan = HealthWriteback.heartbeatSeriesPlan(tsSec: [1_000, 1_001, 1_002, 1_002, 1_004],
+                                                       rrMs: [1_000, 1_900, 1_900, 676, 900])
+        assertOffsets(plan[0], [0, 1.9, 3.8, 4.7])
+        XCTAssertEqual(plan[0].beats.map(\.precededByGap), [false, false, false, false])
+    }
+
+    func testARowStampedExactlyOnThePlacedBeatIsDropped() {
+        let plan = HealthWriteback.heartbeatSeriesPlan(tsSec: [1_000, 1_003, 1_003], rrMs: [1_000, 3_000, 2_033])
+        assertOffsets(plan[0], [0, 3])
+    }
+
+    func testSeriesSplitAtFiveMinutes() {
+        let ts = Array(0..<601).map { 1_000 + $0 }
+        let plan = HealthWriteback.heartbeatSeriesPlan(tsSec: ts, rrMs: ts.map { _ in 1_000 })
+        XCTAssertEqual(plan.map(\.start), [1_000, 1_300, 1_600])
+        XCTAssertEqual(plan.map { $0.beats.count }, [300, 300, 1])
+        XCTAssertFalse(plan[1].beats[0].precededByGap)
+    }
+
+    func testNonPositiveIntervalsAreSkippedAndMismatchedInputPlansNothing() {
+        XCTAssertEqual(HealthWriteback.heartbeatSeriesPlan(tsSec: [1_000, 1_001], rrMs: [0, 1_000])[0].beats.count, 1)
+        XCTAssertEqual(HealthWriteback.heartbeatSeriesPlan(tsSec: [1_000], rrMs: []), [])
+    }
+
+    func testTheHeartbeatKeySharesTheSleepIdentity() {
+        XCTAssertEqual(HealthWriteback.appleHealthHeartbeatKey(startTs: 42), "noop:heartbeat:42")
+    }
+
+    func testHeartbeatSyncRewritesMovedNightsClearsUntrustedOnesAndForgetsAgedOut() {
+        let plan = HealthWriteback.heartbeatSyncPlan(
+            nights: [(key: "new", fingerprint: "a"), (key: "same", fingerprint: "b"),
+                     (key: "moved", fingerprint: "c2"), (key: "untrusted", fingerprint: nil),
+                     (key: "never", fingerprint: nil)],
+            written: ["same": "b", "moved": "c1", "untrusted": "d", "agedOut": "e"])
+        XCTAssertEqual(plan.rewrite.map(\.key), ["new", "moved"])
+        XCTAssertEqual(plan.rewrite.map(\.fingerprint), ["a", "c2"])
+        XCTAssertEqual(plan.clear, ["untrusted"])
+        XCTAssertEqual(plan.kept, ["same": "b"])
+    }
 }
