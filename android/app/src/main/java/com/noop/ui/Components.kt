@@ -975,18 +975,32 @@ fun GlowRing(
     format: (Double) -> String = { it.toInt().toString() },
 ) {
     val target = fraction.coerceIn(0f, 1f)
-    var started by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { started = true }
-    val animFraction by animateFloatAsState(
-        targetValue = if (started) target else 0f,
-        animationSpec = spring(dampingRatio = 0.86f, stiffness = Spring.StiffnessMediumLow),
-        label = uiString(R.string.l10n_components_glowring_fraction_5bcc7cd7),
-    )
-    val animValue by animateFloatAsState(
-        targetValue = if (started) value.toFloat() else 0f,
-        animationSpec = tween(durationMillis = 850, easing = FastOutSlowInEasing),
-        label = uiString(R.string.l10n_components_glowring_value_ac0e87de),
-    )
+    val renderStill = rememberPoseStill()
+
+    // When renderStill is true, use final values directly (no animation at all).
+    // When false, animate from 0 to target.
+    val animFraction: Float
+    val animValue: Float
+
+    if (renderStill) {
+        // Still pose: snap to final values with no animation
+        animFraction = target
+        animValue = value.toFloat()
+    } else {
+        // Animated pose: animate from 0 to target
+        var started by remember { mutableStateOf(false) }
+        LaunchedEffect(Unit) { started = true }
+        animFraction = animateFloatAsState(
+            targetValue = if (started) target else 0f,
+            animationSpec = spring(dampingRatio = 0.86f, stiffness = Spring.StiffnessMediumLow),
+            label = uiString(R.string.l10n_components_glowring_fraction_5bcc7cd7),
+        ).value
+        animValue = animateFloatAsState(
+            targetValue = if (started) value.toFloat() else 0f,
+            animationSpec = tween(durationMillis = 850, easing = FastOutSlowInEasing),
+            label = uiString(R.string.l10n_components_glowring_value_ac0e87de),
+        ).value
+    }
     val trackColor = Palette.textPrimary.copy(alpha = 0.10f)
     Box(modifier = modifier.size(diameter), contentAlignment = Alignment.Center) {
         Box(
