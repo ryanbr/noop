@@ -30,10 +30,10 @@ final class GravityWitnessTests: XCTestCase {
     func testReinsertingAnExistingSecondChangesNeitherTheWitnessNorTheValues() async throws {
         let s = try await store()
         _ = try await s.insert(Streams(gravity: [grav(100, 1), grav(200, 2)]), deviceId: "dev1")
-        let before = try await s.gravityFingerprint(deviceId: "dev1", from: 0, to: 1000)
+        let before = try await s.witnessPair(from: 0, to: 1000)
 
         _ = try await s.insert(Streams(gravity: [grav(100, 99), grav(200, 99)]), deviceId: "dev1")
-        let after = try await s.gravityFingerprint(deviceId: "dev1", from: 0, to: 1000)
+        let after = try await s.witnessPair(from: 0, to: 1000)
         XCTAssertEqual(before.count, after.count)
         XCTAssertEqual(before.maxTs, after.maxTs)
 
@@ -47,19 +47,19 @@ final class GravityWitnessTests: XCTestCase {
     func testAnAppendMovesTheWitnessAndABackfillMovesTheCount() async throws {
         let s = try await store()
         _ = try await s.insert(Streams(gravity: [grav(200, 1)]), deviceId: "dev1")
-        let one = try await s.gravityFingerprint(deviceId: "dev1", from: 0, to: 1000)
+        let one = try await s.witnessPair(from: 0, to: 1000)
         XCTAssertEqual(one.count, 1)
         XCTAssertEqual(one.maxTs, 200)
 
         _ = try await s.insert(Streams(gravity: [grav(300, 1)]), deviceId: "dev1")
-        let appended = try await s.gravityFingerprint(deviceId: "dev1", from: 0, to: 1000)
+        let appended = try await s.witnessPair(from: 0, to: 1000)
         XCTAssertEqual(appended.count, 2)
         XCTAssertEqual(appended.maxTs, 300)
 
         // A second that lands BEFORE the day's newest: the timestamp holds, the count is the only witness
         // that moves. An offload does not commit its channels in order, so this is the ordinary case.
         _ = try await s.insert(Streams(gravity: [grav(100, 1)]), deviceId: "dev1")
-        let backfilled = try await s.gravityFingerprint(deviceId: "dev1", from: 0, to: 1000)
+        let backfilled = try await s.witnessPair(from: 0, to: 1000)
         XCTAssertEqual(backfilled.count, 3)
         XCTAssertEqual(backfilled.maxTs, 300, "a backfill leaves the newest timestamp alone")
     }
@@ -69,11 +69,11 @@ final class GravityWitnessTests: XCTestCase {
     func testTheWitnessIsScopedToOneDeviceAndOneWindow() async throws {
         let s = try await store()
         _ = try await s.insert(Streams(gravity: [grav(100, 1), grav(200, 1)]), deviceId: "dev1")
-        let base = try await s.gravityFingerprint(deviceId: "dev1", from: 0, to: 250)
+        let base = try await s.witnessPair(from: 0, to: 250)
 
         _ = try await s.insert(Streams(gravity: [grav(150, 1)]), deviceId: "other")
         _ = try await s.insert(Streams(gravity: [grav(900, 1)]), deviceId: "dev1")
-        let after = try await s.gravityFingerprint(deviceId: "dev1", from: 0, to: 250)
+        let after = try await s.witnessPair(from: 0, to: 250)
         XCTAssertEqual(base.count, after.count)
         XCTAssertEqual(base.maxTs, after.maxTs)
     }
@@ -82,7 +82,7 @@ final class GravityWitnessTests: XCTestCase {
     /// so an unworn gap stops re-reading its whole stream to rediscover that it is empty.
     func testAnEmptyWindowReportsZeroRatherThanFailing() async throws {
         let s = try await store()
-        let fp = try await s.gravityFingerprint(deviceId: "dev1", from: 0, to: 1000)
+        let fp = try await s.witnessPair(from: 0, to: 1000)
         XCTAssertEqual(fp.count, 0)
         XCTAssertEqual(fp.maxTs, 0)
     }
@@ -141,6 +141,20 @@ final class HasHrInWindowTests: XCTestCase {
             let viaUnion = !(try await s.hrSamples(deviceId: "dev1", from: from, to: to, limit: 1)).isEmpty
             let viaExists = try await s.hasHrInWindow(deviceId: "dev1", from: from, to: to)
             XCTAssertEqual(viaExists, viaUnion, "window \(from)...\(to)")
+        }
+    }
+}
+
+private extension WhoopStore {
+    /// The single-window `(count, maxTs)` these cases were written against, taken from the batched witness.
+    /// Every timestamp here sits inside one local day at `tzOffset: 0`, so the whole window falls in one
+    /// bucket, and an absent bucket is a window that banked nothing: the `(0, 0)` the removed per-day form
+    /// used to return directly.
+    func witnessPair(from: Int, to: Int) async throws -> (count: Int, maxTs: Int) {
+        let byDay = try await gravityFingerprintByDay(deviceId: "dev1", from: from, to: to, tzOffset: 0)
+        return byDay.values.reduce(into: (count: 0, maxTs: 0)) { acc, v in
+            acc.count += v.count
+            acc.maxTs = max(acc.maxTs, v.maxTs)
         }
     }
 }

@@ -1240,20 +1240,23 @@ interface WhoopDao : DeviceRegistryDao {
     )
     suspend fun hasHrInWindow(deviceId: String, from: Long, to: Long): Boolean
 
-    // Per-day (device + window) GRAVITY witness for the steps-calibration motion cache. It is exactly the
-    // `g` segment of DAY_STREAM_FINGERPRINT_SQL below, on its own: that one counts gravity alongside eight
-    // other streams, so a new HR row would invalidate a motion volume that cannot have changed.
-    // dayMotionIntensity folds one day's gravity and nothing else, so its key must move when that stream
-    // moves and at no other time. Mirrors Swift WhoopStore.gravityFingerprint.
+
+    // The same witness for EVERY local day in one range, so the steps-calibration loop validates its cache
+    // with one scan instead of one per day. The 60-day loop cost ~42ms a day on a real library, about 97%
+    // of analyzeRecent's store-probe time, and the rows walked are identical: this replaces 60 index
+    // descents into (deviceId, ts) with one range scan that buckets as it goes.
     //
-    // ONE query returning both columns, not two returning one each. Two would let an insert land between
-    // them and yield a count from before it beside a newest-timestamp from after — a witness describing a
-    // state the day was never in. The pair has to be read atomically to mean anything.
+    // `(ts + :tzOffset) / 86400` is the LOCAL day index under the same SINGLE offset the caller already
+    // uses for its own day boundaries. Deliberately the same offset rather than a per-day one: the window
+    // is bucketed one way or the other, and matching the caller keeps this byte-identical to the per-day
+    // query it replaces, DST quirks included. A day with no gravity is ABSENT from the result rather than
+    // present as zero, so the caller supplies (0, 0) for a bucket it does not find.
     @Query(
-        "SELECT COUNT(*) AS c, COALESCE(MAX(ts), 0) AS m FROM gravitySample " +
-            "WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to"
+        "SELECT ((ts + :tzOffset) / 86400) AS d, COUNT(*) AS c, COALESCE(MAX(ts), 0) AS m " +
+            "FROM gravitySample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
+            "GROUP BY d"
     )
-    suspend fun gravityWitnessInWindow(deviceId: String, from: Long, to: Long): GravityWitness
+    suspend fun gravityWitnessByDay(deviceId: String, from: Long, to: Long, tzOffset: Long): List<GravityDayWitness>
     // #29: the same per-day (device + window) witness for every OTHER scored stream — see
     // DAY_STREAM_FINGERPRINT_SQL. Without it a night whose R-R landed after its HR keyed identically to the
     // HR-only scan it was scored from, and that HRV-less scan was re-served for the rest of the process.

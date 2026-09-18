@@ -1,4 +1,13 @@
 {
   "schema_version": 1,
-  "dispositions": []
+  "dispositions": [
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDao.kt::gravityWitnessByDay/4#1",
+      "identity_sha256": "fcb0c452c43155b828f65015966fba2f006b226426f7cfa2b72cbb90bd13e6fa",
+      "platform": "kotlin",
+      "rationale": "Room DAO interfaces are an Android-only layer: the query lives on the DAO here and directly inside WhoopStore.gravityFingerprintByDay on Swift, so there is no Swift declaration for this one to pair with. The parity that matters is one level up, where WhoopRepository.gravityFingerprintByDay and WhoopStore.gravityFingerprintByDay are twins and do pair. This replaces gravityWitnessInWindow, the per-day form removed in the same change, which was unpaired for exactly the same structural reason."
+    }
+  ]
 }

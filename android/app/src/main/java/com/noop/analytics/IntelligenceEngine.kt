@@ -2163,12 +2163,40 @@ object IntelligenceEngine {
         var motionReused = 0
         var motionFolded = 0
         val motionWindow = HashSet<String>()
+        // Resolve every day's owner first, then read each owner's witnesses for the WHOLE window in one
+        // query. The witness is the cache key, so it has to be read before the cache can be trusted, but it
+        // does not have to be read a day at a time: that cost ~42ms a day on a real library, about 97% of
+        // analyzeRecent's store-probe time, to walk rows a single range scan covers. Owner resolution stays
+        // per day because a day's owner can differ from its neighbour's, and it is already cheap.
+        data class DaySpan(val dayMid: Long, val dayEnd: Long, val dayKey: String, val owner: String)
+        val spans = ArrayList<DaySpan>(stepsCalDays)
         for (off in 0 until stepsCalDays) {
             val dayMid = midnightLocal(nowLocalMidnight - off * SECONDS_PER_DAY, tzOffsetSeconds)
             val dayEnd = dayMid + SECONDS_PER_DAY - 1
             val dayKey = AnalyticsEngine.dayString(dayMid, tzOffsetSeconds)
             motionWindow.add(dayKey)
-            val owner = resolveDayOwner(repo, ownerSource, candidatePriorities, dayKey, dayMid, dayEnd, importedDeviceId)
+            spans.add(
+                DaySpan(dayMid, dayEnd, dayKey,
+                        resolveDayOwner(repo, ownerSource, candidatePriorities, dayKey, dayMid, dayEnd, importedDeviceId)),
+            )
+        }
+        // One scan per distinct owner over the full window. A bucket missing from a map is a day that banked
+        // nothing, which is why the lookup below supplies (0, 0) rather than the query returning it.
+        val witnessByOwner = HashMap<String, Map<Long, Pair<Int, Long>>>()
+        for ((owner, owned) in spans.groupBy { it.owner }) {
+            // Bounded to the days this owner actually OWNS, not the whole window. Scanning the full 60 days
+            // per owner would read a multi-device library's rows once per device: three straps each covering
+            // the window is 180 device-days where the per-day loop read 60. Bounding keeps the batched form
+            // a strict improvement rather than one that only wins on a single-device install.
+            witnessByOwner[owner] = repo.gravityFingerprintByDay(
+                owner, owned.minOf { it.dayMid }, owned.maxOf { it.dayEnd }, tzOffsetSeconds.toLong(),
+            )
+        }
+        for (span in spans) {
+            val dayMid = span.dayMid
+            val dayEnd = span.dayEnd
+            val dayKey = span.dayKey
+            val owner = span.owner
             // Unlike the Swift twin there is no soft-failure branch here, and that is deliberate rather
             // than an omission. Swift's store reads throw and this whole block wraps them in `try?`, so it
             // has to say what a read it could not make means: a witness it cannot read bypasses the cache
@@ -2176,7 +2204,8 @@ object IntelligenceEngine {
             // propagate, so a failure aborts the pass before anything is written, which reaches the same
             // place by a shorter route. Adding a catch here would not add safety; it would swallow an
             // abort and start caching zeros that only mean "we could not look".
-            val fp = repo.gravityFingerprintWindow(owner, dayMid, dayEnd)
+            // Same (count, newestTs) pair the per-day query returned; an absent bucket is an empty day.
+            val fp = witnessByOwner[owner]?.get(localDayBucket(dayMid, tzOffsetSeconds.toLong())) ?: (0 to 0L)
             val key = StepsMotionCache.cacheKey(owner, fp.first, fp.second)
             val cached = stepsMotionCache[dayKey]
             val m: Double
@@ -2864,6 +2893,19 @@ object IntelligenceEngine {
      */
     internal fun midnightLocal(ts: Long, offsetSec: Long): Long =
         ts - Math.floorMod(ts + offsetSec, SECONDS_PER_DAY)
+
+    /**
+     * The local-day bucket a timestamp falls in, `(ts + tzOffset) / 86400`.
+     *
+     * ONE definition, because it is stated twice in different languages: here, and as the `GROUP BY` in
+     * `WhoopDao.gravityWitnessByDay` / Swift `WhoopStore.gravityFingerprintByDay`. The batched witness is
+     * only correct while the SQL's bucket and the caller's lookup key agree, so the caller must not carry
+     * its own copy of the expression, and neither may a test: `GravityWitnessDayBucketTest` calls THIS.
+     *
+     * Truncating division matches SQLite's, and equals floor while `ts + tzOffset` is non-negative, which
+     * every plausible timestamp is. Twin of Swift `IntelligenceEngine.localDayBucket`.
+     */
+    internal fun localDayBucket(ts: Long, tzOffset: Long): Long = (ts + tzOffset) / SECONDS_PER_DAY
 
     /**
      * The END of the sleep-read window for the night that finishes on [dayStart]'s day. A PAST day reads

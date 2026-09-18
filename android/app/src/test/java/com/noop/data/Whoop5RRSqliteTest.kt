@@ -63,7 +63,9 @@ class Whoop5RRSqliteTest {
                 "hasHrInWindow" -> hrRows(args).isNotEmpty()
                 "countHrInWindow" -> hrRows(args).size
                 "maxHrTsInWindow" -> hrRows(args).maxOfOrNull { it.ts } ?: 0L
-                "gravityWitnessInWindow" -> GravityWitness(0, 0L)
+                // An empty list is "no day banked gravity", which the per-day GravityWitness(0, 0) said one
+                // day at a time. The caller turns an absent bucket into (0, 0) itself.
+                "gravityWitnessByDay" -> emptyList<GravityDayWitness>()
                 "gravitySamples" -> gravity.filter {
                     it.deviceId == args[0] && it.ts in (args[1] as Long)..(args[2] as Long)
                 }

@@ -2563,6 +2563,14 @@ final class IntelligenceEngine: ObservableObject {
             var motionReused = 0
             var motionFolded = 0
             var motionWindow: Set<String> = []
+            // Resolve every day's owner first, then read each owner's witnesses for the WHOLE window in one
+            // query. The witness is the cache key, so it must be read before the cache can be trusted, but it
+            // need not be read a day at a time: that cost about 42ms a day on a real library, roughly 97% of
+            // analyzeRecent's store-probe time, to walk rows one range scan covers. Owner resolution stays per
+            // day, since a day's owner can differ from its neighbour's, and it is already cheap.
+            struct DaySpan { let dayMid: Int; let dayEnd: Int; let dayKey: String; let owner: String }
+            var spans: [DaySpan] = []
+            spans.reserveCapacity(stepsCalDays)
             for off in 0..<stepsCalDays {
                 let dayMid = Self.midnightLocal(nowLocalMidnight - off * 86_400, offsetSec: tzOffset)
                 let dayEnd = dayMid + 86_400 - 1
@@ -2571,11 +2579,35 @@ final class IntelligenceEngine: ObservableObject {
                 let owner = await Self.resolveDayOwner(day: dayKey, from: dayMid, to: dayEnd, store: store,
                                                        devices: regDevices, activeId: regActiveId,
                                                        registry: registry, fallbackDeviceId: stepsFallbackId)
+                spans.append(DaySpan(dayMid: dayMid, dayEnd: dayEnd, dayKey: dayKey, owner: owner))
+            }
+            // One scan per distinct owner. `nil` for an owner is a FAILED read and keeps the per-day meaning:
+            // every one of that owner's days bypasses the cache in both directions rather than trusting a
+            // witness nobody could take. A day merely ABSENT from a map that WAS read banked nothing.
+            var witnessByOwner: [String: [Int: (count: Int, maxTs: Int)]?] = [:]
+            // Bounded to the days this owner actually OWNS, not the whole window. Scanning the full 60 days
+            // per owner would read a multi-device library's rows once per device: three straps each covering
+            // the window is 180 device-days where the per-day loop read 60. Bounding keeps the batched form a
+            // strict improvement rather than one that only wins on a single-device install.
+            for (owner, owned) in Dictionary(grouping: spans, by: \.owner) {
+                guard let from = owned.map(\.dayMid).min(), let to = owned.map(\.dayEnd).max() else { continue }
+                witnessByOwner[owner] = try? await store.gravityFingerprintByDay(
+                    deviceId: owner, from: from, to: to, tzOffset: tzOffset)
+            }
+            for span in spans {
+                let dayMid = span.dayMid
+                let dayEnd = span.dayEnd
+                let dayKey = span.dayKey
+                let owner = span.owner
                 // A witness that could not be READ is not a witness. `(0, 0)` would be indistinguishable
                 // from a genuinely empty day, so a failed aggregate could serve a stale zero for a day that
                 // has since gained gravity. On a nil fingerprint the cache is bypassed in both directions:
                 // fold fresh, and store nothing under a key that does not describe anything.
-                let fp = try? await store.gravityFingerprint(deviceId: owner, from: dayMid, to: dayEnd)
+                // Same pair the per-day query returned. A read that FAILED leaves `fp` nil exactly as before; a
+                // day absent from a map that WAS read banked nothing, so it is (0, 0).
+                let fp: (count: Int, maxTs: Int)? = witnessByOwner[owner].flatMap { perDay in
+                    perDay.map { $0[Self.localDayBucket(dayMid, tzOffset: tzOffset)] ?? (count: 0, maxTs: 0) }
+                }
                 let key = fp.map { StepsMotionCache.cacheKey(owner: owner, gravityCount: $0.count,
                                                              gravityMaxTs: $0.maxTs) }
                 let m: Double
@@ -3350,6 +3382,17 @@ final class IntelligenceEngine: ObservableObject {
     nonisolated static func midnightLocal(_ ts: Int, offsetSec: Int) -> Int {
         ts - floorMod(ts + offsetSec, 86_400)
     }
+
+    /// The local-day bucket a timestamp falls in, `(ts + tzOffset) / 86_400`.
+    ///
+    /// ONE definition, because it is stated twice in different languages: here, and as the `GROUP BY` in
+    /// `WhoopStore.gravityFingerprintByDay` / Kotlin `WhoopDao.gravityWitnessByDay`. The batched witness is
+    /// only correct while the SQL's bucket and the caller's lookup key agree, so neither the caller nor a
+    /// test may carry its own copy of the expression.
+    ///
+    /// Truncating division matches SQLite's, and equals floor while `ts + tzOffset` is non-negative, which
+    /// every plausible timestamp is. Twin of Kotlin `IntelligenceEngine.localDayBucket`.
+    nonisolated static func localDayBucket(_ ts: Int, tzOffset: Int) -> Int { (ts + tzOffset) / 86_400 }
 
     /// Euclidean modulo (result has the sign of the divisor) , matches Kotlin/Java Math.floorMod, so
     /// the LOCAL-midnight floor is identical across platforms for any sign of ts/offset. Swift's `%`

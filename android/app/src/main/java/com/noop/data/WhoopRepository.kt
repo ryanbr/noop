@@ -723,15 +723,27 @@ class WhoopRepository(
         return present
     }
 
-    /** Per-day (device + window) gravity fingerprint as (count, newestTs) for the steps-calibration
-     *  motion cache. Narrower than [dayStreamFingerprint] on purpose: dayMotionIntensity folds gravity
-     *  alone, so a new HR row must not invalidate it. Mirrors Swift WhoopStore.gravityFingerprint. */
-    suspend fun gravityFingerprintWindow(deviceId: String, from: Long, to: Long): Pair<Int, Long> {
-        // Timed here for the same budget reason as [hasHrInWindow]; see StoreProbeTally.
+
+    /** Every local day's gravity witness across one range, keyed by `(ts + tzOffset) / 86400`.
+     *
+     *  The steps-calibration loop needs the
+     *  witness for 60 consecutive days and was paying a query per day to get it. One range scan over the
+     *  same (deviceId, ts) index replaces sixty descents into it; the rows walked are unchanged.
+     *
+     *  A day with NO gravity is absent from the map, not present as `(0, 0)`. Callers supply the zero,
+     *  which keeps "this day banked nothing" a fact the caller states rather than one the query invents.
+     *  Timed as a single probe, so [com.noop.analytics.StoreProbeTally] now reports one call per owner per
+     *  pass instead of sixty. Byte-parity twin of Swift `WhoopStore.gravityFingerprintByDay`. */
+    suspend fun gravityFingerprintByDay(
+        deviceId: String,
+        from: Long,
+        to: Long,
+        tzOffset: Long,
+    ): Map<Long, Pair<Int, Long>> {
         val started = System.nanoTime()
-        val witness = dao.gravityWitnessInWindow(deviceId, from, to)
+        val rows = dao.gravityWitnessByDay(deviceId, from, to, tzOffset)
         com.noop.analytics.StoreProbeTally.recordGravityFp(System.nanoTime() - started)
-        return witness.c to witness.m
+        return rows.associate { it.d to (it.c to it.m) }
     }
 
     /** #29 — the same per-day (device + window) witness for every OTHER stream analyzeDay scores: PPG-derived

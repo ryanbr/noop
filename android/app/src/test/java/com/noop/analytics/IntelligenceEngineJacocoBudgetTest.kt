@@ -162,7 +162,9 @@ class IntelligenceEngineJacocoBudgetTest {
         assertEquals("apple:apple-health", events[1])
         assertEquals("apple:health-connect", events[2])
         // Cold cache: every day is folded, so every day pays BOTH the witness and the read it guards.
-        assertEquals(60, events.count { it == "gravityFp" })
+        // ONE witness read for the whole window, not one per day: the loop batches it. The sixty FOLDS
+        // below are unchanged, because a fold is per day by nature and only the cache can avoid one.
+        assertEquals(1, events.count { it == "gravityFp" })
         assertEquals(60, events.count { it == "gravity" })
         // Each day asks for the witness BEFORE the read it might skip; a read that came first would make
         // the cache pointless while still passing a count.
@@ -228,7 +230,9 @@ class IntelligenceEngineJacocoBudgetTest {
         )
         assertEquals("an unchanged day must not be re-folded", 0, second.count { it == "gravity" })
         // The witness is still read for every day — that is what makes the skip safe rather than a guess.
-        assertEquals(60, second.count { it == "gravityFp" })
+        // Still read, because the witness is what proves the cache valid and cannot be skipped. But once
+        // for the window rather than once a day, which is the point of the batching.
+        assertEquals(1, second.count { it == "gravityFp" })
     }
 
     private fun recordingRepository(
@@ -251,9 +255,11 @@ class IntelligenceEngineJacocoBudgetTest {
                 }
                 // The motion cache's witness: one aggregate returning both the count and the newest
                 // timestamp, so the sequence below says exactly which reads the helper makes, in order.
-                "gravityWitnessInWindow" -> {
+                // ONE call covering the whole window, so the sequence counts one "gravityFp" where it used to
+                // count sixty. An empty list means no day banked gravity.
+                "gravityWitnessByDay" -> {
                     events.add("gravityFp")
-                    GravityWitness(0, 0L)
+                    emptyList<com.noop.data.GravityDayWitness>()
                 }
                 else -> throw UnsupportedOperationException("Extracted block must not call ${method.name}")
             }

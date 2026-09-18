@@ -101,6 +101,18 @@ data class GravityWitness(
     val m: Long,
 )
 
+/**
+ * One local day's gravity witness from the BATCHED scan: the day bucket plus the same (count, newestTs)
+ * pair [GravityWitness] carries for a single day. `d` is `(ts + tzOffset) / 86400`, the local-day index
+ * the caller derives its day boundaries from, so a bucket maps back to exactly one calendar day under
+ * the SAME single offset the steps window already uses. Query result of `WhoopDao.gravityWitnessByDay`.
+ */
+data class GravityDayWitness(
+    val d: Long,
+    val c: Int,
+    val m: Long,
+)
+
 /** Aggregate HR over a time window, sample count + avg/max bpm. Query result of
  *  [WhoopDao.hrWindowStats], not a table. Used to derive a workout's HR from strap samples when
  *  the imported session carries none (#77). avg/max are null when n == 0. */

@@ -145,28 +145,42 @@ extension WhoopStore {
         }
     }
 
-    /// Per-day GRAVITY fingerprint: `(count, maxTs)` over one device's `gravitySample` rows in a window.
+    /// Every local day's gravity witness across one range, keyed by `(ts + tzOffset) / 86_400`.
     ///
-    /// The witness the steps-calibration motion cache reuses a day's fold against. `dayStreamFingerprint`
-    /// already computes this pair, but it computes it alongside eight other streams, so a new HR row would
-    /// invalidate a motion volume that cannot have changed. `StepsEstimateEngine.dayMotionIntensity` is a
-    /// pure fold over one day's gravity stream and nothing else, so its cache key must move when that
-    /// stream moves and at no other time. Same COUNT/COALESCE(MAX) shape and the same `(deviceId, ts)`
-    /// index as `hrFingerprint(deviceId:from:to:)` above, and never a row fetch.
-    public func gravityFingerprint(deviceId: String, from: Int, to: Int) async throws -> (count: Int, maxTs: Int) {
-        // Counted for the same reason as `hasHrInWindow` above; see `StoreProbeTally`.
+    /// The steps-calibration loop needs the
+    /// witness for 60 consecutive days and was paying a query per day for it, about 42ms a day on a real
+    /// library and roughly 97% of `analyzeRecent`'s store-probe time. One range scan over the same
+    /// `(deviceId, ts)` index replaces sixty descents into it, walking identical rows.
+    ///
+    /// `tzOffset` is the caller's SINGLE window offset, deliberately not a per-day one: the window has to
+    /// be bucketed one way or another, and matching the offset the caller already derives its day
+    /// boundaries from keeps this byte-identical to the per-day query it replaces.
+    ///
+    /// A day with no gravity is ABSENT from the dictionary rather than present as `(0, 0)`, so the caller
+    /// states that zero itself. The failure distinction the per-day form carries is kept: this THROWS when
+    /// the read fails, and an empty dictionary means the range genuinely holds nothing.
+    ///
+    /// Byte-parity twin of Kotlin `WhoopRepository.gravityFingerprintByDay`.
+    public func gravityFingerprintByDay(deviceId: String, from: Int, to: Int,
+                                        tzOffset: Int) async throws -> [Int: (count: Int, maxTs: Int)] {
         let probeStarted = DispatchTime.now().uptimeNanoseconds
         defer { StoreProbeRecorder.record(.gravityFp, nanos: DispatchTime.now().uptimeNanoseconds &- probeStarted) }
         return try syncRead { db in
-            guard let row = try Row.fetchOne(db, sql: """
-                SELECT COUNT(*) AS c, COALESCE(MAX(ts), 0) AS m FROM gravitySample
+            var out: [Int: (count: Int, maxTs: Int)] = [:]
+            for row in try Row.fetchAll(db, sql: """
+                SELECT ((ts + ?) / 86400) AS d, COUNT(*) AS c, COALESCE(MAX(ts), 0) AS m FROM gravitySample
                 WHERE deviceId = ? AND ts >= ? AND ts <= ?
-                """, arguments: [deviceId, from, to]) else { return (0, 0) }
-            let c: Int = row["c"]
-            let m: Int = row["m"]
-            return (c, m)
+                GROUP BY d
+                """, arguments: [tzOffset, deviceId, from, to]) {
+                let d: Int = row["d"]
+                let c: Int = row["c"]
+                let m: Int = row["m"]
+                out[d] = (c, m)
+            }
+            return out
         }
     }
+
 
     /// Cross-device raw-HR fingerprint: `(count, maxTs)` over EVERY `hrSample` row, no `deviceId` filter.
     /// The `analyzeRecent` re-score gate (#1392) only needs to answer "did the raw stream change AT ALL",
