@@ -95,4 +95,58 @@ class RecoveryDriversUiTest {
         assertFalse("no usable resting-HR baseline, so no RHR row: got $labels",
             labels.contains(ChargeDriverLabel.RESTING_HEART_RATE))
     }
+
+    /** Epoch for a `yyyy-MM-dd` day key, UTC midnight, matching what Recalibrate writes. */
+    private fun epochOf(day: String): Double =
+        java.time.LocalDate.parse(day).atStartOfDay(java.time.ZoneOffset.UTC).toEpochSecond().toDouble()
+
+    @Test fun driverBaselineHonoursTheRecalibrationEpoch() {
+        // #2315: the reported shape. A history of low-HRV nights, then Recalibrate, then higher nights.
+        // Folding the WHOLE history gives one baseline and folding from the epoch gives another, and the
+        // headline uses the second. These rows must agree with the headline rather than with history.
+        val old = (1..10).map { day("2026-01-%02d".format(it), hrv = 40.0) }
+        val since = (11..20).map { day("2026-01-%02d".format(it), hrv = 70.0) }
+        val today = day("2026-01-21", hrv = 72.0, recovery = 70.0)
+        val days = old + since + today
+
+        val wholeHistory = recoveryChargeDrivers(days, today, hrvBaselineEpoch = 0.0)
+        val fromEpoch = recoveryChargeDrivers(days, today, hrvBaselineEpoch = epochOf("2026-01-11"))
+
+        val hrvOf = { rows: List<com.noop.analytics.ChargeDriver> ->
+            rows.first { it.label == ChargeDriverLabel.HEART_RATE_VARIABILITY }.baseline
+        }
+        val whole = hrvOf(wholeHistory)
+        val recent = hrvOf(fromEpoch)
+        assertTrue("both folds must produce an HRV row", whole != null && recent != null)
+        assertTrue(
+            "the epoch fold must discard the pre-recalibration nights, so its baseline sits higher " +
+                "(whole=$whole, fromEpoch=$recent)",
+            recent!! > whole!!,
+        )
+    }
+
+    @Test fun anAbsentEpochLeavesTheBaselineExactlyAsItWas() {
+        // The common case: nobody who never recalibrated may see any change from this.
+        val days = scoredHistory()
+        val implicit = recoveryChargeDrivers(days, days.last())
+        val explicitZero = recoveryChargeDrivers(days, days.last(), hrvBaselineEpoch = 0.0)
+        assertEquals(implicit.map { it.label }, explicitZero.map { it.label })
+        assertEquals(implicit.map { it.baseline }, explicitZero.map { it.baseline })
+        assertEquals(implicit.map { it.deltaPoints }, explicitZero.map { it.deltaPoints })
+    }
+
+    @Test fun theConfidenceTierUsesTheSameEpochAsTheDrivers() {
+        // The tier is read off the baseline the ring rides. A post-Recalibrate history that is still
+        // seeding must not be badged from a whole-history fold that looks fully trusted.
+        // Two nights since Recalibrate plus today is three, under the four-night seed gate, so the
+        // post-epoch baseline is not yet usable while the whole-history one looks fully trusted.
+        val old = (1..20).map { day("2026-01-%02d".format(it), hrv = 45.0) }
+        val since = (21..22).map { day("2026-01-%02d".format(it), hrv = 60.0) }
+        val today = day("2026-01-23", hrv = 61.0, recovery = 66.0)
+        val days = old + since + today
+        val whole = chargeConfidenceTier(days, today, hrvBaselineEpoch = 0.0)
+        val fromEpoch = chargeConfidenceTier(days, today, hrvBaselineEpoch = epochOf("2026-01-21"))
+        assertEquals(ScoreConfidence.CALIBRATING, fromEpoch)
+        assertFalse("the whole-history fold is what made these disagree", whole == fromEpoch)
+    }
 }

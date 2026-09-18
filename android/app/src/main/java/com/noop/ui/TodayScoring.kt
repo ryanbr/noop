@@ -60,6 +60,7 @@ internal fun recoveryCalibrationNights(
 internal fun recoveryChargeDrivers(
     days: List<DailyMetric>,
     displayDay: DailyMetric?,
+    hrvBaselineEpoch: Double = 0.0,
 ): List<ChargeDriver> {
     val day = displayDay ?: return emptyList()
     val hrv = day.avgHrv ?: return emptyList()
@@ -67,7 +68,13 @@ internal fun recoveryChargeDrivers(
 
     // Whole-history fold (oldest first), exactly as the engine seeds baselines2.
     val ordered = days.sortedBy { it.day }
-    val hrvBase = Baselines.foldHistory(ordered.map { it.avgHrv }, Baselines.hrvCfg)
+    // #2315: fold with the recalibration epoch, exactly as the engine does. Without it these rows
+    // scored against the WHOLE history while the headline scored against the post-Recalibrate nights,
+    // so the Charge page showed two different baselines for the same metric. `0.0` (no recalibration)
+    // delegates to the plain fold, so a user who never recalibrated sees no change at all.
+    val hrvBase = Baselines.foldHistory(
+        ordered.map { it.avgHrv }, ordered.map { it.day }, Baselines.hrvCfg, hrvBaselineEpoch,
+    )
     if (!hrvBase.usable) return emptyList()
     // Passed on ungated, unlike respBase below, and that is deliberate since #1988: chargeDrivers
     // gates this one itself, for its score AND for the row it builds from the baseline directly.
@@ -100,9 +107,14 @@ internal fun recoveryChargeDrivers(
 internal fun chargeConfidenceTier(
     days: List<DailyMetric>,
     displayDay: DailyMetric?,
+    hrvBaselineEpoch: Double = 0.0,
 ): ScoreConfidence {
-    val hrvBase: BaselineState =
-        Baselines.foldHistory(days.sortedBy { it.day }.map { it.avgHrv }, Baselines.hrvCfg)
+    // #2315: epoch-aware for the same reason as the drivers above. The tier is read off the baseline
+    // the ring rides, so folding a different history here could badge a scored day as CALIBRATING.
+    val ordered = days.sortedBy { it.day }
+    val hrvBase: BaselineState = Baselines.foldHistory(
+        ordered.map { it.avgHrv }, ordered.map { it.day }, Baselines.hrvCfg, hrvBaselineEpoch,
+    )
     return ScoreConfidence.forCharge(displayDay?.recovery, hrvBase)
 }
 

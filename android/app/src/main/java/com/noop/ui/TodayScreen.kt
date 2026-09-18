@@ -5353,13 +5353,17 @@ private fun RecoveryDriversSection(
     displayDay: DailyMetric?,
     carriedDay: DailyMetric? = null,
 ) {
+    // #2315: the same recalibration epoch the engine folds with. Read here rather than threaded from the
+    // caller because this section is the only consumer, and the pref read is one getLong behind remember.
+    val context = LocalContext.current
+    val hrvEpoch = remember { NoopPrefs.of(context).getLong(Baselines.hrvBaselineEpochKey, 0L).toDouble() }
     // Read the row the Charge ring itself reads: today's own when scored, else the carried last-scored
     // day (#543) so the breakdown matches the carried ring instead of vanishing at the rollover.
     val readDay = carriedDay ?: displayDay
-    val drivers = remember(days, readDay) { recoveryChargeDrivers(days, readDay) }
+    val drivers = remember(days, readDay, hrvEpoch) { recoveryChargeDrivers(days, readDay, hrvEpoch) }
     if (drivers.isEmpty()) return
 
-    val tier = remember(days, readDay) { chargeConfidenceTier(days, readDay) }
+    val tier = remember(days, readDay, hrvEpoch) { chargeConfidenceTier(days, readDay, hrvEpoch) }
     val overline = carriedDay?.let { uiString(R.string.today_charge_carried, carriedCaption(it.day).localized()) }
         ?: uiString(R.string.trends_charge)
 

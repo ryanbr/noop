@@ -31,11 +31,17 @@ enum ChargeBreakdownWiring {
     /// reader looks first.
     static func breakdown(days: [DailyMetric],
                           row: DailyMetric,
-                          sleepPerfPercent: Double?) -> (drivers: [ChargeDriver], confidence: ScoreConfidence)? {
+                          sleepPerfPercent: Double?,
+                          hrvBaselineEpoch: Double = 0) -> (drivers: [ChargeDriver], confidence: ScoreConfidence)? {
         guard let hrv = row.avgHrv, let rhr = row.restingHr else { return nil }
         // PERF: one pass per series. The two private copies this replaces each re-folded the full history
         // per body evaluation of the open sheet; the guard above still runs before any fold.
-        let hrvBase = Baselines.foldHistory(days.map(\.avgHrv), cfg: Baselines.hrvCfg)
+        // #2315: fold with the recalibration epoch, exactly as the engine does. Without it these rows and
+        // the confidence tier scored against the WHOLE history while the headline scored against the
+        // post-Recalibrate nights, so the Charge page showed two baselines for one metric. `0` (no
+        // recalibration) delegates to the plain fold, so a user who never recalibrated sees no change.
+        let hrvBase = Baselines.foldHistory(days.map(\.avgHrv), dayKeys: days.map(\.day),
+                                            cfg: Baselines.hrvCfg, baselineEpoch: hrvBaselineEpoch)
         guard hrvBase.usable else { return nil }
         let rhrBase = Baselines.foldHistory(days.map { $0.restingHr.map(Double.init) },
                                             cfg: Baselines.restingHRCfg)
