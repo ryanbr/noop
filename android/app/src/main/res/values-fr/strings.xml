@@ -1506,7 +1506,6 @@
     <string name="l10n_test_centre_screen_bug_report_5a7ee5ac">Rapport de bug</string>
     <string name="l10n_today_screen_arrange_cfdd099c">Régler</string>
     <string name="l10n_today_screen_arrange_today_sections_9675862b">Organiser les sections d\'aujourd\'hui</string>
-    <string name="l10n_today_screen_baselines_learned_on_device_over_14_359f6812">Données de référence apprises sur les appareils pendant 14 jours. Les barres sont une lecture approximative de chaque</string>
     <string name="l10n_today_screen_blood_oxygen_a8ad9ff5">Oxygène sanguin</string>
     <string name="l10n_today_screen_breaths_per_minute_2b197c54">Respirations par minute</string>
     <string name="l10n_today_screen_calories_3e62ecfe">Calories</string>
@@ -2182,6 +2181,7 @@
     <string name="today_section_menstrual_cycle">Cycle menstruel</string>
     <string name="today_section_journal">Journal de bord</string>
     <string name="today_section_added_cards">Cartes ajoutées</string>
+    <string name="today_recovery_vitals_explanation">Les valeurs de référence sont apprises sur l’appareil pendant 14 jours. Chaque barre donne une estimation d’un signal par rapport à la plage habituelle d’un adulte ; il ne s’agit pas d’un avis médical.</string>
     <string name="today_hr_window_today">Aujourd’hui</string>
     <string name="today_hr_window_24h">24 h</string>
     <string name="today_hr_window_12h">12 h</string>

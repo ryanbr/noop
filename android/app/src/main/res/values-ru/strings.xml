@@ -1706,7 +1706,6 @@
     <string name="l10n_test_centre_screen_bug_report_5a7ee5ac">Отчёт об ошибке</string>
     <string name="l10n_today_screen_arrange_cfdd099c">Расположение</string>
     <string name="l10n_today_screen_arrange_today_sections_9675862b">Настроить разделы «Сегодня»</string>
-    <string name="l10n_today_screen_baselines_learned_on_device_over_14_359f6812">Нормы выучены на устройстве за 14 дней. Полосы дают приблизительное представление о каждом</string>
     <string name="l10n_today_screen_blood_oxygen_a8ad9ff5">Кислород в крови</string>
     <string name="l10n_today_screen_breaths_per_minute_2b197c54">Вдохов в минуту</string>
     <string name="l10n_today_screen_calories_3e62ecfe">Калории</string>
@@ -2663,6 +2662,7 @@
     <string name="coach_consent_on">Включено: заряд, отдых, ВСР и тренировки отправляются провайдеру, каждая тренировка с видом спорта, длительностью, дистанцией и пульсом.</string>
     <string name="coach_consent_off">Выключено: коуч отвечает в общем виде и не отправляет ваши показатели.</string>
     <string name="l10n_app_changelog_a_today_screen_you_arrange_yourself_6194ccd0">Экран «Сегодня», который вы составляете сами, стресс на главном экране и резервные копии, которые проверяют себя сами</string>
+    <string name="today_recovery_vitals_explanation">Базовые значения определяются на устройстве в течение 14 дней. Каждая полоса приблизительно показывает один показатель относительно типичного диапазона для взрослого человека; это не медицинская рекомендация.</string>
     <string name="l10n_stress_screen_scored_through_1_s_later_hours_fbb7d6c7">Оценено до %1$s. Для более поздних часов нужно больше измерений пульса.</string>
     <string name="l10n_today_screen_scan_and_connect_40157030">Найти и подключить</string>
     <string name="l10n_health_screen_fitness_age_stops_here_vo_max_383d989a">Фитнес-возраст здесь останавливается. VO₂max — нет.</string>

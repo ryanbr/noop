@@ -5,17 +5,53 @@
           "de": {"stringUnit": {"state": "translated", "value": "7-Tage-Trend"}}, "es": {"stringUnit": {"state": "translated", "value": "Tendencia de 7 días"}}, "fr": {"stringUnit": {"state": "translated", "value": "Tendance sur 7 jours"}}, "it": {"stringUnit": {"state": "translated", "value": "Tendenza a 7 giorni"}}, "pl": {"stringUnit": {"state": "translated", "value": "Trend 7-dniowy"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Tendência de 7 dias"}}, "ru": {"stringUnit": {"state": "translated", "value": "Тренд за 7 дней"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "7 天趋势"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "7 天趨勢"}}
         } },
         "Added to Today": { "localizations": {
-          "de": {"stringUnit": {"state": "translated", "value": "Zu Heute hinzugefügt"}}, "es": {"stringUnit": {"state": "translated", "value": "Añadido a Hoy"}}, "fr": {"stringUnit": {"state": "translated", "value": "Ajouté à Aujourd'hui"}}, "it": {"stringUnit": {"state": "translated", "value": "Aggiunto a Oggi"}}, "pl": {"stringUnit": {"state": "translated", "value": "Dodano do Dzisiaj"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Adicionado a Hoje"}}, "ru": {"stringUnit": {"state": "translated", "value": "Добавлено в «Сегодня»"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "已添加到今天"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "已新增至今天"}}
-        } },
+      "de": { "stringUnit": { "state": "translated", "value": "Zu „Heute“ hinzugefügt" } },
+      "en": { "stringUnit": { "state": "translated", "value": "Added to Today" } },
+      "es": { "stringUnit": { "state": "translated", "value": "Añadidas a Hoy" } },
+      "fr": { "stringUnit": { "state": "translated", "value": "Ajoutées à Aujourd’hui" } },
+      "pt-PT": { "stringUnit": { "state": "translated", "value": "Adicionados a Hoje" } }
+      ,"it": { "stringUnit": { "state": "translated", "value": "Aggiunti a Oggi" } }
+      ,"pl": { "stringUnit": { "state": "translated", "value": "Dodane do widoku Dzisiaj" } }
+      ,"ru": { "stringUnit": { "state": "translated", "value": "Добавлено в раздел «Сегодня»" } }
+      ,"zh-Hans": { "stringUnit": { "state": "translated", "value": "已添加到“今天”" } }
+      ,"zh-Hant": { "stringUnit": { "state": "translated", "value": "已加入「今天」" } }
+    } },
         "Available": { "localizations": {
-          "de": {"stringUnit": {"state": "translated", "value": "Verfügbar"}}, "es": {"stringUnit": {"state": "translated", "value": "Disponible"}}, "fr": {"stringUnit": {"state": "translated", "value": "Disponible"}}, "it": {"stringUnit": {"state": "translated", "value": "Disponibile"}}, "pl": {"stringUnit": {"state": "translated", "value": "Dostępne"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Disponível"}}, "ru": {"stringUnit": {"state": "translated", "value": "Доступно"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "可用"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "可用"}}
-        } },
+      "de": { "stringUnit": { "state": "translated", "value": "Verfügbar" } },
+      "en": { "stringUnit": { "state": "translated", "value": "Available" } },
+      "es": { "stringUnit": { "state": "translated", "value": "Disponibles" } },
+      "fr": { "stringUnit": { "state": "translated", "value": "Disponibles" } },
+      "pt-PT": { "stringUnit": { "state": "translated", "value": "Disponíveis" } }
+      ,"it": { "stringUnit": { "state": "translated", "value": "Disponibili" } }
+      ,"pl": { "stringUnit": { "state": "translated", "value": "Dostępne" } }
+      ,"ru": { "stringUnit": { "state": "translated", "value": "Доступные" } }
+      ,"zh-Hans": { "stringUnit": { "state": "translated", "value": "可用" } }
+      ,"zh-Hant": { "stringUnit": { "state": "translated", "value": "可用" } }
+    } },
         "None added yet": { "localizations": {
-          "de": {"stringUnit": {"state": "translated", "value": "Noch nichts hinzugefügt"}}, "es": {"stringUnit": {"state": "translated", "value": "Aún no has añadido ninguno"}}, "fr": {"stringUnit": {"state": "translated", "value": "Aucun ajouté pour l'instant"}}, "it": {"stringUnit": {"state": "translated", "value": "Nessuno aggiunto finora"}}, "pl": {"stringUnit": {"state": "translated", "value": "Nic jeszcze nie dodano"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Ainda não foi adicionado nenhum"}}, "ru": {"stringUnit": {"state": "translated", "value": "Пока ничего не добавлено"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "尚未添加任何内容"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "尚未新增任何項目"}}
-        } },
+      "de": { "stringUnit": { "state": "translated", "value": "Noch keine hinzugefügt" } },
+      "en": { "stringUnit": { "state": "translated", "value": "None added yet" } },
+      "es": { "stringUnit": { "state": "translated", "value": "Aún no se ha añadido ninguna" } },
+      "fr": { "stringUnit": { "state": "translated", "value": "Aucune carte ajoutée" } },
+      "pt-PT": { "stringUnit": { "state": "translated", "value": "Ainda não foi adicionado nenhum" } }
+      ,"it": { "stringUnit": { "state": "translated", "value": "Nessun elemento ancora aggiunto" } }
+      ,"pl": { "stringUnit": { "state": "translated", "value": "Nie dodano jeszcze żadnych elementów" } }
+      ,"ru": { "stringUnit": { "state": "translated", "value": "Пока ничего не добавлено" } }
+      ,"zh-Hans": { "stringUnit": { "state": "translated", "value": "尚未添加任何项目" } }
+      ,"zh-Hant": { "stringUnit": { "state": "translated", "value": "尚未加入任何項目" } }
+    } },
         "Shown on Today": { "localizations": {
-          "de": {"stringUnit": {"state": "translated", "value": "Auf Heute angezeigt"}}, "es": {"stringUnit": {"state": "translated", "value": "Mostrado en Hoy"}}, "fr": {"stringUnit": {"state": "translated", "value": "Affiché dans Aujourd'hui"}}, "it": {"stringUnit": {"state": "translated", "value": "Mostrato in Oggi"}}, "pl": {"stringUnit": {"state": "translated", "value": "Pokazywane w Dzisiaj"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Mostrado em Hoje"}}, "ru": {"stringUnit": {"state": "translated", "value": "Показано в «Сегодня»"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "显示在今天"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "顯示在今天"}}
-        } },
+      "de": { "stringUnit": { "state": "translated", "value": "Auf „Heute“ angezeigt" } },
+      "en": { "stringUnit": { "state": "translated", "value": "Shown on Today" } },
+      "es": { "stringUnit": { "state": "translated", "value": "Mostradas en Hoy" } },
+      "fr": { "stringUnit": { "state": "translated", "value": "Affichées dans Aujourd’hui" } },
+      "pt-PT": { "stringUnit": { "state": "translated", "value": "Apresentados em Hoje" } }
+      ,"it": { "stringUnit": { "state": "translated", "value": "Mostrati in Oggi" } }
+      ,"pl": { "stringUnit": { "state": "translated", "value": "Wyświetlane w widoku Dzisiaj" } }
+      ,"ru": { "stringUnit": { "state": "translated", "value": "Показано в разделе «Сегодня»" } }
+      ,"zh-Hans": { "stringUnit": { "state": "translated", "value": "显示在“今天”中" } }
+      ,"zh-Hant": { "stringUnit": { "state": "translated", "value": "顯示於「今天」" } }
+    } },
         "last night": { "localizations": {
           "de": {"stringUnit": {"state": "translated", "value": "letzte Nacht"}}, "es": {"stringUnit": {"state": "translated", "value": "anoche"}}, "fr": {"stringUnit": {"state": "translated", "value": "la nuit dernière"}}, "it": {"stringUnit": {"state": "translated", "value": "la notte scorsa"}}, "pl": {"stringUnit": {"state": "translated", "value": "ostatniej nocy"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "ontem à noite"}}, "ru": {"stringUnit": {"state": "translated", "value": "прошлой ночью"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "昨晚"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "昨晚"}}
         } },
@@ -28,9 +64,20 @@
         "toggle ON · no estimate yet": { "localizations": {
           "de": {"stringUnit": {"state": "translated", "value": "Schalter AN · noch keine Schätzung"}}, "es": {"stringUnit": {"state": "translated", "value": "interruptor activado · aún sin estimación"}}, "fr": {"stringUnit": {"state": "translated", "value": "commutateur activé · pas encore d'estimation"}}, "it": {"stringUnit": {"state": "translated", "value": "interruttore attivo · nessuna stima"}}, "pl": {"stringUnit": {"state": "translated", "value": "przełącznik włączony · brak szacunku"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "interruptor ligado · ainda sem estimativa"}}, "ru": {"stringUnit": {"state": "translated", "value": "переключатель включён · оценки пока нет"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "开关已开启 · 尚无估算值"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "開關已開啟 · 尚無估算值"}}
         } },
-        "Pending sync · strap history still offloading": { "localizations": {
-          "de": {"stringUnit": {"state": "translated", "value": "Synchronisierung ausstehend · Strap-Verlauf wird noch übertragen"}}, "es": {"stringUnit": {"state": "translated", "value": "Sincronización pendiente · el historial de la banda aún se está descargando"}}, "fr": {"stringUnit": {"state": "translated", "value": "Synchronisation en attente · l'historique du bracelet est encore en cours de transfert"}}, "it": {"stringUnit": {"state": "translated", "value": "Sincronizzazione in attesa · la cronologia della fascia è ancora in trasferimento"}}, "pl": {"stringUnit": {"state": "translated", "value": "Oczekiwanie na synchronizację · historia opaski wciąż jest pobierana"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Sincronização pendente · o histórico da pulseira ainda está a ser transferido"}}, "ru": {"stringUnit": {"state": "translated", "value": "Ожидание синхронизации · история ремешка ещё выгружается"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "等待同步 · 手环历史数据仍在传输"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "等待同步 · 手環歷史資料仍在傳輸"}}
-        } },
+        "Pending sync · strap history still offloading": {
+      "localizations": {
+        "de": { "stringUnit": { "state": "translated", "value": "Synchronisierung ausstehend · Strap-Verlauf wird noch übertragen" } },
+        "en": { "stringUnit": { "state": "translated", "value": "Pending sync · strap history still offloading" } },
+        "es": { "stringUnit": { "state": "translated", "value": "Sincronización pendiente · el historial de la correa aún se está transfiriendo" } },
+        "fr": { "stringUnit": { "state": "translated", "value": "Synchronisation en attente · l’historique du bracelet est toujours en cours de transfert" } },
+        "it": { "stringUnit": { "state": "translated", "value": "Sincronizzazione in sospeso · trasferimento della cronologia del cinturino ancora in corso" } },
+        "pl": { "stringUnit": { "state": "translated", "value": "Synchronizacja oczekuje · historia opaski jest nadal przesyłana" } },
+        "pt-PT": { "stringUnit": { "state": "translated", "value": "Sincronização pendente · o histórico da pulseira ainda está a ser transferido" } },
+        "ru": { "stringUnit": { "state": "translated", "value": "Ожидание синхронизации · история ремешка ещё передаётся" } },
+        "zh-Hans": { "stringUnit": { "state": "translated", "value": "等待同步 · 表带历史记录仍在传输" } },
+        "zh-Hant": { "stringUnit": { "state": "translated", "value": "等待同步 · 錶帶歷史記錄仍在傳輸" } }
+      }
+    },
         "Strap battery charging, no reading yet": { "localizations": {
           "de": {"stringUnit": {"state": "translated", "value": "Strap-Akku wird geladen, noch kein Messwert"}}, "es": {"stringUnit": {"state": "translated", "value": "Batería de la banda cargando, aún sin lectura"}}, "fr": {"stringUnit": {"state": "translated", "value": "Batterie du bracelet en charge, pas encore de relevé"}}, "it": {"stringUnit": {"state": "translated", "value": "Batteria della fascia in carica, nessuna lettura"}}, "pl": {"stringUnit": {"state": "translated", "value": "Bateria opaski ładuje się, brak odczytu"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Bateria da pulseira a carregar, ainda sem leitura"}}, "ru": {"stringUnit": {"state": "translated", "value": "Ремешок заряжается, показаний пока нет"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "手环正在充电，尚无读数"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "手環正在充電，尚無讀數"}}
         } },
@@ -50,14 +97,137 @@
           "de": {"stringUnit": {"state": "translated", "value": "Strap-Verlauf wird synchronisiert, Block %lld"}}, "es": {"stringUnit": {"state": "translated", "value": "Sincronizando historial de la banda, bloque %lld"}}, "fr": {"stringUnit": {"state": "translated", "value": "Synchronisation de l'historique du bracelet, bloc %lld"}}, "it": {"stringUnit": {"state": "translated", "value": "Sincronizzazione della cronologia della fascia, blocco %lld"}}, "pl": {"stringUnit": {"state": "translated", "value": "Synchronizacja historii opaski, fragment %lld"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "A sincronizar o histórico da pulseira, bloco %lld"}}, "ru": {"stringUnit": {"state": "translated", "value": "Синхронизация истории ремешка, фрагмент %lld"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "正在同步手环历史数据，第 %lld 块"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "正在同步手環歷史資料，第 %lld 塊"}}
         } },
         "%lld cards shown": { "localizations": {
-          "de": {"stringUnit": {"state": "translated", "value": "%lld Karten angezeigt"}}, "es": {"stringUnit": {"state": "translated", "value": "%lld tarjetas mostradas"}}, "fr": {"stringUnit": {"state": "translated", "value": "%lld cartes affichées"}}, "it": {"stringUnit": {"state": "translated", "value": "%lld schede mostrate"}}, "pl": {"stringUnit": {"state": "translated", "value": "Pokazane karty: %lld"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "%lld cartões mostrados"}}, "ru": {"stringUnit": {"state": "translated", "value": "Показано карточек: %lld"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "显示 %lld 张卡片"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "顯示 %lld 張卡片"}}
-        } },
+      "de": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld Karte angezeigt" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld Karten angezeigt" } }
+      } } },
+      "en": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld card shown" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld cards shown" } }
+      } } },
+      "es": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld tarjeta mostrada" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld tarjetas mostradas" } }
+      } } },
+      "fr": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld carte affichée" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld cartes affichées" } }
+      } } },
+      "pt-PT": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld cartão apresentado" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld cartões apresentados" } }
+      } } },
+      "it": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld scheda mostrata" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld schede mostrate" } }
+      } } },
+      "pl": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld karta wyświetlana" } },
+        "few": { "stringUnit": { "state": "translated", "value": "%lld karty wyświetlane" } },
+        "many": { "stringUnit": { "state": "translated", "value": "%lld kart wyświetlanych" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld karty wyświetlanej" } }
+      } } },
+      "ru": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld карточка показана" } },
+        "few": { "stringUnit": { "state": "translated", "value": "%lld карточки показаны" } },
+        "many": { "stringUnit": { "state": "translated", "value": "%lld карточек показано" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld карточки показано" } }
+      } } },
+      "zh-Hans": { "variations": { "plural": {
+        "other": { "stringUnit": { "state": "translated", "value": "已显示 %lld 张卡片" } }
+      } } },
+      "zh-Hant": { "variations": { "plural": {
+        "other": { "stringUnit": { "state": "translated", "value": "已顯示 %lld 張卡片" } }
+      } } }
+    } },
         "%lld added": { "localizations": {
-          "de": {"stringUnit": {"state": "translated", "value": "%lld hinzugefügt"}}, "es": {"stringUnit": {"state": "translated", "value": "%lld añadidos"}}, "fr": {"stringUnit": {"state": "translated", "value": "%lld ajoutés"}}, "it": {"stringUnit": {"state": "translated", "value": "%lld aggiunti"}}, "pl": {"stringUnit": {"state": "translated", "value": "Dodano: %lld"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "%lld adicionados"}}, "ru": {"stringUnit": {"state": "translated", "value": "Добавлено: %lld"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "已添加 %lld 个"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "已新增 %lld 個"}}
-        } },
+      "de": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld hinzugefügt" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld hinzugefügt" } }
+      } } },
+      "en": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld added" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld added" } }
+      } } },
+      "es": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld añadida" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld añadidas" } }
+      } } },
+      "fr": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld ajoutée" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld ajoutées" } }
+      } } },
+      "pt-PT": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld adicionado" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld adicionados" } }
+      } } },
+      "it": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld elemento aggiunto" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld elementi aggiunti" } }
+      } } },
+      "pl": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld dodany element" } },
+        "few": { "stringUnit": { "state": "translated", "value": "%lld dodane elementy" } },
+        "many": { "stringUnit": { "state": "translated", "value": "%lld dodanych elementów" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld dodanego elementu" } }
+      } } },
+      "ru": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld элемент добавлен" } },
+        "few": { "stringUnit": { "state": "translated", "value": "%lld элемента добавлено" } },
+        "many": { "stringUnit": { "state": "translated", "value": "%lld элементов добавлено" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld элемента добавлено" } }
+      } } },
+      "zh-Hans": { "variations": { "plural": {
+        "other": { "stringUnit": { "state": "translated", "value": "已添加 %lld 项" } }
+      } } },
+      "zh-Hant": { "variations": { "plural": {
+        "other": { "stringUnit": { "state": "translated", "value": "已加入 %lld 項" } }
+      } } }
+    } },
         "%lld metrics shown": { "localizations": {
-          "de": {"stringUnit": {"state": "translated", "value": "%lld Werte angezeigt"}}, "es": {"stringUnit": {"state": "translated", "value": "%lld métricas mostradas"}}, "fr": {"stringUnit": {"state": "translated", "value": "%lld mesures affichées"}}, "it": {"stringUnit": {"state": "translated", "value": "%lld metriche mostrate"}}, "pl": {"stringUnit": {"state": "translated", "value": "Pokazane wskaźniki: %lld"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "%lld métricas mostradas"}}, "ru": {"stringUnit": {"state": "translated", "value": "Показано показателей: %lld"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "显示 %lld 项指标"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "顯示 %lld 項指標"}}
-        } },
+      "de": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld Messwert angezeigt" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld Messwerte angezeigt" } }
+      } } },
+      "en": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld metric shown" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld metrics shown" } }
+      } } },
+      "es": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld métrica mostrada" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld métricas mostradas" } }
+      } } },
+      "fr": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld mesure affichée" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld mesures affichées" } }
+      } } },
+      "pt-PT": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld métrica apresentada" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld métricas apresentadas" } }
+      } } },
+      "it": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld metrica mostrata" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld metriche mostrate" } }
+      } } },
+      "pl": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld wskaźnik wyświetlany" } },
+        "few": { "stringUnit": { "state": "translated", "value": "%lld wskaźniki wyświetlane" } },
+        "many": { "stringUnit": { "state": "translated", "value": "%lld wskaźników wyświetlanych" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld wskaźnika wyświetlanego" } }
+      } } },
+      "ru": { "variations": { "plural": {
+        "one": { "stringUnit": { "state": "translated", "value": "%lld показатель отображается" } },
+        "few": { "stringUnit": { "state": "translated", "value": "%lld показателя отображаются" } },
+        "many": { "stringUnit": { "state": "translated", "value": "%lld показателей отображаются" } },
+        "other": { "stringUnit": { "state": "translated", "value": "%lld показателя отображается" } }
+      } } },
+      "zh-Hans": { "variations": { "plural": {
+        "other": { "stringUnit": { "state": "translated", "value": "已显示 %lld 项指标" } }
+      } } },
+      "zh-Hant": { "variations": { "plural": {
+        "other": { "stringUnit": { "state": "translated", "value": "已顯示 %lld 項指標" } }
+      } } }
+    } },
         "Looks like a workout around %@-%@ (avg HR %lld, %lld min). Save it?": { "localizations": {
           "de": {"stringUnit": {"state": "translated", "value": "Sieht nach einem Workout zwischen %@ und %@ aus (Ø HF %lld, %lld Min.). Speichern?"}}, "es": {"stringUnit": {"state": "translated", "value": "Parece un entrenamiento entre %@ y %@ (FC media %lld, %lld min). ¿Guardarlo?"}}, "fr": {"stringUnit": {"state": "translated", "value": "Cela ressemble à une séance entre %@ et %@ (FC moy. %lld, %lld min). L'enregistrer ?"}}, "it": {"stringUnit": {"state": "translated", "value": "Sembra un allenamento tra %@ e %@ (FC media %lld, %lld min). Salvarlo?"}}, "pl": {"stringUnit": {"state": "translated", "value": "To wygląda na trening między %@ a %@ (śr. tętno %lld, %lld min). Zapisać?"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Parece um treino entre %@ e %@ (FC média %lld, %lld min). Guardar?"}}, "ru": {"stringUnit": {"state": "translated", "value": "Похоже на тренировку с %@ до %@ (средний пульс %lld, %lld мин). Сохранить?"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "看起来是一次 %@-%@ 的锻炼（平均心率 %lld，%lld 分钟）。保存吗？"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "看起來是一次 %@-%@ 的鍛鍊（平均心率 %lld，%lld 分鐘）。要儲存嗎？"}}
         } },
@@ -10738,7 +10908,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "%lld Chunks"
+            "value": "%lld Datenblöcke"
           }
         },
         "es": {
@@ -10796,7 +10966,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "%lld Chunks geladen"
+            "value": "%lld Datenblöcke übertragen"
           }
         },
         "es": {
@@ -60485,7 +60655,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Detaillierte Fliesen"
+            "value": "Detaillierte Kacheln"
           }
         },
         "es": {
@@ -75302,7 +75472,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Guten Nachmittag"
+            "value": "Guten Tag"
           }
         },
         "es": {
@@ -89520,7 +89690,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kernmetriken"
+            "value": "Wichtige Messwerte"
           }
         },
         "en": {
@@ -130078,7 +130248,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lesungen"
+            "value": "Messwerte"
           }
         },
         "es": {
@@ -130109,18 +130279,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Измерения"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "读数"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "讀數"
           }
         }
       }
@@ -150863,7 +151021,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Squarer-Kacheln mit einem Trendgraphen unter der Bar."
+            "value": "Größere Kacheln mit einem Trenddiagramm unter dem Balken."
           }
         },
         "es": {
@@ -152209,7 +152367,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sitzung starten"
+            "value": "Training starten"
           }
         },
         "en": {
@@ -158326,13 +158484,13 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "Verlaufssynchronisierung des Straps läuft, %lld Chunk"
+                  "value": "Verlaufssynchronisierung des Straps läuft, %lld Datenblock"
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "Verlaufssynchronisierung des Straps läuft, %lld Chunks"
+                  "value": "Verlaufssynchronisierung des Straps läuft, %lld Datenblöcke"
                 }
               }
             }
@@ -158720,13 +158878,13 @@
               "one": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "Verlaufssynchronisierung des Straps läuft, %lld Chunk, %@"
+                  "value": "Verlaufssynchronisierung des Straps läuft, %lld Datenblock, %@"
                 }
               },
               "other": {
                 "stringUnit": {
                   "state": "translated",
-                  "value": "Verlaufssynchronisierung des Straps läuft, %lld Chunks, %@"
+                  "value": "Verlaufssynchronisierung des Straps läuft, %lld Datenblöcke, %@"
                 }
               }
             }
@@ -159221,7 +159379,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Synthese"
+            "value": "Zusammenfassung"
           }
         },
         "es": {
