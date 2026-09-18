@@ -49,10 +49,16 @@ import Foundation
 /// interleave the two frames. No shipped device is near that, and the test suite pins both sides of
 /// the boundary so a future one cannot cross it unnoticed.
 ///
-/// ## Safe where there is nothing to spread
+/// ## Safe where there is nothing to spread, but 5.0 is not "nothing"
 ///
-/// A single-interval array returns unchanged, so a strap whose frames arrive at about its beat rate is
-/// byte-identical through this. Only a batching frame moves, which is the only case that was ever wrong.
+/// A single-interval array returns unchanged, so only a batching frame moves.
+///
+/// That is NOT the same as "only the 4.0 moves", which is what the shape of the 4.0 over-count makes it
+/// tempting to assume. A real WHOOP 5 REALTIME_DATA frame carries two intervals (`rr=[603,587]`, the
+/// vector in `Whoop5RealtimeTests`), so it batches too and its first beat back-dates by a second. On a
+/// 5.0 night that moves coverage from about 1.0028 to about 1.0000, which stays plausible, and the
+/// placement is more correct there for the same reason it is on a 4.0. No family gate is wanted: the
+/// spread is right wherever a frame batches, not a 4.0 workaround.
 public enum RrBatchTimestamps {
 
     /// The frame's intervals with a timestamp each, oldest first.

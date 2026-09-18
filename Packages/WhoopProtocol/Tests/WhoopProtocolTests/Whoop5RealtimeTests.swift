@@ -36,6 +36,18 @@ final class Whoop5RealtimeTests: XCTestCase {
         XCTAssertEqual(f.parsed["rr_intervals"]?.intArrayValue, [603, 587])
     }
 
+    func testRealtimeRRTimestampsSpreadAcrossTheBatch() {
+        // A WHOOP 5 realtime frame carries TWO intervals, so it batches like the 4.0 does and the spread
+        // applies to it: the 587 ms beat ends at the frame, the 603 ms one before it back-dates by the
+        // 587 ms that follow. 5.0 is NOT untouched by the spread, and nothing pinned that before: the
+        // tests either read the parsed dict or asserted rrMs values, which the spread leaves alone.
+        // Coverage on a 5.0 night moves from about 1.0028 to about 1.0000, so it stays plausible.
+        let f = parseFrame(bytes(realtimeHex), family: .whoop5)
+        let streams = extractStreams([f], deviceClockRef: 1780916382, wallClockRef: 1780916382)
+        XCTAssertEqual(streams.rr.map(\.rrMs), [603, 587])
+        XCTAssertEqual(streams.rr.map(\.ts), [1780916381, 1780916382])
+    }
+
     func testHeartRateFieldIsAtOffset16() {
         // Guard the exact offset the +4 rule predicts (4.0 heart_rate@12 → 5.0 @16).
         // collectFields: the annotated fields array is opt-in diagnostics (D#742).

@@ -449,6 +449,19 @@ class FramingTest {
     }
 
     @Test
+    fun whoop5_realtimeRrTimestampsSpreadAcrossTheBatch() {
+        // A WHOOP 5 realtime frame carries TWO intervals, so it batches like the 4.0 does and the spread
+        // applies to it: the 587 ms beat ends at the frame, the 603 ms one before it back-dates by the
+        // 587 ms that follow. 5.0 is NOT untouched by the spread, and nothing pinned that before: the
+        // tests either read the parsed dict or asserted rrMs values, which the spread leaves alone.
+        // Twin of Swift `Whoop5RealtimeTests.testRealtimeRRTimestampsSpreadAcrossTheBatch`.
+        val f = Framing.parseFrame(fromHex(whoop5RealtimeHex), DeviceFamily.WHOOP5)
+        val streams = extractStreams(listOf(f), deviceClockRef = 1780916382, wallClockRef = 1780916382)
+        assertEquals(listOf(603, 587), streams.rr.map { it.rrMs })
+        assertEquals(listOf(1780916381, 1780916382), streams.rr.map { it.ts })
+    }
+
+    @Test
     fun whoop5_reassembler_isFamilyAware() {
         // The WHOOP4 length rule decodes a bogus ~6 KB length for a 5/MG frame and never emits; the
         // family-aware reassembler frames it correctly (declLen @[2..4], total + 8).

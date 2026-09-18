@@ -50,10 +50,14 @@ import kotlin.math.roundToInt
  * key, but reads that sort by ts will interleave the two frames. No shipped device is near that, and the
  * test suite pins both sides of the boundary.
  *
- * ## Safe where there is nothing to spread
+ * ## Safe where there is nothing to spread, but 5.0 is not "nothing"
  *
- * A single-interval array returns unchanged, so a strap whose frames arrive at about its beat rate is
- * byte-identical through this. Only a batching frame moves, which is the only case that was ever wrong.
+ * A single-interval array returns unchanged, so only a batching frame moves.
+ *
+ * That is NOT the same as "only the 4.0 moves". A real WHOOP 5 REALTIME_DATA frame carries two intervals
+ * (`rr=[603,587]`, the vector in `FramingTest`), so it batches too and its first beat back-dates by a
+ * second. On a 5.0 night that moves coverage from about 1.0028 to about 1.0000, which stays plausible.
+ * No family gate is wanted: the spread is right wherever a frame batches, not a 4.0 workaround.
  *
  */
 object RrBatchTimestamps {
