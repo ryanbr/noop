@@ -76,6 +76,10 @@ final class ChargeBreakdownWiringTests: XCTestCase {
         // The reported shape: low-HRV history, Recalibrate, then higher nights. Folding the WHOLE history
         // gives one baseline and folding from the epoch gives another, and the headline uses the second.
         // These rows have to agree with the headline rather than with history.
+        //
+        // Asserted on `baselineText` because that is what a Swift ChargeDriver carries: it pre-formats for
+        // display where the Kotlin twin keeps a numeric `baseline`. Different text is the observable proof
+        // that a different history was folded.
         let old = (1...10).map { day(String(format: "2026-01-%02d", $0), hrv: 40) }
         let since = (11...20).map { day(String(format: "2026-01-%02d", $0), hrv: 70) }
         let today = day("2026-01-21", hrv: 72, recovery: 70)
@@ -85,14 +89,16 @@ final class ChargeBreakdownWiringTests: XCTestCase {
                                                     hrvBaselineEpoch: 0)
         let fromEpoch = ChargeBreakdownWiring.breakdown(days: days, row: today, sleepPerfPercent: 85,
                                                         hrvBaselineEpoch: epochOf("2026-01-11"))
-        let hrvBaseline: ([ChargeDriver]) -> Double? = { rows in
-            rows.first { $0.label == .heartRateVariability }?.baseline
+        let hrvRow: ((drivers: [ChargeDriver], confidence: ScoreConfidence)?) -> ChargeDriver? = { out in
+            out?.drivers.first(where: { $0.label == "Heart rate variability" })
         }
-        guard let w = whole.map({ hrvBaseline($0.drivers) }) ?? nil,
-              let r = fromEpoch.map({ hrvBaseline($0.drivers) }) ?? nil else {
+        guard let w = hrvRow(whole), let r = hrvRow(fromEpoch) else {
             return XCTFail("both folds must produce an HRV row")
         }
-        XCTAssertGreaterThan(r, w, "the epoch fold must discard the pre-recalibration nights")
+        XCTAssertNotEqual(w.baselineText, r.baselineText,
+                          "the epoch fold must discard the pre-recalibration nights, so the baseline it "
+                          + "reports differs from the whole-history one (whole=\(w.baselineText), "
+                          + "fromEpoch=\(r.baselineText))")
     }
 
     func testAnAbsentEpochLeavesTheBaselineExactlyAsItWas() {
@@ -103,7 +109,7 @@ final class ChargeBreakdownWiringTests: XCTestCase {
         let explicitZero = ChargeBreakdownWiring.breakdown(days: past + [today], row: today,
                                                           sleepPerfPercent: 85, hrvBaselineEpoch: 0)
         XCTAssertEqual(implicit?.drivers.map(\.label), explicitZero?.drivers.map(\.label))
-        XCTAssertEqual(implicit?.drivers.map(\.baseline), explicitZero?.drivers.map(\.baseline))
+        XCTAssertEqual(implicit?.drivers.map(\.baselineText), explicitZero?.drivers.map(\.baselineText))
         XCTAssertEqual(implicit?.drivers.map(\.deltaPoints), explicitZero?.drivers.map(\.deltaPoints))
     }
 }
