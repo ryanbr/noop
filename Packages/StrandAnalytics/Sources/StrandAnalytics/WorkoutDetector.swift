@@ -903,12 +903,18 @@ public enum Calories {
     ///
     /// Coverage: `observedSeconds` is the sum of the covered sample intervals, capped at the day span.
     /// A minute counts ONCE: a duplicate `ts` keeps the LOWER MET (the conservative direction), and a
-    /// sample whose interval OVERLAPS the one already counted is dropped — the ring re-serves a record
-    /// under a fresh per-session `0x13` anchor a few seconds off the first copy (2026-09-17: 157 of
-    /// 1,035 stored rows were 3–4 s twins of another minute, +8 % on the day), and two rows 3 s apart
-    /// are one minute, not two. Missing minutes are UNKNOWN and contribute nothing to either term:
-    /// never extrapolate a gap to activity, and never bank resting energy for time nobody observed.
-    /// `restingKcal` therefore scales with coverage exactly as the HR path's does.
+    /// sample that starts within HALF a period of the one already counted is that minute again and is
+    /// dropped — the ring re-serves a record under a fresh per-session `0x13` anchor a few seconds off
+    /// the first copy (2026-09-17: 157 of 1,035 stored rows were 3–4 s twins of another minute, +8 % on
+    /// the day), and two rows 3 s apart are one minute, not two. Half a period, not "any overlap": the
+    /// ring's own minute grid steps by a second between records (the per-record anchor rounds
+    /// differently — `:02` then `:01`), so a successor can start 59 s after the minute before it and
+    /// overlap it by one second; judged by overlap, that successor was dropped and the day lost a
+    /// whole minute per phase step (2026-09-18: six on one day, the day's 7.8-MET peak among them,
+    /// −5.5 % on active energy). A twin is 2–5 s off; a successor is 55–61 s off; 30 s tells them
+    /// apart. Missing minutes are UNKNOWN and contribute nothing to either term: never extrapolate a
+    /// gap to activity, and never bank resting energy for time nobody observed. `restingKcal` therefore
+    /// scales with coverage exactly as the HR path's does.
     public static func estimateDayEnergyFromMET(_ samples: [MetSample],
                                                 profile: UserProfile,
                                                 dayStart: Int,
@@ -927,17 +933,20 @@ public enum Calories {
         // kcal per excess-MET-minute for THIS wearer (the MET definition scales with body mass).
         let kcalPerMetMin = kcalPerKgPerMetMinute * weightKg
 
-        // Ties on ts: ascending MET on a tie keeps the LOWER reading. Overlaps: a sample that starts
-        // before the previously counted interval ends is the same minute served again (see the doc
-        // above) — the earlier-starting copy wins and the twin is skipped, so neither coverage nor
-        // active energy counts a minute twice.
+        // Ties on ts: ascending MET on a tie keeps the LOWER reading. Twins: a sample that starts less
+        // than half a period after the previously counted start is the same minute served again (see
+        // the doc above) — the earlier-starting copy wins and the twin is skipped, so neither coverage
+        // nor active energy counts a minute twice. Integer test, same expression as the Kotlin twin and
+        // as `OuraMetSample.isTwin`: `Δ × 2 < min(period, lastPeriod)`.
         let ordered = inDay.sorted { $0.ts != $1.ts ? $0.ts < $1.ts : $0.met < $1.met }
         var covered = 0.0
         var activeKcal = 0.0
-        var lastEnd = Int.min
+        var lastStart = Int.min
+        var lastPeriod = 0
         for s in ordered {
-            if s.ts < lastEnd { continue }
-            lastEnd = s.ts + s.secPerSample
+            if lastPeriod > 0 && (s.ts - lastStart) * 2 < min(s.secPerSample, lastPeriod) { continue }
+            lastStart = s.ts
+            lastPeriod = s.secPerSample
             let minutes = Double(s.secPerSample) / 60.0
             covered += Double(s.secPerSample)
             guard s.met >= metActiveThreshold else { continue }

@@ -60,35 +60,50 @@ class OuraMetSampleMigrationTest {
  * The insert's minute-level dedupe (#2242, 2026-09-17). `ts` is anchored ring time under a per-session
  * `0x13` anchor, so the same ring record re-served under a second session lands 2–5 s off its first copy
  * and the (deviceId, ts) key keeps both — 157 twins in 1,035 rows on the first hardware day, +8 % on the
- * day. Twin of Swift `OuraMetStoreTests.testDroppingOverlapsIsPureAndOrderIndependent`.
+ * day. A twin starts less than half a period after a kept start; a successor 59 s on — the ring's grid
+ * stepping back a second (2026-09-18) — is the next minute and stays. Twin of Swift
+ * `OuraMetStoreTests.testDroppingTwinsIsPureAndOrderIndependent`.
  */
-class OuraMetSampleOverlapTest {
+class OuraMetSampleTwinTest {
     private fun s(ts: Long, met: Double = 1.0, epochS: Int = 60) = OuraMetSampleEntity("oura-A", ts, met, 0, epochS)
 
     @Test
-    fun droppingOverlaps_isPureAndOrderIndependent() {
+    fun droppingTwins_isPureAndOrderIndependent() {
         val t = 1_000L
-        val existing = listOf(s(t), s(t + 120, epochS = 120))
+        val existing = listOf(s(t), s(t + 120))
         val incoming = listOf(
-            s(t + 230, 2.0),   // overlaps the 120-s row [t+120, t+240)
-            s(t + 60, 2.0),    // free minute
-            s(t + 59, 9.0),    // overlaps [t, t+60) by one second
-            s(t + 240, 2.0),   // touches, does not overlap
-            s(t + 241, 2.0),   // overlaps the accepted t+240
+            s(t + 4, 9.0),     // 4-s twin of the stored t
+            s(t + 60, 2.0),    // 1-s twin of the accepted t+59
+            s(t + 59, 5.0),    // 59 s after t: the next minute, kept
+            s(t + 149, 9.0),   // 29 s after the stored t+120: twin
+            s(t + 150, 2.0),   // 30 s after: half a period, kept
+            s(t + 240, 2.0),   // free minute
+            s(t + 241, 2.0),   // 1-s twin of the accepted t+240
         )
-        assertEquals(listOf(t + 60, t + 240), OuraMetSampleEntity.droppingOverlaps(incoming, existing).map { it.ts })
+        assertEquals(listOf(t + 59, t + 150, t + 240), OuraMetSampleEntity.droppingTwins(incoming, existing).map { it.ts })
         assertEquals(
-            listOf(t + 60, t + 240),
-            OuraMetSampleEntity.droppingOverlaps(incoming.reversed(), existing).map { it.ts },
+            listOf(t + 59, t + 150, t + 240),
+            OuraMetSampleEntity.droppingTwins(incoming.reversed(), existing).map { it.ts },
         )
-        assertEquals(emptyList<OuraMetSampleEntity>(), OuraMetSampleEntity.droppingOverlaps(emptyList(), existing))
+        assertEquals(emptyList<OuraMetSampleEntity>(), OuraMetSampleEntity.droppingTwins(emptyList(), existing))
+        // Mixed periods: half the SHORTER one decides.
+        assertEquals(true, OuraMetSampleEntity.isTwin(s(t, epochS = 120), s(t + 29)))
+        assertEquals(false, OuraMetSampleEntity.isTwin(s(t, epochS = 120), s(t + 30)))
     }
 
     /** Twins inside one batch collapse the same way: earlier start wins, lower MET on an exact tie. */
     @Test
-    fun droppingOverlaps_withinOneBatch() {
+    fun droppingTwins_withinOneBatch() {
         val t = 1_000L
-        val out = OuraMetSampleEntity.droppingOverlaps(listOf(s(t, 5.0), s(t + 3, 2.0), s(t, 4.0)), emptyList())
+        val out = OuraMetSampleEntity.droppingTwins(listOf(s(t, 5.0), s(t + 3, 2.0), s(t, 4.0)), emptyList())
         assertEquals(listOf(s(t, 4.0)), out)
+    }
+
+    /** The 2026-09-18 hardware shape: a grid that steps back one second every 30 minutes keeps every minute. */
+    @Test
+    fun droppingTwins_phaseStepSuccessorsAllKept() {
+        val t = 1_755_208_800L
+        val rows = (0 until 120).map { s(t + it * 60L - it / 30) }
+        assertEquals(120, OuraMetSampleEntity.droppingTwins(rows, emptyList()).size)
     }
 }

@@ -19,7 +19,7 @@ final class OuraMetStoreTests: XCTestCase {
     /// 2026-09-17, first hardware day: `ts` is anchored ring time and the `0x13` anchor is per session, so
     /// the same ring record re-served under a second session (an Oura-app replay from the app's older
     /// cursor) landed 3–4 s off its first copy and the (deviceId, ts) key kept both — 157 twins in 1,035
-    /// rows, +8 % on the day. The insert now judges by interval overlap: the first copy stays.
+    /// rows, +8 % on the day. The insert now judges by start proximity (half a period): the first copy stays.
     func testReserveUnderAnotherSessionAnchorIsTheSameMinute() async throws {
         let store = try await WhoopStore.inMemory()
         let t = 1_755_208_800
@@ -49,19 +49,37 @@ final class OuraMetStoreTests: XCTestCase {
         XCTAssertEqual(other, 1)
     }
 
-    /// The pure rule behind the insert (twin: Kotlin `OuraMetSampleEntity.droppingOverlaps`).
-    func testDroppingOverlapsIsPureAndOrderIndependent() {
+    /// The pure rule behind the insert (twin: Kotlin `OuraMetSampleEntity.droppingTwins`). A twin starts
+    /// less than half a period after a kept start; a successor 59 s on — the ring's grid stepping back a
+    /// second (2026-09-18) — is the next minute and stays.
+    func testDroppingTwinsIsPureAndOrderIndependent() {
         let t = 1_000
-        let existing = [OuraMetSample(ts: t, met: 1.0, state: 0), OuraMetSample(ts: t + 120, met: 1.0, state: 0, epochS: 120)]
-        let incoming = [OuraMetSample(ts: t + 230, met: 2.0, state: 0),   // overlaps the 120-s row [t+120, t+240)
-                        OuraMetSample(ts: t + 60, met: 2.0, state: 0),    // free minute
-                        OuraMetSample(ts: t + 59, met: 9.0, state: 0),    // overlaps [t, t+60) by one second
-                        OuraMetSample(ts: t + 240, met: 2.0, state: 0),   // touches, does not overlap
-                        OuraMetSample(ts: t + 241, met: 2.0, state: 0)]   // overlaps the accepted t+240
-        let out = OuraMetSample.droppingOverlaps(incoming, existing: existing)
-        XCTAssertEqual(out.map(\.ts), [t + 60, t + 240])
-        XCTAssertEqual(OuraMetSample.droppingOverlaps(incoming.reversed(), existing: existing).map(\.ts), [t + 60, t + 240])
-        XCTAssertEqual(OuraMetSample.droppingOverlaps([], existing: existing), [])
+        let existing = [OuraMetSample(ts: t, met: 1.0, state: 0), OuraMetSample(ts: t + 120, met: 1.0, state: 0)]
+        let incoming = [OuraMetSample(ts: t + 4, met: 9.0, state: 0),     // 4-s twin of the stored t
+                        OuraMetSample(ts: t + 60, met: 2.0, state: 0),    // 1-s twin of the accepted t+59
+                        OuraMetSample(ts: t + 59, met: 5.0, state: 0),    // 59 s after t: the next minute, kept
+                        OuraMetSample(ts: t + 149, met: 9.0, state: 0),   // 29 s after the stored t+120: twin
+                        OuraMetSample(ts: t + 150, met: 2.0, state: 0),   // 30 s after: half a period, kept
+                        OuraMetSample(ts: t + 240, met: 2.0, state: 0),   // free minute
+                        OuraMetSample(ts: t + 241, met: 2.0, state: 0)]   // 1-s twin of the accepted t+240
+        let out = OuraMetSample.droppingTwins(incoming, existing: existing)
+        XCTAssertEqual(out.map(\.ts), [t + 59, t + 150, t + 240])
+        XCTAssertEqual(OuraMetSample.droppingTwins(incoming.reversed(), existing: existing).map(\.ts), [t + 59, t + 150, t + 240])
+        XCTAssertEqual(OuraMetSample.droppingTwins([], existing: existing), [])
+        // Mixed periods: half the SHORTER one decides.
+        XCTAssertTrue(OuraMetSample.isTwin(OuraMetSample(ts: t, met: 1, state: 0, epochS: 120), OuraMetSample(ts: t + 29, met: 1, state: 0)))
+        XCTAssertFalse(OuraMetSample.isTwin(OuraMetSample(ts: t, met: 1, state: 0, epochS: 120), OuraMetSample(ts: t + 30, met: 1, state: 0)))
+    }
+
+    /// The 2026-09-18 hardware shape end to end: a day whose minute grid steps back one second every 30
+    /// minutes (`:02` → `:01`) inserts EVERY minute — the phase-step successor is not a twin.
+    func testPhaseStepSuccessorIsStoredNotDropped() async throws {
+        let store = try await WhoopStore.inMemory()
+        let t = 1_755_208_800
+        var rows: [OuraMetSample] = []
+        for i in 0..<120 { rows.append(OuraMetSample(ts: t + i * 60 - i / 30, met: 1.0, state: 2)) }
+        let n = try await store.insertOuraMetSamples(rows, deviceId: "oura-A")
+        XCTAssertEqual(n, 120, "each phase step is a new minute, none of the 120 is lost")
     }
 
     func testInsertRoundTripAndDedup() async throws {

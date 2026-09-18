@@ -104,7 +104,8 @@ final class MetCaloriesTests: XCTestCase {
 
     /// 2026-09-17, first hardware day: 157 of 1,035 stored rows were the same minute re-served under a
     /// fresh per-session `0x13` anchor, 3–4 s off the first copy, and the day read +8 %. A sample that
-    /// starts inside the interval already counted is that minute again: skipped, the first copy wins.
+    /// starts within half a period of the one already counted is that minute again: skipped, the first
+    /// copy wins.
     func testOverlappingReserveIsTheSameMinuteAndCountsOnce() {
         let r = Calories.estimateDayEnergyFromMET(
             [M(ts: day0, met: 4.0), M(ts: day0 + 3, met: 4.0), M(ts: day0 + 60, met: 0.9),
@@ -114,15 +115,25 @@ final class MetCaloriesTests: XCTestCase {
         XCTAssertEqual(r.activeKcal, 2 * 2.5 * kcalPerMetMin, accuracy: 1e-9)   // the 9.0 twin is dropped
     }
 
-    /// The first-starting copy wins even when the twin starts a second earlier than a LATER minute's own
-    /// sample would — overlap is judged against the interval just counted, so a 57-s-late twin of minute
-    /// 0 loses to minute 0, and minute 2 (which does not overlap minute 0) is kept.
-    func testOverlapIsAgainstTheCountedIntervalNotTheGrid() {
+    /// 2026-09-18, second hardware day: the ring's minute grid steps back a second between records
+    /// (`:02` → `:01`), so a real successor starts 59 s after the minute before it and overlaps it by one
+    /// second. Judged by overlap it was dropped — six minutes on one day, the 7.8-MET peak among them.
+    /// Twins are 2–5 s off, successors 55–61 s: half a period (30 s) tells them apart, on both sides.
+    func testPhaseStepSuccessorIsTheNextMinuteNotATwin() {
         let r = Calories.estimateDayEnergyFromMET(
-            [M(ts: day0, met: 1.0), M(ts: day0 + 57, met: 5.0), M(ts: day0 + 120, met: 1.0)],
+            [M(ts: day0, met: 1.0), M(ts: day0 + 59, met: 5.0), M(ts: day0 + 120, met: 1.0),
+             M(ts: day0 + 149, met: 9.0)],   // 29 s after minute 2: a twin, dropped
             profile: UserProfile(), dayStart: day0, dayEnd: day1)
-        XCTAssertEqual(r.observedSeconds, 120)
-        XCTAssertEqual(r.activeKcal, 0, accuracy: 1e-12)
+        XCTAssertEqual(r.observedSeconds, 180)                        // minutes 0, 0:59 and 2 — not 2, not 4
+        XCTAssertEqual(r.activeKcal, 3.5 * kcalPerMetMin, accuracy: 1e-9)   // the 5.0 successor counts, the 9.0 twin does not
+    }
+
+    /// A whole day on the stepping grid loses nothing: 1440 minutes, one second lost every 30, all counted.
+    func testPhaseStepDayIsFullyCovered() {
+        let rows = (0..<1440).map { M(ts: day0 + $0 * 60 - $0 / 30, met: 1.0) }
+        let r = Calories.estimateDayEnergyFromMET(rows, profile: UserProfile(), dayStart: day0, dayEnd: day1)
+        XCTAssertEqual(r.observedSeconds, 86_400)
+        XCTAssertEqual(r.coverageFraction, 1.0, accuracy: 1e-12)
     }
 
     func testWindowIsHalfOpenAndOutsideSamplesAreIgnored() {

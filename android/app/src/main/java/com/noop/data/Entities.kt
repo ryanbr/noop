@@ -293,21 +293,33 @@ data class OuraMetSampleEntity(
 ) {
     companion object {
         /**
-         * The samples of [incoming] that overlap neither a row of [existing] nor an earlier-starting sample
-         * of [incoming] itself. Two intervals overlap when `a.ts < b.ts + b.epochS && b.ts < a.ts + a.epochS`.
-         * Pure (incoming is sorted by ts, lower MET first on a tie, before the walk) so the insert's dedupe
-         * rule is testable without a database. Twin of Swift `OuraMetSample.droppingOverlaps`.
+         * Whether two samples are the SAME minute served twice: their starts are less than half the shorter
+         * period apart (`|Δ| × 2 < min(epochS)` — integer, the same expression on both platforms and in
+         * `Calories.estimateDayEnergyFromMet`). A re-served record lands 2–5 s off its first copy (the
+         * per-session `0x13` anchor); the NEXT minute starts 55–61 s after — the ring's own grid steps by a
+         * second between records — so "any overlap" is the wrong test: it read a 59-s successor as a twin
+         * and dropped a real minute at the store about once an hour (2026-09-18: 8 holes on the first day
+         * after the overlap rule, one per phase step). Half a period tells the two apart. Twin of Swift
+         * `OuraMetSample.isTwin`.
          */
-        fun droppingOverlaps(
+        fun isTwin(a: OuraMetSampleEntity, b: OuraMetSampleEntity): Boolean =
+            kotlin.math.abs(a.ts - b.ts) * 2 < minOf(a.epochS, b.epochS)
+
+        /**
+         * The samples of [incoming] that are a twin ([isTwin]) of neither a row of [existing] nor an
+         * earlier-starting sample of [incoming] itself. Pure (incoming is sorted by ts, lower MET first on a
+         * tie, before the walk) so the insert's dedupe rule is testable without a database. Twin of Swift
+         * `OuraMetSample.droppingTwins`.
+         */
+        fun droppingTwins(
             incoming: List<OuraMetSampleEntity>,
             existing: List<OuraMetSampleEntity>,
         ): List<OuraMetSampleEntity> {
-            val kept = existing.map { it.ts to it.ts + it.epochS }.toMutableList()
+            val kept = existing.toMutableList()
             val out = mutableListOf<OuraMetSampleEntity>()
             for (s in incoming.sortedWith(compareBy<OuraMetSampleEntity> { it.ts }.thenBy { it.met })) {
-                val end = s.ts + s.epochS
-                if (kept.any { s.ts < it.second && it.first < end }) continue
-                kept += s.ts to end
+                if (kept.any { isTwin(s, it) }) continue
+                kept += s
                 out += s
             }
             return out

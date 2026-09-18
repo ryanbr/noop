@@ -11,7 +11,8 @@ import java.util.Locale
  *
  * [EXPECTED] is the VERBATIM stdout of the Swift twin compiled standalone (`swiftc -O twin.swift
  * main.swift`, the real `Calories` enum extracted from `WorkoutDetector.swift`) over the case spread
- * rebuilt below, one `%.6f` line per case and profile (80 lines: 17 shapes + the three 2026-09-17 overlap shapes, × 4 profiles). The CLAUDE.md parity rule: verify by oracle, not
+ * rebuilt below, one `%.6f` line per case and profile (84 lines: 17 shapes + the three 2026-09-17 overlap shapes + the
+ * 2026-09-18 phase-step shape, × 4 profiles). The CLAUDE.md parity rule: verify by oracle, not
  * by reading the two implementations side by side. Regenerate the literal from Swift whenever the
  * estimator changes on either side — never hand-edit a number here.
  *
@@ -97,8 +98,14 @@ class MetCaloriesOracleTest {
                 "$pn/overlap-3s-twins",
                 listOf(MetSample(day0, 4.0), MetSample(day0 + 3, 4.0), MetSample(day0 + 60, 0.9), MetSample(day0 + 64, 9.0), MetSample(day0 + 120, 4.0)), p,
             )
-            // Overlap is judged against the interval just counted: a 57-s-late twin of minute 0 loses; minute 2 is kept.
-            out += line("$pn/overlap-57s-twin", listOf(MetSample(day0, 1.0), MetSample(day0 + 57, 5.0), MetSample(day0 + 120, 1.0)), p)
+            // 2026-09-18: the ring's grid steps back a second between records, so a 59-s successor is the NEXT minute
+            // (kept); a 29-s-late copy is a twin (dropped). Half a period decides.
+            out += line(
+                "$pn/phase-step-59s-successor",
+                listOf(MetSample(day0, 1.0), MetSample(day0 + 59, 5.0), MetSample(day0 + 120, 1.0), MetSample(day0 + 149, 9.0)), p,
+            )
+            // A whole day on the stepping grid (one second lost every 30 minutes): every minute counted.
+            out += line("$pn/phase-step-day", (0 until 1440).map { MetSample(day0 + it * 60L - it / 30, if (it % 90 == 0) 3.0 else 1.0) }, p)
             // The phone's shape: a full day where every 7th minute also arrived 4 s late from a second session.
             val twins = fullDay(1.1)
             for (i in 0 until 1440 step 7) twins += MetSample(day0 + i * 60L + 4, 3.0)
@@ -134,7 +141,8 @@ class MetCaloriesOracleTest {
         "default/zero-length-day|0.000000|0.000000|0.000000|0.000000|0.000000",
         "default/realistic-day|1515.755104|493.675000|82800.000000|0.958333|2009.430104",
         "default/overlap-3s-twins|3.295120|6.125000|180.000000|0.002083|9.420120",
-        "default/overlap-57s-twin|2.196747|0.000000|120.000000|0.001389|2.196747",
+        "default/phase-step-59s-successor|3.295120|4.287500|180.000000|0.002083|7.582620",
+        "default/phase-step-day|1581.657500|29.400000|86400.000000|1.000000|1611.057500",
         "default/overlap-phone-day|1581.657500|0.000000|86400.000000|1.000000|1581.657500",
         "male-82-181-45/empty|0.000000|0.000000|0.000000|0.000000|0.000000",
         "male-82-181-45/rest-0.9-all-day|1800.070000|0.000000|86400.000000|1.000000|1800.070000",
@@ -154,7 +162,8 @@ class MetCaloriesOracleTest {
         "male-82-181-45/zero-length-day|0.000000|0.000000|0.000000|0.000000|0.000000",
         "male-82-181-45/realistic-day|1725.067083|578.305000|82800.000000|0.958333|2303.372083",
         "male-82-181-45/overlap-3s-twins|3.750146|7.175000|180.000000|0.002083|10.925146",
-        "male-82-181-45/overlap-57s-twin|2.500097|0.000000|120.000000|0.001389|2.500097",
+        "male-82-181-45/phase-step-59s-successor|3.750146|5.022500|180.000000|0.002083|8.772646",
+        "male-82-181-45/phase-step-day|1800.070000|34.440000|86400.000000|1.000000|1834.510000",
         "male-82-181-45/overlap-phone-day|1800.070000|0.000000|86400.000000|1.000000|1800.070000",
         "female-60-165-30/empty|0.000000|0.000000|0.000000|0.000000|0.000000",
         "female-60-165-30/rest-0.9-all-day|1383.683000|0.000000|86400.000000|1.000000|1383.683000",
@@ -174,7 +183,8 @@ class MetCaloriesOracleTest {
         "female-60-165-30/zero-length-day|0.000000|0.000000|0.000000|0.000000|0.000000",
         "female-60-165-30/realistic-day|1326.029542|423.150000|82800.000000|0.958333|1749.179542",
         "female-60-165-30/overlap-3s-twins|2.882673|5.250000|180.000000|0.002083|8.132673",
-        "female-60-165-30/overlap-57s-twin|1.921782|0.000000|120.000000|0.001389|1.921782",
+        "female-60-165-30/phase-step-59s-successor|2.882673|3.675000|180.000000|0.002083|6.557673",
+        "female-60-165-30/phase-step-day|1383.683000|25.200000|86400.000000|1.000000|1408.883000",
         "female-60-165-30/overlap-phone-day|1383.683000|0.000000|86400.000000|1.000000|1383.683000",
         "zeroed-profile/empty|0.000000|0.000000|0.000000|0.000000|0.000000",
         "zeroed-profile/rest-0.9-all-day|1671.672000|0.000000|86400.000000|1.000000|1671.672000",
@@ -194,7 +204,8 @@ class MetCaloriesOracleTest {
         "zeroed-profile/zero-length-day|0.000000|0.000000|0.000000|0.000000|0.000000",
         "zeroed-profile/realistic-day|1602.019000|493.675000|82800.000000|0.958333|2095.694000",
         "zeroed-profile/overlap-3s-twins|3.482650|6.125000|180.000000|0.002083|9.607650",
-        "zeroed-profile/overlap-57s-twin|2.321767|0.000000|120.000000|0.001389|2.321767",
+        "zeroed-profile/phase-step-59s-successor|3.482650|4.287500|180.000000|0.002083|7.770150",
+        "zeroed-profile/phase-step-day|1671.672000|29.400000|86400.000000|1.000000|1701.072000",
         "zeroed-profile/overlap-phone-day|1671.672000|0.000000|86400.000000|1.000000|1671.672000",
     )
 }

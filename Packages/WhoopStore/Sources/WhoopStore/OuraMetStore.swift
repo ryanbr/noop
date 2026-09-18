@@ -18,18 +18,27 @@ public struct OuraMetSample: Equatable, Sendable {
         self.ts = ts; self.met = met; self.state = state; self.epochS = epochS
     }
 
-    /// The samples of `incoming` that overlap neither a row of `existing` nor an earlier-starting sample
-    /// of `incoming` itself. Two intervals overlap when `a.ts < b.ts + b.epochS && b.ts < a.ts + a.epochS`.
-    /// Pure and order-independent (incoming is sorted by ts, lower MET first on a tie, before the walk)
-    /// so the insert's dedupe rule is testable without a database. Twin: Kotlin
-    /// `OuraMetSampleEntity.droppingOverlaps`.
-    public static func droppingOverlaps(_ incoming: [OuraMetSample], existing: [OuraMetSample]) -> [OuraMetSample] {
-        var kept = existing.map { ($0.ts, $0.ts + $0.epochS) }
+    /// Whether two samples are the SAME minute served twice: their starts are less than half the shorter
+    /// period apart (`|Δ| × 2 < min(epochS)` — integer, the same expression on both platforms and in
+    /// `Calories.estimateDayEnergyFromMET`). A re-served record lands 2–5 s off its first copy (the
+    /// per-session `0x13` anchor); the NEXT minute starts 55–61 s after — the ring's own grid steps by a
+    /// second between records — so "any overlap" is the wrong test: it read a 59-s successor as a twin
+    /// and dropped a real minute at the store about once an hour (2026-09-18: 8 holes on the first day
+    /// after the overlap rule, one per phase step). Half a period tells the two apart.
+    public static func isTwin(_ a: OuraMetSample, _ b: OuraMetSample) -> Bool {
+        abs(a.ts - b.ts) * 2 < min(a.epochS, b.epochS)
+    }
+
+    /// The samples of `incoming` that are a twin (`isTwin`) of neither a row of `existing` nor an
+    /// earlier-starting sample of `incoming` itself. Pure and order-independent (incoming is sorted by
+    /// ts, lower MET first on a tie, before the walk) so the insert's dedupe rule is testable without a
+    /// database. Twin: Kotlin `OuraMetSampleEntity.droppingTwins`.
+    public static func droppingTwins(_ incoming: [OuraMetSample], existing: [OuraMetSample]) -> [OuraMetSample] {
+        var kept = existing
         var out: [OuraMetSample] = []
         for s in incoming.sorted(by: { $0.ts != $1.ts ? $0.ts < $1.ts : $0.met < $1.met }) {
-            let end = s.ts + s.epochS
-            if kept.contains(where: { s.ts < $0.1 && $0.0 < end }) { continue }
-            kept.append((s.ts, end))
+            if kept.contains(where: { isTwin(s, $0) }) { continue }
+            kept.append(s)
             out.append(s)
         }
         return out
@@ -45,8 +54,9 @@ extension WhoopStore {
     /// taken per session, so the same ring record served under two sessions lands 2–5 s apart — the
     /// (deviceId, ts) key sees two rows. On the first hardware day 157 of 1,035 rows were such twins
     /// (an Oura-app replay re-served the day from the app's older cursor) and the day read +8 %. So
-    /// an incoming sample whose interval overlaps a stored one — or one accepted earlier in the same
-    /// batch — is dropped; the first copy stays. Returns rows actually inserted.
+    /// an incoming sample that is a twin (`OuraMetSample.isTwin`: starts within half a period) of a
+    /// stored one — or of one accepted earlier in the same batch — is dropped; the first copy stays.
+    /// Returns rows actually inserted.
     @discardableResult
     public func insertOuraMetSamples(_ samples: [OuraMetSample], deviceId: String) async throws -> Int {
         if samples.isEmpty { return 0 }
@@ -57,7 +67,7 @@ extension WhoopStore {
                 SELECT ts, epochS FROM ouraMetSample WHERE deviceId = ? AND ts >= ? AND ts < ?
                 """, arguments: [deviceId, lo, hi])
                 .map { OuraMetSample(ts: $0["ts"], met: 0, state: 0, epochS: $0["epochS"]) }
-            let accepted = OuraMetSample.droppingOverlaps(samples, existing: existing)
+            let accepted = OuraMetSample.droppingTwins(samples, existing: existing)
             let stmt = try db.cachedStatement(sql: """
                 INSERT INTO ouraMetSample (deviceId, ts, met, state, epochS) VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT(deviceId, ts) DO NOTHING
