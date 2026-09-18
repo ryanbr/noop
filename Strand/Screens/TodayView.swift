@@ -1035,7 +1035,12 @@ struct TodayView: View {
         switch metricKey {
         case "recovery":
             // Same HRV-baseline gate the Charge engine uses, fed by the loaded nightly SDNN history.
-            let hrvBase = Baselines.foldHistory(repo.days.map(\.avgHrv), cfg: Baselines.hrvCfg)
+            // #2315: with the recalibration epoch, which is what makes the claim above true. Without it this
+            // gate folded the whole history while the Charge engine folded from the epoch, so the pill could
+            // read solid off nights the ring is no longer using.
+            let hrvBase = Baselines.foldHistory(repo.days.map(\.avgHrv), dayKeys: repo.days.map(\.day),
+                                                cfg: Baselines.hrvCfg,
+                                                baselineEpoch: Baselines.hrvBaselineEpoch())
             conf = ScoreConfidence.charge(recovery: displayDay?.recovery, hrvBaseline: hrvBase)
         case "sleep_performance":
             // A watch night with a Rest score reads as built; without one it's still calibrating.
