@@ -463,7 +463,10 @@ class OuraLiveSource(
      * `BluetoothStatusCodes.SUCCESS` on API 33+, `true` below). Printed raw on the watchdog's evidence
      * line — every Oura write is WRITE_TYPE_NO_RESPONSE and nothing else records the return, so "the ring
      * ignored `get_nonce`" and "the stack never sent it" otherwise produce the identical `→ get_nonce`.
-     * Swift twin: `canSendWriteWithoutResponse`.
+     * The Apple side prints `CBPeripheral.canSendWriteWithoutResponse` on the same line for the
+     * same reason. That is CoreBluetooth's send-capacity flag rather than a write's return value,
+     * so the two are counterparts in intent and not the same reading, and neither is a declaration
+     * of ours to resolve.
      */
     private var lastWriteAccepted: Boolean? = null
     /** The nonce timer. One-shot; re-posted by [authWatchdogRunnable] after an escalation. */
