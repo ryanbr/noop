@@ -333,17 +333,19 @@ private fun HeroCard(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Box(modifier = Modifier.size(232.dp), contentAlignment = Alignment.Center) {
-                    // The recovery GlowRing filled to the recovery fraction in the sampled recovery colour.
+                    // The recovery ring becomes a liquid VESSEL filled to the recovery fraction in the sampled
+                    // recovery colour, with the number counting up over it (the Today HeroScoreVessel idiom).
                     // A carried (not-yet-rescored) morning reads dimmed, the Today #802 idiom. Empty (no score)
-                    // draws an empty ring and the centre stack shows the "No Data" token instead of a number.
-                    GlowRing(
-                        fraction = ((recovery ?: 0.0) / 100.0).coerceIn(0.0, 1.0).toFloat(),
-                        value = recovery ?: 0.0,
-                        color = if (recovery != null) Palette.recoveryColor(recovery) else Palette.chargeColor,
-                        diameter = 232.dp,
-                        lineWidth = 23.2.dp,
-                        modifier = Modifier.alpha(if (isCarrying) 0.8f else 1f),
-                        showsLabel = false,
+                    // draws an empty vessel and the centre stack shows the "No Data" token instead of a number.
+                    LiquidVessel(
+                        value = ((recovery ?: 0.0) / 100.0).coerceIn(0.0, 1.0),
+                        tint = if (recovery != null) Palette.recoveryColor(recovery) else Palette.chargeColor,
+                        animated = animated,
+                        modifier = Modifier
+                            .size(232.dp)
+                            .alpha(if (isCarrying) 0.8f else 1f),
+                        // Without this the whole 232dp ring, which is most of the card, is a dead zone.
+                        onTap = onTap,
                     )
                     HeroCentre(recovery = recovery, readinessLevel = readinessLevel)
                 }
@@ -448,24 +450,30 @@ private fun StrainCard(dayStrain21: Double?, recovery: Double?, calories: Double
                     val strainFrac = (dayStrain21 / COUPLED_STRAIN_OUT_OF).coerceIn(0.0, 1.0)
                     Text(strainBandWord(dayStrain21 / COUPLED_STRAIN_OUT_OF), style = NoopType.overline, color = Palette.effortColor)
                     Spacer(Modifier.size(4.dp))
-                    GlowRing(
-                        fraction = strainFrac.toFloat(),
-                        value = dayStrain21,
-                        color = Palette.effortTint(strainFrac),
-                        diameter = 148.dp,
-                        lineWidth = 14.8.dp,
-                        format = { String.format(Locale.US, "%.1f", it) },
-                    )
+                    Box(modifier = Modifier.size(148.dp), contentAlignment = Alignment.Center) {
+                        LiquidVessel(
+                            value = strainFrac,
+                            tint = Palette.effortTint(strainFrac),
+                            animated = true,
+                            modifier = Modifier.size(148.dp),
+                        )
+                        CountUpText(
+                            value = dayStrain21,
+                            format = { String.format(Locale.US, "%.1f", it) },
+                            style = NoopType.number(30f, weight = FontWeight.Bold)
+                                .copy(shadow = Shadow(color = Color.Black.copy(alpha = 0.5f), offset = Offset(0f, 1f), blurRadius = 6f)),
+                            color = Color.White,
+                            modifier = Modifier.clearAndSetSemantics {},
+                        )
+                    }
                 } else {
-                    // No scored effort yet: an empty GlowRing so the card never reads as broken, with
+                    // No scored effort yet: an empty (posed) vessel so the card never reads as broken, with
                     // the honest caption below it, mirroring the empty-hero treatment on Today.
-                    GlowRing(
-                        fraction = 0f,
+                    LiquidVessel(
                         value = 0.0,
-                        color = Palette.effortColor,
-                        diameter = 148.dp,
-                        lineWidth = 14.8.dp,
-                        showsLabel = false,
+                        tint = Palette.effortColor,
+                        animated = false,
+                        modifier = Modifier.size(148.dp),
                     )
                     Text(uiString(R.string.l10n_coupled_screen_no_effort_yet_f622f99d), style = NoopType.footnote, color = Palette.textTertiary, modifier = Modifier.padding(top = 6.dp))
                 }
@@ -567,16 +575,28 @@ private fun SleepCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            // The sleep-performance GlowRing filled to the performance fraction in the rest tint.
-            // Empty draws a posed empty ring, no number.
-            GlowRing(
-                fraction = ((sleepPerformance ?: 0.0) / 100.0).coerceIn(0.0, 1.0).toFloat(),
-                value = sleepPerformance ?: 0.0,
-                color = Palette.restColor,
-                diameter = 96.dp,
-                lineWidth = 9.6.dp,
-                showsLabel = sleepPerformance != null,
-            )
+            Box(modifier = Modifier.size(96.dp), contentAlignment = Alignment.Center) {
+                // The sleep-performance ring becomes a liquid VESSEL filled to the performance fraction in the
+                // rest tint, with the number counting up over it (the Today HeroScoreVessel idiom). Empty draws
+                // a posed empty vessel, no number.
+                LiquidVessel(
+                    value = ((sleepPerformance ?: 0.0) / 100.0).coerceIn(0.0, 1.0),
+                    tint = Palette.restColor,
+                    animated = sleepPerformance != null,
+                    modifier = Modifier.size(96.dp),
+                    onTap = onOpenSleep,
+                )
+                if (sleepPerformance != null) {
+                    CountUpText(
+                        value = sleepPerformance,
+                        format = { it.roundToInt().toString() },
+                        style = NoopType.number(26f, weight = FontWeight.Bold)
+                            .copy(shadow = Shadow(color = Color.Black.copy(alpha = 0.5f), offset = Offset(0f, 1f), blurRadius = 6f)),
+                        color = Color.White,
+                        modifier = Modifier.clearAndSetSemantics {},
+                    )
+                }
+            }
 
             Column(
                 modifier = Modifier.weight(1f),

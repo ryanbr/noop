@@ -597,15 +597,11 @@ fun BreatheScreen(viewModel: AppViewModel) {
                         .height(280.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    // The breath pacer as a GlowRing — fills to orbProgress on the inhale and empties on the
-                    // exhale. Rest-tinted (restBright), matching the iOS breathe hero.
-                    GlowRing(
-                        fraction = orbProgress.toDouble().coerceIn(0.0, 1.0).toFloat(),
-                        value = 0.0,
-                        color = Palette.restBright,
-                        diameter = 280.dp,
-                        lineWidth = 28.dp,
-                        showsLabel = false,
+                    LiquidVessel(
+                        value = orbProgress.toDouble(),
+                        tint = Palette.restBright,
+                        animated = running,
+                        modifier = Modifier.height(280.dp),
                     )
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,

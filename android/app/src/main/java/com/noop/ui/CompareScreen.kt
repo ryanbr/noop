@@ -1300,17 +1300,27 @@ private fun PairCard(p: PairResult) {
                     modifier = Modifier.weight(1f),
                 )
                 TrendChip(text = signedR(p.r), color = tint)
-                // Small GlowRing accent for the headline single value: |r| fills the ring in the
-                // relationship's own tint, with the signed r in the centre. Same r, same tint, same
-                // signedR formatting the plain "r = …" readout used.
-                GlowRing(
-                    fraction = abs(p.r).coerceIn(0.0, 1.0).toFloat(),
-                    value = p.r,
-                    color = tint,
-                    diameter = 38.dp,
-                    lineWidth = 3.8.dp,
-                    format = { signedR(it) },
-                )
+                // Small liquid vessel accent for the headline single value: |r| fills the vessel in the
+                // relationship's own tint, with the signed r rolled up over it (white, tabular, hit-
+                // transparent so a tap falls through). Same r, same tint, same signedR formatting the plain
+                // "r = …" readout used — just visualised as a headline vessel. STATIC (animated = false):
+                // up to six of these render in a scrolling list, so they pose once (the pilot's small-gauge
+                // static-raster rule) rather than each running a live clock.
+                Box(modifier = Modifier.size(38.dp), contentAlignment = Alignment.Center) {
+                    LiquidVessel(
+                        value = abs(p.r).coerceIn(0.0, 1.0),
+                        tint = tint,
+                        animated = false,
+                        modifier = Modifier.size(38.dp),
+                    )
+                    CountUpText(
+                        value = p.r,
+                        format = { signedR(it) },
+                        style = NoopType.number(12f, weight = FontWeight.Bold),
+                        color = Color.White,
+                        modifier = Modifier.clearAndSetSemantics {},
+                    )
+                }
             }
 
             Text(insightSentence(p), style = NoopType.subhead, color = Palette.textSecondary)

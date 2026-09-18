@@ -780,14 +780,22 @@ private fun ChartCard(
 @Composable
 private fun HeadlineVessel(value: Double, tint: Color) {
     val diameter = 44.dp
-    GlowRing(
-        fraction = (value / 100.0).coerceIn(0.0, 1.0).toFloat(),
-        value = value,
-        color = tint,
-        diameter = diameter,
-        lineWidth = diameter * 0.10f,
-        format = { "${it.roundToInt()}" },
-    )
+    Box(modifier = Modifier.size(diameter), contentAlignment = Alignment.Center) {
+        LiquidVessel(
+            value = (value / 100.0).coerceIn(0.0, 1.0),
+            tint = tint,
+            animated = true,
+            modifier = Modifier.size(diameter),
+        )
+        CountUpText(
+            value = value,
+            format = { "${it.roundToInt()}" },
+            style = NoopType.number(17f, weight = FontWeight.Bold)
+                .copy(shadow = Shadow(color = Color.Black.copy(alpha = 0.5f), offset = Offset(0f, 1f), blurRadius = 6f)),
+            color = Color.White,
+            modifier = Modifier.clearAndSetSemantics {},
+        )
+    }
 }
 
 /** A TrendChip for a window's period change , green/rose by whether the move is good for THIS metric. */

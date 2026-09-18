@@ -735,15 +735,29 @@ private fun EffortHero(
                 verticalArrangement = Arrangement.spacedBy(18.dp),
             ) {
                 Overline("Typical effort", color = Palette.effortColor)
-                GlowRing(
-                    fraction = fraction.coerceIn(0.0, 1.0).toFloat(),
-                    value = shownEffort,
-                    color = Palette.effortColor,
-                    diameter = 140.dp,
-                    lineWidth = 14.dp,
-                    showsLabel = hasEffort,
-                    format = { oneDecimal(it) },
-                )
+                Box(modifier = Modifier.size(140.dp), contentAlignment = Alignment.Center) {
+                    LiquidVessel(
+                        value = fraction,
+                        tint = Palette.effortColor,
+                        // Only slosh once a real Effort value is loaded; an empty window poses static + empty.
+                        animated = hasEffort,
+                        modifier = Modifier.size(140.dp),
+                    )
+                    if (hasEffort) {
+                        // Count-up number over the vessel — white, tabular, a soft shadow for legibility,
+                        // hit-transparent so the tap reaches the vessel (splash). Honours the Effort scale.
+                        CountUpText(
+                            // `shownEffort` is already the display-scaled value, so the interpolated `it` is
+                            // in the user's scale — roll it up with the same one-decimal format as before.
+                            value = shownEffort,
+                            format = { oneDecimal(it) },
+                            style = NoopType.number(30f, weight = FontWeight.Bold)
+                                .copy(shadow = Shadow(color = Color.Black.copy(alpha = 0.5f), offset = Offset(0f, 1f), blurRadius = 6f)),
+                            color = Color.White,
+                            modifier = Modifier.clearAndSetSemantics {},
+                        )
+                    }
+                }
             }
             Spacer(Modifier.width(20.dp))
             Column(

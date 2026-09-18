@@ -208,17 +208,18 @@ fun HydrationScreen(viewModel: AppViewModel) {
                     verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        // The GlowRing fills to the goal fraction in the hydration accent.
-                        GlowRing(
-                            fraction = fraction.toDouble().coerceIn(0.0, 1.0).toFloat(),
-                            value = totalMl / 1000.0,
-                            color = accent,
-                            diameter = 184.dp,
-                            lineWidth = 18.4.dp,
-                            showsLabel = false,
+                        // The vessel fills to the goal fraction in the hydration accent. It runs LIVE (per-frame
+                        // slosh + tilt) once anything is logged today; a fresh empty day poses it static so the
+                        // launch isn't fighting a live canvas. Honours Reduce Motion internally.
+                        LiquidVessel(
+                            value = fraction.toDouble().coerceIn(0.0, 1.0),
+                            tint = accent,
+                            animated = totalMl > 0.0,
+                            modifier = Modifier.size(184.dp),
                         )
-                        // The litre count-up over the ring — white, tabular, a soft shadow for legibility,
-                        // hit-transparent (clearAndSetSemantics + no clickable) so a tap falls THROUGH.
+                        // The litre count-up over the vessel — white, tabular, a soft shadow for legibility,
+                        // hit-transparent (clearAndSetSemantics + no clickable) so a tap falls THROUGH to the
+                        // vessel (LiquidVessel owns its own tap→splash+haptic). Mirrors the iOS HeroScoreCell.
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier.clearAndSetSemantics {},

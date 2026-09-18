@@ -6,7 +6,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -1024,22 +1023,20 @@ private fun HeartReadout(live: LiveState, bpm: Int?, activeConnection: Boolean, 
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Overline("Heart Rate")
-        BoxWithConstraints(
+        Box(
             modifier = Modifier
                 .fillMaxWidth(0.6f)
                 .aspectRatio(1f),
             contentAlignment = Alignment.Center,
         ) {
-            // The live HR gauge as a GlowRing — fills to bpm/hrMax in the zone tint, animating once
-            // a real HR is streaming (GlowRing springs to the target). An idle console shows the empty track.
-            val ringDiameter = minOf(maxWidth, maxHeight)
-            GlowRing(
-                fraction = fraction.coerceIn(0.0, 1.0).toFloat(),
-                value = bpm?.toDouble() ?: 0.0,
-                color = tint,
-                diameter = ringDiameter,
-                lineWidth = ringDiameter * 0.10f,
-                showsLabel = false,
+            // The live HR GAUGE as a liquid VESSEL — fills to bpm/hrMax in the zone tint, sloshing live once
+            // a real HR is streaming (animated only when bpm != null, so an idle console poses static and
+            // doesn't churn an empty canvas). Mirrors the liquid Today HeroScoreVessel idiom.
+            LiquidVessel(
+                value = fraction,
+                tint = tint,
+                animated = bpm != null,
+                modifier = Modifier.fillMaxSize(),
             )
             // The bpm number rolled up over the vessel — white, tabular, a soft shadow for legibility, and
             // hit-transparent (clearAndSetSemantics + no clickable) so the tap falls THROUGH to the vessel,
