@@ -339,4 +339,56 @@ final class HealthWritebackTests: XCTestCase {
         swept = HealthWriteback.strandedSweepResult(swept: swept, succeededThisRun: ["sleepAnalysis"])
         XCTAssertEqual(swept, ["restingHeartRate", "sleepAnalysis"])
     }
+
+    // MARK: - Vitals stamp inside the night
+
+    private func entry(_ spanStart: Int, _ spanEnd: Int) -> HealthWriteback.MergedSleepEntry {
+        .init(keyStartTs: spanStart, spanStart: spanStart, spanEnd: spanEnd, intervals: [], allKeyStartTs: [spanStart])
+    }
+
+    /// Day = whole days since `start`, so attribution is by wake and independent of the test host's zone.
+    private func dayOf(_ ts: Int) -> String { "d\((ts - start) / 86_400)" }
+
+    func testVitalsAreStampedAtTheNightsMidpointNotItsWake() {
+        let night = entry(start, start + 8 * 3600)
+        XCTAssertEqual(HealthWriteback.vitalsInstantByDay([night], dayOf: dayOf), ["d0": start + 4 * 3600])
+    }
+
+    /// A nap that wakes later the same day must not pull the night's values out of the night.
+    func testTheLongestNightOwnsTheDayNotTheLatest() {
+        let night = entry(start, start + 8 * 3600)
+        let nap = entry(start + 14 * 3600, start + 15 * 3600)
+        XCTAssertEqual(HealthWriteback.vitalsInstantByDay([night, nap], dayOf: dayOf), ["d0": start + 4 * 3600])
+        XCTAssertEqual(HealthWriteback.vitalsInstantByDay([nap, night], dayOf: dayOf), ["d0": start + 4 * 3600])
+    }
+
+    func testEachDayIsStampedByTheNightThatWokeOnIt() {
+        let first = entry(start, start + 8 * 3600)
+        let second = entry(start + 86_400, start + 86_400 + 6 * 3600)
+        XCTAssertEqual(HealthWriteback.vitalsInstantByDay([first, second], dayOf: dayOf),
+                       ["d0": start + 4 * 3600, "d1": start + 86_400 + 3 * 3600])
+    }
+
+    /// A bridged night whose midpoint falls in the awake gap between fragments is stamped at the nearest
+    /// asleep second instead.
+    func testAMidpointInABridgedWakeGapMovesToTheNearestAsleepSecond() {
+        let bridged = HealthWriteback.MergedSleepEntry(
+            keyStartTs: start, spanStart: start, spanEnd: start + 8 * 3600,
+            intervals: [.init(start: start, end: start + 3 * 3600, kind: .light),
+                        .init(start: start + 3 * 3600, end: start + 4 * 3600 + 1800, kind: .awake),
+                        .init(start: start + 4 * 3600 + 1800, end: start + 8 * 3600, kind: .deep)],
+            allKeyStartTs: [start, start + 4 * 3600 + 1800])
+        XCTAssertEqual(HealthWriteback.vitalsInstantByDay([bridged], dayOf: dayOf), ["d0": start + 4 * 3600 + 1800])
+    }
+
+    func testAMidpointInsideAnAsleepIntervalStays() {
+        let night = HealthWriteback.MergedSleepEntry(
+            keyStartTs: start, spanStart: start, spanEnd: start + 8 * 3600,
+            intervals: [.init(start: start, end: start + 8 * 3600, kind: .unspecified)], allKeyStartTs: [start])
+        XCTAssertEqual(HealthWriteback.vitalsInstantByDay([night], dayOf: dayOf), ["d0": start + 4 * 3600])
+    }
+
+    func testANightWithNoSpanStampsNothing() {
+        XCTAssertEqual(HealthWriteback.vitalsInstantByDay([entry(start, start)], dayOf: dayOf), [:])
+    }
 }

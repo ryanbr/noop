@@ -760,7 +760,7 @@ final class HealthKitBridge: ObservableObject {
 
     /// Write NOOP's strap-derived data into Apple Health: sleep sessions with full stage segments,
     /// the continuous 1-minute heart-rate stream, strap/manual workouts, and the nightly vitals
-    /// (resting HR, HRV, SpO₂, respiratory rate) stamped at that day's wake time.
+    /// (resting HR, HRV, SpO₂, respiratory rate) stamped at the midpoint of that day's night.
     ///
     /// Each feature saves independently and guards on ITS OWN type's share status, so one declined
     /// Health checkbox (or a save error) skips that feature without sinking the rest; the first error
@@ -780,7 +780,7 @@ final class HealthKitBridge: ObservableObject {
         let fromTs = Int(fromDate.timeIntervalSince1970)
         let nowTs = Int(now.timeIntervalSince1970)
 
-        // Sleep sessions drive both the sleep write and the vitals' wake-time stamps: computed
+        // Sleep sessions drive both the sleep write and the vitals' in-night stamps: computed
         // sessions (deviceId + "-noop") first, imported rows override on startTs collision — the
         // same source precedence as the dailies union below and IntelligenceEngine's sleep reads.
         let computedSleeps = (try? await whoopStore.sleepSessions(deviceId: computedDeviceId, from: fromTs, to: nowTs, limit: 200)) ?? []
@@ -878,21 +878,19 @@ final class HealthKitBridge: ObservableObject {
         }
     }
 
-    /// The nightly vitals write (the original write-back), now stamped at the day's wake time when
-    /// that day has a sleep session — a real timestamp inside the night the value describes, instead
-    /// of a fabricated noon. Keys are unchanged, so re-stamped samples replace their noon ancestors.
+    /// The nightly vitals write (the original write-back), stamped at the midpoint of the day's night
+    /// when it has one (`HealthWriteback.vitalsInstantByDay`) — a timestamp inside the night the value
+    /// describes, instead of a fabricated noon. Keys are unchanged, so re-stamped samples replace their
+    /// earlier wake- or noon-stamped ancestors.
     private func writeVitals(whoopStore: WhoopStore, days: Int, sessions: [CachedSleepSession]) async throws {
         let cal = Calendar.current
         let to = HealthKitBridge.dayString(Date())
         guard let fromDate = cal.date(byAdding: .day, value: -days, to: Date()) else { return }
         let from = HealthKitBridge.dayString(fromDate)
 
-        // day (of wake) → wake instant. Ascending session order means the latest wake of a day wins,
-        // matching collectSleep's end-date day attribution.
-        var wakeByDay: [String: Date] = [:]
-        for s in sessions where s.endTs > s.effectiveStartTs {
-            let wake = Date(timeIntervalSince1970: TimeInterval(s.endTs))
-            wakeByDay[HealthKitBridge.dayString(wake)] = wake
+        // day (of wake) → mid-night instant, attributed by wake like collectSleep's end-date attribution.
+        let instantByDay = HealthWriteback.vitalsInstantByDay(sleepPlan(sessions: sessions)) {
+            HealthKitBridge.dayString(Date(timeIntervalSince1970: TimeInterval($0)))
         }
         // Read NOOP's COMPUTED dailies (deviceId + "-noop"), which is the only place a strap-only
         // user's recovery/HRV/RHR/SpO₂/resp lives, then union with any imported `noopDeviceId` rows so
@@ -932,7 +930,7 @@ final class HealthKitBridge: ObservableObject {
         for row in rows {
             guard let date = HealthKitBridge.date(from: row.day) else { continue }
             let noon = cal.date(bySettingHour: 12, minute: 0, second: 0, of: date) ?? date
-            let at = wakeByDay[row.day] ?? noon
+            let at = instantByDay[row.day].map { Date(timeIntervalSince1970: TimeInterval($0)) } ?? noon
             if let rhr = row.restingHr {
                 add(.restingHeartRate, HKUnit.count().unitDivided(by: .minute()), Double(rhr), row.day, at)
             }
@@ -972,6 +970,21 @@ final class HealthKitBridge: ObservableObject {
         try await self.store.save(candidates.map { $0.sample })
     }
 
+    /// The bridged nights (#364) the write-back exports, shared by the sleep write and the vitals stamps so
+    /// both describe the same night.
+    private func sleepPlan(sessions: [CachedSleepSession]) -> [HealthWriteback.MergedSleepEntry] {
+        let blocks = sessions.map { SleepStageTotals.NightBlock(start: $0.effectiveStartTs, end: $0.endTs) }
+        let groups = SleepStageTotals.bridgedNightGroups(blocks, offsetSec: TimeZone.current.secondsFromGMT())
+            .map { g in
+                g.indices.map { i -> HealthWriteback.SleepFragment in
+                    let s = sessions[i]
+                    return .init(startTs: s.startTs, effectiveStartTs: s.effectiveStartTs,
+                                 endTs: s.endTs, stagesJSON: s.stagesJSON)
+                }
+            }
+        return HealthWriteback.mergedSleepPlan(groups: groups)
+    }
+
     /// Write each BRIDGED NIGHT (#364) as one `.inBed` sample plus one category sample per stage
     /// segment (`deep → .asleepDeep`, `rem → .asleepREM`, `light → .asleepCore`, `wake → .awake`) —
     /// the same shape Oura and Apple Watch write, so Health renders the full hypnogram. A night the
@@ -991,18 +1004,9 @@ final class HealthKitBridge: ObservableObject {
     private func writeSleep(sessions: [CachedSleepSession]) async throws {
         guard let type = HKObjectType.categoryType(forIdentifier: .sleepAnalysis),
               store.authorizationStatus(for: type) == .sharingAuthorized else { return }
-        let blocks = sessions.map { SleepStageTotals.NightBlock(start: $0.effectiveStartTs, end: $0.endTs) }
-        let groups = SleepStageTotals.bridgedNightGroups(blocks, offsetSec: TimeZone.current.secondsFromGMT())
-            .map { g in
-                g.indices.map { i -> HealthWriteback.SleepFragment in
-                    let s = sessions[i]
-                    return .init(startTs: s.startTs, effectiveStartTs: s.effectiveStartTs,
-                                 endTs: s.endTs, stagesJSON: s.stagesJSON)
-                }
-            }
         var samples: [HKCategorySample] = []
         var keys: [String] = []
-        for entry in HealthWriteback.mergedSleepPlan(groups: groups) {
+        for entry in sleepPlan(sessions: sessions) {
             let key = HealthWriteback.appleHealthSleepKey(startTs: entry.keyStartTs)
             let meta = [HKMetadataKeyExternalUUID: key]
             keys.append(contentsOf: entry.allKeyStartTs.map { HealthWriteback.appleHealthSleepKey(startTs: $0) })

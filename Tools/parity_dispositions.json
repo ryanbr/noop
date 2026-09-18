@@ -1,4 +1,13 @@
 {
   "schema_version": 1,
-  "dispositions": []
+  "dispositions": [
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/StrandImport/Sources/StrandImport/HealthWriteback.swift::vitalsInstantByDay/2#1",
+      "identity_sha256": "cc1a46149abee1ead9df3a0da97441674f2ac5e5e966f178abd12b558bf24294",
+      "platform": "swift",
+      "rationale": "Used only by the iOS HealthKitBridge write-back to stamp nightly HKQuantitySamples inside the sleep window they describe; the Android Health Connect exporter does not call it."
+    }
+  ]
 }
