@@ -120,7 +120,7 @@ struct StageDetailView: View {
             // gravity-only spine fragments and the sub-60-min pieces are dropped, so a real ~8h night can
             // collapse to a fraction ("slept 8h, app shows 1h"). Say so honestly so the short total isn't
             // read as fact. Distinct from the H9 note above (a plausible-duration night with an off split).
-            if stageStagingIsSparse(night) {
+            if stageShowsIncompleteNote(night) {
                 stageIncompleteNote
             }
             // #1716 — a device-provided hypnogram whose records never all arrived leaves a HOLE in the
@@ -243,13 +243,17 @@ struct StageDetailView: View {
             asleepMin: s.asleep, deepMin: s.deep, remMin: s.rem, efficiency: effPct / 100.0)
     }
 
-    /// True when this night was staged on SPARSE motion coverage — the persisted `stagingSparse` flag the
-    /// engine sets from `SleepStager.isGravitySparse` (#345). Such a night can UNDER-detect: the gravity-only
-    /// spine fragments and sub-60-min pieces are dropped, so a real night collapses to a fraction. Reads the
-    /// day's REAL stored blocks (each carries the day's value), never the synthetic merged `session`; a nil
-    /// flag (imported / pre-migration night) is never flagged. Mirror in Kotlin.
-    private func stageStagingIsSparse(_ night: Night) -> Bool {
-        night.sourceBlocks.contains { $0.stagingSparse == true }
+    /// True when this night earns the "May be incomplete" caveat: staged on SPARSE motion coverage AND
+    /// actually reading short (#345). `SleepView.stageSparseNoteApplies` carries the reasoning and is the
+    /// single place the rule lives. Reads the day's REAL stored blocks (each carries the day's value), never
+    /// the synthetic merged `session`; a nil flag (imported / pre-migration night) is never flagged.
+    private func stageShowsIncompleteNote(_ night: Night) -> Bool {
+        // Same shared gate as `SleepView.stageShowsIncompleteNote`, for the same reason this host already
+        // borrows `isStagingLowConfidence` and `mainNightGroup`: the two screens render the same night and
+        // must not disagree about whether it earns the caveat.
+        SleepView.stageSparseNoteApplies(
+            stagingSparse: night.sourceBlocks.contains { $0.stagingSparse == true },
+            asleepMin: night.stages.asleep)
     }
 
     /// How much of this night's window its stage timeline actually accounts for, or nil when coverage is not

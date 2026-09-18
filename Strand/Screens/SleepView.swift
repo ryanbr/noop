@@ -830,8 +830,10 @@ struct SleepView: View {
             // #345 follow-up: when a night was staged on SPARSE motion coverage it can UNDER-detect — the
             // gravity-only spine fragments and the sub-60-min pieces are dropped, so a real ~8h night can
             // collapse to a fraction ("slept 8h, app shows 1h"). Say so honestly so the short total isn't
-            // read as fact. Distinct from the H9 note above (a plausible-duration night with an off split).
-            if stageStagingIsSparse(night) {
+            // read as fact — but only when the night ACTUALLY reads short, since the sparse flag alone fires
+            // on one long motion dropout at any length. The rule lives in `stageSparseNoteApplies`.
+            // Distinct from the H9 note above (a plausible-duration night with an off split).
+            if stageShowsIncompleteNote(night) {
                 stageIncompleteNote
             }
             // #1716 — a device-provided hypnogram assembled from records that never all arrived leaves a
@@ -958,13 +960,44 @@ struct SleepView: View {
             asleepMin: s.asleep, deepMin: s.deep, remMin: s.rem, efficiency: effPct / 100.0)
     }
 
-    /// True when this night was staged on SPARSE motion coverage — the persisted `stagingSparse` flag the
-    /// engine sets from `SleepStager.isGravitySparse` (#345). Such a night can UNDER-detect: the gravity-only
-    /// spine fragments and sub-60-min pieces are dropped, so a real night collapses to a fraction. Reads the
-    /// day's REAL stored blocks (each carries the day's value), never the synthetic merged `session`; a nil
-    /// flag (imported / pre-migration night) is never flagged. Mirror in Kotlin.
-    private func stageStagingIsSparse(_ night: Night) -> Bool {
-        night.sourceBlocks.contains { $0.stagingSparse == true }
+    /// True when this night earns the "May be incomplete" caveat: staged on SPARSE motion coverage AND
+    /// actually reading short (#345). The rule itself lives in `stageSparseNoteApplies` below, which carries
+    /// the reasoning and is what Kotlin mirrors; this wrapper only supplies the two inputs. Reads the day's
+    /// REAL stored blocks (each carries the day's value), never the synthetic merged `session`; a nil flag
+    /// (imported / pre-migration night) is never flagged.
+    private func stageShowsIncompleteNote(_ night: Night) -> Bool {
+        SleepView.stageSparseNoteApplies(
+            stagingSparse: night.sourceBlocks.contains { $0.stagingSparse == true },
+            asleepMin: night.stages.asleep)
+    }
+
+    /// Pure #345 gate (unit-testable without a live view) — whether the "May be incomplete" caveat applies.
+    /// Mirror EXACTLY in Kotlin.
+    ///
+    /// `stagingSparse` alone is NOT the question the note asks. It is a STAGING-MECHANISM verdict:
+    /// `SleepStager.isGravitySparse` returns true when the gravity span is short against the HR span OR when
+    /// the LARGEST inter-sample gap exceeds `maxGapMin`, and its own doc calls that second branch "the
+    /// typical WHOOP 4.0 backfill (#28)" whose only consequence is to ENABLE `buildRuns`' HR-vouched bridge.
+    /// So a single long motion dropout sets it on a night of ANY length, including a complete twelve-hour
+    /// one, and the flag is raised precisely where the engine has already applied its own mitigation.
+    ///
+    /// The note's copy, though, claims something narrower and checkable: that the night "may be
+    /// under-detected and the sleep total can read short". So require the total to actually read short. A
+    /// night at or above the wearer's need cannot honestly be captioned as possibly reading short, whatever
+    /// the motion trace looked like.
+    ///
+    /// A night that staged to NOTHING keeps the caveat: zero asleep is the strongest form of the collapse
+    /// this note exists to explain, not an exemption from it.
+    ///
+    /// `needHours` is a parameter rather than a constant so a personalised need
+    /// (`AnalyticsEngine.Rest.personalizedNeedHours`) can be threaded in later without moving the rule. It
+    /// is computed per pass today and not persisted on the row a screen can reach, so the shared default
+    /// stands in.
+    static func stageSparseNoteApplies(stagingSparse: Bool,
+                                       asleepMin: Double,
+                                       needHours: Double = AnalyticsEngine.Rest.defaultNeedHours) -> Bool {
+        guard stagingSparse else { return false }
+        return asleepMin < needHours * 60.0
     }
 
     /// How much of this night's window its stage timeline actually accounts for, or nil when coverage is

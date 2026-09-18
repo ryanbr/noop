@@ -1457,11 +1457,12 @@ private fun Hero(
             // shows for the same night (the app post-processes the same stream). Mirrors iOS ouraRawStagesNote.
             if (activeIsOura) OuraRawStagesNote()
             // #345 follow-up: a night staged on SPARSE motion coverage can UNDER-detect and read short
-            // ("slept 8h, shows 1h"). Say so honestly, gated on the persisted stagingSparse flag (the day's
-            // SleepStager.isGravitySparse verdict). `session` is the REAL main block (selectNight's edit
-            // anchor), so it carries the flag; nil (imported / pre-migration) is never flagged. Mirrors iOS
-            // SleepView.stageIncompleteNote.
-            if (session?.stagingSparse == true) SleepIncompleteNote()
+            // ("slept 8h, shows 1h"). Say so honestly — but only when the night ACTUALLY reads short, since
+            // the stagingSparse flag alone fires on one long motion dropout at any night length. The rule
+            // and its reasoning live in [stageSparseNoteApplies]. `session` is the REAL main block
+            // (selectNight's edit anchor), so it carries the flag; nil (imported / pre-migration) is never
+            // flagged. Mirrors iOS SleepView.stageShowsIncompleteNote.
+            if (stageSparseNoteApplies(session?.stagingSparse == true, s.asleep)) SleepIncompleteNote()
             // #1716 — a device-provided hypnogram assembled from records that never all arrived leaves a
             // HOLE in the timeline while the session still spans the whole night, so a night we saw a
             // fraction of renders as a complete one. Asked of the bridged main-night GROUP (the quantity
@@ -1589,6 +1590,38 @@ private fun OuraRawStagesNote() {
             color = Palette.textTertiary,
         )
     }
+}
+
+/**
+ * Pure #345 gate (unit-testable without a Composable) — whether the "May be incomplete" caveat applies.
+ * Twin of Swift `SleepView.stageSparseNoteApplies`.
+ *
+ * [stagingSparse] alone is NOT the question the note asks. It is a STAGING-MECHANISM verdict:
+ * [SleepStager.isGravitySparse] returns true when the gravity span is short against the HR span OR when the
+ * LARGEST inter-sample gap exceeds `maxGapMin`, and its own doc calls that second branch "the typical WHOOP
+ * 4.0 backfill (#28)" whose only consequence is to ENABLE `buildRuns`' HR-vouched bridge. So a single long
+ * motion dropout sets it on a night of ANY length, including a complete twelve-hour one, and the flag is
+ * raised precisely where the engine has already applied its own mitigation.
+ *
+ * The note's copy, though, claims something narrower and checkable: that the night may be under-detected and
+ * the sleep total can read short. So require the total to actually read short. A night at or above the
+ * wearer's need cannot honestly be captioned as possibly reading short, whatever the motion trace looked
+ * like.
+ *
+ * A night that staged to NOTHING keeps the caveat: zero asleep is the strongest form of the collapse this
+ * note exists to explain, not an exemption from it.
+ *
+ * [needHours] is a parameter rather than a constant so a personalised need
+ * (`RestScorer.personalizedNeedHours`) can be threaded in later without moving the rule. It is
+ * computed per pass today and not persisted on a row a screen can reach, so the shared default stands in.
+ */
+internal fun stageSparseNoteApplies(
+    stagingSparse: Boolean,
+    asleepMin: Double,
+    needHours: Double = com.noop.analytics.RestScorer.defaultSleepNeedHours,
+): Boolean {
+    if (!stagingSparse) return false
+    return asleepMin < needHours * 60.0
 }
 
 /** The sparse-coverage caveat (#345): a night staged on thin motion data can under-detect and read short
