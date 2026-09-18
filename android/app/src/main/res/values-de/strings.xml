@@ -2802,4 +2802,6 @@
     <string name="l10n_live_screen_connected_waiting_for_live_heart_rate_01d216bb">Verbunden, warte auf Live-Herzfrequenz.</string>
     <string name="l10n_live_screen_live_heart_rate_is_flowing_from_f7f6c4fe">Live-Herzfrequenz kommt vom Ring.</string>
     <string name="l10n_live_screen_reconnect_drops_the_current_link_if_afc27801">„Neu verbinden“ trennt die aktuelle Verbindung, falls vorhanden, und verbindet den Ring erneut. Zum Koppeln oder Wechseln von Bändern öffne „Geräte“.</string>
+    <string name="l10n_settings_screen_ring_gauges_on_today_7a532de2">Ring-Anzeigen auf Heute</string>
+    <string name="l10n_settings_screen_off_returns_the_liquid_vessels_6bb9236e">Aus zeigt wieder die Liquid-Anzeigen.</string>
 </resources>

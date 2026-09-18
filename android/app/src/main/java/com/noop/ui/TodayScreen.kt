@@ -2985,6 +2985,16 @@ private fun ScoreHeroRow(
     val effortOutOf = if (effortScale == EffortScale.WHOOP) 21.0 else 100.0
     val effortVal = strain?.let { UnitFormatter.effortValue(it, effortScale) } ?: 0.0
 
+    // Vessel path only: the vessels run LIVE (per-frame slosh + tilt) once the row has any real score to
+    // show; a wholly empty/calibrating hero poses them static so a brand-new user's launch churn isn't
+    // fighting live canvases (the Android equivalent of the iOS `dataLoaded` gate on HeroScoreCell).
+    // LiquidVessel + the count-up both honour Reduce Motion internally, so this is purely a "don't animate
+    // an empty hero" cost gate. A carried Charge counts as data (its dimmed vessel should slosh like the
+    // Rest one). The ring rendering ignores it: GlowRing springs once to its target and then sits still,
+    // so there is no per-frame cost to gate.
+    val heroVesselsAnimated =
+        recovery != null || strain != null || restScore != null || lastScoredCharge != null
+
     Box(
         modifier = Modifier
             .fillMaxWidth(),
@@ -3041,6 +3051,8 @@ private fun ScoreHeroRow(
                                 tint = Palette.recoveryColor(carried.value),
                                 diameter = ring,
                                 showsValue = true,
+                                animated = heroVesselsAnimated,
+                                onTap = onChargeTap,
                             )
                         } else {
                             HeroScoreVessel(
@@ -3049,6 +3061,8 @@ private fun ScoreHeroRow(
                                 tint = Palette.recoveryColor(recovery ?: 0.0),
                                 diameter = ring,
                                 showsValue = recovery != null,
+                                animated = heroVesselsAnimated,
+                                onTap = onChargeTap,
                             )
                             // Empty ring + calibrating / no-data overlay (the carried case is above).
                             if (recovery == null) RingEmptyOverlay(recoveryCalibration, diameter = ring)
@@ -3076,6 +3090,8 @@ private fun ScoreHeroRow(
                             diameter = ring,
                             showsValue = strain != null,
                             format = { if (effortScale == EffortScale.WHOOP) String.format(Locale.getDefault(), "%.1f", it) else it.toInt().toString() },
+                            animated = heroVesselsAnimated,
+                            onTap = effortRingTap,
                         )
                         if (strain == null) RingNoData(diameter = ring)
                     }
@@ -3107,6 +3123,8 @@ private fun ScoreHeroRow(
                                 tint = Palette.recoveryColor(restScore ?: 0.0),
                                 diameter = ring,
                                 showsValue = restScore != null,
+                                animated = heroVesselsAnimated,
+                                onTap = restRingTap,
                             )
                             if (restScore == null) {
                                 // #898: an aggregate-import user (a daily HRV/RHR import, no in-bed session) gets a
@@ -3269,16 +3287,26 @@ private fun HeroRingColumn(
 }
 
 /**
- * One hero score as a [GlowRing] — the ring-style gauge shared with the Intelligence forecast card.
- * Replaces the former liquid-vessel hero with the same crisp-arc + count-up primitive the rest of the
- * app already uses: a 10%-of-diameter stroke, spring arc from 12 o'clock, and a tween count-up number
- * at `diameter * 0.36` Bold (the [glowRingCenterTextStyle] house numeral). The caller overlays the
- * calibrating / No-Data / Needs-a-Tracked-Night text when [showsValue] is false, matching the prior
- * liquid-ring branch structure.
+ * One hero score, drawn as whichever gauge the Today preference selects.
  *
- * Values/bindings are UNCHANGED from the LiquidVessel this replaced — same fraction, same value, same
- * value-sampled tint — so the ring colour, fill and number agree with every other surface that shows
- * the metric.
+ * DEFAULT, and what #2311 shipped: a [GlowRing] — the ring-style gauge shared with the Intelligence
+ * forecast card, the same crisp-arc + count-up primitive the rest of the app already uses: a
+ * 10%-of-diameter stroke, spring arc from 12 o'clock, and a tween count-up number at `diameter * 0.36`
+ * Bold (the [glowRingCenterTextStyle] house numeral).
+ *
+ * OFF: the [LiquidVessel] the ring replaced, filling to [fraction] in the domain [tint] with a
+ * [CountUpText] rolling the number up over it (white, tabular, a soft shadow so it reads on the vessel),
+ * matching the iOS `HeroScoreCell`. The number is hit-transparent (clearAndSetSemantics, no clickable)
+ * so a tap falls THROUGH to the vessel, which owns its own tap to splash + haptic.
+ *
+ * Both renderings take the SAME bindings — same fraction, same value, same value-sampled tint — so
+ * whichever one is on agrees with every other surface that shows the metric. The caller overlays the
+ * calibrating / No-Data / Needs-a-Tracked-Night text when [showsValue] is false, for either gauge.
+ *
+ * The preference is read on entry via [remember], the convention every other Today-screen display toggle
+ * follows (day-cycle background, sky behind cards, hydration). Settings is its own NavHost destination, so
+ * Today leaves composition while it is open and reads the pref again on the way back: a flip is live the
+ * next time Today is opened, which is the first moment it could be seen anyway.
  */
 @Composable
 private fun HeroScoreVessel(
@@ -3289,17 +3317,52 @@ private fun HeroScoreVessel(
     modifier: Modifier = Modifier,
     showsValue: Boolean = true,
     format: (Double) -> String = { it.roundToInt().toString() },
+    // Both of these are VESSEL-only; the ring branch ignores them.
+    //
+    // Whether the vessel sloshes live. The caller passes its empty-hero cost gate, so a brand-new user's
+    // launch churn isn't fighting live canvases. GlowRing needs no equivalent.
+    animated: Boolean = true,
+    // Its animated render owns a clickable that consumes the touch, so a
+    // clickable parent never sees a tap landing on it (#1995). The ring attaches none, which is why
+    // #2311 could move the handler up to HeroRingColumn.onRingTap and drop this. With the vessel
+    // selectable again the forwarding has to come back, for that rendering only.
+    onTap: (() -> Unit)? = null,
 ) {
-    GlowRing(
-        fraction = fraction.coerceIn(0.0, 1.0).toFloat(),
-        value = value,
-        color = tint,
-        diameter = diameter,
-        lineWidth = diameter * 0.10f,
-        modifier = modifier,
-        showsLabel = showsValue,
-        format = format,
-    )
+    val context = LocalContext.current
+    val ringGauges = remember { NoopPrefs.todayRingGauges(context) }
+    if (ringGauges) {
+        GlowRing(
+            fraction = fraction.coerceIn(0.0, 1.0).toFloat(),
+            value = value,
+            color = tint,
+            diameter = diameter,
+            lineWidth = diameter * 0.10f,
+            modifier = modifier,
+            showsLabel = showsValue,
+            format = format,
+        )
+    } else Box(modifier = modifier.size(diameter), contentAlignment = Alignment.Center) {
+        LiquidVessel(
+            value = fraction.coerceIn(0.0, 1.0),
+            tint = tint,
+            animated = animated,
+            modifier = Modifier.size(diameter),
+            onTap = onTap,
+        )
+        if (showsValue) {
+            // Count-up number over the vessel — white, tabular, a soft shadow for legibility, hit-transparent
+            // so the tap reaches the vessel (splash). Size ≈ diameter × 0.27 (iOS 96→26 ratio), capped.
+            val numberSp = (diameter.value * 0.27f).coerceIn(20f, 30f)
+            CountUpText(
+                value = value,
+                format = format,
+                style = NoopType.number(numberSp, weight = FontWeight.Bold)
+                    .copy(shadow = Shadow(color = Color.Black.copy(alpha = 0.5f), offset = Offset(0f, 1f), blurRadius = 6f)),
+                color = Color.White,
+                modifier = Modifier.clearAndSetSemantics {},
+            )
+        }
+    }
 }
 
 /**
@@ -3723,14 +3786,25 @@ private fun HeroVitalRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Metrics.space12),
     ) {
-        GlowRing(
-            fraction = (fraction ?: 0.0).coerceIn(0.0, 1.0).toFloat(),
-            value = 0.0,
-            color = tint,
-            diameter = 26.dp,
-            lineWidth = 2.6.dp,
-            showsLabel = false,
-        )
+        // Ring or vessel per the Today gauge preference; both are static here.
+        val gaugeCtx = LocalContext.current
+        if (remember { NoopPrefs.todayRingGauges(gaugeCtx) }) {
+            GlowRing(
+                fraction = (fraction ?: 0.0).coerceIn(0.0, 1.0).toFloat(),
+                value = 0.0,
+                color = tint,
+                diameter = 26.dp,
+                lineWidth = 2.6.dp,
+                showsLabel = false,
+            )
+        } else {
+            LiquidVessel(
+                value = fraction,
+                tint = tint,
+                animated = false,
+                modifier = Modifier.size(26.dp),
+            )
+        }
         Text(label, style = NoopType.subhead, color = Palette.textSecondary, modifier = Modifier.weight(1f))
         Text(
             displayValue,
@@ -4443,14 +4517,26 @@ private fun DashboardCardRow(
     ) {
         // A 30dp mini GlowRing filled to this card's fraction, tinted its domain colour — the
         // "small ring per icon" iOS shows. Static (GlowRing starts empty, springs to target once).
-        GlowRing(
-            fraction = (fraction ?: 0.0).coerceIn(0.0, 1.0).toFloat(),
-            value = 0.0,
-            color = tint,
-            diameter = 30.dp,
-            lineWidth = 3.dp,
-            showsLabel = false,
-        )
+        // Ring or vessel per the Today gauge preference. Static either way: the many small gauges
+        // cost nothing per frame, which is what the vessel's animated=false bought here too.
+        val cardGaugeCtx = LocalContext.current
+        if (remember { NoopPrefs.todayRingGauges(cardGaugeCtx) }) {
+            GlowRing(
+                fraction = (fraction ?: 0.0).coerceIn(0.0, 1.0).toFloat(),
+                value = 0.0,
+                color = tint,
+                diameter = 30.dp,
+                lineWidth = 3.dp,
+                showsLabel = false,
+            )
+        } else {
+            LiquidVessel(
+                value = fraction,
+                tint = tint,
+                animated = false,
+                modifier = Modifier.size(30.dp),
+            )
+        }
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(1.dp),

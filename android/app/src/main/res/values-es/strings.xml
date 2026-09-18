@@ -2789,4 +2789,6 @@
     <string name="l10n_live_screen_connected_waiting_for_live_heart_rate_01d216bb">Conectado, esperando la frecuencia cardíaca en vivo.</string>
     <string name="l10n_live_screen_live_heart_rate_is_flowing_from_f7f6c4fe">La frecuencia cardíaca en vivo llega desde el anillo.</string>
     <string name="l10n_live_screen_reconnect_drops_the_current_link_if_afc27801">Reconectar corta el enlace actual, si lo hay, y vuelve a conectar con el anillo. Para emparejar o cambiar de banda, abre Dispositivos.</string>
+    <string name="l10n_settings_screen_ring_gauges_on_today_7a532de2">Indicadores de anillo en Hoy</string>
+    <string name="l10n_settings_screen_off_returns_the_liquid_vessels_6bb9236e">Desactivado vuelve a los indicadores líquidos.</string>
 </resources>

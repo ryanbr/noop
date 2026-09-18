@@ -730,6 +730,9 @@ fun SettingsScreen(
     // In-app quiet motion (#941), default OFF. The process-wide preference observer in NoopMotion makes
     // this take effect on every currently composed looping surface as soon as the switch is flipped.
     var quietMotion by remember { mutableStateOf(NoopPrefs.quietMotion(context)) }
+    // Ring vs vessel gauges on Today (#2311 follow-up), default ON (rings). Unlike quietMotion directly
+    // above, this one is NOT live: Today reads it on entry, like the other Today-screen display toggles.
+    var todayRingGauges by remember { mutableStateOf(NoopPrefs.todayRingGauges(context)) }
     // HRV window (#141) — whole-night vs deep-sleep (WHOOP-style). NOT display-only: it changes the computed
     // avgHrv, so a switch clears the analyze watermark to force a re-score + re-baseline on the next pass.
     var hrvWindow by remember { mutableStateOf(UnitPrefs.hrvWindow(context)) }
@@ -1586,6 +1589,20 @@ fun SettingsScreen(
                 onCheckedChange = {
                     quietMotion = it
                     NoopPrefs.setQuietMotion(context, it)
+                },
+            )
+
+            // Which gauge Today draws (#2311 follow-up). Sits with the display toggles rather than in an
+            // experimental section: neither option is a prototype, one replaced the other. Like the
+            // day-cycle background below, the pref is read when Today is entered.
+            SettingsRowDivider()
+            SettingsToggleRow(
+                title = uiString(R.string.l10n_settings_screen_ring_gauges_on_today_7a532de2),
+                detail = uiString(R.string.l10n_settings_screen_off_returns_the_liquid_vessels_6bb9236e),
+                checked = todayRingGauges,
+                onCheckedChange = {
+                    todayRingGauges = it
+                    NoopPrefs.setTodayRingGauges(context, it)
                 },
             )
 

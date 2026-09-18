@@ -2788,4 +2788,6 @@
     <string name="l10n_live_screen_connected_waiting_for_live_heart_rate_01d216bb">Connecté, en attente de la fréquence cardiaque en direct.</string>
     <string name="l10n_live_screen_live_heart_rate_is_flowing_from_f7f6c4fe">La fréquence cardiaque en direct arrive de l\'anneau.</string>
     <string name="l10n_live_screen_reconnect_drops_the_current_link_if_afc27801">Reconnecter coupe le lien actuel, s\'il existe, et se reconnecte à l\'anneau. Pour associer ou changer de bande, ouvrez Appareils.</string>
+    <string name="l10n_settings_screen_ring_gauges_on_today_7a532de2">Jauges en anneau sur Aujourd\'hui</string>
+    <string name="l10n_settings_screen_off_returns_the_liquid_vessels_6bb9236e">Désactivé rétablit les jauges liquides.</string>
 </resources>

@@ -2676,4 +2676,6 @@
     <string name="l10n_live_screen_connected_waiting_for_live_heart_rate_01d216bb">Подключено, ожидание пульса в реальном времени.</string>
     <string name="l10n_live_screen_live_heart_rate_is_flowing_from_f7f6c4fe">Пульс в реальном времени поступает с кольца.</string>
     <string name="l10n_live_screen_reconnect_drops_the_current_link_if_afc27801">«Переподключить» разрывает текущее соединение, если оно есть, и снова подключается к кольцу. Чтобы выполнить сопряжение или сменить браслет, откройте раздел «Устройства».</string>
+    <string name="l10n_settings_screen_ring_gauges_on_today_7a532de2">Кольцевые шкалы в «Сегодня»</string>
+    <string name="l10n_settings_screen_off_returns_the_liquid_vessels_6bb9236e">Выключено возвращает жидкие шкалы.</string>
 </resources>

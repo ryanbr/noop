@@ -2763,4 +2763,6 @@
     <string name="l10n_live_screen_connected_waiting_for_live_heart_rate_01d216bb">已连接，等待实时心率。</string>
     <string name="l10n_live_screen_live_heart_rate_is_flowing_from_f7f6c4fe">实时心率正从戒指传来。</string>
     <string name="l10n_live_screen_reconnect_drops_the_current_link_if_afc27801">重新连接会断开当前连接（如果有）并再次连接戒指。要配对或切换手环，请打开「设备」。</string>
+    <string name="l10n_settings_screen_ring_gauges_on_today_7a532de2">今天页面的环形仪表</string>
+    <string name="l10n_settings_screen_off_returns_the_liquid_vessels_6bb9236e">关闭后恢复为液态仪表。</string>
 </resources>

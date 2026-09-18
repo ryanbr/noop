@@ -2818,4 +2818,6 @@
     <string name="l10n_live_screen_connected_waiting_for_live_heart_rate_01d216bb">Connected, waiting for live heart rate.</string>
     <string name="l10n_live_screen_live_heart_rate_is_flowing_from_f7f6c4fe">Live heart rate is flowing from the ring.</string>
     <string name="l10n_live_screen_reconnect_drops_the_current_link_if_afc27801">Reconnect drops the current link, if any, and connects to the ring again. To pair or switch bands, open Devices.</string>
+    <string name="l10n_settings_screen_ring_gauges_on_today_7a532de2">Ring gauges on Today</string>
+    <string name="l10n_settings_screen_off_returns_the_liquid_vessels_6bb9236e">Off returns the liquid vessels.</string>
 </resources>

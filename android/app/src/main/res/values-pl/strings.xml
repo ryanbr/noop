@@ -2797,4 +2797,6 @@
     <string name="l10n_live_screen_connected_waiting_for_live_heart_rate_01d216bb">Połączono, czekam na tętno na żywo.</string>
     <string name="l10n_live_screen_live_heart_rate_is_flowing_from_f7f6c4fe">Tętno na żywo płynie z pierścienia.</string>
     <string name="l10n_live_screen_reconnect_drops_the_current_link_if_afc27801">Połącz ponownie zrywa bieżące połączenie, jeśli istnieje, i ponownie łączy się z pierścieniem. Aby sparować lub przełączyć pasma, otwórz Urządzenia.</string>
+    <string name="l10n_settings_screen_ring_gauges_on_today_7a532de2">Wskaźniki pierścieniowe w Dzisiaj</string>
+    <string name="l10n_settings_screen_off_returns_the_liquid_vessels_6bb9236e">Wyłączone przywraca wskaźniki płynne.</string>
 </resources>

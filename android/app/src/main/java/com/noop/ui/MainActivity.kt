@@ -1091,6 +1091,27 @@ object NoopPrefs {
         of(context).edit().putBoolean(KEY_QUIET_MOTION, enabled).apply()
     }
 
+    /** Which gauge Today draws: the GlowRing arc (default) or the liquid vessel it replaced (#2311).
+     *
+     *  Android-only, and deliberately NOT Apple's `noop.liquidTodayEnabled`. That key switches between two
+     *  whole Today SCREENS on iOS and macOS, `LiquidTodayView` (the default there) and the classic
+     *  `TodayView`. Android has a single Today screen, so this chooses a gauge inside it and nothing else.
+     *
+     *  Sharing the key would also INVERT it: `true` means liquid on Apple and rings (not liquid) here, so
+     *  one stored value would drive two opposite looks. Two unrelated meanings on one setting, and a future
+     *  divergence on either platform silently wrong.
+     *
+     *  Defaults to the rings, which is what #2311 shipped; the vessels stay available for anyone who
+     *  preferred them. */
+    const val KEY_TODAY_RING_GAUGES = "noop.todayRingGauges"
+
+    fun todayRingGauges(context: Context): Boolean =
+        of(context).getBoolean(KEY_TODAY_RING_GAUGES, true)
+
+    fun setTodayRingGauges(context: Context, enabled: Boolean) {
+        of(context).edit().putBoolean(KEY_TODAY_RING_GAUGES, enabled).apply()
+    }
+
     /**
      * When the live /models catalogue was last pulled for a provider, epoch millis, keyed per
      * provider so switching does not hide a stale list behind another provider's refresh.

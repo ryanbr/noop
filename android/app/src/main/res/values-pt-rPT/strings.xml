@@ -2781,4 +2781,6 @@
     <string name="l10n_live_screen_connected_waiting_for_live_heart_rate_01d216bb">Ligado, aguardando a frequência cardíaca em direto.</string>
     <string name="l10n_live_screen_live_heart_rate_is_flowing_from_f7f6c4fe">A frequência cardíaca em direto está a chegar do anel.</string>
     <string name="l10n_live_screen_reconnect_drops_the_current_link_if_afc27801">Voltar a ligar termina a ligação atual, se existir, e liga-se novamente ao anel. Para emparelhar ou mudar de banda, abra Dispositivos.</string>
+    <string name="l10n_settings_screen_ring_gauges_on_today_7a532de2">Indicadores em anel no Hoje</string>
+    <string name="l10n_settings_screen_off_returns_the_liquid_vessels_6bb9236e">Desligado repõe os indicadores líquidos.</string>
 </resources>
