@@ -3063,6 +3063,53 @@ fun SettingsScreen(
                     color = Palette.textTertiary,
                 )
 
+                // --- #2242: Active calories from the Oura ring's MET stream — OFF by default. ---
+                // The ring's 0x50 per-minute MET series scored with Oura's documented method (minutes
+                // above 1.5 MET × RMR) in place of the HR-only Keytel path over the ring's sparse banked
+                // HR (r ≈ −0.1 against Oura's own number). The toggle gates BOTH the `ouraMetSample`
+                // writer and the analyzeDay read, so an OFF install's DB and scores are unchanged. Shown
+                // only when an Oura ring is paired. Mirrors the iOS "Experimental · Oura Calories" card.
+                var ouraPairedForMet by remember { mutableStateOf(false) }
+                LaunchedEffect(Unit) {
+                    ouraPairedForMet = runCatching { vm.pairedDevices() }.getOrDefault(emptyList())
+                        .any { it.brand.equals("Oura", ignoreCase = true) }
+                }
+                if (ouraPairedForMet) {
+                    SettingsRowDivider()
+                    var ouraMetCalories by remember { mutableStateOf(NoopPrefs.ouraMetCalories(context)) }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        Text(
+                            uiString(R.string.settings_oura_met_calories_title),
+                            style = NoopType.subhead,
+                            color = Palette.textPrimary,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Switch(
+                            checked = ouraMetCalories,
+                            onCheckedChange = {
+                                ouraMetCalories = it
+                                vm.setOuraMetCalories(it)
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Palette.surfaceBase,
+                                checkedTrackColor = Palette.accent,
+                                uncheckedThumbColor = Palette.textSecondary,
+                                uncheckedTrackColor = Palette.surfaceInset,
+                                uncheckedBorderColor = Palette.hairline,
+                            ),
+                        )
+                    }
+                    Text(
+                        uiString(R.string.settings_oura_met_calories_caption),
+                        style = NoopType.caption,
+                        color = Palette.textTertiary,
+                    )
+                }
+
                 // --- #463: Personal daytime-stress baseline — OFF by default. ---
                 // Scores today's intraday stress timeline against a PERSONAL cross-day rolling baseline
                 // (Oura-style) instead of the day's own calm hours. The validated r≈0.6 HR-only margin is

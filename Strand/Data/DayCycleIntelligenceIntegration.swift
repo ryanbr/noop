@@ -41,6 +41,11 @@ import WhoopStore
     }
     private static func computedId(_ owner: String) -> String { owner + "-noop" }
 
+    /// The cycle owner's own per-minute MET rows in `[from, to]` (#2242) — `nil` while the Experimental
+    /// MET-calories toggle is off, which is the byte-identical HR path. Injected rather than read from
+    /// `store` directly so the fold's MET decision can be pinned in a test without a live ring.
+    typealias MetReader = (_ owner: String, _ from: Int, _ to: Int) async -> [Calories.MetSample]
+
     static func recover(candidates: [(owner: String, priority: Int)], reader: BoundaryRecoveryReader,
                                 claimedDays: Set<String>, windowStart: Int, now: Int,
                                 offsetSec: Int, habitualMidsleepSec: Int?) async throws -> [PersistedBoundary] {
@@ -91,6 +96,7 @@ import WhoopStore
                         mode: DayCycleMode, cache: Cache,
                         profile: UserProfile, maxHROverride: Double?, effortMethod: StrainScorer.Method,
                         recoveryReader: BoundaryRecoveryReader? = nil,
+                        metReader: MetReader? = nil,
                         trace: ((String) -> Void)? = nil) async -> Result {
         guard mode == .sleepOnset else {
             return Result(stepsByWakeDay: [:], strainByWakeDay: [:], caloriesByWakeDay: [:],
@@ -207,7 +213,27 @@ import WhoopStore
             if let strain = StrainScorer.strain(cycleHR, maxHR: effectiveMaxHR,
                                                 restingHR: restingHR, method: effortMethod,
                                                 sex: profile.sex) { strains[day] = strain }
-            if !cycleHR.isEmpty {
+            // #2242: a device that measures its own minute-by-minute intensity decides the cycle's energy by
+            // that stream — the SAME rule, floor and withholding `AnalyticsEngine.analyzeDay` applies to the
+            // calendar day, over the wake-to-wake window instead. This fold used to recompute Keytel over
+            // the cycle's HR unconditionally and `applying()` wrote that over the day's `activeKcalEst`, so
+            // on any phone with a day-cycle history the MET number never reached the row (2026-09-17: the
+            // log said 1220 kcal, the export held 743 — the HR figure). Below the coverage floor the day
+            // is WITHHELD — no entry, and the HR figure is not substituted — exactly as on the day path.
+            let cycleMet = hrEndInclusive >= window.onset
+                ? await metReader?(fallback, window.onset, hrEndInclusive) ?? []
+                : []
+            if !cycleMet.isEmpty {
+                let met = Calories.estimateDayEnergyFromMET(cycleMet, profile: profile,
+                                                            dayStart: window.onset,
+                                                            dayEnd: min(window.endExclusive, now))
+                if met.coverageFraction >= Calories.metMinCoverageFraction {
+                    calories[day] = met.totalKcal
+                }
+                trace?("stepsCycle calories day=\(day) path=met coverage=\(Int((met.coverageFraction * 100).rounded()))% "
+                       + "active=\(Int(met.activeKcal.rounded())) total=\(Int(met.totalKcal.rounded())) "
+                       + (met.coverageFraction >= Calories.metMinCoverageFraction ? "" : "withheld"))
+            } else if !cycleHR.isEmpty {
                 calories[day] = Calories.estimateDayCalories(
                     cycleHR, profile: profile, hrmax: effectiveMaxHR, restingHR: restingHR)
             }

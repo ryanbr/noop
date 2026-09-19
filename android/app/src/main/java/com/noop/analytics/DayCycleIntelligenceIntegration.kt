@@ -116,6 +116,7 @@ internal object DayCycleIntelligenceIntegration {
         profile: UserProfile,
         maxHROverride: Double?,
         effortMethod: StrainScorer.Method,
+        ouraMetCalories: Boolean = false,
     ): PhysiologicalStepCycleEngine.Result {
         val witnesses = scoredNights.associate { result ->
             result.daily.day to dayWitness(resolvedOwners[result.daily.day].orEmpty(), result)
@@ -123,7 +124,7 @@ internal object DayCycleIntelligenceIntegration {
         return PhysiologicalStepCycleEngine.compute(
             scoredNights, editedRows, resolvedOwners, candidatePriorities, witnesses, repo,
             tzOffsetSeconds, habitualMidsleepSec, windowStart, nowSeconds, stepTicksPerStep, traceSink, mode,
-            profile, maxHROverride, effortMethod,
+            profile, maxHROverride, effortMethod, ouraMetCalories,
         )
     }
 

@@ -2802,4 +2802,6 @@
     <string name="l10n_sleep_screen_low_confidence_99d4ceae">Niska pewność</string>
     <string name="l10n_sleep_screen_this_night_scored_high_efficiency_but_a11d90eb">Ta noc uzyskała wysoką wydajność, ale bardzo mało snu głębokiego lub REM. To raczej błąd oszacowania faz niż rzeczywisty niedobór snu regeneracyjnego. Sumy pozostają bez zmian, czytaj podział ostrożnie.</string>
     <string name="l10n_health_screen_over_reports_r_r_so_no_9d050d53">Zawyża liczbę interwałów R-R, więc nie pokazujemy wartości</string>
+    <string name="settings_oura_met_calories_title">Kalorie aktywne ze strumienia MET pierścienia</string>
+    <string name="settings_oura_met_calories_caption">Używa udokumentowanej metody Oura: intensywność każdej minuty powyżej 1,5 MET, według standardowej stawki MET dla Twojej wagi, dodatkowo do energii spoczynkowej za minuty zgłoszone przez pierścień. To szacunek, nie pomiar — w dniu bez zarejestrowanego treningu zgadza się z wartością samej aplikacji Oura (Oura przelicza minuty zarejestrowanego treningu według typu aktywności, czego NOOP nie robi), a dzień, którego pierścień nie pokrył w co najmniej połowie, nie pokazuje żadnej liczby zamiast zgadywania. Włączenie rozpoczyna też zapisywanie próbek MET pierścienia na tym urządzeniu; nigdy nie zasila oceny regeneracji ani choroby. Domyślnie wyłączone.</string>
 </resources>

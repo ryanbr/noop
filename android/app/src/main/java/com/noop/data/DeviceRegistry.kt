@@ -197,7 +197,7 @@ class DeviceRegistry(
      * The table set is EVERY device-keyed table of [WhoopDatabase]: hrSample, rrInterval, spo2Sample,
      * skinTempSample, respSample, gravitySample, stepSample, ppgHrSample, ppgWaveformSample, event, battery, dailyMetric,
      * sleepSession, journal, workout, appleDaily, metricSeries, dayOwnership, sleepStateSample, labMarker,
-     * liveSession, dismissedWorkout, dismissedSleep. DeviceRegistryTest.deleteDeviceDataCallsEveryDaoDeleteMethod
+     * liveSession, dismissedWorkout, dismissedSleep, the five lift* tables, ouraMetSample. DeviceRegistryTest.deleteDeviceDataCallsEveryDaoDeleteMethod
      * guards completeness (fails if a delete*For DAO method isn't wired in here).
      */
     suspend fun deleteDeviceData(id: String) {
@@ -233,6 +233,7 @@ class DeviceRegistry(
             dao.deleteLiftProgramItemsFor(id)
             dao.deleteLiftSessionsFor(id)
             dao.deleteLiftSetsFor(id)
+            dao.deleteOuraMetFor(id)
         }
     }
 

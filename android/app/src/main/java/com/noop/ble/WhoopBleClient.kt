@@ -3296,6 +3296,7 @@ class WhoopBleClient(
                         // #103: SpO₂ candidate @82 display toggle — when ON, the engine computes and
                         // persists the nightly @82 mean as "spo2_candidate" in metricSeries.
                         spo2CandidateDisplay = NoopPrefs.spo2CandidateDisplay(context),
+                        ouraMetCalories = NoopPrefs.ouraMetCalories(context),   // #2242
                         effortMethod = NoopPrefs.effortMethod(context),
                         dayCycleMode = NoopPrefs.dayCycleMode(context),
                     )

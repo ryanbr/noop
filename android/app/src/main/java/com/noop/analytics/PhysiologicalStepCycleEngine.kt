@@ -49,6 +49,7 @@ internal object PhysiologicalStepCycleEngine {
         profile: UserProfile,
         maxHROverride: Double?,
         effortMethod: StrainScorer.Method,
+        ouraMetCalories: Boolean = false,
     ): Result {
         if (dayCycleMode == DayCycleMode.MIDNIGHT) {
             return Result(emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), null, emptyList())
@@ -204,7 +205,33 @@ internal object PhysiologicalStepCycleEngine {
                 ?: profile.age.takeIf { it > 0 }?.let { StrainScorer.tanakaHRmax(it.toDouble()) }
             StrainScorer.strain(cycleHr, effectiveMaxHr, restingHr, effortMethod, profile.sex)
                 ?.let { strainByWakeDay[wakeDay] = it }
-            if (cycleHr.isNotEmpty()) {
+            // #2242: a device that measures its own minute-by-minute intensity decides the cycle's energy by
+            // that stream — the SAME rule, floor and withholding AnalyticsEngine.analyzeDay applies to the
+            // calendar day, over the wake-to-wake window instead. This fold used to recompute Keytel over
+            // the cycle's HR unconditionally and the integration wrote that over the day's activeKcalEst,
+            // so on any phone with a day-cycle history the MET number never reached the row (2026-09-17 on
+            // iOS: the log said 1220 kcal, the export held 743 — the HR figure). Below the coverage floor
+            // the day is WITHHELD — no entry, and the HR figure is not substituted — as on the day path.
+            // Swift twin: DayCycleIntelligenceIntegration.compute (metReader).
+            val cycleMet = if (ouraMetCalories && window.endExclusive - 1L >= window.onset) {
+                repo.ouraMetSamples(fallbackOwner, window.onset, window.endExclusive - 1L, 4_000)
+                    .map { Calories.MetSample(it.ts, it.met, it.epochS) }
+            } else {
+                emptyList()
+            }
+            if (cycleMet.isNotEmpty()) {
+                val met = Calories.estimateDayEnergyFromMet(
+                    cycleMet, profile, window.onset, minOf(window.endExclusive, nowSeconds),
+                )
+                if (met.coverageFraction >= Calories.MET_MIN_COVERAGE_FRACTION) {
+                    caloriesByWakeDay[wakeDay] = met.totalKcal
+                }
+                stepsTraceSink?.invoke(
+                    "stepsCycle calories day=$wakeDay path=met coverage=${Math.round(met.coverageFraction * 100)}% " +
+                        "active=${Math.round(met.activeKcal)} total=${Math.round(met.totalKcal)} " +
+                        if (met.coverageFraction >= Calories.MET_MIN_COVERAGE_FRACTION) "" else "withheld",
+                )
+            } else if (cycleHr.isNotEmpty()) {
                 caloriesByWakeDay[wakeDay] = Calories.estimateDayCalories(
                     cycleHr, profile, effectiveMaxHr, restingHr,
                 )

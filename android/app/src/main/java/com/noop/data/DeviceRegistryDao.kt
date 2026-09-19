@@ -122,6 +122,9 @@ interface DeviceRegistryDao {
     @Query("DELETE FROM liftProgramItem WHERE deviceId = :deviceId") suspend fun deleteLiftProgramItemsFor(deviceId: String)
     @Query("DELETE FROM liftSession WHERE deviceId = :deviceId") suspend fun deleteLiftSessionsFor(deviceId: String)
     @Query("DELETE FROM liftSet WHERE deviceId = :deviceId") suspend fun deleteLiftSetsFor(deviceId: String)
+    // v47-oura-met-sample (#2242): the ring's per-minute MET series is deviceId-keyed like every other
+    // stream, so forgetting the ring must clear it too.
+    @Query("DELETE FROM ouraMetSample WHERE deviceId = :deviceId") suspend fun deleteOuraMetFor(deviceId: String)
 
     // #771 adopt-serial: re-key one device's rows onto the serial id across every device-scoped table.
     // `UPDATE OR IGNORE` so the canonical (serial) row wins any (deviceId, ts…) primary-key clash; the

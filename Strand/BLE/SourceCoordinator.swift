@@ -434,6 +434,10 @@ final class SourceCoordinator: ObservableObject {
                     }
                 }
             },
+            persistMetSamples: { [storeHandle] rows in   // #2242
+                Task { if let store = await storeHandle() { _ = try? await store.insertOuraMetSamples(rows, deviceId: id) } }
+            },
+            metCalories: { UserDefaults.standard.bool(forKey: AppModel.ouraMetCaloriesKey) },   // #2242
             log: straplog,
             onBattery: { [live] pct in live.setBattery(Double(pct)) },
             onModel: { [registry] model in registry.setModel(id, model: model) },   // #772: correct a name-guessed gen

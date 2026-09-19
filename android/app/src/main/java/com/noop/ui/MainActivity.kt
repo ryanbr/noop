@@ -688,6 +688,20 @@ object NoopPrefs {
         of(context).edit().putBoolean(KEY_OURA_ONSET_KEYING, enabled).apply()
     }
 
+    /** #2242 (EXPERIMENTAL, default OFF): estimate active calories from the Oura ring's OWN per-minute MET
+     *  stream (0x50) with Oura's documented method — minutes above 1.5 MET × RMR — instead of the HR-only
+     *  Keytel path over the ring's sparse banked HR. Gates BOTH the writer (the ring's MET records are only
+     *  persisted to `ouraMetSample` while this is on, so an OFF install's DB is byte-identical to today's)
+     *  and the analyzeDay read. An estimate, not a measurement. Twin of iOS AppModel.ouraMetCaloriesKey. */
+    const val KEY_OURA_MET_CALORIES = "noop.ouraMetCalories"
+
+    fun ouraMetCalories(context: Context): Boolean =
+        of(context).getBoolean(KEY_OURA_MET_CALORIES, false)
+
+    fun setOuraMetCalories(context: Context, enabled: Boolean) {
+        of(context).edit().putBoolean(KEY_OURA_MET_CALORIES, enabled).apply()
+    }
+
     /** #1121: whether the opt-in "detailed capture" rolling strap-log file is on. Persisted so capture
      *  RESUMES after the process is killed (AppViewModel re-arms the BLE client from this on launch). */
     const val KEY_DETAILED_CAPTURE = "noop.detailedCapture"

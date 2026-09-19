@@ -124,6 +124,7 @@ class DeviceRegistryTest {
         override suspend fun deleteLiftProgramItemsFor(deviceId: String) { deletedTables += "liftProgramItem" to deviceId }
         override suspend fun deleteLiftSessionsFor(deviceId: String) { deletedTables += "liftSession" to deviceId }
         override suspend fun deleteLiftSetsFor(deviceId: String) { deletedTables += "liftSet" to deviceId }
+        override suspend fun deleteOuraMetFor(deviceId: String) { deletedTables += "ouraMetSample" to deviceId }
 
         // #771 adopt-serial re-key: sample-table re-keys are unmodelled here (no per-table storage in
         // this fake), same as the delete*For no-ops above for those tables. dayOwnership IS modelled
@@ -333,6 +334,8 @@ class DeviceRegistryTest {
             // their parents by id rather than by a foreign key, so clearing only the parents would leave
             // every logged set behind.
             "liftExercise", "liftProgram", "liftProgramItem", "liftSession", "liftSet",
+            // v47-oura-met-sample (#2242): the ring's per-minute MET series, deviceId-keyed like every stream.
+            "ouraMetSample",
         )
         assertEquals(expectedTables, dao.deletedTables.map { it.first }.toSet())
         // Every delete was scoped to the requested device, not the seeded my-whoop.

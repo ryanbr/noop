@@ -2823,4 +2823,6 @@
     <string name="l10n_sleep_screen_low_confidence_99d4ceae">Low confidence</string>
     <string name="l10n_sleep_screen_this_night_scored_high_efficiency_but_a11d90eb">This night scored high efficiency but very little deep or REM, more likely a staging estimate miss than a real restorative shortfall. The totals are kept as-is; read the split with care.</string>
     <string name="l10n_health_screen_over_reports_r_r_so_no_9d050d53">Over-reports R-R, so no value is shown</string>
+    <string name="settings_oura_met_calories_title">Active calories from the ring\'s MET stream</string>
+    <string name="settings_oura_met_calories_caption">Uses Oura\'s documented method: each minute\'s intensity above 1.5 MET, at the standard MET rate for your weight, on top of resting energy for the minutes the ring reported. An estimate, not a measurement — on a day without a logged workout it matches the Oura app\'s own figure (Oura re-scores a logged workout\'s minutes by activity type, which NOOP does not), and a day the ring covered less than half of shows no number rather than a guess. Turning this on also starts storing the ring\'s MET samples on this device; it never feeds recovery or illness scoring. Off by default.</string>
 </resources>

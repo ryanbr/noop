@@ -2786,4 +2786,6 @@
     <string name="l10n_sleep_screen_low_confidence_99d4ceae">Confiança baixa</string>
     <string name="l10n_sleep_screen_this_night_scored_high_efficiency_but_a11d90eb">Esta noite obteve uma eficiência alta mas muito pouco sono profundo ou REM. É mais provável que seja uma falha de estimativa das fases do que um défice real de sono reparador. Os totais mantêm-se; leia a distribuição com cuidado.</string>
     <string name="l10n_health_screen_over_reports_r_r_so_no_9d050d53">Conta intervalos R-R a mais, por isso não há valor</string>
+    <string name="settings_oura_met_calories_title">Calorias ativas a partir do fluxo MET do anel</string>
+    <string name="settings_oura_met_calories_caption">Usa o método documentado pela Oura: a intensidade de cada minuto acima de 1,5 MET, à taxa MET padrão para o seu peso, além da energia de repouso dos minutos que o anel registou. Uma estimativa, não uma medição — num dia sem treino registado coincide com o valor da própria app Oura (a Oura reavalia os minutos de um treino registado pelo tipo de atividade, o que o NOOP não faz), e um dia que o anel cobriu menos de metade não mostra número em vez de um palpite. Ao ativar, começa também a guardar as amostras MET do anel neste dispositivo; nunca alimenta a pontuação de recuperação nem de doença. Desligado por predefinição.</string>
 </resources>

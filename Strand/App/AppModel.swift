@@ -2073,6 +2073,17 @@ final class AppModel: ObservableObject {
         set { UserDefaults.standard.set(newValue, forKey: Self.ouraOnsetKeyingKey) }
     }
 
+    /// #2242 (EXPERIMENTAL, default OFF): estimate active calories from the Oura ring's OWN per-minute MET
+    /// stream (0x50) with Oura's documented method — minutes above 1.5 MET × RMR — instead of the HR-only
+    /// Keytel path over the ring's sparse banked HR. Gates BOTH the writer (the ring's MET records are only
+    /// persisted to `ouraMetSample` while this is on, so an OFF install's DB is byte-identical to today's)
+    /// and the analyzeDay read. An estimate, not a measurement. No effect without an Oura ring.
+    static let ouraMetCaloriesKey = "noopOuraMetCalories"
+    var ouraMetCalories: Bool {
+        get { UserDefaults.standard.bool(forKey: Self.ouraMetCaloriesKey) }
+        set { UserDefaults.standard.set(newValue, forKey: Self.ouraMetCaloriesKey) }
+    }
+
     /// Recompute the v5 skin-temp suite snapshots (cycle phase + body clock) from the current history.
     /// Called from the analytics pass and when the cycle opt-in flips. Honest-nil throughout: cycle is
     /// nil unless opted in; circadian is nil unless a usable activity profile exists.

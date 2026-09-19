@@ -135,6 +135,12 @@ class OuraLiveSource(
     /** #1284 residual 3 (default OFF): read live at persist — when true, an Oura hypnogram night is keyed on
      *  its rounded 0x49 onset (stable per-night anchor) instead of the end-anchored first-code time. */
     private val onsetKeying: () -> Boolean = { false },
+    /** #2242: persist one anchored 0x50 record's samples as `ouraMetSample` rows (one per minute) under
+     *  [deviceId] — wired to `repository.insertOuraMetSamples`; default no-op keeps the scanner + tests inert. */
+    private val persistMetSamples: (List<com.noop.data.OuraMetSampleEntity>) -> Unit = {},
+    /** #2242 (default OFF): read live per record — the writer runs only while this is true, so an install
+     *  that never turns the Experimental toggle on never grows the table. */
+    private val metCalories: () -> Boolean = { false },
     /** Diagnostic sink for the connect/auth/stream lifecycle - the SAME exportable strap log (#421).
      *  Every line is prefixed "Oura: ". Statuses / UUIDs / counts only, NEVER a device address. Default
      *  no-op keeps existing call sites compiling and tests silent. */
@@ -2157,6 +2163,25 @@ class OuraLiveSource(
                         ringTs = e.value.ringTimestamp, utc = utc, state = e.value.state,
                         secPerSample = 60, met = e.value.met, // 60 s = assumed MET cadence (s6.13)
                     )
+                    // #2242: persist the record as one row per minute when the Experimental MET-calories
+                    // toggle is on (anchored records only, same rule as the sidecar; the (deviceId, ts) key
+                    // absorbs a re-serve). The record's timestamp is the END of its LAST sample: fitted
+                    // against Oura's own per-minute export, every record length n matched best at exactly
+                    // −n minutes (85 % exact minute matches, r 0.90 — vs 23 % / 0.57 read forward from the
+                    // timestamp), so sample i starts at `utc − (n − i) × epoch`. A record straddling local
+                    // midnight therefore lands its minutes on the right days.
+                    if (metCalories() && e.value.met.isNotEmpty()) {
+                        val epoch = 60
+                        val n = e.value.met.size
+                        persistMetSamples(
+                            e.value.met.mapIndexed { i, met ->
+                                com.noop.data.OuraMetSampleEntity(
+                                    deviceId = deviceId, ts = utc - (n - i).toLong() * epoch,
+                                    met = met, state = e.value.state, epochS = epoch,
+                                )
+                            },
+                        )
+                    }
                 }
             }
             is OuraEvent.RealStepsFields -> {
