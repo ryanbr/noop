@@ -112,6 +112,7 @@ final class HealthKitBridge: ObservableObject {
         }
         if let sleep = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) { s.insert(sleep) }
         s.insert(HKObjectType.workoutType())
+        s.insert(HKSeriesType.workoutRoute())
         return s
     }
 
@@ -1270,7 +1271,27 @@ final class HealthKitBridge: ObservableObject {
                 }
                 if !extras.isEmpty { try await builder.addSamples(extras) }
                 try await builder.endCollection(at: end)
-                _ = try await builder.finishWorkout()
+                let workout = try await builder.finishWorkout()
+
+                // #1314: workout route (GPX) write-back. Load the encoded polyline from the Apple-only
+                // side-store and attach it as a separate series to the workout we just finished.
+                // We only do this if the workout type supports a distance (GPS) route.
+                if let workout,
+                   Self.distanceTypeId(forSport: row.sport) != nil,
+                   store.authorizationStatus(for: HKSeriesType.workoutRoute()) == .sharingAuthorized,
+                   let route = RouteStore.load(startTs: row.startTs, sport: row.sport),
+                   !route.polyline.isEmpty {
+                    let routeBuilder = HKWorkoutRouteBuilder(healthStore: store, device: .local())
+                    let points = RouteMath.decode(route.polyline)
+                    let locs = points.map { p in
+                        CLLocation(coordinate: CLLocationCoordinate2D(latitude: p.lat, longitude: p.lon),
+                                   altitude: 0, horizontalAccuracy: 1, verticalAccuracy: 1, timestamp: start)
+                    }
+                    if !locs.isEmpty {
+                        try await routeBuilder.insertRouteData(locs)
+                        try await routeBuilder.finishRoute(with: workout, metadata: nil)
+                    }
+                }
             } catch {
                 builder.discardWorkout()
                 throw error
