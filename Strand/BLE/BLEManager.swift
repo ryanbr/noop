@@ -3794,7 +3794,12 @@ public final class BLEManager: NSObject, ObservableObject {
         send(.setAdvertisingNameHarvard,
              payload: WhoopCommand.advertisingNamePayload(name),
              writeType: .withResponse)
-        log("Strap rename: wrote advertising name=\(name.debugDescription)")
+        // #2337: through `logSafeDeviceName`, never raw. This name is USER-CHOSEN, so it is the one
+        // string in the rename path that can carry a person's name, and strap logs get attached to public
+        // issues. The redactor masks MACs, WHOOP serials and hex dumps, none of which this is, so it would
+        // go out verbatim. The scan path already routes the very same value through the helper
+        // ("Discovered \(safeName)"), which made this the one place the same data was handled two ways.
+        log("Strap rename: wrote advertising name=\(LiveState.logSafeDeviceName(name))")
         // Re-read shortly after so the card reflects the change if the strap applies it without dropping
         // the link; if it reboots instead, the connect handshake re-reads the name on reconnect anyway.
         DispatchQueue.main.asyncAfter(deadline: .now() + .seconds(2)) { [weak self] in

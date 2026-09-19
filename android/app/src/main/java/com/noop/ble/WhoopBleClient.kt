@@ -4840,7 +4840,12 @@ class WhoopBleClient(
         while (clamped.toByteArray(Charsets.UTF_8).size > 24) clamped = clamped.dropLast(1)
         val payload = byteArrayOf(0, 0) + clamped.toByteArray(Charsets.UTF_8) + byteArrayOf(0)
         send(CommandNumber.SET_ADVERTISING_NAME, payload, withResponse = true)
-        log("Strap rename: wrote advertising name=$clamped")
+        // #2337: through [logSafeDeviceName], never raw. This name is USER-CHOSEN, so it is the one
+        // string in the rename path that can carry a person's name, and strap logs get attached to public
+        // issues. [redactStrapLogPii] masks MACs, WHOOP serials and hex dumps, none of which this is, so
+        // it would go out verbatim. The scan path already routes the very same value through the helper
+        // ("Discovered $safeName"), which made this the one place the same data was handled two ways.
+        log("Strap rename: wrote advertising name=${logSafeDeviceName(clamped)}")
         _state.update { it.copy(
             renameStatus = "Sent - your strap will reboot to apply, then reconnect with the new name.",
         ) }

@@ -47,6 +47,10 @@ final class PiiRedactionTests: XCTestCase {
     /// guarantee, and it is an ALLOWLIST so an unanticipated naming shape is dropped by default.
     func testLogSafeDeviceNameKeepsOnlyTheModel() {
         XCTAssertEqual(LiveState.logSafeDeviceName("Ryan's Whoop"), "<name> Whoop")
+        // #2337: the model token FIRST, which every other case here has last. Second-hand straps arrive
+        // named after the previous owner in whatever word order that language uses, and a real report
+        // arrived as exactly this shape. Synthetic given name on purpose: this file is public.
+        XCTAssertEqual(LiveState.logSafeDeviceName("Whoop von Beispiel"), "<name> Whoop")
         XCTAssertEqual(LiveState.logSafeDeviceName("Ryan B's WHOOP 4.0"), "<name> WHOOP 4.0")
         XCTAssertEqual(LiveState.logSafeDeviceName("Ryan\u{2019}s WHOOP 5.0 MG"), "<name> WHOOP 5.0 MG")
     }
@@ -121,6 +125,79 @@ final class PiiRedactionTests: XCTestCase {
         XCTAssertEqual(LiveState.redactPii("Discovered WBB5BP1174092 (rssi -64)"),
                        "Discovered WBB5BP1174092 (rssi -64)")
         XCTAssertEqual(LiveState.logSafeDeviceName("WBB5BP1174092"), "<name>")
+    }
+
+    /// #2337: the rename path must hand the USER-CHOSEN name to `logSafeDeviceName` before it reaches the
+    /// log, and must never interpolate the raw value.
+    ///
+    /// This is the one string in that path that can carry a person's name. The redactor cannot save it
+    /// after the fact: it masks MACs, WHOOP serials and hex dumps, and a name is none of those, as the
+    /// bare-serial case above already records. The discovery path routes the very same value through the
+    /// helper, so before this the identical data was handled two different ways depending on which line
+    /// printed it.
+    ///
+    /// Asserted against the SOURCE because `renameStrap` needs a bonded link and has no unit seam.
+    /// Twin of the Kotlin `the rename log redacts the chosen name`.
+    func testTheRenameLogRedactsTheChosenName() throws {
+        // The WHOLE function body, not just the one line that carries the name today. Pinning a single
+        // line by its text would let a NEW log added beside it leak freely while this still passed, and
+        // the leak does not care which line it rides on. Twin of the Kotlin case.
+        let body = try Self.renameStrapBody()
+        XCTAssertTrue(body.contains("Strap rename: wrote advertising name="),
+                      "the rename log line was not found in renameStrap")
+        XCTAssertTrue(body.contains("logSafeDeviceName("),
+                      "the rename log must pass the name through logSafeDeviceName:\n\(body)")
+        // Strip the helper calls, then NO log line in the body may still interpolate a raw name. An
+        // earlier version keyed on one line's `name=` slot, and a mutation logging BOTH forms walked
+        // straight through it on the Kotlin side.
+        let offenders = body
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { $0.contains("log(") }
+            .map {
+                String($0).replacingOccurrences(
+                    of: #"logSafeDeviceName\([^)]*\)"#, with: "", options: .regularExpression)
+            }
+            .filter { line in
+                line.contains("\\(name") || line.contains("\\(clamped") || line.contains("\\(rawName")
+                    || line.contains("name.debugDescription")
+            }
+        XCTAssertTrue(offenders.isEmpty, "no log in renameStrap may carry the raw name: \(offenders)")
+    }
+
+    /// The source of `renameStrap`, signature to its closing brace. Fails loudly if either end moves.
+    private static func renameStrapBody() throws -> String {
+        let src = try bleManagerSource()
+        guard let start = src.range(of: "public func renameStrap(_ rawName: String)") else {
+            throw SourceNotReachable(path: "renameStrap not found in BLEManager.swift")
+        }
+        let rest = src[start.lowerBound...]
+        guard let end = rest.range(of: "\n    }") else {
+            throw SourceNotReachable(path: "renameStrap's closing brace not found")
+        }
+        return String(rest[..<end.lowerBound])
+    }
+
+    /// Raised when the source this test reads cannot be located. A named error rather than `XCTSkip`
+    /// ON PURPOSE: a skip is a GREEN test, so an unreachable file would turn a privacy assertion into
+    /// one that silently checks nothing, which is the failure this whole test exists to prevent one
+    /// layer down. Loud, like the Kotlin twin's `IllegalStateException`.
+    private struct SourceNotReachable: Error, CustomStringConvertible {
+        let path: String
+        var description: String { "BLEManager.swift not reachable from \(path)" }
+    }
+
+    /// Walk up from this test's own source location to find the BLE manager. Mirrors the Kotlin
+    /// `clientSource()` walk, and fails rather than skipping when the file is not there.
+    private static func bleManagerSource(file: StaticString = #filePath) throws -> String {
+        var dir = URL(fileURLWithPath: "\(file)").deletingLastPathComponent()
+        for _ in 0..<4 {
+            let candidate = dir.appendingPathComponent("Strand/BLE/BLEManager.swift")
+            if FileManager.default.fileExists(atPath: candidate.path) {
+                return try String(contentsOf: candidate, encoding: .utf8)
+            }
+            dir = dir.deletingLastPathComponent()
+        }
+        throw SourceNotReachable(path: "\(file)")
     }
 
 }

@@ -224,6 +224,10 @@ class PiiRedactionTest {
      */
     @Test fun logSafeDeviceNameKeepsOnlyTheModel() {
         assertEquals("<name> Whoop", logSafeDeviceName("Ryan's Whoop"))
+        // #2337: the model token FIRST, which every other case here has last. Second-hand straps arrive
+        // named after the previous owner in whatever word order that language uses, and a real report
+        // arrived as exactly this shape. Synthetic given name on purpose: this file is public.
+        assertEquals("<name> Whoop", logSafeDeviceName("Whoop von Beispiel"))
         assertEquals("<name> WHOOP 4.0", logSafeDeviceName("Ryan B's WHOOP 4.0"))
         assertEquals("<name> WHOOP 5.0 MG", logSafeDeviceName("Ryan\u2019s WHOOP 5.0 MG"))
     }
@@ -306,6 +310,66 @@ class PiiRedactionTest {
         assertEquals("Discovered WBB5BP1174092 (rssi -64)",
             redactStrapLogPii("Discovered WBB5BP1174092 (rssi -64)"))
         assertEquals("<name>", logSafeDeviceName("WBB5BP1174092"))
+    }
+
+    /**
+     * #2337: the rename path must hand the USER-CHOSEN name to [logSafeDeviceName] before it reaches the
+     * log, and must never interpolate the raw value.
+     *
+     * This is the one string in that path that can carry a person's name. [redactStrapLogPii] cannot save
+     * it after the fact: it masks MACs, WHOOP serials and hex dumps, and a name is none of those, as the
+     * bare-serial case above already records. The discovery path routes the very same value through the
+     * helper, so before this the identical data was handled two different ways depending on which line
+     * printed it.
+     *
+     * Asserted against the SOURCE because `renameStrap` needs a bonded GATT link and has no unit seam.
+     * Same approach as `ChargingAndReleaseTest`, and the same reason.
+     */
+    @Test fun `the rename log redacts the chosen name`() {
+        // The WHOLE function body, not just the one line that carries the name today. Pinning a single
+        // line by its text would let a NEW log added beside it leak freely while this still passed, and
+        // the leak does not care which line it rides on.
+        val body = renameStrapBody()
+        assertTrue(
+            "the rename log line was not found in renameStrap",
+            body.contains("Strap rename: wrote advertising name="),
+        )
+        assertTrue(
+            "the rename log must pass the name through logSafeDeviceName:\n$body",
+            body.contains("logSafeDeviceName("),
+        )
+        // Strip the helper calls, then NO log line in the body may still interpolate a raw name. An
+        // earlier version keyed on the `name=` slot of one line; a mutation logging BOTH forms
+        // (`name=${logSafeDeviceName(clamped)} raw=$clamped`) walked straight through it.
+        val rawInterpolation = Regex("""\$\{?(clamped|name|rawName)\b""")
+        val offenders = body.lines()
+            .filter { it.contains("log(") }
+            .map { it.replace(Regex("""logSafeDeviceName\([^)]*\)"""), "") }
+            .filter { rawInterpolation.containsMatchIn(it) }
+        assertTrue(
+            "no log in renameStrap may carry the raw name: $offenders",
+            offenders.isEmpty(),
+        )
+    }
+
+    /** The source of `renameStrap`, signature to its closing brace. Fails loudly if either end moves. */
+    private fun renameStrapBody(): String {
+        val src = clientSource()
+        val start = src.indexOf("fun renameStrap(rawName: String)")
+        if (start < 0) throw IllegalStateException("renameStrap not found in WhoopBleClient.kt")
+        val end = src.indexOf("\n    }", start)
+        if (end < 0) throw IllegalStateException("renameStrap's closing brace not found")
+        return src.substring(start, end)
+    }
+
+    private fun clientSource(): String {
+        var root = java.io.File(System.getProperty("user.dir") ?: ".").canonicalFile
+        repeat(4) {
+            val f = java.io.File(root, "android/app/src/main/java/com/noop/ble/WhoopBleClient.kt")
+            if (f.isFile) return f.readText()
+            root = root.parentFile ?: root
+        }
+        throw IllegalStateException("WhoopBleClient.kt not found from ${System.getProperty("user.dir")}")
     }
 
 }
