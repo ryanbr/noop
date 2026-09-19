@@ -130,6 +130,7 @@ class RepositoryBaselineTests(unittest.TestCase):
                 "Tools/issue_ref.py",
                 "Tools/parity_*.py",
                 "Tools/parity_*.json",
+                "Tools/parity_case_specs/**",
                 "Tools/tests/test_parity_*.py",
                 "Tools/tests/test_rr_legacy_preservation_contract.py",
                 ".github/workflows/parity-governance.yml",
@@ -151,7 +152,7 @@ class RepositoryBaselineTests(unittest.TestCase):
         self.assertIn("tests.test_parity_ledger", governance)
         self.assertIn("tests.test_parity_governance_acceptance", governance)
         self.assertIn("tests.test_rr_legacy_preservation_contract", governance)
-        pull_request_paths = governance_paths[:6]
+        pull_request_paths = governance_paths[:7]
         self.assertFalse(any(
             fnmatchcase("Tools/tests/test_german_today_localization.py", pattern)
             for pattern in pull_request_paths

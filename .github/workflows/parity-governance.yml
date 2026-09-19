@@ -32,6 +32,7 @@ on:
       - 'Tools/issue_ref.py'
       - 'Tools/parity_*.py'
       - 'Tools/parity_*.json'
+      - 'Tools/parity_case_specs/**'
       - 'Tools/tests/test_parity_*.py'
       - 'Tools/tests/test_rr_legacy_preservation_contract.py'
       - '.github/workflows/parity-governance.yml'
@@ -41,6 +42,7 @@ on:
       - 'Tools/issue_ref.py'
       - 'Tools/parity_*.py'
       - 'Tools/parity_*.json'
+      - 'Tools/parity_case_specs/**'
       - 'Tools/tests/test_parity_*.py'
       - 'Tools/tests/test_rr_legacy_preservation_contract.py'
       - '.github/workflows/parity-governance.yml'
@@ -74,11 +76,12 @@ jobs:
             tests.test_parity_governance_acceptance \
             tests.test_rr_legacy_preservation_contract \
             tests.test_parity_disposition_kinds \
+            tests.test_parity_harness \
             2>&1 | tee "$RUNNER_TEMP/out.txt"
           ran=$(grep -oE '^Ran [0-9]+ test' "$RUNNER_TEMP/out.txt" | grep -oE '[0-9]+')
           echo "collected ${ran:-0} tests"
-          if [ "${ran:-0}" -lt 122 ]; then
-            echo "::error::expected at least 122 parity-governance tests, collected ${ran:-0} — discovery is broken, not the suite"
+          if [ "${ran:-0}" -lt 159 ]; then
+            echo "::error::expected at least 159 parity-governance tests, collected ${ran:-0} — discovery is broken, not the suite"
             exit 1
           fi
         working-directory: Tools
