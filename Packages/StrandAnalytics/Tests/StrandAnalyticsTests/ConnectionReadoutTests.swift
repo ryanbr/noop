@@ -273,26 +273,51 @@ final class ConnectionReadoutTests: XCTestCase {
     func testLinkEpitaph() {
         let silent = ConnectionReadout.linkEpitaph(upMillis: 4_123, inboundFrames: 0, inboundBytes: 0,
                                                    cmdChannelFrames: 0, realtimeArmed: false,
-                                                   ended: "CBError.connectionTimeout(6)")
+                                                   ended: "CBError.connectionTimeout(6)",
+                                                   rssiDbm: nil, rssiAgeMillis: nil)
         XCTAssertEqual(silent,
                        "Link epitaph: up 4123ms, inbound 0 frames / 0 bytes (cmd-channel 0), "
-                       + "realtime armed=no, ended=CBError.connectionTimeout(6)"
+                       + "realtime armed=no, signal=never read on this link, "
+                       + "ended=CBError.connectionTimeout(6)"
                        + " - the strap sent NOTHING on this link")
 
         // A link that carried traffic must NOT claim silence.
         let alive = ConnectionReadout.linkEpitaph(upMillis: 61_000, inboundFrames: 812,
                                                   inboundBytes: 40_990, cmdChannelFrames: 9,
-                                                  realtimeArmed: true, ended: "intentional")
+                                                  realtimeArmed: true, ended: "intentional",
+                                                  rssiDbm: -63, rssiAgeMillis: 28_400)
         XCTAssertEqual(alive,
                        "Link epitaph: up 61000ms, inbound 812 frames / 40990 bytes (cmd-channel 9), "
-                       + "realtime armed=yes, ended=intentional")
+                       + "realtime armed=yes, signal=-63dBm (read 28400ms before the drop), "
+                       + "ended=intentional")
         XCTAssertFalse(alive.contains("NOTHING"))
 
         // Negatives are clamped rather than printed: a monotonic-clock hiccup must not emit "up -3ms".
         XCTAssertTrue(ConnectionReadout.linkEpitaph(upMillis: -3, inboundFrames: -1, inboundBytes: -9,
                                                     cmdChannelFrames: -2, realtimeArmed: false,
-                                                    ended: "x")
+                                                    ended: "x", rssiDbm: nil, rssiAgeMillis: nil)
                         .hasPrefix("Link epitaph: up 0ms, inbound 0 frames / 0 bytes (cmd-channel 0)"))
+    }
+
+    /// #2332: the signal half is only evidence about the DROP if its age travels with it, so the three
+    /// states are pinned separately. The nil-value case is the one that must never be filled in with a
+    /// stale reading from the previous link - it has to say so out loud.
+    func testLinkEpitaphSignal() {
+        func epitaph(_ rssi: Int?, _ age: Int?) -> String {
+            ConnectionReadout.linkEpitaph(upMillis: 1_000, inboundFrames: 5, inboundBytes: 10,
+                                          cmdChannelFrames: 0, realtimeArmed: false, ended: "status=8",
+                                          rssiDbm: rssi, rssiAgeMillis: age)
+        }
+        XCTAssertTrue(epitaph(nil, nil).contains("signal=never read on this link"))
+        // An age with no value is still no reading: the age alone must not manufacture one.
+        XCTAssertTrue(epitaph(nil, 4_000).contains("signal=never read on this link"))
+        XCTAssertTrue(epitaph(-92, nil).contains("signal=-92dBm (age unknown)"))
+        XCTAssertTrue(epitaph(-92, 1_587_000).contains("signal=-92dBm (read 1587000ms before the drop)"))
+        // RSSI must survive unclamped; clamping it to zero would erase every real reading.
+        XCTAssertFalse(epitaph(-92, 0).contains("signal=0dBm"))
+        XCTAssertTrue(epitaph(-92, 0).contains("signal=-92dBm (read 0ms before the drop)"))
+        // A negative age is a clock hiccup, not a reading from the future.
+        XCTAssertTrue(epitaph(-92, -5).contains("signal=-92dBm (read 0ms before the drop)"))
     }
 
     func testLastFrameLabel() {

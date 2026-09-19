@@ -269,10 +269,12 @@ class ConnectionReadoutTest {
         val silent = ConnectionReadout.linkEpitaph(
             upMillis = 4_123L, inboundFrames = 0, inboundBytes = 0, cmdChannelFrames = 0,
             realtimeArmed = false, ended = "CBError.connectionTimeout(6)",
+            rssiDbm = null, rssiAgeMillis = null,
         )
         assertEquals(
             "Link epitaph: up 4123ms, inbound 0 frames / 0 bytes (cmd-channel 0), " +
-                "realtime armed=no, ended=CBError.connectionTimeout(6)" +
+                "realtime armed=no, signal=never read on this link, " +
+                "ended=CBError.connectionTimeout(6)" +
                 " - the strap sent NOTHING on this link",
             silent,
         )
@@ -281,19 +283,41 @@ class ConnectionReadoutTest {
         val alive = ConnectionReadout.linkEpitaph(
             upMillis = 61_000L, inboundFrames = 812, inboundBytes = 40_990, cmdChannelFrames = 9,
             realtimeArmed = true, ended = "intentional",
+            rssiDbm = -63, rssiAgeMillis = 28_400L,
         )
         assertEquals(
             "Link epitaph: up 61000ms, inbound 812 frames / 40990 bytes (cmd-channel 9), " +
-                "realtime armed=yes, ended=intentional",
+                "realtime armed=yes, signal=-63dBm (read 28400ms before the drop), " +
+                "ended=intentional",
             alive,
         )
         assertFalse(alive.contains("NOTHING"))
 
         // Negatives are clamped rather than printed: a clock hiccup must not emit "up -3ms".
         assertTrue(
-            ConnectionReadout.linkEpitaph(-3L, -1, -9, -2, false, "x")
+            ConnectionReadout.linkEpitaph(-3L, -1, -9, -2, false, "x", null, null)
                 .startsWith("Link epitaph: up 0ms, inbound 0 frames / 0 bytes (cmd-channel 0)"),
         )
+    }
+
+    /** #2332: the signal half is only evidence about the DROP if its age travels with it, so the three
+     *  states are pinned separately. The null-value case is the one that must never be filled in with a
+     *  stale reading from the previous link - it has to say so out loud. Twin of the Swift test. */
+    @Test fun linkEpitaphSignal() {
+        fun epitaph(rssi: Int?, age: Long?) = ConnectionReadout.linkEpitaph(
+            upMillis = 1_000L, inboundFrames = 5, inboundBytes = 10, cmdChannelFrames = 0,
+            realtimeArmed = false, ended = "status=8", rssiDbm = rssi, rssiAgeMillis = age,
+        )
+        assertTrue(epitaph(null, null).contains("signal=never read on this link"))
+        // An age with no value is still no reading: the age alone must not manufacture one.
+        assertTrue(epitaph(null, 4_000L).contains("signal=never read on this link"))
+        assertTrue(epitaph(-92, null).contains("signal=-92dBm (age unknown)"))
+        assertTrue(epitaph(-92, 1_587_000L).contains("signal=-92dBm (read 1587000ms before the drop)"))
+        // RSSI must survive unclamped; clamping it to zero would erase every real reading.
+        assertFalse(epitaph(-92, 0L).contains("signal=0dBm"))
+        assertTrue(epitaph(-92, 0L).contains("signal=-92dBm (read 0ms before the drop)"))
+        // A negative age is a clock hiccup, not a reading from the future.
+        assertTrue(epitaph(-92, -5L).contains("signal=-92dBm (read 0ms before the drop)"))
     }
 
     @Test fun lastFrameLabel() {

@@ -303,15 +303,43 @@ object ConnectionReadout {
      *  burst was actually armed; armed=no says up front that the detector cannot trip for this link,
      *  however many times the loop repeats.
      *
+     *  [rssiDbm] answers the question the END STATUS raises and could not previously settle. The dominant
+     *  disconnect in a field log is the supervision timeout, which NOOP itself renders as "the strap went
+     *  out of range or stopped responding" - so the log names range as the leading suspect and then records
+     *  nothing about range. Signal was read once per link, seconds after connect, and never again: a 27
+     *  minute link carried a single reading from its third second, and ten of twenty-one links in the
+     *  report that prompted this (#2332) died without any reading at all.
+     *
+     *  Both halves are nullable, and the pair is printed with its AGE, because a reading is only evidence
+     *  about the drop if it was taken near the drop. A value with no age, or the previous link's value
+     *  carried into this one, is the hazard this whole line exists to avoid: the caller MUST clear its
+     *  stash on teardown, exactly as it clears the hold time, or the epitaph invents the evidence it was
+     *  built to find. `never read on this link` is the honest answer and is printed as one.
+     *
+     *  RSSI is NOT clamped. It is negative by nature, so `maxOf(0, ...)` would erase every real reading;
+     *  implausible values are the caller's to reject at the stash, where the read status is known.
+     *
      *  Milliseconds are printed raw: no float formatting, so the two platforms cannot round apart.
      *  [upMillis] is Long, not Int: Swift's Int is 64-bit, so an Int here would be the NARROWER type and
      *  a link held past ~24.8 days would wrap negative and print "up 0ms" - a dead-looking link that was
-     *  in fact the healthiest one we ever had. Rare, silent, and exactly backwards, so use the real twin. */
+     *  in fact the healthiest one we ever had. Rare, silent, and exactly backwards, so use the real twin.
+     *  [rssiAgeMillis] is Long for the same reason and shares the line's units, so a reader can compare it
+     *  with [upMillis] directly instead of converting.
+     *
+     *  Twin of Swift `ConnectionReadout.linkEpitaph`. Declared because the two must print the SAME bytes:
+     *  one strap log per platform describing one drop, and a reader comparing them should be comparing the
+     *  link, not the formatter. */
     fun linkEpitaph(upMillis: Long, inboundFrames: Int, inboundBytes: Int, cmdChannelFrames: Int,
-                    realtimeArmed: Boolean, ended: String): String {
+                    realtimeArmed: Boolean, ended: String,
+                    rssiDbm: Int?, rssiAgeMillis: Long?): String {
+        val signal = when {
+            rssiDbm == null -> "never read on this link"
+            rssiAgeMillis == null -> "${rssiDbm}dBm (age unknown)"
+            else -> "${rssiDbm}dBm (read ${maxOf(0L, rssiAgeMillis)}ms before the drop)"
+        }
         var line = "Link epitaph: up ${maxOf(0L, upMillis)}ms, inbound ${maxOf(0, inboundFrames)} frames / " +
             "${maxOf(0, inboundBytes)} bytes (cmd-channel ${maxOf(0, cmdChannelFrames)}), " +
-            "realtime armed=${if (realtimeArmed) "yes" else "no"}, ended=$ended"
+            "realtime armed=${if (realtimeArmed) "yes" else "no"}, signal=$signal, ended=$ended"
         if (inboundFrames <= 0) {
             line += " - the strap sent NOTHING on this link"
         }

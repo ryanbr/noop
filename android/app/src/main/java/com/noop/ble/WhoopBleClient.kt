@@ -768,6 +768,24 @@ class WhoopBleClient(
             else -> "status$status"
         }
 
+        /** #2332: is a link RSSI reading worth recording?
+         *
+         *  -127..20 dBm is the LE spec's valid range for a read RSSI, and 127 is its reserved "RSSI is not
+         *  available". Stashing that sentinel would put an impossibly strong reading on a link that died,
+         *  which argues the radio was fine and sends the next reader of the log anywhere but at range. So
+         *  the band is the spec's own range, which rejects 127 and any other out-of-spec value a stack
+         *  invents, and keeps every reading the spec says is real.
+         *
+         *  What it does NOT catch, deliberately: a stack that reports "unavailable" as an IN-BAND value.
+         *  0 dBm is not reachable on a real link, but the spec permits it, so it is indistinguishable here
+         *  from a genuine reading and is kept. Widening the rejection to cover it would start discarding
+         *  spec-valid readings on a guess, which is the worse trade for a diagnostic. The age printed
+         *  beside the value in the epitaph is what a reader uses to judge a suspicious one.
+         *
+         *  Pure so the filter is testable without a BLE stack, like [batteryPollDue] beside it. Twin of
+         *  the Swift `rssiReadingIsUsable`. */
+        fun rssiReadingIsUsable(rssi: Int): Boolean = rssi in -127..20
+
         /** #battery: is a keep-alive tick due to poll the strap's battery?
          *
          *  Normally every SECOND 30 s tick (~60 s), which is plenty while the charge only creeps downward.
@@ -3374,6 +3392,29 @@ class WhoopBleClient(
     /** Wall time (ms) the current connect attempt began, to measure connect latency at onConnectionStateChange
      *  CONNECTED. null between attempts; set when connect() kicks the radio. */
     private var connectAttemptStartedAtMs: Long? = null
+
+    /**
+     * #2332: the most recent link RSSI and the wall time it was read, both scoped to the CURRENT link.
+     *
+     * The epitaph's end status names range as the leading suspect on every supervision timeout, and
+     * before this the log had nothing to say about range at the moment of the drop: RSSI was read once,
+     * [RSSI_READ_DELAY_MS] after connect, and never again. A field report with 21 disconnects carried 11
+     * readings, none of them near a death.
+     *
+     * Cleared on teardown alongside [linkUpSinceMs], and for the same reason: a reading carried over from
+     * the PREVIOUS link would put a number on this link's drop that was never measured on it, which is
+     * the failure mode the epitaph exists to prevent rather than commit. The pair travels to
+     * [ConnectionReadout.linkEpitaph] together so the age is always printed with the value.
+     *
+     * Diagnostic only — nothing reads these to make a decision.
+     */
+    @Volatile
+    private var lastRssiDbm: Int? = null
+
+    /** Wall time (ms) [lastRssiDbm] was read. Meaningless unless [lastRssiDbm] is non-null; the two are
+     *  written together under the GATT callback and cleared together on teardown. */
+    @Volatile
+    private var lastRssiAtMs: Long = 0L
 
     /**
      * Wall time (ms) this link reached STATE_CONNECTED, or null while down. Read only to LOG how long a
@@ -6890,9 +6931,31 @@ class WhoopBleClient(
         }
 
         override fun onReadRemoteRssi(g: BluetoothGatt, rssi: Int, status: Int) {
-            // Signal strength at connect — diagnoses weak-link syncs (drops/busy storms/timeouts) that
-            // otherwise look mysterious in the log. Only on a clean read; a failure just stays silent.
-            if (status == BluetoothGatt.GATT_SUCCESS) log("Signal: RSSI $rssi dBm")
+            // Signal strength — diagnoses weak-link syncs (drops/busy storms/timeouts) that otherwise look
+            // mysterious in the log. Only on a clean read; a failure just stays silent.
+            if (status != BluetoothGatt.GATT_SUCCESS) return
+            // #2332: a read issued on the PREVIOUS link can answer after that link ended and the next one
+            // began. Logging it either way is harmless, but the stash below is per-link state the epitaph
+            // attributes to the drop, so a late answer would put the old link's reading on the new link's
+            // death - the exact fabrication the epitaph's own doc warns about. `gatt` is the current link;
+            // anything else is stale. Kept as a WRITE guard only: the line still gets logged, because a
+            // reading that arrived really did arrive.
+            val stale = g !== gatt
+            // #2332: reject implausible readings HERE rather than in the formatter, where the read status
+            // is known. See [rssiReadingIsUsable] for why it is a band.
+            if (!rssiReadingIsUsable(rssi)) {
+                log("Signal: RSSI read returned $rssi dBm (out of band) — not recorded")
+                return
+            }
+            log("Signal: RSSI $rssi dBm" + if (stale) " (from a link that has already ended)" else "")
+            if (stale) return
+            // Timestamp FIRST, value second. The epitaph snapshots the value and then reads this clock, so
+            // publishing in the other order leaves a window where a fresh value is paired with the PREVIOUS
+            // reading's time - an age up to a full read interval too old, on the one number whose whole job
+            // is to say how close to the drop the reading was. Both are @Volatile, so this order is the
+            // guarantee: a reader that sees the new value cannot then see an older clock.
+            lastRssiAtMs = System.currentTimeMillis()
+            lastRssiDbm = rssi
         }
 
         @SuppressLint("MissingPermission")
@@ -8711,6 +8774,24 @@ class WhoopBleClient(
                 // Advance the tick for both families so the ~60s battery cadence also fires on 5/MG (it
                 // previously incremented only inside the WHOOP 4 branch).
                 keepAliveTick += 1
+                // #2332: re-read link RSSI on the ODD tick (~60s), for BOTH families. Before this the only
+                // reading came from the one-shot [RSSI_READ_DELAY_MS] read at connect, so a link that
+                // degraded and died at the supervision timeout left a single number from its third second
+                // and nothing about the drop — for the end status that literally says "went out of range".
+                // A periodic read also gives the log a SLOPE rather than a point, which is what separates a
+                // link that was always marginal from one that walked out of range.
+                //
+                // Odd phase, which keeps it off the same tick as the capture's phone-battery line and, on a
+                // DISCHARGING strap, off the battery poll too. It does NOT guarantee a tick to itself, and
+                // it is not meant to: [batteryPollDue] returns true on EVERY tick while charging, and the
+                // WHOOP4 branch re-sends TOGGLE_REALTIME_HR every tick whenever the Live screen wants it.
+                // Sharing is harmless — Android runs one GATT op at a time, so a read that loses the slot
+                // just produces no line this minute, which is why nothing here retries or reports.
+                // safeGatt for the #314 dead-binder case, matching the connect-time read: a signal reading
+                // must never be able to tear the link down.
+                if (keepAliveTick % 2 == 1) {
+                    gattOps?.let { safeGatt("readRemoteRssi") { it.readRemoteRssiCompat() } }
+                }
                 // #1121: ONLY while a detailed capture is running (zero work otherwise — one volatile read):
                 // sample the PHONE battery on the same ~60s cadence as the strap poll, so the capture carries
                 // a phone-battery curve on the offload/connection timeline ("phone dropped N% across this
@@ -10987,10 +11068,22 @@ class WhoopBleClient(
         // this link" about a link that never existed, fabricating the very symptom #1809 is about. Same
         // hazard the hold-time snapshot below already guards.
         linkUpSinceMs?.let { since ->
+            // #2332: ONE read of the stash, not two. [lastRssiDbm] is written from the GATT callback
+            // (a binder thread) and read here, so taking the value and its timestamp as separate volatile
+            // reads would let a reading land between them and pair a value with the wrong age - which is
+            // exactly what the field's doc promises cannot happen. Snapshot the value, then derive the age
+            // from it, so the pair the epitaph prints is always one reading. Read BEFORE the clear below,
+            // for the same reason `since` is: the age is measured against THIS drop, and a null value
+            // yields a null age, so a link that ended before any read prints "never read" rather than an
+            // invented number.
+            val rssiAtDrop = lastRssiDbm
+            val rssiAgeAtDrop = rssiAtDrop?.let { System.currentTimeMillis() - lastRssiAtMs }
             log(ConnectionReadout.linkEpitaph(
                 upMillis = System.currentTimeMillis() - since,
                 inboundFrames = inboundFrames, inboundBytes = inboundBytes,
                 cmdChannelFrames = cmdChannelFrames, realtimeArmed = realtimeArmedThisLink,
+                rssiDbm = rssiAtDrop,
+                rssiAgeMillis = rssiAgeAtDrop,
                 // #1820 parity: Apple's epitaph reports "intentional" for a deliberate teardown rather
                 // than an error code, and a field log showed Android printing "ended=status=0" for the
                 // same event. Two reports of the same drop should not read differently. The flag is set
@@ -11029,6 +11122,10 @@ class WhoopBleClient(
 
         val heldSuffix = heldForLogSuffix()
         linkUpSinceMs = null
+        // #2332: scoped to the link, so it dies with it. Leaving it set would hand the NEXT link's epitaph
+        // a reading taken on this one.
+        lastRssiDbm = null
+        lastRssiAtMs = 0L
         // Reboot trail: if a user reboot is in flight, this drop is the strap acting on it. Log how long the
         // link stayed up (a real reboot drops within ~1-2s) and cancel the no-disconnect watchdog. The
         // reconnect time is logged separately once the handshake completes; rebootRequestedAtMs stays set so

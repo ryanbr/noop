@@ -136,6 +136,24 @@ enum HelloSuppressionStore {
     }
 }
 
+/// #2332: is a link RSSI reading worth recording?
+///
+/// -127...20 dBm is the LE spec's valid range for a read RSSI, and 127 is its reserved "RSSI is not
+/// available". Stashing that sentinel would put an impossibly strong reading on a link that died, which
+/// argues the radio was fine and sends the next reader of the log anywhere but at range. So the band is
+/// the spec's own range, which rejects 127 and any other out-of-spec value a stack invents, and keeps
+/// every reading the spec says is real.
+///
+/// What it does NOT catch, deliberately: a stack that reports "unavailable" as an IN-BAND value. 0 dBm is
+/// not reachable on a real link, but the spec permits it, so it is indistinguishable here from a genuine
+/// reading and is kept. Widening the rejection to cover it would start discarding spec-valid readings on
+/// a guess, which is the worse trade for a diagnostic. The age printed beside the value in the epitaph is
+/// what a reader uses to judge a suspicious one.
+///
+/// Twin of the Kotlin `WhoopBleClient.rssiReadingIsUsable`.
+func rssiReadingIsUsable(_ rssi: Int) -> Bool { (-127...20).contains(rssi) }
+
+
 /// May the keep-alive timer do its work on this link?
 ///
 /// #1635: the timer used to gate on the genuine encrypted bond alone. A SUPPRESSED 5/MG never reaches

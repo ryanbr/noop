@@ -761,6 +761,29 @@ public final class BLEManager: NSObject, ObservableObject {
     /// Chunks the offload actually persisted on this link — separates "never ran" from "nothing new".
     private var offloadChunks = 0
 
+    /// #2332: the most recent link RSSI and when it was read, both scoped to the CURRENT link.
+    ///
+    /// Apple read no link RSSI at all before this. `discoveredWhoops` carries a SCAN-time reading, taken
+    /// before the connection existed, so a link that degraded and died left nothing about range behind it
+    /// — for the end reason that names range as the suspect.
+    ///
+    /// Cleared with `linkUpSince`, and for the same reason: a reading carried over from the PREVIOUS link
+    /// would put a number on this link's drop that was never measured on it. The pair travels to
+    /// `ConnectionReadout.linkEpitaph` together so the age is always printed with the value.
+    ///
+    /// Diagnostic only — nothing reads these to make a decision.
+    private var lastRssiDbm: Int?
+    /// When `lastRssiDbm` was read. Monotonic, matching `linkUpSince`, so a wall-clock change mid-link
+    /// cannot make the printed age negative. Meaningless unless `lastRssiDbm` is non-nil.
+    private var lastRssiAt: DispatchTime?
+    /// Throttle for the keep-alive RSSI read. Apple cannot use Android's `keepAliveTick % 2` here:
+    /// `keepAliveTick` only advances past the WHOOP4-only guard in `keepAliveFire`, so on a 5/MG (the
+    /// family this diagnostic is for) it never increments. A wall-clock throttle reaches both families
+    /// and both bond states, and lands on the same ~60 s cadence as the Android twin.
+    private var lastRssiReadAt: Date?
+    /// ~60 s between link RSSI reads, matching the Android odd-tick cadence.
+    private static let rssiReadIntervalSeconds: TimeInterval = 60
+
     /// Uptime clock for the epitaph. Monotonic, so a wall-clock change mid-link cannot make it negative.
     private var linkUpSince: DispatchTime?
     /// Last time ANY notification arrived — drives the liveness watchdog.
@@ -4566,6 +4589,24 @@ public final class BLEManager: NSObject, ObservableObject {
             if let p = peripheral { central.cancelPeripheralConnection(p) }
             return
         }
+        // #2332: re-read link RSSI on a ~60 s throttle, for BOTH families and BOTH bond states. It sits
+        // here, above the paragraph below, because that paragraph's subject is puffin work needing the
+        // bond and this is the opposite: `readRSSI()` needs no bond and no characteristic, so the
+        // unbonded #1635 strap gets it too.
+        //
+        // Apple read no link RSSI at all before this, so a link that degraded and died at the supervision
+        // timeout left nothing about range behind it — for the end reason that names range as the
+        // suspect. Repeating the read also gives the log a SLOPE rather than a point, which is what
+        // separates a link that was always marginal from one that walked out of range.
+        //
+        // The stash is written in `didReadRSSI`, not here: a request that never answers must leave the
+        // previous reading's AGE growing rather than stamping a fresh time on a stale value.
+        if let p = peripheral,
+           Date().timeIntervalSince(lastRssiReadAt ?? .distantPast) >= BLEManager.rssiReadIntervalSeconds {
+            lastRssiReadAt = Date()
+            p.readRSSI()
+        }
+
         // The watchdog above is the whole of the keep-alive an unbonded 5/MG can use. Everything below
         // sends puffin-framed work that needs the encrypted bond.
         //
@@ -5847,9 +5888,22 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         // this link" using the PREVIOUS link's counters, fabricating the very symptom #1809 is about.
         if let since = linkUpSince {
             let upMs = Int(Double(DispatchTime.now().uptimeNanoseconds &- since.uptimeNanoseconds) / 1_000_000)
+            // #2332: read BEFORE the clear below, exactly like `since` above. The age is computed here
+            // rather than stored so it is measured against THIS drop; a nil value yields a nil age, so a
+            // link that ended before any read prints "never read" instead of an invented number.
+            //
+            // Two reads of the stash here, where the Kotlin twin deliberately takes ONE snapshot: there,
+            // `didReadRSSI`'s equivalent runs on a binder thread and a reading landing between the reads
+            // could pair a value with the wrong age. Apple builds the central with `queue: .main` and the
+            // keep-alive timer is a `.main` DispatchSource, so the write and both reads are the same
+            // queue and the pair cannot tear. If that queue ever changes, this needs the snapshot too.
+            let rssiAgeMs = lastRssiDbm == nil ? nil : lastRssiAt.map {
+                Int(Double(DispatchTime.now().uptimeNanoseconds &- $0.uptimeNanoseconds) / 1_000_000)
+            }
             log(ConnectionReadout.linkEpitaph(upMillis: upMs, inboundFrames: inboundFrames,
                                               inboundBytes: inboundBytes, cmdChannelFrames: cmdChannelFrames,
-                                              realtimeArmed: realtimeArmedAt != nil, ended: endedReason))
+                                              realtimeArmed: realtimeArmedAt != nil, ended: endedReason,
+                                              rssiDbm: lastRssiDbm, rssiAgeMillis: rssiAgeMs))
             // #1635: LIVE streams only — the offload persists through `Backfiller` and has its own
             // accounting, so folding it in would make a healthy bonded sync read as "nothing banked live
             // for: gravity". Inside the same `linkUpSince` guard for the same reason the epitaph is.
@@ -5873,6 +5927,11 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         liveHr = 0; liveRr = 0; offloadHr = 0; offloadRr = 0
         offloadGravity = 0; offloadResp = 0; offloadSkinTemp = 0; offloadSpo2 = 0; offloadChunks = 0
         linkUpSince = nil
+        // #2332: scoped to the link, so it dies with it. Leaving it set would hand the NEXT link's epitaph
+        // a reading taken on this one. The THROTTLE is cleared with them: it measures "how long since we
+        // asked THIS link", and carrying it over would make a reconnect inside the window wait out the
+        // previous link's timer before taking its first reading, on exactly the churn this is for.
+        lastRssiDbm = nil; lastRssiAt = nil; lastRssiReadAt = nil
 
         let timedOut = !intentionalDisconnect && error != nil
         let sinceArm = realtimeArmedAt.map { Date().timeIntervalSince($0) }
@@ -6247,6 +6306,30 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
               previousModel.deviceFamily != model.deviceFamily else { return }
         PuffinExperiment.resetFiveMGGatedProbes()
         log("Strap family switched (\(previous) → \(model.rawValue)) — reset 5/MG-only experimental toggles to off.")
+    }
+
+    /// #2332: the answer to `readRSSI()`. Stashed for the link epitaph, which is the line that has to
+    /// explain a supervision timeout and previously had nothing to say about range.
+    ///
+    /// Implausible readings are rejected HERE rather than in the formatter, where the read's error is
+    /// known. See `rssiReadingIsUsable` for why it is a band.
+    public func peripheral(_ peripheral: CBPeripheral, didReadRSSI RSSI: NSNumber, error: Error?) {
+        guard error == nil else { return }
+        let rssi = RSSI.intValue
+        guard rssiReadingIsUsable(rssi) else {
+            log("Signal: RSSI read returned \(rssi) dBm (out of band) — not recorded")
+            return
+        }
+        // A read issued on the PREVIOUS link can answer after that link ended and the next one began.
+        // Logging it is harmless, but the stash below is per-link state the epitaph attributes to the
+        // drop, so a late answer would put the old link's reading on the new link's death — the exact
+        // fabrication the epitaph exists to avoid. Write guard only; the line is still logged, because a
+        // reading that arrived really did arrive.
+        let stale = peripheral !== self.peripheral
+        log("Signal: RSSI \(rssi) dBm" + (stale ? " (from a link that has already ended)" : ""))
+        guard !stale else { return }
+        lastRssiDbm = rssi
+        lastRssiAt = DispatchTime.now()
     }
 
     public func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {

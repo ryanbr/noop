@@ -209,4 +209,28 @@ final class HelloSuppressionTests: XCTestCase {
         }
     }
 
+
+    /// #2332: the band that decides whether a link RSSI reading reaches the epitaph. Twin of the Kotlin
+    /// `RssiReadingBandTest`. The value this guards against is 127, the BLE spec's "RSSI is not
+    /// available": recording it would put an extremely strong reading on a link that died, which argues
+    /// the radio was fine and sends the next reader of that log looking anywhere but at range.
+    func testRssiReadingBand() {
+        // The field report behind #2332: median -92, min -96, best -48.
+        for rssi in [-96, -93, -92, -87, -76, -63, -48] {
+            XCTAssertTrue(rssiReadingIsUsable(rssi), "\(rssi) dBm is a real reading")
+        }
+        XCTAssertFalse(rssiReadingIsUsable(127), "127 is the spec's 'not available'")
+        // A band, not `!= 127`: anything outside the spec's range is rejected too.
+        XCTAssertFalse(rssiReadingIsUsable(21))
+        XCTAssertFalse(rssiReadingIsUsable(100))
+        XCTAssertFalse(rssiReadingIsUsable(Int.max))
+        XCTAssertFalse(rssiReadingIsUsable(-128))
+        XCTAssertFalse(rssiReadingIsUsable(Int.min))
+        // Bounds are inclusive, pinned so a later tightening cannot quietly move an edge.
+        XCTAssertTrue(rssiReadingIsUsable(-127))
+        XCTAssertTrue(rssiReadingIsUsable(20))
+        // 0 is not reachable on a real link, so it is a plausible sentinel for a stack to invent, but the
+        // spec permits it: KEPT rather than discarding a spec-valid reading on a guess.
+        XCTAssertTrue(rssiReadingIsUsable(0), "0 is inside the spec's range, so it is kept")
+    }
 }

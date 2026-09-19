@@ -289,13 +289,41 @@ public enum ConnectionReadout {
     /// was actually armed; `armed=no` says up front that the detector cannot trip for this link, however
     /// many times the loop repeats.
     ///
+    /// `rssiDbm` answers the question the END REASON raises and could not previously settle. The dominant
+    /// disconnect in a field log is the supervision timeout, which reads as "the strap went out of range
+    /// or stopped responding" - so the log names range as the leading suspect and then records nothing
+    /// about range. Apple never read link RSSI at all before this: `discoveredWhoops` carries a SCAN-time
+    /// reading, taken before the connection existed, which says nothing about the link that later died.
+    ///
+    /// Both halves are optional, and the pair is printed with its AGE, because a reading is only evidence
+    /// about the drop if it was taken near the drop. A value with no age, or the previous link's value
+    /// carried into this one, is the hazard this whole line exists to avoid: the caller MUST clear its
+    /// stash on teardown, exactly as it clears `linkUpSince`, or the epitaph invents the evidence it was
+    /// built to find. `never read on this link` is the honest answer and is printed as one.
+    ///
+    /// RSSI is NOT clamped. It is negative by nature, so `max(0, ...)` would erase every real reading;
+    /// implausible values are the caller's to reject at the stash, where the read's error is known.
+    ///
     /// Milliseconds are printed raw: no float formatting, so the two platforms cannot round apart.
+    /// `rssiAgeMillis` shares the line's units, so a reader can compare it with `upMillis` directly
+    /// instead of converting.
     public static func linkEpitaph(upMillis: Int, inboundFrames: Int, inboundBytes: Int,
-                                   cmdChannelFrames: Int, realtimeArmed: Bool, ended: String) -> String {
+                                   cmdChannelFrames: Int, realtimeArmed: Bool, ended: String,
+                                   rssiDbm: Int?, rssiAgeMillis: Int?) -> String {
         let armed = realtimeArmed ? "yes" : "no"
+        let signal: String
+        if let rssiDbm {
+            if let rssiAgeMillis {
+                signal = "\(rssiDbm)dBm (read \(max(0, rssiAgeMillis))ms before the drop)"
+            } else {
+                signal = "\(rssiDbm)dBm (age unknown)"
+            }
+        } else {
+            signal = "never read on this link"
+        }
         var line = "Link epitaph: up \(max(0, upMillis))ms, inbound \(max(0, inboundFrames)) frames / "
             + "\(max(0, inboundBytes)) bytes (cmd-channel \(max(0, cmdChannelFrames))), "
-            + "realtime armed=\(armed), ended=\(ended)"
+            + "realtime armed=\(armed), signal=\(signal), ended=\(ended)"
         if inboundFrames <= 0 {
             line += " - the strap sent NOTHING on this link"
         }
