@@ -2790,4 +2790,6 @@
     <string name="l10n_live_screen_reconnect_drops_the_current_link_if_afc27801">Reconnecter coupe le lien actuel, s\'il existe, et se reconnecte à l\'anneau. Pour associer ou changer de bande, ouvrez Appareils.</string>
     <string name="l10n_settings_screen_ring_gauges_on_today_7a532de2">Jauges en anneau sur Aujourd\'hui</string>
     <string name="l10n_settings_screen_off_returns_the_liquid_vessels_6bb9236e">Désactivé rétablit les jauges liquides.</string>
+    <string name="l10n_sleep_screen_low_confidence_99d4ceae">Confiance faible</string>
+    <string name="l10n_sleep_screen_this_night_scored_high_efficiency_but_a11d90eb">Cette nuit a obtenu une efficacité élevée mais très peu de sommeil profond ou paradoxal. C\'est plus probablement une erreur d\'estimation des phases qu\'un vrai déficit de récupération. Les totaux sont conservés, lisez la répartition avec prudence.</string>
 </resources>

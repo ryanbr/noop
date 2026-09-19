@@ -2820,4 +2820,6 @@
     <string name="l10n_live_screen_reconnect_drops_the_current_link_if_afc27801">Reconnect drops the current link, if any, and connects to the ring again. To pair or switch bands, open Devices.</string>
     <string name="l10n_settings_screen_ring_gauges_on_today_7a532de2">Ring gauges on Today</string>
     <string name="l10n_settings_screen_off_returns_the_liquid_vessels_6bb9236e">Off returns the liquid vessels.</string>
+    <string name="l10n_sleep_screen_low_confidence_99d4ceae">Low confidence</string>
+    <string name="l10n_sleep_screen_this_night_scored_high_efficiency_but_a11d90eb">This night scored high efficiency but very little deep or REM, more likely a staging estimate miss than a real restorative shortfall. The totals are kept as-is; read the split with care.</string>
 </resources>

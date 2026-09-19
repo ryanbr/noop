@@ -2783,4 +2783,6 @@
     <string name="l10n_live_screen_reconnect_drops_the_current_link_if_afc27801">Voltar a ligar termina a ligação atual, se existir, e liga-se novamente ao anel. Para emparelhar ou mudar de banda, abra Dispositivos.</string>
     <string name="l10n_settings_screen_ring_gauges_on_today_7a532de2">Indicadores em anel no Hoje</string>
     <string name="l10n_settings_screen_off_returns_the_liquid_vessels_6bb9236e">Desligado repõe os indicadores líquidos.</string>
+    <string name="l10n_sleep_screen_low_confidence_99d4ceae">Confiança baixa</string>
+    <string name="l10n_sleep_screen_this_night_scored_high_efficiency_but_a11d90eb">Esta noite obteve uma eficiência alta mas muito pouco sono profundo ou REM. É mais provável que seja uma falha de estimativa das fases do que um défice real de sono reparador. Os totais mantêm-se; leia a distribuição com cuidado.</string>
 </resources>

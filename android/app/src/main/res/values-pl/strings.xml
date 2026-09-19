@@ -2799,4 +2799,6 @@
     <string name="l10n_live_screen_reconnect_drops_the_current_link_if_afc27801">Połącz ponownie zrywa bieżące połączenie, jeśli istnieje, i ponownie łączy się z pierścieniem. Aby sparować lub przełączyć pasma, otwórz Urządzenia.</string>
     <string name="l10n_settings_screen_ring_gauges_on_today_7a532de2">Wskaźniki pierścieniowe w Dzisiaj</string>
     <string name="l10n_settings_screen_off_returns_the_liquid_vessels_6bb9236e">Wyłączone przywraca wskaźniki płynne.</string>
+    <string name="l10n_sleep_screen_low_confidence_99d4ceae">Niska pewność</string>
+    <string name="l10n_sleep_screen_this_night_scored_high_efficiency_but_a11d90eb">Ta noc uzyskała wysoką wydajność, ale bardzo mało snu głębokiego lub REM. To raczej błąd oszacowania faz niż rzeczywisty niedobór snu regeneracyjnego. Sumy pozostają bez zmian, czytaj podział ostrożnie.</string>
 </resources>

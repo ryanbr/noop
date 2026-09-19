@@ -73,6 +73,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.noop.analytics.AnalyticsEngine
 import com.noop.analytics.CircadianEngine
 import com.noop.analytics.HypnogramCoverage
+import com.noop.analytics.ScoreConfidence
 import com.noop.analytics.SleepEditGuard
 import com.noop.analytics.SleepGroupEdit
 import com.noop.analytics.SleepStageTotals
@@ -1456,6 +1457,22 @@ private fun Hero(
             // so the larger Awake / smaller Deep+REM here isn't misread as the polished numbers the Oura app
             // shows for the same night (the app post-processes the same stream). Mirrors iOS ouraRawStagesNote.
             if (activeIsOura) OuraRawStagesNote()
+            // #H9: when the engine's Rest confidence flags this night's staging as low-confidence (a
+            // high-efficiency night whose deep+REM share is implausibly low, so a likely staging miss
+            // rather than a real night with no restorative sleep), say so honestly under the breakdown
+            // instead of presenting the suspect split as fact. Read straight off ScoreConfidence.forRest,
+            // the SAME engine call the daily pass uses, so the badge cannot disagree with the score.
+            // Efficiency prefers the stored value and falls back to asleep/in-bed, mirroring iOS
+            // efficiencyPct. Mirrors iOS SleepView.stageStagingIsLowConfidence.
+            // Stored first, as a fraction (rows have carried both 0..1 and 0..100); otherwise
+            // asleep/in-bed, capped, which is what iOS falls back to when no row value exists.
+            val h9Efficiency = session?.efficiency?.let { if (it <= 1.0) it else it / 100.0 }
+                ?: (if (s.total > 0.0) minOf(1.0, s.asleep / s.total) else null)
+            if (h9Efficiency != null &&
+                stageStagingIsLowConfidence(s.asleep, s.deep, s.rem, h9Efficiency)
+            ) {
+                SleepLowConfidenceNote()
+            }
             // The blocks both caveats below read, hoisted so the two cannot consult a different set.
             // `stagingSparse` is a DAY-level verdict stamped onto EVERY block (see iOS
             // stageShowsIncompleteNote: "each carries the day's value"), so asking only the main block is
@@ -1593,6 +1610,68 @@ private fun OuraRawStagesNote() {
             "This split is the ring's raw on-device classification read over Bluetooth, not the adjusted " +
                 "stages the Oura app shows. Expect more Awake and less Deep/REM here than in the Oura app " +
                 "for the same night.",
+            style = NoopType.caption,
+            color = Palette.textTertiary,
+        )
+    }
+}
+
+/**
+ * Pure #H9 gate (unit-testable without a Composable) — true when a night's staging is low-confidence: a
+ * high-efficiency night whose deep+REM share is below the restorative floor. Built on the engine's own
+ * [ScoreConfidence.forRest] so the UI flag and the persisted Rest confidence agree. [asleepMin], [deepMin]
+ * and [remMin] are minutes; [efficiency] is asleep/in-bed in [0,1]. Returns false for an unstaged or
+ * zero-asleep night (no staging to doubt).
+ *
+ * Twin of Swift `SleepView.isStagingLowConfidence`. That one has carried "Mirror EXACTLY in Kotlin" since
+ * #H9 and had no Kotlin mirror: an Android night with high efficiency and implausibly little deep+REM was
+ * shown as fact while the same night warned on iPhone and Mac.
+ *
+ * Nothing flagged it, and no phrasing here would. The parity ledger's scope is the engine, protocol and
+ * storage packages; neither `Strand/Screens` nor `com/noop/ui` is scanned, so every mirror claim in the UI
+ * layer is unverified BY CONSTRUCTION. The reference above is written in a form the ledger would resolve,
+ * so it starts working the day the scope widens, but today it is a promise to a reader rather than a
+ * checked fact.
+ */
+internal fun stageStagingIsLowConfidence(
+    asleepMin: Double,
+    deepMin: Double,
+    remMin: Double,
+    efficiency: Double,
+): Boolean {
+    if (asleepMin <= 0.0) return false
+    val restorativeMin = maxOf(0.0, deepMin) + maxOf(0.0, remMin)
+    // An UNSTAGED night (no deep+REM at all) has no staging split to doubt — its base Rest confidence
+    // already reads honestly as BUILDING (NOT a downgrade), so it must never be flagged. Only a night that
+    // DID stage some sleep can be a suspicious "high efficiency yet implausibly little restorative" miss.
+    if (restorativeMin <= 0.0) return false
+    val tier = ScoreConfidence.forRest(
+        hasSession = true,
+        hasStagedSleep = true,
+        asleepSeconds = asleepMin * 60.0,
+        restorativeSeconds = restorativeMin * 60.0,
+        efficiency = efficiency,
+    )
+    // The H9 overload only DOWNGRADES SOLID to BUILDING on the suspicious case; a genuinely
+    // low-restorative-AND-low-efficiency night keeps its honest base tier and isn't flagged here.
+    return tier == ScoreConfidence.BUILDING &&
+        (restorativeMin / asleepMin) < ScoreConfidence.restorativeLowConfidenceShare &&
+        efficiency >= ScoreConfidence.highEfficiencyThreshold
+}
+
+/** The H9 low-confidence note shown beneath the stage breakdown: a warning-tinted badge plus a one-line
+ *  honest explanation. No faked stages, no tanked score, just a clear "treat this split with care" so a
+ *  user does not read a likely staging miss as a real deep/REM drought. Mirrors iOS stageLowConfidenceNote. */
+@Composable
+private fun SleepLowConfidenceNote() {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.Top,
+        modifier = Modifier.padding(horizontal = 2.dp),
+    ) {
+        SourceBadge(text = uiString(R.string.l10n_sleep_screen_low_confidence_99d4ceae), tint = Palette.statusWarning)
+        Text(
+            uiString(R.string.l10n_sleep_screen_this_night_scored_high_efficiency_but_a11d90eb),
             style = NoopType.caption,
             color = Palette.textTertiary,
         )

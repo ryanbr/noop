@@ -2678,4 +2678,6 @@
     <string name="l10n_live_screen_reconnect_drops_the_current_link_if_afc27801">«Переподключить» разрывает текущее соединение, если оно есть, и снова подключается к кольцу. Чтобы выполнить сопряжение или сменить браслет, откройте раздел «Устройства».</string>
     <string name="l10n_settings_screen_ring_gauges_on_today_7a532de2">Кольцевые шкалы в «Сегодня»</string>
     <string name="l10n_settings_screen_off_returns_the_liquid_vessels_6bb9236e">Выключено возвращает жидкие шкалы.</string>
+    <string name="l10n_sleep_screen_low_confidence_99d4ceae">Низкая достоверность</string>
+    <string name="l10n_sleep_screen_this_night_scored_high_efficiency_but_a11d90eb">Этой ночью эффективность высокая, но глубокого сна и REM очень мало. Скорее всего, это ошибка определения фаз, а не реальная нехватка восстановительного сна. Итоги сохранены, читайте распределение с осторожностью.</string>
 </resources>

@@ -2804,4 +2804,6 @@
     <string name="l10n_live_screen_reconnect_drops_the_current_link_if_afc27801">„Neu verbinden“ trennt die aktuelle Verbindung, falls vorhanden, und verbindet den Ring erneut. Zum Koppeln oder Wechseln von Bändern öffne „Geräte“.</string>
     <string name="l10n_settings_screen_ring_gauges_on_today_7a532de2">Ring-Anzeigen auf Heute</string>
     <string name="l10n_settings_screen_off_returns_the_liquid_vessels_6bb9236e">Aus zeigt wieder die Liquid-Anzeigen.</string>
+    <string name="l10n_sleep_screen_low_confidence_99d4ceae">Geringe Konfidenz</string>
+    <string name="l10n_sleep_screen_this_night_scored_high_efficiency_but_a11d90eb">Diese Nacht erreichte eine hohe Effizienz, aber sehr wenig Tief- oder REM-Schlaf. Das ist eher ein Schätzfehler der Schlafphasen als ein echtes Erholungsdefizit. Die Werte bleiben unverändert, lies die Aufteilung mit Bedacht.</string>
 </resources>

@@ -2791,4 +2791,6 @@
     <string name="l10n_live_screen_reconnect_drops_the_current_link_if_afc27801">Reconectar corta el enlace actual, si lo hay, y vuelve a conectar con el anillo. Para emparejar o cambiar de banda, abre Dispositivos.</string>
     <string name="l10n_settings_screen_ring_gauges_on_today_7a532de2">Indicadores de anillo en Hoy</string>
     <string name="l10n_settings_screen_off_returns_the_liquid_vessels_6bb9236e">Desactivado vuelve a los indicadores líquidos.</string>
+    <string name="l10n_sleep_screen_low_confidence_99d4ceae">Confianza baja</string>
+    <string name="l10n_sleep_screen_this_night_scored_high_efficiency_but_a11d90eb">Esta noche obtuvo una eficiencia alta pero muy poco sueño profundo o REM. Es más probable que sea un fallo de estimación de las fases que un déficit real de sueño reparador. Los totales se mantienen; interpreta el reparto con cautela.</string>
 </resources>
