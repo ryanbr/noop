@@ -2801,4 +2801,5 @@
     <string name="l10n_settings_screen_off_returns_the_liquid_vessels_6bb9236e">Wyłączone przywraca wskaźniki płynne.</string>
     <string name="l10n_sleep_screen_low_confidence_99d4ceae">Niska pewność</string>
     <string name="l10n_sleep_screen_this_night_scored_high_efficiency_but_a11d90eb">Ta noc uzyskała wysoką wydajność, ale bardzo mało snu głębokiego lub REM. To raczej błąd oszacowania faz niż rzeczywisty niedobór snu regeneracyjnego. Sumy pozostają bez zmian, czytaj podział ostrożnie.</string>
+    <string name="l10n_health_screen_over_reports_r_r_so_no_9d050d53">Zawyża liczbę interwałów R-R, więc nie pokazujemy wartości</string>
 </resources>

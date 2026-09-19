@@ -220,6 +220,15 @@ enum BodyVitalSigns {
         let hrvCaveat: String? = (hrvRow.map { (hrvOverCountByDay[$0.day] ?? 0) >= 0.5 } ?? false)
             ? String(localized: "unverified · over-reports R-R")
             : nil
+        // #2335: the caveat above can only ever decorate a value that IS shown, and the over-count
+        // verdict is the very thing that makes `SleepStager.sessionAvgHRV` return nil. So on the night
+        // this was written for, there is no row to attach it to and the tile falls through to its
+        // missing caption, which said only "No HRV value". The wearer was told nothing, on the one
+        // failure NOOP can explain precisely. Say it in the slot that is actually reached.
+        let hrvMissingCaption = Self.hrvBlankedByOverCount(hrvOverCountByDay: hrvOverCountByDay,
+                                                           todayKey: logicalDay)
+            ? String(localized: "Over-reports R-R, so no value is shown")
+            : String(localized: "No HRV value")
 
         // Trailing values (oldest → newest) feeding each tile's sparkline trail. A 2+ point series
         // draws; the tile hides the trail otherwise. Presentation-only — built from the same resolved
@@ -399,7 +408,7 @@ enum BodyVitalSigns {
                 metricColor: StrandPalette.metricPurple,
                 day: hrvRow?.day,
                 source: hrvRow?.source,
-                missingCaption: String(localized: "No HRV value"),
+                missingCaption: hrvMissingCaption,   // #2335
                 sparkline: trail(hrvPoints),
                 caveat: hrvCaveat   // #1118
             ),
@@ -427,6 +436,36 @@ enum BodyVitalSigns {
     }
 
     /// The newest day any resolved reading was sourced from — drives the section's "Latest" trailing label.
+    /// #2335: was the most recent night that could have produced an HRV refused for over-counting?
+    ///
+    /// The `#1118` caveat beside the HRV value can only decorate a value that IS shown, and the
+    /// over-count verdict is precisely what makes `SleepStager.sessionAvgHRV` return nil. The two
+    /// conditions are therefore near mutually exclusive: on the night the caveat was written for, the
+    /// tile is blank and the caveat has nothing to attach to. This answers the blank case instead.
+    ///
+    /// Keyed off the MAP, not off a resolved row, because a refused night leaves no row to key on.
+    /// `hrvOverCountByDay` carries an entry only for nights that had in-sleep R-R (the engine writes
+    /// nil when there were none), so its newest key is the most recent night that could have produced
+    /// an HRV at all. Day keys are `yyyy-MM-dd`, where lexicographic order IS chronological order.
+    ///
+    /// Bounded to the SAME carry window the tile is (`Baselines.vitalCarryDays`, via `cutoffKey`). Past
+    /// that the tile is blank because the reading went stale, not because it was refused, and blaming an
+    /// over-count there points at the wrong thing. The bound also has to live here rather than fall out of
+    /// the loaded range: Apple loads 14 days of this series and Android loads RECENT_DAYS_CAP, so a helper
+    /// keyed on "whatever was loaded" would answer differently on the two platforms for the same wearer.
+    ///
+    /// `>= 0.5` rather than `== 1`: the flag round-trips through `metricSeries` as a Double.
+    ///
+    /// Returns false on an empty map, which is the "no night yet" case (a fresh install, or a wearer
+    /// who has not slept in the strap). That blank is not an over-count and must not claim to be one.
+    /// Twin of the Kotlin `hrvBlankedByOverCount`.
+    static func hrvBlankedByOverCount(hrvOverCountByDay: [String: Double],
+                                      todayKey: String) -> Bool {
+        guard let newest = hrvOverCountByDay.keys.max() else { return false }
+        guard newest >= Baselines.cutoffKey(todayKey: todayKey) else { return false }
+        return (hrvOverCountByDay[newest] ?? 0) >= 0.5
+    }
+
     static func latestDayLabel(_ readings: [BodyVitalReading]) -> String? {
         readings.compactMap(\.day).max().map(BodyVitalReading.dayLabel)
     }

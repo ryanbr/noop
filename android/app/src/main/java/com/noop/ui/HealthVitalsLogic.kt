@@ -173,6 +173,44 @@ internal fun skinTempSecondaryNote(devC: Double?, fahrenheit: Boolean): String? 
     }
 
 /**
+ * #2335: was the most recent night that could have produced an HRV refused for over-counting?
+ *
+ * The #1118 caveat beside the HRV value can only decorate a value that IS shown, and the over-count
+ * verdict is precisely what makes `SleepStager.sessionAvgHRV` return null. The two are therefore near
+ * mutually exclusive: on the night the caveat was written for, the tile is blank and the caveat has
+ * nothing to attach to, so the wearer was told nothing about the one failure NOOP can name exactly.
+ * This answers the blank case instead.
+ *
+ * Keyed off the MAP, not off a resolved row, because a refused night leaves no row to key on.
+ * [hrvOverCountByDay] carries an entry only for nights that had in-sleep R-R (the engine writes none
+ * when there were none), so its newest key is the most recent night that could have produced an HRV at
+ * all. Day keys are `yyyy-MM-dd`, where lexicographic order IS chronological order.
+ *
+ * Bounded to the SAME carry window the tile is ([Baselines.vitalCarryDays], via [Baselines.cutoffKey]).
+ * Past that the tile is blank because the reading went stale, not because it was refused, and blaming an
+ * over-count there points at the wrong thing. The bound also has to live here rather than fall out of the
+ * loaded range: Apple loads 14 days of this series and Android loads RECENT_DAYS_CAP, so a helper keyed
+ * on "whatever was loaded" would answer differently on the two platforms for the same wearer.
+ *
+ * `>= 0.5` rather than `== 1.0`: the flag round-trips through metricSeries as a Double.
+ *
+ * Returns false on an empty map, which is the "no night yet" case (a fresh install, or a wearer who has
+ * not slept in the strap). That blank is not an over-count and must not claim to be one.
+ *
+ * Pure for the same reason [spo2MissingCaptionRes] below is: `vitalsFor` resolves strings through
+ * `NoopApplication`, so the branch is the part a JVM test can pin. Twin of the Swift
+ * `BodyVitalSigns.hrvBlankedByOverCount`.
+ */
+internal fun hrvBlankedByOverCount(
+    hrvOverCountByDay: Map<String, Double>,
+    todayKey: String = logicalDayKeyNow(),
+): Boolean {
+    val newest = hrvOverCountByDay.keys.maxOrNull() ?: return false
+    if (newest < Baselines.cutoffKey(todayKey)) return false
+    return (hrvOverCountByDay[newest] ?: 0.0) >= 0.5
+}
+
+/**
  * Which "no value" line the Blood O₂ tile shows, given whether that night decoded raw red/IR counts.
  *
  * Two different empty states, and conflating them is what sends people to the forums. When the night HAS
@@ -384,7 +422,12 @@ internal fun vitalsFor(
         ),
         Vital(
             key = "hrv", label = "HRV", unit = "ms",
-            missingCaption = "No HRV value",
+            // #2335: say WHY the tile is blank when NOOP knows. The #1118 caveat below cannot answer
+            // this: it decorates a value that IS shown, and the over-count verdict is the very thing
+            // that blanks the value, so on the reported night there is no row for it to attach to.
+            missingCaption = if (hrvBlankedByOverCount(hrvOverCountByDay))
+                uiString(R.string.l10n_health_screen_over_reports_r_r_so_no_9d050d53)
+            else "No HRV value",
             value = d?.avgHrv, format = { it.roundToInt().toString() },
             deltaText = deltaText(d?.avgHrv, previous { it.avgHrv }, decimals = 0),
             readingDay = todayKey,

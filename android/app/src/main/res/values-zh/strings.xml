@@ -2767,4 +2767,5 @@
     <string name="l10n_settings_screen_off_returns_the_liquid_vessels_6bb9236e">关闭后恢复为液态仪表。</string>
     <string name="l10n_sleep_screen_low_confidence_99d4ceae">置信度低</string>
     <string name="l10n_sleep_screen_this_night_scored_high_efficiency_but_a11d90eb">这一晚睡眠效率很高，但深睡和快速眼动睡眠极少。这更可能是睡眠阶段判定的误差，而非真正的恢复不足。总计数值保持不变，请谨慎解读各阶段占比。</string>
+    <string name="l10n_health_screen_over_reports_r_r_so_no_9d050d53">R-R 间期计数偏多，因此不显示数值</string>
 </resources>

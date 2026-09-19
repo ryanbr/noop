@@ -1,6 +1,9 @@
 {
   "sourceLanguage": "en",
   "strings": {
+        "Over-reports R-R, so no value is shown": { "localizations": {
+          "de": {"stringUnit": {"state": "translated", "value": "Meldet zu viele RR-Intervalle, daher kein Wert"}}, "es": {"stringUnit": {"state": "translated", "value": "Cuenta de más los intervalos R-R, por eso no se muestra"}}, "fr": {"stringUnit": {"state": "translated", "value": "Surestime les intervalles R-R, donc aucune valeur"}}, "it": {"stringUnit": {"state": "translated", "value": "Conta troppi intervalli R-R, quindi nessun valore"}}, "pl": {"stringUnit": {"state": "translated", "value": "Zawyża liczbę interwałów R-R, więc nie pokazujemy wartości"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Conta intervalos R-R a mais, por isso não há valor"}}, "ru": {"stringUnit": {"state": "translated", "value": "Завышает число интервалов R-R, поэтому значение не показано"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "R-R 间期计数偏多，因此不显示数值"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "R-R 間期計數偏多，因此不顯示數值"}}
+        } },
         "7-day trend": { "localizations": {
           "de": {"stringUnit": {"state": "translated", "value": "7-Tage-Trend"}}, "es": {"stringUnit": {"state": "translated", "value": "Tendencia de 7 días"}}, "fr": {"stringUnit": {"state": "translated", "value": "Tendance sur 7 jours"}}, "it": {"stringUnit": {"state": "translated", "value": "Tendenza a 7 giorni"}}, "pl": {"stringUnit": {"state": "translated", "value": "Trend 7-dniowy"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Tendência de 7 dias"}}, "ru": {"stringUnit": {"state": "translated", "value": "Тренд за 7 дней"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "7 天趋势"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "7 天趨勢"}}
         } },

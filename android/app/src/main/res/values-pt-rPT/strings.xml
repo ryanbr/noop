@@ -2785,4 +2785,5 @@
     <string name="l10n_settings_screen_off_returns_the_liquid_vessels_6bb9236e">Desligado repõe os indicadores líquidos.</string>
     <string name="l10n_sleep_screen_low_confidence_99d4ceae">Confiança baixa</string>
     <string name="l10n_sleep_screen_this_night_scored_high_efficiency_but_a11d90eb">Esta noite obteve uma eficiência alta mas muito pouco sono profundo ou REM. É mais provável que seja uma falha de estimativa das fases do que um défice real de sono reparador. Os totais mantêm-se; leia a distribuição com cuidado.</string>
+    <string name="l10n_health_screen_over_reports_r_r_so_no_9d050d53">Conta intervalos R-R a mais, por isso não há valor</string>
 </resources>
