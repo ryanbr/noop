@@ -1154,6 +1154,16 @@ class WhoopRepository(
         if (deviceIds.isEmpty()) emptyList()
         else mergeHrByTs(deviceIds.map { dao.hrSamples(it, from, to, limit) })
 
+    /** Count and newest timestamp of measured HR per source [hrSamplesUnion] reads, as one string: an
+     *  index-only witness of whether a window's heart rate changed, without fetching a row. */
+    suspend fun hrUnionFingerprint(activeDeviceId: String, from: Long, to: Long): String {
+        val parts = ArrayList<String>()
+        for (id in rawWhoopSourceIds(activeDeviceId)) {
+            parts += "$id=${dao.countHrInWindow(id, from, to)}:${dao.maxHrTsInWindow(id, from, to)}"
+        }
+        return parts.joinToString(",")
+    }
+
     /**
      * HR samples over every registered WHOOP plus canonical "my-whoop", deduped by timestamp with the
      * active strap winning and archived straps retained for historical windows.

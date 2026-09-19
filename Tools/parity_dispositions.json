@@ -1,4 +1,37 @@
 {
   "schema_version": 1,
-  "dispositions": []
+  "dispositions": [
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/IntelligenceEngine.kt::computeHabitualSleep/7#1",
+      "identity_sha256": "0f4c9098de75c40d0ed87c6ad6111d259d664e632fe4b34ea7c77fef57fe8484",
+      "platform": "kotlin",
+      "rationale": "Twin of the Swift IntelligenceEngine.computeHabitualSleep(finishedBefore:) in the app layer (Strand/Data/IntelligenceEngine.swift), outside the governed Swift roots."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/IntelligenceEngine.kt::finishedSessions/2#1",
+      "identity_sha256": "8f5d3811a0bc62b7a45c7faadd3a96ba6cd93609fdd023d540b41d19fff6a5d7",
+      "platform": "kotlin",
+      "rationale": "Kotlin-side test seam for the finished-nights filter the Swift twin applies inline in Strand/Data/IntelligenceEngine.swift (app layer, outside the governed roots)."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/PhysiologicalStepCycleEngine.kt::loadCacheKey/7#1",
+      "identity_sha256": "d975e64811f395077839f35c6797284bac55e6ad3e3b5e049bf826d69d5a2131",
+      "platform": "kotlin",
+      "rationale": "Twin of the Swift cycle load cache key built inline in Strand/Data/DayCycleIntelligenceIntegration.swift (app layer, outside the governed roots)."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopRepository.kt::hrUnionFingerprint/3#1",
+      "identity_sha256": "c6879bd0c72d81c059254b85d6826258e1cf3cd97bf81e26bf013559678f415b",
+      "platform": "kotlin",
+      "rationale": "Repository witness for the cycle load cache; the Swift side calls WhoopStore.hrFingerprint(deviceId:from:to:) per owner inline in Strand/Data/DayCycleIntelligenceIntegration.swift."
+    }
+  ]
 }

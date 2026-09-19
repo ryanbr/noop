@@ -883,7 +883,7 @@ final class IntelligenceEngine: ObservableObject {
         let (habitualMidsleepSec, nightlyHours) = await Self.computeHabitualSleep(
             store: store, importedId: deviceId, computedId: deviceId + "-noop",
             windowStart: nowLocalMidnight - maxDays * 86_400 - StreamReadCap.lookbackSeconds,
-            windowEnd: now, offsetSec: tzOffset)
+            windowEnd: now, finishedBefore: nowLocalMidnight, offsetSec: tzOffset)
         // Wave 0 (SL1/T1): personal sleep REGULARITY + population-anchored NEED, computed ONCE from the
         // trailing per-night durations and threaded to every analyzeDay below (mirrors the midsleep
         // learner just above — one personal trait per run, applied to the whole re-scored history so
@@ -975,6 +975,8 @@ final class IntelligenceEngine: ObservableObject {
         // But that is CORRECT invalidation, not churn to be quantized away — a night going from
         // half-loaded to complete really does change what every day should be scored against, and the
         // swings are large rather than drift, so no tolerance both preserves scores and stops the drop.
+        // What stops the churn instead is learning only from nights that finished before today
+        // (`computeHabitualSleep(finishedBefore:)`): the night still being synced was the one moving.
         // What keeps it affordable is that the post-backfill re-score is COALESCED on both platforms: iOS
         // debounces `lastSyncedAt` by 2 s (#755), Android gates on `analyzeAfterBackfillScheduled` plus a
         // trailing delay. So this fires once per completed backfill, not once per chunk. That coalescing is
@@ -3321,9 +3323,16 @@ final class IntelligenceEngine: ObservableObject {
     /// naps drop out. One read serves both the main-night midsleep learner (#547) and the personal
     /// sleep-need + regularity that thread into `analyzeDay` (Wave 0 · SL1/T1). The midsleep result is
     /// byte-identical to before; the nightly-hours output is the Swift-side extension.
-    private static func computeHabitualSleep(
+    ///
+    /// Only sessions that ended before `finishedBefore` (the pass's local midnight) are learned from. Tonight's
+    /// session is re-banked by every sync while it is still growing, and each time it moved the learned
+    /// consistency and midsleep, so every pass through a morning found the day-cache signature changed and
+    /// re-scored all 21 nights from scratch. On a backgrounded phone that turned a seconds-long pass into
+    /// hours (a field log: 8 813 s and 2 345 s, back to back). A night still being slept is not a habit yet;
+    /// it joins the history the day after, once, when the window rolls anyway.
+    static func computeHabitualSleep(
         store: WhoopStore, importedId: String, computedId: String,
-        windowStart: Int, windowEnd: Int, offsetSec: Int
+        windowStart: Int, windowEnd: Int, finishedBefore: Int, offsetSec: Int
     ) async -> (midsleepSec: Int?, nightlyHours: [Double]) {
         let imported = (try? await store.sleepSessions(deviceId: importedId, from: windowStart,
                                                        to: windowEnd, limit: 4000)) ?? []
@@ -3335,7 +3344,7 @@ final class IntelligenceEngine: ObservableObject {
         // then steered the main-night pick (day assignment) to the stale block. The same collapse also
         // covers an imported night and its computed twin (the longest capture wins, exactly what the
         // per-day length rule chose anyway).
-        let merged = SleepSessionDedup.dedupe(imported + computed).kept
+        let merged = SleepSessionDedup.dedupe(imported + computed).kept.filter { $0.endTs < finishedBefore }
         // Longest block per LOCAL day (naps drop out), chosen by in-bed SPAN — reused for BOTH the
         // midsleep learner and the per-night durations (Wave 0 · SL1/T1), so the two can never read a
         // different history. For the DURATIONS we keep TST (span × efficiency), NOT the in-bed span:

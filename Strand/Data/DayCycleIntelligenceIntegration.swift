@@ -36,8 +36,13 @@ import WhoopStore
         let key: String; let count: SleepAwareStepCounter.Count
         let pages: Int; let samples: Int; let evaluated: Bool
     }
+    /// A cycle's Effort and calories, with the key of the inputs they were computed from.
+    fileprivate struct CachedLoad {
+        let key: String; let strain: Double?; let calories: Double?
+    }
     final class Cache {
         fileprivate var cycles: [String: CachedCycle] = [:]
+        fileprivate var loads: [String: CachedLoad] = [:]
     }
     private static func computedId(_ owner: String) -> String { owner + "-noop" }
 
@@ -172,6 +177,7 @@ import WhoopStore
 
         let windows = PhysiologicalSteps.cycleWindows(boundaries, now: now)
         cache.cycles = cache.cycles.filter { entry in windows.contains(where: { $0.sleepId == entry.key }) }
+        cache.loads = cache.loads.filter { entry in windows.contains(where: { $0.sleepId == entry.key }) }
         let priorities = Dictionary(candidates.map { ($0.owner, $0.priority) }, uniquingKeysWith: min)
         let witnesses = Dictionary(uniqueKeysWithValues: nights.map { night in
             let sleeps = night.sleeps.sorted { $0.startTs < $1.startTs }.map {
@@ -192,25 +198,46 @@ import WhoopStore
             let owners = ([fallback] + physiologyOwners).reduce(into: [String]()) {
                 if !$0.contains($1) { $0.append($1) }
             }
-            var hrByTimestamp: [Int: HRSample] = [:]
-            if hrEndInclusive >= window.onset {
-                for owner in owners {
-                    let rows = (try? await store.hrSamples(
-                        deviceId: owner, from: window.onset, to: hrEndInclusive, limit: 200_000)) ?? []
-                    for row in rows where hrByTimestamp[row.ts] == nil { hrByTimestamp[row.ts] = row }
-                }
-            }
-            let cycleHR = hrByTimestamp.values.sorted { $0.ts < $1.ts }
             let restingHR = nights.first(where: { $0.daily.day == day })?.daily.restingHr.map(Double.init)
                 ?? StrainScorer.defaultRestingHR
             let effectiveMaxHR = maxHROverride ?? (profile.age > 0 ? StrainScorer.tanakaHRmax(age: profile.age) : nil)
-            if let strain = StrainScorer.strain(cycleHR, maxHR: effectiveMaxHR,
-                                                restingHR: restingHR, method: effortMethod,
-                                                sex: profile.sex) { strains[day] = strain }
-            if !cycleHR.isEmpty {
-                calories[day] = Calories.estimateDayCalories(
-                    cycleHR, profile: profile, hrmax: effectiveMaxHR, restingHR: restingHR)
+            // Every pass re-read each cycle's full day of 1 Hz heart rate from every owner and re-scored it,
+            // for all 21 cycles, although only the open one gains samples between syncs. On a replayed
+            // phone database this was the costliest step of a pass in which every night was otherwise
+            // reused (6–12 s of a 16 s pass). The index-only count and newest timestamp per owner witness
+            // the heart rate the same way the day cache does, so a closed cycle is scored once.
+            var hrWitness: [String] = []
+            if hrEndInclusive >= window.onset {
+                for owner in owners {
+                    let fp = try? await store.hrFingerprint(deviceId: owner, from: window.onset, to: hrEndInclusive)
+                    hrWitness.append("\(owner)=\(fp.map { "\($0.count):\($0.maxTs)" } ?? "unread")")
+                }
             }
+            let loadKey = "\(window.onset)-\(window.endExclusive)|\(hrWitness.joined(separator: ","))"
+                + "|rhr=\(restingHR)|max=\(effectiveMaxHR.map { "\($0)" } ?? "nil")|\(effortMethod)|\(profile)"
+            let load: CachedLoad
+            if let hit = cache.loads[window.sleepId], hit.key == loadKey, !hrWitness.contains(where: { $0.hasSuffix("=unread") }) {
+                load = hit
+            } else {
+                var hrByTimestamp: [Int: HRSample] = [:]
+                if hrEndInclusive >= window.onset {
+                    for owner in owners {
+                        let rows = (try? await store.hrSamples(
+                            deviceId: owner, from: window.onset, to: hrEndInclusive, limit: 200_000)) ?? []
+                        for row in rows where hrByTimestamp[row.ts] == nil { hrByTimestamp[row.ts] = row }
+                    }
+                }
+                let cycleHR = hrByTimestamp.values.sorted { $0.ts < $1.ts }
+                load = CachedLoad(
+                    key: loadKey,
+                    strain: StrainScorer.strain(cycleHR, maxHR: effectiveMaxHR, restingHR: restingHR,
+                                                method: effortMethod, sex: profile.sex),
+                    calories: cycleHR.isEmpty ? nil : Calories.estimateDayCalories(
+                        cycleHR, profile: profile, hrmax: effectiveMaxHR, restingHR: restingHR))
+                cache.loads[window.sleepId] = load
+            }
+            if let strain = load.strain { strains[day] = strain }
+            if let kcal = load.calories { calories[day] = kcal }
             let persistedWorkoutKeys = workouts
                 .filter { $0.startTs >= window.onset && $0.startTs < window.endExclusive }
                 .map { "\($0.startTs):\($0.endTs)" }
