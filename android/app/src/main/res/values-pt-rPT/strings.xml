@@ -2786,4 +2786,6 @@
     <string name="l10n_sleep_screen_low_confidence_99d4ceae">Confiança baixa</string>
     <string name="l10n_sleep_screen_this_night_scored_high_efficiency_but_a11d90eb">Esta noite obteve uma eficiência alta mas muito pouco sono profundo ou REM. É mais provável que seja uma falha de estimativa das fases do que um défice real de sono reparador. Os totais mantêm-se; leia a distribuição com cuidado.</string>
     <string name="l10n_health_screen_over_reports_r_r_so_no_9d050d53">Conta intervalos R-R a mais, por isso não há valor</string>
+    <string name="l10n_settings_screen_check_current_name_read_only_acb2f01a">Consultar o nome atual (apenas leitura)</string>
+    <string name="l10n_settings_screen_renaming_is_not_supported_on_a_02f7af2c">Mudar o nome ainda não é suportado numa WHOOP 5.0 ou MG. O NOOP pode perguntar à pulseira o nome atual, que é o passo que decide se mudar o nome é possível.</string>
 </resources>

@@ -2793,4 +2793,6 @@
     <string name="l10n_sleep_screen_low_confidence_99d4ceae">Confiance faible</string>
     <string name="l10n_sleep_screen_this_night_scored_high_efficiency_but_a11d90eb">Cette nuit a obtenu une efficacité élevée mais très peu de sommeil profond ou paradoxal. C\'est plus probablement une erreur d\'estimation des phases qu\'un vrai déficit de récupération. Les totaux sont conservés, lisez la répartition avec prudence.</string>
     <string name="l10n_health_screen_over_reports_r_r_so_no_9d050d53">Surestime les intervalles R-R, donc aucune valeur</string>
+    <string name="l10n_settings_screen_check_current_name_read_only_acb2f01a">Lire le nom actuel (lecture seule)</string>
+    <string name="l10n_settings_screen_renaming_is_not_supported_on_a_02f7af2c">Le renommage n\'est pas encore pris en charge sur une WHOOP 5.0 ou MG. NOOP peut demander au bracelet son nom actuel, ce qui déterminera si le renommage est possible.</string>
 </resources>

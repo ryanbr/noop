@@ -202,6 +202,17 @@ enum class CommandNumber(val rawValue: Int) {
     // strap reboots to apply. WHOOP 4.0 only (a 5/MG uses puffin framing + a different config path).
     // Port of Swift WhoopCommand.setAdvertisingNameHarvard.
     SET_ADVERTISING_NAME(77),
+    // #2338 READ-ONLY. GET_ADVERTISING_NAME (141) — the schema's non-Harvard advertising-name pair is
+    // 140 (set) / 141 (get), which is where a 5/MG's name would live if it lives anywhere reachable.
+    // NOTHING in this repo has ever sent either, so the numbers rest on the schema alone, exactly like
+    // the unconfirmed 96 two entries down. 141 is admitted here so a read-only probe can ASK; 140 is
+    // deliberately absent, because writing an unproven opcode to firmware is a different question and
+    // needs an answer to this one first.
+    //
+    // Note [SET_ADVERTISING_NAME] above is 77, the HARVARD set, despite the bare name. That misnomer
+    // predates this and `CommandNames.label(77)` already prints the schema's own
+    // SET_ADVERTISING_NAME_HARVARD, which is what a strap log shows.
+    GET_ADVERTISING_NAME(141),
     RUN_HAPTICS_PATTERN(79),
     GET_ALL_HAPTICS_PATTERN(80),
     // SET_CONFIG / SET_FF_VALUE (0x78) — write one persistent feature flag. The 5/MG "enable R22
