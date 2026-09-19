@@ -802,7 +802,14 @@ final class HealthKitBridge: ObservableObject {
         // the HR path uses), then the normal writes re-add them under the new keys. Runs once,
         // gated by a UserDefaults flag, BEFORE the new-key writes so nothing is lost.
         await attempt { try await migrateStrandedHealthRecords(fromTs: fromTs, nowTs: nowTs) }
-        await attempt { try await writeVitals(whoopStore: whoopStore, days: days, sessions: sessions) }
+        if UserDefaults.standard.bool(forKey: IntelligenceEngine.restingHRHealthRewriteOwedKey) {
+            await attempt {
+                try await rewriteRestingHR(whoopStore: whoopStore, minDays: days, sessions: sessions)
+                UserDefaults.standard.removeObject(forKey: IntelligenceEngine.restingHRHealthRewriteOwedKey)
+            }
+        } else {
+            await attempt { try await writeVitals(whoopStore: whoopStore, days: days, sessions: sessions) }
+        }
         await attempt { try await writeSleep(sessions: sessions) }
         await attempt { try await writeHeartRate(whoopStore: whoopStore, fromTs: fromTs, nowTs: nowTs) }
         await attempt { try await writeWorkouts(whoopStore: whoopStore, fromTs: fromTs, toTs: nowTs) }
@@ -876,6 +883,31 @@ final class HealthKitBridge: ObservableObject {
             let updated = HealthWriteback.strandedSweepResult(swept: swept, succeededThisRun: succeededThisRun)
             defaults.set(Array(updated), forKey: Self.strandedRecordsSweptKey)
         }
+    }
+
+    /// Replace every resting HR this app wrote to Apple Health since NOOP's first computed night, once the
+    /// resting-HR rescore has recomputed them (`IntelligenceEngine.restingHRRescoreFlagKey`). The rolling
+    /// write-back only reaches `minDays` back, so older nights would keep the lowest-5-min-bin value they were
+    /// written with. Our own resting-HR samples over the span are deleted first — scoped to `HKSource.default()`,
+    /// so a WHOOP or Apple Watch value is never touched — which also clears any written under an older key
+    /// scheme; then the vitals are written across the same span.
+    private func rewriteRestingHR(whoopStore: WhoopStore, minDays: Int, sessions: [CachedSleepSession]) async throws {
+        let computedDays = (try? await whoopStore.dailyMetrics(deviceId: computedDeviceId, from: "0000-01-01",
+                                                               to: "9999-12-31")) ?? []
+        let firstComputed = computedDays.map { $0.day }.min().flatMap { HealthKitBridge.date(from: $0) }
+        let span = firstComputed
+            .map { (Calendar.current.dateComponents([.day], from: $0, to: Date()).day ?? 0) + 1 } ?? 0
+        let days = max(minDays, span)
+        if let type = HKQuantityType.quantityType(forIdentifier: .restingHeartRate),
+           store.authorizationStatus(for: type) == .sharingAuthorized,
+           let from = Calendar.current.date(byAdding: .day, value: -days, to: Date()) {
+            let pred = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                HKQuery.predicateForObjects(from: HKSource.default()),
+                HKQuery.predicateForSamples(withStart: Calendar.current.startOfDay(for: from), end: Date(), options: []),
+            ])
+            _ = try? await store.deleteObjects(of: type, predicate: pred)
+        }
+        try await writeVitals(whoopStore: whoopStore, days: days, sessions: sessions)
     }
 
     /// The nightly vitals write (the original write-back), now stamped at the day's wake time when

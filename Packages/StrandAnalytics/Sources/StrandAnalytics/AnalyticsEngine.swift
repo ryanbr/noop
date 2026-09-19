@@ -519,7 +519,8 @@ public enum AnalyticsEngine {
                 // that measured a resting HR but no HRV (no R-R banked) would take the short-circuit and
                 // skip the fill every other session gets. The rule is uniform: fill what is missing.
                 guard s.restingHR == nil || s.avgHRV == nil else { return s }
-                let rhr = s.restingHR ?? SleepStager.sessionRestingHR(start: s.start, end: s.end, hr: hr)
+                let rhr = s.restingHR ?? SleepStager.sessionDeepSleepRestingHR(start: s.start, end: s.end,
+                                                                              hr: hr, stages: s.stages)
                 let hrv = s.avgHRV ?? SleepStager.sessionAvgHRV(start: s.start, end: s.end, rr: rrSorted)
                 // `hrOnly` carried explicitly: unlike Kotlin's `copy`, this rebuilds the struct field by
                 // field, so a new flag is dropped by DEFAULT unless named here. #1884 removed the guard

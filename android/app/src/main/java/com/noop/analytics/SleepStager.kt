@@ -59,6 +59,12 @@ object SleepStager {
     /** Minimum plausible mean HR (bpm) for a bin to qualify. A dropout-driven sub-physiological
      *  dip cannot become the floor. */
     const val rhrMinPlausibleBpm: Double = 25.0
+    /**
+     * Minimum plausible HR samples inside a session's deep-sleep segments (~5 min at the strap's 1 Hz) for
+     * their mean to be the night's resting HR. Fewer falls back to [sessionLowQuartileRestingHR]. Twin of
+     * Swift `SleepStager.rhrMinDeepSleepSamples`.
+     */
+    const val rhrMinDeepSleepSamples: Int = 300
 
     // ── Stage 0 constants (sleep.py) ─────────────────────────────────────────
 
@@ -781,7 +787,7 @@ object SleepStager {
                     // (#1879), so it is a quality marker now rather than a delete. Its one reader today,
                     // `TodayScreen.showsHrOnlyNote`, is gated on a vital ACTUALLY being blank, so the note
                     // explaining the blanks retires itself on the nights this change fills in.
-                    restingHR = sessionRestingHR(start = p.start, end = p.end, hr = hrS),
+                    restingHR = sessionDeepSleepRestingHR(start = p.start, end = p.end, hr = hrS, stages = stages),
                     avgHRV = sessionAvgHRV(start = p.start, end = p.end, rr = rrS),
                     hrOnly = true,
                 )
@@ -1772,7 +1778,9 @@ object SleepStager {
             sessions.add(
                 DetectedSleep(
                     start = p.start, end = p.end, efficiency = eff,
-                    stages = stages, restingHR = resting, avgHRV = avgHrv,
+                    stages = stages,
+                    restingHR = sessionDeepSleepRestingHR(start = p.start, end = p.end, hr = hrS, stages = stages),
+                    avgHRV = avgHrv,
                 )
             )
             traceSink?.invoke(SleepStagerTrace.runLine(runIndex, p.start, p.end,
@@ -3228,15 +3236,64 @@ object SleepStager {
      * silently ignored. A zero-length window (`start == end`) is that single closed bin.
      */
     internal fun sessionRestingHR(start: Long, end: Long, hr: List<HrSample>): Int? {
+        // #1943: a bin qualifies to WIN the floor only when it is well-populated (≥ rhrMinBinSamples)
+        // and its mean is physiologically plausible (≥ rhrMinPlausibleBpm). A one-sample bin at the
+        // edge of a wear gap, or a dropout-driven sub-physiological dip, cannot become the floor. If no
+        // bin qualifies, fall back to the lowest of ALL bin means (ungated), then the all-sample mean —
+        // preserving the never-null-on-data behaviour. Not the night's resting HR any more (see
+        // [sessionDeepSleepRestingHR]); it remains the daytime false-sleep guard's resting-HR dip test.
+        val bins = restingBinMeans(start, end, hr) ?: return null
+        bins.gated.minOrNull()?.let { return it.roundToInt() }
+        bins.all.minOrNull()?.let { return it.roundToInt() }
+        return bins.sampleMean.roundToInt()
+    }
+
+    /**
+     * The night's resting HR: the mean of the plausible HR samples inside its deep-sleep segments, the window
+     * WHOOP measures resting HR in and NOOP pools its WHOOP-style HRV over (#141). The lowest 5-min bin it
+     * replaces is the night's single calmest stretch, not a resting level, and read ~6 bpm under WHOOP's.
+     * Fewer than [rhrMinDeepSleepSamples] deep-sleep samples falls back to [sessionLowQuartileRestingHR].
+     * Twin of Swift `SleepStager.sessionDeepSleepRestingHR`.
+     */
+    internal fun sessionDeepSleepRestingHR(start: Long, end: Long, hr: List<HrSample>, stages: List<StageSegment>): Int? {
+        val deep = stages.filter { it.stage == "deep" && it.end > it.start }
+        var sum = 0L
+        var n = 0
+        if (deep.isNotEmpty()) {
+            for (s in hr) {
+                if (s.ts in start..end && s.bpm.toDouble() >= rhrMinPlausibleBpm &&
+                    deep.any { s.ts >= it.start && s.ts < it.end }) {
+                    sum += s.bpm; n += 1
+                }
+            }
+        }
+        if (n >= rhrMinDeepSleepSamples) return (sum.toDouble() / n.toDouble()).roundToInt()
+        return sessionLowQuartileRestingHR(start, end, hr)
+    }
+
+    /**
+     * The lower quartile of the session's qualifying 5-min bin means: the deep-sleep resting HR's fallback for
+     * a session with too little deep sleep. No qualifying bin falls back to [sessionRestingHR]. Twin of Swift
+     * `SleepStager.sessionLowQuartileRestingHR`.
+     */
+    internal fun sessionLowQuartileRestingHR(start: Long, end: Long, hr: List<HrSample>): Int? {
+        val bins = restingBinMeans(start, end, hr) ?: return null
+        val gated = bins.gated.sorted()
+        if (gated.isEmpty()) return sessionRestingHR(start, end, hr)
+        return gated[gated.size / 4].roundToInt()
+    }
+
+    private class RestingBins(val gated: List<Double>, val all: List<Double>, val sampleMean: Double)
+
+    /**
+     * 5-min tumbling bin means of the session's HR, split into the bins that qualify (≥ [rhrMinBinSamples],
+     * mean ≥ [rhrMinPlausibleBpm]) and all of them, plus the all-sample mean. null when the session holds no
+     * samples. Twin of Swift `SleepStager.restingBinMeans`.
+     */
+    private fun restingBinMeans(start: Long, end: Long, hr: List<HrSample>): RestingBins? {
         val seg = hr.filter { it.ts in start..end }
         if (seg.isEmpty()) return null
         val windowS = 5 * 60L
-        // #1943: a bin qualifies to WIN the floor only when it is well-populated (≥ rhrMinBinSamples)
-        // and its mean is physiologically plausible (≥ rhrMinPlausibleBpm). A one-sample bin at the
-        // edge of a wear gap, or a dropout-driven sub-physiological dip, cannot become the night's
-        // resting HR — that number is displayed, stored on the daily row, and fed to the baseline
-        // later nights are scored against. If no bin qualifies, fall back to the lowest of ALL bin
-        // means (ungated), then the all-sample mean — preserving the never-null-on-data behaviour.
         val gatedMeans = ArrayList<Double>()
         val allMeans = ArrayList<Double>()
         var t = start
@@ -3254,12 +3311,7 @@ object SleepStager {
             }
             t += windowS
         } while (t < end)
-        val m = gatedMeans.minOrNull()
-        if (m != null) return m.roundToInt()
-        val am = allMeans.minOrNull()
-        if (am != null) return am.roundToInt()
-        val all = seg.sumOf { it.bpm }.toDouble() / seg.size.toDouble()
-        return all.roundToInt()
+        return RestingBins(gatedMeans, allMeans, seg.sumOf { it.bpm }.toDouble() / seg.size.toDouble())
     }
 
     /** One 5-min HRV window: its start ts, the sleep stage at its center, the clean-beat count, and the

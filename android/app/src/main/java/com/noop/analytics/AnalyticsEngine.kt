@@ -457,7 +457,7 @@ object AnalyticsEngine {
                 // skip the fill every other session gets. The rule is uniform: fill what is missing.
                 if (s.restingHR != null && s.avgHRV != null) s
                 else s.copy(
-                    restingHR = s.restingHR ?: SleepStager.sessionRestingHR(s.start, s.end, hr),
+                    restingHR = s.restingHR ?: SleepStager.sessionDeepSleepRestingHR(s.start, s.end, hr, s.stages),
                     avgHRV = s.avgHRV ?: SleepStager.sessionAvgHRV(s.start, s.end, rrSorted),
                 )
             }

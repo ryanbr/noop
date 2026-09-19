@@ -1,4 +1,21 @@
 {
   "schema_version": 1,
-  "dispositions": []
+  "dispositions": [
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/IntelligenceEngine.kt::rhrFloorMeanLogLine/4#1",
+      "identity_sha256": "5d72d3b8bf405f100c45e0a3e5e2f9a3a68a557da6620a197e2c6c07d4cf2794",
+      "platform": "kotlin",
+      "rationale": "Its Swift twin, IntelligenceEngine.rhrFloorMeanLogLine (byte-identical line, pinned by IntelligenceRhrFloorMeanTests), lives in the app target under Strand/Data, outside the governed Swift roots, so the ledger cannot pair the two."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/ingest/HealthConnectWriter.kt::dailyCutoff/2#1",
+      "identity_sha256": "6cb9a3a0755edb5e1621625ad35ea8c20de9b9542c1c746743915b0b77f1bcb1",
+      "platform": "kotlin",
+      "rationale": "Health Connect export window only; the iOS side of the same one-time rewrite lives in StrandiOS/Health/HealthKitBridge.swift (rewriteRestingHR), outside the governed roots."
+    }
+  ]
 }
