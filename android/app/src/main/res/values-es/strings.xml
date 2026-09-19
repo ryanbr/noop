@@ -764,6 +764,7 @@
     <string name="l10n_test_centre_screen_report_a_bug_with_my_log_5101ee49">Reportar un error con mi registro</string>
     <string name="l10n_test_centre_screen_report_ee45c303">Informe</string>
     <string name="l10n_test_centre_screen_review_before_sharing_d7050383">Revisa antes de compartir</string>
+    <string name="raw_diag_export_review_body">Esta exportación contiene tramas biométricas sin procesar, texto de la consola de la pulsera y el registro de conexión. Los identificadores se ocultan automáticamente. Compártela solo si te sientes cómodo haciéndolo.</string>
     <string name="l10n_test_centre_screen_share_09ca55ca">Compartir</string>
     <string name="l10n_test_centre_screen_share_strap_log_for_bug_reports_b9802500">Compartir tronco de correa (para informes de fallos)</string>
     <string name="l10n_test_centre_screen_test_centre_37b36828">Centro de pruebas</string>

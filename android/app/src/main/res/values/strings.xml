@@ -1056,6 +1056,7 @@
     <string name="l10n_test_centre_screen_report_a_bug_with_my_log_5101ee49">Report a bug with my log</string>
     <string name="l10n_test_centre_screen_report_ee45c303">Report</string>
     <string name="l10n_test_centre_screen_review_before_sharing_d7050383">Review before sharing</string>
+    <string name="raw_diag_export_review_body">This export contains raw biometric frames, strap console text, and the connection log. Identifiers are redacted automatically. Share it only if you are comfortable with that.</string>
     <string name="l10n_test_centre_screen_share_09ca55ca">Share</string>
     <string name="l10n_test_centre_screen_share_strap_log_for_bug_reports_b9802500">Share strap log (for bug reports)</string>
     <string name="l10n_test_centre_screen_test_centre_37b36828">Test Centre</string>
