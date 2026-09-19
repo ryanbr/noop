@@ -10,6 +10,7 @@ import com.noop.alarm.SmartAlarmStore
 import com.noop.alarm.WindDownScheduler
 import com.noop.alarm.WindDownStore
 import com.noop.analytics.Baselines
+import com.noop.ingest.WhoopCsvImporter
 import com.noop.analytics.IllnessSignalEngine
 import com.noop.analytics.IllnessWatch
 import com.noop.analytics.IntelligenceEngine
@@ -1143,6 +1144,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     NoopPrefs.setTsHealDone(appContext)
                     NoopPrefs.setTsHealPending(appContext, false)
                 }
+            }.onFailure { if (it is kotlin.coroutines.cancellation.CancellationException) throw it }
+            // One-time repair: WHOOP rows imported before skinTempC was filled carry the export's absolute °C
+            // in the deviation column. Move it and recompute the deviation; a no-op once done.
+            runCatching {
+                WhoopCsvImporter.repairAbsoluteSkinTempIfNeeded(
+                    repo = repository,
+                    deviceId = deviceId,
+                    flagGet = { NoopPrefs.skinTempRepairDone(appContext) },
+                    flagSet = { NoopPrefs.setSkinTempRepairDone(appContext) },
+                )
             }.onFailure { if (it is kotlin.coroutines.cancellation.CancellationException) throw it }
             // One-shot on-upgrade Effort rescore (#313): recompute strain from source across the FULL
             // history once, so any deep-history rows an older build left on the 0–21 axis regenerate on

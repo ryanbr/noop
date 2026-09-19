@@ -1,4 +1,13 @@
 {
   "schema_version": 1,
-  "dispositions": []
+  "dispositions": [
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/ingest/WhoopCsvImporter.kt::repairAbsoluteSkinTempIfNeeded/4#1",
+      "identity_sha256": "479a15d4f55eb6de209bcaec93dd2cb09abfb67b81c6e810782647b92a416351",
+      "platform": "kotlin",
+      "rationale": "Twin of the Swift WhoopImporter.repairAbsoluteSkinTempIfNeeded, which lives in the app layer (Strand/Data/WhoopImporter.swift) outside the governed Swift roots, so the ledger cannot pair them."
+    }
+  ]
 }

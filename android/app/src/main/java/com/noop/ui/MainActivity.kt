@@ -1387,6 +1387,17 @@ object NoopPrefs {
         of(context).edit().putInt(KEY_CAFFEINE_BEDTIME_MIN, minutes.coerceIn(0, 24 * 60 - 1)).apply()
     }
 
+    /** Whether the one-time repair of WHOOP rows imported with the absolute skin temperature in the
+     *  deviation column has run (`WhoopCsvImporter.repairAbsoluteSkinTempIfNeeded`). */
+    const val KEY_SKIN_TEMP_REPAIR_DONE = "noop.whoopImport.skinTempDeviationRepair.v1.done"
+
+    fun skinTempRepairDone(context: Context): Boolean =
+        of(context).getBoolean(KEY_SKIN_TEMP_REPAIR_DONE, false)
+
+    fun setSkinTempRepairDone(context: Context) {
+        of(context).edit().putBoolean(KEY_SKIN_TEMP_REPAIR_DONE, true).apply()
+    }
+
     /** Whether the one-shot #313 full-history Effort rescore has run. Set true once it completes so the
      *  on-upgrade pass that regenerates deep-history strain on the 0–100 axis never re-runs. */
     const val KEY_EFFORT_RESCORE_DONE = "noop.effortRescore.v313.done"

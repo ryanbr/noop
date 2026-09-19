@@ -2,6 +2,9 @@ package com.noop.ingest
 
 import android.content.Context
 import android.net.Uri
+import com.noop.analytics.BaselineState
+import com.noop.analytics.Baselines
+import com.noop.analytics.VitalBands
 import com.noop.data.DailyMetric
 import com.noop.data.ImportSummary
 import com.noop.data.JournalEntry
@@ -119,7 +122,7 @@ object WhoopCsvImporter {
         // Merge cycle-derived and sleep-derived daily rows on (deviceId, day): cycle fields
         // (recovery / strain / RHR / HRV / SpO2 / skin-temp / resp) win where present, sleep
         // fields fill the architecture columns. One DailyMetric per day, matching the PK.
-        val daily = mergeDaily(cycles, sleepDaily)
+        val daily = withSkinTempDeviations(mergeDaily(cycles, sleepDaily))
 
         if (daily.isEmpty() && sleepSessions.isEmpty() && workouts.isEmpty() && journal.isEmpty()) {
             return ImportSummary.failure(SOURCE_LABEL, "Export contained no usable WHOOP rows.")
@@ -326,6 +329,63 @@ object WhoopCsvImporter {
 
     // MARK: - physiological_cycles.csv -> DailyMetric
 
+    /**
+     * Fill each row's [DailyMetric.skinTempDevC] as its absolute [DailyMetric.skinTempC] minus the personal
+     * skin-temp baseline folded over the nights BEFORE it (`Baselines.metricCfg["skin_temp"]`, the absolute-°C
+     * config), rounded to 0.01 °C like the on-device deviation, and null until that baseline is usable. Rows
+     * without an absolute keep their deviation. Storing the export's absolute as the deviation read an
+     * imported night as +33 °C wherever the column is trusted. Twin of the Swift
+     * `WhoopImporter.withSkinTempDeviations`.
+     */
+    internal fun withSkinTempDeviations(rows: List<DailyMetric>): List<DailyMetric> {
+        val cfg = Baselines.metricCfg["skin_temp"] ?: return rows
+        var state: BaselineState? = null
+        return rows.sortedBy { it.day }.map { row ->
+            val celsius = row.skinTempC ?: return@map row
+            val deviation = state?.takeIf { it.usable }
+                ?.let { Math.round(Baselines.deviation(celsius, it).delta * 100.0) / 100.0 }
+            state = Baselines.update(state, celsius, cfg)
+            row.copy(skinTempDevC = deviation, skinTempC = celsius)
+        }
+    }
+
+    /**
+     * The rows a one-time repair changes: a WHOOP row imported before [DailyMetric.skinTempC] was filled
+     * carries the export's absolute °C in [DailyMetric.skinTempDevC]. Moves it into `skinTempC` and recomputes
+     * every deviation across the history; returns only the rows that differ. Twin of the Swift
+     * `WhoopImporter.repairAbsoluteSkinTempIfNeeded`.
+     */
+    internal fun skinTempRepair(rows: List<DailyMetric>): List<DailyMetric> {
+        val moved = rows.map { row ->
+            val dev = row.skinTempDevC
+            if (row.skinTempC == null && dev != null && VitalBands.isAbsoluteSkinTemp(dev)) {
+                row.copy(skinTempDevC = null, skinTempC = dev)
+            } else row
+        }
+        val original = rows.associateBy { it.day }
+        return withSkinTempDeviations(moved).filter {
+            original[it.day]?.skinTempC != it.skinTempC || original[it.day]?.skinTempDevC != it.skinTempDevC
+        }
+    }
+
+    /**
+     * One-time repair of rows imported with the absolute in the deviation column (see [skinTempRepair]).
+     * Returns whether any row changed. Idempotent; [flagGet]/[flagSet] only skip the read on later launches,
+     * and the flag is set only after the upsert succeeds, so an interrupted repair runs again.
+     */
+    suspend fun repairAbsoluteSkinTempIfNeeded(
+        repo: WhoopRepository,
+        deviceId: String = WHOOP_DEVICE,
+        flagGet: () -> Boolean,
+        flagSet: () -> Unit,
+    ): Boolean {
+        if (flagGet()) return false
+        val changed = skinTempRepair(repo.dailyMetrics(deviceId, "0000-01-01", "9999-12-31"))
+        if (changed.isNotEmpty()) repo.upsertDailyMetrics(changed)
+        flagSet()
+        return changed.isNotEmpty()
+    }
+
     internal fun parseCycles(table: CsvTable, deviceId: String): List<DailyMetric> {
         val out = ArrayList<DailyMetric>(table.rows.size)
         for (row in table.rows) {
@@ -384,7 +444,9 @@ object WhoopCsvImporter {
                     strain = strain?.let { it * DAY_STRAIN_TO_EFFORT_SCALE },
                     exerciseCount = null, // not present in physiological_cycles.csv
                     spo2Pct = spo2,
-                    skinTempDevC = skinTemp,
+                    // The export gives ABSOLUTE °C. skinTempDevC is filled from the nights before it
+                    // (withSkinTempDeviations), never with the absolute itself.
+                    skinTempC = skinTemp,
                     respRateBpm = resp,
                 )
             )

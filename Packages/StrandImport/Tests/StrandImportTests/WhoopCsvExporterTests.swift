@@ -165,4 +165,15 @@ final class WhoopCsvExporterTests: XCTestCase {
         XCTAssertEqual(result.workouts.count, 0)
         XCTAssertEqual(result.journal.count, 0)
     }
+
+    func testTheSkinColumnCarriesTheAbsoluteNeverTheDeviation() {
+        func row(dev: Double?, celsius: Double?) -> DailyMetric {
+            DailyMetric(day: "2026-06-01", totalSleepMin: nil, efficiency: nil, deepMin: nil, remMin: nil,
+                        lightMin: nil, disturbances: nil, restingHr: nil, avgHrv: nil, recovery: nil,
+                        strain: nil, exerciseCount: nil, skinTempDevC: dev, skinTempC: celsius)
+        }
+        XCTAssertEqual(WhoopCsvExporter.exportedSkinTempCelsius(row(dev: 0.2, celsius: 33.4)), 33.4)
+        XCTAssertNil(WhoopCsvExporter.exportedSkinTempCelsius(row(dev: 0.2, celsius: nil)))
+        XCTAssertEqual(WhoopCsvExporter.exportedSkinTempCelsius(row(dev: 33.1, celsius: nil)), 33.1)
+    }
 }

@@ -228,4 +228,13 @@ class WhoopCsvExporterTest {
         }
         assertEquals(listOf("a.csv", "noop_metric_series.json"), names)
     }
+
+    @Test
+    fun theSkinColumnCarriesTheAbsoluteNeverTheDeviation() {
+        fun row(dev: Double?, celsius: Double?) =
+            DailyMetric(deviceId = "my-whoop", day = "2026-06-01", skinTempDevC = dev, skinTempC = celsius)
+        assertEquals(33.4, WhoopCsvExporter.exportedSkinTempCelsius(row(0.2, 33.4))!!, 1e-9)
+        assertEquals(null, WhoopCsvExporter.exportedSkinTempCelsius(row(0.2, null)))
+        assertEquals(33.1, WhoopCsvExporter.exportedSkinTempCelsius(row(33.1, null))!!, 1e-9)
+    }
 }
