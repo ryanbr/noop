@@ -1456,22 +1456,29 @@ private fun Hero(
             // so the larger Awake / smaller Deep+REM here isn't misread as the polished numbers the Oura app
             // shows for the same night (the app post-processes the same stream). Mirrors iOS ouraRawStagesNote.
             if (activeIsOura) OuraRawStagesNote()
+            // The blocks both caveats below read, hoisted so the two cannot consult a different set.
+            // `stagingSparse` is a DAY-level verdict stamped onto EVERY block (see iOS
+            // stageShowsIncompleteNote: "each carries the day's value"), so asking only the main block is
+            // asking one witness out of several. On a night whose main block is imported, and therefore
+            // carries a nil flag, while a computed fragment carries true, iOS warned and Android stayed
+            // silent, though both claimed to mirror each other.
+            val dayBlocks = sleepDayBlocks(session, heroGroup)
             // #345 follow-up: a night staged on SPARSE motion coverage can UNDER-detect and read short
             // ("slept 8h, shows 1h"). Say so honestly — but only when the night ACTUALLY reads short, since
             // the stagingSparse flag alone fires on one long motion dropout at any night length. The rule
-            // and its reasoning live in [stageSparseNoteApplies]. `session` is the REAL main block
-            // (selectNight's edit anchor), so it carries the flag; nil (imported / pre-migration) is never
-            // flagged. Mirrors iOS SleepView.stageShowsIncompleteNote.
-            if (stageSparseNoteApplies(session?.stagingSparse == true, s.asleep)) SleepIncompleteNote()
+            // and its reasoning live in [stageSparseNoteApplies]. A nil flag (imported / pre-migration
+            // block) is never itself a flag. Mirrors iOS SleepView.stageShowsIncompleteNote.
+            if (stageSparseNoteApplies(anyBlockStagingSparse(dayBlocks), s.asleep)) {
+                SleepIncompleteNote()
+            }
             // #1716 — a device-provided hypnogram assembled from records that never all arrived leaves a
             // HOLE in the timeline while the session still spans the whole night, so a night we saw a
             // fraction of renders as a complete one. Asked of the bridged main-night GROUP (the quantity
             // analyzeDay gates on), never of one fragment. This is the only place the coverage guard
             // becomes visible: the engine's matching Rest downgrade lands in a transient DayResult field
             // no screen reads. Mirrors iOS SleepView.stagePartialNote.
-            val coverageGroup = heroGroup.ifEmpty { listOfNotNull(session) }
             val stageCoverage = HypnogramCoverage.groupFraction(
-                coverageGroup.map {
+                dayBlocks.map {
                     HypnogramCoverage.Fragment(it.stagesJSON, (it.endTs - it.startTs).toDouble())
                 }
             )
@@ -1591,6 +1598,33 @@ private fun OuraRawStagesNote() {
         )
     }
 }
+
+/**
+ * The stored blocks the sleep caveats read: the bridged main-night GROUP, falling back to the single main
+ * block when the group is empty. Pure, so the CHOICE of blocks is testable rather than an inline
+ * expression buried in a Composable.
+ *
+ * Narrower than iOS, which reads `night.sourceBlocks`, every real block of the day. `Hero` is handed only
+ * `session` and `heroGroup`, so a block outside the group is not consulted here. Since `stagingSparse` is
+ * stamped on every block of the day, any block in the group carries it, which covers the reported shape;
+ * widening it would mean plumbing a new parameter.
+ */
+internal fun sleepDayBlocks(
+    session: SleepSession?,
+    heroGroup: List<SleepSession>,
+): List<SleepSession> = heroGroup.ifEmpty { listOfNotNull(session) }
+
+/**
+ * Whether ANY of the day's blocks carries the sparse-staging verdict.
+ *
+ * `stagingSparse` is a DAY-level flag stamped onto every block, which iOS states on its own gate ("each
+ * carries the day's value") and reads as `night.sourceBlocks.contains { $0.stagingSparse == true }`.
+ * Android asked the main block alone, so a night whose main block was imported (nil flag) while a computed
+ * fragment carried true warned on iPhone and Mac and stayed silent here, though both claimed to mirror
+ * each other. A nil flag is never itself a flag.
+ */
+internal fun anyBlockStagingSparse(blocks: List<SleepSession>): Boolean =
+    blocks.any { it.stagingSparse == true }
 
 /**
  * Pure #345 gate (unit-testable without a Composable) — whether the "May be incomplete" caveat applies.
