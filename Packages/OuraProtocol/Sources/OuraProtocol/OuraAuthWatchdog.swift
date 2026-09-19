@@ -36,6 +36,14 @@ public enum OuraAuthWatchdog {
         case dropLink
     }
 
+    /// The escalation table. Kotlin twin of `OuraAuthWatchdog.step` (the Kotlin side takes milliseconds
+    /// against `NONCE_TIMEOUT_MS`; same thresholds, same order, same attempt semantics).
+    ///
+    /// The claim is on the FUNCTION deliberately. `parity_ledger.resolved_file_pairs` derives file
+    /// authority from resolved FUNCTION pairs, so a twin reference in the type or file header pairs
+    /// nothing: this file and its Kotlin counterpart sat in `unpaired_files` with identical stems and a
+    /// claim already on the Kotlin object, because neither side named a twin where the ledger reads one.
+    ///
     /// - Parameters:
     ///   - secondsSinceNonceRequest: age of the most recent `get_nonce` write of this session.
     ///   - attempt: how many escalations have already been taken this session (0 = none yet).

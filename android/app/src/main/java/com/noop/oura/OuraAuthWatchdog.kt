@@ -39,6 +39,12 @@ object OuraAuthWatchdog {
     }
 
     /**
+     * The escalation table. Swift twin of `OuraAuthWatchdog.step` (the Swift side takes seconds against
+     * `nonceTimeout`; same thresholds, same order, same attempt semantics).
+     *
+     * The claim is on the FUNCTION deliberately: file authority is derived from resolved FUNCTION pairs,
+     * so the twin line already on the object header above pairs nothing on its own.
+     *
      * @param msSinceNonceRequest age of the most recent `get_nonce` write of this session.
      * @param attempt how many escalations have already been taken this session (0 = none yet).
      */
