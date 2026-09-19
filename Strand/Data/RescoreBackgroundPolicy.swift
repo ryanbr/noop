@@ -86,10 +86,13 @@ enum RescoreBackgroundPolicy {
     ///     it is not evidence of a killed pass; the engine re-arms one follow-up pass for a trigger that
     ///     lands mid-run. Deferring instead recorded a newer debt, the running pass then finished without
     ///     settling it (#1681), and every offload after that deferred on it.
+    ///   - secondsSinceLastAttempt: how long ago the last pass STARTED, nil when unknown. An outstanding
+    ///     debt defers only while that attempt is recent (`interruptedRetryCooldownSeconds`).
     static func decide(isBackground: Bool,
                        isRealUpdate: Bool = true,
                        rescoreAlreadyOwed: Bool,
-                       passInProgress: Bool = false) -> Decision {
+                       passInProgress: Bool = false,
+                       secondsSinceLastAttempt: Double? = nil) -> Decision {
         guard isBackground else { return .run }
 
         guard isRealUpdate else {
@@ -97,11 +100,22 @@ enum RescoreBackgroundPolicy {
                 reason: "the backstop tick does not re-score while backgrounded; offloads run their own")
         }
 
-        if rescoreAlreadyOwed, !passInProgress {
+        if rescoreAlreadyOwed, !passInProgress,
+           let since = secondsSinceLastAttempt, since >= 0, since < interruptedRetryCooldownSeconds {
             return .deferToBackgroundTask(
                 reason: "a re-score is already outstanding from an earlier trigger")
         }
 
         return .run
     }
+
+    /// How long after an attempt that did not finish a backgrounded offload waits before trying again.
+    ///
+    /// Deferring on ANY outstanding debt, with no end, stopped scoring outright. A suspended app is
+    /// routinely terminated by iOS for memory, not CPU, so a pass interrupted that way is ordinary, and the
+    /// processing task it escalates to is granted rarely if ever. On one phone a pass left unfinished at
+    /// 11:25 deferred every offload until the app was next opened: 19 hours, with no score for the night
+    /// in between. Pacing (`backgroundRestPerWorkSecond`) is what keeps a background attempt under the CPU
+    /// limit now, so this only needs to stop a retry on every offload, not forever.
+    static let interruptedRetryCooldownSeconds: Double = 30 * 60
 }

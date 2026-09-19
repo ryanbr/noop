@@ -14,11 +14,13 @@ final class RescoreBackgroundPolicyTests: XCTestCase {
     private func decide(background: Bool = true,
                         realUpdate: Bool = true,
                         unfinished: Bool = false,
-                        running: Bool = false) -> RescoreBackgroundPolicy.Decision {
+                        running: Bool = false,
+                        attemptedSecondsAgo: Double? = 60) -> RescoreBackgroundPolicy.Decision {
         RescoreBackgroundPolicy.decide(isBackground: background,
                                        isRealUpdate: realUpdate,
                                        rescoreAlreadyOwed: unfinished,
-                                       passInProgress: running)
+                                       passInProgress: running,
+                                       secondsSinceLastAttempt: attemptedSecondsAgo)
     }
 
     private func isDeferred(_ d: RescoreBackgroundPolicy.Decision) -> Bool {
@@ -51,6 +53,16 @@ final class RescoreBackgroundPolicyTests: XCTestCase {
     /// was killed. Attempting it again on every offload is what burned the phone in #1538.
     func testAnInterruptedPriorAttemptDefersInsteadOfRetrying() {
         XCTAssertTrue(isDeferred(decide(unfinished: true)))
+    }
+
+    /// ...but only for a while. A suspended app is routinely terminated for memory, so an unfinished pass
+    /// is ordinary; deferring on it forever left a night unscored for 19 hours on one phone.
+    func testAnInterruptedAttemptIsRetriedOnceTheCooldownHasPassed() {
+        let cooldown = RescoreBackgroundPolicy.interruptedRetryCooldownSeconds
+        XCTAssertTrue(isDeferred(decide(unfinished: true, attemptedSecondsAgo: cooldown - 1)))
+        XCTAssertEqual(decide(unfinished: true, attemptedSecondsAgo: cooldown), .run)
+        // No recorded attempt (an install from before the attempt time existed) is not a recent one.
+        XCTAssertEqual(decide(unfinished: true, attemptedSecondsAgo: nil), .run)
     }
 
     /// A pass running in THIS process reads as owed through its own started-mark. That is not a killed

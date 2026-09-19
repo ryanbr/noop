@@ -73,14 +73,29 @@ enum RescoreBackgroundScheduler {
         return value.isFinite && value > 0 ? value : nil
     }
 
+    /// When the last pass started (unix seconds), written only by a pass that is about to work, never by
+    /// the deferral path, so repeated deferrals cannot keep a stale debt looking fresh.
+    static let lastAttemptStartedAtKey = "noop.rescoreLastAttemptStartedAt"
+
+    /// Seconds since the last pass started, nil if none was ever recorded.
+    static var secondsSinceLastAttempt: Double? {
+        let started = UserDefaults.standard.double(forKey: lastAttemptStartedAtKey)
+        return started > 0 ? Date().timeIntervalSince1970 - started : nil
+    }
+
     /// Mark a re-score as owed. Called by `IntelligenceEngine` once a pass is past every gate and is
     /// definitely about to work — so that a kill leaves the debt behind — and by the deferral path, where
     /// no pass is attempted at all but the work is just as outstanding.
     /// Returns the token stamped on this debt. A pass keeps it and hands it back at completion; every
     /// other caller (the deferral path) can ignore it, since it is not the one that will settle up.
+    /// - Parameter passStarting: the caller is a pass about to work (not the deferral path), so the attempt
+    ///   time is recorded for `RescoreBackgroundPolicy.interruptedRetryCooldownSeconds`.
     @discardableResult
-    static func markRescoreOwed() -> String {
+    static func markRescoreOwed(passStarting: Bool = false) -> String {
         let token = UUID().uuidString
+        if passStarting {
+            UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: lastAttemptStartedAtKey)
+        }
         UserDefaults.standard.set(true, forKey: owedKey)
         UserDefaults.standard.set(token, forKey: owedTokenKey)
         // A fresh debt is unproven until the pass that owns it finishes: if THIS pass is killed, the
@@ -175,7 +190,8 @@ enum RescoreBackgroundScheduler {
             isBackground: isBackground ?? isBackgrounded,
             isRealUpdate: owesOnDefer,
             rescoreAlreadyOwed: isRescoreOwed,
-            passInProgress: passInProgress)
+            passInProgress: passInProgress,
+            secondsSinceLastAttempt: secondsSinceLastAttempt)
 
         switch decision {
         case .deferToBackgroundTask(let reason):

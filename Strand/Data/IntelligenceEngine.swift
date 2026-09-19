@@ -771,7 +771,7 @@ final class IntelligenceEngine: ObservableObject {
         // state that skipped the capture and just cleared, which is exactly where #1681 lived. The
         // Kotlin post-offload gate makes the same point in its own words: "captured before the run,
         // written only on success".
-        let owedToken = RescoreBackgroundScheduler.markRescoreOwed()
+        let owedToken = RescoreBackgroundScheduler.markRescoreOwed(passStarting: true)
         // #899-A re-arm: clear the lock, then if a forced rescore was dropped while this pass held it,
         // run it ONCE. The flag is cleared BEFORE the re-invoke (a single re-arm), so a forced call landing
         // DURING the re-invoke re-arms it again but a quiet one does not , this can never recurse unbounded.
