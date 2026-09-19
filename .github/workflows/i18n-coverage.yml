@@ -34,8 +34,43 @@ jobs:
         with:
           fetch-depth: 0
 
-      # `github.base_ref` is set ONLY for pull_request; on a push to main it is empty, which would
-      # pass a bare `origin/`. Fall back to main. (The ref is retained for workflow compatibility —
-      # `--ci` is a whole-tree gate, so the value it resolves to does not change the verdict.)
+      # Which commit the audit diffs against. Since #524 this DECIDES the verdict: `--ci` exempts
+      # any violation already present at the base, so the gate reports what this change introduced
+      # rather than auditing the whole tree. That is the point of #524 (a regression on main no
+      # longer red-flags every open PR), and it makes the base ref load-bearing in two ways.
+      #
+      # `fetch-depth: 0` above is one of them. The audit reads the base through `git show`, so a
+      # shallow clone misses every base lookup. That direction fails safe, since nothing is exempt
+      # and the gate fails loudly rather than passing, but it fails for a reason nobody would guess.
+      #
+      # The other is this resolution. `github.base_ref` is set ONLY for pull_request. On a push it is
+      # empty, and the obvious fallback of origin/main is the PUSHED COMMIT ITSELF: the run would
+      # compare the tree against itself and could never fail. Verified by planting a hardcoded
+      # literal, base=HEAD passes and base=HEAD~1 catches it. That would have quietly retired the
+      # case the push trigger exists for, described at the top of this file: a release pushes
+      # straight to main with no PR, and appchangelog-gen.py emits the What's New title as a raw
+      # Kotlin literal. So a push diffs against `github.event.before`, the tip before the push,
+      # which spans every commit the push carried rather than just the last one.
+      - name: Resolve the base to diff against
+        id: base
+        run: |
+          set -euo pipefail
+          if [ -n "${{ github.base_ref }}" ]; then
+            base="origin/${{ github.base_ref }}"          # pull_request: the branch it targets
+          else
+            before="${{ github.event.before }}"           # push: the tip before this push
+            # All-zeros on a branch's first push, and absent for a manual run. Neither can be
+            # diffed, so fall back to the parent: still a real comparison, just narrower.
+            if [ -n "$before" ] \
+               && [ "$before" != "0000000000000000000000000000000000000000" ] \
+               && git cat-file -e "$before^{commit}" 2>/dev/null; then
+              base="$before"
+            else
+              base="HEAD~1"
+            fi
+          fi
+          echo "ref=$base" >> "$GITHUB_OUTPUT"
+          echo "diffing against $base"
+
       - name: i18n audit (regression gate)
-        run: python3 Tools/i18n_audit.py --ci origin/${{ github.base_ref || 'main' }}
+        run: python3 Tools/i18n_audit.py --ci "${{ steps.base.outputs.ref }}"
