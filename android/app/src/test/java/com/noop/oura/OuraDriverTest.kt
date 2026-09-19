@@ -80,6 +80,49 @@ class OuraDriverTest {
 
     // MARK: - Honest pairing path when no key
 
+    // MARK: - Suspended connect: auth success without the live-HR triplet
+
+    /**
+     * With `liveHRWanted` cleared (the app's screen-off suspend is in force), auth success goes straight
+     * to `Streaming` and writes NOTHING to the daytime-HR feature: no `dhr_read`, no `dhr_enable`, no
+     * `dhr_subscribe`. The history path still works from that phase, and a stray enable ACK cannot
+     * restart the triplet. Twin of the Swift `testAuthSuccessSkipsLiveHRTripletWhenNotWanted`.
+     */
+    @Test
+    fun testAuthSuccessSkipsLiveHRTripletWhenNotWanted() {
+        val d = OuraDriver(ringGen = OuraRingGen.GEN3, authKey = key)
+        d.liveHRWanted = false
+        d.nextStep(OuraTransition.Ready)
+        d.nextStep(OuraTransition.NonceReceived(bytes("0102030405060708090a0b0c0d0e0f")))
+
+        val onAuth = d.nextStep(OuraTransition.AuthCompleted(OuraAuthStatus.SUCCESS))
+        assertTrue("a suspended connect must not arm daytime HR", onAuth.isEmpty())
+        assertEquals(OuraDriverPhase.Streaming, d.phase)
+
+        // A stray enable ACK outside EnablingLiveHR is inert — the triplet does not start late.
+        assertTrue(d.nextStep(OuraTransition.EnableAckReceived).isEmpty())
+        assertEquals(OuraDriverPhase.Streaming, d.phase)
+
+        // The drain runs from Streaming exactly as after a full triplet.
+        val fetch = d.nextStep(OuraTransition.StartHistoryFetch(cursor = 0L))
+        assertEquals(listOf("flush_buffer", "get_events"), fetch.map { it.label })
+        assertEquals(OuraDriverPhase.FetchingHistory, d.phase)
+        d.nextStep(OuraTransition.HistoryCursorAdvanced(cursor = 0L, moreData = false))
+        assertEquals(OuraDriverPhase.Streaming, d.phase)
+    }
+
+    /** The default is the historical behaviour: auth success starts the triplet with `dhr_read`. */
+    @Test
+    fun testLiveHRWantedDefaultsToArmingTheTriplet() {
+        val d = OuraDriver(ringGen = OuraRingGen.GEN3, authKey = key)
+        assertTrue(d.liveHRWanted)
+        d.nextStep(OuraTransition.Ready)
+        d.nextStep(OuraTransition.NonceReceived(bytes("0102030405060708090a0b0c0d0e0f")))
+        val onAuth = d.nextStep(OuraTransition.AuthCompleted(OuraAuthStatus.SUCCESS))
+        assertEquals(listOf("dhr_read"), onAuth.map { it.label })
+        assertEquals(OuraDriverPhase.EnablingLiveHR, d.phase)
+    }
+
     @Test
     fun testNoKeyDrivesNeedsKeyInstall() {
         val d = OuraDriver(ringGen = OuraRingGen.GEN3, authKey = null)
