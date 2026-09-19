@@ -1091,6 +1091,26 @@ extension WhoopStore {
             try db.create(index: "idx_liftSet_session_ord", on: "liftSet",
                           columns: ["sessionId", "ord"], options: [.ifNotExists])
         }
+        // v47 (#1410 tier 3): record which exact app build last computed each persisted score cell and
+        // when. This is separate from scoreInputProvenance: that table answers which INPUT/provider or
+        // estimator produced a value, while this one answers which CODE produced it. Existing history
+        // remains absent/unknown because its computing build and time cannot be reconstructed honestly.
+        // `scope` identifies the transaction that owns stale-row cleanup: a normal daily-score window may
+        // replace its own stamps without erasing independently-written weekly Fitness/Vitality/VO₂max or
+        // daily steps-estimate stamps. Additive only; no existing row is touched.
+        migrator.registerMigration("v47-score-computation-provenance") { db in
+            try db.create(table: "scoreComputationProvenance") { t in
+                t.column("deviceId", .text).notNull()
+                t.column("day", .text).notNull()
+                t.column("key", .text).notNull()
+                t.column("computedBy", .text).notNull()
+                t.column("computedAt", .integer).notNull() // unix milliseconds
+                t.column("scope", .text).notNull()
+                t.primaryKey(["deviceId", "day", "key"])
+            }
+            try db.create(index: "idx_scoreComputationProvenance_computedBy",
+                          on: "scoreComputationProvenance", columns: ["computedBy"])
+        }
         return migrator
     }
 }
