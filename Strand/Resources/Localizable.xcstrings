@@ -144347,64 +144347,6 @@
         }
       }
     },
-    "Set a wake time for specific days (a lie-in at the weekend, say). Days you leave alone use the time above.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lege eine Aufwachzeit für bestimmte Tage fest (etwa Ausschlafen am Wochenende). Tage, die du nicht anfasst, nutzen die Zeit oben."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Define una hora de despertar para días concretos (por ejemplo, dormir hasta tarde el fin de semana). Los días que no toques usan la hora de arriba."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Définissez une heure de réveil pour des jours spécifiques (une grasse matinée le week-end, par exemple). Les jours que vous ne modifiez pas utilisent l'heure ci-dessus."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Imposta un orario di sveglia per giorni specifici, ad esempio una dormita nel weekend. I giorni che lasci invariati usano l'orario sopra."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Defina um horário para acordar em dias específicos (por exemplo, um descanso ao fim de semana). Nos dias em que sai sozinho, utilize o tempo acima."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Задайте время пробуждения для конкретных дней (например, для более позднего подъёма на выходных). Для остальных дней используется время, указанное выше."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "为特定的日子设置起床时间，比如周末睡个懒觉。你未作设置的日子会使用上方的时间。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "為特定的日子設定起床時間，比如週末睡個懶覺。你未作設定的日子會使用上方的時間。"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ustaw porę budzenia w określone dni (np. odpoczynek w weekend). Dni, w których zostajesz sam, wykorzystaj czas podany powyżej."
-          }
-        }
-      }
-    },
     "Set custom container size": {
       "localizations": {
         "de": {
@@ -216104,7 +216046,34 @@
         "ru": {"stringUnit": {"state": "translated", "value": "Включено: заряд, отдых, ВСР и тренировки отправляются провайдеру, каждая тренировка с видом спорта, длительностью, дистанцией и пульсом."}},
         "zh-Hans": {"stringUnit": {"state": "translated", "value": "开启：你的充能、休息、HRV 和训练会发送给服务商，每次训练包含运动类型、时长、距离和心率。"}},
         "zh-Hant": {"stringUnit": {"state": "translated", "value": "開啟：你的充能、休息、HRV 和訓練會傳送給服務商，每次訓練包含運動類型、時長、距離和心率。"}}
-    } }
+    } },
+        "Strap alarm wake time": { "localizations": {
+          "de": {"stringUnit": {"state": "translated", "value": "Weckzeit des Strap-Alarms"}}, "es": {"stringUnit": {"state": "translated", "value": "Hora de despertar de la alarma de la banda"}}, "fr": {"stringUnit": {"state": "translated", "value": "Heure de réveil de l'alarme du bracelet"}}, "it": {"stringUnit": {"state": "translated", "value": "Ora di sveglia dell'allarme del braccialetto"}}, "pl": {"stringUnit": {"state": "translated", "value": "Godzina budzenia alarmu opaski"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Hora de despertar do alarme da banda"}}, "ru": {"stringUnit": {"state": "translated", "value": "Время подъёма для будильника ремешка"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "手环闹钟的起床时间"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "手環鬧鐘的起床時間"}}
+        } },
+        "Your usual wake time": { "localizations": {
+          "de": {"stringUnit": {"state": "translated", "value": "Deine übliche Weckzeit"}}, "es": {"stringUnit": {"state": "translated", "value": "Tu hora habitual de despertar"}}, "fr": {"stringUnit": {"state": "translated", "value": "Votre heure de réveil habituelle"}}, "it": {"stringUnit": {"state": "translated", "value": "La tua solita ora di sveglia"}}, "pl": {"stringUnit": {"state": "translated", "value": "Twoja zwykła godzina pobudki"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "A tua hora habitual de acordar"}}, "ru": {"stringUnit": {"state": "translated", "value": "Ваше обычное время подъёма"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "你通常的起床时间"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "你通常的起床時間"}}
+        } },
+        "This time does not wake you. It only decides when the evening reminder fires.": { "localizations": {
+          "de": {"stringUnit": {"state": "translated", "value": "Diese Zeit weckt dich nicht. Sie legt nur fest, wann die Abenderinnerung kommt."}}, "es": {"stringUnit": {"state": "translated", "value": "Esta hora no te despierta. Solo decide cuándo llega el recordatorio de la noche."}}, "fr": {"stringUnit": {"state": "translated", "value": "Cette heure ne vous réveille pas. Elle décide seulement quand le rappel du soir se déclenche."}}, "it": {"stringUnit": {"state": "translated", "value": "Questa ora non ti sveglia. Decide solo quando arriva il promemoria serale."}}, "pl": {"stringUnit": {"state": "translated", "value": "Ta godzina Cię nie budzi. Decyduje tylko o tym, kiedy pojawi się wieczorne przypomnienie."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Esta hora não te acorda. Só decide quando aparece o lembrete da noite."}}, "ru": {"stringUnit": {"state": "translated", "value": "Это время вас не будит. Оно лишь определяет, когда придёт вечернее напоминание."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "这个时间不会叫醒你，它只决定晚间提醒何时出现。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "這個時間不會叫醒你，它只決定晚間提醒何時出現。"}}
+        } },
+        "Your strap alarm is what wakes you, next on %@.": { "localizations": {
+          "de": {"stringUnit": {"state": "translated", "value": "Geweckt wirst du vom Strap-Alarm, das nächste Mal am %@."}}, "es": {"stringUnit": {"state": "translated", "value": "Quien te despierta es la alarma de la banda, la próxima vez el %@."}}, "fr": {"stringUnit": {"state": "translated", "value": "C'est l'alarme du bracelet qui vous réveille, la prochaine fois le %@."}}, "it": {"stringUnit": {"state": "translated", "value": "A svegliarti è l'allarme del braccialetto, la prossima volta %@."}}, "pl": {"stringUnit": {"state": "translated", "value": "Budzi Cię alarm opaski, następnym razem w %@."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Quem te acorda é o alarme da banda, a próxima vez em %@."}}, "ru": {"stringUnit": {"state": "translated", "value": "Будит вас будильник ремешка, следующий раз в %@."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "叫醒你的是手环闹钟，下一次在 %@。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "叫醒你的是手環鬧鐘，下一次在 %@。"}}
+        } },
+        "Set a wake time for specific days (a lie-in at the weekend, say). These times move your strap alarm AND the evening reminder on those days.": { "localizations": {
+          "de": {"stringUnit": {"state": "translated", "value": "Lege für einzelne Tage eine Weckzeit fest (etwa Ausschlafen am Wochenende). Diese Zeiten verschieben an diesen Tagen sowohl den Strap-Alarm als auch die Abenderinnerung."}}, "es": {"stringUnit": {"state": "translated", "value": "Fija una hora de despertar para días concretos (dormir hasta tarde el fin de semana, por ejemplo). Esas horas mueven tanto la alarma de la banda como el recordatorio de la noche en esos días."}}, "fr": {"stringUnit": {"state": "translated", "value": "Définissez une heure de réveil pour certains jours (une grasse matinée le week-end, par exemple). Ces heures décalent à la fois l'alarme du bracelet et le rappel du soir ces jours-là."}}, "it": {"stringUnit": {"state": "translated", "value": "Imposta un'ora di sveglia per giorni specifici (per esempio dormire fino a tardi nel fine settimana). Quelle ore spostano sia l'allarme del braccialetto sia il promemoria serale in quei giorni."}}, "pl": {"stringUnit": {"state": "translated", "value": "Ustaw godzinę pobudki dla wybranych dni (na przykład dłuższy sen w weekend). Te godziny przesuwają w te dni zarówno alarm opaski, jak i wieczorne przypomnienie."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Define uma hora de acordar para dias específicos (dormir até mais tarde ao fim de semana, por exemplo). Essas horas mudam tanto o alarme da banda como o lembrete da noite nesses dias."}}, "ru": {"stringUnit": {"state": "translated", "value": "Задайте время подъёма для отдельных дней (например, поспать подольше в выходные). В эти дни такое время сдвигает и будильник ремешка, и вечернее напоминание."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "为特定日期设置起床时间（比如周末睡个懒觉）。这些时间会同时改变那几天的手环闹钟和晚间提醒。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "為特定日期設定起床時間（例如週末睡個懶覺）。這些時間會同時改變那幾天的手環鬧鐘和晚間提醒。"}}
+        } },
+        "Days you leave alone use the usual wake time above.": { "localizations": {
+          "de": {"stringUnit": {"state": "translated", "value": "Tage, die du unangetastet lässt, nutzen die übliche Weckzeit oben."}}, "es": {"stringUnit": {"state": "translated", "value": "Los días que no toques usan la hora habitual de despertar de arriba."}}, "fr": {"stringUnit": {"state": "translated", "value": "Les jours que vous ne touchez pas utilisent l'heure de réveil habituelle ci-dessus."}}, "it": {"stringUnit": {"state": "translated", "value": "I giorni che non tocchi usano la solita ora di sveglia qui sopra."}}, "pl": {"stringUnit": {"state": "translated", "value": "Dni, których nie zmienisz, używają zwykłej godziny pobudki powyżej."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Os dias que não mexeres usam a hora habitual de acordar acima."}}, "ru": {"stringUnit": {"state": "translated", "value": "Дни, которые вы не меняли, используют обычное время подъёма выше."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "未改动的日子使用上面的通常起床时间。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "未更動的日子使用上面的通常起床時間。"}}
+        } },
+        "Days you leave alone keep your strap alarm at %@, and time the reminder from %@.": { "localizations": {
+          "de": {"stringUnit": {"state": "translated", "value": "Tage, die du unangetastet lässt, behalten den Strap-Alarm um %1$@ und timen die Erinnerung ab %2$@."}}, "es": {"stringUnit": {"state": "translated", "value": "Los días que no toques mantienen la alarma de la banda a las %1$@ y calculan el recordatorio desde las %2$@."}}, "fr": {"stringUnit": {"state": "translated", "value": "Les jours que vous ne touchez pas gardent l'alarme du bracelet à %1$@ et calculent le rappel à partir de %2$@."}}, "it": {"stringUnit": {"state": "translated", "value": "I giorni che non tocchi mantengono l'allarme del braccialetto alle %1$@ e calcolano il promemoria da %2$@."}}, "pl": {"stringUnit": {"state": "translated", "value": "Dni, których nie zmienisz, zachowują alarm opaski o %1$@, a przypomnienie liczą od %2$@."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Os dias que não mexeres mantêm o alarme da banda às %1$@ e calculam o lembrete a partir das %2$@."}}, "ru": {"stringUnit": {"state": "translated", "value": "В дни, которые вы не меняли, будильник ремешка остаётся на %1$@, а напоминание считается от %2$@."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "未改动的日子，手环闹钟仍为 %1$@，晚间提醒则从 %2$@ 推算。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "未更動的日子，手環鬧鐘仍為 %1$@，晚間提醒則從 %2$@ 推算。"}}
+        } },
+        "Some days have a time of their own, set under the evening reminder below. Next buzz %@.": { "localizations": {
+          "de": {"stringUnit": {"state": "translated", "value": "Manche Tage haben eine eigene Zeit, eingestellt unter der Abenderinnerung weiter unten. Nächster Weckruf %@."}}, "es": {"stringUnit": {"state": "translated", "value": "Algunos días tienen su propia hora, fijada en el recordatorio de la noche más abajo. Próximo aviso %@."}}, "fr": {"stringUnit": {"state": "translated", "value": "Certains jours ont leur propre heure, définie sous le rappel du soir ci-dessous. Prochaine vibration %@."}}, "it": {"stringUnit": {"state": "translated", "value": "Alcuni giorni hanno un orario proprio, impostato sotto il promemoria serale qui sotto. Prossima vibrazione %@."}}, "pl": {"stringUnit": {"state": "translated", "value": "Niektóre dni mają własną godzinę, ustawioną przy wieczornym przypomnieniu poniżej. Następna wibracja %@."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Alguns dias têm hora própria, definida no lembrete da noite abaixo. Próximo aviso %@."}}, "ru": {"stringUnit": {"state": "translated", "value": "У некоторых дней своё время, заданное ниже, у вечернего напоминания. Следующий сигнал %@."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "有些日子有自己的时间，在下面的晚间提醒中设置。下次震动 %@。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "有些日子有自己的時間，在下面的晚間提醒中設定。下次震動 %@。"}}
+        } },
+        "no time of its own": { "localizations": {
+          "de": {"stringUnit": {"state": "translated", "value": "keine eigene Zeit"}}, "es": {"stringUnit": {"state": "translated", "value": "sin hora propia"}}, "fr": {"stringUnit": {"state": "translated", "value": "pas d'heure propre"}}, "it": {"stringUnit": {"state": "translated", "value": "nessun orario proprio"}}, "pl": {"stringUnit": {"state": "translated", "value": "brak własnej godziny"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "sem hora própria"}}, "ru": {"stringUnit": {"state": "translated", "value": "без своего времени"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "没有单独时间"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "沒有單獨時間"}}
+        } }
   },
   "version": "1.0"
 }

@@ -211,9 +211,24 @@ struct SmartAlarmView: View {
                         Spacer()
                         DatePicker("", selection: alarmTimeBinding, displayedComponents: .hourAndMinute)
                             .labelsHidden().datePickerStyle(.compact)
-                            .accessibilityLabel("Wake time")
+                            // Distinct from the wind-down picker's label below. Both were "Wake time",
+                            // so VoiceOver announced the alarm and the reminder's timing input by the
+                            // same name, on the same screen, with different values.
+                            .accessibilityLabel("Strap alarm wake time")
                     }
                     .frame(minHeight: 42)
+                    // The per-day overrides that re-time THIS alarm (#1864) are edited under the
+                    // wind-down card, so read on its own this card can say "10:00" during a week whose
+                    // Saturday fires at 20:30. Checking your alarm is exactly what someone opens this
+                    // card to do, so the qualifier belongs against the number it qualifies. Shown only
+                    // when an override actually exists, because otherwise the picker IS the whole truth.
+                    if !overrides.isEmpty, let next = nextStrapAlarmLabel {
+                        Text("Some days have a time of their own, set under the evening reminder below. Next buzz \(next).")
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     Divider().overlay(StrandPalette.hairline)
                     alarmWeekdayPicker
                     // #864: a WHOOP 5/MG only arms its firmware alarm when Experimental is on (see
@@ -319,21 +334,38 @@ struct SmartAlarmView: View {
                     Divider().overlay(StrandPalette.hairline)
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Wake time")
+                            // Was "Wake time", the same words the strap alarm's own picker uses one card
+                            // up. Two pickers called the same thing, holding different times, and only
+                            // one of them wakes anybody: a reporter asked outright which time would wake
+                            // them. This field is an INPUT to the reminder's arithmetic, so it is named
+                            // for what it is rather than for what it sounds like.
+                            Text("Your usual wake time")
                                 .font(StrandFont.body)
                                 .foregroundStyle(StrandPalette.textPrimary)
                             Text("The nudge fires \(WindDownNudge.sleepNeedMinutes / 60)h \(WindDownNudge.leadMinutes)m before this.")
                                 .font(StrandFont.footnote)
                                 .foregroundStyle(StrandPalette.textTertiary)
+                            Text("This time does not wake you. It only decides when the evening reminder fires.")
+                                .font(StrandFont.footnote)
+                                .foregroundStyle(StrandPalette.textTertiary)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                         Spacer()
                         DatePicker("", selection: wakeBinding, displayedComponents: .hourAndMinute)
                             .labelsHidden()
-                            .accessibilityLabel("Wake time")
+                            .accessibilityLabel("Your usual wake time")
                     }
                     Text("You'll be reminded around \(timeLabel(WindDownNudge.nudgeMinuteOfDay())).")
                         .font(StrandFont.footnote)
                         .foregroundStyle(StrandPalette.textSecondary)
+                    // Answers "so what actually wakes me?" in the one place the question gets asked,
+                    // beside the time that does not. Only shown when there IS a strap alarm to name.
+                    if let next = nextStrapAlarmLabel {
+                        Text("Your strap alarm is what wakes you, next on \(next).")
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
 
                     Divider().overlay(StrandPalette.hairline)
                     perDaySection
@@ -351,7 +383,11 @@ struct SmartAlarmView: View {
                 Text("Different wake time per day")
                     .font(StrandFont.body)
                     .foregroundStyle(StrandPalette.textPrimary)
-                Text("Set a wake time for specific days (a lie-in at the weekend, say). Days you leave alone use the time above.")
+                // #1864 made these overrides drive the STRAP ALARM as well as the reminder, but the
+                // copy stayed written as though they only moved the nudge, and the section still sits
+                // under the wind-down card. A day set here re-times the buzz on your wrist. Saying so
+                // is the difference between a lie-in and an alarm that goes off on Saturday evening.
+                Text("Set a wake time for specific days (a lie-in at the weekend, say). These times move your strap alarm AND the evening reminder on those days.")
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -381,7 +417,53 @@ struct SmartAlarmView: View {
                 }
             }
             .padding(.top, 4)
+            Text(untouchedDayExplainer)
+                .font(StrandFont.footnote)
+                .foregroundStyle(StrandPalette.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    /// When the strap alarm will next actually buzz, as a localised weekday and time, or nil when there
+    /// is no alarm to name.
+    ///
+    /// Deliberately the NEXT FIRE rather than `smartAlarmMinutes`. With a per-day override set there is no
+    /// single alarm time to state, and naming the base one would be wrong on exactly the days the reporter
+    /// had changed: their Saturday override reads 20:30 while the base reads 10:00. A line that answers
+    /// "what wakes me" has to be right on every day, or it is one more thing on this screen to misread.
+    /// `nextSmartAlarmDate` is the same pure resolver `applySmartAlarm` arms the strap from, so this cannot
+    /// drift from what the strap is actually told.
+    ///
+    /// The template formatter also follows the reader's 12/24-hour setting, unlike `timeLabel`.
+    private var nextStrapAlarmLabel: String? {
+        guard behavior.smartAlarmEnabled else { return nil }
+        guard let next = AppModel.nextSmartAlarmDate(minutes: behavior.smartAlarmMinutes,
+                                                     weekdays: behavior.smartAlarmWeekdays,
+                                                     overrides: overrides) else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = .current
+        formatter.setLocalizedDateFormatFromTemplate("EEEE jj:mm")
+        return formatter.string(from: next)
+    }
+
+    /// What a day with no override of its own actually does.
+    ///
+    /// There is no single fallback to show: the strap alarm falls back to its OWN time while the reminder
+    /// falls back to the usual wake time above, and a row can only display one number. It displays the
+    /// reminder's, so a day the alarm will fire at 10:00 can sit in this list reading 13:00. Naming both
+    /// beats picking one and being wrong half the time. Hoisted out of the view body to keep this screen
+    /// clear of the iOS type-check budget.
+    ///
+    /// Both base times are real settings, so `timeLabel` is right here and matches the "You'll be reminded
+    /// around ..." line directly above. `nextStrapAlarmLabel` differs on purpose: it renders a weekday too,
+    /// so it needs a date formatter regardless, and takes the reader's clock format while it is there.
+    private var untouchedDayExplainer: String {
+        guard behavior.smartAlarmEnabled else {
+            return String(localized: "Days you leave alone use the usual wake time above.")
+        }
+        let alarm = timeLabel(behavior.smartAlarmMinutes)
+        let usual = timeLabel(wakeMinutes)
+        return String(localized: "Days you leave alone keep your strap alarm at \(alarm), and time the reminder from \(usual).")
     }
 
     /// One weekday's override row: the day name, the effective wake time (override or default), a picker to
@@ -390,10 +472,20 @@ struct SmartAlarmView: View {
         let effective = overrides[weekday] ?? wakeMinutes
         let hasOverride = overrides[weekday] != nil
         return HStack(spacing: 12) {
-            Text(Self.weekdayName(weekday))
-                .font(StrandFont.subhead)
-                .foregroundStyle(hasOverride ? StrandPalette.textPrimary : StrandPalette.textSecondary)
-                .frame(width: 96, alignment: .leading)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(Self.weekdayName(weekday))
+                    .font(StrandFont.subhead)
+                    .foregroundStyle(hasOverride ? StrandPalette.textPrimary : StrandPalette.textSecondary)
+                // Without this a row reading 13:00 looks like a decision someone made for that day,
+                // when it is just the usual wake time showing through. The strap alarm may well fire
+                // at a different hour on exactly these days.
+                if !hasOverride {
+                    Text("no time of its own")
+                        .font(StrandFont.caption)
+                        .foregroundStyle(StrandPalette.textTertiary)
+                }
+            }
+            .frame(width: 120, alignment: .leading)
             Spacer(minLength: 0)
             if hasOverride {
                 Button {
