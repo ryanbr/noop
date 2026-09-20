@@ -186,11 +186,13 @@ struct BackupSyncView: View {
         #if os(macOS)
         if FolderBackup.pickFolder() != nil { folderLabel = FolderBackup.folderLabel() }
         #else
-        // #1000a: on iOS the folder picker has reportedly refused to enable its Select button, leaving
-        // the user with only Cancel and NOOP silently doing nothing. We can't tell a deliberate Cancel
-        // apart from that dead-button dead-end (both come back nil), so when no folder arrives we show
-        // the screen's normal result alert with a concrete workaround instead of staying silent. Mildly
-        // chatty on a genuine Cancel; honest and actionable when the picker is actually broken.
+        // #1000a assumed the iOS picker was refusing to ENABLE its Select button, leaving the user with
+        // only Cancel. #2356 disproved that for at least one case: a reporter's log shows the delegate
+        // firing after they picked an iCloud folder and pressed Open, so the button worked and iOS
+        // declined the grant instead. Both still arrive here as nil, and UIKit gives us nothing to tell
+        // them apart, which is exactly why the alert below describes the outcome rather than a cause.
+        // Keep it that way: the previous guess is what sent the last investigation at the wrong failure.
+        // Mildly chatty on a genuine Cancel; honest and actionable whenever no folder comes back.
         // `busy` guards against a double-tap stacking a second picker presentation on top of the first.
         busy = true
         Task {
