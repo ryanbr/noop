@@ -98,16 +98,48 @@ struct BodyClockDialCard: View {
     /// 84-line `Canvas` body of inferred `CGFloat` arithmetic exceeded the Swift type-checker's budget
     /// and failed the macOS build outright ("unable to type-check this expression in reasonable time"),
     /// which only app-build compiles — the same trap `DevicesView`'s gates hit.
+    ///
+    /// The radii are NAMED BANDS rather than two numbers because the previous pair collided: the
+    /// reference arc was stroked at `outer`, the same radius the six-hour ticks occupy, so on a window
+    /// spanning midnight the dashes ran straight into the ticks (#2350). Each band now owns a radius and
+    /// a width, and `BodyClockDialLayoutTests` asserts they cannot overlap, which is the part of "does
+    /// this look right" that arithmetic can actually settle.
     private struct DialGeometry {
         let centre: CGPoint
         let outer: CGFloat
-        let inner: CGFloat
+        let labelRadius: CGFloat
+        let reference: CGFloat
+        let night: CGFloat
+        let glyphRadius: CGFloat
 
+        /// Tick lengths, the numeral band, and the two arc widths. Shared with the Kotlin twin verbatim.
+        /// The rim the band offsets were tuned against: a 200 pt card, so `side / 2 - 10`.
+        static let tunedRim: CGFloat = 90
+        static let midnightTick: CGFloat = 6
+        static let regularTick: CGFloat = 4
+        static let referenceWidth: CGFloat = 7
+        static let nightWidth: CGFloat = 9
+        static let glyph: CGFloat = 12
+
+        /// The band offsets are a FRACTION of the available radius, not fixed subtractions.
+        ///
+        /// Fixed offsets make the nesting depth constant at 58 pt whatever the canvas is, so a narrow
+        /// card drives the inner bands through the centre and then negative: below about 136 pt the bed
+        /// lands on the centre, and below 110 the night arc radius is negative, which is undefined for
+        /// `addArc` and draws nothing in the Kotlin twin. `side` is `min(width, height)` and the height
+        /// is pinned, so width alone decides it. Scaling keeps the tuned proportions at the shipping
+        /// size (the factor is exactly 1 at rim 90) and every band stays positive for any rim, since the
+        /// deepest is 58/90 of it.
         init(size: CGSize) {
             let side: CGFloat = min(size.width, size.height)
             centre = CGPoint(x: size.width / 2, y: size.height / 2)
-            outer = side / 2 - 10
-            inner = (side / 2 - 10) - 16
+            let rim: CGFloat = side / 2 - 10
+            let scale: CGFloat = rim / DialGeometry.tunedRim
+            outer = rim
+            labelRadius = rim - 15 * scale
+            reference = rim - 31 * scale
+            night = rim - 45 * scale
+            glyphRadius = rim - 58 * scale
         }
     }
 
@@ -116,20 +148,22 @@ struct BodyClockDialCard: View {
             let g = DialGeometry(size: size)
             drawTrack(ctx, g)
             drawTicks(ctx, g)
+            drawHourLabels(ctx, g)
             drawArcs(ctx, g)
             drawOnset(ctx, g)
         }
-        .frame(height: 170)
+        .frame(height: 200)
     }
 
     /// A full-circle TRACK under the night arc, the same idiom `RecoveryRing` uses: a faint
     /// `surfaceInset` band with the live arc drawn on top. A one-point hairline left the dial reading as
     /// a thin wireframe against a busy background; a real track gives the ring presence and makes the
-    /// highlighted segment obvious as a portion of a whole day. The hairline stays at the reference
-    /// radius so the dashed arc has a circle to belong to.
+    /// highlighted segment obvious as a portion of a whole day. The rim hairline is the circle the TICKS
+    /// belong to; it no longer doubles as the reference arc's circle, because that arc moved inward to
+    /// its own band (#2350) and sharing a radius with the ticks was the collision being removed.
     private func drawTrack(_ ctx: GraphicsContext, _ g: DialGeometry) {
-        let trackRect = CGRect(x: g.centre.x - g.inner, y: g.centre.y - g.inner,
-                               width: g.inner * 2, height: g.inner * 2)
+        let trackRect = CGRect(x: g.centre.x - g.night, y: g.centre.y - g.night,
+                               width: g.night * 2, height: g.night * 2)
         ctx.stroke(Path(ellipseIn: trackRect), with: .color(StrandPalette.surfaceInset),
                    style: StrokeStyle(lineWidth: 9, lineCap: .round))
         let rimRect = CGRect(x: g.centre.x - g.outer, y: g.centre.y - g.outer,
@@ -145,7 +179,7 @@ struct BodyClockDialCard: View {
         for tick in stride(from: 0.0, to: 24.0, by: 6.0) {
             let isMidnight: Bool = tick == 0
             let a: Double = angle(tick).radians
-            let len: CGFloat = isMidnight ? 9 : 4
+            let len: CGFloat = isMidnight ? DialGeometry.midnightTick : DialGeometry.regularTick
             let cosA: CGFloat = cos(a)
             let sinA: CGFloat = sin(a)
             var p = Path()
@@ -158,6 +192,35 @@ struct BodyClockDialCard: View {
         }
     }
 
+    /// Hour numerals at 00, 06, 12 and 18.
+    ///
+    /// The dial previously carried one longer midnight tick and nothing else, on the reasoning that a
+    /// single distinguished mark orients the ring without raising a 12-versus-24-hour question. It does
+    /// orient it, but it leaves no time READABLE: the card's own caption claims a night is "2.6 h later
+    /// than your body clock" and there was no way to check that against the picture (#2350). Numerals
+    /// settle the format question by answering it, in the 24-hour form the rest of this card uses.
+    private func drawHourLabels(_ ctx: GraphicsContext, _ g: DialGeometry) {
+        for hour in stride(from: 0.0, to: 24.0, by: 6.0) {
+            let a: Double = angle(hour).radians
+            let x: CGFloat = g.centre.x + cos(a) * g.labelRadius
+            let y: CGFloat = g.centre.y + sin(a) * g.labelRadius
+            // A FIXED point size, not `StrandFont.caption`. That is a text STYLE, so it scales with
+            // Dynamic Type, and these numerals sit in a fixed-radius canvas with 3.5 pt of clearance to
+            // the ticks: at an accessibility text size they would grow straight into them, recreating
+            // the collision this change exists to remove. The dial is a diagram, and its geometry does
+            // not scale, so neither may its labels.
+            // Colour via the RESOLVED text's shading, the same way `drawOnset` tints the bed, NOT via
+            // `.foregroundStyle` on the `Text`. That overload returns `Text` only from macOS 14, and this
+            // target is macOS 13, so there the expression is a `View` and `resolve` has no matching
+            // overload. The iOS leg compiled it happily on its iOS 17 floor, which is why only the macOS
+            // leg caught it, and why `swiftc -parse` could not: it never resolves a symbol.
+            var numeral = ctx.resolve(
+                Text(String(format: "%02d", Int(hour))).font(.system(size: 10, design: .rounded)))
+            numeral.shading = .color(StrandPalette.textTertiary)
+            ctx.draw(numeral, at: CGPoint(x: x, y: y), anchor: .center)
+        }
+    }
+
     /// The two arcs differ by PATTERN as well as weight. Opacity alone was the first cut and it does not
     /// survive the card being translucent over a custom background image — the reference arc washed out
     /// to near-invisible on a real device, losing the comparison the card exists for. BUTT caps on the
@@ -166,11 +229,11 @@ struct BodyClockDialCard: View {
     /// dashed, the one outcome this must not produce.
     private func drawArcs(_ ctx: GraphicsContext, _ g: DialGeometry) {
         if let ideal {
-            strokeArc(ctx, g, radius: g.outer, from: ideal.bedHour, to: ideal.wakeHour,
-                      colour: hue.opacity(0.55), width: 7, dashed: true)
+            strokeArc(ctx, g, radius: g.reference, from: ideal.bedHour, to: ideal.wakeHour,
+                      colour: hue.opacity(0.55), width: DialGeometry.referenceWidth, dashed: true)
         }
-        strokeArc(ctx, g, radius: g.inner, from: actualBedHour, to: actualWakeHour,
-                  colour: hue, width: 9, dashed: false)
+        strokeArc(ctx, g, radius: g.night, from: actualBedHour, to: actualWakeHour,
+                  colour: hue, width: DialGeometry.nightWidth, dashed: false)
     }
 
     private func strokeArc(_ ctx: GraphicsContext, _ g: DialGeometry, radius: CGFloat,
@@ -180,7 +243,13 @@ struct BodyClockDialCard: View {
         var p = Path()
         p.addArc(center: g.centre, radius: radius, startAngle: startAngle,
                  endAngle: .degrees(startAngle.degrees + sweepDegrees), clockwise: false)
-        let dash: [CGFloat] = dashed ? [3, 5] : []
+        // Each dash must be LONGER than the stroke is wide, or it renders as a radial hash mark rather
+        // than a dashed line, which is what a [3, 5] dash under a 7 pt stroke produced (#2350). The
+        // remedy is the DASH, not the weight: the note above records that opacity alone left this arc
+        // washed out to near-invisible over a custom background on a real device, so the 7 pt stroke is
+        // legibility someone bought with hardware. Thinning it to satisfy the rule would have paid for
+        // one fix with another's evidence.
+        let dash: [CGFloat] = dashed ? [10, 8] : []
         ctx.stroke(p, with: .color(colour),
                    style: StrokeStyle(lineWidth: width, lineCap: dashed ? .butt : .round, dash: dash))
     }
@@ -194,9 +263,11 @@ struct BodyClockDialCard: View {
         var bed = ctx.resolve(Image(systemName: "bed.double.fill"))
         bed.shading = .color(hue)
         let onset: Double = angle(actualBedHour).radians
-        let glyph: CGFloat = 14
-        let x: CGFloat = g.centre.x + cos(onset) * g.inner - glyph / 2
-        let y: CGFloat = g.centre.y + sin(onset) * g.inner - glyph / 2
+        // INSIDE the night arc, not on it. Centred on the arc itself the bed covered the very onset it
+        // exists to mark (#2350); set in one band it still points at the start without hiding it.
+        let glyph: CGFloat = DialGeometry.glyph
+        let x: CGFloat = g.centre.x + cos(onset) * g.glyphRadius - glyph / 2
+        let y: CGFloat = g.centre.y + sin(onset) * g.glyphRadius - glyph / 2
         ctx.draw(bed, in: CGRect(x: x, y: y, width: glyph, height: glyph))
     }
 

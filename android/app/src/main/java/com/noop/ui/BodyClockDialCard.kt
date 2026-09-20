@@ -13,6 +13,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -22,10 +23,13 @@ import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalDensity
 import com.noop.R
 import com.noop.analytics.CircadianEngine
 import kotlin.math.cos
@@ -87,24 +91,56 @@ fun BodyClockDialCard(
                 }
             }
 
+            // Hour numerals at 00, 06, 12 and 18. The dial carried one longer midnight tick and nothing
+            // else, which orients the ring but leaves no time READABLE: the caption claims a night is
+            // "N h later than your body clock" and there was no way to check that against the picture
+            // (#2350). Paint hoisted and remembered, the idiom `Charts.kt` uses for canvas text.
+            val density = LocalDensity.current
+            val labelPaint = remember(density) {
+                android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                    color = Palette.textTertiary.toArgb()
+                    // dp, NOT sp. sp scales with the system font scale, and these numerals sit in a
+                    // fixed-radius canvas with 3.5 dp of clearance to the ticks, so a large font setting
+                    // would grow them straight into the collision this change removes. Twin of the Swift
+                    // fixed point size.
+                    textSize = with(density) { 10.dp.toPx() }
+                    textAlign = android.graphics.Paint.Align.CENTER
+                }
+            }
+
             Canvas(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(170.dp)
+                    .height(200.dp)
                     .semantics { contentDescription = dialLabel },
             ) {
                 val side = min(size.width, size.height)
                 val centre = Offset(size.width / 2f, size.height / 2f)
-                val outer = side / 2f - 10.dp.toPx()
-                val inner = outer - 16.dp.toPx()
+                // NAMED BANDS, twin of the Swift `DialGeometry`. The previous pair collided: the
+                // reference arc was stroked at `outer`, the radius the six-hour ticks occupy, so on a
+                // window spanning midnight the dashes ran into the ticks (#2350). Each band owns a
+                // radius and a width, and `BodyClockDialLayoutTest` asserts they cannot overlap.
+                val rim = side / 2f - 10.dp.toPx()
+                // The band offsets are a FRACTION of the available radius, not fixed subtractions. Fixed
+                // ones hold the nesting depth at 58 dp whatever the canvas is, so a narrow card drives
+                // the inner bands through the centre and then negative, which draws nothing here and is
+                // undefined for the Swift `addArc`. Scaling keeps the tuned proportions at the shipping
+                // size (the factor is exactly 1 at rim 90 dp) and every band stays positive for any rim.
+                val scale = rim / 90.dp.toPx()
+                val outer = rim
+                val labelRadius = rim - 15.dp.toPx() * scale
+                val reference = rim - 31.dp.toPx() * scale
+                val night = rim - 45.dp.toPx() * scale
+                val glyphRadius = rim - 58.dp.toPx() * scale
 
                 // A full-circle TRACK under the night arc, the same idiom RecoveryRing uses: a faint
                 // surfaceInset band with the live arc drawn on top. A one-dp hairline left the dial
                 // reading as a thin wireframe against a busy background; a real track gives the ring
                 // presence and makes the highlighted segment obvious as a portion of a whole day.
-                drawCircle(color = Palette.surfaceInset, radius = inner, center = centre,
+                drawCircle(color = Palette.surfaceInset, radius = night, center = centre,
                     style = Stroke(width = 9.dp.toPx(), cap = StrokeCap.Round))
-                // A hairline at the reference radius so the dashed arc still has a circle to belong to.
+                // The rim hairline is the circle the TICKS belong to. It no longer doubles as the
+                // reference arc's circle: that arc moved inward to its own band (#2350).
                 drawCircle(color = Palette.hairline, radius = outer, center = centre,
                     style = Stroke(width = 1.dp.toPx()))
 
@@ -117,7 +153,7 @@ fun BodyClockDialCard(
                 while (tick < 24.0) {
                     val isMidnight = tick == 0.0
                     val a = Math.toRadians(hourAngleDegrees(tick))
-                    val len = if (isMidnight) 9.dp.toPx() else 4.dp.toPx()
+                    val len = if (isMidnight) 6.dp.toPx() else 4.dp.toPx()
                     drawLine(
                         color = if (isMidnight) Palette.textSecondary else Palette.textTertiary.copy(alpha = 0.5f),
                         start = Offset(centre.x + (cos(a) * (outer - len)).toFloat(),
@@ -127,6 +163,20 @@ fun BodyClockDialCard(
                         strokeWidth = if (isMidnight) 1.5.dp.toPx() else 1.dp.toPx(),
                     )
                     tick += 6.0
+                }
+
+                // Numerals on their own band, inside the ticks. `drawText` places the BASELINE, so the
+                // centre is nudged down by roughly half the cap height to sit on the radius.
+                var label = 0.0
+                while (label < 24.0) {
+                    val a = Math.toRadians(hourAngleDegrees(label))
+                    drawContext.canvas.nativeCanvas.drawText(
+                        String.format("%02d", label.toInt()),
+                        centre.x + (cos(a) * labelRadius).toFloat(),
+                        centre.y + (sin(a) * labelRadius).toFloat() + 3.5.dp.toPx(),
+                        labelPaint,
+                    )
+                    label += 6.0
                 }
 
                 fun arc(
@@ -153,7 +203,12 @@ fun BodyClockDialCard(
                             width = width,
                             cap = if (dashed) StrokeCap.Butt else StrokeCap.Round,
                             pathEffect = if (dashed) {
-                                PathEffect.dashPathEffect(floatArrayOf(3.dp.toPx(), 5.dp.toPx()))
+                                // Each dash must be LONGER than the stroke is wide, or it renders as a
+                                // radial hash rather than a dashed line (#2350). The remedy is the DASH,
+                                // not the weight: opacity alone left this arc near-invisible over a
+                                // custom background on a real device, so the 7 dp stroke is legibility
+                                // bought with hardware and is kept.
+                                PathEffect.dashPathEffect(floatArrayOf(10.dp.toPx(), 8.dp.toPx()))
                             } else {
                                 null
                             },
@@ -165,19 +220,21 @@ fun BodyClockDialCard(
                 // does not survive the card being translucent over a custom background image — the
                 // reference arc washed out to near-invisible on a real device, which loses the comparison
                 // the card exists for. A dash also reads without relying on colour at all.
-                arc(outer, ideal.bedHour, ideal.wakeHour,
+                arc(reference, ideal.bedHour, ideal.wakeHour,
                     hue.copy(alpha = 0.55f), 7.dp.toPx(), dashed = true)
-                arc(inner, actualBedHour, actualWakeHour, hue, 9.dp.toPx(), dashed = false)
+                arc(night, actualBedHour, actualWakeHour, hue, 9.dp.toPx(), dashed = false)
 
                 // A marker at sleep ONSET. Without it the night arc has two indistinguishable ends and
                 // the reader has to work out which way round the day runs before the picture means
                 // anything — it turns "somewhere in this band" into "it started here". Sits on the arc
                 // it marks, so it moves with the night rather than needing its own placement rule.
                 val onset = Math.toRadians(hourAngleDegrees(actualBedHour))
-                val glyph = 14.dp.toPx()
+                val glyph = 12.dp.toPx()
                 translate(
-                    left = centre.x + (cos(onset) * inner).toFloat() - glyph / 2f,
-                    top = centre.y + (sin(onset) * inner).toFloat() - glyph / 2f,
+                    // INSIDE the night arc, not on it: centred on the arc the bed covered the very
+                    // onset it exists to mark (#2350).
+                    left = centre.x + (cos(onset) * glyphRadius).toFloat() - glyph / 2f,
+                    top = centre.y + (sin(onset) * glyphRadius).toFloat() - glyph / 2f,
                 ) {
                     with(bedPainter) {
                         draw(Size(glyph, glyph), colorFilter = ColorFilter.tint(hue))
