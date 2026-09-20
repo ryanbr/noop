@@ -2057,22 +2057,50 @@ fun SettingsScreen(
                 // which is the state that had this reported as "you cannot change it" rather than "not
                 // supported yet" — the regression this split exists to prevent.
                 //
-                // Only the read-only CHECK is gated, because opcode 141 has never been answered by a 5/MG
-                // and this is what finds out. Renaming a 5/MG is not offered at all: the set opcode is a
-                // different question and needs this one's answer first (#2338).
-                val fiveMgProbeUnlocked = TestCentre.from(context).active(TestDomain.CONNECTION)
+                // The controls are gated because opcode 140 has never been confirmed on this family and
+                // the payload shape is mirrored from the 4.0 form rather than observed. Reversible
+                // (rename again), which is what the BLE contract asks, and the read-only check beside it
+                // is how you find out whether the write landed.
+                val fiveMgRenameUnlocked = TestCentre.from(context).active(TestDomain.CONNECTION)
                 if (live.connected && live.whoop5Detected) {
+                    var nameDraft5 by remember(live.advertisingName) { mutableStateOf(live.advertisingName ?: "") }
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(uiString(R.string.l10n_settings_screen_strap_name_350de547), style = NoopType.subhead, color = Palette.textPrimary)
                         Text(
-                            uiString(R.string.l10n_settings_screen_renaming_is_not_supported_on_a_02f7af2c),
+                            uiString(
+                                if (fiveMgRenameUnlocked) R.string.l10n_settings_screen_experimental_on_a_whoop_5_0_711d5341
+                                else R.string.l10n_settings_screen_renaming_is_not_supported_on_a_02f7af2c,
+                            ),
                             style = NoopType.footnote,
                             color = Palette.textTertiary,
                         )
-                        if (fiveMgProbeUnlocked) {
+                        if (fiveMgRenameUnlocked) {
+                            OutlinedTextField(
+                                value = nameDraft5,
+                                onValueChange = { nameDraft5 = it.take(24) },
+                                singleLine = true,
+                                placeholder = { Text(uiString(R.string.l10n_settings_screen_whoop_a3650379), style = NoopType.body, color = Palette.textTertiary) },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = Palette.textPrimary,
+                                    unfocusedTextColor = Palette.textPrimary,
+                                    focusedBorderColor = Palette.accent,
+                                    unfocusedBorderColor = Palette.hairline,
+                                    cursorColor = Palette.accent,
+                                    focusedContainerColor = Palette.surfaceInset,
+                                    unfocusedContainerColor = Palette.surfaceInset,
+                                ),
+                            )
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                // Read-only: GET_ADVERTISING_NAME(141), nothing is written. Silence is a
-                                // result: it says the opcode family is wrong or unsupported.
+                                NoopButton(
+                                    text = uiString(R.string.l10n_settings_screen_rename_d3f4cb89),
+                                    leadingIcon = Icons.Filled.Edit,
+                                    kind = NoopButtonKind.Primary,
+                                    enabled = live.bonded && nameDraft5.isNotBlank(),
+                                    onClick = { vm.ble.renameStrap(nameDraft5) },
+                                )
+                                // Read-only: GET_ADVERTISING_NAME(141), nothing is written. This is how you
+                                // check whether the write above did anything at all.
                                 NoopButton(
                                     text = uiString(R.string.l10n_settings_screen_check_current_name_read_only_acb2f01a),
                                     leadingIcon = Icons.Filled.Search,
@@ -2080,9 +2108,9 @@ fun SettingsScreen(
                                     enabled = live.bonded,
                                     onClick = { vm.ble.probeAdvertisingName() },
                                 )
-                                advertisingNameProbe?.let {
-                                    Text(it, style = NoopType.footnote, color = Palette.textSecondary, modifier = Modifier.weight(1f))
-                                }
+                            }
+                            (live.renameStatus ?: advertisingNameProbe)?.let {
+                                Text(it, style = NoopType.footnote, color = Palette.textSecondary)
                             }
                         }
                     }

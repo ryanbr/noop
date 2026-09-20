@@ -212,11 +212,21 @@ enum class CommandNumber(val rawValue: Int) {
     // predates this and `CommandNames.label(77)` already prints the schema's own
     // SET_ADVERTISING_NAME_HARVARD, which is what a strap log shows.
     GET_ADVERTISING_NAME(141),
-    // SET_ADVERTISING_NAME (140), the schema's non-Harvard set, is deliberately ABSENT. Writing an
-    // unproven opcode to firmware is a different question from reading one, and it needs the answer to
-    // this one first: if 141 draws no reply, 140 is the same opcode family and almost certainly wrong
-    // too. Keeping it out of this enum means no code path can express the write whatever any allow-list
-    // says, which is the guarantee a comment cannot give. Tracked on #2338.
+    // #2338 WRITE, NOT hardware-confirmed. SET_ADVERTISING_NAME (140) — the schema's non-Harvard set.
+    //
+    // Reversible: renaming again replaces it, and the 4.0 path has behaved that way since #428. That is
+    // the test the BLE contract actually applies, and it is why this is admissible at all.
+    //
+    // What is NOT established: no strap has been sent this opcode, and the payload below mirrors the 4.0
+    // Harvard shape rather than anything observed on a 5/MG. A wrong shape should be refused by the
+    // strap's own CRC and opcode validation, which is the bet being made. Same standing as
+    // REBOOT_STRAP(29) over puffin, which is also unconfirmed on this family, with one difference worth
+    // naming: reboot carries no body, this carries a guessed one.
+    //
+    // Gated accordingly: Test Centre Connection, user-initiated, never automatic, and the allow-list
+    // admits it only while a confirmed write is in flight. The COMMAND_RESPONSE is logged so a strap log
+    // says whether the frame was accepted.
+    SET_ADVERTISING_NAME_5MG(140),
     RUN_HAPTICS_PATTERN(79),
     GET_ALL_HAPTICS_PATTERN(80),
     // SET_CONFIG / SET_FF_VALUE (0x78) — write one persistent feature flag. The 5/MG "enable R22

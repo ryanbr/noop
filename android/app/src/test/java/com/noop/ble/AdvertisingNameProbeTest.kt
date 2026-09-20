@@ -72,19 +72,45 @@ class AdvertisingNameProbeTest {
         assertEquals("GET_ADVERTISING_NAME(141)", CommandNames.label(141))
     }
 
-    @Test fun theHarvardSetKeepsItsOwnIdentity() {
-        // 77 is the HARVARD set, WHOOP 4.0 only, and keeps its own name in the log.
-        assertTrue(CommandNumber.entries.any { it.rawValue == 77 })
-        assertEquals("SET_ADVERTISING_NAME_HARVARD(77)", CommandNames.label(77))
+    /**
+     * The WRITE side (140) exists, and is admitted by the 5/MG allow-list ONLY while a user-confirmed
+     * rename is in flight.
+     *
+     * That guard is the whole safety story for an opcode no strap has ever been sent, so it is pinned
+     * against the SOURCE: `renameStrap` needs a bonded link and has no unit seam, the same reason
+     * `ChargingAndReleaseTest` reads source. Losing the `advertisingNameWriteArmed` conjunct would leave
+     * a default install able to form these bytes, and nothing else in the suite would notice.
+     */
+    @Test fun theWriteIsAdmittedOnlyWhileAConfirmedRenameIsInFlight() {
+        assertTrue(
+            "SET_ADVERTISING_NAME_5MG(140) should exist once the write path ships (#2338)",
+            CommandNumber.entries.any { it.rawValue == 140 },
+        )
+        val src = clientSource()
+        val clause = src.lines().firstOrNull {
+            it.contains("cmd == CommandNumber.SET_ADVERTISING_NAME_5MG")
+        } ?: throw AssertionError("the 140 allow-list clause was not found")
+        assertTrue(
+            "opcode 140 must be gated on a write actually being in flight: $clause",
+            clause.contains("advertisingNameWriteArmed") ||
+                src.lines().dropWhile { it != clause }.take(2).any { it.contains("advertisingNameWriteArmed") },
+        )
+        // And the arming must happen BEFORE the send, or the gate drops our own write.
+        val armIdx = src.indexOf("advertisingNameWriteArmed = true")
+        val sendIdx = src.indexOf("send(CommandNumber.SET_ADVERTISING_NAME_5MG")
+        assertTrue("the write-arm site was not found", armIdx > 0)
+        assertTrue("the 140 send site was not found", sendIdx > 0)
+        assertTrue("the allow-list must be armed before the send, not after", armIdx < sendIdx)
     }
 
     /**
      * The probe must clear `renameStatus` before it runs, and must be 5/MG-only.
      *
-     * The family guard is the one that bites: a WHOOP 4.0 has NO send allow-list, so without it the
-     * frame would actually reach the wire there, and 141 is the wrong opcode for that family anyway
-     * since a 4.0 reads its name on 76. The clear keeps a standing 4.0 rename status from sitting on
-     * top of this probe's answer, because the Settings line prefers `renameStatus`.
+     * The first is not cosmetic. A 5/MG rename leaves "use Check current name to see whether it took",
+     * the Settings section renders `renameStatus ?: advertisingNameProbe`, and without the clear that
+     * line sits there hiding the answer to the question it just asked — the one affordance that makes an
+     * unconfirmed write checkable at all. The second keeps opcode 141 off a 4.0, which has no send
+     * allow-list to stop it and reads its name on 76 anyway.
      *
      * Source-asserted because `probeAdvertisingName` needs a live link and has no unit seam, the same
      * reason `ChargingAndReleaseTest` reads source.
@@ -93,15 +119,18 @@ class AdvertisingNameProbeTest {
         val src = clientSource()
         val start = src.indexOf("fun probeAdvertisingName()")
         if (start < 0) throw AssertionError("probeAdvertisingName not found")
-        val body = src.substring(start, src.indexOf("\n    }", start))
+        val end = src.indexOf("\n    }", start)
+        val body = src.substring(start, end)
+        assertTrue(
+            "the probe must clear renameStatus, or its own answer stays hidden behind it:\n$body",
+            body.contains("renameStatus = null"),
+        )
         assertTrue(
             "the probe must refuse a non-5/MG family in the client, not only in the UI:\n$body",
             body.contains("connectedFamily != DeviceFamily.WHOOP5"),
         )
-        assertTrue(
-            "the probe must clear renameStatus, or a standing status hides its answer:\n$body",
-            body.contains("renameStatus = null"),
-        )
+        // And the clear has to happen BEFORE the send, not after the reply, or the stale status is
+        // on screen for the whole 8s the probe is in flight.
         val clearIdx = body.indexOf("renameStatus = null")
         val sendIdx = body.indexOf("send(CommandNumber.GET_ADVERTISING_NAME")
         assertTrue("the send site was not found", sendIdx > 0)
@@ -109,29 +138,37 @@ class AdvertisingNameProbeTest {
     }
 
     /**
-     * The 5/MG strap-name SECTION must render for any connected 5/MG; only the read-only CHECK may sit
-     * behind Test Centre.
+     * The 5/MG strap-name SECTION must render for any connected 5/MG; only its CONTROLS may sit behind
+     * Test Centre.
      *
-     * This regressed once already: gating the whole section put it back to invisible on a default
-     * install, which is the exact state that had #2338 reported as "you cannot change it" rather than
-     * "not supported yet". Nothing caught it — the give-away was a translated explainer left rendered
-     * nowhere, and `lintVitalFullRelease` does not flag unused resources.
+     * This regressed once already, inside this same change: gating the whole section put it back to
+     * invisible on a default install, which is the exact state that had #2338 reported as "you cannot
+     * change it" rather than "not supported yet". Nothing caught it — the give-away was a translated
+     * explainer string left rendered nowhere, and `lintVitalFullRelease` does not flag unused resources.
+     * So the two conditions are pinned apart here.
      */
     @Test fun theFiveMgSectionIsNotItselfTestCentreGated() {
         val src = settingsSource()
-        val outer = src.lines().firstOrNull { it.contains("live.connected && live.whoop5Detected") }
-            ?: throw AssertionError("the 5/MG strap-name section guard was not found")
+        val outer = src.lines().firstOrNull {
+            it.contains("live.connected && live.whoop5Detected")
+        } ?: throw AssertionError("the 5/MG strap-name section guard was not found")
         assertFalse(
-            "the SECTION must not be gated on Test Centre, only the check inside it: $outer",
-            outer.contains("fiveMgProbeUnlocked"),
+            "the SECTION must not be gated on Test Centre, only its controls: $outer",
+            outer.contains("fiveMgRenameUnlocked"),
         )
         assertTrue(
-            "the read-only check must still be gated on Test Centre inside the section",
-            src.contains("if (fiveMgProbeUnlocked) {"),
+            "the controls must still be gated on Test Centre somewhere inside the section",
+            src.contains("if (fiveMgRenameUnlocked) {"),
         )
+        // Both explainers must be reachable: one for the gated state, one for the unlocked state. An
+        // orphaned string is how the regression announced itself last time.
         assertTrue(
             "the not-supported explainer must still be rendered",
             src.contains("l10n_settings_screen_renaming_is_not_supported_on_a_02f7af2c"),
+        )
+        assertTrue(
+            "the experimental explainer must still be rendered",
+            src.contains("l10n_settings_screen_experimental_on_a_whoop_5_0_711d5341"),
         )
     }
 
@@ -143,6 +180,12 @@ class AdvertisingNameProbeTest {
             root = root.parentFile ?: root
         }
         throw IllegalStateException("SettingsScreen.kt not found from ${System.getProperty("user.dir")}")
+    }
+
+    @Test fun theHarvardSetKeepsItsOwnIdentity() {
+        // 77 is the HARVARD set, WHOOP 4.0 only, and keeps its own name in the log.
+        assertTrue(CommandNumber.entries.any { it.rawValue == 77 })
+        assertEquals("SET_ADVERTISING_NAME_HARVARD(77)", CommandNames.label(77))
     }
 
     private fun clientSource(): String {

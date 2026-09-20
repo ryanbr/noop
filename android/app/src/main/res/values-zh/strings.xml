@@ -2770,4 +2770,5 @@
     <string name="l10n_health_screen_over_reports_r_r_so_no_9d050d53">R-R 间期计数偏多，因此不显示数值</string>
     <string name="l10n_settings_screen_check_current_name_read_only_acb2f01a">读取当前名称（只读）</string>
     <string name="l10n_settings_screen_renaming_is_not_supported_on_a_02f7af2c">WHOOP 5.0 或 MG 暂不支持重命名。NOOP 可以向手环查询当前名称，这一步决定重命名是否可行。</string>
+    <string name="l10n_settings_screen_experimental_on_a_whoop_5_0_711d5341">在 WHOOP 5.0 或 MG 上属实验功能：该命令从未在此代手环上得到确认。它可以撤销，若有异常请再次重命名，并用读取当前名称确认是否生效。</string>
 </resources>

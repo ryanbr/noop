@@ -2825,4 +2825,5 @@
     <string name="l10n_health_screen_over_reports_r_r_so_no_9d050d53">Over-reports R-R, so no value is shown</string>
     <string name="l10n_settings_screen_check_current_name_read_only_acb2f01a">Check current name (read-only)</string>
     <string name="l10n_settings_screen_renaming_is_not_supported_on_a_02f7af2c">Renaming is not supported on a WHOOP 5.0 or MG yet. NOOP can ask the strap for its current name, which is the step that decides whether renaming is possible at all.</string>
+    <string name="l10n_settings_screen_experimental_on_a_whoop_5_0_711d5341">Experimental on a WHOOP 5.0 or MG: this command has never been confirmed on this strap generation. It is reversible, so rename again if it misbehaves, and use Check current name to see whether it took.</string>
 </resources>

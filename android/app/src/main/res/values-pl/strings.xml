@@ -2804,4 +2804,5 @@
     <string name="l10n_health_screen_over_reports_r_r_so_no_9d050d53">Zawyża liczbę interwałów R-R, więc nie pokazujemy wartości</string>
     <string name="l10n_settings_screen_check_current_name_read_only_acb2f01a">Sprawdź bieżącą nazwę (tylko odczyt)</string>
     <string name="l10n_settings_screen_renaming_is_not_supported_on_a_02f7af2c">Zmiana nazwy nie jest jeszcze obsługiwana w WHOOP 5.0 ani MG. NOOP może zapytać opaskę o jej bieżącą nazwę, co rozstrzygnie, czy zmiana nazwy jest w ogóle możliwa.</string>
+    <string name="l10n_settings_screen_experimental_on_a_whoop_5_0_711d5341">Eksperymentalne na WHOOP 5.0 lub MG: to polecenie nigdy nie zostało potwierdzone na tej generacji. Jest odwracalne, więc zmień nazwę ponownie, jeśli coś pójdzie nie tak, i sprawdź wynik przez Sprawdź bieżącą nazwę.</string>
 </resources>

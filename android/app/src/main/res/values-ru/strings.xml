@@ -2683,4 +2683,5 @@
     <string name="l10n_health_screen_over_reports_r_r_so_no_9d050d53">Завышает число интервалов R-R, поэтому значение не показано</string>
     <string name="l10n_settings_screen_check_current_name_read_only_acb2f01a">Запросить текущее имя (только чтение)</string>
     <string name="l10n_settings_screen_renaming_is_not_supported_on_a_02f7af2c">Переименование пока не поддерживается на WHOOP 5.0 и MG. NOOP может запросить у ремешка его текущее имя, и это решит, возможно ли переименование вообще.</string>
+    <string name="l10n_settings_screen_experimental_on_a_whoop_5_0_711d5341">Экспериментально на WHOOP 5.0 и MG: эта команда никогда не подтверждалась на данном поколении. Она обратима, поэтому переименуйте ещё раз, если что-то пойдёт не так, и проверьте результат через Запросить текущее имя.</string>
 </resources>

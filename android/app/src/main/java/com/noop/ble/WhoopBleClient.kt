@@ -1664,6 +1664,11 @@ class WhoopBleClient(
         /** #2338: how long the read-only advertising-name probe waits before calling silence a result. */
         const val ADVERTISING_NAME_PROBE_TIMEOUT_MS = 8_000L
 
+        /** #2338: how long opcode 140 stays admitted after a confirmed rename write. Short on purpose:
+         *  the frame is queued immediately, so this only has to cover the write queue's drain, and a
+         *  window that outlived the send would widen what a default install can form. */
+        const val ADVERTISING_NAME_WRITE_WINDOW_MS = 3_000L
+
         /** In-flight sentinel for the #2338 probe. The 5/MG allow-list admits opcode 141 ONLY while this
          *  is in place, so a default install can never form those bytes. */
         const val WAITING_ADVERTISING_NAME_PROBE = "__waiting__"
@@ -2167,6 +2172,11 @@ class WhoopBleClient(
     private val _advertisingNameProbe = MutableStateFlow<String?>(null)
     val advertisingNameProbe: StateFlow<String?> = _advertisingNameProbe.asStateFlow()
 
+    /** #2338: true only while a user-confirmed 5/MG rename write is actually in flight. The allow-list
+     *  admits opcode 140 on this alone, so a default install can never form those bytes, and the window
+     *  is closed again a few seconds later whatever the strap does. */
+    @Volatile
+    private var advertisingNameWriteArmed = false
 
     // #761: the READ-ONLY feature-flag ENUMERATION report — the flag NAMES the strap's own firmware lists
     // — or the waiting sentinel while the walk runs. Nothing is written to the strap to produce it.
@@ -4474,6 +4484,12 @@ class WhoopBleClient(
                 // gated). Whether a 5/MG answers at all is exactly the hardware question being asked.
                 !(cmd == CommandNumber.GET_BATTERY_PACK_INFO &&
                     _batteryPackProbe.value == WAITING_BATTERY_PACK_PROBE) &&
+                // SET_ADVERTISING_NAME (140) over puffin: the #2338 rename WRITE. Reversible (rename
+                // again), but NOT hardware-confirmed on a 5/MG and carrying a payload shape mirrored from
+                // the 4.0 Harvard form rather than observed. Admitted ONLY while a user-confirmed write is
+                // in flight, the 151 tier, so a default install can never form these bytes. Same standing
+                // as REBOOT_STRAP(29) above; that one has no body, this one does.
+                !(cmd == CommandNumber.SET_ADVERTISING_NAME_5MG && advertisingNameWriteArmed) &&
                 // GET_ADVERTISING_NAME (141) over puffin: the #2338 read-only name probe. Gated like 151
                 // above, the hardest of the three tiers, because this opcode has never been sent to any
                 // strap by this app: allowed ONLY while a probe is actually in flight, so a default
@@ -4841,6 +4857,43 @@ class WhoopBleClient(
      */
     fun renameStrap(rawName: String) {
         val name = rawName.trim()
+        // #2338: a 5/MG takes the non-Harvard opcode 140 over puffin framing. Reversible, so the BLE
+        // contract admits it, but NOT hardware-confirmed: no strap has been sent this, and the payload
+        // below mirrors the 4.0 Harvard shape rather than anything observed on this family. Test Centre
+        // Connection gated in the CLIENT as well as at the call site, because a gate that lives only in
+        // the UI is one refactor away from being gone. The COMMAND_RESPONSE is logged, so a strap log is
+        // what settles whether the frame was accepted.
+        if (connectedFamily == DeviceFamily.WHOOP5) {
+            if (!testCentre.active(com.noop.testcentre.TestDomain.CONNECTION)) {
+                _state.update { it.copy(renameStatus = "5/MG renaming is experimental. Turn on Test Centre, Connection first.") }
+                log("Strap rename: 5/MG write refused, Test Centre Connection is off (#2338)")
+                return
+            }
+            if (!_state.value.connected || !_state.value.bonded) {
+                _state.update { it.copy(renameStatus = "Connect and pair your strap first.") }
+                return
+            }
+            if (name.isEmpty()) {
+                _state.update { it.copy(renameStatus = "Enter a name first.") }
+                return
+            }
+            // Same 24-byte clamp on a whole-character boundary as the 4.0 path: never split a multibyte
+            // char, and leave room for the rest of the advertising structure.
+            var clamped5 = name
+            while (clamped5.toByteArray(Charsets.UTF_8).size > 24) clamped5 = clamped5.dropLast(1)
+            val payload5 = byteArrayOf(0, 0) + clamped5.toByteArray(Charsets.UTF_8) + byteArrayOf(0)
+            // Arm immediately BEFORE send(): the allow-list admits 140 only while this is true, so arming
+            // afterwards would have our own gate drop our own write.
+            advertisingNameWriteArmed = true
+            send(CommandNumber.SET_ADVERTISING_NAME_5MG, payload5, withResponse = true)
+            handler.postDelayed({ advertisingNameWriteArmed = false }, ADVERTISING_NAME_WRITE_WINDOW_MS)
+            // Redacted like the 4.0 path (#2337): the name is user-chosen and routinely a person's.
+            log("Strap rename: 5/MG write sent, name=${logSafeDeviceName(clamped5)} (opcode 140, unconfirmed, #2338)")
+            _state.update { it.copy(
+                renameStatus = "Sent on an unconfirmed command. Use Check current name to see whether it took.",
+            ) }
+            return
+        }
         if (connectedFamily != DeviceFamily.WHOOP4) {
             _state.update { it.copy(renameStatus = "Renaming is WHOOP 4.0 only.") }
             log("Strap rename: WHOOP 4.0 only — ignored.")
