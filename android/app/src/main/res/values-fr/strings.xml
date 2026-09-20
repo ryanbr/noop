@@ -2796,4 +2796,18 @@
     <string name="l10n_settings_screen_check_current_name_read_only_acb2f01a">Lire le nom actuel (lecture seule)</string>
     <string name="l10n_settings_screen_renaming_is_not_supported_on_a_02f7af2c">Le renommage n\'est pas encore pris en charge sur une WHOOP 5.0 ou MG. NOOP peut demander au bracelet son nom actuel, ce qui déterminera si le renommage est possible.</string>
     <string name="l10n_settings_screen_experimental_on_a_whoop_5_0_711d5341">Expérimental sur une WHOOP 5.0 ou MG : cette commande n\'a jamais été confirmée sur cette génération. Elle est réversible, renommez donc à nouveau en cas de problème, et utilisez Lire le nom actuel pour vérifier.</string>
+    <string name="l10n_smart_alarm_screen_alarm_in_1_s_688166e3">Alarme dans %1$s</string>
+    <string name="l10n_smart_alarm_screen_alarm_in_less_than_a_minute_9821dce0">Alarme dans moins d\'une minute</string>
+    <plurals name="alarm_countdown_days">
+        <item quantity="one">%1$d jour</item>
+        <item quantity="other">%1$d jours</item>
+    </plurals>
+    <plurals name="alarm_countdown_hours">
+        <item quantity="one">%1$d heure</item>
+        <item quantity="other">%1$d heures</item>
+    </plurals>
+    <plurals name="alarm_countdown_minutes">
+        <item quantity="one">%1$d minute</item>
+        <item quantity="other">%1$d minutes</item>
+    </plurals>
 </resources>

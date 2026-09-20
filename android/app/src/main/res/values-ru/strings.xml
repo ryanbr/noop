@@ -2684,4 +2684,24 @@
     <string name="l10n_settings_screen_check_current_name_read_only_acb2f01a">Запросить текущее имя (только чтение)</string>
     <string name="l10n_settings_screen_renaming_is_not_supported_on_a_02f7af2c">Переименование пока не поддерживается на WHOOP 5.0 и MG. NOOP может запросить у ремешка его текущее имя, и это решит, возможно ли переименование вообще.</string>
     <string name="l10n_settings_screen_experimental_on_a_whoop_5_0_711d5341">Экспериментально на WHOOP 5.0 и MG: эта команда никогда не подтверждалась на данном поколении. Она обратима, поэтому переименуйте ещё раз, если что-то пойдёт не так, и проверьте результат через Запросить текущее имя.</string>
+    <string name="l10n_smart_alarm_screen_alarm_in_1_s_688166e3">Будильник через %1$s</string>
+    <string name="l10n_smart_alarm_screen_alarm_in_less_than_a_minute_9821dce0">Будильник менее чем через минуту</string>
+    <plurals name="alarm_countdown_days">
+        <item quantity="one">%1$d день</item>
+        <item quantity="few">%1$d дня</item>
+        <item quantity="many">%1$d дней</item>
+        <item quantity="other">%1$d дня</item>
+    </plurals>
+    <plurals name="alarm_countdown_hours">
+        <item quantity="one">%1$d час</item>
+        <item quantity="few">%1$d часа</item>
+        <item quantity="many">%1$d часов</item>
+        <item quantity="other">%1$d часа</item>
+    </plurals>
+    <plurals name="alarm_countdown_minutes">
+        <item quantity="one">%1$d минуту</item>
+        <item quantity="few">%1$d минуты</item>
+        <item quantity="many">%1$d минут</item>
+        <item quantity="other">%1$d минуты</item>
+    </plurals>
 </resources>

@@ -2797,4 +2797,18 @@
     <string name="l10n_settings_screen_check_current_name_read_only_acb2f01a">Consultar el nombre actual (solo lectura)</string>
     <string name="l10n_settings_screen_renaming_is_not_supported_on_a_02f7af2c">Cambiar el nombre aún no es compatible con una WHOOP 5.0 o MG. NOOP puede preguntar a la banda su nombre actual, que es el paso que decide si cambiarlo es posible.</string>
     <string name="l10n_settings_screen_experimental_on_a_whoop_5_0_711d5341">Experimental en una WHOOP 5.0 o MG: este comando nunca se ha confirmado en esta generación. Es reversible, así que vuelve a cambiar el nombre si se comporta mal, y usa Consultar el nombre actual para ver si se aplicó.</string>
+    <string name="l10n_smart_alarm_screen_alarm_in_1_s_688166e3">Alarma en %1$s</string>
+    <string name="l10n_smart_alarm_screen_alarm_in_less_than_a_minute_9821dce0">Alarma en menos de un minuto</string>
+    <plurals name="alarm_countdown_days">
+        <item quantity="one">%1$d día</item>
+        <item quantity="other">%1$d días</item>
+    </plurals>
+    <plurals name="alarm_countdown_hours">
+        <item quantity="one">%1$d hora</item>
+        <item quantity="other">%1$d horas</item>
+    </plurals>
+    <plurals name="alarm_countdown_minutes">
+        <item quantity="one">%1$d minuto</item>
+        <item quantity="other">%1$d minutos</item>
+    </plurals>
 </resources>

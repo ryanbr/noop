@@ -2805,4 +2805,24 @@
     <string name="l10n_settings_screen_check_current_name_read_only_acb2f01a">Sprawdź bieżącą nazwę (tylko odczyt)</string>
     <string name="l10n_settings_screen_renaming_is_not_supported_on_a_02f7af2c">Zmiana nazwy nie jest jeszcze obsługiwana w WHOOP 5.0 ani MG. NOOP może zapytać opaskę o jej bieżącą nazwę, co rozstrzygnie, czy zmiana nazwy jest w ogóle możliwa.</string>
     <string name="l10n_settings_screen_experimental_on_a_whoop_5_0_711d5341">Eksperymentalne na WHOOP 5.0 lub MG: to polecenie nigdy nie zostało potwierdzone na tej generacji. Jest odwracalne, więc zmień nazwę ponownie, jeśli coś pójdzie nie tak, i sprawdź wynik przez Sprawdź bieżącą nazwę.</string>
+    <string name="l10n_smart_alarm_screen_alarm_in_1_s_688166e3">Alarm za %1$s</string>
+    <string name="l10n_smart_alarm_screen_alarm_in_less_than_a_minute_9821dce0">Alarm za mniej niż minutę</string>
+    <plurals name="alarm_countdown_days">
+        <item quantity="one">%1$d dzień</item>
+        <item quantity="few">%1$d dni</item>
+        <item quantity="many">%1$d dni</item>
+        <item quantity="other">%1$d dnia</item>
+    </plurals>
+    <plurals name="alarm_countdown_hours">
+        <item quantity="one">%1$d godzina</item>
+        <item quantity="few">%1$d godziny</item>
+        <item quantity="many">%1$d godzin</item>
+        <item quantity="other">%1$d godziny</item>
+    </plurals>
+    <plurals name="alarm_countdown_minutes">
+        <item quantity="one">%1$d minuta</item>
+        <item quantity="few">%1$d minuty</item>
+        <item quantity="many">%1$d minut</item>
+        <item quantity="other">%1$d minuty</item>
+    </plurals>
 </resources>

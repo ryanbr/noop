@@ -2826,4 +2826,18 @@
     <string name="l10n_settings_screen_check_current_name_read_only_acb2f01a">Check current name (read-only)</string>
     <string name="l10n_settings_screen_renaming_is_not_supported_on_a_02f7af2c">Renaming is not supported on a WHOOP 5.0 or MG yet. NOOP can ask the strap for its current name, which is the step that decides whether renaming is possible at all.</string>
     <string name="l10n_settings_screen_experimental_on_a_whoop_5_0_711d5341">Experimental on a WHOOP 5.0 or MG: this command has never been confirmed on this strap generation. It is reversible, so rename again if it misbehaves, and use Check current name to see whether it took.</string>
+    <string name="l10n_smart_alarm_screen_alarm_in_1_s_688166e3">Alarm in %1$s</string>
+    <string name="l10n_smart_alarm_screen_alarm_in_less_than_a_minute_9821dce0">Alarm in less than a minute</string>
+    <plurals name="alarm_countdown_days">
+        <item quantity="one">%1$d day</item>
+        <item quantity="other">%1$d days</item>
+    </plurals>
+    <plurals name="alarm_countdown_hours">
+        <item quantity="one">%1$d hour</item>
+        <item quantity="other">%1$d hours</item>
+    </plurals>
+    <plurals name="alarm_countdown_minutes">
+        <item quantity="one">%1$d minute</item>
+        <item quantity="other">%1$d minutes</item>
+    </plurals>
 </resources>
