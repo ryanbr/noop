@@ -2811,4 +2811,7 @@
         <item quantity="one">%1$d minuto</item>
         <item quantity="other">%1$d minutos</item>
     </plurals>
+    <string name="l10n_settings_screen_gauge_numbers_db0d45e3">Números de los medidores</string>
+    <string name="l10n_settings_screen_bold_19e07430">Negrita</string>
+    <string name="l10n_settings_screen_softer_9edfeba1">Más suave</string>
 </resources>

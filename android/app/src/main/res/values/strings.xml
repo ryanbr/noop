@@ -2840,4 +2840,7 @@
         <item quantity="one">%1$d minute</item>
         <item quantity="other">%1$d minutes</item>
     </plurals>
+    <string name="l10n_settings_screen_gauge_numbers_db0d45e3">Gauge numbers</string>
+    <string name="l10n_settings_screen_bold_19e07430">Bold</string>
+    <string name="l10n_settings_screen_softer_9edfeba1">Softer</string>
 </resources>

@@ -704,6 +704,8 @@ fun SettingsScreen(
     }
     val distanceUnitSystem = UnitPrefs.resolveDistance(unitSystem, distanceSystemRaw)
     var clockFormat by remember { mutableStateOf(ClockPrefs.preference(context)) }   // #1821
+    // #2346: gauge numeral weight, mirrored locally so the pill is live; AppearancePrefs is the store.
+    var gaugeNumerals by remember { mutableStateOf(AppearancePrefs.gaugeNumerals) }
     var temperatureRaw by remember {
         mutableStateOf(NoopPrefs.of(context).getString(NoopPrefs.KEY_TEMPERATURE_UNIT, "") ?: "")
     }
@@ -1443,6 +1445,27 @@ fun SettingsScreen(
                     onSelect = {
                         clockFormat = it
                         ClockPrefs.setPreference(context, it)
+                    },
+                )
+            }
+            SettingsRowDivider()
+            // #2346: how heavy the numeral over a gauge is drawn. A reporter found the Today gauges "too
+            // much in your face"; bold display numerals are the house style on BOTH platforms, so this is
+            // a preference rather than a defect and Bold stays the default. Only the WEIGHT is offered:
+            // the size is pinned to the iOS ratio and is not a per-platform knob. Twin of the Apple row.
+            SettingsFormRow(label = uiString(R.string.l10n_settings_screen_gauge_numbers_db0d45e3)) {
+                SegmentedPillControl(
+                    items = listOf(GaugeNumeralStyle.BOLD, GaugeNumeralStyle.SOFT),
+                    selection = gaugeNumerals,
+                    label = {
+                        when (it) {
+                            GaugeNumeralStyle.BOLD -> uiString(R.string.l10n_settings_screen_bold_19e07430)
+                            GaugeNumeralStyle.SOFT -> uiString(R.string.l10n_settings_screen_softer_9edfeba1)
+                        }
+                    },
+                    onSelect = {
+                        gaugeNumerals = it
+                        AppearancePrefs.setGaugeNumerals(context, it)
                     },
                 )
             }

@@ -2810,4 +2810,7 @@
         <item quantity="one">%1$d minute</item>
         <item quantity="other">%1$d minutes</item>
     </plurals>
+    <string name="l10n_settings_screen_gauge_numbers_db0d45e3">Chiffres des jauges</string>
+    <string name="l10n_settings_screen_bold_19e07430">Gras</string>
+    <string name="l10n_settings_screen_softer_9edfeba1">Plus douce</string>
 </resources>

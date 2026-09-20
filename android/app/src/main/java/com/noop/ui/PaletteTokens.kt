@@ -266,11 +266,31 @@ enum class AppearanceMode(val storageValue: String, val label: String) {
     }
 }
 
+/**
+ * How heavy the numeral over a gauge is drawn (#2346).
+ *
+ * `BOLD` is the shipped look and stays the default, so nothing moves for anyone who does not ask. `SOFT`
+ * drops to `NoopType.number`'s own default weight, which is what every other number in the app uses.
+ *
+ * Named for the effect rather than a font weight: the reporter asked for "softer", and the two platforms
+ * reach it through different weight vocabularies. Twin of the Apple `GaugeNumeralStyle`.
+ */
+enum class GaugeNumeralStyle(val storageValue: String) {
+    BOLD("bold"),
+    SOFT("soft");
+
+    companion object {
+        fun fromStorage(raw: String?): GaugeNumeralStyle =
+            entries.firstOrNull { it.storageValue == raw } ?: BOLD
+    }
+}
+
 /** Theme preference, persisted in `noop_prefs` and mirrored in snapshot state so the toggle is live.
  *  [load] is called once from MainActivity before first composition (no flash); [set] writes + flips. */
 object AppearancePrefs {
     private const val FILE = "noop_prefs"
     private const val KEY = "theme.appearance"
+    private const val GAUGE_KEY = "appearance.gaugeNumerals"
 
     private fun prefs(ctx: Context): SharedPreferences =
         ctx.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
@@ -279,8 +299,24 @@ object AppearancePrefs {
     var mode by mutableStateOf(AppearanceMode.SYSTEM)
         private set
 
+    /**
+     * Gauge numeral weight (#2346). Deliberately NOT in the `.noopbak` whitelist, matching [mode] beside
+     * it: that contract carries profile, units and anything that changes a NUMBER, while a display choice
+     * is device-local. Adding it would touch a byte-identical cross-platform contract for a preference
+     * that means nothing on another device.
+     */
+    var gaugeNumerals by mutableStateOf(GaugeNumeralStyle.BOLD)
+        private set
+
     fun load(ctx: Context) {
         mode = AppearanceMode.fromStorage(prefs(ctx).getString(KEY, AppearanceMode.SYSTEM.storageValue))
+        gaugeNumerals = GaugeNumeralStyle.fromStorage(
+            prefs(ctx).getString(GAUGE_KEY, GaugeNumeralStyle.BOLD.storageValue))
+    }
+
+    fun setGaugeNumerals(ctx: Context, value: GaugeNumeralStyle) {
+        gaugeNumerals = value
+        prefs(ctx).edit().putString(GAUGE_KEY, value.storageValue).apply()
     }
 
     fun set(ctx: Context, value: AppearanceMode) {

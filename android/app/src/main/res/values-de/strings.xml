@@ -2824,4 +2824,7 @@
         <item quantity="one">%1$d Minute</item>
         <item quantity="other">%1$d Minuten</item>
     </plurals>
+    <string name="l10n_settings_screen_gauge_numbers_db0d45e3">Zahlen auf den Anzeigen</string>
+    <string name="l10n_settings_screen_bold_19e07430">Fett</string>
+    <string name="l10n_settings_screen_softer_9edfeba1">Weicher</string>
 </resources>

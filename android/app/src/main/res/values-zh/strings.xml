@@ -2782,4 +2782,7 @@
     <plurals name="alarm_countdown_minutes">
         <item quantity="other">%1$d 分钟</item>
     </plurals>
+    <string name="l10n_settings_screen_gauge_numbers_db0d45e3">仪表数字</string>
+    <string name="l10n_settings_screen_bold_19e07430">粗体</string>
+    <string name="l10n_settings_screen_softer_9edfeba1">更柔和</string>
 </resources>

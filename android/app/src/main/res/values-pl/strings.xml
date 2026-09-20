@@ -2825,4 +2825,7 @@
         <item quantity="many">%1$d minut</item>
         <item quantity="other">%1$d minuty</item>
     </plurals>
+    <string name="l10n_settings_screen_gauge_numbers_db0d45e3">Liczby na wskaźnikach</string>
+    <string name="l10n_settings_screen_bold_19e07430">Pogrubione</string>
+    <string name="l10n_settings_screen_softer_9edfeba1">Łagodniejsze</string>
 </resources>
