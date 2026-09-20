@@ -1281,15 +1281,23 @@ final class HealthKitBridge: ObservableObject {
                    store.authorizationStatus(for: HKSeriesType.workoutRoute()) == .sharingAuthorized,
                    let route = RouteStore.load(startTs: row.startTs, sport: row.sport),
                    !route.polyline.isEmpty {
-                    let routeBuilder = HKWorkoutRouteBuilder(healthStore: store, device: .local())
-                    let points = RouteMath.decode(route.polyline)
-                    let locs = points.map { p in
-                        CLLocation(coordinate: CLLocationCoordinate2D(latitude: p.lat, longitude: p.lon),
-                                   altitude: 0, horizontalAccuracy: 1, verticalAccuracy: 1, timestamp: start)
-                    }
-                    if !locs.isEmpty {
-                        try await routeBuilder.insertRouteData(locs)
-                        try await routeBuilder.finishRoute(with: workout, metadata: nil)
+                    do {
+                        let routeBuilder = HKWorkoutRouteBuilder(healthStore: store, device: .local())
+                        let points = RouteMath.decode(route.polyline)
+                        let duration = end.timeIntervalSince(start)
+                        let locs = points.enumerated().map { i, p in
+                            // Interpolate timestamps across the workout's span, since RoutePoint is lat/lon only.
+                            let ts = start.addingTimeInterval(duration * Double(i) / Double(max(points.count - 1, 1)))
+                            return CLLocation(coordinate: CLLocationCoordinate2D(latitude: p.lat, longitude: p.lon),
+                                              altitude: 0, horizontalAccuracy: 5, verticalAccuracy: -1, timestamp: ts)
+                        }
+                        if !locs.isEmpty {
+                            try await routeBuilder.insertRouteData(locs)
+                            try await routeBuilder.finishRoute(with: workout, metadata: nil)
+                        }
+                    } catch {
+                        // Route is an enrichment; don't fail the whole workout write if the route fails.
+                        print("Failed to attach route to HealthKit workout: \(error)")
                     }
                 }
             } catch {
