@@ -94,14 +94,53 @@ struct SmartAlarmView: View {
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(StrandPalette.textTertiary)
                         .accessibilityHidden(true)
-                    heroTime(label: "Wake",
+                    // "Wake" was the wind-down INPUT wearing the name of the thing that wakes you, in the
+                    // largest type on the screen, above both cards. It is the first figure a reader sees
+                    // and it is not their alarm. Named for what it is instead.
+                    heroTime(label: "Usual wake",
                              time: timeLabel(wakeMinutes),
                              tint: StrandPalette.restBright)
+                    // The alarm is deliberately NOT a third figure on this arrow. The arrow is an
+                    // arithmetic pair (the nudge is derived from the usual wake time) and the alarm is
+                    // not part of that derivation, so chaining it would claim the nudge is timed for the
+                    // alarm. It gets the countdown block below instead, which also keeps the alarm time
+                    // from appearing twice in one hero.
                     Spacer(minLength: 0)
                 }
+                // How long until it actually goes off. "10:00" does not say whether that is nine hours
+                // away or thirty-three, which is the thing you want at a glance. It lives HERE rather
+                // than beside the picker in the card below: that spot is six rows into the second card,
+                // under a four-line paragraph, so you only meet it once you are already editing the
+                // alarm. The hero is where the eye lands. Exactly one countdown on the screen, because
+                // two live ones start the next "which of these is the real one" question, which is the
+                // question this whole screen exists to stop.
+                //
+                // Re-rendered once a minute rather than computed at view build, since a countdown frozen
+                // at whatever it read when the screen opened is worse than none. The TimelineView wraps
+                // ONLY this line, so the 60s tick cannot re-render the rest of the screen.
+                TimelineView(.periodic(from: .now, by: 60)) { tick in
+                    if let countdown = strapAlarmCountdown(from: tick.date) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(countdown)
+                                .font(StrandFont.number(22))
+                                .foregroundStyle(StrandPalette.accent)
+                                .fixedSize(horizontal: false, vertical: true)
+                            // The absolute companion, the way a phone's clock app pairs them: the
+                            // countdown is the glance, the stamp is what you check when it matters. It
+                            // carries the DATE, which is the half that actually settles "tonight or
+                            // tomorrow" and which a bare time never can.
+                            if let stamp = nextStrapAlarmStamp(from: tick.date) {
+                                Text(stamp)
+                                    .font(StrandFont.footnote)
+                                    .foregroundStyle(StrandPalette.textSecondary)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
                 Text(windDownOn
-                     ? "A calm nudge \(WindDownNudge.sleepNeedMinutes / 60)h \(WindDownNudge.leadMinutes)m before your wake time."
-                     : "Turn on the wind-down reminder below to land at your wake time rested.")
+                     ? "A calm nudge \(WindDownNudge.sleepNeedMinutes / 60)h \(WindDownNudge.leadMinutes)m before your usual wake time."
+                     : "Turn on the wind-down reminder below to land at your usual wake time rested.")
                     .font(StrandFont.footnote)
                     .foregroundStyle(StrandPalette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -436,14 +475,97 @@ struct SmartAlarmView: View {
     ///
     /// The template formatter also follows the reader's 12/24-hour setting, unlike `timeLabel`.
     private var nextStrapAlarmLabel: String? {
-        guard behavior.smartAlarmEnabled else { return nil }
-        guard let next = AppModel.nextSmartAlarmDate(minutes: behavior.smartAlarmMinutes,
-                                                     weekdays: behavior.smartAlarmWeekdays,
-                                                     overrides: overrides) else { return nil }
+        guard let next = nextStrapAlarm() else { return nil }
         let formatter = DateFormatter()
-        formatter.locale = .current
+        // `AppLanguage.activeLocale`, not `.current`: the app language is an in-app setting, so a reader
+        // running NOOP in German on an English device must get German weekday words here, while keeping
+        // their device's 24-hour convention. The same reason every other formatter in the app uses it.
+        formatter.locale = AppLanguage.activeLocale
         formatter.setLocalizedDateFormatFromTemplate("EEEE jj:mm")
         return formatter.string(from: next)
+    }
+
+    /// Whether switching the alarm on actually arms anything that will go off.
+    ///
+    /// A WHOOP 5/MG arms its firmware alarm only with Experimental on: `BLEManager.armStrapAlarm` logs
+    /// "not armed" and returns otherwise. That is the #864 case, reported by a 5/MG owner whose strap
+    /// never buzzed while this card told them it was armed, and the card carries a warning for it.
+    ///
+    /// A countdown is a promise, so it must not be made for an alarm that will not exist. On macOS there
+    /// is not even a fallback to fall back to: `scheduleSmartAlarmBackupNotification` is `#if os(iOS)`
+    /// with no `#else`, so in that state nothing whatsoever happens at the chosen time. Saying "Alarm in
+    /// 18 hours" directly above the line admitting the strap is NOT armed would reintroduce the exact
+    /// honesty bug one row up from its own fix.
+    ///
+    /// A strap that is merely disconnected is NOT excluded here: `armStrapAlarm` queues and arms on
+    /// reconnect, so the alarm is real and the countdown to it is true.
+    private var strapAlarmWillArm: Bool {
+        !(model.whoop5Detected && !PuffinExperiment.isEnabled)
+    }
+
+    /// The one moment every alarm readout on this screen is derived from, or nil when nothing will fire.
+    ///
+    /// Single funnel on purpose. This resolver was called from three places, each repeating the gate and
+    /// the argument list, which is three chances for one of them to drift from what the strap is actually
+    /// armed with. `nextSmartAlarmDate` is the same pure function `applySmartAlarm` arms from, and the
+    /// overrides go in so a day with its own time resolves to THAT time.
+    ///
+    /// `from` is a parameter so the ticking countdown re-resolves against the clock it is given rather
+    /// than a `Date()` captured somewhere else.
+    private func nextStrapAlarm(from now: Date = Date()) -> Date? {
+        guard behavior.smartAlarmEnabled, strapAlarmWillArm else { return nil }
+        return AppModel.nextSmartAlarmDate(minutes: behavior.smartAlarmMinutes,
+                                           weekdays: behavior.smartAlarmWeekdays,
+                                           overrides: overrides,
+                                           from: now)
+    }
+
+    /// The next alarm as a weekday, date and time: "Mon 21 Sep 10:28".
+    ///
+    /// The absolute companion to the countdown, the way a phone's clock app pairs them. "In 17 hours" is
+    /// what you want at a glance; the stamp underneath is what you check when the answer matters, and it
+    /// carries the DATE, which is what actually settles "tonight or tomorrow".
+    ///
+    /// Takes the SAME clock the countdown was resolved from. Reading `Date()` here instead would give the
+    /// two lines two clocks up to a tick apart, and `nextSmartAlarmDate` returns the next strictly-future
+    /// fire: straddle that moment and the countdown says "less than a minute" while the stamp names
+    /// tomorrow. Two lines disagreeing about one fact is the exact defect this screen exists to remove.
+    private func nextStrapAlarmStamp(from now: Date = Date()) -> String? {
+        nextStrapAlarm(from: now).map { date in
+            let formatter = DateFormatter()
+            formatter.locale = AppLanguage.activeLocale
+            formatter.setLocalizedDateFormatFromTemplate("EEE d MMM jj:mm")
+            return formatter.string(from: date)
+        }
+    }
+
+    /// How long until the strap alarm next buzzes, as "18 hours, 6 minutes", or nil when no alarm is set.
+    ///
+    /// A wall-clock time answers "when", but not "is that tonight or tomorrow", which is the question an
+    /// alarm actually raises when you are looking at it in the evening. Resolved through the same
+    /// `nextSmartAlarmDate` the strap is armed from, so a per-day override counts down to ITS time.
+    ///
+    /// `DateComponentsFormatter` rather than hand-built text because the unit words pluralise differently
+    /// per language, and an app that ships nine of them should not be writing "1 hours".
+    private func strapAlarmCountdown(from now: Date) -> String? {
+        guard let next = nextStrapAlarm(from: now) else { return nil }
+        let seconds = next.timeIntervalSince(now)
+        // Under a minute there is no useful number left, and "in 0 minutes" reads like a bug.
+        guard seconds >= 60 else { return String(localized: "Alarm in less than a minute") }
+        let formatter = DateComponentsFormatter()
+        formatter.calendar = {
+            var cal = Calendar.current
+            cal.locale = AppLanguage.activeLocale
+            return cal
+        }()
+        formatter.unitsStyle = .full
+        // Days included because a weekday-restricted alarm can be up to a week out, and "151 hours" is
+        // not an answer. Leading zero units are dropped, so a same-day alarm stays "18 hours, 6 minutes".
+        formatter.allowedUnits = [.day, .hour, .minute]
+        formatter.zeroFormattingBehavior = .dropAll
+        formatter.maximumUnitCount = 3
+        guard let span = formatter.string(from: seconds), !span.isEmpty else { return nil }
+        return String(localized: "Alarm in \(span)")
     }
 
     /// What a day with no override of its own actually does.

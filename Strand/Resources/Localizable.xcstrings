@@ -22199,70 +22199,6 @@
         }
       }
     },
-    "A calm nudge %lldh %lldm before your wake time.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ein sanfter Anstoß %1$lldh %2$lldm vor deiner Aufwachzeit."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "new",
-            "value": "A calm nudge %1$lldh %2$lldm before your wake time."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Un aviso suave %lldh %lldm antes de tu hora de despertar."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Un rappel doux %1$lldh %2$lldm avant votre heure de réveil."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Un avviso tranquillo %1$lldh %2$lldm prima della tua ora di risveglio."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Um empurrãozinho calmo %1$lldh %2$lldm antes de acordar."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Спокойное напоминание за %1$lldч %2$lldм до времени пробуждения."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在你起床时间前 %1$lld 小时 %2$lld 分钟的一次平静提醒。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在你起床時間前 %1$lld 小時 %2$lld 分鐘的一次平靜提醒。"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Spokojne szturchnięcie %1$lldh %2$lldm przed pobudką."
-          }
-        }
-      }
-    },
     "A cardiovascular load in the Banister TRIMP family: time spent in each heart-rate zone, weighted so harder zones count for more, summed into one daily figure.": {
       "localizations": {
         "de": {
@@ -170102,64 +170038,6 @@
         }
       }
     },
-    "Turn on the wind-down reminder below to land at your wake time rested.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Schalte unten die Runterkommen-Erinnerung ein, um ausgeruht bei deiner Aufwachzeit zu landen."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Activa el recordatorio de relajación de abajo para llegar descansado a tu hora de despertar."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Activez le rappel de détente ci-dessous pour arriver reposé à l'heure de réveil."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Attiva il promemoria di rilassamento qui sotto per arrivare riposato all'ora del risveglio."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ative o lembrete de abrandamento abaixo para aterrar descansado na hora de acordar."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Включите напоминание о подготовке ко сну ниже, чтобы проснуться отдохнувшим в нужное время."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "开启下方的放松提醒，让你在起床时间精神饱满地醒来。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "開啟下方的放鬆提醒，讓你在起床時間精神飽滿地醒來。"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Włącz przypomnienie o odpoczynku poniżej, aby wylądować o godzinie po przebudzeniu i być wypoczętym."
-          }
-        }
-      }
-    },
     "Two independent protocol tables disagree on the extended-battery opcode (98 vs 87). This sends the curated read-only 98 and shows the strap's full raw reply. A battery-style payload confirms 98 on your firmware; a short stub means it stays ambiguous. Nothing is written to the strap.": {
       "localizations": {
         "de": {
@@ -216070,6 +215948,21 @@
         } },
         "Some days have a time of their own, set under the evening reminder below. Next buzz %@.": { "localizations": {
           "de": {"stringUnit": {"state": "translated", "value": "Manche Tage haben eine eigene Zeit, eingestellt unter der Abenderinnerung weiter unten. Nächster Weckruf %@."}}, "es": {"stringUnit": {"state": "translated", "value": "Algunos días tienen su propia hora, fijada en el recordatorio de la noche más abajo. Próximo aviso %@."}}, "fr": {"stringUnit": {"state": "translated", "value": "Certains jours ont leur propre heure, définie sous le rappel du soir ci-dessous. Prochaine vibration %@."}}, "it": {"stringUnit": {"state": "translated", "value": "Alcuni giorni hanno un orario proprio, impostato sotto il promemoria serale qui sotto. Prossima vibrazione %@."}}, "pl": {"stringUnit": {"state": "translated", "value": "Niektóre dni mają własną godzinę, ustawioną przy wieczornym przypomnieniu poniżej. Następna wibracja %@."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Alguns dias têm hora própria, definida no lembrete da noite abaixo. Próximo aviso %@."}}, "ru": {"stringUnit": {"state": "translated", "value": "У некоторых дней своё время, заданное ниже, у вечернего напоминания. Следующий сигнал %@."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "有些日子有自己的时间，在下面的晚间提醒中设置。下次震动 %@。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "有些日子有自己的時間，在下面的晚間提醒中設定。下次震動 %@。"}}
+        } },
+        "Alarm in %@": { "localizations": {
+          "de": {"stringUnit": {"state": "translated", "value": "Wecker in %@"}}, "es": {"stringUnit": {"state": "translated", "value": "Alarma en %@"}}, "fr": {"stringUnit": {"state": "translated", "value": "Alarme dans %@"}}, "it": {"stringUnit": {"state": "translated", "value": "Sveglia tra %@"}}, "pl": {"stringUnit": {"state": "translated", "value": "Alarm za %@"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Alarme daqui a %@"}}, "ru": {"stringUnit": {"state": "translated", "value": "Будильник через %@"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "闹钟将在 %@ 后响起"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "鬧鐘將在 %@ 後響起"}}
+        } },
+        "Alarm in less than a minute": { "localizations": {
+          "de": {"stringUnit": {"state": "translated", "value": "Alarm in weniger als einer Minute"}}, "es": {"stringUnit": {"state": "translated", "value": "Alarma en menos de un minuto"}}, "fr": {"stringUnit": {"state": "translated", "value": "Alarme dans moins d'une minute"}}, "it": {"stringUnit": {"state": "translated", "value": "Sveglia tra meno di un minuto"}}, "pl": {"stringUnit": {"state": "translated", "value": "Alarm za mniej niż minutę"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Alarme daqui a menos de um minuto"}}, "ru": {"stringUnit": {"state": "translated", "value": "Будильник менее чем через минуту"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "闹钟将在一分钟内响起"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "鬧鐘將在一分鐘內響起"}}
+        } },
+        "Usual wake": { "localizations": {
+          "de": {"stringUnit": {"state": "translated", "value": "Übliches Aufwachen"}}, "es": {"stringUnit": {"state": "translated", "value": "Despertar habitual"}}, "fr": {"stringUnit": {"state": "translated", "value": "Réveil habituel"}}, "it": {"stringUnit": {"state": "translated", "value": "Sveglia abituale"}}, "pl": {"stringUnit": {"state": "translated", "value": "Zwykła pobudka"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Acordar habitual"}}, "ru": {"stringUnit": {"state": "translated", "value": "Обычный подъём"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "通常起床"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "通常起床"}}
+        } },
+        "A calm nudge %lldh %lldm before your usual wake time.": { "localizations": {
+          "de": {"stringUnit": {"state": "translated", "value": "Ein ruhiger Hinweis %1$lldh %2$lldm vor deiner üblichen Weckzeit."}}, "es": {"stringUnit": {"state": "translated", "value": "Un aviso tranquilo %1$lldh %2$lldm antes de tu hora habitual de despertar."}}, "fr": {"stringUnit": {"state": "translated", "value": "Un rappel calme %1$lldh %2$lldm avant votre heure de réveil habituelle."}}, "it": {"stringUnit": {"state": "translated", "value": "Un promemoria tranquillo %1$lldh %2$lldm prima della tua solita ora di sveglia."}}, "pl": {"stringUnit": {"state": "translated", "value": "Spokojne przypomnienie %1$lldh %2$lldm przed Twoją zwykłą godziną pobudki."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Um aviso calmo %1$lldh %2$lldm antes da tua hora habitual de acordar."}}, "ru": {"stringUnit": {"state": "translated", "value": "Спокойное напоминание за %1$lldч %2$lldм до вашего обычного времени подъёма."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "在你通常的起床时间前 %1$lld 小时 %2$lld 分钟的一个平静提醒。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "在你通常的起床時間前 %1$lld 小時 %2$lld 分鐘的一個平靜提醒。"}}
+        } },
+        "Turn on the wind-down reminder below to land at your usual wake time rested.": { "localizations": {
+          "de": {"stringUnit": {"state": "translated", "value": "Schalte unten die Wind-down-Erinnerung ein, um ausgeruht an deiner üblichen Weckzeit anzukommen."}}, "es": {"stringUnit": {"state": "translated", "value": "Activa abajo el recordatorio de descanso para llegar descansado a tu hora habitual de despertar."}}, "fr": {"stringUnit": {"state": "translated", "value": "Activez le rappel de détente ci-dessous pour arriver reposé à votre heure de réveil habituelle."}}, "it": {"stringUnit": {"state": "translated", "value": "Attiva qui sotto il promemoria di rilassamento per arrivare riposato alla tua solita ora di sveglia."}}, "pl": {"stringUnit": {"state": "translated", "value": "Włącz poniżej przypomnienie o wyciszeniu, aby wstać wypoczętym o swojej zwykłej godzinie pobudki."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Ativa abaixo o lembrete de descanso para chegares descansado à tua hora habitual de acordar."}}, "ru": {"stringUnit": {"state": "translated", "value": "Включите ниже напоминание о подготовке ко сну, чтобы встать отдохнувшим в обычное время подъёма."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "开启下面的睡前放松提醒，让你在通常的起床时间精神饱满地醒来。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "開啟下面的睡前放鬆提醒，讓你在通常的起床時間精神飽滿地醒來。"}}
         } },
         "no time of its own": { "localizations": {
           "de": {"stringUnit": {"state": "translated", "value": "keine eigene Zeit"}}, "es": {"stringUnit": {"state": "translated", "value": "sin hora propia"}}, "fr": {"stringUnit": {"state": "translated", "value": "pas d'heure propre"}}, "it": {"stringUnit": {"state": "translated", "value": "nessun orario proprio"}}, "pl": {"stringUnit": {"state": "translated", "value": "brak własnej godziny"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "sem hora própria"}}, "ru": {"stringUnit": {"state": "translated", "value": "без своего времени"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "没有单独时间"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "沒有單獨時間"}}
