@@ -720,6 +720,7 @@ private fun DiagnosticToolsCard(vm: AppViewModel) {
     // #1284 residual 3: the experimental Oura onset-keying toggle, shown only when an Oura ring is paired.
     var ouraPaired by remember { mutableStateOf(false) }
     var ouraOnsetKeying by remember { mutableStateOf(NoopPrefs.ouraOnsetKeying(context)) }
+    var ouraNotifyMaskFull by remember { mutableStateOf(NoopPrefs.ouraNotifyMaskFull(context)) }
     LaunchedEffect(Unit) {
         val paired = runCatching { vm.pairedDevices() }.getOrDefault(emptyList())
         polarIdentity = PolarModel.debugIdentification(paired.firstOrNull { PolarModel.isPolar(it.model) }?.model)
@@ -811,6 +812,14 @@ private fun DiagnosticToolsCard(vm: AppViewModel) {
                         "'onset-key(#1284)' lines.",
                     checked = ouraOnsetKeying,
                     onCheckedChange = { ouraOnsetKeying = it; vm.setOuraOnsetKeying(it) },
+                )
+                // Packed-notification A/B (OURA_PROTOCOL.md s2.3). Takes effect at the NEXT connect only;
+                // nothing is written until then and nothing persists on the ring.
+                ToggleRowTC(
+                    title = stringResource(R.string.oura_notify_mask_full_title),
+                    description = stringResource(R.string.oura_notify_mask_full_desc),
+                    checked = ouraNotifyMaskFull,
+                    onCheckedChange = { ouraNotifyMaskFull = it; vm.setOuraNotifyMaskFull(it) },
                 )
             }
             // #1121 Detailed capture: an adb-like rolling on-device log, no computer needed. Off by default.

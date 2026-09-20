@@ -60,6 +60,11 @@ public final class OuraDriver {
     /// needsKeyInstall and writes nothing dangerous. Only an explicit opt-in adopt flow sets this true.
     /// Per OURA_PROTOCOL.md s3.2 (the 0x24 SetAuthKey is a DANGEROUS, one-time provisioning write).
     public let allowKeyInstall: Bool
+    /// The SetNotification mask both handshake paths send (`.ready` and the post-install re-auth).
+    /// `OuraCommands.notificationMaskDefault` (`3f`) unless the Test Centre A/B asks for the official
+    /// app's `ff` — see `OuraCommands.notificationMaskFull`. Reversible: the next session sends the
+    /// mask it is constructed with, nothing persists on the ring.
+    public let notificationMask: UInt8
 
     public private(set) var phase: OuraDriverPhase = .idle
     /// Tracks how many of the live-HR enable triplet ACKs have been seen.
@@ -90,11 +95,13 @@ public final class OuraDriver {
 
     public init(ringGen: OuraRingGen, authKey: [UInt8]?, allowTierB: Bool = false,
                 allowKeyInstall: Bool = false,
+                notificationMask: UInt8 = OuraCommands.notificationMaskDefault,
                 nowMsProvider: @escaping () -> Int64 = { Int64(Date().timeIntervalSince1970 * 1000) }) {
         self.ringGen = ringGen
         self.authKey = authKey
         self.allowTierB = allowTierB
         self.allowKeyInstall = allowKeyInstall
+        self.notificationMask = notificationMask
         self.nowMsProvider = nowMsProvider
     }
 
@@ -112,7 +119,7 @@ public final class OuraDriver {
             }
             phase = .authenticating
             // Enable notifications, then request the auth nonce. SyncTime can follow auth.
-            return [OuraCommands.enableAllNotifications(),
+            return [OuraCommands.enableAllNotifications(mask: notificationMask),
                     OuraCommand(label: "get_nonce", bytes: OuraAuth.getAuthNonceCommand())]
 
         case .nonceReceived(let nonce):
@@ -206,7 +213,7 @@ public final class OuraDriver {
     public func keyInstallAcknowledged() -> [OuraCommand] {
         guard phase == .installingKey, installedKey != nil else { return [] }
         phase = .authenticating
-        return [OuraCommands.enableAllNotifications(),
+        return [OuraCommands.enableAllNotifications(mask: notificationMask),
                 OuraCommand(label: "get_nonce", bytes: OuraAuth.getAuthNonceCommand())]
     }
 

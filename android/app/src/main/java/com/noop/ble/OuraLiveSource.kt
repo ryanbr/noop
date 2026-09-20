@@ -135,6 +135,11 @@ class OuraLiveSource(
     /** #1284 residual 3 (default OFF): read live at persist — when true, an Oura hypnogram night is keyed on
      *  its rounded 0x49 onset (stable per-night anchor) instead of the end-anchored first-code time. */
     private val onsetKeying: () -> Boolean = { false },
+    /** Packed-notification A/B (default OFF): read once per connect — when true the session's SetNotification
+     *  is the official app's `ff` instead of `3f` (OURA_PROTOCOL.md s2.3). The next connect re-reads it, so
+     *  switching the toggle off restores the default with nothing left on the ring. Twin of Swift's
+     *  `notifyMaskFull`. */
+    private val notifyMaskFull: () -> Boolean = { false },
     /** Diagnostic sink for the connect/auth/stream lifecycle - the SAME exportable strap log (#421).
      *  Every line is prefixed "Oura: ". Statuses / UUIDs / counts only, NEVER a device address. Default
      *  no-op keeps existing call sites compiling and tests silent. */
@@ -1176,8 +1181,15 @@ class OuraLiveSource(
         // actually sends (raw bytes per kind, decoded MET for 0x50) so the layouts can be validated
         // against real captures. It can never leak a value into scoring: OuraStreamMapping drops
         // TierB/ActivityInfo unconditionally - the Tier-discipline gate that matters lives there, not here.
+        // Packed-notification A/B: the mask is decided here, once per session, and named on its own line
+        // ONLY when it is not the default - the `-> notify_all(ff)` write line then confirms it went out.
+        val notificationMask = if (notifyMaskFull()) OuraCommands.NOTIFICATION_MASK_FULL else OuraCommands.NOTIFICATION_MASK_DEFAULT
+        if (notificationMask != OuraCommands.NOTIFICATION_MASK_DEFAULT) {
+            log("Oura: SetNotification mask %02x this session (packed-notification A/B, Test Centre) - default is %02x"
+                .format(notificationMask, OuraCommands.NOTIFICATION_MASK_DEFAULT))
+        }
         driver = OuraDriver(ringGen = ringGen, authKey = authKey(), allowTierB = true,
-                            allowKeyInstall = adoptIntent)
+                            allowKeyInstall = adoptIntent, notificationMask = notificationMask)
         reassembler.reset()
         pendingInstallKey = null       // a new connection starts with no install in flight
         _adoptPhase.value = AdoptPhase.Idle   // a stale outcome must never drive the wizard's transition

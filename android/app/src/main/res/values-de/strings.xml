@@ -2827,4 +2827,6 @@
     <string name="l10n_settings_screen_gauge_numbers_db0d45e3">Zahlen auf den Anzeigen</string>
     <string name="l10n_settings_screen_bold_19e07430">Fett</string>
     <string name="l10n_settings_screen_softer_9edfeba1">Weicher</string>
+    <string name="oura_notify_mask_full_title">Oura-Benachrichtigungsmaske ff (experimentell)</string>
+    <string name="oura_notify_mask_full_desc">Sendet beim nächsten Verbinden die SetNotification-Maske der offiziellen App (1c 01 ff) statt NOOPs 3f. Der Ring packt für die offizielle App ~10 Pakete in eine Benachrichtigung, für NOOP nur eines (9× langsameres Auslesen); das ist der erste Kandidat für den Schalter. Standardmäßig aus; die erste Verbindung nach dem Ausschalten läuft wieder mit 3f. Im Strap-Protokoll auf „-> notify_all(ff)“ achten und die Benachrichtigungsgrößen in der Rohaufzeichnung vergleichen.</string>
 </resources>

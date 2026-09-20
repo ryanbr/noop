@@ -2806,4 +2806,6 @@
     <string name="l10n_settings_screen_gauge_numbers_db0d45e3">Números dos indicadores</string>
     <string name="l10n_settings_screen_bold_19e07430">Negrito</string>
     <string name="l10n_settings_screen_softer_9edfeba1">Mais suave</string>
+    <string name="oura_notify_mask_full_title">Máscara de notificação Oura ff (experimental)</string>
+    <string name="oura_notify_mask_full_desc">Envia a máscara SetNotification da aplicação oficial (1c 01 ff) em vez do 3f do NOOP na próxima ligação. O anel agrupa ~10 pacotes por notificação para a aplicação oficial e um para o NOOP (descarga 9× mais lenta); este é o primeiro candidato a interruptor. Desligado por predefinição; a ligação seguinte após desligar volta a 3f. Procure «-> notify_all(ff)» no registo da pulseira e compare os tamanhos das notificações na captura em bruto.</string>
 </resources>

@@ -2843,4 +2843,6 @@
     <string name="l10n_settings_screen_gauge_numbers_db0d45e3">Gauge numbers</string>
     <string name="l10n_settings_screen_bold_19e07430">Bold</string>
     <string name="l10n_settings_screen_softer_9edfeba1">Softer</string>
+    <string name="oura_notify_mask_full_title">Oura notification mask ff (experimental)</string>
+    <string name="oura_notify_mask_full_desc">Sends the official app’s SetNotification mask (1c 01 ff) instead of NOOP’s 3f at the next connect. The ring packs ~10 packets per notification for the official app and one for NOOP (9× slower drains); this is the first candidate switch. Off by default; the next connect after turning it off is back on 3f. Watch the strap log for “-> notify_all(ff)” and compare notification sizes in the raw capture.</string>
 </resources>

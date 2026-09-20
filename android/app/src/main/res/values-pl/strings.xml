@@ -2828,4 +2828,6 @@
     <string name="l10n_settings_screen_gauge_numbers_db0d45e3">Liczby na wskaźnikach</string>
     <string name="l10n_settings_screen_bold_19e07430">Pogrubione</string>
     <string name="l10n_settings_screen_softer_9edfeba1">Łagodniejsze</string>
+    <string name="oura_notify_mask_full_title">Maska powiadomień Oura ff (eksperymentalne)</string>
+    <string name="oura_notify_mask_full_desc">Przy następnym połączeniu wysyła maskę SetNotification oficjalnej aplikacji (1c 01 ff) zamiast 3f używanego przez NOOP. Pierścień pakuje ~10 pakietów w jedno powiadomienie dla oficjalnej aplikacji, a dla NOOP tylko jeden (9× wolniejsze zrzuty); to pierwszy kandydat na przełącznik. Domyślnie wyłączone; pierwsze połączenie po wyłączeniu wraca do 3f. Szukaj „-> notify_all(ff)” w dzienniku opaski i porównaj rozmiary powiadomień w surowym przechwyceniu.</string>
 </resources>

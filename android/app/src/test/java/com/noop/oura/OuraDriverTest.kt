@@ -48,6 +48,7 @@ class OuraDriverTest {
         val onReady = d.nextStep(OuraTransition.Ready)
         assertEquals(OuraDriverPhase.Authenticating, d.phase)
         assertEquals(listOf("notify_all", "get_nonce"), onReady.map { it.label })
+        assertArrayEquals(intArrayOf(0x1C, 0x01, 0x3F), onReady[0].bytes)   // the default mask, unchanged
         assertArrayEquals(intArrayOf(0x2F, 0x01, 0x2B), onReady[1].bytes)
 
         // nonce -> submit proof.
@@ -876,5 +877,37 @@ class OuraDriverTest {
             d.adoptSyncTimeAnchor(ringTimestamp = anchorRt, unixSeconds = futureAnchorSeconds))
         assertNull("but converting a 2034 sample is rejected because it is after now (2023)",
             d.unixSeconds(forRingTimestamp = anchorRt))
+    }
+
+    // MARK: - SetNotification mask (the packed-notification A/B, OURA_PROTOCOL.md s2.3)
+
+    /** Twin of Swift's testNotificationMaskFullReachesBothHandshakePaths: the official app's `ff` mask
+     *  reaches BOTH handshake paths (Ready and the post-install re-auth), carries its value in the label,
+     *  and changes nothing else. The default stays `3f`. */
+    @Test
+    fun testNotificationMaskFullReachesBothHandshakePaths() {
+        assertArrayEquals(intArrayOf(0x1C, 0x01, 0x3F), OuraCommands.enableAllNotifications().bytes)
+        assertEquals("notify_all", OuraCommands.enableAllNotifications().label)
+        assertArrayEquals(intArrayOf(0x1C, 0x01, 0xFF),
+            OuraCommands.enableAllNotifications(mask = OuraCommands.NOTIFICATION_MASK_FULL).bytes)
+        assertEquals("notify_all(ff)",
+            OuraCommands.enableAllNotifications(mask = OuraCommands.NOTIFICATION_MASK_FULL).label)
+
+        val d = OuraDriver(ringGen = OuraRingGen.GEN3, authKey = key,
+                           notificationMask = OuraCommands.NOTIFICATION_MASK_FULL)
+        val onReady = d.nextStep(OuraTransition.Ready)
+        assertEquals(OuraDriverPhase.Authenticating, d.phase)
+        assertEquals(listOf("notify_all(ff)", "get_nonce"), onReady.map { it.label })
+        assertArrayEquals(intArrayOf(0x1C, 0x01, 0xFF), onReady[0].bytes)
+        assertArrayEquals(intArrayOf(0x2F, 0x01, 0x2B), onReady[1].bytes)
+
+        // The post-install re-auth path sends the same mask.
+        val installing = OuraDriver(ringGen = OuraRingGen.GEN3, authKey = null, allowKeyInstall = true,
+                                    notificationMask = OuraCommands.NOTIFICATION_MASK_FULL)
+        assertEquals(emptyList<OuraCommand>(), installing.nextStep(OuraTransition.Ready))
+        assertNotNull(installing.beginKeyInstall(key))
+        val onAck = installing.keyInstallAcknowledged()
+        assertEquals(listOf("notify_all(ff)", "get_nonce"), onAck.map { it.label })
+        assertArrayEquals(intArrayOf(0x1C, 0x01, 0xFF), onAck[0].bytes)
     }
 }

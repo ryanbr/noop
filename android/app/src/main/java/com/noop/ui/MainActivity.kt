@@ -688,6 +688,20 @@ object NoopPrefs {
         of(context).edit().putBoolean(KEY_OURA_ONSET_KEYING, enabled).apply()
     }
 
+    /** Oura packed-notification A/B (EXPERIMENTAL, default OFF): send the official app's SetNotification mask
+     *  `1c 01 ff` at the next connect instead of NOOP's `3f`. The ring packs ~10 packets per notification for
+     *  the official app (9x the drain throughput) and NOOP's session never gets that shape; the mask is the
+     *  first candidate switch (OURA_PROTOCOL.md s2.3). Read once per connect, so turning it off restores `3f`
+     *  on the next session — nothing persists on the ring. Twin of iOS AppModel.ouraNotifyMaskFullKey. */
+    const val KEY_OURA_NOTIFY_MASK_FULL = "noop.ouraNotifyMaskFull"
+
+    fun ouraNotifyMaskFull(context: Context): Boolean =
+        of(context).getBoolean(KEY_OURA_NOTIFY_MASK_FULL, false)
+
+    fun setOuraNotifyMaskFull(context: Context, enabled: Boolean) {
+        of(context).edit().putBoolean(KEY_OURA_NOTIFY_MASK_FULL, enabled).apply()
+    }
+
     /** #1121: whether the opt-in "detailed capture" rolling strap-log file is on. Persisted so capture
      *  RESUMES after the process is killed (AppViewModel re-arms the BLE client from this on launch). */
     const val KEY_DETAILED_CAPTURE = "noop.detailedCapture"

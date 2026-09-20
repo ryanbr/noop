@@ -257,6 +257,10 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     /// #1284 residual 3 (default OFF): read live at persist — when true, an Oura hypnogram night is keyed on
     /// its rounded 0x49 onset (stable per-night anchor) instead of the end-anchored first-code time.
     private let onsetKeying: () -> Bool
+    /// Packed-notification A/B (default OFF): read once per connect — when true the session's
+    /// SetNotification is the official app's `ff` instead of `3f` (OURA_PROTOCOL.md s2.3). The next
+    /// connect re-reads it, so switching the toggle off restores the default with nothing left on the ring.
+    private let notifyMaskFull: () -> Bool
     private let log: (String) -> Void
     private let onBattery: (Int) -> Void
     /// Fired with the ring's TRUE model label ("Oura Ring 3/4/5") once the GetProductInfo hardware id resolves
@@ -1311,6 +1315,7 @@ public final class OuraLiveSource: NSObject, ObservableObject {
                 onModel: @escaping (String) -> Void = { _ in },
                 onSerial: @escaping (String) -> Void = { _ in },
                 onsetKeying: @escaping () -> Bool = { false },
+                notifyMaskFull: @escaping () -> Bool = { false },
                 feedsLive: Bool = true,
                 adoptIntent: Bool = false) {
         self.live = live
@@ -1324,6 +1329,7 @@ public final class OuraLiveSource: NSObject, ObservableObject {
         self.onModel = onModel
         self.onSerial = onSerial
         self.onsetKeying = onsetKeying
+        self.notifyMaskFull = notifyMaskFull
         self.feedsLive = feedsLive
         self.adoptIntent = adoptIntent
         // Tier-B MET research corpus: only on a live/persisting source, never the discovery-only scanner.
@@ -2755,10 +2761,17 @@ extension OuraLiveSource: @preconcurrency CBCentralManagerDelegate {
         // ring actually sends (raw bytes per kind, decoded MET for 0x50) so the layouts can be validated
         // against real captures. It can never leak a value into scoring: OuraStreamMapping drops
         // .tierB/.activityInfo unconditionally - the Tier-discipline gate that matters lives there, not here.
+        // Packed-notification A/B: the mask is decided here, once per session, and named on its own line
+        // ONLY when it is not the default - the `-> notify_all(ff)` write line then confirms it went out.
+        let notificationMask = notifyMaskFull() ? OuraCommands.notificationMaskFull : OuraCommands.notificationMaskDefault
+        if notificationMask != OuraCommands.notificationMaskDefault {
+            log("Oura: SetNotification mask \(String(format: "%02x", notificationMask)) this session (packed-notification A/B, Test Centre) - default is \(String(format: "%02x", OuraCommands.notificationMaskDefault))")
+        }
         driver = OuraDriver(ringGen: ringGen,
                             authKey: authKey().map { [UInt8]($0) },
                             allowTierB: true,
-                            allowKeyInstall: adoptIntent)
+                            allowKeyInstall: adoptIntent,
+                            notificationMask: notificationMask)
         reachedStreaming = false
         clearAuthWatchdog()   // a fresh session starts with a clean escalation count
         authEscalations = 0

@@ -2813,4 +2813,6 @@
     <string name="l10n_settings_screen_gauge_numbers_db0d45e3">Chiffres des jauges</string>
     <string name="l10n_settings_screen_bold_19e07430">Gras</string>
     <string name="l10n_settings_screen_softer_9edfeba1">Plus douce</string>
+    <string name="oura_notify_mask_full_title">Masque de notification Oura ff (expérimental)</string>
+    <string name="oura_notify_mask_full_desc">Envoie le masque SetNotification de l’application officielle (1c 01 ff) au lieu du 3f de NOOP à la prochaine connexion. La bague regroupe ~10 paquets par notification pour l’application officielle et un seul pour NOOP (vidage 9× plus lent) ; c’est le premier commutateur candidat. Désactivé par défaut ; la connexion suivant la désactivation repasse en 3f. Surveillez « -> notify_all(ff) » dans le journal du bracelet et comparez la taille des notifications dans la capture brute.</string>
 </resources>

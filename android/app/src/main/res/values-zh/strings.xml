@@ -2785,4 +2785,6 @@
     <string name="l10n_settings_screen_gauge_numbers_db0d45e3">仪表数字</string>
     <string name="l10n_settings_screen_bold_19e07430">粗体</string>
     <string name="l10n_settings_screen_softer_9edfeba1">更柔和</string>
+    <string name="oura_notify_mask_full_title">Oura 通知掩码 ff（实验性）</string>
+    <string name="oura_notify_mask_full_desc">下次连接时发送官方应用的 SetNotification 掩码（1c 01 ff），而不是 NOOP 的 3f。戒指为官方应用把约 10 个数据包打包进一条通知，为 NOOP 只发一个（读取慢 9 倍）；这是第一个候选开关。默认关闭；关闭后的下一次连接恢复为 3f。请在腕带日志中查看“-> notify_all(ff)”，并在原始捕获中比较通知大小。</string>
 </resources>

@@ -580,6 +580,7 @@ class SourceCoordinator(
                 }
             },
             onsetKeying = { NoopPrefs.ouraOnsetKeying(ctx) },  // #1284 residual 3
+            notifyMaskFull = { NoopPrefs.ouraNotifyMaskFull(ctx) },  // packed-notification A/B
             log = straplog,           // Oura connect/auth/stream lifecycle → the SAME exported strap log (#421)
             onBattery = batterySink,  // ring battery → the same live state the WHOOP strap battery uses
             onModel = { model -> scope.launch { runCatching { registry.setModel(id, model) } } },  // #772: correct a name-guessed gen

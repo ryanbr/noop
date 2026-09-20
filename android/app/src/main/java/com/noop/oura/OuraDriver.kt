@@ -87,6 +87,13 @@ class OuraDriver(
      */
     val allowKeyInstall: Boolean = false,
     /**
+     * The SetNotification mask both handshake paths send (Ready and the post-install re-auth).
+     * [OuraCommands.NOTIFICATION_MASK_DEFAULT] (`3f`) unless the Test Centre A/B asks for the official
+     * app's `ff` — see [OuraCommands.NOTIFICATION_MASK_FULL]. Reversible: the next session sends the mask
+     * it is constructed with, nothing persists on the ring. Twin of Swift's `notificationMask`.
+     */
+    val notificationMask: Int = OuraCommands.NOTIFICATION_MASK_DEFAULT,
+    /**
      * Wall-clock "now" in unix ms, used ONLY to reject a banked sample that converts to the future
      * (#1073). Injectable so the gate is testable without touching the system clock; defaults to the
      * real clock, so no ingest call site has to thread it. Twin of Swift's `nowMsProvider`.
@@ -146,7 +153,7 @@ class OuraDriver(
                 phase = OuraDriverPhase.Authenticating
                 // Enable notifications, then request the auth nonce. SyncTime can follow auth.
                 listOf(
-                    OuraCommands.enableAllNotifications(),
+                    OuraCommands.enableAllNotifications(mask = notificationMask),
                     OuraCommand("get_nonce", OuraAuth.getAuthNonceCommand()),
                 )
             }
@@ -276,7 +283,7 @@ class OuraDriver(
         if (phase != OuraDriverPhase.InstallingKey || installedKey == null) return emptyList()
         phase = OuraDriverPhase.Authenticating
         return listOf(
-            OuraCommands.enableAllNotifications(),
+            OuraCommands.enableAllNotifications(mask = notificationMask),
             OuraCommand("get_nonce", OuraAuth.getAuthNonceCommand()),
         )
     }

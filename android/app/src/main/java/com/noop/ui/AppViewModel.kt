@@ -2443,6 +2443,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         NoopPrefs.setOuraOnsetKeying(appContext, enabled)
     }
 
+    /** Packed-notification A/B: toggle the EXPERIMENTAL `ff` SetNotification mask. Read by the Oura source
+     *  once per connect (via [SourceCoordinator]), so it takes effect at the next connect, not the current one. */
+    fun setOuraNotifyMaskFull(enabled: Boolean) {
+        NoopPrefs.setOuraNotifyMaskFull(appContext, enabled)
+    }
+
     /** #1121: toggle the opt-in rolling "detailed capture" strap-log file. Persisted so it survives a
      *  process kill (re-armed in [init] below). */
     fun setDetailedCapture(enabled: Boolean) {

@@ -107,6 +107,10 @@ Returned during history fetch (`0x10`/`0x11`) and live streaming. Each record: [
   (`1c 01 ff` in the app's session vs NOOP's `3f`, `0x1C` in §4) and the app's unexplained `16 01 02` write.
   NOOP's reassembler walks a value only when it tiles exactly into two or more well-formed packets and
   otherwise reads the single lenient packet (the phantom-storm rule) — see `OuraReassembler.feed`.
+  The mask half of the A/B is runnable from the Test Centre ("Oura notification mask ff"): the next
+  connect sends `1c 01 ff` (`OuraCommands.enableAllNotifications(mask:)`, logged as `-> notify_all(ff)`)
+  and the raw sidecar's notification-size histogram is the readout. Nothing persists on the ring — the
+  mask is re-sent on every session, so the toggle off is `3f` again at the next connect.
 
 ### 2.4 Multi-packet payloads
 There is no application-level fragmentation header beyond the TLV `len`. A record never spans two notifications in the verified corpus; each notification contains whole frames/records. NOOP's parser must still be defensive: buffer partial trailing bytes across notifications and only emit complete `2+len` records.
