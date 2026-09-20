@@ -2807,4 +2807,6 @@
     <string name="l10n_sleep_screen_low_confidence_99d4ceae">Geringe Konfidenz</string>
     <string name="l10n_sleep_screen_this_night_scored_high_efficiency_but_a11d90eb">Diese Nacht erreichte eine hohe Effizienz, aber sehr wenig Tief- oder REM-Schlaf. Das ist eher ein Schätzfehler der Schlafphasen als ein echtes Erholungsdefizit. Die Werte bleiben unverändert, lies die Aufteilung mit Bedacht.</string>
     <string name="l10n_health_screen_over_reports_r_r_so_no_9d050d53">Meldet zu viele RR-Intervalle, daher kein Wert</string>
+    <string name="l10n_settings_screen_check_current_name_read_only_acb2f01a">Aktuellen Namen abfragen (nur lesen)</string>
+    <string name="l10n_settings_screen_renaming_is_not_supported_on_a_02f7af2c">Umbenennen wird bei einer WHOOP 5.0 oder MG noch nicht unterstützt. NOOP kann das Band nach seinem aktuellen Namen fragen. Das entscheidet, ob Umbenennen überhaupt möglich ist.</string>
 </resources>

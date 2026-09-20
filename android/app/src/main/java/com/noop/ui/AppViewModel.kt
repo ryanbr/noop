@@ -2347,6 +2347,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     /** cmd-151 probe result text (null until a reply lands; waiting sentinel while in flight). */
     val batteryPackProbe = ble.batteryPackProbe
 
+    /** #2338: the read-only advertising-name probe result, for the Settings strap-name section. */
+    val advertisingNameProbe = ble.advertisingNameProbe
+
     fun clearBatteryPackProbe() = ble.clearBatteryPackProbe()
 
     /** #761: READ-ONLY feature-flag ENUMERATION probe (117 then repeated 118) — reads the flag NAMES the

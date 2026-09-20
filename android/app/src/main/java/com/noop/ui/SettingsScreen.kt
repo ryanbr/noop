@@ -55,6 +55,7 @@ import androidx.compose.material.icons.filled.IosShare
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Sensors
@@ -138,6 +139,8 @@ import com.noop.ble.WhoopModel
 import com.noop.data.DataBackup
 import com.noop.ingest.RawSensorExport
 import com.noop.ingest.WhoopCsvExporter
+import com.noop.testcentre.TestCentre
+import com.noop.testcentre.TestDomain
 import com.noop.update.UpdateCheck
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -510,6 +513,9 @@ fun SettingsScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val live by vm.live.collectAsStateWithLifecycle()
+    // #2338: the read-only advertising-name probe result. Its own flow on the BLE client rather than a
+    // LiveState field, matching the other opcode probes.
+    val advertisingNameProbe by vm.advertisingNameProbe.collectAsStateWithLifecycle()
 
     // The profile store is stable for the lifetime of this screen; a version counter
     // forces recomposition after each mutating write (SharedPreferences isn't reactive).
@@ -2040,6 +2046,46 @@ fun SettingsScreen(
                         enabled = live.connected || live.bonded,
                         onClick = { vm.disconnect() },
                     )
+                }
+
+                // #2338: the section is shown for a 5/MG too, where it used to be absent entirely. A
+                // second-hand band arrives carrying the previous owner's name, and a section that is not
+                // rendered cannot say why it can do nothing about it.
+                //
+                // The SECTION renders for any connected 5/MG; only the CONTROLS sit behind Test Centre
+                // Connection. Gating the whole thing put it back to invisible on a default install,
+                // which is the state that had this reported as "you cannot change it" rather than "not
+                // supported yet" — the regression this split exists to prevent.
+                //
+                // Only the read-only CHECK is gated, because opcode 141 has never been answered by a 5/MG
+                // and this is what finds out. Renaming a 5/MG is not offered at all: the set opcode is a
+                // different question and needs this one's answer first (#2338).
+                val fiveMgProbeUnlocked = TestCentre.from(context).active(TestDomain.CONNECTION)
+                if (live.connected && live.whoop5Detected) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(uiString(R.string.l10n_settings_screen_strap_name_350de547), style = NoopType.subhead, color = Palette.textPrimary)
+                        Text(
+                            uiString(R.string.l10n_settings_screen_renaming_is_not_supported_on_a_02f7af2c),
+                            style = NoopType.footnote,
+                            color = Palette.textTertiary,
+                        )
+                        if (fiveMgProbeUnlocked) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                // Read-only: GET_ADVERTISING_NAME(141), nothing is written. Silence is a
+                                // result: it says the opcode family is wrong or unsupported.
+                                NoopButton(
+                                    text = uiString(R.string.l10n_settings_screen_check_current_name_read_only_acb2f01a),
+                                    leadingIcon = Icons.Filled.Search,
+                                    kind = NoopButtonKind.Secondary,
+                                    enabled = live.bonded,
+                                    onClick = { vm.ble.probeAdvertisingName() },
+                                )
+                                advertisingNameProbe?.let {
+                                    Text(it, style = NoopType.footnote, color = Palette.textSecondary, modifier = Modifier.weight(1f))
+                                }
+                            }
+                        }
+                    }
                 }
 
                 // Rename the strap's BLE advertising name (WHOOP 4.0 only). Writes the name to the strap

@@ -1661,6 +1661,13 @@ class WhoopBleClient(
          *  the dialog does not hang. */
         const val BATTERY_PACK_PROBE_TIMEOUT_MS = 8_000L
 
+        /** #2338: how long the read-only advertising-name probe waits before calling silence a result. */
+        const val ADVERTISING_NAME_PROBE_TIMEOUT_MS = 8_000L
+
+        /** In-flight sentinel for the #2338 probe. The 5/MG allow-list admits opcode 141 ONLY while this
+         *  is in place, so a default install can never form those bytes. */
+        const val WAITING_ADVERTISING_NAME_PROBE = "__waiting__"
+
         /**
          * Blank the pack's six address bytes inside the raw frame dump, leaving every other byte
          * readable. [cmdOff] + 5 is the address offset the decoder uses; [decoded] gates the edit so a
@@ -2154,6 +2161,12 @@ class WhoopBleClient(
     // dialog. Read-only diagnostic: it decodes nothing into live state and gates nothing.
     private val _batteryPackProbe = MutableStateFlow<String?>(null)
     val batteryPackProbe: StateFlow<String?> = _batteryPackProbe.asStateFlow()
+
+    /** #2338: the read-only GET_ADVERTISING_NAME(141) probe result, or the in-flight sentinel. Drives the
+     *  Devices dialog copy; null when no probe has run. */
+    private val _advertisingNameProbe = MutableStateFlow<String?>(null)
+    val advertisingNameProbe: StateFlow<String?> = _advertisingNameProbe.asStateFlow()
+
 
     // #761: the READ-ONLY feature-flag ENUMERATION report — the flag NAMES the strap's own firmware lists
     // — or the waiting sentinel while the walk runs. Nothing is written to the strap to produce it.
@@ -4461,6 +4474,13 @@ class WhoopBleClient(
                 // gated). Whether a 5/MG answers at all is exactly the hardware question being asked.
                 !(cmd == CommandNumber.GET_BATTERY_PACK_INFO &&
                     _batteryPackProbe.value == WAITING_BATTERY_PACK_PROBE) &&
+                // GET_ADVERTISING_NAME (141) over puffin: the #2338 read-only name probe. Gated like 151
+                // above, the hardest of the three tiers, because this opcode has never been sent to any
+                // strap by this app: allowed ONLY while a probe is actually in flight, so a default
+                // install cannot form these bytes at all. The SET side (140) is not in CommandNumber, so
+                // no code path can express a write no matter what this gate says.
+                !(cmd == CommandNumber.GET_ADVERTISING_NAME &&
+                    _advertisingNameProbe.value == WAITING_ADVERTISING_NAME_PROBE) &&
                 // START_FF_KEY_EXCHANGE (117) / SEND_NEXT_FF (118) over puffin: the READ-ONLY feature-flag
                 // ENUMERATION probe (#761) — it reads the strap's own flag NAMES and writes no value. Gated
                 // harder than the probes above: allowed ONLY while a probe is actually in flight, so on a
@@ -4988,6 +5008,64 @@ class WhoopBleClient(
             if (_batteryPackProbe.compareAndSet(WAITING_BATTERY_PACK_PROBE, msg)) log(msg)
         }, BATTERY_PACK_PROBE_TIMEOUT_MS)
     }
+
+    /**
+     * #2338 READ-ONLY probe: ask the strap for its BLE advertising name over `GET_ADVERTISING_NAME(141)`.
+     *
+     * Renaming a strap is WHOOP 4.0 only today, over the Harvard pair 76/77. A second-hand 5/MG keeps the
+     * previous owner's name with no way to change it. The schema names a non-Harvard pair, 140 set and 141
+     * get, but nothing in this app has ever sent either, so the opcode numbers rest on the schema alone.
+     *
+     * This asks, and writes nothing. Whether a 5/MG answers 141 at all is the hardware question, and
+     * SILENCE IS A RESULT: it says the number is wrong, or the command is unsupported, either of which
+     * settles whether a rename is reachable before anyone writes 140 at firmware. The set side is not in
+     * [CommandNumber], so no code path can express the write until this returns something.
+     *
+     * User-initiated, Test Centre gated at the call site, and admitted by the 5/MG allow-list only while
+     * the sentinel below is in place. Same shape as `probeBatteryPackInfo` (151) and the #690 / #592
+     * probes. The reply is redacted before it is shown: an advertising name routinely carries a person's
+     * name, which is the whole reason #2338 exists.
+     */
+    fun probeAdvertisingName() {
+        if (!_state.value.connected) {
+            log("Advertising-name probe (141) ignored — not connected")
+            return
+        }
+        // 5/MG only, checked HERE and not just at the call site, for the reason [renameStrap] states: a
+        // gate living only in the UI is one refactor from gone. This matters more than it looks. A 4.0
+        // has NO send allow-list, so on that family the frame would actually reach the wire, and 141 is
+        // the wrong opcode for it anyway — a 4.0 reads its name on 76. Deliberately unlike
+        // [probeBatteryPackInfo], which is offered on both families because a 4.0's silence there is
+        // itself the evidence; here the 4.0 answer is already known.
+        if (connectedFamily != DeviceFamily.WHOOP5) {
+            _advertisingNameProbe.value = "The name probe is WHOOP 5.0/MG only. A 4.0 reads its name on opcode 76."
+            log("Advertising-name probe: 5/MG only — ignored (family=$connectedFamily, #2338)")
+            return
+        }
+        // #2338: drop any standing rename status first. The two share one line in the UI, which prefers
+        // renameStatus, and a rename leaves behind "use Check current name to see whether it took" — so
+        // without this the status would sit there hiding the answer to the very question it asked. The
+        // probe is the newer action, so it owns the line.
+        _state.update { it.copy(renameStatus = null) }
+        // MUST be set before send(): the allow-list admits 141 only while this sentinel is in place, so
+        // setting it afterwards would have our own gate drop our own probe.
+        _advertisingNameProbe.value = WAITING_ADVERTISING_NAME_PROBE
+        log("Advertising-name probe: sending GET_ADVERTISING_NAME(141, read-only) on family=$connectedFamily")
+        send(CommandNumber.GET_ADVERTISING_NAME)
+        // Silence is itself a verdict. ATOMIC compare-and-set so a real reply landing microseconds before
+        // the timeout is never clobbered by this late "no reply".
+        handler.postDelayed({
+            val msg = "Advertising-name probe: no COMMAND_RESPONSE for opcode 141 within " +
+                "${ADVERTISING_NAME_PROBE_TIMEOUT_MS / 1000}s — the strap served no reply. That is the " +
+                "answer for now: renaming stays WHOOP 4.0 only (#2338)."
+            if (_advertisingNameProbe.compareAndSet(WAITING_ADVERTISING_NAME_PROBE, msg)) log(msg)
+        }, ADVERTISING_NAME_PROBE_TIMEOUT_MS)
+    }
+
+    // No clearAdvertisingNameProbe(): unlike the 151 and #690 probes, this result renders INLINE in the
+    // Settings strap-name section rather than in a dialog, so there is no dismiss to hang a clear on. The
+    // next probe replaces it, and a rename masks it (the UI prefers renameStatus). Adding the symmetric
+    // clearer would only add an entry point nothing reaches.
 
     /** Clear the cmd-151 probe result (Devices dialog dismissed). */
     fun clearBatteryPackProbe() { _batteryPackProbe.value = null }
@@ -7623,6 +7701,23 @@ class WhoopBleClient(
                         // sink the scrubber otherwise never sees — and the `raw:` frame dump carries the
                         // serial as ASCII inside the hex, which is exactly what redactStrapLogPii masks.
                         _batteryPackProbe.value = redactStrapLogPii(text)
+                    }
+                    // #2338: a reply to the read-only advertising-name probe (141). In-flight-guarded like
+                    // 151 above, for the same reason: 0x8D could coincidentally be some data frame's
+                    // cmd-offset byte, and a stray match must never pop a user-triggered dialog.
+                    if (frame.size > cmdOff && (frame[cmdOff].toInt() and 0xFF) == CommandNumber.GET_ADVERTISING_NAME.rawValue &&
+                        _advertisingNameProbe.value == WAITING_ADVERTISING_NAME_PROBE) {
+                        val decoded = advertisingNameFromWhoop5Response(frame)
+                        // Redact BEFORE anything is stored or logged. An advertising name carries a
+                        // person's name (#2337), and this value also renders behind a copy button, a sink
+                        // the log scrubber never sees.
+                        val text = if (decoded != null) {
+                            "the strap answered 141 with a name: ${logSafeDeviceName(decoded)}"
+                        } else {
+                            "the strap answered 141, but the payload held no printable name"
+                        }
+                        log("Advertising-name probe (141): $text")
+                        _advertisingNameProbe.value = redactStrapLogPii(text)
                     }
                     // #761: a reply to the read-only feature-flag enumeration (117/118). In-flight-guarded
                     // inside handleFeatureFlagProbeResponse, so this is a byte compare on every other frame.
@@ -12216,6 +12311,29 @@ internal fun whoop5CommandResponsePayload(frame: ByteArray): ByteArray? {
     val start = 13
     if (length > frame.size || start >= length) return null
     return frame.copyOfRange(start, length)
+}
+
+/**
+ * #2338: the advertising name carried by a GET_ADVERTISING_NAME COMMAND_RESPONSE from a 5/MG.
+ *
+ * Printable ASCII out of the 5/MG payload, trimmed. Mirrors the shape of Swift
+ * `FrameRouter.advertisingName`, but off [whoop5CommandResponsePayload] rather than the 4.0 envelope:
+ * reading a 5/MG frame with the 4.0 helper does not fail, it returns four bytes of envelope dressed as
+ * payload, which is the exact mistake bhelm/noop#4 was.
+ *
+ * null when the frame carries no payload; null ALSO when the payload holds no printable bytes at all,
+ * which is the answer to "did the strap reply with something that is not a name". An empty string
+ * would read as "the strap says its name is blank", a claim this cannot support.
+ *
+ * Pure and file-scope so the decode is unit-testable without a BLE stack, the [whoop4AlarmPayload]
+ * idiom. What the bytes MEAN on a 5/MG is unverified: no strap has answered 141 yet, and this exists
+ * to find out.
+ */
+internal fun advertisingNameFromWhoop5Response(frame: ByteArray): String? {
+    val payload = whoop5CommandResponsePayload(frame) ?: return null
+    val printable = payload.filter { it >= 32 && it < 127 }.toByteArray()
+    if (printable.isEmpty()) return null
+    return String(printable, Charsets.UTF_8).trim().takeIf { it.isNotEmpty() }
 }
 
 /** Space-separated lowercase hex of a COMMAND_RESPONSE payload, for the raw-hex diagnostic fallback

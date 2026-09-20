@@ -2823,4 +2823,6 @@
     <string name="l10n_sleep_screen_low_confidence_99d4ceae">Low confidence</string>
     <string name="l10n_sleep_screen_this_night_scored_high_efficiency_but_a11d90eb">This night scored high efficiency but very little deep or REM, more likely a staging estimate miss than a real restorative shortfall. The totals are kept as-is; read the split with care.</string>
     <string name="l10n_health_screen_over_reports_r_r_so_no_9d050d53">Over-reports R-R, so no value is shown</string>
+    <string name="l10n_settings_screen_check_current_name_read_only_acb2f01a">Check current name (read-only)</string>
+    <string name="l10n_settings_screen_renaming_is_not_supported_on_a_02f7af2c">Renaming is not supported on a WHOOP 5.0 or MG yet. NOOP can ask the strap for its current name, which is the step that decides whether renaming is possible at all.</string>
 </resources>
