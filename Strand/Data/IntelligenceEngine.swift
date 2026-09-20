@@ -418,11 +418,35 @@ final class IntelligenceEngine: ObservableObject {
                                                       providedCount: Int, windowHours: Int,
                                                       skinCount: Int) -> String {
         // `reason` names WHICH absence this is, because grav=0 is printed but its consequence is not.
-        // With no motion the stager has no HR-only fallback, so no quantity of HR can stage a night — a
-        // strap capability limit, not a coverage gap, and the two want completely different follow-ups.
-        // With motion present the inputs were there and staging still produced nothing, which is the case
-        // actually worth investigating.
-        let reason = gravCount == 0 ? "no-motion" : "staged-none"
+        //
+        // `no-motion` USED to mean "and therefore nothing further was attempted" — the stager had no
+        // HR-only fallback, so no quantity of HR could stage a night. Since #1801 it does: a day with no
+        // gravity now also runs `SleepStager.hrOnlySessions`.
+        //
+        // Which is why grav=0 alone can no longer name the outcome. A 5/MG overnight capture showed this
+        // line reading `no-motion` while the HR-only spine on the SAME pass kept four sessions, the
+        // longest 311 minutes, and handed them over as `provided=3`. The reader was told nothing could
+        // stage a night while the log above said something had. So the no-gravity case splits by whether
+        // anything was actually provided:
+        //
+        //   no-motion                 no gravity, and nothing was provided either
+        //   no-motion-provided-unused no gravity, sessions WERE provided, and the night is still empty —
+        //                             they went in and no night came out, which is a question about what
+        //                             dropped them rather than about the strap
+        //
+        // Note "provided", not "HR-only". With no gravity `providedSleep` is the HR-only spine's output
+        // in the no-hypnogram branch, but it is STORED sessions in the stored-hypnogram one, and from
+        // here the two are indistinguishable. Naming the source would repeat the very over-claim this
+        // split exists to remove. The `[sleep] hr-only gate` trace is what says which branch ran.
+        //
+        // With motion present the inputs were there and staging still produced nothing, which remains the
+        // case most worth investigating.
+        let reason: String
+        if gravCount > 0 {
+            reason = "staged-none"
+        } else {
+            reason = providedCount > 0 ? "no-motion-provided-unused" : "no-motion"
+        }
         // #1118 follow-up: name any stream that came back AT its read cap. A read that returns exactly the
         // limit is the definition of truncated everywhere else here (`full.count >= limit`), and it is the
         // one thing a reader cannot infer from the counts alone — `grav=192698` looks healthy until you

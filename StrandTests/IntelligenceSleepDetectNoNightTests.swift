@@ -22,10 +22,48 @@ final class IntelligenceSleepDetectNoNightTests: XCTestCase {
             gravCount: 0, stepCount: 12, providedCount: 0, windowHours: 54, skinCount: 0)
         XCTAssertEqual(line,
             "sleep-detect day=2026-08-11 NO-NIGHT hr=41230 rr=0 resp=880 "
-            // reason=no-motion is the point of this fixture: grav=0 means the stager has no HR-only
-            // fallback, so no quantity of HR could have staged a night. That is a strap capability limit,
-            // and it wants a different follow-up from a night that had motion and still staged nothing.
+            // reason=no-motion with provided=0: no gravity AND the HR-only spine (#1801) yielded
+            // nothing either. The bare reason is only correct because nothing was provided; see
+            // `testNoMotionButSessionsWereProvided` for the case where it is not.
             + "grav=0 skin=0 steps=12 provided=0 window=54h reason=no-motion")
+    }
+
+    /// The case a 5/MG overnight capture actually hits, and the one no fixture covered.
+    ///
+    /// Since #1801 a no-gravity day still runs the HR-only spine. On that capture it kept four sessions,
+    /// the longest 311 minutes, and handed them over — and this line still said `no-motion`, which reads
+    /// as "nothing could stage a night" while the log above showed something had. With sessions provided
+    /// and the night still empty, the question is what dropped them, not what the strap can do.
+    ///
+    /// The fixture asserts on PROVIDED sessions, not on their source: with no gravity they may be the
+    /// HR-only spine's output or a stored hypnogram, and the line cannot tell. Claiming otherwise would
+    /// be the same over-claim this split removes.
+    func testNoMotionButSessionsWereProvided() {
+        let line = IE.sleepDetectNoNightLogLine(
+            day: "2026-09-21", hrCount: 106144, rrCount: 73959, respCount: 0,
+            gravCount: 0, stepCount: 0, providedCount: 3, windowHours: 30, skinCount: 0)
+        // EXACT match on the parsed token, not `contains`. `no-motion` is a PREFIX of
+        // `no-motion-provided-unused`, so a contains check matches both and cannot catch a regression to
+        // the bare value. The first version of this assertion used `contains("reason=no-motion ")` with a
+        // trailing space, which is false for BOTH values whenever nothing is at its read cap, so it could
+        // never fail at all.
+        XCTAssertEqual(Self.reasonToken(of: line), "no-motion-provided-unused", line)
+    }
+
+    /// No gravity AND nothing provided keeps the plain reason: HR alone yielded nothing either.
+    func testNoMotionAndNothingProvidedKeepsThePlainReason() {
+        let line = IE.sleepDetectNoNightLogLine(
+            day: "2026-09-21", hrCount: 106144, rrCount: 73959, respCount: 0,
+            gravCount: 0, stepCount: 0, providedCount: 0, windowHours: 30, skinCount: 0)
+        XCTAssertEqual(Self.reasonToken(of: line), "no-motion", line)
+    }
+
+    /// Motion present still outranks everything: the inputs were there and staging produced nothing.
+    func testMotionPresentStaysStagedNoneEvenWithProvidedSessions() {
+        let line = IE.sleepDetectNoNightLogLine(
+            day: "2026-09-21", hrCount: 5000, rrCount: 900, respCount: 300,
+            gravCount: 4, stepCount: 0, providedCount: 3, windowHours: 48, skinCount: 0)
+        XCTAssertEqual(Self.reasonToken(of: line), "staged-none", line)
     }
 
     func testTodayWindowIs48h() {
@@ -104,4 +142,12 @@ final class IntelligenceSleepDetectNoNightTests: XCTestCase {
         XCTAssertTrue(line.contains("atCap=skin"), line)
     }
 
+    /// The `reason=` value alone, stopping at the space before any `atCap=` marker.
+    ///
+    /// Comparing the whole line with `contains` cannot separate `no-motion` from
+    /// `no-motion-provided-unused`, since the first is a prefix of the second.
+    private static func reasonToken(of line: String) -> String {
+        guard let r = line.range(of: "reason=") else { return "" }
+        return String(line[r.upperBound...].prefix { $0 != " " })
+    }
 }

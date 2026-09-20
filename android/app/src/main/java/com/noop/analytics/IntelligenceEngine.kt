@@ -3255,17 +3255,33 @@ object IntelligenceEngine {
     ): String {
         // `reason` names WHICH absence this is, because grav=0 is printed but its consequence is not.
         //
-        // `no-motion` USED to mean "and therefore nothing further was attempted" — the stager had no
+        // `no-motion` USED to mean "and therefore nothing further was attempted" - the stager had no
         // HR-only fallback, so no quantity of HR could stage a night. Since #1801 it does: a day with no
-        // gravity now also runs [SleepStager.hrOnlySessions], so this line printing `no-motion` means the
-        // motion spine was absent AND heart rate alone did not yield a night either — too little of it in
-        // the sleep band, or a run that staged to nothing. That is a stronger statement than it used to
-        // be, and the follow-up it wants is different: no longer "this strap cannot", but "why did the
-        // HR-only spine find nothing here".
+        // gravity now also runs [SleepStager.hrOnlySessions].
+        //
+        // Which is why grav=0 alone can no longer name the outcome. A 5/MG overnight capture showed this
+        // line reading `no-motion` while the HR-only spine on the SAME pass kept four sessions, the
+        // longest 311 minutes, and handed them over as `provided=3`. The reader was told nothing could
+        // stage a night while the log above said something had. So the no-gravity case splits by whether
+        // anything was actually provided:
+        //
+        //   no-motion                 no gravity, and nothing was provided either
+        //   no-motion-provided-unused no gravity, sessions WERE provided, and the night is still empty -
+        //                             they went in and no night came out, which is a question about what
+        //                             dropped them rather than about the strap
+        //
+        // Note "provided", not "HR-only". With no gravity `providedSleep` is the HR-only spine's output
+        // in the no-hypnogram branch, but it is STORED sessions in the stored-hypnogram one, and from
+        // here the two are indistinguishable. Naming the source would repeat the very over-claim this
+        // split exists to remove. The `[sleep] hr-only gate` trace is what says which branch ran.
         //
         // With motion present the inputs were there and staging still produced nothing, which remains the
         // case most worth investigating.
-        val reason = if (gravCount == 0) "no-motion" else "staged-none"
+        val reason = when {
+            gravCount > 0 -> "staged-none"
+            providedCount > 0 -> "no-motion-provided-unused"
+            else -> "no-motion"
+        }
         // #1118 follow-up: name any stream that came back AT its read cap. A read that returns exactly
         // the limit is the definition of truncated everywhere else here (`full.count >= limit`), and it
         // is the one thing a reader cannot infer from the counts alone - `grav=192698` looks healthy
