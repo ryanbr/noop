@@ -107,7 +107,7 @@ final class LiftSessionController: ObservableObject {
     static let restWarningLeadSec = 5
     /// A strap double-tap this soon after the last one the session acted on is taken as a knock. See
     /// `isKnock(secondsSinceLastStep:stage:now:)`.
-    static let strapKnockWindowSec = 8
+    static let strapKnockWindowSec = 5
 
     init(buzz: @escaping (UInt8) -> Void,
          setStrapHandler: @escaping ((@MainActor () -> Void)?) -> Void,
@@ -245,7 +245,9 @@ final class LiftSessionController: ObservableObject {
     /// two things when it should have done only one". Only the timing tells such a knock from a tap.
     ///
     /// Under `strapKnockWindowSec` counts as a knock, because no set a lifter means to finish, and no
-    /// rest a lifter means to end, is that short. The exception is a rest that is already over — a
+    /// rest a lifter means to end, is that short. It was 8 s at first; after the next session Utku found
+    /// that too long to wait for a deliberate second tap (21 Sep 2026), and 5 s still covers the knocks
+    /// measured at +2.9 s and +4.1 s. The exception is a rest that is already over — a
     /// line planned with no rest, or the one left once every set is done — where going straight on is
     /// the plan. The on-screen button is never held back: a knock does not press it. A tap held back
     /// gets no buzz, which tells the lifter to tap again.

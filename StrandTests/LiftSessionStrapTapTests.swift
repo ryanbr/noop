@@ -112,6 +112,8 @@ final class LiftSessionStrapTapTests: XCTestCase {
         XCTAssertTrue(LiftSessionController.isKnock(secondsSinceLastStep: 4, stage: resting, now: now))
         XCTAssertTrue(LiftSessionController.isKnock(secondsSinceLastStep: window - 1, stage: working, now: now))
         XCTAssertFalse(LiftSessionController.isKnock(secondsSinceLastStep: window, stage: working, now: now))
+        XCTAssertFalse(LiftSessionController.isKnock(secondsSinceLastStep: 6, stage: working, now: now),
+                       "8 s was too long to wait for a deliberate tap (Utku, 21 Sep 2026)")
         XCTAssertFalse(LiftSessionController.isKnock(secondsSinceLastStep: 21, stage: working, now: now),
                        "the shortest real set in that session was 21 s")
         XCTAssertFalse(LiftSessionController.isKnock(secondsSinceLastStep: 2, stage: restOver, now: now))
