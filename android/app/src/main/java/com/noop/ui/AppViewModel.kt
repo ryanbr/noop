@@ -1146,18 +1146,23 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
             }.onFailure { if (it is kotlin.coroutines.cancellation.CancellationException) throw it }
             // One-shot on-upgrade Effort rescore (#313): recompute strain from source across the FULL
             // history once, so any deep-history rows an older build left on the 0–21 axis regenerate on
-            // the 0–100 axis. Guarded by a persisted flag, so it's a no-op on every subsequent launch.
+            // the 0–100 axis. Also replays pre-fix sleep after missing WRIST_ON events. Both flags
+            // are set only after the full pass returns; cancellation/failure retries next launch.
             runCatching {
                 IntelligenceEngine.runEffortRescoreIfNeeded(
                     repo = repository,
                     profile = currentProfile(),
                     importedDeviceId = deviceId,
                     maxHROverride = profileStore.hrMaxOverride.takeIf { it > 0 }?.toDouble(),
-                    flagGet = { NoopPrefs.effortRescoreDone(appContext) },
-                    flagSet = { NoopPrefs.setEffortRescoreDone(appContext) },
+                    flagGet = { NoopPrefs.effortRescoreDone(appContext) && NoopPrefs.sleepWearRescoreDone(appContext) },
+                    flagSet = {
+                        NoopPrefs.setEffortRescoreDone(appContext)
+                        NoopPrefs.setSleepWearRescoreDone(appContext)
+                    },
                     // #1567: this rewrites the FULL history once, so a missing owner source would bake the
                     // WHOOP5 skin-temp scale into every day of it.
                     ownerSource = RegistryDayOwnerSource(noopApp.deviceRegistry),
+                    preserveUnscoredHistory = true,
                 )
             }.onFailure { if (it is kotlin.coroutines.cancellation.CancellationException) throw it }
             while (isActive) {

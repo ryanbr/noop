@@ -32,6 +32,24 @@ internal object IntelligencePersistence {
         val markerSourceIds: List<String>,
     )
 
+    /** Keep the per-day repair loop outside the instrumented scoring coroutine's bytecode budget. */
+    suspend fun persistComputedWindow(repo: WhoopRepository, window: ComputedWindow, preserveUnscoredHistory: Boolean) {
+        val windows = if (preserveUnscoredHistory) byScoredDay(window) else listOf(window)
+        for (part in windows) part.persistInto(repo)
+    }
+
+    private suspend fun ComputedWindow.persistInto(repo: WhoopRepository) =
+        repo.replaceComputedScoreWindow(this)
+
+    /** Per-day repair writes leave older, unscorable cached days and their provenance intact. */
+    fun byScoredDay(window: ComputedWindow): List<ComputedWindow> =
+        window.dailies.map { it.day }.distinct().sorted().map { day ->
+            window.copy(from = day, to = day,
+                dailies = window.dailies.filter { it.day == day },
+                metricRows = window.metricRows.filter { it.day == day },
+                provenance = window.provenance.filter { it.day == day })
+        }
+
     suspend fun prepareComputedWindow(
         repo: WhoopRepository,
         importedDeviceId: String,

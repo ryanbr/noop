@@ -18,23 +18,31 @@ public enum AnalyticsEngine {
     /// Pair the strap's WRIST_OFF/WRIST_ON events into off-wrist `[start, end)` intervals for the sleep
     /// detector's fractional wear filter (#500; design credited to j0b-dev's #504). Each WRIST_OFF opens
     /// an interval that closes at the next WRIST_ON, or at `windowEnd` if the strap is still off at the
-    /// end of the read window. Events need not be pre-sorted; kinds are formatted "NAME(n)" (e.g.
+    /// end of the read window. An unmatched tail may end earlier when sustained valid HR resumes;
+    /// explicit OFF/ON pairs are never shortened. Events need not be pre-sorted; kinds are formatted "NAME(n)" (e.g.
     /// "WRIST_OFF(10)"), matched by prefix. Repeated OFFs/ONs without a partner are coalesced.
-    public static func offWristIntervals(events: [WhoopEvent], windowEnd: Int) -> [(start: Int, end: Int)] {
+    public static func offWristIntervals(events: [WhoopEvent], windowEnd: Int,
+                                         hr: [HRSample] = []) -> [(start: Int, end: Int)] {
         let wear = events
             .filter { $0.kind.hasPrefix("WRIST_OFF") || $0.kind.hasPrefix("WRIST_ON") }
             .sorted { $0.ts < $1.ts }
         var intervals: [(start: Int, end: Int)] = []
         var offStart: Int? = nil
-        for e in wear {
+        var lastOff: Int? = nil
+        for e in wear where e.ts <= windowEnd {
             if e.kind.hasPrefix("WRIST_OFF") {
-                if offStart == nil { offStart = e.ts }            // ignore repeated OFFs
+                if offStart == nil { offStart = e.ts }
+                lastOff = e.ts // a repeated OFF invalidates evidence before it
             } else {                                              // WRIST_ON closes an open off-wrist span
                 if let s = offStart, e.ts > s { intervals.append((start: s, end: e.ts)) }
                 offStart = nil
             }
         }
-        if let s = offStart, windowEnd > s { intervals.append((start: s, end: windowEnd)) }
+        if let s = offStart, windowEnd > s {
+            let end = WristWearRecovery.firstSustainedHR(hr, after: lastOff ?? s, before: windowEnd)
+                ?? windowEnd
+            if end > s { intervals.append((start: s, end: end)) }
+        }
         return intervals
     }
 

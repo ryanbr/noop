@@ -122,6 +122,9 @@ object IntelligenceEngine {
      *  config signature. Pruned to the calibration window each pass so it cannot grow without bound. */
     private var stepsMotionCache = HashMap<String, Pair<String, Double>>()
 
+    // Guarded by analyzeGate; kept as state to avoid another parameter on the bytecode-budgeted pass.
+    private var preserveUnscoredHistoryForRun = false
+
     /** One reused night: its per-day cache [key], the scored [res], and everything the pass-1 loop otherwise
      *  writes into function-scoped per-day maps that pass 2 reads (owner/hrRows/primary-session RHR/SpO₂
      *  candidate/HRV over-count), plus the always-on per-day [diagLines] to replay so a reused pass logs the
@@ -499,6 +502,7 @@ object IntelligenceEngine {
         // every existing test relies on. Read/written under [analyzeGate] with the cache they back.
         stepsMotionCacheGet: (() -> String?)? = null,
         stepsMotionCacheSet: ((String) -> Unit)? = null,
+        preserveUnscoredHistory: Boolean = false,
     ): List<Computed> = withContext(Dispatchers.Default) {
         // #1005: time the whole pass so a re-score STORM is visible in the strap log (the trigger lines
         // record WHY each pass runs; this records how many nights and how long — the CPU cost per run).
@@ -516,6 +520,7 @@ object IntelligenceEngine {
             // across the back-to-back passes an offload storm is made of. Reset and emit both live in this
             // wrapper, never in `analyzeRecentOnCpu`, whose ratchet margin has no room for either.
             StoreProbeTally.reset()
+            preserveUnscoredHistoryForRun = preserveUnscoredHistory
             if (!stepsMotionCacheLoaded && stepsMotionCacheGet != null) {
                 stepsMotionCacheLoaded = true
                 val raw = stepsMotionCacheGet()
@@ -599,6 +604,7 @@ object IntelligenceEngine {
         // #1567: same reason as the sync path, over a WIDER window — this one rewrites the FULL history
         // once. Without it every day of that rewrite reads the skin-temp scale as WHOOP5 (see analyzeRecent).
         ownerSource: DayOwnerSource? = null,
+        preserveUnscoredHistory: Boolean = false,
     ) {
         if (flagGet()) return
         analyzeRecent(
@@ -608,6 +614,7 @@ object IntelligenceEngine {
             importedDeviceId = importedDeviceId,
             maxHROverride = maxHROverride,
             ownerSource = ownerSource,
+            preserveUnscoredHistory = preserveUnscoredHistory,
         )
         flagSet()
     }
@@ -1036,7 +1043,7 @@ object IntelligenceEngine {
             val steps = repo.stepSamples(owner, from, to, STREAM_LIMIT)
             val skinReads = readDaySkinAndWristOff(
                 repo, owner, from, to, ownerSource, skinFamilyByOwner, skinWornToleranceByOwner,
-                skinAnchorByOwner, skinAnchorResolvedOwners, skinAnchorScanFrom, skinAnchorScanTo,
+                skinAnchorByOwner, skinAnchorResolvedOwners, skinAnchorScanFrom, skinAnchorScanTo, hr,
             )
             val skin = skinReads.skin
             val spo2 = skinReads.spo2
@@ -1946,7 +1953,11 @@ object IntelligenceEngine {
             candidatePriorities, resolvedScoreOwnerByDay,
             IntelligencePersistence.LegacyScoreClock(nowLocalMidnight, nowSeconds, tzOffsetSeconds), out,
         )
-        repo.replaceComputedScoreWindow(computedWindow)
+        if (preserveUnscoredHistoryForRun) {
+            IntelligencePersistence.persistComputedWindow(repo, computedWindow, true)
+        } else {
+            repo.replaceComputedScoreWindow(computedWindow)
+        }
 
         persistFitnessVitalityAndSteps(
             repo = repo,
@@ -3061,6 +3072,7 @@ object IntelligenceEngine {
         skinAnchorResolvedOwners: HashSet<String>,
         skinAnchorScanFrom: Long,
         skinAnchorScanTo: Long,
+        hr: List<com.noop.data.HrSample>,
     ): DaySkinReads {
         val skin = repo.skinTempSamples(owner, from, to, StreamReadCap.SKIN)
         // #93: WHOOP 4.0 raw SpO2 PPG samples for the night; analyzeDay banks the nightly red/IR ADC
@@ -3106,7 +3118,7 @@ object IntelligenceEngine {
         // only when its off-wrist coverage reaches maxOffWristSleepFraction, so a real night with a
         // short off-wrist tail survives. Pairing needs WRIST_ON too (to bound each interval); a span
         // still open at the window end closes at `to`. Empty when the strap emitted no wrist events.
-        val wristOff = AnalyticsEngine.offWristIntervals(repo.events(owner, from, to, STREAM_LIMIT), to)
+        val wristOff = AnalyticsEngine.offWristIntervals(repo.events(owner, from, to, STREAM_LIMIT), to, hr)
         return DaySkinReads(skin, spo2, skinFamily, skinWornToleranceSec, skinAnchorRaw, wristOff)
     }
 
