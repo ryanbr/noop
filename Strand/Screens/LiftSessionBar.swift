@@ -30,7 +30,11 @@ struct LiftSessionBar: View {
             Button {
                 session.isPresented = true
             } label: {
-                HStack(spacing: NoopMetrics.gap) {
+                // The Lock Screen banner's layout (`LiftLiveActivity`), because this is the same banner
+                // seen inside the app: the icon and the numbers sit near the edges and the heart rate
+                // stacks over the clock, so the words get the width (Utku, 21 Sep 2026, with a screenshot
+                // of the bar: "more place for writings"). Same sizes as before.
+                HStack(spacing: 10) {
                     Image(systemName: "dumbbell.fill")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(tint(engine))
@@ -54,30 +58,43 @@ struct LiftSessionBar: View {
                             .truncationMode(.tail)
                     }
 
-                    Spacer(minLength: 0)
+                    Spacer(minLength: 6)
 
-                    // ALWAYS shown, dash included. An earlier version hid it whenever there was no
-                    // reading, to save width on a crowded capsule — and the first thing that
-                    // produced was "there is no HR in the minimised tab", because an absent readout
-                    // is indistinguishable from an absent feature. Mid-workout the difference
-                    // matters: a dash says the strap is not reading, which is something to act on.
-                    HStack(spacing: 3) {
-                        Image(systemName: "heart.fill")
-                            .font(.system(size: 10, weight: .semibold))
-                        Text(model.bpm.map(String.init) ?? "—")
-                            .font(StrandFont.captionNumber)
+                    // Heart rate over the clock, both flush right. The clock's width comes from a hidden
+                    // "00:00" in its font — the widest a set or a rest shows under an hour — so the words
+                    // beside it do not shift each time the clock gains or loses a digit.
+                    //
+                    // The heart rate is ALWAYS shown, dash included. An earlier version hid it whenever
+                    // there was no reading, to save width on a crowded capsule — and the first thing
+                    // that produced was "there is no HR in the minimised tab", because an absent readout
+                    // is indistinguishable from an absent feature. Mid-workout the difference matters: a
+                    // dash says the strap is not reading, which is something to act on.
+                    VStack(alignment: .trailing, spacing: 2) {
+                        HStack(spacing: 3) {
+                            Image(systemName: "heart.fill")
+                                .font(.system(size: 10, weight: .semibold))
+                            Text(model.bpm.map(String.init) ?? "—")
+                                .font(StrandFont.captionNumber)
+                                .monospacedDigit()
+                        }
+                        .foregroundStyle(model.bpm == nil
+                                         ? StrandPalette.textTertiary
+                                         : StrandPalette.metricRose)
+                        .accessibilityLabel(model.bpm.map { String(localized: "Heart rate \($0)") }
+                                            ?? String(localized: "Heart rate"))
+
+                        Text(verbatim: "00:00")
+                            .font(StrandFont.bodyNumber)
                             .monospacedDigit()
+                            .hidden()
+                            .overlay(alignment: .trailing) {
+                                Text(bigClock(engine))
+                                    .font(StrandFont.bodyNumber)
+                                    .foregroundStyle(tint(engine))
+                                    .monospacedDigit()
+                                    .fixedSize()
+                            }
                     }
-                    .foregroundStyle(model.bpm == nil
-                                     ? StrandPalette.textTertiary
-                                     : StrandPalette.metricRose)
-                    .accessibilityLabel(model.bpm.map { String(localized: "Heart rate \($0)") }
-                                        ?? String(localized: "Heart rate"))
-
-                    Text(bigClock(engine))
-                        .font(StrandFont.bodyNumber)
-                        .foregroundStyle(tint(engine))
-                        .monospacedDigit()
 
                     // The same action the sheet's button performs, so a set can be closed out
                     // without opening anything.
@@ -89,7 +106,8 @@ struct LiftSessionBar: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel("Next")
                 }
-                .padding(.horizontal, 14)
+                .padding(.leading, 12)
+                .padding(.trailing, 8)
                 .padding(.vertical, 10)
                 .background(.ultraThinMaterial, in: Capsule())
                 .overlay(Capsule().stroke(tint(engine).opacity(0.35), lineWidth: 1))
