@@ -404,7 +404,7 @@ struct LiftSessionView: View {
             Text("Rest period").strandOverline()
                 .foregroundStyle(StrandPalette.metricAmber)
             Spacer(minLength: 0)
-            Text(LiftFormat.duration(remaining))
+            Text(ActiveWorkoutClock.clock(remaining))
                 .font(StrandFont.captionNumber)
                 .monospacedDigit()
                 .foregroundStyle(StrandPalette.metricAmber)
@@ -541,7 +541,7 @@ struct LiftSessionView: View {
         VStack(spacing: NoopMetrics.rowSpacing) {
             HStack(spacing: 14) {
                 clock(String(localized: "Session"),
-                      LiftFormat.duration(max(0, session.now - engine.startTs)),
+                      ActiveWorkoutClock.clock(session.now - engine.startTs),
                       tint: StrandPalette.textPrimary)
                 stageClock(engine)
                 heartRate()
@@ -616,18 +616,18 @@ struct LiftSessionView: View {
         switch engine.stage {
         case .working:
             clock(String(localized: "This set"),
-                  LiftFormat.duration(max(0, session.now - engine.stageStartedAt)),
+                  ActiveWorkoutClock.clock(session.now - engine.stageStartedAt),
                   tint: StrandPalette.statusPositive)
         case .resting:
             // "Rest period", never "Rest": the catalog's "Rest" key is NOOP's SLEEP metric, so this
             // label rendered as "Erholung" (recovery) in German — the exact collision CLAUDE.md and
             // the handover brief both warn about. Reintroduced by the workout-sheet rewrite.
             clock(String(localized: "Rest period"),
-                  LiftFormat.duration(engine.restRemaining(now: session.now) ?? 0),
+                  ActiveWorkoutClock.clock(engine.restRemaining(now: session.now) ?? 0),
                   tint: StrandPalette.metricAmber)
         case .warmup, .finished:
             clock(String(localized: "Warm-up"),
-                  LiftFormat.duration(max(0, session.now - engine.stageStartedAt)),
+                  ActiveWorkoutClock.clock(session.now - engine.stageStartedAt),
                   tint: StrandPalette.textSecondary)
         }
     }

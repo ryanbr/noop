@@ -126,11 +126,12 @@ struct LiftSessionBar: View {
         }
     }
 
-    /// Rest counts DOWN (that is the number you act on); everything else counts up.
+    /// Rest counts DOWN (that is the number you act on); everything else counts up. Written as the Lock
+    /// Screen writes the same clock — "0:45", "0:00", "1:05:00" — through NOOP's one running-clock format.
     private func bigClock(_ engine: LiftSessionEngine) -> String {
         if let remaining = engine.restRemaining(now: session.now) {
-            return LiftFormat.duration(remaining)
+            return ActiveWorkoutClock.clock(remaining)
         }
-        return LiftFormat.duration(max(0, session.now - engine.stageStartedAt))
+        return ActiveWorkoutClock.clock(session.now - engine.stageStartedAt)
     }
 }

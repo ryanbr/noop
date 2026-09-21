@@ -72,7 +72,9 @@ enum LiftFormat {
 
     // MARK: - Durations
 
-    /// A rest period as "2:00" / "45s" — minutes and seconds, which is how rest is spoken about.
+    /// A rest period as "2:00" / "45s" — minutes and seconds, which is how rest is spoken about: a program
+    /// line's rest, a finished set's measured rest. A clock that is RUNNING (the bar, the session sheet)
+    /// is written `ActiveWorkoutClock.clock` instead, as the Lock Screen writes it.
     static func duration(_ seconds: Int) -> String {
         guard seconds >= 60 else { return "\(seconds)s" }
         return String(format: "%d:%02d", seconds / 60, seconds % 60)
