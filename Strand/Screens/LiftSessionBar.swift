@@ -16,10 +16,6 @@ import StrandDesign
 struct LiftSessionBar: View {
     @EnvironmentObject var session: LiftSessionController
 
-    /// Live heart rate, same source as the sheet's control bar: the smoothed, spike-filtered value,
-    /// never the raw per-beat number.
-    @EnvironmentObject private var model: AppModel
-
     @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
     private var unitSystem: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .metric }
 
@@ -60,38 +56,21 @@ struct LiftSessionBar: View {
 
                     Spacer(minLength: 6)
 
-                    // Heart rate over the clock, both flush right. The clock's width comes from a hidden
-                    // "00:00" in its font — the widest a set or a rest shows under an hour — so the words
-                    // beside it do not shift each time the clock gains or loses a digit.
-                    //
-                    // The heart rate is ALWAYS shown, dash included. An earlier version hid it whenever
-                    // there was no reading, to save width on a crowded capsule — and the first thing
-                    // that produced was "there is no HR in the minimised tab", because an absent readout
-                    // is indistinguishable from an absent feature. Mid-workout the difference matters: a
-                    // dash says the strap is not reading, which is something to act on.
+                    // Heart rate over the clock, both flush right, each its own small view that updates
+                    // itself (`LiftLiveReadouts.swift`), so a beat or a tick redraws one number, not the bar.
+                    // The clock's width comes from a hidden "00:00" in its font — the widest a set or a rest
+                    // shows under an hour — so the words beside it do not shift when it gains a digit.
                     VStack(alignment: .trailing, spacing: 2) {
-                        HStack(spacing: 3) {
-                            Image(systemName: "heart.fill")
-                                .font(.system(size: 10, weight: .semibold))
-                            Text(model.bpm.map(String.init) ?? "—")
-                                .font(StrandFont.captionNumber)
-                                .monospacedDigit()
-                        }
-                        .foregroundStyle(model.bpm == nil
-                                         ? StrandPalette.textTertiary
-                                         : StrandPalette.metricRose)
-                        .accessibilityLabel(model.bpm.map { String(localized: "Heart rate \($0)") }
-                                            ?? String(localized: "Heart rate"))
+                        LiftHeartRate(style: .compact)
 
                         Text(verbatim: "00:00")
                             .font(StrandFont.bodyNumber)
                             .monospacedDigit()
                             .hidden()
                             .overlay(alignment: .trailing) {
-                                Text(bigClock(engine))
+                                bigClock(engine)
                                     .font(StrandFont.bodyNumber)
                                     .foregroundStyle(tint(engine))
-                                    .monospacedDigit()
                                     .fixedSize()
                             }
                     }
@@ -128,10 +107,7 @@ struct LiftSessionBar: View {
 
     /// Rest counts DOWN (that is the number you act on); everything else counts up. Written as the Lock
     /// Screen writes the same clock — "0:45", "0:00", "1:05:00" — through NOOP's one running-clock format.
-    private func bigClock(_ engine: LiftSessionEngine) -> String {
-        if let remaining = engine.restRemaining(now: session.now) {
-            return ActiveWorkoutClock.clock(remaining)
-        }
-        return ActiveWorkoutClock.clock(session.now - engine.stageStartedAt)
+    private func bigClock(_ engine: LiftSessionEngine) -> LiftRunningClock {
+        LiftRunningClock { now in engine.restRemaining(now: now) ?? now - engine.stageStartedAt }
     }
 }

@@ -19,8 +19,9 @@ import WhoopStore
 // because a workout outlives the screen you happen to be looking at.
 
 struct LiftSessionView: View {
+    // Only what the sheet draws from. The live heart rate and the running clocks are their own small views
+    // (`LiftLiveReadouts.swift`): watched from here, every beat, log line and tick redrew the whole sheet.
     @EnvironmentObject var repo: Repository
-    @EnvironmentObject var live: LiveState
     @EnvironmentObject var session: LiftSessionController
     @Environment(\.dismiss) private var dismiss
 
@@ -43,10 +44,6 @@ struct LiftSessionView: View {
 
     private enum UnfinishedChoice: Hashable { case complete, discard }
     private enum ProgramChoice: Hashable { case update, keep }
-
-    /// For the live heart rate on the control bar. `AppModel.bpm` is the smoothed, spike-filtered
-    /// value every screen is supposed to show — never the raw per-beat number, which swings with HRV.
-    @EnvironmentObject private var model: AppModel
 
     @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
     private var unitSystem: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .metric }
@@ -399,14 +396,12 @@ struct LiftSessionView: View {
     /// control bar is pinned to the bottom and this is where your eyes already are — and once the
     /// sheet is scrolled to a later exercise, the band is the only thing that says which rest.
     private func restBand(_ engine: LiftSessionEngine) -> some View {
-        let remaining = engine.restRemaining(now: session.now) ?? 0
-        return HStack(spacing: 8) {
+        HStack(spacing: 8) {
             Text("Rest period").strandOverline()
                 .foregroundStyle(StrandPalette.metricAmber)
             Spacer(minLength: 0)
-            Text(ActiveWorkoutClock.clock(remaining))
+            LiftRunningClock { engine.restRemaining(now: $0) ?? 0 }
                 .font(StrandFont.captionNumber)
-                .monospacedDigit()
                 .foregroundStyle(StrandPalette.metricAmber)
         }
         .lineLimit(1)
@@ -540,9 +535,7 @@ struct LiftSessionView: View {
     private func controlBar(_ engine: LiftSessionEngine) -> some View {
         VStack(spacing: NoopMetrics.rowSpacing) {
             HStack(spacing: 14) {
-                clock(String(localized: "Session"),
-                      ActiveWorkoutClock.clock(session.now - engine.startTs),
-                      tint: StrandPalette.textPrimary)
+                clock(String(localized: "Session"), tint: StrandPalette.textPrimary) { $0 - engine.startTs }
                 stageClock(engine)
                 heartRate()
                 Spacer(minLength: 0)
@@ -586,28 +579,26 @@ struct LiftSessionView: View {
     ///
     /// It belongs here and not in the scrolling sheet: this strip is the part that never scrolls
     /// away, and a glance mid-set is the whole use — you are holding a bar, not browsing. Asked for
-    /// after a real session.
-    ///
-    /// Shown even when there is no value, as "—", the same way `LiveView` reports it. A row that
-    /// disappears when the strap stops streaming would shift the clocks beside it and leave the user
-    /// wondering whether the reading is missing or the feature is; a dash says which.
-    ///
-    /// This is display only. Nothing here feeds a score — Effort stays HR-derived from what the
-    /// strap MEASURED over the session window, computed by the analytics engine, not by this view.
+    /// after a real session. Always shown, dash included, and display only (`LiftHeartRate`).
     private func heartRate() -> some View {
-        clock(String(localized: "HR"),
-              model.bpm.map(String.init) ?? "—",
-              tint: model.bpm == nil ? StrandPalette.textTertiary : StrandPalette.metricRose)
+        labelled(String(localized: "HR")) { LiftHeartRate(style: .plain) }
     }
 
-    private func clock(_ label: String, _ value: String, tint: Color) -> some View {
+    /// A running clock under its label. `seconds` turns the current unix second into what it reads.
+    private func clock(_ label: String, tint: Color, seconds: @escaping (Int) -> Int) -> some View {
+        labelled(label) {
+            LiftRunningClock(seconds: seconds)
+                .font(StrandFont.bodyNumber)
+                .foregroundStyle(tint)
+        }
+    }
+
+    private func labelled<Value: View>(_ label: String, @ViewBuilder value: () -> Value) -> some View {
         VStack(alignment: .leading, spacing: 1) {
             Text(label).strandOverline()
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
-            Text(value)
-                .font(StrandFont.bodyNumber)
-                .foregroundStyle(tint)
+            value()
         }
     }
 
@@ -615,20 +606,20 @@ struct LiftSessionView: View {
     private func stageClock(_ engine: LiftSessionEngine) -> some View {
         switch engine.stage {
         case .working:
-            clock(String(localized: "This set"),
-                  ActiveWorkoutClock.clock(session.now - engine.stageStartedAt),
-                  tint: StrandPalette.statusPositive)
+            clock(String(localized: "This set"), tint: StrandPalette.statusPositive) {
+                $0 - engine.stageStartedAt
+            }
         case .resting:
             // "Rest period", never "Rest": the catalog's "Rest" key is NOOP's SLEEP metric, so this
             // label rendered as "Erholung" (recovery) in German — the exact collision CLAUDE.md and
             // the handover brief both warn about. Reintroduced by the workout-sheet rewrite.
-            clock(String(localized: "Rest period"),
-                  ActiveWorkoutClock.clock(engine.restRemaining(now: session.now) ?? 0),
-                  tint: StrandPalette.metricAmber)
+            clock(String(localized: "Rest period"), tint: StrandPalette.metricAmber) {
+                engine.restRemaining(now: $0) ?? 0
+            }
         case .warmup, .finished:
-            clock(String(localized: "Warm-up"),
-                  ActiveWorkoutClock.clock(session.now - engine.stageStartedAt),
-                  tint: StrandPalette.textSecondary)
+            clock(String(localized: "Warm-up"), tint: StrandPalette.textSecondary) {
+                $0 - engine.stageStartedAt
+            }
         }
     }
 

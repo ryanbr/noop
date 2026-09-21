@@ -13,7 +13,7 @@ import StrandAnalytics
 // present.
 //
 // A workout outlives the screen you happen to be looking at, so the session has to as well. This
-// controller owns the engine, the tick, the buzz gating and the persistence. The sheet is a
+// controller owns the engine, the rest's timers, the buzz gating and the persistence. The sheet is a
 // rendering of it; the bottom bar is another. Dismissing either changes nothing about the session.
 //
 // The strap gesture is claimed for the LIFETIME OF THE SESSION rather than the lifetime of a view,
@@ -22,13 +22,11 @@ import StrandAnalytics
 @MainActor
 final class LiftSessionController: ObservableObject {
 
-    /// The running session, or nil when none is in flight.
-    @Published private(set) var engine: LiftSessionEngine?
+    /// The running session, or nil when none is in flight. Every change re-arms the rest's timers
+    /// (`scheduleRestTimers`), which only act when the rest itself changed.
+    @Published private(set) var engine: LiftSessionEngine? { didSet { scheduleRestTimers() } }
     @Published private(set) var programId: String?
     @Published private(set) var programName: String?
-    /// Ticks every second while a session runs, so views can redraw clocks off one shared timer
-    /// rather than each starting their own.
-    @Published private(set) var now = Int(Date().timeIntervalSince1970)
     /// True while the full sheet is presented; false when minimised to the bottom bar.
     @Published var isPresented = false
 
@@ -41,6 +39,15 @@ final class LiftSessionController: ObservableObject {
     /// screen on the step just taken, and because it comes before anything else about the step reaches
     /// the banner, that one lit update is usually the only update the step causes.
     let strapStepTaken = PassthroughSubject<Void, Never>()
+
+    /// Anything about the session changed, once the change has landed and settled — what the Lock Screen
+    /// banner follows. `objectWillChange` fires BEFORE a change lands, so a banner pushed from it showed the
+    /// step before; the debounce also folds a burst (typing a number, the several changes of one tap) into one
+    /// push. Built once, so its subscribers keep one pipeline.
+    private(set) lazy var changesSettled: AnyPublisher<Void, Never> = objectWillChange
+        .debounce(for: .milliseconds(250), scheduler: RunLoop.main)
+        .map { _ in () }
+        .eraseToAnyPublisher()
 
     var isActive: Bool { engine != nil && engine?.isFinished == false }
 
@@ -85,7 +92,9 @@ final class LiftSessionController: ObservableObject {
     /// and hands it over; until it does (a session resumed straight into the bar after a relaunch, say)
     /// the grey numbers fall through to the program's target, which is the layer below.
     @Published private var lastSession: [String: [Int: LiftSetCarry]] = [:]
-    private var ticker: AnyCancellable?
+    /// The running rest's warning and end, and the end they were set for — see `scheduleRestTimers`.
+    private var restTimers: [Task<Void, Never>] = []
+    private var scheduledRestEnd: Int?
 
     /// Fires the strap buzz. Injected so the controller has no opinion about BLE and stays testable.
     private let buzz: (UInt8) -> Void
@@ -125,10 +134,8 @@ final class LiftSessionController: ObservableObject {
         self.programId = programId
         self.programName = programName
         warnedFor = nil
-        now = stamp
         isPresented = true
         claimStrap()
-        startTicking()
         persist()
     }
 
@@ -159,19 +166,17 @@ final class LiftSessionController: ObservableObject {
         // to prevent, whether it is lost to a blur or to a relaunch.
         pendingValues = LiftSessionPersistence.pendingValues(from: snapshot)
         pendingWarmups = LiftSessionPersistence.pendingWarmups(from: snapshot)
-        now = Int(Date().timeIntervalSince1970)
         // Suppress the warning for a rest that is ALREADY inside its final seconds. Without this,
         // reopening a session mid-rest greets the user with three buzzes for a rest they have been
         // watching count down all along.
         if case .resting(_, let endsAt) = engine?.stage,
-           endsAt - now <= LiftSessionController.restWarningLeadSec {
+           endsAt - Self.unixNow <= LiftSessionController.restWarningLeadSec {
             warnedFor = endsAt
         } else {
             warnedFor = nil
         }
         isPresented = present
         claimStrap()
-        startTicking()
     }
 
     /// Give up the session without saving.
@@ -196,8 +201,6 @@ final class LiftSessionController: ObservableObject {
         pendingWarmups = []
         pendingValues = [:]
         isPresented = false
-        ticker?.cancel()
-        ticker = nil
         setStrapHandler(nil)
     }
 
@@ -209,16 +212,8 @@ final class LiftSessionController: ObservableObject {
         setStrapHandler({ [weak self] in self?.advance(fromStrap: true) })
     }
 
-    private func startTicking() {
-        ticker?.cancel()
-        ticker = Timer.publish(every: 1, on: .main, in: .common)
-            .autoconnect()
-            .sink { [weak self] instant in
-                guard let self else { return }
-                self.now = Int(instant.timeIntervalSince1970)
-                self.fireRestWarningIfDue()
-            }
-    }
+    /// The current unix second. Read when needed; nothing about a session is stored per second.
+    static var unixNow: Int { Int(Date().timeIntervalSince1970) }
 
     // MARK: - Actions
 
@@ -246,7 +241,6 @@ final class LiftSessionController: ObservableObject {
         // before they are applied (`setNumbers`).
         if fromStrap { strapStepTaken.send() }
         applyPendingInput()
-        now = stamp
         warnedFor = nil
         persist()
     }
@@ -310,7 +304,7 @@ final class LiftSessionController: ObservableObject {
         let detail = setNumbers(for: slot, system: system)
         switch engine.stage {
         case .resting(_, let endsAt):
-            let ready = endsAt <= now
+            let ready = endsAt <= Self.unixNow
             return Presentation(
                 isResting: true, exercise: item.exercise,
                 status: ready ? String(localized: "Ready for the next set")
@@ -429,7 +423,6 @@ final class LiftSessionController: ObservableObject {
         engine?.start(slot, now: stamp)
         // Starting a slot drops any record it had, so its warm-up mark reverts to pending — which is
         // where it already lives.
-        now = stamp
         warnedFor = nil
         persist()
     }
@@ -670,14 +663,64 @@ final class LiftSessionController: ObservableObject {
         }
     }
 
-    // MARK: - The rest warning
+    // MARK: - The rest's two moments
+    //
+    // A running session changes with time alone at two moments of each rest: the warning buzz
+    // `restWarningLeadSec` before it ends, and its end. Each gets a one-shot timer, set when the rest starts
+    // and replaced whenever the rest does; between taps a session does no work at all.
+    //
+    // It used to tick once a second, and publish the tick to every screen watching the session — the whole
+    // tab shell, the session sheet, the bar, the Lift Log hub — so all of them were redrawn every second, on
+    // screen or not. iOS killed NOOP four times in one gym session for background CPU (Utku's crash reports,
+    // 21 Sep 2026: over 80% for 60 s, busy redrawing SwiftUI views), and every kill cost a Lock Screen banner
+    // and the log before it. The clocks on screen tick by themselves, and only while shown (`LiftRunningClock`).
+
+    /// Re-arm the rest's timers when the rest changed — a new rest, a rest undone or cut short, no rest.
+    private func scheduleRestTimers() {
+        let endsAt: Int? = { if case .resting(_, let end) = engine?.stage { return end }; return nil }()
+        guard endsAt != scheduledRestEnd else { return }
+        scheduledRestEnd = endsAt
+        restTimers.forEach { $0.cancel() }
+        restTimers = []
+        guard let endsAt else { return }
+        let times = Self.restEventTimes(endsAt: endsAt, now: Self.unixNow)
+        restTimers.append(after(times.warning) { $0.fireRestWarningIfDue() })
+        if let end = times.end {
+            restTimers.append(after(end) { $0.restDidEnd() })
+        }
+    }
+
+    /// When a rest's warning and end fire, in unix seconds. The warning comes `restWarningLeadSec` before the
+    /// end, or one second from now when the rest is already inside that window (a short rest, none at all,
+    /// or the rest left once every set is done) — when the once-a-second tick used to fire it, and clear of
+    /// the confirming buzz the same tap just sent. The end fires only for a rest still to run.
+    static func restEventTimes(endsAt: Int, now: Int) -> (warning: Int, end: Int?) {
+        (warning: max(now + 1, endsAt - restWarningLeadSec), end: endsAt > now ? endsAt : nil)
+    }
+
+    /// Run `action` on the main actor at unix second `unix`, unless cancelled first.
+    private func after(_ unix: Int,
+                       _ action: @escaping @MainActor (LiftSessionController) -> Void) -> Task<Void, Never> {
+        let delay = Date(timeIntervalSince1970: TimeInterval(unix)).timeIntervalSinceNow
+        return Task { [weak self] in
+            if delay > 0 { try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000)) }
+            guard !Task.isCancelled, let self else { return }
+            action(self)
+        }
+    }
 
     private func fireRestWarningIfDue() {
         guard let engine, case .resting(_, let endsAt) = engine.stage else { return }
         guard warnedFor != endsAt else { return }
-        guard endsAt - now <= LiftSessionController.restWarningLeadSec else { return }
+        guard endsAt - Self.unixNow <= LiftSessionController.restWarningLeadSec else { return }
         warnedFor = endsAt
         buzz(LiftSessionController.restWarningBuzzes)
+    }
+
+    /// The rest is over: the one moment a session's words change with time alone — on screen and, through
+    /// `changesSettled`, on the Lock Screen, "Resting after set 2" becomes "Ready for the next set".
+    private func restDidEnd() {
+        objectWillChange.send()
     }
 
     // MARK: - Persistence

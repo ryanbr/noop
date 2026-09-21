@@ -26,9 +26,9 @@ final class LiftLiveActivityController {
     private var lastPush: Date = .distantPast
     private var lastSignature: String?
     /// Cached for the controller's lifetime — the same reasoning as `LiveActivityController`: this is
-    /// consulted on every session tick and its value only changes via Settings.
+    /// consulted on every push and its value only changes via Settings.
     private let authInfo = ActivityAuthorizationInfo()
-    /// Guards against two ticks both firing `Activity.request` before the first has returned.
+    /// Guards against two pushes both firing `Activity.request` before the first has returned.
     private var isStarting = false
     /// Heart rate moves constantly; everything else does not. A change in HR alone is worth a push,
     /// but not more often than this, or a session becomes one push per second.
@@ -142,7 +142,7 @@ final class LiftLiveActivityController {
                 return alert ? .noBanner : nil
             }
             waitingForForeground = false
-            // Set synchronously before any await, so a second tick arriving while `Activity.request`
+            // Set synchronously before any await, so a second push arriving while `Activity.request`
             // is still in flight bails here instead of creating a duplicate activity.
             guard !isStarting else { return alert ? .noBanner : nil }
             isStarting = true

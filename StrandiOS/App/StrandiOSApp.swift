@@ -250,11 +250,11 @@ struct StrandiOSApp: App {
                         effort: day?.strain.map { Int($0.rounded()) }
                     )
                 }
-                // The gym session's own banner. Driven off the session's 1 Hz tick so a stage change
-                // reaches the Lock Screen promptly; the controller decides what is actually worth
-                // pushing, since the widget's clocks tick on their own.
-                .onReceive(liftSession.$now) { _ in pushLiftActivity() }
-                .onReceive(liftSession.$engine) { _ in pushLiftActivity() }
+                // The gym session's own banner follows each change to the session once it has landed —
+                // a stage, typed numbers, a rest's end — and the heart rate above; the controller decides
+                // what is worth pushing, and the banner's clocks tick on their own. A strap step is pushed
+                // at once, with its light-up alert, below.
+                .onReceive(liftSession.changesSettled) { _ in pushLiftActivity() }
                 // A strap double-tap lights the Lock Screen on the step it took.
                 .onReceive(liftSession.strapStepTaken) { _ in pushLiftActivity(alert: true) }
                 // #911/#759: republish the Home/Lock-Screen widget whenever the dashboard caches actually
@@ -347,6 +347,9 @@ struct StrandiOSApp: App {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active {
                 model.drainPendingIntents(router: router)
+                // iOS starts a Lift Log banner only for an app on screen, so a banner lost while NOOP was in
+                // the background comes back now, whether or not the strap is sending anything.
+                pushLiftActivity()
                 // End a "Connecting…" sync island whose sync never came, rather than leave it greyed.
                 SyncLiveActivityController.shared.reconcile(live: model.live)
                 // Re-arm the strap's smart alarm on foreground: the firmware alarm is a single instant
