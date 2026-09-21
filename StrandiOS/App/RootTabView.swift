@@ -281,14 +281,11 @@ struct RootTabView: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: liftSession.isActive)
+        // A session left running by a previous launch is back before this view exists
+        // (`LiftSessionController.resumeSaved`, from `StrandiOSApp.init`), as the BAR — not as a sheet
+        // thrown in the user's face; they open it when they want it.
         .sheet(isPresented: $liftSession.isPresented) {
             LiftSessionView { }
-        }
-        // A session left running by a previous launch comes back as the BAR, not as a sheet thrown
-        // in the user's face — they open it when they want it.
-        .task {
-            guard !liftSession.isActive, let snapshot = LiftSessionPersistence.load() else { return }
-            liftSession.resume(from: snapshot)
         }
     }
 

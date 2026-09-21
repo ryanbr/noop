@@ -18,6 +18,11 @@ import UIKit
 @MainActor
 final class LiftLiveActivityController {
     private var activity: Activity<LiftActivityAttributes>?
+    /// Writes to NOOP's strap log — only when the banner's situation CHANGES (picked up after a restart,
+    /// or waiting for NOOP to be opened), never per push.
+    private let log: (String) -> Void
+    /// Set while a session runs with no banner that NOOP may start, so the reason is logged once.
+    private var waitingForForeground = false
     private var lastPush: Date = .distantPast
     private var lastSignature: String?
     /// Cached for the controller's lifetime — the same reasoning as `LiveActivityController`: this is
@@ -52,6 +57,10 @@ final class LiftLiveActivityController {
         }
     }
 
+    init(log: @escaping (String) -> Void = { _ in }) {
+        self.log = log
+    }
+
     /// Drive the activity from the session's current state. `state` nil means no session is running,
     /// which ends any activity that is showing.
     ///
@@ -69,16 +78,25 @@ final class LiftLiveActivityController {
     func update(state: LiftActivityAttributes.ContentState?, alert: Bool = false) -> LightUp? {
         guard authInfo.areActivitiesEnabled else { return alert ? .noBanner : nil }
 
+        // A banner the lifter swiped off the Lock Screen, or one iOS ended, takes no more updates: let it
+        // go, so the session is not left pushing to — and trying to light — a banner nobody can see.
+        if let current = activity, !Self.isShowing(current) { activity = nil }
         // Re-adopt an activity that outlived a previous app session — ActivityKit keeps them alive
         // across relaunches, and a fresh controller starts with `activity == nil`. Without this we
         // could neither update nor END one already on the Lock Screen, and could spawn a duplicate.
-        if activity == nil { activity = Activity<LiftActivityAttributes>.activities.first }
+        let adopted = activity == nil
+            ? Activity<LiftActivityAttributes>.activities.first(where: Self.isShowing) : nil
+        if let adopted { activity = adopted }
 
         // Shares the existing Live Activity opt-out rather than adding a second switch: a user who
         // turned Live Activities off meant all of them.
         guard UnitPrefs.liveActivityEnabled(), let state else {
             if activity != nil { Task { await end() } }
             return alert ? .noBanner : nil
+        }
+        if adopted != nil {
+            log("Lift Log: Lock Screen banner picked up again after NOOP restarted")
+            waitingForForeground = false
         }
 
         // Everything a person would notice, EXCLUDING the clocks (which tick client-side) and the
@@ -113,6 +131,17 @@ final class LiftLiveActivityController {
             }
             return alert ? (lightsScreen ? .askedIOS : .appOnScreen) : nil
         } else {
+            // iOS starts a Live Activity only for the app on screen; asked from the background it throws,
+            // and this runs several times a second. The banner comes back the next time NOOP is opened.
+            guard UIApplication.shared.applicationState == .active else {
+                if !waitingForForeground {
+                    waitingForForeground = true
+                    log("Lift Log: no Lock Screen banner — iOS starts one only while NOOP is open, so it "
+                        + "comes back the next time NOOP is opened")
+                }
+                return alert ? .noBanner : nil
+            }
+            waitingForForeground = false
             // Set synchronously before any await, so a second tick arriving while `Activity.request`
             // is still in flight bails here instead of creating a duplicate activity.
             guard !isStarting else { return alert ? .noBanner : nil }
@@ -141,6 +170,15 @@ final class LiftLiveActivityController {
         }
         activity = nil
         lastSignature = nil
+        waitingForForeground = false
+    }
+
+    /// Still on the Lock Screen and taking updates: not ended by the app or iOS, not swiped away.
+    private static func isShowing(_ activity: Activity<LiftActivityAttributes>) -> Bool {
+        switch activity.activityState {
+        case .ended, .dismissed: return false
+        default: return true
+        }
     }
 }
 #endif

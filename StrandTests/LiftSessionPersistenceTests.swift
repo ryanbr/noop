@@ -39,6 +39,35 @@ final class LiftSessionPersistenceTests: XCTestCase {
         """.utf8)
     }
 
+    /// iOS closes NOOP in the background and relaunches it — four times in one gym session (21 Sep 2026).
+    /// The session is picked up as the process starts, before any screen, and says so in the strap log.
+    @MainActor
+    func testASessionIsPickedUpAgainWhenNOOPStartsAndSaysSo() throws {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: "LiftSessionPersistenceTests.resume"))
+        defer { defaults.removePersistentDomain(forName: "LiftSessionPersistenceTests.resume") }
+        var lines: [String] = []
+        var claimed = false
+        func controller() -> LiftSessionController {
+            LiftSessionController(buzz: { _ in }, setStrapHandler: { claimed = $0 != nil },
+                                  log: { lines.append($0) })
+        }
+
+        controller().resumeSaved(from: defaults)
+        XCTAssertTrue(lines.isEmpty, "nothing saved, nothing picked up")
+
+        let snapshot = try XCTUnwrap(LiftSessionPersistence.decode(snapshotJSONWithoutProgramItemId()))
+        LiftSessionPersistence.store(snapshot, into: defaults)
+        let c = controller()
+        c.resumeSaved(from: defaults)
+        XCTAssertTrue(c.isActive)
+        XCTAssertFalse(c.isPresented, "it comes back as the bar, not as a sheet")
+        XCTAssertTrue(claimed, "the strap's double-tap is the session's again")
+        XCTAssertEqual(lines, ["Lift Log: session picked up again after NOOP restarted"])
+
+        c.resumeSaved(from: defaults)
+        XCTAssertEqual(lines.count, 1, "a running session is not picked up twice")
+    }
+
     /// A session started on the previous build and still running when the update is installed must
     /// come back whole. It is the reason today's change can go on as a plain update rather than a wipe.
     func testASessionWrittenByThePreviousBuildStillResumes() throws {

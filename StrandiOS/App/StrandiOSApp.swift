@@ -27,8 +27,9 @@ struct StrandiOSApp: App {
     @State private var liveActivity = LiveActivityController()
     /// The Lift Log session's own Live Activity. Separate from the live-HR one above: while a gym
     /// session is open this is the banner that matters (it carries the heart rate too), so the HR
-    /// activity is suppressed rather than stacked beside it.
-    @State private var liftActivity = LiftLiveActivityController()
+    /// activity is suppressed rather than stacked beside it. Built in `init`, where the strap log it
+    /// writes to exists.
+    @State private var liftActivity: LiftLiveActivityController
     /// The live gym session. Owned HERE, at the app root, rather than by the screen that shows it:
     /// swiping the workout sheet away must not stop the clock, silence the strap or drop the
     /// double-tap handler. See `LiftSessionController`.
@@ -101,11 +102,17 @@ struct StrandiOSApp: App {
                 model?.live.append(log: line)
             })
         _liftSession = StateObject(wrappedValue: liftSession)
+        _liftActivity = State(initialValue: LiftLiveActivityController(log: { [weak model] line in
+            model?.live.append(log: line)
+        }))
         // A gym session keeps ONE banner on the Lock Screen, its own — as the live-HR banner already
         // stands aside for it. A sync started in the foreground mid-session starts no sync banner.
         SyncLiveActivityController.shared.holdsBackNewBanner = { [weak liftSession] in
             liftSession?.isActive == true
         }
+        // Before any view or publisher exists: the first push to the Lock Screen banner must find the
+        // session already running, or it ends the banner iOS kept alive across the restart.
+        liftSession.resumeSaved()
         // #1538: a strap offload completes while the app is BACKGROUNDED — it stays alive as a
         // bluetooth-central to receive it — and the re-score it triggers took nearly eight minutes on the
         // reporter's install, far longer than that wake survives. The pass is all-or-nothing, so being

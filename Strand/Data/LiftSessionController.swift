@@ -132,6 +132,22 @@ final class LiftSessionController: ObservableObject {
         persist()
     }
 
+    /// Pick up the session a previous run of NOOP left going, as the app process starts.
+    ///
+    /// iOS closes NOOP in the background and relaunches it when the strap next sends something — four
+    /// times in 28 minutes of one gym session (strap log, 21 Sep 2026). The session used to come back only
+    /// when the first screen appeared, and the Lock Screen banner is driven by the same screen: its first
+    /// push found no session, ended the banner, and iOS allows a new one only while NOOP is open. Every
+    /// strap step after a restart then lit nothing ("no Lift Log banner is running") until NOOP was opened.
+    /// Resumed here, before any screen exists, the session is back before anything asks about it, and
+    /// the banner iOS kept on the Lock Screen is picked up again instead. The line it logs is how a later
+    /// strap log shows a restart in the middle of a session.
+    func resumeSaved(from defaults: UserDefaults = .standard) {
+        guard !isActive, let snapshot = LiftSessionPersistence.load(from: defaults) else { return }
+        resume(from: snapshot)
+        log("Lift Log: session picked up again after NOOP restarted")
+    }
+
     /// Rehydrate an interrupted session found on disk. Does NOT present the sheet: the session comes
     /// back as the bottom bar, and the user opens it if they want to.
     func resume(from snapshot: LiftSessionPersistence.Snapshot, present: Bool = false) {
