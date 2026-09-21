@@ -60,13 +60,19 @@ struct LiftLiveActivity: Widget {
         }
     }
 
+    /// The Lock Screen clock's face, shared by the clock and the hidden template that sizes it.
+    private static let clockFont = Font.system(size: 22, weight: .bold, design: .rounded)
+
     /// Green while working, amber through the rest — the sheet's and the bar's colour language.
     private func tint(_ state: LiftActivityAttributes.ContentState) -> Color {
         state.isResting ? StrandPalette.metricAmber : StrandPalette.statusPositive
     }
 
     private func lockScreen(_ state: LiftActivityAttributes.ContentState) -> some View {
-        HStack(spacing: 12) {
+        // Width goes to the words. The icon and the numbers sit nearer the banner's edges, and the heart
+        // rate stacks over the clock instead of beside it, so the exercise and the next set lose less to
+        // truncation — at the same sizes (Utku, 21 Sep 2026: "the writings are usually cut too quick").
+        HStack(spacing: 10) {
             Image(systemName: "dumbbell.fill")
                 .font(.system(size: 18, weight: .semibold))
                 .foregroundStyle(tint(state))
@@ -90,17 +96,17 @@ struct LiftLiveActivity: Widget {
                     .truncationMode(.tail)
             }
 
-            Spacer(minLength: 8)
+            Spacer(minLength: 6)
 
-            // Heart rate then clock, side by side — the minimised bar's layout, because this is the
-            // same bar seen from the Lock Screen. Stacking them looked misaligned:
-            // `Text(timerInterval:)` reserves width for the widest value it could show, so a
-            // trailing-aligned timer does not visually line up with the text under it.
+            // Heart rate over the clock, both flush right. A running `Text(timerInterval:)` takes all the
+            // width it is offered, so the clock's width comes from a hidden "00:00" in the same font —
+            // the widest a set or a rest shows under an hour — and the live clock is right-aligned over
+            // it. Sized from the timer itself, a working set's count-up spread across the whole banner.
             //
             // The heart rate is ALWAYS present, dash and all. A readout that vanishes when the strap
             // stops reading is indistinguishable from a missing feature — which is exactly how it
             // was first reported.
-            HStack(spacing: 10) {
+            VStack(alignment: .trailing, spacing: 2) {
                 Label {
                     Text(state.bpm.map(String.init) ?? "—").monospacedDigit()
                 } icon: {
@@ -111,11 +117,20 @@ struct LiftLiveActivity: Widget {
                                  ? StrandPalette.textTertiary
                                  : StrandPalette.metricRose)
 
-                clock(state, tint: tint(state))
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                Text(verbatim: "00:00")
+                    .font(Self.clockFont)
+                    .monospacedDigit()
+                    .hidden()
+                    .overlay(alignment: .trailing) {
+                        clock(state, tint: tint(state))
+                            .font(Self.clockFont)
+                            .multilineTextAlignment(.trailing)
+                    }
             }
         }
-        .padding()
+        .padding(.vertical, 14)
+        .padding(.leading, 10)
+        .padding(.trailing, 12)
     }
 
     /// Counts DOWN through a rest (the number you act on) and UP through a set, both self-ticking.
