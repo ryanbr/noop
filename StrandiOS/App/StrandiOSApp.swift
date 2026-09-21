@@ -408,7 +408,7 @@ struct StrandiOSApp: App {
             liftActivity.update(state: nil)
             return
         }
-        liftActivity.update(
+        let lightUp = liftActivity.update(
             state: LiftActivityAttributes.ContentState(
                 isResting: p.isResting,
                 exercise: p.exercise,
@@ -419,6 +419,8 @@ struct StrandiOSApp: App {
                 stageStartedAt: p.stageStartedAt,
                 restEndsAt: p.restEndsAt),
             alert: alert)
+        // One line per strap step into NOOP's strap log: whether the Lock Screen was asked to light.
+        if let lightUp { model.live.append(log: lightUp.logLine) }
     }
 }
 

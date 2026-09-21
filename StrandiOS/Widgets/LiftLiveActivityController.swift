@@ -37,18 +37,37 @@ final class LiftLiveActivityController {
     /// has already buzzed.
     static let silentAlertSound = "lift-step-silence.caf"
 
+    /// What the push for a strap step did about lighting the screen — one strap-log line per step, so a
+    /// step that did not light can be told apart: NOOP was on screen, no banner was running, or the alert
+    /// went to iOS and iOS chose (a face-down phone, a Focus, its own limits).
+    enum LightUp {
+        case askedIOS, appOnScreen, noBanner
+
+        var logLine: String {
+            switch self {
+            case .askedIOS:    return "Lift Log: strap step sent to the Lock Screen with a light-up alert"
+            case .appOnScreen: return "Lift Log: strap step not lighting the Lock Screen — NOOP is open on screen"
+            case .noBanner:    return "Lift Log: strap step not lighting the Lock Screen — no Lift Log banner is running"
+            }
+        }
+    }
+
     /// Drive the activity from the session's current state. `state` nil means no session is running,
     /// which ends any activity that is showing.
     ///
-    /// `alert` is set for the push a strap double-tap causes. On a LOCKED phone it lights the Lock Screen
-    /// on the new step, so a lifter sees what they are on, and the screen goes dark again on the phone's
-    /// own timer (Utku, 16–17 Sep 2026: "just light up", nothing else). It is an ActivityKit alert, the only
-    /// way iOS lets an app light the screen, carried on the update the step needs anyway. It is skipped
-    /// whenever the phone is not locked — in the app there is nothing to light, and in another app it
-    /// would pop the Dynamic Island. Locked is read as protected data being unavailable, which is how a
-    /// passcode-locked iPhone reports it. ActivityKit offers no setting for vibration; the sound is silence.
-    func update(state: LiftActivityAttributes.ContentState?, alert: Bool = false) {
-        guard authInfo.areActivitiesEnabled else { return }
+    /// `alert` is set for the push a strap double-tap causes. It lights a dark Lock Screen on the new
+    /// step, so a lifter sees what they are on, and the screen goes dark again on the phone's own timer
+    /// (Utku, 16–17 Sep 2026: "just light up", nothing else). It is an ActivityKit alert, the only way iOS
+    /// lets an app light the screen, carried on the update the step needs anyway, and it is sent whenever
+    /// NOOP is not the app on screen. It used to wait for the phone to report itself LOCKED (protected
+    /// data unavailable), but iOS reports that only about 10 s after the screen goes dark, so a tap soon
+    /// after it dimmed — right after checking the rest timer, say — lit nothing (gym session, 17 Sep
+    /// 2026: "sometimes it lights up and sometimes not"). With another app open, iOS shows the step in the
+    /// Dynamic Island instead. ActivityKit offers no setting for vibration; the sound is silence.
+    /// Returns what happened about lighting when `alert` was asked for; nil otherwise.
+    @discardableResult
+    func update(state: LiftActivityAttributes.ContentState?, alert: Bool = false) -> LightUp? {
+        guard authInfo.areActivitiesEnabled else { return alert ? .noBanner : nil }
 
         // Re-adopt an activity that outlived a previous app session — ActivityKit keeps them alive
         // across relaunches, and a fresh controller starts with `activity == nil`. Without this we
@@ -59,7 +78,7 @@ final class LiftLiveActivityController {
         // turned Live Activities off meant all of them.
         guard UnitPrefs.liveActivityEnabled(), let state else {
             if activity != nil { Task { await end() } }
-            return
+            return alert ? .noBanner : nil
         }
 
         // Everything a person would notice, EXCLUDING the clocks (which tick client-side) and the
@@ -77,9 +96,9 @@ final class LiftLiveActivityController {
                                       staleDate: Date().addingTimeInterval(Self.staleAfter))
 
         if let activity {
-            let lightsScreen = alert && UIApplication.shared.applicationState != .active
-                && !UIApplication.shared.isProtectedDataAvailable
-            guard contentChanged || heartRateDue || lightsScreen else { return }
+            let appOnScreen = UIApplication.shared.applicationState == .active
+            let lightsScreen = alert && !appOnScreen
+            guard contentChanged || heartRateDue || lightsScreen else { return alert ? .appOnScreen : nil }
             lastSignature = signature
             lastPush = Date()
             if lightsScreen {
@@ -92,10 +111,11 @@ final class LiftLiveActivityController {
             } else {
                 Task { await activity.update(content) }
             }
+            return alert ? (lightsScreen ? .askedIOS : .appOnScreen) : nil
         } else {
             // Set synchronously before any await, so a second tick arriving while `Activity.request`
             // is still in flight bails here instead of creating a duplicate activity.
-            guard !isStarting else { return }
+            guard !isStarting else { return alert ? .noBanner : nil }
             isStarting = true
             do {
                 activity = try Activity.request(
@@ -108,6 +128,8 @@ final class LiftLiveActivityController {
                 activity = nil
             }
             isStarting = false
+            // A banner requested just now carries no alert: there was nothing on the Lock Screen to light.
+            return alert ? .noBanner : nil
         }
     }
 
