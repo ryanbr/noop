@@ -1195,10 +1195,13 @@ public final class BLEManager: NSObject, ObservableObject {
             log("Standing reconnect deferred — Bluetooth not powered on (state=\(central.state.rawValue))")
             return
         }
-        // Resolve the target: the held peripheral if it's the pinned strap, else retrieve the pinned UUID.
+        // Resolve the target: the held peripheral if it's the pinned strap, else retrieve the pinned UUID,
+        // else retrieve the last-connected strap UUID (#1413 / #1997).
         let target: CBPeripheral? = {
             if let p = peripheral, isPreferredPeripheral(p) { return p }
-            if let id = preferredPeripheralUUID { return central.retrievePeripherals(withIdentifiers: [id]).first }
+            if let id = preferredPeripheralUUID ?? Self.lastConnectedPeripheralUUID {
+                return central.retrievePeripherals(withIdentifiers: [id]).first
+            }
             return peripheral
         }()
         guard let p = target else {
@@ -1680,7 +1683,15 @@ public final class BLEManager: NSObject, ObservableObject {
         // exactly as before. #52: this drop is what abandoned a strap that bonds fine when the pin was
         // STALE — `readoptWorkingStrap()` repoints the pin to the live-bonding strap first, so after a
         // handoff this loop drops the dead strap and attaches to the working one instead of vice-versa.
-        let existing = central.retrieveConnectedPeripherals(withServices: [model.scanService])
+        // #1997: Query both WHOOP vendor scan services (4.0 and 5.0) in retrieveConnectedPeripherals so an
+        // existing OS-level connection is adopted regardless of which family is currently selected.
+        // We strictly DO NOT query generic GATT services (Heart Rate 180D, Battery 180F) here: standard
+        // Bluetooth accessories (AirPods, Apple Watches, keyboards, mice, HR straps) expose 180D/180F, and
+        // including them would cause retrieveConnectedPeripherals to adopt or drop non-WHOOP devices.
+        // For a known strap that is bonded but not yet advertising, the targeted retrievePeripherals(withIdentifiers:)
+        // below safely reaches it by its saved UUID without touching unrelated accessories.
+        let servicesToRetrieve = [model.scanService, model.fallbackScanModel.scanService]
+        let existing = central.retrieveConnectedPeripherals(withServices: servicesToRetrieve)
         if preferredPeripheralUUID != nil {
             for other in existing where !isPreferredPeripheral(other) {
                 log("Dropping non-active WHOOP connection \(other.identifier) — not the selected strap")
@@ -1702,32 +1713,19 @@ public final class BLEManager: NSObject, ObservableObject {
             central.connect(p, options: nil)
             return
         }
-        // Pinned to a specific strap that isn't already open → connect it DIRECTLY by identifier. A scan
-        // would let any in-range WHOOP satisfy the connect and could land on the wrong one; the targeted
-        // retrieve can only ever return the strap we asked for.
-        if let preferred = preferredPeripheralUUID,
-           let p = central.retrievePeripherals(withIdentifiers: [preferred]).first {
-            log("Connecting to selected strap \(preferred) — targeted")
+        // Pinned to a specific strap OR last-connected strap: connect it DIRECTLY by identifier (#1997 / #1413).
+        // A direct connect via central.connect(p) works even when the strap is connected to iOS and not
+        // advertising. In both foreground and background, reaching for the known strap first avoids the
+        // scan deadlock. If retrievePeripherals returns empty (e.g. cold boot before cache), fall through
+        // to the scan.
+        let knownStrapUUID = preferredPeripheralUUID ?? Self.lastConnectedPeripheralUUID
+        if let target = knownStrapUUID,
+           let p = central.retrievePeripherals(withIdentifiers: [target]).first {
+            log("Connecting to known strap \(target) — targeted")
             preparePeripheral(p)
             central.connect(p, options: nil)
             return
         }
-        #if os(iOS)
-        // Off-screen, a scan is the wrong tool: iOS throttles background scanning so hard that a field log
-        // showed eight minutes of alternating 5.0/4.0 scans finding nothing, then the strap discovered eight
-        // seconds after the app came to the foreground — twice. A targeted connect to the last strap is what
-        // iOS honours in the background: it has no timeout and wakes the app when the strap advertises, the
-        // same call the pinned path above and the standing reconnect already make. Foreground behaviour is
-        // unchanged, so a scan still finds a strap the user has switched to.
-        if UIApplication.shared.applicationState != .active,
-           let last = Self.lastConnectedPeripheralUUID,
-           let p = central.retrievePeripherals(withIdentifiers: [last]).first {
-            log("Connecting to last strap \(last) — targeted (app not on screen; a background scan would not find it)")
-            preparePeripheral(p)
-            central.connect(p, options: nil)
-            return
-        }
-        #endif
         startScan(for: model, allowFallback: true)
     }
 
@@ -4934,6 +4932,10 @@ public final class BLEManager: NSObject, ObservableObject {
             options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]
         )
         guard allowFallback else { return }
+        // #1997: If a strap is already paired or known (preferredPeripheralUUID or lastConnectedPeripheralUUID),
+        // rotating to the other model family leaves the scanner deaf to the paired strap's advertising packets
+        // for half of the time and repeatedly resets CoreBluetooth scan windows. Only rotate if no strap is known.
+        guard preferredPeripheralUUID == nil, Self.lastConnectedPeripheralUUID == nil else { return }
         let fallback = model.fallbackScanModel
         let work = DispatchWorkItem { [weak self] in
             guard let self, self.central.isScanning, !self.state.connected else { return }
