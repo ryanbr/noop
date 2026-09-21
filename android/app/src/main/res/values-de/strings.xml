@@ -2232,6 +2232,7 @@
     <string name="today_how_score_generic">So wird dieser Wert berechnet</string>
     <string name="today_strap_battery">Strap-Akku</string>
     <string name="today_strap_battery_percent">Strap-Akku: %1$d Prozent</string>
+    <string name="today_ring_battery_percent">Ring-Akku: %1$d Prozent</string>
     <string name="today_score_solid">STABIL</string>
     <string name="today_charge_carried">Charge-Wert · %1$s</string>
     <string name="today_recovery_carried">Erholung · %1$s</string>

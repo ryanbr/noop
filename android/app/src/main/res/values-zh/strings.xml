@@ -2140,6 +2140,7 @@
     <string name="today_how_score_generic">此分数的计算方式</string>
     <string name="today_strap_battery">手环电量</string>
     <string name="today_strap_battery_percent">手环电量：%1$d%%</string>
+    <string name="today_ring_battery_percent">戒指电量：%1$d%%</string>
     <string name="today_score_solid">可靠</string>
     <string name="today_charge_carried">充能 · %1$s</string>
     <string name="today_recovery_carried">恢复 · %1$s</string>

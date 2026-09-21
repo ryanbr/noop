@@ -2172,6 +2172,7 @@
     <string name="today_how_score_generic">Как рассчитывается этот показатель</string>
     <string name="today_strap_battery">Батарея браслета</string>
     <string name="today_strap_battery_percent">Заряд браслета %1$d процентов</string>
+    <string name="today_ring_battery_percent">Заряд кольца %1$d процентов</string>
     <string name="today_score_solid">Стабильный</string>
     <string name="today_charge_carried">Заряд · %1$s</string>
     <string name="today_recovery_carried">Восстановление · %1$s</string>

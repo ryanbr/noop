@@ -2215,6 +2215,7 @@
     <string name="today_how_score_generic">Jak obliczany jest ten wynik</string>
     <string name="today_strap_battery">Bateria opaski</string>
     <string name="today_strap_battery_percent">Bateria opaski: %1$d procent</string>
+    <string name="today_ring_battery_percent">Bateria pierścienia: %1$d procent</string>
     <string name="today_score_solid">PEWNY</string>
     <string name="today_charge_carried">Energia · %1$s</string>
     <string name="today_recovery_carried">Regeneracja · %1$s</string>

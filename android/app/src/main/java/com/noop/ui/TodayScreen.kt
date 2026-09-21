@@ -337,6 +337,9 @@ fun TodayScreen(
     // source streams, and the strap's percentage is never cleared, so under an active ring both halves of
     // the old gate passed and Today drew the strap's charge. Same seam the Devices list already uses.
     val activeIsWhoop by viewModel.activeIsWhoop.collectAsStateWithLifecycle()
+    // The ring's OWN charge while a ring source is live (null otherwise, #2075), so the header can draw the
+    // active ring's battery instead of nothing. Changes a few times a session, no per-tick churn.
+    val ouraBatteryPct by viewModel.ouraBatteryPct.collectAsStateWithLifecycle()
     val v5Signals by viewModel.v5Signals.collectAsStateWithLifecycle()
     val cycleEnabled by viewModel.cycleTrackingEnabled.collectAsStateWithLifecycle()
     val cycleHidden by viewModel.cycleAwarenessHidden.collectAsStateWithLifecycle()
@@ -1402,8 +1405,10 @@ fun TodayScreen(
                 dayTitle = dayTitle,
                 humanDate = humanDate,
                 selectedDay = selectedDay,
-                batteryPct = if (liveSnap.connected) liveSnap.batteryPct else null,
-                strapIsActiveDevice = activeIsWhoop,
+                battery = HeaderBatteryDisplay.resolve(
+                    activeIsWhoop = activeIsWhoop, connected = liveSnap.connected,
+                    strapPct = liveSnap.batteryPct, ringPct = ouraBatteryPct,
+                ),
                 backfilling = liveSnap.backfilling,
                 syncChunksThisSession = liveSnap.syncChunksThisSession,
                 lastSyncAt = liveSnap.lastSyncAt,
@@ -2524,12 +2529,10 @@ private fun LiquidTodayHeader(
     dayTitle: String,
     humanDate: String,
     selectedDay: LocalDate,
-    batteryPct: Double?,
-    /** Whether the STRAP is the active device. Separate from [batteryPct] on purpose: that says what
-     *  the control reads, this says whether the control should exist. A null percentage while the strap
-     *  IS active means "connected, no reading yet" and is worth drawing; a strap that is not the active
-     *  device has nothing to say and is not drawn at all. (#2208) */
-    strapIsActiveDevice: Boolean,
+    /** What the battery ring shows for the ACTIVE device, resolved by [HeaderBatteryDisplay]: the strap's
+     *  charge (or its offline / no-reading-yet glyph) under an active strap, the ring's own charge under an
+     *  active ring, and nothing at all when the active device is neither. (#2208) */
+    battery: HeaderBatteryDisplay.State,
     // #245: sync state for the compact header chip (twin of iOS SyncStatusChip).
     backfilling: Boolean = false,
     syncChunksThisSession: Int = 0,
@@ -2658,11 +2661,18 @@ private fun LiquidTodayHeader(
             // (b) Quick-add (+), the accented primary. Mirrors iOS's LiquidAddButton (a glyph on a translucent
             // disc → the quick-actions menu). Sized to match the rest of the liquid cluster (shared HeaderClusterControl).
             QuickActionDisc(onClick = onQuickActions)
-            // (c) Strap battery ring showing the % (iOS LiquidBatteryButton). Tap → Devices.
-            // Not drawn when the strap is not the active device: an empty "Strap battery" ring under a
-            // streaming ring is a control asserting something about a strap nobody is wearing.
-            if (strapIsActiveDevice) {
-                LiquidBatteryRing(batteryPct = batteryPct, onClick = onOpenDevices)
+            // (c) Active-device battery ring showing the % (iOS LiquidBatteryButton). Tap → Devices.
+            // Not drawn when the active device is neither the strap nor a ring with a charge of its own to
+            // show: an empty "Strap battery" ring under a streaming ring is a control asserting something
+            // about a strap nobody is wearing. A ring that HAS reported its charge is the active device's
+            // own reading, and #2208's fix left it undrawn only because the control could not yet tell
+            // whose number it held.
+            when (battery) {
+                HeaderBatteryDisplay.State.NotActiveDevice -> Unit
+                HeaderBatteryDisplay.State.Offline, HeaderBatteryDisplay.State.Pending ->
+                    LiquidBatteryRing(batteryPct = null, isRing = false, onClick = onOpenDevices)
+                is HeaderBatteryDisplay.State.Charge ->
+                    LiquidBatteryRing(batteryPct = battery.pct, isRing = battery.isRing, onClick = onOpenDevices)
             }
         }
     }
@@ -2795,14 +2805,16 @@ private fun ChipCapsule(
     }
 }
 
-/** The liquid header strap-battery ring: when connected + a reading exists it draws a trimmed ring in
- *  the charge/warning/critical hue plus the % inside, else a
- *  bolt-slash glyph. Tap → Devices. Mirrors the iOS liquid header battery ring. */
+/** The liquid header active-device battery ring: when connected + a reading exists it draws a trimmed
+ *  ring in the charge/warning/critical hue plus the % inside, else a bolt-slash glyph. [isRing] names the
+ *  device in the label — "Strap battery" over a ring's charge would be the #2208 misattribution again, in
+ *  the label instead of the number. Tap → Devices. Mirrors the iOS liquid header battery ring. */
 @Composable
-private fun LiquidBatteryRing(batteryPct: Double?, onClick: () -> Unit) {
+private fun LiquidBatteryRing(batteryPct: Double?, isRing: Boolean, onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
-    val label = batteryPct?.let { uiString(R.string.today_strap_battery_percent, it.roundToInt()) }
-        ?: uiString(R.string.today_strap_battery)
+    val label = batteryPct?.let {
+        uiString(if (isRing) R.string.today_ring_battery_percent else R.string.today_strap_battery_percent, it.roundToInt())
+    } ?: uiString(R.string.today_strap_battery)
     Box(
         modifier = Modifier
             .size(HeaderClusterControl)

@@ -2218,6 +2218,7 @@
     <string name="today_how_score_generic">Comment ce score est calculé</string>
     <string name="today_strap_battery">Batterie du bracelet</string>
     <string name="today_strap_battery_percent">Batterie du bracelet : %1$d pour cent</string>
+    <string name="today_ring_battery_percent">Batterie de la bague : %1$d pour cent</string>
     <string name="today_score_solid">FIABLE</string>
     <string name="today_charge_carried">Score de Charge · %1$s</string>
     <string name="today_recovery_carried">Récupération · %1$s</string>

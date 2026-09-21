@@ -2559,9 +2559,11 @@ extension LiquidTodayView {
         case offline
         /// Linked, but no charge reading has landed yet. `charging` is still knowable on its own.
         case pending(charging: Bool)
-        /// A reading from the current link.
-        case charge(pct: Double, charging: Bool)
-        /// The strap is not the active device, so this control has nothing to say and is not drawn.
+        /// A reading from the current link. `isRing` says whose: the ring's own charge under an active
+        /// ring, the strap's under an active strap — the label names the device the number belongs to.
+        case charge(pct: Double, charging: Bool, isRing: Bool)
+        /// The active device is neither the strap nor a ring that has reported its charge this link, so
+        /// this control has nothing to say and is not drawn.
         ///
         /// Distinct from [offline], which asserts a strap that IS active is not connected. Collapsing the
         /// two put a crossed-out bolt and "strap not connected" on the header of a wearer whose ring was
@@ -2572,16 +2574,26 @@ extension LiquidTodayView {
         /// #2208: `activeIsWhoop` is required, not defaulted. `connected` alone was never enough: it is
         /// true the moment ANY source streams, `batteryPct` is the strap's and is never cleared, so under
         /// an active ring both halves of the old gate passed and this drew the strap's charge. Charging
-        /// is strap-only for the same reason, so a non-WHOOP active device reports neither.
+        /// is strap-only for the same reason, so a non-WHOOP active device reports neither of the strap's.
         ///
-        /// No default value on purpose. A defaulted flag is one a future call site can forget, and
+        /// A ring reports its OWN charge into `ringPct` (`LiveState.ouraBatteryPct`), cleared with the
+        /// link, so under a non-WHOOP active device a non-nil `ringPct` is a reading from the ring that is
+        /// live right now and is drawn as such; nil (no ring, or none has reported yet) keeps the control
+        /// off the header. `ringCharging` is the ring's charger state (`OuraWearState.charging`), the only
+        /// charging evidence a ring gives. Same resolution `LiveConsoleReadout.batteryPercent` applies.
+        ///
+        /// No default values on purpose. A defaulted flag is one a future call site can forget, and
         /// forgetting it reinstates exactly this bug in a form that still compiles.
         static func resolve(activeIsWhoop: Bool, connected: Bool,
-                            batteryPct: Double?, charging: Bool?) -> StrapBatteryDisplay {
-            guard activeIsWhoop else { return .notActiveDevice }
+                            batteryPct: Double?, charging: Bool?,
+                            ringPct: Int?, ringCharging: Bool) -> StrapBatteryDisplay {
+            guard activeIsWhoop else {
+                guard let ringPct else { return .notActiveDevice }
+                return .charge(pct: Double(ringPct), charging: ringCharging, isRing: true)
+            }
             guard connected else { return .offline }
             guard let pct = batteryPct else { return .pending(charging: charging == true) }
-            return .charge(pct: pct, charging: charging == true)
+            return .charge(pct: pct, charging: charging == true, isRing: false)
         }
     }
 
@@ -2666,8 +2678,9 @@ extension LiquidTodayView {
     }
 }
 
-/// Strap-battery ring. At sync start it briefly expands within the trailing control row, then settles into
-/// an in-place spinner; the layered header keeps either state from moving the Today content. Tap → Devices.
+/// Active-device battery ring: the strap's charge under an active strap, the ring's own under an active
+/// ring. At sync start it briefly expands within the trailing control row, then settles into an in-place
+/// spinner; the layered header keeps either state from moving the Today content. Tap → Devices.
 private struct LiquidBatteryButton: View {
     @EnvironmentObject var live: LiveState
     @EnvironmentObject var router: NavRouter
@@ -2704,7 +2717,9 @@ private struct LiquidBatteryButton: View {
                 activeIsWhoop: true,
                 connected: true,
                 batteryPct: DemoSyncHarness.batteryPercent,
-                charging: DemoSyncHarness.charging
+                charging: DemoSyncHarness.charging,
+                ringPct: nil,
+                ringCharging: false
             )
         }
         #endif
@@ -2712,7 +2727,9 @@ private struct LiquidBatteryButton: View {
             activeIsWhoop: live.activeIsWhoop,
             connected: live.connected,
             batteryPct: live.batteryPct,
-            charging: live.charging
+            charging: live.charging,
+            ringPct: live.ouraBatteryPct,
+            ringCharging: live.ouraWearState == .charging
         )
     }
 
@@ -2722,16 +2739,18 @@ private struct LiquidBatteryButton: View {
             return .offline
         case .pending(let charging):
             return .pending(charging: charging)
-        case .charge(let percent, let charging):
+        case .charge(let percent, let charging, _):
             return .charge(percent: percent, charging: charging)
         }
     }
 
     var body: some View {
-        // Not drawn at all when the strap is not the active device. The alternative is a glyph that
-        // has to say SOMETHING about a strap nobody is wearing, and every option is a claim: a charge
-        // that is not the active device's, or a crossed-out bolt asserting a disconnection that is not
-        // the interesting fact. The two Today rows already resolve it this way. (#2208)
+        // Not drawn at all when the active device is neither the strap nor a ring with a charge of its
+        // own to show. The alternative is a glyph that has to say SOMETHING about a strap nobody is
+        // wearing, and every option is a claim: a charge that is not the active device's, or a crossed-out
+        // bolt asserting a disconnection that is not the interesting fact. (#2208) A ring that HAS
+        // reported its charge is the active device's own reading, and #2208's fix left it undrawn only
+        // because the control could not yet tell whose number it held.
         if case .notActiveDevice = batteryDisplay {
             EmptyView()
         } else {
@@ -2825,8 +2844,15 @@ private struct LiquidBatteryButton: View {
             return charging
                 ? String(localized: "Strap battery charging, no reading yet")
                 : String(localized: "Strap battery, no reading yet")
-        case .charge(let percent, let charging):
+        case .charge(let percent, let charging, let isRing):
             let n = Int(percent.rounded())
+            // Named for the device the number belongs to: "Strap battery" over a ring's charge would be
+            // the #2208 misattribution again, in the label instead of the number.
+            if isRing {
+                return charging
+                    ? String(localized: "Ring battery \(n) percent, charging")
+                    : String(localized: "Ring battery \(n) percent")
+            }
             return charging
                 ? String(localized: "Strap battery \(n) percent, charging")
                 : String(localized: "Strap battery \(n) percent")
