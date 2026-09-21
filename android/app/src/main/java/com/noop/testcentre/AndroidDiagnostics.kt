@@ -87,6 +87,19 @@ object AndroidDiagnostics {
         if (chosenDay == newestDay) "" else " (NOT the latest night: $newestDay carried no skin temperature)"
 
     /**
+     * The strap id the report is describing: the registry's ACTIVE device, falling back to the canonical
+     * spine id when the registry has nothing usable.
+     *
+     * A BLANK or absent id must fall back rather than be queried. It matches no rows, so every read
+     * scoped to it comes back empty and the report states absences that are really just a bad lookup.
+     *
+     * Pure so the fallback rule is pinned by a test; the Context-touching resolution stays at the call
+     * site, which is the split the rest of this file uses.
+     */
+    internal fun activeStrapId(registryId: String?): String =
+        registryId?.takeIf { it.isNotBlank() } ?: com.noop.data.WhoopRepository.WHOOP_SOURCE
+
+    /**
      * What the active strap actually delivered over the window — the line that says which scores can
      * exist at all.
      *
@@ -209,15 +222,27 @@ object AndroidDiagnostics {
             // #1770 follow-up: which streams the ACTIVE strap actually delivered over the last 48 h. Four
             // EXISTS seeks, not counts — see WhoopDao.streamPresence for why that distinction matters on a
             // table holding ~190k motion rows a night.
-            runCatching {
-                // Same resolution funnelLines uses, blank guard included: the registry's ACTIVE id, not
-                // the canonical label, so a two-strap install reports the strap actually being worn. A
-                // BLANK id must fall back rather than be queried — it matches no rows, so every stream
-                // would read NO and the line would report a working strap as providing nothing, which is
-                // the exact misreading it exists to prevent.
-                val activeId = runCatching {
+            // Same resolution funnelLines uses, blank guard included: the registry's ACTIVE id, not
+            // the canonical label, so a two-strap install reports the strap actually being worn. A
+            // BLANK id must fall back rather than be queried — it matches no rows, so every stream
+            // would read NO and the line would report a working strap as providing nothing, which is
+            // the exact misreading it exists to prevent.
+            //
+            // Resolved once for the three readers in this block ("Provides", "Last sleep", "Last recov."):
+            // they all describe the same strap and must not be able to name different ones.
+            //
+            // Other blocks resolve it for themselves and are deliberately left alone here. `funnelLines`
+            // uses this same expression; the workout, daily-data and body-clock blocks use a DIFFERENT
+            // one (the `activeDeviceId` property through an unchecked cast, falling back to "unknown"
+            // rather than to the spine). Consolidating those is a separate change: the second form has a
+            // fallback this helper would alter, so folding it in silently would be a behaviour change
+            // wearing a refactor's clothes.
+            val activeId = activeStrapId(
+                runCatching {
                     (context.applicationContext as? com.noop.NoopApplication)?.deviceRegistry?.activeDeviceId()
-                }.getOrNull()?.takeIf { it.isNotBlank() } ?: "my-whoop"
+                }.getOrNull(),
+            )
+            runCatching {
                 val nowSec = now / 1000L
                 val present = com.noop.data.WhoopRepository.from(context)
                     .streamPresence(activeId, nowSec - 48L * 3600L, nowSec)
@@ -245,7 +270,14 @@ object AndroidDiagnostics {
             // strap-only user's freshest scored day lives under the "-noop" computed sibling, so reading the
             // spine showed a stale value (could be a month old) while the app displayed today's. Twin of
             // Swift DebugDataDiagnostics, which already reads the merged `repo.days`.
-            val merged = repo.daysMerged("my-whoop")
+            //
+            // Scoped to the ACTIVE strap, not the canonical literal. `importedSourceIdsFor` short-circuits
+            // on the canonical id to `listOf(WHOOP_SOURCE)`, so passing "my-whoop" on a two-strap install
+            // read the RETIRED strap's sources and skipped the active one entirely: a field report showed
+            // "Last sleep: 2026-09-06" from a 4.0 put away a fortnight earlier, while the same log carried
+            // a full scoring pass for that night under the 5/MG that was actually being worn. Passing the
+            // active id widens the union to both (the parameter is named `activeDeviceId` for this reason).
+            val merged = repo.daysMerged(activeId)
             add("Last sleep:  ${merged.lastOrNull { (it.totalSleepMin ?: 0.0) > 0.0 }?.let { "${it.day} · ${it.totalSleepMin?.toInt()} min" } ?: "none"}")
             add("Last recov.: ${merged.lastOrNull { it.recovery != null }?.let { "${it.day} · ${it.recovery?.toInt()}%" } ?: "none"}")
             // #1300 follow-up: the header above describes ONE device because it reads the last-connected

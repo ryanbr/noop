@@ -62,4 +62,24 @@ class AndroidDiagnosticsTest {
     fun theOffloadLabelKeepsTheColumn() {
         assertEquals(13, AndroidDiagnostics.offloadLine(0L, 0L).indexOf("no history"))
     }
+
+    /**
+     * The id threaded into the union-aware reads. What happens once it gets there is already pinned by
+     * [com.noop.data.MultiWhoopSourceUnionTest], which locks the resolver contract and the caller trap
+     * this header had: the literal collapses the union to the canonical bucket and re-drops the second
+     * strap. Nothing is re-asserted here; these two cover only the resolution [AndroidDiagnostics] adds.
+     */
+    @Test
+    fun theActiveStrapIsPreferredOverTheCanonicalSpine() {
+        assertEquals("whoop-SECOND", AndroidDiagnostics.activeStrapId("whoop-SECOND"))
+    }
+
+    /** A blank or absent registry id must fall back: queried directly it matches no rows, so every
+     *  read scoped to it reports an absence that is really a bad lookup. */
+    @Test
+    fun anUnusableRegistryIdFallsBackToTheSpine() {
+        assertEquals("my-whoop", AndroidDiagnostics.activeStrapId(null))
+        assertEquals("my-whoop", AndroidDiagnostics.activeStrapId(""))
+        assertEquals("my-whoop", AndroidDiagnostics.activeStrapId("   "))
+    }
 }
