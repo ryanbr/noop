@@ -42,8 +42,12 @@ struct LiftPlanItem: Equatable {
     var note: String?
     /// The `liftProgramItem.id` this line was flattened from, so a set count changed during the session
     /// can be offered back to the program when it is finished. Nil for a line with no program behind
-    /// it, which is then never offered.
+    /// it, which is then never offered. A line added during the session carries the id its program
+    /// line will have if finishing adds it (`addedInSession`).
     var programItemId: String?
+    /// Added while the session ran (`LiftSessionEngine.addExercise`), so the program has no line for it
+    /// yet; finishing offers to add one.
+    var addedInSession: Bool
 
     /// Rest used when a program line does not specify one. Two minutes sits in the middle of the
     /// range the hypertrophy literature uses for compound work, and is only a starting value: what
@@ -60,7 +64,8 @@ struct LiftPlanItem: Equatable {
          targetRpe: Double? = nil,
          targetWeightKg: Double? = nil,
          note: String? = nil,
-         programItemId: String? = nil) {
+         programItemId: String? = nil,
+         addedInSession: Bool = false) {
         self.exercise = exercise
         self.primaryMuscle = primaryMuscle
         self.secondaryMuscles = secondaryMuscles
@@ -72,6 +77,7 @@ struct LiftPlanItem: Equatable {
         self.targetWeightKg = targetWeightKg
         self.note = note
         self.programItemId = programItemId
+        self.addedInSession = addedInSession
     }
 }
 
@@ -115,10 +121,11 @@ struct LiftSessionEngine: Equatable {
         case finished
     }
 
-    /// The lines being worked. MUTABLE only in one dimension: how many sets a line holds, because a
-    /// gym decides that as it goes — a fifth set on a line that planned four, or dropping the last
-    /// one when the tank is empty. Nothing else about a line can change mid-session, so the plan
-    /// stays the snapshot it was at start.
+    /// The lines being worked. MUTABLE in two ways only, both because a gym decides them as it goes:
+    /// how many sets a line holds — a fifth set on a line that planned four, or dropping the last one
+    /// when the tank is empty — and a line added at the end for an exercise the program does not have.
+    /// Nothing about a line already there changes mid-session, so the plan stays the snapshot it was at
+    /// start, plus whatever was added.
     private(set) var plan: [LiftPlanItem]
     /// When the session began (unix seconds).
     let startTs: Int
@@ -416,6 +423,26 @@ struct LiftSessionEngine: Equatable {
         guard canRemoveSet(fromExercise: index) else { return false }
         pushHistory()
         plan[index].targetSets -= 1
+        return true
+    }
+
+    // MARK: - Adding an exercise
+
+    /// The most lines one session may hold: the importer's cap on one program, so a session grown during
+    /// the workout stays inside the bound its crash snapshot (written on every change) was sized for.
+    static let maxExercises = 200
+
+    /// Append an exercise the program does not have, as ONE set at the end of the sheet (Utku, 21 Sep
+    /// 2026). Any set count the caller gives is ignored: a line starts with one set, and ⊕/⊖ change it
+    /// like any other. Undoable, like adding a set. Returns false when nothing was added — the session
+    /// is finished, or already at `maxExercises`.
+    @discardableResult
+    mutating func addExercise(_ item: LiftPlanItem) -> Bool {
+        guard stage != .finished, plan.count < LiftSessionEngine.maxExercises else { return false }
+        pushHistory()
+        var line = item
+        line.targetSets = 1
+        plan.append(line)
         return true
     }
 

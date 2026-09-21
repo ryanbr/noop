@@ -443,6 +443,21 @@ final class LiftSessionController: ObservableObject {
         return true
     }
 
+    /// Add an exercise the program does not have (Utku, 21 Sep 2026), at the end of the sheet: one set,
+    /// planned as 0 kg × 0 reps with no max RPE and the default rest, so its row shows zeros until
+    /// numbers are typed — or last session's numbers, when the exercise has been done before. It
+    /// carries the id its program line will have if finishing adds it. Returns whether it was added.
+    @discardableResult
+    func addExercise(_ name: String, primaryMuscle: LiftMuscle?, secondaryMuscles: [LiftMuscle]) -> Bool {
+        let line = LiftPlanItem(exercise: name, primaryMuscle: primaryMuscle,
+                                secondaryMuscles: secondaryMuscles.filter { $0 != primaryMuscle },
+                                targetSets: 1, targetRepsLow: 0, targetWeightKg: 0,
+                                programItemId: UUID().uuidString, addedInSession: true)
+        guard engine?.addExercise(line) == true else { return false }
+        persist()
+        return true
+    }
+
     /// Drop the last pending set of an exercise. See `LiftSessionEngine.canRemoveSet(fromExercise:)`
     /// for what "can" means — a completed set is never removed this way.
     @discardableResult
@@ -568,7 +583,8 @@ final class LiftSessionController: ObservableObject {
 
     /// Lines whose set count in this session differs from the program's current one. A line with no
     /// count counts as one set, as it does when a session starts, and a line deleted from the program
-    /// since is skipped rather than resurrected.
+    /// since is skipped rather than resurrected — as is a line added during the session, which the
+    /// program does not have yet (`programAfterSession`).
     static func setCountChanges(plan: [LiftPlanItem], program items: [LiftProgramItemRow]) -> [SetCountChange] {
         let byId = Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         return plan.compactMap { line in
@@ -615,6 +631,32 @@ final class LiftSessionController: ObservableObject {
         let (weightA, weightB) = (a.weightKg ?? -1, b.weightKg ?? -1)
         if weightA != weightB { return weightA > weightB }
         return (a.reps ?? -1) > (b.reps ?? -1)
+    }
+
+    /// The program's lines after this session — what `LiftSessionView.save` writes.
+    ///
+    /// Every line already in the program takes its heaviest done set (`applyingHeaviestSets`, always).
+    /// With `keepingChanges` — the answer to the finish sheet's program question — changed set counts
+    /// move too (`applying`), and each exercise added during the session becomes a new line at the end,
+    /// in the order added: the session's set count for it, its heaviest done set's weight and reps, else
+    /// 0 kg × 0 reps, and nothing else (Utku, 21 Sep 2026: the rest is set later in the program editor).
+    static func programAfterSession(_ sets: [FinishedSet], plan: [LiftPlanItem],
+                                    program items: [LiftProgramItemRow], keepingChanges: Bool,
+                                    programId: String, deviceId: String) -> [LiftProgramItemRow] {
+        var lines = items
+        if keepingChanges {
+            lines = applying(setCountChanges(plan: plan, program: items), to: lines)
+            let next = (items.map(\.ord).max() ?? -1) + 1
+            for (offset, line) in plan.filter(\.addedInSession).enumerated() {
+                guard let id = line.programItemId, !lines.contains(where: { $0.id == id }) else { continue }
+                lines.append(LiftProgramItemRow(
+                    id: id, deviceId: deviceId, programId: programId, ord: next + offset,
+                    exercise: line.exercise, targetSets: line.targetSets,
+                    targetRepsLow: 0, targetRepsHigh: nil, targetRpe: nil, targetWeightKg: 0,
+                    restSec: nil, note: nil))
+            }
+        }
+        return applyingHeaviestSets(sets, plan: plan, to: lines)
     }
 
     /// The program's lines with `changes` applied. Only `targetSets` moves.

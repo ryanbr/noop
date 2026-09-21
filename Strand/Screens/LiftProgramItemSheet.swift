@@ -65,15 +65,8 @@ struct LiftProgramItemSheet: View {
     }
     private var canSave: Bool { !trimmedExercise.isEmpty && !maxRpeInvalid }
 
-    /// Vocabulary entries matching what has been typed so far, minus an exact match (no point
-    /// suggesting the thing already in the box). Capped — this is a hint, not a browser.
     private var suggestions: [LiftExerciseRow] {
-        let query = trimmedExercise.lowercased()
-        guard !query.isEmpty else { return Array(vocabulary.prefix(6)) }
-        return vocabulary
-            .filter { $0.name.lowercased().contains(query) && $0.name.lowercased() != query }
-            .prefix(6)
-            .map { $0 }
+        LiftExerciseVocabulary.suggestions(vocabulary, matching: exercise)
     }
 
     var body: some View {
@@ -83,7 +76,7 @@ struct LiftProgramItemSheet: View {
         ) {
             VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
                 exerciseSection
-                muscleSection
+                LiftMusclePicker(primary: $primary, secondaries: $secondaries)
                 targetsSection
                 noteSection
                 footer
@@ -148,22 +141,7 @@ struct LiftProgramItemSheet: View {
                                     Button {
                                         adopt(row)
                                     } label: {
-                                        HStack(spacing: 8) {
-                                            Image(systemName: "arrow.up.left")
-                                                .font(.system(size: 10, weight: .semibold))
-                                                .foregroundStyle(StrandPalette.textTertiary)
-                                            VStack(alignment: .leading, spacing: 1) {
-                                                Text(row.name)
-                                                    .font(StrandFont.body)
-                                                    .foregroundStyle(StrandPalette.textPrimary)
-                                                Text(LiftMuscleSummary.line(primary: row.primaryMuscle,
-                                                                            secondaries: row.secondaryMuscles))
-                                                    .font(StrandFont.caption)
-                                                    .foregroundStyle(StrandPalette.textTertiary)
-                                            }
-                                            Spacer(minLength: 0)
-                                        }
-                                        .contentShape(Rectangle())
+                                        LiftExerciseSuggestionLabel(row: row)
                                     }
                                     .buttonStyle(.plain)
 
@@ -186,83 +164,6 @@ struct LiftProgramItemSheet: View {
                 }
             }
         }
-    }
-
-    // MARK: - Muscle classification
-
-    private var muscleSection: some View {
-        VStack(alignment: .leading, spacing: NoopMetrics.gap) {
-            SectionHeader("Muscles", overline: "Counted once per exercise")
-            NoopCard {
-                VStack(alignment: .leading, spacing: 14) {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Primary").strandOverline()
-                        Menu {
-                            Button("Not classified") { primary = nil }
-                            ForEach(LiftMuscle.Region.allCases, id: \.self) { region in
-                                Section(region.displayName) {
-                                    ForEach(LiftMuscle.inRegion(region), id: \.self) { muscle in
-                                        Button(muscle.displayName) { select(primary: muscle) }
-                                    }
-                                }
-                            }
-                        } label: {
-                            HStack {
-                                Text(primary?.displayName ?? String(localized: "Not classified"))
-                                    .font(StrandFont.body)
-                                    .foregroundStyle(primary == nil
-                                                     ? StrandPalette.textTertiary
-                                                     : StrandPalette.textPrimary)
-                                Spacer(minLength: 0)
-                                Image(systemName: "chevron.up.chevron.down")
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundStyle(StrandPalette.textTertiary)
-                            }
-                            .contentShape(Rectangle())
-                        }
-                        .accessibilityLabel("Primary muscle")
-                    }
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Also works (counted as half a set)").strandOverline()
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 8)],
-                                  alignment: .leading, spacing: 8) {
-                            ForEach(LiftMuscle.allCases, id: \.self) { muscle in
-                                if muscle != primary {
-                                    secondaryChip(muscle)
-                                }
-                            }
-                        }
-                    }
-
-                    Text("Direct sets count once, indirect sets count as a half. That split is what makes the weekly per-muscle figures mean anything.")
-                        .font(StrandFont.footnote)
-                        .foregroundStyle(StrandPalette.textTertiary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-        }
-    }
-
-    private func secondaryChip(_ muscle: LiftMuscle) -> some View {
-        let on = secondaries.contains(muscle)
-        return Button {
-            if on { secondaries.remove(muscle) } else { secondaries.insert(muscle) }
-        } label: {
-            Text(muscle.displayName)
-                .font(StrandFont.caption)
-                .foregroundStyle(on ? StrandPalette.effortColor : StrandPalette.textSecondary)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(on ? StrandPalette.effortColor.opacity(0.14) : StrandPalette.surfaceRaised)
-                )
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(on ? [.isSelected] : [])
     }
 
     // MARK: - Targets
@@ -388,13 +289,6 @@ struct LiftProgramItemSheet: View {
         focused = nil
     }
 
-    /// Setting a primary that is also ticked as a secondary drops it from the secondaries: one
-    /// muscle can never be credited twice for the same set.
-    private func select(primary muscle: LiftMuscle) {
-        primary = muscle
-        secondaries.remove(muscle)
-    }
-
     private func loadIfNeeded() async {
         guard !loaded else { return }
         loaded = true
@@ -424,22 +318,13 @@ struct LiftProgramItemSheet: View {
         let name = trimmedExercise
 
         // Remember the exercise (and its classification) in the vocabulary, so it is offered back
-        // next time. `upsertLiftExercises` is keyed on (deviceId, name), so re-saving updates rather
-        // than duplicating.
+        // next time.
         if let store = await repo.storeHandle() {
-            let now = Int(Date().timeIntervalSince1970)
-            let existing = vocabulary.first { $0.name == name }
-            let row = LiftExerciseRow(
-                id: existing?.id ?? UUID().uuidString,
-                deviceId: repo.deviceId,
-                name: name,
-                primaryMuscle: primary,
-                secondaryMuscles: orderedSecondaries,
-                createdAt: existing?.createdAt ?? now,
-                lastUsedTs: now
-            )
             do {
-                _ = try await store.upsertLiftExercises([row])
+                try await LiftExerciseVocabulary.remember(
+                    name, primary: primary,
+                    secondaries: LiftExerciseVocabulary.ordered(secondaries, excluding: primary),
+                    known: vocabulary, deviceId: repo.deviceId, in: store)
             } catch let full as WhoopStore.LiftExerciseVocabularyFull {
                 // Refused rather than silently dropped: the user typed a name and deserves to know
                 // it was not remembered.
@@ -471,11 +356,5 @@ struct LiftProgramItemSheet: View {
             note: trimmedNote.isEmpty ? nil : trimmedNote
         ))
         dismiss()
-    }
-
-    /// Secondaries in the vocabulary's canonical order rather than `Set` iteration order, so the
-    /// stored list is stable between saves instead of reshuffling on every edit.
-    private var orderedSecondaries: [LiftMuscle] {
-        LiftMuscle.ordered.filter { secondaries.contains($0) && $0 != primary }
     }
 }

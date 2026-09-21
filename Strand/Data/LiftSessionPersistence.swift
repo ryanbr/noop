@@ -64,6 +64,9 @@ enum LiftSessionPersistence {
             /// set count could be changed mid-session, which decodes to nil and simply skips the
             /// write-back — the session itself is unaffected.
             var programItemId: String?
+            /// True for a line added during the session. Absent from a snapshot written before lines
+            /// could be added, which decodes to nil: a line from the program.
+            var addedInSession: Bool?
         }
 
         /// The stage as a flat, forward-compatible record rather than an encoded enum: a persisted
@@ -151,7 +154,9 @@ enum LiftSessionPersistence {
                                   targetRpe: $0.targetRpe,
                                   targetWeightKg: $0.targetWeightKg,
                                   note: $0.note,
-                                  programItemId: $0.programItemId)
+                                  programItemId: $0.programItemId,
+                                  // Written only when true, so a session nobody added to encodes as before.
+                                  addedInSession: $0.addedInSession ? true : nil)
             },
             stage: box(engine.stage),
             sets: engine.sets.map {
@@ -204,7 +209,8 @@ enum LiftSessionPersistence {
                          targetRpe: $0.targetRpe,
                          targetWeightKg: $0.targetWeightKg,
                          note: $0.note,
-                         programItemId: $0.programItemId)
+                         programItemId: $0.programItemId,
+                         addedInSession: $0.addedInSession ?? false)
         }
         let sets = s.sets.map {
             LiftRecordedSet(exerciseIndex: $0.exerciseIndex, setIndex: $0.setIndex,

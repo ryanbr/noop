@@ -37,6 +37,9 @@ struct LiftSessionView: View {
     @State private var programChoice: ProgramChoice?
     /// Program lines whose set count this session changed, read when the finish sheet opens.
     @State private var setCountChanges: [LiftSessionController.SetCountChange] = []
+    @State private var addingExercise = false
+    /// The card to bring into view once an exercise has been added — the new one, at the end.
+    @State private var scrollTarget: Int?
 
     private enum UnfinishedChoice: Hashable { case complete, discard }
     private enum ProgramChoice: Hashable { case update, keep }
@@ -89,7 +92,9 @@ struct LiftSessionView: View {
         .background(StrandPalette.surfaceBase)
         .keyboardDoneToolbar($focused)
         .dismissesKeyboardOnTap($focused)
-        .task { await loadLastTime() }
+        // Re-read whenever the session's exercises change, so an exercise added mid-session that was
+        // done before shows last time's numbers in grey, like every other line.
+        .task(id: engine?.plan.map(\.exercise)) { await loadLastTime() }
         // Release a field's draft once the user leaves it, so the row returns to the canonical
         // formatting ("45.50" typed becomes "45.5"). The single-argument form on purpose: the
         // two-argument `onChange` is macOS 14+ and this file also builds for macOS 13.
@@ -109,6 +114,7 @@ struct LiftSessionView: View {
                     ForEach(Array(engine.plan.enumerated()), id: \.offset) { index, item in
                         exerciseCard(engine, index: index, item: item)
                     }
+                    addExerciseRow(engine)
                     Color.clear.frame(height: 8)
                 }
                 .padding(.horizontal, NoopMetrics.screenPadding)
@@ -120,7 +126,46 @@ struct LiftSessionView: View {
                 guard let slot else { return }
                 withAnimation { proxy.scrollTo(slot.exerciseIndex, anchor: .top) }
             }
+            .onChange(of: scrollTarget) { target in
+                guard let target else { return }
+                withAnimation { proxy.scrollTo(target, anchor: .top) }
+                scrollTarget = nil
+            }
+            .sheet(isPresented: $addingExercise) {
+                LiftSessionExerciseSheet { name, primary, secondaries in
+                    guard session.addExercise(name, primaryMuscle: primary,
+                                              secondaryMuscles: secondaries) else { return }
+                    scrollTarget = (session.engine?.plan.count ?? 1) - 1
+                }
+            }
         }
+    }
+
+    /// Add an exercise the program does not have — at the END of the sheet, after everything planned,
+    /// because that is where it goes: the program's lines keep their order, and the new one is tapped to
+    /// start whenever the lifter gets to it (Utku, 21 Sep 2026). Finishing asks whether the program keeps
+    /// it; until then it changes this session only, like ⊕/⊖.
+    private func addExerciseRow(_ engine: LiftSessionEngine) -> some View {
+        let canAdd = engine.plan.count < LiftSessionEngine.maxExercises
+        return Button {
+            addingExercise = true
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 17, weight: .semibold))
+                Text("Add exercise").font(StrandFont.body)
+            }
+            .foregroundStyle(canAdd ? StrandPalette.effortColor : StrandPalette.textTertiary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 14)
+            .background(
+                RoundedRectangle(cornerRadius: NoopMetrics.cardRadius, style: .continuous)
+                    .strokeBorder(StrandPalette.textTertiary.opacity(0.35),
+                                  style: StrokeStyle(lineWidth: 1, dash: [5, 4])))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!canAdd)
     }
 
     private func header(_ engine: LiftSessionEngine) -> some View {
@@ -600,8 +645,9 @@ struct LiftSessionView: View {
 
     private var finishSheet: some View {
         let unfinished = session.unfinishedSlots.count
+        let asksAboutProgram = !setCountChanges.isEmpty || !addedExercises.isEmpty
         let answered = (unfinished == 0 || unfinishedChoice != nil)
-            && (setCountChanges.isEmpty || programChoice != nil)
+            && (!asksAboutProgram || programChoice != nil)
         return ScreenScaffold(title: "Finish session",
                               subtitle: "One number for the whole session, so a leg day can be compared with a run.") {
             VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
@@ -621,7 +667,7 @@ struct LiftSessionView: View {
                     }
                 }
                 if unfinished > 0 { unfinishedCard(count: unfinished) }
-                if !setCountChanges.isEmpty { programCard }
+                if asksAboutProgram { programCard }
 
                 // One way to save. Session RPE above is optional, so an empty field is simply no rating;
                 // a separate "Skip" saved exactly the same way and read as a second choice.
@@ -705,17 +751,29 @@ struct LiftSessionView: View {
         }
     }
 
-    /// Set counts changed with ⊕/⊖ during the session. The program keeps them only if asked to.
+    /// Exercises added during the session, which the program does not have yet.
+    private var addedExercises: [LiftPlanItem] {
+        session.engine?.plan.filter(\.addedInSession) ?? []
+    }
+
+    /// Set counts changed with ⊕/⊖, and exercises added, during the session. The program keeps them only
+    /// if asked to — one answer for all of them, listed so the lifter sees what "update" would write.
     private var programCard: some View {
-        NoopCard {
+        let added = addedExercises
+        return NoopCard {
             VStack(alignment: .leading, spacing: NoopMetrics.gap) {
                 Text("Program").strandOverline()
-                Text("You changed the number of sets. Keep the new counts in the program for next time?")
+                Text(programQuestion(countsChanged: !setCountChanges.isEmpty, exercisesAdded: !added.isEmpty))
                     .font(StrandFont.body)
                     .foregroundStyle(StrandPalette.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
                 ForEach(setCountChanges, id: \.itemId) { change in
                     Text("\(change.exercise): \(change.from) → \(change.to) sets")
+                        .font(StrandFont.bodyNumber)
+                        .foregroundStyle(StrandPalette.textSecondary)
+                }
+                ForEach(Array(added.enumerated()), id: \.offset) { _, line in
+                    Text("New: \(line.exercise) · sets: \(line.targetSets)")
                         .font(StrandFont.bodyNumber)
                         .foregroundStyle(StrandPalette.textSecondary)
                 }
@@ -726,6 +784,15 @@ struct LiftSessionView: View {
                 .pickerStyle(.segmented)
                 .labelsHidden()
             }
+        }
+    }
+
+    /// The program question, worded for what actually changed.
+    private func programQuestion(countsChanged: Bool, exercisesAdded: Bool) -> LocalizedStringKey {
+        switch (countsChanged, exercisesAdded) {
+        case (true, true):  return "You added exercises and changed the number of sets. Keep these changes in the program for next time?"
+        case (false, true): return "You added exercises. Add them to the program for next time?"
+        default:            return "You changed the number of sets. Keep the new counts in the program for next time?"
         }
     }
 
@@ -835,8 +902,9 @@ struct LiftSessionView: View {
         setCountChanges = LiftSessionController.setCountChanges(plan: plan, program: rows)
     }
 
-    /// Carry this session onto its program: each line's heaviest done set becomes its weight and reps
-    /// (always, Utku 21 Sep 2026), and its set count changes only when the user chose to keep them.
+    /// Carry this session onto its program (`LiftSessionController.programAfterSession`): each line's
+    /// heaviest done set becomes its weight and reps (always, Utku 21 Sep 2026); changed set counts and
+    /// exercises added during the session reach it only when the user chose to keep them.
     ///
     /// Re-reads the lines, so a program edited elsewhere while the session ran keeps every other change
     /// and a line deleted since is not resurrected. The store call replaces the lines wholesale, so
@@ -845,11 +913,9 @@ struct LiftSessionView: View {
                               sets: [LiftSessionController.FinishedSet]) async {
         guard let programId = session.programId,
               let rows = try? await store.liftProgramItems(programId: programId) else { return }
-        var edited = LiftSessionController.applyingHeaviestSets(sets, plan: plan, to: rows)
-        if programChoice == .update {
-            edited = LiftSessionController.applying(
-                LiftSessionController.setCountChanges(plan: plan, program: rows), to: edited)
-        }
+        let edited = LiftSessionController.programAfterSession(
+            sets, plan: plan, program: rows, keepingChanges: programChoice == .update,
+            programId: programId, deviceId: repo.deviceId)
         guard edited != rows else { return }
         _ = try? await store.replaceLiftProgramItems(programId: programId, items: edited)
     }
