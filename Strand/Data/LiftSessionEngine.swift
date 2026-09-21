@@ -300,13 +300,10 @@ struct LiftSessionEngine: Equatable {
         return LiftSetCarry(weightKg: set.weightKg ?? grey.weightKg, reps: set.reps ?? grey.reps)
     }
 
-    /// Slots with no number typed in: never performed, or performed without typing. Finishing the
-    /// session asks once what happens to all of them.
-    var unenteredSlots: [LiftSlot] {
-        allSlots.filter { slot in
-            guard let set = recordedSet(for: slot) else { return true }
-            return set.weightKg == nil && set.reps == nil && set.rpe == nil
-        }
+    /// Slots never performed. Finishing the session asks once what happens to all of them; a set that
+    /// was performed is complete whether or not anything was typed into it (Utku, 21 Sep 2026).
+    var unperformedSlots: [LiftSlot] {
+        allSlots.filter { !isCompleted($0) }
     }
 
     // MARK: - Actions

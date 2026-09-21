@@ -482,9 +482,9 @@ final class LiftSessionController: ObservableObject {
 
     // MARK: - Finishing
 
-    /// Slots with no number typed in — never started, or finished without typing. Finishing asks once
-    /// whether to complete all of them with their grey numbers or discard them.
-    var unfinishedSlots: [LiftSlot] { engine?.unenteredSlots ?? [] }
+    /// Sets never started. Finishing asks once whether to complete them with their grey numbers or
+    /// discard them; a set that WAS done is never in question (`setsToSave`).
+    var unfinishedSlots: [LiftSlot] { engine?.unperformedSlots ?? [] }
 
     /// One set as the finished session saves it. Timing is nil for a set completed at finish without
     /// ever being started: there is no moment to record, and inventing one would give it a rest and a
@@ -502,26 +502,24 @@ final class LiftSessionController: ObservableObject {
 
     /// The sets the session saves — every slot on the sheet.
     ///
-    /// A set with anything typed saves its numbers, and a number left blank takes its grey value, so a
-    /// set that was rated but never weighed does not save empty. That includes RPE: a set left unrated
-    /// saves the program line's max RPE (Utku, 16 Sep 2026), which is the number the session showed grey.
-    /// A rating typed for the set always wins, and a previous set's rating is never copied onto another —
-    /// only the plan's own number fills a blank. Unfinished sets save with their grey
-    /// numbers (and anything typed in advance) when `completingUnfinished`; otherwise they save as
-    /// 0 kg × 0 reps, which every figure leaves out (`LiftMetrics.isPerformed`) and Edit sets still
-    /// shows, so a discard made by mistake can be filled back in. Performed sets keep the order they
-    /// happened in and their timing; sets never started follow in plan order, with no timing.
+    /// A set that was DONE — ticked by Set done or a strap double-tap — is complete, with no question at
+    /// finish (Utku, 21 Sep 2026): it saves what was typed into it, and a number left blank takes the grey
+    /// value the sheet showed. That includes RPE: a set left unrated saves the program line's max RPE
+    /// (16 Sep 2026). A rating typed for the set always wins, and a previous set's rating is never copied
+    /// onto another — only the plan's own number fills a blank. Sets never started are the only
+    /// unfinished ones: they save with their grey numbers (and anything typed in advance) when
+    /// `completingUnfinished`; otherwise as 0 kg × 0 reps, which every figure leaves out
+    /// (`LiftMetrics.isPerformed`) and Edit sets still shows, so a discard made by mistake can be filled
+    /// back in. Done sets keep the order they happened in and their timing; sets never started follow in
+    /// plan order, with no timing.
     func setsToSave(completingUnfinished: Bool) -> [FinishedSet] {
         guard let engine else { return [] }
-        let unfinished = Set(engine.unenteredSlots)
         // The plan's max RPE, which the session shows grey in the RPE field.
         func planned(_ slot: LiftSlot) -> Double? { engine.planItem(for: slot)?.targetRpe }
         var out = engine.sets.map { set -> FinishedSet in
-            let discarded = unfinished.contains(set.slot) && !completingUnfinished
             let shown = values(of: set.slot)
-            return FinishedSet(slot: set.slot,
-                               weightKg: discarded ? 0 : shown.weightKg, reps: discarded ? 0 : shown.reps,
-                               rpe: discarded ? nil : (set.rpe ?? planned(set.slot)), isWarmup: set.isWarmup,
+            return FinishedSet(slot: set.slot, weightKg: shown.weightKg, reps: shown.reps,
+                               rpe: set.rpe ?? planned(set.slot), isWarmup: set.isWarmup,
                                startTs: set.startTs, endTs: set.endTs, restSec: set.restSec)
         }
         for slot in engine.allSlots where !engine.isCompleted(slot) {
@@ -537,9 +535,9 @@ final class LiftSessionController: ObservableObject {
         return out
     }
 
-    /// Whether any of `sets` was performed. When none was (a session run face-down with nothing typed,
-    /// then discarded), there is nothing to file: `LiftSessionView.save` writes no session, no sets and
-    /// no workout, and the finish sheet says so before Save.
+    /// Whether any of `sets` was performed. When none was (no set done, and the rest discarded), there
+    /// is nothing to file: `LiftSessionView.save` writes no session, no sets and no workout, and the
+    /// finish sheet says so before Save.
     static func anyPerformed(_ sets: [FinishedSet]) -> Bool {
         sets.contains { LiftMetrics.isPerformed(reps: $0.reps) }
     }
@@ -563,6 +561,44 @@ final class LiftSessionController: ObservableObject {
             guard saved != line.targetSets else { return nil }
             return SetCountChange(itemId: id, exercise: line.exercise, from: saved, to: line.targetSets)
         }
+    }
+
+    /// The program's lines with each one's HEAVIEST done set this session as its new weight and reps.
+    ///
+    /// Utku, 21 Sep 2026: numbers typed during a session update the program, without asking. A line holds
+    /// one weight and one rep count for all its sets, so it takes the heaviest set — the working weight,
+    /// which a lighter back-off set must not pull down; between sets of equal weight, the one with more
+    /// reps. Only sets actually done count: a warm-up, a set discarded to zeros and a set completed at
+    /// finish without being started (it carries grey numbers, not new ones) move nothing. A number the
+    /// heaviest set does not have (a bodyweight line's weight) is left as it was; a leftover rep range
+    /// top below the new count is dropped, since the editor keeps one rep count. Lines without a program
+    /// line behind them, or deleted since, are skipped.
+    static func applyingHeaviestSets(_ sets: [FinishedSet], plan: [LiftPlanItem],
+                                     to items: [LiftProgramItemRow]) -> [LiftProgramItemRow] {
+        var heaviest: [String: FinishedSet] = [:]
+        for set in sets where set.startTs != nil && !set.isWarmup && LiftMetrics.isPerformed(reps: set.reps) {
+            guard plan.indices.contains(set.slot.exerciseIndex),
+                  let id = plan[set.slot.exerciseIndex].programItemId else { continue }
+            if let best = heaviest[id], !isHeavier(set, than: best) { continue }
+            heaviest[id] = set
+        }
+        return items.map { row in
+            guard let top = heaviest[row.id] else { return row }
+            var edited = row
+            if let weight = top.weightKg { edited.targetWeightKg = weight }
+            if let reps = top.reps {
+                edited.targetRepsLow = reps
+                if let high = edited.targetRepsHigh, high < reps { edited.targetRepsHigh = nil }
+            }
+            return edited
+        }
+    }
+
+    /// More weight wins; at equal weight, more reps. A missing number ranks below any number.
+    private static func isHeavier(_ a: FinishedSet, than b: FinishedSet) -> Bool {
+        let (weightA, weightB) = (a.weightKg ?? -1, b.weightKg ?? -1)
+        if weightA != weightB { return weightA > weightB }
+        return (a.reps ?? -1) > (b.reps ?? -1)
     }
 
     /// The program's lines with `changes` applied. Only `targetSets` moves.

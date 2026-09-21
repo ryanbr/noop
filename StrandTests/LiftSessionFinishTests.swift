@@ -2,12 +2,13 @@ import XCTest
 @testable import Strand
 import WhoopStore
 
-/// Finishing a session: what saves, and whether the program keeps a changed set count.
+/// Finishing a session: what saves, and what reaches the program.
 ///
-/// Asked for after a real session, 15 Sep 2026: grey numbers stay grey during the session, finishing
-/// asks once whether the sets without typed numbers are completed with them or discarded ("the user
-/// might not complete all the workout, just a couple of exercises"), and a set count changed with ⊕/⊖
-/// reaches the program only if the user says so.
+/// From real sessions. 15 Sep 2026: grey numbers stay grey during the session, and a set count changed
+/// with ⊕/⊖ reaches the program only if the user says so. 21 Sep 2026: a set that was done is complete —
+/// typed numbers, else its grey ones — with no question at finish; only sets never started are asked
+/// about ("the user might not complete all the workout"); and each program line takes its heaviest done
+/// set's numbers, without asking.
 @MainActor
 final class LiftSessionFinishTests: XCTestCase {
 
@@ -42,26 +43,33 @@ final class LiftSessionFinishTests: XCTestCase {
         return c
     }
 
-    /// A session run face-down, every set advanced on the strap and nothing typed. Discarding then
-    /// leaves no set that counts, only zeros: this is the precondition `LiftSessionView.save` guards
-    /// on, because filing it wrote a session with nothing in it and a manual workout the engine would
-    /// fill strain into, so an hour that recorded nothing read back as a workout. Completing still
-    /// files all five.
-    func testAFaceDownSessionDiscardingSavesNothingAtAll() {
+    /// A session run face-down, every set done on the strap and nothing typed: every set is complete
+    /// with the grey numbers the sheet showed, and there is nothing to ask.
+    func testSetsDoneOnTheStrapAreCompleteWithoutAsking() {
         let c = controller()
         c.start(plan: plan(), programId: "p", programName: "Upper A")
         for _ in 0..<10 { c.advance() }                           // every set worked, none typed
-        XCTAssertEqual(c.unfinishedSlots.count, 5, "nothing typed, so every slot is unentered")
-        XCTAssertFalse(LiftSessionController.anyPerformed(c.setsToSave(completingUnfinished: false)),
-                       "discarding an all-untyped session must leave no set to file")
-        let completed = c.setsToSave(completingUnfinished: true)
-        XCTAssertEqual(completed.count, 5, "completing still files every set with its grey numbers")
-        XCTAssertTrue(LiftSessionController.anyPerformed(completed))
+        XCTAssertTrue(c.unfinishedSlots.isEmpty, "every set was done, so nothing is unfinished")
+        let saved = c.setsToSave(completingUnfinished: false)
+        XCTAssertEqual(saved.map(\.weightKg), [50, 50, 50, 40, 40])
+        XCTAssertEqual(saved.map(\.reps), [10, 10, 10, 12, 12])
+        XCTAssertTrue(saved.allSatisfy { $0.endTs != nil })
     }
 
-    func testUnfinishedSetsAreTheUntypedAndTheNeverStarted() {
-        XCTAssertEqual(halfDoneSession().unfinishedSlots,
-                       [slot(0, 2), slot(0, 3), slot(1, 1), slot(1, 2)])
+    /// With no set done and the rest discarded, no set counts: the precondition `LiftSessionView.save`
+    /// guards on, so an hour that recorded nothing never reads back as a workout with strain.
+    func testNothingDoneAndTheRestDiscardedLeavesNothingToFile() {
+        let c = controller()
+        c.start(plan: plan(), programId: "p", programName: "Upper A")
+        XCTAssertEqual(c.unfinishedSlots.count, 5)
+        XCTAssertFalse(LiftSessionController.anyPerformed(c.setsToSave(completingUnfinished: false)))
+        XCTAssertTrue(LiftSessionController.anyPerformed(c.setsToSave(completingUnfinished: true)),
+                      "completing them still files every set with its grey numbers")
+    }
+
+    func testUnfinishedSetsAreOnlyTheOnesNeverStarted() {
+        XCTAssertEqual(halfDoneSession().unfinishedSlots, [slot(0, 3), slot(1, 1), slot(1, 2)],
+                       "bench 2 was done untyped, so it is complete, not unfinished")
     }
 
     /// A set with anything typed always saves, and a blank field takes its grey number rather than
@@ -76,20 +84,21 @@ final class LiftSessionFinishTests: XCTestCase {
         }
     }
 
-    /// Discarding keeps every unfinished set as 0 kg × 0 reps: out of every figure, but still there to fill
-    /// in under Edit sets if the discard was a mistake. A performed one keeps its timing.
-    func testDiscardingSavesUnfinishedSetsAsZeros() {
+    /// Discarding keeps every set never started as 0 kg × 0 reps: out of every figure, but still there to
+    /// fill in under Edit sets if the discard was a mistake. The sets that were done are not touched.
+    func testDiscardingSavesOnlyTheNeverStartedSetsAsZeros() {
         let saved = halfDoneSession().setsToSave(completingUnfinished: false)
         XCTAssertEqual(saved.map(\.slot), [slot(0, 1), slot(0, 2), slot(0, 3), slot(1, 1), slot(1, 2)])
         XCTAssertEqual(saved[0].weightKg, 55, "the typed set is untouched")
-        for set in saved.dropFirst() {
+        XCTAssertEqual(saved[1].weightKg, 55, "bench 2 was done untyped: it keeps its grey numbers")
+        XCTAssertEqual(saved[1].reps, 10)
+        XCTAssertNotNil(saved[1].endTs)
+        for set in saved.dropFirst(2) {
             XCTAssertEqual(set.weightKg, 0)
             XCTAssertEqual(set.reps, 0)
             XCTAssertNil(set.rpe)
+            XCTAssertNil(set.startTs, "never started")
         }
-        XCTAssertNotNil(saved[1].endTs, "bench 2 was performed, so its timing is kept")
-        XCTAssertNil(saved[2].startTs, "bench 3 was never started")
-        XCTAssertTrue(LiftSessionController.anyPerformed(saved), "one typed set is enough to file the session")
     }
 
     /// Completing saves the untyped and the never-started sets with the grey numbers the sheet showed:
@@ -148,17 +157,19 @@ final class LiftSessionFinishTests: XCTestCase {
         XCTAssertEqual(c.setsToSave(completingUnfinished: true)[0].rpe, 6, "a typed rating wins")
     }
 
-    /// Discarding still saves zeros and no rating: the plan's number fills a blank only on a set the
-    /// session keeps, so a discarded set cannot arrive carrying an effort nobody made.
+    /// Discarding saves zeros and no rating: the plan's number fills a blank only on a set the session
+    /// keeps, so a discarded set cannot arrive carrying an effort nobody made. A set that was done keeps
+    /// the plan's rating either way.
     func testADiscardedSetTakesNoMaxRpe() {
         let c = controller()
-        c.start(plan: [LiftPlanItem(exercise: "Squat", targetSets: 1, targetRepsLow: 5, targetRpe: 8)],
+        c.start(plan: [LiftPlanItem(exercise: "Squat", targetSets: 2, targetRepsLow: 5, targetRpe: 8)],
                 programId: nil, programName: nil)
         c.advance()
-        c.advance()                                               // performed, nothing typed at all
-        let discarded = c.setsToSave(completingUnfinished: false)[0]
-        XCTAssertNil(discarded.rpe)
-        XCTAssertEqual(discarded.reps, 0)
+        c.advance()                                               // set 1 done, nothing typed at all
+        let saved = c.setsToSave(completingUnfinished: false)
+        XCTAssertEqual(saved[0].rpe, 8, "done: complete, with the plan's max RPE")
+        XCTAssertNil(saved[1].rpe, "never started and discarded")
+        XCTAssertEqual(saved[1].reps, 0)
     }
 
     /// Nothing unfinished means nothing to ask, and every set saves.
@@ -211,6 +222,54 @@ final class LiftSessionFinishTests: XCTestCase {
         XCTAssertEqual(changed[0].note, "keep me")
         XCTAssertEqual(changed[0].targetWeightKg, 50)
         XCTAssertEqual(changed[1].targetSets, 2, "an unchanged line stays as it was")
+    }
+
+    // MARK: - The program's numbers
+
+    private func done(_ e: Int, _ s: Int, _ kg: Double?, _ reps: Int?, warmup: Bool = false,
+                      started: Bool = true) -> LiftSessionController.FinishedSet {
+        .init(slot: slot(e, s), weightKg: kg, reps: reps, rpe: nil, isWarmup: warmup,
+              startTs: started ? 100 : nil, endTs: started ? 160 : nil, restSec: nil)
+    }
+
+    /// Each line takes its heaviest done set — more weight first, then more reps — and nothing else moves.
+    func testEachProgramLineTakesItsHeaviestDoneSet() {
+        let rows = [item("bench", "Bench press", sets: 3), item("row", "Row", sets: 2)]
+        let sets = [done(0, 1, 60, 8), done(0, 2, 65, 6), done(0, 3, 65, 7),
+                    done(1, 1, 45, 10), done(1, 2, 42.5, 12)]
+        let edited = LiftSessionController.applyingHeaviestSets(sets, plan: plan(), to: rows)
+        XCTAssertEqual(edited[0].targetWeightKg, 65)
+        XCTAssertEqual(edited[0].targetRepsLow, 7, "equal weight: the set with more reps")
+        XCTAssertEqual(edited[1].targetWeightKg, 45, "a lighter back-off set does not pull the program down")
+        XCTAssertEqual(edited[1].targetRepsLow, 10)
+        XCTAssertEqual(edited[0].targetSets, 3)
+        XCTAssertEqual(edited[0].note, "keep me")
+    }
+
+    /// Only sets actually done carry new numbers: a warm-up, a discarded zero and a set completed at
+    /// finish without being started (grey numbers, not new ones) leave the program as it was.
+    func testSetsThatWereNotDoneLeaveTheProgramAlone() {
+        let rows = [item("bench", "Bench press", sets: 3), item("row", "Row", sets: 2)]
+        let sets = [done(0, 1, 80, 5, warmup: true), done(0, 2, 0, 0),
+                    done(1, 1, 90, 3, started: false)]
+        XCTAssertEqual(LiftSessionController.applyingHeaviestSets(sets, plan: plan(), to: rows), rows)
+    }
+
+    /// A bodyweight set keeps the line's weight; a leftover rep-range top below the new count is dropped;
+    /// a line with no program behind it, or deleted since, is skipped.
+    func testMissingNumbersAndMissingLinesAreLeftAlone() {
+        var rows = [item("bench", "Bench press", sets: 3)]
+        rows[0].targetRepsHigh = 12
+        let edited = LiftSessionController.applyingHeaviestSets([done(0, 1, nil, 15)], plan: plan(), to: rows)
+        XCTAssertEqual(edited[0].targetWeightKg, 50, "no weight on the set, so the line's weight stays")
+        XCTAssertEqual(edited[0].targetRepsLow, 15)
+        XCTAssertNil(edited[0].targetRepsHigh, "12 would sit below the new 15")
+
+        let unowned = [LiftPlanItem(exercise: "Curl", targetSets: 1)]
+        XCTAssertEqual(LiftSessionController.applyingHeaviestSets([done(0, 1, 20, 10)], plan: unowned, to: rows),
+                       rows)
+        XCTAssertEqual(LiftSessionController.applyingHeaviestSets([done(1, 1, 20, 10)], plan: plan(), to: rows),
+                       rows, "the row line was deleted from the program: nothing to write")
     }
 
     /// The hub reloads on this: a saved session must announce itself, and a discarded one must not.

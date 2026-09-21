@@ -671,14 +671,15 @@ struct LiftSessionView: View {
         .task { await loadSetCountChanges() }
     }
 
-    /// Sets nobody typed a number into. One choice covers all of them, because what matters at the end
-    /// of a session is simply whether they happened: complete them with the numbers the sheet showed,
-    /// or discard them to zeros that every figure leaves out and Edit sets can still fill in.
+    /// Sets never started. One choice covers all of them, because what matters at the end of a session
+    /// is simply whether they happened: complete them with the numbers the sheet showed, or discard them
+    /// to zeros that every figure leaves out and Edit sets can still fill in. A set that was done is never
+    /// asked about — it is complete (`LiftSessionController.setsToSave`).
     private func unfinishedCard(count: Int) -> some View {
         NoopCard {
             VStack(alignment: .leading, spacing: NoopMetrics.gap) {
                 Text("Unfinished sets").strandOverline()
-                Text("\(count) sets have no numbers typed in — sets you did not start, or finished without typing.")
+                Text("Sets not started: \(count)")
                     .font(StrandFont.body)
                     .foregroundStyle(StrandPalette.textPrimary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -763,17 +764,13 @@ struct LiftSessionView: View {
         // After `finish`, which closes out the running rest: that set's measured rest belongs to it.
         let finished = session.setsToSave(completingUnfinished: unfinishedChoice == .complete)
 
-        // Nothing to file, so file nothing. Discarding can leave no set that counts: a session run
-        // face-down and advanced entirely on the strap has nothing typed, so every slot is unentered
-        // and "Discard them" turns every set into a zero. Filing it anyway wrote a session with nothing
-        // in it AND a manual workout, and the engine fills that workout's strain from the heart rate the
-        // strap measured — so an hour that recorded nothing still read back as a workout. The finish
-        // sheet says so before Save. The program's set counts are a separate thing the user chose
-        // explicitly, so those still apply.
+        // Nothing to file, so file nothing. With no set done, "Discard them" turns every set into a zero.
+        // Filing that anyway wrote a session with nothing in it AND a manual workout, and the engine fills
+        // that workout's strain from the heart rate the strap measured — so an hour that recorded nothing
+        // still read back as a workout. The finish sheet says so before Save. The program's set counts
+        // are a separate thing the user chose explicitly, so those still apply.
         guard LiftSessionController.anyPerformed(finished) else {
-            if programChoice == .update {
-                await writeSetCountsToProgram(store: store, plan: engine.plan)
-            }
+            await writeProgram(store: store, plan: engine.plan, sets: finished)
             await finishAndDismiss()
             return
         }
@@ -805,9 +802,7 @@ struct LiftSessionView: View {
                 restSec: s.restSec, note: nil)
         }
         _ = try? await store.upsertLiftSets(rows)
-        if programChoice == .update {
-            await writeSetCountsToProgram(store: store, plan: engine.plan)
-        }
+        await writeProgram(store: store, plan: engine.plan, sets: finished)
 
         // Through the SAME path a manual workout takes, so it inherits overlap dedup, the engine's
         // HR-derived strain fill and delete/merge. `strain` stays nil deliberately: the engine fills
@@ -840,18 +835,23 @@ struct LiftSessionView: View {
         setCountChanges = LiftSessionController.setCountChanges(plan: plan, program: rows)
     }
 
-    /// Save this session's set counts onto its program — only when the user chose to.
+    /// Carry this session onto its program: each line's heaviest done set becomes its weight and reps
+    /// (always, Utku 21 Sep 2026), and its set count changes only when the user chose to keep them.
     ///
-    /// Re-reads the lines and moves only `targetSets`, so a program edited elsewhere while the session
-    /// ran keeps every other change and a line deleted since is not resurrected. The store call
-    /// replaces the lines wholesale, so nothing is written when no count differs.
-    private func writeSetCountsToProgram(store: WhoopStore, plan: [LiftPlanItem]) async {
+    /// Re-reads the lines, so a program edited elsewhere while the session ran keeps every other change
+    /// and a line deleted since is not resurrected. The store call replaces the lines wholesale, so
+    /// nothing is written when no line differs.
+    private func writeProgram(store: WhoopStore, plan: [LiftPlanItem],
+                              sets: [LiftSessionController.FinishedSet]) async {
         guard let programId = session.programId,
               let rows = try? await store.liftProgramItems(programId: programId) else { return }
-        let changes = LiftSessionController.setCountChanges(plan: plan, program: rows)
-        guard !changes.isEmpty else { return }
-        _ = try? await store.replaceLiftProgramItems(
-            programId: programId, items: LiftSessionController.applying(changes, to: rows))
+        var edited = LiftSessionController.applyingHeaviestSets(sets, plan: plan, to: rows)
+        if programChoice == .update {
+            edited = LiftSessionController.applying(
+                LiftSessionController.setCountChanges(plan: plan, program: rows), to: edited)
+        }
+        guard edited != rows else { return }
+        _ = try? await store.replaceLiftProgramItems(programId: programId, items: edited)
     }
 
     /// The sport every logged session is filed under — the same token the Hevy/Liftosaur importer

@@ -151,7 +151,7 @@ final class LiftSessionEngineTests: XCTestCase {
         XCTAssertNil(row?.weightKg, "a grey number is not an entry")
         XCTAssertNil(row?.reps)
         XCTAssertEqual(e.values(of: slot(0, 1), lastSession: [:]), LiftSetCarry(weightKg: 50, reps: 10))
-        XCTAssertEqual(e.unenteredSlots.first, slot(0, 1))
+        XCTAssertFalse(e.unperformedSlots.contains(slot(0, 1)), "done, so complete even with nothing typed")
     }
 
     /// The second set follows what the FIRST set counts as — if you dropped to 45 kg, set 2 follows
@@ -225,14 +225,14 @@ final class LiftSessionEngineTests: XCTestCase {
         XCTAssertEqual(e.values(of: slot(0, 1), lastSession: [:]), LiftSetCarry(weightKg: 0, reps: 0))
     }
 
-    /// Only a set with nothing typed at all is unentered; a rating alone counts as an entry.
-    func testUnenteredSlotsAreTheOnesNobodyTypedInto() {
+    /// Only a set never started is unperformed. A set that was done counts as done whether or not
+    /// anything was typed into it (Utku, 21 Sep 2026).
+    func testUnperformedSlotsAreTheOnesNeverStarted() {
         var e = LiftSessionEngine(plan: twoExercisePlan(), startTs: t0)
         e.start(slot(0, 1), now: t0); e.advance(now: t0 + 40)     // done, untyped
         e.start(slot(0, 2), now: t0 + 100); e.advance(now: t0 + 140)
         e.updateSet(slot(0, 2), weightKg: nil, reps: nil, rpe: 8, isWarmup: false)
-        XCTAssertEqual(e.unenteredSlots, [slot(0, 1), slot(1, 1)],
-                       "an untyped finished set and a never-started one; the rated set is entered")
+        XCTAssertEqual(e.unperformedSlots, [slot(1, 1)], "only the set nobody started")
     }
 
     // MARK: - The default in-order path
