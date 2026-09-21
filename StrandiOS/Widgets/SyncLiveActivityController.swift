@@ -42,6 +42,11 @@ final class SyncLiveActivityController {
     private static let finalShownFor: TimeInterval = 8
     private static let chunkMinInterval: TimeInterval = 2
 
+    /// Asked before a foreground sync STARTS a banner; true holds it back. The Lift Log sets it for the
+    /// length of a gym session, whose own banner is the one on the Lock Screen. A banner the Sync Strap
+    /// shortcut started still updates and ends as before.
+    var holdsBackNewBanner: () -> Bool = { false }
+
     private init() {}
 
     func attach(to live: LiveState) {
@@ -107,7 +112,7 @@ final class SyncLiveActivityController {
             return
         }
         // Only the foreground may start one. A background automatic sync stays silent, honestly.
-        guard UIApplication.shared.applicationState == .active else { return }
+        guard UIApplication.shared.applicationState == .active, !holdsBackNewBanner() else { return }
         startedAt = Date()
         request(state: state(syncing(live)))
     }

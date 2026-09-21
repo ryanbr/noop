@@ -90,7 +90,7 @@ struct StrandiOSApp: App {
         SyncLiveActivityController.shared.attach(to: model.live)
         // The buzz and the strap-gesture claim are injected, so the controller itself knows nothing
         // about BLE and stays testable.
-        _liftSession = StateObject(wrappedValue: LiftSessionController(
+        let liftSession = LiftSessionController(
             buzz: { [weak model] loops in
                 model?.buzz(loops: loops, gate: HapticPrefs.liftRest)
             },
@@ -99,7 +99,13 @@ struct StrandiOSApp: App {
             },
             log: { [weak model] line in
                 model?.live.append(log: line)
-            }))
+            })
+        _liftSession = StateObject(wrappedValue: liftSession)
+        // A gym session keeps ONE banner on the Lock Screen, its own — as the live-HR banner already
+        // stands aside for it. A sync started in the foreground mid-session starts no sync banner.
+        SyncLiveActivityController.shared.holdsBackNewBanner = { [weak liftSession] in
+            liftSession?.isActive == true
+        }
         // #1538: a strap offload completes while the app is BACKGROUNDED — it stays alive as a
         // bluetooth-central to receive it — and the re-score it triggers took nearly eight minutes on the
         // reporter's install, far longer than that wake survives. The pass is all-or-nothing, so being
