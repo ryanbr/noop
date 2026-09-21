@@ -104,6 +104,35 @@ class SleepSessionDedupTest {
         assertEquals(listOf(long.startTs), result.kept.map { it.startTs })
     }
 
+    // ── Heal witness: the computed bank-recency witness must not reach a provided device's rows ──
+
+    @Test
+    fun healWitness_isHandedOnlyToTheComputedId() {
+        val kept = setOf(midnight - 2 * 3600L, midnight + 15 * 3600L)
+        assertEquals(kept, SleepSessionDedup.healWitness("my-whoop-noop", "my-whoop-noop", kept))
+        assertEquals(emptySet<Long>(), SleepSessionDedup.healWitness("oura-Y12", "my-whoop-noop", kept))
+        assertEquals(emptySet<Long>(), SleepSessionDedup.healWitness("oura-Y12", "my-whoop-noop", emptySet()))
+    }
+
+    @Test
+    fun ringSweep_keepsTheFullerReserveBankedWhileThePassWasInFlight() {
+        // 09-19/20 (iOS 11.8.0): the pass READ the ring's 22:20 → 03:57 row, the OS suspended it, and by
+        // the time its heal ran the ring had re-served the night out to 08:21. The read row's startTs is in
+        // keptStarts (the pass banked it verbatim under computedId). Handed to the ring's own sweep as the
+        // witness, it outranked the full night and the heal deleted 598 min in favour of 337 — the wake
+        // time the user saw was 04:48. With healWitness the ring id gets no witness: longest wins.
+        val read = session(midnight - 2 * 3600L + 53, midnight + 3 * 3600L + 57 * 60) // 337 min
+        val full = session(midnight - 2 * 3600L + 231, midnight + 8 * 3600L + 21 * 60) // 598 min
+        val keptStarts = setOf(read.startTs)
+        val ringWitness = SleepSessionDedup.healWitness("oura-Y12", "my-whoop-noop", keptStarts)
+        val healed = SleepSessionDedup.dedupe(listOf(read, full), freshStarts = ringWitness)
+        assertEquals("the fuller re-serve survives the heal", listOf(full.startTs), healed.kept.map { it.startTs })
+        assertEquals(listOf(read.startTs), healed.dropped.map { it.startTs })
+        // The regression, pinned so it cannot creep back: the leaked witness keeps the stale read row.
+        val leaked = SleepSessionDedup.dedupe(listOf(read, full), freshStarts = keptStarts)
+        assertEquals(listOf(read.startTs), leaked.kept.map { it.startTs })
+    }
+
     @Test
     fun userEditedSession_isNeverDropped() {
         // A hand-corrected night outranks everything, including a fresh re-detection.

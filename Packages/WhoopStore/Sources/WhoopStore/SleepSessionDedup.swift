@@ -120,6 +120,19 @@ public enum SleepSessionDedup {
                 dropped.sorted { $0.startTs < $1.startTs })
     }
 
+    /// The bank-recency witness the post-upsert heal may hand `dedupe` for ONE device id's rows.
+    ///
+    /// `keptStarts` are the `startTs` of the sessions the analyze pass just banked under `computedId`. They
+    /// witness recency ONLY there: on a day scored from a device-provided hypnogram (an Oura ring) the pass's
+    /// sessions are that device's own stored rows with `startTs` copied verbatim, so the same keys name the
+    /// row the pass READ in the device's own table — the stalest row of the night by the time the heal runs,
+    /// not the freshest. Handing them to that sweep ranked the read row above every fuller re-serve banked
+    /// while the pass was in flight, and the heal deleted the full night. Every id but `computedId` therefore
+    /// gets no witness and falls back to longest-wins, the read-side default. Twin of Kotlin's `healWitness`.
+    public static func healWitness(for healId: String, computedId: String, keptStarts: Set<Int>) -> Set<Int> {
+        healId == computedId ? keptStarts : []
+    }
+
     // MARK: - #1284 residual 3: generation-side 0x49-onset keying (at-persist, no schema migration)
 
     /// The grid (seconds) the 0x49 onset is rounded to before it becomes a session's `startTs`. The ring

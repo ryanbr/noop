@@ -1986,8 +1986,16 @@ object IntelligenceEngine {
         // "naps". Dedup each device's rows AMONG THEMSELVES and delete stale copies under that SAME id
         // (deleteSleepSessionRowOnly deletes under the row's own deviceId), never across ids, so a survivor
         // is never orphaned under an id the day-owner read skips. `freshStarts` (this pass's computed bank
-        // witness) only matches the computedId rows; the others fall back to longest-wins, the read-side
-        // dedup's own default. Sorted for a deterministic order. Mirrors the Swift analyzeRecent heal.
+        // witness) is handed ONLY to the computedId sweep; every other id falls back to longest-wins, the
+        // read-side dedup's own default. It used to be passed to every id on the claim that it "only
+        // matches the computedId rows" — false on an Oura day, where the pass's sessions ARE the ring's
+        // `providedSleep` rows with `startTs` copied verbatim. The ring row the pass had READ was then
+        // ranked "fresh" in the ring's own sweep and outranked every fuller re-serve the ring banked while
+        // the pass was in flight (hours, when the OS suspends the app between the read and this heal): on
+        // 09-19/20 the heal deleted the 598-min full night one second after it landed and kept the 337-min
+        // row read at 04:14, so the day ended at 04:48 instead of 08:21. `SleepSessionDedup.healWitness` is
+        // the one shared rule (twin of Swift's). Sorted for a deterministic order. Mirrors the Swift
+        // analyzeRecent heal.
         val healDeviceIds = healDeviceIds(computedId, candidatePriorities.map { it.first })
         // Compact shape of a row for the #1284 heal log — the two measures that adjudicate WHICH copy is
         // fuller (stage-segment count + decoded JSON length), in the SAME format as the dup-gen diagnostic
@@ -2004,7 +2012,8 @@ object IntelligenceEngine {
             val healable = storedSessions.filter {
                 AnalyticsEngine.dayString(it.endTs, tzOffsetSeconds) in oldestDay..newestDay
             }
-            val sweep = SleepSessionDedup.dedupe(healable, freshStarts = keptStarts)
+            val witness = SleepSessionDedup.healWitness(healId, computedId, keptStarts)
+            val sweep = SleepSessionDedup.dedupe(healable, freshStarts = witness)
             // Row-only delete: the user-facing deleteSleepSession writes a #33 dismissal tombstone, which
             // would overlap the SURVIVING night's window and permanently suppress its re-detection.
             for (stale in sweep.dropped) {

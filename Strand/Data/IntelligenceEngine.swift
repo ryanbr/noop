@@ -2795,8 +2795,16 @@ final class IntelligenceEngine: ObservableObject {
         // re-read as `providedSleep` and re-detected every pass, so one night ballooned to 14 rows / 9
         // "naps". Dedup each device's rows AMONG THEMSELVES and delete stale copies under that SAME id
         // (never across ids, so a survivor is never orphaned under an id the day-owner read skips).
-        // `freshStarts` (this pass's computed bank witness) only matches the computedId rows; the others
-        // fall back to longest-wins, the read-side dedup's own default. Sorted for a deterministic order.
+        // `freshStarts` (this pass's computed bank witness) is handed ONLY to the computedId sweep; every
+        // other id falls back to longest-wins, the read-side dedup's own default. It used to be passed to
+        // every id on the claim that it "only matches the computedId rows" — false on an Oura day, where the
+        // pass's sessions ARE the ring's `providedSleep` rows with `startTs` copied verbatim. The ring row
+        // the pass had READ was then ranked "fresh" in the ring's own sweep and outranked every fuller
+        // re-serve the ring banked while the pass was in flight (hours, when iOS suspends the app between
+        // the read and this heal): on 09-19/20 the heal deleted the 598-min full night one second after it
+        // landed and kept the 337-min row read at 04:14, so the day ended at 04:48 instead of 08:21.
+        // `SleepSessionDedup.healWitness` is the one shared rule (twin of Kotlin's). Sorted for a
+        // deterministic order.
         let healDeviceIds = Self.healDeviceIds(computedId: computedId, registeredIds: regDevices.map { $0.id })
         // Compact shape of a row for the #1284 heal log — the two measures that adjudicate WHICH copy is
         // fuller (stage-segment count + decoded JSON length), in the SAME format as the dup-gen diagnostic
@@ -2814,7 +2822,8 @@ final class IntelligenceEngine: ObservableObject {
             let healable = storedSessions.filter {
                 (oldestDay...newestDay).contains(AnalyticsEngine.dayString($0.endTs, offsetSec: tzOffset))
             }
-            let sweep = SleepSessionDedup.dedupe(healable, freshStarts: keptStarts)
+            let witness = SleepSessionDedup.healWitness(for: healId, computedId: computedId, keptStarts: keptStarts)
+            let sweep = SleepSessionDedup.dedupe(healable, freshStarts: witness)
             for stale in sweep.dropped {
                 _ = try? await store.deleteSleepSession(deviceId: healId, startTs: stale.startTs)
                 // #1284: log which copy was dropped and which survived, so the corpus can confirm the heal

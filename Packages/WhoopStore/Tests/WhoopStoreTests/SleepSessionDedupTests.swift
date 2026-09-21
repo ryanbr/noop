@@ -96,6 +96,37 @@ final class SleepSessionDedupTests: XCTestCase {
         XCTAssertEqual(result.kept.map(\.startTs), [long.startTs])
     }
 
+    // MARK: - Heal witness: the computed bank-recency witness must not reach a provided device's rows
+
+    func testHealWitnessIsHandedOnlyToTheComputedId() {
+        let kept: Set<Int> = [midnight - 2 * 3600, midnight + 15 * 3600]
+        XCTAssertEqual(SleepSessionDedup.healWitness(for: "my-whoop-noop", computedId: "my-whoop-noop",
+                                                     keptStarts: kept), kept)
+        XCTAssertEqual(SleepSessionDedup.healWitness(for: "oura-Y12", computedId: "my-whoop-noop",
+                                                     keptStarts: kept), [])
+        XCTAssertEqual(SleepSessionDedup.healWitness(for: "oura-Y12", computedId: "my-whoop-noop",
+                                                     keptStarts: []), [])
+    }
+
+    func testRingSweepKeepsTheFullerReserveBankedWhileThePassWasInFlight() {
+        // 09-19/20 (iOS 11.8.0): the pass READ the ring's 22:20 → 03:57 row, iOS suspended it, and by the
+        // time its heal ran the ring had re-served the night out to 08:21. The read row's startTs is in
+        // `keptStarts` (the pass banked it verbatim under computedId). Handed to the ring's own sweep as the
+        // witness, it outranked the full night and the heal deleted 598 min in favour of 337 — the wake
+        // time the user saw was 04:48. With `healWitness` the ring id gets no witness: longest wins.
+        let read = session(start: midnight - 2 * 3600 + 53, end: midnight + 3 * 3600 + 57 * 60)   // 337 min
+        let full = session(start: midnight - 2 * 3600 + 231, end: midnight + 8 * 3600 + 21 * 60)  // 598 min
+        let keptStarts: Set<Int> = [read.startTs]
+        let ringWitness = SleepSessionDedup.healWitness(for: "oura-Y12", computedId: "my-whoop-noop",
+                                                        keptStarts: keptStarts)
+        let healed = SleepSessionDedup.dedupe([read, full], freshStarts: ringWitness)
+        XCTAssertEqual(healed.kept.map(\.startTs), [full.startTs], "the fuller re-serve survives the heal")
+        XCTAssertEqual(healed.dropped.map(\.startTs), [read.startTs])
+        // The regression, pinned so it cannot creep back: the leaked witness keeps the stale read row.
+        let leaked = SleepSessionDedup.dedupe([read, full], freshStarts: keptStarts)
+        XCTAssertEqual(leaked.kept.map(\.startTs), [read.startTs])
+    }
+
     func testUserEditedSessionIsNeverDropped() {
         // A hand-corrected night outranks everything, including a fresh re-detection.
         let edited = session(start: midnight - 8 * 3600, end: midnight, edited: true)
