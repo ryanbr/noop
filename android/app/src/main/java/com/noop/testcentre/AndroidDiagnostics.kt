@@ -248,6 +248,42 @@ object AndroidDiagnostics {
                     .streamPresence(activeId, nowSec - 48L * 3600L, nowSec)
                 add(strapProvidesLine(present.hr, present.rr, present.gravity, present.steps, activeId))
             }
+            // #2117, emitted HERE as well as on the BLE path, so it reaches the export unconditionally.
+            // The judgement lives in `ConnectionTrace.rrTransportLine`, shared byte for byte with Apple;
+            // this is the hand-off, and the twin of `TestBundleAssembler.universalRRTransportLine`.
+            //
+            // The BLE emission is deliberately left in place: it is correct for a strap that completes an
+            // offload, and this adds the case it cannot cover rather than relocating it. On such a strap
+            // both now appear, on different surfaces, from the same formatter over the same two MINs. They
+            // can differ only in freshness, since an offload landing between connect and export can move
+            // `firstRecorded` earlier, and the export-time read is then the more current of the two.
+            //
+            // That BLE emission rides the GET_DATA_RANGE reply, which is part of the offload
+            // handshake. An unbonded 5/MG never completes that handshake (#1635) and so never reached it:
+            // in two full multi-session exports from such a device the line is absent, and so is the
+            // clock-drift line emitted beside it. That is precisely the wearer it exists for, the one
+            // whose HRV blanked because the beats on disk predate transport labelling. Apple has never had
+            // this gap, because it refreshes the same facts whenever a link comes UP and the assembler
+            // emits from the bundle; reading them here, at export, is the same guarantee reached the
+            // Android way, and needs no session state that could go stale between connect and export.
+            //
+            // Silent when it cannot read its inputs, matching both platforms: a diagnostic that cannot
+            // measure says nothing rather than guessing.
+            runCatching {
+                val repoForRr = com.noop.data.WhoopRepository.from(context)
+                // The two MINs only feed a line the formatter suppresses unless this is strict, so a
+                // device the policy does not govern stops after the one registry read. Same early-out
+                // the BLE caller and the Apple twin both take.
+                if (repoForRr.isWhoop5RrSource(activeId)) {
+                    com.noop.analytics.ConnectionTrace.rrTransportLine(
+                        strictWhoop5 = true,
+                        firstRecordedUnix = repoForRr.firstRecordedRrTs(activeId),
+                        firstScorableUnix = repoForRr.firstScorableWhoop5RrTs(activeId),
+                    )
+                } else {
+                    null
+                }
+            }.getOrNull()?.let { add(it) }
             // #1735: row COUNTS alone cannot separate "Health Connect never brought the ride in" from
             // "it did, but nothing has re-scored since". Both halves of that need a WHEN, and neither had
             // one: the importer recorded no run time at all, and the engine's "re-score: done" goes only to
