@@ -172,20 +172,46 @@ public final class NoopMotionState: ObservableObject {
     /// Recompute [windowObscured] from AppKit's current window list. Cheap: a handful of windows, and
     /// it runs on notifications a user generates by hand, not on a clock.
     private func refreshWindowObscured() {
-        // `canBecomeMain` means "a real app window". NOOP ships a `MenuBarExtra` (StrandApp.swift), whose
-        // status-item window is in `NSApplication.shared.windows` for the entire life of the process, so
-        // an unfiltered list would report something on screen forever and this gate would never once
-        // close — the failure mode where the fix looks applied and does nothing. Excluding it is safe
-        // rather than merely convenient: the menu-bar panel hosts no never-settling animation (no
-        // TimelineView, no repeatForever in `Strand/MenuBar/`), so nothing there needs the gate open.
-        let windows = NSApplication.shared.windows.filter(\.canBecomeMain)
-        let onScreen = windows.contains { $0.isVisible && $0.occlusionState.contains(.visible) }
-        let now = NoopMotionState.obscured(hasWindows: !windows.isEmpty, anyWindowOnScreen: onScreen)
+        // `.titled` is what separates a real app window from the `MenuBarExtra`'s status-item window,
+        // which lives in `NSApplication.shared.windows` for the whole life of the process and would
+        // otherwise report something on screen forever.
+        //
+        // #2397: this was `canBecomeMain`, and that was wrong in the one case the gate exists for.
+        // `canBecomeMain` describes a window's CURRENT STATE, not its kind: a hidden or miniaturised
+        // window answers false, so the real window left the filtered list at exactly the moment the gate
+        // should have closed, the list went empty, and the empty-list rule below then read that as "not
+        // obscured". Two individually reasonable decisions cancelling out. @nichtlegacy measured it:
+        //
+        //     visible     all=3  cbm=1  titled=2 (one on screen)   obscured=N
+        //     hidden      all=4  cbm=0  titled=2 (none on screen)  obscured=N, should be Y
+        //     minimised   all=4  cbm=0  titled=2 (none on screen)  obscured=N, should be Y
+        //
+        // `NSStatusBarWindow` reported `titled=N` in every state they logged, and the app window kept
+        // `titled=Y` in all three, which is the property this needs and `canBecomeMain` never had.
+        let windows = NSApplication.shared.windows
+            .filter { $0.styleMask.contains(.titled) }
+            .map { WindowVisibility(onScreen: $0.isVisible && $0.occlusionState.contains(.visible)) }
+        let now = NoopMotionState.obscured(windows)
         if windowObscured != now { windowObscured = now }
     }
     #endif
 
-    /// Pure half of the recompute, so the one rule worth pinning can be tested without AppKit.
+    /// One app window's contribution to the gate, as the pure decision sees it.
+    ///
+    /// #2397: a struct rather than two loose Bools because the decision is about a LIST of windows, and
+    /// the bug it replaces was invisible to a test that could only be handed a summary. Given
+    /// `hasWindows`/`anyWindowOnScreen` there was no way to express "the app window is hidden while the
+    /// status-item window is on screen", which is the exact state that was misread.
+    struct WindowVisibility: Equatable {
+        /// Visible AND not fully occluded: what `isVisible && occlusionState.contains(.visible)` answers.
+        let onScreen: Bool
+    }
+
+    /// Pure half of the recompute, so the rule can be tested without AppKit.
+    ///
+    /// Takes the already-filtered app windows: every entry is a titled window, the status-item window
+    /// having been dropped by the caller. Obscured means "there are app windows and none of them is on
+    /// screen".
     ///
     /// NO WINDOWS is deliberately NOT obscured, and the case is more common than it sounds: before the
     /// first window exists during launch, and again when someone closes the window and leaves NOOP
@@ -194,10 +220,15 @@ public final class NoopMotionState: ObservableObject {
     /// to a live screen, caused by the optimisation. Nothing is lost by the other reading: with no
     /// window there is no view hierarchy, so there is no frame loop to stop.
     ///
+    /// That rule is only safe while the filter is state-INDEPENDENT. Under #2394's `canBecomeMain` the
+    /// list emptied whenever the window was hidden, so this clause silently answered the live question
+    /// instead of the launch one. `.titled` keeps a hidden window in the list, which is what returns this
+    /// rule to the case it was written for.
+    ///
     /// `nonisolated` because the enclosing class is `@MainActor` and this decides nothing that needs the
     /// main actor — without it a test could not call it off the main actor at all.
-    nonisolated static func obscured(hasWindows: Bool, anyWindowOnScreen: Bool) -> Bool {
-        hasWindows && !anyWindowOnScreen
+    nonisolated static func obscured(_ windows: [WindowVisibility]) -> Bool {
+        !windows.isEmpty && !windows.contains { $0.onScreen }
     }
 
     /// The gate. `reduceMotion` comes from `@Environment(\.accessibilityReduceMotion)` at the call

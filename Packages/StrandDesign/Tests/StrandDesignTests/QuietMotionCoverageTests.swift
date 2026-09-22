@@ -204,10 +204,26 @@ final class QuietMotionCoverageTests: XCTestCase {
         }
         // The window list MUST be filtered to real app windows. NOOP ships a MenuBarExtra whose
         // status-item window lives in `NSApplication.shared.windows` forever, so dropping this filter
-        // leaves the gate permanently open and the fix silently inert — which looks exactly like
-        // working code.
-        XCTAssertTrue(src.contains("canBecomeMain"),
+        // leaves the gate permanently open and the fix silently inert.
+        //
+        // #2397: this assertion previously pinned `canBecomeMain`, and it passed for a week while the
+        // gate never once closed — a predicate that is correct for a visible window and wrong for a
+        // hidden one is exactly what a source census cannot see. It is kept, narrowed to the predicate
+        // that actually holds, and paired with the REGRESSION half below, because what a census IS good
+        // for is noticing that a known-bad predicate came back. The behaviour is pinned where it belongs,
+        // over window states, in `WindowObscuredGateTests`.
+        //
+        // Comment lines are dropped first: the source EXPLAINS why `canBecomeMain` was wrong, and a
+        // census that counted its own explanation would fail on an accurate account of the code it
+        // guards. Same treatment as `DynamicColorParseOnceTests`.
+        let code = src.split(separator: "\n", omittingEmptySubsequences: false)
+            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+            .joined(separator: "\n")
+        XCTAssertTrue(code.contains("styleMask.contains(.titled)"),
                       "the MenuBarExtra's status-item window must not hold the gate open")
+        XCTAssertFalse(code.contains("canBecomeMain"),
+                       "canBecomeMain answers false for a HIDDEN window, which empties the list at the "
+                       + "moment the gate should close (#2397)")
         XCTAssertTrue(src.contains("isLowPowerModeEnabled"), "must read Low Power Mode")
         XCTAssertTrue(src.contains("NSProcessInfoPowerStateDidChange"),
                       "Low Power Mode must stay live without a relaunch")
