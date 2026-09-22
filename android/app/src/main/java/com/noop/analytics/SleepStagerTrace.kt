@@ -15,9 +15,14 @@ object SleepStagerTrace {
      * opened, or that the sink was never wired. This says which, on any day with no motion — the only
      * days where the question arises. A day that HAS motion never prints it, because the motion spine
      * is the answer there and nothing was skipped.
+     *
+     * `day` leads the line (#2397). A re-score emits one of these per night, twenty-one of them inside
+     * two seconds in one field log, and without the date they are an unattributable block: asked which
+     * band last night used, a reader can only count lines and hope the emission order matches the day
+     * order. The other funnel lines in this file already carry `day=`.
      */
-    fun hrOnlyGateLine(attempted: Boolean, reason: String, gravRows: Int, storedNights: Int): String =
-        "[sleep] hr-only gate attempted=$attempted reason=$reason grav=$gravRows stored=$storedNights"
+    fun hrOnlyGateLine(day: String, attempted: Boolean, reason: String, gravRows: Int, storedNights: Int): String =
+        "[sleep] hr-only gate day=$day attempted=$attempted reason=$reason grav=$gravRows stored=$storedNights"
 
     /**
      * The HR-only spine's own funnel line (#1801).
@@ -33,11 +38,12 @@ object SleepStagerTrace {
      * complaint is unreadable without knowing which one they got.
      */
     fun hrOnlyLine(
+        day: String,
         anchorBpm: Double?, bandBpm: Double?, hrP50: Double?, hrP90: Double?, epochs: Int,
         runs: Int, mergedRuns: Int, sleepRuns: Int,
         longestSleepMin: Int, staged: Int, kept: Int, minSleepMin: Int,
     ): String =
-        "[sleep] hr-only spine anchorBpm=${round1(anchorBpm)} bandBpm=${round1(bandBpm)} " +
+        "[sleep] hr-only spine day=$day anchorBpm=${round1(anchorBpm)} bandBpm=${round1(bandBpm)} " +
             "hrP50=${round1(hrP50)} hrP90=${round1(hrP90)} " +
             "epochs=$epochs runs=$runs merged=$mergedRuns sleepRuns=$sleepRuns " +
             "longestMin=$longestSleepMin staged=$staged kept=$kept minSleepMin=$minSleepMin"

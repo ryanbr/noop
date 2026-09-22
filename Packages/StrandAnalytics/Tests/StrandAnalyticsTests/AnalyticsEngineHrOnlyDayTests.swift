@@ -47,7 +47,7 @@ final class AnalyticsEngineHrOnlyDayTests: XCTestCase {
         // The production wiring: IntelligenceEngine stages the HR-only night and hands it to analyzeDay as
         // `providedSleep`. Driving it the same way is the point — the enrichment call site that used to
         // short-circuit on `hrOnly` only exists on this path.
-        let provided = SleepStager.hrOnlySessions(hr: hr, rr: rr, resp: [])
+        let provided = SleepStager.hrOnlySessions(day: "2026-09-23", hr: hr, rr: rr, resp: [])
         XCTAssertFalse(provided.isEmpty, "the HR-only spine must stage a night here")
 
         let res = AnalyticsEngine.analyzeDay(day: day, hr: hr, rr: rr, profile: profile,

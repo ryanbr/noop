@@ -656,14 +656,14 @@ public enum SleepStager {
     /// `public` because the app target calls it: `Strand/Data/IntelligenceEngine.swift` is the day scan,
     /// and it lives outside this package. The spine and the anchor below it stay `internal` — the tests
     /// reach them with `@testable`, and nothing outside should be building its own spine.
-    public static func hrOnlySessions(hr: [HRSample], rr: [RRInterval], resp: [RespSample],
+    public static func hrOnlySessions(day: String, hr: [HRSample], rr: [RRInterval], resp: [RespSample],
                                       minMinutes: Int = minSleepMin,
                                       traceSink: ((String) -> Void)? = nil) -> [SleepSession] {
         let hrS = hr.sorted { $0.ts < $1.ts }
         // ONE sort of the bpm axis, reused for the anchor and for the spread the trace reports.
         let sortedBpm = hrS.map { Double($0.bpm) }.sorted()
         guard let baseline = percentileOfSorted(sortedBpm, hrOnlyAnchorPercentile) else {
-            traceSink?(GateTrace.hrOnlyLine(anchorBpm: nil, bandBpm: nil, hrP50: nil, hrP90: nil,
+            traceSink?(GateTrace.hrOnlyLine(day: day, anchorBpm: nil, bandBpm: nil, hrP50: nil, hrP90: nil,
                                             epochs: 0, runs: 0,
                                             mergedRuns: 0, sleepRuns: 0, longestSleepMin: 0,
                                             staged: 0, kept: 0, minSleepMin: minMinutes))
@@ -702,6 +702,7 @@ public enum SleepStager {
                                     hrOnly: true))
         }
         traceSink?(GateTrace.hrOnlyLine(
+            day: day,
             anchorBpm: baseline,
             bandBpm: baseline * hrOnlyBandMult,
             // The wearer's own spread. An anchor alone cannot be judged: p10 of 60 means one thing when

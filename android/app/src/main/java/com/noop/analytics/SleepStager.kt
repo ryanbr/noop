@@ -722,6 +722,7 @@ object SleepStager {
      * The flag travels on instead, so a consumer that wants to weigh an HR-only night down still can.
      */
     internal fun hrOnlySessions(
+        day: String,
         hr: List<HrSample>,
         rr: List<RrInterval>,
         resp: List<RespSample>,
@@ -740,6 +741,7 @@ object SleepStager {
         val baseline = percentileOfSorted(sortedBpm, hrOnlyAnchorPercentile)
         if (baseline == null) {
             traceSink?.invoke(SleepStagerTrace.hrOnlyLine(
+                day = day,
                 anchorBpm = null, bandBpm = null, hrP50 = null, hrP90 = null, epochs = 0, runs = 0, mergedRuns = 0,
                 sleepRuns = 0, longestSleepMin = 0, staged = 0, kept = 0, minSleepMin = minMinutes,
             ))
@@ -788,6 +790,7 @@ object SleepStager {
             )
         }
         traceSink?.invoke(SleepStagerTrace.hrOnlyLine(
+            day = day,
             anchorBpm = baseline,
             bandBpm = baseline * hrOnlyBandMult,
             // The wearer's own spread. An anchor alone cannot be judged: p10 of 60 means one thing when

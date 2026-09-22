@@ -58,7 +58,7 @@ class AnalyticsEngineHrOnlyDayTest {
         // The production wiring: IntelligenceEngine stages the HR-only night and hands it to analyzeDay
         // as `providedSleep`. Driving it the same way is the point — the enrichment call site that used to
         // short-circuit on `hrOnly` only exists on this path.
-        val provided = SleepStager.hrOnlySessions(hr, rr, emptyList())
+        val provided = SleepStager.hrOnlySessions("2026-09-23", hr, rr, emptyList())
         assertTrue("the HR-only spine must stage a night here", provided.isNotEmpty())
         val res = AnalyticsEngine.analyzeDay(day = day, hr = hr, rr = rr, profile = profile,
             providedSleep = provided)

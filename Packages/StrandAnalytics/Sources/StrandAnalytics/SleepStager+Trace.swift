@@ -21,9 +21,14 @@ extension SleepStager {
         /// exactly the way that made the first field report unreadable: it could mean the gate never
         /// opened, or that the sink was never wired. This says which, on any day with no motion — the
         /// only days where the question arises.
-        public static func hrOnlyGateLine(attempted: Bool, reason: String,
+        ///
+        /// `day` leads the line (#2397). A re-score emits one of these per night, twenty-one of them
+        /// inside two seconds in one field log, and without the date they are an unattributable block:
+        /// asked which band last night used, a reader can only count lines and hope the emission order
+        /// matches the day order. The other funnel lines in this file already carry `day=`.
+        public static func hrOnlyGateLine(day: String, attempted: Bool, reason: String,
                                           gravRows: Int, storedNights: Int) -> String {
-            "[sleep] hr-only gate attempted=\(attempted) reason=\(reason) "
+            "[sleep] hr-only gate day=\(day) attempted=\(attempted) reason=\(reason) "
                 + "grav=\(gravRows) stored=\(storedNights)"
         }
 
@@ -38,12 +43,15 @@ extension SleepStager {
         ///
         /// `anchorBpm` and `bandBpm` are printed because they are DERIVED, not configured: the anchor is
         /// a percentile of THIS window, so the same code gives every wearer a different threshold.
-        public static func hrOnlyLine(anchorBpm: Double?, bandBpm: Double?,
+        ///
+        /// `day` leads for the reason given on the gate line above: these two travel as a pair, and a
+        /// pair that cannot be attributed to a night answers nothing about that night.
+        public static func hrOnlyLine(day: String, anchorBpm: Double?, bandBpm: Double?,
                                       hrP50: Double?, hrP90: Double?, epochs: Int,
                                       runs: Int, mergedRuns: Int, sleepRuns: Int,
                                       longestSleepMin: Int, staged: Int, kept: Int,
                                       minSleepMin: Int) -> String {
-            "[sleep] hr-only spine anchorBpm=\(round1(anchorBpm)) bandBpm=\(round1(bandBpm)) "
+            "[sleep] hr-only spine day=\(day) anchorBpm=\(round1(anchorBpm)) bandBpm=\(round1(bandBpm)) "
                 + "hrP50=\(round1(hrP50)) hrP90=\(round1(hrP90)) "
                 + "epochs=\(epochs) runs=\(runs) merged=\(mergedRuns) sleepRuns=\(sleepRuns) "
                 + "longestMin=\(longestSleepMin) staged=\(staged) kept=\(kept) minSleepMin=\(minSleepMin)"

@@ -1113,7 +1113,7 @@ object IntelligenceEngine {
                 when {
                     owner != importedDeviceId && stored.isNotEmpty() -> {
                         dayDiag(SleepStagerTrace.hrOnlyGateLine(
-                            attempted = false, reason = "stored-hypnogram",
+                            day = day, attempted = false, reason = "stored-hypnogram",
                             gravRows = grav.size, storedNights = stored.size,
                         ))
                         stored
@@ -1123,7 +1123,7 @@ object IntelligenceEngine {
                         // analyzeDay as "provided" — but they still mean this night is already known,
                         // so the heart-rate fallback stays out of it.
                         dayDiag(SleepStagerTrace.hrOnlyGateLine(
-                            attempted = false, reason = "stored-sessions-exist",
+                            day = day, attempted = false, reason = "stored-sessions-exist",
                             gravRows = grav.size, storedNights = stored.size,
                         ))
                         emptyList()
@@ -1137,10 +1137,10 @@ object IntelligenceEngine {
                         // little" is not "none", so the night it could produce is marked
                         // [DetectedSleep.hrOnly] like every other.
                         dayDiag(SleepStagerTrace.hrOnlyGateLine(
-                            attempted = true, reason = "no-motion-no-hypnogram",
+                            day = day, attempted = true, reason = "no-motion-no-hypnogram",
                             gravRows = grav.size, storedNights = 0,
                         ))
-                        SleepStager.hrOnlySessions(hr, rr, resp, traceSink = ::dayDiag)
+                        SleepStager.hrOnlySessions(day, hr, rr, resp, traceSink = ::dayDiag)
                     }
                 }
             } else {

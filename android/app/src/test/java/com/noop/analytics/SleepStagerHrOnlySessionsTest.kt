@@ -43,7 +43,7 @@ class SleepStagerHrOnlySessionsTest {
     @Test
     fun `a low-HR night becomes at least one staged session`() {
         val (hr, rr) = window()
-        val out = SleepStager.hrOnlySessions(hr, rr, emptyList())
+        val out = SleepStager.hrOnlySessions("2026-09-23", hr, rr, emptyList())
         assertTrue("expected at least one night, got ${out.size}", out.isNotEmpty())
         assertTrue("every session must carry stages", out.all { it.stages.isNotEmpty() })
         assertTrue("every session must span at least minSleepMin",
@@ -69,7 +69,7 @@ class SleepStagerHrOnlySessionsTest {
     @Test
     fun `an HR-only session reports measured resting HR and HRV and still marks itself`() {
         val (hr, rr) = window()
-        val s = SleepStager.hrOnlySessions(hr, rr, emptyList()).first()
+        val s = SleepStager.hrOnlySessions("2026-09-23", hr, rr, emptyList()).first()
         assertTrue("must still be flagged hrOnly", s.hrOnly)
         assertNotNull("restingHR is HR-derived and must be reported", s.restingHR)
         assertNotNull("avgHRV must be reported when R-R is present", s.avgHRV)
@@ -84,7 +84,7 @@ class SleepStagerHrOnlySessionsTest {
     @Test
     fun `an HR-only session without R-R still reports resting HR`() {
         val (hr, _) = window()
-        val s = SleepStager.hrOnlySessions(hr, emptyList(), emptyList()).first()
+        val s = SleepStager.hrOnlySessions("2026-09-23", hr, emptyList(), emptyList()).first()
         assertTrue("must still be flagged hrOnly", s.hrOnly)
         assertNotNull("restingHR needs only HR", s.restingHR)
         assertNull("no R-R means no RMSSD to report", s.avgHRV)
@@ -96,7 +96,7 @@ class SleepStagerHrOnlySessionsTest {
         val (hr, rr) = window(aH = 16, nH = 8)
         val cut = 1_788_300_000L + 16 * 3600L + 1500L   // ~25 min of night, well under minSleepMin
         assertTrue(
-            SleepStager.hrOnlySessions(hr.filter { it.ts < cut }, rr.filter { it.ts < cut }, emptyList())
+            SleepStager.hrOnlySessions("2026-09-23", hr.filter { it.ts < cut }, rr.filter { it.ts < cut }, emptyList())
                 .isEmpty()
         )
     }
@@ -149,6 +149,6 @@ class SleepStagerHrOnlySessionsTest {
     /** No HR at all cannot produce a night, and must not throw. */
     @Test
     fun `no hr yields nothing`() {
-        assertTrue(SleepStager.hrOnlySessions(emptyList(), emptyList(), emptyList()).isEmpty())
+        assertTrue(SleepStager.hrOnlySessions("2026-09-23", emptyList(), emptyList(), emptyList()).isEmpty())
     }
 }

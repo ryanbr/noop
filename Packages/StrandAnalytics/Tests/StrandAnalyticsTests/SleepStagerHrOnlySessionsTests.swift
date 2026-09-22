@@ -38,7 +38,7 @@ final class SleepStagerHrOnlySessionsTests: XCTestCase {
 
     func testLowHRNightBecomesAtLeastOneStagedSession() {
         let (hr, rr) = window()
-        let out = SleepStager.hrOnlySessions(hr: hr, rr: rr, resp: [])
+        let out = SleepStager.hrOnlySessions(day: "2026-09-23", hr: hr, rr: rr, resp: [])
         XCTAssertFalse(out.isEmpty, "expected at least one night, got \(out.count)")
         XCTAssertTrue(out.allSatisfy { !$0.stages.isEmpty }, "every session must carry stages")
         XCTAssertTrue(out.allSatisfy { ($0.end - $0.start) >= SleepStager.minSleepMin * 60 },
@@ -61,7 +61,7 @@ final class SleepStagerHrOnlySessionsTests: XCTestCase {
     /// The marker travels with the session, so a consumer that wants to weigh these down still can.
     func testHrOnlySessionReportsMeasuredRestingHRAndHRVAndStillMarksItself() throws {
         let (hr, rr) = window()
-        let s = try XCTUnwrap(SleepStager.hrOnlySessions(hr: hr, rr: rr, resp: []).first)
+        let s = try XCTUnwrap(SleepStager.hrOnlySessions(day: "2026-09-23", hr: hr, rr: rr, resp: []).first)
         XCTAssertTrue(s.hrOnly, "must still be flagged hrOnly")
         XCTAssertNotNil(s.restingHR, "restingHR is HR-derived and must be reported")
         XCTAssertNotNil(s.avgHRV, "avgHRV must be reported when R-R is present")
@@ -73,7 +73,7 @@ final class SleepStagerHrOnlySessionsTests: XCTestCase {
     /// would pass the case above if it also happened to blank on missing R-R; this separates them.
     func testHrOnlySessionWithoutRRStillReportsRestingHR() throws {
         let (hr, _) = window()
-        let s = try XCTUnwrap(SleepStager.hrOnlySessions(hr: hr, rr: [], resp: []).first)
+        let s = try XCTUnwrap(SleepStager.hrOnlySessions(day: "2026-09-23", hr: hr, rr: [], resp: []).first)
         XCTAssertTrue(s.hrOnly, "must still be flagged hrOnly")
         XCTAssertNotNil(s.restingHR, "restingHR needs only HR")
         XCTAssertNil(s.avgHRV, "no R-R means no RMSSD to report")

@@ -25,7 +25,7 @@ import WhoopStore
 ///    behaviour is worth stating, but it is no longer what a default install runs.
 ///  • The rescue is NOT inside `detectSleep` — neither stager finds a night without motion, and both are
 ///    pinned saying so below. It is in `IntelligenceEngine`: when a day has no motion, no hypnogram and
-///    no stored night, it falls back to `SleepStager.hrOnlySessions(hr:rr:resp:)` (#1801) and feeds the
+///    no stored night, it falls back to `SleepStager.hrOnlySessions(day:hr:rr:resp:)` (#1801) and feeds the
 ///    result in as `providedSleep`. #1884 then stopped an all-HR-only night being discarded from the
 ///    daily aggregates. So the shipping path DOES score a no-gravity night, which is precisely the
 ///    "HR-only fallback composite" the old fix-contract test named as one of two acceptable fixes.
@@ -79,7 +79,7 @@ final class Live5NoGravityRestChainTests: XCTestCase {
     /// `detectSleep` has no HR-only rescue on either stager: V2's extra machinery is in how it stages a
     /// run, not in finding one without motion. The rescue lives one layer up. `IntelligenceEngine` sees
     /// the empty result and, when there is no motion, no hypnogram and no stored night, falls back to
-    /// `SleepStager.hrOnlySessions(hr:rr:resp:)` and feeds the result in as `providedSleep`
+    /// `SleepStager.hrOnlySessions(day:hr:rr:resp:)` and feeds the result in as `providedSleep`
     /// (`IntelligenceEngine.swift`, gate line `no-motion-no-hypnogram`). That fallback is covered by
     /// `SleepStagerHrOnlySessionsTests` and `AnalyticsEngineHrOnlyDayTests`, so it is named here rather
     /// than duplicated.

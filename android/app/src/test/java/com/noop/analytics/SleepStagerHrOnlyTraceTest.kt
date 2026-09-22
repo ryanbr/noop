@@ -27,11 +27,12 @@ class SleepStagerHrOnlyTraceTest {
     @Test
     fun `the line names the derived threshold and the longest candidate`() {
         val line = SleepStagerTrace.hrOnlyLine(
+            day = "2026-09-23",
             anchorBpm = 61.0, bandBpm = 64.05, hrP50 = 74.0, hrP90 = 88.0, epochs = 3021, runs = 48, mergedRuns = 12,
             sleepRuns = 7, longestSleepMin = 41, staged = 0, kept = 0, minSleepMin = 60,
         )
         assertEquals(
-            "[sleep] hr-only spine anchorBpm=61.0 bandBpm=64.1 hrP50=74.0 hrP90=88.0 " +
+            "[sleep] hr-only spine day=2026-09-23 anchorBpm=61.0 bandBpm=64.1 hrP50=74.0 hrP90=88.0 " +
                 "epochs=3021 runs=48 merged=12 " +
                 "sleepRuns=7 longestMin=41 staged=0 kept=0 minSleepMin=60",
             line,
@@ -42,6 +43,7 @@ class SleepStagerHrOnlyTraceTest {
     @Test
     fun `an absent anchor prints nil rather than zero`() {
         val line = SleepStagerTrace.hrOnlyLine(
+            day = "2026-09-23",
             anchorBpm = null, bandBpm = null, hrP50 = null, hrP90 = null, epochs = 0, runs = 0, mergedRuns = 0,
             sleepRuns = 0, longestSleepMin = 0, staged = 0, kept = 0, minSleepMin = 60,
         )
@@ -52,7 +54,7 @@ class SleepStagerHrOnlyTraceTest {
     @Test
     fun `every call traces exactly once and names the anchor it used`() {
         val lines = ArrayList<String>()
-        SleepStager.hrOnlySessions(hr(1000, List(200) { 120 }), emptyList(), emptyList(),
+        SleepStager.hrOnlySessions("2026-09-23", hr(1000, List(200) { 120 }), emptyList(), emptyList(),
                                    traceSink = { lines.add(it) })
         assertEquals("exactly one funnel line per call", 1, lines.size)
         assertTrue("must name the anchor it used", lines[0].contains("anchorBpm=120.0"))
@@ -70,7 +72,7 @@ class SleepStagerHrOnlyTraceTest {
     @Test
     fun `a flat window is entirely in band because the anchor comes from it`() {
         val lines = ArrayList<String>()
-        val kept = SleepStager.hrOnlySessions(hr(1000, List(200) { 120 }), emptyList(), emptyList(),
+        val kept = SleepStager.hrOnlySessions("2026-09-23", hr(1000, List(200) { 120 }), emptyList(), emptyList(),
                                               traceSink = { lines.add(it) })
         assertTrue("a flat window yields one long run, not none", kept.isNotEmpty())
         assertTrue("and the trace says so: ${lines[0]}", lines[0].contains("sleepRuns=1"))
@@ -94,8 +96,34 @@ class SleepStagerHrOnlyTraceTest {
     fun `epochs counts epochs not samples`() {
         val lines = ArrayList<String>()
         // 10 epochs x 6 samples = 60 samples.
-        SleepStager.hrOnlySessions(hr(1000, List(10) { 120 }), emptyList(), emptyList(),
+        SleepStager.hrOnlySessions("2026-09-23", hr(1000, List(10) { 120 }), emptyList(), emptyList(),
                                    traceSink = { lines.add(it) })
         assertTrue("expected epochs=10, got: ${lines[0]}", lines[0].contains("epochs=10 "))
+    }
+
+    /**
+     * #2397: the night this line is about. A re-score emits one per night, twenty-one inside two
+     * seconds in the field log that prompted this, and every other number here describes a night the
+     * line itself could not name. Twin of `testTheLineNamesItsNight`.
+     */
+    @Test fun theLineNamesItsNight() {
+        val lines = mutableListOf<String>()
+        SleepStager.hrOnlySessions("2026-09-23", hr(1_000_000, List(600) { 70 }), emptyList(), emptyList(),
+            traceSink = { lines.add(it) })
+        assertEquals(1, lines.size)
+        assertTrue("got: ${lines[0]}",
+            lines[0].startsWith("[sleep] hr-only spine day=2026-09-23 "))
+    }
+
+    /** The gate line travels with the spine line, so it carries the same attribution. */
+    @Test fun theGateLineNamesItsNightToo() {
+        assertEquals(
+            "[sleep] hr-only gate day=2026-09-23 attempted=true reason=no-motion-no-hypnogram " +
+                "grav=0 stored=0",
+            SleepStagerTrace.hrOnlyGateLine(
+                day = "2026-09-23", attempted = true, reason = "no-motion-no-hypnogram",
+                gravRows = 0, storedNights = 0,
+            ),
+        )
     }
 }

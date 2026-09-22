@@ -47,7 +47,7 @@ final class AnalyzeRecentDayCacheStreamWitnessTests: XCTestCase {
 
     private func scan(hr: [HRSample], rr: [RRInterval]) -> AnalyticsEngine.DayResult {
         AnalyticsEngine.analyzeDay(day: day, hr: hr, rr: rr, profile: profile,
-                                   providedSleep: SleepStager.hrOnlySessions(hr: hr, rr: rr, resp: []))
+                                   providedSleep: SleepStager.hrOnlySessions(day: "2026-09-23", hr: hr, rr: rr, resp: []))
     }
 
     /// R-R landing after HR changes what the night scores, so it must change the reuse key.
