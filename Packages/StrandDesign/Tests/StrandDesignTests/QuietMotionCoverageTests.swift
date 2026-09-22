@@ -184,13 +184,30 @@ final class QuietMotionCoverageTests: XCTestCase {
     // MARK: - The gate itself
 
     /// Losing one signal is invisible in the app — the screen looks right in whichever mode still
-    /// works — so pin that all three are read, and that the OS flag stays live.
-    func testGateReadsAllThreeSignalsAndStaysLive() throws {
+    /// works — so pin that all four are read, and that the OS flags stay live.
+    func testGateReadsAllFourSignalsAndStaysLive() throws {
         let root = try repoRoot()
         let src = try String(contentsOf: root.appendingPathComponent(
             "Packages/StrandDesign/Sources/StrandDesign/NoopMotion.swift"), encoding: .utf8)
-        XCTAssertTrue(src.contains("reduceMotion || isLowPower || quietMotion"),
-                      "poseStill must OR all three signals")
+        XCTAssertTrue(src.contains("reduceMotion || isLowPower || quietMotion || windowObscured"),
+                      "poseStill must OR all four signals")
+        // #2393: the window-visibility term is worthless if nothing ever sets it, and the three
+        // notification families answer different questions — hide/unhide is the app, occlusion is the
+        // window, miniaturise is the Dock. Which of them AppKit posts for any given user action is not
+        // established here (it was not measured, and the reporter's numbers cover Cmd+H only), which is
+        // the reason to observe all three rather than pick the one that looks sufficient.
+        for name in ["didHideNotification", "didUnhideNotification",
+                     "didChangeOcclusionStateNotification",
+                     "didMiniaturizeNotification", "didDeminiaturizeNotification"] {
+            XCTAssertTrue(src.contains(name),
+                          "windowObscured must stay live on \(name)")
+        }
+        // The window list MUST be filtered to real app windows. NOOP ships a MenuBarExtra whose
+        // status-item window lives in `NSApplication.shared.windows` forever, so dropping this filter
+        // leaves the gate permanently open and the fix silently inert — which looks exactly like
+        // working code.
+        XCTAssertTrue(src.contains("canBecomeMain"),
+                      "the MenuBarExtra's status-item window must not hold the gate open")
         XCTAssertTrue(src.contains("isLowPowerModeEnabled"), "must read Low Power Mode")
         XCTAssertTrue(src.contains("NSProcessInfoPowerStateDidChange"),
                       "Low Power Mode must stay live without a relaunch")

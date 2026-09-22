@@ -1,4 +1,10 @@
 import SwiftUI
+#if canImport(AppKit) && !targetEnvironment(macCatalyst)
+// For the #2393 window-visibility gate. SwiftUI already makes AppKit types reachable on macOS (the
+// palette's NSColor path relies on it), but the dependency is explicit here because this file names
+// NSApplication and NSWindow directly rather than a type SwiftUI itself vends.
+import AppKit
+#endif
 
 // MARK: - NoopMotion — the "Design Reset" motion set (WHOOP design language, 2026-06-22)
 //
@@ -106,6 +112,21 @@ public final class NoopMotionState: ObservableObject {
     /// toggling the setting takes effect without a relaunch.
     @Published public private(set) var isLowPower: Bool
 
+    /// #2393, macOS only: every window of this app is hidden, minimised or fully covered, so nothing
+    /// a frame loop draws can be seen.
+    ///
+    /// A decorative `TimelineView(.animation…)` keeps running when the app is hidden. A reporter
+    /// measured NOOP at a third to half a core permanently on an M1 Pro, the largest single process on
+    /// their machine, ahead of `WindowServer` — and Cmd+H did not reduce it, it RAISED it (28.8% to
+    /// 49.3% of a core in one run, 34.2% to 41.8% in another, returning to baseline exactly on
+    /// re-show). Their hypothesis is that the display link paces the timeline while the window is on
+    /// screen and the schedule free-runs once it is not. That is unproven and does not need to be true:
+    /// drawing frames nobody can see is not worth doing either way.
+    ///
+    /// iOS and watchOS never set this. The system already stops rendering a backgrounded app there, and
+    /// `scenePhase` covers what it does not; this is the gap AppKit leaves.
+    @Published public private(set) var windowObscured: Bool = false
+
     /// The in-app "Reduce motion in NOOP" preference. Kept in step with `UserDefaults` so a
     /// non-SwiftUI reader (the motion sensor) and the `@AppStorage` toggle never disagree.
     @Published public private(set) var quietMotion: Bool
@@ -130,6 +151,53 @@ public final class NoopMotionState: ObservableObject {
                 if self?.quietMotion != now { self?.quietMotion = now }
             }
         }
+        #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+        // #2393: hide/unhide covers Cmd+H, occlusion covers "another window is over it" and, with the
+        // miniaturise pair, the Dock. They all land on one recompute rather than each setting the flag
+        // its own way: the states overlap (hiding an app also occludes its windows) and a flag written
+        // from five places would disagree with itself the moment two of them arrived out of order.
+        for name in [NSApplication.didHideNotification,
+                     NSApplication.didUnhideNotification,
+                     NSWindow.didChangeOcclusionStateNotification,
+                     NSWindow.didMiniaturizeNotification,
+                     NSWindow.didDeminiaturizeNotification] {
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.refreshWindowObscured() }
+            }
+        }
+        #endif
+    }
+
+    #if canImport(AppKit) && !targetEnvironment(macCatalyst)
+    /// Recompute [windowObscured] from AppKit's current window list. Cheap: a handful of windows, and
+    /// it runs on notifications a user generates by hand, not on a clock.
+    private func refreshWindowObscured() {
+        // `canBecomeMain` means "a real app window". NOOP ships a `MenuBarExtra` (StrandApp.swift), whose
+        // status-item window is in `NSApplication.shared.windows` for the entire life of the process, so
+        // an unfiltered list would report something on screen forever and this gate would never once
+        // close — the failure mode where the fix looks applied and does nothing. Excluding it is safe
+        // rather than merely convenient: the menu-bar panel hosts no never-settling animation (no
+        // TimelineView, no repeatForever in `Strand/MenuBar/`), so nothing there needs the gate open.
+        let windows = NSApplication.shared.windows.filter(\.canBecomeMain)
+        let onScreen = windows.contains { $0.isVisible && $0.occlusionState.contains(.visible) }
+        let now = NoopMotionState.obscured(hasWindows: !windows.isEmpty, anyWindowOnScreen: onScreen)
+        if windowObscured != now { windowObscured = now }
+    }
+    #endif
+
+    /// Pure half of the recompute, so the one rule worth pinning can be tested without AppKit.
+    ///
+    /// NO WINDOWS is deliberately NOT obscured, and the case is more common than it sounds: before the
+    /// first window exists during launch, and again when someone closes the window and leaves NOOP
+    /// running as a menu-bar app. Treating an empty list as "nothing on screen" would pose every surface
+    /// still until the next occlusion notification arrived — a first frame of static gauges on the way
+    /// to a live screen, caused by the optimisation. Nothing is lost by the other reading: with no
+    /// window there is no view hierarchy, so there is no frame loop to stop.
+    ///
+    /// `nonisolated` because the enclosing class is `@MainActor` and this decides nothing that needs the
+    /// main actor — without it a test could not call it off the main actor at all.
+    nonisolated static func obscured(hasWindows: Bool, anyWindowOnScreen: Bool) -> Bool {
+        hasWindows && !anyWindowOnScreen
     }
 
     /// The gate. `reduceMotion` comes from `@Environment(\.accessibilityReduceMotion)` at the call
@@ -143,13 +211,13 @@ public final class NoopMotionState: ObservableObject {
     /// ```
     @inline(__always)
     public func poseStill(_ reduceMotion: Bool) -> Bool {
-        reduceMotion || isLowPower || quietMotion
+        reduceMotion || isLowPower || quietMotion || windowObscured
     }
 
-    /// The two non-environment signals on their own, for an imperative (non-View) reader that
-    /// supplies its own Reduce Motion read — e.g. the decorative motion sensor deciding whether to
-    /// start at all. Views must use `poseStill(_:)` instead so they invalidate correctly.
-    public var poseStillIgnoringReduceMotion: Bool { isLowPower || quietMotion }
+    /// The non-environment signals on their own, for an imperative (non-View) reader that supplies its
+    /// own Reduce Motion read — e.g. the decorative motion sensor deciding whether to start at all.
+    /// Views must use `poseStill(_:)` instead so they invalidate correctly.
+    public var poseStillIgnoringReduceMotion: Bool { isLowPower || quietMotion || windowObscured }
 }
 
 // MARK: - CountUpText
