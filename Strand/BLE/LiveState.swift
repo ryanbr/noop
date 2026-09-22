@@ -757,8 +757,8 @@ public final class LiveState: ObservableObject {
     }()
 
     /// Where the ring kept its runs (#510, #1263), read once to carry them over.
-    static let legacyTailKey = "strapLog.tail"
-    static let legacyGenerationsKey = "strapLog.generations"
+    private nonisolated static let legacyTailKey = "strapLog.tail"
+    private nonisolated static let legacyGenerationsKey = "strapLog.generations"
 
     /// A shareable strap-log body read from disk, for a background / scheduled export that runs with no live
     /// `LiveState` instance. Mirrors `exportableLogText()`'s header so a scheduled drop reads the same as a
