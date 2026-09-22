@@ -50,10 +50,29 @@ struct LiftLiveActivity: Widget {
                     }
                 }
             } compactLeading: {
-                Image(systemName: "dumbbell.fill").foregroundStyle(tint)
+                // The heart rate, where the island has the room for it, with the dumbbell standing in until
+                // the strap reports one — so this side is never the blank it was (Utku, 22 Sep 2026).
+                Label {
+                    Text(context.state.bpm.map(String.init) ?? "").monospacedDigit()
+                } icon: {
+                    Image(systemName: context.state.bpm == nil ? "dumbbell.fill" : "heart.fill")
+                }
+                .font(Self.islandFont)
+                .foregroundStyle(context.state.bpm == nil ? tint : StrandPalette.metricRose)
             } compactTrailing: {
-                clock(context.state, tint: tint)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                // Sized like the Lock Screen's clock: a running `Text(timerInterval:)` takes every point it
+                // is offered, which stretched the island and left the digits adrift in its middle with blank
+                // to their right (Utku, 22 Sep 2026). A hidden "00:00" in the same font gives the region the
+                // width of the clock itself, and the live one is right-aligned over it.
+                Text(verbatim: "00:00")
+                    .font(Self.islandFont)
+                    .monospacedDigit()
+                    .hidden()
+                    .overlay(alignment: .trailing) {
+                        clock(context.state, tint: tint)
+                            .font(Self.islandFont)
+                            .multilineTextAlignment(.trailing)
+                    }
             } minimal: {
                 Image(systemName: "dumbbell.fill").foregroundStyle(tint)
             }
@@ -62,6 +81,8 @@ struct LiftLiveActivity: Widget {
 
     /// The Lock Screen clock's face, shared by the clock and the hidden template that sizes it.
     private static let clockFont = Font.system(size: 22, weight: .bold, design: .rounded)
+    /// The Dynamic Island's compact face, shared by its heart rate, its clock and that clock's template.
+    private static let islandFont = Font.system(size: 13, weight: .semibold, design: .rounded)
 
     /// Green while working, amber through the rest — the sheet's and the bar's colour language.
     private func tint(_ state: LiftActivityAttributes.ContentState) -> Color {
