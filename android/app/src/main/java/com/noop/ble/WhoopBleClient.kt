@@ -7333,6 +7333,25 @@ class WhoopBleClient(
                     val realtimeWantNow = screenWantsRealtime || continuousCaptureWantsNow()
                     wantsRealtime = realtimeWantNow
                     if (realtimeWantNow) { realtimeArmed = true; realtimeArmedThisLink = true; send(CommandNumber.TOGGLE_REALTIME_HR, byteArrayOf(1)) }
+                    // #2384: start the live-stream keep-alive HERE, on the hello-acked branch, exactly as the
+                    // Swift twin does in its own `.whoop5` branch. Its only other Android caller is
+                    // [runConnectHandshake], which is WHOOP4-only (the guard is a few lines below), and the
+                    // live-HR latch in [parseStandardHr] is guarded by `!state.bonded` — which the update at
+                    // the top of THIS block has just closed. So a 5/MG that bonds by CLIENT_HELLO started no
+                    // keep-alive at all, on any link, and with it none of what that tick owns: the one-shot
+                    // 0x2A37 re-subscribe when the stream goes quiet, the stall bounce, the #1865 realtime
+                    // re-arm, the #927 overnight-window re-derivation, the #2332 periodic RSSI read and the
+                    // ~60s battery poll. Every recovery for a dead live stream sat behind a start condition
+                    // that a dead live stream cannot meet.
+                    //
+                    // A reporter's log shows the shape of the absence rather than the bug itself: ten links,
+                    // `live hr=0 rr=0` on every one, exactly one `Signal: RSSI` line per link (the read at
+                    // connect, never the periodic one) and a battery cadence with a 13-minute hole in it.
+                    //
+                    // Idempotent and cheap to reach twice: [startKeepAlive] cancels its own callback before
+                    // re-posting, and [keepAliveFire] returns unless the link is connected and bonded, stands
+                    // aside entirely while backfilling, and carries the wide 5/MG stall fuse (#580/#1414).
+                    startKeepAlive()
                 }
             } else if (!didBond && connectedFamily == DeviceFamily.WHOOP4) {
                 didBond = true
