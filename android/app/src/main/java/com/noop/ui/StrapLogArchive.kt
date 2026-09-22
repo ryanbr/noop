@@ -24,6 +24,10 @@ import java.time.Instant
  * its "previous app session" header, then the current run after [CURRENT_RUN_MARKER], so every tool that reads a
  * strap log reads it unchanged.
  *
+ * Before the first unlock after a boot a phone can refuse the files — just when a restart after a reboot is logged —
+ * so lines that cannot be written wait in memory, the newest within the budget, and go to disk the moment a file
+ * opens.
+ *
  * An export reads no file while a run is written: the open segment's lines are kept in memory and everything
  * before them is rendered once, again only when pruning deletes a file — the Test Centre readouts ask for the
  * lines on every new one (#1468).
@@ -43,23 +47,60 @@ class StrapLogArchive(
     private val lock = Any()
     private var out: FileOutputStream? = null
     private var segment = 0
+    /** Bytes written to the open segment. */
     private var segmentSize = 0L
-    /** The open segment's lines, so an export reads nothing that is being written. */
+    /** The open segment's lines, all on disk, so an export reads nothing that is being written. */
     private val openLines = ArrayList<String>()
+    /** Lines not on disk yet, all newer than [openLines]: storage refused them or no file would open. Written the
+     *  moment one opens; meanwhile in this run's export, the newest within the budget. */
+    private val unwritten = ArrayDeque<String>()
+    private var unwrittenBytes = 0L
+    /** Lines until the next attempt to open a file while none is open: every 64 lines, not on every line. */
+    private var openAttemptIn = 0
     /** Everything before the open segment: the earlier runs as rendered lines (ending in the marker), and this
      *  run's closed segments. Null until an export needs it, and again when pruning deletes a file. */
     private var previousLines: List<String>? = null
     private val closedLines = ArrayList<String>()
 
-    /** Log one line. Best-effort: if storage cannot be written, the line still reaches this run's export. */
+    /** Log one line: onto disk now, or — if storage cannot be written — into memory until it can, the newest lines
+     *  within the budget. Either way it is in this run's export. */
     fun append(line: String) = synchronized(lock) {
-        val bytes = (line + "\n").toByteArray(Charsets.UTF_8)
-        if (openLines.isNotEmpty() && segmentSize + bytes.size > segmentBytes) closeSegment()
-        // A segment that could not be opened is tried again every 64 lines, not on every line.
-        if (out == null && openLines.size % 64 == 0) openSegment()
-        runCatching { out?.write(bytes) }
-        segmentSize += bytes.size
-        openLines.add(line)
+        unwritten.addLast(line)
+        unwrittenBytes += line.toByteArray(Charsets.UTF_8).size + 1
+        writeUnwritten()
+        if (unwrittenBytes > budgetBytes) {
+            while (unwrittenBytes > budgetBytes) {
+                unwrittenBytes -= unwritten.removeFirst().toByteArray(Charsets.UTF_8).size + 1
+            }
+            // Nothing of this run on disk yet: its first file then starts at segment 1, which reads as a clipped head.
+            if (segment == 0 && openLines.isEmpty()) segment = 1
+        }
+    }
+
+    /** Write what waits, oldest first; a refusal leaves the rest waiting and the next attempt 64 lines away. */
+    private fun writeUnwritten() {
+        if (out == null) {
+            if (openAttemptIn > 0) { openAttemptIn -= 1; return }
+            openSegment()
+            if (out == null) { openAttemptIn = 63; return }
+        }
+        while (unwritten.isNotEmpty()) {
+            val bytes = (unwritten.first() + "\n").toByteArray(Charsets.UTF_8)
+            if (openLines.isNotEmpty() && segmentSize + bytes.size > segmentBytes) {
+                closeSegment()
+                openSegment()
+                if (out == null) { openAttemptIn = 63; return }
+            }
+            if (runCatching { out!!.write(bytes) }.isFailure) {
+                runCatching { out?.close() }
+                out = null
+                openAttemptIn = 63
+                return
+            }
+            segmentSize += bytes.size
+            unwrittenBytes -= bytes.size
+            openLines.add(unwritten.removeFirst())
+        }
     }
 
     /** The whole log as an export shows it: earlier runs, the marker, then this run. */
@@ -73,8 +114,8 @@ class StrapLogArchive(
     fun exportLines(): List<String> = synchronized(lock) {
         ensureRendered()
         val previous = previousLines.orEmpty()
-        ArrayList<String>(previous.size + closedLines.size + openLines.size).apply {
-            addAll(previous); addAll(closedLines); addAll(openLines)
+        ArrayList<String>(previous.size + closedLines.size + openLines.size + unwritten.size).apply {
+            addAll(previous); addAll(closedLines); addAll(openLines); addAll(unwritten)
         }
     }
 

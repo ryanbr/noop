@@ -19,6 +19,10 @@ import Foundation
 /// its "previous app session" header, then the current run after its marker, so every tool that reads a strap
 /// log reads it unchanged.
 ///
+/// Before the first unlock after a boot iOS refuses the files — just when a restart after a reboot is logged — so
+/// lines that cannot be written wait in memory, the newest within the budget, and go to disk the moment a file
+/// opens.
+///
 /// An export reads no file while a run is written: the open segment's lines are kept in memory and everything
 /// before them is rendered once, again only when a segment closes — the Test Centre asks for an export on
 /// every new line while a guided mode is on.
@@ -45,9 +49,17 @@ final class StrapLogArchive: @unchecked Sendable {
     private let lock = NSLock()
     private var handle: FileHandle?
     private var segment = 0
+    /// Bytes written to the open segment.
     private var segmentSize = 0
-    /// The open segment's lines, so an export reads nothing that is being written.
+    /// The open segment's lines, all on disk, so an export reads nothing that is being written.
     private var openLines: [String] = []
+    /// Lines not on disk yet, all newer than `openLines`: storage refused them (iOS, before the first unlock after
+    /// a boot — when a restart after a reboot is logged) or no file would open. Written the moment one opens;
+    /// meanwhile in this run's export, the newest within the budget.
+    private var unwritten: [String] = []
+    private var unwrittenBytes = 0
+    /// Lines until the next attempt to open a file while none is open: every 64 lines, not on every line.
+    private var openAttemptIn = 0
     /// Everything before the open segment, rendered: the earlier runs under their headers, and this run's
     /// closed segments. Nil until an export needs it, and again when pruning deletes a file.
     private var rendered: (previous: String, closed: String)?
@@ -60,24 +72,58 @@ final class StrapLogArchive: @unchecked Sendable {
         self.runStart = Int64((now.timeIntervalSince1970 * 1000).rounded())
     }
 
-    /// Log one line. Best-effort: if storage cannot be written (the phone has not been unlocked since it
-    /// started), the line still reaches this run's export from memory.
+    /// Log one line: onto disk now, or — if storage cannot be written — into memory until it can, the newest lines
+    /// within the budget. Either way it is in this run's export.
     func append(_ line: String) {
         lock.lock(); defer { lock.unlock() }
-        let data = Data((line + "\n").utf8)
-        if !openLines.isEmpty, segmentSize + data.count > segmentLimit { closeSegment() }
-        // A segment that could not be opened is tried again every 64 lines, not on every line.
-        if handle == nil, openLines.count % 64 == 0 { openSegment() }
-        try? handle?.write(contentsOf: data)
-        segmentSize += data.count
-        openLines.append(line)
+        unwritten.append(line)
+        unwrittenBytes += line.utf8.count + 1
+        writeUnwritten()
+        guard unwrittenBytes > budget else { return }
+        var dropped = 0
+        while unwrittenBytes > budget {
+            unwrittenBytes -= unwritten[dropped].utf8.count + 1
+            dropped += 1
+        }
+        unwritten.removeFirst(dropped)
+        // Nothing of this run on disk yet: its first file then starts at segment 1, which reads as a clipped head.
+        if segment == 0, openLines.isEmpty { segment = 1 }
+    }
+
+    /// Write what waits, oldest first; a refusal leaves the rest waiting and the next attempt 64 lines away.
+    private func writeUnwritten() {
+        if handle == nil {
+            guard openAttemptIn == 0 else { openAttemptIn -= 1; return }
+            openSegment()
+            guard handle != nil else { openAttemptIn = 63; return }
+        }
+        var written = 0
+        defer { unwritten.removeFirst(written) }
+        for line in unwritten {
+            let data = Data((line + "\n").utf8)
+            if !openLines.isEmpty, segmentSize + data.count > segmentLimit {
+                closeSegment()
+                openSegment()
+                guard handle != nil else { openAttemptIn = 63; return }
+            }
+            guard (try? handle?.write(contentsOf: data)) != nil else {
+                try? handle?.close()
+                handle = nil
+                openAttemptIn = 63
+                return
+            }
+            segmentSize += data.count
+            unwrittenBytes -= data.count
+            openLines.append(line)
+            written += 1
+        }
     }
 
     /// The whole log as an export shows it: earlier runs, the marker, then this run.
     func exportText() -> String {
         lock.lock(); defer { lock.unlock() }
         let earlier = renderedEarlier()
-        let open = openLines.joined(separator: "\n")
+        let open = (openLines + unwritten).joined(separator: "\n")
         let current = earlier.closed.isEmpty ? open : open.isEmpty ? earlier.closed : earlier.closed + "\n" + open
         return earlier.previous + current
     }

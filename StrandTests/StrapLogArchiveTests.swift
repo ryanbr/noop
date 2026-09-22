@@ -17,6 +17,7 @@ final class StrapLogArchiveTests: XCTestCase {
     }
 
     override func tearDown() {
+        try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
         try? FileManager.default.removeItem(at: directory)
         super.tearDown()
     }
@@ -123,6 +124,45 @@ final class StrapLogArchiveTests: XCTestCase {
         let text = process(at: 60).exportText()
         XCTAssertTrue(text.contains("03:14 reconnect storm"))
         XCTAssertTrue(text.hasSuffix("===== current app session =====\n"))
+    }
+
+    /// Before the first unlock after a boot iOS refuses the files, and that is when a restart after a reboot is
+    /// logged. Those lines stay in memory past a segment boundary (#2386 review: they used to vanish there) and
+    /// reach disk the moment a file opens, so a later restart keeps them too.
+    func testLinesThatCannotBeWrittenWaitAndReachDiskOnceStorageOpens() throws {
+        try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: directory.path)
+        let locked = process(at: 0, segment: 200)
+        let early = (1...100).map { String(format: "locked %03d", $0) }          // 1,100 bytes: five segments
+        for line in early { locked.append(line) }
+        XCTAssertTrue(logFiles().isEmpty, "nothing can be written yet")
+        XCTAssertEqual(locked.exportText(), early.joined(separator: "\n"))
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
+        let later = (1...64).map { String(format: "unlocked %02d", $0) }         // the next open attempt comes within 64
+        for line in later { locked.append(line) }
+        XCTAssertEqual(locked.exportText(), (early + later).joined(separator: "\n"))
+        XCTAssertEqual(process(at: 10, segment: 200).exportText(), """
+            ===== previous app session, 164 line(s), rolled at \(iso(10)) (this launch) =====
+            \((early + later).joined(separator: "\n"))
+            ===== current app session =====
+
+            """)
+    }
+
+    /// While nothing can be written, memory holds the newest lines within the budget; once they reach disk the run
+    /// says it lost its head.
+    func testAnUnwrittenBacklogStaysWithinTheBudgetAndSaysItsHeadWasClipped() throws {
+        try FileManager.default.setAttributes([.posixPermissions: 0o500], ofItemAtPath: directory.path)
+        let locked = process(at: 0, budget: 1_000, segment: 200)
+        for i in 1...200 { locked.append(String(format: "locked %03d", i)) }     // 2,200 bytes
+        let held = locked.exportText()
+        XCTAssertLessThanOrEqual(held.utf8.count, 1_000)
+        XCTAssertTrue(held.hasSuffix("locked 200"), "the newest line is kept")
+        XCTAssertFalse(held.contains("locked 001"), "the oldest line is the first to go")
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
+        for i in 1...64 { locked.append(String(format: "open %02d", i)) }
+        XCTAssertTrue(process(at: 10, budget: 1_000, segment: 200).exportText().contains("head clipped"))
     }
 
     func testNothingLoggedExportsNothing() {

@@ -14,9 +14,9 @@ import java.time.Instant
  * what the SharedPreferences ring did: lose the lines logged just before a restart, a run's head beyond 1,000 lines,
  * and every run before the last three.
  *
- * The two `oracle…` tests pin byte-identity with iOS: their expected text is the Swift archive's own output for the
- * same scenario (the Lift Log handbook's `tools/oracle` method — Strand/BLE/StrapLogArchive.swift compiled on its own
- * with a main that runs `scenario(budget:)` as below and prints `exportText()`), pasted verbatim, never hand-written.
+ * The three `oracle…` tests pin byte-identity with iOS: their expected text is the Swift archive's own output for the
+ * same scenario (the Lift Log handbook's `tools/oracle/strap-log` — Strand/BLE/StrapLogArchive.swift compiled on its
+ * own with a main that runs the scenarios below and prints `exportText()`), pasted verbatim, never hand-written.
  */
 class StrapLogArchiveTest {
 
@@ -47,6 +47,23 @@ class StrapLogArchiveTest {
         return last.exportText()
     }
 
+    /** The locked-storage scenario the Swift oracle ran: nothing can be written (a phone before its first unlock),
+     *  40 lines against a 250-byte budget, then storage opens and 64 more follow. */
+    private fun lockedScenario(): Pair<String, String> {
+        val dir = folder.newFolder()
+        try {
+            dir.setWritable(false)
+            val locked = process(dir, 0, 250, 100)
+            for (i in 1..40) locked.append(String.format(java.util.Locale.US, "locked %02d", i))
+            val held = locked.exportText()
+            dir.setWritable(true)
+            for (i in 1..64) locked.append(String.format(java.util.Locale.US, "open %02d", i))
+            return held to process(dir, 100, 250, 100).exportText()
+        } finally {
+            dir.setWritable(true)
+        }
+    }
+
     @Test
     fun oracleEveryRunKeptAsIOSRendersIt() {
         assertEquals(ORACLE_KEPT, scenario(budget = 4096))
@@ -55,6 +72,60 @@ class StrapLogArchiveTest {
     @Test
     fun oracleOldestPrunedAndTheClippedRunSaysSoAsIOSRendersIt() {
         assertEquals(ORACLE_PRUNED, scenario(budget = 250))
+    }
+
+    @Test
+    fun oracleLockedStorageAsIOSRendersIt() {
+        val (held, after) = lockedScenario()
+        assertEquals(ORACLE_LOCKED_HELD, held)
+        assertEquals(ORACLE_LOCKED_AFTER, after)
+    }
+
+    /** Before the first unlock after a boot the files are refused, and that is when a restart after a reboot is
+     *  logged. Those lines stay in memory past a segment boundary (#2386 review: they used to vanish there) and
+     *  reach disk the moment a file opens, so a later restart keeps them too. */
+    @Test
+    fun linesThatCannotBeWrittenWaitAndReachDiskOnceStorageOpens() {
+        val dir = folder.newFolder()
+        try {
+            dir.setWritable(false)
+            val locked = process(dir, 0, segment = 200)
+            val early = (1..100).map { String.format(java.util.Locale.US, "locked %03d", it) }
+            early.forEach(locked::append)
+            assertTrue("nothing can be written yet", dir.listFiles()!!.isEmpty())
+            assertEquals(early.joinToString("\n"), locked.exportText())
+            dir.setWritable(true)
+            val later = (1..64).map { String.format(java.util.Locale.US, "unlocked %02d", it) }
+            later.forEach(locked::append)
+            assertEquals((early + later).joinToString("\n"), locked.exportText())
+            assertEquals(
+                "===== previous app session, 164 line(s), rolled at ${iso(10)} (this launch) =====\n" +
+                    (early + later).joinToString("\n") + "\n===== current app session =====\n",
+                process(dir, 10, segment = 200).exportText())
+        } finally {
+            dir.setWritable(true)
+        }
+    }
+
+    /** While nothing can be written, memory holds the newest lines within the budget; once they reach disk the run
+     *  says it lost its head. */
+    @Test
+    fun anUnwrittenBacklogStaysWithinTheBudgetAndSaysItsHeadWasClipped() {
+        val dir = folder.newFolder()
+        try {
+            dir.setWritable(false)
+            val locked = process(dir, 0, budget = 1_000, segment = 200)
+            for (i in 1..200) locked.append(String.format(java.util.Locale.US, "locked %03d", i))
+            val held = locked.exportText()
+            assertTrue(held.toByteArray(Charsets.UTF_8).size <= 1_000)
+            assertTrue("the newest line is kept", held.endsWith("locked 200"))
+            assertFalse("the oldest line is the first to go", held.contains("locked 001"))
+            dir.setWritable(true)
+            for (i in 1..64) locked.append(String.format(java.util.Locale.US, "open %02d", i))
+            assertTrue(process(dir, 10, budget = 1_000, segment = 200).exportText().contains("head clipped"))
+        } finally {
+            dir.setWritable(true)
+        }
     }
 
     /** THE ONE THAT MATTERS: every line reaches disk as it is logged, so a process killed without warning (it is
@@ -203,5 +274,71 @@ long 39
 long 40
 ===== current app session =====
 current 1"""
+
+        /** Swift oracle output, lockedScenario(): what memory holds while storage is refused. */
+        val ORACLE_LOCKED_HELD = """locked 16
+locked 17
+locked 18
+locked 19
+locked 20
+locked 21
+locked 22
+locked 23
+locked 24
+locked 25
+locked 26
+locked 27
+locked 28
+locked 29
+locked 30
+locked 31
+locked 32
+locked 33
+locked 34
+locked 35
+locked 36
+locked 37
+locked 38
+locked 39
+locked 40"""
+
+        /** Swift oracle output, lockedScenario(): the next run's export once storage opened. */
+        val ORACLE_LOCKED_AFTER = """===== previous app session, 34 line(s), head clipped, rolled at 2026-09-21T14:15:00Z (this launch) =====
+open 31
+open 32
+open 33
+open 34
+open 35
+open 36
+open 37
+open 38
+open 39
+open 40
+open 41
+open 42
+open 43
+open 44
+open 45
+open 46
+open 47
+open 48
+open 49
+open 50
+open 51
+open 52
+open 53
+open 54
+open 55
+open 56
+open 57
+open 58
+open 59
+open 60
+open 61
+open 62
+open 63
+open 64
+===== current app session =====
+"""
     }
 }
