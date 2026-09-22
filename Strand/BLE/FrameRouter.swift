@@ -812,8 +812,9 @@ public final class FrameRouter {
             // register" can be checked: a live dispatch leaves "Double-tap → …" at that moment, and a
             // tap that only ever came through a sync leaves just this. It asserts only the delivery seen.
             if ev.hasPrefix("DOUBLE_TAP"), age > 0, age <= FrameRouter.lateGestureLogSeconds {
-                state.append(log: "Double-tap (strap time \(ts)) arrived \(age) s late during a sync; "
-                             + "not acted on (live window \(FrameRouter.liveGestureWindowSeconds) s)")
+                state.append(log: AppModel.stamped(
+                    "Double-tap (strap time \(ts)) arrived \(age) s late during a sync; "
+                    + "not acted on (live window \(FrameRouter.liveGestureWindowSeconds) s)"))
             }
             return
         }
@@ -872,7 +873,8 @@ public final class FrameRouter {
             guard !dispatchedDoubleTapEventTs.contains(ts) else {
                 // Only a gesture actually held back leaves a line, so a tap reported as missing can be
                 // told apart from a replay being suppressed.
-                state.append(log: "Double-tap (strap time \(ts)) not dispatched: that event was already handled")
+                state.append(log: AppModel.stamped(
+                    "Double-tap (strap time \(ts)) not dispatched: that event was already handled"))
                 return
             }
             // Prune BEFORE appending, so the event just accepted is always the one kept.

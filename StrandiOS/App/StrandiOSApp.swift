@@ -99,11 +99,11 @@ struct StrandiOSApp: App {
                 model?.strapDoubleTapOverride = handler
             },
             log: { [weak model] line in
-                model?.live.append(log: line)
+                model?.live.append(log: AppModel.stamped(line))
             })
         _liftSession = StateObject(wrappedValue: liftSession)
         _liftActivity = State(initialValue: LiftLiveActivityController(log: { [weak model] line in
-            model?.live.append(log: line)
+            model?.live.append(log: AppModel.stamped(line))
         }))
         // A gym session keeps ONE banner on the Lock Screen, its own — as the live-HR banner already
         // stands aside for it. A sync started in the foreground mid-session starts no sync banner.
@@ -439,7 +439,7 @@ struct StrandiOSApp: App {
                 restEndsAt: p.restEndsAt),
             alert: alert)
         // One line per strap step into NOOP's strap log: whether the Lock Screen was asked to light.
-        if let lightUp { model.live.append(log: lightUp.logLine) }
+        if let lightUp { model.live.append(log: AppModel.stamped(lightUp.logLine)) }
     }
 }
 

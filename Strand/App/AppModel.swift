@@ -33,6 +33,14 @@ final class AppModel: ObservableObject {
         let f = DateFormatter(); f.dateFormat = "HH:mm:ss"; return f
     }()
 
+    /// One of our own strap-log lines, stamped like the lines around it. NOOP's log takes each line's time from
+    /// whoever writes it, and the Lift Log's lines arrived without one: all 98 of them in Utku's 22 Sep session,
+    /// so the moment a tap or a step happened had to be inferred from the neighbouring lines. A diagnostic says
+    /// when it happened.
+    static func stamped(_ line: String) -> String {
+        "[\(logTimeFormatter.string(from: Date()))] \(line)"
+    }
+
     /// The CANONICAL imported/computed id ("my-whoop"). The WHOOP-IMPORT target (`WhoopImporter`), the
     /// FusionSource `.whoopImport` mapping, and a manually-saved workout all land under THIS stable id, and
     /// the engine writes its computed scores under the matching `-noop` sibling. It must NOT follow the
@@ -1718,16 +1726,16 @@ final class AppModel: ObservableObject {
         let now = Date()
         let since = now.timeIntervalSince(lastDoubleTapAt)
         guard since > 1.2 else {   // debounce repeats
-            live.append(log: String(format: "Double-tap ignored: %.1f s after the previous one (debounce 1.2 s)", since))
+            live.append(log: Self.stamped(String(format: "Double-tap ignored: %.1f s after the previous one (debounce 1.2 s)", since)))
             return
         }
         lastDoubleTapAt = now
         if let override = strapDoubleTapOverride {
-            live.append(log: "Double-tap → Lift Log: next")
+            live.append(log: Self.stamped("Double-tap → Lift Log: next"))
             override()
             return
         }
-        live.append(log: "Double-tap → \(behavior.doubleTapAction.label)")
+        live.append(log: Self.stamped("Double-tap → \(behavior.doubleTapAction.label)"))
         runMacAction(behavior.doubleTapAction, shortcut: behavior.doubleTapShortcut)
     }
 
