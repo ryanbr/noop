@@ -467,6 +467,13 @@ class SourceCoordinator(
                     // #polar-debug: read the toggle live at connect so a Polar strap logs its identified
                     // model (default off; the Test Centre only exposes the toggle when a Polar strap is paired).
                     polarDebug = { NoopPrefs.polarDebugLogging(ctx) },
+                    // The per-sample host-received readout belongs to the modes that exist for it; without one,
+                    // the log carries the summary instead (twin of BLEManager's wiring).
+                    hostReceivedDetail = {
+                        val tc = com.noop.testcentre.TestCentre.from(ctx)
+                        tc.active(com.noop.testcentre.TestDomain.HRV) ||
+                            tc.active(com.noop.testcentre.TestDomain.CONNECTION)
+                    },
                 )
             }
         }

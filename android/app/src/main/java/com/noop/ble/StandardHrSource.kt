@@ -98,6 +98,12 @@ class StandardHrSource(
      *  the Test Centre "Polar debug logging" toggle (only shown when a Polar strap is paired). Diagnostic-
      *  only — nothing gates behaviour on it. Default off keeps existing call sites / tests silent. */
     private val polarDebug: () -> Boolean = { false },
+    /**
+     * Whether the per-sample host-received readout is wanted. The app wires this to the Test Centre's HRV and
+     * Connection modes, the modes that exist for it; with none on, the log carries [StandardHrHostReceivedTrace]'s
+     * summary instead. Twin of Swift `Collector.hostReceivedDetail`.
+     */
+    private val hostReceivedDetail: () -> Boolean = { false },
 ) : LiveHrSource {
 
     /** Live instantaneous fitness-sensor metrics surfaced via [sensorSink]. Any field is null when it
@@ -177,6 +183,9 @@ class StandardHrSource(
     private val bufferLock = Any()
     private val buffer = ArrayList<Sample>()
     private var lastFlushMs = System.currentTimeMillis()
+    /** The host-received lines, summarised — see [StandardHrHostReceivedTrace]. Recorded under [bufferLock],
+     *  where the per-sample line was already built. */
+    private val hostReceived = StandardHrHostReceivedTrace()
     /** Consecutive failed inserts, for the run-length the rate-limited failure line reports. Reset by a
      *  success, exactly like the WHOOP path's counter. */
     private val insertFailures = java.util.concurrent.atomic.AtomicInteger(0)
@@ -262,6 +271,8 @@ class StandardHrSource(
         loggedFirstSensor = false
         _batteryPct.value = null // a stale charge must not outlive the link
         flush(StandardHrFlushReason.DISCONNECT)
+        // The stream is ending: write the window so far, or the last minute of it leaves with the link.
+        synchronized(bufferLock) { hostReceived.close() }.forEach { log(it) }
         clearSensorState()       // a stale speed/cadence/power panel must not outlive the link
     }
 
@@ -282,7 +293,7 @@ class StandardHrSource(
     private fun enqueue(hr: Int, rr: List<Int>, contact: StandardHrContact) {
         val ts = System.currentTimeMillis() / 1000L
         val shouldFlush: Boolean
-        val hostLine: String
+        val hostLines: List<String>
         synchronized(bufferLock) {
             val record = StandardHrMapping.shouldRecordContact(lastEnqueuedContact, contact)
             if (record) lastEnqueuedContact = contact
@@ -293,16 +304,22 @@ class StandardHrSource(
             val acceptedHr = if (hr in 30..220) 1 else 0
             val acceptedRr = rr.count { it in 250..3000 }
             val (pendingHr, pendingRr) = rowsOf(buffer)
-            hostLine = standardHrHostReceivedLine(
-                hostUnixSeconds = ts.toInt(),
-                acceptedHrRows = acceptedHr, acceptedRrRows = acceptedRr,
-                rejectedHrRows = 1 - acceptedHr, rejectedRrRows = rr.size - acceptedRr,
-                pendingHrRows = pendingHr.size, pendingRrRows = pendingRr.size,
+            // One line a minute, not one a second: a refusal is written at once, the routine ones are
+            // counted, and the full per-sample readout comes back while a Test Centre mode is on
+            // ([hostReceivedDetail]). Twin of Collector.ingestStandardHR.
+            hostLines = hostReceived.record(
+                StandardHrHostReceivedTrace.Sample(
+                    hostUnixSeconds = ts.toInt(),
+                    acceptedHrRows = acceptedHr, acceptedRrRows = acceptedRr,
+                    rejectedHrRows = 1 - acceptedHr, rejectedRrRows = rr.size - acceptedRr,
+                    pendingHrRows = pendingHr.size, pendingRrRows = pendingRr.size,
+                ),
+                detailed = hostReceivedDetail(),
             )
             shouldFlush = buffer.size >= flushCount ||
                 System.currentTimeMillis() - lastFlushMs >= flushIntervalMs
         }
-        log(hostLine)
+        hostLines.forEach { log(it) }
         if (shouldFlush) flush()
     }
 
