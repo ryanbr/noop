@@ -454,6 +454,12 @@ final class AppModel: ObservableObject {
             // history once, so any deep-history rows an older build left on the 0–21 axis regenerate on
             // the 0–100 axis. Guarded by a persisted flag, so this is a no-op on every subsequent launch.
             await self.intelligence.runEffortRescoreIfNeeded()
+            // One-shot resting-HR rescore: every computed night's resting HR moved from the lowest 5-min bin to
+            // the deep-sleep mean, so recompute the full history once and have Apple Health replace what it was
+            // given from the old statistic.
+            if await self.intelligence.runEffortRescoreIfNeeded(flagKey: IntelligenceEngine.restingHRRescoreFlagKey) {
+                UserDefaults.standard.set(true, forKey: IntelligenceEngine.restingHRHealthRewriteOwedKey)
+            }
             while !Task.isCancelled {
                 // #547 RE-POLLUTION: a sync since the last tick may have armed a re-heal (its ingest gate
                 // dropped bad-clock records). `runTimestampHealIfNeeded` honours the pending flag even after

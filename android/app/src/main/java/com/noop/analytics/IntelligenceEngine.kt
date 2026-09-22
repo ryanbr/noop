@@ -3207,35 +3207,40 @@ object IntelligenceEngine {
      */
     private fun rhrDiagLines(
         day: String,
-        rhrFloor: Int?,
+        restingHr: Int?,
         hr: List<com.noop.data.HrSample>,
         sessions: List<DetectedSleep>,
     ): List<String> {
-        if (rhrFloor == null) return emptyList()
+        if (restingHr == null) return emptyList()
         val inBedBpms = hr.filter { s -> sessions.any { s.ts >= it.start && s.ts < it.end } }.map { it.bpm }
+        // The lowest-bin floor, taken the way the day took its resting HR before it became the deep-sleep mean
+        // (min across the night's sessions), so the two sit side by side.
+        val floor = sessions.mapNotNull { SleepStager.sessionRestingHR(it.start, it.end, hr) }.minOrNull()
         val out = ArrayList<String>(2)
-        out.add(rhrFloorMeanLogLine(day, rhrFloor, inBedBpms))
-        SleepStager.rhrBinGateLogLine(day, sessions.map { it.start to it.end }, hr, rhrFloor)
-            ?.let { out.add(it) }
+        out.add(rhrFloorMeanLogLine(day, restingHr, floor, inBedBpms))
+        if (floor != null) {
+            SleepStager.rhrBinGateLogLine(day, sessions.map { it.start to it.end }, hr, floor)
+                ?.let { out.add(it) }
+        }
         return out
     }
 
     /**
-     * The per-day RHR floor-vs-mean diagnostic line (#691). NOOP's [floor] is the WHOOP-style resting
-     * HR , the lowest SUSTAINED 5-min in-bed level (SleepStager picks the min 5-min rolling-mean HR per
-     * session, the day takes the min across them) , whereas a "sleeping HR" app reports the night MEAN
-     * over the whole asleep span. The mean always sits at-or-above the floor, so NOOP reading lower is
-     * BY DESIGN, not a bug; logging both makes a "NOOP RHR is lower than my other app" report explainable
-     * from the strap log. [inBedBpms] is the bpm of every HR sample inside a matched in-bed session (the
-     * SAME span the floor came from, so the two numbers are directly comparable). Empty in-bed → nightMean
-     * is "nil". Counts/bpm only , no timestamps or PII. Pure so it's unit-tested directly and is the SAME
-     * line analyzeRecent ships. Byte-identical to the Swift `rhrFloorMeanLogLine`.
+     * The per-day resting-HR diagnostic line (#691). NOOP's resting HR ([restingHr]) is the mean HR across the
+     * night's deep-sleep segments ([SleepStager.sessionDeepSleepRestingHR]), the window WHOOP measures in.
+     * Beside it: [floor], the lowest 5-min bin, which NOOP reported as resting HR until it read ~6 bpm under
+     * WHOOP's; and nightMean, the mean over the whole in-bed span, which a "sleeping HR" app reports. All three
+     * on one line make a "NOOP reads differently from my other app" report explainable from the strap log.
+     * [inBedBpms] is the bpm of every HR sample inside a matched in-bed session. Empty in-bed → nightMean is
+     * "nil"; no floor → "nil". Counts/bpm only, no timestamps or PII. Pure so it's unit-tested directly and is
+     * the SAME line analyzeRecent ships. Byte-identical to the Swift `rhrFloorMeanLogLine`.
      */
-    internal fun rhrFloorMeanLogLine(day: String, floor: Int, inBedBpms: List<Int>): String {
+    internal fun rhrFloorMeanLogLine(day: String, restingHr: Int, floor: Int?, inBedBpms: List<Int>): String {
         val meanLog = if (inBedBpms.isEmpty()) "nil"
             else Math.round(inBedBpms.sum().toDouble() / inBedBpms.size).toString()
-        return "rhr day=$day floor=$floor nightMean=$meanLog inBedSamples=${inBedBpms.size} " +
-            "(floor = WHOOP-style lowest-sustained = NOOP RHR; mean = sleeping-HR-app number)"
+        return "rhr day=$day rhr=$restingHr floor=${floor ?: "nil"} nightMean=$meanLog " +
+            "inBedSamples=${inBedBpms.size} " +
+            "(rhr = deep-sleep mean = NOOP RHR; floor = lowest 5-min bin; mean = whole in-bed span)"
     }
 
     /**

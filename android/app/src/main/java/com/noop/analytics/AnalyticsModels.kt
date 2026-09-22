@@ -83,7 +83,7 @@ data class DetectedSleep(
     /** asleep / in-bed in [0, 1] (AASM TST/TIB; asleep = in-bed − wake). */
     val efficiency: Double,
     val stages: List<StageSegment>,
-    /** Lowest 5-min rolling-mean HR during the session (bpm), or null. */
+    /** The session's resting HR (bpm): mean HR across its deep-sleep segments, or null. See [SleepStager.sessionDeepSleepRestingHR]. */
     val restingHR: Int?,
     /** Mean RMSSD over 5-min windows across the session (ms), or null. */
     val avgHRV: Double?,

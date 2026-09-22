@@ -1160,6 +1160,25 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     ownerSource = RegistryDayOwnerSource(noopApp.deviceRegistry),
                 )
             }.onFailure { if (it is kotlin.coroutines.cancellation.CancellationException) throw it }
+            // One-shot resting-HR rescore: every computed night's resting HR moved from the lowest 5-min bin to
+            // the deep-sleep mean, so recompute the full history once. Same pass as the Effort rescore above.
+            runCatching {
+                IntelligenceEngine.runEffortRescoreIfNeeded(
+                    repo = repository,
+                    profile = currentProfile(),
+                    importedDeviceId = deviceId,
+                    maxHROverride = profileStore.hrMaxOverride.takeIf { it > 0 }?.toDouble(),
+                    flagGet = { NoopPrefs.restingHrRescoreDone(appContext) },
+                    flagSet = {
+                        NoopPrefs.setRestingHrRescoreDone(appContext)
+                        // Health Connect then replaces the resting HR it was given beyond its rolling window.
+                        NoopPrefs.setHcRestingHrRewriteOwed(appContext, true)
+                    },
+                    // #1567: this rewrites the FULL history once, so a missing owner source would bake the
+                    // WHOOP5 skin-temp scale into every day of it.
+                    ownerSource = RegistryDayOwnerSource(noopApp.deviceRegistry),
+                )
+            }.onFailure { if (it is kotlin.coroutines.cancellation.CancellationException) throw it }
             while (isActive) {
                 // #547 RE-POLLUTION: a sync since the last tick may have flagged a re-heal (its ingest gate
                 // dropped bad-clock records). Re-run the purge BEFORE this tick's rescore so the affected days

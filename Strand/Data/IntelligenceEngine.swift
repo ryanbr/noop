@@ -49,6 +49,11 @@ final class IntelligenceEngine: ObservableObject {
     /// Uptime the pass holding `computing` started at, and how many days it covers; nil when none is running.
     private var runningPassStart: UInt64?
     private var runningPassDays = 0
+    /// How many `analyzeRecent` passes have run to completion in this process, and how many days the latest
+    /// one covered, so a caller that needs a particular pass can tell whether its call did the work or
+    /// found the lock taken (`runEffortRescoreIfNeeded`).
+    private var completedPasses = 0
+    private var lastCompletedPassDays = 0
     /// #899 heal bound: true while the last heal already re-armed a rescore, so a heal firing again on
     /// the very next pass cannot re-arm a second time (the Android twin is hard-bounded to exactly one
     /// re-pass; this mirrors it). Reset by any pass whose heal finds nothing, restoring the budget.
@@ -319,15 +324,14 @@ final class IntelligenceEngine: ObservableObject {
         return n % 2 == 1 ? s[n / 2] : (s[n / 2 - 1] + s[n / 2]) / 2
     }
 
-    /// The per-day RHR floor-vs-mean diagnostic line (#691). NOOP's `floor` is the WHOOP-style resting
-    /// HR , the lowest SUSTAINED 5-min in-bed level (SleepStager picks the min 5-min rolling-mean HR per
-    /// session, the day takes the .min() across them) , whereas a "sleeping HR" app reports the night MEAN
-    /// over the whole asleep span. The mean always sits at-or-above the floor, so NOOP reading lower is BY
-    /// DESIGN, not a bug; logging both makes a "NOOP RHR is lower than my other app" report explainable
-    /// from the strap log. `inBedBpms` is the bpm of every HR sample inside a matched in-bed session (the
-    /// SAME span the floor came from, so the two numbers are directly comparable). Empty in-bed → nightMean
-    /// is "nil". Counts/bpm only , no timestamps or PII. Pure so it's unit-tested directly and is the SAME
-    /// line `analyzeRecent` ships. Byte-identical to the Android `rhrFloorMeanLogLine`.
+    /// The per-day resting-HR diagnostic line (#691). NOOP's resting HR (`rhr`) is the mean HR across the
+    /// night's deep-sleep segments (`SleepStager.sessionDeepSleepRestingHR`), the window WHOOP measures in.
+    /// Beside it: `floor`, the lowest 5-min bin, which NOOP reported as resting HR until it read ~6 bpm under
+    /// WHOOP's; and `nightMean`, the mean over the whole in-bed span, which a "sleeping HR" app reports. All
+    /// three on one line make a "NOOP reads differently from my other app" report explainable from the strap
+    /// log. `inBedBpms` is the bpm of every HR sample inside a matched in-bed session. Empty in-bed →
+    /// nightMean is "nil"; no floor → "nil". Counts/bpm only, no timestamps or PII. Pure so it's unit-tested
+    /// directly and is the SAME line `analyzeRecent` ships. Byte-identical to the Android `rhrFloorMeanLogLine`.
     /// #1331 diagnostic line: the night's computed respiratory rate (breaths/min) or "nil".
     ///
     /// When the rate is nil the line now carries WHY, because "nil" on its own sent an investigation
@@ -362,11 +366,12 @@ final class IntelligenceEngine: ObservableObject {
         return "\(base) beatAccurate=\(acc)>=\(gate) rrIntegrity=\(integrity) — gate passed, cause is elsewhere"
     }
 
-    nonisolated static func rhrFloorMeanLogLine(day: String, floor: Int, inBedBpms: [Int]) -> String {
+    nonisolated static func rhrFloorMeanLogLine(day: String, restingHr: Int, floor: Int?, inBedBpms: [Int]) -> String {
         let meanLog: String = inBedBpms.isEmpty ? "nil"
             : String(Int((Double(inBedBpms.reduce(0, +)) / Double(inBedBpms.count)).rounded()))
-        return "rhr day=\(day) floor=\(floor) nightMean=\(meanLog) inBedSamples=\(inBedBpms.count) "
-            + "(floor = WHOOP-style lowest-sustained = NOOP RHR; mean = sleeping-HR-app number)"
+        return "rhr day=\(day) rhr=\(restingHr) floor=\(floor.map(String.init) ?? "nil") nightMean=\(meanLog) "
+            + "inBedSamples=\(inBedBpms.count) "
+            + "(rhr = deep-sleep mean = NOOP RHR; floor = lowest 5-min bin; mean = whole in-bed span)"
     }
 
     /// #1244: one line for a day that CLEARED the ≥200-HR gate yet detected NO in-bed session, so the
@@ -597,6 +602,16 @@ final class IntelligenceEngine: ObservableObject {
     /// pass completes so it never re-runs.
     static let effortRescoreFlagKey = "intelligence.effortRescore.v313.done"
 
+    /// UserDefaults flag guarding the one-shot full-history rescore that moved every computed night's resting
+    /// HR from the lowest 5-min bin to the deep-sleep mean (`SleepStager.sessionDeepSleepRestingHR`). Without
+    /// it, nights older than the rolling window would keep the old value on the daily row, in the recovery
+    /// baseline, and in Apple Health.
+    static let restingHRRescoreFlagKey = "intelligence.restingHRDeepSleepRescore.v1.done"
+
+    /// Set once the resting-HR rescore above completes; the Apple Health write-back reads it to replace the
+    /// resting HR it wrote from the old statistic, then clears it.
+    static let restingHRHealthRewriteOwedKey = "noop.health.restingHRRewriteOwed.v1"
+
     /// One-shot, on-upgrade FULL-history Effort rescore (#313 PART B). The Effort hero gauge + numbers
     /// moved from the old 0–21 axis to NOOP's own 0–100 axis. On-device computed rows since v2.6.1
     /// already store 0–100, but rows the engine computed on an OLDER build (capped at `maxDays` per run,
@@ -609,14 +624,31 @@ final class IntelligenceEngine: ObservableObject {
     /// runs exactly once. IMPORTED rows are never rewritten here (the engine only ever writes under the
     /// "-noop" computed source) , those are handled by re-import. A day already on 0–100 is recomputed
     /// from the same raw HR and lands on 0–100 again: UNCHANGED axis (verified by test).
-    func runEffortRescoreIfNeeded(historyDays: Int = 4000) async {
-        guard !UserDefaults.standard.bool(forKey: Self.effortRescoreFlagKey) else { return }
-        await analyzeRecent(maxDays: historyDays)
-        // Only mark done if the pass actually completed (wasn't skipped because another tick held the
-        // `computing` lock). `computing` is false here once analyzeRecent's `defer` has run; a skipped
-        // call returns with `note` unset by it. Use the lock state: if a concurrent run was in progress
-        // the flag stays unset so the next launch retries , cheap, and correctness over a one-time cost.
-        if !computing { UserDefaults.standard.set(true, forKey: Self.effortRescoreFlagKey) }
+    ///
+    /// `flagKey` lets another one-shot full-history recompute reuse this pass (`restingHRRescoreFlagKey`).
+    /// Returns whether this call ran the pass to completion.
+    @discardableResult
+    func runEffortRescoreIfNeeded(historyDays: Int = 4000, flagKey: String = effortRescoreFlagKey) async -> Bool {
+        guard !UserDefaults.standard.bool(forKey: flagKey) else { return false }
+        // Wait out a pass that already holds the lock rather than give up until the next launch. This runs
+        // at launch, which is exactly when a strap reconnect starts a post-offload pass, and a busy install
+        // re-arms those back to back: a field log showed the resting-HR rescore still unrun a day after
+        // install, having lost the race on every launch in between.
+        while !Task.isCancelled {
+            while computing && !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+            }
+            let passesBefore = completedPasses
+            await analyzeRecent(maxDays: historyDays)
+            // Another trigger can still take the lock between the wait and the call, and then this call
+            // returns without scoring anything. Only a pass at least this wide finishing proves the work
+            // was done.
+            if completedPasses > passesBefore, lastCompletedPassDays >= historyDays {
+                UserDefaults.standard.set(true, forKey: flagKey)
+                return true
+            }
+        }
+        return false
     }
 
     /// UserDefaults flag guarding the one-shot #547 implausible-timestamp DB heal (below). Set once the
@@ -1659,17 +1691,25 @@ final class IntelligenceEngine: ObservableObject {
                 // `diagnosticSink` in the SAME per-day order , the sink is a MainActor-bound closure.
                 var rhrLine: String?
                 var rhrBinLine: String?
-                if let floor = res.daily.restingHr {
+                if let restingHr = res.daily.restingHr {
                     let inBedBpms = hr.filter { s in
                         res.cachedSleep.contains { s.ts >= $0.startTs && s.ts < $0.endTs }
                     }.map { $0.bpm }
-                    rhrLine = Self.rhrFloorMeanLogLine(day: res.daily.day, floor: floor, inBedBpms: inBedBpms)
+                    // The lowest-bin floor, taken the way the day took its resting HR before it became the
+                    // deep-sleep mean (min across the night's sessions), so the two sit side by side.
+                    let floor = res.cachedSleep.compactMap {
+                        SleepStager.sessionRestingHR(start: $0.startTs, end: $0.endTs, hr: hr)
+                    }.min()
+                    rhrLine = Self.rhrFloorMeanLogLine(day: res.daily.day, restingHr: restingHr, floor: floor,
+                                                       inBedBpms: inBedBpms)
                     // #1943: conformance check that the gate `sessionRestingHR` now applies agrees with
-                    // the shipped floor. Silent when the gate is correctly applied.
-                    rhrBinLine = SleepStager.rhrBinGateLogLine(
-                        day: res.daily.day,
-                        sessions: res.cachedSleep.map { ($0.startTs, $0.endTs) },
-                        hr: hr, shippedFloor: floor)
+                    // the floor it produced. Silent when the gate is correctly applied.
+                    if let floor {
+                        rhrBinLine = SleepStager.rhrBinGateLogLine(
+                            day: res.daily.day,
+                            sessions: res.cachedSleep.map { ($0.startTs, $0.endTs) },
+                            hr: hr, shippedFloor: floor)
+                    }
                 }
                 // #1331 respiratory diagnostic — a run of nil nights localises when it stopped. Same
                 // pure-compute-here / replay-on-main-actor path as rhrLine.
@@ -2899,6 +2939,8 @@ final class IntelligenceEngine: ObservableObject {
             elapsedSeconds: elapsed,
             assertionExpiries: RescoreBackgroundScheduler.assertionExpiries - reScoreExpiriesAtStart,
             backgroundedAtEnd: RescoreBackgroundScheduler.isBackgrounded), nil)
+        completedPasses += 1
+        lastCompletedPassDays = maxDays
         // #1681: a pass that completes while leaving the mark SET looks identical in a capture to one that
         // cleared it. Rare-event evidence, so always-on: it costs a line only when it actually happens,
         // and it is exactly what is missing when someone reports the app re-scoring on every launch.

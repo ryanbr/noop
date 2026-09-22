@@ -87,6 +87,13 @@ object HealthConnectWriter {
         SleepSessionRecord::class,
     )
 
+    /**
+     * The first day the daily vitals export covers: [WINDOW_DAYS] back from [today], or null (every computed
+     * day) when a history rewrite is owed after the resting-HR rescore.
+     */
+    internal fun dailyCutoff(historyRewrite: Boolean, today: LocalDate): String? =
+        if (historyRewrite) null else today.minusDays(WINDOW_DAYS).toString()
+
     /** The write-permission strings the UI must request before calling [write]. */
     val PERMISSIONS: Set<String> =
         WRITE_RECORDS.map { HealthPermission.getWritePermission(it) }.toSet()
@@ -120,10 +127,13 @@ object HealthConnectWriter {
         // Guard the pre-insert work (client acquisition + the day read) the same way the concern inserts
         // below are guarded, so a provider race or DB error can't throw PAST recordStatus and leave the
         // UI showing a stale "OK" while sharing is actually broken (#660). Cancellation still propagates.
+        // After the resting-HR rescore, reach past the rolling window once so every computed day is upserted
+        // with the recomputed value (same clientRecordId, higher version, so no delete is needed).
+        val historyRewrite = NoopPrefs.hcRestingHrRewriteOwed(context)
         val (client, days) = runCatching {
             val c = HealthConnectClient.getOrCreate(context)
-            val cutoff = LocalDate.now().minusDays(WINDOW_DAYS).toString()
-            c to repo.days(repo.computedDeviceId(deviceId)).filter { it.day >= cutoff }
+            val cutoff = dailyCutoff(historyRewrite, LocalDate.now())
+            c to repo.days(repo.computedDeviceId(deviceId)).filter { cutoff == null || it.day >= cutoff }
         }.getOrElse { t ->
             val result = WritebackResult(0, listOf(t.writebackCategory()))
             recordStatus(context, result)
@@ -185,6 +195,8 @@ object HealthConnectWriter {
             runCatching { client.insertRecords(records); records.size }
                 .fold({ total += it }, { failures += it.writebackCategory() })
         }
+        // Cleared only once the daily records went in: a failed insert keeps the rewrite owed for the next export.
+        if (historyRewrite && failures.isEmpty()) NoopPrefs.setHcRestingHrRewriteOwed(context, false)
         runCatching { writeHeartRate(client, context, repo, deviceId, version) }
             .fold({ total += it }, { failures += it.writebackCategory() })
         runCatching { writeSleep(client, context, repo, deviceId) }
