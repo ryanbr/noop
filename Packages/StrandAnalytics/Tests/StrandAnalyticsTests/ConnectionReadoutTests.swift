@@ -387,4 +387,45 @@ final class UniversalTraceRRTransportTests: XCTestCase {
         XCTAssertTrue(line!.contains("unscorableHistory=no"))
         XCTAssertTrue(line!.contains("gapDays=0"))
     }
+
+    /// #2397: the link's signal SHAPE, from readings the periodic read already takes.
+    ///
+    /// A last value alone cannot separate a link that was marginal all along from one that walked out
+    /// of range, and a supervision timeout asks exactly that. The field log that prompted this carried
+    /// 467 readings across three links and reported two of them. Twin of the Kotlin test, so the two
+    /// platforms print the same bytes.
+    func testLinkEpitaphReportsTheSignalShape() {
+        let line = ConnectionReadout.linkEpitaph(upMillis: 60_000, inboundFrames: 100,
+                                                 inboundBytes: 2_000, cmdChannelFrames: 0,
+                                                 realtimeArmed: true, ended: "status=8",
+                                                 rssiDbm: -58, rssiAgeMillis: 52_658,
+                                                 rssiReads: 203, rssiWorstDbm: -88,
+                                                 rssiSumDbm: -203 * 64)
+        XCTAssertTrue(line.contains("signal=-58dBm (read 52658ms before the drop; "
+                                    + "n=203 worst=-88dBm mean=-64dBm)"), line)
+    }
+
+    /// One reading is not a shape: worst and mean would restate the value already printed.
+    func testLinkEpitaphOmitsTheShapeUntilThereAreTwoReadings() {
+        for n in 0...1 {
+            let line = ConnectionReadout.linkEpitaph(upMillis: 60_000, inboundFrames: 100,
+                                                     inboundBytes: 2_000, cmdChannelFrames: 0,
+                                                     realtimeArmed: true, ended: "status=8",
+                                                     rssiDbm: -58, rssiAgeMillis: 1_000,
+                                                     rssiReads: n, rssiWorstDbm: n == 0 ? nil : -58,
+                                                     rssiSumDbm: -58 * n)
+            XCTAssertFalse(line.contains("n="), line)
+            XCTAssertTrue(line.contains("signal=-58dBm (read 1000ms before the drop)"), line)
+        }
+    }
+
+    /// A link that never read carries no shape and says so in the words it already used.
+    func testLinkEpitaphNeverReadIsUnchanged() {
+        let line = ConnectionReadout.linkEpitaph(upMillis: 60_000, inboundFrames: 100,
+                                                 inboundBytes: 2_000, cmdChannelFrames: 0,
+                                                 realtimeArmed: true, ended: "status=8",
+                                                 rssiDbm: nil, rssiAgeMillis: nil,
+                                                 rssiReads: 0, rssiWorstDbm: nil, rssiSumDbm: 0)
+        XCTAssertTrue(line.contains("signal=never read on this link"), line)
+    }
 }

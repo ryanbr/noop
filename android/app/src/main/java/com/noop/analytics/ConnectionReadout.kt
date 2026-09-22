@@ -316,6 +316,14 @@ object ConnectionReadout {
      *  stash on teardown, exactly as it clears the hold time, or the epitaph invents the evidence it was
      *  built to find. `never read on this link` is the honest answer and is printed as one.
      *
+     *  #2397: [rssiReads], [rssiWorstDbm] and [rssiSumDbm] describe every reading the link took, not
+     *  just the last one. The periodic read landed in #2332 and its value was then discarded on each
+     *  new reading, so a link that took two hundred readings reported one: a field log carried 467 reads
+     *  across three links and two epitaphs naming two numbers. A last value alone cannot separate a link
+     *  that was marginal throughout from one that walked out of range, which is precisely what a
+     *  supervision timeout leaves a reader asking. The mean is computed HERE, from a sum and a count,
+     *  rather than passed in, so both platforms divide the same way on the same inputs.
+     *
      *  RSSI is NOT clamped. It is negative by nature, so `maxOf(0, ...)` would erase every real reading;
      *  implausible values are the caller's to reject at the stash, where the read status is known.
      *
@@ -331,11 +339,22 @@ object ConnectionReadout {
      *  link, not the formatter. */
     fun linkEpitaph(upMillis: Long, inboundFrames: Int, inboundBytes: Int, cmdChannelFrames: Int,
                     realtimeArmed: Boolean, ended: String,
-                    rssiDbm: Int?, rssiAgeMillis: Long?): String {
+                    rssiDbm: Int?, rssiAgeMillis: Long?,
+                    rssiReads: Int = 0, rssiWorstDbm: Int? = null, rssiSumDbm: Int = 0): String {
+        // #2397: the SHAPE of the link's signal, not just its last reading. Two readings is the floor:
+        // with one, worst and mean are the value already printed and the clause is noise.
+        val shape = if (rssiReads >= 2 && rssiWorstDbm != null) {
+            // Integer division, truncating toward zero on both platforms (Kotlin and Swift agree on
+            // negatives), so the two logs cannot round apart. The mean of a handful of dBm readings is a
+            // shape, not a measurement, and one dB of truncation does not change what it says.
+            "; n=$rssiReads worst=${rssiWorstDbm}dBm mean=${rssiSumDbm / rssiReads}dBm"
+        } else {
+            ""
+        }
         val signal = when {
             rssiDbm == null -> "never read on this link"
-            rssiAgeMillis == null -> "${rssiDbm}dBm (age unknown)"
-            else -> "${rssiDbm}dBm (read ${maxOf(0L, rssiAgeMillis)}ms before the drop)"
+            rssiAgeMillis == null -> "${rssiDbm}dBm (age unknown$shape)"
+            else -> "${rssiDbm}dBm (read ${maxOf(0L, rssiAgeMillis)}ms before the drop$shape)"
         }
         var line = "Link epitaph: up ${maxOf(0L, upMillis)}ms, inbound ${maxOf(0, inboundFrames)} frames / " +
             "${maxOf(0, inboundBytes)} bytes (cmd-channel ${maxOf(0, cmdChannelFrames)}), " +

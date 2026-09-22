@@ -772,6 +772,16 @@ public final class BLEManager: NSObject, ObservableObject {
     /// `ConnectionReadout.linkEpitaph` together so the age is always printed with the value.
     ///
     /// Diagnostic only — nothing reads these to make a decision.
+    /// #2397: how many RSSI readings this link produced, and their worst and total, so the epitaph can
+    /// report a SHAPE rather than a point. #2332 added the periodic read and kept only the latest value,
+    /// so a link that took 200 readings reported one of them. Last alone cannot separate "marginal all
+    /// along" from "walked out of range", which is the question a supervision timeout raises.
+    ///
+    /// Free: fed by readings the periodic read ALREADY takes. No extra radio work, no new timer.
+    private var rssiReads = 0
+    private var rssiWorstDbm: Int?
+    private var rssiSumDbm = 0
+
     private var lastRssiDbm: Int?
     /// When `lastRssiDbm` was read. Monotonic, matching `linkUpSince`, so a wall-clock change mid-link
     /// cannot make the printed age negative. Meaningless unless `lastRssiDbm` is non-nil.
@@ -5740,6 +5750,8 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         // #1809: this link's inbound tally starts empty; the epitaph on disconnect reports exactly what
         // arrived between here and there.
         inboundFrames = 0; inboundBytes = 0; cmdChannelFrames = 0
+        // #2397: and the per-link signal shape, for the same reason.
+        rssiReads = 0; rssiWorstDbm = nil; rssiSumDbm = 0
         // #1635: same guarantee for the banked tally. Clearing only on teardown would be enough if every
         // link ended in one, and a link that begins without a preceding clean teardown would otherwise
         // open holding the previous link's rows — reporting them as banked on a link that never saw them.
@@ -5943,7 +5955,9 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
             log(ConnectionReadout.linkEpitaph(upMillis: upMs, inboundFrames: inboundFrames,
                                               inboundBytes: inboundBytes, cmdChannelFrames: cmdChannelFrames,
                                               realtimeArmed: realtimeArmedAt != nil, ended: endedReason,
-                                              rssiDbm: lastRssiDbm, rssiAgeMillis: rssiAgeMs))
+                                              rssiDbm: lastRssiDbm, rssiAgeMillis: rssiAgeMs,
+                                              rssiReads: rssiReads, rssiWorstDbm: rssiWorstDbm,
+                                              rssiSumDbm: rssiSumDbm))
             // #1635: LIVE streams only — the offload persists through `Backfiller` and has its own
             // accounting, so folding it in would make a healthy bonded sync read as "nothing banked live
             // for: gravity". Inside the same `linkUpSince` guard for the same reason the epitaph is.
@@ -5964,6 +5978,7 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         }
         // Clear the tally with the link, so a second teardown for the same drop cannot re-report it.
         inboundFrames = 0; inboundBytes = 0; cmdChannelFrames = 0
+        rssiReads = 0; rssiWorstDbm = nil; rssiSumDbm = 0
         liveHr = 0; liveRr = 0; offloadHr = 0; offloadRr = 0
         offloadGravity = 0; offloadResp = 0; offloadSkinTemp = 0; offloadSpo2 = 0; offloadChunks = 0
         linkUpSince = nil
@@ -6370,6 +6385,11 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
         guard !stale else { return }
         lastRssiDbm = rssi
         lastRssiAt = DispatchTime.now()
+        // #2397: fold into the per-link shape. AFTER the stale guard, for the same reason the stash is:
+        // a late answer from a dead link must not be counted against the live one's summary.
+        rssiReads += 1
+        rssiSumDbm += rssi
+        rssiWorstDbm = rssiWorstDbm.map { min($0, rssi) } ?? rssi
     }
 
     public func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {

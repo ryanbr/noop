@@ -300,6 +300,46 @@ class ConnectionReadoutTest {
         )
     }
 
+    /**
+     * #2397: the link's signal SHAPE, from readings the periodic read already takes.
+     *
+     * A last value alone cannot separate a link that was marginal all along from one that walked out of
+     * range, and a supervision timeout asks exactly that. The field log that prompted this carried 467
+     * readings across three links and reported two of them.
+     */
+    @Test fun linkEpitaphReportsTheSignalShape() {
+        val line = ConnectionReadout.linkEpitaph(
+            60_000L, 100, 2_000, 0, true, "status=8",
+            rssiDbm = -58, rssiAgeMillis = 52_658L,
+            rssiReads = 203, rssiWorstDbm = -88, rssiSumDbm = -203 * 64,
+        )
+        assertTrue(line, line.contains("signal=-58dBm (read 52658ms before the drop; " +
+            "n=203 worst=-88dBm mean=-64dBm)"))
+    }
+
+    /** One reading is not a shape: worst and mean would restate the value already printed. */
+    @Test fun linkEpitaphOmitsTheShapeUntilThereAreTwoReadings() {
+        for (n in 0..1) {
+            val line = ConnectionReadout.linkEpitaph(
+                60_000L, 100, 2_000, 0, true, "status=8",
+                rssiDbm = -58, rssiAgeMillis = 1_000L,
+                rssiReads = n, rssiWorstDbm = if (n == 0) null else -58, rssiSumDbm = -58 * n,
+            )
+            assertFalse(line, line.contains("n="))
+            assertTrue(line, line.contains("signal=-58dBm (read 1000ms before the drop)"))
+        }
+    }
+
+    /** A link that never read carries no shape and says so in the words it already used. */
+    @Test fun linkEpitaphNeverReadIsUnchanged() {
+        val line = ConnectionReadout.linkEpitaph(
+            60_000L, 100, 2_000, 0, true, "status=8",
+            rssiDbm = null, rssiAgeMillis = null,
+            rssiReads = 0, rssiWorstDbm = null, rssiSumDbm = 0,
+        )
+        assertTrue(line, line.contains("signal=never read on this link"))
+    }
+
     /** #2332: the signal half is only evidence about the DROP if its age travels with it, so the three
      *  states are pinned separately. The null-value case is the one that must never be filled in with a
      *  stale reading from the previous link - it has to say so out loud. Twin of the Swift test. */

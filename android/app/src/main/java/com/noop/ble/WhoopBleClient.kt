@@ -3401,6 +3401,22 @@ class WhoopBleClient(
      * Diagnostic only — nothing reads these to make a decision.
      */
     @Volatile
+    /** #2397: how many RSSI readings this link produced, and their worst and total, so the epitaph can
+     *  report a SHAPE rather than a point. #2332 added the ~60s periodic read and kept only the latest
+     *  value, so a link that took 200 readings reported one of them: a field log showed 467 reads across
+     *  three links and two epitaphs naming two numbers. Last alone cannot separate "marginal all along"
+     *  from "walked out of range", which is the question a supervision timeout raises.
+     *
+     *  Free: these are fed by readings the ~60s read ALREADY takes. No extra radio work, no new timer.
+     *
+     *  Plain, not @Volatile, for the reason the frame counters below carry: `+=` is not atomic whatever
+     *  it is annotated with, and an approximate count still answers the question. The stash above is
+     *  volatile because a torn read there would misattribute ONE reading to the wrong link; being one
+     *  reading out in a mean of two hundred changes nothing a reader would act on. */
+    private var rssiReads = 0
+    private var rssiWorstDbm: Int? = null
+    private var rssiSumDbm = 0
+
     private var lastRssiDbm: Int? = null
 
     /** Wall time (ms) [lastRssiDbm] was read. Meaningless unless [lastRssiDbm] is non-null; the two are
@@ -6895,6 +6911,8 @@ class WhoopBleClient(
                     // #1809: this link's inbound tally starts empty, so the epitaph on disconnect reports
                     // exactly what arrived on THIS link and never a previous session's traffic.
                     inboundFrames = 0; inboundBytes = 0; cmdChannelFrames = 0
+                    // #2397: and the per-link signal shape, for the same reason.
+                    rssiReads = 0; rssiWorstDbm = null; rssiSumDbm = 0
                     // Same guarantee for the rejection tally: a link that opens without a preceding clean
                     // teardown would otherwise report the previous link's rejections as its own.
                     rejectTally.reset(); loggedRejectReasons.clear()
@@ -7061,6 +7079,11 @@ class WhoopBleClient(
             // guarantee: a reader that sees the new value cannot then see an older clock.
             lastRssiAtMs = System.currentTimeMillis()
             lastRssiDbm = rssi
+            // #2397: fold into the per-link shape. AFTER the stale guard, for the same reason the stash
+            // is: a late answer from a dead link must not be counted against the live one's summary.
+            rssiReads += 1
+            rssiSumDbm += rssi
+            rssiWorstDbm = rssiWorstDbm?.let { minOf(it, rssi) } ?: rssi
         }
 
         @SuppressLint("MissingPermission")
@@ -11230,6 +11253,7 @@ class WhoopBleClient(
                 cmdChannelFrames = cmdChannelFrames, realtimeArmed = realtimeArmedThisLink,
                 rssiDbm = rssiAtDrop,
                 rssiAgeMillis = rssiAgeAtDrop,
+                rssiReads = rssiReads, rssiWorstDbm = rssiWorstDbm, rssiSumDbm = rssiSumDbm,
                 // #1820 parity: Apple's epitaph reports "intentional" for a deliberate teardown rather
                 // than an error code, and a field log showed Android printing "ended=status=0" for the
                 // same event. Two reports of the same drop should not read differently. The flag is set
@@ -11261,6 +11285,7 @@ class WhoopBleClient(
         }
         // Clear the tally with the link, so a second teardown for the same drop cannot re-report it.
         inboundFrames = 0; inboundBytes = 0; cmdChannelFrames = 0
+        rssiReads = 0; rssiWorstDbm = null; rssiSumDbm = 0
         rejectTally.reset(); loggedRejectReasons.clear()
         liveHr.set(0); liveRr.set(0); offloadHr.set(0); offloadRr.set(0)
         offloadGravity.set(0); offloadResp.set(0); offloadSkinTemp.set(0)
