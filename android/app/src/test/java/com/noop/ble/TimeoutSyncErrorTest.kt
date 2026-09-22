@@ -67,4 +67,38 @@ class TimeoutSyncErrorTest {
         assertEquals("clock is ahead",
             WhoopBleClient.timeoutSyncError("clock is ahead", bankedThisOffload = true))
     }
+
+    // ── sessionEndedOutcome (#2387) ──────────────────────────────────────────
+
+    /** The banner above is right and always was; the LOG line read as a failure either way. Expected
+     *  strings are the Swift twin's own output, so the two platforms cannot drift apart in wording. */
+    @Test fun aTimeoutThatBankedRowsSaysItDrained() {
+        assertEquals(" outcome=drained",
+            WhoopBleClient.sessionEndedOutcome("timeout", bankedRows = true))
+    }
+
+    @Test fun aTimeoutThatBankedNothingSaysSo() {
+        assertEquals(" outcome=nothing-banked",
+            WhoopBleClient.sessionEndedOutcome("timeout", bankedRows = false))
+    }
+
+    /** Every other ending is byte-identical to before. */
+    @Test fun otherReasonsAreUnchanged() {
+        for (reason in listOf("HISTORY_COMPLETE", "disconnected", "aborted by user")) {
+            assertEquals("", WhoopBleClient.sessionEndedOutcome(reason, bankedRows = true))
+            assertEquals("", WhoopBleClient.sessionEndedOutcome(reason, bankedRows = false))
+        }
+    }
+
+    /** Deliberately ROWS, where the banner asks [WhoopBleClient.offloadBankedAnything] (chunks OR rows OR
+     *  deep packets). A session that acked chunks but persisted nothing is the empty-offload shape: the
+     *  banner stays silent because progress was made, the log says nothing-banked because nothing landed.
+     *  Pinned so the difference is not later read as a bug. */
+    @Test fun outcomeAsksAboutRowsNotProgress() {
+        assertEquals(" outcome=nothing-banked",
+            WhoopBleClient.sessionEndedOutcome("timeout", bankedRows = false))
+        assertNull(WhoopBleClient.timeoutSyncError(
+            null,
+            WhoopBleClient.offloadBankedAnything(chunks = 3, rows = 0, deepPackets = 0)))
+    }
 }

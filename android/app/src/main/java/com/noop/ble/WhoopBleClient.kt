@@ -533,6 +533,22 @@ class WhoopBleClient(
 
     companion object {
         private const val TAG = "WhoopBleClient"
+        /** #2387: the outcome token on a `session ended` line, so a timeout says whether it achieved anything.
+         *
+         *  A WHOOP 4.0 routinely ends a PRODUCTIVE offload on the idle timeout, because that firmware
+         *  finishes without emitting HISTORY_COMPLETE. The line said `reason=timeout` either way and the
+         *  rows landed on the NEXT line, so the alarming half read first and the outcome second. A reporter
+         *  read six of these as six interrupted syncs; so did the maintainer reviewing their log, after
+         *  reading the code that says otherwise. Four of those timeouts had banked 56,879, 183,266, 37,645
+         *  and 40,386 rows.
+         *
+         *  Rows, not frames: a stalled session still receives frames, and rows is what the summary line
+         *  beside this one reports, so the two cannot disagree. Same test [shouldNotifySuccessfulOffload]
+         *  already applies. Empty for any other reason, so HISTORY_COMPLETE and the disconnect paths are
+         *  byte-identical to before. Twin of the Swift `BLEManager.sessionEndedOutcome`. */
+        internal fun sessionEndedOutcome(reason: String, bankedRows: Boolean): String =
+            if (reason != "timeout") "" else if (bankedRows) " outcome=drained" else " outcome=nothing-banked"
+
         internal fun shouldNotifySuccessfulOffload(reason: String, bankedRows: Boolean): Boolean =
             reason == "HISTORY_COMPLETE" || (reason == "timeout" && bankedRows)
         /**
@@ -10773,7 +10789,7 @@ class WhoopBleClient(
         handler.removeCallbacks(backfillTimeoutRunnable)
         backfillDrain.clear()
         closeWhoop5BackfillCapture(flushSummary = true)
-        log("Backfill: session ended — reason=$reason")
+        log("Backfill: session ended — reason=$reason" + sessionEndedOutcome(reason, persistedSensorRows))
         // Downstream export also treats a WHOOP 4 idle timeout with persisted rows as successful: that
         // firmware routinely finishes productive offloads without emitting HISTORY_COMPLETE.
         if (shouldNotifySuccessfulOffload(reason, persistedSensorRows)) {

@@ -49,4 +49,41 @@ final class TimeoutSyncErrorTests: XCTestCase {
         XCTAssertEqual(BLEManager.timeoutSyncError(futureClockBanner: "clock is ahead",
                                                    bankedThisOffload: true), "clock is ahead")
     }
+
+    // MARK: - sessionEndedOutcome (#2387)
+
+    /// The banner above is right and always was; the LOG line was the one that read as a failure either
+    /// way. A reporter read six productive timeouts as six interrupted syncs, and so did the maintainer
+    /// reviewing their log. The rows were on the next line the whole time.
+    func testATimeoutThatBankedRowsSaysItDrained() {
+        XCTAssertEqual(BLEManager.sessionEndedOutcome(reason: "timeout", bankedRows: true),
+                       " outcome=drained")
+    }
+
+    /// The stall case, the one the banner also warns about.
+    func testATimeoutThatBankedNothingSaysSo() {
+        XCTAssertEqual(BLEManager.sessionEndedOutcome(reason: "timeout", bankedRows: false),
+                       " outcome=nothing-banked")
+    }
+
+    /// Every other ending is byte-identical to before: HISTORY_COMPLETE already says it completed, and a
+    /// disconnect is not a claim about what landed.
+    func testOtherReasonsAreUnchanged() {
+        for reason in ["HISTORY_COMPLETE", "disconnected", "aborted by user"] {
+            XCTAssertEqual(BLEManager.sessionEndedOutcome(reason: reason, bankedRows: true), "")
+            XCTAssertEqual(BLEManager.sessionEndedOutcome(reason: reason, bankedRows: false), "")
+        }
+    }
+
+    /// Deliberately ROWS, where the banner asks `offloadBankedAnything` (chunks OR rows OR deep packets).
+    /// A session that acked chunks but persisted nothing is the #77/#120/#214 empty-offload shape: the
+    /// banner stays silent because progress was made, while the log says nothing-banked because nothing
+    /// landed. Both are honest about their own question; pinned so the difference is not read as a bug.
+    func testOutcomeAsksAboutRowsNotProgress() {
+        XCTAssertEqual(BLEManager.sessionEndedOutcome(reason: "timeout", bankedRows: false),
+                       " outcome=nothing-banked")
+        XCTAssertNil(BLEManager.timeoutSyncError(
+            futureClockBanner: nil,
+            bankedThisOffload: BLEManager.offloadBankedAnything(chunks: 3, rows: 0, deepPackets: 0)))
+    }
 }
