@@ -350,4 +350,14 @@ final class BaselinesTests: XCTestCase {
         XCTAssertNotEqual(Baselines.daytimeHRCfg, Baselines.restingHRCfg)
         XCTAssertNotEqual(Baselines.daytimeRMSSDCfg, Baselines.hrvCfg)
     }
+
+    /// The stored skin-temp deviation rounds ties away from zero: −0.125 °C (an exact binary tie at 2 dp)
+    /// stores −0.13. Pinned against the Kotlin twin's `roundedDelta2dpRoundsNegativeTiesAwayFromZero`.
+    func testRoundedDelta2dpRoundsTiesAwayFromZero() throws {
+        let cfg = try XCTUnwrap(Baselines.metricCfg["skin_temp"])
+        let s = Baselines.foldHistory(Array(repeating: 34.0, count: 14), cfg: cfg)
+        XCTAssertEqual(s.baseline, 34.0)
+        XCTAssertEqual(Baselines.roundedDelta2dp(33.875, state: s), -0.13)
+        XCTAssertEqual(Baselines.roundedDelta2dp(34.125, state: s), 0.13)
+    }
 }

@@ -3296,7 +3296,7 @@ final class IntelligenceEngine: ObservableObject {
     /// to match the imported/demo precision. APPROXIMATE.
     private static func recomputeSkinTempDev(_ nightly: Double?, _ base: BaselineState?) -> Double? {
         guard let v = nightly, let b = base, b.usable else { return nil }
-        return (Baselines.deviation(v, state: b).delta * 100.0).rounded() / 100.0
+        return Baselines.roundedDelta2dp(v, state: b)
     }
 
     /// The user's habitual midsleep (local time-of-day seconds), or nil under `habitualMinDays` of

@@ -2,6 +2,8 @@ package com.noop.ingest
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
+import com.noop.data.DailyMetric
 import org.junit.Test
 
 /**
@@ -136,7 +138,7 @@ class WhoopCsvImporterTest {
         )
         assertEquals(1, rows.size)
         // 91.58 °F → (91.58 − 32) × 5/9 = 33.1 °C — the same stored value a Celsius import produces.
-        assertEquals(33.1, rows.single().skinTempDevC!!, 1e-3)
+        assertEquals(33.1, rows.single().skinTempC!!, 1e-3)
     }
 
     /**
@@ -152,7 +154,7 @@ class WhoopCsvImporterTest {
             """
         )
         assertEquals(1, rows.size)
-        assertEquals(33.1, rows.single().skinTempDevC!!, 1e-3)
+        assertEquals(33.1, rows.single().skinTempC!!, 1e-3)
     }
 
     // --- #136: imported journal keys to the WAKE day, not the onset evening -------------------
@@ -265,5 +267,35 @@ class WhoopCsvImporterTest {
         assertEquals("2024-03-02", r.day)
         // Day Strain 12.5 is rescaled onto NOOP's 0–100 Effort axis (×100/21).
         assertEquals(12.5 * (100.0 / 21.0), r.strain!!, 1e-9)
+    }
+
+    // --- The export's absolute skin temperature is skinTempC, never the deviation ---------------------
+
+    private fun night(day: String, celsius: Double?, dev: Double? = null) =
+        DailyMetric(deviceId = "my-whoop", day = day, skinTempC = celsius, skinTempDevC = dev)
+
+    @Test
+    fun theDeviationIsMeasuredAgainstPriorNightsAndIsNeverTheAbsolute() {
+        val rows = WhoopCsvImporter.withSkinTempDeviations(
+            (1..10).map { night("2026-06-%02d".format(it), 33.5) } + night("2026-06-11", 34.0))
+        rows.forEach { assertTrue((it.skinTempDevC ?: 0.0) < 20.0) }
+        assertEquals(null, rows.first().skinTempDevC)
+        assertEquals(0.5, rows.last().skinTempDevC!!, 0.01)
+    }
+
+    @Test
+    fun aRowWithoutAnAbsoluteKeepsItsDeviation() {
+        val rows = WhoopCsvImporter.withSkinTempDeviations(listOf(night("2026-06-01", null, dev = -0.2)))
+        assertEquals(-0.2, rows.single().skinTempDevC!!, 1e-9)
+    }
+
+    @Test
+    fun theRepairMovesAnImportedAbsoluteOutOfTheDeviationColumnOnce() {
+        val imported = (1..10).map { night("2026-06-%02d".format(it), null, dev = 33.5) }
+        val changed = WhoopCsvImporter.skinTempRepair(imported)
+        assertEquals(10, changed.size)
+        changed.forEach { assertEquals(33.5, it.skinTempC!!, 1e-9); assertTrue((it.skinTempDevC ?: 0.0) < 20.0) }
+        // Running it again over the repaired rows changes nothing.
+        assertTrue(WhoopCsvImporter.skinTempRepair(changed).isEmpty())
     }
 }

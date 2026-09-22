@@ -36,4 +36,15 @@ class BaselinesSigmaDaytimeTest {
         assertNotEquals(Baselines.daytimeHRCfg, Baselines.restingHRCfg)
         assertNotEquals(Baselines.daytimeRMSSDCfg, Baselines.hrvCfg)
     }
+
+    /** The stored skin-temp deviation rounds ties AWAY from zero like Swift's Double.rounded(): a −0.125 °C
+     *  delta (an exact binary tie at 2 dp) stores −0.13, where Math.round would store −0.12. */
+    @Test
+    fun roundedDelta2dpRoundsNegativeTiesAwayFromZero() {
+        val s = Baselines.foldHistory(List(14) { 34.0 }, Baselines.metricCfg.getValue("skin_temp"))
+        assertEquals(34.0, s.baseline, 0.0)
+        assertEquals(-0.13, Baselines.roundedDelta2dp(33.875, s), 0.0)
+        assertEquals(0.13, Baselines.roundedDelta2dp(34.125, s), 0.0)
+        assertEquals(-0.12, Math.round(-0.125 * 100.0) / 100.0, 0.0)   // the divergence being pinned
+    }
 }

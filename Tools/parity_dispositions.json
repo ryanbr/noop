@@ -24,6 +24,14 @@
       "identity_sha256": "88a1bdfb13c227664f15d962fb6d41a5733fb4c2956e445e42c5e4d495bde0cb",
       "platform": "swift",
       "rationale": "Used only by the iOS HealthKitBridge write-back to hold a still-open night out of Apple Health; the Android Health Connect exporter does not call it (this PR is Swift-only)."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/ingest/WhoopCsvImporter.kt::repairAbsoluteSkinTempIfNeeded/4#1",
+      "identity_sha256": "479a15d4f55eb6de209bcaec93dd2cb09abfb67b81c6e810782647b92a416351",
+      "platform": "kotlin",
+      "rationale": "Twin of the Swift WhoopImporter.repairAbsoluteSkinTempIfNeeded, which lives in the app layer (Strand/Data/WhoopImporter.swift) outside the governed Swift roots, so the ledger cannot pair them."
     }
   ]
 }
