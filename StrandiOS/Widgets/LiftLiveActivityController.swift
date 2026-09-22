@@ -25,14 +25,14 @@ final class LiftLiveActivityController {
     private var waitingForForeground = false
     private var lastPush: Date = .distantPast
     private var lastSignature: String?
+    /// The state the banner is showing, so a heart-rate tick can push a copy of it without the app
+    /// building a whole presentation again (`updateHeartRate`).
+    private var lastState: LiftActivityAttributes.ContentState?
     /// Cached for the controller's lifetime — the same reasoning as `LiveActivityController`: this is
     /// consulted on every push and its value only changes via Settings.
     private let authInfo = ActivityAuthorizationInfo()
     /// Guards against two pushes both firing `Activity.request` before the first has returned.
     private var isStarting = false
-    /// Heart rate moves constantly; everything else does not. A change in HR alone is worth a push,
-    /// but not more often than this, or a session becomes one push per second.
-    private static let heartRateMinInterval: TimeInterval = 10
     /// How long iOS may keep showing the activity as fresh without a push. Generous, because a long
     /// rest legitimately produces no content change at all — the clock is ticking client-side.
     private static let staleAfter: TimeInterval = 15 * 60
@@ -109,7 +109,8 @@ final class LiftLiveActivityController {
         ].joined(separator: "|")
 
         let contentChanged = signature != lastSignature
-        let heartRateDue = Date().timeIntervalSince(lastPush) >= Self.heartRateMinInterval
+        let heartRateDue = LiftBannerPushPolicy.heartRateDue(
+            shown: lastState?.bpm, latest: state.bpm, sinceLastPush: Date().timeIntervalSince(lastPush))
         let content = ActivityContent(state: state,
                                       staleDate: Date().addingTimeInterval(Self.staleAfter))
 
@@ -118,6 +119,7 @@ final class LiftLiveActivityController {
             let lightsScreen = alert && !appOnScreen
             guard contentChanged || heartRateDue || lightsScreen else { return alert ? .appOnScreen : nil }
             lastSignature = signature
+            lastState = state
             lastPush = Date()
             if lightsScreen {
                 let stepAlert = AlertConfiguration(
@@ -152,6 +154,7 @@ final class LiftLiveActivityController {
                     content: content,
                     pushType: nil)
                 lastSignature = signature
+                lastState = state
                 lastPush = Date()
             } catch {
                 activity = nil
@@ -162,6 +165,23 @@ final class LiftLiveActivityController {
         }
     }
 
+    /// A new live heart rate, straight from the HR stream: the cheap path, called once a second.
+    ///
+    /// It never builds a presentation and never starts a banner — only a banner already on the Lock Screen
+    /// takes a heart-rate push, and only when `LiftBannerPushPolicy` says the number is worth one. Everything
+    /// else the banner shows comes from `update(state:alert:)`.
+    func updateHeartRate(_ bpm: Int?) {
+        guard let activity, let state = lastState, state.bpm != bpm else { return }
+        guard LiftBannerPushPolicy.heartRateDue(shown: state.bpm, latest: bpm,
+                                                sinceLastPush: Date().timeIntervalSince(lastPush)) else { return }
+        var next = state
+        next.bpm = bpm
+        lastState = next
+        lastPush = Date()
+        let content = ActivityContent(state: next, staleDate: Date().addingTimeInterval(Self.staleAfter))
+        Task { await activity.update(content) }
+    }
+
     func end() async {
         // End every lift activity, not just the cached handle — covers a straggler from a previous
         // app session that was never re-adopted, and any rare duplicate.
@@ -170,6 +190,7 @@ final class LiftLiveActivityController {
         }
         activity = nil
         lastSignature = nil
+        lastState = nil
         waitingForForeground = false
     }
 

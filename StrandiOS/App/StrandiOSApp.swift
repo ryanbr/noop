@@ -235,7 +235,10 @@ struct StrandiOSApp: App {
                         connected: model.live.connected && !liftSession.isActive && !model.live.backfilling,
                         effort: day?.strain.map { Int($0.rounded()) }
                     )
-                    pushLiftActivity()
+                    // The gym banner's own cheap path: no presentation is built here, and a heart rate moves
+                    // the banner only when `LiftBannerPushPolicy` says it is worth a push. Everything else
+                    // about the session pushes through `pushLiftActivity` below, carrying the current number.
+                    liftActivity.updateHeartRate(model.live.connected ? (model.bpm ?? model.live.heartRate) : nil)
                 }
                 // End the Live Activity the moment the link drops, even if no further HR tick arrives.
                 .onReceive(model.live.$connected) { isConnected in
