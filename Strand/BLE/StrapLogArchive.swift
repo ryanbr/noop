@@ -92,18 +92,6 @@ final class StrapLogArchive: @unchecked Sendable {
         rendered = nil
     }
 
-    /// Delete every file; the next line begins a new segment of this run.
-    func clear() {
-        lock.lock(); defer { lock.unlock() }
-        try? handle?.close()
-        handle = nil
-        for file in files() { try? FileManager.default.removeItem(at: file.url) }
-        segment += 1
-        segmentSize = 0
-        openLines = []
-        rendered = nil
-    }
-
     // MARK: - Files
 
     /// One file: a segment of a run, or the carried-over ring (`run` nil).

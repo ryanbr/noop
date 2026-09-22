@@ -89,18 +89,6 @@ class StrapLogArchive(
         }
     }
 
-    /** Delete every file; the next line begins a new segment of this run. */
-    fun clear() = synchronized(lock) {
-        runCatching { out?.close() }
-        out = null
-        for (f in files()) f.file.delete()
-        segment += 1
-        segmentSize = 0
-        openLines.clear()
-        closedLines.clear()
-        previousLines = null
-    }
-
     // ── Files ───────────────────────────────────────────────────────────────────────────────────────────
 
     /** One file: a segment of a run, or the carried-over ring ([run] null). */

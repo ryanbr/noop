@@ -117,19 +117,6 @@ class StrapLogArchiveTest {
         assertFalse(text.contains("must not be written twice"))
     }
 
-    @Test
-    fun clearEmptiesTheLogAndTheRunCarriesOn() {
-        val dir = folder.newFolder()
-        val archive = process(dir, 0)
-        archive.append("before")
-        process(dir, -10).append("an earlier run")
-        archive.clear()
-        assertEquals("", archive.exportText())
-        archive.append("after")
-        assertEquals("after", archive.exportText())
-        assertEquals(1, dir.listFiles()!!.size)
-    }
-
     private companion object {
         /** Swift oracle output, scenario(budget: 4096). */
         val ORACLE_KEPT = """===== previous app session, 1 line(s), rolled at 2026-09-20T10:00:00Z (this launch) =====

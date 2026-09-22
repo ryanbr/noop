@@ -153,15 +153,4 @@ final class StrapLogArchiveTests: XCTestCase {
             "",
         ]).joined(separator: "\n"))
     }
-
-    func testClearEmptiesTheLogAndTheRunCarriesOn() {
-        let archive = process(at: 0)
-        archive.append("before")
-        process(at: -10).append("an earlier run")
-        archive.clear()
-        XCTAssertEqual(archive.exportText(), "")
-        archive.append("after")
-        XCTAssertEqual(archive.exportText(), "after")
-        XCTAssertEqual(logFiles().count, 1)
-    }
 }
