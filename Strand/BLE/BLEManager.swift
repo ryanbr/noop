@@ -3124,6 +3124,23 @@ public final class BLEManager: NSObject, ObservableObject {
         chunks > 0 || rows > 0 || deepPackets > 0
     }
 
+    /// #2384: the `HR notify:` line, so a strap log says whether the standard 0x2A37 profile is
+    /// delivering anything at all, and whether what it delivered was usable.
+    ///
+    /// Extracted from the emitter below it, unchanged, because Android had no twin of this line and is
+    /// getting one. A reporter's 5/MG banked `live hr=0 rr=0` on ten consecutive links while the
+    /// historical offload ran perfectly, and an Android log could not distinguish the strap never
+    /// notifying on 0x2A37 from it notifying with a value the 30...220 gate below drops without a word.
+    /// Those call for opposite fixes. Pinning the wording here means the answer reads the same whichever
+    /// platform the log came from.
+    ///
+    /// The range is the value gate's own: `ignored` means the reading reached neither the UI nor the
+    /// store. Twin of the Kotlin `WhoopBleClient.standardHrNotifyLine`.
+    nonisolated static func standardHrNotifyLine(hr: Int, rrCount: Int) -> String {
+        let plausibility = (30...220).contains(hr) ? "" : " ignored"
+        return "HR notify: \(hr) bpm\(plausibility), rr=\(rrCount)"
+    }
+
     /// #2387: the outcome token on a `session ended` line, so a timeout says whether it achieved anything.
     ///
     /// A WHOOP 4.0 routinely ends a PRODUCTIVE offload on the idle timeout, because that firmware finishes
@@ -5470,8 +5487,7 @@ public final class BLEManager: NSObject, ObservableObject {
         let now = Date()
         if lastStandardHRLogAt.map({ now.timeIntervalSince($0) >= 30 }) ?? true {
             lastStandardHRLogAt = now
-            let plausibility = (30...220).contains(m.hr) ? "" : " ignored"
-            log("HR notify: \(m.hr) bpm\(plausibility), rr=\(m.rr.count)")
+            log(BLEManager.standardHrNotifyLine(hr: m.hr, rrCount: m.rr.count))
         }
         // R-R: the standard profile is the RELIABLE source (the custom REALTIME_DATA stream
         // usually reports rr_count=0), so always surface intervals when present. setRRIntervals also
