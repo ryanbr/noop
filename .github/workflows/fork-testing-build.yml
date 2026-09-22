@@ -152,8 +152,11 @@ jobs:
       - name: Build NOOP.app (macOS, unsigned, universal)
         # #51: force a true universal (x86_64 + arm64) build — 'platform=macOS' on an Apple-Silicon runner
         # thins to arm64-only. Mirrors the release workflow so testing builds match what ships.
+        # #2393: Release, for the reasons spelled out in fork-release.yml. A testing build that is not
+        # built the way the release is cannot be used to judge how the release performs, which is the one
+        # thing a testing build is for.
         run: >-
-          xcodebuild -scheme Strand -configuration Debug
+          xcodebuild -scheme Strand -configuration Release
           -destination 'generic/platform=macOS' ARCHS="x86_64 arm64" ONLY_ACTIVE_ARCH=NO
           -derivedDataPath build/dd
           CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""

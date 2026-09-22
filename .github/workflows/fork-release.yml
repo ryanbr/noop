@@ -210,12 +210,23 @@ jobs:
         run: xcodegen generate
       - name: Build NOOP.app (macOS, unsigned, universal)
         # #51: 'platform=macOS' on an Apple-Silicon runner resolves to the host arch and thins the binary to
-        # arm64-only (project.yml's ONLY_ACTIVE_ARCH: NO is set only under configs.Release, so the Debug build
-        # inherits the default YES). That shipped an arm64-only app that won't launch on Intel Macs. Force a
-        # true universal build with the generic destination + explicit ARCHS/ONLY_ACTIVE_ARCH; these
-        # command-line settings override the config, so it stays Debug (unchanged shipping behaviour).
+        # arm64-only. That shipped an arm64-only app that won't launch on Intel Macs. Force a true universal
+        # build with the generic destination + explicit ARCHS/ONLY_ACTIVE_ARCH, which override whatever the
+        # configuration says and therefore keep holding after the switch below.
+        #
+        # #2393: Release, matching the iOS leg. macOS shipped Debug for no reason anyone chose — #51 was
+        # about architecture and said so, and "unchanged shipping behaviour" there meant that PR was not
+        # also changing the configuration. The artefact showed it: a 120 KB stub plus a 195 MB
+        # `.debug.dylib` and a `__preview.dylib`, against 53 MB for the same commit built Release. A
+        # reporter measured the shipped build costing a third to half a CPU core at idle, and unoptimised
+        # SwiftUI compounds a hot path that already ran every frame.
+        #
+        # What Release removes beyond the optimisation: `#if DEBUG` code, which here is previews, sample
+        # data and the `--demo-sync` screenshot harness (its own doc already says it is stripped from every
+        # Release build). The iOS artefact has shipped without all of that since it went Release, so this
+        # brings macOS into line rather than into new territory. Use a local Debug build for the harness.
         run: >-
-          xcodebuild -scheme Strand -configuration Debug
+          xcodebuild -scheme Strand -configuration Release
           -destination 'generic/platform=macOS' ARCHS="x86_64 arm64" ONLY_ACTIVE_ARCH=NO
           -derivedDataPath build/dd
           CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
