@@ -691,52 +691,32 @@ public final class LiveState: ObservableObject {
         lastFrameAtUnix = nil             // #987: a stale "last frame" freshness must not outlive it either
         ouraWearState = nil               // a stale worn/charging badge must not outlive the link either
         ouraBatteryPct = nil              // nor a stale ring charge (#2075)
-        // Perf: flush the durable log tail on disconnect (mirroring is batched in `append`), so a completed
-        // session's tail is always persisted for a later scheduled export despite the per-line throttle.
-        Self.persistTail(log)
-        logsSincePersist = 0
     }
 
     /// Cap on the in-app strap-log ring buffer. Raised from the old ~1h (200 lines) to retain a rolling
-    /// ~24h of activity (#510 — maddognik's protocol RE wants a full day to correlate against): a busy
-    /// live session emits a few lines a minute, so 5,000 lines comfortably spans a day. Each line is a
-    /// short redacted string (~100 bytes), so the worst-case buffer is well under ~1 MB — bounded, never
-    /// unbounded. Drives the Live log card AND the shareable `exportableLogText()`.
+    /// ~24h of activity (#510 — maddognik's protocol RE wants a full day to correlate against), when a busy
+    /// live session emitted a few lines a minute. Since the once-a-second standard-HR transport line (#1767)
+    /// a streaming strap fills it in about 50 minutes, so exports read the whole log from disk (`archive`);
+    /// this buffer drives the Live log card and the Test Centre readouts. Each line is a short redacted string
+    /// (~100 bytes), so the worst-case buffer is well under ~1 MB — bounded, never unbounded.
     static let maxLogLines = 5_000
 
-    /// Perf: the durable UserDefaults tail (`persistTail`) only feeds a scheduled export that fires hours
-    /// later, so it needn't be current to the last line. Mirroring the whole tail on EVERY append was a
-    /// hot-path cost that grew as more diagnostics (offload/backfill/#700/#714/#720) funnel through this one
-    /// sink. Persist in batches of `persistEveryNLines` instead, and always flush on disconnect
-    /// (`clearBiometrics`) so a finished session stays durable; a few unmirrored lines on an abrupt kill is
-    /// harmless for a debug tail. iOS-only — Android's `logBuffer` is an O(1) `ArrayDeque` with no per-line
-    /// persist, already correct.
-    private static let persistEveryNLines = 32
-    private var logsSincePersist = 0
     /// Amortize the ring trim: let the buffer overrun by this slack, then trim back to the cap in one batch
     /// — turning an O(n) `Array.removeFirst` on every line at steady state into one per `trimSlack` lines.
     /// Still hard-bounded (never exceeds `maxLogLines + trimSlack`).
     private static let trimSlack = 256
 
     public func append(log line: String, domain: TestDomain? = nil) {
-        // FIRST append of this process: rescue the previous process's durable tail into the generation ring
-        // before this process's own `persistTail` overwrites it (see `rollLogGenerationsIfNeeded`). Latched,
-        // so this is one Bool test per line after the first.
-        Self.rollLogGenerationsIfNeeded()
         // Tag inert when nil (today's behaviour, byte-identical). When tagged, prefix a compact,
         // parseable marker the export filters on. Redaction is STILL the only scrub point
         // (redactPii below); tagging happens BEFORE redaction so the scrub covers the whole line.
         let tagged = domain.map { "[\($0.id)] " + line } ?? line
-        log.append(Self.redactPii(tagged))
+        let safe = Self.redactPii(tagged)
+        log.append(safe)
         // Batched trim: overrun by `trimSlack`, then trim back to the cap in one shot (amortized O(1)/line).
         if log.count > Self.maxLogLines + Self.trimSlack { log.removeFirst(log.count - Self.maxLogLines) }
-        // Batched durable-tail mirror: persist every `persistEveryNLines` lines, not on every line;
-        // `clearBiometrics()` flushes on disconnect so a completed session is always fully mirrored.
-        logsSincePersist += 1
-        if logsSincePersist >= Self.persistEveryNLines {
-            logsSincePersist = 0
-            Self.persistTail(log)
-        }
+        // Onto disk as it is logged, so a restart loses nothing and an export carries the runs before it.
+        Self.archive.append(safe)
         // #990: fold the Backfiller's per-session "session persisted N rows" summary into the persisted
         // ALL-TIME drained-rows tally, right here at the single log sink (no new BLE seam). The summary
         // is emitted unconditionally whenever rows landed (#150), so the cumulative counter accrues on
@@ -755,120 +735,34 @@ public final class LiveState: ObservableObject {
         return log.filter { $0.hasPrefix(prefix) }
     }
 
-    // MARK: - Durable log tail (#510, scheduled debug export)
+    // MARK: - The log on disk
 
-    /// The in-memory `log` lives only for the life of the process, so a scheduled debug auto-export that
-    /// fires hours after the last live session (the Apple analogue of Android's `StrapLogBuffer`) would
-    /// otherwise find nothing to write. We mirror the rolling log to a single UserDefaults key so the
-    /// scheduled export can read the last day's lines even with no live BLE session open. Small and
-    /// bounded: capped to the tail (`tailLimit`, well under `maxLogLines`) of short redacted strings, so
-    /// the persisted blob stays a few hundred KB at most. On-device only; nothing is sent anywhere.
-    private static let tailKey = "strapLog.tail"
-    /// How many recent lines the durable tail retains — a sensible day's worth for a scheduled export,
-    /// smaller than the live `maxLogLines` ring so the persisted copy stays modest.
-    static let tailLimit = 2_000
+    /// Every line of every run, kept across restarts within a fixed size — see `StrapLogArchive`. Opened at the
+    /// first line or export of the process; that first use also carries over the lines the UserDefaults ring
+    /// kept before the log moved to disk, then drops the ring's keys.
+    nonisolated static let archive: StrapLogArchive = {
+        let fm = FileManager.default
+        let directory = (try? StorePaths.strapLogDirectory())
+            ?? fm.temporaryDirectory.appendingPathComponent("strap-log", isDirectory: true)
+        try? fm.createDirectory(at: directory, withIntermediateDirectories: true)
+        let archive = StrapLogArchive(directory: directory)
+        let defaults = UserDefaults.standard
+        archive.importLegacy(StrapLogArchive.legacyRingLines(
+            generations: (defaults.array(forKey: legacyGenerationsKey) as? [[String]]) ?? [],
+            tail: (defaults.array(forKey: legacyTailKey) as? [String]) ?? [],
+            now: Date()))
+        defaults.removeObject(forKey: legacyGenerationsKey)
+        defaults.removeObject(forKey: legacyTailKey)
+        return archive
+    }()
 
-    /// Mirror the most recent `tailLimit` lines to UserDefaults (called from `append`). Synchronous and
-    /// cheap (a single small array write); UserDefaults coalesces the disk flush. `nonisolated` (touches
-    /// only UserDefaults, no actor state) so the background/static export path can read the twin getter.
-    nonisolated private static func persistTail(_ lines: [String]) {
-        let tail = lines.count > tailLimit ? Array(lines.suffix(tailLimit)) : lines
-        UserDefaults.standard.set(tail, forKey: tailKey)
-    }
+    /// Where the ring kept its runs (#510, #1263), read once to carry them over.
+    static let legacyTailKey = "strapLog.tail"
+    static let legacyGenerationsKey = "strapLog.generations"
 
-    /// The persisted log tail, newest-last — what a scheduled export reads when no live session is open.
-    /// Empty if nothing has ever been logged on this device. `nonisolated` so a background task with no
-    /// main-actor instance can read it.
-    nonisolated public static func persistedLogTail() -> [String] {
-        (UserDefaults.standard.array(forKey: tailKey) as? [String]) ?? []
-    }
-
-    // MARK: - Previous-process log generations (the "why did the app stop" record)
-
-    /// WHY THIS EXISTS. The in-memory `log` lives for the life of the PROCESS, and `exportableLogText()`
-    /// renders exactly that — so an export taken after a restart begins at the restart and the lines that
-    /// would explain the restart are gone. Worse, the single durable slot did not survive either: a fresh
-    /// process starts logging and, 32 lines in, `persistTail` OVERWRITES `strapLog.tail` with the new
-    /// (short) array, destroying the previous session's tail before anyone can read it.
-    ///
-    /// That is not hypothetical — it has now cost THREE consecutive overnight Oura captures, each time the
-    /// same way: the app restarted after wake, and the whole night (connection drops, drain timings, the
-    /// `0x6A` lines) was gone by the time the bundle was exported. An unexplained restart is exactly when
-    /// the previous lines matter most.
-    ///
-    /// So: at the first append of each process, the surviving tail is ROLLED into a small ring of previous
-    /// generations (and the live slot cleared, so a generation is never double-counted). Exports render the
-    /// generations oldest-first ahead of the current process, which keeps `report.txt` in chronological
-    /// order — the log-parsing tools read it unchanged, they simply get more of the night.
-    private static let generationsKey = "strapLog.generations"
-    /// How many previous processes to keep. Three covers the observed failure shape (a wake-time restart,
-    /// occasionally two) without turning a debug tail into a database.
-    static let maxLogGenerations = 3
-    /// Per-generation line cap — smaller than the live `tailLimit` because what explains a stop is the END
-    /// of the previous session. 3 × 1,000 short redacted lines ≈ 300 KB of UserDefaults, bounded.
-    static let generationTailLimit = 1_000
-    /// Once-per-process latch: the roll must happen BEFORE the first `persistTail` of this process, and
-    /// exactly once, or a second roll would push this process's own partial tail in as a "previous" one.
-    nonisolated(unsafe) private static var didRollGenerations = false
-
-    /// Roll the surviving durable tail into the generation ring. Idempotent per process, and a NO-OP when
-    /// the tail is empty — so a launch that logs nothing (or a run right after a roll) never pushes an
-    /// empty generation and never evicts a real one.
-    nonisolated static func rollLogGenerationsIfNeeded(now: Date = Date()) {
-        if didRollGenerations { return }
-        didRollGenerations = true
-        let tail = persistedLogTail()
-        guard !tail.isEmpty else { return }
-        let iso = ISO8601DateFormatter()
-        iso.timeZone = TimeZone(identifier: "UTC")
-        // The stamp is when the roll happened (i.e. this launch), NOT when those lines were written — the
-        // lines carry their own clock. Said plainly in the text so nobody reads it as the session's end.
-        let clipped = tail.count > generationTailLimit ? Array(tail.suffix(generationTailLimit)) : tail
-        // Say the KEPT count, and say so when the head was dropped. The header used to report only
-        // `tail.count` (the pre-clip total), so a generation that had lost its first 1,000 lines still
-        // announced "2,000 line(s)" and read as a complete session — a reader (or a log tool) then
-        // measures the missing head as silence. Both numbers are printed: the pre-clip total is what
-        // tells anyone how much is gone.
-        let count = clipped.count == tail.count
-            ? "\(tail.count) line(s)"
-            : "\(clipped.count) of \(tail.count) line(s), head clipped"
-        let header = "===== previous app session, \(count), rolled at "
-            + iso.string(from: now) + " (this launch) ====="
-        var gens = persistedLogGenerations()
-        gens.append([header] + clipped)
-        if gens.count > maxLogGenerations { gens.removeFirst(gens.count - maxLogGenerations) }
-        UserDefaults.standard.set(gens, forKey: generationsKey)
-        // Clear the live slot: this tail now belongs to a generation, and leaving it would duplicate it in
-        // every export until 32 fresh lines happen to overwrite it.
-        UserDefaults.standard.set([String](), forKey: tailKey)
-    }
-
-    /// The stored generations, oldest-first. Each element's first line is its own separator header.
-    nonisolated static func persistedLogGenerations() -> [[String]] {
-        (UserDefaults.standard.array(forKey: generationsKey) as? [[String]]) ?? []
-    }
-
-    /// The previous processes' lines, oldest-first, ready to sit AHEAD of the current session in an export.
-    /// Empty string when there are none, so a caller can concatenate unconditionally.
-    nonisolated static func previousSessionsText() -> String {
-        let gens = persistedLogGenerations()
-        guard !gens.isEmpty else { return "" }
-        return gens.map { $0.joined(separator: "\n") }.joined(separator: "\n") + "\n"
-            + "===== current app session =====\n"
-    }
-
-    /// Drop every stored generation (Settings → the same place the log is cleared from).
-    nonisolated static func clearLogGenerations() {
-        UserDefaults.standard.removeObject(forKey: generationsKey)
-    }
-
-    /// Tests only: clear the once-per-process latch so a test can stand in for a fresh app launch.
-    nonisolated static func resetGenerationRollLatchForTesting() { didRollGenerations = false }
-
-    /// A shareable strap-log body sourced from the DURABLE tail, for a background / scheduled export that
-    /// runs with no live `LiveState` instance. Mirrors `exportableLogText()`'s header so a scheduled drop
-    /// reads the same as a manual share; falls back to the live `log` is not available here by design
-    /// (this is a `static` so a background task needs no main-actor instance).
+    /// A shareable strap-log body read from disk, for a background / scheduled export that runs with no live
+    /// `LiveState` instance. Mirrors `exportableLogText()`'s header so a scheduled drop reads the same as a
+    /// manual share (this is a `static` so a background task needs no main-actor instance).
     nonisolated public static func scheduledExportText(extraHeaderLines: [String] = []) -> String {
         let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
         #if os(iOS)
@@ -885,9 +779,9 @@ public final class LiveState: ObservableObject {
             header += extraHeaderLines.map { Self.redactPii($0) }.joined(separator: "\n") + "\n"
         }
         header += String(repeating: "-", count: 40) + "\n"
-        // Same generations-then-current shape as `exportableLogText()`: a scheduled drop that fires after a
-        // restart must not report only the (possibly empty) current tail.
-        return header + previousSessionsText() + persistedLogTail().joined(separator: "\n")
+        // Same earlier-runs-then-current shape as `exportableLogText()`: a scheduled drop that fires after a
+        // restart reports the runs before it, not only the (possibly empty) current one.
+        return header + archive.exportText()
     }
 
     /// Scrub personal identifiers from a strap-log line so it's safe to share publicly (#445): BLE MAC
@@ -1091,12 +985,6 @@ public final class LiveState: ObservableObject {
     /// session log. Shared so BOTH the Live screen's log card AND a macOS Settings shortcut (#507 — a 4.0
     /// owner couldn't find the log on Mac) build the SAME text. Call on the main thread (button taps).
     func exportableLogText(extraHeaderLines: [String] = []) -> String {
-        // #1263: roll here too, not only in `append`. A restart's export is the whole point of the
-        // generation ring, and a user can open the app and tap Report BEFORE this process logs its first
-        // line — at which point the previous session is still in `tailKey` (unrolled) and the in-memory
-        // `log` is empty, so `previousSessionsText()` below would miss it. The roll is latched + a no-op on
-        // an empty tail, so this is harmless when `append` already ran.
-        Self.rollLogGenerationsIfNeeded()
         let v = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
         #if os(iOS)
         let osName = "iOS"
@@ -1120,9 +1008,11 @@ public final class LiveState: ObservableObject {
             header += extraHeaderLines.map { Self.redactPii($0) }.joined(separator: "\n") + "\n"
         }
         header += String(repeating: "-", count: 40) + "\n"
-        // Previous processes first, so the body stays in chronological order and the log-parsing tools read
-        // it unchanged — they just get the night that a wake-time restart used to erase.
-        return header + Self.previousSessionsText() + log.joined(separator: "\n")
+        // Earlier runs first, so the body stays in chronological order and the log-parsing tools read it
+        // unchanged; then this whole run, from disk — not only the newest `maxLogLines` the screen keeps.
+        // An export before this process logs anything (Report tapped right after a restart) still carries
+        // the run before it (#1263).
+        return header + Self.archive.exportText()
     }
 }
 

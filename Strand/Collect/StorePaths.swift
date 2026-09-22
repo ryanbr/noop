@@ -50,6 +50,28 @@ enum StorePaths {
         return dbURL.path
     }
 
+    /// `<AppSupport>/OpenWhoop/strap-log/`, where the strap log keeps its runs (`StrapLogArchive`), beside the
+    /// store and inside the same macOS container. On iOS it takes the store's protection class, so lines logged
+    /// in the background while the phone is locked can be written; and it is left out of backups, being a
+    /// debugging aid for this device.
+    static func strapLogDirectory() throws -> URL {
+        let fm = FileManager.default
+        let appSupport = try fm.url(for: .applicationSupportDirectory, in: .userDomainMask,
+                                    appropriateFor: nil, create: true)
+        var dir = macOSProductionContainerAppSupport(defaultingTo: appSupport)
+            .appendingPathComponent("OpenWhoop", isDirectory: true)
+            .appendingPathComponent("strap-log", isDirectory: true)
+        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        #if os(iOS)
+        try? fm.setAttributes([.protectionKey: FileProtectionType.completeUntilFirstUserAuthentication],
+                              ofItemAtPath: dir.path)
+        #endif
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        try? dir.setResourceValues(values)
+        return dir
+    }
+
     /// On signed/production macOS builds the app runs sandboxed, so the real
     /// on-disk location is inside `~/Library/Containers/<bundle-id>/Data`. We pin
     /// the store there explicitly so the path is stable regardless of whether the
