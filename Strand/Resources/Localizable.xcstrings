@@ -164629,6 +164629,64 @@
         }
       }
     },
+    "This export contains raw biometric frames, strap console text, and the connection log. Identifiers are redacted automatically. Share it only if you are comfortable with that.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieser Export enthält biometrische Rohdaten, Konsolentext des Armbands und das Verbindungsprotokoll. Kennungen werden automatisch geschwärzt. Teile ihn nur, wenn du damit einverstanden bist."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta exportación contiene tramas biométricas sin procesar, texto de la consola de la pulsera y el registro de conexión. Los identificadores se ocultan automáticamente. Compártela solo si te sientes cómodo haciéndolo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cette exportation contient des trames biométriques brutes, le texte de la console du bracelet et le journal de connexion. Les identifiants sont automatiquement masqués. Ne la partagez que si cela vous convient."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Questa esportazione contiene frame biometrici grezzi, testo della console del bracciale e il registro di connessione. Gli identificatori vengono oscurati automaticamente. Condividila solo se ti senti a tuo agio."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta exportação contém tramas biométricas em bruto, texto da consola da bracelete e o registo de ligação. Os identificadores são ocultados automaticamente. Partilha-a apenas se estiveres confortável com isso."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Этот экспорт содержит необработанные биометрические кадры, текст консоли браслета и журнал подключения. Идентификаторы автоматически скрываются. Делитесь им, только если вам это комфортно."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此导出包含原始生物识别数据帧、手环控制台文本和连接日志。标识符会自动隐去。请仅在你对此感到放心时分享。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "此匯出包含原始生物辨識資料幀、手環主控台文字和連線記錄。識別碼會自動隱去。請僅在你對此感到放心時分享。"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ten eksport zawiera surowe ramki danych biometrycznych, tekst konsoli opaski i dziennik połączenia. Identyfikatory są automatycznie ukrywane. Udostępnij go tylko, jeśli czujesz się z tym komfortowo."
+          }
+        }
+      }
+    },
     "This is exactly what your report will contain. Nothing leaves %@ until you tap Share.": {
       "localizations": {
         "de": {

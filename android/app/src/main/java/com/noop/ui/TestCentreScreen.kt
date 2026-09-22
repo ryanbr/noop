@@ -111,6 +111,7 @@ fun TestCentreScreen(vm: AppViewModel, onOpenGroundTruthCollector: () -> Unit = 
     val ecgVariant by vm.ble.whoop5VariantFlow.collectAsStateWithLifecycle()
     var rawCaptureBusy by remember { mutableStateOf(false) }
     var rawAndLogBusy by remember { mutableStateOf(false) }
+    var showRawExportConfirm by remember { mutableStateOf(false) }
 
     // A report awaiting the mandatory review-before-share gate (spec section 12). Non-null shows the
     // review dialog; confirming runs TestReportFlow.run.
@@ -361,21 +362,43 @@ fun TestCentreScreen(vm: AppViewModel, onOpenGroundTruthCollector: () -> Unit = 
                         kind = NoopButtonKind.Secondary,
                         fullWidth = true,
                         enabled = !rawAndLogBusy,
-                        onClick = {
-                            rawAndLogBusy = true
-                            scope.launch {
-                                try {
-                                    LogExport.shareRawAndLog(
-                                        context, vm.ble.exportLogText(), live.whoop5Detected, live.encryptedBond,
-                                    )
-                                } finally {
-                                    rawAndLogBusy = false
-                                }
-                            }
-                        },
+                        onClick = { showRawExportConfirm = true },
                     )
                 }
             }
+        }
+
+        if (showRawExportConfirm) {
+            AlertDialog(
+                onDismissRequest = { showRawExportConfirm = false },
+                title = { Text(stringResource(R.string.l10n_test_centre_screen_review_before_sharing_d7050383)) },
+                text = { Text(stringResource(R.string.raw_diag_export_review_body)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showRawExportConfirm = false
+                        rawAndLogBusy = true
+                        scope.launch {
+                            try {
+                                LogExport.shareRawAndLog(
+                                    context,
+                                    vm.ble.exportLogText(),
+                                    live.whoop5Detected,
+                                    live.encryptedBond,
+                                )
+                            } finally {
+                                rawAndLogBusy = false
+                            }
+                        }
+                    }) {
+                        Text(stringResource(R.string.l10n_test_centre_screen_export_f3e4fadb))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showRawExportConfirm = false }) {
+                        Text(stringResource(R.string.l10n_test_centre_screen_cancel_77dfd213))
+                    }
+                },
+            )
         }
 
         // --- Section 3: Export and auto-export ---
