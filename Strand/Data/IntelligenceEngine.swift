@@ -647,8 +647,7 @@ final class IntelligenceEngine: ObservableObject {
         return !rows.isEmpty
     }
 
-    /// UserDefaults flag guarding the one-shot #313 full-history Effort rescore (below). Set once the
-    /// pass completes so it never re-runs.
+    /// Completion flag for the shared full-history Effort and sleep-wear repair pass.
     static let effortRescoreFlagKey = "intelligence.effortRescore.v313.done"
 
     /// One-shot, on-upgrade FULL-history Effort rescore (#313 PART B). The Effort hero gauge + numbers
@@ -662,25 +661,33 @@ final class IntelligenceEngine: ObservableObject {
     /// `analyzeRecent` once with the `maxDays` cap lifted to the full history, then persist a flag so it
     /// runs exactly once. IMPORTED rows are never rewritten here (the engine only ever writes under the
     /// "-noop" computed source) , those are handled by re-import. A day already on 0–100 is recomputed
-    /// from the same raw HR and lands on 0–100 again: UNCHANGED axis (verified by test).
+    /// from the same raw HR and lands on 0–100 again: UNCHANGED axis (verified by test). This entry point
+    /// now shares a pass with sleep-wear repair; cached-only days are preserved in both repairs.
     func runEffortRescoreIfNeeded(historyDays: Int = 4000) async {
-        guard !UserDefaults.standard.bool(forKey: Self.effortRescoreFlagKey) else { return }
-        await analyzeRecent(maxDays: historyDays)
-        // Only mark done if the pass actually completed (wasn't skipped because another tick held the
-        // `computing` lock). `computing` is false here once analyzeRecent's `defer` has run; a skipped
-        // call returns with `note` unset by it. Use the lock state: if a concurrent run was in progress
-        // the flag stays unset so the next launch retries , cheap, and correctness over a one-time cost.
-        if !computing { UserDefaults.standard.set(true, forKey: Self.effortRescoreFlagKey) }
+        await runHistoryRepairIfNeeded(historyDays: historyDays)
     }
 
     /// Upgrade repair for nights rejected by an unmatched WRIST_OFF, including history older than
     /// the normal 21-day window. Reuses the full-history scoring path, including edited/dismissed
-    /// sleep protection and dependent daily metrics. Pending survives a busy, failed or killed pass.
+    /// sleep protection and dependent daily metrics. Both flags describe this shared pass: either
+    /// pending flag triggers one run, and both are set only after every required write succeeds.
+    /// Cached-only days are preserved, changing the old Effort-only repair from broad-window writes to
+    /// writes only for days that were recomputed.
     static let sleepWearRescoreFlagKey = "intelligence.sleepWearRescore.v1.done"
     private var sleepWearRescoreRunning = false
 
+    static func historyRepairIsPending(effortDone: Bool, sleepWearDone: Bool) -> Bool {
+        !effortDone || !sleepWearDone
+    }
+
     func runSleepWearRescoreIfNeeded(historyDays: Int = 4000) async {
-        guard !UserDefaults.standard.bool(forKey: Self.sleepWearRescoreFlagKey),
+        await runHistoryRepairIfNeeded(historyDays: historyDays)
+    }
+
+    private func runHistoryRepairIfNeeded(historyDays: Int) async {
+        guard Self.historyRepairIsPending(
+                  effortDone: UserDefaults.standard.bool(forKey: Self.effortRescoreFlagKey),
+                  sleepWearDone: UserDefaults.standard.bool(forKey: Self.sleepWearRescoreFlagKey)),
               !sleepWearRescoreRunning, !computing, !Task.isCancelled,
               !RescoreBackgroundScheduler.isBackgrounded else { return }
         // Launch and scene activation can overlap while the store handle is being awaited.
@@ -688,6 +695,7 @@ final class IntelligenceEngine: ObservableObject {
         defer { sleepWearRescoreRunning = false }
         await analyzeRecent(maxDays: historyDays, triggerLabel: "sleep-wear-history-repair",
                             preserveUnscoredHistory: true) {
+            UserDefaults.standard.set(true, forKey: Self.effortRescoreFlagKey)
             UserDefaults.standard.set(true, forKey: Self.sleepWearRescoreFlagKey)
         }
     }
@@ -2543,21 +2551,25 @@ final class IntelligenceEngine: ObservableObject {
         do {
             // Repair only the days actually recomputed. A full-history repair must not erase
             // older cached scores/provenance whose raw inputs are no longer retained.
+            let dailiesByDay = Dictionary(grouping: persistedDailies, by: \.day)
+            let restPointsByDay = Dictionary(grouping: restPoints, by: \.day)
+            let provenanceByDay = Dictionary(grouping: provenanceByCell.values, by: \.day)
+            let markerPointsByDay = Dictionary(grouping: markerPoints, by: { $0.point.day })
             let windows = preserveUnscoredHistory
-                ? Set(persistedDailies.map { $0.day }).sorted().map { ($0, $0) }
+                ? dailiesByDay.keys.sorted().map { ($0, $0) }
                 : [(oldestDay, newestDay)]
             for (from, to) in windows {
                 try await store.persistComputedScores(
                     dailyMetrics: preserveUnscoredHistory
-                        ? persistedDailies.filter { $0.day >= from && $0.day <= to } : persistedDailies,
+                        ? dailiesByDay[from, default: []] : persistedDailies,
                     metricPoints: preserveUnscoredHistory
-                        ? restPoints.filter { $0.day >= from && $0.day <= to } : restPoints,
+                        ? restPointsByDay[from, default: []] : restPoints,
                     provenance: preserveUnscoredHistory
-                        ? provenanceByCell.values.filter { $0.day >= from && $0.day <= to } : Array(provenanceByCell.values),
+                        ? provenanceByDay[from, default: []] : Array(provenanceByCell.values),
                     deviceId: computedId, from: from, to: to,
                     replaceMetricKeys: markerKeys,
                     additionalMetricPoints: preserveUnscoredHistory
-                        ? markerPoints.filter { $0.point.day >= from && $0.point.day <= to } : markerPoints,
+                        ? markerPointsByDay[from, default: []] : markerPoints,
                     replaceMetricSourceIds: markerSources)
             }
         } catch {

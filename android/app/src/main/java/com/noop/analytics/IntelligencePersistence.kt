@@ -8,6 +8,9 @@ import com.noop.data.WhoopRepository
 
 /** Persistence-only helpers kept out of the already large scoring orchestrator. */
 internal object IntelligencePersistence {
+    fun historyRepairIsPending(effortDone: Boolean, sleepWearDone: Boolean): Boolean =
+        !effortDone || !sleepWearDone
+
     data class LegacyScoreSnapshot(
         val avgHrv: Double,
         val recovery: Double?,
@@ -42,13 +45,17 @@ internal object IntelligencePersistence {
         repo.replaceComputedScoreWindow(this)
 
     /** Per-day repair writes leave older, unscorable cached days and their provenance intact. */
-    fun byScoredDay(window: ComputedWindow): List<ComputedWindow> =
-        window.dailies.map { it.day }.distinct().sorted().map { day ->
+    fun byScoredDay(window: ComputedWindow): List<ComputedWindow> {
+        val dailiesByDay = window.dailies.groupBy { it.day }
+        val metricsByDay = window.metricRows.groupBy { it.day }
+        val provenanceByDay = window.provenance.groupBy { it.day }
+        return dailiesByDay.keys.sorted().map { day ->
             window.copy(from = day, to = day,
-                dailies = window.dailies.filter { it.day == day },
-                metricRows = window.metricRows.filter { it.day == day },
-                provenance = window.provenance.filter { it.day == day })
+                dailies = dailiesByDay.getValue(day),
+                metricRows = metricsByDay[day].orEmpty(),
+                provenance = provenanceByDay[day].orEmpty())
         }
+    }
 
     suspend fun prepareComputedWindow(
         repo: WhoopRepository,

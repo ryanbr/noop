@@ -14,7 +14,8 @@ final class SleepWearHistoryRepairTests: XCTestCase {
             "profile.stepsCalibrationCoefficient", "profile.stepsCalibrationSampleDays",
             "profile.stepsCalibrationConfidence", "profile.stepsCalibrationManual",
             "profile.stepsManualCoefficient", "profile.stepsHasBankedMotion",
-            IntelligenceEngine.sleepWearRescoreFlagKey, "noop.analyzeWatermark", "analyzeRecent.stepsMotionCache.v1",
+            IntelligenceEngine.effortRescoreFlagKey, IntelligenceEngine.sleepWearRescoreFlagKey,
+            "noop.analyzeWatermark", "analyzeRecent.stepsMotionCache.v1",
             "noop.hrvBaselineEpoch", "noop.recoveryBaselineEpoch", UnitPrefs.hrvWindowKey,
             RescoreBackgroundScheduler.owedKey, RescoreBackgroundScheduler.owedTokenKey,
             RescoreBackgroundScheduler.lastPassSecondsKey, DayCycleMode.storageKey,
@@ -32,6 +33,13 @@ final class SleepWearHistoryRepairTests: XCTestCase {
         defaults.set(true, forKey: PuffinExperiment.experimentalSleepV2Key)
         defaults.set(false, forKey: PuffinExperiment.motionAwareWakeKey)
         try await body()
+    }
+
+    func testEitherPendingFlagSchedulesExactlyOneSharedRepair() {
+        XCTAssertTrue(IntelligenceEngine.historyRepairIsPending(effortDone: false, sleepWearDone: false))
+        XCTAssertTrue(IntelligenceEngine.historyRepairIsPending(effortDone: true, sleepWearDone: false))
+        XCTAssertTrue(IntelligenceEngine.historyRepairIsPending(effortDone: false, sleepWearDone: true))
+        XCTAssertFalse(IntelligenceEngine.historyRepairIsPending(effortDone: true, sleepWearDone: true))
     }
 
     func testRepairsOlderThan21DaysPersistsAndRunsOnlyOnce() async throws {
@@ -90,6 +98,7 @@ final class SleepWearHistoryRepairTests: XCTestCase {
             XCTAssertEqual(editedAfter.first?.endTs, edited.endTs)
             XCTAssertEqual(editedAfter.first?.userEdited, true)
             XCTAssertTrue(UserDefaults.standard.bool(forKey: IntelligenceEngine.sleepWearRescoreFlagKey))
+            XCTAssertTrue(UserDefaults.standard.bool(forKey: IntelligenceEngine.effortRescoreFlagKey))
             await engine.runSleepWearRescoreIfNeeded(historyDays: 40)
             XCTAssertEqual(triggers, 1, "Completed history repair must not run on every launch")
         }
@@ -102,6 +111,7 @@ final class SleepWearHistoryRepairTests: XCTestCase {
             engine.computing = true
             await engine.runSleepWearRescoreIfNeeded(historyDays: 40)
             XCTAssertFalse(UserDefaults.standard.bool(forKey: IntelligenceEngine.sleepWearRescoreFlagKey))
+            XCTAssertFalse(UserDefaults.standard.bool(forKey: IntelligenceEngine.effortRescoreFlagKey))
             engine.computing = false
             let task = Task { @MainActor in
                 await Task.yield()

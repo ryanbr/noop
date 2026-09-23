@@ -46,18 +46,18 @@ object IntelligenceEngine {
     /**
      * Serialises [analyzeRecent] against itself. The pass is launched from four independent coroutines: the
      * 15-min backstop loop and rescoreAfterEdit (both AppViewModel), the post-offload analyze
-     * (WhoopBleClient), plus the one-shot Effort rescore ([runEffortRescoreIfNeeded]). These can overlap:
+     * (WhoopBleClient), plus the shared one-shot Effort/sleep-history repair. These can overlap:
      * two parallel 21-night passes double the CPU/battery AND race the #899 self-heal, whose concurrent
      * overlapping-session deletes can pick different survivors. This mirrors the intent of the Swift
      * `computing` guard, but SERIALISES rather than coalesces on purpose: Android's callers pass
-     * heterogeneous windows , the Effort rescore uses maxDays=4000, not 21, and can overlap the *independent*
+     * heterogeneous windows , the history repair uses maxDays=4000, not 21, and can overlap the *independent*
      * BLE-offload analyze. A drop-guard would skip that full-history rescore while its unconditional flagSet
      * marks it permanently done, and would re-run the holder's 21-day window in its place. withLock lets
      * every caller run its OWN pass, queued and never parallel, so nothing is dropped and no window is
      * silently lost. Suspending (not thread-blocking) and cancellation-cooperative, matching the callers'
      * #125 CancellationException handling. No re-entrancy: nothing analyzeRecent calls re-enters it
      * ([runEffortRescoreIfNeeded] delegates to analyzeRecent and does NOT take the lock itself, so the
-     * Mutex is acquired exactly once per Effort pass, never nested).
+     * Mutex is acquired exactly once per history repair, never nested).
      */
     private val analyzeGate = Mutex()
 
@@ -604,7 +604,7 @@ object IntelligenceEngine {
         // #1567: same reason as the sync path, over a WIDER window — this one rewrites the FULL history
         // once. Without it every day of that rewrite reads the skin-temp scale as WHOOP5 (see analyzeRecent).
         ownerSource: DayOwnerSource? = null,
-        preserveUnscoredHistory: Boolean = false,
+        preserveUnscoredHistory: Boolean = true,
     ) {
         if (flagGet()) return
         analyzeRecent(

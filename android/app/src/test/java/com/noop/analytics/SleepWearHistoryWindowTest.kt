@@ -7,6 +7,13 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SleepWearHistoryWindowTest {
+    @Test fun eitherPendingFlagSchedulesTheSharedRepairOnce() {
+        assertTrue(IntelligencePersistence.historyRepairIsPending(effortDone = false, sleepWearDone = false))
+        assertTrue(IntelligencePersistence.historyRepairIsPending(effortDone = true, sleepWearDone = false))
+        assertTrue(IntelligencePersistence.historyRepairIsPending(effortDone = false, sleepWearDone = true))
+        assertFalse(IntelligencePersistence.historyRepairIsPending(effortDone = true, sleepWearDone = true))
+    }
+
     @Test fun repairNeverWidensWritesAcrossUnscoredHistory() {
         val source = "test-noop"
         val days = listOf("2024-02-01", "2024-04-01")

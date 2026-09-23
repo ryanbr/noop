@@ -13,6 +13,7 @@ import com.noop.analytics.Baselines
 import com.noop.analytics.IllnessSignalEngine
 import com.noop.analytics.IllnessWatch
 import com.noop.analytics.IntelligenceEngine
+import com.noop.analytics.IntelligencePersistence
 import com.noop.analytics.DayCycleIntelligenceIntegration
 import com.noop.analytics.CircadianEngine
 import com.noop.analytics.V5HealthSignals
@@ -1144,17 +1145,22 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                     NoopPrefs.setTsHealPending(appContext, false)
                 }
             }.onFailure { if (it is kotlin.coroutines.cancellation.CancellationException) throw it }
-            // One-shot on-upgrade Effort rescore (#313): recompute strain from source across the FULL
-            // history once, so any deep-history rows an older build left on the 0–21 axis regenerate on
-            // the 0–100 axis. Also replays pre-fix sleep after missing WRIST_ON events. Both flags
-            // are set only after the full pass returns; cancellation/failure retries next launch.
+            // One-shot shared Effort and sleep-wear repair: recompute strain from source across the FULL
+            // history and replay pre-fix sleep once. Either pending flag triggers one pass; both flags
+            // are set only after persistence returns. Cached-only days are preserved, changing Effort's
+            // old broad-window write behavior. Cancellation/failure retries next launch.
             runCatching {
                 IntelligenceEngine.runEffortRescoreIfNeeded(
                     repo = repository,
                     profile = currentProfile(),
                     importedDeviceId = deviceId,
                     maxHROverride = profileStore.hrMaxOverride.takeIf { it > 0 }?.toDouble(),
-                    flagGet = { NoopPrefs.effortRescoreDone(appContext) && NoopPrefs.sleepWearRescoreDone(appContext) },
+                    flagGet = {
+                        !IntelligencePersistence.historyRepairIsPending(
+                            effortDone = NoopPrefs.effortRescoreDone(appContext),
+                            sleepWearDone = NoopPrefs.sleepWearRescoreDone(appContext),
+                        )
+                    },
                     flagSet = {
                         NoopPrefs.setEffortRescoreDone(appContext)
                         NoopPrefs.setSleepWearRescoreDone(appContext)
