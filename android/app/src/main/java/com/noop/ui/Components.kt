@@ -950,9 +950,9 @@ fun BevelGauge(
 
 // MARK: - GlowRing — crisp WHOOP-style score ring (Compose parity with iOS StrandDesign.GlowRing, #23)
 //
-// A clean solid arc with round caps over a clearly-visible full-circle track, a bold centred number
-// that counts up from 0, and a tight low-alpha glow hugging the arc. The arc springs in from 12
-// o'clock and re-animates when the value changes (day nav). minSdk-safe (no RenderEffect blur).
+// A clean solid arc with round caps over a clearly-visible full-circle track and a bold centred number
+// that counts up from 0. Quality here is CRISPNESS, not blur: no bloom, no halo, matching the iOS
+// twin's Design Reset. The arc springs in from 12 o'clock and re-animates when the value changes (day nav).
 
 /**
  * The centre-number text style for a ring of the given [diameter] — the house numeral at `diameter * 0.36`,
@@ -1010,8 +1010,8 @@ fun GlowRing(
                 // PERF (#scroll-jank): the full-circle TRACK is static (it reads no animation state), but
                 // it shared one Canvas draw lambda with the fraction-driven arcs, so it was re-issued on
                 // every animation/scroll frame. Hoist the track into drawWithCache — keyed on the implicit
-                // size + the stroke + the track tone — so it rasterises ONCE and replays; only the glow +
-                // crisp arc re-draw per frame (the drawBehind below). Pixel-identical: same circle geometry,
+                // size + the stroke + the track tone — so it rasterises ONCE and replays; only the crisp
+                // arc re-draws per frame (the drawBehind below). Pixel-identical: same circle geometry,
                 // same round cap, same track-under-arc order.
                 .drawWithCache {
                     val stroke = lineWidth.toPx()
@@ -1040,7 +1040,7 @@ fun GlowRing(
 
                     // Target range segment (gray) — the optimal zone. Drawn BEFORE the value arc so it's
                     // visible even when effort is 0 (most useful in the morning). Sits on its own inset
-                    // track inside the value ring, so the glow/value arc never overlaps it.
+                    // track inside the value ring, so the value arc never overlaps it.
                     if (targetRange != null) {
                         // Inset the target arc so it sits on its own track inside the value ring, just inside
                         // the track. The track spans radius ± 0.5 stroke; the target spans its own radius ± 0.3 stroke.
@@ -1066,21 +1066,19 @@ fun GlowRing(
                         )
                     }
 
-                    // Only draw the arc (+ its glow) when there's ACTUAL progress. A near-zero round-capped
+                    // Only draw the arc when there's ACTUAL progress. A near-zero round-capped
                     // arc renders as a full visible dot at 12 o'clock on Android's Canvas (unlike iOS's
                     // sub-pixel `trim`), which read as the unwanted "dot" on empty / No-Data / Calibrating
                     // rings the maintainer flagged. Below the threshold we show just the clean full-circle
                     // track — exactly like the iOS GlowRing's empty state.
                     if (animFraction > 0.001f) {
-                        // Tight glow — a wider, low-alpha arc under the crisp one (minSdk-safe, no RenderEffect).
-                        // Gated on the dark canvas only, mirroring iOS AdditiveBloom hiding on the light field
-                        // (on white it just smears the edge); the crisp arc carries the ring on its own there.
-                        if (!Palette.isLight) {
-                            drawArc(
-                                color = color.copy(alpha = 0.45f), startAngle = -90f, sweepAngle = sweep, useCenter = false,
-                                topLeft = tl, size = arcSize, style = Stroke(width = stroke * 1.5f, cap = StrokeCap.Round),
-                            )
-                        }
+                        // NO glow (#2407). iOS dropped the ring's additive bloom in the Design Reset flat-mockup
+                        // pass; this twin kept a stand-in for it — a 1.5x-stroke arc at alpha 0.45 drawn under the
+                        // crisp one — and never followed. With no RenderEffect blur at minSdk 26 that stand-in has
+                        // HARD edges, so it spilled a quarter-stroke past the track on both sides and a quarter
+                        // past each round cap: on a saturated arc (the gold Charge hero) it read as a misaligned
+                        // double edge rather than a glow. Flat crisp arc only, exactly like iOS GlowRing.
+                        //
                         // The crisp, solid arc — from 12 o'clock clockwise.
                         drawArc(
                             color = color, startAngle = -90f, sweepAngle = sweep, useCenter = false,
