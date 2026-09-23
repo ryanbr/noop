@@ -7704,6 +7704,7 @@ class WhoopBleClient(
                 // both correct and cheap. Twin of the Swift `FrameRouter.noteReassemblerDrops`.
                 val completedFrames = reassembler.feed(bytes)
                 rejectTally.absorbReassemblerDrops(reassembler.belowMinimumLengthDrops)
+                rejectTally.absorbReassemblerHeaderDrops(reassembler.headerChecksumDrops)
                 for (frame in completedFrames) {
                   // #453 defense-in-depth: this loop runs on the GATT binder thread; an uncaught throw
                   // from ANY frame op (handleFrame, a decoder, the inline date-format, log) would crash

@@ -794,6 +794,12 @@ public final class FrameRouter {
         rejectTally.absorbReassemblerDrops(monotonicTotal)
     }
 
+    /// The same fold for the reassembler's header-checksum drops, which are a DIFFERENT event: a floor
+    /// drop is a malformed frame, this is a read cursor that was not on a frame boundary at all.
+    func noteReassemblerHeaderDrops(_ monotonicTotal: Int) {
+        rejectTally.absorbReassemblerHeaderDrops(monotonicTotal)
+    }
+
     /// The one place the strap's own narration reaches the log, so the live and offload paths cannot
     /// drift in what they emit. Capped at 300 characters to match the Kotlin twin exactly.
     private func appendStrapConsole(_ parsed: ParsedFrame) {

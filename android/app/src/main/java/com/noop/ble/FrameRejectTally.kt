@@ -81,6 +81,12 @@ class FrameRejectTally {
     private var absorbedReassemblerDrops = 0
 
     /**
+     * The reassembler's monotonic header-checksum drop count already folded into
+     * [FrameRejectReason.HEADER_CHECKSUM_MISMATCH], so repeated folds cannot double-count.
+     */
+    private var absorbedReassemblerHeaderDrops = 0
+
+    /**
      * Count one parse result. Intact frames are ignored, so this can sit on the frame path unguarded.
      * Returns the reason recorded, or [FrameRejectReason.NONE] when the frame was intact and nothing
      * was counted.
@@ -107,6 +113,23 @@ class FrameRejectTally {
         val reason = FrameRejectReason.BELOW_MINIMUM_LENGTH
         counts[reason] = (counts[reason] ?: 0) + (monotonicTotal - absorbedReassemblerDrops)
         absorbedReassemblerDrops = monotonicTotal
+    }
+
+    /**
+     * Fold a reassembler's [Reassembler.headerChecksumDrops] into the
+     * [FrameRejectReason.HEADER_CHECKSUM_MISMATCH] bucket.
+     *
+     * Same reasoning as [absorbReassemblerDrops] above, for the other thing the reassembler drops
+     * before any parser sees it. A false start-of-frame rejected by its own header checksum reaches
+     * neither a parser nor the evidence-preserving reader, so without this fold the only record that a
+     * link was resyncing at all would be a counter nothing reads. Monotonic total; only the growth
+     * since the last fold is added, so calling this once per notification is idempotent.
+     */
+    fun absorbReassemblerHeaderDrops(monotonicTotal: Int) {
+        if (monotonicTotal <= absorbedReassemblerHeaderDrops) return
+        val reason = FrameRejectReason.HEADER_CHECKSUM_MISMATCH
+        counts[reason] = (counts[reason] ?: 0) + (monotonicTotal - absorbedReassemblerHeaderDrops)
+        absorbedReassemblerHeaderDrops = monotonicTotal
     }
 
     /** How often [reason] was recorded. */
@@ -138,5 +161,10 @@ class FrameRejectTally {
         counts.clear()
         payloadCrcOkButEnvelopeRejected = 0
         absorbedReassemblerDrops = 0
+        // Both absorbed totals, for the same reason. The reassembler's counters are monotonic for ITS
+        // lifetime and this tally is per connection, so a counter left behind here reads as "already
+        // folded" against a total that never goes down: the fold's guard returns early and that reason
+        // never reaches another connection's tally again. Silent, and permanent.
+        absorbedReassemblerHeaderDrops = 0
     }
 }

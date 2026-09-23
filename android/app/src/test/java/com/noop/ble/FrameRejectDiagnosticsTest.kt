@@ -293,4 +293,38 @@ class FrameRejectDiagnosticsTest {
         assertTrue(text.contains("reject=payloadCRCMismatch"))
         assertEquals("type99=1", summary.countsText())
     }
+
+    /**
+     * The absorbed totals must BOTH clear on reset, or the fold they guard goes permanently silent.
+     *
+     * A reassembler's drop counters are monotonic for its own lifetime and this tally is per
+     * connection. An absorbed total left behind therefore reads as "already folded" against a number
+     * that never goes down: the guard returns early and that reason never reaches another connection's
+     * tally again. The header fold shipped with exactly that bug for one revision, so it is pinned
+     * here per reason rather than left to follow from the other.
+     */
+    @Test
+    fun bothAbsorbedTotalsClearOnResetSoTheFoldsKeepWorking() {
+        val t = FrameRejectTally()
+        t.absorbReassemblerDrops(3)
+        t.absorbReassemblerHeaderDrops(2)
+        assertEquals(3, t.count(FrameRejectReason.BELOW_MINIMUM_LENGTH))
+        assertEquals(2, t.count(FrameRejectReason.HEADER_CHECKSUM_MISMATCH))
+
+        t.reset()
+        // A new connection, with the reassembler's monotonic totals unchanged: both must fold again.
+        t.absorbReassemblerDrops(3)
+        t.absorbReassemblerHeaderDrops(2)
+        assertEquals("floor drops must survive a reset", 3, t.count(FrameRejectReason.BELOW_MINIMUM_LENGTH))
+        assertEquals("header drops must survive a reset", 2, t.count(FrameRejectReason.HEADER_CHECKSUM_MISMATCH))
+    }
+
+    /** The two reasons are counted apart: a misplaced read cursor is not a malformed frame. */
+    @Test
+    fun headerDropsDoNotLandInTheFloorBucket() {
+        val t = FrameRejectTally()
+        t.absorbReassemblerHeaderDrops(5)
+        assertEquals(5, t.count(FrameRejectReason.HEADER_CHECKSUM_MISMATCH))
+        assertEquals(0, t.count(FrameRejectReason.BELOW_MINIMUM_LENGTH))
+    }
 }

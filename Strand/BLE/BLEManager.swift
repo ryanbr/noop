@@ -7142,6 +7142,7 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
             // otherwise it would disappear without trace.
             let completedFrames = reassembler.feed(bytes)
             router.noteReassemblerDrops(reassembler.belowMinimumLengthDrops)
+            router.noteReassemblerHeaderDrops(reassembler.headerChecksumDrops)
             for frame in completedFrames {
                 if backfilling, BLEManager.isOffloadFrame(frame, family: .whoop4) {
                     // Historical replay is bulk sync traffic, not live UI traffic. Feed it only to
@@ -7270,6 +7271,7 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                 // Same fold as the WHOOP 4.0 path above: byte runs dropped below the family minimum.
                 let completedFrames = reassembler.feed(bytes)
                 router.noteReassemblerDrops(reassembler.belowMinimumLengthDrops)
+                router.noteReassemblerHeaderDrops(reassembler.headerChecksumDrops)
                 for frame in completedFrames {
                     let isOffload = backfilling && BLEManager.isOffloadFrame(frame, family: .whoop5)
                     noteWhoop5R22Telemetry(frame, duringOffload: isOffload)   // #174 deep-data telemetry
