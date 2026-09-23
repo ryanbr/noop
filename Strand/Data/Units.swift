@@ -116,8 +116,8 @@ enum UnitPrefs {
     }
 
     /// Whether the live-HR Live Activity (Lock Screen + Dynamic Island) may show, iOS only (#336).
-    /// Defaults to ON. The user can turn it off in Notifications settings without digging into iOS
-    /// Settings — `liveActivityEnabled()` reads it default-true so an unset key keeps the old behaviour.
+    /// Defaults to ON. The user can turn it off in Settings → Lock Screen & Dynamic Island without digging into
+    /// iOS Settings — `liveActivityEnabled()` reads it default-true so an unset key keeps the old behaviour.
     static let liveActivityKey = "liveActivity.enabled"
     static func liveActivityEnabled() -> Bool {
         UserDefaults.standard.object(forKey: liveActivityKey) == nil
@@ -131,6 +131,15 @@ enum UnitPrefs {
     static func syncLiveActivityEnabled() -> Bool {
         UserDefaults.standard.object(forKey: syncLiveActivityKey) == nil
             ? true : UserDefaults.standard.bool(forKey: syncLiveActivityKey)
+    }
+
+    /// Whether the Lift Log session's Live Activity may show, iOS only. Its own switch: it used to follow the
+    /// live-HR one, so turning off the everyday heart-rate banner also took away the gym banner and the Lock
+    /// Screen light-up a strap step sends through it. Defaults to ON, read default-true like its siblings.
+    static let liftLiveActivityKey = "liveActivity.lift.enabled"
+    static func liftLiveActivityEnabled() -> Bool {
+        UserDefaults.standard.object(forKey: liftLiveActivityKey) == nil
+            ? true : UserDefaults.standard.bool(forKey: liftLiveActivityKey)
     }
 
     /// Resolve temperature, following body measurements when no explicit override is set.

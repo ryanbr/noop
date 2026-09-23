@@ -90,9 +90,9 @@ final class LiftLiveActivityController {
             ? Activity<LiftActivityAttributes>.activities.first(where: Self.isShowing) : nil
         if let adopted { activity = adopted }
 
-        // Shares the existing Live Activity opt-out rather than adding a second switch: a user who
-        // turned Live Activities off meant all of them.
-        guard UnitPrefs.liveActivityEnabled(), let state else {
+        // Its own switch (`UnitPrefs.liftLiveActivityEnabled`), so the everyday heart-rate banner can be off while
+        // the gym banner stays; turning this one off also ends a banner already showing.
+        guard UnitPrefs.liftLiveActivityEnabled(), let state else {
             if activity != nil { Task { await end() } }
             return alert ? .noBanner : nil
         }

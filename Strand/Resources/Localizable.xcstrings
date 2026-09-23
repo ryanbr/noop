@@ -283,6 +283,64 @@
         }
       }
     },
+    "Lift Log session in Dynamic Island": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trainingsbuch-Einheit in der Dynamic Island"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sesión del Registro de fuerza en la Dynamic Island"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Séance du Carnet de force dans la Dynamic Island"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sessione del Diario dei pesi nella Dynamic Island"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sessão do Registo de força na Dynamic Island"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тренировка «Дневника тренировок» в Dynamic Island"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在灵动岛中显示力量日志训练"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在動態島中顯示力量日誌訓練"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sesja Dziennika siłowni w Dynamic Island"
+          }
+        }
+      }
+    },
     "Live heart rate is flowing from the ring.": {
       "localizations": {
         "de": {
@@ -337,6 +395,64 @@
           "stringUnit": {
             "state": "translated",
             "value": "即時心率正從戒指傳來。"
+          }
+        }
+      }
+    },
+    "Lock Screen & Dynamic Island": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sperrbildschirm & Dynamic Island"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pantalla de bloqueo y Dynamic Island"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Écran verrouillé et Dynamic Island"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Schermata di blocco e Dynamic Island"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ecrã de bloqueio e Dynamic Island"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Экран блокировки и Dynamic Island"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "锁定屏幕与灵动岛"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "鎖定畫面與動態島"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ekran blokady i Dynamic Island"
           }
         }
       }
@@ -685,6 +801,64 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pokazuje postęp synchronizacji na ekranie blokady i w Dynamic Island"
+          }
+        }
+      }
+    },
+    "Shows the set you are on, your rest and your heart rate while a Lift Log session runs, and lights the Lock Screen when the strap moves the session on. Independent of the live heart rate switch.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zeigt während einer Trainingsbuch-Einheit deinen aktuellen Satz, deine Pause und deine Herzfrequenz und lässt den Sperrbildschirm aufleuchten, wenn der Strap die Einheit weiterschaltet. Unabhängig vom Schalter für die Live-Herzfrequenz."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Muestra la serie en la que estás, tu descanso y tu frecuencia cardíaca durante una sesión del Registro de fuerza, e ilumina la pantalla de bloqueo cuando la pulsera avanza la sesión. Independiente del interruptor de la frecuencia cardíaca en vivo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Affiche la série en cours, votre repos et votre fréquence cardiaque pendant une séance du Carnet de force, et allume l'écran verrouillé quand le bracelet fait avancer la séance. Indépendant de l'interrupteur de la fréquence cardiaque en direct."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostra la serie in corso, il recupero e la frequenza cardiaca durante una sessione del Diario dei pesi, e accende la schermata di blocco quando la fascia fa avanzare la sessione. Indipendente dall'interruttore della frequenza cardiaca in diretta."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostra a série em que estás, o teu descanso e a tua frequência cardíaca durante uma sessão do Registo de força, e acende o ecrã de bloqueio quando a pulseira avança a sessão. Independente do interruptor da frequência cardíaca em direto."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Показывает текущий подход, отдых и пульс во время тренировки «Дневника тренировок» и включает экран блокировки, когда браслет переключает тренировку дальше. Не зависит от переключателя пульса в реальном времени."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在力量日志训练期间显示你当前的组、休息时间和心率，并在手环推进训练时点亮锁定屏幕。与实时心率开关互不影响。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在力量日誌訓練期間顯示你目前的組、休息時間和心率，並在手環推進訓練時點亮鎖定畫面。與即時心率開關互不影響。"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pokazuje bieżącą serię, przerwę i tętno podczas sesji Dziennika siłowni oraz podświetla ekran blokady, gdy pasek przesuwa sesję dalej. Niezależne od przełącznika tętna na żywo."
           }
         }
       }
@@ -1690,6 +1864,64 @@
     "Working sets": { "localizations": {
       "de": {"stringUnit": {"state": "translated", "value": "Arbeitssätze"}}, "es": {"stringUnit": {"state": "translated", "value": "Series efectivas"}}, "fr": {"stringUnit": {"state": "translated", "value": "Séries de travail"}}, "it": {"stringUnit": {"state": "translated", "value": "Serie di lavoro"}}, "pl": {"stringUnit": {"state": "translated", "value": "Serie robocze"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Séries de trabalho"}}, "ru": {"stringUnit": {"state": "translated", "value": "Рабочие подходы"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "正式组"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "正式組"}}
     } },
+    "What NOOP shows there, each on its own switch.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Was NOOP dort anzeigt, jeweils mit eigenem Schalter."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lo que NOOP muestra ahí, cada cosa con su propio interruptor."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ce que NOOP y affiche, chaque élément avec son propre interrupteur."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cosa mostra NOOP lì, ognuno con il proprio interruttore."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O que o NOOP mostra aí, cada um com o seu próprio interruptor."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Что NOOP там показывает — у каждого свой переключатель."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP 在这里显示的内容，每项都有单独的开关。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP 在這裡顯示的內容，每項都有單獨的開關。"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Co NOOP tam pokazuje, każde z własnym przełącznikiem."
+          }
+        }
+      }
+    },
     "Your strap is already syncing.": {
       "localizations": {
         "de": {
