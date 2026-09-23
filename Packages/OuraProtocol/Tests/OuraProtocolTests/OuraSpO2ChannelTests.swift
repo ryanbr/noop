@@ -18,14 +18,23 @@ final class OuraSpO2ChannelTests: XCTestCase {
         XCTAssertEqual(OuraSpO2Channel.forUnit("raw"), .percentage)
     }
 
-    /// The gate is an ALLOW-LIST for perfusion, not for percentage: an unrecognised future unit is named
-    /// as a percentage rather than left unnamed, because this resolver has to name everything it is
-    /// given. `OuraStreamMapping` makes the opposite call for the opposite reason (it stores), and that
-    /// difference is deliberate — if this ever changes, that comment has to change with it.
-    func testUnknownUnitIsNamedAsPercentageNotPerfusion() {
-        XCTAssertEqual(OuraSpO2Channel.forUnit("raw_adc"), .percentage)
-        XCTAssertEqual(OuraSpO2Channel.forUnit(""), .percentage)
-        XCTAssertEqual(OuraSpO2Channel.forUnit("DC_RAW"), .percentage)   // case-sensitive, like the tag
+    /// Both known tags match EXACTLY; anything else is `.unknown`. Treating "not perfusion" as a
+    /// percentage would print a case variant or a future tag's magnitude with a `%` on it — the defect
+    /// this type exists to stop, in a new costume.
+    func testUnknownUnitIsUnknownNotAPercentage() {
+        XCTAssertEqual(OuraSpO2Channel.forUnit("raw_adc"), .unknown)
+        XCTAssertEqual(OuraSpO2Channel.forUnit(""), .unknown)
+        XCTAssertEqual(OuraSpO2Channel.forUnit("DC_RAW"), .unknown)   // case-sensitive, like the tag
+        XCTAssertEqual(OuraSpO2Channel.forUnit("RAW"), .unknown)
+        XCTAssertEqual(OuraSpO2Channel.percentageUnit, "raw")
+    }
+
+    /// An unknown channel names its tag and never carries a `%`.
+    func testUnknownChannelLineHasNoPercentSign() {
+        let line = OuraSpO2Channel.firstDecodedLogLine(value: 3, unit: "DC_RAW")
+        XCTAssertEqual(line,
+                       #"first SpO2 sample on an unrecognised channel (NOT known to be a percentage) decoded (last night) - 3 (channel "DC_RAW")"#)
+        XCTAssertFalse(line.contains("%"), line)
     }
 
     func testSampleAccessorMatchesTheResolver() {

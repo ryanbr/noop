@@ -134,24 +134,35 @@ public struct OuraSpO2: Equatable, Sendable, Codable {
 /// percentage and opened a defect against SpO2 that was never wrong. A log line may only assert what
 /// it can attribute; this makes the attribution a value rather than a string comparison.
 ///
-/// `OuraStreamMapping` (both platforms) reads the same fact for a different purpose and deliberately
-/// keeps its own `unit == "raw"` ALLOW-LIST: it is a persistence gate, so an unrecognised future unit
-/// must fall on the "do not store" side, whereas this resolver has to name every sample it is given.
-/// Same fact, two dispositions — the difference is intentional. Kotlin twin: `OuraSpO2Channel`.
+/// Both known tags are matched EXACTLY; anything else is `.unknown`, which names its tag and never
+/// claims a percentage. Treating "not perfusion" as a percentage would print a case variant or a future
+/// tag's magnitude with a `%` on it, which is the defect this type exists to stop. `OuraStreamMapping`
+/// (both platforms) keeps its own `unit == "raw"` allow-list for the same reason from the other side:
+/// it is a persistence gate, so an unrecognised unit falls on the "do not store" side there and on the
+/// "do not call it a percentage" side here. Kotlin twin: `OuraSpO2Channel`.
 public enum OuraSpO2Channel: String, Equatable, Sendable, Codable {
     /// 0x6F / 0x7B — a firmware-computed SpO2 percentage. (The unit tag is the legacy string `"raw"`,
     /// which names the CHANNEL, not the quantity; see `decodeSpO2Event`.)
     case percentage
     /// 0x77 — a raw DC perfusion magnitude. Not a percentage, and never stored as one.
     case perfusion
+    /// A unit tag no decoder stamps today (a case variant, or a future tag). Named, never a percentage.
+    case unknown
 
+    /// The unit tag 0x6F and 0x7B stamp on their samples (`OuraSpO2`'s default).
+    public static let percentageUnit = "raw"
     /// The unit tag 0x77 stamps on its samples.
     public static let perfusionUnit = "dc_raw"
 
-    /// Resolve a sample's channel from its unit tag. Anything that is not the perfusion tag is treated
-    /// as the percentage channel, matching how 0x6F and 0x7B both default to `"raw"`.
+    /// Resolve a sample's channel from its unit tag. Both known tags match exactly (case-sensitive, like
+    /// the tag); anything else is `.unknown` rather than a guess.
+    /// Kotlin twin: `OuraSpO2Channel.forUnit`.
     public static func forUnit(_ unit: String) -> OuraSpO2Channel {
-        unit == perfusionUnit ? .perfusion : .percentage
+        switch unit {
+        case percentageUnit: return .percentage
+        case perfusionUnit:  return .perfusion
+        default:             return .unknown
+        }
     }
 
     /// How this channel is named in the strap log. Spelled out rather than printed as the unit tag:
@@ -161,6 +172,7 @@ public enum OuraSpO2Channel: String, Equatable, Sendable, Codable {
         switch self {
         case .percentage: return "SpO2 percentage"
         case .perfusion:  return "SpO2 raw DC perfusion (NOT a percentage)"
+        case .unknown:    return "SpO2 sample on an unrecognised channel (NOT known to be a percentage)"
         }
     }
 

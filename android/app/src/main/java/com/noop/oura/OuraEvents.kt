@@ -143,10 +143,12 @@ data class OuraSpO2(
  * percentage and opened a defect against SpO2 that was never wrong. A log line may only assert what it
  * can attribute; this makes the attribution a value rather than a string comparison.
  *
- * OuraStreamMapping (both platforms) reads the same fact for a different purpose and deliberately keeps
- * its own `unit == "raw"` ALLOW-LIST: it is a persistence gate, so an unrecognised future unit must fall
- * on the "do not store" side, whereas this resolver has to name every sample it is given. Same fact, two
- * dispositions — the difference is intentional. Twin of Swift `OuraSpO2Channel`.
+ * Both known tags are matched EXACTLY; anything else is UNKNOWN, which names its tag and never claims a
+ * percentage. Treating "not perfusion" as a percentage would print a case variant or a future tag's
+ * magnitude with a `%` on it, which is the defect this type exists to stop. OuraStreamMapping (both
+ * platforms) keeps its own `unit == "raw"` allow-list for the same reason from the other side: it is a
+ * persistence gate, so an unrecognised unit falls on the "do not store" side there and on the "do not
+ * call it a percentage" side here. Twin of Swift `OuraSpO2Channel`.
  */
 enum class OuraSpO2Channel {
     /**
@@ -157,6 +159,9 @@ enum class OuraSpO2Channel {
 
     /** 0x77 — a raw DC perfusion magnitude. Not a percentage, and never stored as one. */
     PERFUSION,
+
+    /** A unit tag no decoder stamps today (a case variant, or a future tag). Named, never a percentage. */
+    UNKNOWN,
     ;
 
     /**
@@ -167,18 +172,26 @@ enum class OuraSpO2Channel {
     val logLabel: String get() = when (this) {
         PERCENTAGE -> "SpO2 percentage"
         PERFUSION -> "SpO2 raw DC perfusion (NOT a percentage)"
+        UNKNOWN -> "SpO2 sample on an unrecognised channel (NOT known to be a percentage)"
     }
 
     companion object {
+        /** The unit tag 0x6F and 0x7B stamp on their samples (`OuraSpO2`'s default). */
+        const val PERCENTAGE_UNIT = "raw"
+
         /** The unit tag 0x77 stamps on its samples. */
         const val PERFUSION_UNIT = "dc_raw"
 
         /**
-         * Resolve a sample's channel from its unit tag. Anything that is not the perfusion tag is
-         * treated as the percentage channel, matching how 0x6F and 0x7B both default to `"raw"`.
+         * Resolve a sample's channel from its unit tag. Both known tags match exactly (case-sensitive,
+         * like the tag); anything else is UNKNOWN rather than a guess. Twin of Swift
+         * `OuraSpO2Channel.forUnit`.
          */
-        fun forUnit(unit: String): OuraSpO2Channel =
-            if (unit == PERFUSION_UNIT) PERFUSION else PERCENTAGE
+        fun forUnit(unit: String): OuraSpO2Channel = when (unit) {
+            PERCENTAGE_UNIT -> PERCENTAGE
+            PERFUSION_UNIT -> PERFUSION
+            else -> UNKNOWN
+        }
 
         /**
          * The strap-log body for "the first sample of this channel arrived this session", WITHOUT
