@@ -90,6 +90,14 @@ private struct TapOutsideFields: UIViewRepresentable {
             recognizer = nil
         }
 
+        /// The recognizer lives on the WINDOW, which outlives this view, so it has to be taken off by
+        /// hand. `dismantleUIView` and `didMoveToWindow` cover the teardowns SwiftUI tells us about;
+        /// this covers the ones it does not. A recognizer left behind is quiet rather than harmful
+        /// (`UIGestureRecognizer` holds its target weakly, so nothing fires) but it accumulates one per
+        /// appearance, and with the Probe gone its delegate is nil too, so the "ignore text inputs"
+        /// filter that makes it safe is no longer being applied.
+        deinit { detach() }
+
         @objc private func tapped() { onTap() }
 
         func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
