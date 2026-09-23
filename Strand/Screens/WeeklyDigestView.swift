@@ -146,8 +146,6 @@ struct WeeklyDigestContent: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     #endif
 
-    /// Display order: the two daily scores first, then the nightly signals.
-    private static let order: [WeeklyMetric] = [.charge, .effort, .rest, .hrv, .rhr]
     /// The three headline 0–100 scores shown as domain summaries.
     private static let scoreOrder: [WeeklyMetric] = [.charge, .effort, .rest]
 

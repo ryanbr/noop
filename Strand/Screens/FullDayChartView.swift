@@ -66,8 +66,6 @@ struct FullDayChartView: View {
     /// The visible window the chart's gestures mutate. nil → full day (the chart falls back to `dayBounds`).
     @State private var zoomDomain: ClosedRange<Date>? = nil
     @State private var loading = true
-    /// Bumped on every settled zoom/metric change so the re-read task re-runs at the new resolution.
-    @State private var reloadTick = 0
 
     /// The full clamp the zoom window can never escape — the selected calendar day.
     private var dayBounds: ClosedRange<Date> {

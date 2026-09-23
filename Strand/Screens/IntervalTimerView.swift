@@ -86,14 +86,6 @@ struct IntervalTimerView: View {
         }
     }
 
-    private var phaseTone: StrandTone {
-        switch phase {
-        case .work: return .accent
-        case .rest: return .neutral
-        case .done: return .positive
-        }
-    }
-
     private var isFinished: Bool { phase == .done }
 
     // MARK: Body

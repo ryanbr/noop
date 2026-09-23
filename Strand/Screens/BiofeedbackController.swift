@@ -115,13 +115,6 @@ final class BiofeedbackController: ObservableObject {
         model.buzz(loops: UInt8(clamping: loops), gate: HapticPrefs.breathing)
     }
 
-    /// Schedule one cancellable buzz at `offsetMs` from now (the asyncAfter walk, cancellable on stop).
-    private func scheduleBuzz(loops: Int, afterMs: Int) {
-        let item = DispatchWorkItem { [weak self] in self?.fireBuzz(loops: loops) }
-        pending.append(item)
-        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(afterMs), execute: item)
-    }
-
     private func startSecondTimer() {
         elapsedSeconds = 0
         secondTimer = Timer.publish(every: 1, on: .main, in: .common)

@@ -1711,69 +1711,6 @@ struct TodayView: View {
 
     // MARK: First-run scoring-guide card (one-time, dismissible)
 
-    /// "New here?", a single, dismissible card that points first-time users at the guide. Tapping the
-    /// card opens the guide; the ✕ closes it. Either action sets `scoringGuideCardSeen`, so it shows
-    /// once and never again. Follows the in-flow, never-modal card pattern.
-    private var scoringGuideFirstRunCard: some View {
-        NoopCard {
-            HStack(alignment: .top, spacing: 14) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 18))
-                    .foregroundStyle(StrandPalette.accent)
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("New here?")
-                        .font(StrandFont.headline)
-                        .foregroundStyle(StrandPalette.textPrimary)
-                    Text("See how Charge, Effort and Rest are calculated, and how they differ from WHOOP.")
-                        .font(StrandFont.subhead)
-                        .foregroundStyle(StrandPalette.textSecondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Button {
-                        scoringGuideCardSeen = true
-                        showGuideTop = true
-                    } label: {
-                        Label("How your scores work", systemImage: "arrow.right")
-                            .font(StrandFont.subhead)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(StrandPalette.accent)
-                    .padding(.top, 2)
-                }
-                Spacer(minLength: 0)
-                Button {
-                    // Dismiss INTO the Updates inbox (restorable), rather than permanently hiding.
-                    withAnimation(StrandMotion.interactive) {
-                        dismissTodayCard(
-                            id: "newHere",
-                            title: String(localized: "New here?"),
-                            message: String(localized: "How Charge, Effort and Rest are calculated, and how they differ from WHOOP.")
-                        )
-                    }
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(StrandPalette.textTertiary)
-                        .padding(6)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Dismiss")
-            }
-            // The whole card is tappable as the primary action; the ✕ stops the tap from also firing.
-            .contentShape(Rectangle())
-            .onTapGesture {
-                #if os(iOS)
-                StrandHaptic.selection.play()
-                #endif
-                scoringGuideCardSeen = true
-                showGuideTop = true
-            }
-        }
-        // Press-down feedback for the tappable card surface.
-        .strandPressable()
-    }
-
     // MARK: Readiness, on-device training-readiness synthesis (HRV / resting-HR / load).
 
     /// S4: Readiness now lives behind the Charge-ring tap (in `chargeBreakdownSheet`), not as a standalone
@@ -3166,14 +3103,6 @@ struct TodayView: View {
             return hrvInsightDetail(prior, score: prior.recovery) + " " + carriedCaption(prior) + "."
         }
         return hrvInsightDetail(d, score: score)
-    }
-
-    /// The Synthesis status colour, keyed on the carried prior recovery when carrying, else today's.
-    private func synthesisCardColor(score: Double?) -> Color {
-        if let rec = lastScoredRecoveryDay?.recovery {
-            return StrandPalette.recoveryColor(rec)
-        }
-        return score.map { StrandPalette.recoveryColor($0) } ?? StrandPalette.textTertiary
     }
 
     /// Screen-4 insight headline, when the HRV baseline is established, the gold "primed" read
@@ -5276,27 +5205,6 @@ struct TodayView: View {
         }
     }
 
-    private var dateLine: String {
-        // The selected day's date when navigated; today's banked-row date (or today) at offset 0.
-        if selectedDayOffset == 0, let day = repo.today?.day, let date = Self.dayParser.date(from: day) {
-            return date.formatted(
-                .dateTime.weekday(.wide).day().month(.wide).locale(AppLanguage.activeLocale)
-            )
-        }
-        return selectedLogicalDay.formatted(
-            .dateTime.weekday(.wide).day().month(.wide).locale(AppLanguage.activeLocale)
-        )
-    }
-
-    /// Hero title that names the selected day, "Today's"/"Yesterday's"/"Day's" Synthesis.
-    private var synthesisTitle: LocalizedStringKey {
-        switch selectedDayOffset {
-        case 0:  return "Today’s Synthesis"
-        case 1:  return "Yesterday’s Synthesis"
-        default: return "Synthesis"
-        }
-    }
-
     /// Section overline naming the selected day, "Today"/"Yesterday"/"EEE d MMM".
     private var selectedDayOverline: String {
         switch selectedDayOffset {
@@ -5355,12 +5263,6 @@ struct TodayView: View {
             case nil:    return String(localized: "Charge is strong.")
             }
         }
-    }
-
-    private func ringSupporting(_ d: DailyMetric?) -> String {
-        let hrv = d?.avgHrv.map { String(localized: "\(Int($0.rounded())) ms") } ?? " - ms"
-        let rhr = d?.restingHr.map { "\($0)" } ?? "—"
-        return String(localized: "HRV \(hrv) · RHR \(rhr)")
     }
 
     private func sleepValue(_ d: DailyMetric?) -> String {

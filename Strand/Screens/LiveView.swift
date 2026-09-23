@@ -979,9 +979,6 @@ private struct LivePhysiology: View {
     /// Oura ring actively streaming live HR — trusted stream without a WHOOP bond (see LiveView.ringStreaming).
     private var ringStreaming: Bool { live.connected && live.streamingLiveHR }
 
-    /// The liquid heart pink (matches LiquidThread's default + the mockup #ff6b81).
-    private let liquidHeart = Color(.sRGB, red: 1, green: 107 / 255, blue: 129 / 255, opacity: 1)
-
     var body: some View {
         VStack(alignment: .leading, spacing: NoopMetrics.space4) {
             HStack(alignment: .firstTextBaseline) {
