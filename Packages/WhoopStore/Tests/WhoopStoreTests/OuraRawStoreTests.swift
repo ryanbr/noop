@@ -26,6 +26,22 @@ final class OuraRawStoreTests: XCTestCase {
         XCTAssertEqual(dailySleepCount, 0)
     }
 
+    func testReadOrdersPageArchivesByFetchedAtWhenDayIsNil() async throws {
+        let store = try await WhoopStore.inMemory()
+        _ = try await store.upsertOuraRaw([
+            OuraRawRow(endpoint: "sleep", documentId: "newest", day: nil,
+                       payloadJSON: "{}", fetchedAt: 300),
+            OuraRawRow(endpoint: "sleep", documentId: "oldest", day: nil,
+                       payloadJSON: "{}", fetchedAt: 100),
+            OuraRawRow(endpoint: "sleep", documentId: "middle", day: nil,
+                       payloadJSON: "{}", fetchedAt: 200),
+        ], deviceId: "oura-api")
+
+        let rows = try await store.ouraRaw(deviceId: "oura-api", endpoint: "sleep")
+        XCTAssertEqual(rows.map(\.documentId), ["oldest", "middle", "newest"])
+        XCTAssertEqual(rows.map(\.fetchedAt), [100, 200, 300])
+    }
+
     func testDeleteOuraRawRemovesAllForDevice() async throws {
         let store = try await WhoopStore.inMemory()
         _ = try await store.upsertOuraRaw([

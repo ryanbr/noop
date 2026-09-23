@@ -11,7 +11,7 @@ import GRDB
 public struct OuraRawRow: Equatable, Codable, Sendable {
     public let endpoint: String     // "sleep" | "daily_readiness" | "heartrate" | …
     public let documentId: String   // Oura `id`; for heartrate pages, a synthesized window key
-    public let day: String?         // YYYY-MM-DD when the document is day-keyed
+    public let day: String?         // Optional YYYY-MM-DD; page archives that span dates leave this nil
     public let payloadJSON: String  // verbatim object
     public let fetchedAt: Int       // unix seconds
     public init(endpoint: String, documentId: String, day: String?, payloadJSON: String, fetchedAt: Int) {
@@ -43,13 +43,13 @@ extension WhoopStore {
         }
     }
 
-    /// Archived payloads for a device + endpoint, oldest day first (null days sort first in SQLite).
+    /// Archived payloads for a device + endpoint, oldest fetch first.
     public func ouraRaw(deviceId: String, endpoint: String) async throws -> [OuraRawRow] {
         try syncRead { db in
             try Row.fetchAll(db, sql: """
                 SELECT endpoint, documentId, day, payloadJSON, fetchedAt FROM ouraRaw
                 WHERE deviceId = ? AND endpoint = ?
-                ORDER BY day ASC
+                ORDER BY fetchedAt ASC
                 """, arguments: [deviceId, endpoint])
                 .map { OuraRawRow(endpoint: $0["endpoint"], documentId: $0["documentId"],
                                   day: $0["day"], payloadJSON: $0["payloadJSON"], fetchedAt: $0["fetchedAt"]) }
