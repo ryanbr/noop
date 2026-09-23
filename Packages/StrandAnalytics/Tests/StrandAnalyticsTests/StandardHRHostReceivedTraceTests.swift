@@ -99,4 +99,67 @@ final class StandardHRHostReceivedTraceTests: XCTestCase {
         lines += trace.close().count
         XCTAssertEqual(lines, 60, "3,600 per-sample lines an hour become one a minute")
     }
+
+    /// The exact pair of lines the Kotlin `ORACLE_QUIET` claims this trace renders.
+    ///
+    /// #2405: that oracle is Swift's output pasted into a Kotlin test, and nothing on this side asserted
+    /// it, so the two could drift without a failure anywhere. The second line is the one that moved when
+    /// the boundary gap started being carried: a window that opens one second after the last sample of
+    /// the previous one reports exactly that.
+    func testTheQuietMinutePairMatchesTheKotlinOracle() {
+        var trace = Trace()
+        var lines: [String] = []
+        for second in 0...60 { lines += trace.record(routine(at: second), detailed: false) }
+        lines += trace.close()
+        XCTAssertEqual(lines, [
+            "standard-hr transport host-received summary windowSec=59 samples=60 gapMaxSec=1"
+            + " acceptedHRRows=60 acceptedRRRows=120 rejectedHRRows=0 rejectedRRRows=0"
+            + " pendingHRRows=1 pendingRRRows=2",
+            "standard-hr transport host-received summary windowSec=0 samples=1 gapMaxSec=1"
+            + " acceptedHRRows=1 acceptedRRRows=2 rejectedHRRows=0 rejectedRRRows=0"
+            + " pendingHRRows=1 pendingRRRows=2",
+        ])
+    }
+
+    /// #2405: the stall that crosses a window boundary is the one a reader is looking for.
+    ///
+    /// A gap of a minute or more forces the roll on the very next sample, so before this it fell between
+    /// two windows and was counted in neither: `gapMaxSec` could only ever describe stalls SHORTER than
+    /// the window. Here the stream goes quiet for two minutes mid-session.
+    func testAStallLongerThanTheWindowIsReportedByTheWindowItOpens() {
+        var trace = Trace()
+        var lines: [String] = []
+        for t in 0..<30 { lines += trace.record(routine(at: 1_000 + t), detailed: false) }
+        // Two minutes of silence, then the stream comes back.
+        lines += trace.record(routine(at: 1_000 + 29 + 120), detailed: false)
+        lines += trace.close()
+
+        XCTAssertEqual(lines.count, 2, "the rolled window, then the closing one: \(lines)")
+        XCTAssertTrue(lines[0].contains("windowSec=29 samples=30 gapMaxSec=1"), lines[0])
+        XCTAssertTrue(lines[1].contains("samples=1 gapMaxSec=120"),
+                      "the stall belongs to the window it opens: \(lines[1])")
+    }
+
+    /// A clock that steps backwards across the boundary has no honest span, so none is claimed.
+    func testABackwardsClockAcrossTheBoundarySeedsNoGap() {
+        var trace = Trace()
+        var lines: [String] = []
+        for t in 0..<5 { lines += trace.record(routine(at: 1_000 + t), detailed: false) }
+        lines += trace.record(routine(at: 900), detailed: false)   // before this window began
+        lines += trace.close()
+
+        XCTAssertTrue(lines.last?.contains("gapMaxSec=0") == true, "got: \(lines)")
+    }
+
+    /// `close()` is a disconnect, a background flush or a termination, each of which accounts for the
+    /// silence on its own. A stall measured across one would be reported twice.
+    func testAGapAcrossACloseIsNotSeeded() {
+        var trace = Trace()
+        _ = trace.record(routine(at: 1_000), detailed: false)
+        _ = trace.close()
+        var lines = trace.record(routine(at: 1_000 + 600), detailed: false)
+        lines += trace.close()
+
+        XCTAssertTrue(lines.last?.contains("gapMaxSec=0") == true, "got: \(lines)")
+    }
 }

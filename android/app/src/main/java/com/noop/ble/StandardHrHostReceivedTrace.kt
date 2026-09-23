@@ -62,7 +62,19 @@ class StandardHrHostReceivedTrace {
         ) {
             // A clock that went backwards ends the window too: a span is only honest within one clock.
             summaryLine()?.let { lines.add(it) }
+            val previousLast = lastSecond
+            val forwards = sample.hostUnixSeconds >= previousLast
             reset()
+            // #2405: the gap that CROSSED this boundary is the one worth reporting, and it used to be the
+            // one gap that could not be. A stall of a minute or more forces this roll on the next sample,
+            // so it fell between two windows and appeared in neither, leaving gapMaxSec able to describe
+            // only stalls shorter than the window — the opposite of what it is read for.
+            //
+            // Seeded into the NEW window rather than added to the summary just emitted: that summary
+            // describes the samples BEFORE the gap, and this window is the one the gap opens. Not seeded
+            // across a backwards clock (no honest span) nor across close(), where a disconnect or a
+            // termination already accounts for the silence. Twin of the Swift `record`.
+            if (forwards) widestGap = sample.hostUnixSeconds - previousLast
         }
         if (firstSecond == null) {
             firstSecond = sample.hostUnixSeconds
