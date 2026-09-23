@@ -48,4 +48,35 @@ final class LiveHeartRateReadabilityTests: XCTestCase {
         XCTAssertNil(live.heartRate)
         XCTAssertEqual(live.rrSeq, seqBefore)   // no new packet: packet consumers are not woken
     }
+
+    /// A WHOOP 5.0 off the wrist can go quiet with the link up: with no readable sample for the silence wait, the live
+    /// heart rate is cleared (the 23 Sep log: the Lock Screen stayed at 93 without this).
+    func testSilenceClearsTheHeartRate() {
+        let live = LiveState()
+        live.heartRateSilence = 0.3
+        live.heartRate = 93
+        live.noteReadableHeartRate()
+        let cleared = expectation(description: "cleared")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            XCTAssertNil(live.heartRate)
+            cleared.fulfill()
+        }
+        wait(for: [cleared], timeout: 3)
+    }
+
+    /// Samples arriving inside the wait keep it standing.
+    func testSamplesKeepTheHeartRate() {
+        let live = LiveState()
+        live.heartRateSilence = 0.5
+        live.heartRate = 93
+        for i in 0..<10 {
+            DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.1) { live.noteReadableHeartRate() }
+        }
+        let held = expectation(description: "held")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.1) {
+            XCTAssertEqual(live.heartRate, 93)
+            held.fulfill()
+        }
+        wait(for: [held], timeout: 3)
+    }
 }

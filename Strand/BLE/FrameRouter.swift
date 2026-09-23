@@ -114,6 +114,7 @@ public final class FrameRouter {
             // BLE_REALTIME_HR_ON, so the UI can consume it even though persistence still ignores raw43.
             // live perf: skip the publish when HR is unchanged — the raw flood carries the same HR
             // byte across many frames, so an unguarded write re-renders the whole console for nothing.
+            if let hr = parsed.parsed["heart_rate"]?.intValue, hr >= 30, hr <= 220 { state.noteReadableHeartRate() }
             if let hr = parsed.parsed["heart_rate"]?.intValue, hr >= 30, hr <= 220, state.heartRate != hr {
                 state.heartRate = hr
                 // Sleep & Rest test mode (Group E): bank the live HR sample for the readout's HR-density

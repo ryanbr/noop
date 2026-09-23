@@ -5534,7 +5534,10 @@ public final class BLEManager: NSObject, ObservableObject {
         // drive the value whenever it's readable. AppModel medians these into a stable display value.
         // live perf: only publish on a real change so a steady resting HR doesn't re-render the whole
         // Live console every second.
-        if readable, state.heartRate != m.hr { state.heartRate = m.hr }
+        if readable {
+            state.noteReadableHeartRate()
+            if state.heartRate != m.hr { state.heartRate = m.hr }
+        }
         // Record it continuously — independent of the realtime stream or the open screen.
         collector?.ingestStandardHR(hr: m.hr, rr: rr, contact: m.contact,
                                     family: router.family,
