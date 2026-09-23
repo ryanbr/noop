@@ -1372,11 +1372,11 @@ class WhoopRepository(
             dao.legacyWhoop5RrWithheld(deviceId, from, to)
     }
 
-    /** Diagnostic export keeps all WHOOP transports and legacy values without scoring selection.
-     * Existing quarantine and Oura SpO2-IBI exclusions still apply. */
+    /** Diagnostic export keeps all WHOOP transports, both Oura beat channels and legacy values without
+     * scoring selection. Existing quarantine and Oura SpO2-IBI exclusions still apply. */
     suspend fun rawRrIntervalsForDevice(deviceId: String, from: Long, to: Long,
                                         limit: Int = DEFAULT_LIMIT): List<RrInterval> =
-        dao.rrIntervals(deviceId, from, to, limit)
+        dao.rawRrIntervals(deviceId, from, to, limit)
 
     suspend fun rrIntervalsForDevice(deviceId: String, from: Long, to: Long,
                                      limit: Int = DEFAULT_LIMIT,

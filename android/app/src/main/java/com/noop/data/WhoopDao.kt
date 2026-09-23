@@ -42,8 +42,9 @@ internal const val ANALYSIS_FINGERPRINT_SQL =
  * which MAX(ts) alone would miss. Every arm is an index range walk over the same (deviceId, ts) key the HR
  * fingerprint uses, materializing no rows.
  *
- * rrInterval is filtered exactly as [WhoopDao.rrIntervals] filters at read (the 0x6E SpO2-IBI duplicate and
- * future-stamped beats), so the witness counts the beats that are actually scored. The literal 2 is
+ * rrInterval is filtered as [WhoopDao.rrIntervals] filters at read (the 0x6E SpO2-IBI duplicate and
+ * future-stamped beats), but WITHOUT its one-Oura-channel selection: the witness counts every beat that
+ * selection chooses from, since a new row on either channel can change which one is scored. The literal 2 is
  * RrSourceChannel.SPO2_IBI.code, pinned to the enum by RrChannelTest, for the same reason it is a literal
  * there: a Room @Query is a compile-time constant string.
  *
@@ -84,8 +85,29 @@ internal const val DAY_STREAM_FINGERPRINT_SQL =
         "'|ownerTagged' || EXISTS(SELECT 1 FROM rrInterval WHERE deviceId = :deviceId AND srcChannel IN (5, 6, 7)) || " +
         "'|registry' || COALESCE((SELECT QUOTE(brand) || ':' || QUOTE(model) FROM pairedDevice WHERE id = :deviceId), 'absent')"
 
-/** Shared production SQL used by Room and the SQLite repository contract tests. */
+/** The Oura beat channels [RR_INTERVALS_SQL] chooses between, as a SQL list: GREEN_QUALITY (0x80) on
+ *  one side, and the amplitude family on the other, IBI_AMPLITUDE (0x60) + IBI_BARE (0x44). Those two
+ *  share one decoder and were split for labelling only, so they are scored together, never against each
+ *  other. SPO2_IBI (0x6E) is not listed because the read excludes it outright. Twin of Swift
+ *  `WhoopStore.scorableOuraChannels`, so the channel set cannot drift between the two scoring reads. */
+internal const val SCORABLE_OURA_CHANNELS = "(1, 3, 4)"
+
+/** Shared production SQL used by Room and the SQLite repository contract tests. The SCORING read: see
+ *  [WhoopDao.rrIntervals] for the one-Oura-channel selection. Twin of Swift `WhoopStore.rrIntervals`. */
 internal const val RR_INTERVALS_SQL =
+    "SELECT * FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
+    "AND (srcChannel IS NULL OR srcChannel <> 2) " +
+    "AND (srcChannel IS NULL OR srcChannel NOT IN " + SCORABLE_OURA_CHANNELS + " OR (srcChannel = 1) = (" +
+    "SELECT SUM(srcChannel = 1) > SUM(srcChannel <> 1) FROM rrInterval " +
+    "WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to AND srcChannel IN " + SCORABLE_OURA_CHANNELS + " " +
+    "AND (tsSuspect IS NULL OR tsSuspect <> 1))) " +
+    "AND (tsSuspect IS NULL OR tsSuspect <> 1) " +
+    "ORDER BY ts ASC, ord ASC, rrMs ASC, seq ASC LIMIT :limit"
+
+/** The diagnostic export's read: every beat channel except the 0x6E duplicate, with NO scoring
+ *  selection, so an exported night still carries both Oura beat channels as each other's cross-check.
+ *  This is what [RR_INTERVALS_SQL] was before the one-channel selection. */
+internal const val RAW_RR_INTERVALS_SQL =
     "SELECT * FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
     "AND (srcChannel IS NULL OR srcChannel <> 2) " +
     "AND (tsSuspect IS NULL OR tsSuspect <> 1) " +
@@ -583,13 +605,23 @@ interface WhoopDao : DeviceRegistryDao {
         // whitelisting the one preferred (GREEN_QUALITY, 0x80), which matters for what it does NOT drop:
         //   - NULL is kept for WHOOP 4 and unlabelled legacy owners. The repository routes strict
         //     WHOOP 5 owners to whoop5RrIntervals instead.
-        //   - IBI_AMPLITUDE (0x60/0x44) is kept. It does not fire on the Gen-3 hardware this was measured
-        //     on, so there is no evidence it duplicates green — and dropping a ring's ONLY beat source on
-        //     an untested assumption is the more expensive mistake. If a capture ever shows 0x60 and 0x80
-        //     firing together, that is a second exclusion here, decided on that evidence.
+        //   - IBI_AMPLITUDE (0x60/0x44) is kept, because dropping a ring's ONLY beat source on an
+        //     untested assumption is the more expensive mistake.
         // 0x6E is the one excluded because it is the demonstrated duplicate AND the worse measurement of
         // the two: quantised to an 8 ms grid, no quality gate, and running only while an SpO2 measurement
         // is on — so scoring off it would make HRV coverage a function of the SpO2 duty cycle.
+        //
+        // ONE Oura channel per window, not merely one excluded. Captures since have shown 0x60 and 0x80
+        // firing TOGETHER over the same nights, on two rings. On one, 0x60 alone covers 0.91-0.99 of the
+        // wall clock and 0x80 adds a partial second copy of 8-33 % of it, so the pair read 1.01-1.31 and
+        // the #1118 coverage gate refused whichever nights happened to bank more 0x80. Neither channel is
+        // a duplicate to exclude by name. Which one is complete is a property of the capture, not of the
+        // tag, so the read keeps green alone when it holds MORE beats in the requested window than the
+        // amplitude family (0x60 + 0x44, see SCORABLE_OURA_CHANNELS), and the amplitude family alone
+        // otherwise, ties included. A ring with only one of them keeps it, which is the guarantee the
+        // exclusion above was protecting. NULL rows and every non-Oura code are untouched, so WHOOP and
+        // pre-v26 rows read exactly as before. The diagnostic export reads [rawRrIntervals] instead, which
+        // makes no selection.
         //
         // Rows are FILTERED, never deleted: the 0x6E stream stays on disk as the cross-check on green.
         // Legacy and non-WHOOP5 readers use this query. Strict WHOOP 5 uses the source-selected query below. The literal 2 is RrSourceChannel.SPO2_IBI
@@ -597,6 +629,10 @@ interface WhoopDao : DeviceRegistryDao {
         // pins the two together.
     @Query(RR_INTERVALS_SQL)
     suspend fun rrIntervals(deviceId: String, from: Long, to: Long, limit: Int): List<RrInterval>
+
+    /** Diagnostic export only: [RAW_RR_INTERVALS_SQL], no one-channel selection. */
+    @Query(RAW_RR_INTERVALS_SQL)
+    suspend fun rawRrIntervals(deviceId: String, from: Long, to: Long, limit: Int): List<RrInterval>
 
     /** WHOOP 5: one eligible transport over the entire requested interval, selected before LIMIT. */
     @Query(WHOOP5_RR_INTERVALS_SQL)

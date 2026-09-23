@@ -119,8 +119,12 @@ class Whoop5RRSqliteTest {
                         .use { it.executeUpdate() }
                     Unit
                 }
-                "rrIntervals", "whoop5RrIntervals" -> query(
-                    if (method.name == "whoop5RrIntervals") WHOOP5_RR_INTERVALS_SQL else RR_INTERVALS_SQL,
+                "rrIntervals", "whoop5RrIntervals", "rawRrIntervals" -> query(
+                    when (method.name) {
+                        "whoop5RrIntervals" -> WHOOP5_RR_INTERVALS_SQL
+                        "rawRrIntervals" -> RAW_RR_INTERVALS_SQL
+                        else -> RR_INTERVALS_SQL
+                    },
                     listOf("deviceId", "from", "to", "limit").zip(args.take(4)).toMap(),
                 ) { r ->
                     fun optional(column: String) = r.getInt(column).let { if (r.wasNull()) null else it }
