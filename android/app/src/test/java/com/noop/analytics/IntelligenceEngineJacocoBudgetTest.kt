@@ -69,7 +69,7 @@ class IntelligenceEngineJacocoBudgetTest {
         val calls = nameUses.filter { it != nameOffsetInDeclaration }
         assertEquals("Expected exactly one call to $helperName", 1, calls.size)
 
-        val replace = requireExactlyOne(code, Regex("""\brepo\s*\.\s*replaceComputedScoreWindow\s*\("""))
+        val replace = requireExactlyOne(code, Regex("""\bIntelligencePersistence\s*\.\s*persistComputedWindow\s*\("""))
         val dismissed = requireExactlyOne(code, Regex("""\bDismissedSleepGuard\s*\.\s*keeping\s*\("""))
         assertTrue("$helperName must run after replaceComputedScoreWindow", calls.single() > replace)
         assertTrue("$helperName must run before DismissedSleepGuard.keeping", calls.single() < dismissed)
