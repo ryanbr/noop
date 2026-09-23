@@ -25,6 +25,8 @@ final class SyncLiveActivityController {
     static let shared = SyncLiveActivityController()
 
     private var activity: Activity<SyncActivityAttributes>?
+    /// A sync banner is on screen — what NOOP's live heart rate banner makes room for (`LiveHRBannerLifecycle`).
+    var isShowing: Bool { activity != nil }
     private var cancellables: Set<AnyCancellable> = []
     /// For the strap log: a refused `Activity.request` must say so, or "no island" has no evidence.
     private weak var live: LiveState?

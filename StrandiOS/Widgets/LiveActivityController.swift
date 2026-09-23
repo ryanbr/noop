@@ -1,6 +1,7 @@
 #if os(iOS)
 import Foundation
 import ActivityKit
+import UIKit
 
 /// Starts, updates, and ends the live-HR Live Activity. The activity appears on the Lock Screen and
 /// in the Dynamic Island while the strap is bonded and streaming heart rate.
@@ -25,11 +26,17 @@ final class LiveActivityController {
     /// frozen activity if the app is suspended/killed without an explicit end (a missed-tick safety net
     /// on top of the connected-driven end below).
     private static let staleAfter: TimeInterval = 120
+    /// A banner kept through a dropped link (it shows the dash) is ended if the link stays down this long, so a strap
+    /// left behind does not leave a dash on the Lock Screen for hours.
+    private static let endAfterLinkDown: TimeInterval = 600
+    private var linkDownEnd: DispatchWorkItem?
 
-    /// Drive the activity from the latest live values. Lazily starts when the strap is CONNECTED (the
-    /// live link, not the sticky "paired" flag) and a heart rate is present; ends the moment the link
-    /// drops. Pushed only when what it shows changes, at most every 2 s (`LiveHRBannerPushPolicy`).
-    func update(bpm: Int?, recovery: Int?, connected: Bool, effort: Int? = nil) {
+    /// Drive the activity from the latest live values (`LiveHRBannerLifecycle` decides start / push / end). Starts
+    /// only in the foreground, with the strap CONNECTED (the live link, not the sticky "paired" flag) and a heart
+    /// rate to show; a running banner shows the dash through a dropped link or a strap that is not measuring, and
+    /// ends when its switch is off, another banner takes the screen (`standsAside`), or the link stays down for
+    /// `endAfterLinkDown`. Pushed only when what it shows changes (`LiveHRBannerPushPolicy`).
+    func update(bpm: Int?, recovery: Int?, connected: Bool, standsAside: Bool, effort: Int? = nil) {
         guard authInfo.areActivitiesEnabled else { return }
 
         // Re-adopt an activity that outlived a previous app session. ActivityKit keeps Live Activities
@@ -40,33 +47,41 @@ final class LiveActivityController {
         // `Activity.activities` isn't reliably hydrated at the instant of process launch.
         if activity == nil { activity = Activity<NOOPActivityAttributes>.activities.first }
 
-        // User opt-out (#336): if the in-app toggle is off, never start — and end any activity that's
-        // already showing (the user just turned it off; this fires on the next ~1 Hz HR tick).
-        guard UnitPrefs.liveActivityEnabled() else {
-            if activity != nil { Task { await end() } }
-            return
-        }
-
-        // End the moment the live link drops — `bonded` stays true across every disconnect (it means
-        // "this strap is paired"), so keying off it left a frozen, fabricated "live" HR on the Lock
-        // Screen / Dynamic Island indefinitely after the strap went out of range.
-        if !connected {
+        // The switch (#336) and another banner on screen end it; a dropped link does not (`LiveHRBannerLifecycle`).
+        let step = LiveHRBannerLifecycle.step(
+            switchOn: UnitPrefs.liveActivityEnabled(), standsAside: standsAside, linkUp: connected, bpm: bpm,
+            showing: activity != nil, appActive: UIApplication.shared.applicationState == .active)
+        switch step {
+        case .nothing: return
+        case .end:
             Task { await end() }
             return
+        case .start, .push: break
         }
-        // Never START a banner without a heart rate; an existing one shows the dash, as the app does, instead of
-        // freezing on the last number when the strap stops measuring (off the wrist) with the link still up.
-        guard activity != nil || bpm != nil else { return }
 
-        let state = NOOPActivityAttributes.ContentState(bpm: bpm, recovery: recovery, bonded: connected,
-                                                        effort: effort)
+        // Link down: the dash, never the last number (`bonded` stays true across a disconnect, and keying off it once
+        // left a fabricated "live" HR standing), and an end if the link does not come back.
+        if connected {
+            linkDownEnd?.cancel()
+            linkDownEnd = nil
+        } else if linkDownEnd == nil {
+            let item = DispatchWorkItem { [weak self] in Task { @MainActor in await self?.end() } }
+            linkDownEnd = item
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.endAfterLinkDown, execute: item)
+        }
+
+        let state = NOOPActivityAttributes.ContentState(bpm: connected ? bpm : nil, recovery: recovery,
+                                                        bonded: connected, effort: effort)
         let now = Date()
         let staleDate = now.addingTimeInterval(Self.staleAfter)
 
         if let activity {
-            guard LiveHRBannerPushPolicy.due(shown: shownState, next: state,
-                                             sinceLastPush: now.timeIntervalSince(lastPush),
-                                             staleAfter: Self.staleAfter) else { return }
+            // The link dropping is pushed at once: no tick follows it, so a push skipped for spacing would leave the
+            // last number standing until the link came back.
+            let linkJustDropped = !connected && shownState?.bonded == true
+            guard linkJustDropped || LiveHRBannerPushPolicy.due(shown: shownState, next: state,
+                                                                  sinceLastPush: now.timeIntervalSince(lastPush),
+                                                                  staleAfter: Self.staleAfter) else { return }
             lastPush = now
             shownState = state
             Task { await activity.update(ActivityContent(state: state, staleDate: staleDate)) }
@@ -100,6 +115,8 @@ final class LiveActivityController {
         }
         self.activity = nil
         shownState = nil
+        linkDownEnd?.cancel()
+        linkDownEnd = nil
     }
 }
 #endif
