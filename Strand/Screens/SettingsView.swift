@@ -265,7 +265,7 @@ struct SettingsView: View {
                 appearanceCard.staggeredAppear(index: 2)
                 strapCard.staggeredAppear(index: 3)
                 #if os(iOS)
-                lockScreenCard.staggeredAppear(index: 3)
+                liveNotificationsCard.staggeredAppear(index: 3)
                 #endif
                 streakCard.staggeredAppear(index: 4)
                 featuresCard.staggeredAppear(index: 5)
@@ -1558,58 +1558,43 @@ struct SettingsView: View {
     /// `noop.hrvBaselineEpoch` and `noop.recoveryBaselineEpoch` settings the recovery engine reads, then
     /// kicks a recompute the same way the sleep-edit path does (analyzeRecent → refresh). History stays.
     #if os(iOS)
-    /// Everything NOOP shows on the Lock Screen and in the Dynamic Island, one switch each: the live heart rate,
-    /// the Lift Log session and the strap sync. They are independent — a person can keep the gym banner and drop
-    /// the everyday heart-rate one — and each only decides what is SHOWN: the heart rate is still measured,
-    /// recorded and scored with its banner off.
-    private var lockScreenCard: some View {
+    /// NOOP's live notifications — its Live Activities, on the Lock Screen and in the Dynamic Island — one switch
+    /// each: the live heart rate, a Lift Log session, a strap sync. These three are every Live Activity the app has.
+    /// A switch only decides whether its notification is SHOWN: the heart rate is still measured, recorded and
+    /// scored, a session still runs and buzzes, a sync still runs, with any of them off.
+    private var liveNotificationsCard: some View {
         SettingsSection(
-            icon: "iphone",
-            title: "Lock Screen & Dynamic Island",
-            blurb: "What NOOP shows there, each on its own switch."
+            icon: "bell.badge",
+            title: "Live notifications",
+            blurb: "Shown on the Lock Screen and in the Dynamic Island. A switch only hides one: NOOP still measures and records everything."
         ) {
             VStack(alignment: .leading, spacing: NoopMetrics.rowSpacing) {
-                // MARK: Live Activity — show live HR on the Lock Screen + Dynamic Island (#336).
-                Toggle(isOn: $liveActivityEnabled) {
-                    Text("Live heart rate in Dynamic Island")
-                        .font(StrandFont.subhead)
-                        .foregroundStyle(StrandPalette.textPrimary)
-                }
-                .toggleStyle(.switch)
-                .tint(StrandPalette.accent)
-                Text("Shows your live heart rate on the Lock Screen and in the Dynamic Island while the strap is connected. Turn it off to keep your live HR out of the Dynamic Island. (Any one already showing clears within a moment.)")
-                    .font(StrandFont.caption)
-                    .foregroundStyle(StrandPalette.textTertiary)
-                    .fixedSize(horizontal: false, vertical: true)
+                liveNotificationSwitch("Live heart rate", isOn: $liveActivityEnabled,
+                                       detail: "While the strap is connected.")
                 rowDivider
-                // MARK: Lift Log session Live Activity — its own switch, so the gym banner can stay while the
-                // everyday heart-rate one is off.
-                Toggle(isOn: $liftLiveActivityEnabled) {
-                    Text("Lift Log session in Dynamic Island")
-                        .font(StrandFont.subhead)
-                        .foregroundStyle(StrandPalette.textPrimary)
-                }
-                .toggleStyle(.switch)
-                .tint(StrandPalette.accent)
-                Text("Shows the set you are on, your rest and your heart rate while a Lift Log session runs, and lights the Lock Screen when the strap moves the session on. Independent of the live heart rate switch.")
-                    .font(StrandFont.caption)
-                    .foregroundStyle(StrandPalette.textTertiary)
-                    .fixedSize(horizontal: false, vertical: true)
+                liveNotificationSwitch("Lift Log session", isOn: $liftLiveActivityEnabled,
+                                       detail: "Your set, rest and heart rate, and the Lock Screen light-up on a double-tap.")
                 rowDivider
-                // MARK: Strap-sync Live Activity — its own switch, independent of the live-HR one.
-                Toggle(isOn: $syncLiveActivityEnabled) {
-                    Text("Strap sync in Dynamic Island")
-                        .font(StrandFont.subhead)
-                        .foregroundStyle(StrandPalette.textPrimary)
-                }
-                .toggleStyle(.switch)
-                .tint(StrandPalette.accent)
-                .accessibilityHint("Shows sync progress on the Lock Screen and in the Dynamic Island")
-                Text("Shows Connecting… / Syncing… with the chunk count and elapsed time while NOOP pulls history from your strap, including a sync started by the Sync Strap shortcut. Independent of the live heart rate switch above.")
-                    .font(StrandFont.caption)
-                    .foregroundStyle(StrandPalette.textTertiary)
-                    .fixedSize(horizontal: false, vertical: true)
+                liveNotificationSwitch("Strap sync", isOn: $syncLiveActivityEnabled,
+                                       detail: "Progress while NOOP pulls history from the strap.")
             }
+        }
+    }
+
+    private func liveNotificationSwitch(_ title: LocalizedStringKey, isOn: Binding<Bool>,
+                                        detail: LocalizedStringKey) -> some View {
+        VStack(alignment: .leading, spacing: NoopMetrics.space1) {
+            Toggle(isOn: isOn) {
+                Text(title)
+                    .font(StrandFont.subhead)
+                    .foregroundStyle(StrandPalette.textPrimary)
+            }
+            .toggleStyle(.switch)
+            .tint(StrandPalette.accent)
+            Text(detail)
+                .font(StrandFont.caption)
+                .foregroundStyle(StrandPalette.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
     #endif

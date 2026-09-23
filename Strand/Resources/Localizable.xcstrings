@@ -283,60 +283,60 @@
         }
       }
     },
-    "Lift Log session in Dynamic Island": {
+    "Lift Log session": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Trainingsbuch-Einheit in der Dynamic Island"
+            "value": "Trainingsbuch-Einheit"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sesión del Registro de fuerza en la Dynamic Island"
+            "value": "Sesión del Registro de fuerza"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Séance du Carnet de force dans la Dynamic Island"
+            "value": "Séance du Carnet de force"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sessione del Diario dei pesi nella Dynamic Island"
+            "value": "Sessione del Diario dei pesi"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sessão do Registo de força na Dynamic Island"
+            "value": "Sessão do Registo de força"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Тренировка «Дневника тренировок» в Dynamic Island"
+            "value": "Тренировка «Дневника тренировок»"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在灵动岛中显示力量日志训练"
+            "value": "力量日志训练"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "在動態島中顯示力量日誌訓練"
+            "value": "力量日誌訓練"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sesja Dziennika siłowni w Dynamic Island"
+            "value": "Sesja Dziennika siłowni"
           }
         }
       }
@@ -399,60 +399,60 @@
         }
       }
     },
-    "Lock Screen & Dynamic Island": {
+    "Live notifications": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sperrbildschirm & Dynamic Island"
+            "value": "Live-Mitteilungen"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pantalla de bloqueo y Dynamic Island"
+            "value": "Notificaciones en vivo"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Écran verrouillé et Dynamic Island"
+            "value": "Notifications en direct"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Schermata di blocco e Dynamic Island"
+            "value": "Notifiche in tempo reale"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ecrã de bloqueio e Dynamic Island"
+            "value": "Notificações em direto"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Экран блокировки и Dynamic Island"
+            "value": "Уведомления в реальном времени"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "锁定屏幕与灵动岛"
+            "value": "实时通知"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "鎖定畫面與動態島"
+            "value": "即時通知"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ekran blokady i Dynamic Island"
+            "value": "Powiadomienia na żywo"
           }
         }
       }
@@ -511,6 +511,64 @@
           "stringUnit": {
             "state": "translated",
             "value": "NOOP łączy się z paskiem i zsynchronizuje go, gdy tylko będzie gotowy."
+          }
+        }
+      }
+    },
+    "Progress while NOOP pulls history from the strap.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fortschritt, während NOOP den Verlauf vom Strap lädt."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El progreso mientras NOOP descarga el historial de la pulsera."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La progression pendant que NOOP récupère l'historique du bracelet."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "L'avanzamento mentre NOOP scarica lo storico dalla fascia."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O progresso enquanto o NOOP obtém o histórico da pulseira."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Прогресс, пока NOOP загружает историю с браслета."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP 从手环读取历史数据时的进度。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP 從手環讀取歷史資料時的進度。"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Postęp, gdy NOOP pobiera historię z paska."
           }
         }
       }
@@ -689,234 +747,60 @@
         }
       }
     },
-    "Shows Connecting… / Syncing… with the chunk count and elapsed time while NOOP pulls history from your strap, including a sync started by the Sync Strap shortcut. Independent of the live heart rate switch above.": {
+    "Shown on the Lock Screen and in the Dynamic Island. A switch only hides one: NOOP still measures and records everything.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Zeigt „Verbinde…“ / „Synchronisiere…“ mit Chunk-Anzahl und verstrichener Zeit, während NOOP Daten von deinem Strap abruft – auch bei einer Synchronisierung über den Kurzbefehl „Strap synchronisieren“. Unabhängig vom Schalter für den Live-Puls oben."
+            "value": "Auf dem Sperrbildschirm und in der Dynamic Island. Ein Schalter blendet nur die Anzeige aus: NOOP misst und speichert weiterhin alles."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Muestra Conectando… / Sincronizando… con el número de fragmentos y el tiempo transcurrido mientras NOOP descarga el historial de tu pulsera, incluida una sincronización iniciada con el atajo Sincronizar pulsera. Independiente del interruptor de frecuencia cardíaca en vivo de arriba."
+            "value": "En la pantalla de bloqueo y en la Dynamic Island. Un interruptor solo oculta la notificación: NOOP sigue midiendo y registrando todo."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Affiche Connexion… / Synchronisation… avec le nombre de blocs et le temps écoulé pendant que NOOP récupère l'historique de votre bracelet, y compris une synchronisation lancée par le raccourci Synchroniser le bracelet. Indépendant de l'interrupteur de fréquence cardiaque en direct ci-dessus."
+            "value": "Sur l'écran verrouillé et dans la Dynamic Island. Un interrupteur ne fait que masquer l'affichage : NOOP continue de tout mesurer et d'enregistrer."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mostra Connessione… / Sincronizzazione… con il numero di blocchi e il tempo trascorso mentre NOOP scarica la cronologia dalla fascia, anche per una sincronizzazione avviata dal comando rapido Sincronizza la fascia. Indipendente dall'interruttore della frequenza cardiaca in tempo reale qui sopra."
+            "value": "Sulla schermata di blocco e nella Dynamic Island. Un interruttore nasconde solo la notifica: NOOP continua a misurare e registrare tutto."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mostra A ligar… / A sincronizar… com o número de blocos e o tempo decorrido enquanto o NOOP transfere o histórico da sua pulseira, incluindo uma sincronização iniciada pelo atalho Sincronizar pulseira. Independente do interruptor de frequência cardíaca em direto acima."
+            "value": "No ecrã de bloqueio e na Dynamic Island. Um interruptor apenas oculta a notificação: o NOOP continua a medir e a registar tudo."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Показывает «Подключение…» / «Синхронизация…» с числом блоков и прошедшим временем, пока NOOP загружает историю с браслета, в том числе при синхронизации через команду «Синхронизировать браслет». Не зависит от переключателя пульса в реальном времени выше."
+            "value": "На экране блокировки и в Dynamic Island. Переключатель только скрывает уведомление: NOOP продолжает всё измерять и записывать."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "NOOP 从手环读取历史数据时显示“连接中…”/“同步中…”、数据块数量和已用时间，包括通过“同步手环”快捷指令启动的同步。与上方的实时心率开关无关。"
+            "value": "显示在锁定屏幕和灵动岛上。开关只会隐藏通知：NOOP 仍会测量并记录所有数据。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "NOOP 從手環讀取歷史資料時顯示「連接中…」/「同步中…」、資料塊數量和已用時間，包括透過「同步手環」捷徑啟動的同步。與上方的即時心率開關無關。"
+            "value": "顯示在鎖定畫面和動態島上。開關只會隱藏通知：NOOP 仍會測量並記錄所有資料。"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pokazuje Łączenie… / Synchronizowanie… z liczbą fragmentów i czasem trwania, gdy NOOP pobiera historię z paska, także przy synchronizacji uruchomionej skrótem Synchronizuj pasek. Niezależne od przełącznika tętna na żywo powyżej."
-          }
-        }
-      }
-    },
-    "Shows sync progress on the Lock Screen and in the Dynamic Island": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zeigt den Synchronisierungsfortschritt auf dem Sperrbildschirm und in der Dynamic Island"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Muestra el progreso de la sincronización en la pantalla de bloqueo y en la Dynamic Island"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Affiche la progression de la synchronisation sur l'écran verrouillé et dans la Dynamic Island"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mostra l'avanzamento della sincronizzazione nella schermata di blocco e nella Dynamic Island"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mostra o progresso da sincronização no ecrã bloqueado e na Dynamic Island"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Показывает ход синхронизации на экране блокировки и в Dynamic Island"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在锁定屏幕和灵动岛中显示同步进度"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在鎖定畫面和動態島中顯示同步進度"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pokazuje postęp synchronizacji na ekranie blokady i w Dynamic Island"
-          }
-        }
-      }
-    },
-    "Shows the set you are on, your rest and your heart rate while a Lift Log session runs, and lights the Lock Screen when the strap moves the session on. Independent of the live heart rate switch.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zeigt während einer Trainingsbuch-Einheit deinen aktuellen Satz, deine Pause und deine Herzfrequenz und lässt den Sperrbildschirm aufleuchten, wenn der Strap die Einheit weiterschaltet. Unabhängig vom Schalter für die Live-Herzfrequenz."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Muestra la serie en la que estás, tu descanso y tu frecuencia cardíaca durante una sesión del Registro de fuerza, e ilumina la pantalla de bloqueo cuando la pulsera avanza la sesión. Independiente del interruptor de la frecuencia cardíaca en vivo."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Affiche la série en cours, votre repos et votre fréquence cardiaque pendant une séance du Carnet de force, et allume l'écran verrouillé quand le bracelet fait avancer la séance. Indépendant de l'interrupteur de la fréquence cardiaque en direct."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mostra la serie in corso, il recupero e la frequenza cardiaca durante una sessione del Diario dei pesi, e accende la schermata di blocco quando la fascia fa avanzare la sessione. Indipendente dall'interruttore della frequenza cardiaca in diretta."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mostra a série em que estás, o teu descanso e a tua frequência cardíaca durante uma sessão do Registo de força, e acende o ecrã de bloqueio quando a pulseira avança a sessão. Independente do interruptor da frequência cardíaca em direto."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Показывает текущий подход, отдых и пульс во время тренировки «Дневника тренировок» и включает экран блокировки, когда браслет переключает тренировку дальше. Не зависит от переключателя пульса в реальном времени."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在力量日志训练期间显示你当前的组、休息时间和心率，并在手环推进训练时点亮锁定屏幕。与实时心率开关互不影响。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在力量日誌訓練期間顯示你目前的組、休息時間和心率，並在手環推進訓練時點亮鎖定畫面。與即時心率開關互不影響。"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pokazuje bieżącą serię, przerwę i tętno podczas sesji Dziennika siłowni oraz podświetla ekran blokady, gdy pasek przesuwa sesję dalej. Niezależne od przełącznika tętna na żywo."
-          }
-        }
-      }
-    },
-    "Strap sync in Dynamic Island": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Strap-Synchronisierung in der Dynamic Island"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sincronización de la pulsera en la Dynamic Island"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Synchronisation du bracelet dans la Dynamic Island"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sincronizzazione della fascia nella Dynamic Island"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sincronização da pulseira na Dynamic Island"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Синхронизация браслета в Dynamic Island"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "灵动岛中显示手环同步"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "動態島中顯示手環同步"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Synchronizacja paska w Dynamic Island"
+            "value": "Na ekranie blokady i w Dynamic Island. Przełącznik tylko ukrywa powiadomienie: NOOP nadal wszystko mierzy i zapisuje."
           }
         }
       }
@@ -1864,60 +1748,118 @@
     "Working sets": { "localizations": {
       "de": {"stringUnit": {"state": "translated", "value": "Arbeitssätze"}}, "es": {"stringUnit": {"state": "translated", "value": "Series efectivas"}}, "fr": {"stringUnit": {"state": "translated", "value": "Séries de travail"}}, "it": {"stringUnit": {"state": "translated", "value": "Serie di lavoro"}}, "pl": {"stringUnit": {"state": "translated", "value": "Serie robocze"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Séries de trabalho"}}, "ru": {"stringUnit": {"state": "translated", "value": "Рабочие подходы"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "正式组"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "正式組"}}
     } },
-    "What NOOP shows there, each on its own switch.": {
+    "While the strap is connected.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Was NOOP dort anzeigt, jeweils mit eigenem Schalter."
+            "value": "Solange der Strap verbunden ist."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lo que NOOP muestra ahí, cada cosa con su propio interruptor."
+            "value": "Mientras la pulsera está conectada."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ce que NOOP y affiche, chaque élément avec son propre interrupteur."
+            "value": "Tant que le bracelet est connecté."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cosa mostra NOOP lì, ognuno con il proprio interruttore."
+            "value": "Finché la fascia è collegata."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "O que o NOOP mostra aí, cada um com o seu próprio interruptor."
+            "value": "Enquanto a pulseira está ligada."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Что NOOP там показывает — у каждого свой переключатель."
+            "value": "Пока браслет подключён."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "NOOP 在这里显示的内容，每项都有单独的开关。"
+            "value": "手环连接期间。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "NOOP 在這裡顯示的內容，每項都有單獨的開關。"
+            "value": "手環連接期間。"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Co NOOP tam pokazuje, każde z własnym przełącznikiem."
+            "value": "Gdy pasek jest połączony."
+          }
+        }
+      }
+    },
+    "Your set, rest and heart rate, and the Lock Screen light-up on a double-tap.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dein Satz, deine Pause und deine Herzfrequenz, dazu das Aufleuchten des Sperrbildschirms beim Doppeltippen."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu serie, tu descanso y tu frecuencia cardíaca, y el encendido de la pantalla de bloqueo con un doble toque."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre série, votre repos et votre fréquence cardiaque, et l'allumage de l'écran verrouillé au double-tap."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La tua serie, il recupero e la frequenza cardiaca, e l'accensione della schermata di blocco al doppio tocco."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A tua série, o teu descanso e a tua frequência cardíaca, e o acender do ecrã de bloqueio com um duplo toque."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ваш подход, отдых и пульс, а также включение экрана блокировки по двойному касанию."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你当前的组、休息和心率，以及双击时点亮锁定屏幕。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "你目前的組、休息和心率，以及雙擊時點亮鎖定畫面。"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Twoja seria, przerwa i tętno oraz podświetlenie ekranu blokady po podwójnym stuknięciu."
           }
         }
       }
@@ -95294,64 +95236,6 @@
         }
       }
     },
-    "Live heart rate in Dynamic Island": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Live-Herzfrequenz in der Dynamic Island"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Frecuencia cardíaca en vivo en la Dynamic Island"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fréquence cardiaque en direct dans la Dynamic Island"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Frequenza cardiaca in diretta nella Dynamic Island"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Frequência cardíaca em direto em Dynamic Island"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Пульс в реальном времени в Dynamic Island"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在灵动岛中显示实时心率"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在動態島中顯示即時心率"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tętno na żywo w Dynamic Island"
-          }
-        }
-      }
-    },
     "Live heart rate is flowing; full strap controls need an encrypted bond.": {
       "localizations": {
         "de": {
@@ -147141,64 +147025,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Wyświetla sekcje ustawień zaawansowanych"
-          }
-        }
-      }
-    },
-    "Shows your live heart rate on the Lock Screen and in the Dynamic Island while the strap is connected. Turn it off to keep your live HR out of the Dynamic Island. (Any one already showing clears within a moment.)": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zeigt deine Live-Herzfrequenz auf dem Sperrbildschirm und in der Dynamic Island, während der Strap verbunden ist. Schalte es aus, um deine Live-HF aus der Dynamic Island fernzuhalten. (Eine bereits angezeigte verschwindet gleich darauf.)"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Muestra tu frecuencia cardíaca en vivo en la pantalla de bloqueo y en la Dynamic Island mientras la pulsera está conectada. Desactívalo para mantener tu FC en vivo fuera de la Dynamic Island. (Cualquiera que ya se muestre desaparece en un momento.)"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Affiche votre fréquence cardiaque en direct sur l'écran verrouillé et dans la Dynamic Island tant que le bracelet est connecté. Désactivez-la pour garder votre FC en direct hors de la Dynamic Island. (Toute FC déjà affichée disparaît sous peu.)"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mostra la tua frequenza cardiaca in diretta sulla schermata di blocco e nella Dynamic Island mentre la fascia è connessa. Disattivalo per tenere la tua FC in diretta fuori dalla Dynamic Island. (Quella eventualmente già mostrata sparisce in un attimo.)"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mostra a tua frequência cardíaca em direto no ecrã de bloqueio e na Ilha Dinâmica enquanto a bracelete está ligada. Desligue-o para manter o teu RH ativo fora da Ilha Dinâmica. (Qualquer um que já esteja a aparecer será eliminado daqui a pouco.)"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Показывает ваш текущий пульс на заблокированном экране и в Dynamic Island, пока браслет подключён. Отключите, чтобы пульс не отображался в Dynamic Island. (Уже показанный индикатор исчезнет через мгновение.)"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在手环连接期间，于锁定屏幕和灵动岛上显示你的实时心率。将它关闭可让你的实时心率不出现在灵动岛中。（任何已在显示的都会在片刻内清除。）"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "在手環連接期間，於鎖定畫面和動態島上顯示你的即時心率。將它關閉可讓你的即時心率不出現在動態島中。（任何已在顯示的都會在片刻內清除。）"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pokazuje Twoje tętno na żywo na ekranie blokady i na Dynamic Island, gdy pasek jest podłączony. Wyłącz tę opcję, aby Twoje tętno na żywo nie znajdowało się poza dynamiczną wyspą. (Każdy, kto już pokazał, znika w ciągu chwili.)"
           }
         }
       }
