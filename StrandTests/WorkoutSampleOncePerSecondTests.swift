@@ -16,6 +16,21 @@ final class WorkoutSampleOncePerSecondTests: XCTestCase {
         XCTAssertEqual(workout.samples.map(\.bpm), [120, 122])
     }
 
+    /// The rate moving is often why a second arrives twice, so the refused reading can be that second's high: it is
+    /// not recorded, but it is the workout's peak, live and saved.
+    func testARepeatedSecondStillReachesThePeak() {
+        var workout = AppModel.ActiveWorkout(start: Date(timeIntervalSince1970: 1_000))
+        XCTAssertNil(workout.savedPeak)
+        _ = workout.recordSample(HRSample(ts: 1_000, bpm: 120))
+        workout.peakHr = 120   // what captureWorkoutSample does after an accepted sample
+        XCTAssertFalse(workout.recordSample(HRSample(ts: 1_000, bpm: 131)))
+        XCTAssertEqual(workout.samples.map(\.bpm), [120])
+        XCTAssertEqual(workout.peakHr, 131)
+        XCTAssertEqual(workout.savedPeak, 131)
+        XCTAssertFalse(workout.recordSample(HRSample(ts: 1_000, bpm: 125)))   // a lower repeat moves nothing
+        XCTAssertEqual(workout.peakHr, 131)
+    }
+
     /// Twenty minutes climbing from 100 to 160 bpm, each second arriving twice (the R-R packet, then the rate
     /// moving) as it does during exercise. Recorded through `recordSample`, the workout's Effort is the Effort of
     /// the plain once-a-second stream; the repeats, kept, scored higher.
