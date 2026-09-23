@@ -1273,6 +1273,8 @@ public final class BLEManager: NSObject, ObservableObject {
     private var lastStandardHRLogAt: Date?
     /// Counts unreadable standard heart-rate samples in a row, so a run of them clears the shown heart rate.
     private var heartRateReadability = LiveHeartRateReadability()
+    /// The skin-contact flag the last standard heart-rate sample carried, so a change is logged once.
+    private var lastLoggedHRContact: StandardHRContact?
 
     /// True when the selected/connected strap is a WHOOP 5/MG. Read-only window onto the private
     /// `selectedModel` so a view can tell whether the firmware-alarm path is the experimental 5/MG one
@@ -5515,6 +5517,12 @@ public final class BLEManager: NSObject, ObservableObject {
         // Only a sample the strap could measure reaches what the app shows (`LiveHeartRateReadability`): a
         // plausible heart rate with skin contact not reported absent. The collector below still gets every one.
         let readable = LiveHeartRateReadability.isReadable(bpm: m.hr, contact: m.contact)
+        // Rare-event evidence, always on: what the strap says about skin contact, logged when it changes (and once
+        // at the first sample), so a strap log shows what the band reports when it comes off the wrist.
+        if m.contact != lastLoggedHRContact {
+            log("HR: skin contact \(m.contact.rawValue) (was \(lastLoggedHRContact?.rawValue ?? "unknown")), \(m.hr) bpm")
+            lastLoggedHRContact = m.contact
+        }
         if !rr.isEmpty, readable { state.setRRIntervals(rr) }
         // A run of unreadable samples clears the shown heart rate instead of leaving the last one standing.
         if heartRateReadability.clearsShownHeartRate(bpm: m.hr, contact: m.contact), state.heartRate != nil {
