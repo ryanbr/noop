@@ -169,6 +169,8 @@ final class AppModel: ObservableObject {
     // L3 stress-onset detector state: a rolling R-R buffer + the replay-safe detector state (persisted
     // via BiofeedbackPrefs so a relaunch can't re-fire), carried verbatim between evaluations.
     private var rrBuf: [Int] = []
+    /// Which live R-R packet `rrBuf` last took, so each packet enters it once (`RRPacketCursor`).
+    private var stressPackets = RRPacketCursor()
     private var stressState = BiofeedbackPrefs.loadStressState()
 
     /// Import source currently writing to the local store, if any.
@@ -1071,6 +1073,10 @@ final class AppModel: ObservableObject {
     /// baseline + rate limit), persisted via `BiofeedbackPrefs` so a relaunch can't re-fire. Honest /
     /// non-clinical: "stress" is an autonomic proxy vs the user's own baseline, never a diagnosis.
     private func evaluateStress() {
+        // Once per R-R packet. `ingestHR` runs from both the heart-rate and the R-R sink, so a packet reached
+        // this once or twice, its intervals entered `rrBuf` as often, and the detector's slow baseline
+        // advanced on every call rather than every packet.
+        guard stressPackets.isNew(live.rrSeq) else { return }
         let fresh = live.rr.filter { $0 > 300 && $0 < 2000 }   // plausible R-R (30–200 bpm)
         guard !fresh.isEmpty else { return }
         rrBuf.append(contentsOf: fresh)
