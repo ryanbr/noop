@@ -32,4 +32,31 @@ class PassiveReconnectWaitTest {
     @Test fun animmediateAnswerIsStillReported() {
         assertTrue(passiveReconnectAnsweredLine(waitedSeconds = 0, attempts = 1).contains("outstanding for 0s"))
     }
+
+    /**
+     * The stamp must be set AFTER the reconnect is scheduled, because `scheduleReconnect` opens with
+     * `cancelPendingReconnect()`, which clears it. The first version of #2406 stamped first, so the
+     * field was wiped microseconds later and the line above could never print: a 23 Sep 2026 field log
+     * has two passive reconnects and not one of these lines. The builder is pure and was always green,
+     * which is exactly why the ordering needs its own pin, against the source.
+     */
+    @Test fun theStampSurvivesTheSchedulingItIsSetAround() {
+        var root = java.io.File(System.getProperty("user.dir") ?: ".").canonicalFile
+        val src = run {
+            repeat(4) {
+                val f = java.io.File(root, "android/app/src/main/java/com/noop/ble/WhoopBleClient.kt")
+                if (f.isFile) return@run f.readText()
+                root = root.parentFile ?: root
+            }
+            error("WhoopBleClient.kt not found — this test must not pass by default")
+        }
+        val scheduled = src.indexOf("scheduleReconnect(directDelay) { connectToDevice(dev, autoConnect = passiveReconnect) }")
+        val stamped = src.indexOf("if (passiveReconnect) passiveReconnectSinceMs = System.currentTimeMillis()")
+        assertTrue("the passive reconnect scheduling call moved; fix this test", scheduled > 0)
+        assertTrue("the passive wait stamp moved; fix this test", stamped > 0)
+        assertTrue(
+            "the stamp must follow scheduleReconnect, which clears it via cancelPendingReconnect()",
+            stamped > scheduled,
+        )
+    }
 }

@@ -11656,11 +11656,15 @@ class WhoopBleClient(
                 val passiveReconnect = passiveReconnectDecision(failedReconnectAttempts, aclHeld)
                 log("Disconnected ${disconnectStatusLabel(status)}; reconnecting ${if (passiveReconnect) "passively" else "directly"} in ${directDelay / 1000}s (attempt $failedReconnectAttempts$heldSuffix${if (aclHeld) ", ACL-held" else ""})")
                 // #1030 (ryanbr): cancellable backoff timer (see scheduleReconnect).
+                scheduleReconnect(directDelay) { connectToDevice(dev, autoConnect = passiveReconnect) }
                 // #2406: only the PASSIVE handoff is the silence worth timing. `autoConnect = true` is
                 // not the same thing: the radio-on re-arm, the two bond-loop probes and the launch
                 // auto-reconnect all pass it, and none of them is a wait the app chose to sit out.
+                //
+                // Stamped AFTER scheduleReconnect, which opens with cancelPendingReconnect() and so
+                // clears this field. Stamping first set it and wiped it microseconds later, leaving the
+                // line unreachable: a 23 Sep field log has two passive reconnects and none of it.
                 if (passiveReconnect) passiveReconnectSinceMs = System.currentTimeMillis()
-                scheduleReconnect(directDelay) { connectToDevice(dev, autoConnect = passiveReconnect) }
             } else {
                 val rescanDelay = nextReconnectDelayMs()
                 log("Disconnected ${disconnectStatusLabel(status)}; rescanning in ${rescanDelay / 1000}s (attempt $failedReconnectAttempts$heldSuffix)")
