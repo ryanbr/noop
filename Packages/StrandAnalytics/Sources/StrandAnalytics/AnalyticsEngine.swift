@@ -110,6 +110,10 @@ public enum AnalyticsEngine {
         /// so the caller persists NULL there rather than a fabricated array. Feeds the H7 re-onset CONFIRM
         /// guard on the NEXT pass; never overrides the derived hypnogram. Empty on a WHOOP 4.0. (#175)
         public let sessionSleepStateByStart: [Int: [Int]]
+        /// The bounds of the day's MAIN-night group, the SAME `mainGroup` the sleep aggregates and the
+        /// refused-main-night HRV rule use; empty when the day has no main night. Exposed so the `hrv diag`
+        /// line can describe the night the #1118 gate actually judged instead of re-deriving it (#2425).
+        public let mainNightBlocks: [SleepStageTotals.NightBlock]
 
         public init(daily: DailyMetric, sleepSessions: [SleepSession],
                     cachedSleep: [CachedSleepSession], workouts: [ExerciseSession],
@@ -122,8 +126,10 @@ public enum AnalyticsEngine {
                     sessionSleepStateByStart: [Int: [Int]] = [:],
                     chargeDrivers: [ChargeDriver] = [],
                     skinTempRelative: SkinTempRelative? = nil,
-                    detectionFunnel: WorkoutDetector.DetectionFunnel? = nil) {
+                    detectionFunnel: WorkoutDetector.DetectionFunnel? = nil,
+                    mainNightBlocks: [SleepStageTotals.NightBlock] = []) {
             self.daily = daily; self.sleepSessions = sleepSessions
+            self.mainNightBlocks = mainNightBlocks
             self.cachedSleep = cachedSleep; self.workouts = workouts
             self.detectionFunnel = detectionFunnel
             self.recovery = recovery; self.strain = strain
@@ -1091,7 +1097,31 @@ public enum AnalyticsEngine {
                          sessionSleepStateByStart: sessionSleepStateByStart,
                          chargeDrivers: chargeDrivers,
                          skinTempRelative: skinTempRelative,
-                         detectionFunnel: detectionFunnel)
+                         detectionFunnel: detectionFunnel,
+                         mainNightBlocks: mainGroup.map { SleepStageTotals.NightBlock(start: $0.start, end: $0.end) })
+    }
+
+    /// The R-R rows the always-on `hrv diag` line describes (#2425). Pure. Byte-parity twin of Kotlin
+    /// `AnalyticsEngine.hrvDiagnosticRows`.
+    ///
+    /// The line used to pool every sleep session of the day and divide their beat-time by first-to-last
+    /// beat, so the hours BETWEEN a night and a nap entered the denominator. On a real day whose main night
+    /// the #1118 gate refused at 1.31 coverage, the pooled line printed `coverage=0.48
+    /// rrIntegrity=underCovered`: the log said "not an over-count" about a night refused for one, and the
+    /// HRV card's over-count flag, read from the same verdict, agreed with the log rather than the gate.
+    ///
+    /// So the line now reads the MAIN-night group (`DayResult.mainNightBlocks`, the same group scoring uses)
+    /// over the gate's own inclusive `[start, end]` window. On a one-block night that is exactly the set of
+    /// beats `SleepStager.sessionHrvOverCounted` judged, so the over-count half of the verdict cannot
+    /// disagree with the gate. A bridged multi-fragment night still spans its short bridge gap, which can
+    /// only pull coverage DOWN. A day with no main night keeps the old pooled set (`fallback`), since there
+    /// is no night to describe.
+    public static func hrvDiagnosticRows(_ rr: [RRInterval], mainNight: [SleepStageTotals.NightBlock],
+                                         fallback: [SleepStageTotals.NightBlock]) -> [RRInterval] {
+        if mainNight.isEmpty {
+            return rr.filter { r in fallback.contains { r.ts >= $0.start && r.ts < $0.end } }
+        }
+        return rr.filter { r in mainNight.contains { r.ts >= $0.start && r.ts <= $0.end } }
     }
 
     // MARK: - Rest composite (Charge/Effort/Rest)

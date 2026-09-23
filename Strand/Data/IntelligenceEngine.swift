@@ -1473,7 +1473,12 @@ final class IntelligenceEngine: ObservableObject {
                 // shipped windowed avgHrv. Built here (loop 1) where `rr` is in scope, but EMITTED in the
                 // main-actor replay loop below (diagnosticSink is main-actor isolated), carried on `hrvDiag`.
                 // Byte-identical to the Kotlin line.
-                let sleepRrRows = rr.filter { r in res.cachedSleep.contains { r.ts >= $0.startTs && r.ts < $0.endTs } }
+                // #2425: the MAIN night the #1118 gate judged, not every session of the day pooled over the
+                // gaps between them; see `AnalyticsEngine.hrvDiagnosticRows`. `hrvOverCounted` and the RSA
+                // resp gate below read the same rows, so they now agree with the gate too.
+                let sleepRrRows = AnalyticsEngine.hrvDiagnosticRows(
+                    rr, mainNight: res.mainNightBlocks,
+                    fallback: res.cachedSleep.map { SleepStageTotals.NightBlock(start: $0.startTs, end: $0.endTs) })
                 let sleepRr = sleepRrRows.map { Double($0.rrMs) }
                 let hrvDiag: String?
                 let hrvOverCounted: Bool?   // #1118: nil = no in-sleep R-R (no HRV to caveat)

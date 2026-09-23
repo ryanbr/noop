@@ -1211,7 +1211,13 @@ object IntelligenceEngine {
             // `nInput` is set before the min-beats gate, so a sparse night still shows its count with
             // rmssd=nil). A SEPARATE analyzeRaw pass over the in-sleep R-R — does NOT touch the shipped
             // windowed avgHrv. Emitted here where `rr` is in scope; byte-identical to the Swift line.
-            val sleepRrRows = rr.filter { r -> res.sleepSessions.any { r.ts >= it.start && r.ts < it.end } }
+            // #2425: the MAIN night the #1118 gate judged, not every session of the day pooled over the gaps
+            // between them; see AnalyticsEngine.hrvDiagnosticRows. hrvOverCounted and the RSA resp gate read
+            // the same rows, so they now agree with the gate too.
+            val sleepRrRows = AnalyticsEngine.hrvDiagnosticRows(
+                rr, res.mainNightBlocks,
+                res.sleepSessions.map { SleepStageTotals.NightBlock(it.start, it.end) },
+            )
             val sleepRr = sleepRrRows.map { it.rrMs.toDouble() }
             // #1331: the RSA gate's inputs, carried to the resp diagnostic below. Declared out here because
             // the HRV block is one scope deeper; a night with no sleep R-R leaves them null and the resp

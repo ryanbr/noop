@@ -328,4 +328,11 @@ data class DayResult(
      * the counts exist to explain. Trailing + defaulted so every existing construction site is unchanged.
      */
     val detectionFunnel: WorkoutDetector.DetectionFunnel? = null,
+    /**
+     * The bounds of the day's MAIN-night group, the SAME `mainGroup` the sleep aggregates and the
+     * refused-main-night HRV rule use; empty when the day has no main night. Exposed so the `hrv diag` line
+     * can describe the night the #1118 gate actually judged instead of re-deriving it (#2425). Trailing +
+     * defaulted so every existing construction site is unchanged. Mirrors Swift `DayResult.mainNightBlocks`.
+     */
+    val mainNightBlocks: List<SleepStageTotals.NightBlock> = emptyList(),
 )
