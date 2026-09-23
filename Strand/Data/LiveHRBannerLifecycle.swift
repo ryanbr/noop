@@ -10,16 +10,17 @@ import Foundation
 /// and the app in the background, every heart-rate tick asked iOS for a new one and was refused.
 ///
 /// Now a banner that exists is kept and shows what is true — the dash when the link is down or the strap is not
-/// measuring — so it comes back by itself; it ends only when its switch is off or another banner actually on screen
-/// takes its place (a Lift Log session, a sync started in the foreground). A new one is asked for only in the
-/// foreground, with a heart rate to show.
+/// measuring (iOS draws it at the banner's stale date even while NOOP is suspended) — so it comes back by itself. It
+/// ends only when its switch is off or the Lift Log banner, which carries the heart rate itself, is on screen. A sync
+/// banner no longer ends it: a sync lasts seconds, and an HR banner ended for one could not come back if NOOP left
+/// the screen meanwhile. A new one is asked for only in the foreground, with a heart rate to show.
 ///
 /// Pure and platform-free so `StrandTests` covers it; the controller it serves is in the iOS app target.
 enum LiveHRBannerLifecycle {
 
     enum Step: Equatable { case nothing, start, push, end }
 
-    /// `showing`: a banner exists. `standsAside`: another NOOP banner is on screen. `linkUp`: the strap is connected.
+    /// `showing`: a banner exists. `standsAside`: the Lift Log banner is on screen. `linkUp`: the strap is connected.
     static func step(switchOn: Bool, standsAside: Bool, linkUp: Bool, bpm: Int?,
                      showing: Bool, appActive: Bool) -> Step {
         guard switchOn, !standsAside else { return showing ? .end : .nothing }

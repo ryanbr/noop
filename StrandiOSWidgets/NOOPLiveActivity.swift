@@ -5,6 +5,14 @@ import StrandDesign
 
 /// Live Activity for an active live-HR session — shown on the Lock Screen and in the Dynamic Island.
 struct NOOPLiveActivity: Widget {
+    /// The heart rate to draw: none once iOS has marked the banner stale. Each push is fresh for 30 s
+    /// (`LiveActivityController.staleAfter`) and NOOP re-pushes a steady number well inside that, so a stale banner
+    /// means the readings stopped — the strap off the wrist, or out of reach — even while NOOP itself is asleep and
+    /// cannot say so: iOS redraws the banner at the stale date on its own.
+    static func shownBpm(_ context: ActivityViewContext<NOOPActivityAttributes>) -> Int? {
+        context.isStale ? nil : context.state.bpm
+    }
+
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: NOOPActivityAttributes.self) { context in
             // Lock Screen / banner presentation.
@@ -15,7 +23,7 @@ struct NOOPLiveActivity: Widget {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(context.attributes.title)
                         .font(.caption).foregroundStyle(StrandPalette.textSecondary)
-                    Text("\(context.state.bpm.map(String.init) ?? "–") bpm")
+                    Text("\(Self.shownBpm(context).map(String.init) ?? "–") bpm")
                         .font(.system(size: 26, weight: .bold, design: .rounded))
                         .foregroundStyle(StrandPalette.textPrimary)
                 }
@@ -36,7 +44,7 @@ struct NOOPLiveActivity: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    Label("\(context.state.bpm.map(String.init) ?? "–")", systemImage: "heart.fill")
+                    Label("\(Self.shownBpm(context).map(String.init) ?? "–")", systemImage: "heart.fill")
                         .foregroundStyle(StrandPalette.statusCritical)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
@@ -56,7 +64,7 @@ struct NOOPLiveActivity: Widget {
             } compactLeading: {
                 Image(systemName: "heart.fill").foregroundStyle(StrandPalette.statusCritical)
             } compactTrailing: {
-                Text("\(context.state.bpm.map(String.init) ?? "–")")
+                Text("\(Self.shownBpm(context).map(String.init) ?? "–")")
             } minimal: {
                 Image(systemName: "heart.fill").foregroundStyle(StrandPalette.statusCritical)
             }

@@ -52,15 +52,15 @@ struct StrandiOSApp: App {
     /// NOOP's live heart rate banner, from the latest live values. #911: anchored on the SAME shared
     /// `Repository.widgetAnchor` the widget and the watch use, so it cannot name a different day at the rollover;
     /// memoized, because this runs on every heart-rate tick (re-deriving it once scanned the whole history, #1051).
-    /// It makes room only for another NOOP banner actually on screen — a Lift Log session's, or a sync started in the
-    /// foreground — never for a background sync that shows none (`LiveHRBannerLifecycle`).
+    /// It makes room only for the Lift Log banner actually on screen, which carries the heart rate itself — not for a
+    /// sync (`LiveHRBannerLifecycle`).
     private func updateLiveHRBanner(heartRate: Int?, connected: Bool) {
         let day = model.repo.cachedWidgetAnchor()
         liveActivity.update(
             bpm: connected ? (model.bpm ?? heartRate) : nil,
             recovery: day?.recovery.map { Int($0.rounded()) },
             connected: connected,
-            standsAside: liftActivity.isShowing || SyncLiveActivityController.shared.isShowing,
+            standsAside: liftActivity.isShowing,
             effort: day?.strain.map { Int($0.rounded()) }
         )
     }

@@ -21,21 +21,18 @@ final class LiveActivityController {
     /// yet), so without this guard two close-together HR samples could both fire `Activity.request`
     /// and create duplicate Live Activities.
     private var isStarting = false
-    /// How long after the last push iOS may keep showing the activity as fresh. An unchanged activity is
-    /// re-pushed once half of this has passed, so this never bites a live session; it auto-greys a
-    /// frozen activity if the app is suspended/killed without an explicit end (a missed-tick safety net
-    /// on top of the connected-driven end below).
-    private static let staleAfter: TimeInterval = 120
-    /// A banner kept through a dropped link (it shows the dash) is ended if the link stays down this long, so a strap
-    /// left behind does not leave a dash on the Lock Screen for hours.
-    private static let endAfterLinkDown: TimeInterval = 600
-    private var linkDownEnd: DispatchWorkItem?
+    /// How long after the last push iOS treats the banner as fresh; after that the banner draws the dash
+    /// (`NOOPLiveActivity.shownBpm`). A WHOOP 5.0 taken off the wrist goes quiet, and with nothing arriving iOS
+    /// suspends NOOP, so no timer of NOOP's can clear the number: iOS's own stale date is what does it, in at most
+    /// this long (a tester's log, 23 Sep 2026). A steady number is re-pushed once half of this has passed
+    /// (`LiveHRBannerPushPolicy`), so a banner fed by a worn strap never goes stale.
+    static let staleAfter: TimeInterval = 30
 
     /// Drive the activity from the latest live values (`LiveHRBannerLifecycle` decides start / push / end). Starts
     /// only in the foreground, with the strap CONNECTED (the live link, not the sticky "paired" flag) and a heart
     /// rate to show; a running banner shows the dash through a dropped link or a strap that is not measuring, and
-    /// ends when its switch is off, another banner takes the screen (`standsAside`), or the link stays down for
-    /// `endAfterLinkDown`. Pushed only when what it shows changes (`LiveHRBannerPushPolicy`).
+    /// ends only when its switch is off or the Lift Log banner takes the screen (`standsAside`). Pushed when what
+    /// it shows changes, and often enough to stay fresh (`LiveHRBannerPushPolicy`, `staleAfter`).
     func update(bpm: Int?, recovery: Int?, connected: Bool, standsAside: Bool, effort: Int? = nil) {
         guard authInfo.areActivitiesEnabled else { return }
 
@@ -60,16 +57,8 @@ final class LiveActivityController {
         }
 
         // Link down: the dash, never the last number (`bonded` stays true across a disconnect, and keying off it once
-        // left a fabricated "live" HR standing), and an end if the link does not come back.
-        if connected {
-            linkDownEnd?.cancel()
-            linkDownEnd = nil
-        } else if linkDownEnd == nil {
-            let item = DispatchWorkItem { [weak self] in Task { @MainActor in await self?.end() } }
-            linkDownEnd = item
-            DispatchQueue.main.asyncAfter(deadline: .now() + Self.endAfterLinkDown, execute: item)
-        }
-
+        // left a fabricated "live" HR standing). No timed end: a timer in a suspended app fires at its next wake,
+        // which is typically the strap coming back — exactly when the banner should stay.
         let state = NOOPActivityAttributes.ContentState(bpm: connected ? bpm : nil, recovery: recovery,
                                                         bonded: connected, effort: effort)
         let now = Date()
@@ -115,8 +104,6 @@ final class LiveActivityController {
         }
         self.activity = nil
         shownState = nil
-        linkDownEnd?.cancel()
-        linkDownEnd = nil
     }
 }
 #endif
