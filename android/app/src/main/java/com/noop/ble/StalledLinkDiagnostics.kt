@@ -263,6 +263,25 @@ internal fun liveInsertFailedLine(
 }
 
 /**
+ * #2406: how long a PASSIVE reconnect waited before the OS answered.
+ *
+ * When the direct attempts are exhausted the client hands the strap to Android with
+ * `autoConnect = true` and stops doing anything: no scan, no timer, no line. In one field log that was
+ * 26 minutes of silence between "reconnecting passively in 12s (attempt 3)" and the next "Connected",
+ * and a strap log cannot tell that apart from the app having given up. Both look like nothing.
+ *
+ * Written when the wait ENDS rather than while it runs, which is the whole point: a heartbeat during a
+ * reconnect is a timer firing on a phone that is doing nothing else, and the question it answers is a
+ * question about the past, which one line at the end answers just as well.
+ *
+ * `attempts` is the involuntary-reconnect count the backoff had reached, so a long wait can be read
+ * against how hard the link had already been trying.
+ */
+internal fun passiveReconnectAnsweredLine(waitedSeconds: Long, attempts: Int): String =
+    "Reconnect: a passive reconnect was outstanding for ${waitedSeconds}s before the link came up" +
+        " (attempt $attempts, autoConnect: no scan, no timer, nothing logged while it waits)"
+
+/**
  * Rate-limit for [liveInsertFailedLine].
  *
  * The live cadence is seconds, so an unconditional log would bury the rest of the capture under a

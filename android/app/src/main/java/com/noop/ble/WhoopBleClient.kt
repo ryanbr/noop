@@ -6354,6 +6354,16 @@ class WhoopBleClient(
      *  GATT callbacks (where it's read/reset) land on binder-pool threads on API 26/27. (#48, adopt
      *  from ryanbr — reimplemented under NoopApp) */
     @Volatile
+    /** #2406: when a PASSIVE reconnect was handed to Android, or null when none is outstanding. The
+     *  client does nothing while such a wait runs — no scan, no timer — so without this the log cannot
+     *  tell a long wait from the app having stopped trying. Read once, when the link comes up.
+     *
+     *  Stamped where [passiveReconnectDecision] chooses the passive handoff, NOT wherever
+     *  `autoConnect = true` appears: the radio-on re-arm, the two bond-loop probes and the launch
+     *  auto-reconnect all pass that flag, and none of them is a wait the app chose to sit out. Another
+     *  path can still win the race and bring the link up first, which is why the line says a wait was
+     *  OUTSTANDING rather than claiming which connect answered it. */
+    private var passiveReconnectSinceMs: Long? = null
     private var failedReconnectAttempts = 0
 
     /** Bump the attempt counter and return the next backoff delay. Called from the disconnect path
@@ -6402,6 +6412,12 @@ class WhoopBleClient(
     private fun cancelPendingReconnect() {
         pendingReconnectRunnable?.let { handler.removeCallbacks(it) }
         pendingReconnectRunnable = null
+        // #2406: a passive wait that was called off is not one that was outstanding when a link came up.
+        // The STATE_CONNECTED handler reports BEFORE it calls this, so the wait it describes is the one
+        // that was still pending at that moment; every other caller (a user Connect, the launch
+        // auto-reconnect, a radio-on re-arm) is superseding the wait, and the log should not later credit
+        // it to whichever connect happened to win.
+        passiveReconnectSinceMs = null
     }
 
     /** Run [action] after [delayMs], but ONLY if the SAME continuous connection is still up when it fires.
@@ -6888,6 +6904,15 @@ class WhoopBleClient(
                 BluetoothProfile.STATE_CONNECTED -> {
                     // Port of didConnect: mark connected, negotiate a larger ATT MTU, THEN discover.
                     handler.removeCallbacks(scanTimeoutRunnable)
+                    // #2406: how long a passive wait had been outstanding, reported BEFORE
+                    // cancelPendingReconnect clears it and before the backoff counter below is reset,
+                    // since both are part of what the line says.
+                    passiveReconnectSinceMs?.let { since ->
+                        passiveReconnectSinceMs = null
+                        log(passiveReconnectAnsweredLine(
+                            waitedSeconds = (System.currentTimeMillis() - since) / 1000,
+                            attempts = failedReconnectAttempts))
+                    }
                     // #1030 (ryanbr): a real link is up — cancel any pending involuntary reconnect so a
                     // stale backoff timer can't fire and reset+close this connection.
                     cancelPendingReconnect()
@@ -11631,6 +11656,10 @@ class WhoopBleClient(
                 val passiveReconnect = passiveReconnectDecision(failedReconnectAttempts, aclHeld)
                 log("Disconnected ${disconnectStatusLabel(status)}; reconnecting ${if (passiveReconnect) "passively" else "directly"} in ${directDelay / 1000}s (attempt $failedReconnectAttempts$heldSuffix${if (aclHeld) ", ACL-held" else ""})")
                 // #1030 (ryanbr): cancellable backoff timer (see scheduleReconnect).
+                // #2406: only the PASSIVE handoff is the silence worth timing. `autoConnect = true` is
+                // not the same thing: the radio-on re-arm, the two bond-loop probes and the launch
+                // auto-reconnect all pass it, and none of them is a wait the app chose to sit out.
+                if (passiveReconnect) passiveReconnectSinceMs = System.currentTimeMillis()
                 scheduleReconnect(directDelay) { connectToDevice(dev, autoConnect = passiveReconnect) }
             } else {
                 val rescanDelay = nextReconnectDelayMs()
