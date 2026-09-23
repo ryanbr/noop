@@ -282,8 +282,17 @@ final class AppModel: ObservableObject {
             }
         }.store(in: &hrCancellables)
         // Smooth HR centrally so it's solid everywhere it's shown.
-        live.$heartRate.sink { [weak self] _ in self?.ingestHR() }.store(in: &hrCancellables)
-        live.$rr.sink { [weak self] _ in self?.ingestHR() }.store(in: &hrCancellables)
+        // A `@Published` sink runs in willSet, before the value lands, so each hands `ingestHR` the value being
+        // written and reads the other from `live`, where it is current. Reading both from `live` meant clearing the
+        // heart rate (a disconnect, the strap off the wrist) found the old values still there and kept the median.
+        live.$heartRate.sink { [weak self] hr in
+            guard let self else { return }
+            self.ingestHR(heartRate: hr, rr: self.live.rr)
+        }.store(in: &hrCancellables)
+        live.$rr.sink { [weak self] rr in
+            guard let self else { return }
+            self.ingestHR(heartRate: self.live.heartRate, rr: rr)
+        }.store(in: &hrCancellables)
 
         // #2117: bank the device's R-R transport facts whenever a link comes up. Shell-independent on
         // purpose: the classic Today already reads these three for its own note, but the Liquid shell is
@@ -776,11 +785,11 @@ final class AppModel: ObservableObject {
     /// Fold a fresh reading into the smoothing window and republish a stable bpm.
     /// Prefers the strap's reported HR; falls back to 60000/R-R. Clamps to a plausible
     /// 30–220 range (rejects 0 / garbage spikes) and publishes the window MEDIAN.
-    private func ingestHR() {
+    private func ingestHR(heartRate: Int?, rr: [Int]) {
         var inst: Double?
-        if let hr = live.heartRate, hr >= 30, hr <= 220 {
+        if let hr = heartRate, hr >= 30, hr <= 220 {
             inst = Double(hr)
-        } else if let rr = live.rr.last, rr > 0 {
+        } else if let rr = rr.last, rr > 0 {
             let v = 60_000.0 / Double(rr)
             if v >= 30, v <= 220 { inst = v }
         }
@@ -789,7 +798,7 @@ final class AppModel: ObservableObject {
             // median so screens that now prefer `bpm` fall through to "," instead of freezing on the
             // last value. Mirrors Android (_bpm = null on disconnect). A transient out-of-range sample
             // with the link still up (heartRate or rr still present) keeps the last median.
-            if live.heartRate == nil && live.rr.isEmpty { resetSmoothing() }
+            if heartRate == nil && rr.isEmpty { resetSmoothing() }
             return
         }
         let now = Date()

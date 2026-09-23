@@ -220,7 +220,8 @@ struct StrandiOSApp: App {
                 // fixed-geometry tiles/gauges stay legible at the largest accessibility sizes rather than
                 // clipping; the common Larger-Text range still scales fully.
                 .dynamicTypeSize(...DynamicTypeSize.accessibility1)
-                .onReceive(model.live.$heartRate) { _ in
+                // `hr` is the value being written: this runs in willSet, when `live.heartRate` still holds the old one.
+                .onReceive(model.live.$heartRate) { hr in
                     // #911: anchor the Live Activity on the SAME shared `Repository.widgetAnchor` the
                     // Home/Lock widget and the watch snapshot use, so this fourth surface can't drift to a
                     // different day at the rollover (it previously read `days.last(where: recovery != nil)`,
@@ -229,7 +230,7 @@ struct StrandiOSApp: App {
                     // scanned the whole history + hit the DateFormatter lock ~1-3x/sec (#1051-shaped).
                     let day = model.repo.cachedWidgetAnchor()
                     liveActivity.update(
-                        bpm: model.live.connected ? (model.bpm ?? model.live.heartRate) : nil,
+                        bpm: model.live.connected ? (model.bpm ?? hr) : nil,
                         recovery: day?.recovery.map { Int($0.rounded()) },
                         // While a sync runs its own activity is the useful banner; don't stack the HR one.
                         connected: model.live.connected && !liftSession.isActive && !model.live.backfilling,
@@ -238,7 +239,7 @@ struct StrandiOSApp: App {
                     // The gym banner's own cheap path: no presentation is built here, and a heart rate moves
                     // the banner only when `LiftBannerPushPolicy` says it is worth a push. Everything else
                     // about the session pushes through `pushLiftActivity` below, carrying the current number.
-                    liftActivity.updateHeartRate(model.live.connected ? (model.bpm ?? model.live.heartRate) : nil)
+                    liftActivity.updateHeartRate(model.live.connected ? (model.bpm ?? hr) : nil)
                 }
                 // End the Live Activity the moment the link drops, even if no further HR tick arrives.
                 .onReceive(model.live.$connected) { isConnected in

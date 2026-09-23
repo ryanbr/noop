@@ -54,7 +54,9 @@ final class LiveActivityController {
             Task { await end() }
             return
         }
-        guard bpm != nil else { return }
+        // Never START a banner without a heart rate; an existing one shows the dash, as the app does, instead of
+        // freezing on the last number when the strap stops measuring (off the wrist) with the link still up.
+        guard activity != nil || bpm != nil else { return }
 
         let state = NOOPActivityAttributes.ContentState(bpm: bpm, recovery: recovery, bonded: connected,
                                                         effort: effort)

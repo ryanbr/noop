@@ -677,6 +677,17 @@ public final class LiveState: ObservableObject {
         }
     }
 
+    /// Blank the live heart rate and the latest R-R packet while the link stays up: the strap reported itself
+    /// off the wrist, or sent a run of samples it could not measure (`LiveHeartRateReadability`). `rrRecent`
+    /// and `rrSeq` are left alone. The next readable sample sets the heart rate again.
+    ///
+    /// R-R first: the heart-rate write is the one the surfaces listen for, and by the time it lands both are gone,
+    /// so `AppModel`'s median resets on it and the banner is handed nil rather than the old number.
+    public func clearLiveHeartRate() {
+        if !rr.isEmpty { rr.removeAll() }
+        if heartRate != nil { heartRate = nil }
+    }
+
     /// Blank all live biometric readouts (HR + R-R + the rolling buffer) so a stale heart rate or
     /// R-R strip can't outlive the link. Called on CoreBluetooth disconnect (BLEManager), the twin of
     /// the `charging = nil` / `encryptedBond = false` clears on the same path.

@@ -1271,6 +1271,8 @@ public final class BLEManager: NSObject, ObservableObject {
     /// pick so restoration/reconnect after a relaunch target the right strap.
     private var selectedModel: WhoopModel = .persisted
     private var lastStandardHRLogAt: Date?
+    /// Counts unreadable standard heart-rate samples in a row, so a run of them clears the shown heart rate.
+    private var heartRateReadability = LiveHeartRateReadability()
 
     /// True when the selected/connected strap is a WHOOP 5/MG. Read-only window onto the private
     /// `selectedModel` so a view can tell whether the firmware-alarm path is the experimental 5/MG one
@@ -5510,12 +5512,21 @@ public final class BLEManager: NSObject, ObservableObject {
         // WHOOP 5 sends milliseconds directly (non-compliant with the BLE spec's 1/1024-s unit),
         // so use the raw ticks — which ARE ms — instead of the spec-converted values.
         let rr = router.family == .whoop5 ? m.rrRawTicks : m.rr
-        if !rr.isEmpty { state.setRRIntervals(rr) }
+        // Only a sample the strap could measure reaches what the app shows (`LiveHeartRateReadability`): a
+        // plausible heart rate with skin contact not reported absent. The collector below still gets every one.
+        let readable = LiveHeartRateReadability.isReadable(bpm: m.hr, contact: m.contact)
+        if !rr.isEmpty, readable { state.setRRIntervals(rr) }
+        // A run of unreadable samples clears the shown heart rate instead of leaving the last one standing.
+        if heartRateReadability.clearsShownHeartRate(bpm: m.hr, contact: m.contact), state.heartRate != nil {
+            state.clearLiveHeartRate()
+            log("HR: \(LiveHeartRateReadability.clearAfter) unreadable samples in a row (last \(m.hr) bpm, "
+                + "contact \(m.contact.rawValue)); live heart rate cleared")
+        }
         // HR: the standard 0x2A37 profile is the RELIABLE source (BLE-standard, ~1Hz). Let it
-        // drive the value whenever it's physiologically plausible; reject 0/garbage (off-wrist).
-        // AppModel medians these into a stable display value. live perf: only publish on a real
-        // change so a steady resting HR doesn't re-render the whole Live console every second.
-        if m.hr >= 30 && m.hr <= 220, state.heartRate != m.hr { state.heartRate = m.hr }
+        // drive the value whenever it's readable. AppModel medians these into a stable display value.
+        // live perf: only publish on a real change so a steady resting HR doesn't re-render the whole
+        // Live console every second.
+        if readable, state.heartRate != m.hr { state.heartRate = m.hr }
         // Record it continuously — independent of the realtime stream or the open screen.
         collector?.ingestStandardHR(hr: m.hr, rr: rr, contact: m.contact,
                                     family: router.family,

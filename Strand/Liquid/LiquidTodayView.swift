@@ -2485,7 +2485,9 @@ private struct LiquidLiveHR: View {
         }
         .onAppear { if samples.isEmpty, let hr = live.heartRate, hr > 0 { samples = [Double(hr)] } }
         .onChangeCompat(of: live.heartRate) { hr in
-            guard let hr, hr > 0 else { return }
+            // No live heart rate (the strap off the wrist, or gone): drop the trace, so the card stops calling an
+            // old one "Live" and shows today's average under its own label.
+            guard let hr, hr > 0 else { samples.removeAll(); return }
             samples.append(Double(hr))
             if samples.count > maxSamples { samples.removeFirst(samples.count - maxSamples) }
             beat.toggle()

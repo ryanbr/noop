@@ -518,7 +518,11 @@ public final class FrameRouter {
                 if ev.hasPrefix("WRIST_ON") {
                     if !state.worn { state.worn = true; state.onWristChange?(true) }
                 } else if ev.hasPrefix("WRIST_OFF") {
-                    if state.worn { state.worn = false; state.onWristChange?(false) }
+                    if state.worn {
+                        state.worn = false
+                        state.clearLiveHeartRate()   // nothing shown may outlive the strap leaving the wrist
+                        state.onWristChange?(false)
+                    }
                 } else if ev.hasPrefix("STRAP_DRIVEN_ALARM_EXECUTED") {
                     // Fire observability (#401 close-out): Android has always logged this line
                     // (WhoopBleClient.handleFrame); iOS/macOS silently ran the callback, which is why a
@@ -832,7 +836,11 @@ public final class FrameRouter {
         } else if ev.hasPrefix("WRIST_ON") {
             if !state.worn { state.worn = true; state.onWristChange?(true) }
         } else if ev.hasPrefix("WRIST_OFF") {
-            if state.worn { state.worn = false; state.onWristChange?(false) }
+            if state.worn {
+                state.worn = false
+                state.clearLiveHeartRate()   // nothing shown may outlive the strap leaving the wrist
+                state.onWristChange?(false)
+            }
         }
     }
 
