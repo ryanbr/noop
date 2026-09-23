@@ -3296,6 +3296,18 @@ object SleepStager {
         // Classified over the SAME beats the value was built from, windowed [start, end] exactly as
         // `sessionHrvWindows` does, so the verdict cannot describe a different set of beats than the number
         // it is gating.
+        if (sessionHrvOverCounted(start, end, rr)) return null
+        return vals.sum() / vals.size.toDouble()
+    }
+
+    /**
+     * Whether the #1118 coverage gate refuses a session's HRV: its own R-R, windowed [start, end] exactly as
+     * [sessionAvgHRV] windows it, banks more beat-time than the wall clock allows. Pure. The ONE definition
+     * of "refused": [sessionAvgHRV] gates on it, and AnalyticsEngine asks it whether a main night's missing
+     * HRV was refused rather than never measured, so the two cannot disagree about which nights were
+     * refused. Byte-parity twin of Swift `SleepStager.sessionHrvOverCounted`.
+     */
+    internal fun sessionHrvOverCounted(start: Long, end: Long, rr: List<RrInterval>): Boolean {
         val seg = rr.filter { it.ts in start..end }
         val segTs = seg.map { it.ts }
         val segMs = seg.map { it.rrMs.toDouble() }
@@ -3309,8 +3321,7 @@ object SleepStager {
         // night to two, and buying a distinction the caller discards would hand that back. `rrCoverage` is
         // a single O(n) pass. If a future gate ever needs the two over-count cases apart, compute it then.
         val verdict = HrvAnalyzer.classifyCoverage(coverage, coverage)
-        if (!HrvAnalyzer.successiveDiffIsTrustworthy(verdict)) return null
-        return vals.sum() / vals.size.toDouble()
+        return !HrvAnalyzer.successiveDiffIsTrustworthy(verdict)
     }
 
     /**

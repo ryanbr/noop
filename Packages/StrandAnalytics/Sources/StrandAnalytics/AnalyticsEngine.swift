@@ -723,7 +723,21 @@ public enum AnalyticsEngine {
                 }
                 return deep.isEmpty ? nil : deep.reduce(0, +) / Double(deep.count)
             }
-            let pairs = physiologySessions.compactMap { s -> (Double, Double)? in
+            // A main night REFUSED by the #1118 over-count gate is not replaced by the day's naps. The
+            // day-wide pool below rests on "the main overnight dominates" (see `physiologySessions`), which
+            // holds only while that night has a value: once the gate makes it nil it carries zero weight,
+            // and a 26-minute nap became 100 % of the day's HRV and was folded into the baseline as a
+            // night. So when a main-group session's HRV is nil BECAUSE the gate refused it, only the main
+            // group is pooled, and the day holds (nil) unless another fragment of that night measured
+            // cleanly. A main night that simply banked no R-R is not refused, so #1884's fill-in from the
+            // day's other sessions is unchanged. Byte-parity twin of Kotlin `avgHRVDaily`.
+            let mainNightRefused = mainGroup.contains { s in
+                s.avgHRV == nil && SleepStager.sessionHrvOverCounted(start: s.start, end: s.end, rr: rr)
+            }
+            let hrvPool = mainNightRefused
+                ? physiologySessions.filter { p in mainGroup.contains { $0.start == p.start && $0.end == p.end } }
+                : physiologySessions
+            let pairs = hrvPool.compactMap { s -> (Double, Double)? in
                 s.avgHRV.map { ($0, Double(s.end - s.start)) }
             }
             guard !pairs.isEmpty else { return nil }

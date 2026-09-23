@@ -599,7 +599,23 @@ object AnalyticsEngine {
             }
             if (deep.isEmpty()) null else deep.sum() / deep.size
         } else run {
-            val pairs = physiologySessions.mapNotNull { s ->
+            // A main night REFUSED by the #1118 over-count gate is not replaced by the day's naps. The
+            // day-wide pool below rests on "the main overnight dominates" (see physiologySessions), which
+            // holds only while that night has a value: once the gate makes it null it carries zero weight,
+            // and a 26-minute nap became 100 % of the day's HRV and was folded into the baseline as a
+            // night. So when a main-group session's HRV is null BECAUSE the gate refused it, only the main
+            // group is pooled, and the day holds (null) unless another fragment of that night measured
+            // cleanly. A main night that simply banked no R-R is not refused, so #1884's fill-in from the
+            // day's other sessions is unchanged. Byte-parity twin of Swift `avgHRVDaily`.
+            val mainNightRefused = mainGroup.any { s ->
+                s.avgHRV == null && SleepStager.sessionHrvOverCounted(s.start, s.end, rr)
+            }
+            val hrvPool = if (mainNightRefused) {
+                physiologySessions.filter { p -> mainGroup.any { it.start == p.start && it.end == p.end } }
+            } else {
+                physiologySessions
+            }
+            val pairs = hrvPool.mapNotNull { s ->
                 s.avgHRV?.let { it to (s.end - s.start).toDouble() }
             }
             if (pairs.isEmpty()) {

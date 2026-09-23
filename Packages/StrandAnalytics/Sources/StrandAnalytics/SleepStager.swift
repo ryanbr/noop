@@ -2968,6 +2968,16 @@ public enum SleepStager {
         // Classified over the SAME beats the value was built from, windowed [start, end] exactly as
         // `sessionHrvWindows` does, so the verdict cannot describe a different set of beats than the number
         // it is gating.
+        guard !sessionHrvOverCounted(start: start, end: end, rr: rr) else { return nil }
+        return vals.reduce(0, +) / Double(vals.count)
+    }
+
+    /// Whether the #1118 coverage gate refuses a session's HRV: its own R-R, windowed [start, end] exactly
+    /// as `sessionAvgHRV` windows it, banks more beat-time than the wall clock allows. Pure. The ONE
+    /// definition of "refused": `sessionAvgHRV` gates on it, and `AnalyticsEngine` asks it whether a main
+    /// night's missing HRV was refused rather than never measured, so the two cannot disagree about which
+    /// nights were refused. Byte-parity twin of Kotlin `SleepStager.sessionHrvOverCounted`.
+    static func sessionHrvOverCounted(start: Int, end: Int, rr: [RRInterval]) -> Bool {
         let seg = rr.filter { $0.ts >= start && $0.ts <= end }
         let segTs = seg.map { $0.ts }
         let segMs = seg.map { Double($0.rrMs) }
@@ -2981,8 +2991,7 @@ public enum SleepStager {
         // buying a distinction the caller discards would hand that back. `rrCoverage` is a single O(n)
         // pass. If a future gate ever needs the two over-count cases apart, compute it then.
         let verdict = HRVAnalyzer.classifyCoverage(coverage: coverage, collapsed: coverage)
-        guard HRVAnalyzer.successiveDiffIsTrustworthy(verdict) else { return nil }
-        return vals.reduce(0, +) / Double(vals.count)
+        return !HRVAnalyzer.successiveDiffIsTrustworthy(verdict)
     }
 
     /// Per-5-min-window RMSSD across a session, each window tagged with the sleep stage at its CENTER
