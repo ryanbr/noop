@@ -128,6 +128,80 @@ data class OuraSpO2(
     val count: Int = 1,
 )
 
+/**
+ * Which physical quantity an [OuraSpO2.unit] tag describes.
+ *
+ * The ring sends TWO things down the same `.spo2` event and they are three orders of magnitude apart:
+ * 0x6F/0x7B carry a firmware-computed PERCENTAGE, and 0x77 carries a raw DC perfusion magnitude
+ * (-1,016 … 11,709,098 in one overnight capture). Only the unit tag survives decode to tell them
+ * apart, so anything that reports a value to a human has to ask this before it names it.
+ *
+ * WHY THIS TYPE EXISTS RATHER THAN A `unit == "raw"` CHECK AT EACH SITE. The strap log's
+ * "first SpO2 decoded" line printed whichever sample the drain happened to serve first, with no
+ * channel in the text — so on one reconnect it read `value 93 (raw)` and on the next
+ * `value 101144 (dc_raw)`, from the same ring, minutes apart. A reporter read the five-digit one as a
+ * percentage and opened a defect against SpO2 that was never wrong. A log line may only assert what it
+ * can attribute; this makes the attribution a value rather than a string comparison.
+ *
+ * OuraStreamMapping (both platforms) reads the same fact for a different purpose and deliberately keeps
+ * its own `unit == "raw"` ALLOW-LIST: it is a persistence gate, so an unrecognised future unit must fall
+ * on the "do not store" side, whereas this resolver has to name every sample it is given. Same fact, two
+ * dispositions — the difference is intentional. Twin of Swift `OuraSpO2Channel`.
+ */
+enum class OuraSpO2Channel {
+    /**
+     * 0x6F / 0x7B — a firmware-computed SpO2 percentage. (The unit tag is the legacy string `"raw"`,
+     * which names the CHANNEL, not the quantity; see `decodeSpO2Event`.)
+     */
+    PERCENTAGE,
+
+    /** 0x77 — a raw DC perfusion magnitude. Not a percentage, and never stored as one. */
+    PERFUSION,
+    ;
+
+    /**
+     * How this channel is named in the strap log. Spelled out rather than printed as the unit tag:
+     * `"raw"` names the CHANNEL, not the quantity, and reads as "unprocessed" to everyone who has not
+     * read `decodeSpO2PerSample`. Twin of Swift `OuraSpO2Channel.logLabel`.
+     */
+    val logLabel: String get() = when (this) {
+        PERCENTAGE -> "SpO2 percentage"
+        PERFUSION -> "SpO2 raw DC perfusion (NOT a percentage)"
+    }
+
+    companion object {
+        /** The unit tag 0x77 stamps on its samples. */
+        const val PERFUSION_UNIT = "dc_raw"
+
+        /**
+         * Resolve a sample's channel from its unit tag. Anything that is not the perfusion tag is
+         * treated as the percentage channel, matching how 0x6F and 0x7B both default to `"raw"`.
+         */
+        fun forUnit(unit: String): OuraSpO2Channel =
+            if (unit == PERFUSION_UNIT) PERFUSION else PERCENTAGE
+
+        /**
+         * The strap-log body for "the first sample of this channel arrived this session", WITHOUT
+         * either platform's `Oura: ` prefix (each source adds its own, as it does for every other line).
+         *
+         * It lives here, not at the two call sites, for the reason the whole type exists: the two
+         * platforms must not be able to disagree about what they call these numbers. The unit tag is
+         * still printed, so a log can be matched back to the decoder, and the `%` is appended ONLY on
+         * the percentage channel — a perfusion magnitude with a `%` on it is the original bug in a new
+         * costume. Twin of Swift `OuraSpO2Channel.firstDecodedLogLine`; `OuraSpO2ChannelOracleTest`
+         * asserts this against that function's own stdout.
+         */
+        fun firstDecodedLogLine(value: Int, unit: String): String {
+            val c = forUnit(unit)
+            val pct = if (c == PERCENTAGE) " %" else ""
+            return "first ${c.logLabel} decoded (last night) - $value$pct (channel \"$unit\")"
+        }
+    }
+}
+
+/** What this sample's number actually is. See [OuraSpO2Channel]. */
+val OuraSpO2.channel: OuraSpO2Channel get() = OuraSpO2Channel.forUnit(unit)
+
 /** One decoded skin-temperature sample in degrees C (value already / 100). */
 data class OuraTemp(val ringTimestamp: Long, val celsius: Double)
 

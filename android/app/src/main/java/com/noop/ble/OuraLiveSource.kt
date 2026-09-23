@@ -41,6 +41,8 @@ import com.noop.oura.OuraOuterFrame
 import com.noop.oura.OuraReassembler
 import com.noop.oura.OuraRingGen
 import com.noop.oura.OuraSleepSession
+import com.noop.oura.OuraSpO2Channel
+import com.noop.oura.channel
 import com.noop.oura.OuraSleepSessionMapping
 import com.noop.oura.OuraTransition
 import com.noop.oura.OuraWearState
@@ -328,8 +330,14 @@ class OuraLiveSource(
      *  stop/disconnect. These are last-night values from the history fetch, not live pushes, but we still
      *  only want one log line, not one per sample. Twin of [loggedFirstHr]. */
     private var loggedFirstTemp = false
-    /** Logs the FIRST SpO2 sample decoded this session only. Twin of [loggedFirstTemp]. */
-    private var loggedFirstSpo2 = false
+    /** Logs the FIRST SpO2 sample decoded this session, PER CHANNEL. Twin of [loggedFirstTemp], except
+     *  that `.spo2` carries two quantities three orders of magnitude apart ([OuraSpO2Channel]), and one
+     *  latch across both reported whichever the drain served first: the same ring printed `value 93
+     *  (raw)` on one reconnect and `value 101144 (dc_raw)` on the next. A reporter read the second as a
+     *  percentage and filed a defect against SpO2 that was never wrong. One latch per channel, so each
+     *  line names one quantity and a session that only ever saw perfusion says so instead of implying a
+     *  percentage arrived. Twin of Swift's `loggedFirstSpo2` set. */
+    private val loggedFirstSpo2 = mutableSetOf<OuraSpO2Channel>()
     /** The 0x13 SyncTime reply parked because nothing yet available could disambiguate its unit (ticks vs
      *  seconds x10): the resume cursor was 0 (fresh pair / post-reboot full pull) or so stale the ring's
      *  clock had run past the window. Retried against the drain's maxSeenRingTime as the first batch lands
@@ -1200,7 +1208,7 @@ class OuraLiveSource(
         authEscalations = 0
         authToggleCccdPending = 0
         loggedFirstTemp = false
-        loggedFirstSpo2 = false
+        loggedFirstSpo2.clear()
         loggedAnchor = false
         pendingSyncTime = null
         loggedTierBKinds.clear()
@@ -1302,7 +1310,7 @@ class OuraLiveSource(
         reassembler.reset()
         loggedFirstHr = false      // a later reconnect should log its first sample again
         loggedFirstTemp = false
-        loggedFirstSpo2 = false
+        loggedFirstSpo2.clear()
         loggedAnchor = false
         pendingSyncTime = null
         loggedTierBKinds.clear()
@@ -1454,7 +1462,7 @@ class OuraLiveSource(
                     dropUnanchoredHypnogramBursts()
                     reassembler.reset()
                     loggedFirstTemp = false
-                    loggedFirstSpo2 = false
+                    loggedFirstSpo2.clear()
                     loggedAnchor = false
                     pendingSyncTime = null
                     loggedTierBKinds.clear()
@@ -2060,9 +2068,11 @@ class OuraLiveSource(
                 }
             }
             is OuraEvent.Spo2 -> {
-                if (!loggedFirstSpo2) {
-                    loggedFirstSpo2 = true
-                    log("Oura: first SpO2 decoded (last night) - value ${e.value.value} (${e.value.unit})")
+                if (loggedFirstSpo2.add(e.value.channel)) {
+                    log(
+                        "Oura: " +
+                            OuraSpO2Channel.firstDecodedLogLine(e.value.value, e.value.unit),
+                    )
                 }
                 enqueueAnchoredOrPark(e, e.value.ringTimestamp, d)
             }

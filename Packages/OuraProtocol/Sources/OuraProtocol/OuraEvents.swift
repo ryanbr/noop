@@ -120,6 +120,70 @@ public struct OuraSpO2: Equatable, Sendable, Codable {
     }
 }
 
+/// Which physical quantity an `OuraSpO2.unit` tag describes.
+///
+/// The ring sends TWO things down the same `.spo2` event and they are three orders of magnitude apart:
+/// 0x6F/0x7B carry a firmware-computed PERCENTAGE, and 0x77 carries a raw DC perfusion magnitude
+/// (-1,016 … 11,709,098 in one overnight capture). Only the unit tag survives decode to tell them
+/// apart, so anything that reports a value to a human has to ask this before it names it.
+///
+/// WHY THIS TYPE EXISTS RATHER THAN A `unit == "raw"` CHECK AT EACH SITE. The strap log's
+/// "first SpO2 decoded" line printed whichever sample the drain happened to serve first, with no
+/// channel in the text — so on one reconnect it read `value 93 (raw)` and on the next
+/// `value 101144 (dc_raw)`, from the same ring, minutes apart. A reporter read the five-digit one as a
+/// percentage and opened a defect against SpO2 that was never wrong. A log line may only assert what
+/// it can attribute; this makes the attribution a value rather than a string comparison.
+///
+/// `OuraStreamMapping` (both platforms) reads the same fact for a different purpose and deliberately
+/// keeps its own `unit == "raw"` ALLOW-LIST: it is a persistence gate, so an unrecognised future unit
+/// must fall on the "do not store" side, whereas this resolver has to name every sample it is given.
+/// Same fact, two dispositions — the difference is intentional. Kotlin twin: `OuraSpO2Channel`.
+public enum OuraSpO2Channel: String, Equatable, Sendable, Codable {
+    /// 0x6F / 0x7B — a firmware-computed SpO2 percentage. (The unit tag is the legacy string `"raw"`,
+    /// which names the CHANNEL, not the quantity; see `decodeSpO2Event`.)
+    case percentage
+    /// 0x77 — a raw DC perfusion magnitude. Not a percentage, and never stored as one.
+    case perfusion
+
+    /// The unit tag 0x77 stamps on its samples.
+    public static let perfusionUnit = "dc_raw"
+
+    /// Resolve a sample's channel from its unit tag. Anything that is not the perfusion tag is treated
+    /// as the percentage channel, matching how 0x6F and 0x7B both default to `"raw"`.
+    public static func forUnit(_ unit: String) -> OuraSpO2Channel {
+        unit == perfusionUnit ? .perfusion : .percentage
+    }
+
+    /// How this channel is named in the strap log. Spelled out rather than printed as the unit tag:
+    /// `"raw"` names the CHANNEL, not the quantity, and reads as "unprocessed" to everyone who has not
+    /// read `decodeSpO2PerSample`.
+    public var logLabel: String {
+        switch self {
+        case .percentage: return "SpO2 percentage"
+        case .perfusion:  return "SpO2 raw DC perfusion (NOT a percentage)"
+        }
+    }
+
+    /// The strap-log body for "the first sample of this channel arrived this session", WITHOUT either
+    /// platform's `Oura: ` prefix (each source adds its own, as it does for every other line).
+    ///
+    /// It lives here, not at the two call sites, for the reason the whole type exists: the two platforms
+    /// must not be able to disagree about what they call these numbers. The unit tag is still printed,
+    /// so a log can be matched back to the decoder, and the `%` is appended ONLY on the percentage
+    /// channel — a perfusion magnitude with a `%` on it is the original bug in a new costume.
+    /// Kotlin twin: `OuraSpO2Channel.firstDecodedLogLine`, oracle-tested against this function's output.
+    public static func firstDecodedLogLine(value: Int, unit: String) -> String {
+        let c = forUnit(unit)
+        return "first \(c.logLabel) decoded (last night) - \(value)\(c == .percentage ? " %" : "")"
+            + " (channel \"\(unit)\")"
+    }
+}
+
+public extension OuraSpO2 {
+    /// What this sample's number actually is. See `OuraSpO2Channel`.
+    var channel: OuraSpO2Channel { OuraSpO2Channel.forUnit(unit) }
+}
+
 /// One decoded skin-temperature sample in hundredths of a degree C scaled to C (value already / 100).
 public struct OuraTemp: Equatable, Sendable, Codable {
     public let ringTimestamp: UInt32
