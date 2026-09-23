@@ -1801,7 +1801,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         @Suppress("UNNECESSARY_SAFE_CALL")
         val w = _activeWorkout?.value ?: return
         if (w.pausedAtMs != null) return
-        val s = w.samples + HrSample(deviceId = deviceId, ts = System.currentTimeMillis() / 1000, bpm = bpm)
+        // One sample a second. This runs on every LiveState emission that carries a heart rate — any field
+        // changing, not only the rate — so a second often arrives more than once with one `ts`, and Effort
+        // credits a zero gap with a full second (`StrainScorer.sampleDurationsMinutes`): each repeat counted
+        // as another second of effort, live and in the saved workout. Twin of iOS `ActiveWorkout.recordSample`.
+        val ts = System.currentTimeMillis() / 1000
+        if (w.samples.lastOrNull()?.ts == ts) return
+        val s = w.samples + HrSample(deviceId = deviceId, ts = ts, bpm = bpm)
         val strain = StrainScorer.strain(
             s, maxHR = profileStore.hrMax.toDouble(),
             method = NoopPrefs.effortMethod(appContext), sex = profileStore.sex) ?: 0.0

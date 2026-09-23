@@ -127,6 +127,19 @@ final class AppModel: ObservableObject {
 
         var isPaused: Bool { pausedAt != nil }
 
+        /// Adds a heart-rate sample unless this second already has one, and says whether it did.
+        ///
+        /// `captureWorkoutSample` runs from two `@Published` sinks (`heartRate` and `rr`), so a strap sends
+        /// it one call per R-R packet plus another whenever the rate itself moves, which during exercise is
+        /// most seconds: two samples with one `ts`. Effort credits each sample with the gap to the next and a
+        /// zero gap with a full second (`StrainScorer.sampleDurationsMinutes`), so every repeat counted as
+        /// another second of effort, live and in the saved workout. The stream is one reading a second.
+        mutating func recordSample(_ sample: HRSample) -> Bool {
+            if let last = samples.last, last.ts == sample.ts { return false }
+            samples.append(sample)
+            return true
+        }
+
         /// Delegates to `ActiveWorkoutClock` so this and the two card surfaces cannot drift apart again.
         func elapsed(at now: Date = Date()) -> TimeInterval {
             ActiveWorkoutClock.activeElapsed(start: start, pausedAt: pausedAt,
@@ -1045,7 +1058,8 @@ final class AppModel: ObservableObject {
     /// over the growing window each sample is cheap at the ~1 Hz live-HR cadence.
     private func captureWorkoutSample() {
         guard var w = activeWorkout, !w.isPaused, let hr = bpm else { return }
-        w.samples.append(HRSample(ts: Int(Date().timeIntervalSince1970), bpm: hr))
+        // A second that already has its sample changes nothing, so nothing is rescored or re-saved for it.
+        guard w.recordSample(HRSample(ts: Int(Date().timeIntervalSince1970), bpm: hr)) else { return }
         w.peakHr = max(w.peakHr, hr)
         w.avgHr = Int((Double(w.samples.map(\.bpm).reduce(0, +)) / Double(w.samples.count)).rounded())
         w.liveStrain = StrainScorer.strain(w.samples, maxHR: Double(profile.hrMax),
