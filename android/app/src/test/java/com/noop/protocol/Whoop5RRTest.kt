@@ -88,7 +88,7 @@ class Whoop5RRTest {
     }
 
     @Test fun transportCodes() {
-        assertEquals((1..7).toList(), RrSourceChannel.entries.map { it.code })
+        assertEquals((1..8).toList(), RrSourceChannel.entries.map { it.code })
     }
 
     /**

@@ -251,6 +251,7 @@ class RawTimelineRepositoryDaoTest {
             when (method.name) {
                 "pairedDevice", "activeDeviceId" -> null
                 "hasWhoop5RrSource" -> false
+                "hasWhoop4HistoricalRrSource" -> false
                 else -> call(method.name, args ?: emptyArray())
             }
         } as WhoopDao

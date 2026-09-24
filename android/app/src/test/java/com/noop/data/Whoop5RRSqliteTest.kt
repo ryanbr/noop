@@ -141,6 +141,9 @@ class Whoop5RRSqliteTest {
                 "hasWhoop5RrSource" -> query(HAS_WHOOP5_RR_SOURCE_SQL, mapOf("deviceId" to args[0])) {
                     it.getBoolean(1)
                 }.single()
+                "hasWhoop4HistoricalRrSource" -> query(
+                    "SELECT EXISTS(SELECT 1 FROM rrInterval WHERE deviceId = ? AND srcChannel = 8)",
+                    mapOf("deviceId" to args[0])) { it.getBoolean(1) }.single()
                 "legacyWhoop5RrWithheld" -> query(LEGACY_WHOOP5_RR_WITHHELD_SQL,
                     listOf("deviceId", "from", "to").zip(args.take(3)).toMap()) {
                     it.getBoolean(1)
@@ -368,7 +371,7 @@ class Whoop5RRSqliteTest {
 
     @Test fun sourceFingerprintQueriesUseCoveringIndex() {
         val plan = query("EXPLAIN QUERY PLAN $ANALYSIS_FINGERPRINT_SQL") { it.getString("detail") }
-        assertEquals(3, plan.count { it.contains("USING COVERING INDEX rrInterval_source_suspect") })
+        assertEquals(4, plan.count { it.contains("USING COVERING INDEX rrInterval_source_suspect") })
         assertFalse(plan.any { it.contains("SCAN rrInterval") })
     }
 

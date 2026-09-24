@@ -170,7 +170,7 @@ public func isEmptyRecordFrame(_ frame: [UInt8]) -> Bool {
 /// CRC-failed and non-ok frames are skipped.
 public func extractHistoricalStreams(_ parsed: [ParsedFrame],
                                      deviceClockRef: Int, wallClockRef: Int,
-                                     family: DeviceFamily = .whoop4,
+                                     family: DeviceFamily? = nil,
                                      // SESSION-RELATIVE bounds (#547): the strap's own GET_DATA_RANGE
                                      // oldest/newest markers for THIS sync. nil on the replay/import/no-range
                                      // paths — the gate then falls back to the absolute-only floor (unchanged).

@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.Flow
 /** Kept as one compile-time constant so Room and the plain-JVM SQLite regression test execute the exact
  * same statement. Swift's twin lives in WhoopStore.analysisFingerprint(). */
 internal const val ANALYSIS_FINGERPRINT_SQL =
-    "SELECT 'v3|' || " +
+    "SELECT 'v4|' || " +
         "'h' || (SELECT COUNT(*) FROM hrSample) || ':' || (SELECT COALESCE(MAX(ts), 0) FROM hrSample) || '|' || " +
         "'p' || (SELECT COALESCE(MAX(rowid), 0) FROM ppgHrSample) || '|' || " +
         "'r' || (SELECT COALESCE(MAX(rowid), 0) FROM rrInterval) || '|' || " +
