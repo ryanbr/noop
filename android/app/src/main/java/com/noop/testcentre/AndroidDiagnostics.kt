@@ -382,7 +382,9 @@ object AndroidDiagnostics {
             }
             val grav = repo.gravitySamplesForDevice(id, session.startTs, session.endTs, Int.MAX_VALUE)
             val hr = repo.hrSamplesForDevice(id, session.startTs, session.endTs, Int.MAX_VALUE)
-            val rr = repo.rrIntervalsForDevice(id, session.startTs, session.endTs, Int.MAX_VALUE)
+            // Beats BANKED, not beats scored: the raw read, so `rr=` keeps the meaning it had in every log
+            // filed before the one-Oura-channel selection, on both platforms (Swift `DebugDataDiagnostics`).
+            val rr = repo.rawRrIntervalsForDevice(id, session.startTs, session.endTs, Int.MAX_VALUE)
             val resp = repo.respSamples(id, session.startTs, session.endTs, Int.MAX_VALUE)
             add(
                 "Night ${dayStamp(session.startTs)}" +

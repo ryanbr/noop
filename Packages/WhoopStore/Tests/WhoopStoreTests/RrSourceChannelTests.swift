@@ -297,6 +297,17 @@ final class RrSourceChannelTests: XCTestCase {
 
     /// 12 s of 0x60 (the full train), 4 overlapping 0x80 beats (the partial copy), 0x6E over the same
     /// seconds (excluded by name), and one unlabelled row. Mirrored exactly in the Kotlin test.
+    /// The diagnostic read makes no selection: both Oura beat channels come back, 0x6E still excluded.
+    /// Same fixture and expected values as Kotlin `OuraOneChannelReadSqliteTest.theRawExportReadKeepsBothBeatChannels`.
+    func testTheRawDiagnosticReadKeepsBothBeatChannels() async throws {
+        let store = try await WhoopStore.inMemory()
+        try await store.upsertDevice(id: "ring", mac: nil, name: nil)
+        _ = try await store.insert(Streams(rr: Self.oneChannelFixture(ts: ts)), deviceId: "ring")
+        let read = try await store.rawRrIntervals(deviceId: "ring", from: ts, to: ts + 200, limit: 1_000)
+        XCTAssertEqual(Set(read.compactMap { $0.srcChannel?.rawValue }), [1, 3])
+        XCTAssertEqual(read.count, 12 + 4 + 1)
+    }
+
     static func oneChannelFixture(ts: Int) -> [RRInterval] {
         var rows: [RRInterval] = []
         for i in 0..<12 { rows.append(RRInterval(ts: ts + i, rrMs: 1000 + i, srcChannel: .ibiAmplitude)) }

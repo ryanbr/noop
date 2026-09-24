@@ -281,7 +281,9 @@ enum DebugDataDiagnostics {
         }
         let grav = (try? await store.gravitySamples(deviceId: did, from: cs.startTs, to: cs.endTs, limit: 200_000)) ?? []
         let hr = await repo.hrSamples(from: cs.startTs, to: cs.endTs, limit: 200_000)
-        let rr = (try? await store.rrIntervals(deviceId: did, from: cs.startTs, to: cs.endTs, limit: 200_000)) ?? []
+        // Beats BANKED, not beats scored: the raw read, so `rr=` keeps the meaning it had in every log filed
+        // before the one-Oura-channel selection, on both platforms (Kotlin `AndroidDiagnostics`).
+        let rr = (try? await store.rawRrIntervals(deviceId: did, from: cs.startTs, to: cs.endTs, limit: 200_000)) ?? []
         let resp = (try? await store.respSamples(deviceId: did, from: cs.startTs, to: cs.endTs, limit: 200_000)) ?? []
         lines.append("Night \(dayStamp(cs.startTs))"
                      + funnelFallbackNote(chosenDay: dayStamp(cs.startTs),

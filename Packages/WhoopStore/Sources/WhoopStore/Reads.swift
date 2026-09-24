@@ -499,6 +499,28 @@ extension WhoopStore {
         }
     }
 
+    /// The diagnostic read: every beat channel except the `spo2Ibi` (0x6E) duplicate, with NO scoring
+    /// selection, so a strap-log count or an export still carries both Oura beat channels as each other's
+    /// cross-check. This is what `rrIntervals` returned before the one-Oura-channel selection. Quarantined
+    /// (`tsSuspect`) beats stay excluded. Twin of Kotlin `WhoopDao.rawRrIntervals` (`RAW_RR_INTERVALS_SQL`).
+    public func rawRrIntervals(deviceId: String, from: Int, to: Int, limit: Int) async throws -> [RRInterval] {
+        try syncRead { db in
+            try Row.fetchAll(db, sql: """
+                SELECT ts, rrMs, srcChannel, ord, seq FROM rrInterval
+                WHERE deviceId = :d AND ts >= :f AND ts <= :t
+                AND (srcChannel IS NULL OR srcChannel <> :rrx)
+                AND (tsSuspect IS NULL OR tsSuspect <> 1)
+                ORDER BY ts ASC, ord ASC, rrMs ASC, seq ASC LIMIT :lim
+                """, arguments: ["d": deviceId, "f": from, "t": to,
+                                 "rrx": RRSourceChannel.spo2Ibi.rawValue, "lim": limit])
+                .map { row in
+                    RRInterval(ts: row["ts"], rrMs: row["rrMs"],
+                               srcChannel: (row["srcChannel"] as Int?).flatMap(RRSourceChannel.init(rawValue:)),
+                               ord: row["ord"] as Int?, seq: row["seq"])
+                }
+        }
+    }
+
     public func events(deviceId: String, from: Int, to: Int, limit: Int) async throws -> [WhoopEvent] {
         try syncRead { db in
             try Row.fetchAll(db, sql: """
