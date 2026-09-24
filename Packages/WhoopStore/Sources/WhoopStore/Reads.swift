@@ -211,6 +211,7 @@ extension WhoopStore {
                   (SELECT COUNT(*) FROM rrInterval WHERE srcChannel = 7
                      AND (tsSuspect IS NULL OR tsSuspect <> 1)) AS w7,
                   (SELECT COUNT(*) FROM rrInterval WHERE srcChannel IN (5, 6, 7)) AS w5tagged,
+                  (SELECT COUNT(*) FROM rrInterval WHERE srcChannel = 8) AS w4history,
                   (SELECT COALESCE(GROUP_CONCAT(identity, ';'), '') FROM
                     (SELECT QUOTE(id) || ':' || QUOTE(brand) || ':' || QUOTE(model) || ':' || QUOTE(status) AS identity
                      FROM pairedDevice ORDER BY id)) AS registry,
@@ -230,8 +231,9 @@ extension WhoopStore {
             }
             let historyCount: Int = row["w5"]
             let registry: String = row["registry"]
-            return "v3|h\(hc):\(hm)|" + tails.joined(separator: "|")
-                + "|w5\(historyCount)|w7\(row["w7"] as Int)|tagged\(row["w5tagged"] as Int)|registry\(registry)"
+            return "v4|h\(hc):\(hm)|" + tails.joined(separator: "|")
+                + "|w5\(historyCount)|w7\(row["w7"] as Int)|tagged\(row["w5tagged"] as Int)"
+                + "|w4history\(row["w4history"] as Int)|registry\(registry)"
         }
     }
 
@@ -280,6 +282,8 @@ extension WhoopStore {
                   (SELECT COUNT(*) FROM rrInterval WHERE deviceId = :d AND ts >= :f AND ts <= :t
                      AND srcChannel = 7 AND (tsSuspect IS NULL OR tsSuspect <> 1)) AS w7,
                   EXISTS(SELECT 1 FROM rrInterval WHERE deviceId = :d AND srcChannel IN (5, 6, 7)) AS w5owner,
+                  (SELECT COUNT(*) FROM rrInterval WHERE deviceId = :d AND ts >= :f AND ts <= :t
+                     AND srcChannel = :whoop4Historical AND (tsSuspect IS NULL OR tsSuspect <> 1)) AS w4h,
                   COALESCE((SELECT QUOTE(brand) || ':' || QUOTE(model) FROM pairedDevice
                             WHERE id = :d), 'absent') AS registry,
                   (SELECT COUNT(*) FROM respSample WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS xc,
@@ -297,7 +301,8 @@ extension WhoopStore {
                   (SELECT COUNT(*) FROM event WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS ec,
                   (SELECT COALESCE(MAX(ts), 0) FROM event WHERE deviceId = :d AND ts >= :f AND ts <= :t) AS em
                 """, arguments: ["d": deviceId, "f": from, "t": to,
-                                 "rrx": RRSourceChannel.spo2Ibi.rawValue]) else { return "" }
+                                 "rrx": RRSourceChannel.spo2Ibi.rawValue,
+                                 "whoop4Historical": RRSourceChannel.whoop4Historical.rawValue]) else { return "" }
             let keys = ["p", "r", "x", "o", "g", "z", "t", "b", "e"]
             let parts = keys.map { key -> String in
                 let count: Int = row[key + "c"], maxTs: Int = row[key + "m"]
@@ -306,7 +311,8 @@ extension WhoopStore {
             let historyCount: Int = row["w5"]
             let registry: String = row["registry"]
             let strictRR = try Self.isWhoop5RRSource(db: db, deviceId: deviceId)
-            return "s2|" + parts.joined(separator: "|") + "|w5\(historyCount)|w7\(row["w7"] as Int)|ownerTagged\(row["w5owner"] as Int)|registry\(registry)|rr5=\(strictRR)"
+            return "s3|" + parts.joined(separator: "|") + "|w5\(historyCount)|w7\(row["w7"] as Int)"
+                + "|w4h\(row["w4h"] as Int)|ownerTagged\(row["w5owner"] as Int)|registry\(registry)|rr5=\(strictRR)"
         }
     }
 
@@ -460,18 +466,37 @@ extension WhoopStore {
             // One transport for the complete requested interval. Legacy WHOOP 5 rows mix units and
             // origins, so they remain stored but cannot be converted or spliced into a scored beat train.
             // This subquery uses the SAME time/suspect predicates as the outer read, before LIMIT.
+            // A WHOOP 4 takes the history branch below: its type-47 offload is labelled, its standard-BLE
+            // feed is not, and the two overlap, so one or the other is scored for the whole interval.
             // Every other source takes the Oura branch: one beat channel for the interval, the fuller one
             // (see the doc comment on `rrIntervals`), with NULL and non-Oura codes passing untouched.
+            let strictWhoop4History: Bool
+            if strictWhoop5 { strictWhoop4History = false }
+            else {
+                if try Self.isWhoop4RRSource(db: db, deviceId: deviceId) { strictWhoop4History = true }
+                else {
+                    strictWhoop4History = try Bool.fetchOne(db,
+                        sql: "SELECT EXISTS(SELECT 1 FROM rrInterval WHERE deviceId = ? AND srcChannel = ?)",
+                        arguments: [deviceId, RRSourceChannel.whoop4Historical.rawValue]) ?? false
+                }
+            }
             let sourcePredicate = strictWhoop5 ? """
                 srcChannel = (SELECT MIN(srcChannel) FROM rrInterval
                     WHERE deviceId = :d AND ts >= :f AND ts <= :t AND srcChannel IN \(Self.scorableWhoop5Channels)
                     AND (tsSuspect IS NULL OR tsSuspect <> 1))
+                """ : (strictWhoop4History ? """
+                ((EXISTS(SELECT 1 FROM rrInterval WHERE deviceId = :d AND ts >= :f AND ts <= :t
+                    AND srcChannel = :whoop4Historical AND (tsSuspect IS NULL OR tsSuspect <> 1))
+                    AND srcChannel = :whoop4Historical)
+                 OR (NOT EXISTS(SELECT 1 FROM rrInterval WHERE deviceId = :d AND ts >= :f AND ts <= :t
+                    AND srcChannel = :whoop4Historical AND (tsSuspect IS NULL OR tsSuspect <> 1))
+                    AND srcChannel IS NULL))
                 """ : """
                 (srcChannel IS NULL OR srcChannel NOT IN \(Self.scorableOuraChannels) OR (srcChannel = 1) = (
                     SELECT SUM(srcChannel = 1) > SUM(srcChannel <> 1) FROM rrInterval
                     WHERE deviceId = :d AND ts >= :f AND ts <= :t AND srcChannel IN \(Self.scorableOuraChannels)
                     AND (tsSuspect IS NULL OR tsSuspect <> 1)))
-                """
+                """)
             let rows = try Row.fetchAll(db, sql: """
                 SELECT ts, rrMs, srcChannel, ord, seq FROM rrInterval
                 WHERE deviceId = :d AND ts >= :f AND ts <= :t
@@ -480,7 +505,8 @@ extension WhoopStore {
                 AND (tsSuspect IS NULL OR tsSuspect <> 1)   -- #1073: exclude future-stamped beats
                 ORDER BY ts ASC, ord ASC, rrMs ASC, seq ASC LIMIT :lim
                 """, arguments: ["d": deviceId, "f": from, "t": to,
-                                 "rrx": RRSourceChannel.spo2Ibi.rawValue, "lim": limit])
+                                 "rrx": RRSourceChannel.spo2Ibi.rawValue,
+                                 "whoop4Historical": RRSourceChannel.whoop4Historical.rawValue, "lim": limit])
                 .map { row in
                     RRInterval(ts: row["ts"], rrMs: row["rrMs"],
                                srcChannel: (row["srcChannel"] as Int?).flatMap(RRSourceChannel.init(rawValue:)),

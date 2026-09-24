@@ -36,7 +36,7 @@ final class Backfiller {
     /// (parsed frames, deviceClockRef, wallClockRef, sessionOldestUnix?, sessionNewestUnix?) → Streams.
     /// The trailing session-range markers are the strap's GET_DATA_RANGE oldest/newest for THIS sync
     /// (#547 session-relative gate); nil when the range isn't known yet (the absolute-only floor applies).
-    typealias Extractor = ([ParsedFrame], Int, Int, Int?, Int?) -> Streams
+    typealias Extractor = ([ParsedFrame], Int, Int, DeviceFamily, Int?, Int?) -> Streams
 
     private let store: BackfillStoreWriting
     /// Device id offloaded chunks persist under. MUTABLE so a WHOOP↔WHOOP switch
@@ -289,8 +289,9 @@ final class Backfiller {
          // The default (prod) Extractor reads the opt-in HR-from-PPG sub-lag interpolation flag (Test Centre →
          // Experimental algorithms) at decode time and threads it into the pure decoder, so the pure package
          // never reaches for UserDefaults. Default OFF = byte-identical to today. Tests inject their own seam.
-         extract: @escaping Extractor = { extractHistoricalStreams($0, deviceClockRef: $1, wallClockRef: $2,
-                                                                    sessionOldestUnix: $3, sessionNewestUnix: $4,
+        extract: @escaping Extractor = { extractHistoricalStreams($0, deviceClockRef: $1, wallClockRef: $2,
+                                                                    family: $3,
+                                                                    sessionOldestUnix: $4, sessionNewestUnix: $5,
                                                                     subLagInterp: PuffinExperiment.ppgHrSubLagInterpEnabled) }) {
         self.store = store
         self.deviceId = deviceId
@@ -626,7 +627,7 @@ final class Backfiller {
             let extractFn = extract   // keep the injected Extractor seam (tests override it); prod == extractHistoricalStreams
             let d = await Task.detached(priority: .utility) { () -> DecodedChunk in
                 let parsed = frames.map { parseFrame($0, family: fam) }
-                let decoded = extractFn(parsed, dev, wall, oldest, newest)
+                let decoded = extractFn(parsed, dev, wall, fam, oldest, newest)
                 let rejected = rejectedHistoricalRecords(frames, family: fam)
                 return DecodedChunk(parsed: parsed, decoded: decoded, rejected: rejected)
             }.value

@@ -170,6 +170,7 @@ public func isEmptyRecordFrame(_ frame: [UInt8]) -> Bool {
 /// CRC-failed and non-ok frames are skipped.
 public func extractHistoricalStreams(_ parsed: [ParsedFrame],
                                      deviceClockRef: Int, wallClockRef: Int,
+                                     family: DeviceFamily = .whoop4,
                                      // SESSION-RELATIVE bounds (#547): the strap's own GET_DATA_RANGE
                                      // oldest/newest markers for THIS sync. nil on the replay/import/no-range
                                      // paths — the gate then falls back to the absolute-only floor (unchanged).
@@ -298,6 +299,7 @@ public func extractHistoricalStreams(_ parsed: [ParsedFrame],
             }
             if let rrs = p["rr_intervals"]?.intArrayValue {
                 let source = p["rr_source_channel"]?.intValue.flatMap(RRSourceChannel.init(rawValue:))
+                    ?? (family == .whoop4 ? .whoop4Historical : nil)
                 for rr in rrs { out.rr.append(RRInterval(ts: ts, rrMs: rr, srcChannel: source)) }
             }
             if let red = p["spo2_red"]?.intValue {

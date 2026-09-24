@@ -26,6 +26,7 @@ internal const val ANALYSIS_FINGERPRINT_SQL =
         "'|w5' || (SELECT COUNT(*) FROM rrInterval WHERE srcChannel = 5 AND (tsSuspect IS NULL OR tsSuspect <> 1)) || " +
         "'|w7' || (SELECT COUNT(*) FROM rrInterval WHERE srcChannel = 7 AND (tsSuspect IS NULL OR tsSuspect <> 1)) || " +
         "'|tagged' || (SELECT COUNT(*) FROM rrInterval WHERE srcChannel IN (5, 6, 7)) || " +
+        "'|w4history' || (SELECT COUNT(*) FROM rrInterval WHERE srcChannel = 8) || " +
         "'|registry' || (SELECT COALESCE(GROUP_CONCAT(identity, ';'), '') FROM " +
         "(SELECT QUOTE(id) || ':' || QUOTE(brand) || ':' || QUOTE(model) || ':' || QUOTE(status) AS identity FROM pairedDevice ORDER BY id))"
 
@@ -57,7 +58,7 @@ internal const val ANALYSIS_FINGERPRINT_SQL =
  * same statement; unlike [ANALYSIS_FINGERPRINT_SQL] it carries :deviceId/:from/:to binds, so a plain-JVM
  * SQLite harness could not run it verbatim. Room's KSP verification is what checks it. */
 internal const val DAY_STREAM_FINGERPRINT_SQL =
-    "SELECT 's2|' || " +
+    "SELECT 's3|' || " +
         "'p' || (SELECT COUNT(*) FROM ppgHrSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
         "':' || (SELECT COALESCE(MAX(ts), 0) FROM ppgHrSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || '|' || " +
         "'r' || (SELECT COUNT(*) FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
@@ -82,6 +83,8 @@ internal const val DAY_STREAM_FINGERPRINT_SQL =
         "AND srcChannel = 5 AND (tsSuspect IS NULL OR tsSuspect <> 1)) || " +
         "'|w7' || (SELECT COUNT(*) FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
         "AND srcChannel = 7 AND (tsSuspect IS NULL OR tsSuspect <> 1)) || " +
+        "'|w4h' || (SELECT COUNT(*) FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
+        "AND srcChannel = 8 AND (tsSuspect IS NULL OR tsSuspect <> 1)) || " +
         "'|ownerTagged' || EXISTS(SELECT 1 FROM rrInterval WHERE deviceId = :deviceId AND srcChannel IN (5, 6, 7)) || " +
         "'|registry' || COALESCE((SELECT QUOTE(brand) || ':' || QUOTE(model) FROM pairedDevice WHERE id = :deviceId), 'absent')"
 
@@ -132,6 +135,16 @@ internal const val WHOOP5_RR_INTERVALS_SQL =
     "AND (tsSuspect IS NULL OR tsSuspect <> 1)) " +
     "ORDER BY ts ASC, ord ASC, rrMs ASC, seq ASC LIMIT :limit"
 
+internal const val WHOOP4_RR_INTERVALS_SQL =
+    "SELECT * FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
+    "AND (srcChannel IS NULL OR srcChannel <> 2) " +
+    "AND (tsSuspect IS NULL OR tsSuspect <> 1) " +
+    "AND ((EXISTS(SELECT 1 FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
+    "AND srcChannel = 8 AND (tsSuspect IS NULL OR tsSuspect <> 1)) AND srcChannel = 8) " +
+    "OR (NOT EXISTS(SELECT 1 FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
+    "AND srcChannel = 8 AND (tsSuspect IS NULL OR tsSuspect <> 1)) AND srcChannel IS NULL)) " +
+    "ORDER BY ts ASC, ord ASC, rrMs ASC, seq ASC LIMIT :limit"
+
 /** The earliest beat a device has banked AT ALL, labelled or not, or null when it has none. The lower
  *  bound on the "cannot be scored" explanation: it separates history this strap actually recorded from
  *  history imported from somewhere else, and only the former can have lost anything to a labelling
@@ -164,6 +177,10 @@ internal const val PROMOTE_WHOOP5_RR_SOURCE_SQL =
     "WHERE deviceId = :deviceId AND ts = :ts AND rrMs = :rrMs AND seq = :seq " +
     "AND ((:source = 5 AND (srcChannel IS NULL OR srcChannel IN (6, 7))) " +
     "OR (:source = 7 AND (srcChannel IS NULL OR srcChannel = 6)))"
+
+internal const val PROMOTE_WHOOP4_HISTORY_SQL =
+    "UPDATE rrInterval SET srcChannel = 8, ord = :ord " +
+    "WHERE deviceId = :deviceId AND ts = :ts AND rrMs = :rrMs AND seq = :seq AND srcChannel IS NULL"
 
 /**
  * Data-access for the local store. Mirrors the GRDB reads/writes in WhoopStore
@@ -638,8 +655,14 @@ interface WhoopDao : DeviceRegistryDao {
     @Query(WHOOP5_RR_INTERVALS_SQL)
     suspend fun whoop5RrIntervals(deviceId: String, from: Long, to: Long, limit: Int): List<RrInterval>
 
+    @Query(WHOOP4_RR_INTERVALS_SQL)
+    suspend fun whoop4RrIntervals(deviceId: String, from: Long, to: Long, limit: Int): List<RrInterval>
+
     @Query(HAS_WHOOP5_RR_SOURCE_SQL)
     suspend fun hasWhoop5RrSource(deviceId: String): Boolean
+
+    @Query("SELECT EXISTS(SELECT 1 FROM rrInterval WHERE deviceId = :deviceId AND srcChannel = 8)")
+    suspend fun hasWhoop4HistoricalRrSource(deviceId: String): Boolean
 
     /** Exact-window twin of Swift `legacyWhoop5RRWithheld`; source-family gating stays in Repository. */
     @Query(LEGACY_WHOOP5_RR_WITHHELD_SQL)
@@ -656,6 +679,9 @@ interface WhoopDao : DeviceRegistryDao {
     /** Newly observed canonical source wins exact-key collisions: history > standard > native/legacy. */
     @Query(PROMOTE_WHOOP5_RR_SOURCE_SQL)
     suspend fun promoteWhoop5RrSource(deviceId: String, ts: Long, rrMs: Int, seq: Int, ord: Int, source: Int)
+
+    @Query(PROMOTE_WHOOP4_HISTORY_SQL)
+    suspend fun promoteWhoop4HistoricalRr(deviceId: String, ts: Long, rrMs: Int, seq: Int, ord: Int)
 
     @Query(
         "SELECT * FROM event WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +

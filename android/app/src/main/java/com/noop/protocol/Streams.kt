@@ -35,7 +35,8 @@ data class HrSample(val ts: Int, val bpm: Int)
 /**
  * The sensor channel or transport that produced an R-R interval.
  *
- * WHOOP 5 exposes one beat train over several labelled transports. WHOOP 4 and legacy rows keep null.
+ * WHOOP 5 exposes one beat train over several labelled transports. WHOOP 4 type-47 history uses code 8;
+ * its standard BLE and legacy rows keep null.
  * An Oura ring has more than one optical channel: the green-quality tag (0x80) and the SpO2 tag (0x6E) both
  * decode to R-R and both were stored, so the table held roughly TWO complete copies of every night —
  * not duplicate rows to de-duplicate, but the SAME heartbeats measured twice. Labelling the channel is
@@ -78,6 +79,8 @@ enum class RrSourceChannel(val code: Int) {
     WHOOP5_REALTIME(6),
     /** WHOOP 5 standard BLE 0x2A37, already converted to milliseconds. */
     WHOOP5_STANDARD(7),
+    /** WHOOP 4.0 type-47 historical stream, distinguished from its unlabelled live BLE feed. */
+    WHOOP4_HISTORICAL(8),
     ;
 
     val isWhoop5Transport: Boolean get() = code in 5..7

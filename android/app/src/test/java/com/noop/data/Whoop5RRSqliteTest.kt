@@ -119,10 +119,17 @@ class Whoop5RRSqliteTest {
                         .use { it.executeUpdate() }
                     Unit
                 }
-                "rrIntervals", "whoop5RrIntervals", "rawRrIntervals" -> query(
+                "promoteWhoop4HistoricalRr" -> {
+                    statement(PROMOTE_WHOOP4_HISTORY_SQL,
+                        listOf("deviceId", "ts", "rrMs", "seq", "ord").zip(args.take(5)).toMap())
+                        .use { it.executeUpdate() }
+                    Unit
+                }
+                "rrIntervals", "whoop5RrIntervals", "rawRrIntervals", "whoop4RrIntervals" -> query(
                     when (method.name) {
                         "whoop5RrIntervals" -> WHOOP5_RR_INTERVALS_SQL
                         "rawRrIntervals" -> RAW_RR_INTERVALS_SQL
+                        "whoop4RrIntervals" -> WHOOP4_RR_INTERVALS_SQL
                         else -> RR_INTERVALS_SQL
                     },
                     listOf("deviceId", "from", "to", "limit").zip(args.take(4)).toMap(),
@@ -658,6 +665,32 @@ class Whoop5RRSqliteTest {
             assertEquals(0, repo.insert(StreamBatch(rr = listOf(RrRow(100, 800, source))), id).rr)
         }
         assertEquals(1, dao.rrIntervals(id, 0, 1000, 100).single().srcChannel)
+    }
+
+    @Test fun whoop4HistoricalRowsWinPerTimestampAndPromoteLegacyRows() = runBlocking {
+        registry("4.0")
+        repo.insert(StreamBatch(rr = listOf(RrRow(100, 800), RrRow(101, 810))), id)
+        repo.insert(StreamBatch(rr = listOf(
+            RrRow(100, 800, RrSourceChannel.WHOOP4_HISTORICAL),
+            RrRow(101, 820, RrSourceChannel.WHOOP4_HISTORICAL),
+        )), id)
+        val rows = repo.rrIntervalsForDevice(id, 100, 101, 100)
+        assertEquals(listOf(800, 820), rows.map { it.rrMs })
+        assertEquals(listOf(8, 8), rows.map { it.srcChannel })
+    }
+
+    @Test fun whoop4PrefersOneHistoricalTransportForTheWholeWindow() = runBlocking {
+        registry("4.0")
+        repo.insert(StreamBatch(rr = listOf(RrRow(100, 800), RrRow(101, 810))), id)
+        repo.insert(StreamBatch(rr = listOf(RrRow(100, 805, RrSourceChannel.WHOOP4_HISTORICAL))), id)
+        val rows = repo.rrIntervalsForDevice(id, 100, 101, 100)
+        assertEquals(listOf(805), rows.map { it.rrMs })
+    }
+
+    @Test fun whoop4FallsBackToUnlabelledRowsWhenNoHistoryExists() = runBlocking {
+        registry("4.0")
+        repo.insert(StreamBatch(rr = listOf(RrRow(100, 800))), id)
+        assertEquals(listOf(800), repo.rrIntervalsForDevice(id, 0, 1000).map { it.rrMs })
     }
 
     @Test fun firstTagOutsideDayAndSuspectPromotionInvalidateOwnerPolicyCaches() = runBlocking {

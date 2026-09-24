@@ -164,7 +164,8 @@ class RrSourceChannelTest {
      */
     @Test
     fun theTwoChannelEnumsAgreeCaseForCaseAndCodeForCode() {
-        assertEquals(OuraIbiChannel.entries.size, RrSourceChannel.entries.count { !it.isWhoop5Transport })
+        assertEquals(OuraIbiChannel.entries.size,
+            RrSourceChannel.entries.count { !it.isWhoop5Transport && it.code <= 4 })
         for (c in OuraIbiChannel.entries) {
             assertEquals(
                 "$c must map to the SAME durable storage code on both sides",

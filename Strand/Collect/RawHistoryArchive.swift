@@ -382,6 +382,7 @@ struct RawHistoryArchive {
             // the opt-in HR-from-PPG sub-lag interpolation flag (Test Centre → Experimental algorithms) so the
             // archive replay re-derives v26 HR with the same variant the live offload uses. Default OFF.
             let streams = extractHistoricalStreams(parsed, deviceClockRef: 0, wallClockRef: 0,
+                                                   family: family,
                                                    subLagInterp: PuffinExperiment.ppgHrSubLagInterpEnabled)
             // Count rows ACTUALLY inserted, not decoded: under the per-app-version gate the archive
             // replays every release, and dedupe makes those re-runs insert 0 — counting decoded rows

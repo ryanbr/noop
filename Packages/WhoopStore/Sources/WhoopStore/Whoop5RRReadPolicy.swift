@@ -2,6 +2,10 @@ import GRDB
 import WhoopProtocol
 
 extension WhoopStore {
+    static func isWhoop4RRSource(db: Database, deviceId: String) throws -> Bool {
+        let row = try Row.fetchOne(db, sql: "SELECT model, brand FROM pairedDevice WHERE id = ?", arguments: [deviceId])
+        return DeviceFamily.confirmedRegistryFamily(model: row?["model"], brand: row?["brand"]) == .whoop4
+    }
     /// The transports a WHOOP 5 window may be SCORED through, as a SQL list.
     ///
     /// One constant rather than a literal per query. `rrIntervals` pins a window to the lowest of these

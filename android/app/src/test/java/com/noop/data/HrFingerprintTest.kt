@@ -49,7 +49,7 @@ class HrFingerprintTest {
     @Test fun analysisFingerprintSqlRunsAndMovesForGravityOnlyCommit() {
         DriverManager.getConnection("jdbc:sqlite::memory:").use { db ->
             createFingerprintTables(db)
-            assertEquals("v3|h0:0|p0|r0|x0|g0|s0|e0|o0|t0|z0|w50|w70|tagged0|registry", fingerprint(db))
+            assertEquals("v4|h0:0|p0|r0|x0|g0|s0|e0|o0|t0|z0|w50|w70|tagged0|w4history0|registry", fingerprint(db))
 
             db.createStatement().use { sql ->
                 sql.executeUpdate("INSERT INTO hrSample(ts) VALUES (1000)")
@@ -57,7 +57,7 @@ class HrFingerprintTest {
                 sql.executeUpdate("INSERT INTO rrInterval DEFAULT VALUES")
                 sql.executeUpdate("INSERT INTO gravitySample DEFAULT VALUES")
             }
-            assertEquals("v3|h1:1000|p0|r2|x0|g1|s0|e0|o0|t0|z0|w50|w70|tagged0|registry", fingerprint(db))
+            assertEquals("v4|h1:1000|p0|r2|x0|g1|s0|e0|o0|t0|z0|w50|w70|tagged0|w4history0|registry", fingerprint(db))
         }
     }
 

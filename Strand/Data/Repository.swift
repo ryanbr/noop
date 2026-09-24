@@ -397,7 +397,7 @@ final class Repository: ObservableObject {
                 out.append(beat)
             }
         }
-        if out.contains(where: { $0.srcChannel?.isWhoop5Transport == true }) {
+        if out.contains(where: { $0.srcChannel?.isWhoop5Transport == true || $0.srcChannel == .whoop4Historical }) {
             // Retain the selected stream's emission order within a second. Value sorting corrupts
             // successive differences; original offsets also keep owner precedence deterministic.
             return out.enumerated().sorted {

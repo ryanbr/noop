@@ -1010,7 +1010,8 @@ fun extractHistoricalStreams(
 
                 @Suppress("UNCHECKED_CAST")
                 (p["rr_intervals"] as? List<Int>)?.forEach { rrMs ->
-                    rr.add(RrRow(ts, rrMs, RrSourceChannel.fromCode(p.intOrNull("rr_source_channel"))))
+                    rr.add(RrRow(ts, rrMs, RrSourceChannel.fromCode(p.intOrNull("rr_source_channel"))
+                        ?: if (family == DeviceFamily.WHOOP4) RrSourceChannel.WHOOP4_HISTORICAL else null))
                 }
 
                 p.intOrNull("spo2_red")?.let { red ->
