@@ -928,8 +928,6 @@ private fun DaytimeStressLine(hours: List<DaytimeStress.HourPoint>) {
     if (levels.size < 2) return
 
     var scrubFrac by remember { mutableStateOf<Float?>(null) }
-    // Same blue→green→amber WHOOP ramp as the hero PipBar / totals bar (no gold).
-    val gradient = remember { Brush.horizontalGradient(*StressRamp.stops.toTypedArray()) }
 
     // Capture Compose colors at composition time — DrawScope lambdas run on the render thread.
     val hairline = Palette.hairline
@@ -1005,6 +1003,42 @@ private fun DaytimeStressLine(hours: List<DaytimeStress.HourPoint>) {
                     val topPad = 8.dp.toPx()
                     val botPad = 8.dp.toPx()
                     val usable = (h - topPad - botPad).coerceAtLeast(1f)
+
+                    // The ramp runs DOWN the chart, not across the day (#2431).
+                    //
+                    // This was `Brush.horizontalGradient`, the same blue/green/amber ramp the hero
+                    // PipBar and the totals bar use. Those are horizontal BARS, where length carries the
+                    // value, so a ramp along x is right for them. Here the value is on y, so along x it
+                    // coloured by time of day instead: a calm 9pm hour drew amber and a tense 7am one
+                    // drew blue. The colour said nothing about the score while looking exactly as though
+                    // it did, and it contradicted the 0-1 LOW / 1-2 MEDIUM / 2-3 HIGH legend this screen
+                    // prints under the chart. The iOS side moved to a vertical ramp in #2053; this one
+                    // never followed.
+                    //
+                    // `yForC` already maps the 0-3 level onto y, so a vertical ramp over the same band
+                    // makes vertical position the level. Amber at the top, blue at the bottom, matching
+                    // the gauge higher up this file.
+                    //
+                    // The bounds are `yForC`'s own, not the whole canvas and not `h - botPad`: the
+                    // canvas would sit a pad out from the level it claims at both ends, and `h - botPad`
+                    // parts company with `yForC` once `usable` hits its 1px floor on a very short chart.
+                    //
+                    // The stops are mirrored about the midpoint (`1f - at`), which both flips the ramp
+                    // and keeps the fractions. A bare colour list would be spaced EVENLY, tracking
+                    // `StressRamp.color` only while the stops sit at 0/0.5/1. That matters because the
+                    // lone-hour dot below is coloured by `StressRamp.color(level)` while the line is
+                    // coloured by position: mirroring makes the two sample the same ramp at the same
+                    // place for any spacing, so reweighting the stops later cannot quietly put the dot
+                    // and the line back into disagreement.
+                    val levelStops = StressRamp.stops
+                        .map { (at, color) -> (1f - at) to color }
+                        .reversed()
+                        .toTypedArray()
+                    val gradient = Brush.verticalGradient(
+                        *levelStops,
+                        startY = topPad,
+                        endY = topPad + usable,
+                    )
                     val chartLeft = yAxisPx
                     val chartW = (w - chartLeft).coerceAtLeast(1f)
                     val stepX = if (levels.size > 1) chartW / (levels.size - 1) else chartW
