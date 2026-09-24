@@ -24,11 +24,17 @@ enum LiveHRBannerPushPolicy {
     static let minimumSpacing: TimeInterval = 2
 
     /// `shown` is what the banner was last pushed with (nil when this controller has pushed nothing yet, so the
-    /// first update always goes out), `next` what it would show now. `sinceLastPush` is how long ago the last
-    /// push was; `staleAfter` is the stale date each push carries. An unchanged banner is re-pushed once half of
-    /// that has passed, so it never reaches its stale date while the strap is connected.
-    static func due<Content: Equatable>(shown: Content?, next: Content, sinceLastPush: TimeInterval,
-                                        staleAfter: TimeInterval) -> Bool {
+    /// first update always goes out), `next` what it would show now, and `reading` its heart rate. `sinceLastPush`
+    /// is how long ago the last push was; `staleAfter` is the stale date each push carries. An unchanged banner is
+    /// re-pushed once half of that has passed, so it never reaches its stale date while the strap is connected.
+    ///
+    /// The number giving way to the dash, or coming back, is pushed at once, whatever the spacing. It is often the
+    /// last thing that happens: a strap taken off the wrist sends WRIST_OFF and then nothing, so no later tick
+    /// retries a push skipped for spacing, and a tester's banner kept "91" for minutes after the strap came off
+    /// (24 Sep 2026) until iOS's stale date drew the dash.
+    static func due<Content: Equatable>(shown: Content?, next: Content, reading: KeyPath<Content, Int?>,
+                                        sinceLastPush: TimeInterval, staleAfter: TimeInterval) -> Bool {
+        if let shown, (shown[keyPath: reading] == nil) != (next[keyPath: reading] == nil) { return true }
         guard sinceLastPush > minimumSpacing else { return false }
         return shown != next || sinceLastPush >= staleAfter / 2
     }

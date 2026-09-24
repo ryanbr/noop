@@ -10,13 +10,13 @@ final class LiveHRBannerPushPolicyTests: XCTestCase {
 
     func testTheFirstPushAlwaysGoesOut() {
         XCTAssertTrue(LiveHRBannerPushPolicy.due(shown: nil as Shown?, next: Shown(bpm: 62),
-                                                 sinceLastPush: .infinity, staleAfter: staleAfter))
+                                                 reading: \.bpm, sinceLastPush: .infinity, staleAfter: staleAfter))
     }
 
     func testAnUnchangedBannerIsNotPushedAgain() {
         let same = Shown(bpm: 62, recovery: 71, effort: 4)
         for since: TimeInterval in [3, 10, 30, 59] {
-            XCTAssertFalse(LiveHRBannerPushPolicy.due(shown: same, next: same, sinceLastPush: since,
+            XCTAssertFalse(LiveHRBannerPushPolicy.due(shown: same, next: same, reading: \.bpm, sinceLastPush: since,
                                                       staleAfter: staleAfter), "\(since) s")
         }
     }
@@ -25,7 +25,7 @@ final class LiveHRBannerPushPolicyTests: XCTestCase {
     /// connected strap never lets it go stale.
     func testAnUnchangedBannerIsRepushedBeforeItGoesStale() {
         let same = Shown(bpm: 62, recovery: 71, effort: 4)
-        XCTAssertTrue(LiveHRBannerPushPolicy.due(shown: same, next: same, sinceLastPush: 60,
+        XCTAssertTrue(LiveHRBannerPushPolicy.due(shown: same, next: same, reading: \.bpm, sinceLastPush: 60,
                                                  staleAfter: staleAfter))
     }
 
@@ -33,11 +33,27 @@ final class LiveHRBannerPushPolicyTests: XCTestCase {
     func testAChangeIsPushedAfterTheSameSpacingAsBefore() {
         let shown = Shown(bpm: 62, recovery: 71, effort: 4)
         for next in [Shown(bpm: 63, recovery: 71, effort: 4), Shown(bpm: 62, recovery: 72, effort: 4),
-                     Shown(bpm: 62, recovery: 71, effort: 5), Shown(bpm: nil, recovery: 71, effort: 4)] {
-            XCTAssertFalse(LiveHRBannerPushPolicy.due(shown: shown, next: next, sinceLastPush: 2,
+                     Shown(bpm: 62, recovery: 71, effort: 5)] {
+            XCTAssertFalse(LiveHRBannerPushPolicy.due(shown: shown, next: next, reading: \.bpm, sinceLastPush: 2,
                                                       staleAfter: staleAfter))
-            XCTAssertTrue(LiveHRBannerPushPolicy.due(shown: shown, next: next, sinceLastPush: 2.5,
+            XCTAssertTrue(LiveHRBannerPushPolicy.due(shown: shown, next: next, reading: \.bpm, sinceLastPush: 2.5,
                                                      staleAfter: staleAfter))
+        }
+    }
+
+    /// The strap taken off the wrist sends WRIST_OFF and then nothing: a dash held back for the spacing would never be
+    /// retried, and the last number would stand until iOS's stale date. It goes out at once, and so does the number
+    /// coming back; everything else still waits for the spacing.
+    func testTheNumberGivingWayToTheDashOrComingBackIsPushedAtOnce() {
+        let number = Shown(bpm: 91, recovery: 71, effort: 4)
+        let dash = Shown(bpm: nil, recovery: 71, effort: 4)
+        for since: TimeInterval in [0, 0.5, 2] {
+            XCTAssertTrue(LiveHRBannerPushPolicy.due(shown: number, next: dash, reading: \.bpm, sinceLastPush: since,
+                                                     staleAfter: staleAfter), "number -> dash after \(since) s")
+            XCTAssertTrue(LiveHRBannerPushPolicy.due(shown: dash, next: number, reading: \.bpm, sinceLastPush: since,
+                                                     staleAfter: staleAfter), "dash -> number after \(since) s")
+            XCTAssertFalse(LiveHRBannerPushPolicy.due(shown: dash, next: Shown(bpm: nil, recovery: 72, effort: 4),
+                                                      reading: \.bpm, sinceLastPush: since, staleAfter: staleAfter))
         }
     }
 
@@ -50,7 +66,7 @@ final class LiveHRBannerPushPolicyTests: XCTestCase {
         var pushes = 0
         for second in 0..<3600 {
             let now = TimeInterval(second)
-            if LiveHRBannerPushPolicy.due(shown: shown, next: steady, sinceLastPush: now - lastPush,
+            if LiveHRBannerPushPolicy.due(shown: shown, next: steady, reading: \.bpm, sinceLastPush: now - lastPush,
                                           staleAfter: staleAfter) {
                 pushes += 1; shown = steady; lastPush = now
             }

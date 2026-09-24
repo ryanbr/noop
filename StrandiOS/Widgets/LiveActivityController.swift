@@ -73,12 +73,11 @@ final class LiveActivityController {
         let staleDate = now.addingTimeInterval(Self.staleAfter)
 
         if let activity {
-            // The link dropping is pushed at once: no tick follows it, so a push skipped for spacing would leave the
-            // last number standing until the link came back.
-            let linkJustDropped = !connected && shownState?.bonded == true
-            guard linkJustDropped || LiveHRBannerPushPolicy.due(shown: shownState, next: state,
-                                                                  sinceLastPush: now.timeIntervalSince(lastPush),
-                                                                  staleAfter: Self.staleAfter) else { return }
+            // The number giving way to the dash (the strap off the wrist, the link dropping) is pushed at once: no
+            // tick follows it, so a push skipped for spacing would leave the last number standing.
+            guard LiveHRBannerPushPolicy.due(shown: shownState, next: state, reading: \.bpm,
+                                             sinceLastPush: now.timeIntervalSince(lastPush),
+                                             staleAfter: Self.staleAfter) else { return }
             lastPush = now
             shownState = state
             Task { await activity.update(ActivityContent(state: state, staleDate: staleDate)) }
