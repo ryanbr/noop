@@ -35,6 +35,14 @@ public struct UserProfile: Equatable, Sendable {
         self.age = age; self.sex = sex
         self.stepTicksPerStep = stepTicksPerStep
     }
+
+    /// Every stored field, for a cache key that must change when the profile does (the per-cycle load
+    /// cache, `IntelligenceEngine`). Named explicitly rather than read from `String(describing:)`, whose
+    /// format is not a contract and costs reflection per call. A new field belongs here too. Doubles by
+    /// bit pattern, so the key is exact and locale-free. Twin of Kotlin `UserProfile.cacheKey`.
+    public var cacheKey: String {
+        "w=\(weightKg.bitPattern),h=\(heightCm.bitPattern),a=\(age.bitPattern),s=\(sex),t=\(stepTicksPerStep.bitPattern)"
+    }
 }
 
 /// A detected workout window. All intensity fields are APPROXIMATE.

@@ -2846,4 +2846,7 @@
     <string name="l10n_settings_screen_softer_9edfeba1">Softer</string>
     <string name="oura_notify_mask_full_title">Oura notification mask ff (experimental)</string>
     <string name="oura_notify_mask_full_desc">Sends the official app’s SetNotification mask (1c 01 ff) instead of NOOP’s 3f at the next connect. The ring packs ~10 packets per notification for the official app and one for NOOP (9× slower drains); this is the first candidate switch. Off by default; the next connect after turning it off is back on 3f. Watch the strap log for “-> notify_all(ff)” and compare notification sizes in the raw capture.</string>
+    <string name="data_sources_whoop_live_subtitle">Pairs directly with your strap over Bluetooth: no WHOOP app, no cloud. The strap can also advertise its heart rate as a standard Bluetooth sensor.</string>
+    <string name="data_sources_band_broadcast_description">Broadcasts the strap\'s own live heart rate over Bluetooth for Garmin, Zwift or gym equipment.</string>
+    <string name="whoop4_direct_broadcast_explainer">Your WHOOP 4.0 can broadcast heart rate directly. Open Data Sources and use “Broadcast heart rate from the strap” for Zwift, Peloton, Garmin or gym equipment. You can alternatively use “Broadcast HR from this phone” when needed.</string>
 </resources>

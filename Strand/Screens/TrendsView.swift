@@ -83,12 +83,6 @@ struct TrendsView: View {
 
     // MARK: Window selection (relative to the LATEST day, with auto-expand)
 
-    /// The latest recorded day across all history (anchors every window).
-    private var latestDay: Date? {
-        guard let d = repo.days.last?.day else { return nil }
-        return date(d)
-    }
-
     /// Days for a given range, taken RELATIVE TO TODAY (the phone's local date) — not the latest
     /// recorded day, which on a stale import anchored W/M/3M to months-old data so it looked current
     /// (issue #23). Empty short windows auto-widen (see `resolve`), so old imports surface under a

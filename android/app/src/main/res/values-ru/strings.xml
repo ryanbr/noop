@@ -2710,4 +2710,7 @@
     <string name="l10n_settings_screen_softer_9edfeba1">Мягче</string>
     <string name="oura_notify_mask_full_title">Маска уведомлений Oura ff (экспериментально)</string>
     <string name="oura_notify_mask_full_desc">При следующем подключении отправляет маску SetNotification официального приложения (1c 01 ff) вместо 3f, которую использует NOOP. Для официального приложения кольцо упаковывает ~10 пакетов в одно уведомление, для NOOP — только один (выгрузка в 9× медленнее); это первый кандидат на переключатель. По умолчанию выключено; первое подключение после выключения снова использует 3f. Ищите «-> notify_all(ff)» в журнале браслета и сравните размеры уведомлений в сырой записи.</string>
+    <string name="data_sources_whoop_live_subtitle">Подключается к браслету напрямую по Bluetooth: без приложения WHOOP и без облака. Браслет также может передавать пульс как стандартный Bluetooth-датчик.</string>
+    <string name="data_sources_band_broadcast_description">Передаёт собственный пульс браслета в реальном времени по Bluetooth для Garmin, Zwift или тренажёров.</string>
+    <string name="whoop4_direct_broadcast_explainer">WHOOP 4.0 может передавать пульс напрямую. Откройте «Источники данных» и включите «Транслировать пульс с браслета» для Zwift, Peloton, Garmin или тренажёров. При необходимости можно использовать «Передавать пульс с этого телефона».</string>
 </resources>

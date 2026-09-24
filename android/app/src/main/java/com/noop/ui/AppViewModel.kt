@@ -1732,7 +1732,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         val pausedMs = w.pausedDurationMs + (w.pausedAtMs?.let { endMs - it } ?: 0L)
         val activeDurationMs = (endMs - w.startMs - pausedMs).coerceAtLeast(0L)
         val avg = if (samples.isNotEmpty()) samples.sumOf { it.bpm } / samples.size else null
-        val peak = if (samples.isNotEmpty()) samples.maxOf { it.bpm } else null
+        // `w.peakHr` can exceed every sample: a repeated second's higher reading is folded into it, not recorded.
+        val peak = if (samples.isNotEmpty()) maxOf(samples.maxOf { it.bpm }, w.peakHr) else null
         // #983: score the SAVED workout with the wearer's measured resting HR, not the hardcoded
         // default of 60. %HRR is (bpm - resting) / (max - resting), so the default moves every zone
         // boundary — at 136 bpm with maxHR 190 it is the difference between zone 1 and zone 2. Today's
@@ -1801,12 +1802,24 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         @Suppress("UNNECESSARY_SAFE_CALL")
         val w = _activeWorkout?.value ?: return
         if (w.pausedAtMs != null) return
-        val s = w.samples + HrSample(deviceId = deviceId, ts = System.currentTimeMillis() / 1000, bpm = bpm)
+        // One sample a second. This runs on every LiveState emission that carries a heart rate — any field
+        // changing, not only the rate — so a second often arrives more than once with one `ts`, and Effort
+        // credits a zero gap with a full second (`StrainScorer.sampleDurationsMinutes`): each repeat counted
+        // as another second of effort, live and in the saved workout. A refused reading still reaches the peak: the
+        // rate moving is often why this ran, so it can be a within-second high; only the peak is published for it,
+        // with no rescore and no snapshot. Twin of iOS `ActiveWorkout.recordSample`.
+        val ts = System.currentTimeMillis() / 1000
+        if (w.samples.lastOrNull()?.ts == ts) {
+            if (bpm > w.peakHr) _activeWorkout.value = w.copy(peakHr = bpm)
+            return
+        }
+        val s = w.samples + HrSample(deviceId = deviceId, ts = ts, bpm = bpm)
         val strain = StrainScorer.strain(
             s, maxHR = profileStore.hrMax.toDouble(),
             method = NoopPrefs.effortMethod(appContext), sex = profileStore.sex) ?: 0.0
         val updated = w.copy(
-            samples = s, avgHr = s.sumOf { it.bpm } / s.size, peakHr = s.maxOf { it.bpm }, liveStrain = strain,
+            // Grown by comparison, not recomputed from `s`, so a peak folded in from a repeated second is kept.
+            samples = s, avgHr = s.sumOf { it.bpm } / s.size, peakHr = maxOf(w.peakHr, bpm), liveStrain = strain,
         )
         _activeWorkout.value = updated
         // Re-snapshot the durable non-GPS session so a process kill keeps the latest accumulated HR (#529).

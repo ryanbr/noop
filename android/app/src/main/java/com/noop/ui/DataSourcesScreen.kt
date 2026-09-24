@@ -2,6 +2,8 @@ package com.noop.ui
 
 import com.noop.R
 import androidx.compose.ui.res.stringResource
+import android.content.Context
+import android.content.SharedPreferences
 import android.text.format.DateUtils
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -39,6 +41,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -63,6 +66,7 @@ import com.noop.data.ImportSummary
 import com.noop.data.Metric
 import com.noop.data.PairedDeviceRow
 import com.noop.data.SourceKind
+import com.noop.ble.PuffinExperiment
 import com.noop.ingest.AppleHealthImporter
 import com.noop.ingest.HealthConnectImporter
 import com.noop.ingest.HealthConnectWriter
@@ -109,6 +113,8 @@ fun DataSourcesScreen(vm: AppViewModel) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val live by vm.live.collectAsStateWithLifecycle()
+    val puffinExperiment = remember { PuffinExperiment.from(context) }
+    var strapHrBroadcast by remember { mutableStateOf(puffinExperiment.broadcastHr) }
     val hrBroadcast by vm.hrBroadcast.collectAsStateWithLifecycle()
     val hrBroadcastAdvertising by vm.hrBroadcastAdvertising.collectAsStateWithLifecycle()
     val hrBroadcastSubscribers by vm.hrBroadcastSubscribers.collectAsStateWithLifecycle()
@@ -118,6 +124,16 @@ fun DataSourcesScreen(vm: AppViewModel) {
     val hcLastSync by vm.hcLastSync.collectAsStateWithLifecycle()
     val hcWriteback by vm.hcWriteback.collectAsStateWithLifecycle()
     val hcWbStatus by vm.hcWritebackStatus.collectAsStateWithLifecycle()
+    DisposableEffect(Unit) {
+        val prefs = context.getSharedPreferences(PuffinExperiment.PREFS, Context.MODE_PRIVATE)
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == null || key == PuffinExperiment.KEY_BROADCAST_HR) {
+                strapHrBroadcast = puffinExperiment.broadcastHr
+            }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
     var hcReadCategories by remember {
         mutableStateOf(HealthConnectImporter.selectedCategories(context))
     }
@@ -881,7 +897,7 @@ fun DataSourcesScreen(vm: AppViewModel) {
         SourceCard(
             title = uiString(R.string.l10n_data_sources_screen_whoop_strap_live_ble_217f7df6),
             icon = Icons.Filled.Bluetooth,
-            subtitle = "Pairs directly with your strap over Bluetooth: no WHOOP app, no cloud.",
+            subtitle = uiString(R.string.data_sources_whoop_live_subtitle),
         ) {
             val (label, tone) = when {
                 // encryptedBond, not bonded — see strapStatusTitle. A 5/MG streaming over the open
@@ -899,8 +915,45 @@ fun DataSourcesScreen(vm: AppViewModel) {
                 else -> "Not connected. Open Live to pair." to StrandTone.Critical
             }
             StatePill(title = label, tone = tone, showsDot = true, pulsing = live.connected && !live.bonded)
+            val strapBroadcastTitle = uiString(R.string.raw_diag_broadcast_hr)
+            val strapBroadcastDescription = uiString(R.string.data_sources_band_broadcast_description)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(strapBroadcastTitle, style = NoopType.subhead, color = Palette.textPrimary)
+                    Text(
+                        strapBroadcastDescription,
+                        style = NoopType.footnote,
+                        color = Palette.textTertiary,
+                    )
+                }
+                Switch(
+                    checked = strapHrBroadcast,
+                    onCheckedChange = { enabled ->
+                        strapHrBroadcast = enabled
+                        puffinExperiment.broadcastHr = enabled
+                        vm.ble.setBroadcastHr(enabled)
+                    },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Palette.surfaceBase,
+                        checkedTrackColor = Palette.accent,
+                        uncheckedThumbColor = Palette.textSecondary,
+                        uncheckedTrackColor = Palette.surfaceInset,
+                        uncheckedBorderColor = Palette.hairline,
+                    ),
+                    modifier = Modifier.semantics {
+                        contentDescription = strapBroadcastTitle
+                    },
+                )
+            }
         }
         }
+
+        // Keep the final control clear of the app and system navigation bars on shorter phones.
+        item { Spacer(Modifier.height(96.dp)) }
 
     }
 

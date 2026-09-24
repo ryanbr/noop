@@ -44,9 +44,9 @@ class PuffinExperiment(
         get() = prefs.getBoolean(KEY_DEEP_DATA, false)
         set(v) = prefs.edit().putBoolean(KEY_DEEP_DATA, v).apply()
 
-    /** True if the user opted in to "Broadcast heart rate": NOOP writes the device-config flag
-     *  whoop_live_hr_in_adv_ind_pkt="1" so the strap advertises the standard Heart Rate Service
-     *  (0x180D) + its live HR, pairable by a Garmin/Zwift/gym HR client. Reversible. Default false.
+    /** True if the user opted in to "Broadcast heart rate": NOOP enables the family's reversible
+     *  direct-broadcast control so the strap advertises the standard Heart Rate Service (0x180D),
+     *  pairable by a Garmin/Zwift/gym HR client. Default false.
      *  Mirrors the macOS `PuffinExperiment.broadcastHrKey`. (#181) */
     var broadcastHr: Boolean
         get() = prefs.getBoolean(KEY_BROADCAST_HR, false)

@@ -2831,4 +2831,7 @@
     <string name="l10n_settings_screen_softer_9edfeba1">Łagodniejsze</string>
     <string name="oura_notify_mask_full_title">Maska powiadomień Oura ff (eksperymentalne)</string>
     <string name="oura_notify_mask_full_desc">Przy następnym połączeniu wysyła maskę SetNotification oficjalnej aplikacji (1c 01 ff) zamiast 3f używanego przez NOOP. Pierścień pakuje ~10 pakietów w jedno powiadomienie dla oficjalnej aplikacji, a dla NOOP tylko jeden (9× wolniejsze zrzuty); to pierwszy kandydat na przełącznik. Domyślnie wyłączone; pierwsze połączenie po wyłączeniu wraca do 3f. Szukaj „-> notify_all(ff)” w dzienniku opaski i porównaj rozmiary powiadomień w surowym przechwyceniu.</string>
+    <string name="data_sources_whoop_live_subtitle">Łączy się bezpośrednio z paskiem przez Bluetooth: bez aplikacji WHOOP i bez chmury. Pasek może też nadawać tętno jako standardowy czujnik Bluetooth.</string>
+    <string name="data_sources_band_broadcast_description">Transmituje własne tętno paska na żywo przez Bluetooth do Garmin, Zwift lub sprzętu na siłowni.</string>
+    <string name="whoop4_direct_broadcast_explainer">WHOOP 4.0 może nadawać tętno bezpośrednio. Otwórz Źródła danych i użyj opcji „Transmituj tętno z opaski” dla Zwift, Peloton, Garmin lub sprzętu na siłowni. W razie potrzeby możesz też użyć opcji „Transmituj tętno z tego telefonu”.</string>
 </resources>

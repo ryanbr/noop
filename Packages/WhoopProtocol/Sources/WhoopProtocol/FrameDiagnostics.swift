@@ -55,6 +55,9 @@ public struct FrameRejectTally: Equatable, Sendable {
     /// The reassembler's monotonic drop count already folded into `.belowMinimumLength`, so repeated
     /// folds of the same counter cannot double-count.
     private var absorbedReassemblerDrops = 0
+    /// The reassembler's monotonic header-checksum drop count already folded in, so repeated folds
+    /// of the same counter cannot double-count. Twin of the Kotlin `absorbedReassemblerHeaderDrops`.
+    private var absorbedReassemblerHeaderDrops = 0
 
     public init() {}
 
@@ -97,6 +100,22 @@ public struct FrameRejectTally: Equatable, Sendable {
         guard monotonicTotal > absorbedReassemblerDrops else { return }
         counts[.belowMinimumLength, default: 0] += monotonicTotal - absorbedReassemblerDrops
         absorbedReassemblerDrops = monotonicTotal
+    }
+
+    /// Fold a reassembler's `headerChecksumDrops` into the `headerChecksumMismatch` bucket.
+    ///
+    /// Same reasoning as `absorbReassemblerDrops` next door, for the other thing the reassembler now
+    /// drops before any parser sees it. A false start-of-frame rejected by its own header checksum
+    /// reaches neither a parser nor the evidence-preserving reader, so without this fold the only
+    /// record that a link was resyncing at all would be a counter nothing reads. Monotonic total;
+    /// only the growth since the last fold is added, so calling it per notification is idempotent.
+    ///
+    /// Kotlin twin: `FrameRejectTally.absorbReassemblerHeaderDrops`. It lives under `com/noop/ble`,
+    /// outside the ledger's Kotlin inventory roots, so the pair is declared here rather than inferred.
+    public mutating func absorbReassemblerHeaderDrops(_ monotonicTotal: Int) {
+        guard monotonicTotal > absorbedReassemblerHeaderDrops else { return }
+        counts[.headerChecksumMismatch, default: 0] += monotonicTotal - absorbedReassemblerHeaderDrops
+        absorbedReassemblerHeaderDrops = monotonicTotal
     }
 
     /// How often `reason` was recorded.

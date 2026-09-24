@@ -13,6 +13,23 @@ import org.junit.Test
  */
 class BroadcastHrConfigTest {
     @Test
+    fun whoop4EnableFrameMatchesExpectedBytes() {
+        val frame = Framing.buildCommand(CommandNumber.TOGGLE_GENERIC_HR_PROFILE, byteArrayOf(1), seq = 8)
+        assertEquals("aa0800a823080e016c935474", frame.hex())
+    }
+
+    @Test
+    fun whoop4DisableFrameMatchesExpectedBytes() {
+        val frame = Framing.buildCommand(CommandNumber.TOGGLE_GENERIC_HR_PROFILE, byteArrayOf(0), seq = 7)
+        assertEquals("aa0800a823070e00c7e40f08", frame.hex())
+    }
+
+    @Test
+    fun whoop4BroadcastCommandUsesSchemaOpcode() {
+        assertEquals(CommandNumber.TOGGLE_GENERIC_HR_PROFILE, CommandNumber.fromRaw(14))
+    }
+
+    @Test
     fun deviceConfigBodyIsNameNullPaddedThenAsciiValue() {
         val body = Whoop5Config.deviceConfigBody("whoop_live_hr_in_adv_ind_pkt", 0x31)
         assertEquals(33, body.size)
@@ -28,4 +45,6 @@ class BroadcastHrConfigTest {
     fun disableUsesAsciiZero() {
         assertEquals('0'.code, Whoop5Config.deviceConfigBody("whoop_live_hr_in_adv_ind_pkt", 0x30)[32].toInt())
     }
+
+    private fun ByteArray.hex(): String = joinToString("") { "%02x".format(it.toInt() and 0xff) }
 }

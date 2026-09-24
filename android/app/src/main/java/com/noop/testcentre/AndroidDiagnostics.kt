@@ -414,7 +414,18 @@ object AndroidDiagnostics {
                 return@runCatching
             }
             com.noop.analytics.SleepStager.remFunnelDiagnostic(session.startTs, session.endTs, grav, hr, rr, resp)
-                ?.let { add(it.summary) } ?: add("REM funnel: insufficient motion data (<2 gravity samples)")
+                ?.let {
+                    // The funnel replays the V1 classifier, but the shipped hypnogram is staged by V2
+                    // whenever the default-on flag says so — name both, or the two totals read as one
+                    // fact disagreeing. On a 5/MG the gap is maximal: V1's primary REM gate needs the
+                    // raw resp channel that hardware never emits, while V2 recovers respiration from
+                    // R-R. Suffix byte-identical to the Swift twin in DebugDataDiagnostics.
+                    val screenStager =
+                        if (com.noop.ble.PuffinExperiment.from(context).experimentalSleepV2) "V2" else "V1"
+                    var summary = it.summary + " · funnel replays V1; screen staged by $screenStager"
+                    if (screenStager != "V1") summary += " — totals can differ"
+                    add(summary)
+                } ?: add("REM funnel: insufficient motion data (<2 gravity samples)")
             val det = com.noop.analytics.DetectedSleep(
                 start = session.startTs, end = session.endTs,
                 efficiency = session.efficiency ?: 0.0, stages = emptyList(),

@@ -42,8 +42,8 @@ import androidx.compose.ui.unit.dp
 // EITHER model owner. The point (issue #490): a 4.0 user wrongly believed broadcast-out was 5.0-only.
 // In truth NOOP's OWN heart-rate re-broadcast (Data Sources → "Broadcast heart rate") works on ANY
 // strap — it re-advertises whatever live HR NOOP is reading. What's genuinely 5/MG-only is the strap
-// FIRMWARE broadcast flag (whoop_live_hr_in_adv_ind_pkt), because the 4.0 firmware has no such config.
-// This screen draws that line honestly, and reassures a 4.0 owner their strap is fully supported.
+// WHOOP 4 uses its dedicated broadcast command while 5/MG uses the whoop_live_hr_in_adv_ind_pkt
+// firmware config. This screen draws that distinction and reassures either owner they're supported.
 
 /** One capability row: a feature, and whether each strap can do it (Yes / No / a short qualifier). */
 private data class CapabilityRow(
@@ -76,10 +76,17 @@ private val CAPABILITIES: List<CapabilityRow> = listOf(
             "your phone.",
     ),
     CapabilityRow(
-        "Strap broadcasts its own HR (firmware flag)",
-        Support.NO, Support.YES,
-        "Making the STRAP itself advertise HR (the whoop_live_hr_in_adv_ind_pkt config) only exists on " +
-            "5/MG firmware. A 4.0 can't do this, but the phone re-broadcast above covers the same use.",
+        "Strap broadcasts its own HR",
+        Support.PARTIAL, Support.YES,
+        // PARTIAL on the 4.0, not YES: the strap is asked over TOGGLE_GENERIC_HR_PROFILE (14) and
+        // answers, but nothing reads back whether it actually advertises 0x180D, and the opcode was
+        // verified on one strap on one firmware (#2400). Every log line on that path says "effect not
+        // confirmed" for the same reason, and this row is where a 4.0 owner decides whether to rely on
+        // it, so it must not claim more than the code does. The 5/MG column keeps YES: its
+        // device-config write is read back on opcode 121.
+        "A 4.0 is asked over its own broadcast command and answers, but nothing can read back whether " +
+            "it really advertises, and it has been confirmed on one strap on one firmware. A 5/MG uses " +
+            "the whoop_live_hr_in_adv_ind_pkt firmware setting, which NOOP reads back.",
     ),
     CapabilityRow(
         "Steps",
@@ -195,10 +202,7 @@ private fun ReassuranceCard() {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(uiString(R.string.l10n_whoop_model_comparison_screen_on_a_whoop_4_0_32a5968d), style = NoopType.headline, color = Palette.textPrimary)
             Text(
-                uiString(R.string.l10n_whoop_model_comparison_screen_you_re_not_missing_the_broadcast_1d2fa907) +
-                    " Zwift, Peloton or a Garmin, open Data Sources and turn on \"Broadcast heart rate\": " +
-                    "your phone becomes a standard Bluetooth HR sensor using your strap's live reading. The " +
-                    "firmware-only flag a 5/MG has just does the same job from the strap instead of the phone.",
+                uiString(R.string.whoop4_direct_broadcast_explainer),
                 style = NoopType.subhead,
                 color = Palette.textSecondary,
             )

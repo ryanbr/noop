@@ -7704,6 +7704,7 @@ class WhoopBleClient(
                 // both correct and cheap. Twin of the Swift `FrameRouter.noteReassemblerDrops`.
                 val completedFrames = reassembler.feed(bytes)
                 rejectTally.absorbReassemblerDrops(reassembler.belowMinimumLengthDrops)
+                rejectTally.absorbReassemblerHeaderDrops(reassembler.headerChecksumDrops)
                 for (frame in completedFrames) {
                   // #453 defense-in-depth: this loop runs on the GATT binder thread; an uncaught throw
                   // from ANY frame op (handleFrame, a decoder, the inline date-format, log) would crash
@@ -8398,6 +8399,18 @@ class WhoopBleClient(
                             "frame=${frame.joinToString("") { "%02x".format(it) }}",
                     )
                 }
+                if (connectedFamily == DeviceFamily.WHOOP4 &&
+                    respCmd?.startsWith("TOGGLE_GENERIC_HR_PROFILE") == true
+                ) {
+                    // #2400: an acknowledgement is evidence that opcode 14 was answered, not a read-back
+                    // of the advertising state. Keep the decoded result and full frame for comparison
+                    // across firmware without presenting either as confirmation of the physical effect.
+                    log(
+                        "Broadcast HR: WHOOP 4 command response received " +
+                            "result=${result ?: "none"}, effect not confirmed " +
+                            "frame=${frame.joinToString("") { "%02x".format(it) }}",
+                    )
+                }
                 // 5/MG range-query gate: a GET_DATA_RANGE SUCCESS releases the history request
                 // (PENDING precedes it; the 2s fail-open fallback covers a swallowed reply). (#78 fork)
                 if (connectedFamily == DeviceFamily.WHOOP5 && backfilling && !historicalKickSent &&
@@ -8851,6 +8864,8 @@ class WhoopBleClient(
         handler.postDelayed({ requestSync(BackfillTrigger.CONNECT) }, INITIAL_BACKFILL_DELAY_MS)
         startBackfillTimer()
         startKeepAlive()
+        // WHOOP 4's broadcast mode is link/runtime state, so restore an opted-in mode after reconnect.
+        if (PuffinExperiment.from(context).broadcastHr) setBroadcastHr(true)
         // Arm realtime HR now if a screen already wants it (Live/Health Monitor opened before the bond
         // completed) OR the continuous-capture preference wants it — otherwise the stream would only
         // start at the next keep-alive tick (issue #18). Mark it armed so reconcileRealtime() tracks the
@@ -9173,20 +9188,20 @@ class WhoopBleClient(
         refreshConnectionPriority()   // #477: live-HR on → HIGH, off → back to idle. No-op unless enabled.
     }
 
-    /**
-     * EXPERIMENTAL (#181): make the strap advertise its heart rate as a standard BLE HR sensor by
-     * writing the device-config flag whoop_live_hr_in_adv_ind_pkt = "1" (on) / "0" (off) via
-     * SET_DEVICE_CONFIG (0x77). Validated on real hardware: with it on, the strap advertises 0x180D +
-     * the live HR in its manufacturer data, so a Garmin (Edge/watch), Zwift or gym HR client pairs to it
-     * directly. Reversible; opt-in. Mirrors `BLEManager.setBroadcastHr`. (Broadcast HR)
-     */
+    /** Make the strap advertise as a standard BLE HR sensor. WHOOP 4 uses its reversible
+     * TOGGLE_GENERIC_HR_PROFILE command; WHOOP 5/MG keeps the existing device-config path. */
     fun setBroadcastHr(on: Boolean) {
-        if (connectedFamily != DeviceFamily.WHOOP5) {
-            log("Broadcast HR: needs a WHOOP 5.0/MG strap — ignored."); return
-        }
         val s = _state.value
         if (!s.connected || !s.bonded) {
-            log("Broadcast HR: connect and bond a 5/MG strap first — ignored."); return
+            log("Broadcast HR: connect and bond the strap first — ignored."); return
+        }
+        if (connectedFamily == DeviceFamily.WHOOP4) {
+            send(CommandNumber.TOGGLE_GENERIC_HR_PROFILE, byteArrayOf(if (on) 1.toByte() else 0.toByte()))
+            log("Broadcast HR: WHOOP 4 ${if (on) "enable" else "disable"} command sent (14); effect not confirmed.")
+            return
+        }
+        if (connectedFamily != DeviceFamily.WHOOP5) {
+            log("Broadcast HR: strap family is not known yet — ignored."); return
         }
         // Mutually exclusive with the ECG gate: both verify over the SAME 121 read-back opcode, so if both
         // were in flight one strap reply would be consumed by both handlers and cross-contaminate the other's
@@ -11656,11 +11671,15 @@ class WhoopBleClient(
                 val passiveReconnect = passiveReconnectDecision(failedReconnectAttempts, aclHeld)
                 log("Disconnected ${disconnectStatusLabel(status)}; reconnecting ${if (passiveReconnect) "passively" else "directly"} in ${directDelay / 1000}s (attempt $failedReconnectAttempts$heldSuffix${if (aclHeld) ", ACL-held" else ""})")
                 // #1030 (ryanbr): cancellable backoff timer (see scheduleReconnect).
+                scheduleReconnect(directDelay) { connectToDevice(dev, autoConnect = passiveReconnect) }
                 // #2406: only the PASSIVE handoff is the silence worth timing. `autoConnect = true` is
                 // not the same thing: the radio-on re-arm, the two bond-loop probes and the launch
                 // auto-reconnect all pass it, and none of them is a wait the app chose to sit out.
+                //
+                // Stamped AFTER scheduleReconnect, which opens with cancelPendingReconnect() and so
+                // clears this field. Stamping first set it and wiped it microseconds later, leaving the
+                // line unreachable: a 23 Sep field log has two passive reconnects and none of it.
                 if (passiveReconnect) passiveReconnectSinceMs = System.currentTimeMillis()
-                scheduleReconnect(directDelay) { connectToDevice(dev, autoConnect = passiveReconnect) }
             } else {
                 val rescanDelay = nextReconnectDelayMs()
                 log("Disconnected ${disconnectStatusLabel(status)}; rescanning in ${rescanDelay / 1000}s (attempt $failedReconnectAttempts$heldSuffix)")

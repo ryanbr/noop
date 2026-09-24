@@ -677,6 +677,53 @@ public final class LiveState: ObservableObject {
         }
     }
 
+    /// Blank the live heart rate and the latest R-R packet while the link stays up: the strap reported itself
+    /// off the wrist, or sent a run of samples it could not measure (`LiveHeartRateReadability`). `rrRecent`
+    /// and `rrSeq` are left alone. The next readable sample sets the heart rate again.
+    ///
+    /// R-R first: the heart-rate write is the one the surfaces listen for, and by the time it lands both are gone,
+    /// so `AppModel`'s median resets on it and the banner is handed nil rather than the old number.
+    public func clearLiveHeartRate() {
+        if !rr.isEmpty { rr.removeAll() }
+        if heartRate != nil { heartRate = nil }
+    }
+
+    /// How long the live heart rate may stand with no readable sample before it is cleared. A WHOOP 5.0 taken off the
+    /// wrist can simply go quiet, with the link still up — no 0 bpm, no WRIST_OFF (a tester's log, 23 Sep 2026) — and
+    /// nothing else would ever clear the last number. Normal gaps between samples were at most 2 s in that log, so ten
+    /// seconds cannot blank a strap that is being worn.
+    public static let heartRateSilenceSeconds: TimeInterval = 10
+    /// Instance copy of `heartRateSilenceSeconds`, so a test can shorten the wait.
+    var heartRateSilence: TimeInterval = LiveState.heartRateSilenceSeconds
+    private var heartRateSilenceTimer: DispatchSourceTimer?
+    private var heartRateSilenceArmedAt: DispatchTime?
+
+    /// A readable heart-rate sample arrived (`BLEManager`'s standard profile, `FrameRouter`'s realtime frames): move the
+    /// silence deadline on. One timer, rescheduled at most every tenth of the wait (once a second in use), so it costs
+    /// nothing while samples flow and fires once when they stop.
+    public func noteReadableHeartRate() {
+        let now = DispatchTime.now()
+        let rearmNanos = UInt64(heartRateSilence / 10 * 1_000_000_000)
+        if let armed = heartRateSilenceArmedAt, now.uptimeNanoseconds &- armed.uptimeNanoseconds < rearmNanos { return }
+        heartRateSilenceArmedAt = now
+        let timer = heartRateSilenceTimer ?? {
+            let t = DispatchSource.makeTimerSource(queue: .main)
+            t.setEventHandler { [weak self] in MainActor.assumeIsolated { self?.heartRateWentSilent() } }
+            t.resume()
+            heartRateSilenceTimer = t
+            return t
+        }()
+        timer.schedule(deadline: now + heartRateSilence, leeway: .nanoseconds(Int(rearmNanos)))
+    }
+
+    private func heartRateWentSilent() {
+        heartRateSilenceArmedAt = nil
+        guard heartRate != nil else { return }
+        append(log: AppModel.stamped("HR: no readable heart-rate sample for \(Int(heartRateSilence)) s; "
+                                     + "live heart rate cleared"))
+        clearLiveHeartRate()
+    }
+
     /// Blank all live biometric readouts (HR + R-R + the rolling buffer) so a stale heart rate or
     /// R-R strip can't outlive the link. Called on CoreBluetooth disconnect (BLEManager), the twin of
     /// the `charging = nil` / `encryptedBond = false` clears on the same path.

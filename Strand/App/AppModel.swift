@@ -127,6 +127,31 @@ final class AppModel: ObservableObject {
 
         var isPaused: Bool { pausedAt != nil }
 
+        /// Adds a heart-rate sample unless this second already has one, and says whether it did.
+        ///
+        /// `captureWorkoutSample` runs from two `@Published` sinks (`heartRate` and `rr`), so a strap sends
+        /// it one call per R-R packet plus another whenever the rate itself moves, which during exercise is
+        /// most seconds: two samples with one `ts`. Effort credits each sample with the gap to the next and a
+        /// zero gap with a full second (`StrainScorer.sampleDurationsMinutes`), so every repeat counted as
+        /// another second of effort, live and in the saved workout. The stream is one reading a second.
+        ///
+        /// A refused reading still reaches `peakHr`: the sinks fire because the rate moved, so a repeat is often a
+        /// different bpm for that second, and a within-second high is part of the workout's peak. Only the last
+        /// sample is compared, so this drops a repeat of the current second, not an out-of-order arrival; the live
+        /// stream is monotonic.
+        mutating func recordSample(_ sample: HRSample) -> Bool {
+            if let last = samples.last, last.ts == sample.ts {
+                peakHr = max(peakHr, sample.bpm)
+                return false
+            }
+            samples.append(sample)
+            return true
+        }
+
+        /// The maximum heart rate the workout is saved with: the highest sample, or a higher reading a repeated
+        /// second folded into `peakHr` (`recordSample`). Nil with no samples.
+        var savedPeak: Int? { samples.map(\.bpm).max().map { max($0, peakHr) } }
+
         /// Delegates to `ActiveWorkoutClock` so this and the two card surfaces cannot drift apart again.
         func elapsed(at now: Date = Date()) -> TimeInterval {
             ActiveWorkoutClock.activeElapsed(start: start, pausedAt: pausedAt,
@@ -169,6 +194,8 @@ final class AppModel: ObservableObject {
     // L3 stress-onset detector state: a rolling R-R buffer + the replay-safe detector state (persisted
     // via BiofeedbackPrefs so a relaunch can't re-fire), carried verbatim between evaluations.
     private var rrBuf: [Int] = []
+    /// Which live R-R packet `rrBuf` last took, so each packet enters it once (`RRPacketCursor`).
+    private var stressPackets = RRPacketCursor()
     private var stressState = BiofeedbackPrefs.loadStressState()
 
     /// Import source currently writing to the local store, if any.
@@ -255,8 +282,17 @@ final class AppModel: ObservableObject {
             }
         }.store(in: &hrCancellables)
         // Smooth HR centrally so it's solid everywhere it's shown.
-        live.$heartRate.sink { [weak self] _ in self?.ingestHR() }.store(in: &hrCancellables)
-        live.$rr.sink { [weak self] _ in self?.ingestHR() }.store(in: &hrCancellables)
+        // A `@Published` sink runs in willSet, before the value lands, so each hands `ingestHR` the value being
+        // written and reads the other from `live`, where it is current. Reading both from `live` meant clearing the
+        // heart rate (a disconnect, the strap off the wrist) found the old values still there and kept the median.
+        live.$heartRate.sink { [weak self] hr in
+            guard let self else { return }
+            self.ingestHR(heartRate: hr, rr: self.live.rr)
+        }.store(in: &hrCancellables)
+        live.$rr.sink { [weak self] rr in
+            guard let self else { return }
+            self.ingestHR(heartRate: self.live.heartRate, rr: rr)
+        }.store(in: &hrCancellables)
 
         // #2117: bank the device's R-R transport facts whenever a link comes up. Shell-independent on
         // purpose: the classic Today already reads these three for its own note, but the Liquid shell is
@@ -749,11 +785,11 @@ final class AppModel: ObservableObject {
     /// Fold a fresh reading into the smoothing window and republish a stable bpm.
     /// Prefers the strap's reported HR; falls back to 60000/R-R. Clamps to a plausible
     /// 30–220 range (rejects 0 / garbage spikes) and publishes the window MEDIAN.
-    private func ingestHR() {
+    private func ingestHR(heartRate: Int?, rr: [Int]) {
         var inst: Double?
-        if let hr = live.heartRate, hr >= 30, hr <= 220 {
+        if let hr = heartRate, hr >= 30, hr <= 220 {
             inst = Double(hr)
-        } else if let rr = live.rr.last, rr > 0 {
+        } else if let rr = rr.last, rr > 0 {
             let v = 60_000.0 / Double(rr)
             if v >= 30, v <= 220 { inst = v }
         }
@@ -762,7 +798,7 @@ final class AppModel: ObservableObject {
             // median so screens that now prefer `bpm` fall through to "," instead of freezing on the
             // last value. Mirrors Android (_bpm = null on disconnect). A transient out-of-range sample
             // with the link still up (heartRate or rr still present) keeps the last median.
-            if live.heartRate == nil && live.rr.isEmpty { resetSmoothing() }
+            if heartRate == nil && rr.isEmpty { resetSmoothing() }
             return
         }
         let now = Date()
@@ -985,7 +1021,7 @@ final class AppModel: ObservableObject {
         }
         let avg = samples.isEmpty ? nil
             : Int((Double(samples.map(\.bpm).reduce(0, +)) / Double(samples.count)).rounded())
-        let peak = samples.map(\.bpm).max()
+        let peak = w.savedPeak
         // #983: score the SAVED workout with the wearer's measured resting HR, not the hardcoded
         // default of 60. %HRR is (bpm - resting) / (max - resting), so the default moves every zone
         // boundary — at 136 bpm with maxHR 190 it is the difference between zone 1 and zone 2. Today's
@@ -1045,7 +1081,13 @@ final class AppModel: ObservableObject {
     /// over the growing window each sample is cheap at the ~1 Hz live-HR cadence.
     private func captureWorkoutSample() {
         guard var w = activeWorkout, !w.isPaused, let hr = bpm else { return }
-        w.samples.append(HRSample(ts: Int(Date().timeIntervalSince1970), bpm: hr))
+        // A second that already has its sample moves only the peak: publish that, and skip the rescore and the
+        // snapshot (the next second's sample carries the peak into the snapshot).
+        let peakBefore = w.peakHr
+        guard w.recordSample(HRSample(ts: Int(Date().timeIntervalSince1970), bpm: hr)) else {
+            if w.peakHr != peakBefore { activeWorkout = w }
+            return
+        }
         w.peakHr = max(w.peakHr, hr)
         w.avgHr = Int((Double(w.samples.map(\.bpm).reduce(0, +)) / Double(w.samples.count)).rounded())
         w.liveStrain = StrainScorer.strain(w.samples, maxHR: Double(profile.hrMax),
@@ -1071,6 +1113,10 @@ final class AppModel: ObservableObject {
     /// baseline + rate limit), persisted via `BiofeedbackPrefs` so a relaunch can't re-fire. Honest /
     /// non-clinical: "stress" is an autonomic proxy vs the user's own baseline, never a diagnosis.
     private func evaluateStress() {
+        // Once per R-R packet. `ingestHR` runs from both the heart-rate and the R-R sink, so a packet reached
+        // this once or twice, its intervals entered `rrBuf` as often, and the detector's slow baseline
+        // advanced on every call rather than every packet.
+        guard stressPackets.isNew(live.rrSeq) else { return }
         let fresh = live.rr.filter { $0 > 300 && $0 < 2000 }   // plausible R-R (30–200 bpm)
         guard !fresh.isEmpty else { return }
         rrBuf.append(contentsOf: fresh)

@@ -11,11 +11,17 @@ package com.noop.analytics
  * split, no fitted offset) found the primary-session sample mean tracked both far better: rounded MAE vs the
  * official target 6.0->2.0 (dev) / 7.5->0.8 (holdout).
  *
- * ## Deliberately PURE and UNWIRED
- * This computes the metric and is unit-tested, but nothing consumes it yet. The shipped headline AND the
- * recovery / strain / workout-detection / energy inputs all read the floor `restingHRDaily`, so switching
- * them is a re-baselining of core scores that the issue itself says needs a larger multi-participant,
- * pre-declared holdout first. Out of scope here; this lands the transparent, testable definition.
+ * ## WIRED as of #2358 — this sets the shipped daily resting HR
+ * It was landed pure and unwired, on the reasoning that switching the consumers is a re-baselining of
+ * core scores and that the issue asks for a larger multi-participant holdout first. #2358 made the
+ * switch anyway, as a maintainer call: `AnalyticsEngine.restingHRDaily` now prefers a device-provided
+ * primary-session value, then THIS mean, and falls back to the old `restingHR.min()` floor only when
+ * coverage is sparse. So the headline resting HR and everything reading it — recovery, strain, workout
+ * detection, energy — come from here on any day with a covered primary session.
+ *
+ * What that means for the evidence below: the MAE figures are from ONE participant over five nights
+ * against a pre-declared split, which is the holdout the issue says is not yet large enough. #2284
+ * separately replaces what a session's `restingHR` IS, which moves the fallback under this.
  *
  * ## Definition
  * - **Primary session**: the LONGEST by duration; ties resolve to the FIRST. A nap never replaces the night.

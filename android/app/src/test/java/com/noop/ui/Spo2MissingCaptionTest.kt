@@ -66,7 +66,7 @@ class Spo2MissingCaptionTest {
      * (VitalSignsSummary.swift) — same wording", and nothing enforced it: Apple wrapped these in
      * `String(localized:)` while Android used raw Kotlin literals, so the two could drift silently and
      * a German phone got English on exactly one platform. Reading both catalogues is the only check
-     * available here, since the Swift side is app-target and no CI job compiles it.
+     * available here: a Kotlin test cannot import the Swift side at any cost, compiled or not.
      */
     @Test
     fun bothCaptionsMatchTheSwiftCatalogueWordForWord() {

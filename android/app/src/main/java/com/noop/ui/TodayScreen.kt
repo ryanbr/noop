@@ -1769,7 +1769,10 @@ fun TodayScreen(
                         ) {
                             Row(verticalAlignment = Alignment.Top) {
                                 Box(modifier = Modifier.weight(1f)) {
-                                    SectionHeader(uiString(R.string.today_section_key_metrics), overline = dayLabel, trailing = trendWindowLabel(keyMetricsWindowDays))
+                                    // The label names the window the DETAILED tiles graph, so it is only honest while they are
+                                    // drawn: with the trend graphs off (the default) nothing in this section renders a
+                                    // trend, and the header was still announcing one (#2376). Twin of the Apple change.
+                                    SectionHeader(uiString(R.string.today_section_key_metrics), overline = dayLabel, trailing = if (keyMetricsDetailed) trendWindowLabel(keyMetricsWindowDays) else null)
                                 }
                                 TodayEditAction(
                                     onClick = { showMetricsEditor = true },
@@ -3269,9 +3272,15 @@ private fun HeroRingColumn(
                 color = Palette.textSecondary,
                 modifier = Modifier
                     .fillMaxWidth()
-                    // Keep almost the complete width available on the leading side. The larger trailing
-                    // inset reserves space for the chevron without shifting or clipping longer labels.
-                    .padding(start = Metrics.space2, end = Metrics.space18),
+                    // The 16.dp each side the note above specifies (#2421). It had drifted to 2.dp leading
+                    // against 18.dp trailing, reserving the chevron on one side only, so `TextAlign.Center`
+                    // centred the word in a box 16.dp narrower on the right and put it 8.dp LEFT of the ring
+                    // above it, on every hero label. A reporter saw that before anyone reading this file did.
+                    //
+                    // Symmetric at 16 rather than 18 because the width matters: it is the margin
+                    // `AutoSizeValue` shrinks into before it ellipsises, and #1502 was a German "ERHOLUNG"
+                    // cut to "R…". 16 clears the 14.dp chevron by 2.
+                    .padding(horizontal = Metrics.space16),
                 minScale = 0.7f,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             )

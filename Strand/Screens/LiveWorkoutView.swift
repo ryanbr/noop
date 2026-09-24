@@ -437,22 +437,6 @@ struct LiveWorkoutView: View {
         .accessibilityLabel(Text("Delete"))
     }
 
-    private var activeSportName: String {
-        model.activeWorkout?.sport ?? WorkoutCatalog.defaultSportName
-    }
-
-    private var workoutTypeGlassButton: some View {
-        Button {
-            // Placeholder — sport-type picker lands later; chrome and sizing stay put.
-        } label: {
-            WorkoutTypeIcon(workoutType: activeSportName, size: 22, weight: .semibold)
-                .frame(width: Self.bottomControlDiameter, height: Self.bottomControlDiameter)
-                .contentShape(Circle())
-        }
-        .nativeLiquidGlassWorkoutControl()
-        .accessibilityLabel(Text("\(WorkoutSource.displaySport(activeSportName)) workout"))
-    }
-
     // MARK: - Helpers
 
     /// Delegates to the shared clock. This carried its own `%d:%02d` with NO hour roll-over, so a

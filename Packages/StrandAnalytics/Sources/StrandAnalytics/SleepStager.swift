@@ -2656,12 +2656,21 @@ public enum SleepStager {
         return .noRespFallbackBar                          // resp never measured and the no-resp bar unmet
     }
 
-    /// Read-only REM-funnel triage for ONE in-bed window [start, end] (#688). Re-runs the SAME Stage-0→3
-    /// staging seam `stageSession` uses (epoch grid → Cole–Kripke → features → classify → smooth →
-    /// re-impose), but instead of emitting a hypnogram it COUNTS where REM was lost. Changes NOTHING:
-    /// no label, no score, no session. Returns nil only when the window has too little gravity to grid
-    /// (mirroring `stageSession`'s degenerate fallback, which carries no REM to explain). The caller
-    /// logs `.summary`; tests assert the counts. Pure + deterministic. (#688)
+    /// Read-only REM-funnel triage for ONE in-bed window [start, end] (#688). Re-runs THIS type's
+    /// Stage-0→3 seam (epoch grid → Cole–Kripke → features → classify → smooth → re-impose), but
+    /// instead of emitting a hypnogram it COUNTS where REM was lost. Changes NOTHING: no label, no
+    /// score, no session. Returns nil only when the window has too little gravity to grid (mirroring
+    /// `stageSession`'s degenerate fallback, which carries no REM to explain). The caller logs
+    /// `.summary`; tests assert the counts. Pure + deterministic. (#688)
+    ///
+    /// WHICH HYPNOGRAM THIS EXPLAINS. V1's, always — this function is `SleepStager`'s own seam. It used
+    /// to say it explained "the SAME hypnogram" as the screen, and that has been false since V2 became
+    /// the default: the shipped hypnogram is staged by `SleepStagerV2` whenever
+    /// `experimentalSleepV2Enabled` says so, which is by default. On a 5/MG the two can be far apart,
+    /// because V1's primary REM gate needs the raw respiratory channel the hardware never emits while V2
+    /// recovers respiration regularity from R-R: one field pair reported ~46 min REM here against hours
+    /// on the screen for the same night (#2365). The caller's line names both stagers for that reason
+    /// (#2366); do not restore the claim that they are one. 
     public static func remFunnelDiagnostic(start: Int, end: Int, grav: [GravitySample],
                                            hr: [HRSample], rr: [RRInterval],
                                            resp: [RespSample]) -> REMFunnelDiagnostic? {
@@ -2959,6 +2968,16 @@ public enum SleepStager {
         // Classified over the SAME beats the value was built from, windowed [start, end] exactly as
         // `sessionHrvWindows` does, so the verdict cannot describe a different set of beats than the number
         // it is gating.
+        guard !sessionHrvOverCounted(start: start, end: end, rr: rr) else { return nil }
+        return vals.reduce(0, +) / Double(vals.count)
+    }
+
+    /// Whether the #1118 coverage gate refuses a session's HRV: its own R-R, windowed [start, end] exactly
+    /// as `sessionAvgHRV` windows it, banks more beat-time than the wall clock allows. Pure. The ONE
+    /// definition of "refused": `sessionAvgHRV` gates on it, and `AnalyticsEngine` asks it whether a main
+    /// night's missing HRV was refused rather than never measured, so the two cannot disagree about which
+    /// nights were refused. Byte-parity twin of Kotlin `SleepStager.sessionHrvOverCounted`.
+    static func sessionHrvOverCounted(start: Int, end: Int, rr: [RRInterval]) -> Bool {
         let seg = rr.filter { $0.ts >= start && $0.ts <= end }
         let segTs = seg.map { $0.ts }
         let segMs = seg.map { Double($0.rrMs) }
@@ -2972,8 +2991,7 @@ public enum SleepStager {
         // buying a distinction the caller discards would hand that back. `rrCoverage` is a single O(n)
         // pass. If a future gate ever needs the two over-count cases apart, compute it then.
         let verdict = HRVAnalyzer.classifyCoverage(coverage: coverage, collapsed: coverage)
-        guard HRVAnalyzer.successiveDiffIsTrustworthy(verdict) else { return nil }
-        return vals.reduce(0, +) / Double(vals.count)
+        return !HRVAnalyzer.successiveDiffIsTrustworthy(verdict)
     }
 
     /// Per-5-min-window RMSSD across a session, each window tagged with the sleep stage at its CENTER

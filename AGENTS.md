@@ -120,7 +120,7 @@ xcodegen generate && xcodebuild -project Strand.xcodeproj -scheme Strand \
 | Workflow | Covers | Runner | Default state |
 |---|---|---|---|
 | `swift-packages.yml` | TWO jobs. `test`: `swift test` over **`Packages/**`** (WhoopProtocol, WhoopStore, StrandAnalytics, StrandImport, StrandDesign, NoopLocalAccess). `tools`: `swift build` + `swift test` over **`Tools/SleepBench`, `Tools/SleepPSG`, `Tools/Backfill`** — Backfill has no test target, so it is build-only. Path-filtered to those directories. | macos-15 | **active** |
-| `app-build.yml` | Builds the **app targets** (`Strand` macOS + `NOOPiOS` iOS) **and runs `StrandTests`** on the macOS/`Strand` leg only — the iOS leg is compile-only. iOS leg needs **macos-26** (iOS 26 SDK / `glassEffect`). | macos-15 / macos-26 | **disabled** (on-demand) |
+| `app-build.yml` | Builds the **app targets** (`Strand` macOS + `NOOPiOS` iOS) **and runs `StrandTests`** on the macOS/`Strand` leg only — the iOS leg is compile-only. iOS leg needs **macos-26** (iOS 26 SDK / `glassEffect`). | macos-15 / macos-26 | **active** — auto-runs on PRs touching its paths (`Strand/**`, `StrandTests/**`, `StrandiOS*/**`, `NOOPWatch*/**`, `Packages/**`, `project.yml`). NO push trigger, so a direct commit to `main` needs a manual dispatch. |
 | `android.yml` | `assembleFullDebug` + `testFullDebugUnitTest` | ubuntu | **active**, path-filtered to `android/**` |
 | `source-hygiene.yml` | Doc comments that bind to nothing (`Tools/doc_comment_lint.py`) | ubuntu | **active** |
 | `i18n-coverage.yml` | Diff-scoped translation gate (`Tools/i18n_audit.py --ci`) | ubuntu | **active** |

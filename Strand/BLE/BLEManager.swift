@@ -1271,6 +1271,10 @@ public final class BLEManager: NSObject, ObservableObject {
     /// pick so restoration/reconnect after a relaunch target the right strap.
     private var selectedModel: WhoopModel = .persisted
     private var lastStandardHRLogAt: Date?
+    /// Counts unreadable standard heart-rate samples in a row, so a run of them clears the shown heart rate.
+    private var heartRateReadability = LiveHeartRateReadability()
+    /// The skin-contact flag the last standard heart-rate sample carried, so a change is logged once.
+    private var lastLoggedHRContact: StandardHRContact?
 
     /// True when the selected/connected strap is a WHOOP 5/MG. Read-only window onto the private
     /// `selectedModel` so a view can tell whether the firmware-alarm path is the experimental 5/MG one
@@ -3637,18 +3641,19 @@ public final class BLEManager: NSObject, ObservableObject {
         finishR22Disable()
     }
 
-    /// EXPERIMENTAL (#181): make a bonded WHOOP 5/MG advertise its heart rate as a standard BLE HR
-    /// sensor (0x180D + the live HR in its manufacturer data) by writing the device-config flag
-    /// `whoop_live_hr_in_adv_ind_pkt` = "1" (on) / "0" (off) via SET_DEVICE_CONFIG (0x77). With it on, a
-    /// Garmin (Edge/watch), Zwift or gym HR client can pair to the WHOOP directly during a workout.
-    /// Validated on real hardware (paired on a Garmin Edge 840). Opt-in, reversible; unlike R22 it is NOT
-    /// on-wrist gated. Re-applied on each 5/MG connection. iOS/Android only (macOS can't bond a 5/MG).
+    /// Make a bonded strap advertise as a standard BLE HR sensor. WHOOP 4 uses the reversible
+    /// TOGGLE_GENERIC_HR_PROFILE command; WHOOP 5/MG keeps the existing device-config path.
     public func setBroadcastHr(_ on: Bool) {
-        guard selectedModel.deviceFamily == .whoop5 else {
-            log("Broadcast HR: needs a WHOOP 5.0/MG strap selected — ignored."); return
-        }
         guard state.connected, state.bonded else {
-            log("Broadcast HR: connect and bond a 5/MG strap first — ignored."); return
+            log("Broadcast HR: connect and bond the strap first — ignored."); return
+        }
+        if selectedModel.deviceFamily == .whoop4 {
+            send(.toggleGenericHRProfile, payload: [on ? 0x01 : 0x00])
+            log("Broadcast HR: WHOOP 4 \(on ? "enable" : "disable") command sent (14); effect not confirmed.")
+            return
+        }
+        guard selectedModel.deviceFamily == .whoop5 else {
+            log("Broadcast HR: strap family is not known yet — ignored."); return
         }
         // Mutually exclusive with the ECG gate: both verify over the SAME 121 read-back opcode, so if both
         // were in flight one strap reply would be consumed by both handlers and cross-contaminate the other's
@@ -3748,7 +3753,8 @@ public final class BLEManager: NSObject, ObservableObject {
             return
         }
         // The full encrypted bond, not the live-HR-only link — a config write over the latter silently
-        // fails (#269). Matches the R22 write paths and the button's own `ecgGateReady` gate in Settings.
+        // fails (#269). Matches the R22 write paths; the Settings button that carried the same gate as
+        // `ecgGateReady` went with the WHOOP 5/MG research card in #2417, so this is the gate now.
         guard state.connected, state.encryptedBond else {
             log("ECG gate (#891): needs the full encrypted bond, not the live-HR-only link — close the official WHOOP app and pair the strap to NOOP first. Ignored."); return
         }
@@ -5508,12 +5514,30 @@ public final class BLEManager: NSObject, ObservableObject {
         // WHOOP 5 sends milliseconds directly (non-compliant with the BLE spec's 1/1024-s unit),
         // so use the raw ticks — which ARE ms — instead of the spec-converted values.
         let rr = router.family == .whoop5 ? m.rrRawTicks : m.rr
-        if !rr.isEmpty { state.setRRIntervals(rr) }
+        // Only a sample the strap could measure reaches what the app shows (`LiveHeartRateReadability`): a
+        // plausible heart rate with skin contact not reported absent. The collector below still gets every one.
+        let readable = LiveHeartRateReadability.isReadable(bpm: m.hr, contact: m.contact)
+        // Rare-event evidence, always on: what the strap says about skin contact, logged when it changes (and once
+        // at the first sample), so a strap log shows what the band reports when it comes off the wrist.
+        if m.contact != lastLoggedHRContact {
+            log("HR: skin contact \(m.contact.rawValue) (was \(lastLoggedHRContact?.rawValue ?? "unknown")), \(m.hr) bpm")
+            lastLoggedHRContact = m.contact
+        }
+        if !rr.isEmpty, readable { state.setRRIntervals(rr) }
+        // A run of unreadable samples clears the shown heart rate instead of leaving the last one standing.
+        if heartRateReadability.clearsShownHeartRate(bpm: m.hr, contact: m.contact), state.heartRate != nil {
+            state.clearLiveHeartRate()
+            log("HR: \(LiveHeartRateReadability.clearAfter) unreadable samples in a row (last \(m.hr) bpm, "
+                + "contact \(m.contact.rawValue)); live heart rate cleared")
+        }
         // HR: the standard 0x2A37 profile is the RELIABLE source (BLE-standard, ~1Hz). Let it
-        // drive the value whenever it's physiologically plausible; reject 0/garbage (off-wrist).
-        // AppModel medians these into a stable display value. live perf: only publish on a real
-        // change so a steady resting HR doesn't re-render the whole Live console every second.
-        if m.hr >= 30 && m.hr <= 220, state.heartRate != m.hr { state.heartRate = m.hr }
+        // drive the value whenever it's readable. AppModel medians these into a stable display value.
+        // live perf: only publish on a real change so a steady resting HR doesn't re-render the whole
+        // Live console every second.
+        if readable {
+            state.noteReadableHeartRate()
+            if state.heartRate != m.hr { state.heartRate = m.hr }
+        }
         // Record it continuously — independent of the realtime stream or the open screen.
         collector?.ingestStandardHR(hr: m.hr, rr: rr, contact: m.contact,
                                     family: router.family,
@@ -6828,6 +6852,8 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.requestConnectSync() }
         startBackfillTimer()   // re-offload the type-47 store every backfillIntervalSeconds
         startKeepAlive()       // always-ping: re-arm realtime, poll battery, watchdog the link
+        // WHOOP 4's broadcast mode is link/runtime state, so restore an opted-in mode after reconnect.
+        if PuffinExperiment.broadcastHrEnabled { setBroadcastHr(true) }
         enableLiveNotifications(reason: "post-bond")   // includes 0x2A37 standard HR — the fallback path
         // #927: RE-DERIVE the want at arm time (same reasoning as the 5/MG branch above): a reconnect
         // outside the overnight window must not arm the flood from a stale precomputed `wantsRealtime`
@@ -7138,6 +7164,7 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
             // otherwise it would disappear without trace.
             let completedFrames = reassembler.feed(bytes)
             router.noteReassemblerDrops(reassembler.belowMinimumLengthDrops)
+            router.noteReassemblerHeaderDrops(reassembler.headerChecksumDrops)
             for frame in completedFrames {
                 if backfilling, BLEManager.isOffloadFrame(frame, family: .whoop4) {
                     // Historical replay is bulk sync traffic, not live UI traffic. Feed it only to
@@ -7266,6 +7293,7 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                 // Same fold as the WHOOP 4.0 path above: byte runs dropped below the family minimum.
                 let completedFrames = reassembler.feed(bytes)
                 router.noteReassemblerDrops(reassembler.belowMinimumLengthDrops)
+                router.noteReassemblerHeaderDrops(reassembler.headerChecksumDrops)
                 for frame in completedFrames {
                     let isOffload = backfilling && BLEManager.isOffloadFrame(frame, family: .whoop5)
                     noteWhoop5R22Telemetry(frame, duringOffload: isOffload)   // #174 deep-data telemetry

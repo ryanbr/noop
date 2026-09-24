@@ -778,7 +778,8 @@ object IntelligenceEngine {
         // the Sleep tab resolve to the identical block. Mirrors Swift. (#547)
         val (habitualMidsleepSec, nightlyHours) = computeHabitualSleep(
             repo, importedDeviceId, computedId,
-            nowLocalMidnight - maxDays * SECONDS_PER_DAY - StreamReadCap.LOOKBACK_SECONDS, nowSeconds, tzOffsetSeconds,
+            nowLocalMidnight - maxDays * SECONDS_PER_DAY - StreamReadCap.LOOKBACK_SECONDS, nowSeconds,
+            finishedBefore = nowLocalMidnight, offsetSec = tzOffsetSeconds,
         )
         // Wave 0 (SL1/T1): personal sleep REGULARITY + population-anchored NEED, computed ONCE from the
         // trailing per-night durations and threaded to every analyzeDay below (mirrors the midsleep
@@ -1210,7 +1211,13 @@ object IntelligenceEngine {
             // `nInput` is set before the min-beats gate, so a sparse night still shows its count with
             // rmssd=nil). A SEPARATE analyzeRaw pass over the in-sleep R-R — does NOT touch the shipped
             // windowed avgHrv. Emitted here where `rr` is in scope; byte-identical to the Swift line.
-            val sleepRrRows = rr.filter { r -> res.sleepSessions.any { r.ts >= it.start && r.ts < it.end } }
+            // #2425: the MAIN night the #1118 gate judged, not every session of the day pooled over the gaps
+            // between them; see AnalyticsEngine.hrvDiagnosticRows. hrvOverCounted and the RSA resp gate read
+            // the same rows, so they now agree with the gate too.
+            val sleepRrRows = AnalyticsEngine.hrvDiagnosticRows(
+                rr, res.mainNightBlocks,
+                res.sleepSessions.map { SleepStageTotals.NightBlock(it.start, it.end) },
+            )
             val sleepRr = sleepRrRows.map { it.rrMs.toDouble() }
             // #1331: the RSA gate's inputs, carried to the resp diagnostic below. Declared out here because
             // the HRV block is one scope deeper; a night with no sleep R-R leaves them null and the resp
@@ -2513,6 +2520,10 @@ object IntelligenceEngine {
         return samples
     }
 
+    /** The sessions the sleep habits may learn from: those that ended before [before]. */
+    internal fun finishedSessions(sessions: List<SleepSession>, before: Long): List<SleepSession> =
+        sessions.filter { it.endTs < before }
+
     /**
      * Habitual midsleep (local seconds) AND the trailing per-night sleep DURATIONS (hours,
      * chronological) from the stored sessions over the window — the longest block per LOCAL day, so
@@ -2520,6 +2531,11 @@ object IntelligenceEngine {
      * sleep-need + regularity that thread into `analyzeDay` (Wave 0 · SL1/T1). The midsleep result is
      * byte-identical to before; the nightly-hours output is the extension. Mirrors Swift
      * `IntelligenceEngine.computeHabitualSleep`.
+     *
+     * Only sessions that ended before [finishedBefore] (the pass's local midnight) are learned from. Tonight's
+     * session is re-banked by every sync while it is still growing, and each time it moved the learned
+     * consistency and midsleep, so the day-cache signature changed and every pass re-scored the whole window.
+     * A night still being slept joins the history the day after (`computeHabitualSleep(finishedBefore:)`).
      */
     private suspend fun computeHabitualSleep(
         repo: WhoopRepository,
@@ -2527,6 +2543,7 @@ object IntelligenceEngine {
         computedId: String,
         windowStart: Long,
         windowEnd: Long,
+        finishedBefore: Long,
         offsetSec: Long,
     ): Pair<Long?, List<Double>> {
         val imported = repo.sleepSessionsForDevice(importedId, windowStart, windowEnd, 4000)
@@ -2537,7 +2554,7 @@ object IntelligenceEngine {
         // then steered the main-night pick (day assignment) to the stale block. The same collapse also
         // covers an imported night and its computed twin (the longest capture wins, exactly what the
         // per-day length rule chose anyway). Mirrors Swift.
-        val merged = SleepSessionDedup.dedupe(imported + computed).kept
+        val merged = finishedSessions(SleepSessionDedup.dedupe(imported + computed).kept, finishedBefore)
         // Longest block per LOCAL day (naps drop out), chosen by in-bed SPAN — reused for BOTH the
         // midsleep learner and the per-night durations (Wave 0 · SL1/T1), so the two can never read a
         // different history. For the DURATIONS we keep TST (span × efficiency), NOT the in-bed span:

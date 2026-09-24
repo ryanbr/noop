@@ -10,12 +10,19 @@ import Foundation
 /// references, a pre-declared dev/holdout split, no fitted offset) found the primary-session sample mean
 /// tracked both references far better: rounded MAE vs the official target 6.0→2.0 (dev) / 7.5→0.8 (holdout).
 ///
-/// ## Deliberately PURE and UNWIRED
-/// This computes the metric and is unit-tested, but **nothing consumes it yet**. The shipped headline AND the
-/// recovery / strain / workout-detection / energy inputs all read `restingHRDaily` (the floor) in
-/// `AnalyticsEngine`, so switching them is a re-baselining of core scores — which the issue itself says needs
-/// a larger multi-participant, pre-declared holdout first. That is out of scope here; this lands the
-/// transparent, testable definition so that validation and any later wiring have something concrete to use.
+/// ## WIRED as of #2358 — this sets the shipped daily resting HR
+/// It was landed pure and unwired, on the reasoning that switching the consumers is a re-baselining of core
+/// scores and that the issue asks for a larger multi-participant holdout first. #2358 made the switch anyway,
+/// as a maintainer call: `AnalyticsEngine.restingHRDaily` now prefers a device-provided primary-session value,
+/// then THIS mean, and falls back to the old `restingHR.min()` floor only when coverage is sparse. So the
+/// headline resting HR and everything reading it — recovery, strain, workout detection, energy — come from
+/// here on any day with a covered primary session.
+///
+/// What that means for the evidence below: the MAE figures are from ONE participant over five nights against
+/// a pre-declared split, which is the holdout the issue says is not yet large enough. They justified building
+/// the metric; they are thinner than the change they now carry. #2284 separately replaces what a session's
+/// `restingHR` IS (deep-sleep mean rather than lowest 5-minute bin), which moves the `.min()` fallback under
+/// this, so the comparison baseline those numbers were measured against no longer exists unchanged.
 ///
 /// ## Definition (documented per the issue)
 /// - **Primary session**: the LONGEST session by duration; ties resolve to the FIRST (stable). A shorter nap

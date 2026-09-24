@@ -1308,7 +1308,10 @@ struct LiquidTodayView: View {
         let rhr = (displayDay?.restingHr ?? restingHrDay?.restingHr).map(Double.init)
         return VStack(spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                sectionHead("KEY METRICS", trailing: trendWindowLabel)
+                // The label names the window the DETAILED tiles graph, so it is only honest while they
+                // are drawn: with the trend graphs off (the default) nothing in this section renders a
+                // trend, and the header was still announcing one (#2376).
+                sectionHead("KEY METRICS", trailing: keyMetricsDetailed ? trendWindowLabel : nil)
                 // #430 parity: the SAME editor the classic grid uses — selection + order + Detailed tiles.
                 Button { customizationDestination = .keyMetrics } label: {
                     Text(String(localized: "Edit").uppercased())
@@ -1562,11 +1565,16 @@ struct LiquidTodayView: View {
 
     // MARK: - Reusable chrome
 
-    private func sectionHead(_ title: String, trailing: String) -> some View {
+    /// `trailing` is optional so a section can omit it entirely rather than carry a caption for
+    /// something it is not drawing (the Key Metrics window label, when the trend graphs are off).
+    /// Matches the Android twin, whose `SectionHeader` already takes `trailing: String? = null`.
+    private func sectionHead(_ title: String, trailing: String? = nil) -> some View {
         HStack(alignment: .firstTextBaseline) {
             Text(LocalizedStringKey(title)).font(StrandFont.overline).tracking(1.6).foregroundStyle(StrandPalette.textTertiary)
             Spacer()
-            Text(LocalizedStringKey(trailing)).font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
+            if let trailing {
+                Text(LocalizedStringKey(trailing)).font(StrandFont.caption).foregroundStyle(StrandPalette.textTertiary)
+            }
         }
         .padding(.horizontal, 2)
         .padding(.top, 4)
@@ -2399,10 +2407,12 @@ private struct LiquidLiveHR: View {
 
     private var isLive: Bool { live.connected && samples.count >= 2 }
     private var series: [Double] { isLive ? samples : fallback }
+    /// The big number is the LIVE heart rate only. It used to fall back to the last banked 5-minute average, drawn
+    /// exactly like a live reading, so with the strap off the wrist the card went on showing one (a tester's 91). The
+    /// day's trace and its labelled min / avg / max still show without a live strap.
     private var bigBpm: Int? {
-        if let hr = live.heartRate, hr > 0, live.connected { return hr }
-        if let last = fallback.last { return Int(last.rounded()) }
-        return nil
+        guard let hr = live.heartRate, hr > 0, live.connected else { return nil }
+        return hr
     }
     private var subtitle: String {
         if isLive { return String(localized: "Live · beat by beat") }
@@ -2477,7 +2487,9 @@ private struct LiquidLiveHR: View {
         }
         .onAppear { if samples.isEmpty, let hr = live.heartRate, hr > 0 { samples = [Double(hr)] } }
         .onChangeCompat(of: live.heartRate) { hr in
-            guard let hr, hr > 0 else { return }
+            // No live heart rate (the strap off the wrist, or gone): drop the trace, so the card stops calling an
+            // old one "Live" and shows today's average under its own label.
+            guard let hr, hr > 0 else { samples.removeAll(); return }
             samples.append(Double(hr))
             if samples.count > maxSamples { samples.removeFirst(samples.count - maxSamples) }
             beat.toggle()

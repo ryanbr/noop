@@ -69,6 +69,19 @@ public final class OuraDriver {
     public private(set) var phase: OuraDriverPhase = .idle
     /// Tracks how many of the live-HR enable triplet ACKs have been seen.
     private var liveHREnableStep = 0
+    /// Whether auth success should arm the live-HR enable triplet (`dhr_read` / `dhr_enable` /
+    /// `dhr_subscribe`). Default true — the historical behaviour. The app clears it for a connect it
+    /// makes while its live-HR stream is suspended (screen off overnight): before this flag every
+    /// reconnect ran the triplet unconditionally, the app's suspend guard undid it one second later,
+    /// and the ring logged `DHR_mode:3` → `DHR_mode:0` on each visit. On a Ring 5 overnight capture
+    /// (issue #2075's reporter, 2026-09-16) four of the five interruptions of the ring's own SpO2
+    /// session started on exactly the second of such a connect (3–49 min each, ≈ 2 h of a 9 h night).
+    /// With the flag false the driver goes straight to `.streaming` — authenticated and idle — so the
+    /// history drain, SyncTime and status reads run as before and no daytime-HR write is made at all.
+    /// The ring's own night suite is the thing being left alone; the Oura app never runs live mode
+    /// during a sync either (OURA_PROTOCOL.md s5.6). Read once, at the auth-success step; changing it
+    /// later has no effect on a session already past that step.
+    public var liveHRWanted = true
     /// The most recent ring time seen on any record, used to stamp live-HR pushes (which are not TLV
     /// records and carry no timestamp of their own).
     private var lastRingTimestamp: UInt32 = 0
@@ -137,6 +150,13 @@ public final class OuraDriver {
         case .authCompleted(let status):
             switch status {
             case .success:
+                // A connect the app does not want live HR for (suspended night) skips the triplet
+                // entirely: `.streaming` here means "authenticated, idle", which is all the history
+                // fetch / SyncTime / status reads need. Nothing is written to the daytime-HR feature.
+                guard liveHRWanted else {
+                    phase = .streaming
+                    return []
+                }
                 phase = .enablingLiveHR
                 liveHREnableStep = 0
                 // Begin the live-HR enable triplet (gen-appropriate; gen3 verified, gen4/5 same path).

@@ -32,6 +32,23 @@ internal object PhysiologicalStepCycleEngine {
     /** Process-local and serialized by IntelligenceEngine's analyze gate. */
     private val cache = HashMap<String, CachedCycleSteps>()
 
+    /** A cycle's Effort and calories, with the key of the inputs they were computed from. */
+    private data class CachedLoad(val key: String, val strain: Double?, val calories: Double?)
+
+    /** Same lifetime and serialization as [cache]. */
+    private val loadCache = HashMap<String, CachedLoad>()
+
+    /**
+     * The inputs a cycle's Effort and calories depend on. Every pass re-read each cycle's full day of heart
+     * rate and re-scored it for all 21 cycles, although only the open one gains samples between syncs; the
+     * index-only HR witness ([WhoopRepository.hrUnionFingerprint]) lets a closed cycle be scored once. Twin of
+     * the Swift `DayCycleIntelligenceIntegration` load cache.
+     */
+    internal fun loadCacheKey(
+        onset: Long, endExclusive: Long, hrWitness: String, restingHr: Double, maxHr: Double?,
+        effortMethod: StrainScorer.Method, profile: UserProfile,
+    ): String = "$onset-$endExclusive|$hrWitness|rhr=$restingHr|max=${maxHr ?: "nil"}|$effortMethod|${profile.cacheKey}"
+
     suspend fun compute(
         scoredNights: List<DayResult>,
         editedRows: List<SleepSession>,
@@ -191,24 +208,34 @@ internal object PhysiologicalStepCycleEngine {
         val windows = PhysiologicalSteps.cycleWindows(boundaries, nowSeconds)
         val allDetectedSleep = sleepContext.distinctBy { it.start to it.end }
         cache.keys.retainAll(windows.mapTo(HashSet()) { it.sleepId })
+        loadCache.keys.retainAll(windows.mapTo(HashSet()) { it.sleepId })
         for (window in windows) {
             val wakeDay = dayBySleepId[window.sleepId] ?: continue
             val fallbackOwner = ownerBySleepId[window.sleepId] ?: continue
             // DAO ranges are inclusive. Keep adjacent physiological cycles disjoint.
-            val cycleHr = repo.hrSamplesUnion(
-                fallbackOwner, window.onset, window.endExclusive - 1L, 200_000,
-            )
             val restingHr = scoredNights.firstOrNull { it.daily.day == wakeDay }?.daily?.restingHr?.toDouble()
                 ?: StrainScorer.defaultRestingHR
             val effectiveMaxHr = maxHROverride
                 ?: profile.age.takeIf { it > 0 }?.let { StrainScorer.tanakaHRmax(it.toDouble()) }
-            StrainScorer.strain(cycleHr, effectiveMaxHr, restingHr, effortMethod, profile.sex)
-                ?.let { strainByWakeDay[wakeDay] = it }
-            if (cycleHr.isNotEmpty()) {
-                caloriesByWakeDay[wakeDay] = Calories.estimateDayCalories(
-                    cycleHr, profile, effectiveMaxHr, restingHr,
+            val loadKey = loadCacheKey(
+                window.onset, window.endExclusive,
+                repo.hrUnionFingerprint(fallbackOwner, window.onset, window.endExclusive - 1L),
+                restingHr, effectiveMaxHr, effortMethod, profile,
+            )
+            val load = loadCache[window.sleepId]?.takeIf { it.key == loadKey } ?: run {
+                val cycleHr = repo.hrSamplesUnion(
+                    fallbackOwner, window.onset, window.endExclusive - 1L, 200_000,
                 )
+                CachedLoad(
+                    key = loadKey,
+                    strain = StrainScorer.strain(cycleHr, effectiveMaxHr, restingHr, effortMethod, profile.sex),
+                    calories = if (cycleHr.isNotEmpty()) {
+                        Calories.estimateDayCalories(cycleHr, profile, effectiveMaxHr, restingHr)
+                    } else null,
+                ).also { loadCache[window.sleepId] = it }
             }
+            load.strain?.let { strainByWakeDay[wakeDay] = it }
+            load.calories?.let { caloriesByWakeDay[wakeDay] = it }
             // Count the persisted all-source workout union, not only analyzer-detected bouts. Repository
             // reads are inclusive, while ownership is [onset, nextOnset).
             val workoutEndInclusive = window.endExclusive - 1L

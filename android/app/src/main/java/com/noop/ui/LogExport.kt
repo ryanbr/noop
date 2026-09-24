@@ -401,9 +401,31 @@ object LogExport {
      * FD:..") would carry a real BLE address straight into a public issue, and this is the artifact
      * people attach to one. Same rule the header lines above already follow (#453): one export cannot
      * be safe while the other leaks. Pure so the redaction is assertable without a Context.
+     *
+     * A crash record survives updates, so the one printed here is routinely OLDER than the build that
+     * wrote the log. A 25-day-old record from build 382 arrived under a "build 534" header twice in one
+     * week of triage and read as a fresh crash both times. The record carries its own version code and
+     * the header carries the running one, but nothing put the two side by side, so catching it depended
+     * on the reader noticing. When they differ this says so, above the record, before it can alarm.
      */
-    internal fun crashSection(crash: String?): String =
-        if (crash == null) "" else "\n\n${"─".repeat(40)}\nLast crash:\n${com.noop.ble.redactStrapLogPii(crash)}"
+    internal fun crashSection(crash: String?, runningVersionCode: Int = BuildConfig.VERSION_CODE): String {
+        if (crash == null) return ""
+        val stale = crashVersionCode(crash)?.takeIf { it != runningVersionCode }
+        val note = if (stale == null) "" else
+            "NOTE: this crash is from build $stale, not the build that wrote this log ($runningVersionCode).\n"
+        return "\n\n" + "─".repeat(40) + "\nLast crash:\n" + note + com.noop.ble.redactStrapLogPii(crash)
+    }
+
+    /**
+     * The version code out of a crash record's `app:` line (`app:    11.8.0-staging (382) · com.noop…`).
+     *
+     * Null when the record predates that line or is shaped differently: an unreadable record is left
+     * alone rather than guessed at, because a wrong build number in that note would be worse than no
+     * note at all. Pure, so both the match and the refusal to match are assertable.
+     */
+    internal fun crashVersionCode(crash: String): Int? =
+        Regex("^app:\\s+\\S+\\s+\\((\\d+)\\)", RegexOption.MULTILINE)
+            .find(crash)?.groupValues?.get(1)?.toIntOrNull()
 
     /**
      * Whether the on-disk capture holds any frames at all.

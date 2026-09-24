@@ -2955,12 +2955,21 @@ object SleepStager {
     }
 
     /**
-     * Read-only REM-funnel triage for ONE in-bed window [start, end] (#688). Re-runs the SAME
-     * Stage-0→3 staging seam [stageSession] uses (epoch grid → Cole–Kripke → features → classify →
-     * smooth → re-impose), but instead of emitting a hypnogram it COUNTS where REM was lost. Changes
-     * NOTHING: no label, no score, no session. Returns null only when the window has too little gravity
-     * to grid (mirroring [stageSession]'s degenerate fallback, which carries no REM to explain). The
-     * caller logs `.summary`; tests assert the counts. Pure + deterministic. Mirrors Swift. (#688)
+     * Read-only REM-funnel triage for ONE in-bed window [start, end] (#688). Re-runs THIS object's
+     * Stage-0→3 seam (epoch grid → Cole–Kripke → features → classify → smooth → re-impose), but
+     * instead of emitting a hypnogram it COUNTS where REM was lost. Changes NOTHING: no label, no
+     * score, no session. Returns null only when the window has too little gravity to grid (mirroring
+     * [stageSession]'s degenerate fallback, which carries no REM to explain). The caller logs
+     * `.summary`; tests assert the counts. Pure + deterministic. Mirrors Swift. (#688)
+     *
+     * WHICH HYPNOGRAM THIS EXPLAINS. V1's, always — this is [SleepStager]'s own seam. It used to say it
+     * explained "the SAME hypnogram" as the screen, and that has been false since V2 became the
+     * default: the shipped hypnogram is staged by `SleepStagerV2` whenever `experimentalSleepV2` says
+     * so, which is by default. On a 5/MG the two can be far apart, because V1's primary REM gate needs
+     * the raw respiratory channel the hardware never emits while V2 recovers respiration regularity
+     * from R-R: one field pair reported ~46 min REM here against hours on the screen for the same night
+     * (#2365). The caller's line names both stagers for that reason (#2366); do not restore the claim
+     * that they are one.
      */
     fun remFunnelDiagnostic(
         start: Long, end: Long, grav: List<GravitySample>,
@@ -3287,6 +3296,18 @@ object SleepStager {
         // Classified over the SAME beats the value was built from, windowed [start, end] exactly as
         // `sessionHrvWindows` does, so the verdict cannot describe a different set of beats than the number
         // it is gating.
+        if (sessionHrvOverCounted(start, end, rr)) return null
+        return vals.sum() / vals.size.toDouble()
+    }
+
+    /**
+     * Whether the #1118 coverage gate refuses a session's HRV: its own R-R, windowed [start, end] exactly as
+     * [sessionAvgHRV] windows it, banks more beat-time than the wall clock allows. Pure. The ONE definition
+     * of "refused": [sessionAvgHRV] gates on it, and AnalyticsEngine asks it whether a main night's missing
+     * HRV was refused rather than never measured, so the two cannot disagree about which nights were
+     * refused. Byte-parity twin of Swift `SleepStager.sessionHrvOverCounted`.
+     */
+    internal fun sessionHrvOverCounted(start: Long, end: Long, rr: List<RrInterval>): Boolean {
         val seg = rr.filter { it.ts in start..end }
         val segTs = seg.map { it.ts }
         val segMs = seg.map { it.rrMs.toDouble() }
@@ -3300,8 +3321,7 @@ object SleepStager {
         // night to two, and buying a distinction the caller discards would hand that back. `rrCoverage` is
         // a single O(n) pass. If a future gate ever needs the two over-count cases apart, compute it then.
         val verdict = HrvAnalyzer.classifyCoverage(coverage, coverage)
-        if (!HrvAnalyzer.successiveDiffIsTrustworthy(verdict)) return null
-        return vals.sum() / vals.size.toDouble()
+        return !HrvAnalyzer.successiveDiffIsTrustworthy(verdict)
     }
 
     /**

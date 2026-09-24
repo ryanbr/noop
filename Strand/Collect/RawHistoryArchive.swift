@@ -137,10 +137,6 @@ struct RawHistoryArchive {
     /// kept as distinct buckets (their layouts differ despite the shared version number).
     private struct VersionKey: Hashable { let family: String; let version: Int }
 
-    private func versionKey(family: DeviceFamily, version: Int) -> VersionKey {
-        VersionKey(family: family.rawValue, version: version)
-    }
-
     /// Durably append `frames` as JSONL. `trim`/`family` tag each line so the corpus is replayable.
     /// Empty input is a no-op success. See `Result` for the ack contract.
     ///

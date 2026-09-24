@@ -16,8 +16,9 @@ import Foundation
 /// any push at all. Appearing or disappearing (the strap dropping, or coming back) is a visible change rather
 /// than a moving number, so it is allowed sooner.
 ///
-/// Pure and platform-free so `StrandTests` covers it: the controller it serves lives in the iOS app target,
-/// which no CI job compiles (`AGENTS.md`).
+/// Pure and platform-free so `StrandTests` covers it: `StrandTests` runs on macOS and cannot exercise
+/// ActivityKit, so the rule has to live outside the controller to be unit tested at all. (The controller
+/// itself IS compiled in CI, by `app-build.yml`'s `NOOPiOS` leg.)
 enum LiftBannerPushPolicy {
 
     /// The shortest time between two pushes caused by the heart rate alone. A glance at the Lock Screen

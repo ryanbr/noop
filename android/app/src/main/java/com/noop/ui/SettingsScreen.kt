@@ -2555,8 +2555,7 @@ fun SettingsScreen(
                 }
 
                 // "WHOOP 4.0 vs 5.0/MG — what each can read and why" (FI-2 / #490). Shown to BOTH model
-                // owners, so a 4.0 user understands their strap is fully supported (and why the firmware
-                // broadcast-out is 5/MG-only while NOOP's own re-broadcast in Data Sources works on a 4.0).
+                // owners, so either generation's supported features and protocol differences are clear.
                 val modelComparisonInteraction = remember { MutableInteractionSource() }
                 Box(
                     modifier = Modifier

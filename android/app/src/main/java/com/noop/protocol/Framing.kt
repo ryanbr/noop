@@ -101,6 +101,16 @@ class Reassembler(private val family: DeviceFamily = DeviceFamily.WHOOP4) {
         private set
 
     /**
+     * How many start-of-frame bytes were dropped because the header checksum over their own length
+     * field did not match: a 0xAA that is not a frame start, being payload data or the tail of a frame
+     * the stream desynced inside. Counted apart from [belowMinimumLengthDrops] because the two say
+     * different things about a link — a floor drop is a malformed frame, this is a misplaced read
+     * cursor. Monotonic for the lifetime of the reassembler. Twin of the Swift `headerChecksumDrops`.
+     */
+    var headerChecksumDrops = 0
+        private set
+
+    /**
      * Drop any partial-frame remnant. Called on (re)connect so a stalled or garbage frame from one
      * session can't wedge the live stream in the next. The macOS BLEManager achieves the same by
      * reassigning a fresh `Reassembler` on every connect (BLEManager.swift:183).
@@ -148,6 +158,36 @@ class Reassembler(private val family: DeviceFamily = DeviceFamily.WHOOP4) {
                 // for bytes that can never arrive over BLE — the live stream would freeze until a
                 // reconnect. The largest real WHOOP frame is ~1920 B, so anything past the 8 KB ceiling
                 // is garbage: drop this 0xAA and resync to the next one.
+                head += 1
+                continue
+            }
+            // An in-range length is not the same as a real one. indexOfSOF matches a bare 0xAA, which
+            // occurs inside payload as readily as at a frame start, so a stream that has desynced (a
+            // subscribe landing mid-frame, or one earlier mis-parse) can put `head` on a payload byte
+            // whose next bytes read as a PLAUSIBLE length: past the family floor, under the 8 KB
+            // ceiling, and therefore accepted by both guards above. feed() then waited for that many
+            // bytes and emitted them as one frame, swallowing whatever valid frames fell inside it.
+            // Those frames were consumed, and nothing downstream can hand them back: the CRC32 check
+            // that rejects the bad frame runs after `head` has already advanced past them.
+            //
+            // The header checksum decides this without new protocol knowledge, because it already
+            // covers the length field on both families: CRC-8 over the two length bytes on WHOOP 4.0,
+            // CRC-16-Modbus over the first six bytes on 5/MG. A real frame always passes. A false SOF
+            // passes with probability 1/256 on 4.0 and 1/65536 on 5/MG, so this turns a swallowed-frame
+            // stall into a one-byte resync in almost every case. Twin of the Swift Reassembler gate.
+            //
+            // Ordered AFTER the floor and ceiling checks so those keep their existing counters and the
+            // tests that pin them are untouched: this gate only sees lengths the old code accepted.
+            val headerBytes = if (family == DeviceFamily.WHOOP5) 8 else 4
+            if (avail < headerBytes) break
+            val headerOk = if (family == DeviceFamily.WHOOP5) {
+                val got = (data[head + 6].toInt() and 0xFF) or ((data[head + 7].toInt() and 0xFF) shl 8)
+                Crc.crc16Modbus(data, head, head + 6) == got
+            } else {
+                Crc.crc8(data, head + 1, head + 3) == (data[head + 3].toInt() and 0xFF)
+            }
+            if (!headerOk) {
+                headerChecksumDrops += 1
                 head += 1
                 continue
             }

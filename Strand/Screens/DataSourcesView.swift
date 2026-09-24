@@ -55,6 +55,7 @@ struct DataSourcesView: View {
     // LOCAL Bluetooth only — nothing leaves the device. The toggle is persisted; the broadcaster is owned
     // here (a pure consumer of LiveState, isolated from the WHOOP/central path).
     @AppStorage(HrBroadcaster.defaultsKey) private var broadcastHrEnabled = false
+    @AppStorage(PuffinExperiment.broadcastHrKey) private var strapBroadcastHrEnabled = false
 
     // The broadcaster's diagnostic sink forwards to THIS box, which `onAppear` points at the screen's
     // `live`. A reference box lets the `@StateObject` capture a stable target at init even though the
@@ -932,7 +933,20 @@ struct DataSourcesView: View {
              tint: StrandPalette.accent,
              status: StatePill(label, tone: tone, pulsing: live.connected && !live.bonded),
              subtitle: String(localized: "Pairs directly with your strap over Bluetooth: no WHOOP app, no cloud.")) {
-            EmptyView()
+            Toggle(isOn: $strapBroadcastHrEnabled) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Broadcast heart rate from the strap")
+                        .font(StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textPrimary)
+                    Text("Broadcasts the strap's own live heart rate over Bluetooth.")
+                        .font(StrandFont.footnote)
+                        .foregroundStyle(StrandPalette.textTertiary)
+                }
+            }
+            .toggleStyle(.switch)
+            .tint(StrandPalette.accent)
+            .accessibilityLabel("Broadcast heart rate from the strap")
+            .onChangeCompat(of: strapBroadcastHrEnabled) { model.ble.setBroadcastHr($0) }
         }
     }
 

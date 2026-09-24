@@ -154,6 +154,11 @@ enum class CommandNumber(val rawValue: Int) {
     REPORT_VERSION_INFO(7),
     SET_CLOCK(10),
     GET_CLOCK(11),
+    // Opcode/name come from the canonical CommandNumber schema in
+    // Packages/WhoopProtocol/Sources/WhoopProtocol/Resources/whoop_protocol.json and its WHOOP 4
+    // matrix in docs/PROTOCOL_COMMANDS.md. Payload 1 enabled standard BLE HR advertising and payload 0
+    // disabled it on the WHOOP 4.0 tested for #2400. Reversible, explicit opt-in; no readable confirmation.
+    TOGGLE_GENERIC_HR_PROFILE(14),
     // ABORT_HISTORICAL_TRANSMITS (20) — stop an offload part-way through. NON-DESTRUCTIVE and NOT a
     // trim: the strap frees banked records when we ack a HISTORY_END, so anything unacked when the
     // abort lands stays in flash and re-offloads next sync. Body [0x00], matching the only hands-on

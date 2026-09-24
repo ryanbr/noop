@@ -907,7 +907,7 @@ final class IntelligenceEngine: ObservableObject {
         let (habitualMidsleepSec, nightlyHours) = await Self.computeHabitualSleep(
             store: store, importedId: deviceId, computedId: deviceId + "-noop",
             windowStart: nowLocalMidnight - maxDays * 86_400 - StreamReadCap.lookbackSeconds,
-            windowEnd: now, offsetSec: tzOffset)
+            windowEnd: now, finishedBefore: nowLocalMidnight, offsetSec: tzOffset)
         // Wave 0 (SL1/T1): personal sleep REGULARITY + population-anchored NEED, computed ONCE from the
         // trailing per-night durations and threaded to every analyzeDay below (mirrors the midsleep
         // learner just above — one personal trait per run, applied to the whole re-scored history so
@@ -999,6 +999,8 @@ final class IntelligenceEngine: ObservableObject {
         // But that is CORRECT invalidation, not churn to be quantized away — a night going from
         // half-loaded to complete really does change what every day should be scored against, and the
         // swings are large rather than drift, so no tolerance both preserves scores and stops the drop.
+        // What stops the churn instead is learning only from nights that finished before today
+        // (`computeHabitualSleep(finishedBefore:)`): the night still being synced was the one moving.
         // What keeps it affordable is that the post-backfill re-score is COALESCED on both platforms: iOS
         // debounces `lastSyncedAt` by 2 s (#755), Android gates on `analyzeAfterBackfillScheduled` plus a
         // trailing delay. So this fires once per completed backfill, not once per chunk. That coalescing is
@@ -1471,7 +1473,12 @@ final class IntelligenceEngine: ObservableObject {
                 // shipped windowed avgHrv. Built here (loop 1) where `rr` is in scope, but EMITTED in the
                 // main-actor replay loop below (diagnosticSink is main-actor isolated), carried on `hrvDiag`.
                 // Byte-identical to the Kotlin line.
-                let sleepRrRows = rr.filter { r in res.cachedSleep.contains { r.ts >= $0.startTs && r.ts < $0.endTs } }
+                // #2425: the MAIN night the #1118 gate judged, not every session of the day pooled over the
+                // gaps between them; see `AnalyticsEngine.hrvDiagnosticRows`. `hrvOverCounted` and the RSA
+                // resp gate below read the same rows, so they now agree with the gate too.
+                let sleepRrRows = AnalyticsEngine.hrvDiagnosticRows(
+                    rr, mainNight: res.mainNightBlocks,
+                    fallback: res.cachedSleep.map { SleepStageTotals.NightBlock(start: $0.startTs, end: $0.endTs) })
                 let sleepRr = sleepRrRows.map { Double($0.rrMs) }
                 let hrvDiag: String?
                 let hrvOverCounted: Bool?   // #1118: nil = no in-sleep R-R (no HRV to caveat)
@@ -3354,9 +3361,18 @@ final class IntelligenceEngine: ObservableObject {
     /// naps drop out. One read serves both the main-night midsleep learner (#547) and the personal
     /// sleep-need + regularity that thread into `analyzeDay` (Wave 0 · SL1/T1). The midsleep result is
     /// byte-identical to before; the nightly-hours output is the Swift-side extension.
-    private static func computeHabitualSleep(
+    ///
+    /// Only sessions that ended before `finishedBefore` (the pass's local midnight) are learned from. Tonight's
+    /// session is re-banked by every sync while it is still growing, and each time it moved the learned
+    /// consistency and midsleep, so every pass through a morning found the day-cache signature changed and
+    /// re-scored all 21 nights from scratch. On a backgrounded phone that turned a seconds-long pass into
+    /// hours (a field log: 8 813 s and 2 345 s, back to back). A night still being slept is not a habit yet;
+    /// it joins the history the day after, once, when the window rolls anyway.
+    ///
+    /// Internal rather than private only so a test can drive the `finishedBefore` cutoff directly.
+    static func computeHabitualSleep(
         store: WhoopStore, importedId: String, computedId: String,
-        windowStart: Int, windowEnd: Int, offsetSec: Int
+        windowStart: Int, windowEnd: Int, finishedBefore: Int, offsetSec: Int
     ) async -> (midsleepSec: Int?, nightlyHours: [Double]) {
         let imported = (try? await store.sleepSessions(deviceId: importedId, from: windowStart,
                                                        to: windowEnd, limit: 4000)) ?? []
@@ -3368,7 +3384,7 @@ final class IntelligenceEngine: ObservableObject {
         // then steered the main-night pick (day assignment) to the stale block. The same collapse also
         // covers an imported night and its computed twin (the longest capture wins, exactly what the
         // per-day length rule chose anyway).
-        let merged = SleepSessionDedup.dedupe(imported + computed).kept
+        let merged = SleepSessionDedup.dedupe(imported + computed).kept.filter { $0.endTs < finishedBefore }
         // Longest block per LOCAL day (naps drop out), chosen by in-bed SPAN — reused for BOTH the
         // midsleep learner and the per-night durations (Wave 0 · SL1/T1), so the two can never read a
         // different history. For the DURATIONS we keep TST (span × efficiency), NOT the in-bed span:

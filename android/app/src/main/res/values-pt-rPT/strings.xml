@@ -2809,4 +2809,7 @@
     <string name="l10n_settings_screen_softer_9edfeba1">Mais suave</string>
     <string name="oura_notify_mask_full_title">Máscara de notificação Oura ff (experimental)</string>
     <string name="oura_notify_mask_full_desc">Envia a máscara SetNotification da aplicação oficial (1c 01 ff) em vez do 3f do NOOP na próxima ligação. O anel agrupa ~10 pacotes por notificação para a aplicação oficial e um para o NOOP (descarga 9× mais lenta); este é o primeiro candidato a interruptor. Desligado por predefinição; a ligação seguinte após desligar volta a 3f. Procure «-> notify_all(ff)» no registo da pulseira e compare os tamanhos das notificações na captura em bruto.</string>
+    <string name="data_sources_whoop_live_subtitle">Emparelha diretamente com a tua bracelete via Bluetooth: sem aplicação WHOOP, sem cloud. A bracelete também pode anunciar a frequência cardíaca como um sensor Bluetooth padrão.</string>
+    <string name="data_sources_band_broadcast_description">Transmite a frequência cardíaca em direto da bracelete por Bluetooth para Garmin, Zwift ou equipamento de ginásio.</string>
+    <string name="whoop4_direct_broadcast_explainer">O teu WHOOP 4.0 pode transmitir a frequência cardíaca diretamente. Abre Fontes de dados e utiliza «Transmitir frequência cardíaca da bracelete» para Zwift, Peloton, Garmin ou equipamento de ginásio. Em alternativa, podes utilizar «Transmitir FC deste telemóvel» quando necessário.</string>
 </resources>

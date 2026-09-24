@@ -18,6 +18,8 @@ import UIKit
 @MainActor
 final class LiftLiveActivityController {
     private var activity: Activity<LiftActivityAttributes>?
+    /// A Lift Log banner is on screen — what NOOP's live heart rate banner makes room for (`LiveHRBannerLifecycle`).
+    var isShowing: Bool { activity != nil }
     /// Writes to NOOP's strap log — only when the banner's situation CHANGES (picked up after a restart,
     /// or waiting for NOOP to be opened), never per push.
     private let log: (String) -> Void

@@ -2224,14 +2224,6 @@ struct SleepView: View {
         return stages.total > 0 ? (stages, intervals) : nil
     }
 
-    /// yyyy-MM-dd → Date (en_US_POSIX, UTC), per task spec.
-    private static let dayParser: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.timeZone = TimeZone(identifier: "UTC")
-        f.dateFormat = "yyyy-MM-dd"
-        return f
-    }()
 }
 
 /// Original atmospheric night hero — photographic moonlit lake plus lightweight static depth layers.
