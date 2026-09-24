@@ -100,4 +100,35 @@ final class OuraReconnectPolicyTests: XCTestCase {
                            .timedRetry(delay: expected), "attempt \(attempt)")
         }
     }
+
+    // MARK: - The `.poweredOn` replay (#2433)
+
+    /// THE REGRESSION TEST. After a background relaunch the connect is asked for while the central is still
+    /// `.unknown`, so nothing is resolved yet. Once the radio is ready the ring resolves by identifier, and
+    /// the replay must CONNECT — the old replay only connected from `seenPeripherals`, resumed a scan
+    /// instead, and a throttled background scan found the ring 29 min 54 s later.
+    func testAPendingRingThatResolvesAtPoweredOnIsConnectedNotScanned() {
+        XCTAssertEqual(OuraLiveSource.poweredOnReplay(pendingConnect: true, peripheralKnown: true, scanning: true),
+                       .connect)
+        XCTAssertEqual(OuraLiveSource.poweredOnReplay(pendingConnect: true, peripheralKnown: true, scanning: false),
+                       .connect)
+    }
+
+    /// A ring this device has genuinely never seen still has no peripheral at `.poweredOn`: scanning is the
+    /// only way to acquire one, whatever the scan flag says.
+    func testAPendingRingUnknownEvenAtPoweredOnIsScannedFor() {
+        for scanning in [true, false] {
+            XCTAssertEqual(OuraLiveSource.poweredOnReplay(pendingConnect: true, peripheralKnown: false,
+                                                          scanning: scanning),
+                           .scanForPending, "scanning=\(scanning)")
+        }
+    }
+
+    /// With no connect pending, the replay is unchanged: a deferred scan starts, otherwise nothing happens.
+    func testWithNoPendingConnectOnlyADeferredScanIsReplayed() {
+        XCTAssertEqual(OuraLiveSource.poweredOnReplay(pendingConnect: false, peripheralKnown: false, scanning: true),
+                       .resumeScan)
+        XCTAssertEqual(OuraLiveSource.poweredOnReplay(pendingConnect: false, peripheralKnown: false, scanning: false),
+                       .nothing)
+    }
 }

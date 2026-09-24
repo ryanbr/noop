@@ -572,6 +572,40 @@ public final class OuraLiveSource: NSObject, ObservableObject {
         return .standingConnectAfter(delay: standingConnectRetryFloor - since)
     }
 
+    /// What to do with a deferred intent once the Oura central reports `.poweredOn` (#2433).
+    enum PoweredOnReplay: Equatable, Sendable {
+        /// The pending ring resolves to a peripheral: connect to it directly. `central.connect` has no
+        /// timeout, so it stays outstanding and reaches the ring whenever it is reachable, suspended or not.
+        case connect
+        /// A connect is pending but CoreBluetooth has no peripheral for the identifier even now, so the ring
+        /// genuinely has never been seen by this device: scan for it (`didDiscover` connects on sight).
+        case scanForPending
+        /// No connect is pending; a scan the user asked for before the radio was ready starts now.
+        case resumeScan
+        case nothing
+    }
+
+    /// The `.poweredOn` replay, split out as a PURE function for the same reason as `reconnectStep`.
+    ///
+    /// WHY THIS EXISTS (#2433, 2026-09-23 22:09, build `a0443495`). iOS relaunched NOOP in the background and
+    /// `connect(_:)` ran while the fresh central was still `.unknown`. `retrievePeripherals(withIdentifiers:)`
+    /// returns nothing before `.poweredOn`, so a ring bonded to the phone for weeks was treated as never seen
+    /// and handed to a scan. The replay then only reconnected when the peripheral was already in
+    /// `seenPeripherals` — it was not — so it resumed that scan, and iOS throttles a background scan hard:
+    /// the ring was found 29 min 54 s later. Every launch took the same path (8 of 8 in one export); in the
+    /// foreground the scan costs 1-6 s, which is why it went unnoticed.
+    ///
+    /// - Parameters:
+    ///   - pendingConnect: a connect was asked for before the radio was ready.
+    ///   - peripheralKnown: that ring resolves to a peripheral NOW — from `seenPeripherals`, or from a
+    ///     `retrievePeripherals` made after `.poweredOn`, which is the first moment it can answer.
+    ///   - scanning: a scan is wanted.
+    nonisolated static func poweredOnReplay(pendingConnect: Bool, peripheralKnown: Bool,
+                                           scanning: Bool) -> PoweredOnReplay {
+        if pendingConnect { return peripheralKnown ? .connect : .scanForPending }
+        return scanning ? .resumeScan : .nothing
+    }
+
     /// Hand the reconnect to CoreBluetooth: `central.connect(_:options:)` has **no timeout**, so it stays
     /// outstanding indefinitely and iOS wakes the app when the ring advertises again — including while the
     /// app is SUSPENDED, which is the whole point.
@@ -1517,6 +1551,15 @@ public final class OuraLiveSource: NSObject, ObservableObject {
         intentionalDisconnect = false
         standingConnectAt = nil   // an explicit connect supersedes any standing one
         linkPhase = .connecting   // every branch below is an attempt to reach the ring (scan, defer, connect)
+        guard central.state == .poweredOn else {
+            // Do NOT look the ring up yet: `retrievePeripherals` answers nothing before `.poweredOn`, and an
+            // empty answer here used to send a bonded ring down the never-seen scan path (#2433). The
+            // `.poweredOn` replay resolves the identifier once CoreBluetooth can.
+            pendingConnectID = id
+            log("Oura: Bluetooth not powered on (state=\(central.state.rawValue)) - connect to \(id) deferred "
+                + "until ready; the ring is looked up by identifier then")
+            return
+        }
         let p = seenPeripherals[id] ?? central.retrievePeripherals(withIdentifiers: [id]).first
         guard let p else {
             // Never seen by this Mac/iPhone yet -> remember it and scan; didDiscover connects on sight.
@@ -1528,11 +1571,6 @@ public final class OuraLiveSource: NSObject, ObservableObject {
         seenPeripherals[id] = p
         peripheral = p
         p.delegate = self
-        guard central.state == .poweredOn else {
-            pendingConnectID = id
-            log("Oura: Bluetooth not powered on - connect to \(id) deferred until ready")
-            return
-        }
         log("Oura: connecting to \(id)")
         central.connect(p, options: nil)
     }
@@ -2721,13 +2759,30 @@ extension OuraLiveSource: @preconcurrency CBCentralManagerDelegate {
     public func centralManagerDidUpdateState(_ central: CBCentralManager) {
         switch central.state {
         case .poweredOn:
-            // Replay any intent that arrived before the radio was ready.
-            if let id = pendingConnectID, let p = seenPeripherals[id] {
+            // Replay any intent that arrived before the radio was ready. The identifier is resolved HERE, not
+            // only from `seenPeripherals`: this is the first moment `retrievePeripherals` can answer (#2433).
+            let pendingID = pendingConnectID
+            let p = pendingID.flatMap { seenPeripherals[$0] ?? central.retrievePeripherals(withIdentifiers: [$0]).first }
+            switch Self.poweredOnReplay(pendingConnect: pendingID != nil, peripheralKnown: p != nil,
+                                        scanning: scanning) {
+            case .connect:
+                guard let id = pendingID, let p else { break }
                 pendingConnectID = nil
+                seenPeripherals[id] = p
+                peripheral = p
+                p.delegate = self
+                log("Oura: Bluetooth ready - connecting to \(id) (looked up by identifier)")
                 central.connect(p, options: nil)
-            } else if scanning {
+            case .scanForPending:
+                // `pendingConnectID` stays set, so `didDiscover` connects on sight.
+                log("Oura: Bluetooth ready - ring \(pendingID?.uuidString ?? "?") not known to this device, "
+                    + "scanning to find it")
+                scan()
+            case .resumeScan:
                 central.scanForPeripherals(withServices: [Self.service],
                                            options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
+            case .nothing:
+                break
             }
         default:
             // Radio off / unauthorized / resetting -> the link is not live.
