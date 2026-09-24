@@ -591,6 +591,14 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     /// No new outbound command: `central.connect` is the same call `connect(_:)` already makes.
     private func issueStandingConnect(_ id: UUID) {
         guard !intentionalDisconnect, reconnectID == id else { return }
+        // The same trap as `connect(_:)` (#2433), and worse here: a retrieve before `.poweredOn` answers
+        // nothing, the fallback below reads that as "never seen" and calls `connect(id)`, which scans.
+        // Scanning is the one thing a STANDING connect exists to avoid.
+        guard central.state == .poweredOn else {
+            pendingConnectID = id
+            log("Oura: standing reconnect deferred - Bluetooth not powered on (state=\(central.state.rawValue))")
+            return
+        }
         guard let p = seenPeripherals[id] ?? central.retrievePeripherals(withIdentifiers: [id]).first else {
             // No peripheral object to hand CoreBluetooth (never seen on this device). Fall back to the
             // ordinary connect path, which scans for it — that is the only way to acquire one.
@@ -601,12 +609,6 @@ public final class OuraLiveSource: NSObject, ObservableObject {
         seenPeripherals[id] = p
         peripheral = p
         p.delegate = self
-        guard central.state == .poweredOn else {
-            // `centralManagerDidUpdateState` replays this on poweredOn.
-            pendingConnectID = id
-            log("Oura: standing reconnect deferred - Bluetooth not powered on (state=\(central.state.rawValue))")
-            return
-        }
         standingConnectAt = Date()
         log("Oura: leaving a STANDING connect outstanding for \(id) - CoreBluetooth will reconnect "
             + "whenever the ring is reachable, including while the app is suspended")
@@ -1517,6 +1519,14 @@ public final class OuraLiveSource: NSObject, ObservableObject {
         intentionalDisconnect = false
         standingConnectAt = nil   // an explicit connect supersedes any standing one
         linkPhase = .connecting   // every branch below is an attempt to reach the ring (scan, defer, connect)
+        // Before the radio is up a retrieve answers nothing even for a ring this phone has been bonded to
+        // for weeks, and the branch below would read that as "never seen" and arm a scan (#2433). Park the
+        // intent instead: `centralManagerDidUpdateState` asks again once the answer means something.
+        guard central.state == .poweredOn else {
+            pendingConnectID = id
+            log("Oura: connect to \(id) deferred - Bluetooth not powered on (state=\(central.state.rawValue))")
+            return
+        }
         let p = seenPeripherals[id] ?? central.retrievePeripherals(withIdentifiers: [id]).first
         guard let p else {
             // Never seen by this Mac/iPhone yet -> remember it and scan; didDiscover connects on sight.
@@ -1528,11 +1538,6 @@ public final class OuraLiveSource: NSObject, ObservableObject {
         seenPeripherals[id] = p
         peripheral = p
         p.delegate = self
-        guard central.state == .poweredOn else {
-            pendingConnectID = id
-            log("Oura: Bluetooth not powered on - connect to \(id) deferred until ready")
-            return
-        }
         log("Oura: connecting to \(id)")
         central.connect(p, options: nil)
     }
@@ -2721,13 +2726,41 @@ extension OuraLiveSource: @preconcurrency CBCentralManagerDelegate {
     public func centralManagerDidUpdateState(_ central: CBCentralManager) {
         switch central.state {
         case .poweredOn:
-            // Replay any intent that arrived before the radio was ready.
-            if let id = pendingConnectID, let p = seenPeripherals[id] {
-                pendingConnectID = nil
-                central.connect(p, options: nil)
-            } else if scanning {
+            // Replay any intent that arrived before the radio was ready. The retrieve is re-issued
+            // HERE rather than trusting the one that ran while the state was still `.unknown`: that one
+            // answers nothing even for a bonded ring, which used to drop this replay into the scan branch
+            // and leave the ring unreachable for half an hour off-screen, where iOS throttles scanning
+            // hard (#2433).
+            let parked = pendingConnectID
+            let held = parked.flatMap { seenPeripherals[$0] }
+            let fresh = held == nil
+                ? parked.flatMap { central.retrievePeripherals(withIdentifiers: [$0]).first }
+                : nil
+            switch PendingConnect.replay(isPending: parked != nil,
+                                         isHeld: held != nil,
+                                         didRetrieve: fresh != nil,
+                                         isScanning: scanning) {
+            case .connect:
+                if let id = parked, let p = held ?? fresh {
+                    pendingConnectID = nil
+                    seenPeripherals[id] = p
+                    peripheral = p
+                    p.delegate = self
+                    log("Oura: connecting to \(id) - targeted (the radio was not up when it was asked for)")
+                    central.connect(p, options: nil)
+                }
+            case .scan:
                 central.scanForPeripherals(withServices: [Self.service],
                                            options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
+            case .discover:
+                // Nothing to connect and no scan armed, because the intent was parked before the
+                // retrieve. `scan()` arms `scanning` and `didDiscover` connects the parked id on sight.
+                // Named, because this whole defect was read off log lines: a line that says a
+                // connect could not be resolved is only useful if it says which device.
+                if let id = parked { log("Oura: \(id) is not resolvable yet - discovering to find it") }
+                scan()
+            case .idle:
+                break
             }
         default:
             // Radio off / unauthorized / resetting -> the link is not live.

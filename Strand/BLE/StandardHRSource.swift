@@ -187,6 +187,15 @@ public final class StandardHRSource: NSObject, ObservableObject {
     /// Connect to the chosen discovered strap and start streaming its HR.
     public func connect(_ id: UUID) {
         stopScan()
+        // Before the radio is up a retrieve answers nothing even for a strap this device has been bonded
+        // to for weeks, and the branch below would read that as "never seen" and arm a scan (#2433).
+        // Park the intent instead: `centralManagerDidUpdateState` asks again once the answer means
+        // something.
+        guard central.state == .poweredOn else {
+            pendingConnectID = id
+            log("HR-strap: connect to \(id) deferred - Bluetooth not powered on (state=\(central.state.rawValue))")
+            return
+        }
         // Reach the peripheral directly: use the freshly-discovered handle if we have it, else ask
         // CoreBluetooth for the cached peripheral by identifier (a strap we've connected before). This is
         // what lets the active-strap switch CONNECT without depending on a fresh scan — the switchToStrap
@@ -202,11 +211,6 @@ public final class StandardHRSource: NSObject, ObservableObject {
         seenPeripherals[id] = p
         peripheral = p
         p.delegate = self
-        guard central.state == .poweredOn else {
-            pendingConnectID = id
-            log("HR-strap: Bluetooth not powered on — connect to \(id) deferred until ready")
-            return
-        }
         log("HR-strap: connecting to \(id)")
         central.connect(p, options: nil)
     }
@@ -283,12 +287,40 @@ extension StandardHRSource: @preconcurrency CBCentralManagerDelegate {
         switch central.state {
         case .poweredOn:
             // Replay any intent that arrived before the radio was ready.
-            if let id = pendingConnectID, let p = seenPeripherals[id] {
-                pendingConnectID = nil
-                central.connect(p, options: nil)
-            } else if scanning {
+            // The retrieve is re-issued HERE rather than trusting the one that ran while the state was
+            // still `.unknown`: that one answers nothing even for a bonded strap, which used to drop this
+            // replay into the scan branch and leave it unreachable off-screen, where iOS throttles
+            // scanning hard (#2433).
+            let parked = pendingConnectID
+            let held = parked.flatMap { seenPeripherals[$0] }
+            let fresh = held == nil
+                ? parked.flatMap { central.retrievePeripherals(withIdentifiers: [$0]).first }
+                : nil
+            switch PendingConnect.replay(isPending: parked != nil,
+                                         isHeld: held != nil,
+                                         didRetrieve: fresh != nil,
+                                         isScanning: scanning) {
+            case .connect:
+                if let id = parked, let p = held ?? fresh {
+                    pendingConnectID = nil
+                    seenPeripherals[id] = p
+                    peripheral = p
+                    p.delegate = self
+                    log("HR-strap: connecting to \(id) - targeted (the radio was not up when it was asked for)")
+                    central.connect(p, options: nil)
+                }
+            case .scan:
                 central.scanForPeripherals(withServices: [Self.heartRateService],
                                            options: [CBCentralManagerScanOptionAllowDuplicatesKey: false])
+            case .discover:
+                // Nothing to connect and no scan armed, because the intent was parked before the
+                // retrieve. `scan()` arms `scanning` and `didDiscover` connects the parked id on sight.
+                // Named, because this whole defect was read off log lines: a line that says a
+                // connect could not be resolved is only useful if it says which device.
+                if let id = parked { log("HR-strap: \(id) is not resolvable yet - discovering to find it") }
+                scan()
+            case .idle:
+                break
             }
         default:
             // Radio off / unauthorized / resetting → the link is not live.
