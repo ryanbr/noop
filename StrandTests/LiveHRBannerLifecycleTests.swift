@@ -6,9 +6,10 @@ import XCTest
 final class LiveHRBannerLifecycleTests: XCTestCase {
 
     private func step(switchOn: Bool = true, standsAside: Bool = false, linkUp: Bool = true,
-                      showing: Bool = true, appActive: Bool = false) -> LiveHRBannerLifecycle.Step {
+                      showing: Bool = true, age: TimeInterval? = 60,
+                      appActive: Bool = false) -> LiveHRBannerLifecycle.Step {
         LiveHRBannerLifecycle.step(switchOn: switchOn, standsAside: standsAside, linkUp: linkUp,
-                                   showing: showing, appActive: appActive)
+                                   showing: showing, age: age, appActive: appActive)
     }
 
     /// A dropped link of any length and a strap that is not measuring show the dash, on screen or not; the number comes
@@ -40,5 +41,17 @@ final class LiveHRBannerLifecycleTests: XCTestCase {
         XCTAssertEqual(step(showing: false, appActive: false), .nothing)
         XCTAssertEqual(step(showing: false, appActive: true), .start)
         XCTAssertEqual(step(linkUp: false, showing: false, appActive: true), .nothing)
+    }
+
+    /// iOS ends a banner about eight hours after it started. Opened after the first hour, NOOP starts a fresh one, so
+    /// the banner has most of those hours ahead of it again; in the background it cannot, and does not ask.
+    func testAnOldBannerIsRenewedWhenNOOPIsOnScreen() {
+        let renewAfter = LiveHRBannerLifecycle.renewAfter
+        XCTAssertEqual(step(age: renewAfter - 1, appActive: true), .push)
+        XCTAssertEqual(step(age: renewAfter, appActive: true), .renew)
+        XCTAssertEqual(step(age: nil, appActive: true), .renew)            // started by an earlier build: unknown age
+        XCTAssertEqual(step(linkUp: false, age: renewAfter, appActive: true), .renew)
+        XCTAssertEqual(step(age: 7 * 60 * 60, appActive: false), .push)
+        XCTAssertEqual(step(switchOn: false, age: renewAfter, appActive: true), .end)
     }
 }

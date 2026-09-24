@@ -27,6 +27,10 @@ final class LiveActivityController {
     /// yet), so without this guard two close-together HR samples could both fire `Activity.request`
     /// and create duplicate Live Activities.
     private var isStarting = false
+    /// When the banner being fed was started, for iOS's eight-hour limit (`LiveHRBannerLifecycle.renewAfter`). Kept in
+    /// the defaults with the banner's id, because a banner outlives the run that started it. Nil when unknown.
+    private var startedAt: Date?
+    private static let startedKey = "liveActivity.hr.startedAt"
     /// How long after the last push iOS treats the banner as fresh; after that the banner draws the dash
     /// (`NOOPLiveActivity.shownBpm`). A WHOOP 5.0 taken off the wrist goes quiet, and with nothing arriving iOS
     /// suspends NOOP, so no timer of NOOP's can clear the number: iOS's own stale date is what does it, in at most
@@ -106,6 +110,7 @@ final class LiveActivityController {
         if let activity, !Self.isShowing(activity) {
             self.activity = nil
             shownState = nil
+            startedAt = nil
         }
         // Re-adopt an activity that outlived a previous app session. ActivityKit keeps Live Activities
         // alive across launches/relaunches, but a fresh controller starts with `activity == nil`, so
@@ -113,18 +118,23 @@ final class LiveActivityController {
         // — which made the #336 opt-out a no-op (#341: toggle off, heart stays) and risked spawning a
         // duplicate on the start path below. Done on the HR tick rather than in `init` because
         // `Activity.activities` isn't reliably hydrated at the instant of process launch.
-        if activity == nil { activity = Activity<NOOPActivityAttributes>.activities.first(where: Self.isShowing) }
+        if activity == nil, let adopted = Activity<NOOPActivityAttributes>.activities.first(where: Self.isShowing) {
+            activity = adopted
+            startedAt = (UserDefaults.standard.dictionary(forKey: Self.startedKey)?[adopted.id] as? Double)
+                .map(Date.init(timeIntervalSince1970:))
+        }
 
         // The switch (#336) and the gym banner on screen end it; nothing that passes does (`LiveHRBannerLifecycle`).
+        let now = Date()
         let step = LiveHRBannerLifecycle.step(
             switchOn: UnitPrefs.liveActivityEnabled(), standsAside: standsAside, linkUp: connected,
-            showing: activity != nil, appActive: appActive)
+            showing: activity != nil, age: startedAt.map { now.timeIntervalSince($0) }, appActive: appActive)
         switch step {
         case .nothing: return
         case .end:
             Task { await end() }
             return
-        case .start, .push: break
+        case .start, .push, .renew: break
         }
 
         // Link down: the dash, never the last number (`bonded` stays true across a disconnect, and keying off it once
@@ -132,10 +142,12 @@ final class LiveActivityController {
         // which is typically the strap coming back — exactly when the banner should stay.
         let state = NOOPActivityAttributes.ContentState(bpm: connected ? bpm : nil, recovery: recovery,
                                                         bonded: connected, effort: effort)
-        let now = Date()
-        let staleDate = now.addingTimeInterval(Self.staleAfter)
 
-        if let activity {
+        if step == .renew, let old = activity {
+            // The fresh banner first, then the old one goes, so the Lock Screen is never without one; if iOS refuses
+            // the fresh one, the old one stays.
+            if start(state, at: now) { Task { await old.end(nil, dismissalPolicy: .immediate) } }
+        } else if let activity {
             // The number giving way to the dash (the strap off the wrist, the link dropping) is pushed at once: no
             // tick follows it, so a push skipped for spacing would leave the last number standing.
             guard LiveHRBannerPushPolicy.due(shown: shownState, next: state, reading: \.bpm,
@@ -143,25 +155,36 @@ final class LiveActivityController {
                                              staleAfter: Self.staleAfter) else { return }
             lastPush = now
             shownState = state
+            let staleDate = now.addingTimeInterval(Self.staleAfter)
             Task { await activity.update(ActivityContent(state: state, staleDate: staleDate)) }
         } else {
-            // Set the start gate SYNCHRONOUSLY before any await so a second `update` arriving on the
-            // main actor while `Activity.request` is still in flight bails here instead of issuing a
-            // second request. The 2-second throttle above only guards the update path.
-            guard !isStarting else { return }
-            isStarting = true
-            do {
-                activity = try Activity.request(
-                    attributes: NOOPActivityAttributes(title: String(localized: "Live HR")),
-                    content: ActivityContent(state: state, staleDate: staleDate),
-                    pushType: nil
-                )
-                lastPush = now
-                shownState = state
-            } catch {
-                activity = nil
-            }
-            isStarting = false
+            start(state, at: now)
+        }
+    }
+
+    /// Ask iOS for a new banner, which it grants only while NOOP is on screen. Returns whether it did.
+    @discardableResult
+    private func start(_ state: NOOPActivityAttributes.ContentState, at now: Date) -> Bool {
+        // Set the start gate SYNCHRONOUSLY before any await so a second `update` arriving on the
+        // main actor while `Activity.request` is still in flight bails here instead of issuing a
+        // second request. The 2-second throttle above only guards the update path.
+        guard !isStarting else { return false }
+        isStarting = true
+        defer { isStarting = false }
+        do {
+            let started = try Activity.request(
+                attributes: NOOPActivityAttributes(title: String(localized: "Live HR")),
+                content: ActivityContent(state: state, staleDate: now.addingTimeInterval(Self.staleAfter)),
+                pushType: nil
+            )
+            activity = started
+            startedAt = now
+            UserDefaults.standard.set([started.id: now.timeIntervalSince1970], forKey: Self.startedKey)
+            lastPush = now
+            shownState = state
+            return true
+        } catch {
+            return false
         }
     }
 
@@ -179,6 +202,7 @@ final class LiveActivityController {
         }
         self.activity = nil
         shownState = nil
+        startedAt = nil
     }
 }
 #endif

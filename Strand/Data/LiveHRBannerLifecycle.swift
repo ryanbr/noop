@@ -17,16 +17,26 @@ import Foundation
 /// rate itself, is on screen. A new one is asked for only in the foreground, with the strap connected, whether or not
 /// a heart rate has arrived yet.
 ///
+/// iOS itself ends a Live Activity about eight hours after it was started. So when NOOP is on screen with a banner
+/// more than `renewAfter` old, it starts a fresh one and then lets the old one go (`renew`): each time NOOP is opened
+/// the banner has most of those hours ahead of it again. The swap happens while NOOP is in front, with the Lock Screen
+/// out of sight, and the new banner exists before the old one ends, so there is no moment without one.
+///
 /// Pure and platform-free so `StrandTests` covers it; the controller it serves is in the iOS app target.
 enum LiveHRBannerLifecycle {
 
-    enum Step: Equatable { case nothing, start, push, end }
+    enum Step: Equatable { case nothing, start, push, renew, end }
 
-    /// `showing`: a banner exists. `standsAside`: the Lift Log banner is on screen. `linkUp`: the strap is connected.
-    /// `appActive`: NOOP is on screen, the only time iOS lets it start a banner.
-    static func step(switchOn: Bool, standsAside: Bool, linkUp: Bool, showing: Bool, appActive: Bool) -> Step {
+    /// A banner older than this is replaced by a fresh one while NOOP is on screen.
+    static let renewAfter: TimeInterval = 60 * 60
+
+    /// `showing`: a banner exists, started `age` ago (nil when NOOP does not know, which counts as old).
+    /// `standsAside`: the Lift Log banner is on screen. `linkUp`: the strap is connected. `appActive`: NOOP is on
+    /// screen, the only time iOS lets it start a banner.
+    static func step(switchOn: Bool, standsAside: Bool, linkUp: Bool, showing: Bool, age: TimeInterval?,
+                     appActive: Bool) -> Step {
         guard switchOn, !standsAside else { return showing ? .end : .nothing }
-        if showing { return .push }
+        if showing { return appActive && (age ?? .infinity) >= renewAfter ? .renew : .push }
         return linkUp && appActive ? .start : .nothing
     }
 }
