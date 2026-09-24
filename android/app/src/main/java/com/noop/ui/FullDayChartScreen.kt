@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -35,8 +36,10 @@ import com.noop.protocol.skinTempCelsius
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import java.time.ZoneId
 import java.util.Calendar
 import java.util.Locale
+import kotlin.math.roundToInt
 
 // MARK: - Deep Timeline (Android twin of FullDayChartView) — #575
 //
@@ -179,6 +182,12 @@ fun FullDayChartScreen(vm: AppViewModel, onBack: () -> Unit) {
         points
     }
 
+    // Round wall-clock ticks for the RENDERED extent, shared by the gridlines (drawn inside TimelineChart)
+    // and the axis-label strip below so they align. Mirrors the Today HR chart's timeTicks convention.
+    val timeTicks = remember(visible.first, visible.last) {
+        chartTimeTicks(visible.first, visible.last, ZoneId.systemDefault())
+    }
+
     // Re-read on metric / source / settled-window / fresh-data change. The DB read picks raw vs buckets.
     LaunchedEffect(metric, ownedOnly, visible.first, visible.last, recentDays) {
         // PERF (#scroll-jank): a pinch/pan reports a NEW window on every gesture frame, each of which
@@ -266,28 +275,43 @@ fun FullDayChartScreen(vm: AppViewModel, onBack: () -> Unit) {
                     }
                 }
 
-                Box(modifier = Modifier.fillMaxWidth().height(280.dp), contentAlignment = Alignment.Center) {
-                    when {
-                        loading && points.isEmpty() ->
-                            Text(stringResource(R.string.timeline_loading_day), style = NoopType.footnote, color = Palette.textTertiary)
-                        points.isEmpty() -> {
-                            // #623: the metric is genuinely UNSUPPORTED on this strap only when it's a
-                            // 5.0-family strap that has never produced it — not merely an empty window.
-                            val metricUnsupported = ownedOnly && isWhoop5 && when (metric) {
-                                TimelineMetric.Spo2 -> !everSpo2
-                                TimelineMetric.Respiration -> !everResp
-                                else -> false
+                // Chart + X-axis label strip: the chart and its axis-label strip share this Column
+                // so both span exactly the plot width. The chart receives the same timeTicks so its
+                // gridlines align with the labels below.
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Box(modifier = Modifier.fillMaxWidth().height(280.dp), contentAlignment = Alignment.Center) {
+                        when {
+                            loading && points.isEmpty() ->
+                                Text(stringResource(R.string.timeline_loading_day), style = NoopType.footnote, color = Palette.textTertiary)
+                            points.isEmpty() -> {
+                                // #623: the metric is genuinely UNSUPPORTED on this strap only when it's a
+                                // 5.0-family strap that has never produced it — not merely an empty window.
+                                val metricUnsupported = ownedOnly && isWhoop5 && when (metric) {
+                                    TimelineMetric.Spo2 -> !everSpo2
+                                    TimelineMetric.Respiration -> !everResp
+                                    else -> false
+                                }
+                                EmptyTimelineState(metric, ownedOnly, metricUnsupported)
                             }
-                            EmptyTimelineState(metric, ownedOnly, metricUnsupported)
+                            else -> TimelineChart(
+                                points = displayPoints,
+                                windowStart = visible.first,
+                                windowEnd = visible.last,
+                                bounds = panBounds,   // #986: pan clamp is the rolling 3-day window, not one day
+                                color = metricColor(metric),
+                                modifier = Modifier.fillMaxWidth().height(280.dp),
+                                onWindowChange = { window = it },
+                                timeTicks = timeTicks,
+                            )
                         }
-                        else -> TimelineChart(
-                            points = displayPoints,
+                    }
+                    // X-axis: HH:mm labels aligned to their gridlines via the same wall-clock mapping.
+                    // Hidden when the chart is empty (loading / unsupported) so no labels float alone.
+                    if (displayPoints.isNotEmpty()) {
+                        TimelineTimeAxisLabels(
+                            ticks = timeTicks,
                             windowStart = visible.first,
                             windowEnd = visible.last,
-                            bounds = panBounds,   // #986: pan clamp is the rolling 3-day window, not one day
-                            color = metricColor(metric),
-                            modifier = Modifier.fillMaxWidth().height(280.dp),
-                            onWindowChange = { window = it },
                         )
                     }
                 }
@@ -558,4 +582,48 @@ private fun dayLabel(dayStartSec: Long, todayStart: Long): String = when (daySta
     todayStart -> "Today"
     todayStart - 86_400 -> "Yesterday"
     else -> java.text.SimpleDateFormat("EEE d MMM", Locale.US).format(java.util.Date(dayStartSec * 1000))
+}
+
+// MARK: - X-axis time labels
+
+/**
+ * The Deep Timeline x-axis label strip: one Text per round-time tick, positioned under its gridline
+ * via the SAME time→x mapping the chart uses (wall-clock seconds across the visible window). A tick
+ * label that would collide with its neighbour is skipped rather than overlapped. Mirrors the Today
+ * HR chart's HrTimeAxisLabels (TodayScreen.kt), adapted to the Timeline's wall-clock x mapping.
+ */
+@Composable
+private fun TimelineTimeAxisLabels(
+    ticks: List<Pair<Long, String>>,
+    windowStart: Long,
+    windowEnd: Long,
+) {
+    if (ticks.isEmpty()) return
+    Layout(
+        modifier = Modifier.fillMaxWidth(),
+        content = {
+            ticks.forEach { (_, label) ->
+                Text(label, style = NoopType.footnote, color = Palette.textTertiary, maxLines = 1)
+            }
+        },
+    ) { measurables, constraints ->
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val placeables = measurables.map { it.measure(loose) }
+        val width = constraints.maxWidth
+        val height = placeables.maxOfOrNull { it.height } ?: 0
+        val span = (windowEnd - windowStart).coerceAtLeast(1L)
+        layout(width, height) {
+            var lastRight = Int.MIN_VALUE
+            ticks.forEachIndexed { i, (ts, _) ->
+                val p = placeables[i]
+                val frac = ((ts - windowStart).toDouble() / span).coerceIn(0.0, 1.0)
+                val x = (frac * width - p.width / 2f).roundToInt().coerceIn(0, (width - p.width).coerceAtLeast(0))
+                // Skip a label that would overlap its neighbour.
+                if (x > lastRight) {
+                    p.place(x, 0)
+                    lastRight = x + p.width + 8
+                }
+            }
+        }
+    }
 }

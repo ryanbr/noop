@@ -1162,27 +1162,33 @@ private val chartTickTimeFormat = DateTimeFormatter.ofPattern("HH:mm", Locale.US
 /**
  * Round wall-clock x-axis ticks for a `[startEpochSec, endEpochSec]` window: (epochSec, "HH:mm")
  * pairs at fixed round intervals chosen by the visible span (a full day ticks every 6h, a 1h zoom
- * every 15min). Ticks step in LOCAL wall-clock time from the window's local midnight — a window
- * crossing midnight labels "00:00" and DST labels stay round; java.time resolves the spring-forward
- * gap to a valid time and the epoch-dedupe drops the resulting double tick. Pure and clock-free
- * (ChartTimeTicksTest).
+ * every 15min, a 5min zoom every 1min). Ticks step in LOCAL wall-clock time from the window's
+ * local midnight — a window crossing midnight labels "00:00" and DST labels stay round; java.time
+ * resolves the spring-forward gap to a valid time and the epoch-dedupe drops the resulting double
+ * tick. Pure and clock-free (ChartTimeTicksTest).
  */
 fun chartTimeTicks(startEpochSec: Long, endEpochSec: Long, zone: ZoneId): List<Pair<Long, String>> {
     if (endEpochSec <= startEpochSec) return emptyList()
-    val spanHours = (endEpochSec - startEpochSec) / 3600.0
+    val spanMinutes = (endEpochSec - startEpochSec) / 60.0
     // Thresholds sit below the nominal Today-card windows (24h/12h/6h/3h/1h) so a window whose
-    // banked data covers slightly less than nominal still lands on its intended interval.
+    // banked data covers slightly less than nominal still lands on its intended interval. The
+    // deep-zoom tiers (≤30min down to 1-min steps) serve the Deep Timeline's pinch-to-zoom, so
+    // a user zoomed onto a 5-minute window sees per-minute ticks instead of 15-min gaps.
     val stepMinutes = when {
-        spanHours >= 20.0 -> 360L
-        spanHours >= 10.0 -> 180L
-        spanHours >= 5.0 -> 120L
-        spanHours >= 2.0 -> 60L
-        else -> 15L
+        spanMinutes >= 20 * 60 -> 360L   // 6h ticks above 20h
+        spanMinutes >= 10 * 60 -> 180L   // 3h ticks above 10h
+        spanMinutes >= 5 * 60 -> 120L    // 2h ticks above 5h
+        spanMinutes >= 2 * 60 -> 60L     // 1h ticks above 2h
+        spanMinutes >= 60 -> 15L         // 15min ticks above 1h
+        spanMinutes >= 30 -> 5L          // 5min ticks above 30min
+        spanMinutes >= 10 -> 2L          // 2min ticks above 10min
+        else -> 1L                       // 1min ticks below 10min
     }
     var tick = Instant.ofEpochSecond(startEpochSec).atZone(zone).toLocalDate().atStartOfDay()
     val out = ArrayList<Pair<Long, String>>()
     var lastEpoch = Long.MIN_VALUE
-    // Bounded walk: even a multi-day window at 15-min steps stays well under the guard.
+    // Bounded walk: even a multi-day window at 15-min steps stays well under the guard. A deep-zoom
+    // at 1-min steps over a 10-min window is ~10 iterations, still far below it.
     var guard = 0
     while (guard++ < 4096) {
         val zoned = tick.atZone(zone)
@@ -1228,6 +1234,9 @@ fun pannedWindow(base: LongRange, deltaSeconds: Long, bounds: LongRange): LongRa
  * The Deep Timeline chart: a line over [points] within the visible [windowStart, windowEnd], pinch to
  * zoom + drag to pan (both clamped to [bounds]). Reports the settled window via [onWindowChange] so the
  * host can re-read at the new resolution. Empty-safe: with no points it draws a faint baseline.
+ *
+ * [timeTicks] (epochSec, "HH:mm") are drawn as dotted vertical gridlines under the curve, matching the
+ * Today HR chart's axis convention. The matching labels render OUTSIDE this composable by the host.
  */
 @Composable
 fun TimelineChart(
@@ -1238,6 +1247,9 @@ fun TimelineChart(
     color: Color,
     modifier: Modifier,
     onWindowChange: (LongRange) -> Unit,
+    // Round wall-clock (epochSec, "HH:mm") ticks, each drawn as a dotted gridline under the curve.
+    // The matching labels render OUTSIDE this plot-height composable by the host. Empty = no gridlines.
+    timeTicks: List<Pair<Long, String>> = emptyList(),
 ) {
     val span = (windowEnd - windowStart).coerceAtLeast(1L)
     val vis = remember(points, windowStart, windowEnd) {
@@ -1278,6 +1290,25 @@ fun TimelineChart(
                 }
             },
     ) {
+        // Dotted round-time gridlines, FIRST so the curve reads over them (matching OverviewHRChart z-order).
+        if (timeTicks.isNotEmpty()) {
+            val gridDash = remember { PathEffect.dashPathEffect(floatArrayOf(4f, 6f), 0f) }
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                if (size.width <= 0f || size.height <= 0f) return@Canvas
+                timeTicks.forEach { (ts, _) ->
+                    val x = ((ts - windowStart).toFloat() / span) * size.width
+                    if (x in 0f..size.width) {
+                        drawLine(
+                            color = Palette.hairline,
+                            start = Offset(x, 0f),
+                            end = Offset(x, size.height),
+                            strokeWidth = 1f,
+                            pathEffect = gridDash,
+                        )
+                    }
+                }
+            }
+        }
         Canvas(modifier = Modifier.fillMaxSize()) {
             val strokePx = 2.5f
             val topPad = strokePx + 4f

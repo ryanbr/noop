@@ -46,6 +46,21 @@ class ChartTimeTicksTest {
         assertEquals(listOf("14:15", "14:30", "14:45", "15:00"), ticks.map { it.second })
     }
 
+    @Test fun thirtyMinutesTicksEveryFiveMinutes() {
+        val ticks = chartTimeTicks(at(2026, 7, 10, 14, 2), at(2026, 7, 10, 14, 32), kyiv)
+        assertEquals(listOf("14:05", "14:10", "14:15", "14:20", "14:25", "14:30"), ticks.map { it.second })
+    }
+
+    @Test fun tenMinutesTicksEveryTwoMinutes() {
+        val ticks = chartTimeTicks(at(2026, 7, 10, 14, 1), at(2026, 7, 10, 14, 11), kyiv)
+        assertEquals(listOf("14:02", "14:04", "14:06", "14:08", "14:10"), ticks.map { it.second })
+    }
+
+    @Test fun fiveMinutesTicksEveryMinute() {
+        val ticks = chartTimeTicks(at(2026, 7, 10, 14, 0, 30), at(2026, 7, 10, 14, 5, 30), kyiv)
+        assertEquals(listOf("14:01", "14:02", "14:03", "14:04", "14:05"), ticks.map { it.second })
+    }
+
     @Test fun aWindowCrossingMidnightLabelsMidnightAsZeroZero() {
         // Rolling 24h ending mid-morning: the previous day's evening ticks, then "00:00", then today's.
         val ticks = chartTimeTicks(at(2026, 7, 9, 10, 30), at(2026, 7, 10, 10, 30), kyiv)
