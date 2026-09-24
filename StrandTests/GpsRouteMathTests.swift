@@ -158,6 +158,40 @@ final class GpsRouteMathTests: XCTestCase {
         XCTAssertNil(RouteStore.load(startTs: 1_700_000_000, sport: "Running", from: defaults))
     }
 
+    func testRouteStorePreservesOriginalPointMeasurements() {
+        let defaults = freshDefaults()
+        let points = [
+            WorkoutRoutePoint(lat: a.lat, lon: a.lon, accuracyM: 3.2, tMs: 1_700_000_000_000),
+            WorkoutRoutePoint(lat: b.lat, lon: b.lon, accuracyM: 7.8, tMs: 1_700_000_012_345),
+        ]
+        let route = WorkoutRoute(polyline: RouteMath.encode([a, b]), distanceM: 451, points: points)
+        RouteStore.store(route, startTs: 1_700_000_000, sport: "Running", into: defaults)
+        let loaded = RouteStore.load(startTs: 1_700_000_000, sport: "Running", from: defaults)
+        XCTAssertEqual(loaded?.points, points)
+        XCTAssertTrue(loaded?.hasExportableMeasurements == true)
+    }
+
+    func testLegacyRouteWithoutPointMeasurementsRemainsReadableButCannotExport() throws {
+        let key = RouteStore.key(startTs: 1_700_000_000, sport: "Running")
+        let legacyJSON = #"{"\#(key)":{"polyline":"abc","distanceM":123.0}}"#.data(using: .utf8)
+        let loaded = RouteStore.decodeMap(legacyJSON)[key]
+        XCTAssertEqual(loaded?.polyline, "abc")
+        XCTAssertNil(loaded?.points)
+        XCTAssertFalse(loaded?.hasExportableMeasurements ?? true)
+    }
+
+    func testRouteMeasurementsRequireMonotonicValidTimesAndAccuracy() {
+        let good = [
+            WorkoutRoutePoint(lat: a.lat, lon: a.lon, accuracyM: 4, tMs: 1000),
+            WorkoutRoutePoint(lat: b.lat, lon: b.lon, accuracyM: 8, tMs: 2000),
+        ]
+        XCTAssertTrue(WorkoutRoute(polyline: "", distanceM: 0, points: good).hasExportableMeasurements)
+        let duplicateTime = [good[0], WorkoutRoutePoint(lat: b.lat, lon: b.lon, accuracyM: 8, tMs: 1000)]
+        XCTAssertFalse(WorkoutRoute(polyline: "", distanceM: 0, points: duplicateTime).hasExportableMeasurements)
+        let invalidAccuracy = [good[0], WorkoutRoutePoint(lat: b.lat, lon: b.lon, accuracyM: -1, tMs: 2000)]
+        XCTAssertFalse(WorkoutRoute(polyline: "", distanceM: 0, points: invalidAccuracy).hasExportableMeasurements)
+    }
+
     func testRouteStoreKeysBySportAndStart() {
         let defaults = freshDefaults()
         let run = WorkoutRoute(polyline: RouteMath.encode([a, b]), distanceM: 1)

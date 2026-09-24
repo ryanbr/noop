@@ -21,9 +21,9 @@ import StrandAnalytics   // WorkoutsTrace + TestCentre: the GPS-fix line for the
 //                     mirroring Android `TrackFilter` (50 m accuracy gate, ~12 m/s speed gate). Bounds the
 //                     UNTRUSTED stream of OS location fixes before any of it reaches the stored route.
 //   • `RouteStore`  — a tiny on-device side-store (UserDefaults) keyed by a workout's natural key
-//                     (startTs + sport), holding the encoded polyline + distance for that session. The
-//                     shared `WhoopStore.WorkoutRow` carries no route column on Apple, so the route lives
-//                     here and is read back by WorkoutDetailView — exactly how `moments` / `sleepMarks` /
+//                     (startTs + sport), holding the encoded polyline, distance, and captured point
+//                     measurements for that session. `WorkoutRow` has no route column on Apple, so the
+//                     route lives here and is read back by WorkoutDetailView — like `moments` / `sleepMarks` /
 //                     the durable active-workout snapshot already persist on Apple. On-device only; never
 //                     leaves the phone.
 //   • `GpsWorkoutRecorder` — the thin CoreLocation wrapper. Requests When-In-Use, streams fixes through
@@ -190,13 +190,39 @@ final class TrackFilter {
 
 // MARK: - RouteStore (on-device side-store)
 
-/// The route persisted for one finished workout: the encoded polyline + the GPS distance it implies.
-/// A tiny `Codable` value, the unit a `RouteStore` keys by a workout's natural key.
+/// A waypoint with the measurements captured by CoreLocation. Accuracy is horizontal metres and time is
+/// milliseconds since epoch, matching `RawFix` without introducing CoreLocation into persisted data.
+struct WorkoutRoutePoint: Equatable, Codable {
+    var lat: Double
+    var lon: Double
+    var accuracyM: Double
+    var tMs: Int64
+}
+
+/// The route persisted for one finished workout: an encoded polyline, its GPS distance, and (when
+/// available) the original per-point measurements. Legacy entries may not carry point metadata.
 struct WorkoutRoute: Equatable, Codable {
     /// Google precision-5 polyline of the captured route (`RouteMath.encode`).
     var polyline: String
     /// Total GPS distance in metres (`RouteMath.totalMeters` of the captured points).
     var distanceM: Double
+    /// Original filtered GPS measurements. `nil` for routes saved before this field existed.
+    var points: [WorkoutRoutePoint]? = nil
+
+    /// Whether this route has enough trustworthy per-point data to export as a HealthKit time series.
+    /// Legacy routes remain drawable from their polyline but must never be exported with guessed values.
+    var hasExportableMeasurements: Bool {
+        guard let points, points.count >= 2 else { return false }
+        var previousTimestamp: Int64?
+        for point in points {
+            guard point.lat.isFinite, (-90...90).contains(point.lat),
+                  point.lon.isFinite, (-180...180).contains(point.lon),
+                  point.accuracyM.isFinite, point.accuracyM >= 0, point.tMs > 0 else { return false }
+            if let previousTimestamp, point.tMs <= previousTimestamp { return false }
+            previousTimestamp = point.tMs
+        }
+        return true
+    }
 }
 
 /// On-device persistence for finished GPS routes, keyed by a workout's natural key (startTs + sport) so a
@@ -330,6 +356,7 @@ final class GpsWorkoutRecorder: NSObject, ObservableObject {
     private let manager = CLLocationManager()
     private var filter = TrackFilter()
     private var track: [RouteMath.LatLng] = []
+    private var routePoints: [WorkoutRoutePoint] = []
     private var startMs: Int64 = 0
     private var pausedAtMs: Int64?
     private var pausedDurationMs: Int64 = 0
@@ -364,6 +391,7 @@ final class GpsWorkoutRecorder: NSObject, ObservableObject {
     /// A re-arm resets the track. Returns immediately — fixes arrive asynchronously via the delegate.
     func start(startMs: Int64) {
         track.removeAll()
+        routePoints.removeAll()
         filter = TrackFilter()
         self.startMs = startMs
         pausedAtMs = nil
@@ -439,7 +467,8 @@ final class GpsWorkoutRecorder: NSObject, ObservableObject {
     func capturedRoute() -> WorkoutRoute? {
         guard track.count >= 2 else { return nil }
         return WorkoutRoute(polyline: RouteMath.encode(track),
-                            distanceM: RouteMath.totalMeters(track))
+                            distanceM: RouteMath.totalMeters(track),
+                            points: routePoints)
     }
 
     // MARK: Updates
@@ -460,6 +489,8 @@ final class GpsWorkoutRecorder: NSObject, ObservableObject {
         for fix in fixes {
             if let pt = filter.accept(fix) {
                 track.append(pt)
+                routePoints.append(WorkoutRoutePoint(lat: fix.lat, lon: fix.lon,
+                                                     accuracyM: fix.accuracyM, tMs: fix.tMs))
                 changed = true
             }
         }
