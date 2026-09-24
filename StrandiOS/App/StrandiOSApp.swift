@@ -54,13 +54,14 @@ struct StrandiOSApp: App {
     /// memoized, because this runs on every heart-rate tick (re-deriving it once scanned the whole history, #1051).
     /// It makes room only for the Lift Log banner actually on screen, which carries the heart rate itself — not for a
     /// sync (`LiveHRBannerLifecycle`).
-    private func updateLiveHRBanner(heartRate: Int?, connected: Bool) {
+    private func updateLiveHRBanner(heartRate: Int?, connected: Bool, appActive: Bool? = nil) {
         let day = model.repo.cachedWidgetAnchor()
         liveActivity.update(
             bpm: connected ? (model.bpm ?? heartRate) : nil,
             recovery: day?.recovery.map { Int($0.rounded()) },
             connected: connected,
             standsAside: liftActivity.isShowing,
+            appActive: appActive ?? (scenePhase == .active),
             effort: day?.strain.map { Int($0.rounded()) }
         )
     }
@@ -350,7 +351,7 @@ struct StrandiOSApp: App {
                 pushLiftActivity()
                 // Only the foreground may start the live heart rate banner: offer it now rather than at the next
                 // heart-rate change, which a steady rate may not bring for a while.
-                updateLiveHRBanner(heartRate: model.live.heartRate, connected: model.live.connected)
+                updateLiveHRBanner(heartRate: model.live.heartRate, connected: model.live.connected, appActive: true)
                 // End a "Connecting…" sync island whose sync never came, rather than leave it greyed.
                 SyncLiveActivityController.shared.reconcile(live: model.live)
                 // Re-arm the strap's smart alarm on foreground: the firmware alarm is a single instant

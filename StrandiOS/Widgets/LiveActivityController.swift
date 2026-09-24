@@ -29,25 +29,33 @@ final class LiveActivityController {
     static let staleAfter: TimeInterval = 30
 
     /// Drive the activity from the latest live values (`LiveHRBannerLifecycle` decides start / push / end). Starts
-    /// only in the foreground, with the strap CONNECTED (the live link, not the sticky "paired" flag) and a heart
-    /// rate to show; a running banner shows the dash through a dropped link or a strap that is not measuring, and
-    /// ends only when its switch is off or the Lift Log banner takes the screen (`standsAside`). Pushed when what
-    /// it shows changes, and often enough to stay fresh (`LiveHRBannerPushPolicy`, `staleAfter`).
-    func update(bpm: Int?, recovery: Int?, connected: Bool, standsAside: Bool, effort: Int? = nil) {
+    /// only in the foreground (`appActive`), with the strap CONNECTED (the live link, not the sticky "paired" flag),
+    /// before a heart rate arrives if need be; a running banner shows the dash through a dropped link or a strap
+    /// that is not measuring, and ends only when its switch is off or the Lift Log banner takes the screen
+    /// (`standsAside`). Pushed when what it shows changes, and often enough to stay fresh (`LiveHRBannerPushPolicy`,
+    /// `staleAfter`).
+    func update(bpm: Int?, recovery: Int?, connected: Bool, standsAside: Bool, appActive: Bool,
+                effort: Int? = nil) {
         guard authInfo.areActivitiesEnabled else { return }
 
+        // A banner iOS ended (after about eight hours) or the user swiped away is gone: forget it, so the next time
+        // NOOP is on screen it starts one again rather than pushing to nothing.
+        if let activity, !Self.isShowing(activity) {
+            self.activity = nil
+            shownState = nil
+        }
         // Re-adopt an activity that outlived a previous app session. ActivityKit keeps Live Activities
         // alive across launches/relaunches, but a fresh controller starts with `activity == nil`, so
         // without recovering the handle here we can neither update nor END an already-showing activity
         // — which made the #336 opt-out a no-op (#341: toggle off, heart stays) and risked spawning a
         // duplicate on the start path below. Done on the HR tick rather than in `init` because
         // `Activity.activities` isn't reliably hydrated at the instant of process launch.
-        if activity == nil { activity = Activity<NOOPActivityAttributes>.activities.first }
+        if activity == nil { activity = Activity<NOOPActivityAttributes>.activities.first(where: Self.isShowing) }
 
-        // The switch (#336) and another banner on screen end it; a dropped link does not (`LiveHRBannerLifecycle`).
+        // The switch (#336) and the gym banner on screen end it; nothing that passes does (`LiveHRBannerLifecycle`).
         let step = LiveHRBannerLifecycle.step(
-            switchOn: UnitPrefs.liveActivityEnabled(), standsAside: standsAside, linkUp: connected, bpm: bpm,
-            showing: activity != nil, appActive: UIApplication.shared.applicationState == .active)
+            switchOn: UnitPrefs.liveActivityEnabled(), standsAside: standsAside, linkUp: connected,
+            showing: activity != nil, appActive: appActive)
         switch step {
         case .nothing: return
         case .end:
@@ -93,6 +101,11 @@ final class LiveActivityController {
             }
             isStarting = false
         }
+    }
+
+    /// Still on the Lock Screen and able to take an update: not ended by iOS, the user or NOOP.
+    private static func isShowing(_ activity: Activity<NOOPActivityAttributes>) -> Bool {
+        activity.activityState == .active || activity.activityState == .stale
     }
 
     func end() async {
