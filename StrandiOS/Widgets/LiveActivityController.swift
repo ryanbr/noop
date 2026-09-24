@@ -31,6 +31,10 @@ final class LiveActivityController {
     /// the defaults with the banner's id, because a banner outlives the run that started it. Nil when unknown.
     private var startedAt: Date?
     private static let startedKey = "liveActivity.hr.startedAt"
+    /// An end is in flight, so the ticks that arrive meanwhile neither end it again nor log it twice.
+    private var isEnding = false
+    /// iOS refused a start, and it was logged: once, not on every tick while NOOP is on screen.
+    private var refusalLogged = false
     /// How long after the last push iOS treats the banner as fresh; after that the banner draws the dash
     /// (`NOOPLiveActivity.shownBpm`). A WHOOP 5.0 taken off the wrist goes quiet, and with nothing arriving iOS
     /// suspends NOOP, so no timer of NOOP's can clear the number: iOS's own stale date is what does it, in at most
@@ -106,11 +110,12 @@ final class LiveActivityController {
         guard authInfo.areActivitiesEnabled else { return }
 
         // A banner iOS ended (after about eight hours) or the user swiped away is gone: forget it, so the next time
-        // NOOP is on screen it starts one again rather than pushing to nothing.
-        if let activity, !Self.isShowing(activity) {
+        // NOOP is on screen it starts one again rather than pushing to nothing. (One NOOP is ending is not gone yet.)
+        if !isEnding, let activity, !Self.isShowing(activity) {
             self.activity = nil
             shownState = nil
             startedAt = nil
+            log("gone from the Lock Screen (ended by iOS or dismissed); started again when NOOP is next on screen")
         }
         // Re-adopt an activity that outlived a previous app session. ActivityKit keeps Live Activities
         // alive across launches/relaunches, but a fresh controller starts with `activity == nil`, so
@@ -122,16 +127,22 @@ final class LiveActivityController {
             activity = adopted
             startedAt = (UserDefaults.standard.dictionary(forKey: Self.startedKey)?[adopted.id] as? Double)
                 .map(Date.init(timeIntervalSince1970:))
+            log("picked up the one already on the Lock Screen")
         }
 
         // The switch (#336) and the gym banner on screen end it; nothing that passes does (`LiveHRBannerLifecycle`).
         let now = Date()
+        let switchOn = UnitPrefs.liveActivityEnabled()
+        let age = startedAt.map { now.timeIntervalSince($0) }
         let step = LiveHRBannerLifecycle.step(
-            switchOn: UnitPrefs.liveActivityEnabled(), standsAside: standsAside, linkUp: connected,
-            showing: activity != nil, age: startedAt.map { now.timeIntervalSince($0) }, appActive: appActive)
+            switchOn: switchOn, standsAside: standsAside, linkUp: connected,
+            showing: activity != nil, age: age, appActive: appActive)
         switch step {
         case .nothing: return
         case .end:
+            guard !isEnding else { return }
+            isEnding = true
+            log(switchOn ? "ended: the Lift Log banner takes its place" : "ended: its switch is off")
             Task { await end() }
             return
         case .start, .push, .renew: break
@@ -146,19 +157,24 @@ final class LiveActivityController {
         if step == .renew, let old = activity {
             // The fresh banner first, then the old one goes, so the Lock Screen is never without one; if iOS refuses
             // the fresh one, the old one stays.
-            if start(state, at: now) { Task { await old.end(nil, dismissalPolicy: .immediate) } }
+            if start(state, at: now) {
+                log("renewed after \(age.map { "\(Int($0 / 60)) min" } ?? "an unknown time"), "
+                    + "so iOS's eight-hour limit starts again")
+                Task { await old.end(nil, dismissalPolicy: .immediate) }
+            }
         } else if let activity {
             // The number giving way to the dash (the strap off the wrist, the link dropping) is pushed at once: no
             // tick follows it, so a push skipped for spacing would leave the last number standing.
             guard LiveHRBannerPushPolicy.due(shown: shownState, next: state, reading: \.bpm,
                                              sinceLastPush: now.timeIntervalSince(lastPush),
                                              staleAfter: Self.staleAfter) else { return }
+            if let shown = shownState, (shown.bpm == nil) != (state.bpm == nil) { logReading(state) }
             lastPush = now
             shownState = state
             let staleDate = now.addingTimeInterval(Self.staleAfter)
             Task { await activity.update(ActivityContent(state: state, staleDate: staleDate)) }
-        } else {
-            start(state, at: now)
+        } else if start(state, at: now) {
+            log(state.bpm == nil ? "started, showing – until a heart rate arrives" : "started")
         }
     }
 
@@ -182,10 +198,31 @@ final class LiveActivityController {
             UserDefaults.standard.set([started.id: now.timeIntervalSince1970], forKey: Self.startedKey)
             lastPush = now
             shownState = state
+            refusalLogged = false
             return true
         } catch {
+            if !refusalLogged {
+                refusalLogged = true
+                log("iOS did not start it: \(error.localizedDescription)")
+            }
             return false
         }
+    }
+
+    /// The banner turning to the dash, or back to a number: pushed at once (`LiveHRBannerPushPolicy`), and logged.
+    private func logReading(_ state: NOOPActivityAttributes.ContentState) {
+        if state.bpm != nil {
+            log("heart rate again")
+        } else {
+            log(state.bonded ? "– (strap connected, no heart rate)" : "– (strap not connected)")
+        }
+    }
+
+    /// One line in NOOP's strap log for each thing that happens to the banner: started, picked up, renewed, ended,
+    /// gone, and each turn to the dash and back. Rare, so always on. A tester's banner once showed the dash for a
+    /// strap he was wearing, and a log without a word about the banner could not say why (24 Sep 2026).
+    private func log(_ line: String) {
+        model?.live.append(log: AppModel.stamped("Live HR banner: " + line))
     }
 
     /// Still on the Lock Screen and able to take an update: not ended by iOS, the user or NOOP.
@@ -203,6 +240,7 @@ final class LiveActivityController {
         self.activity = nil
         shownState = nil
         startedAt = nil
+        isEnding = false
     }
 }
 #endif

@@ -517,13 +517,9 @@ public final class FrameRouter {
                 // The other physical inputs the strap exposes — live only, as above. The double-tap
                 // was handled before the sync kick.
                 if ev.hasPrefix("WRIST_ON") {
-                    if !state.worn { state.worn = true; state.onWristChange?(true) }
+                    handleWrist(on: true, duringSync: false)
                 } else if ev.hasPrefix("WRIST_OFF") {
-                    if state.worn {
-                        state.worn = false
-                        state.clearLiveHeartRate()   // nothing shown may outlive the strap leaving the wrist
-                        state.onWristChange?(false)
-                    }
+                    handleWrist(on: false, duringSync: false)
                 } else if ev.hasPrefix("STRAP_DRIVEN_ALARM_EXECUTED") {
                     // Fire observability (#401 close-out): Android has always logged this line
                     // (WhoopBleClient.handleFrame); iOS/macOS silently ran the callback, which is why a
@@ -835,14 +831,24 @@ public final class FrameRouter {
         if ev.hasPrefix("DOUBLE_TAP") {
             dispatchDoubleTapOnce(eventTimestamp: ts)
         } else if ev.hasPrefix("WRIST_ON") {
-            if !state.worn { state.worn = true; state.onWristChange?(true) }
+            handleWrist(on: true, duringSync: true)
         } else if ev.hasPrefix("WRIST_OFF") {
-            if state.worn {
-                state.worn = false
-                state.clearLiveHeartRate()   // nothing shown may outlive the strap leaving the wrist
-                state.onWristChange?(false)
-            }
+            handleWrist(on: false, duringSync: true)
         }
+    }
+
+    /// A live WRIST_ON / WRIST_OFF, from either route. Each one leaves a line, always on: whether a strap sends them
+    /// live decides how soon the Live HR banner can show the dash — a WHOOP 5.0 does, about two seconds after it
+    /// leaves the wrist (a tester's log, 24 Sep 2026, read from the silence that followed, since nothing named them).
+    private func handleWrist(on: Bool, duringSync: Bool) {
+        let changes = state.worn != on
+        state.append(log: AppModel.stamped("Strap: \(on ? "WRIST_ON" : "WRIST_OFF")"
+                                           + (duringSync ? " during a sync" : "")
+                                           + (changes && !on ? "; live heart rate cleared" : "")))
+        guard changes else { return }
+        state.worn = on
+        if !on { state.clearLiveHeartRate() }   // nothing shown may outlive the strap leaving the wrist
+        state.onWristChange?(on)
     }
 
     // MARK: - Double-tap de-duplication
