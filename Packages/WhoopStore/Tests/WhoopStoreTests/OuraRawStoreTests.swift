@@ -42,6 +42,19 @@ final class OuraRawStoreTests: XCTestCase {
         XCTAssertEqual(rows.map(\.fetchedAt), [100, 200, 300])
     }
 
+    func testReadPreservesPageInsertionOrderWhenFetchedAtTies() async throws {
+        let store = try await WhoopStore.inMemory()
+        let pages = (0...10).map { index in
+            OuraRawRow(endpoint: "sleep", documentId: "sleep-window-\(index)", day: nil,
+                       payloadJSON: "{}", fetchedAt: 100)
+        }
+        _ = try await store.upsertOuraRaw(pages, deviceId: "oura-api")
+
+        let rows = try await store.ouraRaw(deviceId: "oura-api", endpoint: "sleep")
+        XCTAssertEqual(rows.map(\.documentId), pages.map(\.documentId))
+        XCTAssertEqual(Set(rows.map(\.fetchedAt)), [100])
+    }
+
     func testDeleteOuraRawRemovesAllForDevice() async throws {
         let store = try await WhoopStore.inMemory()
         _ = try await store.upsertOuraRaw([

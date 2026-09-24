@@ -43,13 +43,13 @@ extension WhoopStore {
         }
     }
 
-    /// Archived payloads for a device + endpoint, oldest fetch first.
+    /// Archived payloads for a device + endpoint, oldest fetch first and insertion order within a fetch.
     public func ouraRaw(deviceId: String, endpoint: String) async throws -> [OuraRawRow] {
         try syncRead { db in
             try Row.fetchAll(db, sql: """
                 SELECT endpoint, documentId, day, payloadJSON, fetchedAt FROM ouraRaw
                 WHERE deviceId = ? AND endpoint = ?
-                ORDER BY fetchedAt ASC
+                ORDER BY fetchedAt ASC, rowid ASC
                 """, arguments: [deviceId, endpoint])
                 .map { OuraRawRow(endpoint: $0["endpoint"], documentId: $0["documentId"],
                                   day: $0["day"], payloadJSON: $0["payloadJSON"], fetchedAt: $0["fetchedAt"]) }
