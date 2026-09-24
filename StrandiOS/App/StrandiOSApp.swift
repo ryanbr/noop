@@ -24,7 +24,9 @@ struct StrandiOSApp: App {
     /// Shared cross-screen navigation hook (e.g. Live → Devices). The iOS shell (`RootTabView`)
     /// observes it and presents the Devices manager.
     @StateObject private var router: NavRouter
-    @State private var liveActivity = LiveActivityController()
+    /// NOOP's live heart rate banner. Built in `init` and fed from there (`LiveActivityController.follow`), not from
+    /// a view: a process iOS starts in the background need not build one.
+    @State private var liveActivity: LiveActivityController
     /// The Lift Log session's own Live Activity. Separate from the live-HR one above: while a gym
     /// session is open this is the banner that matters (it carries the heart rate too), so the HR
     /// activity is suppressed rather than stacked beside it. Built in `init`, where the strap log it
@@ -48,23 +50,6 @@ struct StrandiOSApp: App {
     /// kg vs lb for the Lift Log Live Activity's "8 x 30 kg" line — the app formats it, because the
     /// unit preference lives here and not in the widget extension.
     @AppStorage(UnitPrefs.systemKey) private var unitSystemRaw = UnitSystem.metric.rawValue
-
-    /// NOOP's live heart rate banner, from the latest live values. #911: anchored on the SAME shared
-    /// `Repository.widgetAnchor` the widget and the watch use, so it cannot name a different day at the rollover;
-    /// memoized, because this runs on every heart-rate tick (re-deriving it once scanned the whole history, #1051).
-    /// It makes room only for the Lift Log banner actually on screen, which carries the heart rate itself — not for a
-    /// sync (`LiveHRBannerLifecycle`).
-    private func updateLiveHRBanner(heartRate: Int?, connected: Bool, appActive: Bool? = nil) {
-        let day = model.repo.cachedWidgetAnchor()
-        liveActivity.update(
-            bpm: connected ? (model.bpm ?? heartRate) : nil,
-            recovery: day?.recovery.map { Int($0.rounded()) },
-            connected: connected,
-            standsAside: liftActivity.isShowing,
-            appActive: appActive ?? (scenePhase == .active),
-            effort: day?.strain.map { Int($0.rounded()) }
-        )
-    }
 
     init() {
         // #1008: pin the pre-change Overnight-only default for existing installs before
@@ -119,9 +104,15 @@ struct StrandiOSApp: App {
                 model?.live.append(log: AppModel.stamped(line))
             })
         _liftSession = StateObject(wrappedValue: liftSession)
-        _liftActivity = State(initialValue: LiftLiveActivityController(log: { [weak model] line in
+        let liftActivity = LiftLiveActivityController(log: { [weak model] line in
             model?.live.append(log: AppModel.stamped(line))
-        }))
+        })
+        _liftActivity = State(initialValue: liftActivity)
+        // The live heart rate banner makes room only for the Lift Log banner actually on screen, which carries the
+        // heart rate itself — not for a sync (`LiveHRBannerLifecycle`).
+        let liveActivity = LiveActivityController()
+        liveActivity.follow(model, standsAside: { [weak liftActivity] in liftActivity?.isShowing == true })
+        _liveActivity = State(initialValue: liveActivity)
         // A gym session keeps ONE banner on the Lock Screen, its own — as the live-HR banner already
         // stands aside for it. A sync started in the foreground mid-session starts no sync banner.
         SyncLiveActivityController.shared.holdsBackNewBanner = { [weak liftSession] in
@@ -239,15 +230,10 @@ struct StrandiOSApp: App {
                 .dynamicTypeSize(...DynamicTypeSize.accessibility1)
                 // `hr` is the value being written: this runs in willSet, when `live.heartRate` still holds the old one.
                 .onReceive(model.live.$heartRate) { hr in
-                    updateLiveHRBanner(heartRate: hr, connected: model.live.connected)
                     // The gym banner's own cheap path: no presentation is built here, and a heart rate moves
                     // the banner only when `LiftBannerPushPolicy` says it is worth a push. Everything else
                     // about the session pushes through `pushLiftActivity` below, carrying the current number.
                     liftActivity.updateHeartRate(model.live.connected ? (model.bpm ?? hr) : nil)
-                }
-                // The link dropping or coming back reaches the banner even if no further HR tick arrives.
-                .onReceive(model.live.$connected) { isConnected in
-                    updateLiveHRBanner(heartRate: model.live.heartRate, connected: isConnected)
                 }
                 // The gym session's own banner follows each change to the session once it has landed —
                 // a stage, typed numbers, a rest's end — and the heart rate above; the controller decides
@@ -349,9 +335,8 @@ struct StrandiOSApp: App {
                 // iOS starts a Lift Log banner only for an app on screen, so a banner lost while NOOP was in
                 // the background comes back now, whether or not the strap is sending anything.
                 pushLiftActivity()
-                // Only the foreground may start the live heart rate banner: offer it now rather than at the next
-                // heart-rate change, which a steady rate may not bring for a while.
-                updateLiveHRBanner(heartRate: model.live.heartRate, connected: model.live.connected, appActive: true)
+                // Only the foreground may start the live heart rate banner: offer it now.
+                liveActivity.appBecameActive()
                 // End a "Connecting…" sync island whose sync never came, rather than leave it greyed.
                 SyncLiveActivityController.shared.reconcile(live: model.live)
                 // Re-arm the strap's smart alarm on foreground: the firmware alarm is a single instant

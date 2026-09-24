@@ -1,13 +1,19 @@
 #if os(iOS)
 import Foundation
 import ActivityKit
+import Combine
 import UIKit
 
-/// Starts, updates, and ends the live-HR Live Activity. The activity appears on the Lock Screen and
-/// in the Dynamic Island while the strap is bonded and streaming heart rate.
+/// Starts, updates, and ends the live-HR Live Activity on the Lock Screen and in the Dynamic Island: the heart rate
+/// while the strap measures it, the dash while it does not. It follows the strap from process start (`follow`).
 @MainActor
 final class LiveActivityController {
     private var activity: Activity<NOOPActivityAttributes>?
+    /// What the banner reads — the live heart rate, the link, the day's recovery and effort — set once by `follow`.
+    private weak var model: AppModel?
+    /// Whether the Lift Log banner is on screen, which the heart rate banner makes room for.
+    private var standsAside: () -> Bool = { false }
+    private var cancellables: Set<AnyCancellable> = []
     private var lastPush: Date = .distantPast
     /// What the banner was last pushed with, so an unchanged banner is not pushed again
     /// (`LiveHRBannerPushPolicy`). Nil until this controller pushes, and again once it ends the activity.
@@ -28,14 +34,71 @@ final class LiveActivityController {
     /// (`LiveHRBannerPushPolicy`), so a banner fed by a worn strap never goes stale.
     static let staleAfter: TimeInterval = 30
 
+    /// Follow the strap from process start, not from a screen. iOS starts NOOP in the background — the strap
+    /// reconnecting, a sync, the Sync Strap shortcut — and a process started that way need not build any screen (the
+    /// shortcut's never does), while a banner the previous run left on the Lock Screen is there to be picked up and
+    /// fed from the first reading. Called once, from the app's `init`, like the Lift Log's own resume.
+    func follow(_ model: AppModel, standsAside: @escaping () -> Bool) {
+        self.model = model
+        self.standsAside = standsAside
+        // A `@Published` sink runs in willSet: each hands on the value being written and reads the other from `live`.
+        // AppModel's own sinks, subscribed before these, have already folded the value into its median (`bpm`).
+        model.live.$heartRate
+            .sink { [weak self, weak model] hr in
+                guard let model else { return }
+                self?.refreshBanner(heartRate: hr, connected: model.live.connected)
+            }
+            .store(in: &cancellables)
+        model.live.$connected
+            .sink { [weak self, weak model] isConnected in
+                guard let model else { return }
+                self?.refreshBanner(heartRate: model.live.heartRate, connected: isConnected)
+            }
+            .store(in: &cancellables)
+        // The switch is the one way to be rid of the banner, so it acts at once — not at the next heart-rate tick,
+        // which a strap off the wrist may not send for hours.
+        NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
+            .receive(on: DispatchQueue.main)
+            .map { _ in UnitPrefs.liveActivityEnabled() }
+            .prepend(UnitPrefs.liveActivityEnabled())
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak self] _ in self?.refreshBanner() }
+            .store(in: &cancellables)
+    }
+
+    /// NOOP came on screen, the only time iOS lets it start the banner: offered now rather than at the next heart-rate
+    /// change, which a strap off the wrist may not bring for a long while. Said by the caller, from the scene phase,
+    /// because `applicationState` can still read inactive while the scene turns active.
+    func appBecameActive() {
+        refreshBanner(appActive: true)
+    }
+
+    private func refreshBanner(appActive: Bool? = nil) {
+        guard let model else { return }
+        refreshBanner(heartRate: model.live.heartRate, connected: model.live.connected, appActive: appActive)
+    }
+
+    /// #911: recovery and effort come from the SAME shared `Repository.widgetAnchor` the widget and the watch use, so
+    /// the banner cannot name a different day at the rollover; memoized, because this runs on every heart-rate tick
+    /// (re-deriving it once scanned the whole history, #1051).
+    private func refreshBanner(heartRate: Int?, connected: Bool, appActive: Bool? = nil) {
+        guard let model else { return }
+        let day = model.repo.cachedWidgetAnchor()
+        update(bpm: connected ? (model.bpm ?? heartRate) : nil, recovery: day?.recovery.map { Int($0.rounded()) },
+               connected: connected, standsAside: standsAside(),
+               appActive: appActive ?? (UIApplication.shared.applicationState == .active),
+               effort: day?.strain.map { Int($0.rounded()) })
+    }
+
     /// Drive the activity from the latest live values (`LiveHRBannerLifecycle` decides start / push / end). Starts
     /// only in the foreground (`appActive`), with the strap CONNECTED (the live link, not the sticky "paired" flag),
     /// before a heart rate arrives if need be; a running banner shows the dash through a dropped link or a strap
     /// that is not measuring, and ends only when its switch is off or the Lift Log banner takes the screen
     /// (`standsAside`). Pushed when what it shows changes, and often enough to stay fresh (`LiveHRBannerPushPolicy`,
     /// `staleAfter`).
-    func update(bpm: Int?, recovery: Int?, connected: Bool, standsAside: Bool, appActive: Bool,
-                effort: Int? = nil) {
+    private func update(bpm: Int?, recovery: Int?, connected: Bool, standsAside: Bool, appActive: Bool,
+                        effort: Int?) {
         guard authInfo.areActivitiesEnabled else { return }
 
         // A banner iOS ended (after about eight hours) or the user swiped away is gone: forget it, so the next time
@@ -107,7 +170,7 @@ final class LiveActivityController {
         activity.activityState == .active || activity.activityState == .stale
     }
 
-    func end() async {
+    private func end() async {
         // End every NOOP Live Activity, not just our cached handle — covers a straggler from a prior
         // session we never re-adopted (#341) and any rare duplicate. Iterating the live list is the
         // only way to reach activities this controller instance never started.
