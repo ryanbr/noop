@@ -72,6 +72,14 @@
       "identity_sha256": "5c7b107d76b7c42ea4a0deb3bbd2bd62dc3d5f267b276af2f521502add2c73a2",
       "platform": "swift",
       "rationale": "Twin of the Kotlin UserProfile.cacheKey in android/app/src/main/java/com/noop/analytics/AnalyticsModels.kt; the two types sit in differently named files, so the ledger cannot pair them."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-property",
+      "identity": "swift\u0000Packages/OuraProtocol/Sources/OuraProtocol/OuraEvents.swift::channel@property#1",
+      "identity_sha256": "ecbc737217fc7e501b46226d4560ed9f23d2bd636faeef2f5e59e0a7274821e1",
+      "platform": "swift",
+      "rationale": "Twin of the Kotlin `val OuraSpO2.channel` in android/app/src/main/java/com/noop/oura/OuraEvents.kt. Both are one-line extension properties over OuraSpO2 returning OuraSpO2Channel, added together in the same change. Kotlin declares its copy as a TOP-LEVEL extension property with a dotted receiver, which the ledger's Kotlin property scan does not index, so the Swift side reads as one-sided. The pair is real; only one half is visible to the inventory."
     }
   ]
 }
