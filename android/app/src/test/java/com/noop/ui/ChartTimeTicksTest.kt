@@ -57,7 +57,10 @@ class ChartTimeTicksTest {
     }
 
     @Test fun fiveMinutesTicksEveryMinute() {
-        val ticks = chartTimeTicks(at(2026, 7, 10, 14, 0, 30), at(2026, 7, 10, 14, 5, 30), kyiv)
+        // 5-minute window from 14:00:30 to 14:05:30 — use epoch math since at() has no seconds param.
+        val start = at(2026, 7, 10, 14, 0) + 30
+        val end = at(2026, 7, 10, 14, 5) + 30
+        val ticks = chartTimeTicks(start, end, kyiv)
         assertEquals(listOf("14:01", "14:02", "14:03", "14:04", "14:05"), ticks.map { it.second })
     }
 
