@@ -1,6 +1,7 @@
 package com.noop.ui
 
 import com.noop.R
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -125,6 +126,7 @@ fun StressScreen(vm: AppViewModel, onBreathe: () -> Unit = {}) {
     // banked HR + R-R via the SAME 0–3 proxy the daily score uses. Null until the read
     // completes; DaytimeStress.Result.EMPTY when the day has no usable intraday HR.
     var daytime by remember { mutableStateOf<DaytimeStress.Result?>(null) }
+    var daytimeUsesPersonalBaseline by remember { mutableStateOf(false) }
     // ADDITIVE, on-demand advanced readouts, computed live from the SAME day's R-R the daytime
     // timeline already reads. These do NOT feed the 0..3 score or the timeline; they are two extra,
     // clearly-labelled HRV lenses surfaced in their own card. Each stays null when its engine's
@@ -165,6 +167,7 @@ fun StressScreen(vm: AppViewModel, onBreathe: () -> Unit = {}) {
                     val personal = NoopPrefs.stressPersonalBaseline(context)
                     val core = runCatching { loadDaytimeCore(vm, personal) }.getOrNull()
                     daytime = core?.daytime ?: DaytimeStress.Result.EMPTY
+                    daytimeUsesPersonalBaseline = core?.usesPersonalBaseline == true
                     val beats = core?.rr.orEmpty()
                     val lenses = if (beats.isEmpty()) null else runCatching {
                         withContext(Dispatchers.Default) {
@@ -185,7 +188,7 @@ fun StressScreen(vm: AppViewModel, onBreathe: () -> Unit = {}) {
 
     LazyScreenScaffold(
         title = uiString(R.string.l10n_stress_screen_stress_bad33342),
-        subtitle = "Autonomic load from HRV and resting heart rate",
+        subtitle = uiString(R.string.stress_screen_subtitle),
         // LIQUID SKY BACKDROP (the pilot pattern — LiquidScreenSky.kt): the time-of-day liquid sky settles
         // into the theme canvas behind the header + hero vessel, full-bleed (full-width, up behind the
         // status bar via the scaffold's topBackground plumbing), and the cards float OVER it on the flat
@@ -197,7 +200,9 @@ fun StressScreen(vm: AppViewModel, onBreathe: () -> Unit = {}) {
         fullBleedBackground = screenBackdropFullBleed(showDayCycleBackground, skyBehindCards),
     ) {
         when {
-            model != null -> StressContent(model, daytime, stressIndex, freqHrv, onBreathe)
+            model != null -> StressContent(
+                model, daytime, daytimeUsesPersonalBaseline, stressIndex, freqHrv, onBreathe,
+            )
             !storedLoaded -> item { StressLoading() }
             else -> item { StressEmpty() }
         }
@@ -214,6 +219,7 @@ fun StressScreen(vm: AppViewModel, onBreathe: () -> Unit = {}) {
 private data class DaytimeCore(
     val daytime: DaytimeStress.Result,
     val rr: List<RrInterval>,
+    val usesPersonalBaseline: Boolean,
 )
 
 /**
@@ -244,7 +250,7 @@ private suspend fun loadDaytimeCore(
     val tzOffsetSeconds = zone.rules.getOffset(Instant.ofEpochSecond(nowSeconds)).totalSeconds.toLong()
     val hr = vm.repo.hrSamplesUnion(vm.activeStrapId, from, nowSeconds, limit = 200_000)
     if (hr.size < DaytimeStress.minHourHrSamples) {
-        return@withContext DaytimeCore(DaytimeStress.Result.EMPTY, emptyList())
+        return@withContext DaytimeCore(DaytimeStress.Result.EMPTY, emptyList(), false)
     }
     val rr = vm.repo.rrIntervalsUnion(vm.activeStrapId, from, nowSeconds, limit = 200_000)
     // Wrist accelerometer for the motion gate: an ambulatory hour is EXERTION, not stress, so it is
@@ -271,7 +277,11 @@ private suspend fun loadDaytimeCore(
     val daytime = DaytimeStress.analyze(hr, rr, gravity, tzOffsetSeconds, mode, includeTimeline = true)
     // ADDITIVE advanced readouts from the SAME `rr`. Each engine self-gates and returns null when
     // its requirement is not met, in which case its row is simply hidden in the UI.
-    DaytimeCore(daytime, rr)
+    DaytimeCore(
+        daytime,
+        rr,
+        usesPersonalBaseline = mode is DaytimeStress.ScoringMode.BaselineRelative,
+    )
 }
 
 // MARK: - Loaded content
@@ -283,6 +293,7 @@ private suspend fun loadDaytimeCore(
 private fun androidx.compose.foundation.lazy.LazyListScope.StressContent(
     model: StressModel,
     daytime: DaytimeStress.Result?,
+    daytimeUsesPersonalBaseline: Boolean,
     stressIndex: StressIndex.Components?,
     freqHrv: HrvFreqDomain.Bands?,
     onBreathe: () -> Unit,
@@ -314,7 +325,14 @@ private fun androidx.compose.foundation.lazy.LazyListScope.StressContent(
     // 3 · Today's intraday timeline — when in the day stress ran high, + a passive Breathe
     //     suggestion when the recent hours stay elevated.
     if (daytime != null && daytime.scored.isNotEmpty()) {
-        item { StressDaytimeSection(daytime, onBreathe, modifier = Modifier.staggeredAppear(2)) }
+        item {
+            StressDaytimeSection(
+                daytime,
+                daytimeUsesPersonalBaseline,
+                onBreathe,
+                modifier = Modifier.staggeredAppear(2),
+            )
+        }
     }
 
     // 4 · Trend over the chosen window.
@@ -559,6 +577,7 @@ private const val staleTimelineSeconds: Long = 150L * 60L
 @Composable
 private fun StressDaytimeSection(
     day: DaytimeStress.Result,
+    usesPersonalBaseline: Boolean,
     onBreathe: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -615,12 +634,27 @@ private fun StressDaytimeSection(
                 }
 
                 Text(
-                    uiString(R.string.l10n_stress_screen_the_line_traces_your_autonomic_load_804f4028) +
-                        " against your own calm hours today (the same 0-3 proxy as the score " +
-                        "above, read hour by hour). Hours without enough data are skipped.",
+                    uiString(
+                        if (usesPersonalBaseline) {
+                            R.string.stress_timeline_caption_personal
+                        } else {
+                            R.string.stress_timeline_caption_day
+                        }
+                    ),
                     style = NoopType.footnote,
                     color = Palette.textTertiary,
                 )
+                if (day.activityMaskedHours > 0) {
+                    Text(
+                        pluralStringResource(
+                            R.plurals.stress_hours_excluded_moving,
+                            day.activityMaskedHours,
+                            day.activityMaskedHours,
+                        ),
+                        style = NoopType.footnote,
+                        color = Palette.textTertiary,
+                    )
+                }
                 // Where the curve actually stops, said plainly, and only when it is far enough behind
                 // the clock to look broken (#2144). The caption above gives the rule; a reader looking
                 // at a line that ends at 2pm on an axis running to 4pm wants to know that THIS hour is
@@ -667,7 +701,11 @@ private fun StressDaytimeSection(
  * the drawing differs, because Glance has to render to a Bitmap and Compose does not.
  */
 @Composable
-internal fun StressTodayCard(points: List<StressPoint>, modifier: Modifier = Modifier) {
+internal fun StressTodayCard(
+    points: List<StressPoint>,
+    activityMaskedHours: Int,
+    modifier: Modifier = Modifier,
+) {
     val stats = remember(points) { StressTrace.stats(points) }
     val ticks = remember(points) { StressTrace.timeTicks(points) }
     val textTertiary = Palette.textTertiary
@@ -846,6 +884,17 @@ internal fun StressTodayCard(points: List<StressPoint>, modifier: Modifier = Mod
                     style = NoopType.footnote,
                     color = textTertiary,
                 )
+                if (activityMaskedHours > 0) {
+                    Text(
+                        pluralStringResource(
+                            R.plurals.stress_hours_excluded_moving,
+                            activityMaskedHours,
+                            activityMaskedHours,
+                        ),
+                        style = NoopType.footnote,
+                        color = textTertiary,
+                    )
+                }
             }
         }
     }

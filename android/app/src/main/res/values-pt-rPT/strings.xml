@@ -1943,6 +1943,13 @@
     <string name="recording_chip_detail_connected_no_data">Ainda não há frequência cardíaca em direto nem histórico sincronizado nesta sessão.</string>
     <string name="score_state_title_calibrating">A calibrar</string>
     <string name="l10n_stress_glance_widget_resumes_in_the_morning_a640b49f">Retoma de manhã</string>
+    <string name="stress_screen_subtitle">Carga autonómica ao longo do teu dia acordado</string>
+    <string name="stress_timeline_caption_day">A linha mostra o indicador de 0–3 de cada hora de vigília, avaliado em relação às tuas próprias horas calmas de hoje. A barra abaixo divide o teu dia em períodos de stress baixo, moderado e elevado.</string>
+    <string name="stress_timeline_caption_personal">A linha mostra o indicador de 0–3 de cada hora de vigília, avaliado em relação à tua linha de base diurna pessoal (como os teus dias costumam decorrer). A barra abaixo divide o teu dia em períodos de stress baixo, moderado e elevado.</string>
+    <plurals name="stress_hours_excluded_moving">
+        <item quantity="one">Foi excluída %1$d hora — estiveste em movimento.</item>
+        <item quantity="other">Foram excluídas %1$d horas — estiveste em movimento.</item>
+    </plurals>
     <string name="score_state_title_needs_strap">Precisa da pega</string>
     <string name="score_state_title_last_night">Ontem à noite · %1$s</string>
     <string name="score_state_title_latest_sleep">Último sono · %1$s</string>
