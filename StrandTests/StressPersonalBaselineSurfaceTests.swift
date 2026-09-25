@@ -26,7 +26,9 @@ final class StressPersonalBaselineSurfaceTests: XCTestCase {
                 "personalBaseline: PuffinExperiment.stressPersonalBaselineEnabled"
             ))
         }
-        XCTAssertTrue(producer.contains("memo.personalBaseline == personalBaseline"))
+        // A slot per lens, not one slot that compares the lens: comparing made the two surfaces evict
+        // each other on every alternation, so the fingerprint gate never held with the toggle on.
+        XCTAssertTrue(producer.contains("memos[personalBaseline]"))
     }
 
     func testWidgetPublisherRetainsTheCheapDefaultMode() throws {

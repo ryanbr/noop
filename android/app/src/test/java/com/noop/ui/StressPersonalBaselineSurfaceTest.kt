@@ -48,9 +48,17 @@ class StressPersonalBaselineSurfaceTest {
                     "personalBaseline\\s*=\\s*NoopPrefs\\.stressPersonalBaseline\\(context\\)",
             ).containsMatchIn(today),
         )
+        // A SLOT PER LENS, not one slot that compares the lens. Comparing kept the two surfaces from
+        // reading each other's curve but made every call miss whenever they alternated, which is every
+        // Today tick with a background publish between. Keying keeps each surface's fingerprint gate.
         assertTrue(
-            "the producer memo must distinguish the foreground lens from its widget default",
-            producer.contains("it.personalBaseline == personalBaseline"),
+            "the producer must keep a memo slot per lens, not one slot carrying the lens",
+            producer.contains("memos[personalBaseline]"),
+        )
+        assertTrue(
+            "those slots must stay volatile: four concurrent callers reach this producer",
+            producer.contains("@Volatile") &&
+                producer.contains("private var memos: Map<Boolean, Memo>"),
         )
         assertTrue(
             "Today must not seed a personal-lens card from the widget's default-lens snapshot",
@@ -98,8 +106,8 @@ class StressPersonalBaselineSurfaceTest {
             )
         }
         assertTrue(
-            "the Apple producer memo must distinguish the foreground lens from its widget default",
-            producer.contains("memo.personalBaseline == personalBaseline"),
+            "the Apple producer must keep a memo slot per lens, not one slot carrying the lens",
+            producer.contains("memos[personalBaseline]"),
         )
         assertFalse(
             "the iOS widget publisher must retain StressDayCurve.today's day-relative default",

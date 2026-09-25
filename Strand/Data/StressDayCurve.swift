@@ -32,7 +32,15 @@ enum StressDayCurve {
         let result: DaytimeStress.Result
     }
 
-    @MainActor private static var memo: Memo?
+    /// ONE SLOT PER LENS, not one slot carrying the lens.
+    ///
+    /// The lens became part of the memo's identity so an unchanged heart-rate fingerprint could not
+    /// replay one surface's curve into the other. With a single slot that is correct and useless: the
+    /// background publishers ask with the default lens and Today asks with the selected one, so when the
+    /// toggle is on each call evicts the other's entry and every call misses whatever the fingerprint
+    /// says. Today re-asks on a timer, so the trailing-history read the fingerprint gate exists to avoid
+    /// was being paid on essentially every tick. Keyed by lens, each surface keeps its own gate.
+    @MainActor private static var memos: [Bool: Memo] = [:]
 
     /// Today's curve and the local day number it belongs to, or nil when it could not be scored.
     ///
@@ -59,8 +67,8 @@ enum StressDayCurve {
         // serve yesterday's curve as today's.
         // Foreground Today and the widget publisher can call in either order. Include the requested
         // lens so an unchanged HR fingerprint can never replay one surface's result into the other.
-        if let memo, memo.day == day, memo.count == fingerprint.count,
-           memo.maxTs == fingerprint.maxTs, memo.personalBaseline == personalBaseline {
+        if let memo = memos[personalBaseline], memo.day == day,
+           memo.count == fingerprint.count, memo.maxTs == fingerprint.maxTs {
             return (memo.result, day)
         }
 
@@ -104,8 +112,8 @@ enum StressDayCurve {
         }
         // Too little signal leaves an EMPTY result, which is a real answer about today rather than a
         // refusal: a reader should drop yesterday's line rather than keep drawing it.
-        memo = Memo(count: fingerprint.count, maxTs: fingerprint.maxTs, day: day,
-                    personalBaseline: personalBaseline, result: scored)
+        memos[personalBaseline] = Memo(count: fingerprint.count, maxTs: fingerprint.maxTs, day: day,
+                                       personalBaseline: personalBaseline, result: scored)
         return (scored, day)
     }
 
@@ -128,7 +136,7 @@ enum StressDayCurve {
                                        to: calendar.startOfDay(for: date)).day ?? 0
     }
 
-    /// Drops the memo so a test starts from a known state.
+    /// Drops both memo slots so a test starts from a known state.
     @MainActor
-    static func resetForTest() { memo = nil }
+    static func resetForTest() { memos.removeAll() }
 }
