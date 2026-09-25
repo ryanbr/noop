@@ -103,7 +103,53 @@ final class ChargeDriversTests: XCTestCase {
             deltaPoints: -1,
             valueText: "30 ms",
             baselineText: "30 ms baseline",
-            verdict: "below baseline, limiting recovery")])
+            verdict: "slightly below baseline, limiting recovery")])
+    }
+
+    func testVerdictsMatchDisplayedPrecisionAndRoundedPoints() {
+        let cases: [(Double, Double, Int, Int, String)] = [
+            (51.3, 50.8, 1, 0, "slightly above baseline, supporting recovery"),
+            (51.3, 50.8, -1, 0, "slightly above baseline, limiting recovery"),
+            (50.8, 51.3, 1, 0, "slightly below baseline, supporting recovery"),
+            (50.8, 51.3, -1, 0, "slightly below baseline, limiting recovery"),
+            (17, 16, 0, 1, "above baseline, too small to change Charge"),
+            (15, 16, 0, 1, "below baseline, too small to change Charge"),
+            (51.3, 50.8, 0, 0, "at baseline"),
+        ]
+
+        for (value, baseline, points, fractionDigits, expected) in cases {
+            XCTAssertEqual(
+                RecoveryScorer.baselineVerdict(
+                    value: value, baseline: baseline,
+                    deltaPoints: points, fractionDigits: fractionDigits),
+                expected)
+        }
+    }
+
+    func testSkinTempVerdictUsesRoundedPointEffect() {
+        XCTAssertEqual(
+            RecoveryScorer.skinTempVerdict(0.2, deltaPoints: 0),
+            "near baseline")
+        XCTAssertEqual(
+            RecoveryScorer.skinTempVerdict(0.2, deltaPoints: -1),
+            "warmer than baseline, limiting recovery")
+        XCTAssertEqual(
+            RecoveryScorer.skinTempVerdict(-0.2, deltaPoints: -1),
+            "cooler than baseline, limiting recovery")
+    }
+
+    func testRestingHRRowCannotSayAboveWhenDisplayedValuesMatch() {
+        let drivers = RecoveryScorer.chargeDrivers(
+            hrv: 50, rhr: 51.3, resp: nil,
+            hrvBaseline: baseline(mean: 50, sigma: 6),
+            rhrBaseline: baseline(mean: 50.8, sigma: 0.1),
+            respBaseline: nil, sleepPerf: nil)
+        let rhr = drivers.first { $0.label == "Resting heart rate" }!
+
+        XCTAssertEqual(rhr.valueText, "51 bpm")
+        XCTAssertEqual(rhr.baselineText, "51 bpm baseline")
+        XCTAssertLessThan(rhr.deltaPoints, 0)
+        XCTAssertEqual(rhr.verdict, "slightly above baseline, limiting recovery")
     }
 
     // MARK: - Presence / omission
@@ -153,8 +199,8 @@ final class ChargeDriversTests: XCTestCase {
         // round to 0 points honestly). Each MATERIAL term (HRV 0.55, resting HR 0.20, Rest 0.15)
         // should push Charge UP, so its marginal-vs-neutral contribution is strictly positive.
         // Respiration is a deliberately-minor 0.05-weight term: it can legitimately be worth ~0
-        // points, so we assert only its DIRECTION (non-negative + a supporting verdict), not a
-        // fabricated magnitude.
+        // points, so its verdict must acknowledge when the visible difference is too small to move
+        // Charge rather than claim a supporting effect.
         let drivers = RecoveryScorer.chargeDrivers(
             hrv: 58, rhr: 53, resp: 15,
             hrvBaseline: baseline(mean: 50, sigma: 6), rhrBaseline: baseline(mean: 58, sigma: 3),
@@ -169,7 +215,11 @@ final class ChargeDriversTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(resp.deltaPoints, 0)   // minor 0.05-weight term; direction below
         XCTAssertTrue(hrv.verdict.contains("supporting recovery"))
         XCTAssertTrue(rhr.verdict.contains("supporting recovery"))
-        XCTAssertTrue(resp.verdict.contains("supporting recovery"))
+        XCTAssertEqual(
+            resp.verdict,
+            resp.deltaPoints == 0
+                ? "below baseline, too small to change Charge"
+                : "below baseline, supporting recovery")
     }
 
     func testBadInputsGiveNegativeContributions() {

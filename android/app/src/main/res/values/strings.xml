@@ -2574,6 +2574,12 @@
     <string name="today_driver_below_supporting">below baseline, supporting recovery</string>
     <string name="today_driver_above_limiting">above baseline, limiting recovery</string>
     <string name="today_driver_below_limiting">below baseline, limiting recovery</string>
+    <string name="today_driver_slightly_above_supporting">slightly above baseline, supporting recovery</string>
+    <string name="today_driver_slightly_below_supporting">slightly below baseline, supporting recovery</string>
+    <string name="today_driver_slightly_above_limiting">slightly above baseline, limiting recovery</string>
+    <string name="today_driver_slightly_below_limiting">slightly below baseline, limiting recovery</string>
+    <string name="today_driver_above_too_small">above baseline, too small to change Charge</string>
+    <string name="today_driver_below_too_small">below baseline, too small to change Charge</string>
     <string name="today_driver_at_baseline">at baseline</string>
     <string name="today_driver_hrv_saturation">below baseline, limiting recovery, though low resting HR suggests this may be parasympathetic saturation rather than fatigue</string>
     <string name="today_driver_strong_night">a strong night, supporting recovery</string>

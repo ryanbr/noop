@@ -2368,6 +2368,12 @@
     <string name="today_driver_below_supporting">低于基线，有利于恢复</string>
     <string name="today_driver_above_limiting">高于基线，限制恢复</string>
     <string name="today_driver_below_limiting">低于基线，限制恢复</string>
+    <string name="today_driver_slightly_above_supporting">略高于基线，有利于恢复</string>
+    <string name="today_driver_slightly_below_supporting">略低于基线，有利于恢复</string>
+    <string name="today_driver_slightly_above_limiting">略高于基线，限制恢复</string>
+    <string name="today_driver_slightly_below_limiting">略低于基线，限制恢复</string>
+    <string name="today_driver_above_too_small">高于基线，但差异太小，无法改变充能(Charge)</string>
+    <string name="today_driver_below_too_small">低于基线，但差异太小，无法改变充能(Charge)</string>
     <string name="today_driver_at_baseline">处于基线</string>
     <string name="today_driver_hrv_saturation">低于基线，限制恢复；但较低的静息心率提示这可能是副交感神经饱和，而非疲劳</string>
     <string name="today_driver_strong_night">状态良好的一晚，有利于恢复</string>

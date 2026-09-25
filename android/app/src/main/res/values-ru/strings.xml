@@ -2378,6 +2378,12 @@
     <string name="today_driver_below_supporting">ниже нормы, поддерживает восстановление</string>
     <string name="today_driver_above_limiting">выше нормы, ограничивает восстановление</string>
     <string name="today_driver_below_limiting">ниже нормы, ограничивает восстановление</string>
+    <string name="today_driver_slightly_above_supporting">слегка выше нормы, поддерживает восстановление</string>
+    <string name="today_driver_slightly_below_supporting">слегка ниже нормы, поддерживает восстановление</string>
+    <string name="today_driver_slightly_above_limiting">слегка выше нормы, ограничивает восстановление</string>
+    <string name="today_driver_slightly_below_limiting">слегка ниже нормы, ограничивает восстановление</string>
+    <string name="today_driver_above_too_small">выше нормы, разница слишком мала, чтобы изменить Charge</string>
+    <string name="today_driver_below_too_small">ниже нормы, разница слишком мала, чтобы изменить Charge</string>
     <string name="today_driver_at_baseline">на уровне нормы</string>
     <string name="today_driver_hrv_saturation">ниже нормы, ограничивает восстановление, однако низкий пульс в покое указывает, что причиной может быть парасимпатическое насыщение, а не усталость</string>
     <string name="today_driver_strong_night">сильная ночь, поддерживающая восстановление</string>

@@ -1,6 +1,7 @@
 package com.noop.analytics
 
 import kotlin.math.abs
+import kotlin.math.pow
 
 // RecoveryDrivers.kt - the USER-FACING "What shaped it" breakdown for the Charge (recovery) score.
 //
@@ -55,6 +56,12 @@ enum class ChargeDriverVerdict {
     BELOW_BASELINE_SUPPORTING,
     ABOVE_BASELINE_LIMITING,
     BELOW_BASELINE_LIMITING,
+    SLIGHTLY_ABOVE_BASELINE_SUPPORTING,
+    SLIGHTLY_BELOW_BASELINE_SUPPORTING,
+    SLIGHTLY_ABOVE_BASELINE_LIMITING,
+    SLIGHTLY_BELOW_BASELINE_LIMITING,
+    ABOVE_BASELINE_TOO_SMALL,
+    BELOW_BASELINE_TOO_SMALL,
     AT_BASELINE,
     HRV_SATURATION_LIMITING,
     STRONG_NIGHT_SUPPORTING,
@@ -150,42 +157,45 @@ object RecoveryDrivers {
         val drivers = ArrayList<ChargeDriver>()
 
         // HRV (dominant driver; always present once the score exists). Neutral = HRV at the baseline mean.
+        val hrvPoints = points(
+            RecoveryScorer.recovery(
+                hrv = hrvBaseline.baseline, rhr = rhr, resp = resp,
+                hrvBaseline = hrvBaseline, rhrBaseline = rhrB,
+                respBaseline = respBaseline, sleepPerf = sleepPerf, skinTempDev = skinTempDev,
+            ),
+        )
         drivers.add(
             ChargeDriver(
                 label = ChargeDriverLabel.HEART_RATE_VARIABILITY,
-                deltaPoints = points(
-                    RecoveryScorer.recovery(
-                        hrv = hrvBaseline.baseline, rhr = rhr, resp = resp,
-                        hrvBaseline = hrvBaseline, rhrBaseline = rhrB,
-                        respBaseline = respBaseline, sleepPerf = sleepPerf, skinTempDev = skinTempDev,
-                    ),
-                ),
+                deltaPoints = hrvPoints,
                 value = hrv,
                 baseline = hrvBaseline.baseline,
                 unit = ChargeDriverUnit.MILLISECONDS,
                 verdict = hrvVerdict(
                     value = hrv,
                     baseline = hrvBaseline.baseline,
+                    deltaPoints = hrvPoints,
                     saturationDetected = hrvSaturationDetected,
                 ),
             ),
         )
         // Resting HR (lower vs baseline supports recovery). Neutral = resting HR at the baseline mean.
         if (rhrB != null) {
+            val rhrPoints = points(
+                RecoveryScorer.recovery(
+                    hrv = hrv, rhr = rhrB.baseline, resp = resp,
+                    hrvBaseline = hrvBaseline, rhrBaseline = rhrB,
+                    respBaseline = respBaseline, sleepPerf = sleepPerf, skinTempDev = skinTempDev,
+                ),
+            )
             drivers.add(
                 ChargeDriver(
                     label = ChargeDriverLabel.RESTING_HEART_RATE,
-                    deltaPoints = points(
-                        RecoveryScorer.recovery(
-                            hrv = hrv, rhr = rhrB.baseline, resp = resp,
-                            hrvBaseline = hrvBaseline, rhrBaseline = rhrB,
-                            respBaseline = respBaseline, sleepPerf = sleepPerf, skinTempDev = skinTempDev,
-                        ),
-                    ),
+                    deltaPoints = rhrPoints,
                     value = rhr,
                     baseline = rhrB.baseline,
                     unit = ChargeDriverUnit.BEATS_PER_MINUTE,
-                    verdict = rhrVerdict(value = rhr, baseline = rhrB.baseline),
+                    verdict = rhrVerdict(value = rhr, baseline = rhrB.baseline, deltaPoints = rhrPoints),
                 ),
             )
         }
@@ -211,40 +221,44 @@ object RecoveryDrivers {
         }
         // Respiration (lower vs baseline supports recovery). Neutral = respiration at the baseline mean.
         if (resp != null && respBaseline != null) {
+            val respPoints = points(
+                RecoveryScorer.recovery(
+                    hrv = hrv, rhr = rhr, resp = respBaseline.baseline,
+                    hrvBaseline = hrvBaseline, rhrBaseline = rhrB,
+                    respBaseline = respBaseline, sleepPerf = sleepPerf, skinTempDev = skinTempDev,
+                ),
+            )
             drivers.add(
                 ChargeDriver(
                     label = ChargeDriverLabel.RESPIRATORY_RATE,
-                    deltaPoints = points(
-                        RecoveryScorer.recovery(
-                            hrv = hrv, rhr = rhr, resp = respBaseline.baseline,
-                            hrvBaseline = hrvBaseline, rhrBaseline = rhrB,
-                            respBaseline = respBaseline, sleepPerf = sleepPerf, skinTempDev = skinTempDev,
-                        ),
-                    ),
+                    deltaPoints = respPoints,
                     value = resp,
                     baseline = respBaseline.baseline,
                     unit = ChargeDriverUnit.BREATHS_PER_MINUTE,
-                    verdict = respVerdict(value = resp, baseline = respBaseline.baseline),
+                    verdict = respVerdict(
+                        value = resp, baseline = respBaseline.baseline, deltaPoints = respPoints,
+                    ),
                 ),
             )
         }
         // Skin-temp deviation (symmetric penalty: any drift lowers Charge). Neutral = zero drift, so the
         // delta is always <= 0 (a penalty removed). Surface it as a RELATIVE deviation, never an absolute.
         if (skinTempDev != null) {
+            val skinTempPoints = points(
+                RecoveryScorer.recovery(
+                    hrv = hrv, rhr = rhr, resp = resp,
+                    hrvBaseline = hrvBaseline, rhrBaseline = rhrB,
+                    respBaseline = respBaseline, sleepPerf = sleepPerf, skinTempDev = 0.0,
+                ),
+            )
             drivers.add(
                 ChargeDriver(
                     label = ChargeDriverLabel.SKIN_TEMPERATURE,
-                    deltaPoints = points(
-                        RecoveryScorer.recovery(
-                            hrv = hrv, rhr = rhr, resp = resp,
-                            hrvBaseline = hrvBaseline, rhrBaseline = rhrB,
-                            respBaseline = respBaseline, sleepPerf = sleepPerf, skinTempDev = 0.0,
-                        ),
-                    ),
+                    deltaPoints = skinTempPoints,
                     value = skinTempDev,
                     baseline = null,
                     unit = ChargeDriverUnit.CELSIUS_DEVIATION,
-                    verdict = skinTempVerdict(skinTempDev),
+                    verdict = skinTempVerdict(skinTempDev, deltaPoints = skinTempPoints),
                 ),
             )
         }
@@ -265,30 +279,83 @@ object RecoveryDrivers {
     private fun hrvVerdict(
         value: Double,
         baseline: Double,
+        deltaPoints: Int,
         saturationDetected: Boolean,
-    ): ChargeDriverVerdict = when {
-        value > baseline -> ChargeDriverVerdict.ABOVE_BASELINE_SUPPORTING
-        value < baseline ->
-            if (saturationDetected) {
-                ChargeDriverVerdict.HRV_SATURATION_LIMITING
-            } else {
-                ChargeDriverVerdict.BELOW_BASELINE_LIMITING
-            }
-        else -> ChargeDriverVerdict.AT_BASELINE
+    ): ChargeDriverVerdict {
+        val verdict = baselineVerdict(
+            value = value, baseline = baseline, deltaPoints = deltaPoints, fractionDigits = 0,
+        )
+        return if (saturationDetected && verdict == ChargeDriverVerdict.BELOW_BASELINE_LIMITING) {
+            ChargeDriverVerdict.HRV_SATURATION_LIMITING
+        } else {
+            verdict
+        }
     }
 
     /** Resting-HR verdict (lower is better). Mirrors Swift `rhrVerdict` exactly. */
-    private fun rhrVerdict(value: Double, baseline: Double): ChargeDriverVerdict = when {
-        value < baseline -> ChargeDriverVerdict.BELOW_BASELINE_SUPPORTING
-        value > baseline -> ChargeDriverVerdict.ABOVE_BASELINE_LIMITING
-        else -> ChargeDriverVerdict.AT_BASELINE
-    }
+    private fun rhrVerdict(value: Double, baseline: Double, deltaPoints: Int): ChargeDriverVerdict =
+        baselineVerdict(value = value, baseline = baseline, deltaPoints = deltaPoints, fractionDigits = 0)
 
     /** Respiration verdict (lower is better). Mirrors Swift `respVerdict` exactly. */
-    private fun respVerdict(value: Double, baseline: Double): ChargeDriverVerdict = when {
-        value < baseline -> ChargeDriverVerdict.BELOW_BASELINE_SUPPORTING
-        value > baseline -> ChargeDriverVerdict.ABOVE_BASELINE_LIMITING
-        else -> ChargeDriverVerdict.AT_BASELINE
+    private fun respVerdict(value: Double, baseline: Double, deltaPoints: Int): ChargeDriverVerdict =
+        baselineVerdict(value = value, baseline = baseline, deltaPoints = deltaPoints, fractionDigits = 1)
+
+    /**
+     * Resolve from exactly what the row shows: direction follows [fractionDigits], while effect follows
+     * the already-rounded [deltaPoints] printed beside it. Mirrors Swift `baselineVerdict` exactly.
+     */
+    internal fun baselineVerdict(
+        value: Double,
+        baseline: Double,
+        deltaPoints: Int,
+        fractionDigits: Int,
+    ): ChargeDriverVerdict {
+        val scale = when (fractionDigits) {
+            0 -> 1.0
+            1 -> 10.0
+            else -> 10.0.pow(fractionDigits)
+        }
+        fun displayBucket(number: Double): Long {
+            val scaled = number * scale
+            return if (scaled < 0.0) -Math.round(-scaled) else Math.round(scaled)
+        }
+
+        val displayedValue = displayBucket(value)
+        val displayedBaseline = displayBucket(baseline)
+        if (displayedValue == displayedBaseline) {
+            if (deltaPoints == 0 || value == baseline) return ChargeDriverVerdict.AT_BASELINE
+            return if (value > baseline) {
+                if (deltaPoints > 0) {
+                    ChargeDriverVerdict.SLIGHTLY_ABOVE_BASELINE_SUPPORTING
+                } else {
+                    ChargeDriverVerdict.SLIGHTLY_ABOVE_BASELINE_LIMITING
+                }
+            } else if (deltaPoints > 0) {
+                ChargeDriverVerdict.SLIGHTLY_BELOW_BASELINE_SUPPORTING
+            } else {
+                ChargeDriverVerdict.SLIGHTLY_BELOW_BASELINE_LIMITING
+            }
+        }
+
+        val above = displayedValue > displayedBaseline
+        if (deltaPoints == 0) {
+            return if (above) {
+                ChargeDriverVerdict.ABOVE_BASELINE_TOO_SMALL
+            } else {
+                ChargeDriverVerdict.BELOW_BASELINE_TOO_SMALL
+            }
+        }
+        return if (above) {
+            if (deltaPoints > 0) {
+                ChargeDriverVerdict.ABOVE_BASELINE_SUPPORTING
+            } else {
+                ChargeDriverVerdict.ABOVE_BASELINE_LIMITING
+            }
+        } else if (deltaPoints > 0) {
+            ChargeDriverVerdict.BELOW_BASELINE_SUPPORTING
+        } else {
+            ChargeDriverVerdict.BELOW_BASELINE_LIMITING
+        }
     }
 
     /** Rest-quality verdict (higher is better), centred on sleepPerfCenter. Mirrors Swift `sleepVerdict`. */
@@ -298,15 +365,12 @@ object RecoveryDrivers {
         else -> ChargeDriverVerdict.TYPICAL_NIGHT
     }
 
-    /** Half-width (C) of the "typical" skin-temp band; matches Swift skinTempTypicalBandC. */
-    private const val SKIN_TEMP_TYPICAL_BAND_C: Double = 0.3
-
     /**
-     * Skin-temp verdict (symmetric): a drift within the typical band reads neutral, beyond it limits
-     * recovery, warmer or cooler. Mirrors the Swift skinTempVerdict exactly.
+     * Skin-temp verdict (symmetric): a drift reads neutral only when its rounded point effect is zero.
+     * Mirrors the Swift skinTempVerdict exactly.
      */
-    private fun skinTempVerdict(dev: Double): ChargeDriverVerdict = when {
-        abs(dev) <= SKIN_TEMP_TYPICAL_BAND_C -> ChargeDriverVerdict.NEAR_BASELINE
+    internal fun skinTempVerdict(dev: Double, deltaPoints: Int): ChargeDriverVerdict = when {
+        deltaPoints == 0 -> ChargeDriverVerdict.NEAR_BASELINE
         dev > 0.0 -> ChargeDriverVerdict.WARMER_THAN_BASELINE_LIMITING
         else -> ChargeDriverVerdict.COOLER_THAN_BASELINE_LIMITING
     }

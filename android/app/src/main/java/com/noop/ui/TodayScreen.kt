@@ -5550,6 +5550,16 @@ private fun DriverRow(driver: ChargeDriver) {
         ChargeDriverVerdict.BELOW_BASELINE_SUPPORTING -> uiString(R.string.today_driver_below_supporting)
         ChargeDriverVerdict.ABOVE_BASELINE_LIMITING -> uiString(R.string.today_driver_above_limiting)
         ChargeDriverVerdict.BELOW_BASELINE_LIMITING -> uiString(R.string.today_driver_below_limiting)
+        ChargeDriverVerdict.SLIGHTLY_ABOVE_BASELINE_SUPPORTING ->
+            uiString(R.string.today_driver_slightly_above_supporting)
+        ChargeDriverVerdict.SLIGHTLY_BELOW_BASELINE_SUPPORTING ->
+            uiString(R.string.today_driver_slightly_below_supporting)
+        ChargeDriverVerdict.SLIGHTLY_ABOVE_BASELINE_LIMITING ->
+            uiString(R.string.today_driver_slightly_above_limiting)
+        ChargeDriverVerdict.SLIGHTLY_BELOW_BASELINE_LIMITING ->
+            uiString(R.string.today_driver_slightly_below_limiting)
+        ChargeDriverVerdict.ABOVE_BASELINE_TOO_SMALL -> uiString(R.string.today_driver_above_too_small)
+        ChargeDriverVerdict.BELOW_BASELINE_TOO_SMALL -> uiString(R.string.today_driver_below_too_small)
         ChargeDriverVerdict.AT_BASELINE -> uiString(R.string.today_driver_at_baseline)
         ChargeDriverVerdict.HRV_SATURATION_LIMITING -> uiString(R.string.today_driver_hrv_saturation)
         ChargeDriverVerdict.STRONG_NIGHT_SUPPORTING -> uiString(R.string.today_driver_strong_night)

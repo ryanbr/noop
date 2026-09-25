@@ -2461,6 +2461,12 @@
     <string name="today_driver_below_supporting">poniżej bazy, wspiera regenerację</string>
     <string name="today_driver_above_limiting">powyżej bazy, ogranicza regenerację</string>
     <string name="today_driver_below_limiting">poniżej bazy, ogranicza regenerację</string>
+    <string name="today_driver_slightly_above_supporting">nieznacznie powyżej bazy, wspiera regenerację</string>
+    <string name="today_driver_slightly_below_supporting">nieznacznie poniżej bazy, wspiera regenerację</string>
+    <string name="today_driver_slightly_above_limiting">nieznacznie powyżej bazy, ogranicza regenerację</string>
+    <string name="today_driver_slightly_below_limiting">nieznacznie poniżej bazy, ogranicza regenerację</string>
+    <string name="today_driver_above_too_small">powyżej bazy, różnica zbyt mała, by zmienić Charge</string>
+    <string name="today_driver_below_too_small">poniżej bazy, różnica zbyt mała, by zmienić Charge</string>
     <string name="today_driver_at_baseline">na poziomie bazy</string>
     <string name="today_driver_hrv_saturation">poniżej bazy, ogranicza regenerację; niskie tętno spoczynkowe może jednak wskazywać na nasycenie przywspółczulne zamiast zmęczenia</string>
     <string name="today_driver_strong_night">mocna noc, wspiera regenerację</string>

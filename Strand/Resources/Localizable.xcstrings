@@ -188334,6 +188334,64 @@
         }
       }
     },
+    "above baseline, too small to change Charge": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "über der Basislinie, Unterschied zu klein, um Charge zu verändern"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "por encima de tu línea base, diferencia demasiado pequeña para cambiar Charge"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "au-dessus de la référence, écart trop faible pour modifier la Charge"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sopra la linea di base, differenza troppo piccola per modificare Charge"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "acima da linha de base, diferença demasiado pequena para alterar Charge"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "выше нормы, разница слишком мала, чтобы изменить Charge"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高于基线，但差异太小，无法改变充能（Charge）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "高於基線，但差異太小，無法改變充能（Charge）"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "powyżej wartości wyjściowej, różnica zbyt mała, by zmienić Charge"
+          }
+        }
+      }
+    },
     "above your baseline - well recovered": {
       "localizations": {
         "de": {
@@ -189386,6 +189444,64 @@
           "stringUnit": {
             "state": "translated",
             "value": "poniżej wartości wyjściowej, wspierając powrót do zdrowia"
+          }
+        }
+      }
+    },
+    "below baseline, too small to change Charge": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "unter der Basislinie, Unterschied zu klein, um Charge zu verändern"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "por debajo de tu línea base, diferencia demasiado pequeña para cambiar Charge"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "en dessous de la référence, écart trop faible pour modifier la Charge"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sotto la linea di base, differenza troppo piccola per modificare Charge"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "abaixo da linha de base, diferença demasiado pequena para alterar Charge"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ниже нормы, разница слишком мала, чтобы изменить Charge"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "低于基线，但差异太小，无法改变充能（Charge）"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "低於基線，但差異太小，無法改變充能（Charge）"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "poniżej wartości wyjściowej, różnica zbyt mała, by zmienić Charge"
           }
         }
       }
@@ -196831,6 +196947,238 @@
           "stringUnit": {
             "state": "translated",
             "value": "niewielki"
+          }
+        }
+      }
+    },
+    "slightly above baseline, limiting recovery": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "leicht über der Basislinie, bremst die Erholung"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ligeramente por encima de tu línea base, limita la recuperación"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "légèrement au-dessus de la référence, limite la récupération"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "leggermente sopra la linea di base, limita il recupero"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ligeiramente acima da linha de base, limita a recuperação"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "слегка выше нормы, ограничивает восстановление"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "略高于基线，限制恢复"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "略高於基線，限制恢復"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "nieznacznie powyżej wartości wyjściowej, ogranicza regenerację"
+          }
+        }
+      }
+    },
+    "slightly above baseline, supporting recovery": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "leicht über der Basislinie, stützt die Erholung"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ligeramente por encima de tu línea base, favorece la recuperación"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "légèrement au-dessus de la référence, favorise la récupération"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "leggermente sopra la linea di base, favorisce il recupero"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ligeiramente acima da linha de base, apoia a recuperação"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "слегка выше нормы, поддерживает восстановление"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "略高于基线，有助于恢复"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "略高於基線，有助於恢復"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "nieznacznie powyżej wartości wyjściowej, wspiera regenerację"
+          }
+        }
+      }
+    },
+    "slightly below baseline, limiting recovery": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "leicht unter der Basislinie, bremst die Erholung"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ligeramente por debajo de tu línea base, limita la recuperación"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "légèrement en dessous de la référence, limite la récupération"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "leggermente sotto la linea di base, limita il recupero"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ligeiramente abaixo da linha de base, limita a recuperação"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "слегка ниже нормы, ограничивает восстановление"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "略低于基线，限制恢复"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "略低於基線，限制恢復"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "nieznacznie poniżej wartości wyjściowej, ogranicza regenerację"
+          }
+        }
+      }
+    },
+    "slightly below baseline, supporting recovery": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "leicht unter der Basislinie, stützt die Erholung"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ligeramente por debajo de tu línea base, favorece la recuperación"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "légèrement en dessous de la référence, favorise la récupération"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "leggermente sotto la linea di base, favorisce il recupero"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ligeiramente abaixo da linha de base, apoia a recuperação"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "слегка ниже нормы, поддерживает восстановление"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "略低于基线，有助于恢复"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "略低於基線，有助於恢復"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "nieznacznie poniżej wartości wyjściowej, wspiera regenerację"
           }
         }
       }

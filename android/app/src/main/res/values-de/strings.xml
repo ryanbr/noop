@@ -2466,6 +2466,12 @@
     <string name="today_driver_below_supporting">unter dem Basiswert, unterstützt die Erholung</string>
     <string name="today_driver_above_limiting">über dem Basiswert, begrenzt die Erholung</string>
     <string name="today_driver_below_limiting">unter dem Basiswert, begrenzt die Erholung</string>
+    <string name="today_driver_slightly_above_supporting">leicht über dem Basiswert, unterstützt die Erholung</string>
+    <string name="today_driver_slightly_below_supporting">leicht unter dem Basiswert, unterstützt die Erholung</string>
+    <string name="today_driver_slightly_above_limiting">leicht über dem Basiswert, begrenzt die Erholung</string>
+    <string name="today_driver_slightly_below_limiting">leicht unter dem Basiswert, begrenzt die Erholung</string>
+    <string name="today_driver_above_too_small">über dem Basiswert, zu gering, um Charge zu verändern</string>
+    <string name="today_driver_below_too_small">unter dem Basiswert, zu gering, um Charge zu verändern</string>
     <string name="today_driver_at_baseline">auf dem Basiswert</string>
     <string name="today_driver_hrv_saturation">unter dem Basiswert, begrenzt die Erholung; der niedrige Ruhepuls deutet jedoch eher auf parasympathische Sättigung als auf Ermüdung hin</string>
     <string name="today_driver_strong_night">eine starke Nacht, unterstützt die Erholung</string>

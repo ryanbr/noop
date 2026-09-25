@@ -422,9 +422,8 @@ class HomeLocalizationTest(unittest.TestCase):
             "static func skinTempDevText", 1
         )[0]
         verdicts = set(re.findall(r'(?:return|\?|:)\s*"([^"]+)"', verdict_block))
-        # Thirteen return paths currently collapse to twelve unique keys because several helpers share
-        # "at baseline". Pin the unique-key set size so syntax changes cannot silently evade extraction.
-        self.assertEqual(12, len(verdicts), "Verdict extraction changed; review the catalog contract")
+        # Pin the unique-key set size so syntax changes cannot silently evade extraction.
+        self.assertEqual(18, len(verdicts), "Verdict extraction changed; review the catalog contract")
 
         catalog = audit.load_catalog(ROOT / "Strand/Resources/Localizable.xcstrings")
         missing = []

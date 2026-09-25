@@ -2445,6 +2445,12 @@
     <string name="today_driver_below_supporting">abaixo da referência, favorece a recuperação</string>
     <string name="today_driver_above_limiting">acima da referência, limita a recuperação</string>
     <string name="today_driver_below_limiting">abaixo da referência, limita a recuperação</string>
+    <string name="today_driver_slightly_above_supporting">ligeiramente acima da referência, favorece a recuperação</string>
+    <string name="today_driver_slightly_below_supporting">ligeiramente abaixo da referência, favorece a recuperação</string>
+    <string name="today_driver_slightly_above_limiting">ligeiramente acima da referência, limita a recuperação</string>
+    <string name="today_driver_slightly_below_limiting">ligeiramente abaixo da referência, limita a recuperação</string>
+    <string name="today_driver_above_too_small">acima da referência, diferença demasiado pequena para alterar Charge</string>
+    <string name="today_driver_below_too_small">abaixo da referência, diferença demasiado pequena para alterar Charge</string>
     <string name="today_driver_at_baseline">na referência</string>
     <string name="today_driver_hrv_saturation">abaixo da referência, limita a recuperação; a FC em repouso baixa sugere que poderá ser saturação parassimpática e não fadiga</string>
     <string name="today_driver_strong_night">uma noite forte, favorece a recuperação</string>

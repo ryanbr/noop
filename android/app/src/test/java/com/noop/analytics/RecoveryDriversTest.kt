@@ -124,11 +124,65 @@ class RecoveryDriversTest {
                     value = 29.99117725828923,
                     baseline = 30.0,
                     unit = ChargeDriverUnit.MILLISECONDS,
-                    verdict = ChargeDriverVerdict.BELOW_BASELINE_LIMITING,
+                    verdict = ChargeDriverVerdict.SLIGHTLY_BELOW_BASELINE_LIMITING,
                 ),
             ),
             drivers,
         )
+    }
+
+    @Test fun verdictsMatchDisplayedPrecisionAndRoundedPoints() {
+        val cases = listOf(
+            VerdictCase(51.3, 50.8, 1, 0, ChargeDriverVerdict.SLIGHTLY_ABOVE_BASELINE_SUPPORTING),
+            VerdictCase(51.3, 50.8, -1, 0, ChargeDriverVerdict.SLIGHTLY_ABOVE_BASELINE_LIMITING),
+            VerdictCase(50.8, 51.3, 1, 0, ChargeDriverVerdict.SLIGHTLY_BELOW_BASELINE_SUPPORTING),
+            VerdictCase(50.8, 51.3, -1, 0, ChargeDriverVerdict.SLIGHTLY_BELOW_BASELINE_LIMITING),
+            VerdictCase(17.0, 16.0, 0, 1, ChargeDriverVerdict.ABOVE_BASELINE_TOO_SMALL),
+            VerdictCase(15.0, 16.0, 0, 1, ChargeDriverVerdict.BELOW_BASELINE_TOO_SMALL),
+            VerdictCase(51.3, 50.8, 0, 0, ChargeDriverVerdict.AT_BASELINE),
+        )
+
+        cases.forEach { case ->
+            assertEquals(
+                case.expected,
+                RecoveryDrivers.baselineVerdict(
+                    value = case.value,
+                    baseline = case.baseline,
+                    deltaPoints = case.points,
+                    fractionDigits = case.fractionDigits,
+                ),
+            )
+        }
+    }
+
+    @Test fun skinTempVerdictUsesRoundedPointEffect() {
+        assertEquals(
+            ChargeDriverVerdict.NEAR_BASELINE,
+            RecoveryDrivers.skinTempVerdict(dev = 0.2, deltaPoints = 0),
+        )
+        assertEquals(
+            ChargeDriverVerdict.WARMER_THAN_BASELINE_LIMITING,
+            RecoveryDrivers.skinTempVerdict(dev = 0.2, deltaPoints = -1),
+        )
+        assertEquals(
+            ChargeDriverVerdict.COOLER_THAN_BASELINE_LIMITING,
+            RecoveryDrivers.skinTempVerdict(dev = -0.2, deltaPoints = -1),
+        )
+    }
+
+    @Test fun restingHRRowCannotSayAboveWhenDisplayedValuesMatch() {
+        val drivers = RecoveryDrivers.chargeDrivers(
+            hrv = 50.0, rhr = 51.3, resp = null,
+            hrvBaseline = baseline(50.0, 6.0),
+            rhrBaseline = baseline(50.8, 0.1),
+            respBaseline = null, sleepPerf = null,
+        )
+        val rhr = drivers.first { it.label == ChargeDriverLabel.RESTING_HEART_RATE }
+
+        assertEquals(51L, Math.round(rhr.value))
+        assertEquals(51L, Math.round(rhr.baseline!!))
+        assertTrue(rhr.deltaPoints < 0)
+        assertEquals(ChargeDriverVerdict.SLIGHTLY_ABOVE_BASELINE_LIMITING, rhr.verdict)
     }
 
     @Test fun allTermsPresentYieldOneRowEachInOrder() {
@@ -349,4 +403,12 @@ class RecoveryDriversTest {
             sleepPerf = RestScorer.restFromDaily(daily)?.let { it / 100.0 } ?: daily.efficiency,
             skinTempDev = skinDev,
         )
+
+    private data class VerdictCase(
+        val value: Double,
+        val baseline: Double,
+        val points: Int,
+        val fractionDigits: Int,
+        val expected: ChargeDriverVerdict,
+    )
 }

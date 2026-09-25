@@ -2518,6 +2518,12 @@
     <string name="today_driver_below_supporting">sotto la linea di base, favorisce il recupero</string>
     <string name="today_driver_above_limiting">sopra la linea di base, limita il recupero</string>
     <string name="today_driver_below_limiting">sotto la linea di base, limita il recupero</string>
+    <string name="today_driver_slightly_above_supporting">leggermente sopra la linea di base, favorisce il recupero</string>
+    <string name="today_driver_slightly_below_supporting">leggermente sotto la linea di base, favorisce il recupero</string>
+    <string name="today_driver_slightly_above_limiting">leggermente sopra la linea di base, limita il recupero</string>
+    <string name="today_driver_slightly_below_limiting">leggermente sotto la linea di base, limita il recupero</string>
+    <string name="today_driver_above_too_small">sopra la linea di base, differenza troppo piccola per modificare Charge</string>
+    <string name="today_driver_below_too_small">sotto la linea di base, differenza troppo piccola per modificare Charge</string>
     <string name="today_driver_at_baseline">alla linea di base</string>
     <string name="today_driver_hrv_saturation">sotto la linea di base, limita il recupero, anche se la bassa frequenza cardiaca a riposo suggerisce che potrebbe trattarsi di saturazione parasimpatica anziché affaticamento</string>
     <string name="today_driver_strong_night">una notte forte, favorisce il recupero</string>
