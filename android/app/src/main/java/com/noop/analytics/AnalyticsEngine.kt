@@ -847,7 +847,11 @@ object AnalyticsEngine {
             sink(
                 StrainScorer.dayCalibrationLine(
                     day = day,
-                    hrmax = effMaxHR,
+                    // The value the day was actually scored against, which for an age-less profile is
+                    // the one [StrainScorer.strain] substitutes internally rather than null. Reporting
+                    // null there would put this line in direct contradiction with the `effort score`
+                    // line above it, which prints that substituted number, about the same day.
+                    hrmax = effMaxHR ?: StrainScorer.defaultMaxHR().toDouble(),
                     hrmaxSource = if (maxHROverride != null) "override"
                     else if (profile.age > 0) "tanaka" else "default",
                     tanaka = if (profile.age > 0) StrainScorer.tanakaHRmax(profile.age) else null,

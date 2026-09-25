@@ -61,12 +61,15 @@ final class EffortDayCalibrationTests: XCTestCase {
         XCTAssertEqual(line, "effort calib day=2026-09-25 hrmax=187 src=tanaka tanaka=187 peak=178 rhr=60")
     }
 
-    /// No age, no override: `strain` falls back to its own default internally, so the day has no HRmax
-    /// of its own to report. `hrmax=nil src=default` is the honest rendering of that, and matches what
-    /// `effort score` calls the same state.
-    func testAnAgelessProfileReadsAsDefaultWithNoNumbers() {
+    /// No age, no override: `strain` substitutes its own default internally, and the line reports THAT
+    /// number rather than nil, because it is the yardstick the day was really scored against. `tanaka`
+    /// is nil, since without an age there is no formula value, and that is the honest half.
+    ///
+    /// The nil version of this was the first draft, and it made the line contradict `effort score` about
+    /// the same day: that line prints the substituted 190 while this one claimed there was no HRmax.
+    func testAnAgelessProfileReportsTheSubstitutedDefault() {
         let line = calibLine(age: 0, maxHROverride: nil, peakBpm: 178)
-        XCTAssertEqual(line, "effort calib day=2026-09-25 hrmax=nil src=default tanaka=nil peak=178 rhr=60")
+        XCTAssertEqual(line, "effort calib day=2026-09-25 hrmax=190 src=default tanaka=nil peak=178 rhr=60")
     }
 
     /// The peak is the day's RAW maximum, not a percentile and not a trimmed one. The rule under
@@ -98,15 +101,12 @@ final class EffortDayCalibrationTests: XCTestCase {
             XCTAssertTrue(score.contains("(" + c.word + ")"), score)
             // hrmax=187 on the calib line and hrMax=187.0 on the score line are the same number written
             // to different precisions, so compare the value rather than the text.
+            // No exception for the age-less case: the two lines report the same number there too, which
+            // is the whole invariant. Carving that case out was what hid the contradiction.
             let calibMax = field(calib, "hrmax=")
             let scoreMax = String(field(score, "hrMax=").prefix(while: { $0 != "(" }))
-            if c.src == "default" {
-                // No HRmax of the day's own: calib says nil, and the scorer substitutes its own default.
-                XCTAssertEqual(calibMax, "nil", calib)
-            } else {
-                XCTAssertEqual(Double(calibMax) ?? -1, Double(scoreMax) ?? -2, accuracy: 1e-9,
-                               calib + " | " + score)
-            }
+            XCTAssertEqual(Double(calibMax) ?? -1, Double(scoreMax) ?? -2, accuracy: 1e-9,
+                           calib + " | " + score)
         }
     }
 

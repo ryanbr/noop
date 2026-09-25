@@ -927,7 +927,11 @@ public enum AnalyticsEngine {
         if let strainDiag {
             let hrForPeak = dayHr ?? hr
             strainDiag(StrainScorer.dayCalibrationLine(
-                day: day, hrmax: effMaxHR,
+                // The value the day was actually scored against, which for an age-less profile is the
+                // one `strain` substitutes internally rather than nil. Reporting nil there would put
+                // this line in direct contradiction with the `effort score` line above it, which prints
+                // that substituted number, about the same day.
+                day: day, hrmax: effMaxHR ?? Double(StrainScorer.defaultMaxHR()),
                 hrmaxSource: maxHROverride != nil ? "override" : (profile.age > 0 ? "tanaka" : "default"),
                 tanaka: profile.age > 0 ? StrainScorer.tanakaHRmax(age: profile.age) : nil,
                 observedPeak: hrForPeak.max(by: { $0.bpm < $1.bpm }).map { Double($0.bpm) },

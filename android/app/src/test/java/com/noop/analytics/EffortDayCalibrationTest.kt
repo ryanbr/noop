@@ -90,14 +90,18 @@ class EffortDayCalibrationTest {
     }
 
     /**
-     * No age, no override: [StrainScorer.strain] falls back to its own default internally, so the day has
-     * no HRmax of its own to report. `hrmax=nil src=default` is the honest rendering of that, and matches
-     * what `effort score` calls the same state.
+     * No age, no override: [StrainScorer.strain] substitutes its own default internally, and the line
+     * reports THAT number rather than null, because it is the yardstick the day was really scored
+     * against. `tanaka` is null, since without an age there is no formula value, and that is the honest
+     * half.
+     *
+     * The null version of this was the first draft, and it made the line contradict `effort score` about
+     * the same day: that line prints the substituted 190 while this one claimed there was no HRmax.
      */
     @Test
-    fun `an ageless profile reads as default with no numbers`() {
+    fun `an ageless profile reports the substituted default`() {
         assertEquals(
-            "effort calib day=2026-09-25 hrmax=nil src=default tanaka=nil peak=178 rhr=60",
+            "effort calib day=2026-09-25 hrmax=190 src=default tanaka=nil peak=178 rhr=60",
             calibLine(age = 0.0, maxHROverride = null, peakBpm = 178),
         )
     }
@@ -142,14 +146,11 @@ class EffortDayCalibrationTest {
             assertTrue(score, score.contains("($expectedWord)"))
             // hrmax=187 on the calib line and hrMax=187.0 on the score line are the same number written
             // to different precisions, so compare the value rather than the text.
+            // No exception for the age-less case: the two lines report the same number there too, which
+            // is the whole invariant. Carving that case out was what hid the contradiction.
             val calibMax = field(calib, "hrmax=")
             val scoreMax = field(score, "hrMax=").substringBefore("(")
-            if (expectedSrc == "default") {
-                // No HRmax of the day's own: calib says nil, and the scorer substitutes its own default.
-                assertEquals(calib, "nil", calibMax)
-            } else {
-                assertEquals("$calib | $score", calibMax.toDouble(), scoreMax.toDouble(), 1e-9)
-            }
+            assertEquals("$calib | $score", calibMax.toDouble(), scoreMax.toDouble(), 1e-9)
         }
     }
 
