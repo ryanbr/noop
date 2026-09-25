@@ -901,6 +901,39 @@ public final class OuraLiveSource: NSObject, ObservableObject {
         batchQuietTimer?.invalidate()
         batchQuietTimer = nil
     }
+    /// Bank an interrupted drain's progress before the link and its anchor go away (#2443).
+    ///
+    /// The resume cursor is committed only when a drain ENDS, so a link that dropped (or a `stop()`)
+    /// partway through threw the drain's progress away: the next connect refetched from the old cursor
+    /// and the ring re-served everything the interrupted drain had already stored. Those copies resolve
+    /// under the NEXT session's SyncTime anchor, so they land a second or two off the first copy and MISS
+    /// `rrInterval`'s `(deviceId, ts, rrMs, seq)` key instead of colliding with it. The beats are stored
+    /// twice, the night's R-R coverage goes above 1, and `sessionAvgHRV` refuses the night. A reported
+    /// night had 1,753 of its 4,346 records served twice.
+    ///
+    /// Commits what the drain did bank, under the same rules `finishDrain` applies to a drain that
+    /// stopped early: forward-only, only when the candidate resolves under the anchor, and through the
+    /// #2097 reboot judge. Nothing new decides the cursor here.
+    ///
+    /// Call AFTER the hypnogram flush, so a burst still assembling banks against the cursor it belongs
+    /// to, and BEFORE `driver?.stop()`, because the commit asks the driver to resolve the candidate ring
+    /// time and a stopped driver has no anchor left to resolve it with.
+    ///
+    /// This NARROWS the window rather than closing the hole: a redrain of an already completed night
+    /// stores the same beats twice by the same route with no cursor involved, so the durable fix is a
+    /// dedup that survives an anchor shift. Tracked on #2443.
+    /// Never makes the #2097 REBOOT judgement. That judgement resets the cursor to 0 and re-pulls the
+    /// ring's whole history, and it declines to trust continuity when this session never adopted an
+    /// anchor, which is the ordinary state of a drain that was cut short before a 0x13 reply resolved.
+    /// Deferring it to a drain that actually finishes costs nothing, because a genuine reboot still
+    /// serves pre-resume data on the next drain; making it here would answer "no evidence" with a full
+    /// re-pull, and by this issue's own mechanism every re-served record would then double-store.
+    private func commitInterruptedDrainCursor() {
+        guard let driver, driver.phase == .fetchingHistory, drain.maxStoredRingTime > 0,
+              !drain.sawPreResumeData else { return }
+        _ = commitResumeCursor(drainCompleted: false)
+    }
+
 
     /// Commit the durable resume cursor at drain end. Only a cursor that (a) moved forward, (b) is below
     /// the plausibility ceiling, and (c) resolves to a real time under the CURRENT anchor is persisted;
@@ -1616,6 +1649,7 @@ public final class OuraLiveSource: NSObject, ObservableObject {
         }
         drainPendingAnchorEvents()
         dropUnanchoredHypnogramBursts()   // never wall-clock a night's time axis; they re-arrive next drain
+        commitInterruptedDrainCursor()    // #2443: bank the drain's progress before the anchor goes
         driver?.stop()
         driver = nil
         reassembler.reset()
@@ -2921,6 +2955,7 @@ extension OuraLiveSource: @preconcurrency CBCentralManagerDelegate {
         }
         drainPendingAnchorEvents()
         dropUnanchoredHypnogramBursts()   // never wall-clock a night's time axis; they re-arrive next drain
+        commitInterruptedDrainCursor()    // #2443: bank the drain's progress before the anchor goes
         driver?.stop()
         driver = nil
         clearAuthWatchdog()   // a link that drops mid-handshake takes this path, never the escalation
