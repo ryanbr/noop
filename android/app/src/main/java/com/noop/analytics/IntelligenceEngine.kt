@@ -3276,17 +3276,6 @@ object IntelligenceEngine {
     }
 
     /**
-     * #1244: one line for a day that CLEARED the >=200-HR gate yet detected NO in-bed session, so the
-     * dashboard shows "HR tracked but no sleep". Today only the summary `sleep day=... totalSleepMin=nil`
-     * rides the log — with no clue WHY, since every other night trace (`rhr`/`rrsample`/`hrv diag`) only
-     * emits once a session exists. This names the raw inputs the stager was handed so the next capture
-     * separates the causes: `grav=0` = no motion offloaded (the in-bed detector can't gate — the WHOOP
-     * 4.0 sparse-motion path has no HR-only fallback); a large `hr` with a night still empty = coverage
-     * gap or the sleep hours fell outside `window`; `provided=` = a persisted hypnogram was (not) available.
-     * Counts + a window length only — same privacy class as the sibling `sleep day=` line, no PII. Pure so
-     * it's unit-tested directly; byte-identical to the Swift `sleepDetectNoNightLogLine`.
-     */
-    /**
      * The provided session the NO-NIGHT line reports as `providedLongest` / `providedLongestEnd`: the
      * longest, ties broken by the later END.
      *
@@ -3307,6 +3296,17 @@ object IntelligenceEngine {
     internal fun longestProvidedForDiag(sessions: List<DetectedSleep>): DetectedSleep? =
         sessions.maxWithOrNull(compareBy({ it.end - it.start }, { it.end }))
 
+    /**
+     * #1244: one line for a day that CLEARED the >=200-HR gate yet detected NO in-bed session, so the
+     * dashboard shows "HR tracked but no sleep". Today only the summary `sleep day=... totalSleepMin=nil`
+     * rides the log — with no clue WHY, since every other night trace (`rhr`/`rrsample`/`hrv diag`) only
+     * emits once a session exists. This names the raw inputs the stager was handed so the next capture
+     * separates the causes: `grav=0` = no motion offloaded (the in-bed detector can't gate — the WHOOP
+     * 4.0 sparse-motion path has no HR-only fallback); a large `hr` with a night still empty = coverage
+     * gap or the sleep hours fell outside `window`; `provided=` = a persisted hypnogram was (not) available.
+     * Counts + a window length only — same privacy class as the sibling `sleep day=` line, no PII. Pure so
+     * it's unit-tested directly; byte-identical to the Swift `sleepDetectNoNightLogLine`.
+     */
     internal fun sleepDetectNoNightLogLine(
         day: String, hrCount: Int, rrCount: Int, respCount: Int, gravCount: Int,
         stepCount: Int, providedCount: Int, providedEndingOnDay: Int,
