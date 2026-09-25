@@ -22,7 +22,8 @@ class IntelligenceSleepDetectNoNightTest {
         // gate the night → nothing stages. window=54h is the past-day span (30 h back → next midnight).
         val line = IntelligenceEngine.sleepDetectNoNightLogLine(
             day = "2026-08-11", hrCount = 41230, rrCount = 0, respCount = 880,
-            gravCount = 0, stepCount = 12, providedCount = 0, windowHours = 54, skinCount = 0,
+            gravCount = 0, stepCount = 12, providedCount = 0, providedEndingOnDay = 0,
+            providedLongestMin = null, providedLongestEndDay = null, windowHours = 54, skinCount = 0,
         )
         assertEquals(
             // reason=no-motion with provided=0: no gravity AND the HR-only spine (#1801) yielded
@@ -50,7 +51,8 @@ class IntelligenceSleepDetectNoNightTest {
     fun noMotionButSessionsWereProvided() {
         val line = IntelligenceEngine.sleepDetectNoNightLogLine(
             day = "2026-09-21", hrCount = 106144, rrCount = 73959, respCount = 0,
-            gravCount = 0, stepCount = 0, providedCount = 3, windowHours = 30, skinCount = 0,
+            gravCount = 0, stepCount = 0, providedCount = 3, providedEndingOnDay = 0,
+            providedLongestMin = null, providedLongestEndDay = null, windowHours = 30, skinCount = 0,
         )
         // EXACT match on the parsed token, not `contains`. `no-motion` is a PREFIX of
         // `no-motion-provided-unused`, so a contains check matches both and cannot catch a regression to
@@ -64,9 +66,82 @@ class IntelligenceSleepDetectNoNightTest {
     fun noMotionAndNothingProvidedKeepsThePlainReason() {
         val line = IntelligenceEngine.sleepDetectNoNightLogLine(
             day = "2026-09-21", hrCount = 106144, rrCount = 73959, respCount = 0,
-            gravCount = 0, stepCount = 0, providedCount = 0, windowHours = 30, skinCount = 0,
+            gravCount = 0, stepCount = 0, providedCount = 0, providedEndingOnDay = 0,
+            providedLongestMin = null, providedLongestEndDay = null, windowHours = 30, skinCount = 0,
         )
         assertEquals(line, "no-motion", reasonToken(line))
+    }
+
+    /**
+     * The capture this was built for, in one line.
+     *
+     * A 5/MG overnight: no gravity, the HR-only spine kept three sessions with a 240-minute longest, and
+     * the night came out empty. `provided=3` said sessions went in; nothing said where they fell. Since
+     * a session belongs to the day its END lands on, `providedHere=0` is the whole diagnosis, and
+     * `providedLongestEnd` names the neighbour that absorbed the one that should have matched.
+     */
+    @Test
+    fun `provided sessions that end on another day are named`() {
+        val line = IntelligenceEngine.sleepDetectNoNightLogLine(
+            day = "2026-09-26", hrCount = 136154, rrCount = 112882, respCount = 0,
+            gravCount = 0, stepCount = 0, providedCount = 3, providedEndingOnDay = 0,
+            providedLongestMin = 240, providedLongestEndDay = "2026-09-25",
+            windowHours = 39, skinCount = 0,
+        )
+        assertEquals(
+            "sleep-detect day=2026-09-26 NO-NIGHT hr=136154 rr=112882 resp=0 " +
+                "grav=0 skin=0 steps=0 provided=3 providedHere=0 providedLongest=240 " +
+                "providedLongestEnd=2026-09-25 window=39h reason=no-motion-provided-unused",
+            line,
+        )
+    }
+
+    /**
+     * With nothing provided the three fields say nothing `reason=no-motion` has not, so they stay off.
+     * Same rule the sibling `atCap` note follows: a suffix appears only when it carries information.
+     */
+    @Test
+    fun `nothing provided means no provided fields at all`() {
+        val line = IntelligenceEngine.sleepDetectNoNightLogLine(
+            day = "2026-09-26", hrCount = 1000, rrCount = 0, respCount = 0,
+            gravCount = 0, stepCount = 0, providedCount = 0, providedEndingOnDay = 0,
+            providedLongestMin = null, providedLongestEndDay = null,
+            windowHours = 39, skinCount = 0,
+        )
+        assertFalse(line, line.contains("providedHere"))
+        assertFalse(line, line.contains("providedLongest"))
+    }
+
+    /**
+     * A night that DID build from its provided sessions reads the other way round, so a reader can tell
+     * "none of them were mine" from "some were mine and the night still came out empty". The second is a
+     * different bug and must not render identically to the first.
+     */
+    @Test
+    fun `provided sessions ending here are counted`() {
+        val line = IntelligenceEngine.sleepDetectNoNightLogLine(
+            day = "2026-09-26", hrCount = 136154, rrCount = 112882, respCount = 0,
+            gravCount = 0, stepCount = 0, providedCount = 3, providedEndingOnDay = 2,
+            providedLongestMin = 240, providedLongestEndDay = "2026-09-26",
+            windowHours = 39, skinCount = 0,
+        )
+        assertTrue(line, line.contains(" providedHere=2 "))
+        assertTrue(line, line.contains(" providedLongestEnd=2026-09-26 "))
+    }
+
+    /**
+     * Missing values render `nil`, never 0 or an empty token. A provided session whose span could not be
+     * measured is a different fact from one that lasted no time, and this line is read as evidence.
+     */
+    @Test
+    fun `absent longest renders nil not zero`() {
+        val line = IntelligenceEngine.sleepDetectNoNightLogLine(
+            day = "2026-09-26", hrCount = 1, rrCount = 1, respCount = 0,
+            gravCount = 0, stepCount = 0, providedCount = 2, providedEndingOnDay = 0,
+            providedLongestMin = null, providedLongestEndDay = null,
+            windowHours = 39, skinCount = 0,
+        )
+        assertTrue(line, line.contains(" providedLongest=nil providedLongestEnd=nil "))
     }
 
     /** Motion present still outranks everything: the inputs were there and staging produced nothing. */
@@ -74,7 +149,8 @@ class IntelligenceSleepDetectNoNightTest {
     fun motionPresentStaysStagedNoneEvenWithProvidedSessions() {
         val line = IntelligenceEngine.sleepDetectNoNightLogLine(
             day = "2026-09-21", hrCount = 5000, rrCount = 900, respCount = 300,
-            gravCount = 4, stepCount = 0, providedCount = 3, windowHours = 48, skinCount = 0,
+            gravCount = 4, stepCount = 0, providedCount = 3, providedEndingOnDay = 0,
+            providedLongestMin = null, providedLongestEndDay = null, windowHours = 48, skinCount = 0,
         )
         assertEquals(line, "staged-none", reasonToken(line))
     }
@@ -84,7 +160,8 @@ class IntelligenceSleepDetectNoNightTest {
         // Today's read caps at dayStart+18h (vs a past day's next-midnight), so the whole span is 48 h.
         val line = IntelligenceEngine.sleepDetectNoNightLogLine(
             day = "2026-08-12", hrCount = 5000, rrCount = 900, respCount = 300,
-            gravCount = 4, stepCount = 0, providedCount = 0, windowHours = 48, skinCount = 0,
+            gravCount = 4, stepCount = 0, providedCount = 0, providedEndingOnDay = 0,
+            providedLongestMin = null, providedLongestEndDay = null, windowHours = 48, skinCount = 0,
         )
         assertTrue(line, line.contains("window=48h"))
         // The other branch: motion WAS present and staging still produced nothing, which is the case
@@ -97,7 +174,8 @@ class IntelligenceSleepDetectNoNightTest {
         // House style: never an em-dash in shared text.
         val line = IntelligenceEngine.sleepDetectNoNightLogLine(
             day = "2026-08-11", hrCount = 1, rrCount = 1, respCount = 1,
-            gravCount = 1, stepCount = 1, providedCount = 1, windowHours = 54, skinCount = 1,
+            gravCount = 1, stepCount = 1, providedCount = 1, providedEndingOnDay = 0,
+            providedLongestMin = null, providedLongestEndDay = null, windowHours = 54, skinCount = 1,
         )
         assertFalse(line.contains("—"))
     }
@@ -111,7 +189,8 @@ class IntelligenceSleepDetectNoNightTest {
     @Test fun `a stream at its read cap is named`() {
         val line = IntelligenceEngine.sleepDetectNoNightLogLine(
             day = "2026-09-06", hrCount = 1000, rrCount = 1000, respCount = 0,
-            gravCount = StreamReadCap.GRAVITY, stepCount = 0, providedCount = 0, windowHours = 54, skinCount = 0,
+            gravCount = StreamReadCap.GRAVITY, stepCount = 0, providedCount = 0, providedEndingOnDay = 0,
+            providedLongestMin = null, providedLongestEndDay = null, windowHours = 54, skinCount = 0,
         )
         assertTrue(line, line.contains("atCap=grav"))
     }
@@ -127,7 +206,8 @@ class IntelligenceSleepDetectNoNightTest {
     @Test fun `hr and rr at their caps carry no marker`() {
         val line = IntelligenceEngine.sleepDetectNoNightLogLine(
             day = "2026-09-06", hrCount = StreamReadCap.HR, rrCount = StreamReadCap.RR, respCount = 0,
-            gravCount = 10, stepCount = 0, providedCount = 0, windowHours = 54, skinCount = 0,
+            gravCount = 10, stepCount = 0, providedCount = 0, providedEndingOnDay = 0,
+            providedLongestMin = null, providedLongestEndDay = null, windowHours = 54, skinCount = 0,
         )
         assertFalse(line, line.contains("atCap"))
     }
@@ -136,7 +216,8 @@ class IntelligenceSleepDetectNoNightTest {
     @Test fun `a night under the caps carries no marker`() {
         val line = IntelligenceEngine.sleepDetectNoNightLogLine(
             day = "2026-09-06", hrCount = 192_698, rrCount = 136_285, respCount = 0,
-            gravCount = 192_698, stepCount = 0, providedCount = 0, windowHours = 54, skinCount = 0,
+            gravCount = 192_698, stepCount = 0, providedCount = 0, providedEndingOnDay = 0,
+            providedLongestMin = null, providedLongestEndDay = null, windowHours = 54, skinCount = 0,
         )
         assertFalse(line, line.contains("atCap"))
     }
@@ -159,7 +240,8 @@ class IntelligenceSleepDetectNoNightTest {
     @Test fun `the line reports the skin sample count`() {
         val line = IntelligenceEngine.sleepDetectNoNightLogLine(
             day = "2026-09-06", hrCount = 1000, rrCount = 900, respCount = 0, gravCount = 0,
-            stepCount = 0, providedCount = 0, windowHours = 54, skinCount = 4242,
+            stepCount = 0, providedCount = 0, providedEndingOnDay = 0,
+            providedLongestMin = null, providedLongestEndDay = null, windowHours = 54, skinCount = 4242,
         )
         assertTrue(line, line.contains("skin=4242"))
     }
@@ -171,7 +253,8 @@ class IntelligenceSleepDetectNoNightTest {
     @Test fun `skin at its read cap is named`() {
         val line = IntelligenceEngine.sleepDetectNoNightLogLine(
             day = "2026-09-06", hrCount = 10, rrCount = 10, respCount = 0, gravCount = 10,
-            stepCount = 0, providedCount = 0, windowHours = 54, skinCount = StreamReadCap.SKIN,
+            stepCount = 0, providedCount = 0, providedEndingOnDay = 0,
+            providedLongestMin = null, providedLongestEndDay = null, windowHours = 54, skinCount = StreamReadCap.SKIN,
         )
         assertTrue(line, line.contains("atCap=skin"))
     }

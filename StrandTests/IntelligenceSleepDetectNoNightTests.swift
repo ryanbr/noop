@@ -19,7 +19,8 @@ final class IntelligenceSleepDetectNoNightTests: XCTestCase {
         // gate the night → nothing stages. `window=54h` is the past-day span (30 h back → next midnight).
         let line = IE.sleepDetectNoNightLogLine(
             day: "2026-08-11", hrCount: 41230, rrCount: 0, respCount: 880,
-            gravCount: 0, stepCount: 12, providedCount: 0, windowHours: 54, skinCount: 0)
+            gravCount: 0, stepCount: 12, providedCount: 0, providedEndingOnDay: 0,
+            providedLongestMin: nil, providedLongestEndDay: nil, windowHours: 54, skinCount: 0)
         XCTAssertEqual(line,
             "sleep-detect day=2026-08-11 NO-NIGHT hr=41230 rr=0 resp=880 "
             // reason=no-motion with provided=0: no gravity AND the HR-only spine (#1801) yielded
@@ -41,7 +42,8 @@ final class IntelligenceSleepDetectNoNightTests: XCTestCase {
     func testNoMotionButSessionsWereProvided() {
         let line = IE.sleepDetectNoNightLogLine(
             day: "2026-09-21", hrCount: 106144, rrCount: 73959, respCount: 0,
-            gravCount: 0, stepCount: 0, providedCount: 3, windowHours: 30, skinCount: 0)
+            gravCount: 0, stepCount: 0, providedCount: 3, providedEndingOnDay: 0,
+            providedLongestMin: nil, providedLongestEndDay: nil, windowHours: 30, skinCount: 0)
         // EXACT match on the parsed token, not `contains`. `no-motion` is a PREFIX of
         // `no-motion-provided-unused`, so a contains check matches both and cannot catch a regression to
         // the bare value. The first version of this assertion used `contains("reason=no-motion ")` with a
@@ -54,15 +56,72 @@ final class IntelligenceSleepDetectNoNightTests: XCTestCase {
     func testNoMotionAndNothingProvidedKeepsThePlainReason() {
         let line = IE.sleepDetectNoNightLogLine(
             day: "2026-09-21", hrCount: 106144, rrCount: 73959, respCount: 0,
-            gravCount: 0, stepCount: 0, providedCount: 0, windowHours: 30, skinCount: 0)
+            gravCount: 0, stepCount: 0, providedCount: 0, providedEndingOnDay: 0,
+            providedLongestMin: nil, providedLongestEndDay: nil, windowHours: 30, skinCount: 0)
         XCTAssertEqual(Self.reasonToken(of: line), "no-motion", line)
+    }
+
+    /// The capture this was built for, in one line.
+    ///
+    /// A 5/MG overnight: no gravity, the HR-only spine kept three sessions with a 240-minute longest, and
+    /// the night came out empty. `provided=3` said sessions went in; nothing said where they fell. Since
+    /// a session belongs to the day its END lands on, `providedHere=0` is the whole diagnosis, and
+    /// `providedLongestEnd` names the neighbour that absorbed the one that should have matched.
+    func testProvidedSessionsThatEndOnAnotherDayAreNamed() {
+        let line = IE.sleepDetectNoNightLogLine(
+            day: "2026-09-26", hrCount: 136154, rrCount: 112882, respCount: 0,
+            gravCount: 0, stepCount: 0, providedCount: 3, providedEndingOnDay: 0,
+            providedLongestMin: 240, providedLongestEndDay: "2026-09-25",
+            windowHours: 39, skinCount: 0)
+        XCTAssertEqual(
+            line,
+            "sleep-detect day=2026-09-26 NO-NIGHT hr=136154 rr=112882 resp=0 "
+                + "grav=0 skin=0 steps=0 provided=3 providedHere=0 providedLongest=240 "
+                + "providedLongestEnd=2026-09-25 window=39h reason=no-motion-provided-unused")
+    }
+
+    /// With nothing provided the three fields say nothing `reason=no-motion` has not, so they stay off.
+    /// Same rule the sibling `atCap` note follows: a suffix appears only when it carries information.
+    func testNothingProvidedMeansNoProvidedFieldsAtAll() {
+        let line = IE.sleepDetectNoNightLogLine(
+            day: "2026-09-26", hrCount: 1000, rrCount: 0, respCount: 0,
+            gravCount: 0, stepCount: 0, providedCount: 0, providedEndingOnDay: 0,
+            providedLongestMin: nil, providedLongestEndDay: nil,
+            windowHours: 39, skinCount: 0)
+        XCTAssertFalse(line.contains("providedHere"), line)
+        XCTAssertFalse(line.contains("providedLongest"), line)
+    }
+
+    /// A night that DID build from its provided sessions reads the other way round, so a reader can tell
+    /// "none of them were mine" from "some were mine and the night still came out empty". The second is a
+    /// different bug and must not render identically to the first.
+    func testProvidedSessionsEndingHereAreCounted() {
+        let line = IE.sleepDetectNoNightLogLine(
+            day: "2026-09-26", hrCount: 136154, rrCount: 112882, respCount: 0,
+            gravCount: 0, stepCount: 0, providedCount: 3, providedEndingOnDay: 2,
+            providedLongestMin: 240, providedLongestEndDay: "2026-09-26",
+            windowHours: 39, skinCount: 0)
+        XCTAssertTrue(line.contains(" providedHere=2 "), line)
+        XCTAssertTrue(line.contains(" providedLongestEnd=2026-09-26 "), line)
+    }
+
+    /// Missing values render `nil`, never 0 or an empty token. A provided session whose span could not be
+    /// measured is a different fact from one that lasted no time, and this line is read as evidence.
+    func testAbsentLongestRendersNilNotZero() {
+        let line = IE.sleepDetectNoNightLogLine(
+            day: "2026-09-26", hrCount: 1, rrCount: 1, respCount: 0,
+            gravCount: 0, stepCount: 0, providedCount: 2, providedEndingOnDay: 0,
+            providedLongestMin: nil, providedLongestEndDay: nil,
+            windowHours: 39, skinCount: 0)
+        XCTAssertTrue(line.contains(" providedLongest=nil providedLongestEnd=nil "), line)
     }
 
     /// Motion present still outranks everything: the inputs were there and staging produced nothing.
     func testMotionPresentStaysStagedNoneEvenWithProvidedSessions() {
         let line = IE.sleepDetectNoNightLogLine(
             day: "2026-09-21", hrCount: 5000, rrCount: 900, respCount: 300,
-            gravCount: 4, stepCount: 0, providedCount: 3, windowHours: 48, skinCount: 0)
+            gravCount: 4, stepCount: 0, providedCount: 3, providedEndingOnDay: 0,
+            providedLongestMin: nil, providedLongestEndDay: nil, windowHours: 48, skinCount: 0)
         XCTAssertEqual(Self.reasonToken(of: line), "staged-none", line)
     }
 
@@ -70,7 +129,8 @@ final class IntelligenceSleepDetectNoNightTests: XCTestCase {
         // Today's read caps at dayStart+18h (vs a past day's next-midnight), so the whole span is 48 h.
         let line = IE.sleepDetectNoNightLogLine(
             day: "2026-08-12", hrCount: 5000, rrCount: 900, respCount: 300,
-            gravCount: 4, stepCount: 0, providedCount: 0, windowHours: 48, skinCount: 0)
+            gravCount: 4, stepCount: 0, providedCount: 0, providedEndingOnDay: 0,
+            providedLongestMin: nil, providedLongestEndDay: nil, windowHours: 48, skinCount: 0)
         XCTAssertTrue(line.contains("window=48h"), line)
         // The other branch: motion WAS present and staging still produced nothing, which is the case
         // worth investigating rather than a capability limit.
@@ -81,7 +141,8 @@ final class IntelligenceSleepDetectNoNightTests: XCTestCase {
         // House style: never an em-dash in shared text.
         let line = IE.sleepDetectNoNightLogLine(
             day: "2026-08-11", hrCount: 1, rrCount: 1, respCount: 1,
-            gravCount: 1, stepCount: 1, providedCount: 1, windowHours: 54, skinCount: 1)
+            gravCount: 1, stepCount: 1, providedCount: 1, providedEndingOnDay: 0,
+            providedLongestMin: nil, providedLongestEndDay: nil, windowHours: 54, skinCount: 1)
         XCTAssertFalse(line.contains("—"))
     }
 
@@ -92,7 +153,8 @@ final class IntelligenceSleepDetectNoNightTests: XCTestCase {
     func testAStreamAtItsReadCapIsNamed() {
         let line = IntelligenceEngine.sleepDetectNoNightLogLine(
             day: "2026-09-06", hrCount: 1000, rrCount: 1000, respCount: 0,
-            gravCount: StreamReadCap.gravity, stepCount: 0, providedCount: 0, windowHours: 54, skinCount: 0)
+            gravCount: StreamReadCap.gravity, stepCount: 0, providedCount: 0, providedEndingOnDay: 0,
+            providedLongestMin: nil, providedLongestEndDay: nil, windowHours: 54, skinCount: 0)
         XCTAssertTrue(line.contains("atCap=grav"), line)
     }
 
@@ -105,7 +167,8 @@ final class IntelligenceSleepDetectNoNightTests: XCTestCase {
     func testHrAndRrAtTheirCapsCarryNoMarker() {
         let line = IntelligenceEngine.sleepDetectNoNightLogLine(
             day: "2026-09-06", hrCount: StreamReadCap.hr, rrCount: StreamReadCap.rr, respCount: 0,
-            gravCount: 10, stepCount: 0, providedCount: 0, windowHours: 54, skinCount: 0)
+            gravCount: 10, stepCount: 0, providedCount: 0, providedEndingOnDay: 0,
+            providedLongestMin: nil, providedLongestEndDay: nil, windowHours: 54, skinCount: 0)
         XCTAssertFalse(line.contains("atCap"), line)
     }
 
@@ -113,7 +176,8 @@ final class IntelligenceSleepDetectNoNightTests: XCTestCase {
     func testANightUnderTheCapsCarriesNoMarker() {
         let line = IntelligenceEngine.sleepDetectNoNightLogLine(
             day: "2026-09-06", hrCount: 192_698, rrCount: 136_285, respCount: 0,
-            gravCount: 192_698, stepCount: 0, providedCount: 0, windowHours: 54, skinCount: 0)
+            gravCount: 192_698, stepCount: 0, providedCount: 0, providedEndingOnDay: 0,
+            providedLongestMin: nil, providedLongestEndDay: nil, windowHours: 54, skinCount: 0)
         XCTAssertFalse(line.contains("atCap"), line)
     }
 
@@ -129,7 +193,8 @@ final class IntelligenceSleepDetectNoNightTests: XCTestCase {
     func testTheLineReportsTheSkinSampleCount() {
         let line = IntelligenceEngine.sleepDetectNoNightLogLine(
             day: "2026-09-06", hrCount: 1000, rrCount: 900, respCount: 0, gravCount: 0,
-            stepCount: 0, providedCount: 0, windowHours: 54, skinCount: 4242)
+            stepCount: 0, providedCount: 0, providedEndingOnDay: 0,
+            providedLongestMin: nil, providedLongestEndDay: nil, windowHours: 54, skinCount: 4242)
         XCTAssertTrue(line.contains("skin=4242"), line)
     }
 
@@ -138,7 +203,8 @@ final class IntelligenceSleepDetectNoNightTests: XCTestCase {
     func testSkinAtItsReadCapIsNamed() {
         let line = IntelligenceEngine.sleepDetectNoNightLogLine(
             day: "2026-09-06", hrCount: 10, rrCount: 10, respCount: 0, gravCount: 10,
-            stepCount: 0, providedCount: 0, windowHours: 54, skinCount: StreamReadCap.skin)
+            stepCount: 0, providedCount: 0, providedEndingOnDay: 0,
+            providedLongestMin: nil, providedLongestEndDay: nil, windowHours: 54, skinCount: StreamReadCap.skin)
         XCTAssertTrue(line.contains("atCap=skin"), line)
     }
 

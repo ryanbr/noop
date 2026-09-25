@@ -1357,10 +1357,21 @@ object IntelligenceEngine {
                 // report says WHY nothing staged. `window` is the read span in whole hours (30 h back → next
                 // local midnight, or +18 h for today). Byte-identical to the Swift line.
                 val windowHours = ((to - from) / 3_600L).toInt()
+                // Attribute each provided session the same way analyzeDay does - by the LOCAL day its
+                // END falls in - so this line and the filter that emptied the night agree by
+                // construction rather than by two readings of the same rule.
+                val longestProvided = providedSleep.maxByOrNull { it.end - it.start }
                 dayDiag(
                     sleepDetectNoNightLogLine(
                         day = day, hrCount = hr.size, rrCount = rr.size, respCount = resp.size,
                         gravCount = grav.size, stepCount = steps.size, providedCount = providedSleep.size,
+                        providedEndingOnDay = providedSleep.count {
+                            AnalyticsEngine.dayString(it.end, tzOffsetSeconds) == day
+                        },
+                        providedLongestMin = longestProvided?.let { ((it.end - it.start) / 60L).toInt() },
+                        providedLongestEndDay = longestProvided?.let {
+                            AnalyticsEngine.dayString(it.end, tzOffsetSeconds)
+                        },
                         windowHours = windowHours, skinCount = skin.size,
                     ),
                 )
@@ -3277,7 +3288,9 @@ object IntelligenceEngine {
      */
     internal fun sleepDetectNoNightLogLine(
         day: String, hrCount: Int, rrCount: Int, respCount: Int, gravCount: Int,
-        stepCount: Int, providedCount: Int, windowHours: Int, skinCount: Int,
+        stepCount: Int, providedCount: Int, providedEndingOnDay: Int,
+        providedLongestMin: Int?, providedLongestEndDay: String?,
+        windowHours: Int, skinCount: Int,
     ): String {
         // `reason` names WHICH absence this is, because grav=0 is printed but its consequence is not.
         //
@@ -3338,8 +3351,37 @@ object IntelligenceEngine {
             if (skinCount >= StreamReadCap.SKIN) add("skin")
         }
         val capNote = if (atCap.isEmpty()) "" else " atCap=${atCap.joinToString(",")}"
+        // WHERE the provided sessions fall, which `provided=` alone does not say and which is the next
+        // question every time this line reads `no-motion-provided-unused`.
+        //
+        // A session is attributed to a day by where it ENDS ([AnalyticsEngine.analyzeDay], the
+        // `tsInDay(it.end)` filter), so `provided=3` with an empty night means those three ended
+        // somewhere else. Without that, the line stops one field short of its own conclusion: a real
+        // 5/MG capture showed `provided=3` beside an HR-only spine reporting a 240-minute session, on a
+        // night the wearer demonstrably slept, and a reader still could not tell whether the spine had
+        // missed the night or the attribution had moved it. Those two want opposite fixes.
+        //
+        // [providedEndingOnDay] is the count that DID end on this day, and is therefore the number the
+        // night was built from: seeing 0 next to a non-zero `provided` is the whole diagnosis. The
+        // longest session and its end day come along because the longest is the one that should have
+        // matched, and naming its day says which neighbour absorbed it.
+        //
+        // Self-checking on purpose: `providedLongestEnd` equal to `day` while `providedHere` is 0 is a
+        // contradiction, and points at the filter rather than at the spine.
+        //
+        // Only when something was actually provided. With `provided=0` the three fields say nothing
+        // that `reason=no-motion` has not already said, and the sibling `atCap` note sets the precedent
+        // for a suffix that appears only when it carries information.
+        val providedNote = if (providedCount > 0) {
+            " providedHere=$providedEndingOnDay" +
+                " providedLongest=${providedLongestMin ?: "nil"}" +
+                " providedLongestEnd=${providedLongestEndDay ?: "nil"}"
+        } else {
+            ""
+        }
         return "sleep-detect day=$day NO-NIGHT hr=$hrCount rr=$rrCount resp=$respCount " +
-            "grav=$gravCount skin=$skinCount steps=$stepCount provided=$providedCount " +
+            "grav=$gravCount skin=$skinCount steps=$stepCount provided=$providedCount" +
+            providedNote + " " +
             "window=${windowHours}h reason=$reason$capNote"
     }
 
