@@ -74,47 +74,6 @@ public struct TrendPoint: Identifiable, Sendable {
 
 public struct TrendChart: View {
 
-    /// The days the x-axis puts a mark on: day-aligned, distinct, newest always among them.
-    ///
-    /// The axis used to ask Swift Charts for a COUNT (`.automatic(desiredCount: 5)`) and let it choose the
-    /// stride. Over a short window the stride it chooses is sub-day, so more than one mark lands inside a
-    /// single calendar day, every one of them formats to the same date, and they print on top of each
-    /// other. The reported screenshot is that duplication, not crowding: a wider card would have spread
-    /// the duplicates apart and left them just as wrong.
-    ///
-    /// Explicit dates rather than `.stride(by: .day, count:)`, for two reasons. A stride steps from the
-    /// domain's LOWER bound, so on a 30-day window it marks days 0/6/12/18/24 and leaves the newest day,
-    /// the one a trend is usually read for, unlabelled. And `.stride` carries `roundLowerBound` /
-    /// `roundUpperBound`, which can widen an inferred domain and put dead space at the chart edges. Naming
-    /// the days outright settles both, and cannot alter the domain at all.
-    ///
-    /// Walks BACK from the newest day so that one is always present, then reverses into ascending order,
-    /// which is what `AxisMarks(values:)` expects.
-    static func xAxisDays(spanning dates: [Date],
-                          targetLabels: Int = 5,
-                          calendar: Calendar = .current) -> [Date] {
-        guard targetLabels > 0, let first = dates.min(), let last = dates.max() else { return [] }
-        let lo = calendar.startOfDay(for: first)
-        let hi = calendar.startOfDay(for: last)
-        let span = calendar.dateComponents([.day], from: lo, to: hi).day ?? 0
-        guard span > 0 else { return [hi] }
-        // Days INCLUSIVE of both ends: a 4-day span carries 5 days, which is 5 labels a day apart.
-        let stride = max(1, Int((Double(span + 1) / Double(targetLabels)).rounded(.up)))
-        var days: [Date] = []
-        var day = hi
-        while day >= lo {
-            days.append(day)
-            guard let previous = calendar.date(byAdding: .day, value: -stride, to: day) else { break }
-            // Re-anchored every step, because a day-add preserves the TIME of day and in a zone that
-            // shifts its clocks at midnight the 00:00 it aims for does not exist on the transition date:
-            // Foundation hands back 01:00 instead. Left alone, that one stepped mark is off the day
-            // boundary and every mark after it inherits the 01:00, so the tail of the axis drifts. In
-            // America/Santiago a sweep of two years' windows put 52 marks at 01:00 before this line.
-            day = calendar.startOfDay(for: previous)
-        }
-        return days.reversed()
-    }
-
     public var points: [TrendPoint]
     /// The gradient the line/area is stroked with (defaults to the recovery scale).
     public var gradient: Gradient
@@ -255,6 +214,13 @@ public struct TrendChart: View {
             abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date))
         })
     }
+
+    /// The days the x-axis marks, so the marks and their label format agree about which days are shown.
+    ///
+    /// Spans `displayPoints`, the set the marks are actually built from, rather than `points`. Bucketing
+    /// keeps the extremes, so the two agree today; deriving the axis from a collection the chart is not
+    /// drawing is the kind of thing that stops being true quietly.
+    private var axisDays: [Date] { ChartAxisDays.spanning(displayPoints.map(\.date)) }
 
     // Map data values onto the unit interval for gradient stops.
     private func unit(_ value: Double) -> Double {
@@ -402,9 +368,9 @@ public struct TrendChart: View {
         // start-of-day instants, so no two can format to the same date, whatever the window. The explicit
         // day-only format keeps a mark from ever printing a time as well.
         .chartXAxis {
-            AxisMarks(values: Self.xAxisDays(spanning: points.map(\.date))) { _ in
+            AxisMarks(values: axisDays) { _ in
                 AxisGridLine().foregroundStyle(StrandPalette.hairline.opacity(0.4))
-                AxisValueLabel(format: .dateTime.month(.abbreviated).day())
+                AxisValueLabel(format: ChartAxisDays.labelFormat(for: axisDays))
                     .foregroundStyle(StrandPalette.textTertiary)
                     .font(StrandFont.footnote)
             }

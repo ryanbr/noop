@@ -1950,7 +1950,12 @@ private struct WorkoutRecoveryTrendChart: View {
     }
 
     var body: some View {
-        Chart(displayPlots) { point in
+        // Bound once: `displayPlots` groups and downsamples on every read, and this chart is the one the
+        // note above calls out for putting several hundred marks on screen. The axis is derived from the
+        // SAME drawn collection, so the marks cannot span days the chart is not plotting.
+        let drawn = displayPlots
+        let axisDays = ChartAxisDays.spanning(drawn.map(\.date), targetLabels: 4)
+        Chart(drawn) { point in
             LineMark(
                 x: .value("Workout", point.date),
                 y: .value("Recovery", point.value)
@@ -1969,10 +1974,13 @@ private struct WorkoutRecoveryTrendChart: View {
             range: [StrandPalette.metricRose, StrandPalette.metricCyan, StrandPalette.metricPurple]
         )
         .chartLegend(.hidden)
+        // Day-aligned marks, not a requested count. This axis already formats day-only, so a sub-day
+        // stride from `.automatic(desiredCount:)` put two marks in one day carrying the SAME string, one
+        // over the other. Four labels kept, matching what the count asked for.
         .chartXAxis {
-            AxisMarks(values: .automatic(desiredCount: 4)) { value in
+            AxisMarks(values: axisDays) { value in
                 AxisGridLine().foregroundStyle(StrandPalette.hairline)
-                AxisValueLabel(format: .dateTime.month(.abbreviated).day())
+                AxisValueLabel(format: ChartAxisDays.labelFormat(for: axisDays))
                     .foregroundStyle(StrandPalette.textTertiary)
             }
         }

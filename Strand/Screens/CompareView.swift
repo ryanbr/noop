@@ -910,6 +910,8 @@ private struct OverlayChart: View {
 
     var body: some View {
         let model = currentModel
+        // Computed once so the marks and their label format agree about which days are shown.
+        let axisDays = ChartAxisDays.spanning(model.plots.map(\.date))
         Chart(model.plots) { p in
             LineMark(
                 x: .value("Date", p.date),
@@ -966,10 +968,14 @@ private struct OverlayChart: View {
                 }
             }
         }
+        // Day-aligned marks, not a requested count. `.automatic(desiredCount:)` picks the stride that
+        // best fits the count, and over a short window (this chart offers W) that stride goes sub-day, so
+        // two marks land in one calendar day and print the same date on top of itself.
         .chartXAxis {
-            AxisMarks(values: .automatic(desiredCount: 5)) { _ in
+            AxisMarks(values: axisDays) { _ in
                 AxisGridLine().foregroundStyle(StrandPalette.hairline.opacity(0.4))
-                AxisValueLabel().foregroundStyle(StrandPalette.textTertiary)
+                AxisValueLabel(format: ChartAxisDays.labelFormat(for: axisDays))
+                    .foregroundStyle(StrandPalette.textTertiary)
                     .font(StrandFont.footnote)
             }
         }
