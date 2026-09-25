@@ -3740,9 +3740,9 @@ private fun HeroMetricRows(
     // on a pre-v36 row whose flag is merely unknown, and explain a different night's numbers.
     // Gated on something actually being blank, so a night that recovered its vitals stays quiet.
     val hrOnlyNight = showsHrOnlyNote(day, vitalsDay, carriedFromVitals, hrv, rhr)
-    // iOS `recoveryVitalsSection`: a frosted card with a "RECOVERY VITALS" header + a "last night · <date>"
-    // on the right, then three `vitalRow`s (26dp mini LIQUID RING + label + value). NoopCard supplies the
-    // same neutral surfaceRaised + hairline as iOS's frosted card. Inner spacing 12, matching iOS.
+    // A frosted card with a "RECOVERY VITALS" header + a "last night · <date>" on the right, then three
+    // `vitalRow`s with distinct glyphs on fixed tinted backings. The static icons stay recognizable when
+    // glass styling desaturates nearby colours (#150). NoopCard supplies the neutral surface + hairline.
     NoopCard(padding = Metrics.space16) {
         Column(
             modifier = Modifier.fillMaxWidth(),
@@ -3760,24 +3760,24 @@ private fun HeroMetricRows(
             HeroVitalRow(
                 label = uiString(R.string.l10n_today_screen_heart_rate_variability_a137586d),
                 value = hrv?.let { "${it.roundToInt()} ms" } ?: NO_DATA,
+                icon = Icons.Filled.MonitorHeart,
                 tint = Palette.metricCyan,
-                fraction = hrv?.let { (it / 120.0).coerceIn(0.0, 1.0) },
                 metricKey = dashboardCardMetricKey(DashboardCard.HRV),
                 onOpenMetric = onOpenMetric,
             )
             HeroVitalRow(
                 label = uiString(R.string.l10n_today_screen_resting_heart_rate_348928d6),
                 value = rhr?.let { "$it bpm" } ?: NO_DATA,
+                icon = Icons.Filled.Favorite,
                 tint = Palette.metricRose,
-                fraction = rhr?.let { (it / 100.0).coerceIn(0.0, 1.0) },
                 metricKey = dashboardCardMetricKey(DashboardCard.RESTING_HR),
                 onOpenMetric = onOpenMetric,
             )
             HeroVitalRow(
                 label = uiString(R.string.l10n_today_screen_breaths_per_minute_2b197c54),
                 value = resp?.let { String.format(Locale.getDefault(), "%.1f rpm", it) } ?: NO_DATA,
+                icon = Icons.Filled.Air,
                 tint = Palette.accent,
-                fraction = resp?.let { (it / 24.0).coerceIn(0.0, 1.0) },
                 metricKey = dashboardCardMetricKey(DashboardCard.RESPIRATORY),
                 onOpenMetric = onOpenMetric,
             )
@@ -3799,14 +3799,13 @@ private fun heroVitalsLastNightLine(): String {
     return uiString(R.string.today_last_night_date, d.format(DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())))
 }
 
-/** One iOS `vitalRow`: a 26dp mini liquid RING filled to [fraction] in [tint], the label (subhead,
- *  secondary), a spacer, and the value (number 15, primary). Replaces the old flat-Material-icon row. */
+/** One recovery-vital row: a distinct static glyph on a tinted backing, label, spacer, and value. */
 @Composable
 private fun HeroVitalRow(
     label: String,
     value: String,
+    icon: ImageVector,
     tint: Color,
-    fraction: Double?,
     // The metric-detail key this row opens, from `dashboardCardMetricKey` so the row and its dashboard-card
     // twin cannot drift onto different trends for the same vital. NULL means the row simply does not
     // navigate: it loses the tap AND the chevron together, which is the honest degradation. An earlier
@@ -3826,25 +3825,12 @@ private fun HeroVitalRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Metrics.space12),
     ) {
-        // Ring or vessel per the Today gauge preference; both are static here.
-        val gaugeCtx = LocalContext.current
-        if (remember { NoopPrefs.todayRingGauges(gaugeCtx) }) {
-            GlowRing(
-                fraction = (fraction ?: 0.0).coerceIn(0.0, 1.0).toFloat(),
-                value = 0.0,
-                color = tint,
-                diameter = 26.dp,
-                lineWidth = 2.6.dp,
-                showsLabel = false,
-            )
-        } else {
-            LiquidVessel(
-                value = fraction,
-                tint = tint,
-                animated = false,
-                modifier = Modifier.size(26.dp),
-            )
-        }
+        TintedMetricIcon(
+            icon = icon,
+            tint = tint,
+            size = 28.dp,
+            iconSize = 14.dp,
+        )
         Text(label, style = NoopType.subhead, color = Palette.textSecondary, modifier = Modifier.weight(1f))
         Text(
             displayValue,
@@ -4200,21 +4186,6 @@ private fun YourCardsSection(
                         hydrationGoalMl = hydrationGoalMl,
                         spo2CandidateByDay = spo2CandidateByDay,
                     ),
-                    // The mini liquid ring's fill — the SAME per-card fraction iOS `liquidCard` uses.
-                    fraction = dashboardCardFraction(
-                        card = card,
-                        stepsAverage30 = stepsAverage30.first,
-                        day = day,
-                        carriedDay = carriedDay,
-                        vitalsDay = vitalsDay,
-                        respDay = respDay,
-                        stress = stress,
-                        fitnessAge = fitnessAge,
-                        vo2max = vo2max,
-                        vitality = vitality,
-                        importedStepsForDay = importedStepsForDay,
-                        estimatedStepsForDay = estimatedStepsForDay,
-                    ),
                     tint = dashboardCardTint(card),
                     // #110: label the sleep row with its source + night (this section renders at offset 0
                     // only, so it IS last night), so a WHOOP-imported figure is never silently shown as
@@ -4332,59 +4303,6 @@ private fun dashboardCardTint(card: DashboardCard): Color = when (card) {
     DashboardCard.HYDRATION -> Palette.metricCyan
     DashboardCard.COUPLED -> Palette.chargeColor
     DashboardCard.COACH -> Palette.accent
-}
-
-/**
- * A dashboard card's mini-ring fill fraction (0..1), or null for an empty (no-reading) ring. Mirrors the
- * iOS `liquidCard` `frac:` argument exactly, per card:
- *   Stress = stress/3 · Fitness age = 0.5 (fixed) · Vitality = vitality/100 · HRV = avgHrv/120 ·
- *   Resting HR = restingHr/100 · Respiratory = respRate/24 · Steps = steps/10000 · Sleep = totalSleepMin/480 ·
- *   Coupled = 0.6 (fixed) · Blood oxygen / Skin temp / Calories / Hydration = null (empty, not half-full).
- * The three overnight vitals (HRV / Resting HR / Respiratory) read PER-FIELD today-first with the
- * recovery-INDEPENDENT [vitalsDay] carry, matching the row VALUE, so the ring fill and the number agree
- * (and a recovery-nulled night keeps its OWN preserved vitals). Sleep keeps the recovery-gated
- * `carriedDay ?: day` carry.
- */
-private fun dashboardCardFraction(
-    card: DashboardCard,
-    stepsAverage30: Double?,
-    day: DailyMetric?,
-    carriedDay: DailyMetric?,
-    vitalsDay: DailyMetric?,
-    respDay: DailyMetric?,
-    stress: Double?,
-    fitnessAge: Double?,
-    vo2max: Double?,
-    vitality: Double?,
-    importedStepsForDay: Int?,
-    estimatedStepsForDay: Int?,
-): Double? {
-    fun over(v: Double?, ceiling: Double): Double? = v?.let { (it / ceiling).coerceIn(0.0, 1.0) }
-    val vd = carriedDay ?: day
-    return when (card) {
-        DashboardCard.STRESS -> over(stress, 3.0)
-        DashboardCard.FITNESS_AGE -> if (fitnessAge != null) 0.5 else null
-        DashboardCard.VO2MAX -> if (vo2max != null) 0.5 else null
-        DashboardCard.VITALITY -> over(vitality, 100.0)
-        DashboardCard.HRV -> over(day?.avgHrv ?: vitalsDay?.avgHrv, 120.0)
-        DashboardCard.RESTING_HR -> over((day?.restingHr ?: vitalsDay?.restingHr)?.toDouble(), 100.0)
-        // PER-FIELD carry: today → the STALENESS-BOUNDED prior night (`respDay` = lastRespRow). The
-        // unbounded `vitalsDay?.respRateBpm` is dropped on purpose — it picks the newest row with ANY
-        // vital regardless of age and printed one CSV import's 15.6 as today's rate for a fortnight
-        // (#1331). Byte-twin of the Swift `lastRespDay` card.
-        DashboardCard.RESPIRATORY -> over(day?.respRateBpm ?: respDay?.respRateBpm, 24.0)
-        DashboardCard.STEPS -> {
-            val steps = (day?.steps ?: importedStepsForDay ?: estimatedStepsForDay)?.toDouble()
-            over(steps, 10000.0)
-        }
-        DashboardCard.SLEEP -> over(vd?.totalSleepMin, 480.0)
-        DashboardCard.STEPS_AVERAGE_30 -> over(stepsAverage30, 10000.0)
-        DashboardCard.COUPLED -> 0.6
-        DashboardCard.COACH -> 0.5
-        // Not wired to a real read yet — an EMPTY ring (not half-full) so it doesn't imply a reading.
-        DashboardCard.BLOOD_OXYGEN, DashboardCard.SKIN_TEMP, DashboardCard.CALORIES,
-        DashboardCard.HYDRATION -> null
-    }
 }
 
 /**
@@ -4527,7 +4445,6 @@ private fun dashboardCardValue(
 private fun DashboardCardRow(
     card: DashboardCard,
     value: String,
-    fraction: Double?,
     tint: Color,
     // #110: a per-card dynamic subtitle (currently the sleep row's source + night); null keeps the
     // card's static description.
@@ -4561,28 +4478,14 @@ private fun DashboardCardRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // A 30dp mini GlowRing filled to this card's fraction, tinted its domain colour — the
-        // "small ring per icon" iOS shows. Static (GlowRing starts empty, springs to target once).
-        // Ring or vessel per the Today gauge preference. Static either way: the many small gauges
-        // cost nothing per frame, which is what the vessel's animated=false bought here too.
-        val cardGaugeCtx = LocalContext.current
-        if (remember { NoopPrefs.todayRingGauges(cardGaugeCtx) }) {
-            GlowRing(
-                fraction = (fraction ?: 0.0).coerceIn(0.0, 1.0).toFloat(),
-                value = 0.0,
-                color = tint,
-                diameter = 30.dp,
-                lineWidth = 3.dp,
-                showsLabel = false,
-            )
-        } else {
-            LiquidVessel(
-                value = fraction,
-                tint = tint,
-                animated = false,
-                modifier = Modifier.size(30.dp),
-            )
-        }
+        // #150: keep the metric identity visible under glass. The fixed tinted backing preserves the
+        // domain colour while the registry glyph distinguishes close pairs such as HRV and Resting HR.
+        TintedMetricIcon(
+            icon = card.icon,
+            tint = tint,
+            size = 34.dp,
+            iconSize = 16.dp,
+        )
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(1.dp),
@@ -4675,6 +4578,26 @@ private fun stepsCalibrationPrompt(context: Context, profileStore: ProfileStore)
             uiString(R.string.today_steps_headline_connect_phone)
         is StepsEstimateEngine.CalibrationStatus.Headline.NeedMoreDays ->
             uiString(R.string.today_steps_headline_more_days, headline.remaining)
+    }
+}
+
+/** A static metric glyph on a tinted tile, matching Apple's dashboard treatment and remaining legible
+ * when the surrounding glass surface reduces colour contrast. Decorative: the parent row owns semantics. */
+@Composable
+private fun TintedMetricIcon(icon: ImageVector, tint: Color, size: Dp, iconSize: Dp) {
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(RoundedCornerShape(size * 0.27f))
+            .background(tint.copy(alpha = 0.16f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(iconSize),
+        )
     }
 }
 
