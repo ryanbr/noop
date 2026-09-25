@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="steps_history">La tua cronologia dei passi.</string>
+    <string name="steps_loading">Caricamento cronologia dei passi.</string>
+    <string name="steps_loading_title">Caricamento…</string>
+    <string name="steps_empty_title">Ancora nessuna lettura dei passi</string>
+    <string name="steps_empty_body">I conteggi dei passi registrati o importati appariranno qui.</string>
+    <string name="steps_empty_range">Nessun passo registrato in questo periodo. Seleziona un periodo più lungo.</string>
+    <string name="steps_ranges_hint">Periodi più lunghi diventano disponibili man mano che vengono registrati più giorni.</string>
+    <string name="steps_as_of">Aggiornato al %1$s</string>
+    <string name="steps_latest">Più recente</string>
+    <string name="steps_readings">Letture</string>
+    <string name="steps_min">Minimo</string>
+    <string name="steps_avg">Media</string>
+    <string name="steps_max">Massimo</string>
+    <string name="steps_unit">passi</string>
+    <string name="steps_value">%1$s passi</string>
+    <string name="steps_mean_value">%1$s passi in media per giorno registrato</string>
+    <string name="steps_chart_mean">Media %1$s passi/giorno</string>
+    <string name="steps_week_of">Settimana del %1$s</string>
+    <string name="steps_chart_summary">Passi, %1$d barre. %2$s</string>
+    <string name="steps_no_data">Passi, nessun dato</string>
+    <string name="steps_average_30">Media dei passi su 30 giorni</string>
+    <string name="steps_average_subtitle">Media mobile degli ultimi 30 giorni</string>
+    <string name="steps_average_coverage">%1$d giorni su 30 registrati</string>
+    <string-array name="steps_ranges"><item>1S</item><item>2S</item><item>3S</item><item>1M</item><item>3M</item><item>6M</item><item>1A</item><item>TUTTO</item></string-array>
+</resources>

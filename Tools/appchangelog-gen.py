@@ -59,7 +59,7 @@ RES = ROOT / "android/app/src/main/res"
 # asserts rather than trusting anyone to remember.
 LOCALE_DIRS = {"en": "values", "de": "values-de", "es": "values-es",
                "fr": "values-fr", "pt-PT": "values-pt-rPT", "zh": "values-zh",
-               "pl": "values-pl", "ru": "values-ru"}
+               "pl": "values-pl", "ru": "values-ru", "it": "values-it"}
 
 
 def title_key(title: str) -> str:

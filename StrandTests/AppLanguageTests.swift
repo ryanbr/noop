@@ -11,6 +11,11 @@ final class AppLanguageTests: XCTestCase {
         XCTAssertEqual(AppLanguage.chinese.autonym, "中文")
     }
 
+    func testItalianCatalogTagIsSupported() {
+        XCTAssertEqual(AppLanguage.resolve("it"), .italian)
+        XCTAssertEqual(AppLanguage.italian.autonym, "Italiano")
+    }
+
     func testPolishCatalogTagIsSupported() {
         XCTAssertEqual(AppLanguage.resolve("pl"), .polish)
         XCTAssertEqual(AppLanguage.polish.autonym, "Polski")

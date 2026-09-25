@@ -39,6 +39,12 @@
             "value": "%1$@ %2$lld"
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ %lld"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -97,6 +103,12 @@
             "value": "Étalonnage %1$@"
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ in calibrazione"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -153,6 +165,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "%1$@ non disponible"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ non disponibile"
           }
         },
         "pl": {
@@ -277,6 +295,12 @@
             "value": "Chargez %1$lld sur 100"
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Carica %lld su 100"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -333,6 +357,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Charger %1$lld · %2$lld bpm%3$@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Carica %lld · %lld bpm%@"
           }
         },
         "pl": {
@@ -393,6 +423,12 @@
             "value": "Charger %1$lld%2$@"
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Carica %lld%@"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -449,6 +485,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Étalonnage des charges"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Carica in calibrazione"
           }
         },
         "pl": {
@@ -509,6 +551,12 @@
             "value": "Étalonnage de charge, besoin de plus de données"
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Carica in calibrazione, servono più dati"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -565,6 +613,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Charge hors date, dernière synchronisation %1$@. Ouvrez NOOP sur iPhone."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Carica non aggiornata, ultima sincronizzazione %@. Apri NOOP su iPhone."
           }
         },
         "pl": {
@@ -625,6 +679,12 @@
             "value": "Intervalle de charge · %1$@"
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Carica datata · %@"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -681,6 +741,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Frais non disponibles"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Carica non disponibile"
           }
         },
         "pl": {
@@ -741,6 +807,12 @@
             "value": "Charge · %1$@"
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Carica · %@"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -799,6 +871,12 @@
             "value": "Charge"
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Carica · cal"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -855,6 +933,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Frais –"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Carica –"
           }
         },
         "pl": {
@@ -1043,6 +1127,12 @@
             "value": "NOOP · ouvert sur iPhone"
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP · apri su iPhone"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -1099,6 +1189,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "- Oui. %1$@, %2$@, %3$@."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP. %@, %@, %@."
           }
         },
         "pl": {
@@ -1159,6 +1255,12 @@
             "value": "- Oui. Pas encore de données, ouvrez NOOP sur votre iPhone pour synchroniser."
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP. Ancora nessun dato, apri NOOP sul tuo iPhone per sincronizzare."
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -1215,6 +1317,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "- Oui. Les scores sont dépassés, le dernier %1$@ synchronisé. Ouvrez NOOP sur iPhone pour vous rafraîchir."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP. Punteggi non aggiornati, ultima sincronizzazione %@. Apri NOOP su iPhone per aggiornare."
           }
         },
         "pl": {
@@ -1275,6 +1383,12 @@
             "value": "Pas de données, ouvrir NOOP sur iPhone"
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nessun dato, apri NOOP su iPhone"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -1331,6 +1445,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ouvrir NOOP"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apri NOOP"
           }
         },
         "pl": {
@@ -1519,6 +1639,12 @@
             "value": "Il y a longtemps"
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "tempo fa"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -1572,6 +1698,12 @@
           }
         },
         "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cal"
+          }
+        },
+        "it": {
           "stringUnit": {
             "state": "translated",
             "value": "cal"
@@ -1635,6 +1767,12 @@
             "value": "vieux"
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "vecchio"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -1693,6 +1831,12 @@
             "value": "Ouvrir un iPhone"
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "apri iPhone"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -1749,6 +1893,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Stable"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "datato"
           }
         },
         "pl": {

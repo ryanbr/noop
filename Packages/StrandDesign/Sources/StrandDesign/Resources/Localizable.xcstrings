@@ -39,6 +39,12 @@
             "value": "il y a %lld jours"
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld giorni fa"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -161,6 +167,12 @@
             "value": "%1$lld minutes"
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld minuti"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -217,6 +229,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "%1$lld points, moyenne %2$@, plage %3$@ à %4$@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld punti, media %@, intervallo da %@ a %@"
           }
         },
         "pl": {
@@ -277,6 +295,12 @@
             "value": "%lld relevés"
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld letture"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -335,6 +359,12 @@
             "value": "%lld entraînements"
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld allenamenti"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -391,6 +421,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "il y a %lld j"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lldg fa"
           }
         },
         "pl": {
@@ -515,6 +551,12 @@
             "value": "il y a %lld min"
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lldm fa"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -637,6 +679,12 @@
             "value": "1 minute"
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 minuto"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -695,6 +743,12 @@
             "value": "1 entraînement"
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 allenamento"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -751,6 +805,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "MAXIMAL"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MASSIMO"
           }
         },
         "pl": {
@@ -875,6 +935,12 @@
             "value": "Classique"
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Classico"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -933,6 +999,12 @@
             "value": "ÉPUISÉ"
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ESAURITO"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -977,6 +1049,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sombre"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scuro"
           }
         },
         "pt-PT": {
@@ -1241,6 +1319,12 @@
             "value": "LÉGER"
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "LEGGERO"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -1427,6 +1511,12 @@
             "value": "MODÉRÉ"
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MODERATO"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -1547,6 +1637,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pas de données sur le rythme cardiaque"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nessun dato di frequenza cardiaca"
           }
         },
         "pl": {
@@ -1671,6 +1767,12 @@
             "value": "PRÉPARÉ"
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PRONTO"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -1727,6 +1829,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Calendrier de récupération, %1$lld jours, moyenne %2$lld, faible %3$lld, haut %4$lld"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calendario recupero, %lld giorni, media %lld, minimo %lld, massimo %lld"
           }
         },
         "pl": {
@@ -1787,6 +1895,12 @@
             "value": "Calendrier de récupération, aucune donnée"
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calendario recupero, nessun dato"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -1843,6 +1957,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "SOUTENU"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "INTENSO"
           }
         },
         "pl": {
@@ -1903,6 +2023,12 @@
             "value": "Stades de sommeil, %1$@"
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fasi del sonno, %@"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -1959,6 +2085,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Stades de sommeil, aucune donnée"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fasi del sonno, nessun dato"
           }
         },
         "pl": {
@@ -2083,6 +2215,12 @@
             "value": "Système"
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sistema"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -2203,6 +2341,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tendance, %1$lld points, dernier %2$@, faible %3$@, haut %4$@"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Andamento, %lld punti, ultimo %@, minimo %@, massimo %@"
           }
         },
         "pl": {
@@ -2327,6 +2471,12 @@
             "value": "%1$@ de sommeil"
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sonno %@"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -2383,6 +2533,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "moyenne %1$@ bpm"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "media %@ bpm"
           }
         },
         "pl": {
@@ -2507,6 +2663,12 @@
             "value": "plage %1$@ à %2$@"
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "intervallo da %@ a %@"
+          }
+        },
         "pl": {
           "stringUnit": {
             "state": "translated",
@@ -2542,6 +2704,12 @@
           }
         },
         "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld"
+          }
+        },
+        "it": {
           "stringUnit": {
             "state": "translated",
             "value": "%lld"
@@ -3091,6 +3259,12 @@
             "value": "Terminé"
           }
         },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fine"
+          }
+        },
         "ru": {
           "stringUnit": {
             "state": "translated",
@@ -3255,6 +3429,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Fréquence cardiaque, 24 heures"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Frequenza cardiaca, 24 ore"
           }
         },
         "pt-PT": {
@@ -3727,6 +3907,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mouvement pendant le sommeil"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Movimento durante il sonno"
           }
         },
         "pt-PT": {
@@ -4385,6 +4571,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Enregistrer"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Salva"
           }
         },
         "ru": {
