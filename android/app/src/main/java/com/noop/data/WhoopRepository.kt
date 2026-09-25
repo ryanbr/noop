@@ -1381,8 +1381,18 @@ class WhoopRepository(
     suspend fun rrIntervalsForDevice(deviceId: String, from: Long, to: Long,
                                      limit: Int = DEFAULT_LIMIT,
                                      unlabelledAliasOfWhoop5: Boolean = false): List<RrInterval> = transactor.run {
-        if (isWhoop5RrSource(deviceId, unlabelledAliasOfWhoop5)) dao.whoop5RrIntervals(deviceId, from, to, limit)
-        else dao.rrIntervals(deviceId, from, to, limit)
+        // A ring record served twice is stored twice: each connection anchors on its own SyncTime, so
+        // the second copy lands a second or two off the first and misses the row key instead of
+        // colliding with it (#2456). Collapsed HERE rather than at one scorer, so every SCORING reader
+        // agrees: the damage shows up as a coverage over-count, and coverage is computed from this read.
+        //
+        // `rawRrIntervalsForDevice` above deliberately does NOT collapse and still shows both copies.
+        // That is the point of a raw export, and it is the evidence the duplication was diagnosed from,
+        // so a diagnostic export and the app can legitimately disagree on beat counts.
+        OuraRedrainCollapse.withoutRedrainedRuns(
+            if (isWhoop5RrSource(deviceId, unlabelledAliasOfWhoop5)) dao.whoop5RrIntervals(deviceId, from, to, limit)
+            else dao.rrIntervals(deviceId, from, to, limit)
+        )
     }
 
     /** R-R beats over active strap + canonical history. Exact duplicate beats are removed with the

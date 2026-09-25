@@ -82,6 +82,9 @@ enum class RrSourceChannel(val code: Int) {
 
     val isWhoop5Transport: Boolean get() = code in 5..7
 
+    /** The ring's beat trains (0x80, 0x6E, 0x60, 0x44), as opposed to a WHOOP transport. */
+    val isOura: Boolean get() = code in 1..4
+
     companion object {
         /** The channel with this durable storage [code], or null for an unknown/absent one. */
         fun fromCode(code: Int?): RrSourceChannel? = entries.firstOrNull { it.code == code }

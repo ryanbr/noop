@@ -72,6 +72,9 @@ public enum RRSourceChannel: Int, Equatable, Codable, Sendable, CaseIterable {
     case whoop5Standard = 7
 
     public var isWhoop5Transport: Bool { (5...7).contains(rawValue) }
+
+    /// The ring's beat trains (0x80, 0x6E, 0x60, 0x44), as opposed to a WHOOP transport.
+    public var isOura: Bool { (1...4).contains(rawValue) }
 }
 
 public struct RRInterval: Equatable, Codable {

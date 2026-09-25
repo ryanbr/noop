@@ -446,7 +446,7 @@ extension WhoopStore {
                     WHERE deviceId = :d AND ts >= :f AND ts <= :t AND srcChannel IN \(Self.scorableWhoop5Channels)
                     AND (tsSuspect IS NULL OR tsSuspect <> 1))
                 """ : "1"
-            return try Row.fetchAll(db, sql: """
+            let rows = try Row.fetchAll(db, sql: """
                 SELECT ts, rrMs, srcChannel, ord, seq FROM rrInterval
                 WHERE deviceId = :d AND ts >= :f AND ts <= :t
                 AND (srcChannel IS NULL OR srcChannel <> :rrx)
@@ -460,6 +460,16 @@ extension WhoopStore {
                                srcChannel: (row["srcChannel"] as Int?).flatMap(RRSourceChannel.init(rawValue:)),
                                ord: row["ord"] as Int?, seq: row["seq"])
                 }
+            // A ring record served twice is stored twice: each connection anchors on its own SyncTime,
+            // so the second copy lands a second or two off the first and misses the row key instead of
+            // colliding with it (#2456). Collapsed HERE rather than at one scorer, so every SCORING
+            // reader agrees: the damage shows up as a coverage over-count, and coverage is computed
+            // from this read.
+            //
+            // The raw diagnostic export deliberately does NOT come through here and still shows both
+            // copies. That is the point of a raw export, and it is the evidence the duplication was
+            // diagnosed from, so a strap log and the app can legitimately disagree on beat counts.
+            return OuraRedrainCollapse.withoutRedrainedRuns(rows)
         }
     }
 
