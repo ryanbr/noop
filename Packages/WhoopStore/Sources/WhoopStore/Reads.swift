@@ -503,6 +503,19 @@ extension WhoopStore {
     /// selection, so a strap-log count or an export still carries both Oura beat channels as each other's
     /// cross-check. This is what `rrIntervals` returned before the one-Oura-channel selection. Quarantined
     /// (`tsSuspect`) beats stay excluded. Twin of Kotlin `WhoopDao.rawRrIntervals` (`RAW_RR_INTERVALS_SQL`).
+    ///
+    /// BANKED, on every device, which is not the same as "unchanged" everywhere. For a ring this restores
+    /// what `rr=` counted in every log filed before #2423. For a WHOOP 5 it CHANGES that number, because
+    /// the strict single-transport selection in `rrIntervals` predates #2423: a 5/MG's `rr=` now counts
+    /// every stored transport rather than the one scored. That is deliberate. This read answers what the
+    /// strap banked, and a legacy WHOOP 5 row that cannot be spliced into a scored beat train was still
+    /// banked; one number meaning "banked on a ring, scored on a strap" would be the worse answer. Expect
+    /// a 5/MG's `rr=` to step up once, and to sit above the scored count from then on.
+    ///
+    /// It also does NOT collapse a record the drain served twice (#2456), where `rrIntervals` does. So on
+    /// a redrained night this counts the duplicates and the `hrv diag` line does not, and the two together
+    /// are what shows a redrain happened at all. A strap log and the app disagreeing on beat counts is the
+    /// signal, not a fault.
     public func rawRrIntervals(deviceId: String, from: Int, to: Int, limit: Int) async throws -> [RRInterval] {
         try syncRead { db in
             try Row.fetchAll(db, sql: """

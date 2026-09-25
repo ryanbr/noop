@@ -384,6 +384,9 @@ object AndroidDiagnostics {
             val hr = repo.hrSamplesForDevice(id, session.startTs, session.endTs, Int.MAX_VALUE)
             // Beats BANKED, not beats scored: the raw read, so `rr=` keeps the meaning it had in every log
             // filed before the one-Oura-channel selection, on both platforms (Swift `DebugDataDiagnostics`).
+            // On a WHOOP 5 this steps the number UP rather than restoring it: the strict transport
+            // selection predates that change, so `rr=` now counts every banked transport. Banked is what
+            // this line has always meant. See `rawRrIntervals` for why, and for the #2456 interaction.
             val rr = repo.rawRrIntervalsForDevice(id, session.startTs, session.endTs, Int.MAX_VALUE)
             val resp = repo.respSamples(id, session.startTs, session.endTs, Int.MAX_VALUE)
             add(

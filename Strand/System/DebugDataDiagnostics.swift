@@ -283,6 +283,9 @@ enum DebugDataDiagnostics {
         let hr = await repo.hrSamples(from: cs.startTs, to: cs.endTs, limit: 200_000)
         // Beats BANKED, not beats scored: the raw read, so `rr=` keeps the meaning it had in every log filed
         // before the one-Oura-channel selection, on both platforms (Kotlin `AndroidDiagnostics`).
+        // On a WHOOP 5 this steps the number UP rather than restoring it: the strict transport
+        // selection predates that change, so `rr=` now counts every banked transport. Banked is what
+        // this line has always meant. See `rawRrIntervals` for why, and for the #2456 interaction.
         let rr = (try? await store.rawRrIntervals(deviceId: did, from: cs.startTs, to: cs.endTs, limit: 200_000)) ?? []
         let resp = (try? await store.respSamples(deviceId: did, from: cs.startTs, to: cs.endTs, limit: 200_000)) ?? []
         lines.append("Night \(dayStamp(cs.startTs))"
