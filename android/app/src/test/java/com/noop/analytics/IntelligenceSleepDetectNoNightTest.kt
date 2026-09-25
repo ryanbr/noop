@@ -144,6 +144,45 @@ class IntelligenceSleepDetectNoNightTest {
         assertTrue(line, line.contains(" providedLongest=nil providedLongestEnd=nil "))
     }
 
+    // ---- which provided session gets reported ----
+
+    private fun session(startMin: Long, endMin: Long) =
+        DetectedSleep(startMin * 60L, endMin * 60L, 0.9, emptyList(), null, null)
+
+    /** The plain case: the longest wins. */
+    @Test
+    fun `the longest provided session is the one reported`() {
+        val picked = IntelligenceEngine.longestProvidedForDiag(
+            listOf(session(0, 60), session(100, 340), session(400, 430)),
+        )
+        assertEquals(240L, ((picked!!.end - picked.start) / 60L))
+    }
+
+    /**
+     * The tie, which is why this is a named function rather than a `maxByOrNull` at the call site.
+     *
+     * Kotlin's `maxByOrNull` keeps the FIRST of two equal elements and Swift's `max(by:)` does not agree,
+     * while the field actually printed is the END day. Two equal-length sessions ending on different days
+     * would then render differently on the two platforms from identical input. Ordering by
+     * (duration, end) makes the reported end the later one on both.
+     *
+     * Not a corner case: the HR-only spine works in fixed epochs, so durations are quantised and repeat.
+     */
+    @Test
+    fun `equal length sessions report the later ending one`() {
+        val early = session(0, 240)
+        val late = session(600, 840)
+        assertEquals(late.end, IntelligenceEngine.longestProvidedForDiag(listOf(early, late))!!.end)
+        // Order of the input must not change the answer, which is the whole property.
+        assertEquals(late.end, IntelligenceEngine.longestProvidedForDiag(listOf(late, early))!!.end)
+    }
+
+    /** Nothing provided, nothing picked. */
+    @Test
+    fun `no sessions yields null`() {
+        assertEquals(null, IntelligenceEngine.longestProvidedForDiag(emptyList()))
+    }
+
     /** Motion present still outranks everything: the inputs were there and staging produced nothing. */
     @Test
     fun motionPresentStaysStagedNoneEvenWithProvidedSessions() {

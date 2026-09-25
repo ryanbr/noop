@@ -399,6 +399,26 @@ final class IntelligenceEngine: ObservableObject {
         return dayStart < nowLocalMidnight ? nextMidnight : min(nextMidnight, now)
     }
 
+    /// The provided session the NO-NIGHT line reports as `providedLongest` / `providedLongestEnd`: the
+    /// longest, ties broken by the later END.
+    ///
+    /// The tie-break is the point. Selecting on duration alone left the OUTPUT undefined whenever two
+    /// sessions ran the same length, because `Array.max(by:)` and Kotlin's `maxByOrNull` do not agree on
+    /// which of two equal elements they keep, and the field actually printed is the END day. Two equal
+    /// sessions ending on different days would then render differently on the two platforms from
+    /// identical input, on a line whose whole contract is being byte-identical across them.
+    ///
+    /// Equal-length sessions are not a corner case: the HR-only spine works in fixed epochs, so
+    /// durations are quantised and repeat. Ordering by (duration, end) makes any surviving tie one where
+    /// both printed fields are equal anyway, so the output is deterministic even where the choice of
+    /// element is not.
+    ///
+    /// Pure and `nonisolated` so both the picked duration and its day key are unit-tested directly;
+    /// byte-identical twin of the Kotlin `longestProvidedForDiag`.
+    nonisolated static func longestProvidedForDiag(_ sessions: [SleepSession]) -> SleepSession? {
+        return sessions.max(by: { ($0.end - $0.start, $0.end) < ($1.end - $1.start, $1.end) })
+    }
+
     /// Counts, a window length and day keys only — same privacy class as the sibling `sleep day=` line,
     /// no PII. Pure so
     /// it's unit-tested directly; byte-identical to the Android `sleepDetectNoNightLogLine`.
@@ -1535,7 +1555,7 @@ final class IntelligenceEngine: ObservableObject {
                         // Attribute each provided session the same way `analyzeDay` does — by the LOCAL
                         // day its END falls in — so this line and the filter that emptied the night agree
                         // by construction rather than by two readings of the same rule.
-                        let longestProvided = providedSleep.max(by: { ($0.end - $0.start) < ($1.end - $1.start) })
+                        let longestProvided = Self.longestProvidedForDiag(providedSleep)
                         hrvDiag = Self.sleepDetectNoNightLogLine(
                             day: day, hrCount: hr.count, rrCount: rr.count, respCount: resp.count,
                             gravCount: grav.count, stepCount: steps.count,

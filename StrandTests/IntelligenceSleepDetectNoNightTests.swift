@@ -116,6 +116,42 @@ final class IntelligenceSleepDetectNoNightTests: XCTestCase {
         XCTAssertTrue(line.contains(" providedLongest=nil providedLongestEnd=nil "), line)
     }
 
+    // MARK: which provided session gets reported
+
+    private func session(startMin: Int, endMin: Int) -> SleepSession {
+        SleepSession(start: startMin * 60, end: endMin * 60, efficiency: 0.9,
+                     stages: [], restingHR: nil, avgHRV: nil)
+    }
+
+    /// The plain case: the longest wins.
+    func testTheLongestProvidedSessionIsTheOneReported() {
+        let picked = IE.longestProvidedForDiag([session(startMin: 0, endMin: 60),
+                                                session(startMin: 100, endMin: 340),
+                                                session(startMin: 400, endMin: 430)])
+        XCTAssertEqual(((picked?.end ?? 0) - (picked?.start ?? 0)) / 60, 240)
+    }
+
+    /// The tie, which is why this is a named function rather than a `max(by:)` at the call site.
+    ///
+    /// Swift's `max(by:)` and Kotlin's `maxByOrNull` do not agree on which of two equal elements they
+    /// keep, while the field actually printed is the END day. Two equal-length sessions ending on
+    /// different days would then render differently on the two platforms from identical input. Ordering
+    /// by (duration, end) makes the reported end the later one on both.
+    ///
+    /// Not a corner case: the HR-only spine works in fixed epochs, so durations are quantised and repeat.
+    func testEqualLengthSessionsReportTheLaterEndingOne() {
+        let early = session(startMin: 0, endMin: 240)
+        let late = session(startMin: 600, endMin: 840)
+        XCTAssertEqual(IE.longestProvidedForDiag([early, late])?.end, late.end)
+        // Order of the input must not change the answer, which is the whole property.
+        XCTAssertEqual(IE.longestProvidedForDiag([late, early])?.end, late.end)
+    }
+
+    /// Nothing provided, nothing picked.
+    func testNoSessionsYieldsNil() {
+        XCTAssertNil(IE.longestProvidedForDiag([]))
+    }
+
     /// Motion present still outranks everything: the inputs were there and staging produced nothing.
     func testMotionPresentStaysStagedNoneEvenWithProvidedSessions() {
         let line = IE.sleepDetectNoNightLogLine(

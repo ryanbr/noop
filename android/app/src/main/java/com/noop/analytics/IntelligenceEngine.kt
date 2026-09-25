@@ -1360,7 +1360,7 @@ object IntelligenceEngine {
                 // Attribute each provided session the same way analyzeDay does - by the LOCAL day its
                 // END falls in - so this line and the filter that emptied the night agree by
                 // construction rather than by two readings of the same rule.
-                val longestProvided = providedSleep.maxByOrNull { it.end - it.start }
+                val longestProvided = longestProvidedForDiag(providedSleep)
                 dayDiag(
                     sleepDetectNoNightLogLine(
                         day = day, hrCount = hr.size, rrCount = rr.size, respCount = resp.size,
@@ -3286,6 +3286,27 @@ object IntelligenceEngine {
      * Counts + a window length only — same privacy class as the sibling `sleep day=` line, no PII. Pure so
      * it's unit-tested directly; byte-identical to the Swift `sleepDetectNoNightLogLine`.
      */
+    /**
+     * The provided session the NO-NIGHT line reports as `providedLongest` / `providedLongestEnd`: the
+     * longest, ties broken by the later END.
+     *
+     * The tie-break is the point. Selecting on duration alone left the OUTPUT undefined whenever two
+     * sessions ran the same length, because [maxByOrNull] and Swift's `max(by:)` do not agree on which of
+     * two equal elements they keep, and the field actually printed is the END day. Two equal sessions
+     * ending on different days would then render differently on the two platforms from identical input,
+     * on a line whose whole contract is being byte-identical across them.
+     *
+     * Equal-length sessions are not a corner case: the HR-only spine works in fixed epochs, so durations
+     * are quantised and repeat. Ordering by (duration, end) makes any surviving tie one where both
+     * printed fields are equal anyway, so the output is deterministic even where the choice of element is
+     * not.
+     *
+     * Pure so both the picked duration and its day key are unit-tested directly; byte-identical twin of
+     * the Swift `longestProvidedForDiag`.
+     */
+    internal fun longestProvidedForDiag(sessions: List<DetectedSleep>): DetectedSleep? =
+        sessions.maxWithOrNull(compareBy({ it.end - it.start }, { it.end }))
+
     internal fun sleepDetectNoNightLogLine(
         day: String, hrCount: Int, rrCount: Int, respCount: Int, gravCount: Int,
         stepCount: Int, providedCount: Int, providedEndingOnDay: Int,
