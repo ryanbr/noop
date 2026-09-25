@@ -918,6 +918,21 @@ public enum AnalyticsEngine {
         let strain = StrainScorer.strain(dayHr ?? hr, maxHR: effMaxHR, restingHR: restForStrain,
                                          method: effortMethod, sex: profile.sex,
                                          diag: strainDiag, day: day)
+        // #2438 step 0 asks two things of a contributed log: whether the day was scored against the
+        // user's own setting or against the age formula, and how far the day's own heart rate ran above
+        // that. The `effort score` line above answers neither — it collapses override and Tanaka into
+        // one word, and never reports what the day reached. The branch is only visible HERE, because
+        // `strain` is handed an HRmax with its provenance already gone. Built only when a sink is
+        // attached, and it changes no score.
+        if let strainDiag {
+            let hrForPeak = dayHr ?? hr
+            strainDiag(StrainScorer.dayCalibrationLine(
+                day: day, hrmax: effMaxHR,
+                hrmaxSource: maxHROverride != nil ? "override" : (profile.age > 0 ? "tanaka" : "default"),
+                tanaka: profile.age > 0 ? StrainScorer.tanakaHRmax(age: profile.age) : nil,
+                observedPeak: hrForPeak.max(by: { $0.bpm < $1.bpm }).map { Double($0.bpm) },
+                restingHR: restForStrain))
+        }
 
         // ── Workouts ──────────────────────────────────────────────────────────
         // Detect over the full CALENDAR day (dayHr/dayGravity) when the caller supplies it, so a
