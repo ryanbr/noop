@@ -13,6 +13,12 @@ import WhoopStore
 /// tell which.
 ///
 /// These tests score one day both ways and compare, which is the only shape that catches it.
+///
+/// What they do NOT cover: the two view call sites themselves. Both views are SwiftUI bodies whose
+/// Effort is computed in a private async method, so the pin here is on `ProfileStore.effortHRmax` and on
+/// its agreement with `AnalyticsEngine`. Someone who reintroduced a hand-rolled Tanaka in a view would
+/// leave this file green. The resolver existing at all is the guard against that, which is most of why
+/// it is a named property rather than a corrected expression in two places.
 final class EffortHRmaxOverrideTests: XCTestCase {
 
     // MARK: the resolver
@@ -20,10 +26,9 @@ final class EffortHRmaxOverrideTests: XCTestCase {
     /// A manual override wins, and it wins as the exact bpm that was set.
     @MainActor
     func testAnOverrideWins() {
-        let p = ProfileStore()
-        p.dateOfBirth = ProfileStore.dateOfBirth(forAge: 30)
-        p.hrMaxOverride = 195
-        XCTAssertEqual(p.effortHRmax ?? -1, 195.0, accuracy: 1e-9)
+        withProfile(age: 30, hrMaxOverride: 195) { p in
+            XCTAssertEqual(p.effortHRmax ?? -1, 195.0, accuracy: 1e-9)
+        }
     }
 
     /// With no override the formula applies, UNROUNDED, and that is also why this is not the existing
@@ -35,11 +40,10 @@ final class EffortHRmaxOverrideTests: XCTestCase {
     /// derived from `p.age` rather than hardcoded, since `age` is computed from the stored birth date.
     @MainActor
     func testNoOverrideIsUnroundedTanakaAndNotTheRoundedHrMax() {
-        let p = ProfileStore()
-        p.dateOfBirth = ProfileStore.dateOfBirth(forAge: 41)
-        p.hrMaxOverride = 0
-        XCTAssertEqual(p.effortHRmax ?? -1, StrainScorer.tanakaHRmax(age: Double(p.age)), accuracy: 1e-9)
-        XCTAssertNotEqual(p.effortHRmax ?? -1, Double(p.hrMax))
+        withProfile(age: 41, hrMaxOverride: 0) { p in
+            XCTAssertEqual(p.effortHRmax ?? -1, StrainScorer.tanakaHRmax(age: Double(p.age)), accuracy: 1e-9)
+            XCTAssertNotEqual(p.effortHRmax ?? -1, Double(p.hrMax))
+        }
     }
 
     // MARK: the day, scored both ways
@@ -48,43 +52,37 @@ final class EffortHRmaxOverrideTests: XCTestCase {
     /// live path and by `AnalyticsEngine`, must produce the same number.
     @MainActor
     func testLiveAndStoredAgreeForAnOverriddenProfile() {
-        let p = ProfileStore()
-        p.dateOfBirth = ProfileStore.dateOfBirth(forAge: 30)
-        p.sex = "male"
-        p.hrMaxOverride = 195
+        withProfile(age: 30, hrMaxOverride: 195) { p in
+            let hr = dayHR()
+            let live = StrainScorer.strain(hr, maxHR: p.effortHRmax,
+                                           restingHR: StrainScorer.defaultRestingHR,
+                                           method: .edwards, sex: p.sex)
+            let stored = AnalyticsEngine.analyzeDay(day: Self.day, hr: hr, dayHr: hr,
+                                                    profile: engineProfile(p),
+                                                    maxHROverride: Double(p.hrMaxOverride),
+                                                    effortMethod: .edwards).daily.strain
 
-        let hr = dayHR()
-        let live = StrainScorer.strain(hr, maxHR: p.effortHRmax,
-                                       restingHR: StrainScorer.defaultRestingHR,
-                                       method: .edwards, sex: p.sex)
-        let stored = AnalyticsEngine.analyzeDay(day: Self.day, hr: hr, dayHr: hr,
-                                                profile: engineProfile(p),
-                                                maxHROverride: Double(p.hrMaxOverride),
-                                                effortMethod: .edwards).daily.strain
-
-        XCTAssertNotNil(live, "fixture must score, or this test proves nothing")
-        XCTAssertEqual(live ?? -1, stored ?? -2, accuracy: 1e-9)
+            XCTAssertNotNil(live, "fixture must score, or this test proves nothing")
+            XCTAssertEqual(live ?? -1, stored ?? -2, accuracy: 1e-9)
+        }
     }
 
     /// The same day with no override, which was never broken, so the fix must not have moved it.
     @MainActor
     func testLiveAndStoredAgreeWithNoOverride() {
-        let p = ProfileStore()
-        p.dateOfBirth = ProfileStore.dateOfBirth(forAge: 30)
-        p.sex = "male"
-        p.hrMaxOverride = 0
+        withProfile(age: 30, hrMaxOverride: 0) { p in
+            let hr = dayHR()
+            let live = StrainScorer.strain(hr, maxHR: p.effortHRmax,
+                                           restingHR: StrainScorer.defaultRestingHR,
+                                           method: .edwards, sex: p.sex)
+            let stored = AnalyticsEngine.analyzeDay(day: Self.day, hr: hr, dayHr: hr,
+                                                    profile: engineProfile(p),
+                                                    maxHROverride: nil,
+                                                    effortMethod: .edwards).daily.strain
 
-        let hr = dayHR()
-        let live = StrainScorer.strain(hr, maxHR: p.effortHRmax,
-                                       restingHR: StrainScorer.defaultRestingHR,
-                                       method: .edwards, sex: p.sex)
-        let stored = AnalyticsEngine.analyzeDay(day: Self.day, hr: hr, dayHr: hr,
-                                                profile: engineProfile(p),
-                                                maxHROverride: nil,
-                                                effortMethod: .edwards).daily.strain
-
-        XCTAssertNotNil(live)
-        XCTAssertEqual(live ?? -1, stored ?? -2, accuracy: 1e-9)
+            XCTAssertNotNil(live)
+            XCTAssertEqual(live ?? -1, stored ?? -2, accuracy: 1e-9)
+        }
     }
 
     /// Why the old behaviour was not a harmless difference but a wrong number on the ring.
@@ -95,35 +93,60 @@ final class EffortHRmaxOverrideTests: XCTestCase {
     /// change that reintroduces a second yardstick cannot be argued to be cosmetic.
     @MainActor
     func testTheOldTanakaOnlyValueWouldHaveOutvotedTheStoredDay() {
-        let p = ProfileStore()
-        p.dateOfBirth = ProfileStore.dateOfBirth(forAge: 30)
-        p.sex = "male"
-        p.hrMaxOverride = 195
+        withProfile(age: 30, hrMaxOverride: 195) { p in
+            let hr = dayHR()
+            // Exactly what both views used to compute.
+            let oldLive = StrainScorer.strain(hr, maxHR: StrainScorer.tanakaHRmax(age: Double(p.age)),
+                                              restingHR: StrainScorer.defaultRestingHR,
+                                              method: .edwards, sex: p.sex)
+            let stored = AnalyticsEngine.analyzeDay(day: Self.day, hr: hr, dayHr: hr,
+                                                    profile: engineProfile(p),
+                                                    maxHROverride: Double(p.hrMaxOverride),
+                                                    effortMethod: .edwards).daily.strain
 
-        let hr = dayHR()
-        // Exactly what both views used to compute.
-        let oldLive = StrainScorer.strain(hr, maxHR: StrainScorer.tanakaHRmax(age: Double(p.age)),
-                                          restingHR: StrainScorer.defaultRestingHR,
-                                          method: .edwards, sex: p.sex)
-        let stored = AnalyticsEngine.analyzeDay(day: Self.day, hr: hr, dayHr: hr,
-                                                profile: engineProfile(p),
-                                                maxHROverride: Double(p.hrMaxOverride),
-                                                effortMethod: .edwards).daily.strain
+            XCTAssertGreaterThan(oldLive ?? -1, stored ?? -1, "the fixture must exercise the divergence")
+            XCTAssertEqual(StrainScorer.effectiveEffort(live: oldLive, stored: stored) ?? -1,
+                           oldLive ?? -2, accuracy: 1e-9, "the wrong value is the one that was displayed")
 
-        XCTAssertGreaterThan(oldLive ?? -1, stored ?? -1, "the fixture must exercise the divergence")
-        XCTAssertEqual(StrainScorer.effectiveEffort(live: oldLive, stored: stored) ?? -1,
-                       oldLive ?? -2, accuracy: 1e-9, "the wrong value is the one that was displayed")
-
-        // With the fix the same call is a no-op: both sides are the day's own number.
-        let newLive = StrainScorer.strain(hr, maxHR: p.effortHRmax,
-                                          restingHR: StrainScorer.defaultRestingHR,
-                                          method: .edwards, sex: p.sex)
-        XCTAssertEqual(StrainScorer.effectiveEffort(live: newLive, stored: stored) ?? -1,
-                       stored ?? -2, accuracy: 1e-9)
+            // With the fix the same call is a no-op: both sides are the day's own number.
+            let newLive = StrainScorer.strain(hr, maxHR: p.effortHRmax,
+                                              restingHR: StrainScorer.defaultRestingHR,
+                                              method: .edwards, sex: p.sex)
+            XCTAssertEqual(StrainScorer.effectiveEffort(live: newLive, stored: stored) ?? -1,
+                           stored ?? -2, accuracy: 1e-9)
+        }
     }
 
     // MARK: fixture
 
+    /// A profile with the given age and override, with the stored defaults restored afterwards.
+    ///
+    /// `ProfileStore` writes straight to `UserDefaults.standard` and has no injectable suite, so a test
+    /// that sets a birth date or an override leaves it there for whatever runs next. That is not
+    /// hypothetical for this key in particular: `IntelligenceEngine` reads `hrMaxOverride` to choose the
+    /// HRmax it scores with, so a stray 195 left behind here would quietly rescore another suite's
+    /// fixtures, and the failure would look like anything except this file. Same save-and-restore shape
+    /// as `DetectedWorkoutReconciliationTests.withPreferences`, narrowed to the keys touched here.
+    @MainActor
+    private func withProfile(age: Int, hrMaxOverride: Int, sex: String = "male",
+                             _ body: (ProfileStore) -> Void) {
+        let defaults = UserDefaults.standard
+        let keys = ["profile.dateOfBirth", "profile.age", "profile.sex", "profile.hrMaxOverride"]
+        let saved = keys.map { ($0, defaults.object(forKey: $0)) }
+        defer {
+            for (key, value) in saved {
+                if let value { defaults.set(value, forKey: key) }
+                else { defaults.removeObject(forKey: key) }
+            }
+        }
+        let p = ProfileStore()
+        p.dateOfBirth = ProfileStore.dateOfBirth(forAge: age)
+        p.sex = sex
+        p.hrMaxOverride = hrMaxOverride
+        body(p)
+    }
+
+    /// The day key the fixture's timestamps fall in, under the tests' UTC offset.
     private static let day = "2026-09-26"
 
     /// A calendar day at 60 bpm with a 40-minute block at 140, which is zone 2 under Tanaka and zone 1
