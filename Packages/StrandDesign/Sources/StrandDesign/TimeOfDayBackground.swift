@@ -242,13 +242,22 @@ private struct FloatingLayer: View {
 
     var body: some View {
         // One animation clock drives every shape's horizontal phase. The system pauses this
-        // TimelineView while off-screen, so it costs nothing when not visible.
-        TimelineView(.animation(minimumInterval: 1.0 / 20.0, paused: !drift)) { timeline in
-            let t = drift ? timeline.date.timeIntervalSinceReferenceDate : 0
-            ZStack {
-                ForEach(shapes.indices, id: \.self) { i in
-                    floater(shapes[i], t: t)
-                }
+        // TimelineView while off-screen, so it costs nothing when not visible. Without drift the shapes rest
+        // at phase 0 with no timeline at all: a `paused:` one keeps the render server busy (see
+        // `ChargeSyncMorph.body`).
+        if drift {
+            TimelineView(.animation(minimumInterval: 1.0 / 20.0)) { timeline in
+                shapesLayer(t: timeline.date.timeIntervalSinceReferenceDate)
+            }
+        } else {
+            shapesLayer(t: 0)
+        }
+    }
+
+    private func shapesLayer(t: TimeInterval) -> some View {
+        ZStack {
+            ForEach(shapes.indices, id: \.self) { i in
+                floater(shapes[i], t: t)
             }
         }
     }

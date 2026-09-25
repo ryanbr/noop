@@ -280,6 +280,8 @@ struct LiquidVessel: View {
     @ObservedObject private var motion = NoopMotionState.shared
     @State private var sim: LiquidSim
     @State private var splashes = 0
+    /// Whether the fill is still easing toward `value`: the only time the ring changes (see `gauge`).
+    @State private var filling = true
 
     // The custom init exists to seed `_sim` from `value`, which also means the memberwise init is NOT
     // synthesised: any new stored property has to be threaded through here or callers cannot pass it.
@@ -295,24 +297,60 @@ struct LiquidVessel: View {
         if animated && !motion.poseStill(reduceMotion) { gauge } else { staticGauge }
     }
 
+    /// The live gauge: the fill eases in from empty and to each new value, then the ring holds still.
+    ///
+    /// Since #1068 `LiquidRender.vessel` draws a ring from `sim.level` alone. The waves, tilt, flecks and
+    /// drops the sim still computes are no longer drawn, so once the level has arrived every frame is the
+    /// same picture. The frame loop now runs only while the fill moves; before, the three Today heroes and
+    /// Sleep's hero redrew an unchanged ring 60 times a second for as long as they were on screen. For the
+    /// same reason the vessel no longer holds the tilt sensor: tilt moved only what is not drawn.
     private var gauge: some View {
-        // 60fps: on the 120Hz ProMotion panel a 30fps cap updated the fluid only every 4th refresh,
-        // which read as juddery slosh. Only the 3 hero gauges + HR thread run live now (the small ones
-        // are static), so the higher rate is affordable and the liquid actually flows.
-        TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { tl in
-            let now = liquidSeconds(tl.date)
-            Canvas { context, size in
-                sim.step(now: now, tilt: LiquidMotion.shared.tilt, target: value ?? 0)
-                LiquidRender.vessel(context, size, sim, now: now, tint: tint)
+        Group {
+            if filling {
+                // 60fps: on the 120Hz ProMotion panel a 30fps cap updated the fluid only every 4th refresh,
+                // which read as juddery slosh. Only the 3 hero gauges + HR thread run live now (the small ones
+                // are static), so the higher rate is affordable and the liquid actually flows.
+                TimelineView(.animation(minimumInterval: 1.0 / 60.0)) { tl in
+                    let now = liquidSeconds(tl.date)
+                    Canvas { context, size in
+                        sim.step(now: now, tilt: 0, target: value ?? 0)
+                        LiquidRender.vessel(context, size, sim, now: now, tint: tint)
+                    }
+                }
+            } else {
+                // No timeline behind it: a paused one made the render server busier, not quieter (measured
+                // on the sky, `LiquidSky`).
+                Canvas { context, size in
+                    LiquidRender.vessel(context, size, sim, now: 0, tint: tint)
+                }
             }
         }
         .aspectRatio(1, contentMode: .fit)
         .contentShape(Circle())
         .modifier(LiquidSplashTap(passesThrough: tapPassesThrough) { sim.splash(12); splashes &+= 1 })
         .liquidTapHaptic(trigger: splashes)   // light tap feedback (guarded so the primitives compile on macOS 13)
-        .onAppear { LiquidMotion.shared.acquire() }
-        .onDisappear { LiquidMotion.shared.release() }
+        .task(id: value) { await followFill() }
     }
+
+    /// Keeps the frame loop running until the fill has arrived at `value`, checking four times a second.
+    ///
+    /// A vessel that draws no frames meanwhile (off screen) would never arrive; after `fillChecks` the ring is
+    /// set to its value and drawn still, so it can never be left showing a fill it was on the way from.
+    private func followFill() async {
+        sim.target = max(0, min(1, value ?? 0))
+        if !filling { sim.restartClock() }
+        filling = true
+        var checks = 0
+        while !sim.fillArrived && checks < Self.fillChecks {
+            do { try await Task.sleep(nanoseconds: 250_000_000) } catch { return }
+            checks += 1
+        }
+        if !sim.fillArrived { sim.level = sim.target }
+        filling = false
+    }
+
+    /// Ten seconds of checks. The fill arrives in about three at 60 fps (`LiquidSim.step`).
+    static let fillChecks = 40
 
     /// One-shot, cached render — posed at the fill line, no clock, no motion acquire.
     private var staticGauge: some View {

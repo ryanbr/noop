@@ -155,6 +155,58 @@ final class QuietMotionCoverageTests: XCTestCase {
             """)
     }
 
+    /// A `TimelineView(.animation(…, paused: true))` is not a still view. Measured on Today (iPhone 17 Pro
+    /// simulator, Release), a paused one kept the render server busy: the sky's cost 46 CPU-seconds a minute
+    /// against 22 while it animated, and the header sync ring's 15 to 51 against 0.07 once drawn as a still
+    /// frame. So the resting frame is drawn with no timeline behind it (`LiquidSky`, `ChargeSyncMorph`), and
+    /// the gate picks the view rather than pausing the clock.
+    func testNoAnimationTimelineIsMerelyPaused() throws {
+        let root = try repoRoot()
+        var offenders: [String] = []
+        var timelines = 0
+        for (rel, text) in swiftFiles(under: root) {
+            for (line, arguments) in animationScheduleArguments(in: codeLines(text)) {
+                timelines += 1
+                if arguments.contains("paused:") { offenders.append("\(rel):\(line): .animation(\(arguments))") }
+            }
+        }
+        XCTAssertGreaterThanOrEqual(timelines, 6, "expected to find the known animation timelines, found \(timelines)")
+        XCTAssertTrue(offenders.isEmpty, """
+            \(offenders.count) animation timeline(s) are paused rather than removed. Draw the resting frame \
+            without a TimelineView instead:
+            \(offenders.joined(separator: "\n"))
+            """)
+    }
+
+    /// The argument list of every `TimelineView(.animation(…))`, whitespace removed, with the 1-based line it
+    /// starts on. Balanced on parentheses, so `minimumInterval: 1.0 / 20.0` or a nested call reads whole.
+    private func animationScheduleArguments(in lines: [String]) -> [(line: Int, arguments: String)] {
+        var flattened: [Character] = []
+        var lineOfCharacter: [Int] = []
+        for (index, line) in lines.enumerated() {
+            for character in line where !character.isWhitespace {
+                flattened.append(character)
+                lineOfCharacter.append(index + 1)
+            }
+        }
+        let marker = Array("TimelineView(.animation(")
+        var found: [(line: Int, arguments: String)] = []
+        var i = 0
+        while i + marker.count <= flattened.count {
+            guard Array(flattened[i..<(i + marker.count)]) == marker else { i += 1; continue }
+            var depth = 1
+            var j = i + marker.count
+            while j < flattened.count && depth > 0 {
+                if flattened[j] == "(" { depth += 1 } else if flattened[j] == ")" { depth -= 1 }
+                j += 1
+            }
+            found.append((line: lineOfCharacter[i],
+                          arguments: String(flattened[(i + marker.count)..<max(i + marker.count, j - 1)])))
+            i = j
+        }
+        return found
+    }
+
     /// `StrandMotion.breathe` is the shared `repeatForever` primitive, so a call site can loop forever
     /// without the marker appearing on its own line. Census the call sites too.
     func testBreatheCallSitesConsultTheGate() throws {

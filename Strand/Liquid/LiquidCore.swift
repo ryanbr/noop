@@ -256,7 +256,7 @@ final class LiquidSim {
             }
         }
         let d = target - level
-        if abs(d) > 0.0004 {
+        if abs(d) > Self.fillEpsilon {
             level += d * min(1, dt * 2.6)
             energy = min(1.2, energy + abs(d) * dt * 6)
         }
@@ -301,6 +301,17 @@ final class LiquidSim {
     var settled: Bool {
         abs(av) < 0.01 && abs(abv) < 0.01 && abs(target - level) < 0.001 && energy < 0.03
     }
+
+    /// How close the fill must come to its target before `step` stops moving it.
+    static let fillEpsilon = 0.0004
+
+    /// True once the fill has arrived: `step` no longer moves `level`, so a render that reads only the
+    /// level (the ring `LiquidRender.vessel` draws since #1068) has nothing left to animate.
+    var fillArrived: Bool { abs(target - level) <= Self.fillEpsilon }
+
+    /// Forget the last frame's time, so a loop restarted after resting takes its first step from zero
+    /// rather than one capped 33 ms step that jumps the fill.
+    func restartClock() { lastTime = nil }
 
     /// A non-animating sim posed at its fill line, surface flat and still — for the small
     /// gauges/tubes that render ONCE (no TimelineView → CoreAnimation caches the layer, zero

@@ -289,31 +289,37 @@ public struct ChargeSyncIndicator: View {
         }
     }
 
+    /// The spinner. Still while idle or quiet, with no timeline behind it, for the reason `ChargeSyncMorph.body`
+    /// gives: it is always in the tree here, at opacity 0 when no sync runs.
+    @ViewBuilder
     private var syncingContents: some View {
-        TimelineView(
-            .animation(
-                minimumInterval: StrandMotion.syncIndicatorFrameInterval,
-                paused: !animationActive || poseStill
-            )
-        ) { timeline in
-            let phase = syncPhase(at: timeline.date)
-            ZStack {
-                Circle()
-                    .stroke(
-                        StrandPalette.liquidHeart.opacity(SyncRing.trackOpacity),
-                        lineWidth: SyncRing.trackWidth
-                    )
-                    .padding(NoopMetrics.syncIndicatorArcInset)
-                Circle()
-                    .trim(from: 0, to: phase.arc)
-                    .stroke(
-                        StrandPalette.liquidHeart,
-                        style: StrokeStyle(lineWidth: SyncRing.spinnerWidth, lineCap: .round)
-                    )
-                    .rotationEffect(.degrees(phase.degrees - 90))
-                    .padding(NoopMetrics.syncIndicatorArcInset)
-                chunkNumber
+        if animationActive && !poseStill {
+            TimelineView(.animation(minimumInterval: StrandMotion.syncIndicatorFrameInterval)) { timeline in
+                spinner(at: timeline.date)
             }
+        } else {
+            spinner(at: Date())
+        }
+    }
+
+    private func spinner(at date: Date) -> some View {
+        let phase = syncPhase(at: date)
+        return ZStack {
+            Circle()
+                .stroke(
+                    StrandPalette.liquidHeart.opacity(SyncRing.trackOpacity),
+                    lineWidth: SyncRing.trackWidth
+                )
+                .padding(NoopMetrics.syncIndicatorArcInset)
+            Circle()
+                .trim(from: 0, to: phase.arc)
+                .stroke(
+                    StrandPalette.liquidHeart,
+                    style: StrokeStyle(lineWidth: SyncRing.spinnerWidth, lineCap: .round)
+                )
+                .rotationEffect(.degrees(phase.degrees - 90))
+                .padding(NoopMetrics.syncIndicatorArcInset)
+            chunkNumber
         }
     }
 
@@ -621,27 +627,35 @@ private struct ChargeSyncMorph: View, Animatable {
     }
 
     var body: some View {
-        TimelineView(
-            .animation(
-                minimumInterval: StrandMotion.syncIndicatorFrameInterval,
-                paused: !active || reducedMotion
-            )
-        ) { timeline in
-            let p = max(0, min(1, progress))
-            let phase = syncPhase(at: timeline.date)
-            let batteryArc = max(0.02, min(1, percent / 100))
-
-            if ending {
-                exitBody(progress: p, batteryArc: batteryArc)
-            } else {
-                entryBody(
-                    progress: p,
-                    batteryArc: batteryArc,
-                    spinnerArc: phase.arc,
-                    // Relative to where this entry began — see `spinBaseDegrees`.
-                    spinDegrees: phase.degrees - spinBaseDegrees
-                )
+        // At rest, or with motion unwanted, the ring is one still frame with no timeline behind it. A timeline
+        // built with `paused:` is not the same thing: this ring sits in Today's header whenever a strap battery
+        // is known, and with Today otherwise still, its paused timeline kept the render server at 15 to 51
+        // CPU-seconds a minute (iPhone 17 Pro simulator); drawn as a still frame, 0.07.
+        if !active || reducedMotion {
+            frame(at: Date())
+        } else {
+            TimelineView(.animation(minimumInterval: StrandMotion.syncIndicatorFrameInterval)) { timeline in
+                frame(at: timeline.date)
             }
+        }
+    }
+
+    @ViewBuilder
+    private func frame(at date: Date) -> some View {
+        let p = max(0, min(1, progress))
+        let phase = syncPhase(at: date)
+        let batteryArc = max(0.02, min(1, percent / 100))
+
+        if ending {
+            exitBody(progress: p, batteryArc: batteryArc)
+        } else {
+            entryBody(
+                progress: p,
+                batteryArc: batteryArc,
+                spinnerArc: phase.arc,
+                // Relative to where this entry began — see `spinBaseDegrees`.
+                spinDegrees: phase.degrees - spinBaseDegrees
+            )
         }
     }
 
