@@ -163,15 +163,17 @@ fun MindSection(vm: AppViewModel) {
                     if (checkInDays < MIND_GATE_DAYS) {
                         val left = MIND_GATE_DAYS - checkInDays
                         Text(
-                            uiString(R.string.l10n_mind_section_mood_correlations_unlock_after_mind_gate_f0c62abe, MIND_GATE_DAYS) +
-                                "check-ins: $left more ${if (left == 1) "day" else "days"} to go.",
+                            uiString(
+                                R.string.l10n_mind_section_mood_correlations_unlock_after_mind_gate_f0c62abe,
+                                MIND_GATE_DAYS,
+                                uiPlural(R.plurals.trends_n_days, left, left),
+                            ),
                             style = NoopType.footnote,
                             color = Palette.textTertiary,
                         )
                     } else if (lines.isEmpty()) {
                         Text(
-                            uiString(R.string.l10n_mind_section_not_enough_overlapping_history_to_correlate_d36b91f9) +
-                                " body metrics yet.",
+                            uiString(R.string.l10n_mind_section_not_enough_overlapping_history_to_correlate_d36b91f9),
                             style = NoopType.footnote,
                             color = Palette.textTertiary,
                         )

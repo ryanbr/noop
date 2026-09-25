@@ -276,6 +276,9 @@ ANDROID_DIRS = [
 # take its content as the first argument here.
 ANDROID_CALL_PATTERN = re.compile(r"\b(?:Text|Snackbar|TopAppBar|setContentTitle|setContentText)\s*\(")
 ANDROID_KWARG_PATTERN = re.compile(r"\b(?:title|label|text|contentDescription|placeholder)\s*=\s*")
+ANDROID_UI_STRING_PATTERN = re.compile(
+    r"\buiString\s*\(\s*R\.string\.([A-Za-z_][A-Za-z0-9_]*)"
+)
 
 # `contentDescription = <expr>` is UI accessibility text wherever it is ASSIGNED. Unlike the general
 # kwargs it most often sits inside a `Modifier.semantics { }` lambda, whose `{` is NOT an argument
@@ -481,6 +484,51 @@ def scan_android(read: Reader | None = None) -> list[tuple[str, int, str]]:
                     if initializer is not None:
                         record(*initializer)
 
+    return findings
+
+
+def android_ui_string_concatenations(
+    read: Reader | None = None,
+) -> list[tuple[str, int, str]]:
+    """Localized Android resources immediately concatenated with another value.
+
+    Literal tails expose only the prefix to translators; dynamic tails also fix the
+    sentence order in Kotlin instead of letting a locale's positional format control
+    it. Both forms must be represented by one complete formatted resource.
+    """
+    read = read or _disk_read
+    findings: list[tuple[str, int, str]] = []
+    for base in ANDROID_DIRS:
+        if not base.exists():
+            continue
+        for path in sorted(base.rglob("*.kt")):
+            raw = read(path) or ""
+            text = _mask_comments(raw)
+            for match in ANDROID_UI_STRING_PATTERN.finditer(text):
+                open_paren = text.find("(", match.start(), match.end())
+                depth = 1
+                close_paren = open_paren + 1
+                while close_paren < len(text) and depth:
+                    if text[close_paren] == '"':
+                        close_paren = _skip_string_literal(text, close_paren)
+                        continue
+                    if text[close_paren] == "(":
+                        depth += 1
+                    elif text[close_paren] == ")":
+                        depth -= 1
+                        if depth == 0:
+                            break
+                    close_paren += 1
+                cursor = close_paren + 1
+                while cursor < len(text) and text[cursor].isspace():
+                    cursor += 1
+                if cursor >= len(text) or text[cursor] != "+":
+                    continue
+                findings.append((
+                    path.relative_to(ROOT).as_posix(),
+                    text.count("\n", 0, match.start()) + 1,
+                    match.group(1),
+                ))
     return findings
 
 
@@ -1348,6 +1396,15 @@ def ci_check(base_ref: str) -> int:
     else:
         print("  OK no string resource leans on edge whitespace")
 
+    concatenations = android_ui_string_concatenations()
+    if concatenations:
+        failed = True
+        print(f"FAIL {len(concatenations)} localized Android string(s) are concatenated in code:")
+        for path, line, key in concatenations[:30]:
+            print(f"  {path}:{line}: {key}")
+    else:
+        print("  OK no localized Android string is assembled by concatenation")
+
     print(f"\n--- Apple: no new un-extracted UI copy or focus-locale gaps vs {base_ref} ---")
     cur_ios, _cur_ios_lang_gaps = scan_ios()
     ios_found = {(p, lit) for p, _line, lit in cur_ios}
@@ -1549,6 +1606,13 @@ def main() -> int:
             if args.full:
                 for k in sorted(keys):
                     print(f"    {k}")
+
+        print("\n=== Android: localized resources assembled by concatenation ===")
+        concatenations = android_ui_string_concatenations()
+        if not concatenations:
+            print("  none")
+        for rel, line_no, key in concatenations:
+            print(f"  {rel}:{line_no}: {key}")
 
         print("\n=== Android: values-<locale>/strings.xml key gaps ===")
         gaps = android_strings_xml_gaps()

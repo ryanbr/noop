@@ -522,9 +522,7 @@ private fun SkinTempSuiteSection(
         signals?.bodyClock?.let { BodyClockCard(estimate = it) }
 
         Text(
-            uiString(R.string.l10n_health_screen_cycle_phase_body_clock_and_illness_59e2d9a4) +
-                " your own nightly temperature, heart rate and HRV: observations about your own numbers, " +
-                "never a diagnosis. They never leave this phone.",
+            uiString(R.string.l10n_health_screen_cycle_phase_body_clock_and_illness_59e2d9a4),
             style = NoopType.footnote,
             color = Palette.textTertiary,
         )
@@ -595,8 +593,7 @@ private fun HealthContributorsSection(day: DailyMetric?) {
                     modifier = Modifier.staggeredAppear(3),
                 )
                 Text(
-                    uiString(R.string.l10n_health_screen_baselines_learned_on_device_over_14_c107f375) +
-                        " typical adult range (approximate, not medical advice).",
+                    uiString(R.string.l10n_health_screen_baselines_learned_on_device_over_14_c107f375),
                     style = NoopType.footnote,
                     color = Palette.textTertiary,
                 )
@@ -1166,8 +1163,7 @@ private fun FitnessReadinessCard(
                         }
                     }
                     Text(
-                        uiString(R.string.l10n_health_screen_it_compares_your_resting_heart_rate_e83e00f5) +
-                            " Wear your strap for a full week and it appears here.",
+                        uiString(R.string.l10n_health_screen_it_compares_your_resting_heart_rate_e83e00f5),
                         style = NoopType.subhead,
                         color = Palette.textSecondary,
                     )
@@ -1667,10 +1663,7 @@ private fun VitalsSection(
 
         if (footer) {
             Text(
-                text = uiString(R.string.l10n_health_screen_spo_respiratory_rate_and_skin_temperature_0ae0ad8f) +
-                    " aggregates from your most recent imported day; resting HR and HRV update daily. " +
-                    "Once NOOP has 14 nights of history, in-range compares each vital to your own " +
-                    "baseline (approximate, not medical advice); until then typical adult ranges apply.",
+                text = uiString(R.string.l10n_health_screen_spo_respiratory_rate_and_skin_temperature_0ae0ad8f),
                 style = NoopType.footnote,
                 color = Palette.textTertiary,
             )
@@ -2050,8 +2043,7 @@ fun VitalDetailScreen(vm: AppViewModel, key: String) {
                             color = Palette.textTertiary,
                         )
                         Text(
-                            text = uiString(R.string.l10n_health_screen_one_reading_so_far_your_trend_eaad57f2) +
-                                " reading lands.",
+                            text = uiString(R.string.l10n_health_screen_one_reading_so_far_your_trend_eaad57f2),
                             style = NoopType.subhead,
                             color = Palette.textSecondary,
                         )

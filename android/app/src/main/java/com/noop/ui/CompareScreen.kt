@@ -1207,8 +1207,7 @@ private fun Legend(series: List<CompareSeries>) {
                     modifier = Modifier.weight(1f),
                 )
                 Text(
-                    uiString(R.string.l10n_compare_screen_s_metric_format_s_realmin_unitsystem_0da2a1f2, s.metric.format(s.realMin, unitSystem, tempUnit)) +
-                        s.metric.format(s.realMax, unitSystem, tempUnit),
+                    uiString(R.string.l10n_compare_screen_s_metric_format_s_realmin_unitsystem_0da2a1f2, s.metric.format(s.realMin, unitSystem, tempUnit), s.metric.format(s.realMax, unitSystem, tempUnit)),
                     style = NoopType.captionNumber,
                     color = Palette.textSecondary,
                 )

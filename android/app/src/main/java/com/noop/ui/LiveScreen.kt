@@ -565,8 +565,7 @@ fun LiveScreen(viewModel: AppViewModel, onManageDevices: () -> Unit = {}) {
             // nothing while it's still paired in the official WHOOP app. Shown the moment 5/MG is picked.
             if (selectedModel == WhoopModel.WHOOP5_MG) {
                 Text(
-                    uiString(R.string.l10n_live_screen_whoop_5_0_mg_pairs_with_b93143f2) +
-                        " the official WHOOP app and fully close that app, then Connect again.",
+                    uiString(R.string.l10n_live_screen_whoop_5_0_mg_pairs_with_b93143f2),
                     style = NoopType.footnote,
                     color = Palette.textSecondary,
                     modifier = Modifier.fillMaxWidth().padding(top = 6.dp),

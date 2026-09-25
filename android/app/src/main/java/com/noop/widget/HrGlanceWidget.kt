@@ -162,7 +162,7 @@ private fun HrWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
             if (snap.heartRateStale) "" else " " + uiString(R.string.l10n_today_screen_sync_chip_live_98aadb37)
         val hrSpoken = snap.heartRate
             ?.let {
-                "$hrLabel " + uiString(R.string.l10n_today_screen_value_bpm_8f3a90c3, it.toString()) + liveSuffix
+                "$hrLabel " + uiString(R.string.l10n_today_screen_value_bpm_complete_ab58df4e, it.toString(), liveSuffix)
             }
             ?: hrLabel
 

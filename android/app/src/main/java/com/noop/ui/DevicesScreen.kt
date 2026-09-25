@@ -1168,9 +1168,7 @@ private fun WhoopFirstFooter() {
             modifier = Modifier.size(16.dp),
         )
         Text(
-            uiString(R.string.l10n_devices_screen_whoop_is_noop_s_primary_fully_1c9e67fd) +
-                " in-development addition: they stream live heart rate and HRV, but not WHOOP's deeper " +
-                "sleep and recovery data.",
+            uiString(R.string.l10n_devices_screen_whoop_is_noop_s_primary_fully_1c9e67fd),
             style = NoopType.footnote,
             color = Palette.textTertiary,
         )
@@ -1225,13 +1223,7 @@ private fun RebootProbeDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    uiString(R.string.l10n_devices_screen_the_whoop_4_0_reboot_frame_690a8ff2) +
-                        " Send each candidate and watch BOTH the strap log and the strap itself. " +
-                        "“no disconnect within 12s” means the strap ignored the frame. A “link dropped” line " +
-                        "means the frame reached the strap — but a dropped link alone isn't a reboot: a real " +
-                        "reboot also switches the strap's sensor light off for a few seconds, so if the light " +
-                        "stayed on it was just a dropped connection, not a reboot. Non-destructive — your data " +
-                        "is kept. Please share the log so we can pin the real frame.",
+                    uiString(R.string.l10n_devices_screen_the_whoop_4_0_reboot_frame_690a8ff2),
                     style = NoopType.subhead,
                     color = Palette.textSecondary,
                 )

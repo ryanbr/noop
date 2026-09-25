@@ -1856,10 +1856,11 @@ private fun SessionEffortCard(strain: Double, effortScale: EffortScale) {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(Metrics.space2),
                     modifier = Modifier.semantics {
-                        contentDescription =
-                            uiString(R.string.l10n_workouts_screen_this_session_s_effort_onedecimal_shown_74eed8be, oneDecimal(shown)) +
-                                (if (effortScale == EffortScale.WHOOP) "0 to 21 strain" else "0 to 100 Effort") +
-                                " scale."
+                        contentDescription = uiString(
+                            R.string.l10n_workouts_screen_this_session_s_effort_onedecimal_shown_74eed8be,
+                            oneDecimal(shown),
+                            if (effortScale == EffortScale.WHOOP) "0 to 21 strain" else "0 to 100 Effort",
+                        )
                     },
                 ) {
                     CountUpText(

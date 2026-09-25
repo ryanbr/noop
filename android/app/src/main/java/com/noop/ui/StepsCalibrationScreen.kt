@@ -245,9 +245,7 @@ private fun ExplainerCard() {
                 color = Palette.textSecondary,
             )
             Text(
-                uiString(R.string.l10n_steps_calibration_screen_on_the_days_your_phone_also_2f65a14c) +
-                    " steps, then applies that to the strap-only days. The more matching days it has, the " +
-                    "more it trusts the estimate.",
+                uiString(R.string.l10n_steps_calibration_screen_on_the_days_your_phone_also_2f65a14c),
                 style = NoopType.footnote,
                 color = Palette.textTertiary,
             )
@@ -267,16 +265,12 @@ private fun NoMotionNote() {
                 Text(uiString(R.string.l10n_steps_calibration_screen_no_motion_synced_yet_65106670), style = NoopType.headline, color = Palette.textPrimary)
             }
             Text(
-                uiString(R.string.l10n_steps_calibration_screen_we_re_not_seeing_any_motion_6ac8e092) +
-                    " banked motion history, so your strap needs to sync that history before NOOP has " +
-                    "anything to count.",
+                uiString(R.string.l10n_steps_calibration_screen_we_re_not_seeing_any_motion_6ac8e092),
                 style = NoopType.subhead,
                 color = Palette.textSecondary,
             )
             Text(
-                uiString(R.string.l10n_steps_calibration_screen_open_noop_near_your_strap_and_e08ddd6d) +
-                    " first run). Once a day or two of motion lands, your step estimate and the calibration " +
-                    "below will start to fill in.",
+                uiString(R.string.l10n_steps_calibration_screen_open_noop_near_your_strap_and_e08ddd6d),
                 style = NoopType.footnote,
                 color = Palette.textTertiary,
             )
@@ -355,9 +349,7 @@ private fun ComparisonCard(rows: List<StepsComparisonRow>) {
             Overline("Estimated vs your phone")
             if (rows.isEmpty()) {
                 Text(
-                    uiString(R.string.l10n_steps_calibration_screen_no_days_yet_where_both_noop_71d6005b) +
-                        " few days alongside the strap, they'll appear here so you can see how close the " +
-                        "estimate is.",
+                    uiString(R.string.l10n_steps_calibration_screen_no_days_yet_where_both_noop_71d6005b),
                     style = NoopType.footnote,
                     color = Palette.textTertiary,
                 )
@@ -372,8 +364,7 @@ private fun ComparisonCard(rows: List<StepsComparisonRow>) {
                     Row(
                         modifier = Modifier.fillMaxWidth().semantics {
                             contentDescription =
-                                uiString(R.string.l10n_steps_calibration_screen_shortday_row_day_estimated_row_estimated_f2d71597, shortDay(row.day), row.estimated, row.actual) +
-                                    "steps, ${row.errorPct.roundToInt()} percent difference"
+                                uiString(R.string.l10n_steps_calibration_screen_shortday_row_day_estimated_row_estimated_f2d71597, shortDay(row.day), row.estimated, row.actual, row.errorPct.roundToInt())
                         },
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
@@ -430,9 +421,7 @@ private fun ManualAdjustCard(
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Overline("Adjust manually")
             Text(
-                uiString(R.string.l10n_steps_calibration_screen_override_the_automatic_fit_with_your_36a7b6fa) +
-                    " has no step history to learn from, or the estimate runs consistently high or low. " +
-                    "Step all the way down to return to auto.",
+                uiString(R.string.l10n_steps_calibration_screen_override_the_automatic_fit_with_your_36a7b6fa),
                 style = NoopType.footnote,
                 color = Palette.textTertiary,
             )

@@ -602,3 +602,46 @@ class SwiftLocalizedStringScanning(unittest.TestCase):
     def test_localized_alongside_a_view_literal(self):
         src = 'Text("Shown")\nlet x = String(localized: "Also shown")'
         self.assertEqual(self.found(src), ["Shown", "Also shown"])
+
+
+class AndroidLocalizedConcatenationAudit(unittest.TestCase):
+    """Regression coverage for #2041's partially translated sentence shape."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory(dir=ia.ROOT)
+        self.addCleanup(self.tmp.cleanup)
+        self.ui_dir = Path(self.tmp.name) / "ui"
+        self.ui_dir.mkdir()
+        self._orig_dirs = ia.ANDROID_DIRS
+        ia.ANDROID_DIRS = [self.ui_dir]
+        self.addCleanup(setattr, ia, "ANDROID_DIRS", self._orig_dirs)
+
+    def write(self, content: str) -> None:
+        (self.ui_dir / "Screen.kt").write_text(content, encoding="utf-8")
+
+    def findings(self) -> list[tuple[str, int, str]]:
+        return ia.android_ui_string_concatenations()
+
+    def test_literal_tail_found_across_lines(self):
+        self.write(
+            "Text(uiString(\n"
+            "    R.string.partial_sentence,\n"
+            ') + " hardcoded tail")\n'
+        )
+        self.assertEqual(self.findings()[0][1:], (1, "partial_sentence"))
+
+    def test_dynamic_tail_found(self):
+        self.write("Text(uiString(R.string.prefix) + value)\n")
+        self.assertEqual(self.findings()[0][1:], (1, "prefix"))
+
+    def test_positional_format_is_allowed(self):
+        self.write("Text(uiString(R.string.complete_sentence, value))\n")
+        self.assertEqual(self.findings(), [])
+
+    def test_resource_on_right_is_not_this_bug(self):
+        self.write('Text("prefix " + uiString(R.string.complete_label))\n')
+        self.assertEqual(self.findings(), [])
+
+    def test_commented_example_is_ignored(self):
+        self.write('// uiString(R.string.old_prefix) + " tail"\n')
+        self.assertEqual(self.findings(), [])

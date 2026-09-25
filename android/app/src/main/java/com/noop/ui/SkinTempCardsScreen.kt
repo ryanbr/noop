@@ -156,8 +156,7 @@ fun CycleAwarenessCard(
                 Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(Icons.Filled.CalendarMonth, contentDescription = null, tint = hue, modifier = Modifier.size(16.dp))
                     Text(
-                        uiString(R.string.l10n_skin_temp_cards_screen_a_period_is_likely_between_prettyday_bc501b32, prettyDay(w.earliestDay)) +
-                            "${prettyDay(w.latestDay)} (a window, not a fixed date).",
+                        uiString(R.string.l10n_skin_temp_cards_screen_a_period_is_likely_between_prettyday_bc501b32, prettyDay(w.earliestDay), prettyDay(w.latestDay)),
                         style = NoopType.subhead,
                         color = Palette.textSecondary,
                     )
@@ -205,9 +204,7 @@ fun CycleAwarenessOptInCard(onEnable: () -> Unit) {
                 Text(uiString(R.string.l10n_skin_temp_cards_screen_cycle_awareness_ffb94783), style = NoopType.headline, color = Palette.textPrimary)
             }
             Text(
-                uiString(R.string.l10n_skin_temp_cards_screen_noop_can_read_a_coarse_menstrual_c79e4b85) +
-                    " entirely on your device. It is awareness only: not contraception, not a fertility " +
-                    "predictor, not a medical service.",
+                uiString(R.string.l10n_skin_temp_cards_screen_noop_can_read_a_coarse_menstrual_c79e4b85),
                 style = NoopType.subhead,
                 color = Palette.textSecondary,
             )
@@ -259,9 +256,7 @@ fun BodyClockCard(
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Overline("Plan · ${plan.estimatedDays}-day shift")
                     Text(
-                        uiString(R.string.l10n_skin_temp_cards_screen_day_1_bright_light_clockstring_firstday_43b5fe87, clockString(firstDay.brightLightStartHour)) +
-                            "${clockString(firstDay.brightLightEndHour)}, lights-out around " +
-                            "${clockString(firstDay.targetSleepHour)}.",
+                        uiString(R.string.l10n_skin_temp_cards_screen_day_1_bright_light_clockstring_firstday_43b5fe87, clockString(firstDay.brightLightStartHour), clockString(firstDay.brightLightEndHour), clockString(firstDay.targetSleepHour)),
                         style = NoopType.subhead,
                         color = Palette.textSecondary,
                     )

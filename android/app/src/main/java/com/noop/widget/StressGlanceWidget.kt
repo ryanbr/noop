@@ -188,8 +188,7 @@ private fun StressWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
                 val peakTime = DateFormat.getTimeInstance(DateFormat.SHORT)
                     .format(Date(stats.peak.ts * 1000))
                 Text(
-                    text = uiString(R.string.trends_peak) +
-                        " ${StressTrace.formatLevel(stats.peak.level ?: 0.0)} · $peakTime",
+                    text = uiString(R.string.trends_complete_04771532, StressTrace.formatLevel(stats.peak.level ?: 0.0), peakTime),
                     style = TextStyle(color = stressTextPrimary(dark), fontSize = 11.sp),
                     modifier = GlanceModifier
                         .background(ColorProvider(stressTense(dark).copy(alpha = 0.18f)))
@@ -218,9 +217,7 @@ private fun StressWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
             ) {
                 Text(
                     text = if (stats != null) {
-                        uiString(R.string.l10n_stress_screen_avg_a178769d) +
-                            " ${StressTrace.formatLevel(stats.mean)} · " +
-                            uiString(R.string.l10n_hr_glance_widget_updated_time_1b5feedb, time)
+                        uiString(R.string.l10n_stress_screen_avg_complete_c26cee27, StressTrace.formatLevel(stats.mean), uiString(R.string.l10n_hr_glance_widget_updated_time_1b5feedb, time))
                     } else {
                         uiString(R.string.l10n_hr_glance_widget_updated_time_1b5feedb, time)
                     },

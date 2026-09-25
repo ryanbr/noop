@@ -259,8 +259,7 @@ fun MarkerEditorScreen(
             }
 
             Text(
-                uiString(R.string.l10n_marker_editor_screen_lab_book_keeps_your_own_numbers_9085ce2c) +
-                    " advice. Everything stays on this phone.",
+                uiString(R.string.l10n_marker_editor_screen_lab_book_keeps_your_own_numbers_9085ce2c),
                 style = NoopType.footnote,
                 color = Palette.textTertiary,
             )

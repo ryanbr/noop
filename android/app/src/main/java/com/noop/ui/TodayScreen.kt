@@ -2153,7 +2153,7 @@ private fun WorkoutInProgressCard(
             .liquidPress(interaction)
             .clickable(interactionSource = interaction, indication = null, onClick = onReturn)
             .semantics(mergeDescendants = true) {
-                contentDescription = uiString(R.string.l10n_today_screen_workout_in_progress_sportlabel_elapsed_return_95ce4bda, sportLabel, elapsed) + pausedSuffix
+                contentDescription = uiString(R.string.l10n_today_screen_workout_in_progress_sportlabel_elapsed_return_95ce4bda, sportLabel, elapsed, pausedSuffix)
             },
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(Metrics.space12)) {
@@ -5651,8 +5651,7 @@ private fun RecoveryContributorsSection(day: DailyMetric?, carriedDay: DailyMetr
                 color = Palette.sleepDeep,
             )
             Text(
-                uiString(R.string.l10n_today_screen_baselines_learned_on_device_over_14_359f6812) +
-                    " signal against a typical adult range, not medical advice.",
+                uiString(R.string.l10n_today_screen_baselines_learned_on_device_over_14_359f6812),
                 style = NoopType.footnote,
                 color = Palette.textTertiary,
             )
@@ -6064,8 +6063,7 @@ private fun MetricGrid(
             // Matches the single iOS caption "Pending sync · strap history still offloading": the second
             // half alone read as a fragment, and more so now that a real number sits above it (#2012).
             caption = if (restPendingSync) {
-                uiString(R.string.l10n_today_screen_pending_sync_cbe01f9e) + " · " +
-                    uiString(R.string.l10n_today_screen_strap_history_still_offloading_80140264)
+                uiString(R.string.l10n_today_screen_pending_sync_complete_5940c589, uiString(R.string.l10n_today_screen_strap_history_still_offloading_80140264))
             } else {
                 null
             },

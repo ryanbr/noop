@@ -203,9 +203,7 @@ private fun IntroCard() {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Overline("The one rule")
             Text(
-                uiString(R.string.l10n_how_noop_works_screen_noop_never_shows_you_a_number_d1db9958) +
-                    " it tells you why and what to do next. Everything here runs on your " +
-                    "device, from your strap.",
+                uiString(R.string.l10n_how_noop_works_screen_noop_never_shows_you_a_number_d1db9958),
                 style = NoopType.subhead,
                 color = Palette.textSecondary,
             )

@@ -638,9 +638,7 @@ private fun DeliveryNote() {
                 modifier = Modifier.size(16.dp),
             )
             Text(
-                uiString(R.string.l10n_notifications_settings_screen_wrist_delivery_needs_notification_access_so_2a14e784) +
-                    " you. Nothing leaves this device. Your choices are saved now and apply " +
-                    "automatically once access is granted.",
+                uiString(R.string.l10n_notifications_settings_screen_wrist_delivery_needs_notification_access_so_2a14e784),
                 style = NoopType.footnote,
                 color = Palette.textSecondary,
             )

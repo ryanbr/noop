@@ -176,8 +176,7 @@ fun BackupSyncScreen() {
                         style = NoopType.footnote, color = Palette.textTertiary,
                     )
                     Text(
-                        uiString(R.string.l10n_backup_sync_screen_tip_a_desktop_drive_dropbox_app_2eaff1e3) +
-                            " folder a sync app (e.g. FolderSync / Autosync) keeps in your cloud.",
+                        uiString(R.string.l10n_backup_sync_screen_tip_a_desktop_drive_dropbox_app_2eaff1e3),
                         style = NoopType.caption, color = Palette.accent,
                     )
                     // #644: these .noopbak snapshots are a plain, unencrypted ZIP — pointing this folder
@@ -217,8 +216,7 @@ fun BackupSyncScreen() {
                         ) {
                             Text(uiString(R.string.l10n_backup_sync_screen_daily_auto_backup_e5627357), style = NoopType.body, color = Palette.textPrimary)
                             Text(
-                                uiString(R.string.l10n_backup_sync_screen_writes_a_fresh_dated_backup_to_bd964fc5) +
-                                    " the latest $keep. Off by default - flip it on if you want it.",
+                                uiString(R.string.l10n_backup_sync_screen_writes_a_fresh_dated_backup_to_bd964fc5, keep),
                                 style = NoopType.footnote, color = Palette.textTertiary,
                             )
                         }
@@ -249,8 +247,7 @@ fun BackupSyncScreen() {
                         ) {
                             Text(uiString(R.string.l10n_backup_sync_screen_keep_last_snapshots_cd5c9ea9), style = NoopType.body, color = Palette.textPrimary)
                             Text(
-                                uiString(R.string.l10n_backup_sync_screen_older_backups_beyond_this_many_are_00b7daa6) +
-                                    " daily backups). For recovery: if data ever corrupts, grab the newest snapshot.",
+                                uiString(R.string.l10n_backup_sync_screen_older_backups_beyond_this_many_are_00b7daa6),
                                 style = NoopType.footnote, color = Palette.textTertiary,
                             )
                         }
@@ -379,8 +376,7 @@ fun BackupSyncScreen() {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(uiString(R.string.l10n_backup_sync_screen_restore_3cbe6d6b), style = NoopType.headline, color = Palette.textPrimary)
                     Text(
-                        uiString(R.string.l10n_backup_sync_screen_replace_this_device_s_data_with_b8679c51) +
-                            " so back up first if unsure.",
+                        uiString(R.string.l10n_backup_sync_screen_replace_this_device_s_data_with_b8679c51),
                         style = NoopType.footnote, color = Palette.textTertiary,
                     )
                     NoopButton(

@@ -326,9 +326,7 @@ fun HrvSnapshotScreen(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Overline("How this is measured")
                 Text(
-                    uiString(R.string.l10n_hrv_snapshot_screen_a_60_second_snapshot_of_your_35f03f7c) +
-                        " (range and ectopic-beat filtering) before computing RMSSD the same way your " +
-                        "overnight HRV is computed.",
+                    uiString(R.string.l10n_hrv_snapshot_screen_a_60_second_snapshot_of_your_35f03f7c),
                     style = NoopType.footnote, color = Palette.textTertiary,
                 )
                 Text(
@@ -426,8 +424,7 @@ private fun ResultCard(result: HrvAnalyzer.HrvResult) {
                 ) {
                     Icon(Icons.Filled.WarningAmber, contentDescription = null, tint = Palette.statusWarning)
                     Text(
-                        uiString(R.string.l10n_hrv_snapshot_screen_not_enough_clean_beats_sit_still_0893e6c2, result.nClean) +
-                            "${result.nInput} beats survived filtering (need ${HrvAnalyzer.MIN_BEATS}).",
+                        uiString(R.string.l10n_hrv_snapshot_screen_not_enough_clean_beats_sit_still_0893e6c2, result.nClean, result.nInput, HrvAnalyzer.MIN_BEATS),
                         style = NoopType.footnote, color = Palette.textSecondary,
                     )
                 }

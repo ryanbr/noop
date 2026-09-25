@@ -615,9 +615,7 @@ private fun StressDaytimeSection(
                 }
 
                 Text(
-                    uiString(R.string.l10n_stress_screen_the_line_traces_your_autonomic_load_804f4028) +
-                        " against your own calm hours today (the same 0-3 proxy as the score " +
-                        "above, read hour by hour). Hours without enough data are skipped.",
+                    uiString(R.string.l10n_stress_screen_the_line_traces_your_autonomic_load_804f4028),
                     style = NoopType.footnote,
                     color = Palette.textTertiary,
                 )
@@ -687,9 +685,7 @@ internal fun StressTodayCard(points: List<StressPoint>, modifier: Modifier = Mod
                 Overline(uiString(R.string.hosted_card_stress_title), modifier = Modifier.weight(1f))
                 if (stats != null) {
                     Text(
-                        uiString(R.string.trends_peak) +
-                            " ${StressTrace.formatLevel(stats.peak.level ?: 0.0)} · " +
-                            pointTimeLabel(stats.peak.ts),
+                        uiString(R.string.trends_complete_04771532, StressTrace.formatLevel(stats.peak.level ?: 0.0), pointTimeLabel(stats.peak.ts)),
                         style = NoopType.footnote,
                         color = Palette.textSecondary,
                     )
@@ -841,8 +837,7 @@ internal fun StressTodayCard(points: List<StressPoint>, modifier: Modifier = Mod
                 }
 
                 Text(
-                    uiString(R.string.l10n_stress_screen_avg_a178769d) +
-                        " ${StressTrace.formatLevel(stats.mean)}",
+                    uiString(R.string.l10n_stress_screen_avg_complete_9c906427, StressTrace.formatLevel(stats.mean)),
                     style = NoopType.footnote,
                     color = textTertiary,
                 )
@@ -1210,8 +1205,7 @@ private fun SustainedBreatheCard(day: DaytimeStress.Result, onBreathe: () -> Uni
                 StatePill("${day.sustainedRun}h elevated", tone = StrandTone.Warning, showsDot = true)
             }
             Text(
-                uiString(R.string.l10n_stress_screen_your_last_day_sustainedrun_hours_have_194825dd, day.sustainedRun) +
-                    "of paced breathing can help downshift your nervous system.",
+                uiString(R.string.l10n_stress_screen_your_last_day_sustainedrun_hours_have_194825dd, day.sustainedRun),
                 style = NoopType.subhead,
                 color = Palette.textSecondary,
             )
@@ -1381,7 +1375,7 @@ private fun StressTrendSection(model: StressModel, modifier: Modifier = Modifier
                             )
                         }
                         Text(
-                            uiString(R.string.l10n_stress_screen_avg_a178769d) + " " + String.format(Locale.US, "%.1f", avg),
+                            uiString(R.string.l10n_stress_screen_avg_complete_9c906427, String.format(Locale.US, "%.1f", avg)),
                             style = NoopType.captionNumber,
                             color = Palette.textSecondary,
                         )
@@ -1464,11 +1458,7 @@ private fun StressMethodologyCard(model: StressModel, modifier: Modifier = Modif
                 color = Palette.textPrimary,
             )
             Text(
-                uiString(R.string.l10n_stress_screen_we_compare_today_s_resting_heart_a9cd0955) +
-                    " baseline. A higher-than-usual resting HR and a lower-than-usual HRV " +
-                    "both push the score up, classic signs the body is activated. The " +
-                    "combined shift is mapped onto a 0-3 scale: 0 is calm, 1.5 sits at " +
-                    "your baseline, 3 is highly activated.",
+                uiString(R.string.l10n_stress_screen_we_compare_today_s_resting_heart_a9cd0955),
                 style = NoopType.subhead,
                 color = Palette.textSecondary,
             )

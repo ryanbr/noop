@@ -249,8 +249,7 @@ fun AutomationsScreen(viewModel: AppViewModel) {
                 if (!notifMasterOn) {
                     RowDivider()
                     Text(
-                        uiString(R.string.l10n_automations_screen_notifications_are_off_so_this_can_b3dba7ee) +
-                            " Settings → Notifications to let it through.",
+                        uiString(R.string.l10n_automations_screen_notifications_are_off_so_this_can_b3dba7ee),
                         style = NoopType.footnote, color = Palette.statusWarning,
                     )
                 }

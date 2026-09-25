@@ -215,9 +215,7 @@ fun CaffeineLogCard() {
                         )
                     }
                     Text(
-                        uiString(R.string.l10n_caffeine_log_have_your_last_caffeine_by_about_16b09033, clockLabel(cutoffMinutes)) +
-                            "by ${clockLabel(bedtimeMinutes)}. A rough guide from a typical 5 to 6 hour " +
-                            "half-life, not a rule.",
+                        uiString(R.string.l10n_caffeine_log_have_your_last_caffeine_by_about_16b09033, clockLabel(cutoffMinutes), clockLabel(bedtimeMinutes)),
                         style = NoopType.footnote,
                         color = Palette.textTertiary,
                     )

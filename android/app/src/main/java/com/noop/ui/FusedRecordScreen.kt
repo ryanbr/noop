@@ -418,9 +418,12 @@ private fun ContributorRow(
             .fillMaxWidth()
             .padding(vertical = 12.dp)
             .semantics {
-                contentDescription =
-                    uiString(R.string.l10n_fused_record_screen_contrib_source_displayname_fusionformat_value_contrib_d182dd7f, contrib.source.displayName, FusionFormat.value(contrib.value, metricKey)) +
-                    if (isWinner) ", in use" else ""
+                contentDescription = uiString(
+                    if (isWinner) R.string.fused_record_contribution_in_use
+                    else R.string.l10n_fused_record_screen_contrib_source_displayname_fusionformat_value_contrib_d182dd7f,
+                    contrib.source.displayName,
+                    FusionFormat.value(contrib.value, metricKey),
+                )
             },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
