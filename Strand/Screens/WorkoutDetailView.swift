@@ -342,7 +342,7 @@ struct WorkoutDetailView: View {
             let data = RouteExporter.render(
                 format, route: points, startTs: startTs, endTs: endTs, sport: sport,
                 distanceM: distanceM, energyKcal: energyKcal, avgHr: avgHr, maxHr: maxHr)
-            let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+            let url = NoopScratch.file(name)
             do { try data.write(to: url) } catch { return }
             await MainActor.run { FileExport.exportFile(at: url, suggestedName: name) }
         }

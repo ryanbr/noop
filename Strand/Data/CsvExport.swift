@@ -177,8 +177,9 @@ enum CsvExport {
                 ]
                 // Deflate to a temp path off main; the cheap atomic swap into the user's chosen destination
                 // stays on main (it needs the panel/picker result).
-                let out = FileManager.default.temporaryDirectory
-                    .appendingPathComponent(UUID().uuidString + ".zip")
+                // Inside NOOP's own scratch folder, which also gives this one a sweep: staged flat
+                // under a bare UUID it matched no `noop-` prefix, so an interrupted export leaked it.
+                let out = NoopScratch.file(UUID().uuidString + ".zip")
                 try WhoopCsvExporter.writeArchive(entries: entries, to: out)
                 return out
             }.value
@@ -208,7 +209,7 @@ enum CsvExport {
             // iOS: move the staged zip to its user-facing name, then hand it to the system document picker
             // so the user can save it into Files / iCloud Drive (DataBackup.runExport precedent). Clear any
             // stale staged copy first.
-            let staged = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+            let staged = NoopScratch.file(name)
             if FileManager.default.fileExists(atPath: staged.path) {
                 try FileManager.default.removeItem(at: staged)
             }

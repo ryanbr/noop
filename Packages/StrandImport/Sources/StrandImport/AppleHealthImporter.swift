@@ -135,8 +135,16 @@ public struct AppleHealthImporter {
         // Decompress export.xml to a temp file (chunks go straight to disk, so RAM stays bounded),
         // then stream-parse it from disk. This replaces a pipe-fed background parser that could
         // deadlock or crash with a broken-pipe exception on a malformed/malicious export.
-        let tmp = FileManager.default.temporaryDirectory
-            .appendingPathComponent("noop-health-\(UUID().uuidString).xml")
+        // Inside the app's own bundle-named scratch folder, not flat beside it. On the unsandboxed Mac build
+        // the temporary directory is shared with every other process of the user, so the launch sweep
+        // that reclaims an interrupted import (#590) used to match siblings by a `noop-` prefix and
+        // deleted files it did not write (#2446). The folder name is spelled here rather than shared
+        // from the app target, which this package cannot see; `NoopScratch` in Strand/System owns it.
+        let scratch = FileManager.default.temporaryDirectory
+            .appendingPathComponent((Bundle.main.bundleIdentifier ?? "com.noopapp.noop") + ".scratch",
+                                    isDirectory: true)
+        try? FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
+        let tmp = scratch.appendingPathComponent("health-\(UUID().uuidString).xml")
         FileManager.default.createFile(atPath: tmp.path, contents: nil)
         guard let handle = try? FileHandle(forWritingTo: tmp) else {
             throw ImportError.xmlParseFailed("could not open a temp file for import")

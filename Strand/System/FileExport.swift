@@ -55,7 +55,7 @@ enum FileExport {
         // The previous `try?` swallowed write failures, then handed an empty/missing path to the
         // share sheet — the user saw a broken export with no error. Clean up the temp file after the
         // share sheet closes so the temporaryDirectory doesn't accumulate dead exports across runs.
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(suggestedName)
+        let url = NoopScratch.file(suggestedName)
         do {
             try text.write(to: url, atomically: true, encoding: .utf8)
         } catch {
@@ -167,7 +167,7 @@ enum FileExport {
     /// on macOS, share sheet on iOS) and cleans it up.
     static func zipData(entries: [BundleEntry], baseName: String) -> URL? {
         guard !entries.isEmpty else { return nil }
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(baseName).zip")
+        let url = NoopScratch.file("\(baseName).zip")
         try? FileManager.default.removeItem(at: url)
         guard let archive = try? Archive(url: url, accessMode: .create) else { return nil }
         for entry in entries {

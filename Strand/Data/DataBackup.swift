@@ -266,16 +266,14 @@ enum DataBackup {
         // Stage each JSON through a temp file so it uses the exact same file-URL addEntry idiom as the DB
         // entry (one container code path, no provider-API variant to drift).
         if let settingsJSON {
-            let tmpJSON = fm.temporaryDirectory
-                .appendingPathComponent("noop-settings-\(UUID().uuidString).json")
+            let tmpJSON = NoopScratch.file("settings-\(UUID().uuidString).json")
             try settingsJSON.write(to: tmpJSON)
             defer { try? fm.removeItem(at: tmpJSON) }
             try archive.addEntry(with: BackupSettings.entryName, fileURL: tmpJSON, compressionMethod: .deflate)
         }
         // #1410: manifest LAST (after the DB + optional settings) and ALWAYS written — even a legacy
         // nil-settings backup states which build produced it.
-        let tmpManifest = fm.temporaryDirectory
-            .appendingPathComponent("noop-manifest-\(UUID().uuidString).json")
+        let tmpManifest = NoopScratch.file("manifest-\(UUID().uuidString).json")
         try manifestJSON.write(to: tmpManifest)
         defer { try? fm.removeItem(at: tmpManifest) }
         try archive.addEntry(with: BackupManifest.entryName, fileURL: tmpManifest, compressionMethod: .deflate)
@@ -416,8 +414,7 @@ enum DataBackup {
         let extractedDir: URL?
 
         if isZipFile(at: pickedSource) {
-            let tmpExtract = fm.temporaryDirectory
-                .appendingPathComponent("noop-import-\(UUID().uuidString)", isDirectory: true)
+            let tmpExtract = NoopScratch.subdirectory("import-\(UUID().uuidString)")
             do {
                 if fm.fileExists(atPath: tmpExtract.path) { try fm.removeItem(at: tmpExtract) }
                 try fm.createDirectory(at: tmpExtract, withIntermediateDirectories: true)

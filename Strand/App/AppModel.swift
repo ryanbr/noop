@@ -2349,8 +2349,7 @@ final class AppModel: ObservableObject {
     nonisolated static func materializeForImport(_ picked: URL) async throws -> ImportFile {
         #if os(iOS)
         let ext = picked.pathExtension.isEmpty ? "dat" : picked.pathExtension
-        let dst = FileManager.default.temporaryDirectory
-            .appendingPathComponent("noop-import-\(UUID().uuidString)")
+        let dst = NoopScratch.file("import-\(UUID().uuidString)")
             .appendingPathExtension(ext)
         var coordError: NSError?
         var ioError: Error?
@@ -2520,28 +2519,18 @@ final class AppModel: ObservableObject {
         #endif
     }
 
-    /// True for any scratch file/dir NOOP itself writes into the temp directory , import copies, the
-    /// decompressed export.xml, exports, backups, raw captures: every one is prefixed `noop-`. #590: the
-    /// import decompresses `export.xml` to a `noop-health-*` temp file (up to 8 GB), but a previous build
-    /// only matched `noop-import-*`, so an interrupted import stranded multi-GB extractions the Storage
-    /// screen never saw OR reclaimed. Matching the shared `noop-` prefix counts + sweeps them all and is
-    /// future-proof. Safe: the temp dir is NOOP's private sandbox and the 60 s in-flight guard in
-    /// `purgeImportTemp` protects a live import.
-    nonisolated static func isNoopTempScratch(_ name: String) -> Bool { name.hasPrefix("noop-") }
-
-    /// Total bytes of NOOP's own `noop-*` temp scratch (a crash mid-import can strand a multi-GB one).
-    /// Recurses into directories (the Xiaomi importer stages a `noop-xiaomi-*` folder).
+    /// Total bytes of NOOP's own temp scratch: its owned folder, plus the flat scratch earlier builds
+    /// left beside it. A crash mid-import can strand a multi-GB extraction in there (#590).
+    ///
+    /// Recurses, because the scratch holds directories (the Xiaomi importer stages one). Scoped to what
+    /// [purgeImportTemp] would actually reclaim, so the Storage screen cannot attribute another
+    /// program's disk to NOOP (#2446).
     nonisolated static func importTempSizeBytes() -> Int64 {
-        let tmp = FileManager.default.temporaryDirectory
-        guard let items = try? FileManager.default.contentsOfDirectory(
-            at: tmp, includingPropertiesForKeys: [.fileSizeKey, .isDirectoryKey], options: []) else { return 0 }
-        var total: Int64 = 0
-        for item in items where isNoopTempScratch(item.lastPathComponent) {
+        NoopScratch.sizeBytes { item in
             let vals = try? item.resourceValues(forKeys: [.fileSizeKey, .isDirectoryKey])
-            if vals?.isDirectory == true { total += directorySizeBytes(item) }
-            else { total += Int64(vals?.fileSize ?? 0) }
+            if vals?.isDirectory == true { return directorySizeBytes(item) }
+            return Int64(vals?.fileSize ?? 0)
         }
-        return total
     }
 
     /// Sum every regular file under `dir` (one level , Inbox is flat). Best-effort; missing dir → 0.
@@ -2568,21 +2557,11 @@ final class AppModel: ObservableObject {
         return await storageReport()
     }
 
-    /// Remove NOOP's stranded `noop-*` temp scratch (import copies, the multi-GB `noop-health-*`
-    /// export.xml an interrupted import leaves behind , #590, exports, backups, raw captures). Mirrors
-    /// `purgeImportInbox`'s 60 s in-flight guard so a concurrent import/export isn't disturbed.
-    nonisolated static func purgeImportTemp() {
-        let fm = FileManager.default
-        let tmp = fm.temporaryDirectory
-        guard let items = try? fm.contentsOfDirectory(
-            at: tmp, includingPropertiesForKeys: [.contentModificationDateKey], options: []) else { return }
-        let cutoff = Date().addingTimeInterval(-60)
-        for item in items where isNoopTempScratch(item.lastPathComponent) {
-            let modified = (try? item.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
-            if let modified, modified > cutoff { continue }
-            try? fm.removeItem(at: item)
-        }
-    }
+    /// Remove NOOP's stranded temp scratch: everything in the folder it owns, plus the flat scratch
+    /// earlier builds wrote (the multi-GB `noop-health-*` export.xml an interrupted import leaves
+    /// behind, #590). Keeps `purgeImportInbox`'s 60 s in-flight guard, so a concurrent import or
+    /// export is not disturbed. See `NoopScratch` for why ownership is a folder and not a prefix.
+    nonisolated static func purgeImportTemp() { NoopScratch.purge() }
 
     /// Handle a `noop://import-health` deep link (PR #581), the HealthKit-free Shortcuts import for
     /// sideloaded installs. Custom URL schemes are forgeable by other apps/sites, so this only decodes

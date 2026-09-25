@@ -320,7 +320,7 @@ struct RhythmView: View {
     private func buildRhythmExportURL() -> URL? {
         guard let night, !windows.isEmpty else { return nil }
         let csv = RhythmExport.csv(summary: night, windows: windows)
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("noop-rhythm.csv")
+        let url = NoopScratch.file("rhythm.csv")
         return (try? csv.write(to: url, atomically: true, encoding: .utf8)) != nil ? url : nil
     }
 

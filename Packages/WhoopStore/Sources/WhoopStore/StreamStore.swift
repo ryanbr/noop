@@ -596,8 +596,12 @@ extension WhoopStore {
         iso.formatOptions = [.withInternetDateTime]
 
         let stamp = Int(Date().timeIntervalSince1970)
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("noop-raw-sensors-\(stamp).csv")
+        // Inside the app's own bundle-named scratch folder; see the note in AppleHealthImporter and #2446.
+        let scratch = FileManager.default.temporaryDirectory
+            .appendingPathComponent((Bundle.main.bundleIdentifier ?? "com.noopapp.noop") + ".scratch",
+                                    isDirectory: true)
+        try? FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
+        let url = scratch.appendingPathComponent("raw-sensors-\(stamp).csv")
         FileManager.default.createFile(atPath: url.path, contents: nil)
         let handle = try FileHandle(forWritingTo: url)
         defer { try? handle.close() }
