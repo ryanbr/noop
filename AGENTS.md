@@ -110,6 +110,8 @@ Versions are pinned by the repo — install these before the loops below:
 cd Packages/WhoopProtocol && swift build && swift test     # also OuraProtocol
 # Android JVM unit tests (run on Linux/macOS, no device):
 cd android && ./gradlew testFullDebugUnitTest              # add --tests "com.noop.…" to filter
+# After a branch switch, ALWAYS: --no-build-cache --rerun-tasks. Gradle can otherwise serve
+# generated sources (Room/KSP) from the previous branch and fail classes you never touched.
 cd android && ./gradlew compileFullDebugKotlin             # compile the whole app module
 # macOS app (needs Xcode on macOS):
 xcodegen generate && xcodebuild -project Strand.xcodeproj -scheme Strand \

@@ -86,6 +86,10 @@ library, BOM, or the Gradle wrapper:
    ./gradlew -PstagingRelease assembleFullRelease assembleDemoRelease
    ```
 
+   After switching branches, add `--no-build-cache --rerun-tasks` to the test run. Gradle can serve
+   generated sources (Room DAOs, KSP output) from the branch you came from, so the suite can run
+   against code you do not have checked out.
+
 Never bypass verification or hand-edit the generated lockfile. For a wrapper upgrade, also obtain
 the binary-distribution SHA-256 from Gradle's official checksum reference and regenerate the wrapper
 JAR/scripts with the target Gradle version.

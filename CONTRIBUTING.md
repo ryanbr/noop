@@ -56,6 +56,20 @@ cd android
 ./gradlew testFullDebugUnitTest  # unit tests
 ```
 
+**After switching branches, add `--no-build-cache --rerun-tasks`:**
+
+```bash
+./gradlew testFullDebugUnitTest --no-build-cache --rerun-tasks
+```
+
+Gradle's cache is keyed on inputs it can see, and a branch switch can leave generated sources (Room
+DAOs, KSP output) from the previous branch in place, so the suite can run against code that is not the
+code you have checked out.
+
+If a failure looks unrelated to your change, re-run with those flags before concluding it is
+pre-existing on `main`. CI always builds clean, so a red test only you can see is worth one clean
+re-run before you write a note about it: several such failures have turned out not to reproduce.
+
 ---
 
 ## What CI checks
