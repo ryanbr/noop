@@ -1,6 +1,7 @@
 package com.noop.ui
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 import java.time.LocalDateTime
@@ -33,10 +34,18 @@ class SleepTimeEditDraftTest {
         )
     }
 
-    /** #2470: an evening bedtime corrected forward across midnight must keep the explicitly selected
-     *  next-day date. Retaining the detected start's date would create a 28-hour window and disable Save. */
+    /**
+     * #2470: a bedtime candidate that already carries the next-day date survives into a valid window.
+     *
+     * Honest about what this does and does not prove. `withBedCandidate` was never the bug: it accepted a
+     * correctly dated candidate before #2470 was fixed and still does, and this case passes on an unfixed
+     * tree. It is kept because the property is worth pinning, not as the regression test.
+     *
+     * The bug was that the dialog never produced such a candidate, because it replaced only hour and
+     * minute on the detected start. That arithmetic now lives in `sleepEndpointTs`, tested below.
+     */
     @Test
-    fun eveningBedtimeCanMoveForwardToWakeDay() {
+    fun eveningBedtimeCandidateWithWakeDayDateStaysValid() {
         val original = SleepTimeEditDraft(
             startTs = ts(2026, 9, 24, 23, 0),
             endTs = ts(2026, 9, 25, 8, 0),
@@ -53,6 +62,55 @@ class SleepTimeEditDraftTest {
             ts(2026, 9, 25, 4, 0) to ts(2026, 9, 25, 8, 0),
             corrected.validatedWindow(nowTs = ts(2026, 9, 25, 12, 0)),
         )
+    }
+
+    // ---- the arithmetic #2470 got wrong ----
+
+    /**
+     * The #2470 shape: a 23:00 onset corrected to 04:00 on the WAKE day.
+     *
+     * The old dialog replaced only hour and minute on the detected start, so this produced 04:00 on day 1
+     * and a 28-hour draft that the 24-hour edit limit rejected, surfacing as a Save button that silently
+     * would not work. Taking the selected date is the fix, and this is the arithmetic that does it.
+     */
+    @Test
+    fun endpointTakesTheSelectedDateNotTheBaseDate() {
+        val detectedStart = ts(2026, 9, 24, 23, 0)
+        val corrected = sleepEndpointTs(
+            baseTs = detectedStart, year = 2026, month = 8, dayOfMonth = 25, hour = 4, minute = 0,
+            timeZone = java.util.TimeZone.getTimeZone(zone),
+        )
+        assertEquals(ts(2026, 9, 25, 4, 0), corrected)
+        // The failure it replaces: keeping the base date would land a day earlier.
+        assertNotEquals(ts(2026, 9, 24, 4, 0), corrected)
+    }
+
+    /** Picking the same calendar day the endpoint already had is a plain time change. */
+    @Test
+    fun endpointOnTheSameDayIsJustATimeChange() {
+        val base = ts(2026, 9, 25, 8, 0)
+        assertEquals(
+            ts(2026, 9, 25, 6, 30),
+            sleepEndpointTs(
+                baseTs = base, year = 2026, month = 8, dayOfMonth = 25, hour = 6, minute = 30,
+                timeZone = java.util.TimeZone.getTimeZone(zone),
+            ),
+        )
+    }
+
+    /**
+     * Seconds and milliseconds are zeroed. Two edits that pick the same minute must produce the same
+     * timestamp, because the draft's equality and the 24-hour guard both compare on it.
+     */
+    @Test
+    fun endpointZeroesSecondsAndMillis() {
+        val baseWithSeconds = ts(2026, 9, 25, 8, 0) + 37
+        val out = sleepEndpointTs(
+            baseTs = baseWithSeconds, year = 2026, month = 8, dayOfMonth = 25, hour = 8, minute = 0,
+            timeZone = java.util.TimeZone.getTimeZone(zone),
+        )
+        assertEquals(ts(2026, 9, 25, 8, 0), out)
+        assertEquals(0L, out % 60L)
     }
 
     @Test

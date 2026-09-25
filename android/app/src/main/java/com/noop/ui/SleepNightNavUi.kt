@@ -278,31 +278,37 @@ internal fun NightNavHeader(
         val startCal = Calendar.getInstance().apply { timeInMillis = draftForBed.startTs * 1000L }
         DisposableEffect(Unit) {
             var dateChosen = false
+            // Held so BOTH dialogs are reachable from onDispose. The time picker is created inside the
+            // date callback, so a local val left it unreachable: leaving composition while it was showing
+            // (navigation, rotation) leaked the window with a callback still holding `draftForBed`. The
+            // single-dialog version this replaced was dismissed correctly, so tracking only the first one
+            // would have been a step back.
+            var timeDialog: TimePickerDialog? = null
             val dateDialog = DatePickerDialog(
                 context,
                 { _, year, month, day ->
                     dateChosen = true
-                    val selectedDate = Calendar.getInstance().apply {
-                        timeInMillis = draftForBed.startTs * 1000L
-                        set(Calendar.YEAR, year); set(Calendar.MONTH, month); set(Calendar.DAY_OF_MONTH, day)
-                    }
-                    val timeDialog = TimePickerDialog(
+                    timeDialog = TimePickerDialog(
                         context,
                         { _, h, m ->
-                            selectedDate.set(Calendar.HOUR_OF_DAY, h); selectedDate.set(Calendar.MINUTE, m)
-                            selectedDate.set(Calendar.SECOND, 0); selectedDate.set(Calendar.MILLISECOND, 0)
                             sleepEditDraft = draftForBed.withBedCandidate(
-                                candidateBedTs = selectedDate.timeInMillis / 1000L,
+                                // The SELECTED date, not the detected start's (#2470).
+                                candidateBedTs = sleepEndpointTs(
+                                    baseTs = draftForBed.startTs, year = year, month = month,
+                                    dayOfMonth = day, hour = h, minute = m,
+                                ),
                                 nowTs = System.currentTimeMillis() / 1000L,
                             )
                         },
                         startCal.get(Calendar.HOUR_OF_DAY), startCal.get(Calendar.MINUTE), true,
-                    ).apply { setTitle("Bedtime") }
-                    timeDialog.setOnDismissListener {
-                        editingBed = false
-                        if (sleepEditDraft != null) showTimeChoice = true
+                    ).apply {
+                        setTitle("Bedtime")
+                        setOnDismissListener {
+                            editingBed = false
+                            if (sleepEditDraft != null) showTimeChoice = true
+                        }
                     }
-                    timeDialog.show()
+                    timeDialog?.show()
                 },
                 startCal.get(Calendar.YEAR), startCal.get(Calendar.MONTH), startCal.get(Calendar.DAY_OF_MONTH),
             ).apply {
@@ -316,7 +322,10 @@ internal fun NightNavHeader(
                 }
             }
             dateDialog.show()
-            onDispose { runCatching { dateDialog.dismiss() } }
+            onDispose {
+                runCatching { dateDialog.dismiss() }
+                runCatching { timeDialog?.dismiss() }
+            }
         }
     }
 
@@ -327,28 +336,33 @@ internal fun NightNavHeader(
         val endCal = Calendar.getInstance().apply { timeInMillis = draftForWake.endTs * 1000L }
         DisposableEffect(Unit) {
             var dateChosen = false
+            // Same reachability point as the bedtime block above: the time picker is created inside the
+            // date callback, so onDispose can only dismiss it if it is held here. This path had the leak
+            // before #2470 touched anything; it is fixed alongside rather than left as the odd one out.
+            var timeDialog: TimePickerDialog? = null
             val dateDialog = DatePickerDialog(
                 context,
                 { _, year, month, day ->
                     dateChosen = true
-                    val selectedDate = Calendar.getInstance().apply {
-                        timeInMillis = draftForWake.endTs * 1000L
-                        set(Calendar.YEAR, year); set(Calendar.MONTH, month); set(Calendar.DAY_OF_MONTH, day)
-                    }
-                    val timeDialog = TimePickerDialog(
+                    timeDialog = TimePickerDialog(
                         context,
                         { _, h, m ->
-                            selectedDate.set(Calendar.HOUR_OF_DAY, h); selectedDate.set(Calendar.MINUTE, m)
-                            selectedDate.set(Calendar.SECOND, 0); selectedDate.set(Calendar.MILLISECOND, 0)
-                            sleepEditDraft = draftForWake.withWakeCandidate(selectedDate.timeInMillis / 1000L)
+                            sleepEditDraft = draftForWake.withWakeCandidate(
+                                sleepEndpointTs(
+                                    baseTs = draftForWake.endTs, year = year, month = month,
+                                    dayOfMonth = day, hour = h, minute = m,
+                                ),
+                            )
                         },
                         endCal.get(Calendar.HOUR_OF_DAY), endCal.get(Calendar.MINUTE), true,
-                    ).apply { setTitle("Wake-up time") }
-                    timeDialog.setOnDismissListener {
-                        editingWake = false
-                        if (sleepEditDraft != null) showTimeChoice = true
+                    ).apply {
+                        setTitle("Wake-up time")
+                        setOnDismissListener {
+                            editingWake = false
+                            if (sleepEditDraft != null) showTimeChoice = true
+                        }
                     }
-                    timeDialog.show()
+                    timeDialog?.show()
                 },
                 endCal.get(Calendar.YEAR), endCal.get(Calendar.MONTH), endCal.get(Calendar.DAY_OF_MONTH),
             ).apply {
@@ -362,7 +376,10 @@ internal fun NightNavHeader(
                 }
             }
             dateDialog.show()
-            onDispose { runCatching { dateDialog.dismiss() } }
+            onDispose {
+                runCatching { dateDialog.dismiss() }
+                runCatching { timeDialog?.dismiss() }
+            }
         }
     }
 
