@@ -2,6 +2,7 @@ package com.noop.analytics
 
 import com.noop.data.DailyMetric
 import com.noop.data.GravityWitness
+import com.noop.data.ScoreComputationStamp
 import com.noop.data.WhoopDao
 import com.noop.data.WhoopRepository
 import java.lang.reflect.InvocationTargetException
@@ -93,7 +94,9 @@ class IntelligenceEngineJacocoBudgetTest {
                 """\brepo\s*\.\s*upsertMetricSeriesWithProvenance\s*\(\s*rows\s*=\s*faPts\b""",
             ),
             "Vitality compute" to Regex("""\bVitalityEngine\s*\.\s*compute\s*\("""),
-            "Vitality upsert" to Regex("""\brepo\s*\.\s*upsertMetricSeries\s*\(\s*listOf\s*\("""),
+            "Vitality upsert" to Regex(
+                """\brepo\s*\.\s*upsertMetricSeriesWithProvenance\s*\(\s*rows\s*=\s*listOf\s*\(""",
+            ),
             "Apple Health read" to Regex("""\brepo\s*\.\s*appleDaily\s*\(\s*WhoopRepository\s*\.\s*APPLE_HEALTH_SOURCE\b"""),
             "Health Connect read" to Regex("""\brepo\s*\.\s*appleDaily\s*\(\s*WhoopRepository\s*\.\s*HEALTH_CONNECT_SOURCE\b"""),
             "gravity samples" to Regex("""\brepo\s*\.\s*gravitySamplesForDevice\s*\("""),
@@ -101,7 +104,9 @@ class IntelligenceEngineJacocoBudgetTest {
             // them, so it names the pass that just happened rather than one still running.
             "steps motion diagnostic" to Regex("""\bdiag\s*\(\s*StepsMotionCache\s*\.\s*logLine\s*\("""),
             "calibration" to Regex("""\bStepsEstimateEngine\s*\.\s*calibrate\s*\("""),
-            "step upsert" to Regex("""\brepo\s*\.\s*upsertMetricSeries\s*\(\s*estRows\s*\)"""),
+            "step upsert" to Regex(
+                """\brepo\s*\.\s*upsertMetricSeriesWithProvenance\s*\(\s*rows\s*=\s*estRows\b""",
+            ),
             "calibration persistence" to Regex("""\bpersistStepsCalibration\s*\("""),
             "calibration trace" to Regex("""\bStepsEstimateEngineTrace\s*\.\s*calibrationTrace\s*\("""),
         )
@@ -306,6 +311,7 @@ class IntelligenceEngineJacocoBudgetTest {
             1.5,
             persistCalibration,
             trace,
+            ScoreComputationStamp(computedBy = "android:test+1", computedAt = 0),
             continuation,
         )
         assertEquals(Unit, result)
