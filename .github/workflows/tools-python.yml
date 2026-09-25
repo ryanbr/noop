@@ -18,23 +18,31 @@
 # Widening the filter to name those paths would just re-create the trap one edit later: the list is
 # whatever the assertions happen to read today. Twenty-five seconds on every PR is cheaper than a gate
 # that is green because it did not run.
+#
+# That paragraph was already here, and a `Tools/**` filter was reinstated underneath it anyway, on the
+# Windows runner's cost. It cost the same thing a second time on 2026-09-24: an Android-only commit
+# changed a padding `test_home_i18n.py` asserts on, this job did not run, and main carried a red suite
+# through nine merges until a commit that happened to touch Tools/ finally tripped it. One of those
+# merges was an outside contributor's.
+#
+# So the split below, rather than a third round of the same argument: the Linux leg runs on everything
+# because it reads product source, and the Windows leg keeps its filter because it does not.
 name: Tools Python CI
 
 on:
-  # Path-filtered like android.yml / swift-packages.yml / app-build.yml. Without this the workflow ran on
-  # EVERY pull request and every push to main, including the many that touch no Python at all - and with a
-  # Windows runner now in it, billed at twice a Linux minute, that is a real cost for a job whose inputs
-  # cannot have changed. The workflow file itself is included so a change to the job still tests itself.
+  # UNFILTERED, which is what the note above argues for and what the filter that used to sit here undid.
+  #
+  # The filter was added for a real reason: a Windows runner billed at twice a Linux minute should not run
+  # on the many pull requests that touch no Python. That reason was sound and the remedy was not, because
+  # it silenced the Linux leg too, and the Linux leg is the one that reads product source. The Windows leg
+  # now lives in tools-python-windows.yml and keeps a filter of its own, so the cost argument is answered
+  # where it applies instead of across a job it was never about.
+  #
+  # This leg is ubuntu and about 25 seconds. It stays on every pull request and every push to main.
   pull_request:
     branches: [main]
-    paths:
-      - 'Tools/**'
-      - '.github/workflows/tools-python.yml'
   push:
     branches: [main]
-    paths:
-      - 'Tools/**'
-      - '.github/workflows/tools-python.yml'
   workflow_dispatch:
 
 concurrency:
@@ -89,35 +97,3 @@ jobs:
             exit 1
           fi
         working-directory: Tools
-  windows-capture:
-    runs-on: windows-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      # Keep Windows locale defaults and exercise a strict legacy console, including subprocesses.
-      # UTF-8 mode would hide implicit file encodings; replacement output would hide console bugs.
-      - name: Run Tools/linux-capture tests with legacy Windows encodings
-        working-directory: Tools/linux-capture
-        env:
-          PYTHONUTF8: '0'
-          PYTHONIOENCODING: 'cp1252:strict'
-          PYTHONLEGACYWINDOWSSTDIO: '1'
-        shell: python
-        run: |
-          import sys
-          import unittest
-
-          suite = unittest.defaultTestLoader.discover('.', pattern='test_*.py')
-          count = suite.countTestCases()
-          print(f'collected {count} tests', flush=True)
-          result = unittest.TextTestRunner(verbosity=2).run(suite)
-          if count < 200 or result.testsRun < 200:
-              print('::error::expected at least 200 tests; discovery or execution is incomplete')
-              sys.exit(1)
-          sys.exit(0 if result.wasSuccessful() else 1)

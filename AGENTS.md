@@ -124,7 +124,8 @@ xcodegen generate && xcodebuild -project Strand.xcodeproj -scheme Strand \
 | `android.yml` | `assembleFullDebug` + `testFullDebugUnitTest` | ubuntu | **active**, path-filtered to `android/**` |
 | `source-hygiene.yml` | Doc comments that bind to nothing (`Tools/doc_comment_lint.py`) | ubuntu | **active** |
 | `i18n-coverage.yml` | Diff-scoped translation gate (`Tools/i18n_audit.py --ci`) | ubuntu | **active** |
-| `tools-python.yml` | `unittest discover` over `Tools/` and `Tools/linux-capture` | ubuntu | **active**, path-filtered |
+| `tools-python.yml` | `unittest discover` over `Tools/` and `Tools/linux-capture` | ubuntu | **active**, NO path filter. The core `Tools/` suites assert on product source (`test_home_i18n.py` reads `TodayScreen.kt`, `AppModel.swift`, the xcstrings catalogues), so no path list describes its inputs. Runs on every PR and every push to `main`. |
+| `tools-python-windows.yml` | The `Tools/linux-capture` tests a second time, under legacy Windows console encodings | windows | **active**, path-filtered to `Tools/linux-capture/**`. Those tests read nothing outside their own package, and the runner bills at twice a Linux minute. |
 | `prune-stale-branches.yml` | Deletes branches whose PR merged or closed unmerged | ubuntu | **active**, weekly + dispatch |
 | `fork-testing-build.yml` / `fork-release.yml` | Staging / release builds (apk + mac + ios) | — | on dispatch |
 

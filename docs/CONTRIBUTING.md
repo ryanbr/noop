@@ -255,7 +255,9 @@ and hardware-dependent verification runs at release time or on demand. This is a
 anonymous, offline, sideloaded project — not a gap to fill with more gates.
 
 - **On every PR (required):** `source-hygiene`, `tools-python` and `i18n-coverage` have no path
-  filter, so all three run on everything. `swift-packages` (`swift test` for `Packages/**`) and
+  filter, so all three run on everything. (`tools-python`'s Windows leg is a separate workflow and IS
+  filtered, to `Tools/linux-capture/**`: it re-runs only those tests under legacy console encodings,
+  and they read nothing outside their own package.) `swift-packages` (`swift test` for `Packages/**`) and
   `android` (`assembleFullDebug` + `testFullDebugUnitTest`) are **path-filtered** — they run when you
   touch what they cover, which is most substantive PRs. Between them these catch the regressions that
   matter most (protocol/analytics math, storage, i18n) without a device or an app build. The check

@@ -105,20 +105,45 @@ class RepositoryBaselineTests(unittest.TestCase):
         core = (REPOSITORY / ".github/workflows/tools-python.yml").read_text(
             encoding="utf-8"
         )
+        windows = (REPOSITORY / ".github/workflows/tools-python-windows.yml").read_text(
+            encoding="utf-8"
+        )
         governance = (REPOSITORY / ".github/workflows/parity-governance.yml").read_text(
             encoding="utf-8"
         )
-        self.assertIn("pull_request:\n    branches: [main]\n    paths:", core)
+        # The core leg carries NO path filter, and that is the contract.
+        #
+        # It runs the Tools/ suites, and some of those assert on product source: test_home_i18n.py reads
+        # TodayScreen.kt, AppModel.swift and the xcstrings catalogues. A filter naming Tools/ therefore
+        # silences a suite whose inputs it does not describe. That was diagnosed once (#1691), written
+        # into the workflow header, and a Tools/** filter was reinstated under it anyway; on 2026-09-24
+        # an Android-only commit broke test_home_i18n.py and main carried it red through nine merges.
+        # Naming the product paths instead would only move the trap, since the list is whatever the
+        # assertions happen to read today.
+        self.assertNotIn("pull_request:\n    branches: [main]\n    paths:", core)
+        self.assertNotIn("push:\n    branches: [main]\n    paths:", core)
         core_paths = [
             line.strip()[3:-1]
             for line in core.splitlines()
             if line.startswith("      - '")
         ]
-        self.assertEqual(
-            ["Tools/**", ".github/workflows/tools-python.yml"] * 2,
-            core_paths,
-        )
+        self.assertEqual([], core_paths)
+        self.assertIn("working-directory: Tools\n", core)
         self.assertNotIn("unittest discover -s tests", core)
+        # The Windows leg keeps a filter, because it runs ONLY the Tools/linux-capture tests and those
+        # read nothing outside their own package. That is the whole reason it could be split off: the
+        # runner costs twice a Linux minute, and the cost argument is true for this job alone.
+        windows_paths = [
+            line.strip()[3:-1]
+            for line in windows.splitlines()
+            if line.startswith("      - '")
+        ]
+        self.assertEqual(
+            ["Tools/linux-capture/**", ".github/workflows/tools-python-windows.yml"] * 2,
+            windows_paths,
+        )
+        self.assertIn("working-directory: Tools/linux-capture", windows)
+        self.assertNotIn("working-directory: Tools\n", windows)
         self.assertIn("pull_request:\n    branches: [main]\n    paths:", governance)
         governance_paths = [
             line.strip()[3:-1]
@@ -137,7 +162,6 @@ class RepositoryBaselineTests(unittest.TestCase):
             ] * 2,
             governance_paths,
         )
-        self.assertIn("Tools/**", core_paths)
         self.assertTrue(
             all(
                 path.startswith("Tools/")

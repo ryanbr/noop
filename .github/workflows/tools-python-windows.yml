@@ -1,0 +1,67 @@
+# The Windows leg of the Tools/ Python suites, split out of tools-python.yml so each trigger states
+# something true.
+#
+# `Tools/linux-capture` is run a second time under legacy Windows console encodings, which is what
+# catches an implicit file encoding or a console write that only fails off UTF-8. It is the same 200+
+# tests, on a runner billed at twice a Linux minute.
+#
+# Path-filtered, and here that is correct: this job runs ONLY the tests under Tools/linux-capture, and
+# those read nothing outside their own package. That is what separates it from the Linux leg, which also
+# runs the core Tools/ suites, and those DO assert on app and package source (test_home_i18n.py reads
+# TodayScreen.kt, AppModel.swift, the xcstrings catalogues). A filter on the shared workflow silenced
+# both; this one is scoped to the job it was ever meant for.
+#
+# If a test that reads product source is ever added under Tools/linux-capture, this filter becomes wrong
+# in the same way. Put such a test in Tools/ instead, where the unfiltered leg runs it.
+name: Tools Python CI (Windows)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'Tools/linux-capture/**'
+      - '.github/workflows/tools-python-windows.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'Tools/linux-capture/**'
+      - '.github/workflows/tools-python-windows.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: tools-python-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-capture:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Keep Windows locale defaults and exercise a strict legacy console, including subprocesses.
+      # UTF-8 mode would hide implicit file encodings; replacement output would hide console bugs.
+      - name: Run Tools/linux-capture tests with legacy Windows encodings
+        working-directory: Tools/linux-capture
+        env:
+          PYTHONUTF8: '0'
+          PYTHONIOENCODING: 'cp1252:strict'
+          PYTHONLEGACYWINDOWSSTDIO: '1'
+        shell: python
+        run: |
+          import sys
+          import unittest
+
+          suite = unittest.defaultTestLoader.discover('.', pattern='test_*.py')
+          count = suite.countTestCases()
+          print(f'collected {count} tests', flush=True)
+          result = unittest.TextTestRunner(verbosity=2).run(suite)
+          if count < 200 or result.testsRun < 200:
+              print('::error::expected at least 200 tests; discovery or execution is incomplete')
+              sys.exit(1)
+          sys.exit(0 if result.wasSuccessful() else 1)

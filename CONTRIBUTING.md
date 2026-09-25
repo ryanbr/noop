@@ -74,6 +74,7 @@ names. That column is why this table exists:
 | `check` | **i18n Coverage** (`i18n-coverage.yml`) | every PR |
 | `doc-comments` | **Source Hygiene** (`source-hygiene.yml`) | every PR |
 | `linux-capture` | **Tools Python CI** (`tools-python.yml`) | every PR |
+| `windows-capture` | **Tools Python CI (Windows)** (`tools-python-windows.yml`) | `Tools/linux-capture/**` |
 | `build-and-test` | **Android CI** (`android.yml`) | `android/**`, the protocol/store test resources, `Strand/Resources/Localizable.xcstrings` |
 | `test (…)`, `tools (…)` | **Swift Packages CI** (`swift-packages.yml`) | `Packages/**`, the `Tools/SleepBench`, `Tools/SleepPSG` and `Tools/Backfill` packages, `android/app/src/test/resources/**`, `Strand/Liquid/LiquidCore.swift` |
 
