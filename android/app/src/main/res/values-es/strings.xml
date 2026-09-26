@@ -2835,4 +2835,17 @@
     <string name="fused_record_contribution_in_use">%1$s, %2$s, en uso</string>
     <string name="smart_alarm_5mg_armed_experimental">La alarma se activó en la pulsera con un comando experimental 5/MG. Se han comunicado despertares desde pulseras 5.0 y MG, pero no están garantizados. Mantén una alarma de respaldo para lo que no puedas perderte.</string>
     <string name="raw_diag_protocol_probes_detail">Envía consultas de protocolo experimentales y habilita la alarma de la pulsera 5/MG. No se necesita para la sincronización, el sueño, la recuperación ni los pasos normales.</string>
+
+    <!-- Dated, local weight history (Refs #763). -->
+    <string name="weight_history_title">Historial de peso</string>
+    <string name="weight_add">Añadir peso</string>
+    <string name="weight_empty">Registra un peso o importa tu historial de peso.</string>
+    <string name="weight_manual">Manual</string>
+    <string name="weight_invalid">Introduce un peso válido.</string>
+    <string name="weight_per_day">Una entrada manual por fecha. Al guardar se sustituye la entrada existente para esa fecha.</string>
+    <string name="weight_load_error">No se pudo cargar el historial de peso.</string>
+    <string name="weight_change_error">No se pudo guardar el cambio. Inténtalo de nuevo.</string>
+    <string name="weight_delete_title">¿Eliminar esta entrada de peso?</string>
+    <string name="weight_profile_note">Los pesos registrados no cambian el peso de tu perfil.</string>
+    <string name="weight_days">%1$d días</string>
 </resources>

@@ -9,6 +9,12 @@ import XCTest
 @MainActor
 final class SourceCandidatesOrderTests: XCTestCase {
 
+    func testWeightHistoryUsesManualThenImportedSources() {
+        let candidates = Repository.sourceCandidates(forKey: "weight", preferredSource: "apple-health",
+                                                      actualWhoopSource: "whoop-4A0B")
+        XCTAssertEqual(candidates.map(\.source), ["noop-weight", "apple-health", "health-connect"])
+    }
+
     func testReAddedDeviceCanonicalImportOutranksComputedSiblings() {
         let cs = Repository.sourceCandidates(forKey: "rhr", preferredSource: "my-whoop",
                                              actualWhoopSource: "whoop-4A0B")

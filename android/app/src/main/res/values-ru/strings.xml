@@ -2728,4 +2728,17 @@
     <string name="fused_record_contribution_in_use">%1$s, %2$s, используется</string>
     <string name="smart_alarm_5mg_armed_experimental">Будильник установлен на браслете экспериментальной командой 5/MG. Сообщалось о срабатывании на 5.0 и MG, но оно не гарантировано. Оставьте резервный будильник для важных событий.</string>
     <string name="raw_diag_protocol_probes_detail">Отправляет экспериментальные запросы протокола и включает будильник браслета 5/MG. Не требуется для обычной синхронизации, сна, восстановления или подсчёта шагов.</string>
+
+    <!-- Dated, local weight history (Refs #763). -->
+    <string name="weight_history_title">История веса</string>
+    <string name="weight_add">Добавить вес</string>
+    <string name="weight_empty">Запишите вес или импортируйте историю веса.</string>
+    <string name="weight_manual">Вручную</string>
+    <string name="weight_invalid">Введите корректный вес.</string>
+    <string name="weight_per_day">Одна ручная запись на дату. Сохранение заменяет существующую запись за эту дату.</string>
+    <string name="weight_load_error">Не удалось загрузить историю веса.</string>
+    <string name="weight_change_error">Не удалось сохранить изменение. Попробуйте ещё раз.</string>
+    <string name="weight_delete_title">Удалить эту запись веса?</string>
+    <string name="weight_profile_note">Записанные измерения не меняют вес в профиле.</string>
+    <string name="weight_days">%1$d дней</string>
 </resources>

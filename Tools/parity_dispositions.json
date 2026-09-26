@@ -120,6 +120,14 @@
       "identity_sha256": "21eb9deea3ff8019c9eff121cf7aa39aee01ee6d390292d65bb02aa667d3a534",
       "platform": "kotlin",
       "rationale": "SQL text for a Room @Query, which must be a compile-time constant string and so cannot be inlined at the DAO method. The Swift store writes the same statement inline in WhoopStore Reads.swift / StreamStore.swift, so there is no Swift constant to pair with, exactly as for the existing WHOOP5_RR_INTERVALS_SQL and PROMOTE_WHOOP5_RR_SOURCE_SQL siblings."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-constant",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/WeightHistory.swift::sources",
+      "identity_sha256": "3f3c113fb0cf9d91650ce95a174ccbd9af4f330ab750f67da414db020b76a653",
+      "platform": "swift",
+      "rationale": "The Swift static let array has the same ordered source list as WeightHistory.sources in android/app/src/main/java/com/noop/data/WeightHistory.kt. Kotlin collection vals cannot be const, so the constant scanner does not index that twin. WeightHistoryTests and WeightHistoryTest pin source resolution against the same executed Swift oracle."
     }
   ]
 }

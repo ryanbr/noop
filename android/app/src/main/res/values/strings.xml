@@ -2864,4 +2864,17 @@
     <string name="fused_record_contribution_in_use">%1$s, %2$s, in use</string>
     <string name="smart_alarm_5mg_armed_experimental">Armed on the strap with an experimental 5/MG command. Strap-driven wakes have been reported on 5.0 and MG, but are not guaranteed. Keep a backup alarm for anything you cannot miss.</string>
     <string name="raw_diag_protocol_probes_detail">Sends experimental protocol queries and enables the 5/MG strap alarm. Not needed for normal sync, sleep, recovery, or steps.</string>
+
+    <!-- Dated, local weight history (Refs #763). -->
+    <string name="weight_history_title">Weight history</string>
+    <string name="weight_add">Add weight</string>
+    <string name="weight_empty">Log a weight or import weight history.</string>
+    <string name="weight_manual">Manual</string>
+    <string name="weight_invalid">Enter a valid weight.</string>
+    <string name="weight_per_day">One manual entry per date. Saving replaces an existing entry for that date.</string>
+    <string name="weight_load_error">Could not load weight history.</string>
+    <string name="weight_change_error">Could not save this change. Try again.</string>
+    <string name="weight_delete_title">Delete this weight entry?</string>
+    <string name="weight_profile_note">Logged weights do not change your profile weight.</string>
+    <string name="weight_days">%1$d days</string>
 </resources>

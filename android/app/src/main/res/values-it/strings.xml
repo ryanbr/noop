@@ -2803,4 +2803,17 @@
     <string name="fused_record_contribution_in_use">%1$s, %2$s, in uso</string>
     <string name="smart_alarm_5mg_armed_experimental">La sveglia è stata attivata sulla fascia con un comando sperimentale 5/MG. Sono stati segnalati risvegli dalla fascia su 5.0 e MG, ma non sono garantiti. Tieni una sveglia di riserva per gli impegni importanti.</string>
     <string name="raw_diag_protocol_probes_detail">Invia richieste di protocollo sperimentali e abilita la sveglia della fascia 5/MG. Non serve per la normale sincronizzazione, il sonno, il recupero o i passi.</string>
+
+    <!-- Dated, local weight history (Refs #763). -->
+    <string name="weight_history_title">Cronologia del peso</string>
+    <string name="weight_add">Aggiungi peso</string>
+    <string name="weight_empty">Registra un peso o importa la cronologia del peso.</string>
+    <string name="weight_manual">Manuale</string>
+    <string name="weight_invalid">Inserisci un peso valido.</string>
+    <string name="weight_per_day">Una voce manuale per data. Il salvataggio sostituisce la voce esistente per quella data.</string>
+    <string name="weight_load_error">Impossibile caricare la cronologia del peso.</string>
+    <string name="weight_change_error">Impossibile salvare la modifica. Riprova.</string>
+    <string name="weight_delete_title">Eliminare questa voce del peso?</string>
+    <string name="weight_profile_note">I pesi registrati non modificano il peso del profilo.</string>
+    <string name="weight_days">%1$d giorni</string>
 </resources>

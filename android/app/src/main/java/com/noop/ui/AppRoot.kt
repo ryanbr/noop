@@ -165,6 +165,7 @@ internal enum class Destination(
     Compare("compare", R.string.nav_compare, Icons.AutoMirrored.Filled.CompareArrows),
 
     // Group: Health
+    WeightHistory("weight_history", R.string.weight_history_title, Icons.Filled.MonitorHeart),
     Health("health", R.string.nav_health, Icons.Filled.MonitorHeart),
     Hydration("hydration", R.string.nav_hydration, Icons.Filled.WaterDrop),
     VitalSigns("vital_signs", R.string.nav_vital_signs, Icons.Filled.HealthAndSafety),
@@ -242,7 +243,7 @@ internal val drawerGroups: List<DrawerGroup> = listOf(
         Destination.Insights, Destination.Explore, Destination.Compare,
     ), defaultExpanded = true),
     DrawerGroup("Body", R.string.more_group_body, listOf(
-        Destination.Live, Destination.Workouts, Destination.Health, Destination.VitalSigns,
+        Destination.Live, Destination.Workouts, Destination.Health, Destination.WeightHistory, Destination.VitalSigns,
         Destination.LabBook, Destination.Stress, Destination.Breathe, Destination.Intervals,
         Destination.Rhythm,
     ), defaultExpanded = true),
@@ -648,7 +649,7 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                         onOpenHealth = { nav.navigate(Destination.Health.route) },
                         // Every metric/vital card opens its OWN focused detail trend (vital_detail/<key>),
                         // not the shared Health hub (2026-07-03). Mirrors the iOS liquidCard metricDetail.
-                        onOpenMetric = { key -> nav.navigate("vital_detail/$key") },
+                        onOpenMetric = { key -> nav.navigate(if (key == "weight") Destination.WeightHistory.route else "vital_detail/$key") },
                         // A blank, uncalibrated WHOOP 4.0 Steps tile opens the same calibration screen as
                         // Settings. A normal push returns Back to Today (#1515).
                         onOpenStepsCalibration = { nav.navigate(Destination.StepsCalibration.route) },
@@ -726,6 +727,7 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                 composable(Destination.Trends.route) { TrendsScreen(viewModel) }
                 composable(Destination.Insights.route) { InsightsScreen(viewModel, onOpenInsightsHub = { nav.navigateTopLevel(Destination.InsightsHub.route) }) }
                 composable(Destination.Compare.route) { CompareScreen(viewModel) }
+                composable(Destination.WeightHistory.route) { WeightHistoryScreen(viewModel) }
                 composable(Destination.Health.route) {
                     HealthScreen(
                         vm = viewModel,

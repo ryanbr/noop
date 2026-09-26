@@ -314,6 +314,7 @@ struct TodayView: View {
 
     // 14-day sparkline series, keyed by metric key. Loaded once in .task.
     @State private var sparks: [String: [Double]] = [:]
+    @State private var weightPoints: [(day: String, value: Double)] = []
     @State private var workouts: [WorkoutRow] = []
     /// #1694: a tapped Latest-Workouts tile. Wrapped so `.sheet(item:)` drives presentation, mirroring
     /// WorkoutsView's own detail target — the feed was read-only, so the only route to a session's
@@ -4121,12 +4122,15 @@ struct TodayView: View {
                 }
             )
         case .weight:
+            let cutoff = Repository.localDayKey(Calendar.current.date(byAdding: .day, value: -89, to: selectedLogicalDay) ?? selectedLogicalDay)
             StatTile(
                 label: "Weight",
-                value: weightTile(aLatest?.weightKg).value,
-                caption: weightTile(aLatest?.weightKg).caption,
+                value: weightTile().value,
+                caption: weightTile().caption,
                 accent: StrandPalette.accent,
-                sparkline: sparks["weight"],
+                sparkline: weightPoints.filter { $0.day >= cutoff && $0.day <= selectedDayKey }.map {
+                    unitSystem == .imperial ? UnitFormatter.kgToPounds($0.value) : $0.value
+                },
                 sparkColor: StrandPalette.accent
             )
         case .calories:
@@ -4546,6 +4550,12 @@ struct TodayView: View {
     /// `refreshSeq`, which re-fires this task with `live.backfilling` false, and the deferred set runs then.
     /// Values + provenance are byte-identical to the old single-pass `loadAll` whenever each part runs.
     private func loadAll() async {
+        // Manual weight changes do not advance the daily-score cache. Re-read this small series on
+        // return/day selection; the latest value must not be limited by the sparkline window.
+        let weights = await repo.resolvedSeries(key: "weight", source: "apple-health",
+                                               from: "0001-01-01", to: selectedDayKey)
+        guard !Task.isCancelled else { return }
+        weightPoints = weights.points.map { ($0.day, $0.value) }
         // Always refresh the selected day (cheap, and it's what a day-switch / return-to-tab needs). Since
         // #860 retired the launch auto-land, this pass no longer changes `selectedDayOffset`, so there's no
         // re-fire to bail for: the history-wide set + the new-day announce run straight through below.
@@ -4678,7 +4688,6 @@ struct TodayView: View {
         // trend. "my-whoop" covers imported WHOOP CSV (Layer 1) + computed DailyMetric (Layer 3).
         async let respRateSpark      = sparkValuesExplore("resp_rate", source: "my-whoop", window: 14)
         async let stepsAppleSpark    = sparkValues("steps", source: "apple-health", window: 14)
-        async let weightSpark        = sparkValues("weight", source: "apple-health", window: 90)
         async let activeKcalSpark    = sparkValues("active_kcal", source: "apple-health", window: 14)
 
         sparks["recovery"]        = await recoverySpark
@@ -4697,7 +4706,6 @@ struct TodayView: View {
         // must run AFTER sparks["steps"] is assigned from the Apple-Health read above (unchanged order).
         let strapSteps = repo.days.suffix(14).compactMap { $0.steps.map(Double.init) }
         if !strapSteps.isEmpty { sparks["steps"] = strapSteps }
-        sparks["weight"]      = await weightSpark
         sparks["active_kcal"] = await activeKcalSpark
 
         // Steps ESTIMATE per day (WHOOP 4.0 motion → calibrated steps), the Mi-Band series, workout +
@@ -5186,12 +5194,10 @@ struct TodayView: View {
     }
 
     /// The Weight tile's display string + an honest caption ("from profile" only on the fallback).
-    /// Prefers a real Apple-Health reading (today's daily, else the "weight" series' newest point so a
-    /// sparse-but-recent value still renders); when neither carries a weight, falls back to the user's
-    /// self-reported profile weight instead of ", " (#204). Always formatted through the shared
-    /// `UnitFormatter` so the Imperial/Metric toggle reaches this tile. Mirrors Android's `weightTile`.
-    private func weightTile(_ appleWeightKg: Double?) -> (value: String, caption: String) {
-        if let kg = appleWeightKg ?? sparks["weight"]?.last {
+    /// Uses the latest resolved reading through the selected day, with profile weight only as a
+    /// fallback. The graph window is independent. Mirrors Android's `weightTile`.
+    private func weightTile() -> (value: String, caption: String) {
+        if let kg = weightPoints.last(where: { $0.day <= selectedDayKey })?.value {
             return (UnitFormatter.massFromKilograms(kg, system: unitSystem), String(localized: "latest"))
         }
         return (UnitFormatter.massFromKilograms(profile.weightKg, system: unitSystem), String(localized: "from profile"))
