@@ -80,6 +80,46 @@
       "identity_sha256": "ecbc737217fc7e501b46226d4560ed9f23d2bd636faeef2f5e59e0a7274821e1",
       "platform": "swift",
       "rationale": "Twin of the Kotlin `val OuraSpO2.channel` in android/app/src/main/java/com/noop/oura/OuraEvents.kt. Both are one-line extension properties over OuraSpO2 returning OuraSpO2Channel, added together in the same change. Kotlin declares its copy as a TOP-LEVEL extension property with a dotted receiver, which the ledger's Kotlin property scan does not index, so the Swift side reads as one-sided. The pair is real; only one half is visible to the inventory."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDao.kt::whoop4RrIntervals/4#1",
+      "identity_sha256": "da665b8f8238c9cabc98bb7e25167413ecad0f21f798a04f2097186f9d708a45",
+      "platform": "kotlin",
+      "rationale": "Room @Query DAO method. The Swift store issues the equivalent SQL inline in WhoopStore Reads.swift / StreamStore.swift rather than through a DAO, so there is no Swift function to pair with; its WHOOP 5 siblings whoop5RrIntervals, hasWhoop5RrSource and promoteWhoop5RrSource are one-sided for the same architectural reason."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDao.kt::hasWhoop4HistoricalRrSource/1#1",
+      "identity_sha256": "32e0dc3afb5c5dd2f583841b87897e5ab0d5a8803a3ca1a9f5b9950920573d72",
+      "platform": "kotlin",
+      "rationale": "Room @Query DAO method. The Swift store issues the equivalent SQL inline in WhoopStore Reads.swift / StreamStore.swift rather than through a DAO, so there is no Swift function to pair with; its WHOOP 5 siblings whoop5RrIntervals, hasWhoop5RrSource and promoteWhoop5RrSource are one-sided for the same architectural reason."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDao.kt::promoteWhoop4HistoricalRr/5#1",
+      "identity_sha256": "2269e39a758e4a86bd7f600117d4327370ad9e9fdd894a4e59ec77210419aa1e",
+      "platform": "kotlin",
+      "rationale": "Room @Query DAO method. The Swift store issues the equivalent SQL inline in WhoopStore Reads.swift / StreamStore.swift rather than through a DAO, so there is no Swift function to pair with; its WHOOP 5 siblings whoop5RrIntervals, hasWhoop5RrSource and promoteWhoop5RrSource are one-sided for the same architectural reason."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-constant",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDao.kt::WHOOP4_RR_INTERVALS_SQL",
+      "identity_sha256": "f513da8ff8ce9b2a9c8b30b042e82d92821c81bc42612acae1992fe4055f6ddc",
+      "platform": "kotlin",
+      "rationale": "SQL text for a Room @Query, which must be a compile-time constant string and so cannot be inlined at the DAO method. The Swift store writes the same statement inline in WhoopStore Reads.swift / StreamStore.swift, so there is no Swift constant to pair with, exactly as for the existing WHOOP5_RR_INTERVALS_SQL and PROMOTE_WHOOP5_RR_SOURCE_SQL siblings."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-constant",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDao.kt::PROMOTE_WHOOP4_HISTORY_SQL",
+      "identity_sha256": "21eb9deea3ff8019c9eff121cf7aa39aee01ee6d390292d65bb02aa667d3a534",
+      "platform": "kotlin",
+      "rationale": "SQL text for a Room @Query, which must be a compile-time constant string and so cannot be inlined at the DAO method. The Swift store writes the same statement inline in WhoopStore Reads.swift / StreamStore.swift, so there is no Swift constant to pair with, exactly as for the existing WHOOP5_RR_INTERVALS_SQL and PROMOTE_WHOOP5_RR_SOURCE_SQL siblings."
     }
   ]
 }

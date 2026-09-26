@@ -2,6 +2,15 @@ import GRDB
 import WhoopProtocol
 
 extension WhoopStore {
+    /// Whether the device registry CONFIRMS this owner is a WHOOP 4, so its labelled type-47 history is
+    /// the stream `rrIntervals` scores for the interval.
+    ///
+    /// Registry-CONFIRMED, not inferred: `confirmedRegistryFamily` returns nil for an unknown brand or an
+    /// unrecognised model spelling, and nil must NOT be read as "a WHOOP 4". An unregistered device falls
+    /// through to the row-level check instead (does any channel-8 row exist at all), so the policy never
+    /// depends on the registry being populated.
+    ///
+    /// Twin of the Kotlin `WhoopRepository.isWhoop4RrSource`.
     static func isWhoop4RRSource(db: Database, deviceId: String) throws -> Bool {
         let row = try Row.fetchOne(db, sql: "SELECT model, brand FROM pairedDevice WHERE id = ?", arguments: [deviceId])
         return DeviceFamily.confirmedRegistryFamily(model: row?["model"], brand: row?["brand"]) == .whoop4

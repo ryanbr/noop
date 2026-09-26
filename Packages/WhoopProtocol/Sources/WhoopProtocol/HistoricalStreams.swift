@@ -168,6 +168,9 @@ public func isEmptyRecordFrame(_ frame: [UInt8]) -> Bool {
 /// during a historical backfill, where type-40 frames are absent.
 /// EVENT and COMMAND_RESPONSE handling is identical to extractStreams.
 /// CRC-failed and non-ok frames are skipped.
+///
+/// Twin of Kotlin `extractHistoricalStreams`. Named here because adding `family` re-identified this
+/// function for the parity inventory, which keys on arity: the pair is unchanged, only its key moved.
 public func extractHistoricalStreams(_ parsed: [ParsedFrame],
                                      deviceClockRef: Int, wallClockRef: Int,
                                      family: DeviceFamily? = nil,

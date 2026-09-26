@@ -263,8 +263,11 @@ extension WhoopStore {
                         try promote.execute(arguments: ["source": source.rawValue, "ord": ord,
                             "device": deviceId, "ts": r.ts, "rr": r.rrMs, "seq": seq])
                     }
+                    // The label is the CASE just matched, so name it rather than force-unwrapping the
+                    // optional the match already proved non-nil.
                     if inserted == 0, r.srcChannel == .whoop4Historical {
-                        try promoteWhoop4History.execute(arguments: ["source": r.srcChannel!.rawValue, "ord": ord,
+                        try promoteWhoop4History.execute(arguments: [
+                            "source": RRSourceChannel.whoop4Historical.rawValue, "ord": ord,
                             "device": deviceId, "ts": r.ts, "rr": r.rrMs, "seq": seq])
                     }
                 }
