@@ -37,12 +37,16 @@ internal suspend fun selectedDaytimeStressMode(
             limit = 200_000,
         )
         if (dayHr.isEmpty()) continue
-        val dayRr = repo.rrIntervalsUnion(
-            deviceId,
-            window.fromEpochSecond,
-            window.toEpochSecondInclusive,
-            limit = 200_000,
-        )
+        // The live baseline scores HR only while the RMSSD term is disabled. Reading up to
+        // 200k R-R rows for each of 30 days cannot change its result and delays the card.
+        val dayRr = if (DaytimeStress.daytimeRMSSDScoringEnabled) {
+            repo.rrIntervalsUnion(
+                deviceId,
+                window.fromEpochSecond,
+                window.toEpochSecondInclusive,
+                limit = 200_000,
+            )
+        } else emptyList()
         aggregates.add(
             DaytimeBaselines.dayDaytimeAggregate(dayHr, dayRr, window.offsetSeconds.toLong()),
         )

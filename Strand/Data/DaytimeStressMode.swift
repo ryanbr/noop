@@ -35,7 +35,10 @@ enum DaytimeStressMode {
             let dayTz = TimeZone.current.secondsFromGMT(for: dayStart)
             let dayHR = await repo.hrSamples(from: from, to: to, limit: 200_000)
             guard !dayHR.isEmpty else { continue }
-            let dayRR = await repo.rrIntervals(from: from, to: to, limit: 200_000)
+            // The live baseline scores HR only while the RMSSD term is disabled. Skip the
+            // 30 days of historical R-R reads; they cannot change the selected mode.
+            let dayRR = DaytimeStress.daytimeRMSSDScoringEnabled
+                ? await repo.rrIntervals(from: from, to: to, limit: 200_000) : []
             aggregates.append(
                 DaytimeStress.dayDaytimeAggregate(hr: dayHR, rr: dayRR, tzOffsetSeconds: dayTz)
             )
