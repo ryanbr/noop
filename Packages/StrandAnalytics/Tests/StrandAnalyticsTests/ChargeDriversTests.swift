@@ -103,7 +103,7 @@ final class ChargeDriversTests: XCTestCase {
             deltaPoints: -1,
             valueText: "30 ms",
             baselineText: "30 ms baseline",
-            verdict: "below baseline, limiting recovery")])
+            verdict: "slightly below baseline, limiting recovery")])
     }
 
     // MARK: - Presence / omission
@@ -169,7 +169,32 @@ final class ChargeDriversTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(resp.deltaPoints, 0)   // minor 0.05-weight term; direction below
         XCTAssertTrue(hrv.verdict.contains("supporting recovery"))
         XCTAssertTrue(rhr.verdict.contains("supporting recovery"))
-        XCTAssertTrue(resp.verdict.contains("supporting recovery"))
+        // A minor term that rounds to 0 points states its direction without claiming an effect.
+        XCTAssertTrue(resp.deltaPoints > 0 ? resp.verdict == "below baseline, supporting recovery"
+                                           : resp.verdict == "below baseline, too small to change Charge")
+    }
+
+    /// The row's words must agree with what the row prints: equal printed values read "at baseline" even
+    /// when the raw values differ, a difference worth 0 points claims no effect, and skin temperature is
+    /// "near baseline" only when it cost nothing.
+    func testVerdictsAgreeWithThePrintedValuesAndPoints() {
+        typealias R = RecoveryScorer
+        // Printed 51 vs 51, worth 0 points: at baseline, whatever the raw values.
+        XCTAssertEqual(R.lowerIsBetterVerdict(value: 51.3, baseline: 50.8, shown: 51, shownBaseline: 51, points: 0),
+                       "at baseline")
+        // Printed tie that still cost a point: said as slight, never as "at baseline".
+        XCTAssertEqual(R.lowerIsBetterVerdict(value: 51.3, baseline: 50.8, shown: 51, shownBaseline: 51, points: -1),
+                       "slightly above baseline, limiting recovery")
+        // A printed difference worth 0 points claims no effect.
+        XCTAssertEqual(R.lowerIsBetterVerdict(value: 52, baseline: 51, shown: 52, shownBaseline: 51, points: 0),
+                       "above baseline, too small to change Charge")
+        XCTAssertEqual(R.lowerIsBetterVerdict(value: 55, baseline: 51, shown: 55, shownBaseline: 51, points: -3),
+                       "above baseline, limiting recovery")
+        XCTAssertEqual(R.hrvVerdict(value: 40, baseline: 50, shown: 40, shownBaseline: 50, points: -8),
+                       "below baseline, limiting recovery")
+        XCTAssertEqual(R.hrvVerdict(value: 50, baseline: 50, shown: 50, shownBaseline: 50, points: 0), "at baseline")
+        XCTAssertEqual(R.skinTempVerdict(0.2, points: -1), "warmer than baseline, limiting recovery")
+        XCTAssertEqual(R.skinTempVerdict(0.2, points: 0), "near baseline")
     }
 
     func testBadInputsGiveNegativeContributions() {

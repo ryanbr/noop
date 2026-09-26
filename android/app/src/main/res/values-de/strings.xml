@@ -2474,6 +2474,12 @@
     <string name="today_driver_near_baseline">nahe am Basiswert</string>
     <string name="today_driver_warmer_limiting">wärmer als der Basiswert, begrenzt die Erholung</string>
     <string name="today_driver_cooler_limiting">kühler als der Basiswert, begrenzt die Erholung</string>
+    <string name="today_driver_slightly_above_supporting">leicht über dem Basiswert, unterstützt die Erholung</string>
+    <string name="today_driver_slightly_below_supporting">leicht unter dem Basiswert, unterstützt die Erholung</string>
+    <string name="today_driver_slightly_above_limiting">leicht über dem Basiswert, begrenzt die Erholung</string>
+    <string name="today_driver_slightly_below_limiting">leicht unter dem Basiswert, begrenzt die Erholung</string>
+    <string name="today_driver_above_too_small">über dem Basiswert, zu gering, um die Energie zu ändern</string>
+    <string name="today_driver_below_too_small">unter dem Basiswert, zu gering, um die Energie zu ändern</string>
     <string name="today_driver_a11y">%1$s, %2$s, %3$s, %4$s Punkte, %5$s</string>
     <string name="scoring_guide_daily_scores">Deine Tageswerte</string>
     <string name="scoring_guide_three_scores">Die drei Werte</string>

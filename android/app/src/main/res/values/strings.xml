@@ -2582,6 +2582,12 @@
     <string name="today_driver_near_baseline">near baseline</string>
     <string name="today_driver_warmer_limiting">warmer than baseline, limiting recovery</string>
     <string name="today_driver_cooler_limiting">cooler than baseline, limiting recovery</string>
+    <string name="today_driver_slightly_above_supporting">slightly above baseline, supporting recovery</string>
+    <string name="today_driver_slightly_below_supporting">slightly below baseline, supporting recovery</string>
+    <string name="today_driver_slightly_above_limiting">slightly above baseline, limiting recovery</string>
+    <string name="today_driver_slightly_below_limiting">slightly below baseline, limiting recovery</string>
+    <string name="today_driver_above_too_small">above baseline, too small to change Charge</string>
+    <string name="today_driver_below_too_small">below baseline, too small to change Charge</string>
     <string name="today_driver_a11y">%1$s, %2$s, %3$s, %4$s points, %5$s</string>
     <string name="scoring_guide_daily_scores">Your daily scores</string>
     <string name="scoring_guide_three_scores">The three scores</string>

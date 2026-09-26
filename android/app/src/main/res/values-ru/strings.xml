@@ -2386,6 +2386,12 @@
     <string name="today_driver_near_baseline">около нормы</string>
     <string name="today_driver_warmer_limiting">теплее нормы, что ограничивает восстановление</string>
     <string name="today_driver_cooler_limiting">холоднее нормы, ограничивает восстановление</string>
+    <string name="today_driver_slightly_above_supporting">немного выше нормы, поддерживает восстановление</string>
+    <string name="today_driver_slightly_below_supporting">немного ниже нормы, поддерживает восстановление</string>
+    <string name="today_driver_slightly_above_limiting">немного выше нормы, ограничивает восстановление</string>
+    <string name="today_driver_slightly_below_limiting">немного ниже нормы, ограничивает восстановление</string>
+    <string name="today_driver_above_too_small">выше нормы, слишком мало, чтобы изменить Заряд</string>
+    <string name="today_driver_below_too_small">ниже нормы, слишком мало, чтобы изменить Заряд</string>
     <string name="today_driver_a11y">%1$s, %2$s, %3$s, %4$s пунктов, %5$s</string>
     <string name="scoring_guide_daily_scores">ВАШИ ЕЖЕДНЕВНЫЕ ПОКАЗАТЕЛИ</string>
     <string name="scoring_guide_three_scores">ТРИ ПОКАЗАТЕЛЯ</string>

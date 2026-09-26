@@ -124,7 +124,7 @@ class RecoveryDriversTest {
                     value = 29.99117725828923,
                     baseline = 30.0,
                     unit = ChargeDriverUnit.MILLISECONDS,
-                    verdict = ChargeDriverVerdict.BELOW_BASELINE_LIMITING,
+                    verdict = ChargeDriverVerdict.SLIGHTLY_BELOW_BASELINE_LIMITING,
                 ),
             ),
             drivers,

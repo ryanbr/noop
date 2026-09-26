@@ -5558,6 +5558,12 @@ private fun DriverRow(driver: ChargeDriver) {
         ChargeDriverVerdict.NEAR_BASELINE -> uiString(R.string.today_driver_near_baseline)
         ChargeDriverVerdict.WARMER_THAN_BASELINE_LIMITING -> uiString(R.string.today_driver_warmer_limiting)
         ChargeDriverVerdict.COOLER_THAN_BASELINE_LIMITING -> uiString(R.string.today_driver_cooler_limiting)
+        ChargeDriverVerdict.SLIGHTLY_ABOVE_BASELINE_SUPPORTING -> uiString(R.string.today_driver_slightly_above_supporting)
+        ChargeDriverVerdict.SLIGHTLY_BELOW_BASELINE_SUPPORTING -> uiString(R.string.today_driver_slightly_below_supporting)
+        ChargeDriverVerdict.SLIGHTLY_ABOVE_BASELINE_LIMITING -> uiString(R.string.today_driver_slightly_above_limiting)
+        ChargeDriverVerdict.SLIGHTLY_BELOW_BASELINE_LIMITING -> uiString(R.string.today_driver_slightly_below_limiting)
+        ChargeDriverVerdict.ABOVE_BASELINE_TOO_SMALL -> uiString(R.string.today_driver_above_too_small)
+        ChargeDriverVerdict.BELOW_BASELINE_TOO_SMALL -> uiString(R.string.today_driver_below_too_small)
     }
     val driverA11y = uiString(R.string.today_driver_a11y, label, valueText, baselineText, signed, verdict)
     Row(

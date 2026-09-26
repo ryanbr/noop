@@ -2376,6 +2376,12 @@
     <string name="today_driver_near_baseline">接近基线</string>
     <string name="today_driver_warmer_limiting">高于基线温度，限制恢复</string>
     <string name="today_driver_cooler_limiting">低于基线温度，限制恢复</string>
+    <string name="today_driver_slightly_above_supporting">略高于基线，有利于恢复</string>
+    <string name="today_driver_slightly_below_supporting">略低于基线，有利于恢复</string>
+    <string name="today_driver_slightly_above_limiting">略高于基线，限制恢复</string>
+    <string name="today_driver_slightly_below_limiting">略低于基线，限制恢复</string>
+    <string name="today_driver_above_too_small">高于基线，幅度太小，不影响能量</string>
+    <string name="today_driver_below_too_small">低于基线，幅度太小，不影响能量</string>
     <string name="today_driver_a11y">%1$s，%2$s，%3$s，%4$s 分，%5$s</string>
     <string name="scoring_guide_daily_scores">你的每日评分</string>
     <string name="scoring_guide_three_scores">三项评分</string>

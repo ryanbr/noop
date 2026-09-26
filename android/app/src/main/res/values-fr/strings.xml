@@ -2460,6 +2460,12 @@
     <string name="today_driver_near_baseline">proche de la référence</string>
     <string name="today_driver_warmer_limiting">plus chaude que la référence, limite la récupération</string>
     <string name="today_driver_cooler_limiting">plus froide que la référence, limite la récupération</string>
+    <string name="today_driver_slightly_above_supporting">légèrement au-dessus de la référence, favorise la récupération</string>
+    <string name="today_driver_slightly_below_supporting">légèrement sous la référence, favorise la récupération</string>
+    <string name="today_driver_slightly_above_limiting">légèrement au-dessus de la référence, limite la récupération</string>
+    <string name="today_driver_slightly_below_limiting">légèrement sous la référence, limite la récupération</string>
+    <string name="today_driver_above_too_small">au-dessus de la référence, trop peu pour changer l\'Énergie</string>
+    <string name="today_driver_below_too_small">sous la référence, trop peu pour changer l\'Énergie</string>
     <string name="today_driver_a11y">%1$s, %2$s, %3$s, %4$s points, %5$s</string>
     <string name="scoring_guide_daily_scores">Vos scores quotidiens</string>
     <string name="scoring_guide_three_scores">Les trois scores</string>

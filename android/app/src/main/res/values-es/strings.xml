@@ -2461,6 +2461,12 @@
     <string name="today_driver_near_baseline">cerca de la referencia</string>
     <string name="today_driver_warmer_limiting">más alta que la referencia, limita la recuperación</string>
     <string name="today_driver_cooler_limiting">más baja que la referencia, limita la recuperación</string>
+    <string name="today_driver_slightly_above_supporting">ligeramente por encima de la referencia, favorece la recuperación</string>
+    <string name="today_driver_slightly_below_supporting">ligeramente por debajo de la referencia, favorece la recuperación</string>
+    <string name="today_driver_slightly_above_limiting">ligeramente por encima de la referencia, limita la recuperación</string>
+    <string name="today_driver_slightly_below_limiting">ligeramente por debajo de la referencia, limita la recuperación</string>
+    <string name="today_driver_above_too_small">por encima de la referencia, demasiado poco para cambiar la Carga</string>
+    <string name="today_driver_below_too_small">por debajo de la referencia, demasiado poco para cambiar la Carga</string>
     <string name="today_driver_a11y">%1$s, %2$s, %3$s, %4$s puntos, %5$s</string>
     <string name="scoring_guide_daily_scores">Tus puntuaciones diarias</string>
     <string name="scoring_guide_three_scores">Las tres puntuaciones</string>
