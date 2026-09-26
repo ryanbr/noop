@@ -682,6 +682,7 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                     SleepScreen(
                         vm = viewModel,
                         onOpenJournal = { nav.navigateTopLevel(Destination.Insights.route) },
+                        onOpenAlarms = { nav.navigate(Destination.SmartAlarm.route) },
                     )
                 }
                 composable(Destination.CoupledView.route) {

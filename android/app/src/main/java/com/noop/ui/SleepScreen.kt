@@ -26,7 +26,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
@@ -188,6 +190,7 @@ private fun SleepFreshnessNote(status: SleepFreshnessStatus, chunks: Int) {
 fun SleepScreen(
     vm: AppViewModel,
     onOpenJournal: () -> Unit = {},
+    onOpenAlarms: () -> Unit = {},
 ) {
     val days by vm.recentDays.collectAsStateWithLifecycle()
     // Whether the ACTIVE strap is an Oura ring, off the canonical brand table (not an "oura" literal) — so
@@ -658,6 +661,7 @@ fun SleepScreen(
             item {
                 SleepEmptyState()
             }
+            item { SleepAlarmsEntry(onOpenAlarms) }
         } else {
             // REST HERO — a scenic indigo backdrop with the night's sleep-performance score as a
             // layered BevelGauge (Rest gradient), else a big rounded hours-slept headline. Mirrors the
@@ -677,6 +681,7 @@ fun SleepScreen(
                     overline = nightLabel,
                 )
             }
+            item { SleepAlarmsEntry(onOpenAlarms) }
             // #sleep-layout: a compact "Arrange" affordance (the same Tune entry Today uses) opens the
             // reorder / show-hide sheet. Pinned just above the arrangeable cards.
             item {
@@ -954,6 +959,19 @@ fun SleepScreen(
                 }
               }
             }
+        }
+    }
+}
+
+/** The existing alarm settings, reachable from Sleep with or without recorded nights. */
+@Composable
+private fun SleepAlarmsEntry(onOpenAlarms: () -> Unit) {
+    NoopCard(modifier = Modifier.clickable(onClick = onOpenAlarms), tint = Palette.restColor) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Metrics.gap)) {
+            Icon(Icons.Filled.Alarm, contentDescription = null, tint = Palette.restColor)
+            Text(stringResource(R.string.nav_alarms), style = NoopType.headline, color = Palette.textPrimary,
+                 modifier = Modifier.weight(1f))
+            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = Palette.textTertiary)
         }
     }
 }

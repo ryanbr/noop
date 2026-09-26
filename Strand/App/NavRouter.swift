@@ -34,6 +34,7 @@ final class NavRouter: ObservableObject {
         /// surface of its own — it hands the question to the one screen that already has them.
         /// Also the K5 scheduled morning-brief notification's tap-through target.
         case coach
+        case alarms
 
         var id: String { rawValue }
 
@@ -67,6 +68,8 @@ final class NavRouter: ObservableObject {
     func openDevices() { requestedDestination = .devices }
     /// #1862: open Coach, optionally with a question the launcher already collected.
     func openCoach() { requestedDestination = .coach }
+    /// Open the existing wake-alarm and wind-down settings from Sleep.
+    func openAlarms() { requestedDestination = .alarms }
     /// Open the v5 Insights hub (the n-of-1 "what moves your Charge" surface).
     func openInsightsHub() { requestedDestination = .insightsHub }
     /// Open the Lab Book (private health-records logbook).
