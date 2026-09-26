@@ -365,12 +365,12 @@ enum CoachBriefScheduler {
     /// iOS BGTask identifier, derived from the running bundle id so it tracks `BUNDLE_ID_PREFIX` and
     /// matches the iOS target's `BGTaskSchedulerPermittedIdentifiers` (Info.plist / project.yml).
     static let bgTaskIdentifier = (Bundle.main.bundleIdentifier ?? "com.noopapp.noop") + ".coachbrief"
+    private static var logBackgroundFailure: ((String) -> Void)?
 
     /// Register the BGTask handler. MUST be called from the app's launch (before launch finishes) — call
-    /// this from `StrandiOSApp.init()` with `{ [weak coach] in await coach?.generateBrief() }`. Safe to
-    /// leave uncalled: `submitBackgroundRequest()` then fails gracefully and the foreground catch-up
-    /// (`activateIfEnabled`, called from Coach's `.task`) still generates on next open.
-    static func register(generateBrief: @escaping () async -> String?) {
+    /// this from `StrandiOSApp.init()` with the app-owned Coach and strap log.
+    static func register(generateBrief: @escaping () async -> String?, log: @escaping (String) -> Void) {
+        logBackgroundFailure = log
         BGTaskScheduler.shared.register(forTaskWithIdentifier: bgTaskIdentifier, using: nil) { task in
             let completion = TaskCompletionGuard(task: task)
             let worker = Task { @MainActor in
@@ -412,7 +412,11 @@ enum CoachBriefScheduler {
     private static func submitBackgroundRequest() {
         let request = BGAppRefreshTaskRequest(identifier: bgTaskIdentifier)
         request.earliestBeginDate = Date(timeIntervalSinceNow: secondsToNextOccurrence(timeMinutes))
-        try? BGTaskScheduler.shared.submit(request)
+        do {
+            try BGTaskScheduler.shared.submit(request)
+        } catch {
+            logBackgroundFailure?("coach brief: background request refused (\(error.localizedDescription))")
+        }
     }
     #endif
 }
