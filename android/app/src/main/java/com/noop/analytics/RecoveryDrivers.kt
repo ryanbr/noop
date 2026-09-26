@@ -275,6 +275,7 @@ object RecoveryDrivers {
      * the easing is detected-only and did NOT change these points. The hedge is deliberate too, since the
      * same low-HRV + low-RHR pattern is also reported for non-functional overreaching, which is the opposite
      * of benign. Byte-for-byte the same strings as the iOS twin.
+     * Swift twin: `RecoveryScorer.hrvVerdict`.
      */
     private fun hrvVerdict(
         value: Double,
@@ -292,17 +293,36 @@ object RecoveryDrivers {
         }
     }
 
-    /** Resting-HR verdict (lower is better). Mirrors Swift `rhrVerdict` exactly. */
+    /** Resting-HR verdict (lower is better). Swift twin: `RecoveryScorer.rhrVerdict`. */
     private fun rhrVerdict(value: Double, baseline: Double, deltaPoints: Int): ChargeDriverVerdict =
         baselineVerdict(value = value, baseline = baseline, deltaPoints = deltaPoints, fractionDigits = 0)
 
-    /** Respiration verdict (lower is better). Mirrors Swift `respVerdict` exactly. */
+    /** Respiration verdict (lower is better). Swift twin: `RecoveryScorer.respVerdict`. */
     private fun respVerdict(value: Double, baseline: Double, deltaPoints: Int): ChargeDriverVerdict =
         baselineVerdict(value = value, baseline = baseline, deltaPoints = deltaPoints, fractionDigits = 1)
 
     /**
+     * The value as a row SHOWS it: rounded once, here, so the printed number and the verdict decided
+     * from it cannot disagree. Rounding is explicit rather than left to the formatter, because glibc,
+     * swift-corelibs and Java all round `%.1f` differently at a half, so a verdict matching one of
+     * them would contradict the row on another platform. `Math.round` is half-UP, so negatives are
+     * mirrored to keep it half-away-from-zero like Swift's `.toNearestOrAwayFromZero`.
+     * Swift twin: `RecoveryScorer.displayRounded`.
+     */
+    internal fun displayRounded(value: Double, fractionDigits: Int): Double {
+        val scale = when (fractionDigits) {
+            0 -> 1.0
+            1 -> 10.0
+            else -> 10.0.pow(fractionDigits)
+        }
+        val scaled = value * scale
+        val rounded = if (scaled < 0.0) -Math.round(-scaled) else Math.round(scaled)
+        return rounded / scale
+    }
+
+    /**
      * Resolve from exactly what the row shows: direction follows [fractionDigits], while effect follows
-     * the already-rounded [deltaPoints] printed beside it. Mirrors Swift `baselineVerdict` exactly.
+     * the already-rounded [deltaPoints] printed beside it. Swift twin: `RecoveryScorer.baselineVerdict`.
      */
     internal fun baselineVerdict(
         value: Double,
@@ -310,18 +330,8 @@ object RecoveryDrivers {
         deltaPoints: Int,
         fractionDigits: Int,
     ): ChargeDriverVerdict {
-        val scale = when (fractionDigits) {
-            0 -> 1.0
-            1 -> 10.0
-            else -> 10.0.pow(fractionDigits)
-        }
-        fun displayBucket(number: Double): Long {
-            val scaled = number * scale
-            return if (scaled < 0.0) -Math.round(-scaled) else Math.round(scaled)
-        }
-
-        val displayedValue = displayBucket(value)
-        val displayedBaseline = displayBucket(baseline)
+        val displayedValue = displayRounded(value, fractionDigits)
+        val displayedBaseline = displayRounded(baseline, fractionDigits)
         if (displayedValue == displayedBaseline) {
             if (deltaPoints == 0 || value == baseline) return ChargeDriverVerdict.AT_BASELINE
             return if (value > baseline) {
@@ -366,8 +376,18 @@ object RecoveryDrivers {
     }
 
     /**
+     * Half-width (C) of the "typical" skin-temp band. No longer read here: the verdict follows the
+     * rounded point effect instead of a fixed band (#2466). Retained because it is the twin of Swift
+     * `RecoveryScorer.skinTempTypicalBandC`, which `skinTempRelative` still uses for the relative
+     * marker, a surface Android does not have. Both trace to `VitalBands` skin-temp `floorSpread`;
+     * folding the two constants into that single source is separate work.
+     * Swift twin: `RecoveryScorer.skinTempTypicalBandC`.
+     */
+    internal const val SKIN_TEMP_TYPICAL_BAND_C: Double = 0.3
+
+    /**
      * Skin-temp verdict (symmetric): a drift reads neutral only when its rounded point effect is zero.
-     * Mirrors the Swift skinTempVerdict exactly.
+     * Swift twin: `RecoveryScorer.skinTempVerdict`.
      */
     internal fun skinTempVerdict(dev: Double, deltaPoints: Int): ChargeDriverVerdict = when {
         deltaPoints == 0 -> ChargeDriverVerdict.NEAR_BASELINE

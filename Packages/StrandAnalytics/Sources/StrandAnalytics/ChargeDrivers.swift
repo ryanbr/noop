@@ -221,8 +221,10 @@ extension RecoveryScorer {
             drivers.append(ChargeDriver(
                 label: "Respiratory rate",
                 deltaPoints: respPoints,
-                valueText: String(format: "%.1f br/min", locale: Locale(identifier: "en_US_POSIX"), r),
-                baselineText: String(format: "%.1f br/min baseline", locale: Locale(identifier: "en_US_POSIX"), b.baseline),
+                valueText: String(format: "%.1f br/min", locale: Locale(identifier: "en_US_POSIX"),
+                                  displayRounded(r, fractionDigits: 1)),
+                baselineText: String(format: "%.1f br/min baseline", locale: Locale(identifier: "en_US_POSIX"),
+                                     displayRounded(b.baseline, fractionDigits: 1)),
                 verdict: respVerdict(value: r, baseline: b.baseline, deltaPoints: respPoints)))
         }
 
@@ -256,6 +258,7 @@ extension RecoveryScorer {
     // When adding or rewording a verdict, add the identical key to Strand's Localizable.xcstrings;
     // Tools/test_home_i18n.py enforces that complete engine-to-catalog contract.
 
+    /// Kotlin twin: `RecoveryDrivers.hrvVerdict`.
     static func hrvVerdict(value: Double, baseline: Double, deltaPoints: Int,
                            saturationDetected: Bool = false) -> String {
         let verdict = baselineVerdict(value: value, baseline: baseline,
@@ -269,11 +272,13 @@ extension RecoveryScorer {
         return verdict
     }
 
+    /// Kotlin twin: `RecoveryDrivers.rhrVerdict`.
     static func rhrVerdict(value: Double, baseline: Double, deltaPoints: Int) -> String {
         baselineVerdict(value: value, baseline: baseline,
                         deltaPoints: deltaPoints, fractionDigits: 0)
     }
 
+    /// Kotlin twin: `RecoveryDrivers.respVerdict`.
     static func respVerdict(value: Double, baseline: Double, deltaPoints: Int) -> String {
         baselineVerdict(value: value, baseline: baseline,
                         deltaPoints: deltaPoints, fractionDigits: 1)
@@ -281,11 +286,21 @@ extension RecoveryScorer {
 
     /// Resolves a verdict from exactly what the row shows: direction follows the displayed precision,
     /// while effect follows the already-rounded marginal points printed beside it.
+    /// The value as a row SHOWS it: rounded once, here, so the printed number and the verdict decided
+    /// from it cannot disagree. Rounding is explicit rather than left to `String(format:)`, because the
+    /// three formatters involved round `%.1f` differently at a half (glibc and swift-corelibs disagree
+    /// with each other, and both with Java's HALF_UP), so a verdict that matched one formatter would
+    /// contradict the row on another platform. Kotlin twin: `RecoveryDrivers.displayRounded`.
+    static func displayRounded(_ value: Double, fractionDigits: Int) -> Double {
+        let scale = pow(10.0, Double(fractionDigits))
+        return (value * scale).rounded(.toNearestOrAwayFromZero) / scale
+    }
+
+    /// Kotlin twin: `RecoveryDrivers.baselineVerdict`.
     static func baselineVerdict(value: Double, baseline: Double, deltaPoints: Int,
                                 fractionDigits: Int) -> String {
-        let scale = pow(10.0, Double(fractionDigits))
-        let displayedValue = (value * scale).rounded(.toNearestOrAwayFromZero)
-        let displayedBaseline = (baseline * scale).rounded(.toNearestOrAwayFromZero)
+        let displayedValue = displayRounded(value, fractionDigits: fractionDigits)
+        let displayedBaseline = displayRounded(baseline, fractionDigits: fractionDigits)
 
         if displayedValue == displayedBaseline {
             if deltaPoints == 0 || value == baseline { return "at baseline" }
@@ -321,6 +336,7 @@ extension RecoveryScorer {
         return "a typical night"
     }
 
+    /// Kotlin twin: `RecoveryDrivers.skinTempVerdict`.
     static func skinTempVerdict(_ dev: Double, deltaPoints: Int) -> String {
         // Symmetric penalty: call a drift "near" only when it moved the displayed score by 0 points.
         if deltaPoints == 0 { return "near baseline" }

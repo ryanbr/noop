@@ -349,4 +349,20 @@ final class ChargeDriversTests: XCTestCase {
         XCTAssertEqual(rel.deviationC, 0.7, accuracy: 1e-9)
         XCTAssertEqual(rel.tier, .warmer)
     }
+
+    /// `displayRounded` is what makes a row and its verdict agree, so it is pinned exactly rather than to
+    /// a tolerance, and the same literals are pinned in the Kotlin twin's `displayRounded_matchesSwift`.
+    /// Halves round away from zero on both signs, which is the one place Java's half-UP `Math.round`
+    /// needed mirroring to match. Negatives are unreachable from today's callers and pinned anyway.
+    func testDisplayRoundedIsExactAndRoundsHalvesAwayFromZero() {
+        let cases: [(value: Double, digits: Int, expected: Double)] = [
+            (0.0, 0, 0.0), (51.4, 0, 51.0), (51.5, 0, 52.0), (50.8, 0, 51.0), (-51.5, 0, -52.0),
+            (0.0, 1, 0.0), (8.25, 1, 8.3), (15.25, 1, 15.3), (16.05, 1, 16.1), (15.0, 1, 15.0),
+            (20.95, 1, 21.0), (-8.25, 1, -8.3), (-0.35, 1, -0.4),
+        ]
+        for c in cases {
+            XCTAssertEqual(RecoveryScorer.displayRounded(c.value, fractionDigits: c.digits), c.expected,
+                           accuracy: 0.0, "displayRounded(\(c.value), \(c.digits))")
+        }
+    }
 }

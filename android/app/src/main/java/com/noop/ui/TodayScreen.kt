@@ -160,6 +160,7 @@ import com.noop.analytics.BatteryEstimator
 import com.noop.analytics.ChargeDriver
 import com.noop.analytics.ChargeDriverLabel
 import com.noop.analytics.ChargeDriverUnit
+import com.noop.analytics.RecoveryDrivers
 import com.noop.analytics.ChargeDriverVerdict
 import com.noop.analytics.DayCycleMode
 import com.noop.analytics.DayCycleIntelligenceIntegration
@@ -5530,7 +5531,8 @@ private fun DriverRow(driver: ChargeDriver) {
         ChargeDriverUnit.BEATS_PER_MINUTE -> uiString(R.string.today_driver_value_bpm, driver.value.roundToInt())
         ChargeDriverUnit.PERCENT -> uiString(R.string.today_driver_value_percent, driver.value.roundToInt())
         ChargeDriverUnit.BREATHS_PER_MINUTE -> uiString(
-            R.string.today_driver_value_br_min, String.format(Locale.getDefault(), "%.1f", driver.value),
+            R.string.today_driver_value_br_min,
+            String.format(Locale.getDefault(), "%.1f", RecoveryDrivers.displayRounded(driver.value, 1)),
         )
         ChargeDriverUnit.CELSIUS_DEVIATION -> uiString(
             R.string.today_driver_value_temp_deviation,
@@ -5541,7 +5543,8 @@ private fun DriverRow(driver: ChargeDriver) {
         ChargeDriverUnit.MILLISECONDS -> uiString(R.string.today_driver_baseline_ms, baseline.roundToInt())
         ChargeDriverUnit.BEATS_PER_MINUTE -> uiString(R.string.today_driver_baseline_bpm, baseline.roundToInt())
         ChargeDriverUnit.BREATHS_PER_MINUTE -> uiString(
-            R.string.today_driver_baseline_br_min, String.format(Locale.getDefault(), "%.1f", baseline),
+            R.string.today_driver_baseline_br_min,
+            String.format(Locale.getDefault(), "%.1f", RecoveryDrivers.displayRounded(baseline, 1)),
         )
         ChargeDriverUnit.PERCENT, ChargeDriverUnit.CELSIUS_DEVIATION -> ""
     } } ?: ""
