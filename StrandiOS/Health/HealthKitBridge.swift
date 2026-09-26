@@ -1616,14 +1616,21 @@ final class HealthKitBridge: ObservableObject {
                 let mean = Int((Double(samples.reduce(0) { $0 + $1.bpm }) / Double(samples.count)).rounded())
                 return (mean, samples.map(\.bpm).max() ?? mean)
             }()
-            let effort: Double? = {
-                guard let profile, let first = samples.first, let last = samples.last,
-                      samples.count >= Self.effortMinimumSamples,
-                      last.ts - first.ts >= Self.effortMinimumSpanSeconds else { return nil }
-                return StrainScorer.strain(samples, maxHR: profile.hrMax,
-                                           method: PuffinExperiment.effortMethod,
-                                           sex: profile.sex)
-            }()
+            // Prefer the HR stream HealthKit associates with this workout (for example, Apple Watch).
+            // If that stream is absent or too sparse, fall back to the locally stored strap trace for
+            // this exact workout window. The same strap trace backs the workout detail chart and zones.
+            // Do not merge the streams: that would double-count overlapping beats and mix sensors.
+            var effort = profile.flatMap { Self.scoredEffort(samples, profile: $0) }
+            if effort == nil, let profile {
+                let hrDeviceIds = Repository.workoutHrDeviceIds(
+                    source: Self.appleWorkoutSource,
+                    activeStrapId: repo.deviceId,
+                    importedIds: repo.importedReadIds)
+                let strapSamples = await repo.hrSamples(deviceIds: hrDeviceIds,
+                                                        from: startTs, to: endTs,
+                                                        limit: 20_000)
+                effort = Self.scoredEffort(strapSamples, profile: profile)
+            }
             rows.append(WorkoutRow(
                 startTs: startTs, endTs: endTs,
                 sport: Self.sportName(workout.workoutActivityType),
@@ -1647,6 +1654,19 @@ final class HealthKitBridge: ObservableObject {
     /// Seconds an imported workout's beats must span before its EFFORT is scored. See
     /// [effortMinimumSamples]; twenty beats crowded into a minute is not ten minutes of measurement.
     private static let effortMinimumSpanSeconds = 600
+
+    /// Score a workout only when its source stream has enough independent coverage to represent the
+    /// session. Used first for HealthKit-associated HR and then for the WHOOP fallback; source samples
+    /// are intentionally never combined.
+    private static func scoredEffort(_ samples: [HRSample],
+                                     profile: Repository.StrainProfile) -> Double? {
+        guard let first = samples.first, let last = samples.last,
+              samples.count >= effortMinimumSamples,
+              last.ts - first.ts >= effortMinimumSpanSeconds else { return nil }
+        return StrainScorer.strain(samples, maxHR: profile.hrMax,
+                                   method: PuffinExperiment.effortMethod,
+                                   sex: profile.sex)
+    }
 
     /// HealthKit has no direct step-count property on HKWorkout; query step samples for its time window.
     /// Return nil on query failure or no usable samples, preserving "unknown" rather than reporting zero.
