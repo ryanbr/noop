@@ -120,6 +120,70 @@
       "identity_sha256": "21eb9deea3ff8019c9eff121cf7aa39aee01ee6d390292d65bb02aa667d3a534",
       "platform": "kotlin",
       "rationale": "SQL text for a Room @Query, which must be a compile-time constant string and so cannot be inlined at the DAO method. The Swift store writes the same statement inline in WhoopStore Reads.swift / StreamStore.swift, so there is no Swift constant to pair with, exactly as for the existing WHOOP5_RR_INTERVALS_SQL and PROMOTE_WHOOP5_RR_SOURCE_SQL siblings."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/StrandAnalytics/Sources/StrandAnalytics/NightStandDown.swift::band/4#1",
+      "identity_sha256": "279cb2405461c4c49d765ff8d0bc275876d35952878bbbff5b71d40f1fc602b7",
+      "platform": "swift",
+      "rationale": "Consumed only by the Apple OuraLiveSource screen-off live-HR suspend (Experimental \"All-day heart rate & HRV\"), to stand the daytime-HR hold down for the learned night instead of for every screen-off. Android's OuraLiveSource.kt has no screen-off suspend (#1546), so there is nothing for a Kotlin twin to gate; per review, Android stays without it until that suspend exists, at which point this becomes a twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/StrandAnalytics/Sources/StrandAnalytics/NightStandDown.swift::contains/2#1",
+      "identity_sha256": "b547fe41ab8a4ae2ee20c442b15483dd1b57a3e281b7f464b3c0be65565a13d9",
+      "platform": "swift",
+      "rationale": "Consumed only by the Apple OuraLiveSource screen-off live-HR suspend (Experimental \"All-day heart rate & HRV\"), to stand the daytime-HR hold down for the learned night instead of for every screen-off. Android's OuraLiveSource.kt has no screen-off suspend (#1546), so there is nothing for a Kotlin twin to gate; per review, Android stays without it until that suspend exists, at which point this becomes a twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/StrandAnalytics/Sources/StrandAnalytics/NightStandDown.swift::describe/1#1",
+      "identity_sha256": "3cb014f4bc535d81415fa967a7cd27f25d6e14360ebe0529513231e384c6d38c",
+      "platform": "swift",
+      "rationale": "Consumed only by the Apple OuraLiveSource screen-off live-HR suspend (Experimental \"All-day heart rate & HRV\"), to stand the daytime-HR hold down for the learned night instead of for every screen-off. Android's OuraLiveSource.kt has no screen-off suspend (#1546), so there is nothing for a Kotlin twin to gate; per review, Android stays without it until that suspend exists, at which point this becomes a twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/StrandAnalytics/Sources/StrandAnalytics/NightStandDown.swift::describeSecOfDay/1#1",
+      "identity_sha256": "3e064b9ae741e558ad649c0e57a597cea6a81319faeb00591be05d06a5f5d773",
+      "platform": "swift",
+      "rationale": "Consumed only by the Apple OuraLiveSource screen-off live-HR suspend (Experimental \"All-day heart rate & HRV\"), to stand the daytime-HR hold down for the learned night instead of for every screen-off. Android's OuraLiveSource.kt has no screen-off suspend (#1546), so there is nothing for a Kotlin twin to gate; per review, Android stays without it until that suspend exists, at which point this becomes a twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/StrandAnalytics/Sources/StrandAnalytics/NightStandDown.swift::floorMod/2#1",
+      "identity_sha256": "d984745dfee3f61d2c32f9bb8bcebd3303ae5c8b358a1efa4dac46273ddff4ab",
+      "platform": "swift",
+      "rationale": "Consumed only by the Apple OuraLiveSource screen-off live-HR suspend (Experimental \"All-day heart rate & HRV\"), to stand the daytime-HR hold down for the learned night instead of for every screen-off. Android's OuraLiveSource.kt has no screen-off suspend (#1546), so there is nothing for a Kotlin twin to gate; per review, Android stays without it until that suspend exists, at which point this becomes a twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-constant",
+      "identity": "swift\u0000Packages/StrandAnalytics/Sources/StrandAnalytics/NightStandDown.swift::leadSeconds",
+      "identity_sha256": "cd0107095c358d0068b84578c039015ac9814de60b60bf09adae07ac101c3882",
+      "platform": "swift",
+      "rationale": "Consumed only by the Apple OuraLiveSource screen-off live-HR suspend (Experimental \"All-day heart rate & HRV\"), to stand the daytime-HR hold down for the learned night instead of for every screen-off. Android's OuraLiveSource.kt has no screen-off suspend (#1546), so there is nothing for a Kotlin twin to gate; per review, Android stays without it until that suspend exists, at which point this becomes a twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-constant",
+      "identity": "swift\u0000Packages/StrandAnalytics/Sources/StrandAnalytics/NightStandDown.swift::tailSeconds",
+      "identity_sha256": "c256516b6fd590fb27b3d954aad36a6ae72f1c47681e40d06d0cbf08e3815506",
+      "platform": "swift",
+      "rationale": "Consumed only by the Apple OuraLiveSource screen-off live-HR suspend (Experimental \"All-day heart rate & HRV\"), to stand the daytime-HR hold down for the learned night instead of for every screen-off. Android's OuraLiveSource.kt has no screen-off suspend (#1546), so there is nothing for a Kotlin twin to gate; per review, Android stays without it until that suspend exists, at which point this becomes a twin."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-file",
+      "identity": "swift\u0000Packages/StrandAnalytics/Sources/StrandAnalytics/NightStandDown.swift",
+      "identity_sha256": "c81cc7100101d3ac1d81e244330c66815450899d6194627ad8f0cbfeb48dee5f",
+      "platform": "swift",
+      "rationale": "Consumed only by the Apple OuraLiveSource screen-off live-HR suspend (Experimental \"All-day heart rate & HRV\"), to stand the daytime-HR hold down for the learned night instead of for every screen-off. Android's OuraLiveSource.kt has no screen-off suspend (#1546), so there is nothing for a Kotlin twin to gate; per review, Android stays without it until that suspend exists, at which point this becomes a twin."
     }
   ]
 }

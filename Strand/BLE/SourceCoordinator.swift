@@ -1,6 +1,7 @@
 import Foundation
 import Combine
 import WhoopStore
+import StrandAnalytics
 import OuraProtocol
 
 /// Runs exactly ONE device's live BLE at a time, driven by `DeviceRegistry.activeDeviceId`.
@@ -56,6 +57,9 @@ final class SourceCoordinator: ObservableObject {
     /// previously invisible). Passed straight into `StandardHRSource`. Defaults to a no-op so existing
     /// call sites (and tests) compile unchanged.
     private let straplog: (String) -> Void
+    /// Item 27: the learned night band an Oura ring's all-day HR hold stands down for (nil = cold start).
+    /// Read at each decision by `OuraLiveSource`; the app layer derives it from the sleep learner.
+    private let ouraNightBand: () -> NightStandDown.Band?
 
     // MARK: - State
 
@@ -115,7 +119,8 @@ final class SourceCoordinator: ObservableObject {
          setWhoopPreferredPeripheral: @escaping (String?) -> Void,
          setWhoopActiveDeviceId: @escaping (String) -> Void,
          connectedPeripheralUUID: AnyPublisher<String?, Never>,
-         straplog: @escaping (String) -> Void = { _ in }) {
+         straplog: @escaping (String) -> Void = { _ in },
+         ouraNightBand: @escaping () -> NightStandDown.Band? = { nil }) {
         self.registry = registry
         self.live = live
         self.storeHandle = storeHandle
@@ -125,6 +130,7 @@ final class SourceCoordinator: ObservableObject {
         self.setWhoopActiveDeviceId = setWhoopActiveDeviceId
         self.connectedPeripheralUUID = connectedPeripheralUUID
         self.straplog = straplog
+        self.ouraNightBand = ouraNightBand
     }
 
     // MARK: - Wiring
@@ -434,6 +440,8 @@ final class SourceCoordinator: ObservableObject {
                     }
                 }
             },
+            allDayLiveHR: { UserDefaults.standard.bool(forKey: AppModel.ouraAllDayLiveHRKey) },   // item 27
+            nightBand: ouraNightBand,   // item 27
             log: straplog,
             onBattery: { [live] pct in live.setBattery(Double(pct)) },
             onModel: { [registry] model in registry.setModel(id, model: model) },   // #772: correct a name-guessed gen
