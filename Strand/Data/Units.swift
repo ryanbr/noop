@@ -116,8 +116,8 @@ enum UnitPrefs {
     }
 
     /// Whether the live-HR Live Activity (Lock Screen + Dynamic Island) may show, iOS only (#336).
-    /// Defaults to ON. The user can turn it off in Settings → Lock Screen & Dynamic Island without digging into
-    /// iOS Settings — `liveActivityEnabled()` reads it default-true so an unset key keeps the old behaviour.
+    /// Defaults to ON. The user can turn it off in Settings → Live notifications without digging into iOS
+    /// Settings — `liveActivityEnabled()` reads it default-true so an unset key keeps the old behaviour.
     static let liveActivityKey = "liveActivity.enabled"
     static func liveActivityEnabled() -> Bool {
         UserDefaults.standard.object(forKey: liveActivityKey) == nil
