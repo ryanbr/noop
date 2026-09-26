@@ -707,6 +707,7 @@ final class AICoachEngine: ObservableObject {
     /// persisted table. Fire-and-forget on the store side; the in-memory clear is immediate.
     func clearConversation() {
         messages = []
+        conversationDay = nil
         droppedSummary = nil      // K13: reset the summary cache on clear
         droppedSummaryKey = []
         Task { try? await repo.storeHandle()?.clearCoachMessages() }
@@ -718,14 +719,30 @@ final class AICoachEngine: ObservableObject {
     func surfaceScheduledBrief(_ text: String) {
         guard messages.isEmpty else { return }
         appendMessage(ChatMessage(role: .assistant, text: "Today's brief\n\n" + text))
+        conversationDay = Self.localEpochDay()
         persistMessages()
+    }
+
+    /// Retire yesterday's in-memory chat when Coach is opened, before checking for today's
+    /// scheduled brief. A process kept alive overnight does not reload persisted messages, so the
+    /// one-time load check cannot clear that chat. Keep the stored rows until a new turn or brief
+    /// replaces them, as the existing restored-chat path does.
+    func retireStaleConversationIfNeeded() {
+        guard Self.isStaleConversation(lastEpochDay: conversationDay,
+                                       todayEpochDay: Self.localEpochDay()) else { return }
+        messages = []
+        conversationDay = nil
+        droppedSummary = nil
+        droppedSummaryKey = []
     }
 
     /// K5: append an explicitly-generated brief (the Coach settings "Generate now" button) as a new
     /// assistant message, unconditionally — unlike `surfaceScheduledBrief`, this always appends so a
     /// mid-conversation tap still shows the fresh brief.
     func appendGeneratedBrief(_ text: String) {
+        retireStaleConversationIfNeeded()
         appendMessage(ChatMessage(role: .assistant, text: "Today's brief\n\n" + text))
+        conversationDay = Self.localEpochDay()
         persistMessages()
     }
 
@@ -757,11 +774,8 @@ final class AICoachEngine: ObservableObject {
         // fresh strap data.
         //
         // Placed AFTER the guards on purpose: a send that never happens must not wipe a transcript.
-        let today = Self.localEpochDay()
-        if Self.isStaleConversation(lastEpochDay: conversationDay, todayEpochDay: today) {
-            messages = []
-        }
-        conversationDay = today
+        retireStaleConversationIfNeeded()
+        conversationDay = Self.localEpochDay()
 
         errorText = nil
         appendMessage(ChatMessage(role: .user, text: trimmed))

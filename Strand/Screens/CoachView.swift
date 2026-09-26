@@ -150,6 +150,7 @@ struct CoachView: View {
         // transcript genuinely empty.
         .task {
             await coach.loadPersistedMessagesIfNeeded()
+            coach.retireStaleConversationIfNeeded()
             // Gated on the transcript BEFORE consuming. `consumeStoredBrief()` clears the unconsumed
             // flag, and `surfaceScheduledBrief` then drops the text if a transcript exists, so a brief
             // that arrived on a day with a conversation already open was consumed and thrown away, gone
