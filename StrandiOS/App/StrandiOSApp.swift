@@ -86,6 +86,11 @@ struct StrandiOSApp: App {
         NotificationPresenter.shared.onCoachBriefTapped = { [weak router] in router?.openCoach() }
         let model = AppModel()
         _model = StateObject(wrappedValue: model)
+        CoachBriefScheduler.register(generateBrief: { [weak coach = model.coach] in
+            await coach?.generateBrief()
+        }, log: { [weak model] line in
+            model?.live.append(log: AppModel.stamped(line))
+        })
         // Settings → "Keep screen on while syncing". Wired once here, not as another modifier on `body`.
         SyncKeepAwake.shared.attach(to: model.live)
         // The strap-sync Live Activity (Lock Screen + Dynamic Island). Same placement, same reason — and
@@ -331,8 +336,9 @@ struct StrandiOSApp: App {
         // access (it only reads write/share status, never prompts) so background syncs resume; and
         // HealthKitBridge.sync guards on `auth == .authorized`, so the scenePhase trigger stays a
         // safe no-op until the user opts in.
-        .onChange(of: scenePhase) { _, phase in
+        .onChange(of: scenePhase, initial: true) { _, phase in
             if phase == .active {
+                CoachBriefScheduler.activateIfEnabled { await model.coach.generateBrief() }
                 model.drainPendingIntents(router: router)
                 // iOS starts a Lift Log banner only for an app on screen, so a banner lost while NOOP was in
                 // the background comes back now, whether or not the strap is sending anything.
