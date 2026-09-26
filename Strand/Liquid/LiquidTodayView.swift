@@ -127,6 +127,8 @@ struct LiquidTodayView: View {
     // day navigation (0 = today, 1 = yesterday, …)
     @State private var selectedDayOffset = 0
     @State private var showDayPicker = false
+    @State private var heartRateCardFrame: CGRect = .null
+    private static let daySwipeSpace = "liquidTodayDaySwipeSpace"
 
     // PERF: the body was rescanning repo.days (599 days) ~23× per pass for displayDay and ~3× for
     // readiness on EVERY re-render (every HR notify, every canvas frame that invalidates, every scroll).
@@ -268,8 +270,9 @@ struct LiquidTodayView: View {
     /// Horizontal swipe between days (right = older, left = newer — `TodayView.daySwipeDelta`, #2378),
     /// clamped to [today, earliest].
     private var daySwipeGesture: some Gesture {
-        DragGesture(minimumDistance: 24)
+        DragGesture(minimumDistance: 24, coordinateSpace: .named(Self.daySwipeSpace))
             .onEnded { value in
+                guard !heartRateCardFrame.contains(value.startLocation) else { return }
                 let dx = value.translation.width, dy = value.translation.height
                 guard abs(dx) > abs(dy) * 1.5, abs(dx) > 50 else { return }
                 let delta = TodayView.daySwipeDelta(dx: dx)
@@ -432,6 +435,8 @@ struct LiquidTodayView: View {
             }
             .ignoresSafeArea()
         }
+        .coordinateSpace(name: Self.daySwipeSpace)
+        .onPreferenceChange(LiquidHeartRateCardFrameKey.self) { heartRateCardFrame = $0 }
         // Swipe left/right to change DAYS (WHOOP-style). Tab-swipe is disabled on Today in RootTabView so
         // this owns the horizontal gesture here.
         .simultaneousGesture(daySwipeGesture)
@@ -729,6 +734,12 @@ struct LiquidTodayView: View {
             }
             .buttonStyle(LiquidPressStyle())
             .accessibilityHint("Opens the full-day heart rate timeline")
+            .background {
+                GeometryReader { geometry in
+                    Color.clear.preference(key: LiquidHeartRateCardFrameKey.self,
+                                           value: geometry.frame(in: .named(Self.daySwipeSpace)))
+                }
+            }
         }
     }
 
@@ -2083,6 +2094,12 @@ struct LiquidTodayView: View {
     }
 }
 
+/// Measures the heart-rate card in the same coordinate space as the day-swipe gesture.
+private struct LiquidHeartRateCardFrameKey: PreferenceKey {
+    static var defaultValue: CGRect = .null
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) { value = nextValue() }
+}
+
 /// Carries the Today scroll's top overscroll offset up to the view for the custom liquid pull-to-refresh.
 private struct PullOffsetKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
@@ -2410,6 +2427,10 @@ private struct LiquidLiveHR: View {
     @EnvironmentObject private var live: LiveState
     @State private var samples: [Double] = []
     @State private var beat = false
+    @State private var scrubX: CGFloat?
+    #if os(iOS)
+    @State private var scrubEngaged = false
+    #endif
     private let maxSamples = 90   // ~1.5 min of 1 Hz live HR, enough to read the shape
 
     private var isLive: Bool { live.connected && samples.count >= 2 }
@@ -2475,6 +2496,21 @@ private struct LiquidLiveHR: View {
                 }
                 .frame(height: 92)
                 .clipShape(RoundedRectangle(cornerRadius: NoopMetrics.space2, style: .continuous))
+                .contentShape(Rectangle())
+                .overlay { scrubReadout }
+                .onContinuousHover(coordinateSpace: .local) { phase in
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) {
+                        switch phase {
+                        case .active(let location): scrubX = location.x
+                        case .ended: scrubX = nil
+                        }
+                    }
+                }
+                #if os(iOS)
+                .gesture(touchScrubGesture)
+                #endif
                 HStack {
                     stat(String(localized: "Min"), series.min())
                     Spacer()
@@ -2510,6 +2546,64 @@ private struct LiquidLiveHR: View {
                 .font(StrandFont.captionNumber).foregroundStyle(StrandPalette.textSecondary)
         }
     }
+
+    /// Uses the thread renderer's ten-point inset and equal-distance sample positions, so the
+    /// readout points to the value actually drawn under the finger even for a sparse banked trace.
+    private var scrubReadout: some View {
+        GeometryReader { geometry in
+            if let scrubX, series.count >= 2 {
+                let width = geometry.size.width
+                let plotWidth = max(1, width - 20)
+                let index = min(series.count - 1, max(0,
+                    Int(((scrubX - 10) / plotWidth * CGFloat(series.count - 1)).rounded())))
+                let x = 10 + CGFloat(index) * plotWidth / CGFloat(series.count - 1)
+                let minimum = series.min() ?? 0
+                let span = max(10, (series.max() ?? minimum) - minimum)
+                let y = geometry.size.height - 10 - CGFloat((series[index] - minimum) / span)
+                    * (geometry.size.height - 20)
+                Path { path in
+                    path.move(to: CGPoint(x: x, y: 0))
+                    path.addLine(to: CGPoint(x: x, y: geometry.size.height))
+                }
+                .stroke(tint, lineWidth: NoopMetrics.hairlineWidth)
+                Circle().fill(tint).frame(width: 8, height: 8).position(x: x, y: y)
+                (Text("\(Int(series[index].rounded()))").font(StrandFont.captionNumber)
+                    + Text(" bpm").font(StrandFont.caption))
+                    .foregroundStyle(StrandPalette.textPrimary)
+                    .padding(.horizontal, NoopMetrics.space2)
+                    .padding(.vertical, NoopMetrics.space1)
+                    .background(StrandPalette.surfaceBase.opacity(0.9), in: Capsule())
+                    .position(x: min(max(x, 48), max(48, width - 48)), y: 15)
+            }
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    #if os(iOS)
+    private var touchScrubGesture: some Gesture {
+        LongPressGesture(minimumDuration: 0.25, maximumDistance: 8)
+            .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .local))
+            .onChanged { value in
+                guard case .second(true, let drag) = value else { return }
+                if !scrubEngaged {
+                    scrubEngaged = true
+                    StrandHaptic.selection.play()
+                }
+                if let drag {
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) { scrubX = drag.location.x }
+                }
+            }
+            .onEnded { _ in
+                scrubEngaged = false
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) { scrubX = nil }
+            }
+    }
+    #endif
 }
 
 /// Static technical grid behind the live trace. Canvas draws only when layout/style changes, so the
