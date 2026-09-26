@@ -2795,4 +2795,6 @@
     <string name="l10n_today_screen_pending_sync_complete_5940c589">Sincronizzazione in sospeso · %1$s</string>
     <string name="l10n_today_screen_value_bpm_complete_ab58df4e">%1$s bpm%2$s</string>
     <string name="fused_record_contribution_in_use">%1$s, %2$s, in uso</string>
+    <string name="settings_oura_met_calories_title">Calorie attive dal flusso MET dell\'anello</string>
+    <string name="settings_oura_met_calories_caption">Usa il metodo documentato da Oura: l\'intensità di ogni minuto sopra 1,5 MET, al tasso MET standard per il tuo peso, in aggiunta all\'energia a riposo dei minuti registrati dall\'anello. È una stima, non una misurazione: in un giorno senza allenamento registrato coincide con il valore dell\'app Oura stessa (Oura ricalcola i minuti di un allenamento registrato in base al tipo di attività, cosa che NOOP non fa), e un giorno coperto dall\'anello per meno della metà non mostra alcun numero invece di una supposizione. Attivandolo si avvia anche la memorizzazione dei campioni MET dell\'anello su questo dispositivo; non alimenta mai il punteggio di recupero né quello di malattia. Disattivato per impostazione predefinita.</string>
 </resources>

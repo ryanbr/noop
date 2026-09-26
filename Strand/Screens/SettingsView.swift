@@ -55,6 +55,7 @@ struct SettingsView: View {
     /// as a "strap estimate (unverified)" fallback when no calibrated `spo2Pct` exists. Display-only —
     /// writes nothing to the strap. See [PuffinExperiment.spo2CandidateDisplayKey].
     @AppStorage(PuffinExperiment.spo2CandidateDisplayKey) private var spo2CandidateDisplayEnabled = false
+    @AppStorage(AppModel.ouraMetCaloriesKey) private var ouraMetCaloriesEnabled = false   // #2242
 
     /// #1545 opt-in: score Effort with Banister's exponential TRIMP instead of Edwards' heart-rate zones.
     /// Default OFF — it re-scores the whole window against a different recipe. See
@@ -1853,6 +1854,7 @@ struct SettingsView: View {
         // WHOOP 5/MG protocol research now lives in Test Centre. Everyday Settings no longer carries
         // a second copy; the persisted keys and reversible disable actions remain unchanged there.
         if showFiveMGControls || model.repo.activeDeviceIsOura { spo2CandidateCard }
+        if model.repo.activeDeviceIsOura { ouraMetCaloriesCard }   // #2242
         sleepStagingCard
         rawSensorDiagnosticsCard
     }
@@ -1980,6 +1982,38 @@ struct SettingsView: View {
                     Task { await model.intelligence.analyzeRecent(); await model.repo.refresh() }
                 }
                 Text("Your WHOOP 5.0/MG sends a strap-computed SpO₂ percentage (the @82 candidate byte) every second — an 8-night independent validation tracked it at corr +0.99 against the WHOOP app, but two nights on the original test device moved the OPPOSITE direction, so device/firmware variance is unresolved. An Oura ring's own SpO₂ reading runs high on the wire (over 100% on a fifth to a half of samples on a clean night); this instead surfaces the ring's mean with each sample capped at 100% first, which has matched the Oura app's own displayed value on every full night checked against it so far, though only a few nights. Turning this on surfaces whichever applies to your device as \"strap estimate (unverified)\" in the Blood Oxygen tile when no calibrated import exists. It never feeds recovery or illness scoring. WHOOP 4.0 has no @82 stream, so this does nothing there.")
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+
+    /// #2242: active calories from the Oura ring's OWN per-minute MET stream (0x50), Oura's documented
+    /// method with no fitted constant, in place of the HR-only Keytel path over the ring's sparse banked
+    /// HR (which does not track Oura's number, r ≈ −0.1). Default OFF; the toggle gates BOTH the
+    /// `ouraMetSample` writer and the analyzeDay read, so an OFF install's DB and scores are unchanged.
+    /// Oura-only, so it renders only for an active ring.
+    private var ouraMetCaloriesCard: some View {
+        SettingsSection(
+            icon: "flame.fill",
+            title: "Experimental · Oura Calories",
+            blurb: "Scores your day's calories from the ring's own minute-by-minute activity intensity instead of heart rate alone."
+        ) {
+            VStack(alignment: .leading, spacing: NoopMetrics.rowSpacing) {
+                Toggle(isOn: $ouraMetCaloriesEnabled) {
+                    Text("Active calories from the ring's MET stream")
+                        .font(StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textPrimary)
+                }
+                .toggleStyle(.switch)
+                .tint(StrandPalette.accent)
+                .onChangeCompat(of: ouraMetCaloriesEnabled) { _ in
+                    // Re-score now so every cached day flips path on this toggle (the toggle is part of
+                    // the day-cache config signature) instead of waiting for the next analyze loop.
+                    Task { await model.intelligence.analyzeRecent(); await model.repo.refresh() }
+                }
+                Text("Uses Oura's documented method: each minute's intensity above 1.5 MET, at the standard MET rate for your weight, on top of resting energy for the minutes the ring reported. An estimate, not a measurement — on a day without a logged workout it matches the Oura app's own figure (Oura re-scores a logged workout's minutes by activity type, which NOOP does not), and a day the ring covered less than half of shows no number rather than a guess. Turning this on also starts storing the ring's MET samples on this device; it never feeds recovery or illness scoring. Off by default.")
                     .font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)

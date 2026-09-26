@@ -1,5 +1,6 @@
 package com.noop.analytics
 
+import com.noop.data.HrSample
 import com.noop.data.MetricSeriesRow
 import com.noop.data.SleepSession
 import com.noop.data.WhoopRepository
@@ -45,9 +46,43 @@ internal object PhysiologicalStepCycleEngine {
      * the Swift `DayCycleIntelligenceIntegration` load cache.
      */
     internal fun loadCacheKey(
-        onset: Long, endExclusive: Long, hrWitness: String, restingHr: Double, maxHr: Double?,
+        onset: Long, endExclusive: Long, hrWitness: String, metWitness: String, restingHr: Double, maxHr: Double?,
         effortMethod: StrainScorer.Method, profile: UserProfile,
-    ): String = "$onset-$endExclusive|$hrWitness|rhr=$restingHr|max=${maxHr ?: "nil"}|$effortMethod|${profile.cacheKey}"
+    ): String = "$onset-$endExclusive|$hrWitness|$metWitness|rhr=$restingHr|max=${maxHr ?: "nil"}|$effortMethod|${profile.cacheKey}"
+
+    /**
+     * The cycle's energy, by the SAME decision AnalyticsEngine.analyzeDay takes for the calendar day (#2242),
+     * over the wake-to-wake window [onset, min(endExclusive, now)) instead. A device that measures its own
+     * minute-by-minute intensity decides it by that stream. This fold used to recompute Keytel over the
+     * cycle's HR unconditionally and the integration wrote that over the day's activeKcalEst, so on any phone
+     * with a day-cycle history the MET number never reached the row (2026-09-17 on iOS: the log said 1220
+     * kcal, the export held 743 — the HR figure). Below the coverage floor the cycle is WITHHELD — null, and
+     * the HR figure is not substituted — as on the day path. Toggle off or no rows = Keytel. Swift twin:
+     * DayCycleIntelligenceIntegration.cycleCalories.
+     */
+    private suspend fun cycleCalories(
+        cycleHr: List<HrSample>, onset: Long, endExclusive: Long, wakeDay: String, owner: String,
+        nowSeconds: Long, profile: UserProfile, effectiveMaxHr: Double?, restingHr: Double,
+        ouraMetCalories: Boolean, repo: WhoopRepository, stepsTraceSink: ((String) -> Unit)?,
+    ): Double? {
+        val cycleMet = if (ouraMetCalories && endExclusive - 1L >= onset) {
+            repo.ouraMetSamples(owner, onset, endExclusive - 1L, 4_000)
+                .map { Calories.MetSample(it.ts, it.met, it.epochS) }
+        } else {
+            emptyList()
+        }
+        if (cycleMet.isNotEmpty()) {
+            val met = Calories.estimateDayEnergyFromMet(cycleMet, profile, onset, minOf(endExclusive, nowSeconds))
+            val covered = met.coverageFraction >= Calories.MET_MIN_COVERAGE_FRACTION
+            stepsTraceSink?.invoke(
+                "stepsCycle calories day=$wakeDay path=met coverage=${Math.round(met.coverageFraction * 100)}% " +
+                    "active=${Math.round(met.activeKcal)} total=${Math.round(met.totalKcal)} " +
+                    if (covered) "" else "withheld",
+            )
+            return if (covered) met.totalKcal else null
+        }
+        return if (cycleHr.isNotEmpty()) Calories.estimateDayCalories(cycleHr, profile, effectiveMaxHr, restingHr) else null
+    }
 
     suspend fun compute(
         scoredNights: List<DayResult>,
@@ -66,6 +101,7 @@ internal object PhysiologicalStepCycleEngine {
         profile: UserProfile,
         maxHROverride: Double?,
         effortMethod: StrainScorer.Method,
+        ouraMetCalories: Boolean = false,
     ): Result {
         if (dayCycleMode == DayCycleMode.MIDNIGHT) {
             return Result(emptyMap(), emptyMap(), emptyMap(), emptyMap(), emptyMap(), null, emptyList())
@@ -220,6 +256,13 @@ internal object PhysiologicalStepCycleEngine {
             val loadKey = loadCacheKey(
                 window.onset, window.endExclusive,
                 repo.hrUnionFingerprint(fallbackOwner, window.onset, window.endExclusive - 1L),
+                // #2242: with the MET-calories toggle on, an ended cycle's calories come from the owner's MET
+                // series, which the HR witness cannot see: a drain banking MET minutes inside an ended window
+                // must move the key. `met=off` names the toggle state, so a flip over unchanged data never
+                // serves the figure cached under the other setting. Swift twin: the `metWitness` in
+                // DayCycleIntelligenceIntegration.compute.
+                if (!ouraMetCalories) "met=off"
+                else "met=$fallbackOwner=${repo.ouraMetFingerprint(fallbackOwner, window.onset, window.endExclusive - 1L)}",
                 restingHr, effectiveMaxHr, effortMethod, profile,
             )
             val load = loadCache[window.sleepId]?.takeIf { it.key == loadKey } ?: run {
@@ -229,9 +272,10 @@ internal object PhysiologicalStepCycleEngine {
                 CachedLoad(
                     key = loadKey,
                     strain = StrainScorer.strain(cycleHr, effectiveMaxHr, restingHr, effortMethod, profile.sex),
-                    calories = if (cycleHr.isNotEmpty()) {
-                        Calories.estimateDayCalories(cycleHr, profile, effectiveMaxHr, restingHr)
-                    } else null,
+                    calories = cycleCalories(
+                        cycleHr, window.onset, window.endExclusive, wakeDay, fallbackOwner, nowSeconds,
+                        profile, effectiveMaxHr, restingHr, ouraMetCalories, repo, stepsTraceSink,
+                    ),
                 ).also { loadCache[window.sleepId] = it }
             }
             load.strain?.let { strainByWakeDay[wakeDay] = it }

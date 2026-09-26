@@ -167,6 +167,9 @@ public struct DeviceRegistryStore: Sendable {
         // privacy defect this list exists to close, and one the deviceId-column guard test could not
         // catch for a child table keyed only by its parent.
         "liftExercise", "liftProgram", "liftProgramItem", "liftSession", "liftSet",
+        // v47-oura-met-sample (#2242): the ring's per-minute MET series is deviceId-keyed like every
+        // other stream, so forgetting the ring must clear it too.
+        "ouraMetSample",
     ]
 
     /// Permanently delete every recorded sample/derived row belonging to one device, across all

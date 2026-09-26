@@ -308,6 +308,22 @@ object AnalyticsEngine {
         dayHr: List<HrSample>? = null,
         daySteps: List<StepSample>? = null,
         dayGravity: List<GravitySample>? = null,
+        // The day owner's OWN per-minute MET series (an Oura ring's 0x50, #2242), calendar-day scoped
+        // like dayHr. When present and non-empty it REPLACES the HR-only Keytel path for `activeKcalEst`
+        // ([Calories.estimateDayEnergyFromMet], Oura's documented method); when the stream covers less
+        // than [Calories.MET_MIN_COVERAGE_FRACTION] of the day the estimate is withheld (null) rather
+        // than minted from a mostly-unknown day — and the HR path is NOT used as a stand-in, since on a
+        // ring day it runs over the ring's sparse banked HR and does not track Oura's own number
+        // (r ≈ −0.1). null (every WHOOP / pure-function caller, and the Experimental toggle OFF) keeps
+        // the HR path byte-identical. Supplied by IntelligenceEngine only when the toggle is on.
+        dayMet: List<Calories.MetSample>? = null,
+        // Unix `now` for TODAY so MET coverage is judged against the hours that have elapsed, not
+        // against 24 h (a 09:00 pass would otherwise read 37 % and withhold every morning). null = the
+        // full local day (a past day). Only read on the MET path.
+        dayMetNow: Long? = null,
+        // One line per day when the MET path decides `activeKcalEst` (taken, or withheld for coverage)
+        // — always-on evidence for a "my calories changed" report. null builds nothing.
+        caloriesDiag: ((String) -> Unit)? = null,
         // Wear-gated nightly skin-temp mean is harvested here (baseline-independent); IntelligenceEngine
         // seeds a personal baseline from these means across nights and re-derives skinTempDevC in pass 2
         // (same two-pass shape as avgHrv→recovery). (PR #85)
@@ -934,7 +950,33 @@ object AnalyticsEngine {
         // night-window hr for pure-function callers that don't supply dayHr. Strain keeps the full
         // window (bounded log).
         val dayHrFiltered = (dayHr ?: hr).filter { tsInDay(it.ts) }
-        val activeKcalEst: Double? = if (dayHrFiltered.isEmpty()) {
+        // #2242: a device that measures its own minute-by-minute intensity (the Oura ring's 0x50 MET)
+        // decides the day's energy by that stream, not by Keytel over its sparse banked HR. The window is
+        // the same local day `tsInDay` uses, in real unix seconds; today is cut at `dayMetNow` so coverage
+        // means "of the hours so far". Below the coverage floor the number is withheld, not substituted.
+        val activeKcalEst: Double? = if (dayMet != null && dayMet.isNotEmpty()) {
+            val metDayStart = dayStartUtc - tzOffsetSeconds
+            val metDayEnd = minOf(metDayStart + 86_400L, dayMetNow ?: Long.MAX_VALUE)
+            val met = Calories.estimateDayEnergyFromMet(dayMet, profile, metDayStart, metDayEnd)
+            val coveragePct = Math.round(met.coverageFraction * 100).toInt()
+            if (met.coverageFraction >= Calories.MET_MIN_COVERAGE_FRACTION) {
+                caloriesDiag?.invoke(
+                    "calories $day: MET path - coverage $coveragePct% (${dayMet.size} samples), " +
+                        "active ${Math.round(met.activeKcal)} kcal, resting ${Math.round(met.restingKcal)} kcal, " +
+                        "total ${Math.round(met.totalKcal)} kcal",
+                )
+                // A TOTAL, not the active share: activeKcalEst is a pre-existing misnomer, and the HR
+                // path's estimateDayCalories already stores estimateDayEnergy(...).totalKcal here.
+                met.totalKcal
+            } else {
+                caloriesDiag?.invoke(
+                    "calories $day: MET path - coverage $coveragePct% (${dayMet.size} samples) below " +
+                        "${Math.round(Calories.MET_MIN_COVERAGE_FRACTION * 100)}% floor, estimate withheld " +
+                        "(HR path not substituted on a MET day)",
+                )
+                null
+            }
+        } else if (dayHrFiltered.isEmpty()) {
             null
         } else {
             Calories.estimateDayCalories(

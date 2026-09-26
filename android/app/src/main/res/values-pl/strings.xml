@@ -2841,4 +2841,6 @@
     <string name="l10n_today_screen_pending_sync_complete_5940c589">Oczekuje na synchronizację · %1$s</string>
     <string name="l10n_today_screen_value_bpm_complete_ab58df4e">%1$s bpm%2$s</string>
     <string name="fused_record_contribution_in_use">%1$s, %2$s, w użyciu</string>
+    <string name="settings_oura_met_calories_title">Kalorie aktywne ze strumienia MET pierścienia</string>
+    <string name="settings_oura_met_calories_caption">Używa udokumentowanej metody Oura: intensywność każdej minuty powyżej 1,5 MET, według standardowej stawki MET dla Twojej wagi, dodatkowo do energii spoczynkowej za minuty zgłoszone przez pierścień. To szacunek, nie pomiar — w dniu bez zarejestrowanego treningu zgadza się z wartością samej aplikacji Oura (Oura przelicza minuty zarejestrowanego treningu według typu aktywności, czego NOOP nie robi), a dzień, którego pierścień nie pokrył w co najmniej połowie, nie pokazuje żadnej liczby zamiast zgadywania. Włączenie rozpoczyna też zapisywanie próbek MET pierścienia na tym urządzeniu; nigdy nie zasila oceny regeneracji ani choroby. Domyślnie wyłączone.</string>
 </resources>

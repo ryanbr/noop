@@ -272,6 +272,61 @@ data class SleepStateSampleEntity(
     val rawByte: Int? = null,
 )
 
+/**
+ * The Oura ring's OWN per-minute activity intensity (0x50 MET), one row per sample — Swift WhoopStore
+ * `ouraMetSample` (v47, #2242). Until this table the series existed only as the diagnostic JSONL sidecar
+ * ([com.noop.ble.OuraActivityDump]), so nothing scored could read it; the MET-derived active-calorie
+ * estimate ([com.noop.analytics.Calories.estimateDayEnergyFromMet]) reads the day's rows back from here on
+ * every analyze pass. [ts] is the unix second the sample's interval STARTS; [epochS] how long it covers (60
+ * on every ring observed, carried per row so a different cadence scales the estimate rather than skewing
+ * it); [met] the decoded value (OURA_PROTOCOL.md s6.13); [state] the record's leading state byte, verbatim.
+ * Column order IS the Swift column order. The writer is gated behind the Experimental toggle, so an OFF
+ * install keeps this table empty.
+ */
+@Entity(tableName = "ouraMetSample", primaryKeys = ["deviceId", "ts"])
+data class OuraMetSampleEntity(
+    val deviceId: String,
+    val ts: Long,
+    val met: Double,
+    val state: Int,
+    val epochS: Int,
+) {
+    companion object {
+        /**
+         * Whether two samples are the SAME minute served twice: their starts are less than half the shorter
+         * period apart (`|Δ| × 2 < min(epochS)` — integer, the same expression on both platforms and in
+         * `Calories.estimateDayEnergyFromMet`). A re-served record lands 2–5 s off its first copy (the
+         * per-session `0x13` anchor); the NEXT minute starts 55–61 s after — the ring's own grid steps by a
+         * second between records — so "any overlap" is the wrong test: it read a 59-s successor as a twin
+         * and dropped a real minute at the store about once an hour (2026-09-18: 8 holes on the first day
+         * after the overlap rule, one per phase step). Half a period tells the two apart. Twin of Swift
+         * `OuraMetSample.isTwin`.
+         */
+        fun isTwin(a: OuraMetSampleEntity, b: OuraMetSampleEntity): Boolean =
+            kotlin.math.abs(a.ts - b.ts) * 2 < minOf(a.epochS, b.epochS)
+
+        /**
+         * The samples of [incoming] that are a twin ([isTwin]) of neither a row of [existing] nor an
+         * earlier-starting sample of [incoming] itself. Pure (incoming is sorted by ts, lower MET first on a
+         * tie, before the walk) so the insert's dedupe rule is testable without a database. Twin of Swift
+         * `OuraMetSample.droppingTwins`.
+         */
+        fun droppingTwins(
+            incoming: List<OuraMetSampleEntity>,
+            existing: List<OuraMetSampleEntity>,
+        ): List<OuraMetSampleEntity> {
+            val kept = existing.toMutableList()
+            val out = mutableListOf<OuraMetSampleEntity>()
+            for (s in incoming.sortedWith(compareBy<OuraMetSampleEntity> { it.ts }.thenBy { it.met })) {
+                if (kept.any { isTwin(s, it) }) continue
+                kept += s
+                out += s
+            }
+            return out
+        }
+    }
+}
+
 /** Respiration raw-ADC sample (type-47). Swift `respSample` (v3). PK (deviceId, ts). */
 @Entity(tableName = "respSample", primaryKeys = ["deviceId", "ts"])
 data class RespSample(

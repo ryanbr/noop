@@ -1096,6 +1096,32 @@ extension WhoopStore {
             try db.create(index: "idx_liftSet_session_ord", on: "liftSet",
                           columns: ["sessionId", "ord"], options: [.ifNotExists])
         }
+        // v47-oura-met-sample (#2242): the Oura ring's OWN per-minute activity intensity (0x50 MET),
+        // one row per sample. Until now the series existed only as the diagnostic JSONL sidecar
+        // (`OuraActivityDump`) — no table on either platform — so nothing scored could read it. The
+        // MET-derived active-calorie estimate (`Calories.estimateDayEnergyFromMET`) needs the day's
+        // samples back from the store on every analyze pass, including re-scores of past days after a
+        // wake drain lands a whole day at once.
+        //
+        //   • `ts` is the unix second the sample's interval STARTS (anchored ring time of sample i of its
+        //     record); `epochS` is how long it covers — 60 on every ring observed, carried per row so a
+        //     different cadence scales the estimate rather than skewing it.
+        //   • `met` is the decoded value (byte × 0.1 below 0x80, 12.8 + (byte − 128) × 0.2 above — see
+        //     OURA_PROTOCOL.md §6.13); `state` is the record's leading state byte, stored verbatim.
+        //   • (deviceId, ts) primary key: a re-served record is a no-op insert, like every stream table.
+        //   • The writer is gated behind the Experimental toggle, so a user who never turns it on keeps a
+        //     DB byte-identical to today's — the table exists, empty.
+        //   • deviceId-keyed like every stream, hence on `DeviceRegistryStore.deviceScopedTables`.
+        migrator.registerMigration("v47-oura-met-sample") { db in
+            try db.create(table: "ouraMetSample", options: [.ifNotExists]) { t in
+                t.column("deviceId", .text).notNull()
+                t.column("ts", .integer).notNull()
+                t.column("met", .double).notNull()
+                t.column("state", .integer).notNull()
+                t.column("epochS", .integer).notNull()
+                t.primaryKey(["deviceId", "ts"])
+            }
+        }
         return migrator
     }
 }

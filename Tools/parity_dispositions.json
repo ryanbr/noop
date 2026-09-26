@@ -44,10 +44,10 @@
     {
       "type": "platform_specific",
       "kind": "add-unpaired-function",
-      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/PhysiologicalStepCycleEngine.kt::loadCacheKey/7#1",
-      "identity_sha256": "d975e64811f395077839f35c6797284bac55e6ad3e3b5e049bf826d69d5a2131",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/PhysiologicalStepCycleEngine.kt::loadCacheKey/8#1",
+      "identity_sha256": "01eaca6b8864376cb2686a4b78cac00aa0184e65955409b143f1ea79e84c6e15",
       "platform": "kotlin",
-      "rationale": "Twin of the Swift cycle load cache key built inline in Strand/Data/DayCycleIntelligenceIntegration.swift (app layer, outside the governed roots)."
+      "rationale": "Twin of the Swift cycle load cache key built inline in Strand/Data/DayCycleIntelligenceIntegration.swift (app layer, outside the governed roots). The eighth parameter is the #2242 MET witness, the Swift `metWitness` in the same function."
     },
     {
       "type": "platform_specific",
@@ -120,6 +120,70 @@
       "identity_sha256": "21eb9deea3ff8019c9eff121cf7aa39aee01ee6d390292d65bb02aa667d3a534",
       "platform": "kotlin",
       "rationale": "SQL text for a Room @Query, which must be a compile-time constant string and so cannot be inlined at the DAO method. The Swift store writes the same statement inline in WhoopStore Reads.swift / StreamStore.swift, so there is no Swift constant to pair with, exactly as for the existing WHOOP5_RR_INTERVALS_SQL and PROMOTE_WHOOP5_RR_SOURCE_SQL siblings."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDao.kt::insertOuraMet/1#1",
+      "identity_sha256": "ddec05cb4bf20786165ab44ada3f021da5a83060efc6a2a9a85392ab242d2a42",
+      "platform": "kotlin",
+      "rationale": "Room DAO primitive with no Swift counterpart by construction: on Apple the same SQL runs inside the one WhoopStore (GRDB) function it serves (`WhoopStore.insertOuraMetSamples`, paired with `WhoopRepository.insertOuraMetSamples`); Room needs a separate @Insert for the Repository's twin-dropping insert to call."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDao.kt::ouraMetSamples/4#1",
+      "identity_sha256": "a1854344a932d6839a9ba60bfa59229736f06207d41ee9c3a1506b8dea2f776b",
+      "platform": "kotlin",
+      "rationale": "Room DAO primitive with no Swift counterpart by construction: on Apple the same SQL runs inside the one WhoopStore (GRDB) function it serves (`WhoopStore.ouraMetSamples`, paired with the `WhoopRepository.ouraMetSamples` forwarder over this query)."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/DeviceRegistryDao.kt::deleteOuraMetFor/1#1",
+      "identity_sha256": "a0dcb42ed0b5cc1e795f9432f8f647e21af231625d56224d705648c549387f68",
+      "platform": "kotlin",
+      "rationale": "Per-table Room delete used when a device is forgotten. Swift clears the same table through the table-name list in `DeviceRegistryStore` (\"ouraMetSample\"), so there is no per-table function to pair."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/IntelligenceEngine.kt::readDaySkinAndWristOff/14#1",
+      "identity_sha256": "75d89046eeeab2049fbd702d33d217cd5591abcf24b8a2bb563cdee9ac9daf3f",
+      "platform": "kotlin",
+      "rationale": "Deliberately one-sided per its own doc: extracted from IntelligenceEngine's scoring method only to keep the JVM method (and its JaCoCo instrumentation) under the 64 KiB bytecode limit; the Swift engine keeps this block inline. The arity changed because the MET toggle is threaded through it (#2242)."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/PhysiologicalStepCycleEngine.kt::compute/17#1",
+      "identity_sha256": "26c442cf09505ae210271258c4ca9e2acfc35604de744f9acbd70bdec9f3abaa",
+      "platform": "kotlin",
+      "rationale": "Kotlin-only extraction of the day-cycle fold, kept outside IntelligenceEngine for the JVM 64 KiB method limit (see its header); the Swift logic lives inside `DayCycleIntelligenceIntegration.compute`, which is paired with the Kotlin `DayCycleIntelligenceIntegration.compute`. The arity changed because the MET toggle is threaded through it (#2242)."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDatabase.kt::migrate/1#39",
+      "identity_sha256": "81b9152e7189625064e51189ec7be31e1d1f57662438fe54df4c1f779a6bbe48",
+      "platform": "kotlin",
+      "rationale": "Room MIGRATION_40_41's migrate override (ouraMetSample, #2242). The GRDB twin is the registered `v47-oura-met-sample` migration closure, which is not a named function; the two are pinned against each other by the shared schema oracle, not by the ledger."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDao.kt::countOuraMetInWindow/3#1",
+      "identity_sha256": "39c98f427c4f4824db26ca0ac3787342fcadb18f2164343357df0774d1e186ba",
+      "platform": "kotlin",
+      "rationale": "Room DAO primitive with no Swift counterpart by construction, like countHrInWindow/maxHrTsInWindow: on Apple the same COUNT/MAX aggregate runs inside the one WhoopStore (GRDB) function it serves (`WhoopStore.ouraMetFingerprint(deviceId:from:to:)`, paired with `WhoopRepository.ouraMetFingerprint`)."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDao.kt::maxOuraMetTsInWindow/3#1",
+      "identity_sha256": "aa9ae5b52ceec7ecfc8ad685108be9ed461ad600e992a61e289b5eb52797fc57",
+      "platform": "kotlin",
+      "rationale": "Room DAO primitive with no Swift counterpart by construction, like countHrInWindow/maxHrTsInWindow: on Apple the same COUNT/MAX aggregate runs inside the one WhoopStore (GRDB) function it serves (`WhoopStore.ouraMetFingerprint(deviceId:from:to:)`, paired with `WhoopRepository.ouraMetFingerprint`)."
     }
   ]
 }

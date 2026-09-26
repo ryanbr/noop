@@ -103,7 +103,7 @@ final class IntelligenceEngine: ObservableObject {
         "hrvBaseline", "rhrBaseline", "age", "sex", "stepTicksPerStep", "maxHROverride",
         "tzOffset", "sleepNeedHours", "sleepConsistency", "habitualMidsleep",
         "experimentalSleepV2", "motionAwareWake", "deepHrvWindow", "spo2CandidateDisplay",
-        "effortMethod", "dayCycleMode",
+        "effortMethod", "dayCycleMode", "ouraMetCalories",
     ]
 
     /// Which config field(s) moved between two signatures, for the `configDropped` tally.
@@ -1017,6 +1017,11 @@ final class IntelligenceEngine: ObservableObject {
         // into the config signature below rather than the per-day key.
         let effortMethodGlobal = PuffinExperiment.effortMethod
         let dayCycleMode = DayCycleMode.persisted(UserDefaults.standard.string(forKey: DayCycleMode.storageKey))
+        // #2242: the Experimental MET-calories toggle, read ONCE per pass like the others. When ON, each
+        // ring day's persisted 0x50 MET rows are read and handed to analyzeDay, which then scores
+        // `activeKcalEst` by Oura's method instead of the HR path. Global, so it joins the config
+        // signature below: flipping it must re-score every cached day, not just the next one.
+        let ouraMetCaloriesOn = UserDefaults.standard.bool(forKey: AppModel.ouraMetCaloriesKey)
 
         // Zero the per-day probe counters so the line emitted after the steps phase describes THIS pass
         // and never accumulates across the back-to-back passes an offload storm is made of. Must precede
@@ -1080,6 +1085,7 @@ final class IntelligenceEngine: ObservableObject {
             // window of days scored by a recipe the user just turned off, with nothing to explain it.
             "\(effortMethodGlobal)",
             dayCycleMode.rawValue,
+            "\(ouraMetCaloriesOn)",   // #2242
         ].joined(separator: "|")
         // Drop the whole cache on a config change, then snapshot it into a Sendable `let` for the detached
         // loop (the engine is @MainActor; the loop can't touch `self`). The loop returns the updated cache
@@ -1382,6 +1388,19 @@ final class IntelligenceEngine: ObservableObject {
                 } else {
                     dayGrav = (try? await store.gravitySamples(deviceId: owner, from: dayMid, to: dayEnd, limit: 200_000)) ?? []
                 }
+                // #2242: the day owner's OWN per-minute MET series (an Oura ring's persisted 0x50 rows),
+                // calendar-day scoped like dayHr, read only while the Experimental toggle is on. Same
+                // `owner` as every other read here — the registry's active id, never a raw address — so a
+                // WHOOP owner reads an empty table and stays on the HR path. Handed to analyzeDay as nil
+                // when empty, which is the byte-identical HR path. A past day's rows are re-read on every
+                // pass, so the wake drain that lands a whole day at once is picked up by the next re-score.
+                let dayMet: [Calories.MetSample]?
+                if ouraMetCaloriesOn {
+                    let rows = (try? await store.ouraMetSamples(deviceId: owner, from: dayMid, to: dayEnd, limit: 4_000)) ?? []
+                    dayMet = rows.isEmpty ? nil : rows.map { Calories.MetSample(ts: $0.ts, met: $0.met, secPerSample: $0.epochS) }
+                } else {
+                    dayMet = nil
+                }
 
                 // CONSUME (#531 / #175): the strap's OWN band sleep_state for the night window as timestamped
                 // (ts, state) samples, so the H7 morning-stillness guard can confirm a borderline re-onset
@@ -1489,6 +1508,8 @@ final class IntelligenceEngine: ObservableObject {
                                                      vendorResp: vendorResp, gravity: grav,
                                                      steps: steps, dayHr: dayHr, daySteps: daySteps,
                                                      dayGravity: dayGrav,
+                                                     dayMet: dayMet, dayMetNow: now,   // #2242
+                                                     caloriesDiag: { strainDiagLines.append($0) },   // #2242: same per-day recorder
                                                      skinTemp: skin,
                                                      skinTempFamily: skinFamily,   // #938
                                                      skinTempAnchorRaw: skinAnchorRaw,   // #938 second capture
@@ -2124,6 +2145,14 @@ final class IntelligenceEngine: ObservableObject {
             profile: up,
             maxHROverride: maxHR,
             effortMethod: effortMethodGlobal,
+            // #2242: the fold makes the same MET-vs-HR energy decision as analyzeDay, over its own window.
+            metReader: ouraMetCaloriesOn ? { owner, from, to in
+                let rows = (try? await store.ouraMetSamples(deviceId: owner, from: from, to: to, limit: 4_000)) ?? []
+                return rows.map { Calories.MetSample(ts: $0.ts, met: $0.met, secPerSample: $0.epochS) }
+            } : nil,
+            metFingerprint: ouraMetCaloriesOn ? { owner, from, to in
+                try? await store.ouraMetFingerprint(deviceId: owner, from: from, to: to)
+            } : nil,
             trace: stepsTraceActive ? { self.diagnosticSink?($0, .steps) } : nil)
         // #299: `editsByStart` is now built PER DAY inside the scoring loop (scoped to the day each edit
         // belongs to), NOT window-wide here. sleepEditedDaily folds any edited row that isn't a twin of THIS

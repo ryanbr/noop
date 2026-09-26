@@ -1304,6 +1304,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                         // #103: SpO₂ candidate @82 display toggle — when ON, the engine computes and
                         // persists the nightly @82 mean as "spo2_candidate" in metricSeries.
                         spo2CandidateDisplay = NoopPrefs.spo2CandidateDisplay(appContext),
+                        ouraMetCalories = NoopPrefs.ouraMetCalories(appContext),   // #2242
                         effortMethod = NoopPrefs.effortMethod(appContext),
                         dayCycleMode = NoopPrefs.dayCycleMode(appContext),
                     )
@@ -1997,6 +1998,7 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 useMotionAwareWake = PuffinExperiment.from(appContext).motionAwareWake,
                 // #103: SpO₂ candidate @82 display toggle — same flag the 15-min loop reads.
                 spo2CandidateDisplay = NoopPrefs.spo2CandidateDisplay(appContext),
+                ouraMetCalories = NoopPrefs.ouraMetCalories(appContext),   // #2242
                 effortMethod = NoopPrefs.effortMethod(appContext),
                 dayCycleMode = NoopPrefs.dayCycleMode(appContext),
             )
@@ -2859,6 +2861,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      *  iOS SettingsView `.onChangeCompat` → `analyzeRecent()` pattern. */
     fun setSpo2CandidateDisplay(enabled: Boolean) {
         NoopPrefs.setSpo2CandidateDisplay(appContext, enabled)
+        viewModelScope.launch { rescoreAfterEdit() }
+    }
+
+    /** #2242: the MET-calories toggle is part of the day-cache config signature, so re-score now and every
+     *  cached day flips path on the toggle instead of waiting for the next analyze loop. */
+    fun setOuraMetCalories(enabled: Boolean) {
+        NoopPrefs.setOuraMetCalories(appContext, enabled)
         viewModelScope.launch { rescoreAfterEdit() }
     }
 

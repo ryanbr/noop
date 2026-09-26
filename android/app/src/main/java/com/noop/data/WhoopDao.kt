@@ -239,6 +239,11 @@ interface WhoopDao : DeviceRegistryDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertSleepState(rows: List<SleepStateSampleEntity>): List<Long>
 
+    /** The Oura ring's OWN per-minute MET samples (#2242). Idempotent by (deviceId, ts): a record the
+     *  ring re-serves across reconnects lands once. Swift `insertOuraMetSamples`. */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertOuraMet(rows: List<OuraMetSampleEntity>): List<Long>
+
     /** Upsert one Live Session (v22). Natural key (deviceId, startTs) — start (endTs null) then end.
      *  The `WHERE excluded.endTs IS NOT NULL OR liveSession.endTs IS NULL` guard makes a start-write
      *  refuse to overwrite an already-ended row: start/end persist as independent, unordered coroutines,
@@ -780,6 +785,21 @@ interface WhoopDao : DeviceRegistryDao {
             "ORDER BY ts ASC LIMIT :limit"
     )
     suspend fun sleepStateSamples(deviceId: String, from: Long, to: Long, limit: Int): List<SleepStateSampleEntity>
+
+    // #2242: MET-series change-detector for the day-cycle load cache: row count + newest ts over the
+    // (deviceId, ts) key, never a row fetch; mirrors Swift WhoopStore.ouraMetFingerprint(deviceId:from:to:).
+    // COALESCE(MAX) → 0 for an empty window.
+    @Query("SELECT COUNT(*) FROM ouraMetSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to")
+    suspend fun countOuraMetInWindow(deviceId: String, from: Long, to: Long): Int
+    @Query("SELECT COALESCE(MAX(ts), 0) FROM ouraMetSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to")
+    suspend fun maxOuraMetTsInWindow(deviceId: String, from: Long, to: Long): Long
+
+    /** The Oura ring's OWN per-minute MET samples (#2242) in [from, to], ascending. Swift `ouraMetSamples`. */
+    @Query(
+        "SELECT * FROM ouraMetSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
+            "ORDER BY ts ASC LIMIT :limit"
+    )
+    suspend fun ouraMetSamples(deviceId: String, from: Long, to: Long, limit: Int): List<OuraMetSampleEntity>
 
     @Query(
         "SELECT * FROM respSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +

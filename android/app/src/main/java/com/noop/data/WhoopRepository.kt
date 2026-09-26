@@ -1484,6 +1484,40 @@ class WhoopRepository(
         dao.sleepStateSamples(deviceId, from, to, limit).map { SleepStateRow(it.ts, it.state) }
 
     /**
+     * Insert the Oura ring's own per-minute MET samples (#2242). Idempotent by MINUTE, not only by
+     * (deviceId, ts): `ts` is anchored ring time under a per-session `0x13` anchor, so the same ring
+     * record re-served across sessions lands 2-5 s apart and the key alone sees two rows (2026-09-17:
+     * 157 of 1,035 rows were such twins, +8 % on the day). A sample that is a twin of a stored one
+     * ([OuraMetSampleEntity.isTwin]: starts within half a period), or of one accepted earlier in the same
+     * batch, is dropped; the first copy stays. Rows are assumed to
+     * belong to one device (the writer's batch), read back per device. Returns the rows actually
+     * inserted. Swift twin: `WhoopStore.insertOuraMetSamples` (which takes the deviceId separately).
+     */
+    suspend fun insertOuraMetSamples(rows: List<OuraMetSampleEntity>): Int {
+        if (rows.isEmpty()) return 0
+        var inserted = 0
+        for ((deviceId, batch) in rows.groupBy { it.deviceId }) {
+            val lo = batch.minOf { it.ts } - batch.maxOf { it.epochS }
+            val hi = batch.maxOf { it.ts + it.epochS }
+            val existing = dao.ouraMetSamples(deviceId, lo, hi - 1, Int.MAX_VALUE)
+            val accepted = OuraMetSampleEntity.droppingTwins(batch, existing)
+            if (accepted.isNotEmpty()) inserted += dao.insertOuraMet(accepted).count { it != -1L }
+        }
+        return inserted
+    }
+
+    /**
+     * `count:maxTs` of a device's MET series over [from, to] (#2242), the witness the day-cycle load cache
+     * keys a MET-scored cycle on. Swift twin: `WhoopStore.ouraMetFingerprint(deviceId:from:to:)`.
+     */
+    suspend fun ouraMetFingerprint(deviceId: String, from: Long, to: Long): String =
+        "${dao.countOuraMetInWindow(deviceId, from, to)}:${dao.maxOuraMetTsInWindow(deviceId, from, to)}"
+
+    /** The ring's MET samples in [from, to], ascending (#2242). Swift twin: `WhoopStore.ouraMetSamples`. */
+    suspend fun ouraMetSamples(deviceId: String, from: Long, to: Long, limit: Int = DEFAULT_LIMIT):
+        List<OuraMetSampleEntity> = dao.ouraMetSamples(deviceId, from, to, limit)
+
+    /**
      * The latest (greatest-ts) non-null @63 activity class over [from, to], read across the active strap ∪
      * canonical "my-whoop" union ([importedSourceIds]), for the Steps tile icon (#316 / @63). Kotlin twin of
      * the Swift Repository.stepActivityClassLatest(from:to:). #908 family: a re-added strap banks its LIVE step

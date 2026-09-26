@@ -75,7 +75,7 @@ final class DayCacheConfigFieldTests: XCTestCase {
             "hrvBaseline", "rhrBaseline", "age", "sex", "stepTicksPerStep", "maxHROverride",
             "tzOffset", "sleepNeedHours", "sleepConsistency", "habitualMidsleep",
             "experimentalSleepV2", "motionAwareWake", "deepHrvWindow", "spo2CandidateDisplay",
-            "effortMethod", "dayCycleMode",
+            "effortMethod", "dayCycleMode", "ouraMetCalories",
         ])
     }
 }

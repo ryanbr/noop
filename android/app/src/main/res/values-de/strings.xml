@@ -2840,4 +2840,6 @@
     <string name="l10n_today_screen_pending_sync_complete_5940c589">Sync ausstehend · %1$s</string>
     <string name="l10n_today_screen_value_bpm_complete_ab58df4e">%1$s bpm%2$s</string>
     <string name="fused_record_contribution_in_use">%1$s, %2$s, in Benutzung</string>
+    <string name="settings_oura_met_calories_title">Aktive Kalorien aus dem MET-Datenstrom des Rings</string>
+    <string name="settings_oura_met_calories_caption">Verwendet die von Oura dokumentierte Methode: die Intensität jeder Minute über 1,5 MET, mit der Standard-MET-Rate für Ihr Gewicht, zusätzlich zur Ruheenergie für die Minuten, die der Ring gemeldet hat. Eine Schätzung, keine Messung – an einem Tag ohne protokolliertes Training entspricht sie dem Wert der Oura-App (Oura bewertet die Minuten eines protokollierten Trainings nach Aktivitätstyp neu, NOOP nicht), und ein Tag, den der Ring weniger als zur Hälfte abgedeckt hat, zeigt keine Zahl statt einer Vermutung. Beim Einschalten werden außerdem die MET-Werte des Rings auf diesem Gerät gespeichert; sie fließen nie in die Erholungs- oder Krankheitsbewertung ein. Standardmäßig aus.</string>
 </resources>
