@@ -37,7 +37,7 @@ final class StrainScorerTests: XCTestCase {
         for sample in cases {
             XCTAssertEqual(
                 StrainScorer.effortValue(fromWhoopStrain: sample.whoop), sample.effort,
-                accuracy: 1e-12, "WHOOP \(sample.whoop) must map proportionally onto 0–100"
+                accuracy: 0.0, "WHOOP \(sample.whoop) must map proportionally onto 0–100"
             )
         }
     }

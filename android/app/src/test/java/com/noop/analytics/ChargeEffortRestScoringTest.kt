@@ -55,7 +55,7 @@ class ChargeEffortRestScoringTest {
                 "WHOOP $whoop must map proportionally onto 0–100",
                 effort,
                 StrainScorer.effortValueFromWhoopStrain(whoop),
-                1e-12,
+                0.0,
             )
         }
     }

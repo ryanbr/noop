@@ -57,8 +57,12 @@ public enum StrainScorer {
     /// Map any value on WHOOP's 0–21 Day Strain axis onto NOOP's current 0–`maxStrain` Effort axis.
     /// This is deliberately a value conversion, not a one-off threshold constant: callers carrying
     /// any range boundary from the 0–21 scale must pass it through the same mapping.
+    /// Kotlin twin: `StrainScorer.effortValueFromWhoopStrain`. Multiplies by the pre-divided ratio so
+    /// the result is bit-identical to the importers' existing rescale of the same fact
+    /// (`WhoopExportImporter.dayStrainToEffortScale`, `WhoopCsvImporter.DAY_STRAIN_TO_EFFORT_SCALE`);
+    /// `value * maxStrain / whoopMaxStrain` disagrees with them by an ULP on about a quarter of inputs.
     public static func effortValue(fromWhoopStrain value: Double) -> Double {
-        value * maxStrain / whoopMaxStrain
+        value * (maxStrain / whoopMaxStrain)
     }
 
     /// Logarithmic-map denominator D. Chosen so the Edwards daily ceiling
