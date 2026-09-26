@@ -49,8 +49,9 @@ final class LiveActivityController {
     func follow(_ model: AppModel, standsAside: @escaping () -> Bool) {
         self.model = model
         self.standsAside = standsAside
-        // Refreshed once a change has landed, never from inside it (`LiveHRBannerInputs`): a sink of its own on the
-        // heart rate read AppModel's median before AppModel had reset it, and a WRIST_OFF sent no dash.
+        // Refreshed once a change has landed, never from inside it (`LiveHRBannerInputs`). AppModel's median (`bpm`)
+        // is an input in its own right: it moves on the R-R alone, and a clear that reached it that way refreshed
+        // nothing, so the banner kept the last number until iOS's stale date drew the dash.
         LiveHRBannerInputs.settled([model.live.$heartRate.map { _ in () }.eraseToAnyPublisher(),
                                     model.live.$connected.map { _ in () }.eraseToAnyPublisher(),
                                     model.$bpm.map { _ in () }.eraseToAnyPublisher()])

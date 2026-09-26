@@ -3,8 +3,9 @@ import XCTest
 @testable import Strand
 
 /// The Live HR banner reads what it shows once the changes have landed, never from inside one of them: a reader called
-/// from a `@Published` sink runs in willSet and still sees the old value. On a tester's phone that left the last number
-/// on the banner for minutes after the strap sent WRIST_OFF (24 Sep 2026).
+/// from a `@Published` sink runs in willSet and still sees the old value. The banner also has to watch AppModel's
+/// median itself, since it moves on the R-R alone (`LiveHRBannerInputs`). A tester's banner kept the last number for
+/// minutes after a WRIST_OFF (24 Sep 2026).
 final class LiveHRBannerInputsTests: XCTestCase {
 
     private func bannerSignal<P: Publisher>(_ publisher: P) -> AnyPublisher<Void, Never> where P.Failure == Never {
@@ -20,7 +21,11 @@ final class LiveHRBannerInputsTests: XCTestCase {
         let refreshed = expectation(description: "refreshed")
         refreshed.assertForOverFulfill = false
         let subscription = LiveHRBannerInputs.settled([bannerSignal(live.$heartRate)])
-            .sink { seen.append(live.heartRate); refreshed.fulfill() }
+            .sink {
+                XCTAssertTrue(Thread.isMainThread, "refreshBanner reads UIKit; the signal must land on the main queue")
+                seen.append(live.heartRate)
+                refreshed.fulfill()
+            }
         live.clearLiveHeartRate()
         XCTAssertEqual(seen, [], "read inside the change, it would still say 91")
         wait(for: [refreshed], timeout: 1)
