@@ -43,7 +43,19 @@ extension WhoopStore {
         }
     }
 
-    /// Archived payloads for a device + endpoint, oldest fetch first and insertion order within a fetch.
+    /// Archived payloads for a device + endpoint, oldest `fetchedAt` first, ties broken by insertion order.
+    ///
+    /// Ordered on (fetchedAt, rowid) rather than `day`: the page producers leave `day` nil, so the whole
+    /// column was nil and `ORDER BY day ASC` degenerated to whatever order SQLite happened to return.
+    /// `rowid` breaks the tie because one fetch normally writes all of its pages in the same second, and
+    /// the page sequence within that second is the order they were written.
+    ///
+    /// A TIE is what rowid orders, not a fetch. `upsertOuraRaw` is an `ON CONFLICT DO UPDATE`, so a
+    /// re-pulled page keeps its original rowid but takes the NEW `fetchedAt`. Re-pulling one page of an
+    /// earlier fetch therefore moves that page to the end of this read while its siblings stay put, and
+    /// the pages of that fetch are no longer contiguous. That is the honest ordering, since the row really
+    /// was fetched later, but a reader that needs the pages of one fetch together has to group on
+    /// `fetchedAt` itself rather than assume this read hands them over adjacent.
     public func ouraRaw(deviceId: String, endpoint: String) async throws -> [OuraRawRow] {
         try syncRead { db in
             try Row.fetchAll(db, sql: """

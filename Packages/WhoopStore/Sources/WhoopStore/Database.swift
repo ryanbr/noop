@@ -496,7 +496,12 @@ extension WhoopStore {
                 t.column("fetchedAt", .integer).notNull()    // unix seconds
                 t.primaryKey(["deviceId", "endpoint", "documentId"])
             }
-            // Per-endpoint reads scan (deviceId, endpoint) then walk day in order.
+            // Serves the (deviceId, endpoint) lookup. It no longer serves the ORDER BY: `ouraRaw`
+            // sorts by (fetchedAt, rowid) because page producers leave `day` nil, so an all-nil
+            // `day` made the old `ORDER BY day ASC` degenerate to whatever order SQLite returned.
+            // The trailing `day` column stays useful for day-keyed lookups; the sort happens after
+            // the scan. An index on (deviceId, endpoint, fetchedAt) is the change to make if this
+            // archive ever grows enough for that sort to matter.
             try db.create(index: "idx_ouraRaw_device_endpoint_day",
                           on: "ouraRaw", columns: ["deviceId", "endpoint", "day"])
         }
