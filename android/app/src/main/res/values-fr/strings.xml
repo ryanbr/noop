@@ -2819,7 +2819,7 @@
     <string name="l10n_settings_screen_after_a_sync_noop_looks_over_54156d92">Après une synchronisation, NOOP examine votre fréquence cardiaque récente à la recherche d\'une période élevée et soutenue qui ressemble à de l\'exercice, et propose de l\'enregistrer. Il ne fait que suggérer. Rien n\'est enregistré tant que vous n\'avez pas touché Enregistrer, et vous pouvez ignorer n\'importe quelle suggestion. Désactiver cette option arrête les suggestions futures ; les entraînements déjà présents dans votre historique sont conservés. Volontairement prudent : il peut donc manquer un entraînement de temps en temps. Sur ce téléphone uniquement.</string>
     <string name="l10n_settings_screen_age_years_77385403">Âge, %1$s ans</string>
     <string name="l10n_settings_screen_an_experimental_picture_of_your_beat_29a199d1">Une image expérimentale du rythme de vos battements, battement par battement : un nuage de points de Poincaré et de simples statistiques de régularité issues de périodes de repos calmes. Ce n\'est ni un ECG ni un diagnostic ; vous lirez un court avertissement et l\'accepterez avant l\'activation.</string>
-    <string name="l10n_settings_screen_auto_bpm_tanaka_e9e619ec">Auto · %1$s bpm (Tanaka)</string>
+    <string name="l10n_settings_screen_auto_bpm_tanaka_e9e619ec">Automatique · %1$s bpm (Tanaka)</string>
     <string name="l10n_settings_screen_auto_c614ba7c">Auto</string>
     <string name="l10n_settings_screen_auto_confidence_c7c3d8df">Auto · confiance %1$s</string>
     <string name="l10n_settings_screen_background_image_5eb0ff1a">Image de fond</string>

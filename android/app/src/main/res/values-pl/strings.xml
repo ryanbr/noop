@@ -2834,7 +2834,7 @@
     <string name="l10n_settings_screen_after_a_sync_noop_looks_over_54156d92">Po synchronizacji NOOP przegląda Twoje ostatnie tętno w poszukiwaniu dłuższego, podwyższonego odcinka, który wygląda na trening, i proponuje jego zapisanie. To zawsze tylko sugestia. Nic nie zostanie zapisane, dopóki nie stukniesz Zapisz, a każdą sugestię możesz odrzucić. Wyłączenie tej opcji zatrzymuje przyszłe sugestie; treningi zapisane już w historii pozostają. Celowo ostrożne, więc pojedynczy trening może zostać pominięty. Tylko na tym telefonie.</string>
     <string name="l10n_settings_screen_age_years_77385403">Wiek w latach: %1$s</string>
     <string name="l10n_settings_screen_an_experimental_picture_of_your_beat_29a199d1">Eksperymentalny obraz Twojego rytmu uderzenie po uderzeniu: wykres Poincaré i proste statystyki regularności z okresów spokojnego odpoczynku. To nie ECG ani diagnoza; przed włączeniem przeczytasz i zaakceptujesz krótkie zastrzeżenie.</string>
-    <string name="l10n_settings_screen_auto_bpm_tanaka_e9e619ec">Auto · %1$s bpm (Tanaka)</string>
+    <string name="l10n_settings_screen_auto_bpm_tanaka_e9e619ec">Automatycznie · %1$s bpm (Tanaka)</string>
     <string name="l10n_settings_screen_auto_c614ba7c">Auto</string>
     <string name="l10n_settings_screen_auto_confidence_c7c3d8df">Auto · pewność %1$s</string>
     <string name="l10n_settings_screen_background_image_5eb0ff1a">Obraz tła</string>

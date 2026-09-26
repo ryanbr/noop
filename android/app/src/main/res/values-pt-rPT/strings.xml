@@ -2812,7 +2812,7 @@
     <string name="l10n_settings_screen_after_a_sync_noop_looks_over_54156d92">Depois de uma sincronização, o NOOP analisa a tua frequência cardíaca recente à procura de um período elevado e prolongado que pareça exercício e propõe guardá-lo. É sempre apenas uma sugestão. Nada é guardado até tocares em Guardar, e podes dispensar qualquer sugestão. Desativar isto impede sugestões futuras; os treinos que já estão no teu histórico mantêm-se. Propositadamente conservador, por isso algum treino pode escapar. Apenas neste telemóvel.</string>
     <string name="l10n_settings_screen_age_years_77385403">Idade, %1$s anos</string>
     <string name="l10n_settings_screen_an_experimental_picture_of_your_beat_29a199d1">Uma imagem experimental do teu ritmo batimento a batimento: um gráfico de dispersão de Poincaré e estatísticas simples de regularidade a partir de períodos de repouso tranquilo. Não é um ECG nem um diagnóstico; vais ler e aceitar um breve aviso antes de ser ativado.</string>
-    <string name="l10n_settings_screen_auto_bpm_tanaka_e9e619ec">Auto · %1$s bpm (Tanaka)</string>
+    <string name="l10n_settings_screen_auto_bpm_tanaka_e9e619ec">Automática · %1$s bpm (Tanaka)</string>
     <string name="l10n_settings_screen_auto_c614ba7c">Auto</string>
     <string name="l10n_settings_screen_auto_confidence_c7c3d8df">Auto · confiança %1$s</string>
     <string name="l10n_settings_screen_background_image_5eb0ff1a">Imagem de fundo</string>

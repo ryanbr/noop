@@ -2833,7 +2833,7 @@
     <string name="l10n_settings_screen_after_a_sync_noop_looks_over_54156d92">Nach einem Sync prüft NOOP deine jüngste Herzfrequenz auf eine anhaltend erhöhte Phase, die nach Training aussieht, und bietet an, sie zu speichern. Es macht immer nur Vorschläge. Nichts wird gespeichert, bis du auf „Speichern“ tippst, und du kannst jeden Vorschlag verwerfen. Wenn du das ausschaltest, kommen keine neuen Vorschläge mehr; Workouts, die bereits in deinem Verlauf sind, bleiben erhalten. Bewusst zurückhaltend, daher kann gelegentlich ein Workout übersehen werden. Nur auf diesem Handy.</string>
     <string name="l10n_settings_screen_age_years_77385403">Alter, %1$s Jahre</string>
     <string name="l10n_settings_screen_an_experimental_picture_of_your_beat_29a199d1">Ein experimentelles Bild deines Herzschlag-Timings: ein Poincaré-Streudiagramm und einfache Regelmäßigkeitswerte aus ruhigen Ruhephasen. Kein ECG und keine Diagnose; du liest einen kurzen Hinweis und stimmst zu, bevor es aktiviert wird.</string>
-    <string name="l10n_settings_screen_auto_bpm_tanaka_e9e619ec">Auto · %1$s bpm (Tanaka)</string>
+    <string name="l10n_settings_screen_auto_bpm_tanaka_e9e619ec">Automatisch · %1$s bpm (Tanaka)</string>
     <string name="l10n_settings_screen_auto_c614ba7c">Auto</string>
     <string name="l10n_settings_screen_auto_confidence_c7c3d8df">Auto · Konfidenz %1$s</string>
     <string name="l10n_settings_screen_background_image_5eb0ff1a">Hintergrundbild</string>
