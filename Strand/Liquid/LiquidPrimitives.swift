@@ -175,6 +175,54 @@ enum LiquidRender {
         }
     }
 
+    /// The plot mapping [thread] draws with, exposed so anything pointing AT the drawn curve reads the
+    /// same geometry instead of restating it.
+    ///
+    /// The Today scrub crosshair is the caller that made this necessary. It had its own copy of the inset,
+    /// the span floor and both mappings, which agreed by inspection and nothing else: change `pad` here and
+    /// the crosshair drifts off the line it claims to mark, silently, with no test able to see it and only
+    /// an eye on a device to catch it. A crosshair whose whole job is to point at what was drawn cannot
+    /// derive where that is from a private copy.
+    struct ThreadPlot {
+        /// Inset on every side, in points.
+        static let pad: Double = 10
+        /// Floor on the value span, so a flat trace still fills the plot rather than dividing by zero.
+        static let minSpan: Double = 10
+
+        let size: CGSize
+        let count: Int
+        let minValue: Double
+        let span: Double
+
+        init(size: CGSize, values: [Double]) {
+            var mn = Double.greatestFiniteMagnitude, mx = -Double.greatestFiniteMagnitude
+            for v in values { mn = min(mn, v); mx = max(mx, v) }
+            self.size = size
+            self.count = values.count
+            self.minValue = mn
+            self.span = max(Self.minSpan, mx - mn)
+        }
+
+        /// Sample `i`'s x, equal-distance across the inset plot. Gap-aware by construction: positions come
+        /// from the index, not from time, so a broken subpath still lands its samples where they are drawn.
+        func x(_ i: Int) -> Double {
+            Self.pad + Double(i) * (size.width - 2 * Self.pad) / Double(max(1, count - 1))
+        }
+
+        /// Value `v`'s y, inverted for the view's downward axis.
+        func y(_ v: Double) -> Double {
+            size.height - Self.pad - (v - minValue) / span * (size.height - 2 * Self.pad)
+        }
+
+        /// The sample nearest a touch at `xPosition`, clamped to the series.
+        func nearestIndex(toX xPosition: Double) -> Int {
+            guard count >= 2 else { return 0 }
+            let plotWidth = max(1, size.width - 2 * Self.pad)
+            let raw = ((xPosition - Self.pad) / plotWidth * Double(count - 1)).rounded()
+            return min(count - 1, max(0, Int(raw)))
+        }
+    }
+
     /// The live heart-rate curve as a glowing liquid thread with a travelling glint.
     /// - Parameter segments: per-value line identity from `hrGapSegments`, or nil for a series known to be
     ///   contiguous. Values whose ids differ are stroked as SEPARATE subpaths, so a stretch the strap never
@@ -183,13 +231,10 @@ enum LiquidRender {
     static func thread(_ base: GraphicsContext, _ size: CGSize, values: [Double], now: Double, tint: Color,
                        segments: [String]? = nil) {
         guard values.count >= 2 else { return }
-        let w = size.width, h = size.height, pad: Double = 10
-        var mn = Double.greatestFiniteMagnitude, mx = -Double.greatestFiniteMagnitude
-        for v in values { mn = min(mn, v); mx = max(mx, v) }
-        let span = max(10, mx - mn)
+        let plot = ThreadPlot(size: size, values: values)
         let n = values.count
-        func px(_ i: Int) -> Double { pad + Double(i) * (w - 2 * pad) / Double(n - 1) }
-        func py(_ v: Double) -> Double { h - pad - (v - mn) / span * (h - 2 * pad) }
+        func px(_ i: Int) -> Double { plot.x(i) }
+        func py(_ v: Double) -> Double { plot.y(v) }
         func appendRun(_ p: inout Path, _ lo: Int, _ hi: Int) {
             // A lone bucket between two gaps is real data, and it has to draw as something. A bare `move`
             // strokes nothing at all, and a ZERO-length line is at the mercy of whether the renderer keeps

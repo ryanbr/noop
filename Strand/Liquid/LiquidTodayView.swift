@@ -2552,15 +2552,13 @@ private struct LiquidLiveHR: View {
     private var scrubReadout: some View {
         GeometryReader { geometry in
             if let scrubX, series.count >= 2 {
+                // The renderer's own mapping, not a copy of it: a private inset or span floor here would
+                // agree by inspection and then drift the crosshair off the curve the moment either moved.
+                let plot = LiquidRender.ThreadPlot(size: geometry.size, values: series)
+                let index = plot.nearestIndex(toX: Double(scrubX))
                 let width = geometry.size.width
-                let plotWidth = max(1, width - 20)
-                let index = min(series.count - 1, max(0,
-                    Int(((scrubX - 10) / plotWidth * CGFloat(series.count - 1)).rounded())))
-                let x = 10 + CGFloat(index) * plotWidth / CGFloat(series.count - 1)
-                let minimum = series.min() ?? 0
-                let span = max(10, (series.max() ?? minimum) - minimum)
-                let y = geometry.size.height - 10 - CGFloat((series[index] - minimum) / span)
-                    * (geometry.size.height - 20)
+                let x = CGFloat(plot.x(index))
+                let y = CGFloat(plot.y(series[index]))
                 Path { path in
                     path.move(to: CGPoint(x: x, y: 0))
                     path.addLine(to: CGPoint(x: x, y: geometry.size.height))
