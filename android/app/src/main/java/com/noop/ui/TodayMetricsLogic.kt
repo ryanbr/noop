@@ -2,6 +2,7 @@ package com.noop.ui
 
 import androidx.annotation.StringRes
 import com.noop.R
+import com.noop.analytics.ProfileWeightSync
 import com.noop.data.AppleDaily
 import com.noop.data.WorkoutRow
 
@@ -69,12 +70,19 @@ internal data class WeightTileText(val value: String, val caption: WeightCaption
  * The newest body weight across the two Apple-side sources (apple-health + health-connect), or null
  * when neither carries one. Days are ISO `yyyy-MM-dd`, which sorts chronologically, so the lexically
  * greatest day with a non-null `weightKg` is the most recent, no date parsing needed. (#107)
+ *
+ * With "Use weight from Health Connect" ON, [healthConnectOnly] drops the Apple Health rows: the profile
+ * then holds the newest Health Connect weight, and a newer Apple Health file must not let the tile name
+ * a different weight than the one the analytics use. Both go through [ProfileWeightSync.newest].
  */
-internal fun latestWeightKg(apple: List<AppleDaily>, healthConnect: List<AppleDaily>): Double? =
-    (apple + healthConnect)
-        .filter { it.weightKg != null }
-        .maxByOrNull { it.day }
-        ?.weightKg
+internal fun latestWeightKg(
+    apple: List<AppleDaily>,
+    healthConnect: List<AppleDaily>,
+    healthConnectOnly: Boolean = false,
+): Double? {
+    val rows = if (healthConnectOnly) healthConnect else apple + healthConnect
+    return ProfileWeightSync.newest(HealthConnectWeightSync.weightReadings(rows))?.kg
+}
 
 /**
  * Steps for [dayKey] from the imported Apple Health / Health Connect daily aggregates, or null when

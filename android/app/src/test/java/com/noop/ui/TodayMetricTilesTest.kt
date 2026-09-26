@@ -60,6 +60,22 @@ class TodayMetricTilesTest {
         assertEquals(77.0, latestWeightKg(apple, healthConnect)!!, 1e-9)
     }
 
+    @Test
+    fun latestWeight_healthConnectOnly_ignoresANewerAppleHealthReading() {
+        // "Use weight from Health Connect" ON: the profile holds the newest HC weight, so a newer Apple
+        // Health file must not make the tile name a different weight than the analytics use.
+        val apple = listOf(appleDay("2026-01-09", 90.0))
+        val healthConnect = listOf(AppleDaily(deviceId = "health-connect", day = "2026-01-06", weightKg = 77.0))
+        assertEquals(77.0, latestWeightKg(apple, healthConnect, healthConnectOnly = true)!!, 1e-9)
+        assertEquals(90.0, latestWeightKg(apple, healthConnect)!!, 1e-9)
+    }
+
+    @Test
+    fun latestWeight_healthConnectOnly_nullWithoutAHealthConnectWeight() {
+        val apple = listOf(appleDay("2026-01-09", 90.0))
+        assertNull(latestWeightKg(apple, emptyList(), healthConnectOnly = true))
+    }
+
     // MARK: weightTile
 
     @Test

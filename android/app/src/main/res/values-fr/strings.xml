@@ -1436,6 +1436,10 @@
     <string name="l10n_settings_screen_version_avail_version_is_available_5b401bd4">La version %1$s est disponible</string>
     <string name="l10n_settings_screen_waist_optional_d5356703">Taille (facultatif)</string>
     <string name="l10n_settings_screen_weight_69c0b815">Poids</string>
+    <string name="l10n_settings_screen_use_weight_from_health_connect_c1fe3e2a">Utiliser le poids de Health Connect</string>
+    <string name="l10n_settings_screen_use_weight_from_health_connect_detail_40238f8a">Après chaque synchronisation, le poids de votre profil reprend la mesure Health Connect la plus récente. Désactivez pour le régler vous-même.</string>
+    <string name="l10n_settings_screen_weight_from_health_connect_caption_5ca6ea7d">Depuis Health Connect · %1$s</string>
+    <string name="l10n_settings_screen_weight_from_health_connect_none_dd3f4884">Depuis Health Connect · aucun poids pour l\'instant</string>
     <string name="l10n_settings_screen_what_each_strap_can_read_and_51e7d3fc">Ce que chaque bracelet peut lire, et pourquoi certaines caractéristiques diffèrent.</string>
     <string name="l10n_settings_screen_what_s_new_4d8dc5fe">Nouveautés</string>
     <string name="l10n_settings_screen_what_s_new_in_noop_appchangelog_d26fb453">Nouveautés de NOOP %1$s</string>

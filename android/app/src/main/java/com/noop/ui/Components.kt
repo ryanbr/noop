@@ -64,6 +64,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import android.content.Context
 import androidx.compose.ui.draw.drawBehind
@@ -1514,13 +1515,18 @@ fun StepperField(
     accessibility: String,
     unit: String? = null,
     valueColor: Color = Palette.textPrimary,
+    // False when another source owns the value (e.g. weight synced from Health Connect): the value
+    // still reads, dimmed, and the buttons stop responding.
+    enabled: Boolean = true,
     onMinus: () -> Unit,
     onPlus: () -> Unit,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.semantics { contentDescription = accessibility },
+        modifier = Modifier
+            .semantics { contentDescription = accessibility }
+            .alpha(if (enabled) 1f else Palette.disabledOpacity),
     ) {
         Text(
             value,
@@ -1531,20 +1537,20 @@ fun StepperField(
         if (unit != null) {
             Text(unit, style = NoopType.caption, color = Palette.textTertiary)
         }
-        StepperButton(symbol = "−", onClick = onMinus, label = uiString(R.string.l10n_components_decrease_accessibility_df5f1511, accessibility))
-        StepperButton(symbol = "+", onClick = onPlus, label = uiString(R.string.l10n_components_increase_accessibility_0949c0e9, accessibility))
+        StepperButton(symbol = "−", onClick = onMinus, label = uiString(R.string.l10n_components_decrease_accessibility_df5f1511, accessibility), enabled = enabled)
+        StepperButton(symbol = "+", onClick = onPlus, label = uiString(R.string.l10n_components_increase_accessibility_0949c0e9, accessibility), enabled = enabled)
     }
 }
 
 @Composable
-fun StepperButton(symbol: String, onClick: () -> Unit, label: String) {
+fun StepperButton(symbol: String, onClick: () -> Unit, label: String, enabled: Boolean = true) {
     Box(
         modifier = Modifier
             .size(30.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(Palette.surfaceInset)
             .border(1.dp, Palette.hairline, RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .semantics { contentDescription = label },
         contentAlignment = Alignment.Center,
     ) {
