@@ -478,115 +478,11 @@
     ],
     [
       "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      " · Charging"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "Auto · ${profile.hrMaxAuto} bpm (Tanaka)"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "Background image"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "Blood Oxygen: strap estimate"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "Browse files"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "Change photo"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "Choose from Photos"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "Choose photo"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "Fill"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "Fit"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "Let the background show through every card. Tune how much just below."
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "Manual override"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
       "Needs the full encrypted bond: close the official WHOOP app and pair the strap to NOOP first (a live-HR-only link can't carry the unlock)."
     ],
     [
       "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
       "Put the strap on first. The deep stream is on-wrist only."
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "Re-scan"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "Recent"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "Remove image"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "Replace from Photos"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "Scaling"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "Scores today's hour-by-hour stress timeline against YOUR own cross-day baseline "
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "Searching…"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "Show custom background"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "Sleep chart"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "Stress: personal daytime baseline"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "Stretch"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "Surfaces your strap's nightly SpO₂ estimate in the Blood Oxygen tile when no "
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "Tile"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      "Transparent cards"
     ],
     [
       "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
