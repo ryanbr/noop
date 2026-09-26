@@ -2806,4 +2806,17 @@
     <string name="fused_record_contribution_in_use">%1$s，%2$s，使用中</string>
     <string name="smart_alarm_5mg_armed_experimental">已通过实验性 5/MG 命令在手环上设置闹钟。有用户报告 5.0 和 MG 手环能够唤醒，但不保证每次生效。重要事项请保留备用闹钟。</string>
     <string name="raw_diag_protocol_probes_detail">发送实验性协议查询并启用 5/MG 手环闹钟。正常同步、睡眠、恢复和步数功能不需要开启。</string>
+
+    <!-- Dated, local weight history (Refs #763). -->
+    <string name="weight_history_title">体重记录</string>
+    <string name="weight_add">添加体重</string>
+    <string name="weight_empty">记录体重或导入体重历史。</string>
+    <string name="weight_manual">手动</string>
+    <string name="weight_invalid">请输入有效的体重。</string>
+    <string name="weight_per_day">每天可保存一条手动记录。保存后将替换该日期已有的手动记录。</string>
+    <string name="weight_load_error">无法加载体重记录。</string>
+    <string name="weight_change_error">无法保存更改，请重试。</string>
+    <string name="weight_delete_title">删除此体重记录？</string>
+    <string name="weight_profile_note">记录的体重不会更改个人资料中的体重。</string>
+    <string name="weight_days">%1$d 天</string>
 </resources>

@@ -2848,4 +2848,17 @@
     <string name="fused_record_contribution_in_use">%1$s, %2$s, in Benutzung</string>
     <string name="smart_alarm_5mg_armed_experimental">Der Alarm wurde mit einem experimentellen 5/MG-Befehl auf dem Strap aktiviert. Weckvorgänge durch den Strap wurden für 5.0 und MG gemeldet, sind aber nicht garantiert. Behalte für alles Wichtige einen Ersatzwecker.</string>
     <string name="raw_diag_protocol_probes_detail">Sendet experimentelle Protokollabfragen und aktiviert den 5/MG-Strapalarm. Für normale Synchronisierung, Schlaf, Erholung oder Schritte nicht erforderlich.</string>
+
+    <!-- Dated, local weight history (Refs #763). -->
+    <string name="weight_history_title">Gewichtsverlauf</string>
+    <string name="weight_add">Gewicht hinzufügen</string>
+    <string name="weight_empty">Erfasse ein Gewicht oder importiere deinen Gewichtsverlauf.</string>
+    <string name="weight_manual">Manuell</string>
+    <string name="weight_invalid">Gib ein gültiges Gewicht ein.</string>
+    <string name="weight_per_day">Ein manueller Eintrag pro Datum. Beim Speichern wird ein vorhandener Eintrag für dieses Datum ersetzt.</string>
+    <string name="weight_load_error">Der Gewichtsverlauf konnte nicht geladen werden.</string>
+    <string name="weight_change_error">Die Änderung konnte nicht gespeichert werden. Versuche es erneut.</string>
+    <string name="weight_delete_title">Diesen Gewichtseintrag löschen?</string>
+    <string name="weight_profile_note">Erfasste Gewichte ändern dein Profilgewicht nicht.</string>
+    <string name="weight_days">%1$d Tage</string>
 </resources>

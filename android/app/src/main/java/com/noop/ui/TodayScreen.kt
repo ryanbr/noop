@@ -180,6 +180,8 @@ import com.noop.widget.StressWidgetProducer
 import com.noop.widget.WidgetSnapshotStore
 import com.noop.data.HrBucket
 import com.noop.data.SleepSession
+import com.noop.data.WeightEntry
+import com.noop.data.WeightHistoryStore
 import com.noop.data.WhoopRepository
 import com.noop.data.WorkoutRow
 import com.noop.ingest.HealthConnectImporter
@@ -861,14 +863,17 @@ fun TodayScreen(
         )
     }
 
-    // The newest Apple Health / Health Connect body weight, loaded off the main thread. Null until the
-    // load runs or when neither source carries a weight, the Weight tile then falls back to the profile.
-    var weightKg by remember { mutableStateOf<Double?>(null) }
-    LaunchedEffect(days) {
-        weightKg = latestWeightKg(
-            viewModel.repo.appleDaily("apple-health", "0000-01-01", "9999-12-31"),
-            viewModel.repo.appleDaily("health-connect", "0000-01-01", "9999-12-31"),
-        )
+    // Value and mini graph share the history screen's source-resolved readings. Keep dates until
+    // windowing: seven calendar days must not become seven weigh-ins spread across several months.
+    // Profile weight remains a value fallback and never supplies synthetic graph points.
+    var weightHistory by remember(selectedDayKey) { mutableStateOf<List<WeightEntry>>(emptyList()) }
+    LaunchedEffect(days, selectedDayKey) {
+        weightHistory = WeightHistoryStore(viewModel.repo).history(selectedDayKey)
+    }
+    val weightKg = weightHistory.lastOrNull()?.kilograms
+    val weightSpark = remember(weightHistory, selectedDay, keyMetricsWindowDays) {
+        val cutoff = selectedDay.minusDays((keyMetricsWindowDays - 1).toLong()).toString()
+        weightHistory.filter { it.day in cutoff..selectedDayKey }.map { it.kilograms }
     }
 
     // Steps for the selected day from imported Apple Health / Health Connect data, the Today Steps
@@ -1796,6 +1801,7 @@ fun TodayScreen(
                                     effortScale = effortScale,
                                     effortForDay = effortForDay,   // #1001: same figure as the hero ring
                                     latestWeightKg = weightKg,
+                                    weightSpark = weightSpark,
                                     profileWeightKg = profileWeightKg,
                                     importedStepsForDay = importedStepsForDay,
                                     estimatedStepsForDay = stepsEstForDay,
@@ -5974,6 +5980,8 @@ private fun MetricGrid(
     // — reading `d.strain` here is what left this tile behind the hero ring on an active morning.
     effortForDay: Double? = null,
     latestWeightKg: Double? = null,
+    // The same resolved history as latestWeightKg, filtered to the selected calendar window.
+    weightSpark: List<Double> = emptyList(),
     profileWeightKg: Double = 75.0,
     importedStepsForDay: Int? = null,
     estimatedStepsForDay: Int? = null,
@@ -6164,6 +6172,8 @@ private fun MetricGrid(
                 unit = "",
                 tint = Palette.accent,
                 frac = null,
+                spark = weightSpark,
+                sparkValueFormat = { UnitFormatter.massFromKilograms(it, unitSystem) },
             )
         },
         KeyMetric.CALORIES to run {
@@ -6210,7 +6220,7 @@ private fun MetricGrid(
     // with a windowed series: Recovery/Effort/Rest open their new trend details; the vitals +
     // Steps/Calories open the same vital_detail trends the Health cards use. Today's Charge DRIVERS stay
     // on the hero ring's breakdown sheet (its existing home) — the tile is the history view.
-    // Weight has no windowed detail yet -> not tappable (null keeps the tile inert rather than lying).
+    // Weight opens its dated log and trend, including manual entries.
     fun tapFor(metric: KeyMetric): (() -> Unit)? = when (metric) {
         KeyMetric.CHARGE -> ({ onOpenMetric("recovery") })
         KeyMetric.EFFORT -> ({ onOpenMetric("strain") })
@@ -6221,7 +6231,7 @@ private fun MetricGrid(
         KeyMetric.RESPIRATORY -> ({ onOpenMetric("resp") })
         KeyMetric.STEPS -> if (stepsOpenCalibration) onOpenStepsCalibration else ({ onOpenMetric("steps_est") })
         KeyMetric.CALORIES -> ({ onOpenMetric("active_kcal") })
-        KeyMetric.WEIGHT -> null
+        KeyMetric.WEIGHT -> ({ onOpenMetric("weight") })
         // Same "skin" vital_detail key `dashboardCardMetricKey(DashboardCard.SKIN_TEMP)` already routes
         // to — confirmed a working destination there, so this tile opens the SAME screen "Your Cards"
         // already does, not a new/unverified route.
@@ -6237,7 +6247,7 @@ private fun MetricGrid(
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         tiles.chunked(3).forEach { rowTiles ->
             // Detailed rows equalise heights (IntrinsicSize.Max + fillMaxHeight, the #399 idiom): a
-            // graph-less tile (Steps/Weight/Calories) sharing a row with graphed neighbours must not
+            // tile without enough readings sharing a row with graphed neighbours must not
             // shrink its card. Compact rows keep the plain layout, byte-identical to before.
             Row(
                 modifier = if (detailed) Modifier.height(IntrinsicSize.Max) else Modifier,
@@ -6292,8 +6302,8 @@ internal fun stepsTileShouldOpenCalibration(
 
 /** One compact Key-Metrics tile's data: iOS `ktile`(label, value, unit, tint, frac). [spark] is the
  *  trailing trend series (oldest→newest) the DETAILED tile style graphs, capped at render to the editor's
- *  chosen window; empty hides the graph (a metric with no windowed series — Steps/Weight/Calories —
- *  stays tube-only even in detailed mode). */
+ *  chosen window; empty hides the graph, so a metric without dated readings stays tube-only even
+ *  in detailed mode. */
 private data class KeyTileData(
     val label: String,
     val value: String,
@@ -6304,6 +6314,7 @@ private data class KeyTileData(
      *  estimate's calibration status, or why a blank tile is blank. Null leaves the tile exactly as it was. */
     val caption: String? = null,
     val spark: List<Double> = emptyList(),
+    val sparkValueFormat: ((Double) -> String)? = null,
 )
 
 /** The per-metric glyph shown beside a Key-Metric tile's label — the Android twin of iOS
@@ -6333,8 +6344,8 @@ private fun keyMetricIcon(metric: KeyMetric): ImageVector = when (metric) {
  *
  * [detailed] (the #251 editor's "Detailed tiles" switch): the tile grows a trend [Sparkline] in the
  * metric's tint under the fill bar — taller/squarer, per the tester mock — over the editor's [windowDays]
- * window (7 / 14 / 30). A metric with no windowed series (Steps/Weight/Calories) or fewer than two points
- * stays tube-only, so no tile ever draws a fake flat line.
+ * window (7 / 14 / 30). A metric with no windowed series or fewer than two points stays tube-only,
+ * so no tile ever draws a fake flat line.
  */
 @Composable
 private fun LiquidKeyTile(
@@ -6437,6 +6448,7 @@ private fun LiquidKeyTile(
                 Sparkline(
                     values = tail,
                     color = data.tint,
+                    valueFormat = data.sparkValueFormat,
                     modifier = Modifier
                         .fillMaxWidth()
                         // A touch more air between the fill bar and the graph (tester feedback: the two

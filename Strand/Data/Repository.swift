@@ -2229,6 +2229,13 @@ final class Repository: ObservableObject {
             return MetricSeriesResolution(requestedSource: preferredSource, candidates: candidates, points: [])
         }
 
+        if key == WeightHistory.key && preferredSource == Self.appleHealthSource {
+            let history = (try? await store.weightHistory(through: to)) ?? []
+            let points = history.filter { $0.day >= from }.map {
+                ResolvedMetricPoint(day: $0.day, value: $0.kilograms, source: $0.source, sourceKey: key)
+            }
+            return MetricSeriesResolution(requestedSource: preferredSource, candidates: candidates, points: points)
+        }
         // First candidate wins per day; later candidates only fill days no earlier one covered.
         var byDay: [String: ResolvedMetricPoint] = [:]
         for candidate in candidates {
@@ -2290,7 +2297,10 @@ final class Repository: ObservableObject {
                              from: String, to: String) async -> [(day: String, value: Double)] {
         let metricRows = (try? await store.metricSeries(deviceId: candidate.source, key: candidate.key,
                                                         from: from, to: to)) ?? []
-        var byDay = Dictionary(metricRows.map { ($0.day, $0.value) }, uniquingKeysWith: { _, last in last })
+        let validRows = candidate.key == WeightHistory.key
+            ? metricRows.filter { WeightHistory.validDay($0.day) && WeightHistory.validKilograms($0.value) }
+            : metricRows
+        var byDay = Dictionary(validRows.map { ($0.day, $0.value) }, uniquingKeysWith: { _, last in last })
         if let dailyRows = try? await store.dailyMetrics(deviceId: candidate.source,
                                                          from: from, to: Self.dayAfter(to)) {
             for row in dailyRows where byDay[row.day] == nil {
@@ -2337,6 +2347,9 @@ final class Repository: ObservableObject {
                 candidates.append(MetricSourceCandidate(source: appleHealthSource, key: appleKey))
             }
             return uniqued(candidates)
+        }
+        if preferredSource == appleHealthSource && key == WeightHistory.key {
+            return WeightHistory.sources.map { MetricSourceCandidate(source: $0, key: key) }
         }
         if preferredSource == appleHealthSource {
             var candidates = [MetricSourceCandidate(source: appleHealthSource, key: key)]
@@ -2393,6 +2406,9 @@ final class Repository: ObservableObject {
     /// byte-identical. The flag is forwarded to the non-strap `series(...)` delegation below so every source
     /// path honours it.
     func exploreSeries(key: String, source: String, days: Int = 4000, fullHistory: Bool = false) async -> [(day: String, value: Double)] {
+        if key == WeightHistory.key && source == Self.appleHealthSource {
+            return await resolvedSeries(key: key, source: source, days: days, fullHistory: fullHistory).points.map { ($0.day, $0.value) }
+        }
         guard source == "my-whoop" else {
             return Self.oneSkinTempScale(key: key, await series(key: key, source: source, days: days, fullHistory: fullHistory))
         }
