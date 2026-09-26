@@ -43,7 +43,9 @@ object BackupSettingsCodec {
      * HR-max override (`profile.hrMax`, 0 = auto/Tanaka). Display: the body and exercise-distance
      * systems, separate temperature override ("" = follow body), and the Effort axis (#268). Deliberately
      * EXCLUDED: step calibration (per-strap, not per-person), the steps-engine fitted outputs
-     * (derived), and every noop.* toggle that is device- or install-specific.
+     * (derived), and every noop.* toggle that is device- or install-specific. That includes the
+     * Android-only "Use weight from Health Connect" toggle and its sync day (`ProfileStore`): a restore
+     * needs its own Health Connect grant, and the synced weight itself travels as `profile.weightKg`.
      */
     val WHITELIST: Map<String, Kind> = linkedMapOf(
         "profile.age" to Kind.INT,

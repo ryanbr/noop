@@ -33,6 +33,7 @@ import com.noop.data.MetricSeriesRow
 import com.noop.data.SleepSession
 import com.noop.data.WhoopRepository
 import com.noop.data.WorkoutRow
+import com.noop.ui.HealthConnectWeightSync
 import com.noop.ui.NoopPrefs
 import java.time.Instant
 import java.time.LocalDate
@@ -80,8 +81,8 @@ object HealthConnectImporter {
     // Health Connect data is stored under its OWN source ("health-connect"), NOT the shared
     // "apple-health" bucket — otherwise it's mis-attributed to Apple Health in the UI (issue #34).
     // (The recovery/sleep backfill still lands under "my-whoop"; only the external-health aggregates
-    // + workouts carry this source.)
-    private const val HC_DEVICE = "health-connect"
+    // + workouts carry this source.) Internal so the profile weight sync reads the same bucket.
+    internal const val HC_DEVICE = "health-connect"
     private const val HC_WORKOUT_SOURCE = "health-connect"
 
     /** Read window: a wide ~10-year span ending now. Health Connect itself caps retention. */
@@ -860,6 +861,16 @@ object HealthConnectImporter {
             }
         } catch (e: Exception) {
             return ImportSummary.failure(SOURCE, "Saving Health Connect data failed: ${e.message}")
+        }
+
+        // Opt-in profile weight sync. Hooked here rather than at the callers so every entry point
+        // (periodic auto-sync, Data Sources, onboarding) keeps the profile current. Best-effort like the
+        // import stamp below: a profile write must not sink an otherwise good import.
+        try {
+            HealthConnectWeightSync.syncFromRepository(context, repo)
+        } catch (e: Exception) {
+            // Best-effort, but a cancelled import must still stop here rather than carry on.
+            if (e is kotlin.coroutines.cancellation.CancellationException) throw e
         }
 
         val counts = buildMap {
