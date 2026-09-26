@@ -136,22 +136,20 @@ internal const val WHOOP5_RR_INTERVALS_SQL =
     "ORDER BY ts ASC, ord ASC, rrMs ASC, seq ASC LIMIT :limit"
 
 internal const val WHOOP4_RR_INTERVALS_SQL =
-    "SELECT * FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
-    "AND (srcChannel IS NULL OR srcChannel <> 2) " +
-    "AND (tsSuspect IS NULL OR tsSuspect <> 1) " +
-    "AND ((srcChannel = 8 AND (SELECT COUNT(*) FROM rrInterval h WHERE h.deviceId = :deviceId " +
-    "AND h.ts >= (rrInterval.ts / 3600) * 3600 AND h.ts < (rrInterval.ts / 3600 + 1) * 3600 " +
-    "AND h.srcChannel = 8 AND (h.tsSuspect IS NULL OR h.tsSuspect <> 1)) >= " +
-    "(SELECT COUNT(*) FROM rrInterval l WHERE l.deviceId = :deviceId " +
-    "AND l.ts >= (rrInterval.ts / 3600) * 3600 AND l.ts < (rrInterval.ts / 3600 + 1) * 3600 " +
-    "AND l.srcChannel IS NULL AND (l.tsSuspect IS NULL OR l.tsSuspect <> 1))) " +
-    "OR (srcChannel IS NULL AND (SELECT COUNT(*) FROM rrInterval h WHERE h.deviceId = :deviceId " +
-    "AND h.ts >= (rrInterval.ts / 3600) * 3600 AND h.ts < (rrInterval.ts / 3600 + 1) * 3600 " +
-    "AND h.srcChannel = 8 AND (h.tsSuspect IS NULL OR h.tsSuspect <> 1)) < " +
-    "(SELECT COUNT(*) FROM rrInterval l WHERE l.deviceId = :deviceId " +
-    "AND l.ts >= (rrInterval.ts / 3600) * 3600 AND l.ts < (rrInterval.ts / 3600 + 1) * 3600 " +
-    "AND l.srcChannel IS NULL AND (l.tsSuspect IS NULL OR l.tsSuspect <> 1)))) " +
-    "ORDER BY ts ASC, ord ASC, rrMs ASC, seq ASC LIMIT :limit"
+    "WITH whoop4HourCounts AS (" +
+    "SELECT ts / 3600 AS hour, " +
+    "SUM(CASE WHEN srcChannel = 8 THEN 1 ELSE 0 END) AS historyCount, " +
+    "SUM(CASE WHEN srcChannel IS NULL THEN 1 ELSE 0 END) AS liveCount " +
+    "FROM rrInterval WHERE deviceId = :deviceId " +
+    "AND ts >= (:from / 3600) * 3600 AND ts < ((:to / 3600) + 1) * 3600 " +
+    "AND (tsSuspect IS NULL OR tsSuspect <> 1) GROUP BY ts / 3600) " +
+    "SELECT r.* FROM rrInterval r JOIN whoop4HourCounts h ON h.hour = r.ts / 3600 " +
+    "WHERE r.deviceId = :deviceId AND r.ts >= :from AND r.ts <= :to " +
+    "AND (r.srcChannel IS NULL OR r.srcChannel <> 2) " +
+    "AND ((r.srcChannel = 8 AND h.historyCount >= h.liveCount) " +
+    "OR (r.srcChannel IS NULL AND h.historyCount < h.liveCount)) " +
+    "AND (r.tsSuspect IS NULL OR r.tsSuspect <> 1) " +
+    "ORDER BY r.ts ASC, r.ord ASC, r.rrMs ASC, r.seq ASC LIMIT :limit"
 
 /** The earliest beat a device has banked AT ALL, labelled or not, or null when it has none. The lower
  *  bound on the "cannot be scored" explanation: it separates history this strap actually recorded from

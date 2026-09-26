@@ -485,35 +485,54 @@ extension WhoopStore {
                 srcChannel = (SELECT MIN(srcChannel) FROM rrInterval
                     WHERE deviceId = :d AND ts >= :f AND ts <= :t AND srcChannel IN \(Self.scorableWhoop5Channels)
                     AND (tsSuspect IS NULL OR tsSuspect <> 1))
-                """ : (strictWhoop4History ? """
-                ((srcChannel = :whoop4Historical AND (SELECT COUNT(*) FROM rrInterval h WHERE h.deviceId = :d
-                    AND h.ts >= (rrInterval.ts / 3600) * 3600 AND h.ts < (rrInterval.ts / 3600 + 1) * 3600
-                    AND h.srcChannel = :whoop4Historical AND (h.tsSuspect IS NULL OR h.tsSuspect <> 1))
-                    >= (SELECT COUNT(*) FROM rrInterval l WHERE l.deviceId = :d
-                    AND l.ts >= (rrInterval.ts / 3600) * 3600 AND l.ts < (rrInterval.ts / 3600 + 1) * 3600
-                    AND l.srcChannel IS NULL AND (l.tsSuspect IS NULL OR l.tsSuspect <> 1)))
-                 OR (srcChannel IS NULL AND (SELECT COUNT(*) FROM rrInterval h WHERE h.deviceId = :d
-                    AND h.ts >= (rrInterval.ts / 3600) * 3600 AND h.ts < (rrInterval.ts / 3600 + 1) * 3600
-                    AND h.srcChannel = :whoop4Historical AND (h.tsSuspect IS NULL OR h.tsSuspect <> 1))
-                    < (SELECT COUNT(*) FROM rrInterval l WHERE l.deviceId = :d
-                    AND l.ts >= (rrInterval.ts / 3600) * 3600 AND l.ts < (rrInterval.ts / 3600 + 1) * 3600
-                    AND l.srcChannel IS NULL AND (l.tsSuspect IS NULL OR l.tsSuspect <> 1))))
                 """ : """
                 (srcChannel IS NULL OR srcChannel NOT IN \(Self.scorableOuraChannels) OR (srcChannel = 1) = (
                     SELECT SUM(srcChannel = 1) > SUM(srcChannel <> 1) FROM rrInterval
                     WHERE deviceId = :d AND ts >= :f AND ts <= :t AND srcChannel IN \(Self.scorableOuraChannels)
                     AND (tsSuspect IS NULL OR tsSuspect <> 1)))
-                """)
-            let rows = try Row.fetchAll(db, sql: """
-                SELECT ts, rrMs, srcChannel, ord, seq FROM rrInterval
-                WHERE deviceId = :d AND ts >= :f AND ts <= :t
-                AND (srcChannel IS NULL OR srcChannel <> :rrx)
-                AND \(sourcePredicate)
-                AND (tsSuspect IS NULL OR tsSuspect <> 1)   -- #1073: exclude future-stamped beats
-                ORDER BY ts ASC, ord ASC, rrMs ASC, seq ASC LIMIT :lim
-                """, arguments: ["d": deviceId, "f": from, "t": to,
-                                 "rrx": RRSourceChannel.spo2Ibi.rawValue,
-                                 "whoop4Historical": RRSourceChannel.whoop4Historical.rawValue, "lim": limit])
+                """
+            // The WHOOP 4 source decision is per UTC hour. Aggregate the two source counts once per
+            // hour, then join that small result to the requested beats. Counting the same hour from
+            // every beat made wide HRV reads quadratic in the number of rows per hour and could leave
+            // every metric screen appearing to load forever on a long history.
+            let sql: String
+            if strictWhoop4History {
+                sql = """
+                    WITH whoop4HourCounts AS MATERIALIZED (
+                        SELECT ts / 3600 AS hour,
+                               SUM(CASE WHEN srcChannel = :whoop4Historical THEN 1 ELSE 0 END) AS historyCount,
+                               SUM(CASE WHEN srcChannel IS NULL THEN 1 ELSE 0 END) AS liveCount
+                        FROM rrInterval
+                        WHERE deviceId = :d
+                          AND ts >= (:f / 3600) * 3600
+                          AND ts < ((:t / 3600) + 1) * 3600
+                          AND (tsSuspect IS NULL OR tsSuspect <> 1)
+                        GROUP BY ts / 3600
+                    )
+                    SELECT r.ts, r.rrMs, r.srcChannel, r.ord, r.seq FROM rrInterval r
+                    JOIN whoop4HourCounts h ON h.hour = r.ts / 3600
+                    WHERE r.deviceId = :d AND r.ts >= :f AND r.ts <= :t
+                      AND (r.srcChannel IS NULL OR r.srcChannel <> :rrx)
+                      AND ((r.srcChannel = :whoop4Historical AND h.historyCount >= h.liveCount)
+                           OR (r.srcChannel IS NULL AND h.historyCount < h.liveCount))
+                      AND (r.tsSuspect IS NULL OR r.tsSuspect <> 1)
+                    ORDER BY r.ts ASC, r.ord ASC, r.rrMs ASC, r.seq ASC LIMIT :lim
+                    """
+            } else {
+                sql = """
+                    SELECT ts, rrMs, srcChannel, ord, seq FROM rrInterval
+                    WHERE deviceId = :d AND ts >= :f AND ts <= :t
+                    AND (srcChannel IS NULL OR srcChannel <> :rrx)
+                    AND \(sourcePredicate)
+                    AND (tsSuspect IS NULL OR tsSuspect <> 1)   -- #1073: exclude future-stamped beats
+                    ORDER BY ts ASC, ord ASC, rrMs ASC, seq ASC LIMIT :lim
+                    """
+            }
+            let rows = try Row.fetchAll(db, sql: sql,
+                                        arguments: ["d": deviceId, "f": from, "t": to,
+                                                    "rrx": RRSourceChannel.spo2Ibi.rawValue,
+                                                    "whoop4Historical": RRSourceChannel.whoop4Historical.rawValue,
+                                                    "lim": limit])
                 .map { row in
                     RRInterval(ts: row["ts"], rrMs: row["rrMs"],
                                srcChannel: (row["srcChannel"] as Int?).flatMap(RRSourceChannel.init(rawValue:)),
