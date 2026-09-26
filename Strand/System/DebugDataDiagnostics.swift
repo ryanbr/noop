@@ -489,7 +489,12 @@ enum DebugDataDiagnostics {
         // about the one case that matters. Three arms, mirroring the Kotlin `when`.
         switch WhoopModel(rawValue: d.string(forKey: "selectedWhoopModel") ?? "") {
         case .whoop5mg:
-            lines.append("Model: \(WhoopModel.whoop5mg.displayName) · experimental: \(PuffinExperiment.isEnabled ? "on" : "off → firmware alarm NOT armed")")
+            // Name the switch a reader can actually find. #2464 was filed because the Alarms copy sent a
+            // wearer to "Experimental" in Settings, which is neither where nor what the gate is; the copy
+            // and the refusal logs were corrected in #2484 / #2488 and this line was missed, so a wearer
+            // reading their own strap log was still sent hunting for the old name.
+            lines.append("Model: \(WhoopModel.whoop5mg.displayName) · Protocol probes (Test Centre): "
+                         + (PuffinExperiment.isEnabled ? "on" : "off → firmware alarm NOT armed"))
         case .whoop4:
             lines.append("Model: \(WhoopModel.whoop4.displayName)")
         case nil:

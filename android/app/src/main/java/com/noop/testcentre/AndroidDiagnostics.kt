@@ -595,8 +595,13 @@ object AndroidDiagnostics {
                     val exp = com.noop.ble.PuffinExperiment.from(context).isEnabled
                     // displayName, not a literal: this block spelled it "WHOOP 5.0/MG" while the enum (and
                     // the header a few lines up) says "WHOOP 5.0 / MG", so one export disagreed with itself.
+                    // Name the switch a reader can actually find. #2464 was filed because the Alarms copy
+                    // sent a wearer to "Experimental" in Settings, which is neither where nor what the gate
+                    // is; the copy and the refusal logs were corrected in #2484 / #2488 and this line was
+                    // missed, so a wearer reading their own strap log was still sent after the old name.
                     add(
-                        "Model: ${com.noop.ble.WhoopModel.WHOOP5_MG.displayName} · experimental: " +
+                        "Model: ${com.noop.ble.WhoopModel.WHOOP5_MG.displayName} · " +
+                            "Protocol probes (Test Centre): " +
                             if (exp) "on" else "off → firmware alarm NOT armed",
                     )
                 }

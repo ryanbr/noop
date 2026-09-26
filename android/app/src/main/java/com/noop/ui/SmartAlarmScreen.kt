@@ -270,7 +270,7 @@ private fun StrapAlarmCard(vm: AppViewModel) {
     val live = vm.live.collectAsStateWithLifecycle().value
     // The firmware alarm is EXPERIMENTAL on a WHOOP 5/MG: it only arms when Experimental probes are on,
     // otherwise enabling it silently arms nothing (#111), so the UI says so instead of promising a wake.
-    val experimentalOn = PuffinExperiment.from(context).isEnabled
+    val protocolProbesOn = PuffinExperiment.from(context).isEnabled
 
     NoopCard(padding = 20.dp, tint = if (smartAlarm) Palette.accent else null) {
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -316,7 +316,7 @@ private fun StrapAlarmCard(vm: AppViewModel) {
                     onSetOverride = { dow, minutes -> vm.setSmartAlarmDayOverride(dow, minutes) },
                 )
                 RowDividerLocal()
-                if (live.whoop5Detected && !experimentalOn) {
+                if (live.whoop5Detected && !protocolProbesOn) {
                     Text(
                         uiString(R.string.l10n_smart_alarm_screen_your_whoop_5_mg_won_t_75029bae),
                         style = NoopType.footnote, color = Palette.statusWarning,
