@@ -126,6 +126,7 @@ import com.noop.analytics.Baselines
 import com.noop.analytics.DayCycleMode
 import com.noop.analytics.HrZoneSet
 import com.noop.analytics.HrZones
+import com.noop.analytics.ProfileWeightSync
 import com.noop.analytics.UserProfile
 import com.noop.analytics.Zones
 import com.noop.R
@@ -224,6 +225,27 @@ class ProfileStore(private val prefs: SharedPreferences) {
     var weightKg: Double
         get() = prefs.getFloat(KEY_WEIGHT, 75f).toDouble().coerceIn(WEIGHT_MIN, WEIGHT_MAX)
         set(v) = prefs.edit().putFloat(KEY_WEIGHT, v.coerceIn(WEIGHT_MIN, WEIGHT_MAX).toFloat()).apply()
+
+    /**
+     * Opt-in "Use weight from Health Connect", OFF by default. When ON, every Health Connect import
+     * copies the newest Health Connect weight into [weightKg] ([HealthConnectWeightSync]) and Settings
+     * locks the weight stepper. Android only: Apple platforms have no Health Connect. Deliberately NOT
+     * in the `.noopbak` whitelist, like the other install-specific toggles: a restored device needs its
+     * own Health Connect grant before this means anything, and there is no Swift twin to keep equal.
+     */
+    var useHealthConnectWeight: Boolean
+        get() = prefs.getBoolean(KEY_USE_HC_WEIGHT, false)
+        set(v) = prefs.edit().putBoolean(KEY_USE_HC_WEIGHT, v).apply()
+
+    /**
+     * ISO day of the Health Connect reading last copied into [weightKg]; null before the first sync.
+     * Provenance for the Settings caption only, never a value input. Not backed up, as above.
+     */
+    var healthConnectWeightDay: String?
+        get() = prefs.getString(KEY_HC_WEIGHT_DAY, null)
+        set(v) = prefs.edit().apply {
+            if (v == null) remove(KEY_HC_WEIGHT_DAY) else putString(KEY_HC_WEIGHT_DAY, v)
+        }.apply()
 
     var heightCm: Double
         get() = prefs.getFloat(KEY_HEIGHT, 178f).toDouble().coerceIn(HEIGHT_MIN, HEIGHT_MAX)
@@ -415,7 +437,7 @@ class ProfileStore(private val prefs: SharedPreferences) {
     }
 
     companion object {
-        private const val PREFS = "noop_profile"
+        internal const val PREFS = "noop_profile"
         /** Date of birth as epoch millis — the #146 source of truth for [age]. */
         private const val KEY_DOB = "date_of_birth"
         /** Pre-#146 age key, now kept mirrored from the DOB so the `.noopbak` whitelist (Int age)
@@ -423,6 +445,10 @@ class ProfileStore(private val prefs: SharedPreferences) {
         private const val KEY_AGE = "age"
         private const val KEY_SEX = "sex"
         private const val KEY_WEIGHT = "weight_kg"
+        private const val KEY_USE_HC_WEIGHT = "use_health_connect_weight"
+        private const val KEY_HC_WEIGHT_DAY = "health_connect_weight_day"
+        /** Keys a background Health Connect import may rewrite while Settings is open. */
+        internal val HEALTH_CONNECT_WEIGHT_KEYS = setOf(KEY_WEIGHT, KEY_USE_HC_WEIGHT, KEY_HC_WEIGHT_DAY)
         private const val KEY_HEIGHT = "height_cm"
         private const val KEY_WAIST = "waist_cm"
         private const val KEY_HRMAX = "hr_max_override"
@@ -541,6 +567,19 @@ fun SettingsScreen(
         }
         expPrefs.registerOnSharedPreferenceChangeListener(listener)
         onDispose { expPrefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
+
+    // "Use weight from Health Connect": the importer rewrites the profile weight after every sync, and
+    // the periodic auto-sync can land while this screen is open. Same mechanism as above, so the weight
+    // row and its "From Health Connect" caption follow the write instead of waiting for a re-entry.
+    DisposableEffect(Unit) {
+        val profilePrefs = context.getSharedPreferences(ProfileStore.PREFS, Context.MODE_PRIVATE)
+        // Held strongly for the effect's lifetime, for the same weak-listener reason as above.
+        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == null || key in ProfileStore.HEALTH_CONNECT_WEIGHT_KEYS) rev++
+        }
+        profilePrefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { profilePrefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }
 
     var backupBusy by remember { mutableStateOf(false) }
@@ -983,6 +1022,9 @@ fun SettingsScreen(
                     )
                 }
                 SettingsRowDivider()
+                // With "Use weight from Health Connect" ON the synced reading owns the value, so the
+                // stepper is locked rather than letting a manual edit be overwritten on the next sync.
+                val weightFromHc = profile.useHealthConnectWeight
                 SettingsFormRow(label = uiString(R.string.l10n_settings_screen_weight_69c0b815)) {
                     // Imperial mode steps in whole pounds and stores the kg equivalent; metric steps in
                     // 0.5 kg. The profile is always SI — only the entry unit changes.
@@ -992,6 +1034,7 @@ fun SettingsScreen(
                             value = "%.0f".format(lb),
                             unit = "lb",
                             accessibility = "Weight, ${lb.roundToInt()} pounds",
+                            enabled = !weightFromHc,
                             onMinus = { mutate { profile.weightKg = (lb - 1) / UnitFormatter.POUNDS_PER_KILOGRAM } },
                             onPlus = { mutate { profile.weightKg = (lb + 1) / UnitFormatter.POUNDS_PER_KILOGRAM } },
                         )
@@ -1000,11 +1043,39 @@ fun SettingsScreen(
                             value = "%.1f".format(profile.weightKg),
                             unit = "kg",
                             accessibility = "Weight in kilograms",
+                            enabled = !weightFromHc,
                             onMinus = { mutate { profile.weightKg -= 0.5 } },
                             onPlus = { mutate { profile.weightKg += 0.5 } },
                         )
                     }
                 }
+                if (weightFromHc) {
+                    val syncedDay = profile.healthConnectWeightDay
+                    Text(
+                        text = if (syncedDay != null) {
+                            uiString(
+                                R.string.l10n_settings_screen_weight_from_health_connect_caption_5ca6ea7d,
+                                ProfileWeightSync.captionDate(syncedDay),
+                            )
+                        } else {
+                            uiString(R.string.l10n_settings_screen_weight_from_health_connect_none_dd3f4884)
+                        },
+                        style = NoopType.caption,
+                        color = Palette.textTertiary,
+                    )
+                }
+                SettingsRowDivider()
+                SettingsToggleRow(
+                    title = uiString(R.string.l10n_settings_screen_use_weight_from_health_connect_c1fe3e2a),
+                    detail = uiString(R.string.l10n_settings_screen_use_weight_from_health_connect_detail_40238f8a),
+                    checked = weightFromHc,
+                    onCheckedChange = { on ->
+                        mutate { profile.useHealthConnectWeight = on }
+                        // Apply the stored Health Connect weight now instead of waiting for the next
+                        // import; the same write the post-import hook does.
+                        if (on) scope.launch { HealthConnectWeightSync.syncFromRepository(context, vm.repo); mutate {} }
+                    },
+                )
                 SettingsRowDivider()
                 SettingsFormRow(label = uiString(R.string.l10n_settings_screen_height_3f608b49)) {
                     // Imperial mode steps in whole inches and stores the cm equivalent; metric steps in cm.

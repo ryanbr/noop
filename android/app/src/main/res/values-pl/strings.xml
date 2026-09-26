@@ -1575,6 +1575,10 @@
     <string name="l10n_settings_screen_version_avail_version_is_available_5b401bd4">Dostępna jest wersja %1$s</string>
     <string name="l10n_settings_screen_waist_optional_d5356703">Talia (opcjonalnie)</string>
     <string name="l10n_settings_screen_weight_69c0b815">Waga</string>
+    <string name="l10n_settings_screen_use_weight_from_health_connect_c1fe3e2a">Używaj wagi z Health Connect</string>
+    <string name="l10n_settings_screen_use_weight_from_health_connect_detail_40238f8a">Po każdej synchronizacji waga w Twoim profilu przyjmuje najnowszy odczyt z Health Connect. Wyłącz, aby ustawiać ją ręcznie.</string>
+    <string name="l10n_settings_screen_weight_from_health_connect_caption_5ca6ea7d">Z Health Connect · %1$s</string>
+    <string name="l10n_settings_screen_weight_from_health_connect_none_dd3f4884">Z Health Connect · brak wagi</string>
     <string name="l10n_settings_screen_what_each_strap_can_read_and_51e7d3fc">Co każdy pasek może odczytać i dlaczego niektóre funkcje się różnią.</string>
     <string name="l10n_settings_screen_what_s_new_4d8dc5fe">Co nowego</string>
     <string name="l10n_settings_screen_what_s_new_in_noop_appchangelog_d26fb453">Co nowego w NOOP %1$s</string>

@@ -1692,6 +1692,10 @@
     <string name="l10n_settings_screen_version_avail_version_is_available_5b401bd4">È disponibile la versione %1$s</string>
     <string name="l10n_settings_screen_waist_optional_d5356703">Vita (facoltativo)</string>
     <string name="l10n_settings_screen_weight_69c0b815">Peso</string>
+    <string name="l10n_settings_screen_use_weight_from_health_connect_c1fe3e2a">Usa il peso da Health Connect</string>
+    <string name="l10n_settings_screen_use_weight_from_health_connect_detail_40238f8a">Dopo ogni sincronizzazione, il peso del profilo prende l\'ultima lettura di Health Connect. Disattiva per impostarlo a mano.</string>
+    <string name="l10n_settings_screen_weight_from_health_connect_caption_5ca6ea7d">Da Health Connect · %1$s</string>
+    <string name="l10n_settings_screen_weight_from_health_connect_none_dd3f4884">Da Health Connect · ancora nessun peso</string>
     <string name="l10n_settings_screen_what_each_strap_can_read_and_51e7d3fc">Cosa può leggere ogni fascia e perché alcune funzioni sono diverse.</string>
     <string name="l10n_settings_screen_what_s_new_4d8dc5fe">Novità</string>
     <string name="l10n_settings_screen_what_s_new_in_noop_appchangelog_d26fb453">Novità in NOOP %1$s</string>
