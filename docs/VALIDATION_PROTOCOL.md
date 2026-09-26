@@ -162,8 +162,12 @@ inverted form and was used to interpret real nights. A term meaning "shares a de
 read as "was copied from". Both cost a full re-measurement. The stored hypnogram vocabulary presently
 contains **both `wake` and `awake`** as distinct stage strings across the same wearer's nights, so any
 consumer written as `stage == "wake"` silently misfiles the other spelling as sleep. Normalise at the
-boundary, assert the closed set in a test, and never let a stage string be compared by literal in more
-than one place.
+boundary when one stored vocabulary is authoritative. Where two vocabularies are both legitimate and
+persisted, do not rewrite either merely to tidy a comparison: put the alias rule in ONE shared
+predicate and use it everywhere. `SleepStageVocabulary.isWake` is the worked example — Swift
+consumers call it directly, while Android's `canonicalStage` folds through it — so both platforms keep
+one definition of wake without changing stored strings. In either case, assert the closed set in a
+test, and never let a stage string be compared by literal in more than one place.
 
 Mark every claim CONFIRMED (measured by the author, this run) or INFERRED (reasoned, not measured).
 Never blend them in one sentence.
