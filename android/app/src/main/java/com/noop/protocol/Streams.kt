@@ -81,6 +81,10 @@ enum class RrSourceChannel(val code: Int) {
     WHOOP5_STANDARD(7),
     /** WHOOP 4.0 type-47 historical stream, distinguished from its unlabelled live BLE feed. */
     WHOOP4_HISTORICAL(8),
+    /** WHOOP 4.0 type-40 realtime RR, timestamped from its record clock. */
+    WHOOP4_REALTIME(9),
+    /** WHOOP 4.0 standard BLE 0x2A37 RR, timestamped on notification receipt. */
+    WHOOP4_STANDARD(10),
     ;
 
     val isWhoop5Transport: Boolean get() = code in 5..7
@@ -324,7 +328,8 @@ private fun toWall(deviceTs: Int?, deviceClockRef: Int, wallClockRef: Int): Int?
  * the header checksum, the payload CRC32 and the structural length together, not the payload CRC
  * alone.
  */
-fun extractStreams(parsed: List<ParsedFrame>, deviceClockRef: Int, wallClockRef: Int): Streams {
+fun extractStreams(parsed: List<ParsedFrame>, deviceClockRef: Int, wallClockRef: Int,
+                   family: DeviceFamily? = null): Streams {
     val out = Streams()
     for (r in parsed) {
         if (!r.ok) continue
@@ -337,6 +342,7 @@ fun extractStreams(parsed: List<ParsedFrame>, deviceClockRef: Int, wallClockRef:
                     // Drop RR rows when timestamp is absent (a ts-less RR row is unstorable).
                     p.intArrayOrNull("rr_intervals")?.let { rrs ->
                         val source = RrSourceChannel.fromCode(p.intOrNull("rr_source_channel"))
+                            ?: if (family == DeviceFamily.WHOOP4) RrSourceChannel.WHOOP4_REALTIME else null
                         for (rr in rrs) out.rr.add(RrInterval(ts, rr, source))
                     }
                 }

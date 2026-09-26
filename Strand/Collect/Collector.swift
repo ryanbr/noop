@@ -231,7 +231,8 @@ final class Collector {
 
         let frames = batch.map(\.frame)         // still needed for the raw-capture outbox
         let parsed = batch.map(\.parsed)        // #47: the seam already decoded these — don't re-parse
-        let streams = extractStreams(parsed, deviceClockRef: ref.device, wallClockRef: ref.wall)
+        let streams = extractStreams(parsed, deviceClockRef: ref.device, wallClockRef: ref.wall,
+                                     family: family)
         // #1118: the SECOND live transport. `flushStandardHR` stamps a beat at the second it arrived over
         // 0x2A37; this one stamps it from the strap's own record clock. The same beat reaching both lands
         // on two different seconds, which no same-second de-dup can collapse — the signature every
@@ -291,7 +292,8 @@ final class Collector {
         let acceptedHR = (30...220).contains(hr) ? 1 : 0
         let acceptedRR = rr.filter { (250...3000).contains($0) }
         if acceptedHR == 1 { stdHR.append(HRSample(ts: ts, bpm: hr)) }
-        let source: RRSourceChannel? = family == .whoop5 ? .whoop5Standard : nil
+        let source: RRSourceChannel? = family == .whoop5 ? .whoop5Standard
+            : (family == .whoop4 ? .whoop4Standard : nil)
         stdRR.append(contentsOf: acceptedRR.map { RRInterval(ts: ts, rrMs: $0, srcChannel: source) })
         // Only the CHANGES. Advanced here rather than at flush because the event travels in the buffer
         // until it persists: a failed insert re-inserts it at the front, so nothing has to be unwound.

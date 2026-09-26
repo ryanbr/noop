@@ -173,6 +173,28 @@ class Whoop5RRSqliteTest {
         registry("5.0 MG")
     }
 
+    @Test fun whoop4PartialHistoryKeepsUnlabelledRowsFromOtherHours() {
+        val base = 1_750_000_000L / 3600 * 3600
+        fun insert(ts: Long, rr: Int, channel: Int?) {
+            statement("INSERT INTO rrInterval(deviceId,ts,rrMs,seq,synced,ord,srcChannel,tsSuspect) " +
+                "VALUES(:d,:t,:r,0,0,0,:c,NULL)",
+                mapOf("d" to id, "t" to ts, "r" to rr, "c" to channel)).use { it.executeUpdate() }
+        }
+        insert(base + 10, 800, null)
+        insert(base + 3600 + 10, 820, null)
+        insert(base + 3600 + 11, 830, null)
+        insert(base + 3600 + 12, 840, null)
+        insert(base + 10, 805, 8)
+        insert(base + 11, 815, 8)
+        insert(base + 3600 + 10, 825, 8)
+
+        val selected = query(
+            WHOOP4_RR_INTERVALS_SQL,
+            mapOf("deviceId" to id, "from" to base, "to" to base + 7200, "limit" to 100),
+        ) { it.getInt("rrMs") to it.getInt("srcChannel") }
+        assertEquals(listOf(805 to 8, 815 to 8, 825 to 8), selected)
+    }
+
     @After fun close() { db.close() }
     private fun sql(sql: String) { db.createStatement().use { it.execute(sql) } }
     private fun statement(sql: String, values: Map<String, Any?>) = run {
@@ -682,12 +704,24 @@ class Whoop5RRSqliteTest {
         assertEquals(listOf(8, 8), rows.map { it.srcChannel })
     }
 
-    @Test fun whoop4PrefersOneHistoricalTransportForTheWholeWindow() = runBlocking {
+    @Test fun whoop4HistoricalSourceHasPriorityWithinItsHour() = runBlocking {
         registry("4.0")
         repo.insert(StreamBatch(rr = listOf(RrRow(100, 800), RrRow(101, 810))), id)
         repo.insert(StreamBatch(rr = listOf(RrRow(100, 805, RrSourceChannel.WHOOP4_HISTORICAL))), id)
         val rows = repo.rrIntervalsForDevice(id, 100, 101, 100)
         assertEquals(listOf(805), rows.map { it.rrMs })
+    }
+
+    @Test fun whoop4RealtimeSourceWinsOverStandardAndLegacyRows() = runBlocking {
+        registry("4.0")
+        repo.insert(StreamBatch(rr = listOf(
+            RrRow(100, 800),
+            RrRow(100, 810, RrSourceChannel.WHOOP4_STANDARD),
+            RrRow(100, 820, RrSourceChannel.WHOOP4_REALTIME),
+        )), id)
+        val rows = repo.rrIntervalsForDevice(id, 100, 100, 100)
+        assertEquals(listOf(820), rows.map { it.rrMs })
+        assertEquals(listOf(9), rows.map { it.srcChannel })
     }
 
     @Test fun whoop4FallsBackToUnlabelledRowsWhenNoHistoryExists() = runBlocking {

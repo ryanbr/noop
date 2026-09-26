@@ -10266,7 +10266,8 @@ class WhoopBleClient(
             .filter { it.ok && it.typeName == "REALTIME_DATA" }
             .mapNotNull { (it.parsed["timestamp"] as? Number)?.toInt() }
             .maxOrNull() ?: now
-        val streams: Streams = extractStreams(parsed, deviceClockRef = newestRealtimeTs, wallClockRef = now)
+        val streams: Streams = extractStreams(parsed, deviceClockRef = newestRealtimeTs,
+            wallClockRef = now, family = connectedFamily)
         val batch = StreamPersistence.toBatch(streams)
         // #1118: the SECOND live transport. The standard 0x2A37 path above stamps a beat at the second
         // it arrived; this one stamps it from the strap's own record clock. The same beat reaching both
@@ -10334,8 +10335,11 @@ class WhoopBleClient(
                                  family: DeviceFamily) {
         val shouldFlush = synchronized(collectorLock) {
             if (hr in 30..220) stdHr.add(HrRow(ts, hr))
-            val source = if (family == DeviceFamily.WHOOP5)
-                com.noop.protocol.RrSourceChannel.WHOOP5_STANDARD else null
+            val source = when (family) {
+                DeviceFamily.WHOOP5 -> com.noop.protocol.RrSourceChannel.WHOOP5_STANDARD
+                DeviceFamily.WHOOP4 -> com.noop.protocol.RrSourceChannel.WHOOP4_STANDARD
+                else -> null
+            }
             for (r in rr) if (r in 250..3000) stdRr.add(RrRow(ts, r, source))
             stdContact.add(StandardHrMapping.contactEvent(ts, contact))
             standardHrBufferReachedFlushThreshold(stdHr.size, stdRr.size, stdContact.size)
