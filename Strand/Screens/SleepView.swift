@@ -287,22 +287,30 @@ struct SleepView: View {
 
     /// A direct route to the one alarm screen, available even before a night is recorded.
     private var alarmsEntry: some View {
-        NoopCard(tint: StrandPalette.restColor) {
-            Button { router.openAlarms() } label: {
+        // Button OUTSIDE the card, as `InsightsView.whatMovesYouLink` and `LabBookView` do: with it inside,
+        // only the row content answers a tap and the card's own padding is dead, so the same edge tap works
+        // on Android (where the whole `NoopCard` is clickable) and does nothing here.
+        Button { router.openAlarms() } label: {
+            NoopCard(tint: StrandPalette.restColor) {
                 HStack(spacing: NoopMetrics.gap) {
                     Image(systemName: "alarm.fill")
                         .foregroundStyle(StrandPalette.restColor)
+                        .accessibilityHidden(true)
                     Text("Alarms")
                         .font(StrandFont.headline)
                         .foregroundStyle(StrandPalette.textPrimary)
                     Spacer()
                     Image(systemName: "chevron.right")
                         .foregroundStyle(StrandPalette.textTertiary)
+                        .accessibilityHidden(true)
                 }
-                .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .contentShape(Rectangle())
         }
+        // The settle-inward every tappable liquid card gets (`InsightsView.whatMovesYouLink`,
+        // `LabBookView`, `TodayView`). `.plain` would leave an edge tap with no feedback at all, where
+        // Android's `Modifier.clickable` ripples.
+        .buttonStyle(LiquidPressStyle())
     }
 
     // MARK: - 0. REST HERO — scenic backdrop + sleep-performance gauge (Bevel)
