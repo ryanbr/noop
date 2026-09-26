@@ -139,10 +139,18 @@ internal const val WHOOP4_RR_INTERVALS_SQL =
     "SELECT * FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
     "AND (srcChannel IS NULL OR srcChannel <> 2) " +
     "AND (tsSuspect IS NULL OR tsSuspect <> 1) " +
-    "AND ((EXISTS(SELECT 1 FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
-    "AND srcChannel = 8 AND (tsSuspect IS NULL OR tsSuspect <> 1)) AND srcChannel = 8) " +
-    "OR (NOT EXISTS(SELECT 1 FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
-    "AND srcChannel = 8 AND (tsSuspect IS NULL OR tsSuspect <> 1)) AND srcChannel IS NULL)) " +
+    "AND ((srcChannel = 8 AND (SELECT COUNT(*) FROM rrInterval h WHERE h.deviceId = :deviceId " +
+    "AND h.ts >= (rrInterval.ts / 3600) * 3600 AND h.ts < (rrInterval.ts / 3600 + 1) * 3600 " +
+    "AND h.srcChannel = 8 AND (h.tsSuspect IS NULL OR h.tsSuspect <> 1)) >= " +
+    "(SELECT COUNT(*) FROM rrInterval l WHERE l.deviceId = :deviceId " +
+    "AND l.ts >= (rrInterval.ts / 3600) * 3600 AND l.ts < (rrInterval.ts / 3600 + 1) * 3600 " +
+    "AND l.srcChannel IS NULL AND (l.tsSuspect IS NULL OR l.tsSuspect <> 1))) " +
+    "OR (srcChannel IS NULL AND (SELECT COUNT(*) FROM rrInterval h WHERE h.deviceId = :deviceId " +
+    "AND h.ts >= (rrInterval.ts / 3600) * 3600 AND h.ts < (rrInterval.ts / 3600 + 1) * 3600 " +
+    "AND h.srcChannel = 8 AND (h.tsSuspect IS NULL OR h.tsSuspect <> 1)) < " +
+    "(SELECT COUNT(*) FROM rrInterval l WHERE l.deviceId = :deviceId " +
+    "AND l.ts >= (rrInterval.ts / 3600) * 3600 AND l.ts < (rrInterval.ts / 3600 + 1) * 3600 " +
+    "AND l.srcChannel IS NULL AND (l.tsSuspect IS NULL OR l.tsSuspect <> 1)))) " +
     "ORDER BY ts ASC, ord ASC, rrMs ASC, seq ASC LIMIT :limit"
 
 /** The earliest beat a device has banked AT ALL, labelled or not, or null when it has none. The lower

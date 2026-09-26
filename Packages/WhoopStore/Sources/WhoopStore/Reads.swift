@@ -466,8 +466,9 @@ extension WhoopStore {
             // One transport for the complete requested interval. Legacy WHOOP 5 rows mix units and
             // origins, so they remain stored but cannot be converted or spliced into a scored beat train.
             // This subquery uses the SAME time/suspect predicates as the outer read, before LIMIT.
-            // A WHOOP 4 takes the history branch below: its type-47 offload is labelled, its standard-BLE
-            // feed is not, and the two overlap, so one or the other is scored for the whole interval.
+            // A WHOOP 4 has labelled type-47 history and an unlabelled standard-BLE feed. Choose between
+            // them per UTC hour, so a partial offload cannot hide live rows from other hours in a broad
+            // analytics read. Each hour still uses only one transport, preventing overlap double-counts.
             // Every other source takes the Oura branch: one beat channel for the interval, the fuller one
             // (see the doc comment on `rrIntervals`), with NULL and non-Oura codes passing untouched.
             let strictWhoop4History: Bool
@@ -485,12 +486,18 @@ extension WhoopStore {
                     WHERE deviceId = :d AND ts >= :f AND ts <= :t AND srcChannel IN \(Self.scorableWhoop5Channels)
                     AND (tsSuspect IS NULL OR tsSuspect <> 1))
                 """ : (strictWhoop4History ? """
-                ((EXISTS(SELECT 1 FROM rrInterval WHERE deviceId = :d AND ts >= :f AND ts <= :t
-                    AND srcChannel = :whoop4Historical AND (tsSuspect IS NULL OR tsSuspect <> 1))
-                    AND srcChannel = :whoop4Historical)
-                 OR (NOT EXISTS(SELECT 1 FROM rrInterval WHERE deviceId = :d AND ts >= :f AND ts <= :t
-                    AND srcChannel = :whoop4Historical AND (tsSuspect IS NULL OR tsSuspect <> 1))
-                    AND srcChannel IS NULL))
+                ((srcChannel = :whoop4Historical AND (SELECT COUNT(*) FROM rrInterval h WHERE h.deviceId = :d
+                    AND h.ts >= (rrInterval.ts / 3600) * 3600 AND h.ts < (rrInterval.ts / 3600 + 1) * 3600
+                    AND h.srcChannel = :whoop4Historical AND (h.tsSuspect IS NULL OR h.tsSuspect <> 1))
+                    >= (SELECT COUNT(*) FROM rrInterval l WHERE l.deviceId = :d
+                    AND l.ts >= (rrInterval.ts / 3600) * 3600 AND l.ts < (rrInterval.ts / 3600 + 1) * 3600
+                    AND l.srcChannel IS NULL AND (l.tsSuspect IS NULL OR l.tsSuspect <> 1)))
+                 OR (srcChannel IS NULL AND (SELECT COUNT(*) FROM rrInterval h WHERE h.deviceId = :d
+                    AND h.ts >= (rrInterval.ts / 3600) * 3600 AND h.ts < (rrInterval.ts / 3600 + 1) * 3600
+                    AND h.srcChannel = :whoop4Historical AND (h.tsSuspect IS NULL OR h.tsSuspect <> 1))
+                    < (SELECT COUNT(*) FROM rrInterval l WHERE l.deviceId = :d
+                    AND l.ts >= (rrInterval.ts / 3600) * 3600 AND l.ts < (rrInterval.ts / 3600 + 1) * 3600
+                    AND l.srcChannel IS NULL AND (l.tsSuspect IS NULL OR l.tsSuspect <> 1))))
                 """ : """
                 (srcChannel IS NULL OR srcChannel NOT IN \(Self.scorableOuraChannels) OR (srcChannel = 1) = (
                     SELECT SUM(srcChannel = 1) > SUM(srcChannel <> 1) FROM rrInterval

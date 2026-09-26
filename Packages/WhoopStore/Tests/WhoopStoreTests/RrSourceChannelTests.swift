@@ -18,12 +18,16 @@ import OuraProtocol
 final class RrSourceChannelTests: XCTestCase {
     private let ts = 1_750_000_000
 
-    func testWhoop4HistoricalSourceWinsAndPromotesLegacyLiveRows() async throws {
-        let store = try await WhoopStore.inMemory()
-        try await store.upsertDevice(id: "strap", mac: nil, name: nil)
+    private func setRegistry(_ store: WhoopStore) throws {
         try DeviceRegistryStore(dbQueue: store.registryWriter).add(PairedDevice(
             id: "strap", brand: "WHOOP", model: "4.0", sourceKind: .liveBLE,
             capabilities: [.hr, .hrv], status: .active, addedAt: ts, lastSeenAt: ts))
+    }
+
+    func testWhoop4HistoricalSourceWinsAndPromotesLegacyLiveRows() async throws {
+        let store = try await WhoopStore.inMemory()
+        try await store.upsertDevice(id: "strap", mac: nil, name: nil)
+        try setRegistry(store)
 
         _ = try await store.insert(Streams(rr: [RRInterval(ts: ts, rrMs: 800),
                                                   RRInterval(ts: ts + 1, rrMs: 810)]), deviceId: "strap")
@@ -39,9 +43,7 @@ final class RrSourceChannelTests: XCTestCase {
     func testWhoop4FallsBackToUnlabelledRowsWhenNoHistoricalDataExists() async throws {
         let store = try await WhoopStore.inMemory()
         try await store.upsertDevice(id: "strap", mac: nil, name: nil)
-        try DeviceRegistryStore(dbQueue: store.registryWriter).add(PairedDevice(
-            id: "strap", brand: "WHOOP", model: "4.0", sourceKind: .liveBLE,
-            capabilities: [.hr, .hrv], status: .active, addedAt: ts, lastSeenAt: ts))
+        try setRegistry(store)
         _ = try await store.insert(Streams(rr: [RRInterval(ts: ts, rrMs: 800)]), deviceId: "strap")
 
         let selected = try await store.rrIntervals(deviceId: "strap", from: ts, to: ts, limit: 100)
@@ -49,20 +51,42 @@ final class RrSourceChannelTests: XCTestCase {
         XCTAssertNil(selected.first?.srcChannel)
     }
 
-    func testWhoop4UsesOneHistoricalTransportForTheWholeWindow() async throws {
+    func testWhoop4UsesTheFillerSourceForTheHour() async throws {
         let store = try await WhoopStore.inMemory()
         try await store.upsertDevice(id: "strap", mac: nil, name: nil)
-        try DeviceRegistryStore(dbQueue: store.registryWriter).add(PairedDevice(
-            id: "strap", brand: "WHOOP", model: "4.0", sourceKind: .liveBLE,
-            capabilities: [.hr, .hrv], status: .active, addedAt: ts, lastSeenAt: ts))
+        try setRegistry(store)
         _ = try await store.insert(Streams(rr: [RRInterval(ts: ts, rrMs: 800),
                                                   RRInterval(ts: ts + 1, rrMs: 810)]), deviceId: "strap")
         _ = try await store.insert(Streams(rr: [RRInterval(ts: ts, rrMs: 805, srcChannel: .whoop4Historical)]),
                                    deviceId: "strap")
 
         let selected = try await store.rrIntervals(deviceId: "strap", from: ts, to: ts + 1, limit: 100)
-        XCTAssertEqual(selected.map(\.rrMs), [805])
-        XCTAssertEqual(selected.map(\.srcChannel), [.whoop4Historical])
+        XCTAssertEqual(selected.map(\.rrMs), [800, 810])
+        XCTAssertEqual(selected.map(\.srcChannel), [nil, nil])
+    }
+
+    func testWhoop4PartialHistoryKeepsUnlabelledRowsFromOtherHours() async throws {
+        let store = try await WhoopStore.inMemory()
+        try await store.upsertDevice(id: "strap", mac: nil, name: nil)
+        try setRegistry(store)
+
+        let base = (ts / 3600) * 3600
+        _ = try await store.insert(Streams(rr: [
+            RRInterval(ts: base + 10, rrMs: 800),
+            RRInterval(ts: base + 3600 + 10, rrMs: 820),
+            RRInterval(ts: base + 3600 + 11, rrMs: 830),
+            RRInterval(ts: base + 3600 + 12, rrMs: 840),
+        ]), deviceId: "strap")
+        _ = try await store.insert(Streams(rr: [
+            RRInterval(ts: base + 10, rrMs: 805, srcChannel: .whoop4Historical),
+            RRInterval(ts: base + 11, rrMs: 815, srcChannel: .whoop4Historical),
+            RRInterval(ts: base + 3600 + 10, rrMs: 825, srcChannel: .whoop4Historical),
+        ]), deviceId: "strap")
+
+        let selected = try await store.rrIntervals(deviceId: "strap", from: base,
+                                                    to: base + 7200, limit: 100)
+        XCTAssertEqual(selected.map(\.rrMs), [805, 815, 820, 830, 840])
+        XCTAssertEqual(selected.map(\.srcChannel), [.whoop4Historical, .whoop4Historical, nil, nil, nil])
     }
 
     // MARK: - The label survives the mapping
