@@ -495,8 +495,8 @@ final class AppModel: ObservableObject {
             // flag → no-op on every subsequent launch; idempotent on a clean DB.
             await self.intelligence.runTimestampHealIfNeeded()
             // One-shot on-upgrade Effort rescore (#313): recompute strain from source across the FULL
-            // history once, so any deep-history rows an older build left on the 0–21 axis regenerate on
-            // the 0–100 axis. Guarded by a persisted flag, so this is a no-op on every subsequent launch.
+            // history and repair sleep rejected by unmatched WRIST_OFF in one pass. Both persisted flags
+            // describe that shared pass; either pending flag triggers it.
             await self.intelligence.runEffortRescoreIfNeeded()
             while !Task.isCancelled {
                 // #547 RE-POLLUTION: a sync since the last tick may have armed a re-heal (its ingest gate
@@ -714,6 +714,7 @@ final class AppModel: ObservableObject {
     /// so that it cannot mark unscored data as scored — so gating on the fingerprint here would be asking
     /// a question whose answer is already known to be "yes, there is work".
     func runDeferredRescoreIfOwed() async {
+        await intelligence.runSleepWearRescoreIfNeeded()
         // A pass already running here holds the owed mark itself and settles it when it finishes; forcing
         // another would only queue a second full pass behind it.
         guard RescoreBackgroundScheduler.isRescoreOwed, !intelligence.computing else { return }

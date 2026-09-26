@@ -1412,6 +1412,16 @@ object NoopPrefs {
         of(context).edit().putBoolean(KEY_EFFORT_RESCORE_DONE, true).apply()
     }
 
+    /** Full-history sleep wear repair is marked only after the source rescore returns successfully. */
+    const val KEY_SLEEP_WEAR_RESCORE_DONE = "intelligence.sleepWearRescore.v1.done"
+
+    fun sleepWearRescoreDone(context: Context): Boolean =
+        of(context).getBoolean(KEY_SLEEP_WEAR_RESCORE_DONE, false)
+
+    fun setSleepWearRescoreDone(context: Context) {
+        of(context).edit().putBoolean(KEY_SLEEP_WEAR_RESCORE_DONE, true).apply()
+    }
+
     /** Whether the one-shot #547 implausible-timestamp heal has run. Set true once it completes so the
      *  on-upgrade purge of bad-strap-clock rows (far-past / future-dated) never re-runs. Re-running is
      *  harmless (the deletes are idempotent), but the flag avoids the work on every launch. */

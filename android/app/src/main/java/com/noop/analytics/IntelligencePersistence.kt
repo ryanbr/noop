@@ -8,6 +8,9 @@ import com.noop.data.WhoopRepository
 
 /** Persistence-only helpers kept out of the already large scoring orchestrator. */
 internal object IntelligencePersistence {
+    fun historyRepairIsPending(effortDone: Boolean, sleepWearDone: Boolean): Boolean =
+        !effortDone || !sleepWearDone
+
     data class LegacyScoreSnapshot(
         val avgHrv: Double,
         val recovery: Double?,
@@ -31,6 +34,28 @@ internal object IntelligencePersistence {
         val provenance: List<ScoreInputProvenanceRow>,
         val markerSourceIds: List<String>,
     )
+
+    /** Keep the per-day repair loop outside the instrumented scoring coroutine's bytecode budget. */
+    suspend fun persistComputedWindow(repo: WhoopRepository, window: ComputedWindow, preserveUnscoredHistory: Boolean) {
+        val windows = if (preserveUnscoredHistory) byScoredDay(window) else listOf(window)
+        for (part in windows) part.persistInto(repo)
+    }
+
+    private suspend fun ComputedWindow.persistInto(repo: WhoopRepository) =
+        repo.replaceComputedScoreWindow(this)
+
+    /** Per-day repair writes leave older, unscorable cached days and their provenance intact. */
+    fun byScoredDay(window: ComputedWindow): List<ComputedWindow> {
+        val dailiesByDay = window.dailies.groupBy { it.day }
+        val metricsByDay = window.metricRows.groupBy { it.day }
+        val provenanceByDay = window.provenance.groupBy { it.day }
+        return dailiesByDay.keys.sorted().map { day ->
+            window.copy(from = day, to = day,
+                dailies = dailiesByDay.getValue(day),
+                metricRows = metricsByDay[day].orEmpty(),
+                provenance = provenanceByDay[day].orEmpty())
+        }
+    }
 
     suspend fun prepareComputedWindow(
         repo: WhoopRepository,
