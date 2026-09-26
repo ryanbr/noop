@@ -704,12 +704,12 @@ class Whoop5RRSqliteTest {
         assertEquals(listOf(8, 8), rows.map { it.srcChannel })
     }
 
-    @Test fun whoop4PrefersOneHistoricalTransportForTheWholeWindow() = runBlocking {
+    @Test fun whoop4UsesTheFillerSourceForTheHour() = runBlocking {
         registry("4.0")
         repo.insert(StreamBatch(rr = listOf(RrRow(100, 800), RrRow(101, 810))), id)
         repo.insert(StreamBatch(rr = listOf(RrRow(100, 805, RrSourceChannel.WHOOP4_HISTORICAL))), id)
         val rows = repo.rrIntervalsForDevice(id, 100, 101, 100)
-        assertEquals(listOf(805), rows.map { it.rrMs })
+        assertEquals(listOf(800, 810), rows.map { it.rrMs })
     }
 
     @Test fun whoop4FallsBackToUnlabelledRowsWhenNoHistoryExists() = runBlocking {
