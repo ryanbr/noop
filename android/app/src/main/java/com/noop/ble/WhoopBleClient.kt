@@ -5981,8 +5981,9 @@ class WhoopBleClient(
     fun armStrapAlarm(epochSec: Long) {
         if (connectedFamily == DeviceFamily.WHOOP5) {
             // 5/MG SET_ALARM_TIME is REVISION_4 (the strap arms its own RTC alarm + fires the wake
-            // haptic itself). Wakes have been reported on 5.0 and MG (#864, #2464), but are not
-            // guaranteed — gated behind Protocol probes so no one relies on it by default.
+            // haptic itself). One full wake chain was captured on an MG (#864, 2026-08-25) and a second
+            // wake reported on a 5.0 without a log (#2464); neither has been shown to repeat, so this
+            // stays gated behind Protocol probes and no one relies on it by default.
             // The strap maintains its RTC from the connect handshake / history sync, so no SET_CLOCK
             // here. (PR #85, AlarmPayload)
             if (!PuffinExperiment.from(context).isEnabled) {

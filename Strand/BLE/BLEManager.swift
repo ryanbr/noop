@@ -5271,9 +5271,11 @@ public final class BLEManager: NSObject, ObservableObject {
     /// (event STRAP_DRIVEN_ALARM_EXECUTED=57). The 5/MG path intends the same behavior but remains
     /// experimental. This is the only strap-alarm path; NOOP has no light-sleep early-wake layer.
     ///
-    /// EXPERIMENTAL on 5/MG (same posture as the Android client): the rev-4 frame has been ACKed,
-    /// and strap-driven wakes have been reported on both 5.0 and MG (#864, #2464). No 5/MG
-    /// STRAP_DRIVEN_ALARM_EXECUTED event has been captured in NOOP, so do not promise a wake.
+    /// EXPERIMENTAL on 5/MG (same posture as the Android client): the rev-4 frame has been ACKed, and
+    /// one full wake chain HAS been captured on an MG, STRAP_DRIVEN_ALARM_EXECUTED (57) then
+    /// HAPTICS_FIRED (60), dismissed by DOUBLE_TAP (#864, 2026-08-25, WS50_r00 FW 50.41.1.0). A second
+    /// wake was reported on a 5.0 with no log and no firmware recorded (#2464). Neither has been shown
+    /// to repeat, so do not promise a wake.
     func armStrapAlarm(at date: Date) {
         // Log the wake time in the user's LOCAL zone. `Date` prints in UTC by default, so an alarm
         // for (say) 07:00 in New York logged as "11:00:00 +0000" reads like a timezone bug — but it

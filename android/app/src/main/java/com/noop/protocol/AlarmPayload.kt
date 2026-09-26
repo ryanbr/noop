@@ -11,10 +11,11 @@ import java.time.ZoneId
  * as factual wire-format observations for interoperability; no proprietary code is reproduced.
  * (Adopted from PR #85, iHateSubscriptions.)
  *
- * EXPERIMENTAL / UNCONFIRMED: unlike the maverick buzz (hardware-confirmed on a real MG), the rev4
- * alarm layout below is self-consistent and modelled on the official app but has NOT been confirmed
- * to actually wake a strap on our side (no captured STRAP_DRIVEN_ALARM_EXECUTED event). The caller
- * therefore gates it behind the Experimental opt-in so a normal user can't rely on an alarm that
+ * EXPERIMENTAL: unlike the maverick buzz (hardware-confirmed on a real MG), the rev4 alarm layout
+ * below is self-consistent and modelled on the official app, and one full wake chain has been
+ * captured on an MG, STRAP_DRIVEN_ALARM_EXECUTED (57) then HAPTICS_FIRED (60) (#864, 2026-08-25),
+ * with a second wake reported on a 5.0 without a log (#2464). Neither has been shown to repeat, so
+ * the caller still gates it behind Protocol probes so a normal user can't rely on an alarm that
  * might silently not fire. All multi-byte fields are little-endian.
  */
 object AlarmPayload {

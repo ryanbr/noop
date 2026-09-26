@@ -9,10 +9,12 @@ import Foundation
 /// test suites. All multi-byte fields are little-endian. Revision values: REVISION_1=1,
 /// REVISION_2=2, REVISION_4=4.
 ///
-/// EXPERIMENTAL / UNCONFIRMED (same posture as the Android client): unlike the maverick buzz
-/// (hardware-confirmed on a real MG), the rev4 alarm layout is self-consistent and arming has
-/// been ACKed on hardware, but a strap-driven wake fire has NOT been captured on our side
-/// (no STRAP_DRIVEN_ALARM_EXECUTED event observed yet).
+/// EXPERIMENTAL (same posture as the Android client): unlike the maverick buzz (hardware-confirmed
+/// on a real MG), the rev4 alarm layout is self-consistent and arming has been ACKed on hardware.
+/// One full wake chain has since been captured on an MG, STRAP_DRIVEN_ALARM_EXECUTED (57) then
+/// HAPTICS_FIRED (60) (#864, 2026-08-25), with a second wake reported on a 5.0 without a log
+/// (#2464). Neither has been shown to repeat, so the caller still gates this behind Protocol probes
+/// and the UI does not promise a wake.
 
 /// The canonical WHOOP waveform-effect pair, used by both the notification buzz and the wake alarm.
 private let waveformEffects: [UInt8] = [47, 152, 0, 0, 0, 0, 0, 0]

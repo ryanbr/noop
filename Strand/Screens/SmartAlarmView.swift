@@ -284,8 +284,9 @@ struct SmartAlarmView: View {
                             .foregroundStyle(StrandPalette.statusWarning)
                             .frame(maxWidth: .infinity, alignment: .leading)
                     } else if model.whoop5Detected {
-                        // 5/MG with Protocol probes ON: the rev-4 command arms the strap. Wakes have
-                        // been reported on 5.0 and MG (#864, #2464), but are not guaranteed.
+                        // 5/MG with Protocol probes ON: the rev-4 command arms the strap. One wake was
+                        // captured on an MG (#864) and one reported on a 5.0 without a log (#2464);
+                        // neither repeated, so the copy simplifies both to "reported" and promises none.
                         Text("Armed on the strap with an experimental 5/MG command. Strap-driven wakes have been reported on 5.0 and MG, but are not guaranteed. Keep a backup alarm for anything you cannot miss.")
                             .font(StrandFont.footnote)
                             .foregroundStyle(StrandPalette.textTertiary)
