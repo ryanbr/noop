@@ -422,6 +422,10 @@ class FramingTest {
         assertEquals(2, streams.rr.size)
         assertEquals(RrInterval(ts = 1700000000, rrMs = 850), streams.rr[0])
         assertEquals(RrInterval(ts = 1700000000, rrMs = 870), streams.rr[1])
+        val whoop4 = extractStreams(listOf(parsed), deviceClockRef = 1700000000,
+            wallClockRef = 1700000000, family = DeviceFamily.WHOOP4)
+        assertEquals(listOf(RrSourceChannel.WHOOP4_REALTIME, RrSourceChannel.WHOOP4_REALTIME),
+            whoop4.rr.map { it.srcChannel })
     }
 
     // MARK: - WHOOP 5.0/MG REALTIME_DATA (+4) + family-aware reassembly

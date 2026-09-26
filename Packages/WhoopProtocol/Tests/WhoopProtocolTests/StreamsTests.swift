@@ -41,6 +41,18 @@ final class StreamsTests: XCTestCase {
         XCTAssertTrue(s.rr.isEmpty)
     }
 
+    func testRealtimeRRSourceIsTaggedOnlyWhenFamilyIsKnown() {
+        let frame = ParsedFrame(ok: true, typeName: "REALTIME_DATA", seq: nil, cmdName: nil,
+                                crcOK: true, lenBytes: 0, rawHex: "", fields: [],
+                                parsed: ["timestamp": .int(deviceClockRef),
+                                         "rr_intervals": .intArray([800])])
+        let tagged = extractStreams([frame], deviceClockRef: deviceClockRef,
+                                    wallClockRef: wallClockRef, family: .whoop4)
+        XCTAssertEqual(tagged.rr.map(\.srcChannel), [.whoop4Realtime])
+        let legacy = extractStreams([frame], deviceClockRef: deviceClockRef, wallClockRef: wallClockRef)
+        XCTAssertNil(legacy.rr.first?.srcChannel)
+    }
+
     func testEventTimestampIsNotOffset() {
         let s = extractStreams(parsedFrames([ev]),
                                deviceClockRef: deviceClockRef, wallClockRef: wallClockRef)

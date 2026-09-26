@@ -192,7 +192,7 @@ class Whoop5RRSqliteTest {
             WHOOP4_RR_INTERVALS_SQL,
             mapOf("deviceId" to id, "from" to base, "to" to base + 7200, "limit" to 100),
         ) { it.getInt("rrMs") to it.getInt("srcChannel") }
-        assertEquals(listOf(805 to 8, 815 to 8, 820 to 0, 830 to 0, 840 to 0), selected)
+        assertEquals(listOf(805 to 8, 815 to 8, 825 to 8), selected)
     }
 
     @After fun close() { db.close() }
@@ -704,12 +704,24 @@ class Whoop5RRSqliteTest {
         assertEquals(listOf(8, 8), rows.map { it.srcChannel })
     }
 
-    @Test fun whoop4UsesTheFillerSourceForTheHour() = runBlocking {
+    @Test fun whoop4HistoricalSourceHasPriorityWithinItsHour() = runBlocking {
         registry("4.0")
         repo.insert(StreamBatch(rr = listOf(RrRow(100, 800), RrRow(101, 810))), id)
         repo.insert(StreamBatch(rr = listOf(RrRow(100, 805, RrSourceChannel.WHOOP4_HISTORICAL))), id)
         val rows = repo.rrIntervalsForDevice(id, 100, 101, 100)
-        assertEquals(listOf(800, 810), rows.map { it.rrMs })
+        assertEquals(listOf(805), rows.map { it.rrMs })
+    }
+
+    @Test fun whoop4RealtimeSourceWinsOverStandardAndLegacyRows() = runBlocking {
+        registry("4.0")
+        repo.insert(StreamBatch(rr = listOf(
+            RrRow(100, 800),
+            RrRow(100, 810, RrSourceChannel.WHOOP4_STANDARD),
+            RrRow(100, 820, RrSourceChannel.WHOOP4_REALTIME),
+        )), id)
+        val rows = repo.rrIntervalsForDevice(id, 100, 100, 100)
+        assertEquals(listOf(820), rows.map { it.rrMs })
+        assertEquals(listOf(9), rows.map { it.srcChannel })
     }
 
     @Test fun whoop4FallsBackToUnlabelledRowsWhenNoHistoryExists() = runBlocking {

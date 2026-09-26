@@ -50,7 +50,7 @@ final class Whoop5RRTests: XCTestCase {
     }
 
     func testTransportCodes() {
-        XCTAssertEqual(RRSourceChannel.allCases.map(\.rawValue), Array(1...8))
+        XCTAssertEqual(RRSourceChannel.allCases.map(\.rawValue), Array(1...10))
     }
 
     /// The table below is the parity contract for the "this night cannot be scored" explanation. The

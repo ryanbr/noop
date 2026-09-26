@@ -51,7 +51,7 @@ final class RrSourceChannelTests: XCTestCase {
         XCTAssertNil(selected.first?.srcChannel)
     }
 
-    func testWhoop4UsesTheFillerSourceForTheHour() async throws {
+    func testWhoop4HistoricalSourceHasPriorityWithinItsHour() async throws {
         let store = try await WhoopStore.inMemory()
         try await store.upsertDevice(id: "strap", mac: nil, name: nil)
         try setRegistry(store)
@@ -61,8 +61,23 @@ final class RrSourceChannelTests: XCTestCase {
                                    deviceId: "strap")
 
         let selected = try await store.rrIntervals(deviceId: "strap", from: ts, to: ts + 1, limit: 100)
-        XCTAssertEqual(selected.map(\.rrMs), [800, 810])
-        XCTAssertEqual(selected.map(\.srcChannel), [nil, nil])
+        XCTAssertEqual(selected.map(\.rrMs), [805])
+        XCTAssertEqual(selected.map(\.srcChannel), [.whoop4Historical])
+    }
+
+    func testWhoop4RealtimeSourceWinsOverStandardAndLegacyRows() async throws {
+        let store = try await WhoopStore.inMemory()
+        try await store.upsertDevice(id: "strap", mac: nil, name: nil)
+        try setRegistry(store)
+        _ = try await store.insert(Streams(rr: [
+            RRInterval(ts: ts, rrMs: 800),
+            RRInterval(ts: ts, rrMs: 810, srcChannel: .whoop4Standard),
+            RRInterval(ts: ts, rrMs: 820, srcChannel: .whoop4Realtime),
+        ]), deviceId: "strap")
+
+        let selected = try await store.rrIntervals(deviceId: "strap", from: ts, to: ts, limit: 100)
+        XCTAssertEqual(selected.map(\.rrMs), [820])
+        XCTAssertEqual(selected.map(\.srcChannel), [.whoop4Realtime])
     }
 
     func testWhoop4PartialHistoryKeepsUnlabelledRowsFromOtherHours() async throws {
@@ -85,8 +100,9 @@ final class RrSourceChannelTests: XCTestCase {
 
         let selected = try await store.rrIntervals(deviceId: "strap", from: base,
                                                     to: base + 7200, limit: 100)
-        XCTAssertEqual(selected.map(\.rrMs), [805, 815, 820, 830, 840])
-        XCTAssertEqual(selected.map(\.srcChannel), [.whoop4Historical, .whoop4Historical, nil, nil, nil])
+        XCTAssertEqual(selected.map(\.rrMs), [805, 815, 825])
+        XCTAssertEqual(selected.map(\.srcChannel),
+                       [.whoop4Historical, .whoop4Historical, .whoop4Historical])
     }
 
     // MARK: - The label survives the mapping

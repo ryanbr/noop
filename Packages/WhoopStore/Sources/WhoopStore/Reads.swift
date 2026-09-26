@@ -231,7 +231,7 @@ extension WhoopStore {
             }
             let historyCount: Int = row["w5"]
             let registry: String = row["registry"]
-            return "v4|h\(hc):\(hm)|" + tails.joined(separator: "|")
+            return "v5|h\(hc):\(hm)|" + tails.joined(separator: "|")
                 + "|w5\(historyCount)|w7\(row["w7"] as Int)|tagged\(row["w5tagged"] as Int)"
                 + "|w4history\(row["w4history"] as Int)|registry\(registry)"
         }
@@ -311,7 +311,7 @@ extension WhoopStore {
             let historyCount: Int = row["w5"]
             let registry: String = row["registry"]
             let strictRR = try Self.isWhoop5RRSource(db: db, deviceId: deviceId)
-            return "s3|" + parts.joined(separator: "|") + "|w5\(historyCount)|w7\(row["w7"] as Int)"
+            return "s4|" + parts.joined(separator: "|") + "|w5\(historyCount)|w7\(row["w7"] as Int)"
                 + "|w4h\(row["w4h"] as Int)|ownerTagged\(row["w5owner"] as Int)|registry\(registry)|rr5=\(strictRR)"
         }
     }
@@ -466,9 +466,9 @@ extension WhoopStore {
             // One transport for the complete requested interval. Legacy WHOOP 5 rows mix units and
             // origins, so they remain stored but cannot be converted or spliced into a scored beat train.
             // This subquery uses the SAME time/suspect predicates as the outer read, before LIMIT.
-            // A WHOOP 4 has labelled type-47 history and an unlabelled standard-BLE feed. Choose between
-            // them per UTC hour, so a partial offload cannot hide live rows from other hours in a broad
-            // analytics read. Each hour still uses only one transport, preventing overlap double-counts.
+            // A WHOOP 4 has labelled type-47 history, type-40 realtime, standard-BLE, and legacy
+            // unlabelled rows. Choose one source per UTC hour in provenance order, so overlapping live
+            // transports are never merged and partial history takes precedence only where it exists.
             // Every other source takes the Oura branch: one beat channel for the interval, the fuller one
             // (see the doc comment on `rrIntervals`), with NULL and non-Oura codes passing untouched.
             let strictWhoop4History: Bool
@@ -491,30 +491,35 @@ extension WhoopStore {
                     WHERE deviceId = :d AND ts >= :f AND ts <= :t AND srcChannel IN \(Self.scorableOuraChannels)
                     AND (tsSuspect IS NULL OR tsSuspect <> 1)))
                 """
-            // The WHOOP 4 source decision is per UTC hour. Aggregate the two source counts once per
-            // hour, then join that small result to the requested beats. Counting the same hour from
-            // every beat made wide HRV reads quadratic in the number of rows per hour and could leave
-            // every metric screen appearing to load forever on a long history.
+            // The WHOOP 4 source decision is per UTC hour. Materialize one choice per hour, then join
+            // that small result to the requested beats. Counting the same hour from every beat made
+            // wide HRV reads quadratic in the number of rows per hour and could stall metric screens.
             let sql: String
             if strictWhoop4History {
                 sql = """
-                    WITH whoop4HourCounts AS MATERIALIZED (
+                    WITH whoop4HourChoice AS MATERIALIZED (
                         SELECT ts / 3600 AS hour,
-                               SUM(CASE WHEN srcChannel = :whoop4Historical THEN 1 ELSE 0 END) AS historyCount,
-                               SUM(CASE WHEN srcChannel IS NULL THEN 1 ELSE 0 END) AS liveCount
+                               MIN(CASE WHEN srcChannel = :whoop4Historical THEN 1
+                                        WHEN srcChannel = :whoop4Realtime THEN 2
+                                        WHEN srcChannel = :whoop4Standard THEN 3
+                                        WHEN srcChannel IS NULL THEN 4 END) AS sourceChoice
                         FROM rrInterval
                         WHERE deviceId = :d
                           AND ts >= (:f / 3600) * 3600
                           AND ts < ((:t / 3600) + 1) * 3600
                           AND (tsSuspect IS NULL OR tsSuspect <> 1)
+                          AND (srcChannel IS NULL OR srcChannel IN
+                               (:whoop4Historical, :whoop4Realtime, :whoop4Standard))
                         GROUP BY ts / 3600
                     )
                     SELECT r.ts, r.rrMs, r.srcChannel, r.ord, r.seq FROM rrInterval r
-                    JOIN whoop4HourCounts h ON h.hour = r.ts / 3600
+                    JOIN whoop4HourChoice h ON h.hour = r.ts / 3600
                     WHERE r.deviceId = :d AND r.ts >= :f AND r.ts <= :t
                       AND (r.srcChannel IS NULL OR r.srcChannel <> :rrx)
-                      AND ((r.srcChannel = :whoop4Historical AND h.historyCount >= h.liveCount)
-                           OR (r.srcChannel IS NULL AND h.historyCount < h.liveCount))
+                      AND ((r.srcChannel = :whoop4Historical AND h.sourceChoice = 1)
+                           OR (r.srcChannel = :whoop4Realtime AND h.sourceChoice = 2)
+                           OR (r.srcChannel = :whoop4Standard AND h.sourceChoice = 3)
+                           OR (r.srcChannel IS NULL AND h.sourceChoice = 4))
                       AND (r.tsSuspect IS NULL OR r.tsSuspect <> 1)
                     ORDER BY r.ts ASC, r.ord ASC, r.rrMs ASC, r.seq ASC LIMIT :lim
                     """
@@ -532,6 +537,8 @@ extension WhoopStore {
                                         arguments: ["d": deviceId, "f": from, "t": to,
                                                     "rrx": RRSourceChannel.spo2Ibi.rawValue,
                                                     "whoop4Historical": RRSourceChannel.whoop4Historical.rawValue,
+                                                    "whoop4Realtime": RRSourceChannel.whoop4Realtime.rawValue,
+                                                    "whoop4Standard": RRSourceChannel.whoop4Standard.rawValue,
                                                     "lim": limit])
                 .map { row in
                     RRInterval(ts: row["ts"], rrMs: row["rrMs"],

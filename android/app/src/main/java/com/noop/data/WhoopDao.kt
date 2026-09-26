@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.Flow
 /** Kept as one compile-time constant so Room and the plain-JVM SQLite regression test execute the exact
  * same statement. Swift's twin lives in WhoopStore.analysisFingerprint(). */
 internal const val ANALYSIS_FINGERPRINT_SQL =
-    "SELECT 'v4|' || " +
+    "SELECT 'v5|' || " +
         "'h' || (SELECT COUNT(*) FROM hrSample) || ':' || (SELECT COALESCE(MAX(ts), 0) FROM hrSample) || '|' || " +
         "'p' || (SELECT COALESCE(MAX(rowid), 0) FROM ppgHrSample) || '|' || " +
         "'r' || (SELECT COALESCE(MAX(rowid), 0) FROM rrInterval) || '|' || " +
@@ -58,7 +58,7 @@ internal const val ANALYSIS_FINGERPRINT_SQL =
  * same statement; unlike [ANALYSIS_FINGERPRINT_SQL] it carries :deviceId/:from/:to binds, so a plain-JVM
  * SQLite harness could not run it verbatim. Room's KSP verification is what checks it. */
 internal const val DAY_STREAM_FINGERPRINT_SQL =
-    "SELECT 's3|' || " +
+    "SELECT 's4|' || " +
         "'p' || (SELECT COUNT(*) FROM ppgHrSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
         "':' || (SELECT COALESCE(MAX(ts), 0) FROM ppgHrSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || '|' || " +
         "'r' || (SELECT COUNT(*) FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
@@ -136,18 +136,21 @@ internal const val WHOOP5_RR_INTERVALS_SQL =
     "ORDER BY ts ASC, ord ASC, rrMs ASC, seq ASC LIMIT :limit"
 
 internal const val WHOOP4_RR_INTERVALS_SQL =
-    "WITH whoop4HourCounts AS (" +
+    "WITH whoop4HourChoice AS (" +
     "SELECT ts / 3600 AS hour, " +
-    "SUM(CASE WHEN srcChannel = 8 THEN 1 ELSE 0 END) AS historyCount, " +
-    "SUM(CASE WHEN srcChannel IS NULL THEN 1 ELSE 0 END) AS liveCount " +
+    "MIN(CASE WHEN srcChannel = 8 THEN 1 WHEN srcChannel = 9 THEN 2 " +
+    "WHEN srcChannel = 10 THEN 3 WHEN srcChannel IS NULL THEN 4 END) AS sourceChoice " +
     "FROM rrInterval WHERE deviceId = :deviceId " +
     "AND ts >= (:from / 3600) * 3600 AND ts < ((:to / 3600) + 1) * 3600 " +
-    "AND (tsSuspect IS NULL OR tsSuspect <> 1) GROUP BY ts / 3600) " +
-    "SELECT r.* FROM rrInterval r JOIN whoop4HourCounts h ON h.hour = r.ts / 3600 " +
+    "AND (tsSuspect IS NULL OR tsSuspect <> 1) " +
+    "AND (srcChannel IS NULL OR srcChannel IN (8, 9, 10)) GROUP BY ts / 3600) " +
+    "SELECT r.* FROM rrInterval r JOIN whoop4HourChoice h ON h.hour = r.ts / 3600 " +
     "WHERE r.deviceId = :deviceId AND r.ts >= :from AND r.ts <= :to " +
     "AND (r.srcChannel IS NULL OR r.srcChannel <> 2) " +
-    "AND ((r.srcChannel = 8 AND h.historyCount >= h.liveCount) " +
-    "OR (r.srcChannel IS NULL AND h.historyCount < h.liveCount)) " +
+    "AND ((r.srcChannel = 8 AND h.sourceChoice = 1) " +
+    "OR (r.srcChannel = 9 AND h.sourceChoice = 2) " +
+    "OR (r.srcChannel = 10 AND h.sourceChoice = 3) " +
+    "OR (r.srcChannel IS NULL AND h.sourceChoice = 4)) " +
     "AND (r.tsSuspect IS NULL OR r.tsSuspect <> 1) " +
     "ORDER BY r.ts ASC, r.ord ASC, r.rrMs ASC, r.seq ASC LIMIT :limit"
 
