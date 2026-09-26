@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Refresh
@@ -270,7 +271,7 @@ private fun CoachChat(vm: CoachViewModel, onOpenSettings: () -> Unit) {
     val messages by vm.messages.collectAsStateWithLifecycle()
     val sending by vm.sending.collectAsStateWithLifecycle()
     val error by vm.error.collectAsStateWithLifecycle()
-    // Only ever read inside the error branch below — see CoachViewModel.keyRejected.
+    // Also controls the editor's rejection hint when the wearer opens Update key manually.
     val keyRejected by vm.keyRejected.collectAsStateWithLifecycle()
     val provider by vm.provider.collectAsStateWithLifecycle()
     val model by vm.model.collectAsStateWithLifecycle()
@@ -285,6 +286,7 @@ private fun CoachChat(vm: CoachViewModel, onOpenSettings: () -> Unit) {
     // half-typed question is not lost while fixing the key, and cleared on save so a secret does not
     // sit in composition state after it has been stored.
     var keyFix by remember { mutableStateOf("") }
+    var showKeyEditor by remember { mutableStateOf(false) }
 
     // Refresh the contextual chips whenever the chat empties (so a fresh sync updates them) and
     // once on first show. Best-effort; the VM falls back to the generic set on any failure.
@@ -327,15 +329,13 @@ private fun CoachChat(vm: CoachViewModel, onOpenSettings: () -> Unit) {
         // moved to CoachSettingsScreen (#2243) so this tab is the conversation; what stays is the one
         // line saying which model is answering, and the way through to the rest.
         //
-        // Disconnect stays HERE rather than moving with them. It is the only route back to the setup
-        // card, which is the only place a key can be typed (#2206 has the iOS version of this, where
-        // the same control had been placed in a toolbar the tab never renders). Keeping connection
-        // management on the conversation screen on both platforms also keeps that one split identical,
+        // Connection management stays HERE rather than moving with settings. Keeping it on the
+        // conversation screen on both platforms also keeps that one split identical,
         // which is the part worth keeping identical. The two settings screens do NOT hold the same
         // cards: see CoachSettingsScreen's own note on the two Gemini/signals opt-ins.
         NoopCard(padding = 14.dp, tint = Palette.chargeColor) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                // The pill takes the flexible space (ellipsizing a long model id); the two affordances
+                // The pill takes the flexible space (ellipsizing a long model id); the actions
                 // keep their intrinsic single-line width so they can never be squeezed into a vertical
                 // stack (#1074).
                 StatePill(
@@ -353,6 +353,22 @@ private fun CoachChat(vm: CoachViewModel, onOpenSettings: () -> Unit) {
                         .clip(RoundedCornerShape(50))
                         .liquidPress(settingsInteraction)
                         .clickable(interactionSource = settingsInteraction, indication = null) { onOpenSettings() }
+                        .padding(6.dp)
+                        .size(20.dp),
+                )
+                Spacer(Modifier.width(4.dp))
+                val keyInteraction = remember { MutableInteractionSource() }
+                Icon(
+                    Icons.Filled.Edit,
+                    contentDescription = uiString(R.string.coach_key_rejected_action),
+                    tint = Palette.textSecondary,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .liquidPress(keyInteraction)
+                        .clickable(interactionSource = keyInteraction, indication = null) {
+                            showKeyEditor = !showKeyEditor
+                            if (!showKeyEditor) keyFix = ""
+                        }
                         .padding(6.dp)
                         .size(20.dp),
                 )
@@ -425,30 +441,34 @@ private fun CoachChat(vm: CoachViewModel, onOpenSettings: () -> Unit) {
                 color = Palette.statusCritical,
                 modifier = Modifier.semantics { contentDescription = uiString(R.string.l10n_coach_screen_coach_error_error_ad9c8c46, errorMsg) },
             )
-            // A rejected key is the one failure the wearer can act on from here, and the message
-            // already tells them to: "Check the key and try again". Until this, the screen offered
-            // nowhere to check it. The field is rendered INSIDE the error branch, never on its own
-            // flag, so it cannot outlive the message that justifies it.
-            if (keyRejected) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        }
+        if (keyRejected || showKeyEditor) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (keyRejected) {
                     Text(
                         uiString(R.string.coach_key_rejected_hint),
                         style = NoopType.footnote,
                         color = Palette.textSecondary,
                     )
-                    CoachKeyField(
-                        value = keyFix,
-                        onValueChange = { keyFix = it },
-                        placeholder = uiString(R.string.coach_key_rejected_placeholder, provider.displayName),
-                    )
-                    CoachPrimaryButton(
-                        label = uiString(R.string.coach_key_rejected_action),
-                        enabled = keyFix.isNotBlank(),
-                        onClick = {
-                            vm.saveKey(context, keyFix)
-                            keyFix = ""
-                        },
-                    )
+                }
+                CoachKeyField(
+                    value = keyFix,
+                    onValueChange = { keyFix = it },
+                    placeholder = uiString(R.string.coach_key_rejected_placeholder, provider.displayName),
+                )
+                CoachPrimaryButton(
+                    label = uiString(R.string.coach_key_rejected_action),
+                    enabled = keyFix.isNotBlank(),
+                    onClick = {
+                        vm.saveKey(context, keyFix)
+                        keyFix = ""
+                        showKeyEditor = false
+                    },
+                )
+                if (showKeyEditor && !keyRejected) {
+                    TextButton(onClick = { showKeyEditor = false; keyFix = "" }) {
+                        Text(stringResource(R.string.l10n_coach_screen_cancel_77dfd213))
+                    }
                 }
             }
         }

@@ -217149,6 +217149,9 @@
         } },
         "no time of its own": { "localizations": {
           "de": {"stringUnit": {"state": "translated", "value": "keine eigene Zeit"}}, "es": {"stringUnit": {"state": "translated", "value": "sin hora propia"}}, "fr": {"stringUnit": {"state": "translated", "value": "pas d'heure propre"}}, "it": {"stringUnit": {"state": "translated", "value": "nessun orario proprio"}}, "pl": {"stringUnit": {"state": "translated", "value": "brak własnej godziny"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "sem hora própria"}}, "ru": {"stringUnit": {"state": "translated", "value": "без своего времени"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "没有单独时间"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "沒有單獨時間"}}
+        } },
+        "Update key": { "localizations": {
+          "de": {"stringUnit": {"state": "translated", "value": "Schlüssel aktualisieren"}}, "es": {"stringUnit": {"state": "translated", "value": "Actualizar clave"}}, "fr": {"stringUnit": {"state": "translated", "value": "Mettre à jour la clé"}}, "it": {"stringUnit": {"state": "translated", "value": "Aggiorna chiave"}}, "pl": {"stringUnit": {"state": "translated", "value": "Zaktualizuj klucz"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Atualizar chave"}}, "ru": {"stringUnit": {"state": "translated", "value": "Обновить ключ"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "更新密钥"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "更新密鑰"}}
         } }
   },
   "version": "1.0"
