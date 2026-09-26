@@ -166,9 +166,21 @@ final class GpsRouteMathTests: XCTestCase {
         ]
         let route = WorkoutRoute(polyline: RouteMath.encode([a, b]), distanceM: 451, points: points)
         RouteStore.store(route, startTs: 1_700_000_000, sport: "Running", into: defaults)
-        let loaded = RouteStore.load(startTs: 1_700_000_000, sport: "Running", from: defaults)
+        let loaded = RouteStore.loadWithPoints(startTs: 1_700_000_000, sport: "Running", from: defaults)
         XCTAssertEqual(loaded?.points, points)
         XCTAssertTrue(loaded?.hasExportableMeasurements == true)
+
+        // The routes map itself stays the handful of bytes its cap assumes: points live in their own key,
+        // so the every-read full decode never carries them and `load` hands back a drawable route only.
+        XCTAssertNil(RouteStore.load(startTs: 1_700_000_000, sport: "Running", from: defaults)?.points)
+        let mapJSON = String(data: defaults.data(forKey: RouteStore.defaultsKey) ?? Data(), encoding: .utf8)
+        XCTAssertFalse(mapJSON?.contains("accuracyM") ?? true, "points must not reach the routes map")
+
+        // Deleting the session takes the points with it, so their key cannot outlive the route.
+        RouteStore.remove(startTs: 1_700_000_000, sport: "Running", from: defaults)
+        XCTAssertNil(RouteStore.loadWithPoints(startTs: 1_700_000_000, sport: "Running", from: defaults))
+        XCTAssertNil(RoutePointStore.load(for: RouteStore.key(startTs: 1_700_000_000, sport: "Running"),
+                                          from: defaults))
     }
 
     func testLegacyRouteWithoutPointMeasurementsRemainsReadableButCannotExport() throws {

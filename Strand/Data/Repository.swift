@@ -2957,7 +2957,9 @@ final class Repository: ObservableObject {
             // #10: the GPS route lives in RouteStore keyed by the natural key (startTs + sport), NOT in the
             // DB row. Copy it only after the replacement row is durable. Keep the old copy until the old
             // DB row is successfully retired, so a delete failure preserves both complete versions.
-            let oldRoute = RouteStore.load(startTs: old.startTs, sport: old.sport)
+            // WITH points: this re-stores under a new natural key, and `load` hands back a drawable route
+            // only, so a plain load here would drop the recorded measurements on every edit.
+            let oldRoute = RouteStore.loadWithPoints(startTs: old.startTs, sport: old.sport)
             if let route = oldRoute {
                 RouteStore.store(route, startTs: row.startTs, sport: row.sport)
             }
@@ -3053,7 +3055,9 @@ final class Repository: ObservableObject {
         // below doesn't drop routes, so we read + move them explicitly). Keep the longest polyline.
         var bestRoute: (route: WorkoutRoute, startTs: Int, sport: String)?
         for r in rows {
-            guard let route = RouteStore.load(startTs: r.startTs, sport: r.sport) else { continue }
+            // WITH points, for the same reason as the edit path: the winner is re-stored under the merged
+            // key, so dropping its measurements here would lose them silently.
+            guard let route = RouteStore.loadWithPoints(startTs: r.startTs, sport: r.sport) else { continue }
             if bestRoute == nil || route.polyline.count > bestRoute!.route.polyline.count {
                 bestRoute = (route, r.startTs, r.sport)
             }
