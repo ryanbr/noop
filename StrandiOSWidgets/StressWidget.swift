@@ -121,6 +121,8 @@ private struct StressMovingMarksShape: Shape {
 
 struct StressWidgetView: View {
     let entry: StressEntry
+    private let scaleWidth: CGFloat = 14
+    private let scaleGap: CGFloat = 6
 
     /// Resolved on read, so a curve scored for a day that is over is dropped rather than drawn. Measured
     /// from `entry.date` rather than `Date()` because WidgetKit renders an entry at ITS date, which is
@@ -180,7 +182,7 @@ struct StressWidgetView: View {
             }
 
             if stats != nil {
-                HStack(alignment: .top, spacing: 6) {
+                HStack(alignment: .top, spacing: scaleGap) {
                     // The scale sits on the LEFT, where the Stress screen puts it. (The heart-rate
                     // widget puts its scale on the right, which is right for a trace whose numbers are
                     // read off the end.) Fixed rather than derived, because that is what the domain is:
@@ -194,10 +196,12 @@ struct StressWidgetView: View {
                             if index < ticks.count - 1 { Spacer(minLength: 0) }
                         }
                     }
+                    .frame(width: scaleWidth)
                     StressCurveChart(series: series, ramp: rampGradient,
                                      fillTint: steady, dotTint: tense)
                 }
                 StressTimeAxis(series: series)
+                    .padding(.leading, scaleWidth + scaleGap)
             }
 
             Spacer(minLength: 0)

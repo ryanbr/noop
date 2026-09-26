@@ -106,7 +106,8 @@ private fun stressTense(dark: Boolean) = if (dark) Color(0xFFE0A62F) else Color(
 private const val STRESS_CARD_PADDING_DP = 28f
 
 /** The level scale column plus its gap. One number, read by both the chart and its axis. */
-private const val STRESS_SCALE_COLUMN_DP = 20f
+private const val STRESS_SCALE_WIDTH_DP = 14f
+private const val STRESS_SCALE_COLUMN_DP = STRESS_SCALE_WIDTH_DP + 6f
 
 /** The height the curve BITMAP is drawn at. The chart box takes the card's leftover height by weight,
  *  so its real height is not knowable here; this is what the bitmap is drawn at and the `Image` scales
@@ -290,7 +291,7 @@ private fun StressTraceImage(
     // scale on the right, which is right for a trace whose numbers are read off the end.)
     Row(modifier = modifier.fillMaxWidth()) {
         Column(
-            modifier = GlanceModifier.fillMaxHeight(),
+            modifier = GlanceModifier.width(STRESS_SCALE_WIDTH_DP.dp).fillMaxHeight(),
             horizontalAlignment = Alignment.Horizontal.End,
         ) {
             val ticks = StressTrace.levelTicks()
@@ -335,6 +336,7 @@ private fun StressTimeAxis(snap: WidgetSnapshot, dark: Boolean) {
     val fmt = DateFormat.getTimeInstance(DateFormat.SHORT)
     Spacer(GlanceModifier.height(2.dp))
     Row(modifier = GlanceModifier.fillMaxWidth()) {
+        Spacer(GlanceModifier.width(STRESS_SCALE_COLUMN_DP.dp))
         ticks.forEachIndexed { i, ts ->
             Text(
                 text = fmt.format(Date(ts * 1000)),

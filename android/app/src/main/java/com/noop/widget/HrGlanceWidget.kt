@@ -95,7 +95,8 @@ private const val HR_CARD_PADDING_DP = 28f
 
 /** The bpm scale column plus its gap. Same reasoning: one number, read by both. Two copies of a layout
  *  constant is how a chart and its axis end up a few pixels out of step. */
-private const val HR_SCALE_COLUMN_DP = 34f
+private const val HR_SCALE_WIDTH_DP = 28f
+private const val HR_SCALE_COLUMN_DP = HR_SCALE_WIDTH_DP + 6f
 
 /**
  * The height the trace BITMAP is drawn at.
@@ -207,7 +208,7 @@ private fun HrWidgetContent(snap: WidgetSnapshot, dark: Boolean) {
             Spacer(GlanceModifier.height(8.dp))
             HrTraceImage(snap, dark, widthDp = size.width.value, stats = stats,
                          modifier = GlanceModifier.defaultWeight())
-            HrTimeAxis(snap, dark)
+            HrTimeAxis(snap, dark, hasScale = stats != null && stats.max > stats.min)
         }
 
         if (snap.updatedAtMs > 0) {
@@ -319,7 +320,7 @@ private fun HrTraceImage(
             // the bottom, which is what makes it a SCALE. Stacked from the top with fixed gaps they were
             // just three numbers near the chart, aligned to nothing.
             Column(
-                modifier = GlanceModifier.fillMaxHeight(),
+                modifier = GlanceModifier.width(HR_SCALE_WIDTH_DP.dp).fillMaxHeight(),
                 horizontalAlignment = Alignment.Horizontal.End,
             ) {
                 val ticks = HrTrace.bpmTicks(stats)
@@ -352,7 +353,7 @@ private fun HrTraceImage(
  * times would suggest a span that was never sampled.
  */
 @Composable
-private fun HrTimeAxis(snap: WidgetSnapshot, dark: Boolean) {
+private fun HrTimeAxis(snap: WidgetSnapshot, dark: Boolean, hasScale: Boolean) {
     val ticks = HrTrace.timeTicks(snap.hrSeries)
     if (ticks.isEmpty()) return
     // Under a minute of history names one instant, and one label pinned to the left edge reads as a
@@ -368,5 +369,6 @@ private fun HrTimeAxis(snap: WidgetSnapshot, dark: Boolean) {
             )
             if (i < ticks.size - 1) Spacer(GlanceModifier.defaultWeight())
         }
+        if (hasScale) Spacer(GlanceModifier.width(HR_SCALE_COLUMN_DP.dp))
     }
 }
