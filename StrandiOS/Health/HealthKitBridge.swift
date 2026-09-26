@@ -1599,28 +1599,20 @@ final class HealthKitBridge: ObservableObject {
         for workout in workoutsAndRows {
             let startTs = Int(workout.startDate.timeIntervalSince1970)
             let endTs = max(Int(workout.endDate.timeIntervalSince1970), startTs)
-            let samples = await Self.fetchWorkoutHeartRate(for: workout, store: store)
+            let appleSamples = await Self.fetchWorkoutHeartRate(for: workout, store: store)
             let steps = await Self.fetchWorkoutSteps(for: workout, store: store)
-            // Two gates, not one. A mean and a peak are readable from any beat the workout carries, so
-            // they are reported whenever there are samples, which is what `WorkoutSource` already does
-            // for a merged workout (`hrWeight > 0 ? … : nil`, no sample floor) rather than a threshold
-            // invented here. EFFORT is the number that needs coverage: it integrates time in zones, and
-            // a handful of beats over a few minutes would score a session that was never measured.
-            //
-            // Sharing one threshold meant a 15-sample, 8-minute workout with perfectly good heart rate
-            // showed blank Avg and Max as well as blank Effort. It also meant a wearer with NO strain
-            // profile got no heart rate at all from an import, because the old guard opened on
-            // `guard let profile`: avg and max never needed one.
-            let heartRate: (avg: Int, peak: Int)? = {
-                guard !samples.isEmpty else { return nil }
-                let mean = Int((Double(samples.reduce(0) { $0 + $1.bpm }) / Double(samples.count)).rounded())
-                return (mean, samples.map(\.bpm).max() ?? mean)
-            }()
             // Prefer the HR stream HealthKit associates with this workout (for example, Apple Watch).
-            // If that stream is absent or too sparse, fall back to the locally stored strap trace for
-            // this exact workout window. The same strap trace backs the workout detail chart and zones.
-            // Do not merge the streams: that would double-count overlapping beats and mix sensors.
-            var effort = profile.flatMap { Self.scoredEffort(samples, profile: $0) }
+            // If that stream is absent or too sparse to score, fall back to the locally stored strap
+            // trace for this exact workout window — the same trace that backs the detail chart.
+            //
+            // ONE stream answers the whole row. The streams are never merged, which would double-count
+            // overlapping beats, and they are never split across fields either: a mean from the watch
+            // beside an Effort integrated from the strap are two readings of one session that a wearer
+            // cannot reconcile, and with no watch beats at all it would print an Effort with no heart
+            // rate to account for it. So when the fallback is what scores the session, it reports that
+            // session's mean and peak too.
+            var samples = appleSamples
+            var effort = profile.flatMap { Self.scoredEffort(appleSamples, profile: $0) }
             if effort == nil, let profile {
                 let hrDeviceIds = Repository.workoutHrDeviceIds(
                     source: Self.appleWorkoutSource,
@@ -1629,8 +1621,27 @@ final class HealthKitBridge: ObservableObject {
                 let strapSamples = await repo.hrSamples(deviceIds: hrDeviceIds,
                                                         from: startTs, to: endTs,
                                                         limit: 20_000)
-                effort = Self.scoredEffort(strapSamples, profile: profile)
+                if let strapEffort = Self.scoredEffort(strapSamples, profile: profile) {
+                    effort = strapEffort
+                    samples = strapSamples
+                }
             }
+            // Two gates, not one. A mean and a peak are readable from any beat the answering stream
+            // carries, so they are reported whenever there are samples, which is what `WorkoutSource`
+            // already does for a merged workout (`hrWeight > 0 ? … : nil`, no sample floor) rather than a
+            // threshold invented here. EFFORT is the number that needs coverage: it integrates time in
+            // zones, and a handful of beats over a few minutes would score a session never measured.
+            //
+            // Sharing one threshold meant a 15-sample, 8-minute workout with perfectly good heart rate
+            // showed blank Avg and Max as well as blank Effort. It also meant a wearer with NO strain
+            // profile got no heart rate at all from an import, because the old guard opened on
+            // `guard let profile`: avg and max never needed one. Both still hold: when neither stream can
+            // score an Effort, the watch's beats still answer the mean and peak.
+            let heartRate: (avg: Int, peak: Int)? = {
+                guard !samples.isEmpty else { return nil }
+                let mean = Int((Double(samples.reduce(0) { $0 + $1.bpm }) / Double(samples.count)).rounded())
+                return (mean, samples.map(\.bpm).max() ?? mean)
+            }()
             rows.append(WorkoutRow(
                 startTs: startTs, endTs: endTs,
                 sport: Self.sportName(workout.workoutActivityType),
