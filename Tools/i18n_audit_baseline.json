@@ -194,10 +194,6 @@
     ],
     [
       "android/app/src/main/java/com/noop/ui/FusedRecordScreen.kt",
-      ", in use"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/FusedRecordScreen.kt",
       "Scores still calibrating, no single day-owner yet"
     ],
     [
@@ -478,10 +474,6 @@
     ],
     [
       "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
-      " · Charging"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SettingsScreen.kt",
       "Auto · ${profile.hrMaxAuto} bpm (Tanaka)"
     ],
     [
@@ -623,10 +615,6 @@
     [
       "android/app/src/main/java/com/noop/ui/SleepScreen.kt",
       "This split is the ring's raw on-device classification read over Bluetooth, not the adjusted "
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/SmartAlarmScreen.kt",
-      "Armed on the strap itself with the experimental 5/MG command. A strap-driven wake is still unconfirmed on 5/MG on our side (confirmed only on WHOOP 4.0), so keep a backup alarm for anything you truly can't miss."
     ],
     [
       "android/app/src/main/java/com/noop/ui/SmartAlarmScreen.kt",
@@ -1021,10 +1009,6 @@
     [
       "Strand/Liquid/LiquidPrimitives.swift",
       "%.\\(decimals)f"
-    ],
-    [
-      "Strand/Onboarding/OnboardingWizard.swift",
-      "Date of birth"
     ],
     [
       "Strand/Screens/AddDeviceWizard.swift",
@@ -1436,18 +1420,6 @@
     ],
     [
       "Strand/Screens/SettingsView.swift",
-      "Needs the full encrypted bond: close the official WHOOP app and pair the strap to NOOP first (a live-HR-only link can't carry a config write)."
-    ],
-    [
-      "Strand/Screens/SettingsView.swift",
-      "No WHOOP 5/MG deep buffers or phase markers have been recorded yet."
-    ],
-    [
-      "Strand/Screens/SettingsView.swift",
-      "One tap writes the key; NOOP then reads it back off the strap and reports the value it actually stores — the write's own \\\"success\\\" is not treated as proof."
-    ],
-    [
-      "Strand/Screens/SettingsView.swift",
       "Open NOOP near the strap and let WHOOP 5/MG history finish syncing. The step estimate and calibration fill in once enough stored motion has arrived; the legacy R22 experiment is not required."
     ],
     [
@@ -1456,27 +1428,11 @@
     ],
     [
       "Strand/Screens/SettingsView.swift",
-      "Scores your hour-by-hour stress timeline against YOUR own cross-day baseline (how your days usually run, Oura-style) instead of the day's own calm hours. Needs a few worn days; until then it stays on the default. The high-stress cutoff is tuned from a single-subject reference so far, so it's an alternative lens rather than the default. HR-only, and it never feeds recovery or illness scoring. Off by default."
-    ],
-    [
-      "Strand/Screens/SettingsView.swift",
-      "Stress: personal daytime baseline"
-    ],
-    [
-      "Strand/Screens/SettingsView.swift",
-      "The ECG gate needs an iPhone or Android. A Mac can't form the encrypted bond a 5/MG requires."
-    ],
-    [
-      "Strand/Screens/SettingsView.swift",
       "Trend chart style"
     ],
     [
       "Strand/Screens/SettingsView.swift",
       "WHOOP 5.0 / MG · motion → steps"
-    ],
-    [
-      "Strand/Screens/SettingsView.swift",
-      "Waiting for your strap to identify itself as an MG. Only a WHOOP MG has ECG electrodes, so NOOP won't write this key to anything else."
     ],
     [
       "Strand/Screens/SettingsView.swift",
@@ -1501,10 +1457,6 @@
     [
       "Strand/Screens/SleepModel.swift",
       "\\(Night.spanFmt.string(from: onsetDay)) → \\(Night.dateFmt.string(from: wakeDay))"
-    ],
-    [
-      "Strand/Screens/SleepView.swift",
-      "Oura"
     ],
     [
       "Strand/Screens/SleepView.swift",
@@ -1592,7 +1544,15 @@
     ],
     [
       "Strand/Screens/TestCentreView.swift",
+      "Backfill skin-temp absolutes"
+    ],
+    [
+      "Strand/Screens/TestCentreView.swift",
       "Backfilling…"
+    ],
+    [
+      "Strand/Screens/TestCentreView.swift",
+      "Clear legacy R22 flags on strap"
     ],
     [
       "Strand/Screens/TestCentreView.swift",
@@ -1601,6 +1561,14 @@
     [
       "Strand/Screens/TestCentreView.swift",
       "Connected live"
+    ],
+    [
+      "Strand/Screens/TestCentreView.swift",
+      "Gate off"
+    ],
+    [
+      "Strand/Screens/TestCentreView.swift",
+      "Gate on"
     ],
     [
       "Strand/Screens/TestCentreView.swift",
@@ -1629,6 +1597,10 @@
     [
       "Strand/Screens/TestCentreView.swift",
       "Rows drained (session)"
+    ],
+    [
+      "Strand/Screens/TestCentreView.swift",
+      "Send legacy R22 enable sequence"
     ],
     [
       "Strand/Screens/TestCentreView.swift",
