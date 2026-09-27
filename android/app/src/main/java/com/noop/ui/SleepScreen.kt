@@ -2040,7 +2040,7 @@ private const val STAGE_ROW_SMOOTH_SEC = 90.0
 
 /**
  * iOS #988 port — the WHOOP-style per-stage timeline stack that replaces the flat hypnogram strip
- * for real-stage nights. Four tappable rows in WHOOP order (AWAKE · LIGHT · DEEP · REM), each a
+ * for real-stage nights. Four tappable rows in chart-depth order (AWAKE · REM · LIGHT · DEEP), each a
  * hatched full-night track with solid segments on the shared onset→wake axis; MotionStrip and the
  * clock-label axis sit under the rows on the SAME timeline; a fixed-height insight slot closes the
  * stack. The rows ARE the legend — no dot row, no footer. Mirrors SleepView.stageTimeline.
@@ -2070,9 +2070,9 @@ internal fun StageTimeline(
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.space8)) {
         listOf(
             Triple("Awake", s.awake, Palette.sleepAwake),
+            Triple("REM", s.rem, Palette.sleepREM),
             Triple("Light", s.light, Palette.sleepLight),
             Triple("Deep", s.deep, Palette.sleepDeep),
-            Triple("REM", s.rem, Palette.sleepREM),
         ).forEach { (label, minutes, color) ->
             StageTimelineRow(
                 label = label,

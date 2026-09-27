@@ -46,16 +46,16 @@ import kotlin.math.roundToInt
  * The four WHOOP-style stage rows that replace the old "label · value" footer grid, read like WHOOP's
  * sleep detail: a colour swatch, the UPPERCASE stage name, the share-of-night % in the stage colour, a
  * segmented [PipBar] (the NOOP signature) tinted in the stage colour, and the right-aligned duration.
- * Same data as the prior footer (rem / deep / light / awake over total) — no new numbers. Mirrors the
- * macOS SleepView.stageBreakdownRows. (PipBar)
+ * Ordered by chart depth (awake / REM / light / deep); the values and colours stay attached to their
+ * stage. Mirrors macOS SleepView.stageBreakdownRows. (PipBar)
  */
 @Composable
 internal fun StageBreakdownRows(s: Stages, palette: SleepStagePalette = SleepStagePalette.NOOP) {
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.space12)) {
-        StageBreakdownRow("REM", s.rem, s.total, stageColorForRamp("REM", palette), stageSharePercent("REM", s))
-        StageBreakdownRow("Deep", s.deep, s.total, stageColorForRamp("Deep", palette), stageSharePercent("Deep", s))
-        StageBreakdownRow("Light", s.light, s.total, stageColorForRamp("Light", palette), stageSharePercent("Light", s))
         StageBreakdownRow("Awake", s.awake, s.total, stageColorForRamp("Awake", palette), stageSharePercent("Awake", s))
+        StageBreakdownRow("REM", s.rem, s.total, stageColorForRamp("REM", palette), stageSharePercent("REM", s))
+        StageBreakdownRow("Light", s.light, s.total, stageColorForRamp("Light", palette), stageSharePercent("Light", s))
+        StageBreakdownRow("Deep", s.deep, s.total, stageColorForRamp("Deep", palette), stageSharePercent("Deep", s))
     }
 }
 
