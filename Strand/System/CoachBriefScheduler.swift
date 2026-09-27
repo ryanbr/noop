@@ -236,6 +236,31 @@ enum CoachBriefScheduler {
 
     // MARK: - Due check + generation
 
+    /// Whether a generation attempt is already running, so only one can be in flight at a time.
+    ///
+    /// `lastRun` is written only AFTER a successful generation, deliberately, so a failure retries at the
+    /// next wake rather than marking the day done. That leaves the day guard open across a suspension:
+    /// a caller reads `lastRun`, `await generateBrief()` suspends, and a second caller reaching the same
+    /// guard still sees yesterday's value. Two call sites now arm the schedule (Coach's own `.task` and
+    /// the scene-phase entry), so a cold launch straight onto the Coach tab could run two generations at
+    /// once, paying for two provider calls and posting two brief notifications for the same day.
+    ///
+    /// Claiming is what makes the day guard hold across that await. MainActor-isolated because the two
+    /// callers arrive on different executors: `activateIfEnabled` starts an unstructured `Task` with no
+    /// isolation, while the BGTask handler runs its worker on the MainActor.
+    @MainActor private static var generationInFlight = false
+
+    /// Take the single generation slot, or report that another attempt already holds it.
+    @MainActor private static func claimGeneration() -> Bool {
+        guard !generationInFlight else { return false }
+        generationInFlight = true
+        return true
+    }
+
+    /// Give the generation slot back. Always called immediately after the attempt, before either outcome
+    /// is branched on, so a failed generation releases it exactly like a successful one.
+    @MainActor private static func releaseGeneration() { generationInFlight = false }
+
     /// If today's brief is due (we're at/after the chosen time and haven't generated today), generate it
     /// once: store the text, mark today done, and post the notification. Covers macOS launches where the
     /// time passed while the app wasn't open, and the iOS foreground/BGTask paths.
@@ -254,7 +279,12 @@ enum CoachBriefScheduler {
         guard nowMinutes >= timeMinutes else { return true }                                  // not yet time today
         guard UserDefaults.standard.string(forKey: K.lastRun) != dayKey(now) else { return true } // already ran today
 
-        guard let text = await generateBrief() else {
+        // One attempt at a time; see `generationInFlight` for why the day guard alone is not enough.
+        guard await claimGeneration() else { return true }
+        let generated = await generateBrief()
+        await releaseGeneration()
+
+        guard let text = generated else {
             // No key/consent/network, or the provider returned nothing. Never mark the day done, so the
             // next wake (BGTask retry, or the next foreground open) tries again. Post a low-key retry
             // notification rather than silently doing nothing — the PRD's "unavailable, tap to retry".
