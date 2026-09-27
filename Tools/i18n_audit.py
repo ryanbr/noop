@@ -689,6 +689,119 @@ SWIFT_CALL_START_PATTERN = re.compile(
     r"\bString\s*\((?=\s*localized:)"
 )
 
+# Project-custom call sites that carry copy, discovered rather than listed.
+#
+# SWIFT_CALL_START_PATTERN above enumerates SwiftUI's own views plus the handful of ours somebody
+# remembered to add. Anything else taking a `LocalizedStringKey` is invisible to it, and invisibility
+# here is not cosmetic: the literal never reaches `scan_ios`, so nothing checks that it has a catalog
+# entry, and SwiftUI renders the key itself. The copy ships in English in every locale with this gate
+# green, sitting between neighbours that are translated.
+#
+# That is how PR #2530 came to add `DataPendingNote(title: "Updating last night's sleep…")` with no
+# catalog entry at all, while its author had diligently written the Android half in all eight locales.
+# `DataPendingNote` simply was not on the list.
+#
+# Discovery, not a longer list, because a list is the thing that goes stale: a new view with a
+# `LocalizedStringKey` parameter is covered the day it is written, which is the same reason
+# `shipped_apple_langs` reads locales out of the catalog instead of a constant.
+SWIFT_TYPE_DECL_PATTERN = re.compile(r"\b(?:struct|enum|(?:final\s+)?class)\s+(\w+)")
+SWIFT_LSK_PROPERTY_PATTERN = re.compile(r"\b(?:let|var)\s+(\w+)\s*:\s*LocalizedStringKey")
+SWIFT_FUNC_DECL_PATTERN = re.compile(r"\bfunc\s+(\w+)\s*(?:<[^>\n]*>)?\s*\(")
+
+
+def _swift_paren_span_end(text: str, start: int) -> int:
+    """Index just past the `)` closing the list opened before `start`.
+
+    Distinct from `_swift_argument_span_end`, which stops at the first top-level comma because its
+    callers want the FIRST argument. A declaration has to be read whole: `row(icon: String, label:
+    LocalizedStringKey)` puts the type that matters after a comma, so the first-argument span misses
+    it and the function is never discovered. That mistake made this discovery silently find only
+    types, which the tests caught.
+    """
+    depth = 1
+    i = start
+    while i < len(text) and depth:
+        ch = text[i]
+        if ch == '"':
+            i = _skip_swift_string_literal(text, i)
+            continue
+        if ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth -= 1
+        i += 1
+    return i
+
+
+def _swift_debug_spans(text: str) -> list[tuple[int, int]]:
+    """Byte ranges of `#if DEBUG` ... `#endif`, which are not shipped copy.
+
+    A `#Preview` lives inside one of these, and its fixture data reads exactly like copy: the skin-temp
+    preview passes `note: "Luteal range - temperature is running above your baseline."` into an engine
+    result. Auditing it would demand a catalog entry for a sentence no wearer can ever see, and pass the
+    demand on to every translator.
+
+    This matters more once custom call sites are discovered, because the literal scan descends
+    transparently through `(`, so a preview's nested initialiser argument becomes reachable from the
+    outer view's span. `test_home_i18n` caught exactly that and was right to.
+
+    Nesting is counted, so an inner `#if os(iOS)` does not end the region early.
+    """
+    spans: list[tuple[int, int]] = []
+    for m in re.finditer(r"^[ \t]*#if\s+DEBUG\b", text, re.MULTILINE):
+        depth = 1
+        i = m.end()
+        for token in re.finditer(r"^[ \t]*#(if|endif)\b", text[m.end():], re.MULTILINE):
+            depth += 1 if token.group(1) == "if" else -1
+            if depth == 0:
+                i = m.end() + token.end()
+                break
+        else:
+            i = len(text)
+        spans.append((m.start(), i))
+    return spans
+
+
+def swift_localized_key_call_names(read: "Reader | None" = None) -> frozenset[str]:
+    """Every name whose call site can carry `LocalizedStringKey` copy.
+
+    Two shapes reach a call site. A type with a stored `LocalizedStringKey` property gets it through
+    the memberwise init, so the name to watch is the TYPE (`DataPendingNote(title:)`). A function with
+    such a parameter is called by its own name (`field(_ label:)`). A computed `var x: LocalizedStringKey`
+    on an enum yields its enum name too, which is harmless: the pattern then looks for a call that does
+    not exist and finds nothing.
+
+    Takes `read` so the base-ref scan discovers the names as they were AT that ref. Using the current
+    set against base-ref sources would report a newly added view's literals on both sides and the
+    regression gate would cancel them out, which is the one way this check could quietly do nothing.
+    """
+    read = read or _disk_read
+    names: set[str] = set()
+    for dirs, _catalog_path in CATALOGS:
+        for base in dirs:
+            if not base.exists():
+                continue
+            for path in sorted(base.rglob("*.swift")):
+                text = read(path) or ""
+                if "LocalizedStringKey" not in text:
+                    continue
+                for m in SWIFT_LSK_PROPERTY_PATTERN.finditer(text):
+                    prior = [d for d in SWIFT_TYPE_DECL_PATTERN.finditer(text) if d.start() < m.start()]
+                    if prior:
+                        names.add(prior[-1].group(1))
+                for m in SWIFT_FUNC_DECL_PATTERN.finditer(text):
+                    if "LocalizedStringKey" in text[m.end():_swift_paren_span_end(text, m.end())]:
+                        names.add(m.group(1))
+    return frozenset(names)
+
+
+def swift_custom_call_pattern(names: "frozenset[str] | set[str]") -> "re.Pattern[str] | None":
+    """An alternation matching `Name(` for each discovered name, or None when there are none."""
+    if not names:
+        return None
+    return re.compile(r"\b(?:" + "|".join(re.escape(n) for n in sorted(names)) + r")\s*\(")
+
+
 # A computed property that RETURNS user-facing copy as a `String`, e.g.
 # `var label: String { ... }` on a screen's scope/mode enum.
 #
@@ -776,7 +889,7 @@ def _swift_argument_span_end(text: str, start: int) -> int:
     return i
 
 
-def swift_string_literals(text: str):
+def swift_string_literals(text: str, extra_pattern: "re.Pattern[str] | None" = None):
     """Yield (offset, literal contents) for every literal directly reachable
     in a localized SwiftUI call's FIRST argument — descends transparently
     through `(`/`[` (so `cond ? "a" : "b"` and nested calls are visible) but
@@ -790,32 +903,39 @@ def swift_string_literals(text: str):
     non-localizing `Text<S: StringProtocol>` overload, so it was always
     English regardless of device language (#540).
     """
-    for match in SWIFT_CALL_START_PATTERN.finditer(text):
-        open_paren = match.end() - 1
-        end = _swift_argument_span_end(text, open_paren + 1)
-        i = open_paren + 1
-        while i < end:
-            ch = text[i]
-            if ch == '"':
-                j = _skip_swift_string_literal(text, i)
-                yield i, text[i + 1:j - 1]
-                i = j
-                continue
-            if ch == "{":
-                depth = 1
-                i += 1
-                while i < end and depth:
-                    c2 = text[i]
-                    if c2 == '"':
-                        i = _skip_swift_string_literal(text, i)
-                        continue
-                    if c2 in "({[":
-                        depth += 1
-                    elif c2 in ")}]":
-                        depth -= 1
+    patterns = [SWIFT_CALL_START_PATTERN]
+    if extra_pattern is not None:
+        patterns.append(extra_pattern)
+    seen: set[int] = set()
+    for pattern in patterns:
+        for match in pattern.finditer(text):
+            open_paren = match.end() - 1
+            end = _swift_argument_span_end(text, open_paren + 1)
+            i = open_paren + 1
+            while i < end:
+                ch = text[i]
+                if ch == '"':
+                    j = _skip_swift_string_literal(text, i)
+                    if i not in seen:
+                        seen.add(i)
+                        yield i, text[i + 1:j - 1]
+                    i = j
+                    continue
+                if ch == "{":
+                    depth = 1
                     i += 1
-                continue
-            i += 1
+                    while i < end and depth:
+                        c2 = text[i]
+                        if c2 == '"':
+                            i = _skip_swift_string_literal(text, i)
+                            continue
+                        if c2 in "({[":
+                            depth += 1
+                        elif c2 in ")}]":
+                            depth -= 1
+                        i += 1
+                    continue
+                i += 1
 
 
 def swift_returned_copy_literals(text: str):
@@ -1025,6 +1145,8 @@ def scan_ios(read: Reader | None = None) -> tuple[list[tuple[str, int, str]], di
     read = read or _disk_read
     hardcoded: list[tuple[str, int, str]] = []  # not in any catalog at all
     lang_gaps: dict[str, list[str]] = {lang: [] for lang in LANGS}
+    # Discovered with THIS reader, so a base-ref scan uses the names as they were at that ref.
+    custom_calls = swift_custom_call_pattern(swift_localized_key_call_names(read))
 
     for dirs, catalog_path in CATALOGS:
         cat_text = read(catalog_path)
@@ -1034,13 +1156,17 @@ def scan_ios(read: Reader | None = None) -> tuple[list[tuple[str, int, str]], di
                 continue
             for path in sorted(base.rglob("*.swift")):
                 text = read(path) or ""
-                literals = list(swift_string_literals(text))
+                literals = list(swift_string_literals(text, custom_calls))
                 # Screen files only: see `swift_returned_copy_literals` for why the same shape
                 # elsewhere (BLE opcode names, design-system internals) is not copy.
                 if "/Screens/" in path.as_posix() or "/Liquid/" in path.as_posix():
                     literals += list(swift_returned_copy_literals(text))
+                debug_spans = _swift_debug_spans(text)
                 for offset, literal in literals:
                     if not is_probably_ui_text(literal):
+                        continue
+                    # Preview fixtures are not copy; see `_swift_debug_spans`.
+                    if any(lo <= offset < hi for lo, hi in debug_spans):
                         continue
                     entry = swift_catalog_lookup(cat, literal)
                     line_no = text.count("\n", 0, offset) + 1
