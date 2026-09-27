@@ -1680,7 +1680,24 @@ public final class BLEManager: NSObject, ObservableObject {
         // exactly as before. #52: this drop is what abandoned a strap that bonds fine when the pin was
         // STALE — `readoptWorkingStrap()` repoints the pin to the live-bonding strap first, so after a
         // handoff this loop drops the dead strap and attaches to the working one instead of vice-versa.
-        let existing = central.retrieveConnectedPeripherals(withServices: [model.scanService])
+        // #1997: query BOTH WHOOP vendor scan services, not just the selected family's, so a strap already
+        // connected at the OS level is adopted whichever family is currently persisted. A strap that iOS
+        // reconnected after a reboot stops advertising, so the scan below cannot find it; if the family on
+        // record is the other one, the retrieve missed it too and the connect deadlocked with the strap
+        // sitting right there on the OS link.
+        //
+        // Generic GATT services are deliberately NOT queried here. AirPods, Watches, keyboards, mice and
+        // third-party HR straps all expose Heart Rate (180D) and Battery (180F), so including them would
+        // hand this loop unrelated accessories to adopt, and hand the drop loop below unrelated accessories
+        // to disconnect. Both entries here are proprietary WHOOP vendor UUIDs, so only a WHOOP can match.
+        //
+        // CONSEQUENCE, accepted deliberately: the drop loop below now also sees the OTHER family, so with a
+        // strap PINNED it will disconnect an OS-level link to a second WHOOP of the other family, where
+        // before it could only see one family and left that link alone. That is what the loop already says
+        // it does ("not the selected strap"), and it only runs when a pin exists, so the default nil-pin
+        // install is untouched. Naming it because it is a wire-visible widening, not a no-op.
+        let existing = central.retrieveConnectedPeripherals(
+            withServices: [model.scanService, model.fallbackScanModel.scanService])
         if preferredPeripheralUUID != nil {
             for other in existing where !isPreferredPeripheral(other) {
                 log("Dropping non-active WHOOP connection \(other.identifier) — not the selected strap")
