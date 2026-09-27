@@ -780,3 +780,51 @@ class SwiftDebugRegionExclusion(unittest.TestCase):
 
     def test_a_file_with_no_debug_region_has_no_spans(self):
         self.assertEqual(ia._swift_debug_spans('Text("Save")\n'), [])
+
+
+class SwiftCommentMasking(unittest.TestCase):
+    """Prose is not copy. The Android path has masked comments since #540; the Apple path never did.
+
+    Three findings came from comments. One was a `//` note explaining that a CRLF-prefixed kind field is
+    not equal to the bare one. The other two were `///` comments quoting "the newest row with any recovery
+    score" to say what the code deliberately does NOT anchor on, and those two are the instructive pair:
+    the comment reads `today's row (not "the newest row ...")`, and `row` is a discovered call name, so
+    `row (` matched and the quoted phrase became its first argument. Masking is the fix rather than
+    tightening that pattern, because prose can contain any call shape at all.
+    """
+
+    def test_a_line_comment_body_is_blanked_and_length_preserved(self):
+        text = 'let a = 1  // not "copy" at all\nlet b = 2\n'
+        masked = ia._mask_swift_comments(text)
+        self.assertEqual(len(masked), len(text))
+        self.assertNotIn('"copy"', masked)
+        self.assertIn("let a = 1", masked)
+        self.assertIn("let b = 2", masked)
+
+    def test_a_block_comment_is_blanked_including_nested(self):
+        text = 'let a = 1\n/* outer "x" /* inner "y" */ still outer "z" */\nlet b = 2\n'
+        masked = ia._mask_swift_comments(text)
+        for needle in ('"x"', '"y"', '"z"'):
+            self.assertNotIn(needle, masked)
+        self.assertIn("let b = 2", masked)
+
+    def test_a_double_slash_inside_a_string_is_not_a_comment(self):
+        text = 'Text("https://example.com/path")\nText("After")\n'
+        masked = ia._mask_swift_comments(text)
+        self.assertIn('"https://example.com/path"', masked)
+        self.assertIn('"After"', masked)
+
+    def test_the_quoted_phrase_in_a_comment_is_not_collected(self):
+        """The regression itself, end to end, with `row` as a discovered call name."""
+        pattern = ia.swift_custom_call_pattern({"row"})
+        text = '/// Anchoring on today\'s row (not "the newest row with any recovery score") is the fix.\n'
+        raw = [lit for _o, lit in ia.swift_string_literals(text, pattern)]
+        self.assertIn("the newest row with any recovery score", raw)  # visible without masking
+        masked = ia._mask_swift_comments(text)
+        self.assertEqual([lit for _o, lit in ia.swift_string_literals(masked, pattern)], [])
+
+    def test_real_copy_after_a_comment_survives(self):
+        pattern = ia.swift_custom_call_pattern({"DataPendingNote"})
+        text = '// a note mentioning "something"\nDataPendingNote(title: "Real copy")\n'
+        masked = ia._mask_swift_comments(text)
+        self.assertEqual([lit for _o, lit in ia.swift_string_literals(masked, pattern)], ["Real copy"])

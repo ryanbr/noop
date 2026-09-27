@@ -733,6 +733,59 @@ def _swift_paren_span_end(text: str, start: int) -> int:
     return i
 
 
+def _mask_swift_comments(text: str) -> str:
+    """`text` with Swift comment bodies blanked, same length so offsets stay valid.
+
+    The Android path has masked comments since #540; the Apple path never did, and a quoted phrase in a
+    comment reads exactly like copy. Three findings came from prose: a `//` note explaining that
+    `"\\r\\nW" != "W"`, and two `///` comments quoting "the newest row with any recovery score" to say
+    what the code deliberately does NOT anchor on.
+    
+    The second pair is the instructive one. The comment reads "today's row (not "the newest row ...")",
+    and `row` is a discovered call name, so `row (` matched and the quoted phrase inside became its first
+    argument. Masking is the fix rather than tightening that pattern, because prose can contain any call
+    shape at all.
+
+    Separate from `_mask_comments` because that one uses the Kotlin literal skipper. Swift raw strings
+    (`#"..."#`) and multi-line `\"\"\"` literals need the Swift-aware one, or a `//` inside such a
+    literal would be blanked as a comment.
+    """
+    out = list(text)
+    i = 0
+    n = len(text)
+    while i < n:
+        ch = text[i]
+        if ch == '"':
+            i = _skip_swift_string_literal(text, i)
+            continue
+        if ch == "/" and i + 1 < n and text[i + 1] == "/":
+            while i < n and text[i] != "\n":
+                out[i] = " "
+                i += 1
+            continue
+        if ch == "/" and i + 1 < n and text[i + 1] == "*":
+            depth = 1
+            out[i] = out[i + 1] = " "
+            i += 2
+            while i < n and depth:
+                if text[i] == "/" and i + 1 < n and text[i + 1] == "*":
+                    depth += 1
+                    out[i] = out[i + 1] = " "
+                    i += 2
+                    continue
+                if text[i] == "*" and i + 1 < n and text[i + 1] == "/":
+                    depth -= 1
+                    out[i] = out[i + 1] = " "
+                    i += 2
+                    continue
+                if text[i] != "\n":
+                    out[i] = " "
+                i += 1
+            continue
+        i += 1
+    return "".join(out)
+
+
 def _swift_debug_spans(text: str) -> list[tuple[int, int]]:
     """Byte ranges of `#if DEBUG` ... `#endif`, which are not shipped copy.
 
@@ -1155,7 +1208,10 @@ def scan_ios(read: Reader | None = None) -> tuple[list[tuple[str, int, str]], di
             if not base.exists():
                 continue
             for path in sorted(base.rglob("*.swift")):
-                text = read(path) or ""
+                raw = read(path) or ""
+                # Comment bodies blanked first: prose quoting a phrase is not copy, and `_mask_swift_comments`
+                # keeps the length so offsets and line numbers still refer to the real file.
+                text = _mask_swift_comments(raw)
                 literals = list(swift_string_literals(text, custom_calls))
                 # Screen files only: see `swift_returned_copy_literals` for why the same shape
                 # elsewhere (BLE opcode names, design-system internals) is not copy.
