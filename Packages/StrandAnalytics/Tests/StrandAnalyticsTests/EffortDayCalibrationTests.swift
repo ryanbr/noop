@@ -22,8 +22,9 @@ final class EffortDayCalibrationTests: XCTestCase {
     func testTheLineIsExactlyThis() {
         XCTAssertEqual(
             StrainScorer.dayCalibrationLine(day: "2026-09-25", hrmax: 195.0, hrmaxSource: "override",
-                                            tanaka: 187.0, observedPeak: 178.0, restingHR: 52.0),
-            "effort calib day=2026-09-25 hrmax=195 src=override tanaka=187 peak=178 rhr=52")
+                                            tanaka: 187.0, observedPeak: 178.0, restingHR: 52.0)
+                + StrainScorer.sustainedPeakField(171.0),
+            "effort calib day=2026-09-25 hrmax=195 src=override tanaka=187 peak=178 rhr=52 sustained=171")
     }
 
     /// An age-less profile has no formula value and a day with no heart rate has no peak. Both must say
@@ -32,8 +33,9 @@ final class EffortDayCalibrationTests: XCTestCase {
     func testMissingValuesRenderAsNilNotZero() {
         XCTAssertEqual(
             StrainScorer.dayCalibrationLine(day: "2026-09-25", hrmax: nil, hrmaxSource: "default",
-                                            tanaka: nil, observedPeak: nil, restingHR: 60.0),
-            "effort calib day=2026-09-25 hrmax=nil src=default tanaka=nil peak=nil rhr=60")
+                                            tanaka: nil, observedPeak: nil, restingHR: 60.0)
+                + StrainScorer.sustainedPeakField(nil),
+            "effort calib day=2026-09-25 hrmax=nil src=default tanaka=nil peak=nil rhr=60 sustained=nil")
     }
 
     /// The three source words are disjoint, and none of them is `effort score`'s `provided` — the whole
@@ -51,14 +53,14 @@ final class EffortDayCalibrationTests: XCTestCase {
     /// day scored 8 bpm higher than the formula would have.
     func testAnOverrideIsNamedAsOneAndStillPrintsTanaka() {
         let line = calibLine(age: 30, maxHROverride: 195, peakBpm: 178)
-        XCTAssertEqual(line, "effort calib day=2026-09-25 hrmax=195 src=override tanaka=187 peak=178 rhr=60")
+        XCTAssertEqual(line, "effort calib day=2026-09-25 hrmax=195 src=override tanaka=187 peak=178 rhr=60 sustained=178")
     }
 
     /// With no override the day runs on the formula, and `hrmax` and `tanaka` are then the same number.
     /// A reader seeing them agree knows no setting was in force without having to know the profile.
     func testNoOverrideIsNamedTanakaAndAgreesWithIt() {
         let line = calibLine(age: 30, maxHROverride: nil, peakBpm: 178)
-        XCTAssertEqual(line, "effort calib day=2026-09-25 hrmax=187 src=tanaka tanaka=187 peak=178 rhr=60")
+        XCTAssertEqual(line, "effort calib day=2026-09-25 hrmax=187 src=tanaka tanaka=187 peak=178 rhr=60 sustained=178")
     }
 
     /// No age, no override: `strain` substitutes its own default internally, and the line reports THAT
@@ -69,7 +71,7 @@ final class EffortDayCalibrationTests: XCTestCase {
     /// the same day: that line prints the substituted 190 while this one claimed there was no HRmax.
     func testAnAgelessProfileReportsTheSubstitutedDefault() {
         let line = calibLine(age: 0, maxHROverride: nil, peakBpm: 178)
-        XCTAssertEqual(line, "effort calib day=2026-09-25 hrmax=190 src=default tanaka=nil peak=178 rhr=60")
+        XCTAssertEqual(line, "effort calib day=2026-09-25 hrmax=190 src=default tanaka=nil peak=178 rhr=60 sustained=178")
     }
 
     /// The peak is the day's RAW maximum, not a percentile and not a trimmed one. The rule under
@@ -78,6 +80,79 @@ final class EffortDayCalibrationTests: XCTestCase {
     func testASingleHighMinuteReachesThePeak() {
         let line = calibLine(age: 30, maxHROverride: nil, peakBpm: 178, spikeBpm: 201)
         XCTAssertTrue(line.contains(" peak=201 "), line)
+    }
+
+    /// The same day through the engine: the one-sample spike reaches `peak` and stays out of `sustained`,
+    /// which still reports the ten-minute block. That gap is what the field exists to show.
+    func testASingleHighMinuteStaysOutOfSustained() {
+        let line = calibLine(age: 30, maxHROverride: nil, peakBpm: 178, spikeBpm: 201)
+        XCTAssertTrue(line.contains(" peak=201 ") && line.hasSuffix(" sustained=178"), line)
+    }
+
+    // MARK: sustained peak
+
+    private func run(_ bpms: [Int], every stepS: Int = 1, from start: Int = 1_790_294_400) -> [HRSample] {
+        bpms.enumerated().map { HRSample(ts: start + $0.offset * stepS, bpm: $0.element) }
+    }
+
+    /// One sample, or four, at a high value is not held; five is.
+    func testSustainedPeakNeedsFiveConsecutiveSamples() {
+        let base = Array(repeating: 90, count: 8)
+        XCTAssertEqual(StrainScorer.sustainedPeak(run(base + [200] + base)), 90)
+        XCTAssertEqual(StrainScorer.sustainedPeak(run(base + [200, 200, 200, 200] + base)), 90)
+        XCTAssertEqual(StrainScorer.sustainedPeak(run(base + [200, 200, 200, 200, 200] + base)), 200)
+    }
+
+    /// The minimum over the run, not the mean: a spike inside ordinary samples does not lift it.
+    func testSustainedPeakIsTheMinimumOfTheRun() {
+        XCTAssertEqual(StrainScorer.sustainedPeak(run([150, 150, 210, 150, 150])), 150)
+    }
+
+    /// The five samples must fit in 60 s: a span of exactly 60 counts, 61 does not.
+    func testSustainedPeakWindowBoundary() {
+        XCTAssertEqual(StrainScorer.sustainedPeak(run([170, 170, 170, 170, 170], every: 15)), 170)
+        let wide = run([170, 170, 170, 170], every: 15) + [HRSample(ts: 1_790_294_400 + 61, bpm: 170)]
+        XCTAssertNil(StrainScorer.sustainedPeak(wide))
+    }
+
+    /// A sparse day, such as a ring's five-minute cadence, and a day with fewer than five samples, read
+    /// as nil: not measured, rather than a fallback to the raw peak.
+    func testSustainedPeakIsNilWhenNotDenseEnough() {
+        XCTAssertNil(StrainScorer.sustainedPeak(run([120, 130, 140, 150, 160, 170], every: 300)))
+        XCTAssertNil(StrainScorer.sustainedPeak(run([180, 180, 180, 180])))
+        XCTAssertNil(StrainScorer.sustainedPeak([]))
+    }
+
+    /// Input order does not matter.
+    func testSustainedPeakIgnoresInputOrder() {
+        let hr = run([100, 160, 161, 162, 163, 164, 100, 90])
+        XCTAssertEqual(StrainScorer.sustainedPeak(hr), StrainScorer.sustainedPeak(hr.reversed()))
+    }
+
+    /// Parity oracle. 48 generated days (a 64-bit LCG, so the Kotlin test builds the same ones), with
+    /// duplicate seconds, reversed input and gaps from dense to sparse. The expected literal is the
+    /// stdout of this implementation compiled on its own; `EffortDayCalibrationTest` pins the same one.
+    func testSustainedPeakParityOracle() {
+        var state: UInt64 = 2438
+        func next(_ m: Int) -> Int {
+            state = state &* 6364136223846793005 &+ 1442695040888963407
+            return Int(state >> 33) % m
+        }
+        var out: [String] = []
+        for c in 0 ..< 48 {
+            let n = next(40)
+            let maxGap = [2, 8, 20, 40][c % 4]
+            var ts = 1_790_294_400
+            var hr: [HRSample] = []
+            for _ in 0 ..< n {
+                ts += next(maxGap)
+                hr.append(HRSample(ts: ts, bpm: 60 + next(140)))
+            }
+            if c % 3 == 0 { hr.reverse() }
+            out.append(StrainScorer.sustainedPeak(hr).map { String(Int($0)) } ?? "nil")
+        }
+        XCTAssertEqual(out.joined(separator: ","),
+                       "77,97,148,97,nil,90,113,69,87,147,109,nil,nil,115,102,112,89,88,130,87,114,128,75,nil,119,103,144,nil,123,124,82,119,136,62,161,nil,nil,79,nil,90,102,163,130,133,79,146,87,nil")
     }
 
     /// The two lines must agree about the day. `effort calib` reads the branch at the call site and

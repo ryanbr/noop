@@ -472,6 +472,57 @@ object StrainScorer {
             " peak=${WorkoutDetector.round0(observedPeak)} rhr=${WorkoutDetector.round0(restingHR)}"
 
     /**
+     * The ` sustained=` field appended to [dayCalibrationLine]: the same day's peak held across
+     * consecutive samples ([sustainedPeak]), so a run of lines shows how much of each day's `peak` was a
+     * single sample. Its own function, appended by the caller, so the calibration line's existing contract
+     * stays as it is. Same formatter as the fields before it; null renders as `nil`, not 0.
+     *
+     * Byte-identical to the Swift twin `sustainedPeakField`.
+     */
+    fun sustainedPeakField(sustainedPeak: Double?): String =
+        " sustained=${WorkoutDetector.round0(sustainedPeak)}"
+
+    /** Consecutive samples a `sustained` peak must hold for, and the span they must fit in. */
+    const val sustainedPeakSamples = 5
+    const val sustainedPeakWindowS = 60L
+
+    /**
+     * The highest bpm that [sustainedPeakSamples] consecutive samples all reached within
+     * [sustainedPeakWindowS] seconds, or null when no run of samples is that dense.
+     *
+     * The `sustained` field beside the raw `peak` on the `effort calib` line (#2438). On ring days the raw
+     * daily maximum is nearly always one isolated sample: over 60 days of Oura heart rate it sat above the
+     * age formula on 58 days, and this value on none, while 98 % of the samples at or above 165 bpm lay in
+     * a ±30 s window whose median was under 120. A step-0 rule read off the raw peak would raise a ring
+     * wearer's HRmax from artefacts, so contributed logs carry both, and the rule can be written against
+     * whichever one holds up on straps.
+     *
+     * The minimum over each run, not its mean: one spike inside five ordinary samples must not lift the
+     * value, which is the whole point of the field. Null rather than a fallback to the raw peak, so a sparse
+     * day reads as "not measured" and not as "held".
+     *
+     * Byte-identical to the Swift twin `sustainedPeak`.
+     */
+    fun sustainedPeak(
+        hr: List<HrSample>,
+        samples: Int = sustainedPeakSamples,
+        windowS: Long = sustainedPeakWindowS,
+    ): Double? {
+        if (samples <= 0 || hr.size < samples) return null
+        // Ordered by (ts, bpm), not ts alone: Swift's sort is not stable and Kotlin's is, so two samples
+        // sharing a second could otherwise form different runs on the two platforms.
+        val sorted = hr.sortedWith(compareBy({ it.ts }, { it.bpm }))
+        var best: Int? = null
+        for (i in 0..(sorted.size - samples)) {
+            val last = i + samples - 1
+            if (sorted[last].ts - sorted[i].ts > windowS) continue
+            val held = (i..last).minOf { sorted[it].bpm }
+            best = maxOf(best ?: held, held)
+        }
+        return best?.toDouble()
+    }
+
+    /**
      * One line naming what an Effort score was computed FROM, or why it could not be computed.
      *
      * The gap this closes: [strain] is the only score in the app with no trace at all. WorkoutDetector,

@@ -942,7 +942,9 @@ public enum AnalyticsEngine {
                 hrmaxSource: maxHROverride != nil ? "override" : (profile.age > 0 ? "tanaka" : "default"),
                 tanaka: profile.age > 0 ? StrainScorer.tanakaHRmax(age: profile.age) : nil,
                 observedPeak: hrForPeak.max(by: { $0.bpm < $1.bpm }).map { Double($0.bpm) },
-                restingHR: restForStrain))
+                restingHR: restForStrain)
+                // The raw peak is usually one isolated sample on a ring; this is the value held (#2438).
+                + StrainScorer.sustainedPeakField(StrainScorer.sustainedPeak(hrForPeak)))
         }
 
         // ── Workouts ──────────────────────────────────────────────────────────

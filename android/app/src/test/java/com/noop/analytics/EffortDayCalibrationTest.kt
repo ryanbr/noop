@@ -3,6 +3,7 @@ package com.noop.analytics
 import com.noop.data.HrSample
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -27,11 +28,11 @@ class EffortDayCalibrationTest {
     @Test
     fun `the line is exactly this`() {
         assertEquals(
-            "effort calib day=2026-09-25 hrmax=195 src=override tanaka=187 peak=178 rhr=52",
+            "effort calib day=2026-09-25 hrmax=195 src=override tanaka=187 peak=178 rhr=52 sustained=171",
             StrainScorer.dayCalibrationLine(
                 day = "2026-09-25", hrmax = 195.0, hrmaxSource = "override",
                 tanaka = 187.0, observedPeak = 178.0, restingHR = 52.0,
-            ),
+            ) + StrainScorer.sustainedPeakField(171.0),
         )
     }
 
@@ -43,11 +44,11 @@ class EffortDayCalibrationTest {
     @Test
     fun `missing values render as nil not zero`() {
         assertEquals(
-            "effort calib day=2026-09-25 hrmax=nil src=default tanaka=nil peak=nil rhr=60",
+            "effort calib day=2026-09-25 hrmax=nil src=default tanaka=nil peak=nil rhr=60 sustained=nil",
             StrainScorer.dayCalibrationLine(
                 day = "2026-09-25", hrmax = null, hrmaxSource = "default",
                 tanaka = null, observedPeak = null, restingHR = 60.0,
-            ),
+            ) + StrainScorer.sustainedPeakField(null),
         )
     }
 
@@ -72,7 +73,7 @@ class EffortDayCalibrationTest {
     @Test
     fun `an override is named as one and still prints tanaka`() {
         assertEquals(
-            "effort calib day=2026-09-25 hrmax=195 src=override tanaka=187 peak=178 rhr=60",
+            "effort calib day=2026-09-25 hrmax=195 src=override tanaka=187 peak=178 rhr=60 sustained=178",
             calibLine(age = 30.0, maxHROverride = 195.0, peakBpm = 178),
         )
     }
@@ -84,7 +85,7 @@ class EffortDayCalibrationTest {
     @Test
     fun `no override is named tanaka and agrees with it`() {
         assertEquals(
-            "effort calib day=2026-09-25 hrmax=187 src=tanaka tanaka=187 peak=178 rhr=60",
+            "effort calib day=2026-09-25 hrmax=187 src=tanaka tanaka=187 peak=178 rhr=60 sustained=178",
             calibLine(age = 30.0, maxHROverride = null, peakBpm = 178),
         )
     }
@@ -101,7 +102,7 @@ class EffortDayCalibrationTest {
     @Test
     fun `an ageless profile reports the substituted default`() {
         assertEquals(
-            "effort calib day=2026-09-25 hrmax=190 src=default tanaka=nil peak=178 rhr=60",
+            "effort calib day=2026-09-25 hrmax=190 src=default tanaka=nil peak=178 rhr=60 sustained=178",
             calibLine(age = 0.0, maxHROverride = null, peakBpm = 178),
         )
     }
@@ -115,6 +116,93 @@ class EffortDayCalibrationTest {
     fun `a single high minute reaches the peak`() {
         assertTrue(calibLine(age = 30.0, maxHROverride = null, peakBpm = 178, spikeBpm = 201)
             .contains(" peak=201 "))
+    }
+
+    /**
+     * The same day through the engine: the one-sample spike reaches `peak` and stays out of `sustained`,
+     * which still reports the ten-minute block. That gap is what the field exists to show.
+     */
+    @Test
+    fun `a single high minute stays out of sustained`() {
+        val line = calibLine(age = 30.0, maxHROverride = null, peakBpm = 178, spikeBpm = 201)
+        assertTrue(line, line.contains(" peak=201 ") && line.endsWith(" sustained=178"))
+    }
+
+    // ---- sustained peak ----
+
+    private fun run(bpms: List<Int>, stepS: Long = 1, start: Long = 1_790_294_400L): List<HrSample> =
+        bpms.mapIndexed { i, b -> HrSample("t", start + i * stepS, b) }
+
+    /** One sample, or four, at a high value is not held; five is. */
+    @Test
+    fun `sustained peak needs five consecutive samples`() {
+        val base = List(8) { 90 }
+        assertEquals(90.0, StrainScorer.sustainedPeak(run(base + listOf(200) + base)))
+        assertEquals(90.0, StrainScorer.sustainedPeak(run(base + List(4) { 200 } + base)))
+        assertEquals(200.0, StrainScorer.sustainedPeak(run(base + List(5) { 200 } + base)))
+    }
+
+    /** The minimum over the run, not the mean: a spike inside ordinary samples does not lift it. */
+    @Test
+    fun `sustained peak is the minimum of the run`() {
+        assertEquals(150.0, StrainScorer.sustainedPeak(run(listOf(150, 150, 210, 150, 150))))
+    }
+
+    /** The five samples must fit in 60 s: a span of exactly 60 counts, 61 does not. */
+    @Test
+    fun `sustained peak window boundary`() {
+        assertEquals(170.0, StrainScorer.sustainedPeak(run(List(5) { 170 }, stepS = 15)))
+        val wide = run(List(4) { 170 }, stepS = 15) + HrSample("t", 1_790_294_400L + 61, 170)
+        assertNull(StrainScorer.sustainedPeak(wide))
+    }
+
+    /**
+     * A sparse day, such as a ring's five-minute cadence, and a day with fewer than five samples, read as
+     * null: not measured, rather than a fallback to the raw peak.
+     */
+    @Test
+    fun `sustained peak is null when not dense enough`() {
+        assertNull(StrainScorer.sustainedPeak(run(listOf(120, 130, 140, 150, 160, 170), stepS = 300)))
+        assertNull(StrainScorer.sustainedPeak(run(List(4) { 180 })))
+        assertNull(StrainScorer.sustainedPeak(emptyList()))
+    }
+
+    /** Input order does not matter. */
+    @Test
+    fun `sustained peak ignores input order`() {
+        val hr = run(listOf(100, 160, 161, 162, 163, 164, 100, 90))
+        assertEquals(StrainScorer.sustainedPeak(hr), StrainScorer.sustainedPeak(hr.reversed()))
+    }
+
+    /**
+     * Parity oracle. 48 generated days (a 64-bit LCG, the same one the Swift test runs), with duplicate
+     * seconds, reversed input and gaps from dense to sparse. The expected literal is the stdout of the Swift
+     * implementation compiled on its own; `EffortDayCalibrationTests` pins the same one.
+     */
+    @Test
+    fun `sustained peak parity oracle`() {
+        var state = 2438L
+        fun next(m: Int): Int {
+            state = state * 6364136223846793005L + 1442695040888963407L
+            return ((state ushr 33) % m).toInt()
+        }
+        val out = mutableListOf<String>()
+        for (c in 0 until 48) {
+            val n = next(40)
+            val maxGap = intArrayOf(2, 8, 20, 40)[c % 4]
+            var ts = 1_790_294_400L
+            val hr = mutableListOf<HrSample>()
+            repeat(n) {
+                ts += next(maxGap)
+                hr.add(HrSample("t", ts, 60 + next(140)))
+            }
+            if (c % 3 == 0) hr.reverse()
+            out.add(StrainScorer.sustainedPeak(hr)?.toInt()?.toString() ?: "nil")
+        }
+        assertEquals(
+            "77,97,148,97,nil,90,113,69,87,147,109,nil,nil,115,102,112,89,88,130,87,114,128,75,nil,119,103,144,nil,123,124,82,119,136,62,161,nil,nil,79,nil,90,102,163,130,133,79,146,87,nil",
+            out.joinToString(","),
+        )
     }
 
     /**

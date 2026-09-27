@@ -864,7 +864,9 @@ object AnalyticsEngine {
                     tanaka = if (profile.age > 0) StrainScorer.tanakaHRmax(profile.age) else null,
                     observedPeak = hrForPeak.maxOfOrNull { it.bpm }?.toDouble(),
                     restingHR = restForStrain,
-                ),
+                ) +
+                    // The raw peak is usually one isolated sample on a ring; this is the value held (#2438).
+                    StrainScorer.sustainedPeakField(StrainScorer.sustainedPeak(hrForPeak)),
             )
         }
 
