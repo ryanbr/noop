@@ -327,6 +327,9 @@ private fun toWall(deviceTs: Int?, deviceClockRef: Int, wallClockRef: Int): Int?
  * HR for the same instants. Frames whose full integrity verdict is negative are skipped — that is
  * the header checksum, the payload CRC32 and the structural length together, not the payload CRC
  * alone.
+ *
+ * Swift twin: `extractStreams`. Adding `family` changed the arity on both sides at once, which
+ * unpaired them in the ledger even though they moved together.
  */
 fun extractStreams(parsed: List<ParsedFrame>, deviceClockRef: Int, wallClockRef: Int,
                    family: DeviceFamily? = null): Streams {

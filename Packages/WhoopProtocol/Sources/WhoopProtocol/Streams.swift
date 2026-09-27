@@ -830,6 +830,10 @@ private func toWall(_ deviceTs: Int?, _ deviceClockRef: Int, _ wallClockRef: Int
 /// carries an HR byte but streams alongside type-40 during raw collection, so routing both
 /// would double-count HR for the same instants. Frames whose integrity verdict is negative are
 /// skipped — no row is derived from a frame that is not intact.
+///
+/// Kotlin twin: `extractStreams`. Adding `family` changed the arity on both sides at once, which
+/// unpaired them in the ledger even though they moved together; the reference says they are one
+/// contract so the next parameter does not have to rediscover that.
 public func extractStreams(_ parsed: [ParsedFrame],
                            deviceClockRef: Int, wallClockRef: Int,
                            family: DeviceFamily? = nil) -> Streams {

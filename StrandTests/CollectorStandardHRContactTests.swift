@@ -118,7 +118,11 @@ final class CollectorStandardHRContactTests: XCTestCase {
         await collector.flushStandardHR()
         XCTAssertTrue(store.inserted.isEmpty)
         await collector.flushStandardHR()
-        XCTAssertEqual(store.inserted.flatMap(\.rr).map(\.srcChannel), [.whoop5Standard, nil, nil])
+        // A WHOOP 4 standard-BLE beat is labelled now (`whoop4Standard`) where it used to be left
+        // unlabelled: that NULL is what let a partial type-47 offload hide live intervals, so the
+        // assertion moves to the new shape. Only a beat with NO family stays nil.
+        XCTAssertEqual(store.inserted.flatMap(\.rr).map(\.srcChannel),
+                       [.whoop5Standard, .whoop4Standard, nil])
         XCTAssertEqual(store.inserted.flatMap(\.rr).map(\.rrMs), [1000, 1001, 1002])
     }
 }

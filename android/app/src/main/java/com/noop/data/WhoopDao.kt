@@ -135,6 +135,17 @@ internal const val WHOOP5_RR_INTERVALS_SQL =
     "AND (tsSuspect IS NULL OR tsSuspect <> 1)) " +
     "ORDER BY ts ASC, ord ASC, rrMs ASC, seq ASC LIMIT :limit"
 
+/**
+ * One R-R source per UTC hour for a WHOOP 4, in provenance order: type-47 history, then type-40
+ * realtime, then standard BLE, then legacy unlabelled rows. Overlapping transports are never merged,
+ * and history takes precedence only in the hours it actually covers, so a partial offload no longer
+ * hides live intervals across the whole interval (#1118, #2335).
+ *
+ * Deliberately NOT `AS MATERIALIZED`, unlike the Swift twin. That hint needs SQLite 3.35 and `minSdk`
+ * is 26, so it is a syntax error on most supported devices. The cost is that SQLite may re-evaluate
+ * the hour choice per row, which is the quadratic read the Swift side names; do not "fix" the
+ * asymmetry by adding the keyword.
+ */
 internal const val WHOOP4_RR_INTERVALS_SQL =
     "WITH whoop4HourChoice AS (" +
     "SELECT ts / 3600 AS hour, " +
