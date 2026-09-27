@@ -69,6 +69,8 @@ object Zones {
  * last ~2 days against a ~28-day baseline ending 3 days ago across resting HR, HRV,
  * skin-temperature deviation and respiration. Two or more anomalies surface a banner;
  * the classic early-illness signature is RHR up + HRV down + skin-temp up.
+ * Each firing signal must still be abnormal on the newest day, so a recovered
+ * night cannot inherit yesterday's warning from the two-day average.
  *
  * The Swift method also gates on a user toggle (`behavior.illnessWatch`); that toggle
  * is a UI concern, so this pure function omits it. Callers decide whether to run it.
@@ -84,6 +86,7 @@ object IllnessWatch {
         if (days.size < 14) return null
 
         val recent = days.takeLast(2)
+        val latest = days.last()
         // ~28 days ending 3 days ago: take the last 31, drop the most recent 3.
         val base = days.takeLast(31).dropLast(3)
         // Whether a signal's window is fit to accuse the recent one (#2130). The Swift twin folds this
@@ -116,8 +119,11 @@ object IllnessWatch {
         run {
             val r = rm { it.restingHr?.toDouble() }
             val b = bm { it.restingHr?.toDouble() }
-            if (r != null && b != null && rhrBaseUsable && r >= b + 5) {
-                flags.add("resting HR +${(r - b).roundToInt()} bpm")
+            val current = latest.restingHr?.toDouble()
+            if (r != null && b != null && current != null && rhrBaseUsable &&
+                r >= b + 5 && current >= b + 5
+            ) {
+                flags.add("resting HR +${(current - b).roundToInt()} bpm")
             }
         }
 
@@ -126,15 +132,19 @@ object IllnessWatch {
             // the likeliest to have been resting on a cold-start baseline.
             val r = rm { it.avgHrv }
             val b = bm { it.avgHrv }
-            if (r != null && b != null && b > 0 && hrvBaseUsable && r <= b * 0.80) {
-                flags.add("HRV −${((1 - r / b) * 100).roundToInt()}%")
+            val current = latest.avgHrv
+            if (r != null && b != null && current != null && b > 0 && hrvBaseUsable &&
+                r <= b * 0.80 && current <= b * 0.80
+            ) {
+                flags.add("HRV −${((1 - current / b) * 100).roundToInt()}%")
             }
         }
 
         run {
             val r = rm { it.skinTempDevC }
-            if (r != null && r >= 0.6) {
-                flags.add("skin temp +${formatOneDp(r)}°C")
+            val current = latest.skinTempDevC
+            if (r != null && current != null && r >= 0.6 && current >= 0.6) {
+                flags.add("skin temp +${formatOneDp(current)}°C")
             }
         }
 
@@ -148,9 +158,11 @@ object IllnessWatch {
             val respBase = base.mapNotNull { it.respRateBpm }
             val r = rm { it.respRateBpm }
             val b = bm { it.respRateBpm }
+            val current = latest.respRateBpm
             val plausible = { v: Double -> v in 8.0..25.0 }
-            if (r != null && b != null && respBase.size >= 10 &&
-                plausible(r) && plausible(b) && r >= b + 2.5
+            if (r != null && b != null && current != null && respBase.size >= 10 &&
+                plausible(r) && plausible(b) && plausible(current) &&
+                r >= b + 2.5 && current >= b + 2.5
             ) {
                 flags.add("respiration up")
             }

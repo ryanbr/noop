@@ -1006,12 +1006,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val localKey = java.time.LocalDate.now().toString()
                 _today.value = resolveTodayRow(days, logicalKey, localKey)
                 _healthAlert.value =
-                    (if (_illnessWatchEnabled.value) IllnessWatch.evaluate(days) else null)
+                    (if (_illnessWatchEnabled.value && _today.value != null &&
+                        days.lastOrNull()?.day == _today.value?.day
+                    ) {
+                        IllnessWatch.evaluate(days)
+                    } else null)
                         ?.let { IllnessAlertNotifier.withWindow(appContext, it, days) }
                 // EVERY evaluation is reported, raised or clear. The clear-to-raised edge now lives in
                 // the notifier's PERSISTED state (#2586): `_healthAlert` starts null on every ViewModel
                 // build, so gating here made a cold start look like a transition, and the day gate then
-                // allowed a notification about an alert that had simply stayed raised.
+                // allowed a notification about an alert that had simply stayed raised. That is why the
+                // `previousAlert == null` gate this change arrived with is NOT restored: it is the gate
+                // the persisted edge replaced, and reinstating it would bring the cold start back.
                 // A loading/error emission with fewer than 14 days cannot establish a real clear.
                 if (days.size >= 14) IllnessAlertNotifier.onEvaluated(appContext, _healthAlert.value)
                 // Morning recap (#517) — opt-in, default OFF. Once today's row carries a banked night
@@ -2836,7 +2842,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         NoopPrefs.setIllnessWatch(appContext, enabled)
         // Recompute now — the recentDays collector only fires on data changes.
         val days = recentDays.value
-        _healthAlert.value = (if (enabled) IllnessWatch.evaluate(days) else null)
+        _healthAlert.value = (if (enabled && _today.value != null &&
+            days.lastOrNull()?.day == _today.value?.day
+        ) {
+            IllnessWatch.evaluate(days)
+        } else null)
             ?.let { IllnessAlertNotifier.withWindow(appContext, it, days) }
         // Reported like any other evaluation, because the persisted edge (#2586) is only correct if
         // EVERY change of state reaches it. Switching the watch off while an alert was raised used to

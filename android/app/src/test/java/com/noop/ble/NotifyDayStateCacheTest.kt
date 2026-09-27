@@ -19,6 +19,19 @@ class NotifyDayStateCacheTest {
     }
 
     @Test
+    fun emptyHistoryCannotProduceAnIllnessAlert() {
+        var illnessCalls = 0
+        val cache = NotifyDayStateCache {
+            illnessCalls += 1
+            "stale alert"
+        }
+
+        val state = cache.resolve(emptyList(), "2026-07-14", "2026-07-14", illnessEnabled = true)
+        assertNull(state.illness)
+        assertEquals(0, illnessCalls)
+    }
+
+    @Test
     fun liveTicksReuseDailyProjectionWhileInputsAreUnchanged() {
         var illnessCalls = 0
         val cache = NotifyDayStateCache {
@@ -78,16 +91,18 @@ class NotifyDayStateCacheTest {
         var illnessCalls = 0
         val cache = NotifyDayStateCache {
             illnessCalls += 1
-            null
+            "alert-$illnessCalls"
         }
         val days = days()
 
-        val before = cache.resolve(days, "2026-07-13", "2026-07-13", illnessEnabled = true)
-        val after = cache.resolve(days, "2026-07-14", "2026-07-14", illnessEnabled = true)
+        val before = cache.resolve(days, "2026-07-14", "2026-07-14", illnessEnabled = true)
+        val after = cache.resolve(days, "2026-07-15", "2026-07-15", illnessEnabled = true)
 
         assertNotSame(before, after)
-        assertEquals(13.0, before.todayRecovery)
-        assertEquals(14.0, after.todayRecovery)
-        assertEquals(2, illnessCalls)
+        assertEquals(14.0, before.todayRecovery)
+        assertNull(after.todayRecovery)
+        assertEquals("alert-1", before.illness)
+        assertNull(after.illness)
+        assertEquals(1, illnessCalls)
     }
 }

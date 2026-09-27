@@ -177,6 +177,20 @@ class AnalyticsTest {
     }
 
     @Test
+    fun illness_recoveredLatestNightClearsYesterdayWarning() {
+        // #2533: the two-night mean still looks strained, but the newest night's
+        // RHR (+3) and HRV (-14%) have both returned inside the alert thresholds.
+        val baseline = (0 until 31).map {
+            day("2026-01-%02d".format(it + 1), restingHr = 53, avgHrv = 57.0)
+        }
+        val strained = day("2026-02-01", restingHr = 71, avgHrv = 18.0)
+        val recovered = day("2026-02-02", restingHr = 56, avgHrv = 49.0)
+
+        assertNotNull(IllnessWatch.evaluate(baseline + strained))
+        assertNull(IllnessWatch.evaluate(baseline + strained + recovered))
+    }
+
+    @Test
     fun illness_singleFlagReturnsNull() {
         // Only resting HR elevated in the recent 2 days -> one flag -> null.
         val baseline = (0 until 31).map {

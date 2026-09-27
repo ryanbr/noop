@@ -1606,7 +1606,11 @@ fun TodayScreen(
             }
         }
 
-        if (alert != null) item { IllnessBanner(alert!!) }
+        // The alert belongs to the newest banked night. A past-day view or a day
+        // rollover without a new row must not keep showing yesterday's warning.
+        if (selectedDayOffset == 0 && alert != null && today != null &&
+            days.lastOrNull()?.day == resolveTodayRow(days, todayDate.toString(), LocalDate.now().toString())?.day
+        ) item { IllnessBanner(alert!!) }
 
         // #486: the "Arrange" affordance moved UP into the header/wordmark cluster (see above) so it no
         // longer sits alone in its own full-width band here. It stays pinned; only its position changed.
