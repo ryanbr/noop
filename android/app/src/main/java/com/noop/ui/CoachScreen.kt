@@ -311,11 +311,16 @@ private fun CoachChat(vm: CoachViewModel, onOpenSettings: () -> Unit) {
     }
 
     // K2 + K5 ordering matters and both gate on an EMPTY transcript, so this is ONE coroutine,
-    // sequential: restore whatever the prior launch persisted FIRST, THEN surface a brief the
-    // scheduled notification already generated (if any) — so K5 never overwrites K2's restore, and
-    // never appends a duplicate brief onto a transcript K2 just repopulated.
+    // sequential: restore whatever the prior launch persisted FIRST, retire it if it belongs to an
+    // earlier day, THEN surface a brief the scheduled notification already generated (if any) — so K5
+    // never overwrites K2's restore, and never appends a duplicate brief onto a transcript K2 just
+    // repopulated.
     LaunchedEffect(Unit) {
         vm.loadPersistedMessagesIfNeeded()
+        // The load runs once per PROCESS, so on a process kept alive overnight it returns without
+        // re-checking the day and leaves yesterday's chat in memory, which K5 then refuses to replace.
+        // Retiring here is what lets today's brief reach the screen at all (#2087).
+        vm.retireStaleConversationIfNeeded()
         // loadBriefSettings is NOT called here any more: it only populates the brief's UI state, which
         // CoachSettingsScreen owns since #2243, and consumeScheduledBriefIfAny reads storage directly.
         vm.consumeScheduledBriefIfAny(context)

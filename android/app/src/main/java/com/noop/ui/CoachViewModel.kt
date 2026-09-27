@@ -458,11 +458,8 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
         // talks about my imported data" after a night of fresh strap data — force-quitting the app
         // (which destroys the ViewModel) was the only cure. MAX_STORED_MESSAGES bounds the transcript's
         // SIZE; this bounds its AGE.
-        val today = LocalDate.now().toEpochDay()
-        if (isStaleConversation(conversationDay, today)) {
-            _messages.value = emptyList()
-        }
-        conversationDay = today
+        retireStaleConversationIfNeeded()
+        conversationDay = LocalDate.now().toEpochDay()
 
         val appCtx = ctx.applicationContext
         _error.value = null
@@ -561,6 +558,27 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
         conversationDay = lastDay
     }
 
+    /**
+     * Retire yesterday's in-memory transcript when the Coach screen is opened, before the scheduled
+     * brief is offered to it.
+     *
+     * [loadPersistedMessagesIfNeeded] runs once per PROCESS, so a process kept alive overnight never
+     * re-reaches the stored-row day check above, and the transcript it restored on an earlier day sits
+     * in memory: [consumeScheduledBriefIfAny] then declines to surface today's brief onto a non-empty
+     * transcript, so the brief is never shown (#2087). Android checks before consuming, so the brief
+     * survives in storage for the next process; it is the DISPLAY that goes missing.
+     *
+     * The stored rows are kept, exactly as the restore path keeps them: the next append replaces them
+     * wholesale, so merely opening the screen never destroys a transcript. Also called before each
+     * append that begins a new day's conversation, so the day boundary lives in ONE place.
+     * Twin of Swift `AICoachEngine.retireStaleConversationIfNeeded()`.
+     */
+    fun retireStaleConversationIfNeeded() {
+        if (!isStaleConversation(conversationDay, LocalDate.now().toEpochDay())) return
+        _messages.value = emptyList()
+        conversationDay = null
+    }
+
     /** Replace the ENTIRE persisted conversation with the current in-memory [_messages]. Called once
      *  per completed send/brief (not per streamed chunk). Fire-and-forget; a store failure never
      *  blocks the UI — the in-memory transcript (what the user sees) is unaffected either way. */
@@ -582,6 +600,9 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
      *  persisted table. */
     fun clearConversation() {
         _messages.value = emptyList()
+        // Goes with the transcript, as in [clearKey] and [disconnect]: a field claiming the empty
+        // transcript belongs to some past day would not be true.
+        conversationDay = null
         viewModelScope.launch { runCatching { coachDao.clearCoachMessages() } }
     }
 
@@ -669,7 +690,11 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val text = CoachBriefScheduler.generateNow(appCtx)
             if (text != null) {
+                // Still appends unconditionally onto TODAY's transcript; it just doesn't append onto
+                // yesterday's, which the day boundary has already retired everywhere else.
+                retireStaleConversationIfNeeded()
                 appendMessage(ChatMsg(role = "assistant", text = getApplication<Application>().getString(R.string.coach_today_brief_format, text)))
+                conversationDay = LocalDate.now().toEpochDay()
                 persistMessages()
             } else {
                 _briefStatus.value = "Couldn't generate a brief right now — check your key and data access."
@@ -680,11 +705,16 @@ class CoachViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Surface a brief the SCHEDULED notification already generated (if any) as the transcript's
      *  first message, with no network call. No-op if a conversation already exists. Call once when
-     *  the Coach screen appears. */
+     *  the Coach screen appears, AFTER [retireStaleConversationIfNeeded].
+     *
+     *  Dates the transcript it creates. Without that, a day whose only message is its brief left
+     *  [conversationDay] null, `isStaleConversation` reads null as never-stale, and tomorrow's brief
+     *  was blocked by today's — the half of #2087 that does not need a typed turn to reproduce. */
     fun consumeScheduledBriefIfAny(ctx: Context) {
         if (_messages.value.isNotEmpty()) return
         val text = CoachBriefSettings.from(ctx.applicationContext).consumeStoredBrief() ?: return
         appendMessage(ChatMsg(role = "assistant", text = getApplication<Application>().getString(R.string.coach_today_brief_format, text)))
+        conversationDay = LocalDate.now().toEpochDay()
         persistMessages()
     }
 
