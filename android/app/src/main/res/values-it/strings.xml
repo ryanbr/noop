@@ -2037,6 +2037,13 @@
     <string name="recording_chip_detail_connected_no_data">Ancora nessuna frequenza cardiaca in diretta né cronologia sincronizzata in questa sessione.</string>
     <string name="score_state_title_calibrating">Calibrazione</string>
     <string name="l10n_stress_glance_widget_resumes_in_the_morning_a640b49f">Riprende al mattino</string>
+    <string name="stress_screen_subtitle">Carico autonomico durante le ore di veglia</string>
+    <string name="stress_timeline_caption_day">La linea è l\'indicatore 0–3 di ogni ora di veglia, calcolato rispetto alle tue ore tranquille di oggi. La barra sotto divide la giornata in tempo calmo, di stress moderato e di stress alto.</string>
+    <string name="stress_timeline_caption_personal">La linea mostra l\'indicatore da 0 a 3 per ogni ora di veglia, valutato rispetto al tuo riferimento diurno personale (l\'andamento abituale delle tue giornate). La barra sottostante divide la giornata in periodi di stress basso, moderato e alto.</string>
+    <plurals name="stress_hours_excluded_moving">
+        <item quantity="one">%1$d ora esclusa — eri in movimento.</item>
+        <item quantity="other">%1$d ore escluse — eri in movimento.</item>
+    </plurals>
     <string name="score_state_title_needs_strap">Richiede la fascia</string>
     <string name="score_state_title_last_night">La scorsa notte · %1$s</string>
     <string name="score_state_title_latest_sleep">Ultimo sonno · %1$s</string>
