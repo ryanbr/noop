@@ -186,6 +186,20 @@ final class TrackFilter {
         last = fix
         return RouteMath.LatLng(fix.lat, fix.lon)
     }
+
+    /// Whether a fix could plausibly follow a point captured earlier, by the same speed rule `accept`
+    /// applies between consecutive fixes.
+    ///
+    /// `accept` cannot answer this at the seam a restored route creates. Seeding `last` with the banked
+    /// point would stall the track for good if the wearer resumed somewhere else, because a rejected fix
+    /// deliberately does NOT advance `last`, so every later fix would be measured against the same stale
+    /// point and dropped. This is the same arithmetic, asked once, without touching the filter's state.
+    func couldFollow(_ fix: RawFix, from lat: Double, _ lon: Double, at fromMs: Int64) -> Bool {
+        let dt = Double(fix.tMs - fromMs) / 1000.0
+        guard dt > 0 else { return false }
+        let d = RouteMath.haversineMeters(RouteMath.LatLng(lat, lon), RouteMath.LatLng(fix.lat, fix.lon))
+        return d / dt <= maxSpeedMps
+    }
 }
 
 // MARK: - RouteStore (on-device side-store)
@@ -222,6 +236,54 @@ struct WorkoutRoute: Equatable, Codable {
             previousTimestamp = point.tMs
         }
         return true
+    }
+}
+
+/// The route of a GPS workout WHILE it is running, so an OS kill mid-session cannot silently shorten it.
+///
+/// `ActiveWorkoutPersistence` already carries the HR side across a kill, and `rehydrateActiveWorkout`
+/// re-arms this recorder so fixes resume — which is exactly what made the gap quiet rather than obvious.
+/// The restored session ended with a route that began at relaunch and a `distanceM` to match, presented
+/// as the whole thing: a short route and a short distance are worse than none, because both look real.
+///
+/// Only the points are stored. `track` and `routePoints` are appended in lockstep and `TrackFilter.accept`
+/// returns the fix's own coordinates, so the track is derivable and storing both would be two copies of
+/// one path that could disagree.
+///
+/// Written on a point-count throttle rather than per fix: the blob grows with the route, and rewriting it
+/// every fix is the cost `RouteStore.storeAll` exists to avoid on the finished-route map. Never leaves the
+/// device.
+enum ActiveRouteStore {
+
+    /// Single `UserDefaults` key holding the in-flight `[WorkoutRoutePoint]`. Namespaced like `moments`.
+    static let defaultsKey = "noop.activeWorkoutRoute"
+
+    /// Points captured between writes. At `distanceFilter` 5 m that risks roughly 125 m of route to a
+    /// kill, for one rewrite per 25 fixes instead of one per fix.
+    static let pointsPerWrite = 25
+
+    /// Pure codec, so the round-trip is unit-testable. An empty array reads back as nil: "nothing captured
+    /// yet" and "no workout running" are the same absent answer to a caller.
+    static func encode(_ points: [WorkoutRoutePoint]) -> Data? { try? JSONEncoder().encode(points) }
+
+    static func decode(_ data: Data?) -> [WorkoutRoutePoint]? {
+        guard let data, !data.isEmpty,
+              let points = try? JSONDecoder().decode([WorkoutRoutePoint].self, from: data),
+              !points.isEmpty else { return nil }
+        return points
+    }
+
+    static func store(_ points: [WorkoutRoutePoint], into defaults: UserDefaults = .standard) {
+        guard !points.isEmpty, let data = encode(points) else { return }
+        defaults.set(data, forKey: defaultsKey)
+    }
+
+    static func load(from defaults: UserDefaults = .standard) -> [WorkoutRoutePoint]? {
+        decode(defaults.data(forKey: defaultsKey))
+    }
+
+    static func clear(from defaults: UserDefaults = .standard) {
+        defaults.removeObject(forKey: defaultsKey)
     }
 }
 
@@ -425,6 +487,10 @@ final class GpsWorkoutRecorder: NSObject, ObservableObject {
     private var filter = TrackFilter()
     private var track: [RouteMath.LatLng] = []
     private var routePoints: [WorkoutRoutePoint] = []
+    /// Points already written to `ActiveRouteStore`, so the throttle counts new ones rather than re-writing.
+    private var persistedPointCount = 0
+    /// The last banked point a `restore` adopted, until the first fix after it has been judged against it.
+    private var restoredSeam: WorkoutRoutePoint?
     private var startMs: Int64 = 0
     private var pausedAtMs: Int64?
     private var pausedDurationMs: Int64 = 0
@@ -460,6 +526,11 @@ final class GpsWorkoutRecorder: NSObject, ObservableObject {
     func start(startMs: Int64) {
         track.removeAll()
         routePoints.removeAll()
+        // A fresh arm owns no earlier route. Clearing here also drops one left behind by a session that
+        // was killed and never ended, so it cannot be adopted by the next workout.
+        persistedPointCount = 0
+        restoredSeam = nil
+        ActiveRouteStore.clear()
         filter = TrackFilter()
         self.startMs = startMs
         pausedAtMs = nil
@@ -488,7 +559,19 @@ final class GpsWorkoutRecorder: NSObject, ObservableObject {
     /// persisted mid-session, but the original clock and pause accounting must survive so subsequent
     /// live pace excludes all time the workout spent paused before and across the relaunch.
     func restore(startMs: Int64, pausedAtMs: Int64?, pausedDurationMs: Int64) {
+        // Read before `start` clears the key, then seed, so a restored session continues the route it was
+        // already drawing instead of beginning a second one at relaunch.
+        let banked = ActiveRouteStore.load()
         start(startMs: startMs)
+        if let banked {
+            routePoints = banked
+            track = banked.map { RouteMath.LatLng($0.lat, $0.lon) }
+            persistedPointCount = banked.count
+            restoredSeam = banked.last
+            pointCount = track.count
+            distanceM = RouteMath.totalMeters(track)
+            ActiveRouteStore.store(banked)
+        }
         self.pausedDurationMs = max(0, pausedDurationMs)
         if let pausedAtMs {
             self.pausedAtMs = pausedAtMs
@@ -503,6 +586,10 @@ final class GpsWorkoutRecorder: NSObject, ObservableObject {
     func stop() -> [RouteMath.LatLng] {
         manager.stopUpdatingLocation()
         isRecording = false
+        // Both End and Discard come through here, so clearing once covers both. `track` is left alone, so
+        // `capturedRoute()` still returns the whole route to whoever is saving it.
+        ActiveRouteStore.clear()
+        persistedPointCount = 0
         let final = track
         return final
     }
@@ -556,11 +643,34 @@ final class GpsWorkoutRecorder: NSObject, ObservableObject {
         var changed = false
         for fix in fixes {
             if let pt = filter.accept(fix) {
+                if let seam = restoredSeam {
+                    restoredSeam = nil
+                    if !filter.couldFollow(fix, from: seam.lat, seam.lon, at: seam.tMs) {
+                        // The wearer is somewhere the banked route cannot reach at running speed, so
+                        // joining would add that jump to `totalMeters` and draw a straight line across
+                        // ground the strap never saw — the same lie `hrGapSegments` exists to refuse.
+                        // Drop the banked prefix instead: that is what this session did before the route
+                        // was banked at all, so the worst case is the old behaviour rather than a long
+                        // invented one.
+                        workoutsLog?("gps route: dropped the banked prefix, the first fix after restore "
+                                     + "is further from it than running speed allows")
+                        track.removeAll()
+                        routePoints.removeAll()
+                        distanceM = 0
+                        pointCount = 0
+                        persistedPointCount = 0
+                        ActiveRouteStore.clear()
+                    }
+                }
                 track.append(pt)
                 routePoints.append(WorkoutRoutePoint(lat: fix.lat, lon: fix.lon,
                                                      accuracyM: fix.accuracyM, tMs: fix.tMs))
                 changed = true
             }
+        }
+        if routePoints.count - persistedPointCount >= ActiveRouteStore.pointsPerWrite {
+            ActiveRouteStore.store(routePoints)
+            persistedPointCount = routePoints.count
         }
         guard changed else { return }
         pointCount = track.count

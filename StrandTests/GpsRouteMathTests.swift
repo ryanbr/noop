@@ -192,6 +192,55 @@ final class GpsRouteMathTests: XCTestCase {
         XCTAssertFalse(loaded?.hasExportableMeasurements ?? true)
     }
 
+    // MARK: - ActiveRouteStore (the in-flight route, so a kill cannot shorten it)
+
+    /// The in-flight route round-trips, and an absent or empty one reads back as nil rather than as a
+    /// route of no points: "nothing captured yet" and "no workout running" are the same answer here.
+    func testActiveRouteStoreRoundTripsAndTreatsEmptyAsAbsent() {
+        let defaults = freshDefaults()
+        XCTAssertNil(ActiveRouteStore.load(from: defaults))
+        let points = [
+            WorkoutRoutePoint(lat: a.lat, lon: a.lon, accuracyM: 4, tMs: 1_700_000_000_000),
+            WorkoutRoutePoint(lat: b.lat, lon: b.lon, accuracyM: 6, tMs: 1_700_000_005_000),
+        ]
+        ActiveRouteStore.store(points, into: defaults)
+        XCTAssertEqual(ActiveRouteStore.load(from: defaults), points)
+
+        ActiveRouteStore.store([], into: defaults)
+        XCTAssertEqual(ActiveRouteStore.load(from: defaults), points, "an empty write must not erase a route")
+        ActiveRouteStore.clear(from: defaults)
+        XCTAssertNil(ActiveRouteStore.load(from: defaults))
+        XCTAssertNil(ActiveRouteStore.decode(Data()))
+    }
+
+    /// The seam a restore creates is judged, not assumed. A fix the banked route could not have reached at
+    /// running speed must be refused as a continuation, because joining it would add the jump to the
+    /// distance and draw a straight line across ground never recorded. A plausible one is accepted.
+    func testSeamAfterRestoreIsJudgedBySpeedNotAssumed() {
+        let f = TrackFilter()
+        let banked = WorkoutRoutePoint(lat: 51.5007, lon: -0.1246, accuracyM: 4, tMs: 1_000_000)
+        // Two seconds later, a few metres on: a wearer still running.
+        let near = fix(51.5008, -0.1246, acc: 4, t: banked.tMs + 2_000)
+        XCTAssertTrue(f.couldFollow(near, from: banked.lat, banked.lon, at: banked.tMs))
+        // Two minutes later, most of a degree of latitude away: nobody ran that.
+        let far = fix(52.2000, -0.1246, acc: 4, t: banked.tMs + 120_000)
+        XCTAssertFalse(f.couldFollow(far, from: banked.lat, banked.lon, at: banked.tMs))
+        // A fix stamped at or before the banked point cannot follow it either.
+        let backwards = fix(51.5008, -0.1246, acc: 4, t: banked.tMs)
+        XCTAssertFalse(f.couldFollow(backwards, from: banked.lat, banked.lon, at: banked.tMs))
+    }
+
+    /// `ActiveRouteStore` banks only the points and rebuilds the track from them, which is only sound while
+    /// the filter hands back the fix's OWN coordinates. Pin that: if the gate ever smooths or snaps a fix,
+    /// a restored route would diverge from the one already drawn, and this fires instead.
+    func testFilterReturnsTheFixCoordinatesSoBankedPointsRebuildTheTrack() {
+        let f = TrackFilter()
+        let raw = fix(51.5007, -0.1246, acc: 4, t: 1_000)
+        let accepted = f.accept(raw)
+        XCTAssertEqual(accepted?.lat, raw.lat)
+        XCTAssertEqual(accepted?.lon, raw.lon)
+    }
+
     func testRouteMeasurementsRequireMonotonicValidTimesAndAccuracy() {
         let good = [
             WorkoutRoutePoint(lat: a.lat, lon: a.lon, accuracyM: 4, tMs: 1000),

@@ -5,8 +5,10 @@ import WhoopProtocol
 ///
 /// A manual workout used to live ONLY in `AppModel.activeWorkout` (in memory), so if iOS killed the app
 /// mid-session — a backgrounded phone under memory pressure — the whole session was lost and could never
-/// be ended + saved. (Apple has no GPS-route session like Android's `GpsSession`; every manual workout
-/// here is the "non-GPS" case, so they all need this.) This is the Apple analogue of Android's
+/// be ended + saved. (That parenthetical used to say Apple has no GPS-route session like Android's
+/// `GpsSession`, which stopped being true when `GpsWorkoutRecorder` arrived: a distance workout here
+/// records a route too, and its fixes are banked by `ActiveRouteStore` rather than by this snapshot,
+/// which stays the cheap per-sample write it was built as.) This is the Apple analogue of Android's
 /// `ActiveWorkoutStore`/`ActiveWorkoutPersistence`: a tiny `Codable` snapshot (start time, sport, the
 /// accumulated HR samples + running stats) is written to `UserDefaults` on start and on every captured
 /// sample, and read back on launch so an interrupted session can still be ended and saved.
