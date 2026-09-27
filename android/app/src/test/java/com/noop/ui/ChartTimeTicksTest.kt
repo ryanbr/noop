@@ -47,12 +47,12 @@ class ChartTimeTicksTest {
     }
 
     @Test fun thirtyMinutesTicksEveryFiveMinutes() {
-        val ticks = chartTimeTicks(at(2026, 7, 10, 14, 2), at(2026, 7, 10, 14, 32), kyiv)
+        val ticks = chartTimeTicks(at(2026, 7, 10, 14, 2), at(2026, 7, 10, 14, 32), kyiv, deepZoom = true)
         assertEquals(listOf("14:05", "14:10", "14:15", "14:20", "14:25", "14:30"), ticks.map { it.second })
     }
 
     @Test fun tenMinutesTicksEveryTwoMinutes() {
-        val ticks = chartTimeTicks(at(2026, 7, 10, 14, 1), at(2026, 7, 10, 14, 11), kyiv)
+        val ticks = chartTimeTicks(at(2026, 7, 10, 14, 1), at(2026, 7, 10, 14, 11), kyiv, deepZoom = true)
         assertEquals(listOf("14:02", "14:04", "14:06", "14:08", "14:10"), ticks.map { it.second })
     }
 
@@ -60,8 +60,23 @@ class ChartTimeTicksTest {
         // 5-minute window from 14:00:30 to 14:05:30 — use epoch math since at() has no seconds param.
         val start = at(2026, 7, 10, 14, 0) + 30
         val end = at(2026, 7, 10, 14, 5) + 30
-        val ticks = chartTimeTicks(start, end, kyiv)
+        val ticks = chartTimeTicks(start, end, kyiv, deepZoom = true)
         assertEquals(listOf("14:01", "14:02", "14:03", "14:04", "14:05"), ticks.map { it.second })
+    }
+
+    /**
+     * The Today guarantee: without [deepZoom] the walk stops at 15-minute steps however short the
+     * window is. Today's HR card passes the RENDERED extent of its banked buckets, so a morning
+     * holding ten minutes of HR reaches here with a ten-minute span; drawing it at 1-minute steps
+     * would put ten dotted gridlines on the card, and the gridlines have no overlap-skip.
+     */
+    @Test fun aShortWindowKeepsQuarterHourTicksWithoutDeepZoom() {
+        val tenMinutes = chartTimeTicks(at(2026, 7, 10, 14, 1), at(2026, 7, 10, 14, 11), kyiv)
+        assertEquals(emptyList<String>(), tenMinutes.map { it.second })
+
+        // A window that does contain a quarter-hour boundary gets exactly that one tick, not six.
+        val acrossQuarter = chartTimeTicks(at(2026, 7, 10, 14, 10), at(2026, 7, 10, 14, 20), kyiv)
+        assertEquals(listOf("14:15"), acrossQuarter.map { it.second })
     }
 
     @Test fun aWindowCrossingMidnightLabelsMidnightAsZeroZero() {

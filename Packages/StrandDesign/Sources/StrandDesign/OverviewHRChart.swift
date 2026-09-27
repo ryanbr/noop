@@ -417,10 +417,15 @@ public struct OverviewHRChart: View {
 
     // MARK: Body
 
-    /// Round wall-clock x-axis ticks for the visible domain, chosen by span (6h/3h/2h/1h/15min/5min/2min/1min).
-    /// Mirrors Android chartTimeTicks so the Deep Timeline reads identically across platforms.
+    /// Round wall-clock x-axis ticks for the visible domain, chosen by span.
+    ///
+    /// The sub-hour tiers are opened only for the Deep Timeline, keyed on `zoomBounds` rather than the
+    /// live `zoomDomain` for the reason this file already records twice: `zoomBounds` is set once by the
+    /// zooming call sites, while `zoomDomain` is nil until the first pinch, so keying on it would give a
+    /// not-yet-zoomed Deep Timeline the static tiers and then switch them under the user (#829).
     private var xTicks: [Date] {
-        chartTimeTicks(start: xDomain.lowerBound, end: xDomain.upperBound).map { $0.date }
+        chartTimeTicks(start: xDomain.lowerBound, end: xDomain.upperBound,
+                       deepZoom: zoomBounds != nil)
     }
 
     public var body: some View {
@@ -557,47 +562,60 @@ public struct OverviewHRChart: View {
 
 // MARK: - Chart time ticks (x-axis)
 
-/// Round wall-clock x-axis ticks for a `[start, end]` window: (Date, "HH:mm") pairs at fixed round
-/// intervals chosen by the visible span (a full day ticks every 6h, a 1h zoom every 15min, a 5min
-/// zoom every 1min). Ticks step in LOCAL wall-clock time from the window's local midnight — a window
-/// crossing midnight labels "00:00" and DST labels stay round. Pure and clock-free.
+/// Round wall-clock x-axis tick DATES for a `[start, end]` window, at fixed round intervals chosen by
+/// the visible span (a full day ticks every 6h, a 1h window every 15min). Ticks step in LOCAL
+/// wall-clock time from the window's local midnight, so a window crossing midnight lands on 00:00 and
+/// DST labels stay round. Pure and clock-free.
 ///
-/// Twin of Android `chartTimeTicks` (Charts.kt); both platforms share the same thresholds so the
-/// Deep Timeline reads identically across iOS, macOS and Android.
-public func chartTimeTicks(start: Date, end: Date, calendar: Calendar = .current) -> [(date: Date, label: String)] {
+/// `deepZoom` opens the sub-hour tiers (5min/2min/1min) that the Deep Timeline's pinch-to-zoom wants.
+/// It is OFF by default because the Today cards share this chart and hand it the RENDERED extent of
+/// their banked buckets, not a nominal window: a morning holding ten minutes of HR would otherwise
+/// draw ten 1-minute gridlines on a small card.
+///
+/// Tick POSITIONS are the twin of Android `chartTimeTicks` (Charts.kt), thresholds included. The
+/// labels are not, and deliberately: Swift draws them with `AxisValueLabel()` in the viewer's locale,
+/// where the Kotlin side formats "HH:mm" itself. So this returns dates and never formats a string.
+public func chartTimeTicks(start: Date, end: Date, calendar: Calendar = .current,
+                           deepZoom: Bool = false) -> [Date] {
     guard end > start else { return [] }
     let spanMinutes = end.timeIntervalSince(start) / 60.0
     // Thresholds sit below the nominal Today-card windows (24h/12h/6h/3h/1h) so a window whose
     // banked data covers slightly less than nominal still lands on its intended interval. The
     // deep-zoom tiers (≤30min down to 1-min steps) serve the Deep Timeline's pinch-to-zoom, so
     // a user zoomed onto a 5-minute window sees per-minute ticks instead of 15-min gaps.
-    let stepMinutes: Int = switch spanMinutes {
-    case (20 * 60)...:   360   // 6h ticks above 20h
-    case (10 * 60)...:   180   // 3h ticks above 10h
-    case (5 * 60)...:    120   // 2h ticks above 5h
-    case (2 * 60)...:    60    // 1h ticks above 2h
-    case 60...:          15    // 15min ticks above 1h
-    case 30...:          5     // 5min ticks above 30min
-    case 10...:          2     // 2min ticks above 10min
-    default:             1     // 1min ticks below 10min
-    }
-    let fmt = DateFormatter()
-    fmt.dateFormat = "HH:mm"
-    fmt.calendar = calendar
+    let stepMinutes: Int = {
+        switch spanMinutes {
+        case (20 * 60)...: return 360   // 6h ticks above 20h
+        case (10 * 60)...: return 180   // 3h ticks above 10h
+        case (5 * 60)...:  return 120   // 2h ticks above 5h
+        case (2 * 60)...:  return 60    // 1h ticks above 2h
+        default: break
+        }
+        // Below 2h the static cards stop at 15min; only the zooming surface goes finer.
+        guard deepZoom else { return 15 }
+        switch spanMinutes {
+        case 60...: return 15   // 15min ticks above 1h
+        case 30...: return 5    // 5min ticks above 30min
+        case 10...: return 2    // 2min ticks above 10min
+        default:    return 1    // 1min ticks below 10min
+        }
+    }()
 
     // Start at local midnight of the start date, then step by stepMinutes.
     var components = calendar.dateComponents([.year, .month, .day], from: start)
     components.hour = 0; components.minute = 0; components.second = 0
     var tick = calendar.date(from: components) ?? start
-    var out: [(date: Date, label: String)] = []
-    var lastEpoch = Date.distantPast
-    var guard_ = 0
-    while guard_ < 4096 {
-        guard_ += 1
+    var out: [Date] = []
+    var last = Date.distantPast
+    // Bounded walk, so a malformed window cannot spin: a multi-day span at 6h steps, or a 10-minute
+    // span at 1-minute steps, both stay far below this.
+    var steps = 0
+    while steps < 4096 {
+        steps += 1
         if tick > end { break }
-        if tick >= start && tick > lastEpoch {
-            out.append((tick, fmt.string(from: tick)))
-            lastEpoch = tick
+        if tick >= start && tick > last {
+            out.append(tick)
+            last = tick
         }
         tick = calendar.date(byAdding: .minute, value: stepMinutes, to: tick) ?? end
     }

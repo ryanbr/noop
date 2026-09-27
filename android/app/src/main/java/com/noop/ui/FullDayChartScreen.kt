@@ -185,7 +185,8 @@ fun FullDayChartScreen(vm: AppViewModel, onBack: () -> Unit) {
     // Round wall-clock ticks for the RENDERED extent, shared by the gridlines (drawn inside TimelineChart)
     // and the axis-label strip below so they align. Mirrors the Today HR chart's timeTicks convention.
     val timeTicks = remember(visible.first, visible.last) {
-        chartTimeTicks(visible.first, visible.last, ZoneId.systemDefault())
+        // deepZoom: this is the surface that pinches, so sub-hour tiers are wanted here and only here.
+        chartTimeTicks(visible.first, visible.last, ZoneId.systemDefault(), deepZoom = true)
     }
 
     // Re-read on metric / source / settled-window / fresh-data change. The DB read picks raw vs buckets.

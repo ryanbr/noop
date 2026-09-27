@@ -1162,12 +1162,22 @@ private val chartTickTimeFormat = DateTimeFormatter.ofPattern("HH:mm", Locale.US
 /**
  * Round wall-clock x-axis ticks for a `[startEpochSec, endEpochSec]` window: (epochSec, "HH:mm")
  * pairs at fixed round intervals chosen by the visible span (a full day ticks every 6h, a 1h zoom
- * every 15min, a 5min zoom every 1min). Ticks step in LOCAL wall-clock time from the window's
- * local midnight — a window crossing midnight labels "00:00" and DST labels stay round; java.time
- * resolves the spring-forward gap to a valid time and the epoch-dedupe drops the resulting double
- * tick. Pure and clock-free (ChartTimeTicksTest).
+ * every 15min). Ticks step in LOCAL wall-clock time from the window's local midnight — a window
+ * crossing midnight labels "00:00" and DST labels stay round; java.time resolves the spring-forward
+ * gap to a valid time and the epoch-dedupe drops the resulting double tick. Pure and clock-free
+ * (ChartTimeTicksTest).
+ *
+ * [deepZoom] opens the sub-hour tiers (5min/2min/1min) that the Deep Timeline's pinch-to-zoom wants.
+ * It is OFF by default because the Today HR card calls this with the RENDERED extent of its banked
+ * buckets rather than a nominal window: a morning holding ten minutes of HR would otherwise draw ten
+ * 1-minute gridlines on a small card, and the gridlines have no overlap-skip of their own.
  */
-fun chartTimeTicks(startEpochSec: Long, endEpochSec: Long, zone: ZoneId): List<Pair<Long, String>> {
+fun chartTimeTicks(
+    startEpochSec: Long,
+    endEpochSec: Long,
+    zone: ZoneId,
+    deepZoom: Boolean = false,
+): List<Pair<Long, String>> {
     if (endEpochSec <= startEpochSec) return emptyList()
     val spanMinutes = (endEpochSec - startEpochSec) / 60.0
     // Thresholds sit below the nominal Today-card windows (24h/12h/6h/3h/1h) so a window whose
@@ -1179,6 +1189,8 @@ fun chartTimeTicks(startEpochSec: Long, endEpochSec: Long, zone: ZoneId): List<P
         spanMinutes >= 10 * 60 -> 180L   // 3h ticks above 10h
         spanMinutes >= 5 * 60 -> 120L    // 2h ticks above 5h
         spanMinutes >= 2 * 60 -> 60L     // 1h ticks above 2h
+        // Below 2h the static cards stop at 15min; only the zooming surface goes finer.
+        !deepZoom -> 15L
         spanMinutes >= 60 -> 15L         // 15min ticks above 1h
         spanMinutes >= 30 -> 5L          // 5min ticks above 30min
         spanMinutes >= 10 -> 2L          // 2min ticks above 10min
