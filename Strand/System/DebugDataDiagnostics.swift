@@ -208,6 +208,11 @@ enum DebugDataDiagnostics {
         // `store` is fetched further down for the funnels; take a handle here rather than moving this
         // block below the funnel header, so the inventory prints beside the strap identity it qualifies —
         // the same position it holds on Android.
+        // Hoisted: the alarm section below needs the active strap's identity to attribute its clock verdict,
+        // and the inventory block that knows it is scoped to the store handle. A single paired strap is the
+        // safe default, because that is the case in which the legacy shared reading is attributable anyway.
+        var clockPeripheralId: String?
+        var clockPairedCount = 1
         if let invStore = await repo.storeHandle() {
             let invRegistry = DeviceRegistryStore(dbQueue: invStore.registryWriter)
             // Bound before the map so the rule below has a count to test. Reading `.all()` inline left
@@ -231,6 +236,8 @@ enum DebugDataDiagnostics {
                                  pairedCount: invDevices.count))
             }
             let invActive = (try? invRegistry.activeDeviceId()) ?? nil
+            clockPeripheralId = invDevices.first { $0.id == invActive }?.peripheralId
+            clockPairedCount = max(1, invDevices.count)
             lines.append(contentsOf: deviceInventoryLines(rows: invRows,
                                                           activeId: invActive,
                                                           nowSec: Int(Date().timeIntervalSince1970),
@@ -241,7 +248,7 @@ enum DebugDataDiagnostics {
         // the funnels since those can early-return, so this always lands in the export.
         lines += await workoutSourceLines(repo: repo)
         lines += await dailyDataLines(repo: repo)
-        lines += alarmLines()
+        lines += alarmLines(activePeripheralId: clockPeripheralId, pairedCount: clockPairedCount)
 
         // Funnels for the latest night — best-effort, self-reporting.
         lines.append(String(repeating: "─", count: 40))
@@ -473,7 +480,11 @@ enum DebugDataDiagnostics {
     /// Alarm state for the debug export: the configured wake + the last arm's sent-vs-strap-reports (#34), so
     /// a "didn't buzz" report shows at a glance whether the strap accepted the time. Reads persisted defaults
     /// (written by BLEManager.armStrapAlarm + the FrameRouter readback); sync + guarded.
-    static func alarmLines() -> [String] {
+    /// `activePeripheralId` and `pairedCount` attribute the strap-clock verdict to the active strap, the
+    /// same way Firmware and Last sync are attributed. Defaulted so a caller with no registry to hand still
+    /// gets every other alarm line; with no identity the legacy shared reading is trusted only at a single
+    /// paired strap, which is exactly when it cannot have come from another one.
+    static func alarmLines(activePeripheralId: String? = nil, pairedCount: Int = 1) -> [String] {
         var lines: [String] = []
         lines.append(String(repeating: "─", count: 40))
         lines.append("Alarm")
@@ -503,7 +514,23 @@ enum DebugDataDiagnostics {
         // #4 / #67: strap clock health — a reset/stale OR future-dated clock (the #34 / #928 causes) breaks
         // the alarm even when armed, AND misdates offloaded sleep: the strap banks last night with its wrong
         // RTC, so the night lands on the stale date and reads as "missed sleep" on the recent timeline (#67).
-        if let newest = d.object(forKey: "strap.newestRecordTs") as? Int, newest > 0 {
+        //
+        // Attributed to THIS strap. The global key holds whichever strap last answered a range reply, so a
+        // two-strap capture asserted "20d behind wall (reset/stale — alarm unreliable)" about an active
+        // 5/MG that had banked nothing; the 20 days belonged to a 4.0 last seen 20 days earlier. A verdict
+        // about one strap's alarm must not be computed from another strap's clock.
+        let attributedNewest = LastSyncAttribution.resolveStrapClockTs(
+            perDevice: LastSyncAttribution.strapClockPrefKey(peripheralId: activePeripheralId)
+                .flatMap { d.object(forKey: $0) as? Int },
+            legacyGlobal: d.object(forKey: "strap.newestRecordTs") as? Int,
+            pairedCount: pairedCount)
+        if attributedNewest == nil, pairedCount > 1 {
+            // Say why there is no verdict, rather than printing nothing and leaving the reader to assume
+            // the clock was checked and found fine.
+            lines.append("Strap clock: not known for this strap (no range reply recorded against it; the "
+                         + "legacy shared reading is not attributable with \(pairedCount) straps paired)")
+        }
+        if let newest = attributedNewest, newest > 0 {
             let behind = Int(Date().timeIntervalSince1970) - newest
             if behind > 3 * 86400 {
                 lines.append("Strap clock: \(behind / 86400)d behind wall (reset/stale — alarm unreliable; recent sleep may be filed ~\(behind / 86400)d in the past, #67)")

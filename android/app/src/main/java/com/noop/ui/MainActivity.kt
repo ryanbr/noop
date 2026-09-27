@@ -1482,6 +1482,18 @@ object NoopPrefs {
         of(context).edit().putLong(key, epochSec).apply()
     }
 
+    /** This strap's own newest banked-record timestamp, keyed by BLE address — see
+     *  [com.noop.ble.strapClockPrefKey]. 0 when this strap has never reported a range. */
+    fun strapNewestRecordTsFor(context: Context, peripheralId: String?): Long =
+        com.noop.ble.strapClockPrefKey(peripheralId)?.let { of(context).getLong(it, 0L) } ?: 0L
+
+    /** Stamp a range reply against the strap that sent it. A blank address writes nothing rather than
+     *  writing to a key that belongs to no device. */
+    fun setStrapNewestRecordTsFor(context: Context, peripheralId: String?, epochSec: Long) {
+        val key = com.noop.ble.strapClockPrefKey(peripheralId) ?: return
+        of(context).edit().putLong(key, epochSec).apply()
+    }
+
     /** Last-known strap firmware string, persisted on connect so the debug export can name it OFFLINE
      *  (LiveState.strapFirmware is cleared on disconnect and gone in the scheduled/background export). */
     const val KEY_LAST_FIRMWARE = "noop.lastFirmware"

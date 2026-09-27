@@ -67,4 +67,30 @@ enum LastSyncAttribution {
         guard let p = peripheralId?.trimmingCharacters(in: .whitespaces), !p.isEmpty else { return nil }
         return "sync.\(kind).\(p.lowercased())"
     }
+
+    /// Which strap-clock reading belongs to a strap: the newest banked-record timestamp the alarm
+    /// section's clock verdict is derived from.
+    ///
+    /// The FOURTH place this defect has surfaced, after `FirmwareAttribution`, `resolve` above and
+    /// `writeHealthPrefKey`. `strap.newestRecordTs` is ONE defaults key, written on any strap's range
+    /// reply and read back for whichever strap is active. A capture on a two-strap install showed
+    /// "Strap clock: 20d behind wall (reset/stale)" for an active 5/MG whose own header said
+    /// "Last sync: never (this strap)" and "no history rows ever persisted": it had banked nothing, so
+    /// the 20 days could only be the paired 4.0's, last seen exactly 20 days earlier.
+    ///
+    /// Worse than a wrong number, because the verdict it feeds is a judgement. "Alarm unreliable" was
+    /// asserted about one strap from another strap's clock, and the honest answer for a strap that has
+    /// banked nothing is that its clock is not known yet. Kotlin twin: `com.noop.ble.resolveStrapClockTs`.
+    static func resolveStrapClockTs(perDevice: Int?, legacyGlobal: Int?, pairedCount: Int) -> Int? {
+        if let perDevice, perDevice > 0 { return perDevice }
+        if let legacyGlobal, legacyGlobal > 0, pairedCount == 1 { return legacyGlobal }
+        return nil
+    }
+
+    /// The per-device defaults key for the strap's newest banked-record timestamp. Keyed, lowercased and
+    /// blank-rejecting for the same reasons as `prefKey`. Kotlin twin: `com.noop.ble.strapClockPrefKey`.
+    static func strapClockPrefKey(peripheralId: String?) -> String? {
+        guard let p = peripheralId?.trimmingCharacters(in: .whitespaces), !p.isEmpty else { return nil }
+        return "strap.newestRecordTs.\(p.lowercased())"
+    }
 }

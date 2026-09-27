@@ -7030,7 +7030,22 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
             }
             // UNIVERSAL clock-drift snapshot (RTC cluster #531/#767/#804/#812): bank the [oldest, newest]
             // window onto LiveState UNCONDITIONALLY (observability, not gated) for the export assembler.
-            if feedsSync { state.setStrapRange(newestUnix: newest, oldestUnix: (oldest.map { $0 < newest } ?? false) ? oldest : nil) }
+            if feedsSync {
+                state.setStrapRange(newestUnix: newest, oldestUnix: (oldest.map { $0 < newest } ?? false) ? oldest : nil)
+                // Attribute the same reading to the strap that sent it. `setStrapRange` also writes the
+                // legacy global key, which cannot say which strap it came from: on a two-strap install that
+                // made the alarm section assert "alarm unreliable" about an active 5/MG from a paired 4.0's
+                // clock. The global stays so a single-strap install reads correctly across the upgrade.
+                //
+                // INSIDE the same `feedsSync` gate as the value it mirrors, deliberately. Ungated, this key
+                // would be stamped on a path that does not write the global, and since the read side PREFERS
+                // the per-device value it would start asserting a clock verdict from the one family the
+                // surrounding code leaves untouched (see the #1164 note below). Same idiom as the last-sync
+                // stamp above, see `LastSyncAttribution`.
+                if let clockKey = LastSyncAttribution.strapClockPrefKey(peripheralId: peripheral?.identifier.uuidString) {
+                    UserDefaults.standard.set(newest, forKey: clockKey)
+                }
+            }
             // #1164: recompute the "strap has banked records newer than our frontier" flag so the Today
             // Rest card can show "Pending sync" right after connect (before the first offload starts),
             // not only after an offload completes. The frontier read is async; the flag settles a beat

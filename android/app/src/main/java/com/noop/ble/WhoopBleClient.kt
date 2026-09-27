@@ -7930,7 +7930,12 @@ class WhoopBleClient(
                             // the strap's device time with the wall time of the same instant (see field doc).
                             strapNewestTsWall = System.currentTimeMillis() / 1000L
                             // #34: persist the strap's newest banked record so the debug export can flag a reset clock.
+                            // Keyed by the address that sent THIS reply as well as the legacy global, because
+                            // the global cannot say which strap it came from: on a two-strap install it made the
+                            // alarm section assert "alarm unreliable" about an active 5/MG from a paired 4.0's
+                            // clock. The global stays for single-strap installs across the upgrade.
                             runCatching { NoopPrefs.of(context).edit().putLong("strap.newestRecordTs", it).apply() }
+                            runCatching { NoopPrefs.setStrapNewestRecordTsFor(context, lastDeviceAddress, it) }
                             // #928: flag an implausibly FUTURE "newest" (strap clock set ahead) right where
                             // it lands, so a Test Centre export shows WHY auto-continue refused the range.
                             val wallNowForSkew = System.currentTimeMillis() / 1000L

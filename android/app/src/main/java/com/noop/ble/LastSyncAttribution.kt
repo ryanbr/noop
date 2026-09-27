@@ -66,3 +66,39 @@ internal fun lastSyncPrefKey(peripheralId: String?): String? =
 internal fun writeHealthPrefKey(peripheralId: String?, kind: String): String? =
     peripheralId?.trim()?.takeIf { it.isNotEmpty() }
         ?.let { "sync.$kind.${it.lowercase()}" }
+
+/**
+ * Which strap-clock reading belongs to a strap: the newest banked-record timestamp the alarm section's
+ * clock verdict is derived from.
+ *
+ * The FOURTH place this one defect has surfaced, after [resolveFirmware], [resolveLastSync] and
+ * [writeHealthPrefKey]. `strap.newestRecordTs` is ONE global key, written on any strap's GET_DATA_RANGE
+ * reply and read back for whichever strap is active. A capture on a two-strap install showed
+ * `Strap clock: 20d behind wall (reset/stale - alarm unreliable)` for an active 5/MG whose own header
+ * said `Last sync: never (this strap)` and `no history rows ever persisted`: the strap had banked nothing,
+ * so the 20 days could only be the paired 4.0's, last seen exactly 20 days earlier. Two lines below, the
+ * same strap's own alarm readback said 2045, which is ahead of the wall clock and not behind it.
+ *
+ * This one is worse than a wrong number, because the verdict it feeds is a judgement: "alarm unreliable"
+ * was being asserted about a strap from another strap's clock, and the honest reading for a strap that has
+ * banked nothing is that its clock is not known yet.
+ *
+ * Same rule, same reasons, as [resolveLastSync]: the strap's own value, then the legacy global ONLY at
+ * [pairedCount] 1 because that is exactly when it cannot have come from anything else, then null.
+ */
+internal fun resolveStrapClockTs(
+    perDevice: Long,
+    legacyGlobal: Long,
+    pairedCount: Int,
+): Long? = perDevice.takeIf { it > 0L }
+    ?: legacyGlobal.takeIf { it > 0L && pairedCount == 1 }
+
+/**
+ * The per-device preference key for the strap's newest banked-record timestamp.
+ *
+ * Keyed on the BLE peripheral address for the same reason [lastSyncPrefKey] is: the range reply arrives on
+ * a connection whose address is known, and resolving it to a registry id at the write site would repeat
+ * the mis-mapping #1527 fixed for `lastSeen`. Lowercased and blank-rejecting for the same reasons.
+ */
+internal fun strapClockPrefKey(peripheralId: String?): String? =
+    peripheralId?.trim()?.takeIf { it.isNotEmpty() }?.let { "strap.newestRecordTs.${it.lowercase()}" }

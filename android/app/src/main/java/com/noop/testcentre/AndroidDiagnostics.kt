@@ -580,8 +580,17 @@ object AndroidDiagnostics {
 
     /** Alarm state for the debug export: the configured wake + the last arm's sent-vs-strap-reports (#34), so
      *  a "didn't buzz" report shows whether the strap accepted the time. Reads persisted prefs (written by
-     *  WhoopBleClient.armStrapAlarm + the GET_ALARM_TIME readback). Best-effort. */
-    fun alarmLines(context: Context): List<String> = buildList {
+     *  WhoopBleClient.armStrapAlarm + the GET_ALARM_TIME readback). Best-effort.
+     *
+     *  [activePeripheralId] and [clockPairedCount] attribute the strap-clock verdict to the active strap,
+     *  the same way Firmware and Last sync are in [strapAndDataLines]. Passed in rather than read here
+     *  because the registry accessors suspend and this builder does not; defaulted so a caller with no
+     *  registry to hand still gets every other alarm line. */
+    fun alarmLines(
+        context: Context,
+        activePeripheralId: String? = null,
+        clockPairedCount: Int = 1,
+    ): List<String> = buildList {
         add("─".repeat(40))
         add("Alarm")
         runCatching {
@@ -610,7 +619,23 @@ object AndroidDiagnostics {
             }
             // #4: strap clock health — a reset/stale OR future-dated clock (the #34 / #928 causes) breaks
             // the alarm even when armed.
-            val newest = p.getLong("strap.newestRecordTs", 0L)
+            //
+            // Attributed to THIS strap, the same way Firmware and Last sync above are. The global key
+            // reported whichever strap last answered a range reply, so a two-strap capture asserted
+            // "20d behind wall (reset/stale — alarm unreliable)" about an active 5/MG that had banked
+            // nothing at all; the 20 days belonged to a 4.0 last seen 20 days earlier. A verdict about
+            // one strap's alarm must not be computed from another strap's clock.
+            val newest = com.noop.ble.resolveStrapClockTs(
+                perDevice = com.noop.ui.NoopPrefs.strapNewestRecordTsFor(context, activePeripheralId),
+                legacyGlobal = p.getLong("strap.newestRecordTs", 0L),
+                pairedCount = clockPairedCount,
+            ) ?: 0L
+            if (newest <= 0L && clockPairedCount > 1) {
+                // Say why there is no verdict, rather than printing nothing and leaving the reader to
+                // assume the clock was checked and found fine.
+                add("Strap clock: not known for this strap (no range reply recorded against it; the " +
+                    "legacy shared reading is not attributable with $clockPairedCount straps paired)")
+            }
             if (newest > 0L) {
                 val behind = System.currentTimeMillis() / 1000L - newest
                 add(when {
@@ -676,8 +701,21 @@ object AndroidDiagnostics {
      *  guarded per-section so it never throws into the export. */
     suspend fun dynamicLines(context: Context): List<String> =
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+            // Resolved HERE because the registry accessors suspend and alarmLines is a plain builder. An
+            // unreadable or empty registry counts as ONE strap, matching the Apple twin: at a literal 0 the
+            // legacy shared reading would be refused (it is trusted only at exactly 1) and the "not known"
+            // branch would not fire either, so the clock line would vanish for everyone whose registry read
+            // failed, which is strictly worse than the shared reading it replaced.
+            val clockRows = runCatching {
+                (context.applicationContext as? com.noop.NoopApplication)?.deviceRegistry?.all().orEmpty()
+            }.getOrDefault(emptyList())
+            val clockActiveId = runCatching {
+                (context.applicationContext as? com.noop.NoopApplication)?.deviceRegistry?.activeDeviceId()
+            }.getOrNull()
+            val clockAddr = clockRows.firstOrNull { it.id == clockActiveId }?.peripheralId
+            val clockPaired = maxOf(1, clockRows.size)
             strapAndDataLines(context) + funnelLines(context) + workoutSourceLines(context) +
-                dailyDataLines(context) + alarmLines(context) + circadianLines(context)
+                dailyDataLines(context) + alarmLines(context, clockAddr, clockPaired) + circadianLines(context)
         }
 
     /**
