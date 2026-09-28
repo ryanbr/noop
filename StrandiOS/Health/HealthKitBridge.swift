@@ -495,62 +495,87 @@ final class HealthKitBridge: ObservableObject {
 
         var byDay: [String: DayAgg] = [:]
         func agg(_ day: String) -> DayAgg { byDay[day] ?? DayAgg() }
+        // #2561 follow-up: every aggregate below feeds an upsert that writes `column = excluded.column`,
+        // so a nil from a FAILED read replaces a stored value instead of recording an absence. Each read
+        // records its own outcome here and the whole write is held back if any of them failed, because a
+        // partial write cannot say which columns it is entitled to overwrite.
+        var failedReads: [String] = []
+        func note(_ outcome: HealthRead, _ label: String) {
+            if outcome == .failed { failedReads.append(label) }
+        }
 
         // Quantity aggregates per day.
-        await collect(.restingHeartRate, unit: HKUnit.count().unitDivided(by: .minute()), start: start, end: end, op: .discreteAverage) { day, v in
+        let restingHeartRateRead = await collect(.restingHeartRate, unit: HKUnit.count().unitDivided(by: .minute()), start: start, end: end, op: .discreteAverage) { day, v in
             var a = agg(day); a.restingHr = v; byDay[day] = a
         }
-        await collect(.heartRate, unit: HKUnit.count().unitDivided(by: .minute()), start: start, end: end, op: .discreteAverage) { day, v in
+        note(restingHeartRateRead, "restingHeartRate")
+        let heartRateAvgRead = await collect(.heartRate, unit: HKUnit.count().unitDivided(by: .minute()), start: start, end: end, op: .discreteAverage) { day, v in
             var a = agg(day); a.avgHr = v; byDay[day] = a
         }
-        await collect(.heartRate, unit: HKUnit.count().unitDivided(by: .minute()), start: start, end: end, op: .discreteMax) { day, v in
+        note(heartRateAvgRead, "heartRateAvg")
+        let heartRateMaxRead = await collect(.heartRate, unit: HKUnit.count().unitDivided(by: .minute()), start: start, end: end, op: .discreteMax) { day, v in
             var a = agg(day); a.maxHr = v; byDay[day] = a
         }
-        await collect(.heartRateVariabilitySDNN, unit: .secondUnit(with: .milli), start: start, end: end, op: .discreteAverage) { day, v in
+        note(heartRateMaxRead, "heartRateMax")
+        let heartRateVariabilitySDNNRead = await collect(.heartRateVariabilitySDNN, unit: .secondUnit(with: .milli), start: start, end: end, op: .discreteAverage) { day, v in
             var a = agg(day); a.hrv = v; byDay[day] = a
         }
-        await collect(.oxygenSaturation, unit: .percent(), start: start, end: end, op: .discreteAverage) { day, v in
+        note(heartRateVariabilitySDNNRead, "heartRateVariabilitySDNN")
+        let oxygenSaturationRead = await collect(.oxygenSaturation, unit: .percent(), start: start, end: end, op: .discreteAverage) { day, v in
             var a = agg(day); a.spo2 = v * 100; byDay[day] = a   // 0…1 → percent
         }
-        await collect(.respiratoryRate, unit: HKUnit.count().unitDivided(by: .minute()), start: start, end: end, op: .discreteAverage) { day, v in
+        note(oxygenSaturationRead, "oxygenSaturation")
+        let respiratoryRateRead = await collect(.respiratoryRate, unit: HKUnit.count().unitDivided(by: .minute()), start: start, end: end, op: .discreteAverage) { day, v in
             var a = agg(day); a.respRate = v; byDay[day] = a
         }
+        note(respiratoryRateRead, "respiratoryRate")
         let stepsReadOk = await collect(.stepCount, unit: .count(), start: start, end: end, op: .cumulativeSum) { day, v in
             var a = agg(day); a.steps = v; byDay[day] = a
         }
+        // Steps is in the ledger as well as behind its own guard below. The guard returns first and so
+        // wins the message, but recording it here is what keeps steps covered if that early return is
+        // ever removed: the general guard then catches it instead of it silently losing its protection.
+        note(stepsReadOk, "stepCount")
         // A failed query is not an empty step history. Stop before upserting AppleDaily: its conflict
         // update replaces the stored count with nil when another Health metric populated that day.
         // The next foreground or observer sync can retry without losing the last good reading.
-        guard stepsReadOk else {
+        guard stepsReadOk != .failed else {
             lastSyncDays = 0
             lastError = String(localized: "Apple Health sync failed: \(String(localized: "Steps"))")
             return false
         }
-        await collect(.activeEnergyBurned, unit: .kilocalorie(), start: start, end: end, op: .cumulativeSum) { day, v in
+        let activeEnergyBurnedRead = await collect(.activeEnergyBurned, unit: .kilocalorie(), start: start, end: end, op: .cumulativeSum) { day, v in
             var a = agg(day); a.activeKcal = v; byDay[day] = a
         }
-        await collect(.basalEnergyBurned, unit: .kilocalorie(), start: start, end: end, op: .cumulativeSum) { day, v in
+        note(activeEnergyBurnedRead, "activeEnergyBurned")
+        let basalEnergyBurnedRead = await collect(.basalEnergyBurned, unit: .kilocalorie(), start: start, end: end, op: .cumulativeSum) { day, v in
             var a = agg(day); a.basalKcal = v; byDay[day] = a
         }
-        await collect(.vo2Max, unit: HKUnit(from: "ml/kg*min"), start: start, end: end, op: .discreteAverage) { day, v in
+        note(basalEnergyBurnedRead, "basalEnergyBurned")
+        let vo2MaxRead = await collect(.vo2Max, unit: HKUnit(from: "ml/kg*min"), start: start, end: end, op: .discreteAverage) { day, v in
             var a = agg(day); a.vo2max = v; byDay[day] = a
         }
+        note(vo2MaxRead, "vo2Max")
 
         // Body composition — READ-ONLY import under the apple-health source (#20). Weight, lean mass
         // and BMI are point-in-time readings, so take the latest-of-day; body-fat reads fine as a
         // daily average. Body-fat HealthKit gives a 0…1 fraction, scaled to percent like spo2 above.
-        await collect(.bodyMass, unit: .gramUnit(with: .kilo), start: start, end: end, op: .discreteMostRecent) { day, v in
+        let bodyMassRead = await collect(.bodyMass, unit: .gramUnit(with: .kilo), start: start, end: end, op: .discreteMostRecent) { day, v in
             var a = agg(day); a.weightKg = v; byDay[day] = a
         }
-        await collect(.bodyFatPercentage, unit: .percent(), start: start, end: end, op: .discreteAverage) { day, v in
+        note(bodyMassRead, "bodyMass")
+        let bodyFatPercentageRead = await collect(.bodyFatPercentage, unit: .percent(), start: start, end: end, op: .discreteAverage) { day, v in
             var a = agg(day); a.bodyFatPct = v * 100; byDay[day] = a   // 0…1 → percent
         }
-        await collect(.leanBodyMass, unit: .gramUnit(with: .kilo), start: start, end: end, op: .discreteMostRecent) { day, v in
+        note(bodyFatPercentageRead, "bodyFatPercentage")
+        let leanBodyMassRead = await collect(.leanBodyMass, unit: .gramUnit(with: .kilo), start: start, end: end, op: .discreteMostRecent) { day, v in
             var a = agg(day); a.leanMassKg = v; byDay[day] = a
         }
-        await collect(.bodyMassIndex, unit: .count(), start: start, end: end, op: .discreteMostRecent) { day, v in
+        note(leanBodyMassRead, "leanBodyMass")
+        let bodyMassIndexRead = await collect(.bodyMassIndex, unit: .count(), start: start, end: end, op: .discreteMostRecent) { day, v in
             var a = agg(day); a.bmi = v; byDay[day] = a
         }
+        note(bodyMassIndexRead, "bodyMassIndex")
 
         // Water logged in other apps (#949). A cumulative day SUM, like steps — HealthKit re-adds every
         // sample in the day on each sync, so the figure this produces is a full replacement rather than a
@@ -569,6 +594,21 @@ final class HealthKitBridge: ObservableObject {
             var a = agg(day)
             a.asleepMin = asleepMin; a.deepMin = deepMin; a.remMin = remMin; a.coreMin = coreMin
             byDay[day] = a
+        }
+
+        // #2561 follow-up: hold the whole write back if ANY aggregate read failed. Every upsert below
+        // assigns `column = excluded.column`, so writing now would replace each failed metric's stored
+        // value with the nil standing in for it. Steps had this guard already; the rest did not, and the
+        // clobber is identical for activeKcal, basalKcal, vo2max, avgHr, maxHr and weightKg.
+        //
+        // The whole pass is held rather than the failed columns dropped, because these rows are built
+        // from one `byDay` and the upserts take whole rows: there is no way to say "leave that column
+        // alone" without a per-column mask the store does not have. A held pass loses nothing, since the
+        // next foreground or observer sync re-reads the same window.
+        guard failedReads.isEmpty else {
+            lastSyncDays = 0
+            lastError = String(localized: "Apple Health sync failed: \(failedReads.joined(separator: ", "))")
+            return false
         }
 
         // Build + upsert the store rows under the apple-health source.
@@ -644,7 +684,7 @@ final class HealthKitBridge: ObservableObject {
             // Gated on the hydration toggle, which is opt-in and default OFF: an import must not quietly
             // populate a feature the user has turned off, and skipping it avoids writing a window of rows
             // nothing will read.
-            if waterReadOk, UserDefaults.standard.bool(forKey: HydrationStore.enabledKey) {
+            if waterReadOk == .read, UserDefaults.standard.bool(forKey: HydrationStore.enabledKey) {
                 var waterByDay: [String: Double] = [:]
                 var cursor = cal.startOfDay(for: start)
                 while cursor <= end {
@@ -1435,24 +1475,42 @@ final class HealthKitBridge: ObservableObject {
         }
     }
 
+    /// What one HealthKit aggregate read is worth to a caller that will WRITE the result.
+    ///
+    /// `appleDaily`, `dailyMetric` and `metricSeries` all upsert with `column = excluded.column`, so a
+    /// nil carried into a write REPLACES a stored value. A nil that came from a failed query therefore
+    /// erases a good reading rather than recording an absence, which is #2561.
+    ///
+    /// `unavailable` is deliberately NOT a failure. A quantity type this device does not have will never
+    /// have one, so absence IS the true answer and writing it is correct. Folding the two together would
+    /// let one missing type abort every Health sync forever on that device.
+    enum HealthRead {
+        /// The query ran. Whatever it found, including nothing, is authoritative.
+        case read
+        /// The quantity type does not exist on this device. Nothing to read, now or later.
+        case unavailable
+        /// The query failed. The result says nothing about the metric and must not be written.
+        case failed
+    }
+
     private func collect(_ id: HKQuantityTypeIdentifier, unit: HKUnit, start: Date, end: Date,
-                         op: HKStatisticsOptions, sink: @escaping (String, Double) -> Void) async -> Bool {
-        guard let type = HKQuantityType.quantityType(forIdentifier: id) else { return false }
+                         op: HKStatisticsOptions, sink: @escaping (String, Double) -> Void) async -> HealthRead {
+        guard let type = HKQuantityType.quantityType(forIdentifier: id) else { return .unavailable }
         let cal = Calendar.current
         let anchor = cal.startOfDay(for: start)
         let predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
             HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate),
             Self.notNoopAuthored,
         ])
-        return await withCheckedContinuation { (cont: CheckedContinuation<Bool, Never>) in
+        return await withCheckedContinuation { (cont: CheckedContinuation<HealthRead, Never>) in
             let q = HKStatisticsCollectionQuery(quantityType: type, quantitySamplePredicate: predicate,
                                                 options: op, anchorDate: anchor,
                                                 intervalComponents: DateComponents(day: 1))
             q.initialResultsHandler = { _, results, error in
-                // A nil `results` with an error is a FAILED read, not an empty one — see the note on
-                // the return value. Both are reported as false so the caller can tell them apart from
-                // a query that genuinely found nothing.
-                guard error == nil, let results else { cont.resume(returning: false); return }
+                // A nil `results` with an error is a FAILED read, not an empty one: it says nothing
+                // about the metric, so a caller that writes must not write it. A query that RAN and
+                // found nothing resumes `.read`, because absence is then a real answer.
+                guard error == nil, let results else { cont.resume(returning: .failed); return }
                 results.enumerateStatistics(from: start, to: end) { stats, _ in
                     let q: HKQuantity?
                     switch op {
@@ -1464,7 +1522,7 @@ final class HealthKitBridge: ObservableObject {
                     }
                     if let q { sink(HealthKitBridge.dayString(stats.startDate), q.doubleValue(for: unit)) }
                 }
-                cont.resume(returning: true)
+                cont.resume(returning: .read)
             }
             store.execute(q)
         }
