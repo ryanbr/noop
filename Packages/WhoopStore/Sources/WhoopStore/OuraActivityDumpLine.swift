@@ -4,7 +4,7 @@ import Foundation
 /// diagnostic JSONL sidecar, NOT a datastore row.
 ///
 /// WHY a sidecar and not a stream/table: the 0x50 activity/MET decode is Tier-B (a plausible third-party
-/// formula, not ground-truth-validated — OURA_PROTOCOL.md s6.13). The honest-data invariant + the #960
+/// formula, day-scale validated but not per-minute exact — OURA_PROTOCOL.md s6.13). The honest-data invariant + the #960
 /// pin forbid Tier-B ever minting a durable scoring row, so it must never touch `Streams`/SQLite. This
 /// corpus is a separate, clearly-labeled file the app appends to purely so the raw MET series can be
 /// accumulated for offline investigation (cadence, state-byte semantics, WHOOP cross-checks). It never

@@ -353,11 +353,13 @@ data class OuraTierBSummary(
 /**
  * One decoded `0x50` activity_info record: a `state` code (activity-category; meaning unconfirmed)
  * plus a per-sample MET (metabolic-equivalent) series. THIRD-PARTY FORMULA (OURA_PROTOCOL.md s6.13,
- * [oura-rs] - clean-room fact citation, no code copied): plausible against six real Gen 3 captures
- * from PR #960's investigation (resting ~0.9 MET through a vigorous-activity burst at 7.4 MET, all
- * physiologically sane), but NOT independently ground-truth-validated against the Oura app's own
- * numbers. It therefore stays Tier B: emitted only behind `OuraDriver.allowTierB`, and NEVER folded
- * into `OuraStreamMapping`/`Streams`/scoring (steps stay honest - no step count is minted from MET).
+ * [oura-rs] - clean-room fact citation, no code copied): the two-slope byte formula IS validated at
+ * DAY scale against Oura's own MET export (#2565 - day sums reproduce on 10/10 clean days within
+ * 1-8%), so it is no longer merely plausible. It stays Tier B for narrower reasons than being
+ * unverified: per MINUTE only 85% of values match the export exactly, and a workout the wearer
+ * CONFIRMS in the Oura app floors that session's minutes, so the app's own figure can sit well above
+ * the wire. Emitted only behind `OuraDriver.allowTierB`, and NEVER folded into
+ * `OuraStreamMapping`/`Streams`/scoring (steps stay honest - no step count is minted from MET).
  * Kotlin twin of the Swift `OuraActivityInfo` (met as List<Double> keeps structural equality).
  */
 data class OuraActivityInfo(val ringTimestamp: Long, val state: Int, val met: List<Double>)

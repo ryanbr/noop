@@ -72,7 +72,7 @@ public enum OuraEventTag: UInt8, Sendable, CaseIterable, Codable {
     case sleepPhaseAlt    = 0x5A   // sleep_phase_details alias, OURA_PROTOCOL.md s6.12
 
     // --- Activity / MET (Tier B, UNVERIFIED) ---
-    case activityInfo     = 0x50   // activity_info (MET-class), OURA_PROTOCOL.md s6.13 (UNVERIFIED)
+    case activityInfo     = 0x50   // activity_info (MET-class), OURA_PROTOCOL.md s6.13 (TIER B)
     case activitySummary1 = 0x51   // activity_summary, OURA_PROTOCOL.md s6.13 (UNVERIFIED)
     case activitySummary2 = 0x52   // activity_summary, OURA_PROTOCOL.md s6.13 (UNVERIFIED)
 

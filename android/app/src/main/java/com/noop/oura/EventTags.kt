@@ -77,7 +77,7 @@ enum class OuraEventTag(val raw: Int) {
     SLEEP_PHASE_ALT(0x5A),    // sleep_phase_details alias, OURA_PROTOCOL.md s6.12
 
     // --- Activity / MET (Tier B, UNVERIFIED) ---
-    ACTIVITY_INFO(0x50),      // activity_info (MET-class), OURA_PROTOCOL.md s6.13 (UNVERIFIED)
+    ACTIVITY_INFO(0x50),      // activity_info (MET-class), OURA_PROTOCOL.md s6.13 (TIER B)
     ACTIVITY_SUMMARY_1(0x51), // activity_summary, OURA_PROTOCOL.md s6.13 (UNVERIFIED)
     ACTIVITY_SUMMARY_2(0x52), // activity_summary, OURA_PROTOCOL.md s6.13 (UNVERIFIED)
 

@@ -7,7 +7,7 @@ package com.noop.oura
  * so the two platforms' JSONL corpora are interchangeable.
  *
  * WHY a sidecar and not a stream/table: the 0x50 activity/MET decode is Tier-B (a plausible third-party
- * formula, not ground-truth-validated — OURA_PROTOCOL.md s6.13). The honest-data invariant forbids Tier-B
+ * formula, day-scale validated but not per-minute exact — OURA_PROTOCOL.md s6.13). The honest-data invariant forbids Tier-B
  * ever minting a durable scoring row, so it must never touch the datastore. This corpus is a separate,
  * clearly-labelled diagnostic file the app appends to purely so the raw MET series can be accumulated for
  * offline investigation. It never feeds scoring and is safe to delete.
