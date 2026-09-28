@@ -996,6 +996,7 @@
     <string name="l10n_stress_screen_hours_h_7610ac7c">%1$sh</string>
     <string name="l10n_stress_screen_no_stress_history_yet_ec962e3c">Ancora nessuna cronologia dello stress</string>
     <string name="l10n_stress_screen_reading_your_heart_rate_variability_and_c0249246">Lettura della variabilità della frequenza cardiaca e della frequenza cardiaca a riposo…</string>
+    <string name="l10n_stress_screen_reading_today_s_heart_rate_7491835a">Lettura della frequenza cardiaca di oggi…</string>
     <string name="l10n_stress_screen_resting_hr_26677094">FC a riposo</string>
     <string name="l10n_stress_screen_start_a_breathe_session_9619e5c0">Avvia una sessione di Respira</string>
     <string name="l10n_stress_screen_stress_bad33342">Stress</string>

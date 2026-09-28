@@ -324,8 +324,14 @@ private fun androidx.compose.foundation.lazy.LazyListScope.StressContent(
 
     // 3 · Today's intraday timeline — when in the day stress ran high, + a passive Breathe
     //     suggestion when the recent hours stay elevated.
-    if (daytime != null && daytime.scored.isNotEmpty()) {
-        item {
+    // #2535: THREE states, not two. `daytime` is null only while the read is still running, and this used
+    // to render nothing in that case, so a fold that takes seconds looked exactly like a day with no data.
+    // The reporter described it as "detail page shows nothing, 15 secs later the data appears". The screen's
+    // existing `StressLoading` is wired to `storedLoaded`, which flips almost immediately; the expensive read
+    // is this one, and it had no affordance at all.
+    when {
+        daytime == null -> item { StressDaytimeLoading(modifier = Modifier.staggeredAppear(2)) }
+        daytime.scored.isNotEmpty() -> item {
             StressDaytimeSection(
                 daytime,
                 daytimeUsesPersonalBaseline,
@@ -333,6 +339,9 @@ private fun androidx.compose.foundation.lazy.LazyListScope.StressContent(
                 modifier = Modifier.staggeredAppear(2),
             )
         }
+        // Read finished and the day has no usable intraday HR. Staying silent is deliberate and unchanged:
+        // an empty result is a fact about the day, not something still in flight.
+        else -> Unit
     }
 
     // 4 · Trend over the chosen window.
@@ -1544,6 +1553,39 @@ private fun androidx.compose.foundation.layout.RowScope.BandLegend(range: String
 }
 
 // MARK: - Empty / loading states
+
+/**
+ * The intraday timeline while its read is still running (#2535).
+ *
+ * Deliberately NOT the same as [StressEmpty]: that one says there is no stress history at all, which is a
+ * conclusion. This one says the answer is still being computed, which is what a caller waiting on the
+ * thirty-day fold actually needs to see.
+ *
+ * Keeps the header and the tint [StressDaytimeSection] uses, so the section does not appear out of nowhere
+ * when the read lands. The height is approximate, not equal: the real card carries a chart and is taller.
+ * Twin of the Swift `daytimeLoading`.
+ */
+@Composable
+private fun StressDaytimeLoading(modifier: Modifier = Modifier) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
+        SectionHeader("Today's Timeline", overline = "Intraday")
+        NoopCard(tint = Palette.stressColor) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(160.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    uiString(R.string.l10n_stress_screen_reading_today_s_heart_rate_7491835a),
+                    style = NoopType.subhead,
+                    color = Palette.textTertiary,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
+    }
+}
 
 @Composable
 private fun StressLoading() {
