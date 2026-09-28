@@ -323,6 +323,8 @@ public enum SleepStagerV2 {
         }
         var raws: [Raw] = []
         var allJerks: [Double] = []
+        // The RSA transform's twiddle factors, per grid length, for this night only (see `RespDFT`).
+        var respDFT: [Int: RespDFT] = [:]
         let firstE = ((start + 29) / 30) * 30
         var e = firstE
         while e < end {
@@ -354,7 +356,7 @@ public enum SleepStagerV2 {
                 if let vs = rrBy[s] { for v in vs { beats.append((Double(s), min(max(v, 300), 2000))) } }
             }
             beats.sort { $0.0 != $1.0 ? $0.0 < $1.0 : $0.1 < $1.1 }
-            let respReg = respRegularity(beats)
+            let respReg = respRegularity(beats, dft: &respDFT)
 
             raws.append(Raw(start: e, hr: hrMean, hrVar: hrVar, hrFlat11: hrFlat11,
                             jerks: jerks, gapSec: max(1, gseq.count - 1), jerkMax: jerkMax,
@@ -387,10 +389,43 @@ public enum SleepStagerV2 {
         return feats
     }
 
+    /// The band-limited DFT's twiddle factors for one 4 Hz grid length `n`: `cos`/`sin` of
+    /// `-2π·k/n · j` for every in-band bin `k` and sample `j`.
+    ///
+    /// `respRegularity` runs once per 30-second epoch and used to evaluate these ~53 × ~836 pairs every time,
+    /// which was 13% of a cold re-score's CPU (Time Profiler, `__sincos_stret`). They depend on `n` alone,
+    /// and a night's beat window is whole seconds wide, so it sees only a handful of distinct `n`. The table
+    /// computes each factor with the very expressions the transform used inline, so reading it back is
+    /// bit-identical to recomputing it; a night builds it once per `n` and drops it with the night.
+    /// Kotlin twin: `SleepStagerV2.RespDft`.
+    struct RespDFT {
+        let kLo: Int
+        let cosines: [[Double]]
+        let sines: [[Double]]
+
+        init(n: Int, kLo: Int, kHi: Int) {
+            self.kLo = kLo
+            var cosines: [[Double]] = []
+            var sines: [[Double]] = []
+            for k in kLo...kHi {
+                let w = -2.0 * Double.pi * Double(k) / Double(n)
+                var c = [Double](repeating: 0, count: n)
+                var s = [Double](repeating: 0, count: n)
+                for j in 0..<n { let a = w * Double(j); c[j] = cos(a); s[j] = sin(a) }
+                cosines.append(c)
+                sines.append(s)
+            }
+            self.cosines = cosines
+            self.sines = sines
+        }
+    }
+
     /// RSA respiration regularity: tachogram → 4 Hz resample → detrend → power spectrum → peak/sum of the
     /// 0.15–0.40 Hz (9–24 brpm) band. Returns spectral peakedness (higher = more regular breathing) or nil
     /// when there are too few beats. A direct band-limited DFT (only the ~50 in-band bins are needed).
-    static func respRegularity(_ beats: [(Double, Double)]) -> Double? {
+    /// `dft` holds the twiddle factors per grid length (`RespDFT`), filled on first use; the caller keeps
+    /// one for a night. Kotlin twin: `SleepStagerV2.respRegularity`.
+    static func respRegularity(_ beats: [(Double, Double)], dft: inout [Int: RespDFT]) -> Double? {
         if beats.count < 12 { return nil }
         let t0 = beats.first!.0, tN = beats.last!.0
         if tN <= t0 { return nil }
@@ -414,11 +449,18 @@ public enum SleepStagerV2 {
         let kLo = Int(ceil(0.15 * 0.25 * Double(n)))
         let kHi = Int(floor(0.40 * 0.25 * Double(n)))
         if kHi < kLo || kLo < 0 { return nil }
+        let table: RespDFT
+        if let cached = dft[n] {
+            table = cached
+        } else {
+            table = RespDFT(n: n, kLo: kLo, kHi: kHi)
+            dft[n] = table
+        }
         var maxP = 0.0, sumP = 0.0
         for k in kLo...kHi {
             var re = 0.0, im = 0.0
-            let w = -2.0 * Double.pi * Double(k) / Double(n)
-            for j in 0..<n { let a = w * Double(j); re += y[j] * cos(a); im += y[j] * sin(a) }
+            let c = table.cosines[k - kLo], s = table.sines[k - kLo]
+            for j in 0..<n { re += y[j] * c[j]; im += y[j] * s[j] }
             let p = re * re + im * im
             sumP += p
             if p > maxP { maxP = p }

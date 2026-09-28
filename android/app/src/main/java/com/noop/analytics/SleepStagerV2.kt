@@ -340,6 +340,8 @@ object SleepStagerV2 {
         )
         val raws = ArrayList<Raw>()
         val allJerks = ArrayList<Double>()
+        // The RSA transform's twiddle factors, per grid length, for this night only (see [RespDft]).
+        val respDft = HashMap<Int, RespDft>()
         val firstE = ((start + 29) / 30) * 30
         var e = firstE
         while (e < end) {
@@ -373,7 +375,7 @@ object SleepStagerV2 {
                 bs++
             }
             beats.sortWith(compareBy({ it.first }, { it.second }))
-            val respReg = respRegularity(beats)
+            val respReg = respRegularity(beats, respDft)
 
             raws.add(Raw(
                 start = e, hr = hrMean, hrVar = hrVar, hrFlat11 = hrFlat11,
@@ -406,11 +408,34 @@ object SleepStagerV2 {
     }
 
     /**
+     * The band-limited DFT's twiddle factors for one 4 Hz grid length `n`: `cos`/`sin` of `-2π·k/n · j` for
+     * every in-band bin `k` and sample `j`. [respRegularity] runs once per 30-second epoch and used to evaluate
+     * these ~53 × ~836 pairs every time; they depend on `n` alone, and a night's beat window is whole seconds
+     * wide, so it sees only a handful of distinct `n`. Each factor is computed with the very expressions the
+     * transform used inline, so reading it back is bit-identical to recomputing it. Swift twin:
+     * `SleepStagerV2.RespDFT`.
+     */
+    internal class RespDft(n: Int, val kLo: Int, kHi: Int) {
+        val cosines: Array<DoubleArray> = Array(kHi - kLo + 1) { DoubleArray(n) }
+        val sines: Array<DoubleArray> = Array(kHi - kLo + 1) { DoubleArray(n) }
+
+        init {
+            for (k in kLo..kHi) {
+                val w = -2.0 * PI * k / n
+                val c = cosines[k - kLo]; val s = sines[k - kLo]
+                for (j in 0 until n) { val a = w * j; c[j] = cos(a); s[j] = sin(a) }
+            }
+        }
+    }
+
+    /**
      * RSA respiration regularity: tachogram → 4 Hz resample → detrend → power spectrum → peak/sum of the
      * 0.15–0.40 Hz (9–24 brpm) band. Returns spectral peakedness (higher = more regular breathing) or null
      * when there are too few beats. A direct band-limited DFT (only the ~50 in-band bins are needed).
+     * [dft] holds the twiddle factors per grid length ([RespDft]), filled on first use; the caller keeps one
+     * for a night. Swift twin: `SleepStagerV2.respRegularity`.
      */
-    private fun respRegularity(beats: List<Pair<Double, Double>>): Double? {
+    internal fun respRegularity(beats: List<Pair<Double, Double>>, dft: MutableMap<Int, RespDft>): Double? {
         if (beats.size < 12) return null
         val t0 = beats.first().first; val tN = beats.last().first
         if (tN <= t0) return null
@@ -434,11 +459,12 @@ object SleepStagerV2 {
         val kLo = ceil(0.15 * 0.25 * n).toInt()
         val kHi = floor(0.40 * 0.25 * n).toInt()
         if (kHi < kLo || kLo < 0) return null
+        val table = dft.getOrPut(n) { RespDft(n, kLo, kHi) }
         var maxP = 0.0; var sumP = 0.0
         for (k in kLo..kHi) {
             var re = 0.0; var im = 0.0
-            val w = -2.0 * PI * k / n
-            for (j in 0 until n) { val a = w * j; re += y[j] * cos(a); im += y[j] * sin(a) }
+            val c = table.cosines[k - kLo]; val s = table.sines[k - kLo]
+            for (j in 0 until n) { re += y[j] * c[j]; im += y[j] * s[j] }
             val p = re * re + im * im
             sumP += p
             if (p > maxP) maxP = p
