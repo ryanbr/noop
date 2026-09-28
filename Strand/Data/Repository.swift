@@ -1169,6 +1169,15 @@ final class Repository: ObservableObject {
         return byTs.values.sorted { $0.ts < $1.ts }
     }
 
+    /// The most recent banked battery reading, for the stale-battery warning (#2556).
+    ///
+    /// Reads the ACTIVE device id rather than the union: a battery reading belongs to the strap that sent
+    /// it, and warning about one strap's charge using another's reading is the #1706 mistake.
+    func latestBattery() async -> (ts: Int, soc: Double?, charging: Bool?)? {
+        guard let store = await ensureStore() else { return nil }
+        return try? await store.latestBattery(deviceId: deviceId)
+    }
+
     /// The HR fingerprint over the UNION `hrSamples(from:to:limit:)` reads, as one opaque string.
     ///
     /// A fingerprint narrower than the read it guards is worse than none: it would let a caller reuse a

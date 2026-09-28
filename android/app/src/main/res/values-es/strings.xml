@@ -1831,6 +1831,8 @@
          Apple catalog's, moved across unchanged. -->
     <string name="battery_runtime_title">Batería baja de la pulsera</string>
     <string name="battery_runtime_body">Autonomía restante en tu WHOOP: %1$s. Recárgalo esta noche.</string>
+    <string name="battery_stale_title">WHOOP visto con poca batería</string>
+    <string name="battery_stale_body">%1$d%% en el último contacto de NOOP, hace %2$s. Cárgalo antes de esta noche.</string>
     <string name="battery_low_title">Batería baja</string>
     <string name="battery_low_body">Recarga tu WHOOP antes de esta noche.</string>
     <string name="battery_full_title">Pulsera completamente cargada</string>

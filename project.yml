@@ -295,6 +295,10 @@ targets:
           # #1538: finishes a re-score that a backgrounded offload started and could not complete. The
           # only BGProcessingTask of the three; the other two are refresh tasks.
           - $(PRODUCT_BUNDLE_IDENTIFIER).rescore
+          # #2556: the stale-battery warning needs a wake that does NOT depend on the strap. It cannot ride
+          # the re-score task, which is submitted only when a re-score is OWED, and a missing strap owes
+          # none, so that task would never run in the one case the warning exists for.
+          - $(PRODUCT_BUNDLE_IDENTIFIER).stalebattery
         NSBluetoothAlwaysUsageDescription: "NOOP connects directly to your WHOOP strap over Bluetooth to read heart rate, R-R intervals, battery, and sensor data locally on your iPhone. Nothing leaves your device."
         NSLocationWhenInUseUsageDescription: "NOOP records your route during an outdoor workout to show distance, pace, and a map, and keeps recording while the screen is off. The route stays on your device. Nothing leaves it."
         NSHealthShareUsageDescription: "NOOP reads your own Apple Health data on-device to compute recovery, strain, and sleep. Nothing leaves your device."

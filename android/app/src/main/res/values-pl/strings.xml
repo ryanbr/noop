@@ -1830,6 +1830,8 @@
     <string name="battery_bedtime_body">Pozostało %1$s nagrania, ale dziś wieczorem potrzeba około %2$s. Energia przed snem.</string>
     <string name="battery_runtime_title">Niski poziom naładowania baterii paska</string>
     <string name="battery_runtime_body">%1$s pozostało na Twoim WHOOP — doładuj dzisiaj wieczorem.</string>
+    <string name="battery_stale_title">WHOOP ostatnio z niskim poziomem baterii</string>
+    <string name="battery_stale_body">%1$d%% przy ostatnim kontakcie NOOP, %2$s temu. Naładuj go przed wieczorem.</string>
     <string name="battery_low_title">Niski poziom baterii</string>
     <string name="battery_low_body">Naładuj swój WHOOP przed wieczorem.</string>
     <string name="battery_full_title">Pasek w pełni naładowany</string>

@@ -13,6 +13,72 @@ import com.noop.ui.NoopPrefs
 import com.noop.ui.appLaunchIntent
 
 /**
+ * Whether a strap NOBODY has heard from is worth warning about (#2556).
+ *
+ * [BatteryAlertPolicy] can only judge a percentage the app actually received, and both its crossings live
+ * in the connection-service collector, so a strap that drains while disconnected crosses 15 and 12 unseen
+ * and the wearer gets nothing. That is not hypothetical on an unbonded 5/MG, where a link can average under
+ * two minutes.
+ *
+ * This reads the LAST BANKED reading instead, which is already durable in the `battery` table. It therefore
+ * states something weaker and must say so: "last seen at 11 percent, six hours ago", never "your strap is at
+ * 11 percent". The app has not seen the strap since; it does not know what it is at now.
+ *
+ * Deliberately silent while connected: the live crossings own that case, and two readouts of one fact must
+ * not be able to disagree.
+ *
+ * Twin of Swift `StaleBatteryAlertPolicy`.
+ */
+internal object StaleBatteryAlertPolicy {
+    /** How long out of contact before a low last reading is worth raising. */
+    const val STALE_AFTER_SECONDS = 2L * 60L * 60L
+
+    data class Decision(val fire: Boolean, val ageSeconds: Long)
+
+    /**
+     * How long ago, as a compact label: "6h", "3d".
+     *
+     * Deliberately plural-free. "6 hours ago" needs a plurals resource in every locale to avoid printing
+     * "1 hours", and the age here is never below the two-hour window anyway, so the compact form carries
+     * the same meaning for none of the cost. Shared with the Swift twin so the two notifications cannot
+     * word the same fact differently.
+     */
+    fun ageLabel(seconds: Long): String {
+        val hours = seconds / 3600L
+        return if (hours >= 48L) "${hours / 24L}d" else "${hours}h"
+    }
+
+    private val NO = Decision(fire = false, ageSeconds = 0L)
+
+    /**
+     * [alertedForTs] is the reading this already fired for, persisted, so one stale value cannot re-notify
+     * on every app open. It is keyed on the READING's timestamp rather than a boolean: a newer low reading
+     * is a new fact and deserves its own alert.
+     */
+    fun evaluate(
+        lastSocPct: Int?,
+        lastTsSec: Long?,
+        lastCharging: Boolean?,
+        nowSec: Long,
+        connected: Boolean,
+        alertedForTs: Long?,
+        lowThreshold: Int = BatteryAlertPolicy.LOW_THRESHOLD,
+        staleAfterSeconds: Long = STALE_AFTER_SECONDS,
+    ): Decision {
+        if (connected) return NO
+        if (lastSocPct == null || lastTsSec == null) return NO
+        // Only a CONFIRMED charging reading suppresses, matching the live policy: unknown still warns.
+        if (lastCharging == true) return NO
+        if (lastSocPct > lowThreshold) return NO
+        val age = nowSec - lastTsSec
+        // A reading from the future is a clock problem, not a stale strap. Never warn on it.
+        if (age < staleAfterSeconds) return NO
+        if (alertedForTs == lastTsSec) return NO
+        return Decision(fire = true, ageSeconds = age)
+    }
+}
+
+/**
  * Pure battery-alert decision logic so it's JVM-testable (IllnessAlertPolicy idiom). The two
  * `*Alerted` flags are PERSISTED state (NoopPrefs), so the decision survives process death — no
  * in-memory previous-pct crossing, which would re-fire on every 15↔14 jitter and reset on restart.
@@ -91,6 +157,7 @@ object BatteryAlertNotifier {
     private const val NOTIF_ID_FULL = 4207
     private const val NOTIF_ID_CRITICAL = 4211
     private const val NOTIF_ID_BEDTIME = 4212
+    private const val NOTIF_ID_STALE = 4213
 
     /**
      * Predictive twin of [onBatteryUpdate]: run the runtime estimate against
@@ -128,6 +195,58 @@ object BatteryAlertNotifier {
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .build()
             NotificationManagerCompat.from(context).notify(NOTIF_ID_RUNTIME, n)
+        }
+    }
+
+    /**
+     * Warn that a strap last seen LOW has not been heard from since (#2556).
+     *
+     * The live crossings need a connection, so a strap that drains out of range is never judged at all.
+     * This reads the last banked reading instead, which is why the copy says "last seen at" rather than
+     * naming a current percentage: the app has not seen the strap since and does not know what it is at now.
+     *
+     * Shares `batteryAlerts` with the live alerts, so turning battery alerts off silences this too.
+     */
+    @SuppressLint("MissingPermission") // guarded by areNotificationsEnabled() + runCatching
+    fun onStrapNotSeen(
+        context: Context,
+        lastSocPct: Int?,
+        lastTsSec: Long?,
+        lastCharging: Boolean?,
+        nowSec: Long,
+        connected: Boolean,
+    ) {
+        if (!NoopPrefs.batteryAlerts(context)) return
+        runCatching {
+            if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
+            val decision = StaleBatteryAlertPolicy.evaluate(
+                lastSocPct = lastSocPct,
+                lastTsSec = lastTsSec,
+                lastCharging = lastCharging,
+                nowSec = nowSec,
+                connected = connected,
+                alertedForTs = NoopPrefs.batteryStaleAlertedTs(context),
+            )
+            if (!decision.fire || lastSocPct == null || lastTsSec == null) return
+            ensureChannel(context)
+            val n = NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_stat_heart)
+                .setContentTitle(context.getString(R.string.battery_stale_title))
+                .setContentText(
+                    context.getString(
+                        R.string.battery_stale_body,
+                        lastSocPct,
+                        StaleBatteryAlertPolicy.ageLabel(decision.ageSeconds),
+                    ),
+                )
+                .setContentIntent(openAppIntent(context))
+                .setAutoCancel(true)
+                .setCategory(NotificationCompat.CATEGORY_STATUS)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .build()
+            NotificationManagerCompat.from(context).notify(NOTIF_ID_STALE, n)
+            // Persist AFTER posting, keyed on the reading, so a failed notify retries next open.
+            NoopPrefs.setBatteryStaleAlertedTs(context, lastTsSec)
         }
     }
 

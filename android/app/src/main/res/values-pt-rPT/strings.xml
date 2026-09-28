@@ -1824,6 +1824,8 @@
          Apple catalog's, moved across unchanged. -->
     <string name="battery_runtime_title">Bateria fraca da correia</string>
     <string name="battery_runtime_body">Autonomia restante no teu WHOOP: %1$s. Recarrega-o esta noite.</string>
+    <string name="battery_stale_title">WHOOP visto com pouca bateria</string>
+    <string name="battery_stale_body">%1$d%% no último contacto do NOOP, há %2$s. Carrega-o antes desta noite.</string>
     <string name="battery_low_title">Bateria fraca</string>
     <string name="battery_low_body">Recarrega o teu WHOOP antes desta noite.</string>
     <string name="battery_full_title">Correia totalmente carregada</string>

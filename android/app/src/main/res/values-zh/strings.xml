@@ -1753,6 +1753,8 @@
          Apple catalog's, moved across unchanged. -->
     <string name="battery_runtime_title">手环电量低</string>
     <string name="battery_runtime_body">你的 WHOOP 还剩 %1$s，今晚请充电。</string>
+    <string name="battery_stale_title">WHOOP 上次电量偏低</string>
+    <string name="battery_stale_body">NOOP 上次连接时为 %1$d%%，在 %2$s前。请在今晚之前充电。</string>
     <string name="battery_low_title">电量低</string>
     <string name="battery_low_body">今晚之前给你的 WHOOP 充电。</string>
     <string name="battery_full_title">手环已充满电</string>

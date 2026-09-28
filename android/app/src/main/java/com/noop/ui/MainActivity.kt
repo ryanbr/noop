@@ -1270,6 +1270,18 @@ object NoopPrefs {
         of(context).edit().putBoolean(KEY_BATTERY_LOW_ALERTED, alerted).apply()
     }
 
+    /** The banked reading `onStrapNotSeen` last warned about, as its epoch SECONDS (#2556). Keyed on the
+     *  reading rather than a boolean so one stale value cannot re-notify on every app open, while a NEWER
+     *  low reading still counts as a new fact. 0 means never. */
+    const val KEY_BATTERY_STALE_ALERTED_TS = "noop.batteryStaleAlertedTs"
+
+    fun batteryStaleAlertedTs(context: Context): Long? =
+        of(context).getLong(KEY_BATTERY_STALE_ALERTED_TS, 0L).takeIf { it > 0L }
+
+    fun setBatteryStaleAlertedTs(context: Context, ts: Long) {
+        of(context).edit().putLong(KEY_BATTERY_STALE_ALERTED_TS, ts).apply()
+    }
+
     fun batteryFullAlerted(context: Context): Boolean =
         of(context).getBoolean(KEY_BATTERY_FULL_ALERTED, false)
 

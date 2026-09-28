@@ -1839,6 +1839,8 @@
     <string name="battery_bedtime_body">Осталось записи на %1$s, а на ночь нужно около %2$s. Зарядите перед сном.</string>
     <string name="battery_runtime_title">Низкий заряд браслета</string>
     <string name="battery_runtime_body">На вашем WHOOP осталось %1$s — зарядите сегодня вечером.</string>
+    <string name="battery_stale_title">WHOOP был с низким зарядом</string>
+    <string name="battery_stale_body">%1$d%% при последнем контакте NOOP, %2$s назад. Зарядите его до ночи.</string>
     <string name="battery_low_title">Низкий заряд</string>
     <string name="battery_low_body">Зарядите WHOOP до наступления ночи.</string>
     <string name="battery_full_title">Браслет полностью заряжен</string>

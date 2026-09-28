@@ -1970,6 +1970,8 @@
          Apple catalog's, moved across unchanged. -->
     <string name="battery_runtime_title">Strap battery low</string>
     <string name="battery_runtime_body">%1$s left on your WHOOP — recharge tonight.</string>
+    <string name="battery_stale_title">WHOOP last seen low</string>
+    <string name="battery_stale_body">%1$d%% when NOOP last heard from it, %2$s ago. Charge it before tonight.</string>
     <string name="battery_low_title">Low battery</string>
     <string name="battery_low_body">Recharge your WHOOP before tonight.</string>
     <string name="battery_full_title">Strap fully charged</string>

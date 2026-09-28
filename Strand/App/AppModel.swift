@@ -1670,6 +1670,27 @@ final class AppModel: ObservableObject {
     /// alarm backup took a single time plus a day set, so the control on the alarm screen silently moved
     /// only the evening reminder. Mirrors Android's `reconcileStrapAlarm` which passes `dayOverrides`
     /// to `nextSmartAlarmEpochSec`, and `SmartAlarmScheduler.arm` which reads `targetOverrides`.
+    /// Warn about a strap last seen LOW that has not been heard from since (#2556).
+    ///
+    /// The crossings wired into `live.onBatteryUpdate` only run when a reading ARRIVES, so a strap that
+    /// drains out of range is never judged by them. This reads the last BANKED reading instead, so it works
+    /// precisely when the link does not.
+    ///
+    /// `connected: false` is passed deliberately and is sound rather than a shortcut: a connected strap
+    /// banks a reading about every minute, so its last banked value can never be old enough to clear the
+    /// staleness window. The window is its own connectivity test. Kotlin twin: `StaleBatteryWorker`.
+    @MainActor
+    func checkStrapNotSeen() async {
+        guard let last = await repo.latestBattery() else { return }
+        BatteryNotifier.onStrapNotSeen(
+            lastSocPct: last.soc.map { Int($0.rounded()) },
+            lastTsSec: last.ts,
+            lastCharging: last.charging,
+            nowSec: Int(Date().timeIntervalSince1970),
+            connected: false,
+            enabled: behavior.batteryAlerts)
+    }
+
     func applySmartAlarm() {
         let overrides = WindDownNudge.perDayWakeOverrides
         guard behavior.smartAlarmEnabled else {

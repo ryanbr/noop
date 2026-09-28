@@ -1929,6 +1929,8 @@
     <string name="battery_bedtime_body">%1$s di registrazione rimanenti, ma stanotte serve circa %2$s. Ricarica prima di andare a letto.</string>
     <string name="battery_runtime_title">Batteria scarica della fascia</string>
     <string name="battery_runtime_body">%1$s rimanenti sul tuo WHOOP — ricaricalo stanotte.</string>
+    <string name="battery_stale_title">WHOOP visto con poca batteria</string>
+    <string name="battery_stale_body">%1$d%% all\'ultimo contatto di NOOP, %2$s fa. Ricaricalo prima di stanotte.</string>
     <string name="battery_low_title">Batteria scarica</string>
     <string name="battery_low_body">Ricarica il tuo WHOOP prima di stanotte.</string>
     <string name="battery_full_title">Fascia completamente carica</string>

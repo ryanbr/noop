@@ -1863,6 +1863,8 @@
          Apple catalog's, moved across unchanged. -->
     <string name="battery_runtime_title">Strap-Akku schwach</string>
     <string name="battery_runtime_body">Noch %1$s auf deinem WHOOP – lade es heute Nacht auf.</string>
+    <string name="battery_stale_title">WHOOP zuletzt mit wenig Akku</string>
+    <string name="battery_stale_body">%1$d%% beim letzten Kontakt von NOOP, vor %2$s. Lade es vor heute Nacht auf.</string>
     <string name="battery_low_title">Akku schwach</string>
     <string name="battery_low_body">Lade dein WHOOP vor heute Nacht auf.</string>
     <string name="battery_full_title">Strap voll geladen</string>

@@ -15872,6 +15872,122 @@
         }
       }
     },
+    "WHOOP last seen low": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WHOOP zuletzt mit wenig Akku"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WHOOP visto con poca batería"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WHOOP vu avec peu de batterie"
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WHOOP visto con poca batteria"
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WHOOP ostatnio z niskim poziomem baterii"
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WHOOP visto com pouca bateria"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WHOOP был с низким зарядом"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WHOOP 上次电量偏低"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "WHOOP 上次電量偏低"
+          }
+        }
+      }
+    },
+    "%lld%% when NOOP last heard from it, %@ ago. Charge it before tonight.": {
+      "localizations": {
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld%% beim letzten Kontakt von NOOP, vor %@. Lade es vor heute Nacht auf."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld%% en el último contacto de NOOP, hace %@. Cárgalo antes de esta noche."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld%% lors du dernier contact de NOOP, il y a %@. Rechargez-le avant ce soir."
+          }
+        },
+        "it": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld%% all'ultimo contatto di NOOP, %@ fa. Ricaricalo prima di stanotte."
+          }
+        },
+        "pl": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld%% przy ostatnim kontakcie NOOP, %@ temu. Naładuj go przed wieczorem."
+          }
+        },
+        "pt-PT": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld%% no último contacto do NOOP, há %@. Carrega-o antes desta noite."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld%% при последнем контакте NOOP, %@ назад. Зарядите его до ночи."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP 上次连接时为 %lld%%，在 %@前。请在今晚之前充电。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NOOP 上次連線時為 %lld%%，在 %@前。請在今晚之前充電。"
+          }
+        }
+      }
+    },
     "%lld%% of today's goal": {
       "localizations": {
         "de": {

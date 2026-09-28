@@ -143,6 +143,12 @@ struct StrandiOSApp: App {
         }, onExpire: { [weak model] in
             model?.live.append(log: "re-score: background processing time expired before the pass finished (#1538)")
         })
+        // #2556: its own wake, because every existing one is conditional on something the missing strap
+        // makes false. Registered unconditionally and re-armed from inside its own handler.
+        StaleBatteryBackgroundScheduler.register(perform: { [weak model] in
+            await model?.checkStrapNotSeen()
+        })
+        StaleBatteryBackgroundScheduler.schedule()
         let bridge = HealthKitBridge(
             repo: model.repo,
             appleDeviceId: model.appleDeviceId,

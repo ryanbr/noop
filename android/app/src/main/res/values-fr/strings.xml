@@ -1849,6 +1849,8 @@
          Apple catalog's, moved across unchanged. -->
     <string name="battery_runtime_title">Batterie faible du bracelet</string>
     <string name="battery_runtime_body">Il reste %1$s sur votre WHOOP — rechargez-le ce soir.</string>
+    <string name="battery_stale_title">WHOOP vu avec peu de batterie</string>
+    <string name="battery_stale_body">%1$d%% lors du dernier contact de NOOP, il y a %2$s. Rechargez-le avant ce soir.</string>
     <string name="battery_low_title">Batterie faible</string>
     <string name="battery_low_body">Rechargez votre WHOOP avant ce soir.</string>
     <string name="battery_full_title">Bracelet complètement chargé</string>

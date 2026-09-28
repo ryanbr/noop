@@ -55,6 +55,10 @@ class NoopApplication : Application() {
         // this is a no-op once a schedule exists, and the worker retires itself when no widget is
         // placed — which is what stops this costing anything for an install that has never had one.
         com.noop.widget.StressWidgetRefresh.ensureScheduled(this)
+        // #2556: the stale-battery warning needs a wake that does NOT depend on the BLE link, because the
+        // case it exists for is a strap that stopped talking. Scheduled here rather than beside a widget
+        // so it does not inherit that widget's lifecycle. KEEP, so this is a no-op once scheduled.
+        com.noop.notif.StaleBatteryWorker.ensureScheduled(this)
     }
 
     /** Process-wide Room-backed store. One instance shared by the UI and the background service. */
