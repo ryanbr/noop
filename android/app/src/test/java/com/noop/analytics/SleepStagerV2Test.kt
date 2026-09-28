@@ -429,6 +429,18 @@ class SleepStagerV2Test {
     }
 
     /**
+     * Pin the base log-priors, deep included. The golden hypnogram does not move when a prior changes, so without
+     * this a one-sided edit would pass. Deep is 0.15, not 0.18: the one prior the sleep-accel PSG comparison
+     * (`Tools/SleepPSG` section 7) supports moving. Twin: `SleepStagerV2Tests.testBaseLogPriorsArePinned`.
+     */
+    @Test
+    fun baseLogPriorsArePinned() {
+        assertEquals(
+            mapOf("light" to ln(0.50), "deep" to ln(0.15), "rem" to ln(0.22), "awake" to ln(0.10)),
+            SleepStagerV2.baseLogPrior)
+    }
+
+    /**
      * Pin the AWAKE transition row directly, for the same reason the deep row is pinned: the end-to-end golden
      * is only sensitive where its own input sits near a decision boundary, and it does NOT move when this row
      * changes — so without this assertion the row is effectively unguarded. Twin:

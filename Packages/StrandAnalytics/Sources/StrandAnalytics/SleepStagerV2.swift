@@ -157,10 +157,18 @@ public enum SleepStagerV2 {
 
     static let stageNames = ["deep", "rem", "light", "awake"]
 
-    /// Population sleep-architecture base rates as log-priors (adult TST ≈ light 50 / deep 18 / rem 22 /
-    /// waso 10 %). Calibrates the boundary so light wins weak-evidence epochs.
+    /// Population sleep-architecture base rates as log-priors (adult TST ≈ light 50 / rem 22 / waso 10 %,
+    /// deep 15). Calibrates the boundary so light wins weak-evidence epochs.
+    ///
+    /// Deep was 0.18. Against human-scored PSG (PhysioNet sleep-accel, n = 31, `Tools/SleepPSG` section 7)
+    /// that over-called deep by +5.2 pp of the night pooled (18.9 % against 13.8 %). 0.15 is #348's value, not
+    /// a fit to this cohort; alone it raises per-subject kappa for 21 of 31 subjects and cuts |deep bias| for
+    /// 19 of 31, and moves no wake or REM epoch. #348's other prior (awake 0.10 → 0.34) is deliberately not
+    /// taken: it fixes the pooled wake share but worsens the mean per-subject wake error, the #437 shape.
+    /// The three freed points are not redistributed; the evidence is for this one value.
+    /// Kotlin twin: `SleepStagerV2.baseLogPrior`.
     static let baseLogPrior: [String: Double] = [
-        "light": log(0.50), "deep": log(0.18), "rem": log(0.22), "awake": log(0.10)]
+        "light": log(0.50), "deep": log(0.15), "rem": log(0.22), "awake": log(0.10)]
 
     /// Deep is eligible only in the night's lowest ~25 % HR-flatness epochs (≈ deep base rate + margin).
     /// Widened 0.20 -> 0.25 by the multi-subject (AAUWSS + sleep-accel LOSO) deep-boundary tune, which

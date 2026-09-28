@@ -161,10 +161,13 @@ object SleepStagerV2 {
 
     private val stageNames = listOf("deep", "rem", "light", "awake")
 
-    /** Population sleep-architecture base rates as log-priors (adult TST ≈ light 50 / deep 18 / rem 22 /
-     *  waso 10 %). Calibrates the boundary so light wins weak-evidence epochs. */
-    private val baseLogPrior: Map<String, Double> = mapOf(
-        "light" to ln(0.50), "deep" to ln(0.18), "rem" to ln(0.22), "awake" to ln(0.10))
+    /** Population sleep-architecture base rates as log-priors (adult TST ≈ light 50 / rem 22 / waso 10 %,
+     *  deep 15). Calibrates the boundary so light wins weak-evidence epochs. Deep was 0.18, which over-called
+     *  deep against PSG (PhysioNet sleep-accel, n = 31: +5.2 pp pooled); 0.15 alone raises per-subject kappa for
+     *  21 of 31 subjects and moves no wake or REM epoch. Swift twin, with the full evidence:
+     *  `SleepStagerV2.baseLogPrior`. */
+    internal val baseLogPrior: Map<String, Double> = mapOf(
+        "light" to ln(0.50), "deep" to ln(0.15), "rem" to ln(0.22), "awake" to ln(0.10))
 
     /** Deep is eligible only in the night's lowest ~25 % HR-flatness epochs (≈ deep base rate + margin).
      *  Widened 0.20 -> 0.25 by the multi-subject (AAUWSS + sleep-accel LOSO) deep-boundary tune, which

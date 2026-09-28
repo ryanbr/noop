@@ -38,7 +38,7 @@ swift run -c release sleeppsg --dataset ~/datasets/motion-and-heart-rate-*-1.0.0
 | flag | meaning |
 |---|---|
 | `--dataset PATH` | the extracted `sleep-accel` root. Required for every section except `port`. |
-| `--section S` | `all` (default), or one of `port`, `baseline`, `strata`, `rem`, `variants`. |
+| `--section S` | `all` (default), or one of `port`, `baseline`, `strata`, `rem`, `variants`, `priors`. |
 | `--subjects N` | score only the first N subject ids — a fast smoke run. |
 | `--csv PATH` | write the per-variant table as CSV. |
 | `--seed N` | the port-validation corpus seed. |
@@ -106,8 +106,11 @@ What varies is how the 31 subjects are combined:
 
 | convention | what it is | deep, shipped recipe |
 |---|---|---|
-| **pooled over all scored epochs** | one denominator of 26 773 epochs for the whole cohort; a long night carries more weight than a short one | predicted **18.94 %**, truth **13.76 %**, bias **+5.18 pp** |
-| **mean of per-subject percentages** | each subject's own % of their own night, then averaged over 31 subjects; every subject counts once | predicted **19.24 %**, truth **14.76 %**, bias **+4.48 pp** |
+| **pooled over all scored epochs** | one denominator of 26 773 epochs for the whole cohort; a long night carries more weight than a short one | predicted **15.09 %**, truth **13.76 %**, bias **+1.32 pp** |
+| **mean of per-subject percentages** | each subject's own % of their own night, then averaged over 31 subjects; every subject counts once | predicted **15.16 %**, truth **14.76 %**, bias **+0.40 pp** |
+
+Those are the recipe with the deep prior at 0.15 (section 7). With the deep prior at its former 0.18 (the
+`deep prior 0.18 (before)` row) they were 18.94 % / 19.24 %, bias +5.18 / +4.48 pp.
 
 Section 3 prints both tables, one above the other, each labelled. They are the same epochs and the same
 denominator *within* a night; the ~1 pp gap between them is the weighting across subjects, nothing else.
@@ -150,11 +153,31 @@ Each row is the shipped recipe with **one** named change: PR #987's awake-transi
 #348's seven components measured alone, plus all seven together. Reported with kappa **and** the stage-
 fraction biases, because a component is an improvement only if it wins the first without wrecking the
 second. **Every percentage and every `bias pp` in this table is pooled over all 26 773 scored epochs** —
-so the incumbent's deep bias reads +5.18 pp here, not the +4.48 pp the per-subject mean gives.
+so the incumbent's deep bias reads +1.32 pp here, not the +0.40 pp the per-subject mean gives.
+
+`deep prior 0.18 (before)` is the deep prior as it stood before section 7's evidence moved it to 0.15.
 
 The last row is not a candidate. `pre-#930 REM guard (provenance)` runs the REM-latency guard as it stood
 before PR #930 — a hard `c < 0.12 ? 3.0 : 0.0` step in the session-fraction domain — and exists to explain
 the self-check below.
+
+### 7. Base priors, subject by subject
+
+The variant table pools 26 773 epochs, so a few long nights can carry a row. `--section priors` scores each
+of the 31 subjects once: their own kappa, and how far each stage's share of their night is from their own
+PSG, and counts the subjects a variant improves. This is the evidence the deep prior moved on:
+
+| deep prior | mean per-subject κ | subjects with κ higher at 0.15 | mean \|deep bias\| | subjects with \|deep bias\| lower at 0.15 | wake, REM |
+|---|---|---|---|---|---|
+| 0.18 (before) | 0.351 | — | 8.86 pp | — | — |
+| **0.15** | **0.357** | 21 / 31 | **7.99 pp** | 19 / 31 | unchanged, epoch for epoch |
+
+Pooled, deep goes from 18.94 % to 15.09 % of the night against 13.76 % true, light from 50.47 % to 54.33 %
+against 55.19 %, kappa 0.363 → 0.371; deep F1 0.498 → 0.484 (precision 0.430 → 0.463, recall 0.592 → 0.507).
+0.15 is #348's value, not a fit to this cohort. #348's awake half (0.10 → 0.34) is not taken: it brings the
+pooled wake share to truth (4.15 % → 9.39 % against 9.07 %) but worsens the mean per-subject wake error
+(5.50 → 5.55 pp) by over-calling wake for the subjects it does not fix, which is the #437 failure. The R-R
+stream is empty here, so the RSA term is silent in all of this; on a WHOOP night it is live.
 
 ---
 
@@ -172,8 +195,9 @@ convention in its own header so a figure copied out of it carries its denominato
 
 Every **truth-side** figure reproduces exactly: 31 subjects, **26 773** PSG-scored epochs, deep **14.76 %**
 of each subject's own night averaged over the 31 (pooled: 13.76 %), truth median first-REM latency
-**88.5 min**. Predicted deep lands at **19.24 %** on the same convention against a reported 19.25 %
-(pooled: 18.94 %), and four-class kappa at **0.356** against a reported 0.349.
+**88.5 min**. Predicted deep, with the deep prior at the 0.18 that harness measured (the `deep prior 0.18
+(before)` row), lands at **19.24 %** on the same convention against a reported 19.25 % (pooled: 18.94 %), and
+four-class kappa at **0.356** against a reported 0.349.
 
 The prediction side of REM does not match: more REM (**26.96 %** per-subject mean, against a reported
 20.8 %), REM F1 0.569 vs 0.515, and a first REM period arriving much earlier (median 91.5 min vs 142.0).
@@ -190,9 +214,9 @@ it.
 What the residual is remains **unresolved**, and the tool is not tuned to close it. Two constraints on any
 future explanation, both from the table above:
 
-- It cannot be the session window. `clock` drives the deep prior and the REM ramp alike; predicted deep
-  reproduces to 0.01 pp (19.24 % measured against 19.25 % reported, per-subject mean), so `clock` is the
-  same quantity in both harnesses.
+- It cannot be the session window. `clock` drives the deep prior and the REM ramp alike; predicted deep at
+  the 0.18 prior reproduces to 0.01 pp (19.24 % measured against 19.25 % reported, per-subject mean), so
+  `clock` is the same quantity in both harnesses.
 - It is REM-specific and it is not the latency guard, which the variant just ruled out.
 
 One suggestive coincidence, offered as an observation and not a conclusion: the previously reported "REM

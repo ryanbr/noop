@@ -27,7 +27,7 @@ while let k = it.next() {
     case "--seed": a.seed = UInt64(it.next() ?? "") ?? a.seed
     case "-h", "--help":
         print("""
-        usage: sleeppsg --dataset <sleep-accel root> [--section all|port|baseline|strata|rem|variants]
+        usage: sleeppsg --dataset <sleep-accel root> [--section all|port|baseline|strata|rem|variants|priors]
                         [--subjects N] [--csv <path>] [--seed <n>]
 
           --dataset   PhysioNet sleep-accel v1.0.0, extracted. See README.md for the download step and the
@@ -485,9 +485,10 @@ if want("priors") {
     7. BASE PRIORS, SUBJECT BY SUBJECT
     ================================================================================
     The pooled table above can be carried by a few long nights. Here every subject counts once: their own
-    kappa, and how far each stage's share of THEIR night is from their own PSG, for the shipped recipe and
-    for #348-A split into its two halves. `better` counts subjects whose value improved (kappa up, |bias|
-    down); a tie counts as neither.
+    kappa, and how far each stage's share of THEIR night is from their own PSG. The deep prior moved 0.18 →
+    0.15 on this section's evidence; the "before" row is that change undone, and #348-A adds the awake half
+    the recipe does not take. `better` counts subjects whose value improved against the incumbent (kappa up,
+    |bias| down); a tie counts as neither.
     """)
     func perSubject(_ rows: [Scored]) -> [(kappa: Double, bias: [String: Double])] {
         rows.map { r in
@@ -497,7 +498,7 @@ if want("priors") {
     }
     let base = perSubject(shipped)
     print("    variant                     mean κ  better κ   mean|bias| wake  deep   REM  light   better |bias| wake deep  REM light")
-    for v in [Variants.incumbent, Variants.deepPriorOnly, Variants.awakePriorOnly, Variants.p348Priors] {
+    for v in [Variants.incumbent, Variants.deepPriorBefore, Variants.p348Priors] {
         let rows = v.name.hasPrefix("incumbent") ? shipped : subjects.map { score($0, using: stageVariant(v.config)) }
         let ps = perSubject(rows)
         let n = ps.count

@@ -48,24 +48,21 @@ enum Variants {
     }
 
     /// #348 component 1 — base priors. Measured alone on band state: healthy wake fraction 9.43 % → 17.76 %,
-    /// i.e. the #437 blow-out reproduced.
+    /// i.e. the #437 blow-out reproduced. Its deep half (0.18 → 0.15) now ships, on this dataset's evidence, so
+    /// against the incumbent this row moves only the awake prior.
     static var p348Priors: Variant {
         var c = RecipeConfig.shipped
         c.priorDeep = log(0.15); c.priorAwake = log(0.34)
         return Variant(name: "#348-A base priors",
-                       note: "deep 0.18→0.15, awake 0.10→0.34", config: c)
+                       note: "deep 0.15 (shipped), awake 0.10→0.34", config: c)
     }
 
-    /// #348-A split in two, so the per-subject section can say which half does what.
-    static var deepPriorOnly: Variant {
+    /// The deep prior as it was before it moved to #348's 0.15 on this PSG evidence (section 7). Kept as the
+    /// "before" row, so the change stays re-checkable against the dataset rather than asserted.
+    static var deepPriorBefore: Variant {
         var c = RecipeConfig.shipped
-        c.priorDeep = log(0.15)
-        return Variant(name: "#348-A deep prior only", note: "deep 0.18→0.15", config: c)
-    }
-    static var awakePriorOnly: Variant {
-        var c = RecipeConfig.shipped
-        c.priorAwake = log(0.34)
-        return Variant(name: "#348-A awake prior only", note: "awake 0.10→0.34", config: c)
+        c.priorDeep = log(0.18)
+        return Variant(name: "deep prior 0.18 (before)", note: "deep 0.15→0.18, the value before", config: c)
     }
 
     /// #348 component 2 — motion gate. A second wake channel: alone, healthy wake 9.43 % → 15.92 %.
@@ -165,7 +162,7 @@ enum Variants {
     }
 
     static var all: [Variant] {
-        [incumbent, pr987, p348Priors, p348Motion, p348Emissions, p348DeepGate,
+        [incumbent, deepPriorBefore, pr987, p348Priors, p348Motion, p348Emissions, p348DeepGate,
          p348Deadzone, p348OtherRows, p348All, preNine30Guard]
     }
 }

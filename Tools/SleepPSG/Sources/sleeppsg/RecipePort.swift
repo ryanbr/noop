@@ -87,7 +87,7 @@ struct RecipeConfig: Equatable {
 
     /// The shipped recipe, as of `Packages/StrandAnalytics/Sources/StrandAnalytics/SleepStagerV2.swift`.
     static let shipped = RecipeConfig(
-        priorLight: log(0.50), priorDeep: log(0.18), priorRem: log(0.22), priorAwake: log(0.10),
+        priorLight: log(0.50), priorDeep: log(0.15), priorRem: log(0.22), priorAwake: log(0.10),
         deepGateThresh: 0.25, deepGateSlope: 5.0,
         jerkFloorMoveMult: 38.0, jerkFloorGateMult: 55.0, motionGateBoost: 2.0,
         respWeight: 0.6,
