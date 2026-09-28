@@ -1169,6 +1169,26 @@ final class Repository: ObservableObject {
         return byTs.values.sorted { $0.ts < $1.ts }
     }
 
+    /// The HR fingerprint over the UNION `hrSamples(from:to:limit:)` reads, as one opaque string.
+    ///
+    /// A fingerprint narrower than the read it guards is worse than none: it would let a caller reuse a
+    /// cached result after a backfill landed rows under an alias id, which is the id set that union exists
+    /// to cover. So this walks `rawPhysiologyReadIds`, the same list, rather than `deviceId` alone.
+    ///
+    /// Cost is one COUNT plus one MAX per id, straight over the `(deviceId, ts)` index with no rows
+    /// materialized, against the per-day row fetches a caller would otherwise repeat. Compared only to
+    /// itself in memory, so the format is free to change. Kotlin twin:
+    /// `WhoopRepository.hrFingerprintWindowUnion`.
+    func hrFingerprintUnion(from: Int, to: Int) async -> String {
+        guard let store = await ensureStore() else { return "" }
+        var parts: [String] = []
+        for id in rawPhysiologyReadIds(store: store) {
+            let fp = (try? await store.hrFingerprint(deviceId: id, from: from, to: to)) ?? (count: 0, maxTs: 0)
+            parts.append("\(id):\(fp.count):\(fp.maxTs)")
+        }
+        return parts.joined(separator: "|")
+    }
+
     func hrSamples(from: Int, to: Int, limit: Int = 8000) async -> [HRSample] {
         guard let store = await ensureStore() else { return [] }
         // UNION the active strap + canonical so the HR trend renders whether the landed day's raw sits under
