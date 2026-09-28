@@ -483,7 +483,26 @@ public final class LiveState: ObservableObject {
         return String(watts)
     }
     /// Rolling log of human-readable lines for the on-device verification checklist.
-    @Published public var log: [String] = []
+    ///
+    /// NOT `@Published`, deliberately (#2547). `LiveState` carries dozens of `@Published` properties on one
+    /// `ObservableObject`, and an `ObservableObject` invalidates EVERY observer on ANY published change, so
+    /// publishing per appended line woke every view in the app for each line. A history drain plus a
+    /// re-score burst emits hundreds a minute and iOS killed the app for sustained background CPU (#2521).
+    ///
+    /// Reads are still SYNCHRONOUS and uncoalesced: this returns the buffer as it is right now, so code that
+    /// appends and then inspects the log in the same turn sees its own line. Only the PUBLISH is coalesced,
+    /// via `logRevision`. Capture is never delayed or dropped.
+    public var log: [String] { logBuffer }
+
+    /// The backing store. Mutated only by `append(log:)`.
+    private var logBuffer: [String] = []
+
+    /// Ticks when the log has changed, at most once per `publishCoalesceSeconds` however fast lines arrive.
+    ///
+    /// This is the property SwiftUI observes for the log. The Android twin is
+    /// `boundedRevision(ble.logRevision, coalesceMs = 250)` in `TestCentreScreen.kt`, which throttles the
+    /// same way; this brings the platforms level.
+    @Published public private(set) var logRevision: UInt64 = 0
 
     // MARK: - Connection status (single source of truth, #266)
 
@@ -780,11 +799,15 @@ public final class LiveState: ObservableObject {
         // (redactPii below); tagging happens BEFORE redaction so the scrub covers the whole line.
         let tagged = domain.map { "[\($0.id)] " + line } ?? line
         let safe = Self.redactPii(tagged)
-        log.append(safe)
+        logBuffer.append(safe)
         // Batched trim: overrun by `trimSlack`, then trim back to the cap in one shot (amortized O(1)/line).
-        if log.count > Self.maxLogLines + Self.trimSlack { log.removeFirst(log.count - Self.maxLogLines) }
+        if logBuffer.count > Self.maxLogLines + Self.trimSlack {
+            logBuffer.removeFirst(logBuffer.count - Self.maxLogLines)
+        }
         // Onto disk as it is logged, so a restart loses nothing and an export carries the runs before it.
+        // BEFORE the coalesced publish and never inside it: capture is per line, only the notification waits.
         Self.archive.append(safe)
+        publishLogCoalesced()
         // #990: fold the Backfiller's per-session "session persisted N rows" summary into the persisted
         // ALL-TIME drained-rows tally, right here at the single log sink (no new BLE seam). The summary
         // is emitted unconditionally whenever rows landed (#150), so the cumulative counter accrues on
@@ -792,6 +815,67 @@ public final class LiveState: ObservableObject {
         // the common per-line cost to one substring scan.
         if line.contains("session persisted"), let rows = ConnectionReadout.drainedRowsFromSummary(line) {
             TestCentre.noteDrainedRows(rows)
+        }
+    }
+
+    /// How often at most the log publishes, however fast lines arrive. Matches the Android twin's 250ms.
+    ///
+    /// `nonisolated` because a `static let` in a `@MainActor` type IS actor-isolated, and this is the default
+    /// argument of the `nonisolated` decision function below, which could not then reach it. Same reason
+    /// `legacyTailKey` further down carries the keyword.
+    nonisolated static let publishCoalesceSeconds: Double = 0.25
+
+    /// What the coalescer should do, given when it last published and whether a flush is already queued.
+    ///
+    /// Pure, so the policy is tested without a clock or a run loop: the async half below is then a thin
+    /// adapter with no decisions of its own. Leading edge plus a trailing flush, which is what makes the
+    /// contract "the last line of a burst always lands" rather than "the last line is dropped until the next
+    /// one arrives". (#2547)
+    enum LogPublishDecision: Equatable {
+        /// Enough time has passed; publish on this line.
+        case publishNow
+        /// Inside the window with nothing queued; publish once after this many seconds.
+        case scheduleIn(Double)
+        /// Inside the window and a flush is already queued, which will cover this line.
+        case alreadyQueued
+    }
+
+    nonisolated static func logPublishDecision(
+        now: Double, lastPublish: Double, flushQueued: Bool, interval: Double = publishCoalesceSeconds,
+    ) -> LogPublishDecision {
+        let elapsed = now - lastPublish
+        if elapsed >= interval { return .publishNow }
+        if flushQueued { return .alreadyQueued }
+        // Clamped at 0: a clock that went backwards must not schedule a negative sleep.
+        return .scheduleIn(max(0, interval - elapsed))
+    }
+
+    private var lastLogPublish: Double = -.greatestFiniteMagnitude
+    private var logFlushQueued = false
+
+    /// Bump `logRevision` now, or once at the end of the current window.
+    private func publishLogCoalesced() {
+        let now = ProcessInfo.processInfo.systemUptime
+        switch Self.logPublishDecision(now: now, lastPublish: lastLogPublish, flushQueued: logFlushQueued) {
+        case .alreadyQueued:
+            return
+        case .publishNow:
+            lastLogPublish = now
+            logRevision &+= 1
+        case .scheduleIn(let wait):
+            logFlushQueued = true
+            Task { @MainActor [weak self] in
+                // `try?` and NOT an early return on failure, deliberately. The flag is what suppresses every
+                // other publish in the window, so the one thing this closure must always do is clear it. A
+                // cancelled sleep throws; swallowing that and falling through still clears the flag and
+                // publishes. Rewriting this as `try await` with the error propagating would leave the flag
+                // set forever, and the log would keep capturing while the UI silently froze.
+                try? await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
+                guard let self else { return }
+                self.logFlushQueued = false
+                self.lastLogPublish = ProcessInfo.processInfo.systemUptime
+                self.logRevision &+= 1
+            }
         }
     }
 

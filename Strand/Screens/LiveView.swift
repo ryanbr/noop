@@ -1351,7 +1351,10 @@ private struct LiveLogCard: View {
             .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
             #endif
             .frame(height: 200)
-            .onChangeCompat(of: live.log.count) { _ in
+            // On `logRevision`, not `log.count` (#2547). The revision is monotonic and ticks exactly once per
+            // coalesced publish; the count plateaus while the ring trims, so it can stay equal across an
+            // append and skip a scroll.
+            .onChangeCompat(of: live.logRevision) { _ in
                 if let last = live.log.indices.last { proxy.scrollTo(last, anchor: .bottom) }
             }
         }
