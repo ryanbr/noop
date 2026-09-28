@@ -453,19 +453,25 @@ object LabMarkerCsvImport {
      * other punctuation gave both `custom_lymph`, so the second row of the day overwrote the
      * first. The token is joined to a letter/digit neighbour by one "_" (a non-alphanumeric
      * neighbour already maps to "_"), so "LYMPH %", "LYMPH%" and "Lymph (%)" all give
-     * `custom_lymph_pct`. Names without "%" keep the keys they always had. Byte-identical to
-     * Swift `LabMarkerCsvImport.customKey`.
+     * `custom_lymph_pct`. Names without "%" keep their keys except those containing Unicode
+     * number letters or other numbers, which Android previously replaced with underscores (#2351).
+     * Byte-identical to Swift `LabMarkerCsvImport.customKey`.
      */
     internal fun customKey(name: String): String {
         val lowered = Normalizer.normalize(name, Normalizer.Form.NFC).trim().lowercase()
+        // Swift Character.isNumber also keeps Unicode letter/other numbers (e.g. Ⅻ, ²).
+        fun isWordChar(cp: Int): Boolean = Character.isLetterOrDigit(cp) ||
+            Character.getType(cp) == Character.LETTER_NUMBER.toInt() ||
+            Character.getType(cp) == Character.OTHER_NUMBER.toInt()
+        val chars = lowered.codePoints().toArray()
         val mapped = buildString {
-            lowered.forEachIndexed { i, ch ->
-                if (ch == '%') {
-                    if (i > 0 && lowered[i - 1].isLetterOrDigit()) append('_')
+            chars.forEachIndexed { i, ch ->
+                if (ch == '%'.code) {
+                    if (i > 0 && isWordChar(chars[i - 1])) append('_')
                     append("pct")
-                    if (i + 1 < lowered.length && lowered[i + 1].isLetterOrDigit()) append('_')
+                    if (i + 1 < chars.size && isWordChar(chars[i + 1])) append('_')
                 } else {
-                    append(if (ch.isLetterOrDigit()) ch else '_')
+                    if (isWordChar(ch)) appendCodePoint(ch) else append('_')
                 }
             }
         }

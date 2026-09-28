@@ -346,15 +346,15 @@ class LabMarkerCsvImportTest {
 
     /**
      * Expected literals are the verbatim stdout of Swift `LabMarkerCsvImport.customKey` compiled
-     * standalone over [names] (the Swift suite pins the same list). Names without "%" keep their
-     * pre-"pct" keys.
+     * standalone over [names] (the Swift suite pins the same list). The Unicode numeric cases
+     * guard the Android/Swift category boundary from #2351.
      */
     @Test fun customKeyIsPinned() {
         val names = listOf(
-            "LYMPH", "LYMPH %", "LYMPH%", "Lymph (%)", "BASO", "BASO %", "% Neutrophils", "NEUT  %", "a%%b", "%", "Apo B", "Magnesium", "  ???  ", "A - B", "Vitamin D (25-OH)", "Caf\u00e9 Marker", "Cafe\u0301 Marker", "MCHC g/dL", "HbA1c (IFCC)",
+            "LYMPH", "LYMPH %", "LYMPH%", "Lymph (%)", "BASO", "BASO %", "% Neutrophils", "NEUT  %", "a%%b", "%", "Apo B", "Magnesium", "  ???  ", "A - B", "Vitamin D (25-OH)", "Caf\u00e9 Marker", "Cafe\u0301 Marker", "MCHC g/dL", "HbA1c (IFCC)", "eGFR mL/min/1.73m²", "Factor Ⅻ", "Vitamin B₁₂", "①%", "½ dose", "³", "2", "𐄇",
         )
         val expected = listOf(
-            "custom_lymph", "custom_lymph_pct", "custom_lymph_pct", "custom_lymph_pct", "custom_baso", "custom_baso_pct", "custom_pct_neutrophils", "custom_neut_pct", "custom_a_pctpct_b", "custom_pct", "custom_apo_b", "custom_magnesium", "", "custom_a__b", "custom_vitamin_d_25_oh", "custom_café_marker", "custom_café_marker", "custom_mchc_g_dl", "custom_hba1c_ifcc",
+            "custom_lymph", "custom_lymph_pct", "custom_lymph_pct", "custom_lymph_pct", "custom_baso", "custom_baso_pct", "custom_pct_neutrophils", "custom_neut_pct", "custom_a_pctpct_b", "custom_pct", "custom_apo_b", "custom_magnesium", "", "custom_a__b", "custom_vitamin_d_25_oh", "custom_café_marker", "custom_café_marker", "custom_mchc_g_dl", "custom_hba1c_ifcc", "custom_egfr_ml_min_1_73m²", "custom_factor_ⅻ", "custom_vitamin_b₁₂", "custom_①_pct", "custom_½_dose", "custom_³", "custom_2", "custom_𐄇",
         )
         assertEquals(expected, names.map { LabMarkerCsvImport.customKey(it) })
     }
