@@ -55,16 +55,17 @@ internal const val ANALYSIS_FINGERPRINT_SQL =
  *
  * The result is opaque and only ever compared to itself in memory, so it needs no byte identity with the
  * Swift twin, `WhoopStore.dayStreamFingerprint`. Kept as one constant so every caller executes the exact
- * same statement; unlike [ANALYSIS_FINGERPRINT_SQL] it carries :deviceId/:from/:to binds, so a plain-JVM
- * SQLite harness could not run it verbatim. Room's KSP verification is what checks it. */
+ * same statement; unlike [ANALYSIS_FINGERPRINT_SQL] it carries :deviceId/:from/:to binds, which
+ * `Whoop5RRSqliteTest` binds by name; Room's KSP verification checks it compiles. The five R-R figures come
+ * from ONE walk (the `rr` derived table): each needs `srcChannel` or `tsSuspect`, which the key index does not
+ * hold, so as five sub-selects every beat in the window paid its table lookup up to five times (44% of a warm
+ * re-score's CPU on a 54-hour WHOOP 5 window). Same values; `Whoop5RRSqliteTest` compares it with the five
+ * sub-selects it replaced. */
 internal const val DAY_STREAM_FINGERPRINT_SQL =
     "SELECT 's4|' || " +
         "'p' || (SELECT COUNT(*) FROM ppgHrSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
         "':' || (SELECT COALESCE(MAX(ts), 0) FROM ppgHrSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || '|' || " +
-        "'r' || (SELECT COUNT(*) FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
-        "AND (srcChannel IS NULL OR srcChannel <> 2) AND (tsSuspect IS NULL OR tsSuspect <> 1)) || " +
-        "':' || (SELECT COALESCE(MAX(ts), 0) FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
-        "AND (srcChannel IS NULL OR srcChannel <> 2) AND (tsSuspect IS NULL OR tsSuspect <> 1)) || '|' || " +
+        "'r' || rr.rc || ':' || rr.rm || '|' || " +
         "'x' || (SELECT COUNT(*) FROM respSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
         "':' || (SELECT COALESCE(MAX(ts), 0) FROM respSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || '|' || " +
         "'o' || (SELECT COUNT(*) FROM spo2Sample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
@@ -79,14 +80,15 @@ internal const val DAY_STREAM_FINGERPRINT_SQL =
         "':' || (SELECT COALESCE(MAX(ts), 0) FROM sleepStateSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || '|' || " +
         "'e' || (SELECT COUNT(*) FROM event WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
         "':' || (SELECT COALESCE(MAX(ts), 0) FROM event WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
-        "'|w5' || (SELECT COUNT(*) FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
-        "AND srcChannel = 5 AND (tsSuspect IS NULL OR tsSuspect <> 1)) || " +
-        "'|w7' || (SELECT COUNT(*) FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
-        "AND srcChannel = 7 AND (tsSuspect IS NULL OR tsSuspect <> 1)) || " +
-        "'|w4h' || (SELECT COUNT(*) FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
-        "AND srcChannel = 8 AND (tsSuspect IS NULL OR tsSuspect <> 1)) || " +
+        "'|w5' || rr.w5 || '|w7' || rr.w7 || '|w4h' || rr.w4h || " +
         "'|ownerTagged' || EXISTS(SELECT 1 FROM rrInterval WHERE deviceId = :deviceId AND srcChannel IN (5, 6, 7)) || " +
-        "'|registry' || COALESCE((SELECT QUOTE(brand) || ':' || QUOTE(model) FROM pairedDevice WHERE id = :deviceId), 'absent')"
+        "'|registry' || COALESCE((SELECT QUOTE(brand) || ':' || QUOTE(model) FROM pairedDevice WHERE id = :deviceId), 'absent') " +
+        "FROM (SELECT COUNT(CASE WHEN srcChannel IS NULL OR srcChannel <> 2 THEN 1 END) AS rc, " +
+        "COALESCE(MAX(CASE WHEN srcChannel IS NULL OR srcChannel <> 2 THEN ts END), 0) AS rm, " +
+        "COUNT(CASE WHEN srcChannel = 5 THEN 1 END) AS w5, COUNT(CASE WHEN srcChannel = 7 THEN 1 END) AS w7, " +
+        "COUNT(CASE WHEN srcChannel = 8 THEN 1 END) AS w4h " +
+        "FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
+        "AND (tsSuspect IS NULL OR tsSuspect <> 1)) AS rr"
 
 /** The Oura beat channels [RR_INTERVALS_SQL] chooses between, as a SQL list: GREEN_QUALITY (0x80) on
  *  one side, and the amplitude family on the other, IBI_AMPLITUDE (0x60) + IBI_BARE (0x44). Those two

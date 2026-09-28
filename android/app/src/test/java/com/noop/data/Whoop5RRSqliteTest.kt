@@ -810,4 +810,72 @@ class Whoop5RRSqliteTest {
         assertEquals(listOf(listOf(0L, 500L, 1L), listOf(1L, 500L, 0L), listOf(2L, 500L, 1L),
             listOf(2L, 760L, 0L), listOf(3L, 500L, 0L), listOf(9L, 500L, 1L)), storedFillMarks())
     }
+
+    // DAY_STREAM_FINGERPRINT_SQL reads its five R-R figures in one walk. The statement it replaced, verbatim, is
+    // the reference: over randomised rows on every channel, suspect or not, on two devices, the two must agree on
+    // every window, or the per-day re-score cache would re-score or re-serve nights it should not.
+    private val fiveSubSelectFingerprintSql =
+        "SELECT 's4|' || " +
+            "'p' || (SELECT COUNT(*) FROM ppgHrSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
+            "':' || (SELECT COALESCE(MAX(ts), 0) FROM ppgHrSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || '|' || " +
+            "'r' || (SELECT COUNT(*) FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
+            "AND (srcChannel IS NULL OR srcChannel <> 2) AND (tsSuspect IS NULL OR tsSuspect <> 1)) || " +
+            "':' || (SELECT COALESCE(MAX(ts), 0) FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
+            "AND (srcChannel IS NULL OR srcChannel <> 2) AND (tsSuspect IS NULL OR tsSuspect <> 1)) || '|' || " +
+            "'x' || (SELECT COUNT(*) FROM respSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
+            "':' || (SELECT COALESCE(MAX(ts), 0) FROM respSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || '|' || " +
+            "'o' || (SELECT COUNT(*) FROM spo2Sample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
+            "':' || (SELECT COALESCE(MAX(ts), 0) FROM spo2Sample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || '|' || " +
+            "'g' || (SELECT COUNT(*) FROM gravitySample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
+            "':' || (SELECT COALESCE(MAX(ts), 0) FROM gravitySample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || '|' || " +
+            "'z' || (SELECT COUNT(*) FROM stepSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
+            "':' || (SELECT COALESCE(MAX(ts), 0) FROM stepSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || '|' || " +
+            "'t' || (SELECT COUNT(*) FROM skinTempSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
+            "':' || (SELECT COALESCE(MAX(ts), 0) FROM skinTempSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || '|' || " +
+            "'b' || (SELECT COUNT(*) FROM sleepStateSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
+            "':' || (SELECT COALESCE(MAX(ts), 0) FROM sleepStateSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || '|' || " +
+            "'e' || (SELECT COUNT(*) FROM event WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
+            "':' || (SELECT COALESCE(MAX(ts), 0) FROM event WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) || " +
+            "'|w5' || (SELECT COUNT(*) FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
+            "AND srcChannel = 5 AND (tsSuspect IS NULL OR tsSuspect <> 1)) || " +
+            "'|w7' || (SELECT COUNT(*) FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
+            "AND srcChannel = 7 AND (tsSuspect IS NULL OR tsSuspect <> 1)) || " +
+            "'|w4h' || (SELECT COUNT(*) FROM rrInterval WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
+            "AND srcChannel = 8 AND (tsSuspect IS NULL OR tsSuspect <> 1)) || " +
+            "'|ownerTagged' || EXISTS(SELECT 1 FROM rrInterval WHERE deviceId = :deviceId AND srcChannel IN (5, 6, 7)) || " +
+            "'|registry' || COALESCE((SELECT QUOTE(brand) || ':' || QUOTE(model) FROM pairedDevice WHERE id = :deviceId), 'absent')"
+
+    @Test fun dayFingerprintOneWalkMatchesTheFiveSubSelects() {
+        val rng = java.util.Random(0x2371)
+        val base = 1_790_000_000L
+        val channels = listOf(null, 1, 2, 3, 5, 6, 7, 8, 9)
+        repeat(4000) { i ->
+            val device = if (rng.nextInt(5) == 0) "ring" else id
+            val ts = base - 3600 + rng.nextInt(250_000)
+            statement("INSERT OR IGNORE INTO rrInterval(deviceId,ts,rrMs,seq,synced,ord,srcChannel,tsSuspect) " +
+                "VALUES(:d,:t,:r,0,0,0,:c,:s)", mapOf("d" to device, "t" to ts, "r" to 600 + rng.nextInt(600),
+                "c" to channels[rng.nextInt(channels.size)], "s" to if (rng.nextInt(9) == 0) 1 else null))
+                .use { it.executeUpdate() }
+            if (i % 7 == 0) {
+                statement("INSERT INTO gravitySample VALUES(:d,:t)", mapOf("d" to device, "t" to ts)).use { it.executeUpdate() }
+                statement("INSERT INTO event VALUES(:d,:t)", mapOf("d" to device, "t" to ts)).use { it.executeUpdate() }
+            }
+        }
+        val windows = mutableListOf(base to base + 54 * 3600, base - 7200 to base - 1, base + 200_000 to base + 300_000,
+            base + 3600 to base + 3600)
+        repeat(10) { val from = base - 3600 + rng.nextInt(80_000); windows += from to from + rng.nextInt(200_000) }
+        var compared = 0
+        for (device in listOf(id, "ring", "absent-device")) for ((from, to) in windows) {
+            val binds = mapOf("deviceId" to device, "from" to from, "to" to to)
+            val now = query(DAY_STREAM_FINGERPRINT_SQL, binds) { it.getString(1) }.single()
+            val before = query(fiveSubSelectFingerprintSql, binds) { it.getString(1) }.single()
+            assertEquals("$device [$from, $to]", before, now)
+            compared++
+        }
+        assertEquals(42, compared)
+        val whole = query(DAY_STREAM_FINGERPRINT_SQL, mapOf("deviceId" to id, "from" to base, "to" to base + 54 * 3600)) {
+            it.getString(1)
+        }.single()
+        for (zero in listOf("|r0:", "|w50|", "|w70|", "|w4h0|")) assertFalse("fixture never moves $zero: $whole", whole.contains(zero))
+    }
 }
