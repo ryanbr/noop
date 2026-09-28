@@ -56,6 +56,18 @@ enum Variants {
                        note: "deep 0.18→0.15, awake 0.10→0.34", config: c)
     }
 
+    /// #348-A split in two, so the per-subject section can say which half does what.
+    static var deepPriorOnly: Variant {
+        var c = RecipeConfig.shipped
+        c.priorDeep = log(0.15)
+        return Variant(name: "#348-A deep prior only", note: "deep 0.18→0.15", config: c)
+    }
+    static var awakePriorOnly: Variant {
+        var c = RecipeConfig.shipped
+        c.priorAwake = log(0.34)
+        return Variant(name: "#348-A awake prior only", note: "awake 0.10→0.34", config: c)
+    }
+
     /// #348 component 2 — motion gate. A second wake channel: alone, healthy wake 9.43 % → 15.92 %.
     static var p348Motion: Variant {
         var c = RecipeConfig.shipped
