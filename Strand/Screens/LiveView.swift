@@ -1245,11 +1245,31 @@ private struct ActiveWorkoutLive: View {
     }
 }
 
-/// The strap log + export controls + Test Centre link. Owns LiveState so the streaming log lines
-/// re-render only this card. Wrapped in the liquid frosted card style.
+/// The strap log + export controls + Test Centre link. Wrapped in the liquid frosted card style.
+///
+/// This observes `LiveState` rather than scoping anything: a published change there invalidates every
+/// observer, so what this card controls is the COST of its own re-evaluation, not whether it happens.
 private struct LiveLogCard: View {
+    /// How many trailing lines the card RENDERS. The buffer stays `LiveState.maxLogLines` (5,000) and Copy /
+    /// Save / the export still read all of it, so nothing is lost by drawing less.
+    ///
+    /// #2521: this card used to render the whole buffer in a non-lazy `VStack`, so every appended line built
+    /// and diffed up to 5,000 rows while the visible viewport is 200pt, about fifteen lines. A history drain
+    /// plus a re-score burst emits hundreds of lines a minute, and the 80%-of-a-core CPU limit is per
+    /// process, so that cost landed on the main thread and the app was killed with `cpu_resource_fatal`
+    /// while it was not even frontmost.
+    private static let renderedTailLines = 200
+
     @EnvironmentObject private var live: LiveState
     @EnvironmentObject private var model: AppModel
+    /// Backgrounded, nothing is on screen to keep current, and a `LiveState` publish still re-evaluates this
+    /// body because an `ObservableObject` invalidates every observer on ANY published change, not only the
+    /// property a view reads. So the body is made trivial instead, which is what the CPU limit measures.
+    ///
+    /// Gated on `.background` rather than `!= .active` deliberately: `.inactive` is also when iOS takes the
+    /// app-switcher snapshot, and blanking the log there would be visible for no benefit. The kill needs
+    /// sustained non-frontmost CPU, which is `.background`.
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage(CardAppearancePrefs.opacityKey) private var cardOpacityPercent = CardAppearancePrefs.defaultPercent
     private var cardOpacity: Double { max(0, min(1, Double(cardOpacityPercent) / 100)) }
 
@@ -1266,24 +1286,11 @@ private struct LiveLogCard: View {
                 Button("Save…") { saveStrapLog() }
                     .buttonStyle(.plain).font(StrandFont.mono).foregroundStyle(StrandPalette.accent)
             }
-            ScrollViewReader { proxy in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 2) {
-                        ForEach(Array(live.log.enumerated()), id: \.offset) { idx, line in
-                            Text(line).font(StrandFont.mono)
-                                .foregroundStyle(StrandPalette.textSecondary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .id(idx)
-                        }
-                    }
-                }
-                #if os(iOS)
-                .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-                #endif
-                .frame(height: 200)
-                .onChangeCompat(of: live.log.count) { _ in
-                    if let last = live.log.indices.last { proxy.scrollTo(last, anchor: .bottom) }
-                }
+            if scenePhase == .background {
+                // Same height so returning to the app does not shift the card's layout.
+                Color.clear.frame(height: 200)
+            } else {
+                logScroller
             }
 
             // Users look on Live first when something's wrong (#507/#509), so link straight into the
@@ -1305,6 +1312,43 @@ private struct LiveLogCard: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(NoopPanelSurface(cornerRadius: 22, surfaceOpacity: cardOpacity))
+    }
+
+    /// The tail of the log, lazily.
+    ///
+    /// The slice comes from `LiveState.renderedTail`, which snapshots the buffer so a lazily-realized row
+    /// cannot index a trimmed array. Its indices are ABSOLUTE positions in `live.log`, which is what makes
+    /// them usable as identity: BETWEEN trims, appending a line leaves every other row's id alone, so SwiftUI adds one row
+    /// and drops one instead of re-identifying the list. A trim still renumbers, because `Array.removeFirst`
+    /// shifts every element down, but that is once per `LiveState.trimSlack` lines and now touches 200 ids
+    /// rather than rebuilding 5,000 rows.
+    ///
+    /// The old `id: \.offset` over `Array(live.log.enumerated())` paid on every line instead: a fresh
+    /// 5,000-element array allocated per body evaluation, and a non-lazy `VStack` that built every row even
+    /// though the 200pt viewport shows about fifteen.
+    ///
+    /// `scrollTo` still addresses the true last index, which is always inside the tail.
+    private var logScroller: some View {
+        let tail = LiveState.renderedTail(live.log, tailLines: Self.renderedTailLines)
+        return ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 2) {
+                    ForEach(tail.indices, id: \.self) { idx in
+                        Text(tail[idx]).font(StrandFont.mono)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .id(idx)
+                    }
+                }
+            }
+            #if os(iOS)
+            .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+            #endif
+            .frame(height: 200)
+            .onChangeCompat(of: live.log.count) { _ in
+                if let last = live.log.indices.last { proxy.scrollTo(last, anchor: .bottom) }
+            }
+        }
     }
 
     // MARK: - Strap-log export (issue #17 — let macOS users share the log for bug reports)

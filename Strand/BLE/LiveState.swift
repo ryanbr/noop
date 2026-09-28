@@ -746,6 +746,23 @@ public final class LiveState: ObservableObject {
     /// a streaming strap fills it in about 50 minutes, so exports read the whole log from disk (`archive`);
     /// this buffer drives the Live log card and the Test Centre readouts. Each line is a short redacted string
     /// (~100 bytes), so the worst-case buffer is well under ~1 MB — bounded, never unbounded.
+    /// The tail of `log` that the Live screen's card RENDERS: its last `tailLines` lines.
+    ///
+    /// Returns a SLICE, not a range, and that is the load-bearing part. The card draws it in a `LazyVStack`,
+    /// whose row closures can run in a later main-actor turn than the body that produced them (on scroll,
+    /// with no re-evaluation). A range plus `log[idx]` would then read a buffer that `append(log:)` may have
+    /// trimmed in between and crash out of bounds. A slice is a copy-on-write value snapshot, so the rows it
+    /// hands out stay valid however the live buffer moves.
+    ///
+    /// Its `indices` are ABSOLUTE positions in `log`, which is what makes them usable as identity: between
+    /// trims an append shifts only the window edges, so every shared row keeps its id, and
+    /// `scrollTo(log.indices.last)` always addresses a row that is actually rendered, which a LEADING window
+    /// would not. Empty log or a non-positive tail yields an empty slice. (#2521)
+    static func renderedTail(_ log: [String], tailLines: Int) -> ArraySlice<String> {
+        guard tailLines > 0 else { return log[log.endIndex..<log.endIndex] }
+        return log.suffix(tailLines)
+    }
+
     static let maxLogLines = 5_000
 
     /// Amortize the ring trim: let the buffer overrun by this slack, then trim back to the cap in one batch
