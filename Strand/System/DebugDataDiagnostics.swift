@@ -588,8 +588,21 @@ enum DebugDataDiagnostics {
                 if streak >= 2 { rline += " · \(streak) in a row (register likely needs a reset, #34)" }
                 lines.append(rline)
                 // The bytes the epoch was decoded from: what tells a stored stale alarm from a misdecode.
-                if let raw = d.string(forKey: "alarm.lastReportedRaw"), !raw.isEmpty {
-                    lines.append("Readback frame: \(raw)")
+                // #1707 started banking the frame on 2026-08-28, so a readback taken before that has an
+                // epoch and no frame. Printing nothing there read as "the frame was checked and was fine",
+                // and a 2045 readback in a 2026-09-28 capture cost a trip through git history to explain.
+                // Say which of the two it is, the way the strap-clock verdict says why it abstains rather
+                // than printing no line at all.
+                // Blank counts as not stored, matching Kotlin's isNotBlank: a whitespace-only value is as
+                // uninformative as an absent one, and printing it emitted a frame line carrying no bytes.
+                let reportedRaw = d.string(forKey: "alarm.lastReportedRaw")?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if let reportedRaw, !reportedRaw.isEmpty {
+                    lines.append("Readback frame: \(reportedRaw)")
+                } else {
+                    lines.append("Readback frame: not stored (this readback predates the frame capture, or "
+                        + "the write failed), so a genuinely-stored stale alarm cannot be told from a "
+                        + "misdecode of a fixed response field here")
                 }
             } else {
                 lines.append("Strap reports: (no readback)")

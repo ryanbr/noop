@@ -682,9 +682,21 @@ object AndroidDiagnostics {
                     if (reportedAt > 0L) rl += " · read ${relTime(System.currentTimeMillis() - reportedAt)}"
                     add(rl)
                     // The bytes the epoch was decoded from: what tells a stored stale alarm from a misdecode.
-                    p.getString("alarm.lastReportedRaw", null)
-                        ?.takeIf { it.isNotBlank() }
-                        ?.let { add("Readback frame: $it") }
+                    // #1707 started banking the frame on 2026-08-28, so a readback taken before that has an
+                    // epoch and no frame. Printing nothing there read as "the frame was checked and was
+                    // fine", and a 2045 readback in a 2026-09-28 capture cost a trip through git history to
+                    // explain. Say which of the two it is, the way the strap-clock verdict above says why it
+                    // abstains rather than printing no line at all.
+                    val reportedRaw = p.getString("alarm.lastReportedRaw", null)?.takeIf { it.isNotBlank() }
+                    add(
+                        if (reportedRaw != null) {
+                            "Readback frame: $reportedRaw"
+                        } else {
+                            "Readback frame: not stored (this readback predates the frame capture, or the " +
+                                "write failed), so a genuinely-stored stale alarm cannot be told from a " +
+                                "misdecode of a fixed response field here"
+                        },
+                    )
                 } else add("Strap reports: (no readback)")
             } else add("Last arm: never")
             // #1: did the strap actually fire? (STRAP_DRIVEN_ALARM_EXECUTED)
