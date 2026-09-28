@@ -77,15 +77,32 @@ private fun seriesSummary(values: List<Double>, noun: String): String {
         "low ${formatLineValue(lo)}, high ${formatLineValue(hi)}"
 }
 
-/** Per-stage total summary for the Hypnogram (deep · REM · light · awake, naming only stages present). */
-private fun hypnogramSummary(stages: List<Pair<String, Float>>): String {
+/**
+ * Per-stage total summary for the Hypnogram, naming only the stages present.
+ *
+ * Spoken in the SAME order the rows are drawn in, awake · REM · light · deep (#2534). It used to announce
+ * deep first, so a screen-reader user heard a different order from the one on screen.
+ *
+ * `internal` only so the order and the apportionment can be pinned by a test; nothing else calls it.
+ */
+internal fun hypnogramSummary(stages: List<Pair<String, Float>>): String {
     if (stages.isEmpty()) return "Sleep stages, no data"
     // Weights are relative widths, not minutes, so report the share of the night in each stage.
     val total = stages.map { if (it.second.isFinite() && it.second > 0f) it.second else 0f }.sum()
     if (total <= 0f) return "Sleep stages, no data"
-    val order = listOf("deep", "rem", "light", "awake")
+    // TWO orders, deliberately separate, because they answer different questions.
+    //
+    // `spoken` is what a screen-reader user hears, and it matches the visible row stacks (#2534).
+    //
+    // `apportion` is the input order to the largest-remainder split, and it must stay the one EVERY visible
+    // surface uses. `wholePercentages` breaks ties by lower index, so the input order decides which stage
+    // gets the spare point: feeding it a different order is how the spoken percentages could disagree by
+    // one with the rows on screen for the same night. Reordering this list to match `spoken` would look
+    // tidier and would silently reintroduce that.
+    val spoken = listOf("awake", "rem", "light", "deep")
+    val apportion = listOf("awake", "light", "deep", "rem")
     val byStage = LinkedHashMap<String, Float>()
-    for (key in order) byStage[key] = 0f
+    for (key in apportion) byStage[key] = 0f
     stages.forEach { (name, w) ->
         val v = if (w.isFinite() && w > 0f) w else 0f
         val key = when (name.trim().lowercase()) {
@@ -95,12 +112,13 @@ private fun hypnogramSummary(stages: List<Pair<String, Float>>): String {
     }
     // One apportionment (largest-remainder) over the four stages so the read-out shares sum to 100 rather
     // than 99/101 — same helper the visible breakdown rows use; absent stages get 0 and are skipped below.
-    val shares = StagePercentages.wholePercentages(order.map { (byStage[it] ?: 0f).toDouble() })
-    val parts = order.mapIndexedNotNull { i, key ->
+    val shares = StagePercentages.wholePercentages(apportion.map { (byStage[it] ?: 0f).toDouble() })
+    val parts = spoken.mapNotNull { key ->
         val v = byStage[key] ?: 0f
         if (v <= 0f || shares == null) null else {
             val label = if (key == "rem") "REM" else key.replaceFirstChar { it.uppercase() }
-            "${shares[i]} percent $label"
+            // Indexed by APPORTIONMENT position, iterated in SPOKEN order.
+            "${shares[apportion.indexOf(key)]} percent $label"
         }
     }
     return if (parts.isEmpty()) "Sleep stages, no data" else "Sleep stages, " + parts.joinToString(", ")
