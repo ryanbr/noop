@@ -107,6 +107,22 @@
     },
     {
       "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDao.kt::flagWhoop5RrFill/3#1",
+      "identity_sha256": "3714e95a3d89ac54d74060d037e14dc39a0c6d2219ecb01065471573d7db12bc",
+      "platform": "kotlin",
+      "rationale": "Room @Query DAO method (#2371). The Swift store runs the same statement inline in WhoopStore StreamStore.swift rather than through a DAO, so there is no Swift function to pair with; the SQL itself is paired, WHOOP5_RR_FILL_FLAG_SQL with WhoopStore.whoop5RrFillFlagSQL, and pinned by the same literal on both platforms."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDatabase.kt::migrate/1#39",
+      "identity_sha256": "81b9152e7189625064e51189ec7be31e1d1f57662438fe54df4c1f779a6bbe48",
+      "platform": "kotlin",
+      "rationale": "Room Migration.migrate override of MIGRATION_40_41 (#2371). GRDB registers each migration as a closure (`v47-rr-whoop5-fill`), so there is no Swift function to pair with; the two are paired by the migration identifiers pinned in schema_oracle.json and by the SQL constant pair WHOOP5_RR_FILL_MIGRATION_SQL / WhoopStore.whoop5RrFillMigrationSQL."
+    },
+    {
+      "type": "platform_specific",
       "kind": "add-unpaired-constant",
       "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDao.kt::WHOOP4_RR_INTERVALS_SQL",
       "identity_sha256": "f513da8ff8ce9b2a9c8b30b042e82d92821c81bc42612acae1992fe4055f6ddc",

@@ -198,6 +198,22 @@ internal const val PROMOTE_WHOOP5_RR_SOURCE_SQL =
     "AND ((:source = 5 AND (srcChannel IS NULL OR srcChannel IN (6, 7))) " +
     "OR (:source = 7 AND (srcChannel IS NULL OR srcChannel = 6)))"
 
+/**
+ * #2371: marks the strap's 500 ms fill beats in one device's ts window, after a batch that carries a 500 ms
+ * WHOOP 5 beat. A WHOOP 5/MG emits an exact 500 ms interval as a filler at rest on v18 history (5) and
+ * standard BLE (7); split by the strap's own heart rate in the same second, it is 33-37 times as common as
+ * its neighbours at 80-94 bpm and no more common from 100 bpm up. The row is MARKED `tsSuspect = 1` (every
+ * scoring read filters it, #1073), never deleted. One literal, so the parity ledger can compare it with the
+ * Swift twin `WhoopStore.whoop5RrFillFlagSQL`, which carries the full evidence.
+ */
+internal const val WHOOP5_RR_FILL_FLAG_SQL = "UPDATE rrInterval SET tsSuspect = 1 WHERE deviceId = :deviceId AND ts >= :fromTs AND ts <= :toTs AND rrMs = 500 AND srcChannel IN (5, 7) AND tsSuspect IS NULL AND EXISTS (SELECT 1 FROM hrSample h WHERE h.deviceId = rrInterval.deviceId AND h.ts = rrInterval.ts AND h.bpm < 100)"
+
+/**
+ * Marks every stored fill beat once, in MIGRATION_40_41: the condition of [WHOOP5_RR_FILL_FLAG_SQL] over the
+ * whole table. Swift twin: `WhoopStore.whoop5RrFillMigrationSQL`.
+ */
+internal const val WHOOP5_RR_FILL_MIGRATION_SQL = "UPDATE rrInterval SET tsSuspect = 1 WHERE rrMs = 500 AND srcChannel IN (5, 7) AND tsSuspect IS NULL AND EXISTS (SELECT 1 FROM hrSample h WHERE h.deviceId = rrInterval.deviceId AND h.ts = rrInterval.ts AND h.bpm < 100)"
+
 internal const val PROMOTE_WHOOP4_HISTORY_SQL =
     "UPDATE rrInterval SET srcChannel = 8, ord = :ord " +
     "WHERE deviceId = :deviceId AND ts = :ts AND rrMs = :rrMs AND seq = :seq AND srcChannel IS NULL"
@@ -702,6 +718,10 @@ interface WhoopDao : DeviceRegistryDao {
 
     @Query(PROMOTE_WHOOP4_HISTORY_SQL)
     suspend fun promoteWhoop4HistoricalRr(deviceId: String, ts: Long, rrMs: Int, seq: Int, ord: Int)
+
+    /** #2371: mark the WHOOP 5 500 ms fill beats in one device's window ([WHOOP5_RR_FILL_FLAG_SQL]). */
+    @Query(WHOOP5_RR_FILL_FLAG_SQL)
+    suspend fun flagWhoop5RrFill(deviceId: String, fromTs: Long, toTs: Long)
 
     @Query(
         "SELECT * FROM event WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +

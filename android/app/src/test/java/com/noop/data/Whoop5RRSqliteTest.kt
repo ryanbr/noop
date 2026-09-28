@@ -119,6 +119,12 @@ class Whoop5RRSqliteTest {
                         .use { it.executeUpdate() }
                     Unit
                 }
+                "flagWhoop5RrFill" -> {
+                    statement(WHOOP5_RR_FILL_FLAG_SQL,
+                        listOf("deviceId", "fromTs", "toTs").zip(args.take(3)).toMap())
+                        .use { it.executeUpdate() }
+                    Unit
+                }
                 "promoteWhoop4HistoricalRr" -> {
                     statement(PROMOTE_WHOOP4_HISTORY_SQL,
                         listOf("deviceId", "ts", "rrMs", "seq", "ord").zip(args.take(5)).toMap())
@@ -741,5 +747,67 @@ class Whoop5RRSqliteTest {
         assertTrue(read().isEmpty())
         assertNotEquals(g0, dao.analysisFingerprint())
         assertNotEquals(d0, dao.dayStreamFingerprint(id, 0, 1000))
+    }
+
+    // #2371: the same cases and the same expected rows as the Swift `Whoop5RrFillTests`, run through the
+    // production insert path and the production SQL.
+    private val fillT0 = 1_790_000_000L
+    private fun storedFillMarks(): List<List<Long>> = query(
+        "SELECT ts, rrMs, tsSuspect FROM rrInterval WHERE deviceId = :d ORDER BY ts, ord, rrMs, seq",
+        mapOf("d" to id),
+    ) { r -> listOf(r.getLong("ts") - fillT0, r.getLong("rrMs"), r.getLong("tsSuspect")) }
+
+    @Test fun whoop5FillAtRestIsMarkedOnInsertAndNothingElse() = runBlocking {
+        repo.insert(StreamBatch(
+            hr = listOf(80, 99, 100, 80, 80, 80, 80, 80).mapIndexed { i, bpm -> HrRow(fillT0 + i, bpm) },
+            rr = listOf(
+                RrRow(fillT0, 500, RrSourceChannel.WHOOP5_HISTORICAL),       // fill: marked
+                RrRow(fillT0, 820, RrSourceChannel.WHOOP5_HISTORICAL),       // real beat, same second
+                RrRow(fillT0 + 1, 500, RrSourceChannel.WHOOP5_STANDARD),     // fill at 99 bpm: marked
+                RrRow(fillT0 + 2, 500, RrSourceChannel.WHOOP5_STANDARD),     // 100 bpm: a beat, kept
+                RrRow(fillT0 + 3, 501, RrSourceChannel.WHOOP5_HISTORICAL),   // not 500
+                RrRow(fillT0 + 4, 500, RrSourceChannel.WHOOP5_REALTIME),     // channel 6 is never scored
+                RrRow(fillT0 + 5, 500, RrSourceChannel.WHOOP4_HISTORICAL),   // a WHOOP 4.0
+                RrRow(fillT0 + 6, 500),                                      // no transport label
+                RrRow(fillT0 + 8, 500, RrSourceChannel.WHOOP5_HISTORICAL),   // no heart rate that second
+            ),
+        ), id)
+        val rows = storedFillMarks()
+        assertEquals("nothing deleted", 9, rows.size)
+        assertEquals(listOf(listOf(0L, 500L), listOf(1L, 500L)), rows.filter { it[2] == 1L }.map { it.take(2) })
+    }
+
+    @Test fun whoop5FillIsNotScoredButStaysOnDisk() = runBlocking {
+        repo.insert(StreamBatch(hr = (0L..2L).map { HrRow(fillT0 + it, 75) }, rr = listOf(
+            RrRow(fillT0, 800, RrSourceChannel.WHOOP5_HISTORICAL),
+            RrRow(fillT0 + 1, 500, RrSourceChannel.WHOOP5_HISTORICAL),
+            RrRow(fillT0 + 2, 790, RrSourceChannel.WHOOP5_HISTORICAL),
+        )), id)
+        assertEquals(listOf(800, 790), read(fillT0 - 10, fillT0 + 10).map { it.rrMs })
+        assertEquals(listOf(800L, 500L, 790L), storedFillMarks().map { it[1] })
+    }
+
+    @Test fun whoop5FillResyncKeepsTheMark() = runBlocking {
+        val batch = StreamBatch(hr = listOf(HrRow(fillT0, 70)),
+            rr = listOf(RrRow(fillT0, 500, RrSourceChannel.WHOOP5_HISTORICAL)))
+        repo.insert(batch, id)
+        assertEquals(0, repo.insert(batch, id).rr)
+        assertEquals(listOf(1L), storedFillMarks().map { it[2] })
+    }
+
+    @Test fun whoop5FillMigrationMarksTheFillsAlreadyStored() {
+        listOf(0 to 80, 1 to 120, 2 to 80, 3 to 80).forEach { (ts, bpm) ->
+            statement("INSERT INTO hrSample VALUES(:d,:t,:b)", mapOf("d" to id, "t" to fillT0 + ts, "b" to bpm))
+                .use { it.executeUpdate() }
+        }
+        listOf(listOf(0, 500, 5, null), listOf(1, 500, 7, null), listOf(2, 500, 7, null),
+            listOf(2, 760, 7, null), listOf(3, 500, 8, null), listOf(9, 500, 5, 1)).forEach { (ts, rrMs, ch, sus) ->
+            statement("INSERT INTO rrInterval(deviceId,ts,rrMs,seq,synced,ord,srcChannel,tsSuspect) " +
+                "VALUES(:d,:t,:r,0,0,0,:c,:s)",
+                mapOf("d" to id, "t" to fillT0 + ts!!, "r" to rrMs, "c" to ch, "s" to sus)).use { it.executeUpdate() }
+        }
+        sql(WHOOP5_RR_FILL_MIGRATION_SQL)
+        assertEquals(listOf(listOf(0L, 500L, 1L), listOf(1L, 500L, 0L), listOf(2L, 500L, 1L),
+            listOf(2L, 760L, 0L), listOf(3L, 500L, 0L), listOf(9L, 500L, 1L)), storedFillMarks())
     }
 }

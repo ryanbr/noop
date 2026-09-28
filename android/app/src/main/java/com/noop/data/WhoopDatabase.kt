@@ -59,7 +59,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         LiftSessionRow::class,
         LiftSetEntity::class,
     ],
-    version = 40,
+    version = 41,
     // #775: ON so Room's KSP processor writes the generated schema (every table's exact `CREATE TABLE`,
     // columns in declaration order with affinity/NOT NULL/default, PK and indices) as JSON. That export
     // is what lets a plain JVM test — no device, no Robolectric — read Android's REAL schema and compare
@@ -79,7 +79,7 @@ abstract class WhoopDatabase : RoomDatabase() {
         const val DB_NAME = "noop_whoop.db"
         /** Room schema version — MUST equal the `@Database(version = …)` above. Surfaced in the backup
          *  manifest (#1410) so an export states its schema. Bump both together on a migration. */
-        const val SCHEMA_VERSION = 40
+        const val SCHEMA_VERSION = 41
 
         @Volatile
         private var instance: WhoopDatabase? = null
@@ -1092,6 +1092,15 @@ abstract class WhoopDatabase : RoomDatabase() {
         }
 
         /**
+         * v40 -> v41 (#2371): mark the WHOOP 5 500 ms fill beats already stored, with the rule the insert path
+         * applies to every new batch ([WHOOP5_RR_FILL_FLAG_SQL]). Data only, no schema change, and a MARK in
+         * the v29 form, never a delete. Twin of the GRDB `v47-rr-whoop5-fill`.
+         */
+        internal val MIGRATION_40_41 = object : Migration(40, 41) {
+            override fun migrate(db: SupportSQLiteDatabase) { db.execSQL(WHOOP5_RR_FILL_MIGRATION_SQL) }
+        }
+
+        /**
          * Every migration the builder registers, as a VALUE rather than an argument list.
          *
          * It was previously spelled inline in `addMigrations(...)`, which meant nothing could check it. A
@@ -1117,7 +1126,7 @@ abstract class WhoopDatabase : RoomDatabase() {
             MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26,
             MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30,
             MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36,
-            MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40,
+            MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41,
         )
 
         private fun build(appContext: Context): WhoopDatabase =

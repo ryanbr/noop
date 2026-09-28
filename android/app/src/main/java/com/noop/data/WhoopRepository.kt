@@ -584,6 +584,16 @@ class WhoopRepository(
                 dao.promoteWhoop4HistoricalRr(row.deviceId, row.ts, row.rrMs, row.seq, row.ord!!)
             }
         }
+        // #2371: mark the strap's 500 ms fill beats in this batch's window. The batch's heart rate was written
+        // above, so the same-second rate the rule reads is already in the table. Only a batch that carries a
+        // 500 ms WHOOP 5 beat pays for the statement. iOS runs the same statement from `WhoopStore.insert`.
+        val fillTs = rrRows.filter {
+            it.rrMs == 500 && (it.srcChannel == RrSourceChannel.WHOOP5_HISTORICAL.code ||
+                it.srcChannel == RrSourceChannel.WHOOP5_STANDARD.code)
+        }.map { it.ts }
+        val fillFrom = fillTs.minOrNull()
+        val fillTo = fillTs.maxOrNull()
+        if (fillFrom != null && fillTo != null) dao.flagWhoop5RrFill(deviceId, fillFrom, fillTo)
         val evIds = if (streams.events.isEmpty()) emptyList() else
             dao.insertEvents(streams.events.map { EventRow(deviceId, it.ts, it.kind, it.payloadJSON) })
         val batIds = if (streams.battery.isEmpty()) emptyList() else

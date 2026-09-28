@@ -1096,6 +1096,13 @@ extension WhoopStore {
             try db.create(index: "idx_liftSet_session_ord", on: "liftSet",
                           columns: ["sessionId", "ord"], options: [.ifNotExists])
         }
+        // v47 (#2371): mark the WHOOP 5 500 ms fill beats already stored, with the rule `insert` applies to
+        // every new batch (`WhoopStore.whoop5RrFillFlagSQL`). Data only, no schema change, and a MARK in
+        // the v35 form, never a delete: the rows stay on disk. Twin of Room
+        // MIGRATION_40_41.
+        migrator.registerMigration("v47-rr-whoop5-fill") { db in
+            try db.execute(sql: WhoopStore.whoop5RrFillMigrationSQL)
+        }
         return migrator
     }
 }

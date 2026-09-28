@@ -271,6 +271,17 @@ extension WhoopStore {
                             "device": deviceId, "ts": r.ts, "rr": r.rrMs, "seq": seq])
                     }
                 }
+                // #2371: mark the strap's 500 ms fill beats in this batch's window. The batch's heart rate
+                // was written above, so the same-second rate the rule reads is already on disk. Only a batch
+                // that carries a 500 ms WHOOP 5 beat pays for the statement. Android runs the same statement
+                // from `WhoopRepository.insertWithinTransaction`.
+                let fillTs = streams.rr.filter {
+                    $0.rrMs == 500 && ($0.srcChannel == .whoop5Historical || $0.srcChannel == .whoop5Standard)
+                }.map(\.ts)
+                if let fromTs = fillTs.min(), let toTs = fillTs.max() {
+                    try db.execute(sql: WhoopStore.whoop5RrFillFlagSQL,
+                                   arguments: ["deviceId": deviceId, "fromTs": fromTs, "toTs": toTs])
+                }
             }
             if !streams.events.isEmpty {
                 let stmt = try db.cachedStatement(sql: """
