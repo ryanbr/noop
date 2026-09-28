@@ -669,7 +669,7 @@
     <string name="l10n_live_session_screen_above_6370c271">Oben</string>
     <string name="l10n_live_session_screen_below_5ba07a31">Unten</string>
     <string name="l10n_live_session_screen_done_e9b450d1">Fertig</string>
-    <string name="l10n_live_session_screen_end_session_8c0f4c33">Schlusssitzung</string>
+    <string name="l10n_live_session_screen_end_session_8c0f4c33">Sitzung beenden</string>
     <string name="l10n_live_session_screen_guarded_for_elapsedclock_snap_elapsedsec_tolong_a61f2d32">Bewacht für %1$s</string>
     <string name="l10n_live_session_screen_guardianbreath_f76a0607">guardianBreath</string>
     <string name="l10n_live_session_screen_guardianbreathscale_38b62ee7">guardianBreathScale</string>

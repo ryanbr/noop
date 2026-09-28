@@ -172,7 +172,7 @@
     <string name="power_saving_blurb">Alivie a carga da bracelete quando a bateria estiver fraca. A bracelete mantém os dados bancários por conta própria, pelo que nada se perde – o NOOP apenas conversa com ela com menos frequência para a ajudar a durar até que a possa carregar.</string>
     <string name="power_saving_mode">Modo de poupança de energia</string>
     <string name="power_saving_mode_desc">Retarda a sincronização da bracelete em segundo plano (a cada 45 minutos em vez de 15) enquanto a bateria da bracelete está fraca. Sem perda de dados – a bracelete armazena tudo, por isso sincronize apenas os lotes em pulls maiores e menos frequentes.</string>
-    <string name="power_saving_kick_in">Pontapé em (bateria da bracelete)</string>
+    <string name="power_saving_kick_in">Ativa a (bateria da bracelete)</string>
     <string name="power_saving_pct">%1$d%%</string>
     <string name="power_saving_hrv_pause">Pausar captura de HRV</string>
     <string name="power_saving_hrv_pause_desc">Enquanto a bateria da tua bracelete estiver fraca, interrompa o fluxo HRV de fundo sempre ativo – o maior consumo contínuo da bracelete. Um ecrã em direto ainda mostra a frequência cardíaca e é reativado automaticamente assim que a bracelete é carregada.</string>

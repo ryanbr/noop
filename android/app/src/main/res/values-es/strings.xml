@@ -469,7 +469,7 @@
     <string name="l10n_live_session_screen_above_6370c271">Arriba</string>
     <string name="l10n_live_session_screen_below_5ba07a31">A continuación</string>
     <string name="l10n_live_session_screen_done_e9b450d1">Listo</string>
-    <string name="l10n_live_session_screen_end_session_8c0f4c33">Período de sesiones final</string>
+    <string name="l10n_live_session_screen_end_session_8c0f4c33">Finalizar sesión</string>
     <string name="l10n_live_session_screen_guarded_for_elapsedclock_snap_elapsedsec_tolong_a61f2d32">Guarded for %1$s</string>
     <string name="l10n_live_session_screen_guardianbreath_f76a0607">tutor</string>
     <string name="l10n_live_session_screen_guardianbreathscale_38b62ee7">guardianBreathScale</string>
@@ -1735,7 +1735,7 @@
     <string name="power_saving_blurb">Facilite la carga en la correa cuando su batería esté baja. La correa mantiene datos bancarios por sí solas, por lo que nada se pierde — NOOP sólo habla con ella con menos frecuencia para ayudarle a durar hasta que pueda cargarlo.</string>
     <string name="power_saving_mode">Modo de ahorro de energía</string>
     <string name="power_saving_mode_desc">Lenta la correa de fondo-sinc (cada 45 min en lugar de 15) mientras que la batería de la correa\ es baja. No hay pérdida de datos — la correa lo bloquea todo, así que sincronizar sólo lotes en tiradas más grandes y menos frecuentes.</string>
-    <string name="power_saving_kick_in">Pase en (la batería del freno)</string>
+    <string name="power_saving_kick_in">Se activa a (batería de la pulsera)</string>
     <string name="power_saving_pct">%1$d%%</string>
     <string name="power_saving_hrv_pause">Captura de HRV</string>
     <string name="power_saving_hrv_pause_desc">Mientras que la batería de tu correa\ es baja, detén el flujo de HRV de fondo siempre en el fondo, el mayor drenaje continuo en la correa. Una pantalla en vivo todavía muestra la frecuencia cardíaca, y re-armas automáticamente una vez que se carga la correa.</string>

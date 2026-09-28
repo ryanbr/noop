@@ -487,7 +487,7 @@
     <string name="l10n_live_session_screen_above_6370c271">Au-dessus</string>
     <string name="l10n_live_session_screen_below_5ba07a31">Ci-dessous</string>
     <string name="l10n_live_session_screen_done_e9b450d1">Terminé</string>
-    <string name="l10n_live_session_screen_end_session_8c0f4c33">Fin de la session</string>
+    <string name="l10n_live_session_screen_end_session_8c0f4c33">Terminer la session</string>
     <string name="l10n_live_session_screen_guarded_for_elapsedclock_snap_elapsedsec_tolong_a61f2d32">Garde pour %1$s</string>
     <string name="l10n_live_session_screen_guardianbreath_f76a0607">tuteur</string>
     <string name="l10n_live_session_screen_guardianbreathscale_38b62ee7">tuteurBreathScale</string>

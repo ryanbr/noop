@@ -172,7 +172,7 @@
     <string name="power_saving_blurb">Zmniejsz obciążenie paska, gdy jego bateria jest na wyczerpaniu. Pasek samodzielnie przechowuje dane bankowe, więc nic nie zostaje utracone — NOOP po prostu rzadziej się z nim komunikuje, aby pomóc mu przetrwać do czasu, aż będzie można go naładować.</string>
     <string name="power_saving_mode">Tryb oszczędzania energii</string>
     <string name="power_saving_mode_desc">Spowalnia synchronizację paska w tle (co 45 minut zamiast 15), gdy bateria paska jest słaba. Brak utraty danych — pasek przechowuje wszystko, więc synchronizuj tylko partie w większe, rzadsze pociągnięcia.</string>
-    <string name="power_saving_kick_in">Kopnij o (akumulator paska)</string>
+    <string name="power_saving_kick_in">Włącza się przy (baterii paska)</string>
     <string name="power_saving_pct">%1$d%%</string>
     <string name="power_saving_hrv_pause">Wstrzymaj przechwytywanie HRV</string>
     <string name="power_saving_hrv_pause_desc">Gdy bateria Twojego paska jest bliska wyczerpania, zatrzymaj zawsze włączony strumień HRV w tle — powoduje to największe ciągłe zużycie paska. Ekran na żywo nadal pokazuje tętno i ponownie się uzbraja po naładowaniu paska.</string>
@@ -1543,7 +1543,7 @@
     <string name="l10n_settings_screen_send_enable_sequence_to_strap_04ff8a22">Wyślij sekwencję włączającą do paska</string>
     <string name="l10n_settings_screen_set_up_automatic_backups_00b4780c">Skonfiguruj automatyczne kopie zapasowe</string>
     <string name="l10n_settings_screen_settings_c7f73bb5">Ustawienia</string>
-    <string name="l10n_settings_screen_sex_e301dd60">Seks</string>
+    <string name="l10n_settings_screen_sex_e301dd60">Płeć</string>
     <string name="l10n_settings_screen_share_5_mg_capture_for_the_e41ac6bd">Udostępnij przechwytywanie 5/MG (w celu dekodowania)</string>
     <string name="l10n_settings_screen_share_on_device_signals_with_the_b3fd747e">Udostępniaj sygnały z urządzenia trenerowi</string>
     <string name="l10n_settings_screen_share_strap_log_for_bug_reports_b9802500">Udostępnij dziennik paska (w przypadku raportów o błędach)</string>
@@ -1906,7 +1906,7 @@
     <string name="onboarding_profile_subtitle">Zatem Twoje strefy, kalorie i punktacja na urządzeniu zaczynają się od właściwych liczb.</string>
     <string name="onboarding_years">lata</string>
     <string name="onboarding_age_accessibility">Wiek, %1$d lat</string>
-    <string name="onboarding_sex">Seks</string>
+    <string name="onboarding_sex">Płeć</string>
     <string name="onboarding_male">Mężczyzna</string>
     <string name="onboarding_female">Kobieta</string>
     <string name="onboarding_other">Inny</string>
