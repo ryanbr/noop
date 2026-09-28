@@ -1187,7 +1187,10 @@ final class Repository: ObservableObject {
     /// Cost is one COUNT plus one MAX per id, straight over the `(deviceId, ts)` index with no rows
     /// materialized, against the per-day row fetches a caller would otherwise repeat. Compared only to
     /// itself in memory, so the format is free to change. Kotlin twin:
-    /// `WhoopRepository.hrFingerprintWindowUnion`.
+    /// `WhoopRepository.hrUnionFingerprint`, which is a twin in ROLE only: each side compares its own
+    /// value against its own previous value, neither is persisted or sent anywhere, and the two encode
+    /// the same facts differently. There is no byte-identity contract here and no oracle asserting one,
+    /// so do not "align" the encodings on the assumption that there is.
     func hrFingerprintUnion(from: Int, to: Int) async -> String {
         guard let store = await ensureStore() else { return "" }
         var parts: [String] = []

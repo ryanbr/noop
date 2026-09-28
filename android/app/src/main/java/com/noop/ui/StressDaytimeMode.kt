@@ -103,7 +103,7 @@ internal suspend fun selectedDaytimeStressMode(
     val spanFrom = stressLocalDayWindow(todayLocalDay.minusDays(baselineHistoryDays.toLong()), zone).fromEpochSecond
     val spanTo = stressLocalDayWindow(todayLocalDay.minusDays(1L), zone).toEpochSecondInclusive
     val cacheKey = "$deviceId|$todayLocalDay|$zone|" +
-        repo.hrFingerprintWindowUnion(deviceId, spanFrom, spanTo)
+        repo.hrUnionFingerprint(deviceId, spanFrom, spanTo)
     return StressLensCache.resolve(cacheKey) {
         val aggregates = ArrayList<DaytimeBaselines.DayAggregate>(baselineHistoryDays)
         // Oldest -> newest so the EWMA fold replays history in order. Reduce each day immediately: the
