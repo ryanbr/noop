@@ -105,8 +105,8 @@ enum DaytimeStressMode {
                 aggregates.append(
                     DaytimeStress.dayDaytimeAggregate(hr: dayHR, rr: dayRR, tzOffsetSeconds: dayTz)
                 )
-        }
-        return DaytimeStress.scoringModeFromAggregates(aggregates)
+            }
+            return DaytimeStress.scoringModeFromAggregates(aggregates)
         }
     }
 }

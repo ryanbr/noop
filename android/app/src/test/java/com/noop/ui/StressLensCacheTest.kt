@@ -1,5 +1,7 @@
 package com.noop.ui
 
+import com.noop.analytics.BaselineState
+import com.noop.analytics.BaselineStatus
 import com.noop.analytics.DaytimeStress
 import com.noop.data.WhoopDao
 import com.noop.data.WhoopRepository
@@ -154,5 +156,32 @@ class StressLensCacheTest {
         StressLensCache.resolve("key-a", fold)
         StressLensCache.resolve("key-b", fold)
         assertEquals(2, folds)
+    }
+
+    /**
+     * The STORED value is what the second caller gets, not whatever a fresh fold would return.
+     *
+     * The two folds return DIFFERENT modes deliberately. A version of this with both returning
+     * `DayRelative` passes even when the memo re-folds every time, so it would assert nothing.
+     */
+    @Test
+    fun `the stored mode is served rather than a refold`() = runBlocking {
+        val stored = DaytimeStress.ScoringMode.BaselineRelative(
+            hr = BaselineState(
+                baseline = 62.0,
+                spread = 4.0,
+                nValid = 21,
+                nightsSinceUpdate = 0,
+                status = BaselineStatus.TRUSTED,
+            ),
+            rmssd = null,
+        )
+
+        val a = StressLensCache.resolve("same-key") { stored }
+        assertEquals(stored, a)
+
+        // A second fold that would answer differently. The memo must never reach it.
+        val b = StressLensCache.resolve("same-key") { DaytimeStress.ScoringMode.DayRelative }
+        assertEquals("the warm slot must be served, not the second fold's answer", stored, b)
     }
 }

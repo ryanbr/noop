@@ -66,12 +66,21 @@ final class StressLensCacheTests: XCTestCase {
         XCTAssertEqual(folds, 2)
     }
 
-    /// The resolved value is handed back unchanged, not merely cached.
-    func testTheResolvedModeIsReturnedToEveryCaller() async {
-        let expected = DaytimeStress.ScoringMode.dayRelative
-        let a = await StressLensCache.shared.resolve("same") { expected }
+    /// The STORED value is what the second caller gets, not whatever a fresh fold would return.
+    ///
+    /// The two folds must return DIFFERENT modes for this to prove anything: with both returning
+    /// `.dayRelative` the assertion passes even if the memo re-folds every time, which is the shape this
+    /// test had on review.
+    func testTheStoredModeIsServedRatherThanARefold() async {
+        let stored = DaytimeStress.ScoringMode.baselineRelative(
+            hr: BaselineState(baseline: 62, spread: 4, nValid: 21, nightsSinceUpdate: 0, status: .trusted),
+            rmssd: nil)
+
+        let a = await StressLensCache.shared.resolve("same") { stored }
+        XCTAssertEqual(a, stored)
+
+        // A second fold that would answer differently. The memo must never reach it.
         let b = await StressLensCache.shared.resolve("same") { .dayRelative }
-        XCTAssertEqual(a, expected)
-        XCTAssertEqual(b, expected)
+        XCTAssertEqual(b, stored, "the warm slot must be served, not the second fold's answer")
     }
 }
