@@ -40,11 +40,51 @@ final class RescoreBackgroundPolicyTests: XCTestCase {
 
     // MARK: - A real update runs, paced
 
-    /// An offload in the background runs now. It paces itself under the CPU limit and resumes across
-    /// wakes, so how long it takes is no longer a reason to hand it to a processing task that iOS may not
-    /// grant until the afternoon — which is when last night's scores used to appear.
+    /// An offload in the background runs now once the spacing since the last pass has passed. It paces
+    /// itself under the CPU limit and resumes across wakes, so how long it takes is no longer a reason to
+    /// hand it to a processing task that iOS may not grant until the afternoon — which is when last
+    /// night's scores used to appear.
     func testABackgroundOffloadRuns() {
-        XCTAssertEqual(decide(), .run)
+        XCTAssertEqual(decide(attemptedSecondsAgo: RescoreBackgroundPolicy.backgroundSpacingSeconds), .run)
+        // No recorded attempt (a first pass, or an install from before the attempt time existed).
+        XCTAssertEqual(decide(attemptedSecondsAgo: nil), .run)
+    }
+
+    // MARK: - Spacing
+
+    /// A strap offloads about every ten minutes, and a pass after each one re-scored the whole window in
+    /// the background all day and night. Within the spacing the offload defers, and says why.
+    func testABackgroundOffloadWithinTheSpacingDefers() {
+        let spacing = RescoreBackgroundPolicy.backgroundSpacingSeconds
+        guard case .deferToBackgroundTask(let reason) = decide(attemptedSecondsAgo: 9 * 60) else {
+            return XCTFail("expected an offload 9 min after the last pass to defer")
+        }
+        XCTAssertEqual(reason, "the last pass started 9 min ago; a backgrounded offload re-scores at most every 30 min")
+        XCTAssertTrue(isDeferred(decide(attemptedSecondsAgo: 0)))
+        XCTAssertTrue(isDeferred(decide(attemptedSecondsAgo: spacing - 1)))
+        XCTAssertEqual(decide(attemptedSecondsAgo: spacing), .run)
+    }
+
+    /// The spacing is for the background only: an open app re-scores every offload, as before.
+    func testSpacingNeverHoldsBackAForegroundPass() {
+        XCTAssertEqual(decide(background: false, attemptedSecondsAgo: 0), .run)
+    }
+
+    /// A trigger while a pass runs here still reaches the engine, which queues one follow-up. Deferring it
+    /// would record a debt the running pass could not settle (#1681); the spacing leaves that path alone.
+    func testSpacingLeavesATriggerDuringARunningPassAlone() {
+        XCTAssertEqual(decide(running: true, attemptedSecondsAgo: 0), .run)
+    }
+
+    /// A clock set back makes the last start look like the future. That is not a recent pass, and waiting
+    /// on it could hold scoring back for as long as the clock moved.
+    func testALastStartInTheFutureDoesNotDefer() {
+        XCTAssertEqual(decide(attemptedSecondsAgo: -600), .run)
+    }
+
+    /// The shipped spacing; pinned so a change is deliberate.
+    func testTheShippedSpacing() {
+        XCTAssertEqual(RescoreBackgroundPolicy.backgroundSpacingSeconds, 30 * 60)
     }
 
     // MARK: - The livelock

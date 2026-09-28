@@ -122,6 +122,24 @@ final class RescoreBackgroundSchedulerTests: XCTestCase {
         XCTAssertTrue(ran)
     }
 
+    /// A background offload soon after a pass that finished is spaced: it does not run, and the debt it
+    /// leaves is what the next offload past the spacing, the processing task or the next foreground pays.
+    func testASpacedOffloadIsOwedNotDropped() async {
+        let finished = RescoreBackgroundScheduler.markRescoreOwed(passStarting: true)
+        RescoreBackgroundScheduler.markRescoreCompleted(seconds: 8, owedToken: finished)
+        XCTAssertFalse(RescoreBackgroundScheduler.isRescoreOwed)
+
+        var ran = false
+        var logged: [String] = []
+        await RescoreBackgroundScheduler.run(isBackground: true, log: { logged.append($0) }) { ran = true }
+
+        XCTAssertFalse(ran, "a pass started moments ago spaces the next backgrounded offload")
+        XCTAssertTrue(RescoreBackgroundScheduler.isRescoreOwed, "the spaced offload's data must still be scored")
+        XCTAssertEqual(logged.count, 1)
+        let line = logged.first ?? ""
+        XCTAssertTrue(line.contains("at most every 30 min"), line)
+    }
+
     /// Once work is owed, a further background trigger defers instead of starting a duplicate pass. This
     /// is the livelock fix: #1538 paid for a full eight-minute pass on every offload because nothing
     /// remembered that the previous one had not finished.

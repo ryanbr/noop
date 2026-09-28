@@ -85,9 +85,10 @@ enum RescoreBackgroundPolicy {
     ///   - passInProgress: a pass is running in THIS process. Its own started-mark is what reads as owed, so
     ///     it is not evidence of a killed pass; the engine re-arms one follow-up pass for a trigger that
     ///     lands mid-run. Deferring instead recorded a newer debt, the running pass then finished without
-    ///     settling it (#1681), and every offload after that deferred on it.
+    ///     settling it (#1681), and every offload after that deferred on it. Spacing does not apply either.
     ///   - secondsSinceLastAttempt: how long ago the last pass STARTED, nil when unknown. An outstanding
-    ///     debt defers only while that attempt is recent (`interruptedRetryCooldownSeconds`).
+    ///     debt defers only while that attempt is recent (`interruptedRetryCooldownSeconds`), and any
+    ///     offload defers while it is under `backgroundSpacingSeconds`.
     static func decide(isBackground: Bool,
                        isRealUpdate: Bool = true,
                        rescoreAlreadyOwed: Bool,
@@ -106,6 +107,12 @@ enum RescoreBackgroundPolicy {
                 reason: "a re-score is already outstanding from an earlier trigger")
         }
 
+        if !passInProgress, let since = secondsSinceLastAttempt, since >= 0, since < backgroundSpacingSeconds {
+            return .deferToBackgroundTask(
+                reason: "the last pass started \(Int(since / 60)) min ago; a backgrounded offload re-scores"
+                    + " at most every \(Int(backgroundSpacingSeconds / 60)) min")
+        }
+
         return .run
     }
 
@@ -118,4 +125,15 @@ enum RescoreBackgroundPolicy {
     /// in between. Pacing (`backgroundRestPerWorkSecond`) is what keeps a background attempt under the CPU
     /// limit now, so this only needs to stop a retry on every offload, not forever.
     static let interruptedRetryCooldownSeconds: Double = 30 * 60
+
+    /// The least time between the starts of two backgrounded offload re-scores.
+    ///
+    /// A strap offloads about every ten minutes, and each offload re-scored the whole window. On one
+    /// WHOOP 5.0 that was about 7 passes an hour of 7–9 s CPU each, day and night: ~900 CPU-s over 16 h
+    /// in the background, mostly re-scoring a night still in progress that nobody was looking at. Spaced
+    /// 30 minutes apart, the same offloads cost ~250 CPU-s, and a backgrounded score trails its data by
+    /// at most the spacing plus one offload interval. The work is moved, not dropped: the deferral records
+    /// the debt, which the first offload past the spacing, the processing task or the next foreground
+    /// settles, and a foregrounded pass is never spaced.
+    static let backgroundSpacingSeconds: Double = 30 * 60
 }
