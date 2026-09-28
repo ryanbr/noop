@@ -2,6 +2,7 @@ package com.noop.protocol
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -73,15 +74,22 @@ class EcgResearchAllowListTest {
     }
 
     /**
-     * The companion guard — that every DISPATCHABLE opcode is a constructible [CommandNumber] — is
-     * deliberately NOT here. It is an invariant of the SEND PATH: `send()` forms a frame from a
-     * `CommandNumber`, so an allow-listed opcode the enum cannot express could not be dispatched at all.
+     * The send-path invariant this allow-list depends on: `send()` forms a frame from a [CommandNumber],
+     * so an allow-listed opcode the enum cannot express could not be dispatched at all. Guards against an
+     * enum entry being removed and the allow-list silently admitting an opcode the sender cannot form.
      *
-     * Nothing in this change dispatches anything, and opcodes 124/125/139 are absent from that enum on
-     * purpose — upstream excluded them with a comment saying Android has no ECG app layer and sends
-     * none of them. Asserting their presence here would fail for the correct reason, so the guard lands
-     * with the send-path wiring that makes it true and gives it something worth protecting.
+     * This is the assertion the pure-modules split deliberately deferred: 124/125/139 were absent from
+     * `CommandNumber` on purpose, so it would have failed there for the correct reason. The change that
+     * widens the enum is the change that gets to make it true.
      */
+    @Test
+    fun everyDispatchableOpcodeIsAConstructibleCommandNumber() {
+        for (op in EcgResearchAllowList.DISPATCHABLE_OPCODES) {
+            assertNotNull("CommandNumber must carry opcode $op", CommandNumber.fromRaw(op))
+        }
+    }
+
+    /** The forbidden set and the probe set are disjoint: no never-send opcode is reachable through a probe case. */
     @Test
     fun noForbiddenOpcodeIsReachableThroughTheProbeCases() {
         for (op in EcgResearchAllowList.FORBIDDEN.keys) {
