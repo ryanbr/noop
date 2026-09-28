@@ -714,6 +714,29 @@ class WhoopRepository(
     suspend fun hrFingerprintWindow(deviceId: String, from: Long, to: Long): Pair<Int, Long> =
         Pair(dao.countHrInWindow(deviceId, from, to), dao.maxHrTsInWindow(deviceId, from, to))
 
+    /** The same HR fingerprint over the UNION [hrSamplesUnion] reads, as one opaque string.
+     *
+     * A fingerprint narrower than the read it guards is worse than none: it would serve a cached result
+     * after a backfill landed rows under an alias id, which is exactly the id set [hrSamplesUnion] exists
+     * to cover (#908, a re-added strap banking under its own fresh id). So this walks the same ids rather
+     * than the bare [activeDeviceId].
+     *
+     * Cost is one COUNT plus one MAX per id, index range walks that materialise no rows, against the full
+     * per-day row fetches a caller would otherwise repeat. Compared only to itself in memory, so the
+     * format is free to change.
+     */
+    suspend fun hrFingerprintWindowUnion(activeDeviceId: String, from: Long, to: Long): String {
+        // An explicit loop rather than joinToString: the per-id read suspends and that builder's lambda
+        // is not a suspend function.
+        val parts = StringBuilder()
+        for (id in rawWhoopSourceIds(activeDeviceId)) {
+            val (count, maxTs) = hrFingerprintWindow(id, from, to)
+            if (parts.isNotEmpty()) parts.append('|')
+            parts.append(id).append(':').append(count).append(':').append(maxTs)
+        }
+        return parts.toString()
+    }
+
     /** Whether [deviceId] has ANY heart-rate row in the window, as a scalar EXISTS rather than a fetched
      *  row. The day-owner resolver's per-candidate-per-day probe; see [WhoopDao.hasHrInWindow]. */
     suspend fun hasHrInWindow(deviceId: String, from: Long, to: Long): Boolean {
