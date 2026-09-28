@@ -529,7 +529,7 @@ extension WhoopStore {
                     WHERE deviceId = :d AND ts >= :f AND ts <= :t
                     AND (srcChannel IS NULL OR srcChannel <> :rrx)
                     AND \(sourcePredicate)
-                    AND (tsSuspect IS NULL OR tsSuspect <> 1)   -- #1073: exclude future-stamped beats
+                    AND (tsSuspect IS NULL OR tsSuspect <> 1)   -- exclude future-stamped (#1073) and 500 ms fill (#2371) beats
                     ORDER BY ts ASC, ord ASC, rrMs ASC, seq ASC LIMIT :lim
                     """
             }

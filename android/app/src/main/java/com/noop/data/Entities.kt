@@ -168,8 +168,11 @@ data class RrInterval(
     val synced: Int = 0,
     val ord: Int? = null,
     val srcChannel: Int? = null,
-    /** #1073 (Room v29): 1 when this beat's ts is in the FUTURE (corrupt ring time); NULL otherwise.
-     *  Marked, never deleted; `WhoopDao.rrIntervals` filters it at READ. Twin of GRDB `tsSuspect`. */
+    /** 1 when this beat is NOT to be scored; NULL otherwise. Two causes carry the same mark, because
+     *  every scoring read wants both gone and they all test `<> 1`: the beat's ts is in the FUTURE
+     *  (corrupt ring time, #1073 / Room v29), or it is a WHOOP 5/MG 500 ms fill beat (#2371 / Room v41).
+     *  The mark therefore says "excluded", never WHICH cause, so a diagnostic reading it must not claim
+     *  one. Marked, never deleted; `WhoopDao.rrIntervals` filters it at READ. Twin of GRDB `tsSuspect`. */
     val tsSuspect: Int? = null,
 )
 
