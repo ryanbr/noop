@@ -758,7 +758,11 @@ public final class LiveState: ObservableObject {
     /// trims an append shifts only the window edges, so every shared row keeps its id, and
     /// `scrollTo(log.indices.last)` always addresses a row that is actually rendered, which a LEADING window
     /// would not. Empty log or a non-positive tail yields an empty slice. (#2521)
-    static func renderedTail(_ log: [String], tailLines: Int) -> ArraySlice<String> {
+    ///
+    /// `nonisolated` because it is pure over its arguments and touches nothing on the actor, the same way
+    /// `redactPii` and `logSafeDeviceName` below are. Without it the method inherits `LiveState`'s
+    /// `@MainActor` and a plain `XCTestCase` cannot call it at all.
+    nonisolated static func renderedTail(_ log: [String], tailLines: Int) -> ArraySlice<String> {
         guard tailLines > 0 else { return log[log.endIndex..<log.endIndex] }
         return log.suffix(tailLines)
     }
