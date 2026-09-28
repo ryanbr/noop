@@ -831,6 +831,9 @@ public final class LiveState: ObservableObject {
     /// adapter with no decisions of its own. Leading edge plus a trailing flush, which is what makes the
     /// contract "the last line of a burst always lands" rather than "the last line is dropped until the next
     /// one arrives". (#2547)
+    /// `Equatable` compares the `scheduleIn` payload EXACTLY, and it is the result of floating-point
+    /// subtraction, so a test asserting a whole expected case is comparing doubles for equality. Destructure
+    /// and use an accuracy instead: `0.25 - (100.10 - 100)` is `0.15000000000000568`, not `0.15`.
     enum LogPublishDecision: Equatable {
         /// Enough time has passed; publish on this line.
         case publishNow
@@ -846,8 +849,10 @@ public final class LiveState: ObservableObject {
         let elapsed = now - lastPublish
         if elapsed >= interval { return .publishNow }
         if flushQueued { return .alreadyQueued }
-        // Clamped at 0: a clock that went backwards must not schedule a negative sleep.
-        return .scheduleIn(max(0, interval - elapsed))
+        // Clamped into [0, interval]. A clock that went backwards must neither ask for a negative sleep nor
+        // stall the log for longer than one window: without the upper clamp a `lastPublish` in the future
+        // makes `interval - elapsed` exceed the interval, and the log would sit un-notified for that long.
+        return .scheduleIn(min(interval, max(0, interval - elapsed)))
     }
 
     private var lastLogPublish: Double = -.greatestFiniteMagnitude

@@ -33,10 +33,16 @@ final class LogPublishCoalesceTests: XCTestCase {
     }
 
     /// A second line inside the window does not publish; it queues one flush for the end of the window.
+    ///
+    /// Destructured with an accuracy rather than compared as a whole case: the payload is the result of a
+    /// floating-point subtraction, and `0.25 - (100.10 - 100)` is `0.15000000000000568`, so asserting
+    /// `.scheduleIn(0.15)` compares two unequal doubles and fails.
     func testALineInsideTheWindowSchedulesTheRemainder() {
-        XCTAssertEqual(
-            LiveState.logPublishDecision(now: 100.10, lastPublish: 100, flushQueued: false, interval: interval),
-            .scheduleIn(0.15))
+        guard case .scheduleIn(let wait) = LiveState.logPublishDecision(
+            now: 100.10, lastPublish: 100, flushQueued: false, interval: interval) else {
+            return XCTFail("a line 0.10s into the window should schedule the remainder")
+        }
+        XCTAssertEqual(wait, 0.15, accuracy: 1e-9)
     }
 
     /// Every further line in the same window is covered by the flush already queued. THIS is the coalescing:
@@ -52,14 +58,21 @@ final class LogPublishCoalesceTests: XCTestCase {
 
     /// The boundary belongs to publishNow, so a steady stream at exactly the interval keeps publishing
     /// rather than queueing a flush per line and doubling the work.
+    ///
+    /// Uses exactly-representable values (1.0, 1.25, 0.25 are all exact in binary) so the boundary is tested
+    /// on the real rule rather than on whether a particular subtraction happened to round favourably.
     func testTheBoundaryPublishesRatherThanSchedules() {
         XCTAssertEqual(
-            LiveState.logPublishDecision(now: 100.25, lastPublish: 100, flushQueued: false, interval: interval),
+            LiveState.logPublishDecision(now: 1.25, lastPublish: 1.0, flushQueued: false, interval: 0.25),
             .publishNow)
     }
 
-    /// A clock that goes backwards must not ask for a negative sleep.
-    func testABackwardClockNeverSchedulesANegativeWait() {
+    /// A clock that goes backwards must neither ask for a negative sleep nor stall longer than one window.
+    ///
+    /// The upper bound is the half that needed an implementation fix: `interval - elapsed` with a
+    /// `lastPublish` in the future exceeds the interval, so without clamping the log would sit un-notified
+    /// for 0.45s here instead of 0.25s.
+    func testABackwardClockNeverSchedulesAnOutOfRangeWait() {
         guard case .scheduleIn(let wait) = LiveState.logPublishDecision(
             now: 100, lastPublish: 100.20, flushQueued: false, interval: interval) else {
             return XCTFail("a now before lastPublish is inside the window, so it should schedule")
