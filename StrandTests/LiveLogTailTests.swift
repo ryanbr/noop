@@ -8,7 +8,7 @@ import XCTest
 /// hundreds of lines a minute, and iOS killed the app with `cpu_resource_fatal` for 85% of a core over 57s
 /// while it was not frontmost. Reported by @pipiche38 with a symbolicated microstackshot whose heaviest
 /// stack was the main run loop inside SwiftUI.
-final class LiveLogTailRangeTests: XCTestCase {
+final class LiveLogTailTests: XCTestCase {
 
     private let tail = 200
     private func log(_ n: Int) -> [String] { (0..<n).map { "line \($0)" } }

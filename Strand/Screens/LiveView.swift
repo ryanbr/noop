@@ -1264,7 +1264,13 @@ private struct LiveLogCard: View {
     @EnvironmentObject private var model: AppModel
     /// Backgrounded, nothing is on screen to keep current, and a `LiveState` publish still re-evaluates this
     /// body because an `ObservableObject` invalidates every observer on ANY published change, not only the
-    /// property a view reads. So the body is made trivial instead, which is what the CPU limit measures.
+    /// property a view reads. So what is cut is the COST of that re-evaluation, which is what the CPU limit
+    /// measures: roughly fifteen built rows instead of five thousand, and none at all here.
+    ///
+    /// Not free, to be exact about what remains: the header, the `Divider` and the `NavigationLink` are still
+    /// built per line, and `NavigationLink(destination:)` constructs `TestCentreView()` eagerly, which
+    /// evaluates its `@State` defaults (three `UserDefaults` reads). Microseconds against the five thousand
+    /// `Text` views this removes, but the place to look first if a background cost survives this.
     ///
     /// Gated on `.background` rather than `!= .active` deliberately: `.inactive` is also when iOS takes the
     /// app-switcher snapshot, and blanking the log there would be visible for no benefit. The kill needs
