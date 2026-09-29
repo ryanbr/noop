@@ -81,6 +81,42 @@ jobs:
           fi
         working-directory: Tools/linux-capture
 
+      # The ONE parity suite that belongs on an unfiltered leg (#2567).
+      #
+      # `Tools/tests/test_parity_governance_acceptance.py` does not test the scanner. It asserts that the
+      # CHECKED-IN authority and baseline still reproduce from the CURRENT product source, so product
+      # changes are what invalidate it. It used to run only in parity-governance.yml, whose filter names
+      # `Tools/parity_*` — a filter that does not describe this suite's inputs, which is the same shape as
+      # the `test_home_i18n.py` trap in #1691 and is called out in that workflow's own header.
+      #
+      # It cost main a red ratchet on 2026-09-29: a change took the only production call to
+      # `primarySessionRestingHR` on both platforms, turning it test-only, and the two new findings went
+      # unrecorded because the change touched no `Tools/parity_*` path. Seventeen green checks, and the
+      # gate that governs call-site structure never ran. It surfaced on an outside contributor's PR that
+      # had caused none of it, which that header notes had already happened four times.
+      #
+      # Here rather than in a filter naming product paths, because that list is whatever the assertions
+      # happen to read today and would only move the trap. Its own step and its own floor so the core
+      # floor above stays independent, matching the reasoning already written there.
+      #
+      # COST, measured on this runner and not on a workstation: about 134 s for 49 tests, against about
+      # 6 s for the core step beside it. It derives the semantic authority once over both trees, which is
+      # the whole expense. Locally the same suite takes about 51 s, so do not size this from a laptop.
+      # It runs in parallel with the Swift and Android legs, which are minutes long on any product PR, so
+      # the wall-clock cost there is roughly nothing; a docs-only PR pays the full 134 s. The scanner's own
+      # multi-minute unit tests stay path-filtered in parity-governance.yml where they belong.
+      - name: Run the parity repository-acceptance suite
+        run: |
+          set -o pipefail
+          python3 -m unittest -v tests.test_parity_governance_acceptance 2>&1 | tee "$RUNNER_TEMP/acc.txt"
+          ran=$(grep -oE '^Ran [0-9]+ test' "$RUNNER_TEMP/acc.txt" | grep -oE '[0-9]+')
+          echo "collected ${ran:-0} tests"
+          if [ "${ran:-0}" -lt 49 ]; then
+            echo "::error::expected at least 49 acceptance tests, collected ${ran:-0} — discovery is broken, not the suite"
+            exit 1
+          fi
+        working-directory: Tools
+
       # Parity governance has its own path-filtered workflow because that suite scans the repository and
       # is intentionally much slower. Keep this core floor independent so growth in parity cannot hide
       # accidental deletion here; these six source-reference checks raise it to 114.

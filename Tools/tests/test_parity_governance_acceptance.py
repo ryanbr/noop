@@ -130,6 +130,18 @@ class RepositoryBaselineTests(unittest.TestCase):
         self.assertEqual([], core_paths)
         self.assertIn("working-directory: Tools\n", core)
         self.assertNotIn("unittest discover -s tests", core)
+        # THIS suite runs on the unfiltered leg, and that is the point of #2567.
+        #
+        # It does not test the scanner. It asserts the checked-in authority and baseline still reproduce
+        # from the CURRENT product source, so a product change is what invalidates it. While it ran only
+        # in parity-governance.yml, whose filter names `Tools/parity_*`, a change could move the
+        # declaration and call-site graph the ledger measures without the gate running at all. That cost
+        # main a red ratchet on 2026-09-29 and surfaced on an outside contributor's PR.
+        #
+        # Asserted here rather than left to the workflow, because the failure mode is someone quietly
+        # dropping the step or hanging a filter off it later. That already happened once to the leg this
+        # test guards (#1691), which is why the leg is unfiltered in the first place.
+        self.assertIn("tests.test_parity_governance_acceptance", core)
         # The Windows leg keeps a filter, because it runs ONLY the Tools/linux-capture tests and those
         # read nothing outside their own package. That is the whole reason it could be split off: the
         # runner costs twice a Linux minute, and the cost argument is true for this job alone.
