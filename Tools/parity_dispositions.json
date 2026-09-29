@@ -267,6 +267,30 @@
       "platform": "kotlin",
       "rationale": "This Kotlin extension dispatches a computed window to repository persistence. The corresponding persistComputedScores dispatch is inline in the excluded Swift app-layer analyzeRecent; this records its architectural role.",
       "twin_path": "Strand/Data/IntelligenceEngine.swift"
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-file",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/ProfileWeightSync.kt",
+      "identity_sha256": "66dd123a53a3c929025a41accf93278dad5acc505c0a731791e09818421ff838",
+      "platform": "kotlin",
+      "rationale": "Resolver file for the Android-only 'Use weight from Health Connect' profile sync. Apple platforms have no Health Connect, so the opt-in 'Use weight from Health Connect' profile sync exists only on Android and there is no Swift counterpart to pair with, now or later."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/ProfileWeightSync.kt::newest/1#1",
+      "identity_sha256": "64f21dac4e072f7dbe397260765ac71a0b9998556eede445c6ae7284b0363088",
+      "platform": "kotlin",
+      "rationale": "Picks the newest imported Health Connect weight for both the profile sync and the Today Weight tile. Apple platforms have no Health Connect, so the opt-in 'Use weight from Health Connect' profile sync exists only on Android and there is no Swift counterpart to pair with, now or later."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/ProfileWeightSync.kt::captionDate/2#1",
+      "identity_sha256": "28fa51ec52e1a418a0c8bd500cceb13c529cf8dc7e8bbe290003fe97602e6dff",
+      "platform": "kotlin",
+      "rationale": "Formats the reading's day for the Settings caption of the Health Connect weight sync. Apple platforms have no Health Connect, so the opt-in 'Use weight from Health Connect' profile sync exists only on Android and there is no Swift counterpart to pair with, now or later."
     }
   ]
 }

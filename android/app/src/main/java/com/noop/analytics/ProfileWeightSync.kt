@@ -20,6 +20,11 @@ object ProfileWeightSync {
     /**
      * The newest reading, or null when there is none. Days are ISO `yyyy-MM-dd`, which sorts
      * chronologically, so the lexically greatest day is the most recent and no date parsing is needed.
+     *
+     * Resolution is day-granular, not timestamp-granular: two readings on the same day (a morning and
+     * an evening weigh-in) are separated only by input order, since `maxByOrNull` keeps the first
+     * maximal element, so the pick between them is not necessarily the later one. Anything that needs
+     * the latest weigh-in within a day must carry the reading's time and resolve on that instead.
      */
     fun newest(readings: List<WeightReading>): WeightReading? = readings.maxByOrNull { it.day }
 
