@@ -2830,6 +2830,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         NoopPrefs.setIllnessWatch(appContext, enabled)
         // Recompute now — the recentDays collector only fires on data changes.
         _healthAlert.value = if (enabled) IllnessWatch.evaluate(recentDays.value) else null
+        // Reported like any other evaluation, because the persisted edge (#2586) is only correct if
+        // EVERY change of state reaches it. Switching the watch off while an alert was raised used to
+        // clear the banner here and leave the stored flag raised, so the next genuine transition —
+        // possibly months later, after switching the watch back on — would be read as "already raised"
+        // and silently suppressed.
+        IllnessAlertNotifier.onEvaluated(appContext, _healthAlert.value)
     }
 
     /** #hide-cycle: hide/show the cycle-awareness offer. Hiding also stops active tracking, so "hidden"

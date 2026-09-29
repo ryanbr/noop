@@ -54,4 +54,18 @@ class IllnessAlertPolicyTest {
         assertFalse(IllnessAlertPolicy.shouldNotify(null, true, "2026-06-09", "2026-06-10"))
         assertTrue(IllnessAlertPolicy.shouldNotify("strained", false, "2026-06-09", "2026-06-10"))
     }
+
+    /**
+     * The stuck-flag shape, found reviewing the #2586 fix rather than in the field.
+     *
+     * Switching the illness watch OFF clears the banner. If that clear is not reported, the stored
+     * flag stays raised, and the next genuine transition reads as "already raised" and is suppressed
+     * for good. These two lines are the contract that makes the toggle path safe: a reported clear
+     * re-arms, an unreported one would not.
+     */
+    @Test
+    fun clearingBecauseTheWatchWasSwitchedOffReArmsTheEdge() {
+        assertFalse(IllnessAlertPolicy.shouldNotify(null, true, "2026-06-09", "2026-06-10"))
+        assertTrue(IllnessAlertPolicy.shouldNotify("strained", false, "2026-06-09", "2026-06-11"))
+    }
 }
