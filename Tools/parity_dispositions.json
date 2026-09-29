@@ -204,6 +204,69 @@
       "identity_sha256": "c81cc7100101d3ac1d81e244330c66815450899d6194627ad8f0cbfeb48dee5f",
       "platform": "swift",
       "rationale": "Consumed only by the Apple OuraLiveSource screen-off live-HR suspend (Experimental \"All-day heart rate & HRV\"), to stand the daytime-HR hold down for the learned night instead of for every screen-off. Android's OuraLiveSource.kt has no screen-off suspend (#1546), so there is nothing for a Kotlin twin to gate; per review, Android stays without it until that suspend exists, at which point this becomes a twin."
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/IntelligenceEngine.kt::analyzeRecent/27#1",
+      "identity_sha256": "3280203fe24402b51232335222f1d77bae103a6528be46084bf03b20f28f0213",
+      "platform": "kotlin",
+      "rationale": "The added preserveUnscoredHistory argument matches the role of analyzeRecent in the excluded Swift app layer. This records the new Kotlin orchestration signature, not a byte-identity claim.",
+      "twin_path": "Strand/Data/IntelligenceEngine.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/IntelligenceEngine.kt::readDaySkinAndWristOff/12#1",
+      "identity_sha256": "165f046d3448f32d70497da9edc0fe6e9f34d683db81cc2c391e08fbe8212ddb",
+      "platform": "kotlin",
+      "rationale": "The additional HR input feeds offWristIntervals during Android stream preparation; Swift performs the corresponding read and wear reconciliation inline in the excluded app-layer analyzeRecent.",
+      "twin_path": "Strand/Data/IntelligenceEngine.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/IntelligenceEngine.kt::runEffortRescoreIfNeeded/9#1",
+      "identity_sha256": "0e028f551fdbdfa6a818412f13a977aec4f256e21dedc0db9980aba90285a38d",
+      "platform": "kotlin",
+      "rationale": "The shared repair delegates to the scorer with cached-only preservation. Swift runEffortRescoreIfNeeded/runHistoryRepairIfNeeded perform that role in the excluded app layer; signatures differ by platform dependencies.",
+      "twin_path": "Strand/Data/IntelligenceEngine.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/IntelligencePersistence.kt::byScoredDay/1#1",
+      "identity_sha256": "d82c9c2042de9c77810f6150fbb89b34cd36c4f4d7fae92cb7ee154b70bbe61a",
+      "platform": "kotlin",
+      "rationale": "Swift groups daily metrics, metric points and provenance by day inline in app-layer analyzeRecent. Kotlin extracts that persistence preparation as a test seam; this is a role twin, not a function parity claim.",
+      "twin_path": "Strand/Data/IntelligenceEngine.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/IntelligencePersistence.kt::historyRepairIsPending/2#1",
+      "identity_sha256": "b553cdaa03042d3839107a0526e2b89a6af987e0bd38e01cb883d961d004b3fd",
+      "platform": "kotlin",
+      "rationale": "Swift IntelligenceEngine.historyRepairIsPending has the same repair-flag gate in the excluded app layer; both have direct truth-table coverage.",
+      "twin_path": "Strand/Data/IntelligenceEngine.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/IntelligencePersistence.kt::persistComputedWindow/3#1",
+      "identity_sha256": "2985c2276b70812d00a4f21b31ecc7cc0f96091445a64d26e26a85bdef5bf600",
+      "platform": "kotlin",
+      "rationale": "Swift app-layer analyzeRecent performs the conditional per-day persistence loop inline. Kotlin extracts it to keep the instrumented scoring coroutine below the bytecode budget.",
+      "twin_path": "Strand/Data/IntelligenceEngine.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/IntelligencePersistence.kt::persistInto/1#1",
+      "identity_sha256": "58d500dc560ff882ce71c532bdc52c92e2652ea6b08e1351e678f9b8b1c52b08",
+      "platform": "kotlin",
+      "rationale": "This Kotlin extension dispatches a computed window to repository persistence. The corresponding persistComputedScores dispatch is inline in the excluded Swift app-layer analyzeRecent; this records its architectural role.",
+      "twin_path": "Strand/Data/IntelligenceEngine.swift"
     }
   ]
 }

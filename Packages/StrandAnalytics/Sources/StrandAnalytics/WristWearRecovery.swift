@@ -10,6 +10,7 @@ public enum WristWearRecovery {
     public static let confirmationSeconds = 5 * 60
     public static let maximumGapSeconds = 5
 
+    /// Kotlin twin: `WristWearRecovery.firstSustainedHR`.
     public static func firstSustainedHR(_ hr: [HRSample], after: Int, before: Int) -> Int? {
         // Collapse duplicate timestamps conservatively: an invalid observation wins a conflict.
         var validByTimestamp: [Int: Bool] = [:]

@@ -11,6 +11,7 @@ object WristWearRecovery {
     const val confirmationSeconds = 5L * 60
     const val maximumGapSeconds = 5L
 
+    /** Swift twin: `WristWearRecovery.firstSustainedHR`. */
     fun firstSustainedHR(hr: List<HrSample>, after: Long, before: Long): Long? {
         // Invalid wins conflicting duplicate timestamps, independent of input order.
         val validByTimestamp = HashMap<Long, Boolean>()

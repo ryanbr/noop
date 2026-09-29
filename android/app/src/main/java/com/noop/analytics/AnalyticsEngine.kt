@@ -81,7 +81,8 @@ object AnalyticsEngine {
      * an interval that closes at the next WRIST_ON, or at [windowEnd] if the strap is still off at the
      * end of the read window. An unmatched tail may end earlier when sustained valid HR resumes;
      * explicit OFF/ON pairs are never shortened. Events need not be pre-sorted; kinds are formatted "NAME(n)" (e.g.
-     * "WRIST_OFF(10)"), matched by prefix. Repeated OFFs/ONs without a partner are coalesced. Mirrors Swift.
+     * "WRIST_OFF(10)"), matched by prefix. Repeated OFFs/ONs without a partner are coalesced.
+     * Swift twin: `AnalyticsEngine.offWristIntervals`.
      */
     fun offWristIntervals(events: List<EventRow>, windowEnd: Long,
                           hr: List<HrSample> = emptyList()): List<Pair<Long, Long>> {

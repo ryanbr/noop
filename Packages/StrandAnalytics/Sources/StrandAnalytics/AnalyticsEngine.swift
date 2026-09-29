@@ -21,6 +21,7 @@ public enum AnalyticsEngine {
     /// end of the read window. An unmatched tail may end earlier when sustained valid HR resumes;
     /// explicit OFF/ON pairs are never shortened. Events need not be pre-sorted; kinds are formatted "NAME(n)" (e.g.
     /// "WRIST_OFF(10)"), matched by prefix. Repeated OFFs/ONs without a partner are coalesced.
+    /// Kotlin twin: `AnalyticsEngine.offWristIntervals`.
     public static func offWristIntervals(events: [WhoopEvent], windowEnd: Int,
                                          hr: [HRSample] = []) -> [(start: Int, end: Int)] {
         let wear = events
