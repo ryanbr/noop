@@ -4408,6 +4408,31 @@ public final class BLEManager: NSObject, ObservableObject {
         ecgMayBeRunning = true      // latched BEFORE the sends, so a mid-sequence drop still leaves Stop offered
         beginEcgProbeRun(clearingSteps: true)
         log("ECG probe: starting the ECG turn-on sequence on an MG (experimental, unvalidated instrumentation)")
+        // Clear a historical drain BEFORE asking for a realtime trace. OpenStrap Edge's prepare step
+        // sends ABORT_HISTORICAL_TRANSMITS (20) ahead of the wrist selector, and the reason is
+        // mechanical rather than protocol-deep: an offload already in flight is competing for the same
+        // link, so a filtered trace requested underneath one can be acked and still never arrive. That
+        // is indistinguishable, from this side, from `acceptedButSilent` — which is the verdict this
+        // probe has been returning.
+        //
+        // Conditioned on `backfilling` rather than sent unconditionally, which keeps the 5/MG allowlist
+        // clause for opcode 20 exactly as it is: it admits the opcode only while an offload is actually
+        // running, so a default install still cannot form these bytes. When nothing is draining there is
+        // nothing to clear and the abort would be noise.
+        //
+        // Deliberately NOT recorded as a probe Step. Steps feed the verdict, and a FAILURE here (an
+        // abort the firmware declines) would classify the run as `commandRefused` and mask the ECG
+        // outcome the run exists to establish. `abortBackfill`'s own log carries the diagnostic.
+        //
+        // Through `abortBackfill()` rather than writing opcode 20 here, which is the whole point: that
+        // function sends the same `[0x00]` body the allowlist admits AND calls `exitBackfilling`. The
+        // raw send alone would stop the strap while leaving `backfilling` true on this side, so the
+        // session would sit waiting for records that are never coming — the stuck sync the opcode
+        // exists to prevent.
+        if backfilling {
+            log("ECG probe: an offload is in flight and would compete with the realtime trace; aborting it first")
+            abortBackfill()
+        }
         sendEcgCommand(.toggleLabradorFiltered, arg: 1)
         sendEcgCommand(.toggleLabradorRawSave, arg: 1)
         sendEcgCommand(.toggleLabradorDataGeneration, arg: Whoop5Ecg.ControlSignal.start.rawValue)
