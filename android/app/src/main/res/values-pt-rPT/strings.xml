@@ -2839,4 +2839,8 @@
     <string name="raw_diag_protocol_probes_detail">Envia consultas experimentais de protocolo e ativa o alarme da pulseira 5/MG. Não é necessário para a sincronização, o sono, a recuperação ou os passos normais.</string>
     <string name="sleep_result_updated_title">Resultado do sono atualizado</string>
     <string name="sleep_result_updated_message">Os horários de sono ou o tempo total de sono desta noite mudaram pelo menos cinco minutos.</string>
+    <string name="raw_diag_ecg_probe">Sonda de ativação de ECG WHOOP MG</string>
+    <string name="raw_diag_ecg_probe_start">Iniciar captura de ECG</string>
+    <string name="raw_diag_ecg_probe_stop">Parar captura de ECG</string>
+    <string name="raw_diag_ecg_probe_running">Pode ainda estar a decorrer uma captura nesta pulseira. O veredicto vai para o strap log.</string>
 </resources>

@@ -292,16 +292,26 @@ enum class CommandNumber(val rawValue: Int) {
     // not add it and deliberately does not remove it either: dropping a pre-existing entry would change
     // the curated send surface for a reason that has nothing to do with decoding ECG packets, and that is
     // a separate decision from the one below.
-    SELECT_WRIST(123);
+    SELECT_WRIST(123),
+
+    // The three WHOOP MG ECG ("Labrador") TOGGLES. These were deliberately ABSENT while Android had no
+    // ECG app layer: the earlier note said growing the SENDER enum "to buy a label" would widen what the
+    // command sender can express for nothing, and that was right at the time. It no longer holds, because
+    // Android now drives the same gated probe Apple does and these are the bytes it sends.
     //
-    // The three WHOOP MG ECG ("Labrador") TOGGLES (124 / 125 / 139) are deliberately ABSENT from this
-    // enum. This branch originally listed them here so a COMMAND_RESPONSE for one would be labelled
-    // rather than shown as a bare hex opcode — a reason #893 has since made obsolete, by giving Android
-    // a read-only `CommandNames` label table that names every opcode the schema names without making any
-    // of them constructible. Android has no ECG app layer and sends none of them, so growing the
-    // SENDER enum to buy a label would widen what the command sender can express for nothing. Apple's
-    // `WhoopCommand` carries them because Apple actually drives the gated probe. See
-    // `com.noop.protocol.Whoop5Ecg` for the decoder and `Whoop5EcgProbe` for the verdict rules.
+    // Safe and reversible, the same judgement Apple's `WhoopCommand` records: three data-stream toggles,
+    // none of which wipes data, reflashes, ship-modes or permanently alters the strap, so the
+    // curated-safe-subset rule holds. They are NOT thereby freely sendable: `send()` admits them only
+    // while the MG ECG probe is opted in and in flight, which is a harder gate than a bare enum entry.
+    //
+    // Argument semantics are NOT a boolean for 124. Its second byte is an OPERATION (1 = stop,
+    // 2 = start), which is why `Whoop5Ecg.ControlSignal` is an enum rather than a flag, and why a
+    // caller that sends 1 meaning "on" silently stops a session it just armed.
+    TOGGLE_LABRADOR_DATA_GENERATION(124),
+    TOGGLE_LABRADOR_RAW_SAVE(125),
+    TOGGLE_LABRADOR_FILTERED(139);
+    //
+    // See `com.noop.protocol.Whoop5Ecg` for the decoder and `Whoop5EcgProbe` for the verdict rules.
 
     companion object {
         private val byRaw = entries.associateBy { it.rawValue }

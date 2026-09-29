@@ -32,6 +32,9 @@ import com.noop.data.EventEntry
 import com.noop.data.StandardHrMapping
 import com.noop.data.StreamBatch
 import com.noop.data.StreamPersistence
+import com.noop.protocol.CommandNames
+import com.noop.protocol.Whoop5Ecg
+import com.noop.protocol.Whoop5EcgProbe
 import com.noop.protocol.Whoop5RawImu
 import com.noop.testcentre.ImuSessionFileStore
 import com.noop.data.WhoopRepository
@@ -4446,6 +4449,20 @@ class WhoopBleClient(
                 // and the gate is the same state the command is about. Non-destructive: the strap frees
                 // records on our HISTORY_END ack, not on this, so an aborted drain re-offloads intact.
                 !(cmd == CommandNumber.ABORT_HISTORICAL_TRANSMITS && backfilling) &&
+                // The three MG ECG ("Labrador") TOGGLES (124 / 125 / 139). Gated the HARD way, like
+                // GET_BATTERY_PACK_INFO and unlike the 98/84 read probes: allowed ONLY while an ECG probe
+                // run is actually in flight, so a default install cannot form these bytes at all. Unlike
+                // those read probes these are WRITES that change strap state, and a strap left generating
+                // is a battery cost the wearer did not ask for.
+                //
+                // `ecgProbeArmed` is set by ecgStartCapture/ecgStopCapture for the duration of the send
+                // burst only. The opt-in and MG checks live in ecgGatesAllow at the call site, the same
+                // split Apple uses: this clause answers "is a run in flight", not "is it permitted".
+                !(cmd in setOf(
+                    CommandNumber.TOGGLE_LABRADOR_DATA_GENERATION,
+                    CommandNumber.TOGGLE_LABRADOR_RAW_SAVE,
+                    CommandNumber.TOGGLE_LABRADOR_FILTERED,
+                ) && ecgProbeArmed) &&
                 cmd != CommandNumber.SET_CLOCK && cmd != CommandNumber.GET_CLOCK &&
                 cmd != CommandNumber.GET_DATA_RANGE &&
                 cmd != CommandNumber.SET_ALARM_TIME && cmd != CommandNumber.DISABLE_ALARM &&
@@ -5121,6 +5138,214 @@ class WhoopBleClient(
      * to the Devices dialog and the strap log — no new storage. User-initiated only, Test Centre →
      * Connection gated at the call site. Twin of macOS BLEManager.probeFeatureFlags().
      */
+    // ---- WHOOP MG ECG ("Labrador") turn-on probe — twin of macOS BLEManager.ecg* ----------------
+
+    /** Listen window after the turn-on burst, matching macOS `ecgProbeWindow`. */
+    private val ECG_PROBE_WINDOW_SECONDS = 30
+
+    /** Detailed candidate lines are capped; the PACKET COUNT is not, so the verdict stays complete
+     *  while a chatty stream cannot grow the strap log without bound. Matches macOS. */
+    private val ECG_PROBE_MAX_CANDIDATES = 12
+
+    /**
+     * Guards every probe accumulator below. [noteEcgProbeCandidate] runs on the BINDER thread (the
+     * notify handler), while the verdict reads on the main looper, so `toList()` against a concurrent
+     * `add()` is a real ConcurrentModificationException and `+= 1` is not atomic. The established
+     * unbonded probe solves the same split by hopping to main; this one holds a lock instead, because
+     * the triage must not add a main-thread hop per frame.
+     */
+    private val ecgProbeLock = Any()
+
+    /** Steps of the run in flight; feeds [Whoop5EcgProbe.verdict]. Guarded by [ecgProbeLock]. */
+    private val ecgProbeSteps = mutableListOf<Whoop5EcgProbe.Step>()
+
+    /** Structural-triage hits: the empirical search for the packet TYPE these records arrive under. */
+    private val ecgProbeCandidates = mutableListOf<String>()
+
+    private var ecgProbePacketsSeen = 0
+
+    /**
+     * True only while a probe run is sending. The send() allowlist reads this, so the three toggles are
+     * unformable on a default install even with the opt-in on: permission and in-flight are separate
+     * questions, the same split Apple uses.
+     */
+    @Volatile private var ecgProbeArmed = false
+
+    /**
+     * True for the listen window, which is a LONGER span than [ecgProbeArmed]. The triage in
+     * [noteEcgProbeCandidate] runs only while this is set, so a frame on the ordinary path pays nothing
+     * for a probe nobody started.
+     */
+    @Volatile private var ecgProbeListening = false
+
+    /**
+     * Latched by [ecgStartCapture], cleared by a completed [ecgStopCapture].
+     *
+     * Persisted, because the strap's state is: a capture keeps generating across an app kill, so an
+     * in-memory latch hides a running capture from the wearer. Keyed per device, since a per-install key
+     * would claim a SECOND strap may be generating after a capture that ran on the first.
+     */
+    var ecgMayBeRunning: Boolean
+        get() = ecgPrefs().getBoolean(ecgRunningKey(deviceId), false)
+        private set(v) = ecgPrefs().edit().putBoolean(ecgRunningKey(deviceId), v).apply()
+
+    private fun ecgPrefs() =
+        context.getSharedPreferences(PuffinExperiment.KEY, android.content.Context.MODE_PRIVATE)
+
+    private fun ecgRunningKey(deviceId: String) = "noopEcgMayBeRunning.$deviceId"
+
+    /**
+     * Every gate the probe must clear. Twin of macOS `ecgGatesAllow`, including the #1635/#269 bond
+     * requirement: a puffin write over the live-HR-only link silently fails, and on a suppressed MG it
+     * would spend the stable link the suppression exists to buy.
+     */
+    private fun ecgGatesAllow(requiresOptIn: Boolean = true): Boolean {
+        if (requiresOptIn && !puffinExperiment.ecgEnabled) {
+            log("ECG probe: ignored — the Experimental ECG opt-in is off")
+            return false
+        }
+        if (!whoop5Variant().isMG) {
+            log("ECG probe: ignored — strap is not a positively identified WHOOP MG")
+            return false
+        }
+        if (!_state.value.connected) {
+            log("ECG probe: ignored — not connected")
+            return false
+        }
+        if (!_state.value.encryptedBond) {
+            log("ECG probe: ignored — needs the full encrypted bond, not the live-HR-only link (#1635/#269)")
+            return false
+        }
+        return true
+    }
+
+    /** One command, recorded at send time. `requestsRealtimeData` is knowable ONLY here: the reply
+     *  carries neither opcode nor argument, and every verdict that reads silence as evidence needs it. */
+    private fun sendEcgCommand(cmd: CommandNumber, arg: Int) {
+        val label = "${CommandNames.label(cmd.rawValue)}(${cmd.rawValue})"
+        synchronized(ecgProbeLock) {
+            ecgProbeSteps.add(
+                Whoop5EcgProbe.Step(
+                    label = label,
+                    outcome = Whoop5EcgProbe.CommandOutcome.NoReply,
+                    requestsRealtimeData = Whoop5Ecg.requestsRealtimeData(cmd.rawValue, arg),
+                ),
+            )
+        }
+        log("ECG probe: → $label payload=${Whoop5Ecg.commandPayload(arg).joinToString("") { "%02x".format(it) }}")
+        send(cmd, Whoop5Ecg.commandPayload(arg).map { it.toByte() }.toByteArray())
+    }
+
+    private fun beginEcgProbeRun() {
+        synchronized(ecgProbeLock) {
+            ecgProbeSteps.clear()
+            ecgProbeCandidates.clear()
+            ecgProbePacketsSeen = 0
+        }
+        ecgProbeListening = true
+    }
+
+    private fun scheduleEcgProbeVerdict() {
+        handler.postDelayed({
+            ecgProbeListening = false
+            val (steps, packets, candidates) = synchronized(ecgProbeLock) {
+                Triple(ecgProbeSteps.toList(), ecgProbePacketsSeen, ecgProbeCandidates.toList())
+            }
+            log(Whoop5EcgProbe.report(steps, packets, candidates, ECG_PROBE_WINDOW_SECONDS))
+        }, ECG_PROBE_WINDOW_SECONDS * 1000L)
+    }
+
+    /**
+     * Turn ECG generation ON. Twin of macOS `ecgStartCapture`.
+     *
+     * Order is load-bearing: 139 (filtered) is the master gate, 125 enables the raw save, and 124 takes
+     * an OPERATION byte where `start` is 2. A caller sending 1 here would STOP a session it just armed,
+     * which is the shape of every SUCCESS-and-silence report in #891.
+     */
+    fun ecgStartCapture() {
+        if (!ecgGatesAllow()) return
+        ecgMayBeRunning = true   // latched BEFORE the sends, so a mid-sequence drop still offers Stop
+        beginEcgProbeRun()
+        log("ECG probe: starting the ECG turn-on sequence on an MG (experimental, unvalidated instrumentation)")
+        // Clear a historical drain first: an offload in flight competes for the same link, so a trace
+        // requested underneath one can be acked and still never arrive. Through abortBackfill() rather
+        // than opcode 20 directly, because that also tears the local session down. Twin of macOS.
+        if (backfilling) {
+            log("ECG probe: an offload is in flight and would compete with the realtime trace; aborting it first")
+            abortBackfill()
+        }
+        ecgProbeArmed = true
+        try {
+            sendEcgCommand(CommandNumber.TOGGLE_LABRADOR_FILTERED, 1)
+            sendEcgCommand(CommandNumber.TOGGLE_LABRADOR_RAW_SAVE, 1)
+            sendEcgCommand(CommandNumber.TOGGLE_LABRADOR_DATA_GENERATION, Whoop5Ecg.ControlSignal.START.raw)
+        } finally {
+            ecgProbeArmed = false
+            // Scheduled in the finally, because it is what CLOSES the listen window. If a send threw,
+            // an early return would leave `ecgProbeListening` true forever and the triage running on
+            // every frame for the life of the process.
+            scheduleEcgProbeVerdict()
+        }
+    }
+
+    /**
+     * The explicit OFF path. Twin of macOS `ecgStopCapture`.
+     *
+     * `requiresOptIn = false`: the OFF path outlives the opt-in, or a wearer who switches the experiment
+     * off mid-capture could never stop the strap. All three OFFs are attempted unconditionally, because
+     * a partial startup leaves components enabled and there is no auto-rollback on the strap.
+     */
+    fun ecgStopCapture(reportsResult: Boolean = true) {
+        if (!ecgGatesAllow(requiresOptIn = false)) {
+            if (ecgMayBeRunning) {
+                log("ECG probe: stop could not be sent (needs a connected MG) — the strap may still be " +
+                    "streaming, so Stop stays available")
+            }
+            return
+        }
+        if (reportsResult) beginEcgProbeRun() else synchronized(ecgProbeLock) { ecgProbeSteps.clear() }
+        log("ECG probe: stopping ECG data generation and both streams")
+        ecgProbeArmed = true
+        try {
+            sendEcgCommand(CommandNumber.TOGGLE_LABRADOR_DATA_GENERATION, Whoop5Ecg.ControlSignal.STOP.raw)
+            sendEcgCommand(CommandNumber.TOGGLE_LABRADOR_RAW_SAVE, 0)
+            sendEcgCommand(CommandNumber.TOGGLE_LABRADOR_FILTERED, 0)
+            // Cleared only once all three OFFs have gone out. If a send threw, the strap may still be
+            // generating and the latch must stay true so Stop keeps being offered.
+            ecgMayBeRunning = false
+        } finally {
+            ecgProbeArmed = false
+            // In the finally for the same reason as the start path: with `reportsResult` this already
+            // opened the listen window, so a throwing send would otherwise leave it open for the life
+            // of the process.
+            if (reportsResult) scheduleEcgProbeVerdict()
+        }
+    }
+
+    /**
+     * Structural triage for the packet TYPE the ECG records arrive under, which no table in this repo
+     * holds. A hit is a CANDIDATE, never a confirmed mapping. Twin of macOS `noteEcgProbeCandidate`.
+     *
+     * The classifier byte is logged as a NUMBER, never its token name: a strap log is a shareable
+     * artefact and no line in it should read like a clinical finding.
+     */
+    private fun noteEcgProbeCandidate(frame: ByteArray) {
+        if (frame.size < 12 || !Whoop5Ecg.plausibleFilteredFrame(frame)) return
+        synchronized(ecgProbeLock) {
+            ecgProbePacketsSeen += 1
+            if (ecgProbeCandidates.size >= ECG_PROBE_MAX_CANDIDATES) return
+        }
+        val packet = Whoop5Ecg.decodeFilteredFrame(frame) ?: return
+        val h = packet.header
+        val line = "type=0x%02x len=%d samples=%d quality=%d leadsOn=%d hr=%d hrv=%d classifierRaw=%d".format(
+            frame[8].toInt() and 0xFF, frame.size, h.numberOfECGSamples, h.signalQualityRaw,
+            if (h.heartKeyLeadsAreOn) 1 else 0, h.heartKeyHR, h.heartKeyHRV,
+            h.heartKeyArrhythmiaCheckResultRaw,
+        )
+        synchronized(ecgProbeLock) { ecgProbeCandidates.add(line) }
+        log("ECG probe: ← candidate $line (unvalidated instrumentation, not a diagnosis)")
+    }
+
     fun probeFeatureFlags() {
         if (!_state.value.connected) {
             log("Feature-flag probe (#761) ignored — not connected")
@@ -8227,6 +8452,12 @@ class WhoopBleClient(
             noteRejectedFrame(parsed)
             return
         }
+
+        // MG ECG probe: offer every VERIFIED frame to the structural triage while a run is listening.
+        // Placed after the verifier so bad bytes can never be counted as a candidate, and gated on the
+        // window so an ordinary frame pays one boolean. Without this the probe reports zero packets
+        // forever and every run reads as "accepted but silent" even while a trace is streaming.
+        if (ecgProbeListening) noteEcgProbeCandidate(frame)
 
         // Connection test mode: accumulate frames by type and flush ONE `frameTiming` SUMMARY line per
         // rolling window (#1151), instead of a line per frame-TYPE transition — during offloads/command

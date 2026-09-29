@@ -2846,4 +2846,8 @@
     <string name="raw_diag_protocol_probes_detail">Envoie des requêtes de protocole expérimentales et active l’alarme du bracelet 5/MG. Inutile pour la synchronisation, le sommeil, la récupération ou les pas ordinaires.</string>
     <string name="sleep_result_updated_title">Résultat du sommeil mis à jour</string>
     <string name="sleep_result_updated_message">Les horaires de sommeil ou la durée totale de sommeil de cette nuit ont changé d’au moins cinq minutes.</string>
+    <string name="raw_diag_ecg_probe">Sonde d\'activation ECG WHOOP MG</string>
+    <string name="raw_diag_ecg_probe_start">Démarrer la capture ECG</string>
+    <string name="raw_diag_ecg_probe_stop">Arrêter la capture ECG</string>
+    <string name="raw_diag_ecg_probe_running">Une capture est peut-être encore active sur ce bracelet. Le verdict est écrit dans le strap log.</string>
 </resources>

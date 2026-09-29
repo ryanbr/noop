@@ -106,6 +106,12 @@ fun TestCentreScreen(vm: AppViewModel, onOpenGroundTruthCollector: () -> Unit = 
     var unbondedOffload by remember { mutableStateOf(puffinExperiment.unbondedOffload) }
     var clearStaleBond by remember { mutableStateOf(puffinExperiment.clearStaleBond) }
     var ecgRawData by remember { mutableStateOf(puffinExperiment.ecgRawData) }
+    var ecgProbe by remember { mutableStateOf(puffinExperiment.ecgEnabled) }
+    // Local state, NOT a direct read of vm.ble.ecgMayBeRunning: that property is backed by
+    // SharedPreferences, so reading it in composition is a disk read on every recomposition, and it
+    // publishes nothing, so Stop would not become available after Start until some unrelated state
+    // changed. Seeded once and updated on the two actions that move it.
+    var ecgMayBeRunning by remember { mutableStateOf(vm.ble.ecgMayBeRunning) }
     val r22DisableReport by vm.ble.r22DisableReport.collectAsStateWithLifecycle()
     val ecgGateReport by vm.ble.ecgRawDataGate.collectAsStateWithLifecycle()
     val ecgVariant by vm.ble.whoop5VariantFlow.collectAsStateWithLifecycle()
@@ -327,6 +333,46 @@ fun TestCentreScreen(vm: AppViewModel, onOpenGroundTruthCollector: () -> Unit = 
                         }
                         ecgGateReport?.let {
                             Text(it.summary, style = NoopType.caption, color = Palette.textSecondary)
+                        }
+                    }
+                    // The MG ECG turn-on probe. Its own toggle, NOT folded into the raw-data gate above:
+                    // that one writes a persistent device-config value on the strap, this one sends three
+                    // session commands, and one switch for both would let a persistent write ride in on
+                    // consent given for a session probe.
+                    DeveloperToggleRow(
+                        title = stringResource(R.string.raw_diag_ecg_probe),
+                        detail = "Sends the three MG ECG session toggles and listens for 30 s. Hold both " +
+                            "clasp electrodes with your other hand for the whole window, or the trace is " +
+                            "flat by design. Instrumentation, not a medical ECG feature.",
+                        checked = ecgProbe,
+                        onCheckedChange = {
+                            ecgProbe = it
+                            puffinExperiment.ecgEnabled = it
+                        },
+                    )
+                    if (ecgProbe || ecgMayBeRunning) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            NoopButton(
+                                text = stringResource(R.string.raw_diag_ecg_probe_start),
+                                kind = NoopButtonKind.Secondary,
+                                enabled = live.bonded && ecgVariant.isMG && !ecgMayBeRunning,
+                                onClick = { vm.ble.ecgStartCapture(); ecgMayBeRunning = vm.ble.ecgMayBeRunning },
+                            )
+                            // Offered whenever a capture may be running, even with the toggle off: the OFF
+                            // path outlives the opt-in, or a wearer who switches this off mid-capture could
+                            // never stop the strap.
+                            NoopButton(
+                                text = stringResource(R.string.raw_diag_ecg_probe_stop),
+                                kind = NoopButtonKind.Secondary,
+                                enabled = live.bonded && ecgVariant.isMG,
+                                onClick = { vm.ble.ecgStopCapture(); ecgMayBeRunning = vm.ble.ecgMayBeRunning },
+                            )
+                        }
+                        if (ecgMayBeRunning) {
+                            Text(
+                                stringResource(R.string.raw_diag_ecg_probe_running),
+                                style = NoopType.caption, color = Palette.textSecondary,
+                            )
                         }
                     }
                     DeveloperToggleRow(

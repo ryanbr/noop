@@ -2876,4 +2876,8 @@
     <string name="raw_diag_protocol_probes_detail">Sends experimental protocol queries and enables the 5/MG strap alarm. Not needed for normal sync, sleep, recovery, or steps.</string>
     <string name="sleep_result_updated_title">Sleep result updated</string>
     <string name="sleep_result_updated_message">This night\'s sleep times or total asleep changed by at least five minutes.</string>
+    <string name="raw_diag_ecg_probe">WHOOP MG ECG turn-on probe</string>
+    <string name="raw_diag_ecg_probe_start">Start ECG capture</string>
+    <string name="raw_diag_ecg_probe_stop">Stop ECG capture</string>
+    <string name="raw_diag_ecg_probe_running">A capture may still be running on this strap. The verdict goes to the strap log.</string>
 </resources>

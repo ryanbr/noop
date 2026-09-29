@@ -2863,4 +2863,8 @@
     <string name="raw_diag_protocol_probes_detail">Wysyła eksperymentalne zapytania protokołu i włącza alarm opaski 5/MG. Nie jest potrzebne do zwykłej synchronizacji, snu, regeneracji ani kroków.</string>
     <string name="sleep_result_updated_title">Zaktualizowano wynik snu</string>
     <string name="sleep_result_updated_message">Godziny snu lub łączny czas snu tej nocy zmieniły się o co najmniej pięć minut.</string>
+    <string name="raw_diag_ecg_probe">Sonda włączania EKG WHOOP MG</string>
+    <string name="raw_diag_ecg_probe_start">Rozpocznij zapis EKG</string>
+    <string name="raw_diag_ecg_probe_stop">Zatrzymaj zapis EKG</string>
+    <string name="raw_diag_ecg_probe_running">Na tym pasku może nadal trwać zapis. Werdykt trafia do strap log.</string>
 </resources>

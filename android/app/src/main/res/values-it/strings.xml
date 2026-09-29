@@ -2815,4 +2815,8 @@
     <string name="raw_diag_protocol_probes_detail">Invia richieste di protocollo sperimentali e abilita la sveglia della fascia 5/MG. Non serve per la normale sincronizzazione, il sonno, il recupero o i passi.</string>
     <string name="sleep_result_updated_title">Risultato del sonno aggiornato</string>
     <string name="sleep_result_updated_message">Gli orari del sonno o il tempo totale dormito di questa notte sono cambiati di almeno cinque minuti.</string>
+    <string name="raw_diag_ecg_probe">Sonda di attivazione ECG WHOOP MG</string>
+    <string name="raw_diag_ecg_probe_start">Avvia acquisizione ECG</string>
+    <string name="raw_diag_ecg_probe_stop">Interrompi acquisizione ECG</string>
+    <string name="raw_diag_ecg_probe_running">Una acquisizione potrebbe essere ancora attiva su questo strap. Il verdetto va nello strap log.</string>
 </resources>

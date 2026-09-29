@@ -111,15 +111,39 @@ class CommandCatalogueTest {
         }
     }
 
-    /** The ECG family #891 turns on. None is sendable; all three are now legible. */
+    /**
+     * The ECG family #891 turns on. All three are legible, and all three are now CONSTRUCTIBLE, because
+     * Android drives the same gated probe Apple does and these are the bytes it sends.
+     *
+     * This test previously asserted the opposite, that none was sendable. That was the right pin while
+     * Android had no ECG app layer: absence from the sender enum was what stopped a default install
+     * forming these bytes. The safety property has not been dropped, it has MOVED: `send()` admits them
+     * only while an ECG probe run is in flight, which is a harder gate than enum absence because it also
+     * excludes an opted-in install that is not currently probing.
+     *
+     * Deliberately still pinned here rather than deleted, so a future edit that adds a FOURTH opcode to
+     * this family has to state its intent the same way. The destructive-opcode test above is the one
+     * that still asserts un-sendability, and nothing here weakens it.
+     */
     @Test
-    fun theMgEcgTogglesAreNamedButNotSendable() {
+    fun theMgEcgTogglesAreNamedAndSendableOnlyThroughTheGatedProbe() {
         assertEquals("TOGGLE_LABRADOR_DATA_GENERATION", CommandNames.byRaw[124])
         assertEquals("TOGGLE_LABRADOR_RAW_SAVE", CommandNames.byRaw[125])
         assertEquals("TOGGLE_LABRADOR_FILTERED", CommandNames.byRaw[139])
-        assertNull(CommandNumber.fromRaw(124))
-        assertNull(CommandNumber.fromRaw(125))
-        assertNull(CommandNumber.fromRaw(139))
+        assertEquals(CommandNumber.TOGGLE_LABRADOR_DATA_GENERATION, CommandNumber.fromRaw(124))
+        assertEquals(CommandNumber.TOGGLE_LABRADOR_RAW_SAVE, CommandNumber.fromRaw(125))
+        assertEquals(CommandNumber.TOGGLE_LABRADOR_FILTERED, CommandNumber.fromRaw(139))
+    }
+
+    /**
+     * 124's second byte is an OPERATION, not a boolean. A caller that sends 1 meaning "on" stops the
+     * session it just armed, which is the shape of every SUCCESS-and-silence report in #891, and the
+     * reason the sender uses an enum rather than a flag.
+     */
+    @Test
+    fun theDataGenerationArgumentIsAnOperationNotAFlag() {
+        assertEquals(1, Whoop5Ecg.ControlSignal.STOP.raw)
+        assertEquals(2, Whoop5Ecg.ControlSignal.START.raw)
     }
 
     /**

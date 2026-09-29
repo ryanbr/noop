@@ -2860,4 +2860,8 @@
     <string name="raw_diag_protocol_probes_detail">Sendet experimentelle Protokollabfragen und aktiviert den 5/MG-Strapalarm. Für normale Synchronisierung, Schlaf, Erholung oder Schritte nicht erforderlich.</string>
     <string name="sleep_result_updated_title">Schlafergebnis aktualisiert</string>
     <string name="sleep_result_updated_message">Die Schlafzeiten oder die Gesamtschlafdauer dieser Nacht haben sich um mindestens fünf Minuten geändert.</string>
+    <string name="raw_diag_ecg_probe">WHOOP MG EKG-Einschaltprobe</string>
+    <string name="raw_diag_ecg_probe_start">EKG-Aufzeichnung starten</string>
+    <string name="raw_diag_ecg_probe_stop">EKG-Aufzeichnung stoppen</string>
+    <string name="raw_diag_ecg_probe_running">Auf diesem Strap läuft möglicherweise noch eine Aufzeichnung. Das Ergebnis steht im Strap-Log.</string>
 </resources>
