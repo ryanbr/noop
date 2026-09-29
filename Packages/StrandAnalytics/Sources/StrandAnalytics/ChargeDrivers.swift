@@ -154,8 +154,7 @@ extension RecoveryScorer {
         // full set, dropping one and renormalising returns the same score, collapsing the delta to
         // 0 even for a clearly good or bad term.
         func points(_ neutralised: Double?) -> Int {
-            // Shared Swift/Kotlin rule: nearest integer, with exact half-ties away from zero.
-            Int((full - (neutralised ?? full)).rounded(.toNearestOrAwayFromZero))
+            roundedPoints(full - (neutralised ?? full))
         }
 
         var drivers: [ChargeDriver] = []
@@ -294,6 +293,12 @@ extension RecoveryScorer {
     static func displayRounded(_ value: Double, fractionDigits: Int) -> Double {
         let scale = pow(10.0, Double(fractionDigits))
         return (value * scale).rounded(.toNearestOrAwayFromZero) / scale
+    }
+
+    /// A marginal Charge delta as whole driver points: nearest integer, with exact half-ties away
+    /// from zero. Kotlin twin: `RecoveryDrivers.roundedPoints`.
+    static func roundedPoints(_ delta: Double) -> Int {
+        Int(delta.rounded(.toNearestOrAwayFromZero))
     }
 
     /// Kotlin twin: `RecoveryDrivers.baselineVerdict`.

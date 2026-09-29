@@ -15,6 +15,26 @@ final class ChargeDriversTests: XCTestCase {
 
     // MARK: - Integer marginal rounding parity (#51)
 
+    /// The tie rule pinned with exact literals, independent of libm. The same cases are pinned in the
+    /// Kotlin twin's `driverPointRoundingUsesNearestWithHalfTiesAwayFromZero`.
+    func testRoundedPointsLiteralsMatchKotlin() {
+        let justBelowHalf = 0.5.nextDown // 0.49999999999999994
+        let cases: [(Double, Int)] = [
+            (0.0, 0), (-0.0, 0),
+            (0.5, 1), (-0.5, -1),
+            (justBelowHalf, 0), (-justBelowHalf, 0),
+            (0.5.nextUp, 1), (-(0.5.nextUp), -1),
+            (1.5, 2), (-1.5, -2),
+            (2.5, 3), (-2.5, -3),
+            (1.4999999999999998, 1), (-1.4999999999999998, -1),
+            (0.4, 0), (-0.4, 0), (0.6, 1), (-0.6, -1),
+            (12.5, 13), (-12.5, -13),
+        ]
+        for (delta, expected) in cases {
+            XCTAssertEqual(RecoveryScorer.roundedPoints(delta), expected, "roundedPoints(\(delta))")
+        }
+    }
+
     func testDriverPointRoundingUsesNearestWithHalfTiesAwayFromZero() {
         func hrvMarginal(hrv: Double, rhr: Double, hrvBaseline: BaselineState,
                          rhrBaseline: BaselineState? = nil) -> (raw: Double, points: Int) {

@@ -22,7 +22,33 @@ class RecoveryDriversTest {
             status = if (nValid >= 14) BaselineStatus.TRUSTED else BaselineStatus.PROVISIONAL,
         )
 
+    /**
+     * The HRV inputs below are hand-picked so `full - neutral` Charge lands on +/-0.5 exactly with an
+     * x86-64 libm. `exp` is not correctly rounded, so another platform's libm (arm64 JDK 17 on macOS
+     * gives -0.4999999999999929) can land an ulp or so away. The scorer-path tests therefore allow
+     * this much slack at the tie, and the tie rule itself is pinned with exact literals instead.
+     */
+    private val libmTieTolerance = 1e-12
+
     @Test fun driverPointRoundingUsesNearestWithHalfTiesAwayFromZero() {
+        val justBelowHalf = Math.nextDown(0.5) // 0.49999999999999994
+        val cases = listOf(
+            0.0 to 0, -0.0 to 0,
+            0.5 to 1, -0.5 to -1,
+            justBelowHalf to 0, -justBelowHalf to 0,
+            Math.nextUp(0.5) to 1, -Math.nextUp(0.5) to -1,
+            1.5 to 2, -1.5 to -2,
+            2.5 to 3, -2.5 to -3,
+            1.4999999999999998 to 1, -1.4999999999999998 to -1,
+            0.4 to 0, -0.4 to 0, 0.6 to 1, -0.6 to -1,
+            12.5 to 13, -12.5 to -13,
+        )
+        for ((delta, expected) in cases) {
+            assertEquals("roundedPoints($delta)", expected, RecoveryDrivers.roundedPoints(delta))
+        }
+    }
+
+    @Test fun hrvDriverPointsAroundTheHalfPointTieFollowTheRoundingRule() {
         fun hrvMarginal(
             hrv: Double,
             rhr: Double,
@@ -56,8 +82,8 @@ class RecoveryDriversTest {
         val negativeBeyondTie = hrvMarginal(29.991177240671185, 60.0, negativeBaseline)
         assertTrue(negativeBelowTie.first > -0.5)
         assertEquals(0, negativeBelowTie.second)
-        assertEquals(-0.5, negativeTie.first, 0.0)
-        assertEquals(-1, negativeTie.second)
+        assertEquals(-0.5, negativeTie.first, libmTieTolerance)
+        assertEquals(RecoveryDrivers.roundedPoints(negativeTie.first), negativeTie.second)
         assertTrue(negativeBeyondTie.first < -0.5)
         assertEquals(-1, negativeBeyondTie.second)
 
@@ -80,8 +106,8 @@ class RecoveryDriversTest {
         )
         assertTrue(positiveBelowTie.first < 0.5)
         assertEquals(0, positiveBelowTie.second)
-        assertEquals(0.5, positiveTie.first, 0.0)
-        assertEquals(1, positiveTie.second)
+        assertEquals(0.5, positiveTie.first, libmTieTolerance)
+        assertEquals(RecoveryDrivers.roundedPoints(positiveTie.first), positiveTie.second)
         assertTrue(positiveBeyondTie.first > 0.5)
         assertEquals(1, positiveBeyondTie.second)
     }
@@ -114,21 +140,25 @@ class RecoveryDriversTest {
             respBaseline = null, sleepPerf = null,
         )
 
-        assertEquals(-0.5, scoreBefore!! - neutralScore!!, 0.0)
+        val marginal = scoreBefore!! - neutralScore!!
+        assertEquals(-0.5, marginal, libmTieTolerance)
         assertEquals(scoreBefore, scoreAfter)
-        assertEquals(
-            listOf(
-                ChargeDriver(
-                    label = ChargeDriverLabel.HEART_RATE_VARIABILITY,
-                    deltaPoints = -1,
-                    value = 29.99117725828923,
-                    baseline = 30.0,
-                    unit = ChargeDriverUnit.MILLISECONDS,
-                    verdict = ChargeDriverVerdict.SLIGHTLY_BELOW_BASELINE_LIMITING,
-                ),
-            ),
-            drivers,
-        )
+        assertEquals(1, drivers.size)
+        val row = drivers.single()
+        assertEquals(ChargeDriverLabel.HEART_RATE_VARIABILITY, row.label)
+        // At the exact tie this is -1 (x86-64); an arm64 libm lands just inside it and rounds to 0.
+        assertEquals(RecoveryDrivers.roundedPoints(marginal), row.deltaPoints)
+        assertEquals(29.99117725828923, row.value, 0.0)
+        assertEquals(30.0, row.baseline!!, 0.0)
+        assertEquals(ChargeDriverUnit.MILLISECONDS, row.unit)
+        // The verdict reads the rounded points: -1 limits, 0 is at baseline (value and baseline both
+        // display as 30 ms).
+        val expectedVerdict = if (row.deltaPoints == -1) {
+            ChargeDriverVerdict.SLIGHTLY_BELOW_BASELINE_LIMITING
+        } else {
+            ChargeDriverVerdict.AT_BASELINE
+        }
+        assertEquals(expectedVerdict, row.verdict)
     }
 
     @Test fun verdictsMatchDisplayedPrecisionAndRoundedPoints() {
