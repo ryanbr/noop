@@ -280,6 +280,33 @@ public enum StrainScorer {
         return acc
     }
 
+    /// Minutes in each Edwards zone, indexed by the zone's own weight: `[0]` is time BELOW zone 1,
+    /// `[1...5]` are zones 1 to 5.
+    ///
+    /// `[0]` is the bucket no existing line can show. Edwards scores sub-50 %HRR time as exactly zero, so
+    /// it never reaches `trimp` and nothing downstream reports it, yet it is the quantity #2438's step 2
+    /// proposes to weight. `[1...5]` are the zone shares step 1 fits its weights on, readable until now
+    /// only from a WHOOP export rather than from what NOOP itself saw.
+    ///
+    /// Sums to the same duration TRIMP integrates over, so the six buckets and `trimp` describe exactly
+    /// the same time. That is CREDITED time, not wall-clock wear: `sampleDurationsMinutes` clamps each
+    /// reading to `maxSampleGapMin`, so a ten-minute dropout contributes two minutes here. Anyone wanting
+    /// a wear-coverage floor (#2438 step 2) needs a different quantity, and summing these will not give
+    /// it to them.
+    ///
+    /// The caller must pass `hrReserve > 0`: `zoneWeight` divides by it, and the refusal path reaches this
+    /// line with a reserve that can be zero or negative.
+    ///
+    /// Byte-identical to the Kotlin twin `StrainScorer.zoneMinutes`.
+    static func zoneMinutes(_ hr: [HRSample], restingHR: Double, hrReserve: Double,
+                            durations: [Double]) -> [Double] {
+        var out = [Double](repeating: 0.0, count: 6)
+        for i in hr.indices {
+            out[zoneWeight(Double(hr[i].bpm), restingHR: restingHR, hrReserve: hrReserve)] += durations[i]
+        }
+        return out
+    }
+
     /// - Parameter floorRatePerMinute: per-minute rate treated as "no effort" and subtracted from EVERY
     ///   sample, floored at zero (#1624). Zero — the default — is the original, unfloored Banister recipe,
     ///   so every existing caller and test is byte-identical. Pass `banisterBaselineRatePerMinute` to
@@ -447,10 +474,14 @@ public enum StrainScorer {
     ///
     /// `enough` is the `strain` gate spelled out: dense (>= minReadings) OR sparse-but-sustained. `trimp`
     /// and `strain` are absent when the gate refused, which is exactly the case a bare 0 hides.
-    /// Byte-identical to the Kotlin `StrainScorer.scoreFunnelLine`.
+    /// Kotlin twin: `StrainScorer.scoreFunnelLine`. Phrased with the word "twin" deliberately:
+    /// the scanner's claim patterns require it, so the previous "Byte-identical to the Kotlin ..."
+    /// read as a twin claim to a human and was invisible to the ledger, which is why adding an
+    /// argument here orphaned both identities instead of re-forming the pair at the new arity.
     public static func scoreFunnelLine(day: String, hrSamples: Int, enough: Bool,
                                        maxHR: Double, maxHRProvided: Bool, restingHR: Double,
-                                       method: Method, trimp: Double?, strain: Double?) -> String {
+                                       method: Method, trimp: Double?, strain: Double?,
+                                       zoneMinutes: [Double]? = nil) -> String {
         func r1(_ v: Double) -> String { String(format: "%.1f", v) }
         // Built by appending rather than as one `+` chain. A chain of interpolated segments is a single
         // expression, and this one blew the type-checker's budget on the first attempt — the same failure
@@ -466,6 +497,15 @@ public enum StrainScorer {
         // byte, so this is the one spelling that keeps them equal.
         out += " method=\(method)"
         out += " trimp=\(trimpText) strain=\(strainText)"
+        // Per-zone minutes, appended last so every field before this one keeps its position and the
+        // existing parsers are unaffected. Absent rather than zeroed when the reserve is invalid: a
+        // refused day has no zones, and six zeros would read as a day spent entirely below zone 1.
+        // Built with a statement loop for the same type-checker reason as the fields above.
+        if let zones = zoneMinutes, zones.count == 6 {
+            for i in 0..<6 { out += " z\(i)=\(r1(zones[i]))" }
+        } else {
+            out += " zones=n/a"
+        }
         return out
     }
 
@@ -518,9 +558,17 @@ public enum StrainScorer {
                                  durations: durations)
         }
         let scored = trimpToStrain(trimp, denominator: denominator)
+        // Walked only when a sink is attached. It is a second O(n) pass over the day's samples, and
+        // `analyzeRecent`'s prep is already the expensive half of a scoring run, so a normal pass must
+        // not pay for a diagnostic nobody is reading. `hrReserve` is safe here: the refusal path above
+        // already returned for `effMax <= restingHR`.
+        // Emitted under BOTH methods on purpose. The zones describe what the day WAS, not how it was
+        // scored, and #2438 fits an Edwards-shaped model regardless of the recipe in force.
+        let zones: [Double]? = diag == nil ? nil
+            : zoneMinutes(hr, restingHR: restingHR, hrReserve: hrReserve, durations: durations)
         diag?(scoreFunnelLine(day: day, hrSamples: hr.count, enough: enoughData, maxHR: effMax,
                               maxHRProvided: maxHR != nil, restingHR: restingHR, method: method,
-                              trimp: trimp, strain: scored))
+                              trimp: trimp, strain: scored, zoneMinutes: zones))
         return scored
     }
 }
