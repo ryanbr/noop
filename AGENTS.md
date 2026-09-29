@@ -204,10 +204,20 @@ Swift, you MUST build the app yourself: `xcodebuild … build` locally, or run `
 - **A gate must be able to fail on the change that caused it.** The same rule again, moved out to CI:
   when a check cannot see what invalidates it, the failure lands on whoever pushes next and reads as
   their fault. Three live instances, all hit in one day. The parity-governance path filter excludes
-  product source, so ordinary feature merges move the derived sets, the stored authority stops
-  reproducing, and nothing reports it until the 04:17 schedule fails against a commit that changed
+  product source, so ordinary feature merges moved the derived sets, the stored authority stopped
+  reproducing, and nothing reported it until the 04:17 schedule failed against a commit that changed
   none of it; that needed hand repair twice in a day, and in between, a contributor running
-  `parity_ratchet.py --base upstream/main` gets an error belonging to main rather than to their branch.
+  `parity_ratchet.py --base upstream/main` got an error belonging to main rather than to their branch.
+  That half is now shut: the repository-acceptance suite, the one test in that workflow which is about
+  PRODUCT source rather than about the scanner, runs on the unfiltered `tools-python` leg, and a guard
+  in `test_core_tools_filter_covers_every_governance_tool_path` asserts it stays there. On the day it
+  landed, a fourth merge had already turned main red by orphaning a function into a test-only call site,
+  and three more PRs were then found drifting the authority before they merged, each with its own CI
+  green against a base that no longer existed. The scanner's own unit tests stay path-filtered,
+  which is correct: those genuinely are about the scanner. Note what the remedy was NOT. Naming product
+  paths in the filter only moves the trap, because the list is whatever the assertions happen to read
+  today, which is the #1691 lesson written into that same guard test after a `Tools/**` filter silenced
+  a suite reading `TodayScreen.kt` and main carried it red through nine merges.
   The governance discovery floor is an exact count, so a legitimate future removal of one test prints
   "discovery is broken, not the suite" on main against a change that removed nothing. And GitHub's
   fork-PR approval gate re-arms on every force-push, parking workflows at `action_required`, which the

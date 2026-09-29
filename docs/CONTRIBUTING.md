@@ -23,6 +23,7 @@ non-negotiable (especially on the Bluetooth path).
 - [Ground rules](#ground-rules)
 - [Contributor roles & the issue/PR workflow](#contributor-roles--the-issuepr-workflow)
 - [Repository layout](#repository-layout)
+  - [The parity ledger](#the-parity-ledger-one-sided-declarations)
 - [Build & test](#build--test)
 - [The design system is the law](#the-design-system-is-the-law)
 - [Coding conventions](#coding-conventions)
@@ -173,6 +174,70 @@ let ui = UIColor(self)
 Do **not** add `import AppKit`/`import UIKit`/`import CoreBluetooth` to any file under `Packages/` —
 that is what breaks the cross-platform contract. CoreBluetooth lives only in the macOS app's
 `Strand/BLE`.
+
+### The parity ledger (one-sided declarations)
+
+The discipline above is also enforced mechanically. `Tools/parity_ledger.py` pairs declarations across
+the two platforms and `Tools/parity_ratchet.py` refuses new **one-sided** ones that carry no typed
+reason. It reads exactly these roots and nothing else:
+
+| platform | in scope |
+| --- | --- |
+| Swift | `Packages/{StrandAnalytics,StrandImport,WhoopStore,WhoopProtocol,OuraProtocol}/Sources/**` |
+| Kotlin | `android/app/src/main/java/com/noop/{analytics,ingest,data,protocol,oura}/**` |
+
+Note the asymmetry, because it will bite you: the **app targets are out of Swift scope** (`Strand/`,
+`StrandiOS/`), but `com/noop/data/**` is *in* Kotlin scope. So a Kotlin declaration can be in scope
+while the Swift twin it genuinely has lives in an app target the scanner never reads. That gap is
+tracked in #2567.
+
+If you add, rename or delete a declaration under those roots, refresh the derived snapshots:
+
+```bash
+python3 Tools/parity_ledger.py --refresh-derived
+```
+
+This rewrites them only if the ratchet accepts the result, so a refusal is information, not an
+obstacle to route around. One refusal in particular is **not yours to absorb**: if the *base* is
+already stale, because some earlier PR moved product source without the gate running, add
+
+```bash
+python3 Tools/parity_ledger.py --refresh-derived --repair-stale-base
+```
+
+which is accepted only when product source, finding identities, counters and typed dispositions all
+match the exact base. By construction it can only ever produce a metadata-only commit. Do **not**
+reach for `--migrate-authority` instead: it waives base-manifest reproducibility, and choosing to
+lose that is a maintainer call, not a way to get a red branch green.
+
+If your declaration is legitimately one-sided, register it in `Tools/parity_dispositions.json`. Key
+sets are exact, extras and omissions are both errors:
+
+| `type` | extra keys | when |
+| --- | --- | --- |
+| `experimental` | `issue`, `reason`, `expires_on` | temporary, and it must name an issue and a date |
+| `platform_specific` | `rationale` | the other platform genuinely cannot carry it |
+| `out_of_scope_twin` | `rationale`, `twin_path` | the twin exists, but outside the roots above |
+
+All three also need exact `kind`, `identity`, `identity_sha256` and `platform`, with a rationale of
+real substance (a length floor is enforced, but write for the next reader, not the validator).
+`kind` is limited to `add-unpaired-{file,function,property,constant}`: a disposition can never waive
+a **shared-parity regression or a pair removal**, so if the ratchet names one of those, the answer is
+to fix the code.
+
+Two sharp edges on `out_of_scope_twin`: it is **Kotlin-only**, and its `twin_path` must both exist on
+disk and match `Strand/…/*.swift`. A twin under `StrandiOS/` does **not** match today, since the
+pattern wants a `/` directly after `Strand`, so ask a maintainer rather than mislabelling it
+`platform_specific`.
+
+Finally, know what CI does *not* promise you here. `parity-governance.yml` is path-filtered to
+`Tools/parity_*`, yet what it measures is the declaration graph in **product** source, so it may not
+run on the very PR that moves it. The repository-acceptance suite runs unfiltered on `tools-python`
+to cover that, and the workflow additionally runs on a daily schedule against `main` so drift is
+found there rather than on the next contributor's PR. Neither closes the window completely: a green
+PR can still sit on a base that has since drifted, so rebase before you conclude anything from a
+green run, and if `parity-governance` is red on `main` against a commit that changed none of it, that
+is the schedule doing its job and a maintainer's repair to make.
 
 ---
 
@@ -496,6 +561,13 @@ to the Explore / Compare / tile UI. The catalog is the contract.
    registered metric with data behind it appears automatically. No screen edits required.
 4. **Add a test.** If a new importer/analyzer produces the series, cover the parse/compute in that
    package's test suite.
+5. **Refresh the parity ledger.** Step 1 lands in a scanned root (step 4 does not, since `Tests/`
+   is outside them), so run
+   `python3 Tools/parity_ledger.py --refresh-derived` and read
+   [The parity ledger](#the-parity-ledger-one-sided-declarations) if it refuses. Watch step 2 in
+   particular: `MetricCatalog.swift` sits in `Strand/`, which is *outside* Swift scope, while a
+   Kotlin catalog twin under `com/noop/data/**` is inside Kotlin scope. That pairing is the exact
+   asymmetry described there, not a real parity gap.
 
 > **Verify the key in three places** before you push: what the importer/analyzer *writes*, the
 > `MetricCatalog` `key`, and any SQL `WHERE key = …`. Mismatched keys are a known class of bug here —
