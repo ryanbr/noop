@@ -578,6 +578,20 @@ data class WorkoutRow(
     val steps: Int? = null,
 )
 
+/** Timed GPS fix for a workout. Coordinates are integer microdegrees on both platforms. */
+@Entity(tableName = "workoutRoutePoint", primaryKeys = ["deviceId", "startTs", "sport", "seq"])
+data class WorkoutRoutePointRow(
+    val deviceId: String,
+    val startTs: Long,
+    val sport: String,
+    val seq: Int,
+    val latE6: Int,
+    val lonE6: Int,
+    val tMs: Long,
+    val activeElapsedMs: Long? = null,
+    val segment: Int = 0,
+)
+
 /**
  * Durable "this detected bout is not a workout" marker (#107). The engine no longer creates or
  * reconciles generic detected rows (#2187), but grandfathered rows and their dismissal controls remain.

@@ -529,6 +529,21 @@ interface WhoopDao : DeviceRegistryDao {
     suspend fun upsertWorkouts(rows: List<WorkoutRow>)
 
     @Upsert
+    suspend fun upsertWorkoutRoutePoints(rows: List<WorkoutRoutePointRow>)
+
+    @Query("SELECT * FROM workoutRoutePoint WHERE deviceId = :deviceId AND startTs = :startTs AND sport = :sport ORDER BY seq")
+    suspend fun workoutRoutePoints(deviceId: String, startTs: Long, sport: String): List<WorkoutRoutePointRow>
+
+    @Query("DELETE FROM workoutRoutePoint WHERE deviceId = :deviceId AND startTs = :startTs AND sport = :sport")
+    suspend fun deleteWorkoutRoutePoints(deviceId: String, startTs: Long, sport: String)
+
+    @Transaction
+    suspend fun replaceWorkoutRoutePoints(deviceId: String, startTs: Long, sport: String, rows: List<WorkoutRoutePointRow>) {
+        deleteWorkoutRoutePoints(deviceId, startTs, sport)
+        if (rows.isNotEmpty()) upsertWorkoutRoutePoints(rows)
+    }
+
+    @Upsert
     suspend fun upsertAppleDaily(rows: List<AppleDaily>)
 
     // MARK: - Range reads (ORDER BY ts ASC, inclusive [from, to], limited)

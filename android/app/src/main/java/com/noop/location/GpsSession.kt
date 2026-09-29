@@ -22,6 +22,8 @@ import kotlinx.coroutines.flow.asStateFlow
  */
 object GpsSession {
 
+    data class TimedPoint(val lat: Double, val lon: Double, val tMs: Long, val activeElapsedMs: Long, val segment: Int)
+
     /** A GPS workout's accumulated route. [startMs] anchors pace; [active] gates the service collector.
      *  [sportName] lets the UI rehydrate the active-workout card if the ViewModel was cleared mid-ride. */
     data class State(
@@ -29,6 +31,8 @@ object GpsSession {
         val startMs: Long = 0L,
         val sportName: String = "",
         val track: List<LatLng> = emptyList(),
+        val timedPoints: List<TimedPoint> = emptyList(),
+        val segment: Int = 0,
         val distanceM: Double = 0.0,
         val paceSecPerKm: Double? = null,
         val paused: Boolean = false,
@@ -56,13 +60,21 @@ object GpsSession {
     }
 
     /** Fold one accepted fix into the route, recomputing distance + pace. No-op when not active. */
-    fun append(pt: LatLng) {
+    fun append(fix: RawFix) {
         val s = _state.value
-        if (!s.active || s.paused) return
+        if (!s.active || s.paused || fix.tMs <= 0) return
+        val pt = LatLng(fix.lat, fix.lon)
+        val previous = s.timedPoints.lastOrNull()
+        if (previous != null && fix.tMs <= previous.tMs) return
+        val elapsed = (fix.tMs - s.startMs - s.pausedDurationMs).coerceAtLeast(0L)
+        val next = TimedPoint(fix.lat, fix.lon, fix.tMs, elapsed, s.segment)
         val track = s.track + pt
-        val dist = RouteMath.totalMeters(track)
-        val secs = (System.currentTimeMillis() - s.startMs - s.pausedDurationMs) / 1000.0
-        _state.value = s.copy(track = track, distanceM = dist, paceSecPerKm = RouteMath.paceSecPerKm(dist, secs))
+        val dist = s.distanceM + if (previous != null && previous.segment == s.segment) {
+            RouteMath.haversineMeters(LatLng(previous.lat, previous.lon), pt)
+        } else 0.0
+        val secs = elapsed / 1000.0
+        _state.value = s.copy(track = track, timedPoints = s.timedPoints + next,
+            distanceM = dist, paceSecPerKm = RouteMath.paceSecPerKm(dist, secs))
         // Workouts & GPS test mode: one GPS-fix-progress line per accepted fix, only when the service wired a
         // sink (the WORKOUTS gate was on). The LocationTracker pre-filters UPSTREAM, so the raw pre-filter
         // count is not available at this seam (every fix here is already accepted). Pass rawFixes = null so
@@ -77,10 +89,10 @@ object GpsSession {
     }
 
     /** End the route and clear it. Returns the final accumulated track for the saved WorkoutRow. */
-    fun stop(): List<LatLng> {
-        val track = _state.value.track
+    fun stop(): State {
+        val final = _state.value
         _state.value = State()
-        return track
+        return final
     }
 
     fun pause() {
@@ -93,7 +105,7 @@ object GpsSession {
         if (s.active && s.paused) {
             val added = s.pausedAtMs?.let { System.currentTimeMillis() - it } ?: 0L
             _state.value = s.copy(paused = false, pausedAtMs = null,
-                pausedDurationMs = s.pausedDurationMs + added)
+                pausedDurationMs = s.pausedDurationMs + added, segment = s.segment + 1)
         }
     }
 }

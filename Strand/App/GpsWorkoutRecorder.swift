@@ -211,6 +211,8 @@ struct WorkoutRoutePoint: Equatable, Codable {
     var lon: Double
     var accuracyM: Double
     var tMs: Int64
+    var activeElapsedMs: Int64? = nil
+    var segment: Int? = nil
 }
 
 /// The route persisted for one finished workout: an encoded polyline, its GPS distance, and (when
@@ -494,6 +496,7 @@ final class GpsWorkoutRecorder: NSObject, ObservableObject {
     private var startMs: Int64 = 0
     private var pausedAtMs: Int64?
     private var pausedDurationMs: Int64 = 0
+    private var segmentIndex = 0
 
     /// Workouts & GPS test mode (Test Centre): the tagged sink for the `.workouts` GPS-fix lines, wired by
     /// AppModel to `live.append(log:domain:)`. Default nil (inert). We ALWAYS check `TestCentre.active(.workouts)`
@@ -535,6 +538,7 @@ final class GpsWorkoutRecorder: NSObject, ObservableObject {
         self.startMs = startMs
         pausedAtMs = nil
         pausedDurationMs = 0
+        segmentIndex = 0
         distanceM = 0
         paceSecPerKm = nil
         pointCount = 0
@@ -565,11 +569,16 @@ final class GpsWorkoutRecorder: NSObject, ObservableObject {
         start(startMs: startMs)
         if let banked {
             routePoints = banked
+            segmentIndex = banked.last?.segment ?? 0
             track = banked.map { RouteMath.LatLng($0.lat, $0.lon) }
             persistedPointCount = banked.count
             restoredSeam = banked.last
             pointCount = track.count
-            distanceM = RouteMath.totalMeters(track)
+            distanceM = zip(banked, banked.dropFirst()).reduce(0.0) { total, pair in
+                guard pair.0.segment == pair.1.segment else { return total }
+                return total + RouteMath.haversineMeters(RouteMath.LatLng(pair.0.lat, pair.0.lon),
+                                                         RouteMath.LatLng(pair.1.lat, pair.1.lon))
+            }
             ActiveRouteStore.store(banked)
         }
         self.pausedDurationMs = max(0, pausedDurationMs)
@@ -607,6 +616,9 @@ final class GpsWorkoutRecorder: NSObject, ObservableObject {
             pausedDurationMs += Int64(Date().timeIntervalSince1970 * 1000) - pausedAtMs
             self.pausedAtMs = nil
         }
+        segmentIndex += 1
+        filter = TrackFilter()
+        restoredSeam = nil
         isRecording = true
         switch manager.authorizationStatus {
         case .authorizedWhenInUse, .authorizedAlways:
@@ -622,7 +634,7 @@ final class GpsWorkoutRecorder: NSObject, ObservableObject {
     func capturedRoute() -> WorkoutRoute? {
         guard track.count >= 2 else { return nil }
         return WorkoutRoute(polyline: RouteMath.encode(track),
-                            distanceM: RouteMath.totalMeters(track),
+                            distanceM: distanceM,
                             points: routePoints)
     }
 
@@ -664,7 +676,9 @@ final class GpsWorkoutRecorder: NSObject, ObservableObject {
                 }
                 track.append(pt)
                 routePoints.append(WorkoutRoutePoint(lat: fix.lat, lon: fix.lon,
-                                                     accuracyM: fix.accuracyM, tMs: fix.tMs))
+                                                     accuracyM: fix.accuracyM, tMs: fix.tMs,
+                                                     activeElapsedMs: max(0, fix.tMs - startMs - pausedDurationMs),
+                                                     segment: segmentIndex))
                 changed = true
             }
         }
@@ -674,7 +688,12 @@ final class GpsWorkoutRecorder: NSObject, ObservableObject {
         }
         guard changed else { return }
         pointCount = track.count
-        distanceM = RouteMath.totalMeters(track)
+        distanceM = zip(routePoints, routePoints.dropFirst()).reduce(0.0) { total, pair in
+            let (previous, current) = pair
+            guard previous.segment == current.segment else { return total }
+            return total + RouteMath.haversineMeters(RouteMath.LatLng(previous.lat, previous.lon),
+                                                     RouteMath.LatLng(current.lat, current.lon))
+        }
         let elapsed = RouteMath.activeElapsedSeconds(
             startMs: startMs,
             nowMs: Int64(Date().timeIntervalSince1970 * 1000),

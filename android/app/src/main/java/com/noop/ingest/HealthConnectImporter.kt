@@ -1,5 +1,7 @@
 package com.noop.ingest
 
+import kotlin.math.roundToInt
+
 import android.content.Context
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.permission.HealthPermission
@@ -387,6 +389,7 @@ object HealthConnectImporter {
         var hydrationReadOk: Boolean
 
         val workouts = ArrayList<WorkoutRow>()
+        val timedRoutes = ArrayList<Pair<WorkoutRow, List<com.noop.data.WorkoutRoutePointRow>>>()
         // #1002: each workout's day key, computed at READ time while the record's own zone offset is
         // still in hand. WorkoutRow carries only epoch seconds, so re-deriving the key later would
         // silently fall back to the phone's zone and undo the fix for exactly the travelled sessions
@@ -538,17 +541,12 @@ object HealthConnectImporter {
                 // is in: Data (we have it), ConsentRequired (the user has not granted), or NoData.
                 // A graceful skip on the latter two keeps the import working without the route, so
                 // the workout still lands with its distance/HR — just no map, same as today.
-                val routePolyline: String? = when (val result = r.exerciseRouteResult) {
-                    is ExerciseRouteResult.Data -> {
-                        val pts = result.exerciseRoute.route.map { loc ->
-                            RouteMath.LatLng(loc.latitude, loc.longitude)
-                        }
-                        if (pts.size >= 2) RouteMath.encode(pts) else null
-                    }
-                    else -> null
+                val routeLocations = (r.exerciseRouteResult as? ExerciseRouteResult.Data)
+                    ?.exerciseRoute?.route.orEmpty()
+                val routePolyline = routeLocations.takeIf { it.size >= 2 }?.let { locations ->
+                    RouteMath.encode(locations.map { RouteMath.LatLng(it.latitude, it.longitude) })
                 }
-                workouts.add(
-                    WorkoutRow(
+                val workout = WorkoutRow(
                         deviceId = HC_DEVICE,
                         startTs = startS,
                         endTs = endS,
@@ -568,7 +566,14 @@ object HealthConnectImporter {
                         notes = r.title,
                         routePolyline = routePolyline,
                     )
-                )
+                workouts.add(workout)
+                if (routeLocations.size >= 2) {
+                    timedRoutes.add(workout to routeLocations.mapIndexed { seq, loc ->
+                        com.noop.data.WorkoutRoutePointRow(workout.deviceId, workout.startTs, workout.sport,
+                            seq, (loc.latitude * 1_000_000).roundToInt(), (loc.longitude * 1_000_000).roundToInt(),
+                            loc.time.toEpochMilli())
+                    })
+                }
                 // Count exercises per local day on the start day for the WHOOP daily backfill.
                 val startDay = dayOf(r.startTime, r.startZoneOffset)
                 workoutDays.add(startDay)   // #1002: index-parallel to the add() just above
@@ -857,6 +862,7 @@ object HealthConnectImporter {
             }
             if (workouts.isNotEmpty()) {
                 repo.upsertWorkouts(workouts)
+                timedRoutes.forEach { (row, points) -> repo.replaceWorkoutRoutePoints(row, points) }
             }
         } catch (e: Exception) {
             return ImportSummary.failure(SOURCE, "Saving Health Connect data failed: ${e.message}")

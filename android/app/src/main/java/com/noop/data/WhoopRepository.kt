@@ -1120,6 +1120,12 @@ class WhoopRepository(
     suspend fun upsertJournal(rows: List<JournalEntry>) = dao.upsertJournal(rows)
     suspend fun upsertWorkouts(rows: List<WorkoutRow>) = dao.upsertWorkouts(rows)
 
+    suspend fun workoutRoutePoints(row: WorkoutRow): List<WorkoutRoutePointRow> =
+        dao.workoutRoutePoints(row.deviceId, row.startTs, row.sport)
+
+    suspend fun replaceWorkoutRoutePoints(row: WorkoutRow, points: List<WorkoutRoutePointRow>) =
+        dao.replaceWorkoutRoutePoints(row.deviceId, row.startTs, row.sport, points)
+
     /**
      * Persist analytics-derived fields onto workouts the user already logged. This is deliberately
      * append/update-only: unlike the retired detected-row reconciliation, an empty or interrupted pass
@@ -1594,7 +1600,13 @@ class WhoopRepository(
             // A failed insert must not erase history. If the later delete fails, retaining both rows is
             // safer and recoverable; the caller can retry the edit.
             dao.upsertWorkouts(listOf(row))
+            val oldPoints = workoutRoutePoints(replacing)
+            if (oldPoints.isNotEmpty()) {
+                replaceWorkoutRoutePoints(row, oldPoints.map { it.copy(deviceId = row.deviceId,
+                    startTs = row.startTs, sport = row.sport) })
+            }
             dao.deleteWorkoutByKey(replacing.deviceId, replacing.startTs, replacing.sport)
+            dao.deleteWorkoutRoutePoints(replacing.deviceId, replacing.startTs, replacing.sport)
             return
         }
         dao.upsertWorkouts(listOf(row))
@@ -1634,6 +1646,7 @@ class WhoopRepository(
     suspend fun deleteWorkout(row: WorkoutRow) {
         if (row.source.lowercase().endsWith("-noop")) { dismissDetected(row); return }
         dao.deleteWorkoutByKey(row.deviceId, row.startTs, row.sport)
+        dao.deleteWorkoutRoutePoints(row.deviceId, row.startTs, row.sport)
     }
 
     /**
@@ -1650,13 +1663,23 @@ class WhoopRepository(
         val keptRoute = originals.mapNotNull { it.routePolyline }.maxByOrNull { it.length }
         val mergedWithRoute = if (keptRoute != null) merged.copy(routePolyline = keptRoute) else merged
         saveManualWorkout(mergedWithRoute)
+        val routeSource = originals.firstOrNull { it.routePolyline == keptRoute && keptRoute != null }
+        if (routeSource != null) {
+            val oldPoints = workoutRoutePoints(routeSource)
+            if (oldPoints.isNotEmpty()) replaceWorkoutRoutePoints(mergedWithRoute,
+                oldPoints.map { it.copy(deviceId = mergedWithRoute.deviceId,
+                    startTs = mergedWithRoute.startTs, sport = mergedWithRoute.sport) })
+        }
         // Retire each original. Skip any row whose natural key matches the merged row's, so we never
         // dismiss/delete the span the merged row now owns.
         for (r in originals) {
             if (r.startTs == merged.startTs && r.sport == merged.sport) continue
             when {
                 r.source.lowercase().endsWith("-noop") -> dismissDetected(r)
-                r.source.lowercase() == "manual" -> dao.deleteWorkoutByKey(r.deviceId, r.startTs, r.sport)
+                r.source.lowercase() == "manual" -> {
+                    dao.deleteWorkoutByKey(r.deviceId, r.startTs, r.sport)
+                    dao.deleteWorkoutRoutePoints(r.deviceId, r.startTs, r.sport)
+                }
                 // Defensive: canMerge already excludes imported rows; never rewrite imported history.
                 else -> continue
             }

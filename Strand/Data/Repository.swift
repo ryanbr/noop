@@ -3005,12 +3005,18 @@ final class Repository: ObservableObject {
             // WITH points: this re-stores under a new natural key, and `load` hands back a drawable route
             // only, so a plain load here would drop the recorded measurements on every edit.
             let oldRoute = RouteStore.loadWithPoints(startTs: old.startTs, sport: old.sport)
+            do {
+                try await store.copyWorkoutRoutePoints(fromDeviceId: deviceId, fromStartTs: old.startTs,
+                    fromSport: old.sport, toDeviceId: deviceId, toStartTs: row.startTs, toSport: row.sport)
+            } catch { return }
             if let route = oldRoute {
                 RouteStore.store(route, startTs: row.startTs, sport: row.sport)
             }
             do {
                 _ = try await store.deleteWorkouts(deviceId: deviceId, sport: old.sport,
                                                    from: old.startTs, to: old.startTs)
+                try await store.deleteWorkoutRoutePoints(deviceId: deviceId, startTs: old.startTs,
+                    sport: old.sport)
                 if oldRoute != nil {
                     RouteStore.remove(startTs: old.startTs, sport: old.sport)
                 }
@@ -3076,8 +3082,12 @@ final class Repository: ObservableObject {
         // overlapping-but-differently-keyed session is NOT touched; collapsing those is the dedup's job
         // at display time, not a delete's.
         for id in Self.deletableWorkoutNamespaces(rawIds: rawPhysiologyReadIds(store: store)) {
-            _ = try? await store.deleteWorkouts(deviceId: id, sport: row.sport,
-                                                from: row.startTs, to: row.startTs)
+            do {
+                _ = try await store.deleteWorkouts(deviceId: id, sport: row.sport,
+                                                   from: row.startTs, to: row.startTs)
+                try await store.deleteWorkoutRoutePoints(deviceId: id, startTs: row.startTs,
+                                                         sport: row.sport)
+            } catch { /* A failed row deletion leaves its route points for retry. */ }
         }
     }
 
@@ -3114,6 +3124,13 @@ final class Repository: ObservableObject {
         guard let store = await ensureStore() else { return }
         do { _ = try await store.upsertWorkouts([merged], deviceId: deviceId) }
         catch { return }
+        if let best = bestRoute {
+            do {
+                try await store.copyWorkoutRoutePoints(fromDeviceId: deviceId, fromStartTs: best.startTs,
+                    fromSport: best.sport, toDeviceId: deviceId, toStartTs: merged.startTs,
+                    toSport: merged.sport)
+            } catch { return }
+        }
 
         // Retire each original. Skip any row whose natural key matches the merged row's, so we never
         // dismiss/delete the span the merged row now owns.

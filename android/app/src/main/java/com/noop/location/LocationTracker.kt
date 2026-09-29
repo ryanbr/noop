@@ -54,12 +54,12 @@ class LocationTracker(private val context: Context) {
     // minDistanceM defaults to 0: let the platform deliver every time-based fix (every minIntervalMs)
     // so TrackFilter does the gating. A non-zero platform minDistance compounds with the accuracy gate
     // and suppressed fixes on a weak-signal run, contributing to the under-collected route (#324).
-    fun stream(minIntervalMs: Long = 2000, minDistanceM: Float = 0f): Flow<LatLng> = callbackFlow {
+    fun stream(minIntervalMs: Long = 2000, minDistanceM: Float = 0f): Flow<RawFix> = callbackFlow {
         val lm = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
         val filter = TrackFilter()
         val listener = LocationListener { loc: Location ->
-            filter.accept(RawFix(loc.latitude, loc.longitude, if (loc.hasAccuracy()) loc.accuracy else 0f, loc.time))
-                ?.let { trySend(it) }
+            val fix = RawFix(loc.latitude, loc.longitude, if (loc.hasAccuracy()) loc.accuracy else 0f, loc.time)
+            if (filter.accept(fix) != null) trySend(fix)
         }
         try {
             lm.requestLocationUpdates(

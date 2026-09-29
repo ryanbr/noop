@@ -139,9 +139,11 @@ public struct ActivityFile: Sendable, Equatable {
 public struct RoutePoint: Sendable, Equatable {
     public var lat: Double
     public var lon: Double
-    public init(lat: Double, lon: Double) {
+    public var time: Date?
+    public init(lat: Double, lon: Double, time: Date? = nil) {
         self.lat = lat
         self.lon = lon
+        self.time = time
     }
 }
 
@@ -285,7 +287,10 @@ public enum ActivityFileImporter {
         let times = samples.compactMap { $0.time }
         guard let start = times.min(), let end = times.max() else {
             // No timestamps anywhere: a pure coordinate track (rare). Keep it but with no interval.
-            let route = samples.compactMap { $0.point }
+            let route = samples.compactMap { sample -> RoutePoint? in
+                guard let point = sample.point else { return nil }
+                return RoutePoint(lat: point.lat, lon: point.lon, time: sample.time)
+            }
             guard !route.isEmpty else {
                 return ActivityFileImportResult(activity: nil, kind: kind, skipped: skipped)
             }
@@ -301,7 +306,10 @@ public enum ActivityFileImporter {
             return ActivityFileImportResult(activity: a, kind: kind, skipped: skipped)
         }
 
-        let route = samples.compactMap { $0.point }
+        let route = samples.compactMap { sample -> RoutePoint? in
+                guard let point = sample.point else { return nil }
+                return RoutePoint(lat: point.lat, lon: point.lon, time: sample.time)
+            }
         let hrs = samples.compactMap { $0.hr }
 
         let distance = summaryDistanceM ?? (route.count >= 2 ? routeDistanceM(route) : nil)

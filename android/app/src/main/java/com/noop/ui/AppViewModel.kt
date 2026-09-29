@@ -1701,8 +1701,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         // The process-level session is authoritative for the route: it kept accumulating even if this
         // ViewModel was cleared mid-ride (screen off), so [w.track] may be stale. Stop it and take its
         // final track. A non-GPS workout has nothing in the session, so fall back to the local track. (#215)
-        val track = if (w.gpsEnabled) GpsSession.stop() else w.track
-        val distanceM = if (w.gpsEnabled) RouteMath.totalMeters(track) else w.distanceM
+        val gpsResult = if (w.gpsEnabled) GpsSession.stop() else null
+        val track = gpsResult?.track ?: w.track
+        val distanceM = gpsResult?.distanceM ?: w.distanceM
         // If we promoted the foreground service ONLY to keep GPS tracking alive (the user hasn't opted
         // into the background connection), drop it now the route is finished — otherwise a lingering
         // "Connected" notification would outlive the workout. With background-connection on, leave it
@@ -1787,6 +1788,14 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         buzz(2, HapticPrefs.WORKOUT)
         viewModelScope.launch {
             runCatching { repository.upsertWorkouts(listOf(row)) }
+            if (gpsResult != null && gpsResult.timedPoints.size >= 2) {
+                val points = gpsResult.timedPoints.mapIndexed { seq, pt ->
+                    com.noop.data.WorkoutRoutePointRow(row.deviceId, row.startTs, row.sport, seq,
+                        (pt.lat * 1_000_000).roundToInt(), (pt.lon * 1_000_000).roundToInt(),
+                        pt.tMs, pt.activeElapsedMs, pt.segment)
+                }
+                runCatching { repository.replaceWorkoutRoutePoints(row, points) }
+            }
             // #528: persist the live 1 Hz workout HR into hrSample so it can export to Health Connect
             // at full resolution NOW (the HR export keeps workout-window samples un-decimated), instead
             // of only after the next strap offload sync. IGNORE-on-conflict makes a later sync of the

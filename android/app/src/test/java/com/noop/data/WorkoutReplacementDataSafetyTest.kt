@@ -93,7 +93,7 @@ class WorkoutReplacementDataSafetyTest {
 
         repo.saveManualWorkout(moved, replacing = original)
 
-        assertEquals(listOf("upsertWorkouts", "deleteWorkoutByKey"), calls.map { it.name })
+        assertEquals(listOf("upsertWorkouts", "deleteWorkoutByKey", "deleteWorkoutRoutePoints"), calls.map { it.name })
     }
 
     @Test fun movedManualWriteFailureLeavesOriginalUntouched() = runBlocking {
@@ -126,6 +126,7 @@ class WorkoutReplacementDataSafetyTest {
         WhoopDao::class.java.classLoader,
         arrayOf(WhoopDao::class.java),
     ) { _, method, args ->
+        if (method.name == "workoutRoutePoints") return@newProxyInstance emptyList<WorkoutRoutePointRow>()
         calls += Call(method.name, args?.toList().orEmpty())
         when (method.name) {
             "upsertWorkouts" -> if (failUpsert) throw IllegalStateException("write failed") else Unit
@@ -138,6 +139,7 @@ class WorkoutReplacementDataSafetyTest {
                 onDeleteByKey()
                 Unit
             }
+            "deleteWorkoutRoutePoints" -> Unit
             else -> throw AssertionError("unexpected DAO call ${method.name}")
         }
     } as WhoopDao
