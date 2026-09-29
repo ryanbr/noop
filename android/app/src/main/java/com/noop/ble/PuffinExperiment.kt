@@ -302,8 +302,6 @@ class PuffinExperiment(
         /** "Broadcast heart rate" opt-in (mirrors macOS `PuffinExperiment.broadcastHrKey`). */
         const val KEY_BROADCAST_HR = "noopBroadcastHr"
 
-        /** "ECG raw-data gate" opt-in — the `enable_raw_data_w_ecg` strap write (mirrors macOS
-         *  `PuffinExperiment.ecgRawDataKey`). (#891) */
         /**
          * Opt-in "MG ECG probe" — the Kotlin twin of Apple's `PuffinExperiment.ecgKey`.
          *
@@ -317,6 +315,8 @@ class PuffinExperiment(
          */
         const val KEY_ECG = "noopWhoop5Ecg"
 
+        /** "ECG raw-data gate" opt-in — the `enable_raw_data_w_ecg` strap write (mirrors macOS
+         *  `PuffinExperiment.ecgRawDataKey`). (#891) */
         const val KEY_ECG_RAW_DATA = "noopEcgRawDataGate"
 
         /** "Ask Android to pair" opt-in — the explicit `createBond()` experiment (#1635). Android-only,
