@@ -1786,12 +1786,16 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         }
         buzz(2, HapticPrefs.WORKOUT)
         viewModelScope.launch {
-            runCatching { repository.upsertWorkouts(listOf(row)) }
+            val saved = runCatching { repository.upsertWorkouts(listOf(row)) }.isSuccess
             // #528: persist the live 1 Hz workout HR into hrSample so it can export to Health Connect
             // at full resolution NOW (the HR export keeps workout-window samples un-decimated), instead
             // of only after the next strap offload sync. IGNORE-on-conflict makes a later sync of the
             // same seconds a no-op.
             runCatching { if (samples.isNotEmpty()) repository.insertHr(samples) }
+            // The Workouts screen collects this list even while the live capture sheet is open. Refresh
+            // after the row and HR are persisted so its sessions, stats and first-workout empty state
+            // update without leaving and re-entering the screen.
+            if (saved) loadWorkouts()
             if (_hcWriteback.value) {
                 runCatching { HealthConnectWriter.writeExercise(appContext, row, w.sport.exerciseType) }
                 // #528: export the just-captured HR series now (workout row already upserted above, so
