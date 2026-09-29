@@ -4349,7 +4349,12 @@ public final class BLEManager: NSObject, ObservableObject {
     /// A switch of active WHOOP mid-capture therefore clears the NEW device's key and leaves the old
     /// one latched. That reads like a leak and is not: the first strap genuinely never received a stop,
     /// so it may well still be generating, and the next launch that selects it should say so.
-    private(set) var ecgMayBeRunning = false {
+    ///
+    /// `@Published` because the launch restore below has nothing else to ride on. Setting this from
+    /// `ecgStartCapture` happened to reach the Devices card only because published state changed in the
+    /// same breath (probe steps, log lines); a restore during bootstrap publishes nothing on its own, so
+    /// the card would keep Stop hidden while the strap was still generating.
+    @Published private(set) var ecgMayBeRunning = false {
         didSet {
             guard ecgMayBeRunning != oldValue else { return }
             UserDefaults.standard.set(ecgMayBeRunning, forKey: BLEManager.ecgRunningKey(deviceId))
