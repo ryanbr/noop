@@ -4362,7 +4362,11 @@ public final class BLEManager: NSObject, ObservableObject {
     }
 
     /// Per-device key for the latch above. Never a shared key: see the note there.
-    static func ecgRunningKey(_ deviceId: String) -> String { "noopEcgMayBeRunning.\(deviceId)" }
+    ///
+    /// `nonisolated` because it is a pure function of its argument and touches no actor state. Without
+    /// it the key derivation inherits the type's main-actor isolation, which makes it uncallable from a
+    /// synchronous test and says something untrue about what it needs.
+    nonisolated static func ecgRunningKey(_ deviceId: String) -> String { "noopEcgMayBeRunning.\(deviceId)" }
 
     /// The conditions an ECG action needs, checked BEFORE a run is opened so a rejected action leaves no
     /// "waiting…" sheet sitting for the length of the listen window. `send()` re-checks independently —
