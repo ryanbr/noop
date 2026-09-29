@@ -29,7 +29,10 @@ class LegacyScorePreservationContractTests(unittest.TestCase):
         self.assertIn("respRateBpm: snapshot.respRateBpm", persistence)
         self.assertIn("avgSdnn: snapshot.avgSdnn", persistence)
         self.assertIn("for daily in persistedDailies", persistence)
-        self.assertIn("dailyMetrics: persistedDailies", persistence)
+        # Persistence may window the protected copy per day (preserveUnscoredHistory) or write it
+        # whole. Pin that BOTH branches still read only persistedDailies, not the raw `dailies`.
+        self.assertIn("let dailiesByDay = Dictionary(grouping: persistedDailies, by: \\.day)", persistence)
+        self.assertIn("? dailiesByDay[from, default: []] : persistedDailies", persistence)
         self.assertNotIn("dailies[index] = fresh.with(avgHrv:", persistence)
 
         derivations = source[persistence_end:]
