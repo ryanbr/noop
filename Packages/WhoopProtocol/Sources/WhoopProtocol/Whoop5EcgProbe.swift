@@ -132,11 +132,11 @@ public enum Whoop5EcgProbe {
 
     /// The gate verdict, kept separate from the report text so it is assertable in a test.
     public enum Verdict: Equatable, Sendable {
-        /// Frames that PASS THE STRUCTURAL TRIAGE arrived. Not proof: the triage is a heuristic over
-        /// four booleans, three enum ranges and a length agreement (see
-        /// `Whoop5Ecg.plausibleFilteredPayload`), run against ordinary live 5/MG traffic, so an
-        /// unrelated packet can match. The verdict says "candidate", and confirming it needs the raw
-        /// bytes in the log — never this count alone.
+        /// Revision-17 Labrador records arrived. Stronger than it used to be: the old structural
+        /// heuristic could match an unrelated packet, whereas `Whoop5Ecg.isLabradorR17Frame` requires
+        /// both CRCs, `inner[0] == 43`, `inner[1] == 17` and a sample block that fits. Still called a
+        /// candidate, because what the samples MEAN remains unvalidated here — and confirming a run
+        /// needs the raw bytes in the log, never this count alone.
         case ecgCandidatesArrived(packets: Int)
         /// At least one command that ASKED FOR DATA came back FAILURE: the opcode exists and execution
         /// was refused. WHY it was refused is not on the wire — the reply carries a result code and
@@ -163,9 +163,10 @@ public enum Whoop5EcgProbe {
         public var headline: String {
             switch self {
             case .ecgCandidatesArrived(let packets):
-                return "\(packets) frame(s) matched the ECG structural triage. That is a CANDIDATE, not proof: "
-                    + "the triage is a shape heuristic and unrelated traffic can match it. Confirm against the "
-                    + "raw bytes below before concluding anything about whether the feature is blocked."
+                return "\(packets) revision-17 ECG packet(s) decoded. The strap IS producing the filtered "
+                    + "trace: each one arrived as type 43 revision 17 with both CRCs intact. What the samples "
+                    + "MEAN is still unvalidated here — check the per-packet progress and presence below to see "
+                    + "whether a reading actually advanced, rather than reading the count alone."
             case .dataRequestRefused(let commands):
                 return "DATA REQUEST REFUSED — the firmware returned FAILURE for \(commands.joined(separator: ", ")), "
                     + "which asked it to produce ECG data: it knows the opcode and refused to run it. "
@@ -244,9 +245,9 @@ public enum Whoop5EcgProbe {
 
     /// The full report: verdict, per-command outcomes, the ECG-packet tally, and the raw replies.
     ///
-    /// `candidateFrames` are the type/length lines for frames that passed the structural triage in
-    /// `Whoop5Ecg.plausibleFilteredPayload` — the empirical answer to "which packet type do these arrive
-    /// under", which no table in this repo yet holds.
+    /// `candidateFrames` are the per-packet lines for frames `Whoop5Ecg.r17FromFrame` decoded — the
+    /// sequence, progress and presence of each accepted record, which is what tells a clean run apart
+    /// from one the electrodes kept dropping.
     public static func report(steps: [Step],
                               ecgPacketsSeen: Int,
                               candidateFrames: [String],
@@ -282,9 +283,9 @@ public enum Whoop5EcgProbe {
                 + "the zero.\n"
         }
         if candidateFrames.isEmpty {
-            sb += "Candidate packet types: none — no frame passed the structural triage.\n"
+            sb += "Revision-17 packets decoded: none — no frame arrived as type 43 revision 17.\n"
         } else {
-            sb += "Candidate packet types (structural triage only, NOT a confirmed mapping):\n"
+            sb += "Revision-17 packets decoded (type 43, revision 17, both CRCs checked):\n"
             for line in candidateFrames { sb += "  \(line)\n" }
         }
         let replies = steps.compactMap { step in step.replyHex.map { "  \(step.label): \($0)" } }

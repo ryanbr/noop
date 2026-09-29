@@ -34,6 +34,59 @@ final class Whoop5EcgTests: XCTestCase {
          UInt8(samples & 0xFF), UInt8(samples >> 8)]
     }
 
+    /// A revision-17 INNER record, in wire order: `inner[0]` type, `inner[1]` revision, fixed fields
+    /// through `inner[25]`, then the samples.
+    ///
+    /// Note what `inner[1]` and `inner[2]` are NOT. On a COMMAND frame those offsets are the sequence and
+    /// the opcode, which is what the `[8]type [9]seq [10]cmd` comment in the decoder describes. A DATA
+    /// record reuses the same two bytes for the data revision and a context marker — which is why a
+    /// decoder that started reading fields at `frame[11]` was six bytes off.
+    private func r17Inner(type: UInt8 = 43,
+                          revision: UInt8 = 17,
+                          headerSecondary: UInt8 = 0,
+                          sequence: UInt32 = 7,
+                          strapSeconds: UInt32 = 1_700_000_000,
+                          subseconds: UInt16 = 16_384,
+                          quality: UInt8 = 2,
+                          flags: UInt8 = 0x0A,
+                          result: UInt8 = 0,
+                          state: UInt8 = 1,
+                          progress: UInt8 = 42,
+                          unreadable: UInt8 = 0,
+                          averageHR: UInt8 = 61,
+                          liveHR: UInt8 = 63,
+                          variability: UInt16 = 812,
+                          reserved: UInt8 = 17,
+                          samples: UInt16) -> [UInt8] {
+        var out: [UInt8] = [type, revision, headerSecondary]
+        out += [UInt8(sequence & 0xFF), UInt8((sequence >> 8) & 0xFF),
+                UInt8((sequence >> 16) & 0xFF), UInt8((sequence >> 24) & 0xFF)]
+        out += [UInt8(strapSeconds & 0xFF), UInt8((strapSeconds >> 8) & 0xFF),
+                UInt8((strapSeconds >> 16) & 0xFF), UInt8((strapSeconds >> 24) & 0xFF)]
+        out += [UInt8(subseconds & 0xFF), UInt8(subseconds >> 8)]
+        out += [quality, flags, result, state, progress, unreadable, averageHR, liveHR]
+        out += [UInt8(variability & 0xFF), UInt8(variability >> 8)]
+        out += [reserved, UInt8(samples & 0xFF), UInt8(samples >> 8)]
+        return out
+    }
+
+    /// "Does this frame decode as an R17?" — a TEST-local predicate over the product entry point.
+    ///
+    /// Deliberately not a shipped helper: the probe calls `r17FromFrame` and uses the packet, so a
+    /// separate boolean wrapper in the package would be a declaration nothing in production runs.
+    private func r17IsRecognised(_ frame: [UInt8], allowStored: Bool = false) -> Bool {
+        Whoop5Ecg.r17FromFrame(frame, allowStored: allowStored) != nil
+    }
+
+    /// Wrap an inner record in a valid puffin envelope. The inner record starts at `frame[8]`, so the
+    /// builder takes everything from the type byte onwards.
+    private func r17Frame(_ inner: [UInt8]) -> [UInt8] {
+        puffinCommandFrame(cmd: inner.count > 2 ? inner[2] : 0,
+                           seq: inner.count > 1 ? inner[1] : 0,
+                           payload: Array(inner.dropFirst(3)),
+                           type: inner[0])
+    }
+
     private func i16le(_ values: [Int16]) -> [UInt8] {
         values.flatMap { v -> [UInt8] in
             let u = UInt16(bitPattern: v)
@@ -51,76 +104,158 @@ final class Whoop5EcgTests: XCTestCase {
         puffinCommandFrame(cmd: 0x00, seq: 0x01, payload: payload, type: type)
     }
 
-    // MARK: - Filtered packet
+    // MARK: - Revision-17 packet
 
-    func testFilteredDecodesEveryFieldInWireOrder() {
+    func testR17DecodesEveryFieldInWireOrder() {
         let samples: [Int16] = [0, 1, -1, 32_767, -32_768, 250, -250]
-        let payload = header(samples: UInt16(samples.count)) + i16le(samples)
-        let packet = Whoop5Ecg.decodeFiltered(payload: payload)
+        let inner = r17Inner(samples: UInt16(samples.count)) + i16le(samples)
+        let packet = Whoop5Ecg.parseR17(inner: inner)
         XCTAssertNotNil(packet)
         guard let packet else { return }
 
-        XCTAssertEqual(packet.header.signalQuality, .medium)
-        XCTAssertEqual(packet.header.statusFlags, 0x05)
-        XCTAssertTrue(packet.header.heartKeyStarted)
-        XCTAssertTrue(packet.header.heartKeyIsRunning)
-        XCTAssertFalse(packet.header.heartKeyIsStoppedAndComplete)
-        XCTAssertTrue(packet.header.heartKeyLeadsAreOn)
-        XCTAssertEqual(packet.header.heartKeyArrhythmiaCheckResult, .notComplete)
-        XCTAssertEqual(packet.header.heartKeyArrhythmiaCheckStatus, .inProgress)
-        XCTAssertEqual(packet.header.heartKeyProgress, .percent(42))
-        XCTAssertEqual(packet.header.heartKeyProgress.percentValue, 42)
-        XCTAssertEqual(packet.header.heartKeyUnreadableReason, 0)
-        XCTAssertEqual(packet.header.heartKeyAverageHR, 61)
-        XCTAssertEqual(packet.header.heartKeyHR, 63)
-        XCTAssertEqual(packet.header.heartKeyHRV, 812)          // u16 LE, not two u8s
-        XCTAssertEqual(packet.header.heartKeyStressScore, 17)
-        XCTAssertEqual(packet.header.numberOfECGSamples, 7)
-        XCTAssertEqual(packet.filteredECGDataRaw, samples)      // signed, LE
-        XCTAssertTrue(packet.padding.isEmpty)
+        XCTAssertEqual(packet.packetType, 43)
+        XCTAssertEqual(packet.headerSecondary, 0)
+        XCTAssertEqual(packet.sequence, 7)
+        XCTAssertEqual(packet.strapSeconds, 1_700_000_000)
+        XCTAssertEqual(packet.subseconds, 16_384)
+        XCTAssertEqual(packet.signalQuality, .medium)
+        XCTAssertEqual(packet.signalQualityRaw, 2)
+        XCTAssertEqual(packet.flags.raw, 0x0A)
+        XCTAssertEqual(packet.arrhythmiaCheckResult, .notComplete)
+        XCTAssertEqual(packet.arrhythmiaCheckResultRaw, 0)
+        XCTAssertEqual(packet.classifierState, 1)
+        XCTAssertEqual(packet.progress, .percent(42))
+        XCTAssertEqual(packet.progress.percentValue, 42)
+        XCTAssertEqual(packet.unreadable.raw, 0)
+        XCTAssertEqual(packet.averageHR, 61)
+        XCTAssertEqual(packet.liveHR, 63)
+        XCTAssertEqual(packet.variabilityRaw, 812)              // u16 LE, not two u8s
+        XCTAssertEqual(packet.reserved, 17)
+        XCTAssertEqual(packet.sampleCount, 7)
+        XCTAssertEqual(packet.samples, samples)                 // signed, LE
+        XCTAssertTrue(packet.tail.isEmpty)
     }
 
-    func testFilteredCarriesTrailingPadding() {
-        let payload = header(samples: 2) + i16le([5, -5]) + [0x00, 0x00, 0x00]
-        let packet = Whoop5Ecg.decodeFiltered(payload: payload)
-        XCTAssertEqual(packet?.filteredECGDataRaw, [5, -5])
-        XCTAssertEqual(packet?.padding, [0x00, 0x00, 0x00])
+    /// The offset that says the source-closed layout and the layout OBSERVED on hardware are the same
+    /// record. `rawWaveformStart` was measured on an MG before any of this was decoded; it has to equal
+    /// where the R17 sample block begins, or one of the two readings is wrong.
+    func testTheObservedWaveformOffsetEqualsTheR17SampleStart() {
+        XCTAssertEqual(Whoop5Ecg.rawWaveformStart,
+                       Whoop5Ecg.rawTypeOffset + Whoop5Ecg.r17SampleStart)
     }
 
-    func testFilteredZeroSamplesIsValid() {
-        // A status-only packet (leads off, nothing captured yet) is legitimate, not an error.
-        let payload = header(leadsOn: 0, samples: 0)
-        let packet = Whoop5Ecg.decodeFiltered(payload: payload)
+    func testR17FlagsDecodeBitByBit() {
+        XCTAssertTrue(EcgLabradorFlags(raw: 0x01).enteringStateOne)
+        XCTAssertTrue(EcgLabradorFlags(raw: 0x02).currentStateOne)
+        XCTAssertTrue(EcgLabradorFlags(raw: 0x04).stateTransitionOneToTwo)
+        XCTAssertTrue(EcgLabradorFlags(raw: 0x08).presence)
+        XCTAssertFalse(EcgLabradorFlags(raw: 0x07).presence)
+        // 0x0c is the terminal frame's physically observed value: transition set, presence set.
+        let terminal = EcgLabradorFlags(raw: 0x0C)
+        XCTAssertTrue(terminal.stateTransitionOneToTwo)
+        XCTAssertTrue(terminal.presence)
+        XCTAssertFalse(terminal.currentStateOne)
+    }
+
+    /// The bug the whole layout correction is about, pinned as a value.
+    ///
+    /// The superseded triage required `payload[4] <= 1 && payload[5] <= 1`. Those two bytes are this
+    /// record's quality (0...3) and flags. A packet reporting electrode contact has `0x08` set in flags,
+    /// so it could never satisfy that check — every packet carrying a real reading was discarded.
+    func testAPresencePositivePacketIsAcceptedNow() {
+        let inner = r17Inner(quality: 3, flags: 0x0A, samples: 2) + i16le([1, 2])
+        let packet = Whoop5Ecg.parseR17(inner: inner)
+        XCTAssertNotNil(packet, "a contact-positive packet must decode")
+        XCTAssertTrue(packet?.presence == true)
+        XCTAssertGreaterThan(Int(packet?.flags.raw ?? 0), 1, "precondition: the old triage capped this at 1")
+        XCTAssertGreaterThan(Int(packet?.signalQualityRaw ?? 0), 1, "precondition: same for quality")
+    }
+
+    func testR17UnreadableMaskNamesItsBits() {
+        XCTAssertEqual(EcgUnreadableMask(raw: 0x00).reasons, [])
+        XCTAssertEqual(EcgUnreadableMask(raw: 0x01).reasons, ["low_amplitude"])
+        XCTAssertEqual(EcgUnreadableMask(raw: 0x0F).reasons,
+                       ["low_amplitude", "significant_noise", "unstable_signal", "not_enough_data"])
+        // An unmapped bit is reported as unknown, never folded onto a named reason.
+        XCTAssertEqual(EcgUnreadableMask(raw: 0x10).reasons, ["unknown_bits_0x10"])
+    }
+
+    func testR17TerminalAndInvalidPredicates() {
+        let running = Whoop5Ecg.parseR17(inner: r17Inner(state: 1, progress: 42, samples: 0))
+        XCTAssertEqual(running?.isTerminal, false)
+        XCTAssertEqual(running?.isInvalid, false)
+        // Either condition alone is terminal.
+        XCTAssertEqual(Whoop5Ecg.parseR17(inner: r17Inner(state: 1, progress: 100, samples: 0))?.isTerminal, true)
+        XCTAssertEqual(Whoop5Ecg.parseR17(inner: r17Inner(state: 2, progress: 42, samples: 0))?.isTerminal, true)
+        // 255 is the abort sentinel, and it is NOT a completion.
+        let invalid = Whoop5Ecg.parseR17(inner: r17Inner(state: 1, progress: 255, samples: 0))
+        XCTAssertEqual(invalid?.isInvalid, true)
+        XCTAssertEqual(invalid?.isTerminal, false)
+    }
+
+    func testR17VariabilitySentinelBecomesNil() {
+        XCTAssertNil(Whoop5Ecg.parseR17(inner: r17Inner(variability: 0xFFFF, samples: 0))?.variabilityRaw)
+        XCTAssertEqual(Whoop5Ecg.parseR17(inner: r17Inner(variability: 0xFFFE, samples: 0))?.variabilityRaw, 0xFFFE)
+    }
+
+    func testR17CarriesTrailingBytesAsTail() {
+        let inner = r17Inner(samples: 2) + i16le([5, -5]) + [0x00, 0x00, 0x00]
+        let packet = Whoop5Ecg.parseR17(inner: inner)
+        XCTAssertEqual(packet?.samples, [5, -5])
+        XCTAssertEqual(packet?.tail, [0x00, 0x00, 0x00])
+    }
+
+    func testR17ZeroSamplesIsValid() {
+        // A status-only packet (no contact, nothing captured yet) is legitimate, not an error.
+        let packet = Whoop5Ecg.parseR17(inner: r17Inner(flags: 0x00, samples: 0))
         XCTAssertNotNil(packet)
-        XCTAssertEqual(packet?.filteredECGDataRaw, [])
-        XCTAssertEqual(packet?.header.heartKeyLeadsAreOn, false)
+        XCTAssertEqual(packet?.samples, [])
+        XCTAssertEqual(packet?.presence, false)
     }
 
-    func testFilteredRejectsShortHeader() {
-        for count in 0..<Whoop5Ecg.headerLength {
-            let payload = [UInt8](repeating: 0, count: count)
-            XCTAssertNil(Whoop5Ecg.decodeFiltered(payload: payload), "\(count)-byte payload must not decode")
+    func testR17RejectsShortRecord() {
+        for count in 0..<Whoop5Ecg.r17FixedLength {
+            var inner = [UInt8](repeating: 0, count: count)
+            if count > 0 { inner[0] = 43 }
+            if count > 1 { inner[1] = 17 }
+            XCTAssertNil(Whoop5Ecg.parseR17(inner: inner), "\(count)-byte record must not decode")
         }
     }
 
-    func testFilteredRejectsSampleCountLongerThanBuffer() {
-        // numberOfECGSamples says 10; only 3 samples are present. Fail closed — never a partial decode.
-        let payload = header(samples: 10) + i16le([1, 2, 3])
-        XCTAssertNil(Whoop5Ecg.decodeFiltered(payload: payload))
+    func testR17RejectsTheWrongTypeOrRevision() {
+        XCTAssertNil(Whoop5Ecg.parseR17(inner: r17Inner(type: 47, samples: 0)), "stored needs allowStored")
+        XCTAssertNotNil(Whoop5Ecg.parseR17(inner: r17Inner(type: 47, samples: 0), allowStored: true))
+        XCTAssertNil(Whoop5Ecg.parseR17(inner: r17Inner(type: 40, samples: 0), allowStored: true))
+        // Revision 16 is the RAW record and shares the type byte. Reading it as an R17 would invent
+        // fields, so the revision check is what keeps the two apart.
+        XCTAssertNil(Whoop5Ecg.parseR17(inner: r17Inner(revision: 16, samples: 0)))
     }
 
-    func testFilteredRejectsSampleCountOffByOneByte() {
+    func testR17RejectsSampleCountLongerThanBuffer() {
+        // sampleCount says 10; only 3 samples are present. Fail closed — never a partial decode.
+        XCTAssertNil(Whoop5Ecg.parseR17(inner: r17Inner(samples: 10) + i16le([1, 2, 3])))
+    }
+
+    func testR17RejectsSampleCountOffByOneByte() {
         // One byte short of the declared 4 samples: the array must not be silently truncated to 3.
-        let payload = header(samples: 4) + i16le([1, 2, 3]) + [0x07]
-        XCTAssertNil(Whoop5Ecg.decodeFiltered(payload: payload))
+        XCTAssertNil(Whoop5Ecg.parseR17(inner: r17Inner(samples: 4) + i16le([1, 2, 3]) + [0x07]))
     }
 
-    func testFilteredExtraSamplesBeyondTheCountBecomePadding() {
-        // The count is authoritative: bytes past it are padding, never extra samples.
-        let payload = header(samples: 2) + i16le([9, 9, 9, 9])
-        let packet = Whoop5Ecg.decodeFiltered(payload: payload)
-        XCTAssertEqual(packet?.filteredECGDataRaw.count, 2)
-        XCTAssertEqual(packet?.padding.count, 4)
+    func testR17RejectsMoreSamplesThanTheWireCanCarry() {
+        // 100 is the physical capacity. A count above it is a corrupt or misread record, not a big packet.
+        let over = Int(Whoop5Ecg.r17MaxSamples) + 1
+        let inner = r17Inner(samples: UInt16(over)) + [UInt8](repeating: 0, count: over * 2)
+        XCTAssertNil(Whoop5Ecg.parseR17(inner: inner))
+        let atLimit = r17Inner(samples: UInt16(Whoop5Ecg.r17MaxSamples))
+            + [UInt8](repeating: 0, count: Whoop5Ecg.r17MaxSamples * 2)
+        XCTAssertNotNil(Whoop5Ecg.parseR17(inner: atLimit), "exactly 100 is on the wire, not over it")
+    }
+
+    func testR17ExtraSamplesBeyondTheCountBecomeTail() {
+        // The count is authoritative: bytes past it are tail, never extra samples.
+        let packet = Whoop5Ecg.parseR17(inner: r17Inner(samples: 2) + i16le([9, 9, 9, 9]))
+        XCTAssertEqual(packet?.samples.count, 2)
+        XCTAssertEqual(packet?.tail.count, 4)
     }
 
     // MARK: - Enum coverage
@@ -137,58 +272,40 @@ final class Whoop5EcgTests: XCTestCase {
         ]
         XCTAssertEqual(expected.count, EcgArrhythmiaCheckResult.allCases.count)
         for (raw, expectedCase, token) in expected {
-            let payload = header(arrhythmiaResult: raw, samples: 1) + i16le([0])
-            let packet = Whoop5Ecg.decodeFiltered(payload: payload)
-            XCTAssertEqual(packet?.header.heartKeyArrhythmiaCheckResult, expectedCase, "raw \(raw)")
-            XCTAssertEqual(packet?.header.heartKeyArrhythmiaCheckResultRaw, raw)
+            let packet = Whoop5Ecg.parseR17(inner: r17Inner(result: raw, samples: 1) + i16le([0]))
+            XCTAssertEqual(packet?.arrhythmiaCheckResult, expectedCase, "raw \(raw)")
+            XCTAssertEqual(packet?.arrhythmiaCheckResultRaw, raw)
             XCTAssertEqual(expectedCase.token, token)
         }
     }
 
     func testUnknownArrhythmiaResultIsCarriedRawNotCoerced() {
         // A firmware value outside the table must NOT be folded onto a known case.
-        let payload = header(arrhythmiaResult: 200, samples: 1) + i16le([0])
-        let packet = Whoop5Ecg.decodeFiltered(payload: payload)
-        XCTAssertNil(packet?.header.heartKeyArrhythmiaCheckResult)
-        XCTAssertEqual(packet?.header.heartKeyArrhythmiaCheckResultRaw, 200)
-    }
-
-    func testEveryArrhythmiaCheckStatusCaseDecodes() {
-        let expected: [(UInt8, EcgArrhythmiaCheckStatus)] = [
-            (0, .notRunning), (1, .inProgress), (2, .checkComplete),
-        ]
-        XCTAssertEqual(expected.count, EcgArrhythmiaCheckStatus.allCases.count)
-        for (raw, expectedCase) in expected {
-            let payload = header(arrhythmiaStatus: raw, samples: 0)
-            XCTAssertEqual(Whoop5Ecg.decodeFiltered(payload: payload)?.header.heartKeyArrhythmiaCheckStatus,
-                           expectedCase)
-        }
-        let bad = header(arrhythmiaStatus: 9, samples: 0)
-        XCTAssertNil(Whoop5Ecg.decodeFiltered(payload: bad)?.header.heartKeyArrhythmiaCheckStatus)
-        XCTAssertEqual(Whoop5Ecg.decodeFiltered(payload: bad)?.header.heartKeyArrhythmiaCheckStatusRaw, 9)
+        let packet = Whoop5Ecg.parseR17(inner: r17Inner(result: 200, samples: 1) + i16le([0]))
+        XCTAssertNil(packet?.arrhythmiaCheckResult)
+        XCTAssertEqual(packet?.arrhythmiaCheckResultRaw, 200)
     }
 
     func testEverySignalQualityCaseDecodes() {
         for quality in EcgSignalQuality.allCases {
-            let payload = header(signalQuality: quality.rawValue, samples: 0)
-            XCTAssertEqual(Whoop5Ecg.decodeFiltered(payload: payload)?.header.signalQuality, quality)
+            XCTAssertEqual(Whoop5Ecg.parseR17(inner: r17Inner(quality: quality.rawValue, samples: 0))?.signalQuality,
+                           quality)
         }
         // Out of range falls back to .unknown but keeps the raw byte.
-        let payload = header(signalQuality: 77, samples: 0)
-        XCTAssertEqual(Whoop5Ecg.decodeFiltered(payload: payload)?.header.signalQuality, .unknown)
-        XCTAssertEqual(Whoop5Ecg.decodeFiltered(payload: payload)?.header.signalQualityRaw, 77)
+        let packet = Whoop5Ecg.parseR17(inner: r17Inner(quality: 77, samples: 0))
+        XCTAssertEqual(packet?.signalQuality, .unknown)
+        XCTAssertEqual(packet?.signalQualityRaw, 77)
     }
 
     func testProgressPercentInRangeAndRawOutside() {
         for value: UInt8 in [0, 1, 50, 99, 100] {
-            let payload = header(progress: value, samples: 0)
-            XCTAssertEqual(Whoop5Ecg.decodeFiltered(payload: payload)?.header.heartKeyProgress, .percent(value))
+            XCTAssertEqual(Whoop5Ecg.parseR17(inner: r17Inner(progress: value, samples: 0))?.progress,
+                           .percent(value))
         }
-        // 101...255 is out of percentage range. The source type has a "timed out" case, but its sentinel
-        // value is not attested, so the byte is carried raw rather than renamed into a state we can't prove.
+        // 101...255 is out of percentage range. 255 is the strap's abort sentinel; the rest have no
+        // attested meaning, so the byte is carried raw rather than renamed into a state we can't prove.
         for value: UInt8 in [101, 200, 255] {
-            let payload = header(progress: value, samples: 0)
-            let progress = Whoop5Ecg.decodeFiltered(payload: payload)?.header.heartKeyProgress
+            let progress = Whoop5Ecg.parseR17(inner: r17Inner(progress: value, samples: 0))?.progress
             XCTAssertEqual(progress, .unmapped(value))
             XCTAssertNil(progress?.percentValue)
             XCTAssertEqual(progress?.raw, value)
@@ -287,45 +404,61 @@ final class Whoop5EcgTests: XCTestCase {
 
     // MARK: - Frame level (CRC gating)
 
-    func testFilteredFrameDecodesThroughAValidPuffinEnvelope() {
+    func testR17DecodesThroughAValidPuffinEnvelope() {
         let samples: [Int16] = [10, -10, 300]
-        let payload = header(samples: UInt16(samples.count)) + i16le(samples)
-        let frame = puffinFrame(type: 0x28, payload: payload)
+        let frame = r17Frame(r17Inner(samples: UInt16(samples.count)) + i16le(samples))
         XCTAssertTrue(verifyFrame(frame, family: .whoop5).ok)
 
-        let packet = Whoop5Ecg.decodeFilteredFrame(frame)
-        XCTAssertEqual(packet?.filteredECGDataRaw, samples)
-        XCTAssertEqual(packet?.header.heartKeyHR, 63)
+        let packet = Whoop5Ecg.r17FromFrame(frame)
+        XCTAssertEqual(packet?.samples, samples)
+        XCTAssertEqual(packet?.liveHR, 63)
+        // The record starts at frame[8], so the samples land at frame[34] — the offset observed on an MG.
+        XCTAssertEqual(frame[Whoop5Ecg.rawTypeOffset], 43)
+        XCTAssertEqual(frame[Whoop5Ecg.rawTypeOffset + 1], 17)
+        // `tail` is record bytes only. Slicing the frame to its END instead of to the declared length
+        // would put the four-byte CRC32 trailer in here and call it part of the record.
+        XCTAssertTrue(packet?.tail.isEmpty == true, "the CRC32 trailer is envelope, not tail")
     }
 
-    func testFilteredFrameRejectsBadCRC32() {
-        let payload = header(samples: 2) + i16le([1, 2])
-        var frame = puffinFrame(type: 0x28, payload: payload)
+    /// The same guarantee with a tail that genuinely exists, so an empty-tail assertion cannot pass for
+    /// the wrong reason.
+    ///
+    /// Two samples, not one: the inner record is padded to a 4-byte boundary, so an odd sample count
+    /// puts pad bytes in `tail` too and the exact-bytes assertion stops being about the CRC at all.
+    /// 26 fixed + 4 sample + 2 trailing = 32, already aligned.
+    func testTailStopsAtTheCrcTrailer() {
+        let frame = r17Frame(r17Inner(samples: 2) + i16le([1, 2]) + [0xAB, 0xCD])
+        let packet = Whoop5Ecg.r17FromFrame(frame)
+        XCTAssertEqual(packet?.tail, [0xAB, 0xCD])
+        // Decisive: the four CRC32 bytes the envelope ends with are absent from the record's tail.
+        XCTAssertFalse(packet?.tail.suffix(4).elementsEqual(frame.suffix(4)) == true)
+    }
+
+    func testR17FrameRejectsBadCRC32() {
+        var frame = r17Frame(r17Inner(samples: 2) + i16le([1, 2]))
         frame[frame.count - 1] ^= 0xFF                        // corrupt the CRC32 trailer
         XCTAssertFalse(verifyFrame(frame, family: .whoop5).ok)
-        XCTAssertNil(Whoop5Ecg.decodeFilteredFrame(frame), "a bad CRC must never reach a field read")
+        XCTAssertNil(Whoop5Ecg.r17FromFrame(frame), "a bad CRC must never reach a field read")
     }
 
-    func testFilteredFrameRejectsBadHeaderCRC16() {
-        let payload = header(samples: 2) + i16le([1, 2])
-        var frame = puffinFrame(type: 0x28, payload: payload)
+    func testR17FrameRejectsBadHeaderCRC16() {
+        var frame = r17Frame(r17Inner(samples: 2) + i16le([1, 2]))
         frame[6] ^= 0xFF                                      // corrupt the CRC16 header check
         XCTAssertFalse(verifyFrame(frame, family: .whoop5).ok)
-        XCTAssertNil(Whoop5Ecg.decodeFilteredFrame(frame))
+        XCTAssertNil(Whoop5Ecg.r17FromFrame(frame))
     }
 
-    func testFilteredFrameRejectsCorruptedBodyThatBreaksCRC() {
-        let payload = header(samples: 2) + i16le([1, 2])
-        var frame = puffinFrame(type: 0x28, payload: payload)
-        frame[12] ^= 0x01                                     // flip a status bit; CRC32 no longer matches
+    func testR17FrameRejectsCorruptedBodyThatBreaksCRC() {
+        var frame = r17Frame(r17Inner(samples: 2) + i16le([1, 2]))
+        frame[12] ^= 0x01                                     // flip a field byte; CRC32 no longer matches
         XCTAssertFalse(verifyFrame(frame, family: .whoop5).ok)
-        XCTAssertNil(Whoop5Ecg.decodeFilteredFrame(frame))
+        XCTAssertNil(Whoop5Ecg.r17FromFrame(frame))
     }
 
-    func testFrameRejectsGarbageAndShortInput() {
-        XCTAssertNil(Whoop5Ecg.decodeFilteredFrame([]))
-        XCTAssertNil(Whoop5Ecg.decodeFilteredFrame([0xAA, 0x01, 0x00]))
-        XCTAssertNil(Whoop5Ecg.decodeFilteredFrame([UInt8](repeating: 0xFF, count: 64)))
+    func testR17FrameRejectsGarbageAndShortInput() {
+        XCTAssertNil(Whoop5Ecg.r17FromFrame([]))
+        XCTAssertNil(Whoop5Ecg.r17FromFrame([0xAA, 0x01, 0x00]))
+        XCTAssertNil(Whoop5Ecg.r17FromFrame([UInt8](repeating: 0xFF, count: 64)))
     }
 
     func testRawFrameDecodesThroughAValidPuffinEnvelope() {
@@ -344,36 +477,49 @@ final class Whoop5EcgTests: XCTestCase {
         XCTAssertNil(Whoop5Ecg.decodeRawFrame(frame, bytesPerSample: 2))
     }
 
-    // MARK: - Structural triage (packet-type discovery)
+    // MARK: - Packet recognition
 
-    func testPlausibleFilteredPayloadAcceptsAWellFormedPacket() {
-        let payload = header(samples: 3) + i16le([1, 2, 3])
-        XCTAssertTrue(Whoop5Ecg.plausibleFilteredPayload(payload))
+    func testIsLabradorR17FrameAcceptsAWellFormedRecord() {
+        XCTAssertTrue(r17IsRecognised(r17Frame(r17Inner(samples: 3) + i16le([1, 2, 3]))))
     }
 
-    func testPlausibleFilteredPayloadRejectsNonBooleanFlagBytes() {
-        let payload = header(started: 7, samples: 3) + i16le([1, 2, 3])
-        XCTAssertFalse(Whoop5Ecg.plausibleFilteredPayload(payload))
+    /// What the superseded heuristic got wrong, as a test rather than a comment.
+    ///
+    /// It read a status block from `frame[11]` and required four of those bytes to be 0 or 1. Two of them
+    /// are this record's quality and flags bytes. A packet with electrode contact carries `0x08` in
+    /// flags, so the triage rejected exactly the packets a reading is made of. The recogniser that
+    /// replaced it keys on the record's own type and revision instead.
+    func testRecognitionDoesNotDependOnTheBytesTheOldHeuristicCapped() {
+        for flags: UInt8 in [0x00, 0x02, 0x08, 0x0A, 0x0C] {
+            for quality: UInt8 in [0, 1, 2, 3] {
+                let frame = r17Frame(r17Inner(quality: quality, flags: flags, samples: 2) + i16le([1, 2]))
+                XCTAssertTrue(r17IsRecognised(frame),
+                              "flags=0x\(String(flags, radix: 16)) quality=\(quality) must be recognised")
+            }
+        }
     }
 
-    func testPlausibleFilteredPayloadRejectsOutOfRangeEnums() {
-        XCTAssertFalse(Whoop5Ecg.plausibleFilteredPayload(header(signalQuality: 9, samples: 2) + i16le([1, 2])))
-        XCTAssertFalse(Whoop5Ecg.plausibleFilteredPayload(header(arrhythmiaResult: 9, samples: 2) + i16le([1, 2])))
-        XCTAssertFalse(Whoop5Ecg.plausibleFilteredPayload(header(arrhythmiaStatus: 9, samples: 2) + i16le([1, 2])))
+    func testIsLabradorR17FrameRejectsOtherRecords() {
+        // Right type, wrong revision: the RAW (revision 16) record must not be read as filtered.
+        XCTAssertFalse(r17IsRecognised(r17Frame(r17Inner(revision: 16, samples: 2) + i16le([1, 2]))))
+        // Right revision, a type nothing in this family uses.
+        XCTAssertFalse(r17IsRecognised(r17Frame(r17Inner(type: 40, samples: 2) + i16le([1, 2]))))
+        // Stored records need to be asked for.
+        let stored = r17Frame(r17Inner(type: 47, samples: 2) + i16le([1, 2]))
+        XCTAssertFalse(r17IsRecognised(stored))
+        XCTAssertTrue(r17IsRecognised(stored, allowStored: true))
     }
 
-    func testPlausibleFilteredPayloadRejectsLengthDisagreement() {
-        XCTAssertFalse(Whoop5Ecg.plausibleFilteredPayload(header(samples: 40) + i16le([1, 2])))
-        // Far more trailing bytes than the pad4 budget → not this layout.
-        XCTAssertFalse(Whoop5Ecg.plausibleFilteredPayload(header(samples: 1) + i16le([1]) + [UInt8](repeating: 0, count: 40)))
+    func testIsLabradorR17FrameIsCrcGated() {
+        var frame = r17Frame(r17Inner(samples: 2) + i16le([1, 2]))
+        XCTAssertTrue(r17IsRecognised(frame), "precondition: intact")
+        frame[frame.count - 1] ^= 0xFF
+        XCTAssertFalse(r17IsRecognised(frame), "a bad CRC must not pass recognition")
     }
 
-    func testPlausibleFilteredPayloadRejectsEmptyAndZeroSampleBuffers() {
-        XCTAssertFalse(Whoop5Ecg.plausibleFilteredPayload([]))
-        // Zero samples is a VALID packet but a useless triage signal (an all-zero buffer would match), so
-        // the sniffer deliberately requires at least one sample.
-        XCTAssertFalse(Whoop5Ecg.plausibleFilteredPayload(header(samples: 0)))
-        XCTAssertFalse(Whoop5Ecg.plausibleFilteredPayload([UInt8](repeating: 0, count: 64)))
+    func testIsLabradorR17FrameRejectsEmptyAndGarbage() {
+        XCTAssertFalse(r17IsRecognised([]))
+        XCTAssertFalse(r17IsRecognised([UInt8](repeating: 0, count: 64)))
     }
 
     // MARK: - Commands
@@ -396,8 +542,11 @@ final class Whoop5EcgTests: XCTestCase {
     }
 
     func testCommandPayloadIsRevisionThenArg() {
-        XCTAssertEqual(Whoop5Ecg.selectWristPayload(.right), [0x01, 0x00])
-        XCTAssertEqual(Whoop5Ecg.selectWristPayload(.left), [0x01, 0x01])
+        // LITERAL wire bytes, for the same reason the control-signal pin below spells them out: the old
+        // right=0/left=1 reading of the client's declaration order was wrong, and a test written through
+        // `.rawValue` would have moved with the enum and stayed green.
+        XCTAssertEqual(Whoop5Ecg.selectWristPayload(.right), [0x01, 0x01])
+        XCTAssertEqual(Whoop5Ecg.selectWristPayload(.left), [0x01, 0x02])
         XCTAssertEqual(Whoop5Ecg.togglePayload(on: true), [0x01, 0x01])
         XCTAssertEqual(Whoop5Ecg.togglePayload(on: false), [0x01, 0x00])
         XCTAssertEqual(Whoop5Ecg.controlPayload(.stop), [0x01, 0x01])
@@ -409,7 +558,7 @@ final class Whoop5EcgTests: XCTestCase {
         // must produce byte-identical output, so a test pins the wire form without a strap.
         let seq: UInt8 = 9
         XCTAssertEqual(Whoop5Ecg.selectWristFrame(.left, seq: seq),
-                       puffinCommandFrame(cmd: 0x7B, seq: seq, payload: [0x01, 0x01]))
+                       puffinCommandFrame(cmd: 0x7B, seq: seq, payload: [0x01, 0x02]))
         XCTAssertEqual(Whoop5Ecg.toggleRealtimeFilteredEcgFrame(on: true, seq: seq),
                        puffinCommandFrame(cmd: 0x8B, seq: seq, payload: [0x01, 0x01]))
         XCTAssertEqual(Whoop5Ecg.toggleSaveRawEcgFrame(on: false, seq: seq),
@@ -538,11 +687,19 @@ final class Whoop5EcgTests: XCTestCase {
                        .ecgCandidatesArrived(packets: 12))
     }
 
+    /// The hedge MOVED; it did not go away, and this repins it where it now belongs.
+    ///
+    /// It used to read "CANDIDATE, not proof", because the packets were found by a shape heuristic that
+    /// unrelated traffic could match. They are now identified by type and data revision with both CRCs
+    /// checked, so "these are R17 packets" is a fact and hedging it would be false modesty. What is still
+    /// unvalidated here is what the SAMPLES mean, and that is what the report must keep saying.
+    ///
+    /// The two negative assertions are unchanged: neither wording may conclude the feature is unblocked.
     func testCandidateVerdictIsHedgedNotAssertedAsProof() {
         let text = Whoop5EcgProbe.report(
             steps: [sent(124, arg: 2, .success)],
-            ecgPacketsSeen: 3, candidateFrames: ["type=0x28 len=220"], windowSeconds: 30)
-        XCTAssertTrue(text.contains("CANDIDATE, not proof"))
+            ecgPacketsSeen: 3, candidateFrames: ["type=0x2b len=240 seq=7"], windowSeconds: 30)
+        XCTAssertTrue(text.contains("still unvalidated here"))
         // The old wording asserted the conclusion outright; it must not come back.
         XCTAssertFalse(text.contains("Not blocked"))
         XCTAssertFalse(text.contains("is ACTIVE"))
@@ -800,17 +957,17 @@ final class Whoop5EcgTests: XCTestCase {
     /// classes the verifier newly rejects must stop here rather than being read as ECG samples.
     func testTheOrdinaryEcgFrameStillYieldsItsPayload() {
         let samples: [Int16] = [10, -10, 300]
-        let frame = puffinFrame(type: 0x28, payload: header(samples: UInt16(samples.count)) + i16le(samples))
+        let frame = r17Frame(r17Inner(samples: UInt16(samples.count)) + i16le(samples))
         XCTAssertEqual(verifyFrame(frame, family: .whoop5).reason, .none, "precondition: intact")
         XCTAssertNotNil(Whoop5Ecg.innerPayload(frame), "the useful path must still produce a payload")
-        XCTAssertEqual(Whoop5Ecg.decodeFilteredFrame(frame)?.filteredECGDataRaw, samples)
+        XCTAssertEqual(Whoop5Ecg.r17FromFrame(frame)?.samples, samples)
     }
 
     func testAnEcgFrameWithTrailingBytesIsRefused() {
-        let frame = puffinFrame(type: 0x28, payload: header(samples: 2) + i16le([1, 2])) + [0x00]
+        let frame = r17Frame(r17Inner(samples: 2) + i16le([1, 2])) + [0x00]
         XCTAssertEqual(verifyFrame(frame, family: .whoop5).reason, .lengthMismatch)
         XCTAssertNil(Whoop5Ecg.innerPayload(frame), "trailing bytes mean we do not know where the frame ends")
-        XCTAssertNil(Whoop5Ecg.decodeFilteredFrame(frame))
+        XCTAssertNil(Whoop5Ecg.r17FromFrame(frame))
     }
 
     func testAnEcgFrameBelowTheFamilyMinimumIsRefused() {

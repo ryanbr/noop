@@ -4444,11 +4444,17 @@ class WhoopBleClient(
                 ) && groundTruthImuCommandAllowed) &&
                 cmd != CommandNumber.RUN_HAPTICS_PATTERN &&
                 cmd != CommandNumber.SEND_HISTORICAL_DATA && cmd != CommandNumber.HISTORICAL_DATA_RESULT &&
-                // ABORT_HISTORICAL_TRANSMITS (20) over puffin: stop an offload already in flight. Allowed
-                // ONLY while one actually is, so a default install can never form these bytes on a 5/MG —
-                // and the gate is the same state the command is about. Non-destructive: the strap frees
-                // records on our HISTORY_END ack, not on this, so an aborted drain re-offloads intact.
-                !(cmd == CommandNumber.ABORT_HISTORICAL_TRANSMITS && backfilling) &&
+                // ABORT_HISTORICAL_TRANSMITS (20) over puffin: stop an offload already in flight, OR the
+                // first member of the ECG START list (see [ecgSendAbortHistorical]). Allowed while one of
+                // those two is true, so a default install can never form these bytes on a 5/MG — the
+                // first gate is the same state the command is about, and the second is the send burst
+                // itself. Non-destructive: the strap frees records on our HISTORY_END ack, not on this,
+                // so an aborted drain re-offloads intact.
+                //
+                // NOTE [ecgProbeArmed] here is the SEND-BURST flag, not Apple's listen-window property of
+                // the same name. Apple scopes its equivalent with a dedicated `ecgAbortOverride`; the two
+                // admit the same one opcode over the same one call, by different mechanisms.
+                !(cmd == CommandNumber.ABORT_HISTORICAL_TRANSMITS && (backfilling || ecgProbeArmed)) &&
                 // The three MG ECG ("Labrador") TOGGLES (124 / 125 / 139). Gated the HARD way, like
                 // GET_BATTERY_PACK_INFO and unlike the 98/84 read probes: allowed ONLY while an ECG probe
                 // run is actually in flight, so a default install cannot form these bytes at all. Unlike
@@ -5256,28 +5262,69 @@ class WhoopBleClient(
     }
 
     /**
+     * The START list's first member: ABORT_HISTORICAL_TRANSMITS (20), immediately ahead of `124`.
+     * Twin of macOS `ecgSendAbortHistorical`.
+     *
+     * Unconditional, because that is where it sits in the sequence — not a conditional tidy-up. An
+     * offload in flight competes for the same link, so a filtered trace requested underneath one can be
+     * acked and still never arrive, which from this side is indistinguishable from `acceptedButSilent` —
+     * the verdict this probe has been returning. Sending it only when [backfilling] happened to be true
+     * left the common case (no drain running) without the clear the sequence calls for.
+     *
+     * Two routes, because the local bookkeeping differs and only one of them is safe to skip:
+     *
+     *  - Draining: through [abortBackfill], which sends the same `[0x00]` body AND ends the session. The
+     *    raw send alone would stop the strap while leaving [backfilling] true on this side, so the
+     *    session would sit waiting for records that are never coming.
+     *  - Not draining: the bare send. There is no session to tear down, and [abortBackfill] would refuse
+     *    it outright.
+     *
+     * Deliberately NOT recorded as a probe step. Steps feed the verdict, and a FAILURE here (an abort the
+     * firmware declines) would classify the run as `commandRefused` and mask the ECG outcome the run
+     * exists to establish. Its own log line carries the diagnostic instead.
+     *
+     * PARITY NOTE: opcode 123 SELECT_WRIST is the one member of the official PREPARE list Android does
+     * not send, because Android has no wrist-selection surface. It writes PERSISTENT strap state and so
+     * needs its own confirmation UI, which macOS has and this platform does not yet.
+     */
+    private fun ecgSendAbortHistorical() {
+        if (backfilling) {
+            log(
+                "ECG probe: → ABORT_HISTORICAL_TRANSMITS (20) — an offload is in flight and would " +
+                    "compete with the realtime trace, so the local session is torn down with it",
+            )
+            abortBackfill()
+            return
+        }
+        log(
+            "ECG probe: → ABORT_HISTORICAL_TRANSMITS (20) — no offload in flight; sent because it " +
+                "is the START list's first member, not as a tidy-up",
+        )
+        send(CommandNumber.ABORT_HISTORICAL_TRANSMITS, byteArrayOf(0), withResponse = true)
+    }
+
+    /**
      * Turn ECG generation ON. Twin of macOS `ecgStartCapture`.
      *
      * Order is load-bearing: 139 (filtered) is the master gate, 125 enables the raw save, and 124 takes
      * an OPERATION byte where `start` is 2. A caller sending 1 here would STOP a session it just armed,
      * which is the shape of every SUCCESS-and-silence report in #891.
+     *
+     * Two lists, in the official order. PREPARE is `139 ON` then `125 ON` (`123` is not on Android's
+     * surface at all — see the parity note on [ecgSendAbortHistorical]). START is `20` then
+     * `124 = start`: opcode 20 belongs to START, immediately ahead of the generation command, and it is
+     * sent on EVERY run rather than only when an offload happens to be draining.
      */
     fun ecgStartCapture() {
         if (!ecgGatesAllow()) return
         ecgMayBeRunning = true   // latched BEFORE the sends, so a mid-sequence drop still offers Stop
         beginEcgProbeRun()
         log("ECG probe: starting the ECG turn-on sequence on an MG (experimental, unvalidated instrumentation)")
-        // Clear a historical drain first: an offload in flight competes for the same link, so a trace
-        // requested underneath one can be acked and still never arrive. Through abortBackfill() rather
-        // than opcode 20 directly, because that also tears the local session down. Twin of macOS.
-        if (backfilling) {
-            log("ECG probe: an offload is in flight and would compete with the realtime trace; aborting it first")
-            abortBackfill()
-        }
         ecgProbeArmed = true
         try {
             sendEcgCommand(CommandNumber.TOGGLE_LABRADOR_FILTERED, 1)
             sendEcgCommand(CommandNumber.TOGGLE_LABRADOR_RAW_SAVE, 1)
+            ecgSendAbortHistorical()
             sendEcgCommand(CommandNumber.TOGGLE_LABRADOR_DATA_GENERATION, Whoop5Ecg.ControlSignal.START.raw)
         } finally {
             ecgProbeArmed = false
@@ -5330,20 +5377,38 @@ class WhoopBleClient(
      * artefact and no line in it should read like a clinical finding.
      */
     private fun noteEcgProbeCandidate(frame: ByteArray) {
-        if (frame.size < 12 || !Whoop5Ecg.plausibleFilteredFrame(frame)) return
+        if (frame.size < 12) return
+        val packet = Whoop5Ecg.r17FromFrame(frame) ?: return
         synchronized(ecgProbeLock) {
             ecgProbePacketsSeen += 1
             if (ecgProbeCandidates.size >= ECG_PROBE_MAX_CANDIDATES) return
         }
-        val packet = Whoop5Ecg.decodeFilteredFrame(frame) ?: return
-        val h = packet.header
-        val line = "type=0x%02x len=%d samples=%d quality=%d leadsOn=%d hr=%d hrv=%d classifierRaw=%d".format(
-            frame[8].toInt() and 0xFF, frame.size, h.numberOfECGSamples, h.signalQualityRaw,
-            if (h.heartKeyLeadsAreOn) 1 else 0, h.heartKeyHR, h.heartKeyHRV,
-            h.heartKeyArrhythmiaCheckResultRaw,
+        // The classifier byte is logged as a NUMBER, never as its token name: a strap log is a shareable
+        // artefact, and no line in it should read like a clinical finding.
+        //
+        // `seq` and `progress` are here because the reading is a SEQUENCE, not a set of packets: a gap in
+        // one or a regression in the other is what tells a contact loss apart from a clean run, and
+        // neither was visible in the old line.
+        val line = (
+            "type=0x%02x len=%d seq=%d samples=%d quality=%d presence=%d progress=%d state=%d " +
+                "hr=%d avgHr=%d var=%d classifierRaw=%d unreadable=0x%02x"
+            ).format(
+            packet.packetType, frame.size, packet.sequence, packet.sampleCount, packet.signalQualityRaw,
+            if (packet.presence) 1 else 0, packet.progress.raw, packet.classifierState,
+            packet.liveHR, packet.averageHR, packet.variabilityRaw ?: 0,
+            packet.arrhythmiaCheckResultRaw, packet.unreadable.raw,
         )
-        synchronized(ecgProbeLock) { ecgProbeCandidates.add(line) }
-        log("ECG probe: ← candidate $line (unvalidated instrumentation, not a diagnosis)")
+        // Rendered from the record rather than left to whoever reads the hex: the flag byte and the
+        // unreadable mask are the two fields that say WHY a run went the way it did, and a strap log is
+        // usually all there is to go on. `terminal`/`invalid` are the strap's own end conditions.
+        val state = buildList {
+            if (packet.isTerminal) add("terminal")
+            if (packet.isInvalid) add("invalid")
+        }
+        val notes = (packet.flags.tokens + packet.unreadable.reasons + state).joinToString(",")
+        val reported = if (notes.isEmpty()) line else "$line [$notes]"
+        synchronized(ecgProbeLock) { ecgProbeCandidates.add(reported) }
+        log("ECG probe: ← candidate $reported (unvalidated instrumentation, not a diagnosis)")
     }
 
     fun probeFeatureFlags() {
@@ -8453,7 +8518,7 @@ class WhoopBleClient(
             return
         }
 
-        // MG ECG probe: offer every VERIFIED frame to the structural triage while a run is listening.
+        // MG ECG probe: offer every VERIFIED frame to the R17 decode while a run is listening.
         // Placed after the verifier so bad bytes can never be counted as a candidate, and gated on the
         // window so an ordinary frame pays one boolean. Without this the probe reports zero packets
         // forever and every run reads as "accepted but silent" even while a trace is streaming.

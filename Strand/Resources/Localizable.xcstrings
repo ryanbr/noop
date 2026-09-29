@@ -88906,60 +88906,60 @@
         }
       }
     },
-    "It is also not fully confirmed. Which value means “left” and which means “right” is read off the order they appear in WHOOP's own app, not verified on a strap — so it may set the opposite wrist. You can send it again with the other choice at any time, and it changes nothing about your recorded data.": {
+    "Which value means “left” and which means “right” comes from WHOOP's own app and the strap firmware, not from a strap NOOP has tested. You can send it again with the other choice at any time, and it changes nothing about your recorded data.": {
       "localizations": {
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sie ist außerdem nicht vollständig bestätigt. Welcher Wert „links“ und welcher „rechts“ bedeutet, ist aus der Reihenfolge in WHOOPs eigener App abgelesen und nicht an einem Strap überprüft — es kann also das entgegengesetzte Handgelenk einstellen. Du kannst sie jederzeit erneut mit der anderen Auswahl senden, und an deinen aufgezeichneten Daten ändert das nichts."
+            "value": "Welcher Wert „links“ und welcher „rechts“ bedeutet, stammt aus WHOOPs eigener App und der Firmware des Straps, nicht von einem Strap, den NOOP getestet hat. Du kannst sie jederzeit erneut mit der anderen Auswahl senden, und an deinen aufgezeichneten Daten ändert das nichts."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tampoco está totalmente confirmado. Qué valor significa «izquierda» y cuál «derecha» se ha deducido del orden en que aparecen en la propia app de WHOOP, y no se ha verificado en una pulsera, así que puede ajustar la muñeca contraria. Puedes enviarlo de nuevo con la otra opción cuando quieras, y no cambia nada de tus datos registrados."
+            "value": "Qué valor significa «izquierda» y cuál «derecha» procede de la propia app de WHOOP y del firmware de la pulsera, no de una pulsera que NOOP haya probado. Puedes enviarlo de nuevo con la otra opción cuando quieras, y no cambia nada de tus datos registrados."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ce n'est pas non plus totalement confirmé. Quelle valeur signifie « gauche » et laquelle « droite » est déduite de l'ordre dans lequel elles apparaissent dans l'application de WHOOP, sans vérification sur un bracelet — cela peut donc régler le poignet opposé. Vous pouvez le renvoyer avec l'autre choix à tout moment, et cela ne change rien à vos données enregistrées."
+            "value": "Quelle valeur signifie « gauche » et laquelle « droite » provient de l'application de WHOOP et du micrologiciel du bracelet, pas d'un bracelet testé par NOOP. Vous pouvez le renvoyer avec l'autre choix à tout moment, et cela ne change rien à vos données enregistrées."
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Inoltre non è del tutto confermato. Quale valore significhi «sinistro» e quale «destro» è dedotto dall'ordine in cui compaiono nell'app di WHOOP, non verificato su una fascia — quindi potrebbe impostare il polso opposto. Puoi inviarlo di nuovo con l'altra scelta in qualsiasi momento, e non cambia nulla dei tuoi dati registrati."
+            "value": "Quale valore significhi «sinistro» e quale «destro» proviene dall'app di WHOOP e dal firmware della fascia, non da una fascia testata da NOOP. Puoi inviarlo di nuovo con l'altra scelta in qualsiasi momento, e non cambia nulla dei tuoi dati registrati."
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Também não está totalmente confirmado. Que valor significa «esquerdo» e qual significa «direito» foi deduzido da ordem por que aparecem na própria app da WHOOP, não foi verificado numa bracelete — por isso pode definir o pulso oposto. Podes enviá-lo novamente com a outra opção a qualquer momento, e não altera nada nos teus dados registados."
+            "value": "Que valor significa «esquerdo» e qual significa «direito» vem da própria app da WHOOP e do firmware da bracelete, não de uma bracelete testada pela NOOP. Podes enviá-lo novamente com a outra opção a qualquer momento, e não altera nada nos teus dados registados."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Кроме того, это не полностью подтверждено. Какое значение означает «левое», а какое «правое», выведено из порядка их появления в собственном приложении WHOOP и не проверено на браслете — поэтому может быть задано противоположное запястье. Вы можете отправить это ещё раз с другим вариантом в любой момент, и на записанные данные это никак не влияет."
+            "value": "Какое значение означает «левое», а какое «правое», взято из собственного приложения WHOOP и прошивки браслета, а не из браслета, проверенного NOOP. Вы можете отправить это ещё раз с другим вариантом в любой момент, и на записанные данные это никак не влияет."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "这一项同样未完全确认。哪个值表示「左」、哪个表示「右」，是根据它们在 WHOOP 自家 App 中出现的顺序推断的，并未在手环上验证——因此可能设置成相反的手腕。你随时可以用另一个选项重新发送，这不会改变你已记录的任何数据。"
+            "value": "哪个值表示「左」、哪个表示「右」，来自 WHOOP 自家 App 和手环固件，而不是 NOOP 测试过的手环。你随时可以用另一个选项重新发送，这不会改变你已记录的任何数据。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "這一項同樣未完全確認。哪個值表示「左」、哪個表示「右」，是根據它們在 WHOOP 自家 App 中出現的順序推斷的，並未在手環上驗證——因此可能設定成相反的手腕。你隨時可以用另一個選項重新傳送，這不會改變你已記錄的任何資料。"
+            "value": "哪個值表示「左」、哪個表示「右」，來自 WHOOP 自家 App 與手環韌體，而不是 NOOP 測試過的手環。你隨時可以用另一個選項重新傳送，這不會改變你已記錄的任何資料。"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "To również nie jest w pełni potwierdzone. Która wartość oznacza „lewo”, a która „prawo” jest odczytywana w kolejności, w jakiej pojawiają się we własnej aplikacji WHOOP, a nie sprawdzana na pasku — może więc ustawić przeciwny nadgarstek. W dowolnym momencie możesz wysłać go ponownie, wybierając inną opcję, i nie zmienia to niczego w zarejestrowanych danych."
+            "value": "Która wartość oznacza „lewo”, a która „prawo”, pochodzi z własnej aplikacji WHOOP i z oprogramowania paska, a nie z paska przetestowanego przez NOOP. W dowolnym momencie możesz wysłać go ponownie, wybierając inną opcję, i nie zmienia to niczego w zarejestrowanych danych."
           }
         }
       }

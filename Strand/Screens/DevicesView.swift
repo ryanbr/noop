@@ -1477,9 +1477,9 @@ private struct FeatureFlagProbeSheets: ViewModifier {
 /// the result sheet — isolated for the same iOS type-checker reason as `BodyLocationProbeSheets`.
 ///
 /// The wrist selection is deliberately a second, independent confirmation rather than a button inside
-/// the start flow: `SELECT_WRIST` writes strap state that survives a disconnect, and the right/left
-/// mapping is inferred from the client enum's order rather than confirmed on hardware. A persistent
-/// write nobody has verified is exactly the kind of thing that should cost a deliberate extra tap.
+/// the start flow: `SELECT_WRIST` writes strap state that survives a disconnect. The right/left mapping
+/// is no longer a guess (right=1/left=2, from the official parser and the firmware constructor), but a
+/// persistent write NOOP has not verified on its own hardware still costs a deliberate extra tap.
 private struct EcgProbeSheets: ViewModifier {
     @EnvironmentObject var model: AppModel
     @EnvironmentObject var live: LiveState
@@ -1566,8 +1566,8 @@ private struct FeatureFlagProbeResultView: View {
 
 /// The wrist-selection step: the one ECG command that writes strap state outliving the session, so it
 /// gets its own screen, its own warning, and its own confirmation rather than a button inside the start
-/// flow. The copy names both caveats plainly — that the value persists on the strap, and that the
-/// left/right mapping is read off the order in WHOOP's own app rather than verified on hardware.
+/// flow. The copy names both facts plainly — that the value persists on the strap, and where the
+/// left/right mapping comes from.
 private struct EcgWristSheet: View {
     let onPick: (Whoop5Ecg.WristSelection) -> Void
     let onCancel: () -> Void
@@ -1581,7 +1581,7 @@ private struct EcgWristSheet: View {
                 .font(StrandFont.subhead)
                 .foregroundStyle(StrandPalette.statusWarning)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("It is also not fully confirmed. Which value means “left” and which means “right” is read off the order they appear in WHOOP's own app, not verified on a strap — so it may set the opposite wrist. You can send it again with the other choice at any time, and it changes nothing about your recorded data.")
+            Text("Which value means “left” and which means “right” comes from WHOOP's own app and the strap firmware, not from a strap NOOP has tested. You can send it again with the other choice at any time, and it changes nothing about your recorded data.")
                 .font(StrandFont.caption)
                 .foregroundStyle(StrandPalette.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)

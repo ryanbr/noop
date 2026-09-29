@@ -2337,7 +2337,8 @@ public final class BLEManager: NSObject, ObservableObject {
                 // ONLY while one actually is, so a default install can never form these bytes on a 5/MG —
                 // and the gate is the same state the command is about. Non-destructive: the strap frees
                 // records on our HISTORY_END ack, not on this, so an aborted drain re-offloads intact.
-                || (command == .abortHistoricalTransmits && backfilling)
+                // The second disjunct is the ECG START list's member: see `ecgSendAbortHistorical()`.
+                || (command == .abortHistoricalTransmits && (backfilling || ecgAbortOverride))
                 // GET_DEVICE_CONFIG_VALUE (121) / GET_FF_VALUE (128) over puffin: the READ-ONLY
                 // device-config READ probe (#103) — it asks for a key's VALUE and writes none. Gated the
                 // same way as 117/118: allowed ONLY while a probe is actually in flight, and the opcode
@@ -4323,6 +4324,15 @@ public final class BLEManager: NSObject, ObservableObject {
     /// True while a probe run is listening. Guards the per-frame triage so it costs nothing otherwise.
     private var ecgProbeArmed: Bool { ecgProbeDeadline != nil }
 
+    /// Set for the length of `ecgSendAbortHistorical()`'s one synchronous send, so the START list's
+    /// opcode 20 reaches the wire when no offload is draining.
+    ///
+    /// The allowlist clause for 20 is `backfilling`, which is the right gate for the abort-a-sync button
+    /// and the wrong one for a member of the ECG start sequence: that member is sent on every run, and
+    /// most runs have nothing draining. Scoped exactly like `ecgStopOverride` — one call, one opcode,
+    /// one body — so a default install still cannot form these bytes.
+    private var ecgAbortOverride = false
+
     /// Set for the duration of `ecgStopCapture()` only, so the OFF path is reachable even after the
     /// Experimental opt-in has been switched back off.
     ///
@@ -4422,53 +4432,70 @@ public final class BLEManager: NSObject, ObservableObject {
     /// `ecgStartCapture()`: it is the only command in this family that changes strap state which outlives
     /// the session, so the user chooses the wrist explicitly and confirms it on its own.
     ///
-    /// The raw values are inferred from the client enum's ORDER, not attested — the UI says so, and
-    /// re-sending with the other wrist is the whole remedy if the inference is backwards.
+    /// The raw values are right=1/left=2, corrected against the official parser and firmware constructor.
+    /// Re-sending with the other wrist remains the whole remedy if a strap disagrees.
     public func ecgSelectWrist(_ wrist: Whoop5Ecg.WristSelection) {
         guard ecgGatesAllow() else { return }
         beginEcgProbeRun(clearingSteps: true)
-        log("ECG probe: SELECT_WRIST=\(wrist.token) (raw \(wrist.rawValue)) — PERSISTENT strap write; the "
-            + "right=0/left=1 mapping is inferred from the client enum order, not confirmed on hardware")
+        log("ECG probe: SELECT_WRIST=\(wrist.token) (raw \(wrist.rawValue)) — PERSISTENT strap write")
         sendEcgCommand(.selectWrist, arg: wrist.rawValue)
         scheduleEcgProbeVerdict()
     }
 
-    /// The documented turn-on sequence MINUS `selectWrist` (which the user runs separately, above):
-    /// toggleRealtimeFilteredECG(on) → toggleSaveRawECG(on) → mainControlECGDataGeneration(start).
+    /// The documented turn-on sequence MINUS `selectWrist` (which the user runs separately, above).
+    ///
+    /// Two lists, in the official order. PREPARE is `139 ON` then `125 ON` (`123` having been sent on its
+    /// own). START is `20` then `124 = start` — opcode 20 belongs to START, immediately ahead of the
+    /// generation command, and it is sent on EVERY run rather than only when an offload happens to be
+    /// draining.
     public func ecgStartCapture() {
         guard ecgGatesAllow() else { return }
         ecgMayBeRunning = true      // latched BEFORE the sends, so a mid-sequence drop still leaves Stop offered
         beginEcgProbeRun(clearingSteps: true)
         log("ECG probe: starting the ECG turn-on sequence on an MG (experimental, unvalidated instrumentation)")
-        // Clear a historical drain BEFORE asking for a realtime trace. OpenStrap Edge's prepare step
-        // sends ABORT_HISTORICAL_TRANSMITS (20) ahead of the wrist selector, and the reason is
-        // mechanical rather than protocol-deep: an offload already in flight is competing for the same
-        // link, so a filtered trace requested underneath one can be acked and still never arrive. That
-        // is indistinguishable, from this side, from `acceptedButSilent` — which is the verdict this
-        // probe has been returning.
-        //
-        // Conditioned on `backfilling` rather than sent unconditionally, which keeps the 5/MG allowlist
-        // clause for opcode 20 exactly as it is: it admits the opcode only while an offload is actually
-        // running, so a default install still cannot form these bytes. When nothing is draining there is
-        // nothing to clear and the abort would be noise.
-        //
-        // Deliberately NOT recorded as a probe Step. Steps feed the verdict, and a FAILURE here (an
-        // abort the firmware declines) would classify the run as `commandRefused` and mask the ECG
-        // outcome the run exists to establish. `abortBackfill`'s own log carries the diagnostic.
-        //
-        // Through `abortBackfill()` rather than writing opcode 20 here, which is the whole point: that
-        // function sends the same `[0x00]` body the allowlist admits AND calls `exitBackfilling`. The
-        // raw send alone would stop the strap while leaving `backfilling` true on this side, so the
-        // session would sit waiting for records that are never coming — the stuck sync the opcode
-        // exists to prevent.
-        if backfilling {
-            log("ECG probe: an offload is in flight and would compete with the realtime trace; aborting it first")
-            abortBackfill()
-        }
         sendEcgCommand(.toggleLabradorFiltered, arg: 1)
         sendEcgCommand(.toggleLabradorRawSave, arg: 1)
+        ecgSendAbortHistorical()
         sendEcgCommand(.toggleLabradorDataGeneration, arg: Whoop5Ecg.ControlSignal.start.rawValue)
         scheduleEcgProbeVerdict()
+    }
+
+    /// The START list's first member: ABORT_HISTORICAL_TRANSMITS (20), immediately ahead of `124`.
+    ///
+    /// Unconditional, because that is where it sits in the sequence — not a conditional tidy-up. An
+    /// offload in flight competes for the same link, so a filtered trace requested underneath one can be
+    /// acked and still never arrive, which from this side is indistinguishable from `acceptedButSilent`
+    /// — the verdict this probe has been returning. Sending it only when `backfilling` happened to be
+    /// true left the common case (no drain running, the strap still holding whatever a previous run left
+    /// behind) without the clear the sequence calls for.
+    ///
+    /// Two routes, because the local bookkeeping differs and only one of them is safe to skip:
+    ///
+    ///   • Draining: through `abortBackfill()`, which sends the same `[0x00]` body AND calls
+    ///     `exitBackfilling`. The raw send alone would stop the strap while leaving `backfilling` true on
+    ///     this side, so the session would sit waiting for records that are never coming — the stuck sync
+    ///     the opcode exists to prevent.
+    ///   • Not draining: the bare send. There is no session to tear down, and `abortBackfill()` would
+    ///     refuse it outright (`guard backfilling`).
+    ///
+    /// Deliberately NOT recorded as a probe Step. Steps feed the verdict, and a FAILURE here (an abort
+    /// the firmware declines) would classify the run as `commandRefused` and mask the ECG outcome the run
+    /// exists to establish. Its own log line carries the diagnostic instead.
+    private func ecgSendAbortHistorical() {
+        if backfilling {
+            log("ECG probe: → ABORT_HISTORICAL_TRANSMITS (20) — an offload is in flight and would compete "
+                + "with the realtime trace, so the local session is torn down with it")
+            abortBackfill()
+            return
+        }
+        // The allowlist admits opcode 20 while `backfilling` OR while this override is set, exactly as
+        // `ecgStopOverride` widens it for the OFF path. Set for the length of one synchronous call, so
+        // nothing outside this line can form these bytes.
+        ecgAbortOverride = true
+        defer { ecgAbortOverride = false }
+        log("ECG probe: → ABORT_HISTORICAL_TRANSMITS (20) — no offload in flight; sent because it is the "
+            + "START list's first member, not as a tidy-up")
+        send(.abortHistoricalTransmits, payload: [0x00], writeType: .withResponse)
     }
 
     /// The explicit OFF path: stop generation first, then drop both streams.
@@ -4593,23 +4620,37 @@ public final class BLEManager: NSObject, ObservableObject {
     /// Structural triage for the packet TYPE the ECG records arrive under, which no table in this repo
     /// holds. A hit is a CANDIDATE, never a confirmed mapping.
     private func noteEcgProbeCandidate(_ frame: [UInt8]) {
-        guard frame.count >= 12, Whoop5Ecg.plausibleFilteredFrame(frame) else { return }
+        guard frame.count >= 12, let packet = Whoop5Ecg.r17FromFrame(frame) else { return }
         ecgProbePacketsSeen += 1
-        guard ecgProbeCandidates.count < BLEManager.ecgProbeMaxCandidates,
-              let packet = Whoop5Ecg.decodeFilteredFrame(frame) else { return }
-        let header = packet.header
+        guard ecgProbeCandidates.count < BLEManager.ecgProbeMaxCandidates else { return }
         // The classifier byte is logged as a NUMBER, never as its token name: a strap log is a shareable
         // artefact, and no line in it should read like a clinical finding. The decoder maps the value
         // offline; the raw byte is lossless.
-        let line = String(format: "type=0x%02x len=%d samples=%d quality=%d leadsOn=%d hr=%d hrv=%d "
-                          + "classifierRaw=%d statusRaw=%d (unvalidated instrumentation, not a diagnosis)",
-                          Int(frame[8]), frame.count, Int(header.numberOfECGSamples),
-                          Int(header.signalQualityRaw), header.heartKeyLeadsAreOn ? 1 : 0,
-                          Int(header.heartKeyHR), Int(header.heartKeyHRV),
-                          Int(header.heartKeyArrhythmiaCheckResultRaw),
-                          Int(header.heartKeyArrhythmiaCheckStatusRaw))
-        ecgProbeCandidates.append(line)
-        log("ECG probe: candidate packet \(line)")
+        //
+        // `seq` and `progress` are here because the reading is a SEQUENCE, not a set of packets: a gap in
+        // one or a regression in the other is what tells a contact loss apart from a clean run, and
+        // neither was visible in the old line.
+        // The disclaimer is NOT repeated per line. `Whoop5EcgProbe.report` already ends with it and the
+        // result sheet pins it above the text, so a third copy here was noise — and it forced the notes
+        // below to land after a closing parenthesis. It also made this string differ from the Kotlin
+        // twin's, which never carried it, so the two platforms' reports quoted different text.
+        let line = String(format: "type=0x%02x len=%d seq=%d samples=%d quality=%d presence=%d "
+                          + "progress=%d state=%d hr=%d avgHr=%d var=%d classifierRaw=%d unreadable=0x%02x",
+                          Int(packet.packetType), frame.count, Int(packet.sequence),
+                          Int(packet.sampleCount), Int(packet.signalQualityRaw),
+                          packet.presence ? 1 : 0, Int(packet.progress.raw), Int(packet.classifierState),
+                          Int(packet.liveHR), Int(packet.averageHR),
+                          Int(packet.variabilityRaw ?? 0), Int(packet.arrhythmiaCheckResultRaw),
+                          Int(packet.unreadable.raw))
+        // Rendered from the record rather than left to whoever reads the hex: the flag byte and the
+        // unreadable mask are the two fields that say WHY a run went the way it did, and a strap log is
+        // usually all there is to go on. `terminal`/`invalid` are the strap's own end conditions.
+        let state = [packet.isTerminal ? "terminal" : nil,
+                     packet.isInvalid ? "invalid" : nil].compactMap { $0 }
+        let notes = (packet.flags.tokens + packet.unreadable.reasons + state).joined(separator: ",")
+        let reported = notes.isEmpty ? line : line + " [\(notes)]"
+        ecgProbeCandidates.append(reported)
+        log("ECG probe: ← candidate \(reported) (unvalidated instrumentation, not a diagnosis)")
         // Dump the raw bytes of the FIRST few candidates so a plain strap-log export is enough to redo
         // the decode offline — the durable frame recorder is a separate opt-in the user may not have on.
         // Capped hard: these frames are hundreds of bytes and the log is a scrolling UI list.

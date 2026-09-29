@@ -167,9 +167,10 @@ object Whoop5EcgProbe {
         val headline: String
             get() = when (this) {
                 is EcgCandidatesArrived ->
-                    "$packets frame(s) matched the ECG structural triage. That is a CANDIDATE, not proof: " +
-                        "the triage is a shape heuristic and unrelated traffic can match it. Confirm against " +
-                        "the raw bytes below before concluding anything about whether the feature is blocked."
+                    "$packets revision-17 ECG packet(s) decoded. The strap IS producing the filtered " +
+                        "trace: each one arrived as type 43 revision 17 with both CRCs intact. What the " +
+                        "samples MEAN is still unvalidated here — check the per-packet progress and presence " +
+                        "below to see whether a reading actually advanced, rather than reading the count alone."
                 is DataRequestRefused ->
                     "DATA REQUEST REFUSED — the firmware returned FAILURE for " +
                         "${commands.joinToString(", ")}, which asked it to produce ECG data: it knows the " +
@@ -246,8 +247,9 @@ object Whoop5EcgProbe {
     /**
      * The full report: verdict, per-command outcomes, the ECG-packet tally, and the raw replies.
      *
-     * [candidateFrames] are the type/length lines for frames that passed the structural triage in
-     * [Whoop5Ecg.plausibleFilteredPayload].
+     * [candidateFrames] are the per-packet lines for frames [Whoop5Ecg.r17FromFrame] decoded — the
+     * sequence, progress and presence of each accepted record, which is what tells a clean run apart
+     * from one the electrodes kept dropping.
      */
     fun report(
         steps: List<Step>,
@@ -289,9 +291,9 @@ object Whoop5EcgProbe {
             )
         }
         if (candidateFrames.isEmpty()) {
-            sb.append("Candidate packet types: none — no frame passed the structural triage.\n")
+            sb.append("Revision-17 packets decoded: none — no frame arrived as type 43 revision 17.\n")
         } else {
-            sb.append("Candidate packet types (structural triage only, NOT a confirmed mapping):\n")
+            sb.append("Revision-17 packets decoded (type 43, revision 17, both CRCs checked):\n")
             for (line in candidateFrames) sb.append("  $line\n")
         }
         val replies = steps.mapNotNull { step -> step.replyHex?.let { "  ${step.label}: $it" } }

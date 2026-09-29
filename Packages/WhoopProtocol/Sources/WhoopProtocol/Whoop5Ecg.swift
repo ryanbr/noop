@@ -5,8 +5,12 @@ import Foundation
 // The WHOOP MG carries ECG electrodes in its conductive clasp (a plain WHOOP 5.0 does not — see
 // `Whoop5Variant`). The strap's ECG subsystem is called "Labrador" in the protocol tables, and it is a
 // SEPARATE realtime data type from the R-numbered `StrapSensorData` layouts this package already decodes:
-// there is a FILTERED stream (live, display-ready) and a RAW stream (persisted on the strap for later
-// offload). Both carry the same 17-byte status header; they differ only in what follows it.
+// there is a FILTERED stream (live, display-ready, data revision 17) and a RAW stream (persisted on the
+// strap for later offload, data revision 16).
+//
+// They do NOT share a status block. The filtered record's layout is `LabradorR17`, read from the inner
+// record at the offsets the official parser uses. `EcgStatusHeader` below is the earlier client-derived
+// reading; it survives only on the RAW path, whose body layout nothing here can yet confirm.
 //
 // Provenance — and the line this file does not cross.
 //
@@ -21,13 +25,6 @@ import Foundation
 // own style, and no WHOOP code, firmware or asset is present.
 //
 // What is NOT established, and is therefore never asserted:
-//   • The packet TYPE byte these records arrive under. No capture exists, and the repo's `PacketType`
-//     table has no Labrador entry. So this file decodes a PAYLOAD, and the app layer discovers the type
-//     empirically by running `plausibleFilteredPayload` over unclassified frames and logging the hits.
-//   • The `WristSelection` raw values. `right` is listed first in the client's enum, so right=0/left=1 is
-//     the natural reading — but it is an INFERENCE, not an attested fact, and it is labelled as such
-//     everywhere it surfaces (including in the UI, because picking the wrong one writes the wrong
-//     persistent value to the strap).
 //   • The `heartKeyProgress` "timed out" sentinel. The client's type is a union of a percentage and a
 //     timed-out case; the sentinel VALUE is not attested, so an out-of-range byte is carried raw rather
 //     than renamed into a state we cannot prove it means.
@@ -127,9 +124,13 @@ public enum EcgHeartKeyProgress: Equatable, Sendable {
 
 // MARK: - Shared status header
 
-/// The 17-byte status block both Labrador packets open with, in wire order.
+/// The 17-byte status block the RAW (revision 16) record is read with, in wire order.
 ///
 /// Multi-byte fields are little-endian, matching every other 5/MG field in this package.
+///
+/// NOT the filtered record's layout, though it was written believing it was: see `LabradorR17`. Whether
+/// the raw record really opens this way is still unconfirmed, so this stays where it is rather than
+/// being corrected to something equally unproven.
 public struct EcgStatusHeader: Equatable, Sendable {
     public let signalQuality: EcgSignalQuality
     /// Raw quality byte, kept so a value outside the known enum is never lost.
@@ -182,19 +183,135 @@ public struct EcgStatusHeader: Equatable, Sendable {
 
 /// The live ECG stream packet (`toggleRealtimeFilteredECG` / TOGGLE_LABRADOR_FILTERED, 0x8B).
 ///
-/// 17 fields in wire order: the shared status header, then `numberOfECGSamples` signed 16-bit samples,
-/// then whatever trailing bytes the envelope carried. The sample UNIT and SCALE are not attested, so the
-/// array is named `filteredECGDataRaw` and no µV conversion is applied anywhere.
-public struct FilteredLabradorPacket: Equatable, Sendable {
-    public let header: EcgStatusHeader
-    public let filteredECGDataRaw: [Int16]
-    public let padding: [UInt8]
+/// Decoded by `Whoop5Ecg.parseR17` into a `LabradorR17`, whose offsets are read from the INNER record
+/// (the type byte onwards), not from the payload after it.
 
-    public init(header: EcgStatusHeader, filteredECGDataRaw: [Int16], padding: [UInt8]) {
-        self.header = header
-        self.filteredECGDataRaw = filteredECGDataRaw
-        self.padding = padding
+/// R17 `inner[14]` — the on-strap classifier's state/transition bits plus electrode presence.
+public struct EcgLabradorFlags: Equatable, Sendable {
+    public let raw: UInt8
+    public init(raw: UInt8) { self.raw = raw }
+
+    /// bit 0 — entering classifier state 1.
+    public var enteringStateOne: Bool { raw & 0x01 != 0 }
+    /// bit 1 — the current classifier state IS 1. An ordinary active frame carries this set; a valid
+    /// active frame with it clear is the explicit-restart case, not a contact loss.
+    public var currentStateOne: Bool { raw & 0x02 != 0 }
+    /// bit 2 — the 1 → 2 state transition, set on the terminal frame.
+    public var stateTransitionOneToTwo: Bool { raw & 0x04 != 0 }
+    /// bit 3 — electrode contact, debounced on the strap. This is the bit `heartKeyLeadsAreOn` was
+    /// reaching for at the wrong offset.
+    public var presence: Bool { raw & 0x08 != 0 }
+
+    /// The set bits by name, in bit order. Bits above 3 are reported as unknown rather than named.
+    public var tokens: [String] {
+        var out = [String]()
+        if enteringStateOne { out.append("entering_state_1") }
+        if currentStateOne { out.append("state_1") }
+        if stateTransitionOneToTwo { out.append("transition_1_2") }
+        if presence { out.append("presence") }
+        let unknown = raw & ~0x0F
+        if unknown != 0 { out.append(String(format: "unknown_bits_0x%02x", Int(unknown))) }
+        return out
     }
+}
+
+/// R17 `inner[18]` — why the strap called a reading unreadable. Bits above 3 are reported as unknown
+/// rather than given a meaning.
+public struct EcgUnreadableMask: Equatable, Sendable {
+    public let raw: UInt8
+    public init(raw: UInt8) { self.raw = raw }
+
+    public var lowAmplitude: Bool { raw & 0x01 != 0 }
+    public var significantNoise: Bool { raw & 0x02 != 0 }
+    public var unstableSignal: Bool { raw & 0x04 != 0 }
+    public var notEnoughData: Bool { raw & 0x08 != 0 }
+
+    /// The set bits by name, in bit order.
+    public var reasons: [String] {
+        var out = [String]()
+        if lowAmplitude { out.append("low_amplitude") }
+        if significantNoise { out.append("significant_noise") }
+        if unstableSignal { out.append("unstable_signal") }
+        if notEnoughData { out.append("not_enough_data") }
+        let unknown = raw & ~0x0F
+        if unknown != 0 { out.append(String(format: "unknown_bits_0x%02x", Int(unknown))) }
+        return out
+    }
+}
+
+/// One Labrador revision-17 packet — the strap's live filtered-ECG cycle.
+///
+/// Offsets are into the INNER record, counted from the packet-type byte. On a 5/MG frame that byte is at
+/// `Whoop5Ecg.rawTypeOffset` (8), so `inner[k]` is `frame[8 + k]`: fixed fields occupy `inner[0...25]`
+/// and the samples start at `inner[26]` — `frame[34]`, which is exactly the waveform offset the
+/// type-43 constants in this file were already observing on hardware.
+///
+/// `samples` are 100 Hz filtered signed i16 little-endian values as transmitted. No rescaling is applied
+/// and no anatomical lead or polarity is claimed. `variabilityRaw` has no proven unit.
+public struct LabradorR17: Equatable, Sendable {
+    /// `inner[0]`: 43 (REALTIME_RAW_DATA, the live path) or 47 (HISTORICAL_DATA, a stored copy).
+    public let packetType: UInt8
+    /// `inner[2]` — a packet-context marker the consumer ignores. Kept raw rather than named.
+    public let headerSecondary: UInt8
+    public let sequence: UInt32          // inner[3...6]  u32 LE
+    public let strapSeconds: UInt32      // inner[7...10] u32 LE
+    public let subseconds: UInt16        // inner[11...12] u16 LE, 1/32768 s
+    public let signalQuality: EcgSignalQuality
+    public let signalQualityRaw: UInt8   // inner[13]
+    public let flags: EcgLabradorFlags   // inner[14]
+    /// `inner[15]` — the classifier result code. Non-nil when it maps to a known case.
+    public let arrhythmiaCheckResult: EcgArrhythmiaCheckResult?
+    public let arrhythmiaCheckResultRaw: UInt8
+    public let classifierState: UInt8    // inner[16]; 2 is terminal
+    public let progress: EcgHeartKeyProgress  // inner[17]; 100 terminal, 255 invalid
+    public let unreadable: EcgUnreadableMask  // inner[18]
+    public let averageHR: UInt8          // inner[19] — the final/stored heart rate
+    public let liveHR: UInt8             // inner[20] — the current heart rate
+    /// `inner[21...22]` u16 LE, or nil when the wire carried the unavailable sentinel.
+    public let variabilityRaw: UInt16?
+    public let reserved: UInt8           // inner[23]
+    public let sampleCount: UInt16       // inner[24...25] u16 LE
+    public let samples: [Int16]
+    /// Aligned bytes after the sample block, byte-exact, meaning unassigned.
+    public let tail: [UInt8]
+
+    public init(packetType: UInt8, headerSecondary: UInt8, sequence: UInt32, strapSeconds: UInt32,
+                subseconds: UInt16, signalQuality: EcgSignalQuality, signalQualityRaw: UInt8,
+                flags: EcgLabradorFlags, arrhythmiaCheckResult: EcgArrhythmiaCheckResult?,
+                arrhythmiaCheckResultRaw: UInt8, classifierState: UInt8, progress: EcgHeartKeyProgress,
+                unreadable: EcgUnreadableMask, averageHR: UInt8, liveHR: UInt8, variabilityRaw: UInt16?,
+                reserved: UInt8, sampleCount: UInt16, samples: [Int16], tail: [UInt8]) {
+        self.packetType = packetType
+        self.headerSecondary = headerSecondary
+        self.sequence = sequence
+        self.strapSeconds = strapSeconds
+        self.subseconds = subseconds
+        self.signalQuality = signalQuality
+        self.signalQualityRaw = signalQualityRaw
+        self.flags = flags
+        self.arrhythmiaCheckResult = arrhythmiaCheckResult
+        self.arrhythmiaCheckResultRaw = arrhythmiaCheckResultRaw
+        self.classifierState = classifierState
+        self.progress = progress
+        self.unreadable = unreadable
+        self.averageHR = averageHR
+        self.liveHR = liveHR
+        self.variabilityRaw = variabilityRaw
+        self.reserved = reserved
+        self.sampleCount = sampleCount
+        self.samples = samples
+        self.tail = tail
+    }
+
+    /// Electrode contact, from the flags byte.
+    public var presence: Bool { flags.presence }
+
+    /// The strap's completion condition.
+    public var isTerminal: Bool { progress.raw == 100 || classifierState == 2 }
+
+    /// The strap's invalid/abort sentinel.
+    public var isInvalid: Bool { progress.raw == 255 }
+
 }
 
 /// The persisted ECG record (`toggleSaveRawECG` / TOGGLE_LABRADOR_RAW_SAVE, 0x7D).
@@ -274,12 +391,19 @@ public enum Whoop5Ecg {
 
     /// Which wrist the strap is worn on.
     ///
-    /// ⚠️ The raw values are INFERRED, not attested: `right` is listed first in the client's enum, so
-    /// right=0/left=1 is the natural reading. Since this command writes PERSISTENT strap state, a wrong
-    /// inference writes a wrong persistent value — so every surface that offers it says so.
+    /// `right = 1`, `left = 2` — one-based, NOT the client's zero-based declaration order.
+    ///
+    /// The previous `right = 0 / left = 1` was read off that order and shipped as an acknowledged
+    /// inference. It was wrong in exactly the way `ControlSignal`'s was (#896): the wire values for this
+    /// family start at 1, and 0 is not a member. Corrected against the official Android 5.458.0 Labrador
+    /// parser and the 50.41.1.0 firmware constructor, cross-checked against a third-party implementation
+    /// that drives a physical MG through a complete reading.
+    ///
+    /// This command writes PERSISTENT strap state, so the old values did not merely fail — they wrote a
+    /// wrong persistent selection, or were refused outright, on every strap that ran the probe.
     public enum WristSelection: UInt8, Equatable, Sendable, CaseIterable {
-        case right = 0
-        case left = 1
+        case right = 1
+        case left = 2
 
         public var token: String { self == .right ? "right" : "left" }
     }
@@ -392,25 +516,63 @@ public enum Whoop5Ecg {
 
     // MARK: Filtered decode
 
-    /// Decode a `FilteredLabradorPacket` from the inner record's PAYLOAD (i.e. the bytes after
-    /// `[type][seq][cmd]`).
+    /// Decode a `LabradorR17` from a complete INNER record — the bytes from the packet-type byte
+    /// onwards, which on a 5/MG frame means `frame[8...]`.
     ///
-    /// Fails closed on a short header, and on a `numberOfECGSamples` the buffer cannot actually hold —
-    /// a count that disagrees with the bytes present is a decode error, never a truncated best effort.
-    public static func decodeFiltered(payload: [UInt8]) -> FilteredLabradorPacket? {
-        guard let header = EcgStatusHeader(payload: payload) else { return nil }
-        let n = Int(header.numberOfECGSamples)
-        let end = headerLength + n * 2
-        guard end <= payload.count else { return nil }
+    /// Accepts only a type-43 (or, with `allowStored`, type-47) record of data revision 17 whose declared
+    /// sample block fits: fixed fields through `inner[25]` present, `sampleCount <= 100`, and
+    /// `26 + 2 * sampleCount` bytes available. No fixed total length is required; bytes past the sample
+    /// block land in `tail`. CRC validity is the caller's business — `r17FromFrame` enforces it.
+    /// Kotlin twin: `Whoop5Ecg.parseR17`.
+    public static func parseR17(inner: [UInt8], allowStored: Bool = false) -> LabradorR17? {
+        guard inner.count >= r17FixedLength else { return nil }
+        let type = inner[0]
+        guard type == rawRecordType || (allowStored && type == storedRecordType) else { return nil }
+        guard inner[1] == r17Revision else { return nil }
+        let count = Int(u16le(inner, 24))
+        guard count <= r17MaxSamples else { return nil }
+        let end = r17SampleStart + count * 2
+        guard inner.count >= end else { return nil }
+
         var samples = [Int16]()
-        samples.reserveCapacity(n)
-        for i in 0..<n {
-            let off = headerLength + i * 2
-            samples.append(Int16(bitPattern: UInt16(payload[off]) | (UInt16(payload[off + 1]) << 8)))
+        samples.reserveCapacity(count)
+        for i in 0..<count {
+            let off = r17SampleStart + i * 2
+            samples.append(Int16(bitPattern: u16le(inner, off)))
         }
-        return FilteredLabradorPacket(header: header,
-                                      filteredECGDataRaw: samples,
-                                      padding: Array(payload[end...]))
+        let variability = u16le(inner, 21)
+        let quality = inner[13]
+        return LabradorR17(
+            packetType: type,
+            headerSecondary: inner[2],
+            sequence: u32le(inner, 3),
+            strapSeconds: u32le(inner, 7),
+            subseconds: u16le(inner, 11),
+            signalQuality: EcgSignalQuality(rawValue: quality) ?? .unknown,
+            signalQualityRaw: quality,
+            flags: EcgLabradorFlags(raw: inner[14]),
+            arrhythmiaCheckResult: EcgArrhythmiaCheckResult(rawValue: inner[15]),
+            arrhythmiaCheckResultRaw: inner[15],
+            classifierState: inner[16],
+            progress: EcgHeartKeyProgress(raw: inner[17]),
+            unreadable: EcgUnreadableMask(raw: inner[18]),
+            averageHR: inner[19],
+            liveHR: inner[20],
+            variabilityRaw: variability == r17VariabilityUnavailable ? nil : variability,
+            reserved: inner[23],
+            sampleCount: UInt16(count),
+            samples: samples,
+            tail: Array(inner[end...]))
+    }
+
+    /// Kotlin twin: `Whoop5Ecg.u16le`.
+    private static func u16le(_ b: [UInt8], _ i: Int) -> UInt16 {
+        UInt16(b[i]) | (UInt16(b[i + 1]) << 8)
+    }
+
+    /// Kotlin twin: `Whoop5Ecg.u32le`.
+    private static func u32le(_ b: [UInt8], _ i: Int) -> UInt32 {
+        UInt32(b[i]) | (UInt32(b[i + 1]) << 8) | (UInt32(b[i + 2]) << 16) | (UInt32(b[i + 3]) << 24)
     }
 
     /// CRC-gated decode straight off a complete 5/MG frame. The frame must pass BOTH puffin CRCs — a
@@ -419,10 +581,13 @@ public enum Whoop5Ecg {
     /// `payloadStart` defaults to the standard puffin inner-data offset. It is a parameter, not a
     /// constant, because the packet TYPE these records arrive under is not yet attested (see the file
     /// header), so a capture may show a different body offset.
-    public static func decodeFilteredFrame(_ frame: [UInt8],
-                                           payloadStart: Int = puffinPayloadStart) -> FilteredLabradorPacket? {
-        guard let payload = innerPayload(frame, payloadStart: payloadStart) else { return nil }
-        return decodeFiltered(payload: payload)
+    /// Kotlin twin: `Whoop5Ecg.r17FromFrame`.
+    public static func r17FromFrame(_ frame: [UInt8], allowStored: Bool = false) -> LabradorR17? {
+        // Through `innerPayload` with the INNER record's own start offset, not `frame[rawTypeOffset...]`.
+        // It is the one seam that both CRC-gates the frame and stops at the CRC32 trailer; slicing to the
+        // end of the buffer instead would hand four envelope bytes to `tail` and call them record bytes.
+        guard let inner = innerPayload(frame, payloadStart: rawTypeOffset) else { return nil }
+        return parseR17(inner: inner, allowStored: allowStored)
     }
 
     // MARK: Raw decode
@@ -505,26 +670,6 @@ public enum Whoop5Ecg {
 
     // MARK: Discovery
 
-    /// A cheap structural triage for "could these bytes be a filtered Labrador payload?".
-    ///
-    /// Used by the app layer to hunt for the packet TYPE byte, which is not attested: while an ECG probe
-    /// is armed, every unclassified 5/MG frame is run through this and the hits are logged with their
-    /// type. It is a HEURISTIC — four booleans, three enum ranges and a length agreement — not a
-    /// classifier, and nothing downstream may treat a hit as proof.
-    public static func plausibleFilteredPayload(_ payload: [UInt8],
-                                                maxPadding: Int = defaultMaxPadding) -> Bool {
-        guard let header = EcgStatusHeader(payload: payload) else { return false }
-        guard header.signalQualityRaw <= 3,
-              header.heartKeyArrhythmiaCheckResult != nil,
-              header.heartKeyArrhythmiaCheckStatus != nil else { return false }
-        // The four booleans are Bool-typed on the wire, so anything but 0/1 rules the buffer out.
-        guard payload[2] <= 1, payload[3] <= 1, payload[4] <= 1, payload[5] <= 1 else { return false }
-        let n = Int(header.numberOfECGSamples)
-        guard n > 0 else { return false }
-        let end = headerLength + n * 2
-        return end <= payload.count && payload.count - end <= maxPadding
-    }
-
     // MARK: - The type-43 REALTIME_RAW_DATA record: the live ECG sample carrier (#891/#1100)
     //
     // OBSERVED on one WHOOP MG (WS50_r00, fw 50.39.1.0), not attested by any vendor document: once
@@ -544,6 +689,33 @@ public enum Whoop5Ecg {
 
     /// The inner record type byte for REALTIME_RAW_DATA.
     public static let rawRecordType: UInt8 = 43
+
+    /// The inner record type byte for HISTORICAL_DATA — a STORED R17, which the live turn-on path never
+    /// enables. `parseR17` accepts it only when asked to.
+    public static let storedRecordType: UInt8 = 47
+
+    // MARK: The revision-17 layout
+    //
+    // Offsets into the INNER record, from the packet-type byte. `inner[k]` is `frame[rawTypeOffset + k]`.
+    // Source-closed against the official Android 5.458.0 Labrador parser and the 50.41.1.0 firmware
+    // constructor, and corroborated here by `rawWaveformStart`: the waveform offset OBSERVED on an MG
+    // (34) is exactly `rawTypeOffset + r17SampleStart`, which is what says these two readings of the
+    // same record agree.
+
+    /// `inner[1]` — the data revision that makes a record an R17.
+    public static let r17Revision: UInt8 = 17
+
+    /// Fixed fields occupy `inner[0...25]`; the sample block follows.
+    public static let r17FixedLength = 26
+
+    /// First sample byte, `inner[26]`.
+    public static let r17SampleStart = 26
+
+    /// Wire capacity: 100 i16 samples per packet.
+    public static let r17MaxSamples = 100
+
+    /// `0xffff` at `inner[21...22]` means the variability value is unavailable.
+    public static let r17VariabilityUnavailable: UInt16 = 0xffff
 
     /// First body byte considered by `realtimeRawBodyNonZeroBytes` — excludes the constant sub-header.
     public static let rawBodyStart = 24
@@ -603,14 +775,6 @@ public enum Whoop5Ecg {
         return n > rawBodyActiveNonZeroBytes
     }
 
-    /// The frame-level form of `plausibleFilteredPayload`, CRC-gated. This is what the app layer runs
-    /// over unclassified 5/MG frames while an ECG probe is armed.
-    public static func plausibleFilteredFrame(_ frame: [UInt8],
-                                              payloadStart: Int = puffinPayloadStart,
-                                              maxPadding: Int = defaultMaxPadding) -> Bool {
-        guard let payload = innerPayload(frame, payloadStart: payloadStart) else { return false }
-        return plausibleFilteredPayload(payload, maxPadding: maxPadding)
-    }
 
     /// The inner record's payload from a complete 5/MG frame, or nil when the frame fails either CRC or
     /// is too short. Every frame-level entry point in this file goes through here, so no Labrador field
