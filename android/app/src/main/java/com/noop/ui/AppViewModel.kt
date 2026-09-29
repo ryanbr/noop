@@ -1005,14 +1005,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val logicalKey = logicalDayKeyNow()       // ISO yyyy-MM-dd, local logical day
                 val localKey = java.time.LocalDate.now().toString()
                 _today.value = resolveTodayRow(days, logicalKey, localKey)
-                val previousAlert = _healthAlert.value
                 _healthAlert.value =
                     if (_illnessWatchEnabled.value) IllnessWatch.evaluate(days) else null
-                // Banner transition (clear → raised) → real system notification; the notifier's
-                // persisted day gate dedupes against the background-service call site.
-                if (previousAlert == null) {
-                    _healthAlert.value?.let { IllnessAlertNotifier.onEvaluated(appContext, it) }
-                }
+                // EVERY evaluation is reported, raised or clear. The clear-to-raised edge now lives in
+                // the notifier's PERSISTED state (#2586): `_healthAlert` starts null on every ViewModel
+                // build, so gating here made a cold start look like a transition, and the day gate then
+                // allowed a notification about an alert that had simply stayed raised.
+                IllnessAlertNotifier.onEvaluated(appContext, _healthAlert.value)
                 // Morning recap (#517) — opt-in, default OFF. Once today's row carries a banked night
                 // (totalSleepMin != null), post a one-per-day Charge + Rest recap. recovery == Charge;
                 // Rest is recomputed from the night's totals via RestScorer (the same single source of

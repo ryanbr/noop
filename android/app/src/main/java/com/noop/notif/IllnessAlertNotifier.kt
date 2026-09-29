@@ -14,8 +14,21 @@ import com.noop.ui.appLaunchIntent
 
 /** Small pure policy so the once-per-day gate is JVM-testable (CallAlertPolicy idiom). */
 internal object IllnessAlertPolicy {
-    fun shouldNotify(alert: String?, lastNotifiedDay: String?, today: String): Boolean =
-        alert != null && lastNotifiedDay != today
+    /**
+     * Notify only on a genuine clear-to-raised transition, at most once a day.
+     *
+     * [previouslyRaised] is the fix for #2586. Both call sites already checked for a transition, but
+     * each remembered the previous state in memory, so a cold start made "previously clear" true again
+     * and the day gate, meant only to dedupe the two call sites against each other, became permission
+     * to re-notify. A two-day scoring window keeps one bad night raised into the next day, so the
+     * second notification arrived about a night the wearer had already been told about.
+     */
+    fun shouldNotify(
+        alert: String?,
+        previouslyRaised: Boolean,
+        lastNotifiedDay: String?,
+        today: String,
+    ): Boolean = alert != null && !previouslyRaised && lastNotifiedDay != today
 }
 
 /**
@@ -31,7 +44,20 @@ object IllnessAlertNotifier {
     @SuppressLint("MissingPermission") // guarded by areNotificationsEnabled() + runCatching
     fun onEvaluated(context: Context, alert: String?) {
         val today = java.time.LocalDate.now().toString()
-        if (!IllnessAlertPolicy.shouldNotify(alert, NoopPrefs.illnessLastNotifiedDay(context), today)) return
+        val wasRaised = NoopPrefs.illnessWasRaised(context)
+        val notify = IllnessAlertPolicy.shouldNotify(
+            alert, wasRaised, NoopPrefs.illnessLastNotifiedDay(context), today,
+        )
+        // Recorded before the early return, because this is what makes the edge an edge: a cleared
+        // alert has to be written down or the next genuine transition cannot be recognised.
+        //
+        // Written only when it CHANGES. Both call sites now report every evaluation, and the service's
+        // is a conflated collect over live BLE state, so it fires on connection, battery and HR moves.
+        // An unconditional write there would put a SharedPreferences commit on that path several times
+        // a minute to store a boolean that almost never moves, which is the same waste the battery
+        // gate below this call site already avoids by keying on actual movement.
+        if (wasRaised != (alert != null)) NoopPrefs.setIllnessWasRaised(context, alert != null)
+        if (!notify) return
         // Defensive: never let a notify() throw (revoked POST_NOTIFICATIONS, OEM quirk) crash a collector.
         runCatching {
             if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
