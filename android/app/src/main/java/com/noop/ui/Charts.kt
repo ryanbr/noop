@@ -67,14 +67,15 @@ import kotlin.math.roundToInt
 // These are pure helpers; they change NO drawing.
 
 /** One-line spoken summary of a numeric series: count + latest + low/high. Empty → "No data". */
-private fun seriesSummary(values: List<Double>, noun: String): String {
+internal fun seriesSummary(values: List<Double>, noun: String, valueFormat: ((Double) -> String)? = null): String {
     val clean = values.filter { it.isFinite() }
     if (clean.isEmpty()) return "$noun, no data"
     val last = clean.last()
     val lo = clean.min()
     val hi = clean.max()
-    return "$noun, ${clean.size} points, latest ${formatLineValue(last)}, " +
-        "low ${formatLineValue(lo)}, high ${formatLineValue(hi)}"
+    val format = valueFormat ?: ::formatLineValue
+    return "$noun, ${clean.size} points, latest ${format(last)}, " +
+        "low ${format(lo)}, high ${format(hi)}"
 }
 
 /**
@@ -261,6 +262,7 @@ fun Sparkline(
     values: List<Double>,
     modifier: Modifier = Modifier,
     color: Color = Palette.accent,
+    valueFormat: ((Double) -> String)? = null,
 ) {
     // PERF (#scroll-jank): the point mapping + Path were rebuilt inside the Canvas draw lambda EVERY
     // frame. drawWithCache tessellates the Path ONCE (keyed on the values + size — the cache block
@@ -269,7 +271,7 @@ fun Sparkline(
     // ONE collapsed semantics node (see "Accessibility summaries"): the delegate reads a single trend
     // summary instead of walking the canvas. clearAndSetSemantics drops any child nodes (there are none
     // here) and contributes exactly this contentDescription. Changes no drawing.
-    val axSummary = seriesSummary(values, "Trend")
+    val axSummary = seriesSummary(values, "Trend", valueFormat)
     Box(
         modifier = modifier
             .fillMaxWidth()

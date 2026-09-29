@@ -2226,6 +2226,12 @@ class WhoopRepository(
         strapDeviceId: String = "my-whoop",
     ): MetricSeriesResolution {
         val candidates = sourceCandidates(key, preferredSource, strapDeviceId)
+        if (key == WeightHistory.KEY && preferredSource == APPLE_HEALTH_SOURCE) {
+            val points = WeightHistoryStore(this).history(to).filter { it.day >= from }.map {
+                ResolvedMetricPoint(it.day, it.kilograms, it.source, key)
+            }
+            return MetricSeriesResolution(preferredSource, candidates, points)
+        }
         // First candidate wins per day; later candidates only fill days no earlier one covered.
         // #993 exception inside [resolveFirstWins]: a day held only by a WEAK sleep-total (the bare
         // Health Connect aggregate under "my-whoop" , on the reporter's Pixel a constant 450-min
@@ -2272,6 +2278,8 @@ class WhoopRepository(
     ): List<CandidateRow> {
         val byDay = LinkedHashMap<String, CandidateRow>()
         for (row in dao.metricSeries(candidate.source, candidate.key, from, to)) {
+            if (candidate.key == WeightHistory.KEY &&
+                (!WeightHistory.validDay(row.day) || !WeightHistory.validKilograms(row.value))) continue
             byDay[row.day] = CandidateRow(row.day, row.value)
         }
         // #993: a sleep-total read off a BARE daily aggregate (no efficiency, no stage minutes , the
@@ -2658,6 +2666,9 @@ class WhoopRepository(
                     candidates.add(MetricSourceCandidate(APPLE_HEALTH_SOURCE, it))
                 }
                 return uniqued(candidates)
+            }
+            if (preferredSource == APPLE_HEALTH_SOURCE && key == WeightHistory.KEY) {
+                return WeightHistory.sources.map { MetricSourceCandidate(it, key) }
             }
             if (preferredSource == APPLE_HEALTH_SOURCE) {
                 val candidates = mutableListOf(MetricSourceCandidate(APPLE_HEALTH_SOURCE, key))

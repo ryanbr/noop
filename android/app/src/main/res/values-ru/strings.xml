@@ -2742,4 +2742,17 @@
     <string name="raw_diag_protocol_probes_detail">Отправляет экспериментальные запросы протокола и включает будильник браслета 5/MG. Не требуется для обычной синхронизации, сна, восстановления или подсчёта шагов.</string>
     <string name="sleep_result_updated_title">Результат сна обновлён</string>
     <string name="sleep_result_updated_message">Время засыпания, пробуждения или общая продолжительность сна этой ночи изменились как минимум на пять минут.</string>
+
+    <!-- Dated, local weight history (Refs #763). -->
+    <string name="weight_history_title">История веса</string>
+    <string name="weight_add">Добавить вес</string>
+    <string name="weight_empty">Запишите вес или импортируйте историю веса.</string>
+    <string name="weight_manual">Вручную</string>
+    <string name="weight_invalid">Введите корректный вес.</string>
+    <string name="weight_per_day">Одна ручная запись на дату. Сохранение заменяет существующую запись за эту дату.</string>
+    <string name="weight_load_error">Не удалось загрузить историю веса.</string>
+    <string name="weight_change_error">Не удалось сохранить изменение. Попробуйте ещё раз.</string>
+    <string name="weight_delete_title">Удалить эту запись веса?</string>
+    <string name="weight_profile_note">Записанные измерения не меняют вес в профиле.</string>
+    <string name="weight_days">%1$d дней</string>
 </resources>

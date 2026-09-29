@@ -2846,4 +2846,17 @@
     <string name="raw_diag_protocol_probes_detail">Envoie des requêtes de protocole expérimentales et active l’alarme du bracelet 5/MG. Inutile pour la synchronisation, le sommeil, la récupération ou les pas ordinaires.</string>
     <string name="sleep_result_updated_title">Résultat du sommeil mis à jour</string>
     <string name="sleep_result_updated_message">Les horaires de sommeil ou la durée totale de sommeil de cette nuit ont changé d’au moins cinq minutes.</string>
+
+    <!-- Dated, local weight history (Refs #763). -->
+    <string name="weight_history_title">Historique du poids</string>
+    <string name="weight_add">Ajouter un poids</string>
+    <string name="weight_empty">Enregistrez un poids ou importez votre historique.</string>
+    <string name="weight_manual">Saisie manuelle</string>
+    <string name="weight_invalid">Saisissez un poids valide.</string>
+    <string name="weight_per_day">Une saisie manuelle par date. L’enregistrement remplace la saisie existante pour cette date.</string>
+    <string name="weight_load_error">Impossible de charger l’historique du poids.</string>
+    <string name="weight_change_error">Impossible d’enregistrer cette modification. Réessayez.</string>
+    <string name="weight_delete_title">Supprimer cette mesure de poids ?</string>
+    <string name="weight_profile_note">Les poids enregistrés ne modifient pas le poids de votre profil.</string>
+    <string name="weight_days">%1$d jours</string>
 </resources>

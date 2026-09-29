@@ -2863,4 +2863,17 @@
     <string name="raw_diag_protocol_probes_detail">Wysyła eksperymentalne zapytania protokołu i włącza alarm opaski 5/MG. Nie jest potrzebne do zwykłej synchronizacji, snu, regeneracji ani kroków.</string>
     <string name="sleep_result_updated_title">Zaktualizowano wynik snu</string>
     <string name="sleep_result_updated_message">Godziny snu lub łączny czas snu tej nocy zmieniły się o co najmniej pięć minut.</string>
+
+    <!-- Dated, local weight history (Refs #763). -->
+    <string name="weight_history_title">Historia masy ciała</string>
+    <string name="weight_add">Dodaj masę ciała</string>
+    <string name="weight_empty">Zapisz masę ciała lub zaimportuj jej historię.</string>
+    <string name="weight_manual">Ręcznie</string>
+    <string name="weight_invalid">Wpisz prawidłową masę ciała.</string>
+    <string name="weight_per_day">Jeden wpis ręczny na datę. Zapisanie zastępuje istniejący wpis z tej daty.</string>
+    <string name="weight_load_error">Nie udało się wczytać historii masy ciała.</string>
+    <string name="weight_change_error">Nie udało się zapisać zmiany. Spróbuj ponownie.</string>
+    <string name="weight_delete_title">Usunąć ten wpis masy ciała?</string>
+    <string name="weight_profile_note">Zapisane pomiary nie zmieniają masy ciała w profilu.</string>
+    <string name="weight_days">%1$d dni</string>
 </resources>

@@ -2876,4 +2876,17 @@
     <string name="raw_diag_protocol_probes_detail">Sends experimental protocol queries and enables the 5/MG strap alarm. Not needed for normal sync, sleep, recovery, or steps.</string>
     <string name="sleep_result_updated_title">Sleep result updated</string>
     <string name="sleep_result_updated_message">This night\'s sleep times or total asleep changed by at least five minutes.</string>
+
+    <!-- Dated, local weight history (Refs #763). -->
+    <string name="weight_history_title">Weight history</string>
+    <string name="weight_add">Add weight</string>
+    <string name="weight_empty">Log a weight or import weight history.</string>
+    <string name="weight_manual">Manual</string>
+    <string name="weight_invalid">Enter a valid weight.</string>
+    <string name="weight_per_day">One manual entry per date. Saving replaces an existing entry for that date.</string>
+    <string name="weight_load_error">Could not load weight history.</string>
+    <string name="weight_change_error">Could not save this change. Try again.</string>
+    <string name="weight_delete_title">Delete this weight entry?</string>
+    <string name="weight_profile_note">Logged weights do not change your profile weight.</string>
+    <string name="weight_days">%1$d days</string>
 </resources>

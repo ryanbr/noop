@@ -191,4 +191,15 @@ class UnitFormatterTest {
         assertEquals("—", UnitFormatter.paceFromSecPerKm(0.0, UnitSystem.IMPERIAL))
         assertEquals("—", UnitFormatter.paceFromSecPerKm(-1.0, UnitSystem.METRIC))
     }
+    @Test
+    fun weightSparkSummaryUsesDisplayUnitsWithoutChangingOtherCharts() {
+        val values = listOf(85.0, 84.0)
+        assertEquals("Trend, 2 points, latest 84, low 84, high 85", seriesSummary(values, "Trend"))
+        assertEquals("Trend, 2 points, latest 185.2 lb, low 185.2 lb, high 187.4 lb",
+            seriesSummary(values, "Trend") { UnitFormatter.massFromKilograms(it, UnitSystem.IMPERIAL) })
+        assertEquals("Trend, 2 points, latest 84.0 kg, low 84.0 kg, high 85.0 kg",
+            seriesSummary(values, "Trend") { UnitFormatter.massFromKilograms(it, UnitSystem.METRIC) })
+        assertEquals("Trend, no data", seriesSummary(listOf(Double.NaN), "Trend"))
+    }
+
 }
