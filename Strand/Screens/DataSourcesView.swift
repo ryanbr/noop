@@ -567,6 +567,26 @@ struct DataSourcesView: View {
                 )
                 try await store.upsertWorkouts([row], deviceId: ActivityFileImporter.sourceId)
 
+                if activity.route.count >= 2 {
+                    let route = activity.route
+                    let coordinates = route.map { RouteMath.LatLng($0.lat, $0.lon) }
+                    RouteStore.store(WorkoutRoute(polyline: RouteMath.encode(coordinates),
+                        distanceM: RouteMath.totalMeters(coordinates)),
+                        startTs: row.startTs, sport: row.sport)
+                    let timed = route.compactMap { point -> StoredWorkoutRoutePoint? in
+                        guard let time = point.time else { return nil }
+                        return StoredWorkoutRoutePoint(latE6: Int(floor(point.lat * 1_000_000 + 0.5)),
+                            lonE6: Int(floor(point.lon * 1_000_000 + 0.5)),
+                            tMs: Int64(time.timeIntervalSince1970) * 1000)
+                    }
+                    try await store.replaceWorkoutRoutePoints(timed.count >= 2 && timed.count == route.count ? timed : [],
+                        deviceId: ActivityFileImporter.sourceId, startTs: row.startTs, sport: row.sport)
+                } else {
+                    RouteStore.remove(startTs: row.startTs, sport: row.sport)
+                    try await store.replaceWorkoutRoutePoints([], deviceId: ActivityFileImporter.sourceId,
+                        startTs: row.startTs, sport: row.sport)
+                }
+
                 // #137 (A): persist the ride's real per-sample HR under the activity-file source. The
                 // insert is keyed on (deviceId, ts), so re-importing the same file is idempotent (an
                 // identical ts overwrites, never duplicates). Skipped when the file carried no

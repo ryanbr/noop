@@ -1103,6 +1103,20 @@ extension WhoopStore {
         migrator.registerMigration("v47-rr-whoop5-fill") { db in
             try db.execute(sql: WhoopStore.whoop5RrFillMigrationSQL)
         }
+        migrator.registerMigration("v48-workout-route-points") { db in
+            try db.create(table: "workoutRoutePoint") { t in
+                t.column("deviceId", .text).notNull()
+                t.column("startTs", .integer).notNull()
+                t.column("sport", .text).notNull()
+                t.column("seq", .integer).notNull()
+                t.column("latE6", .integer).notNull()
+                t.column("lonE6", .integer).notNull()
+                t.column("tMs", .integer).notNull()
+                t.column("activeElapsedMs", .integer)
+                t.column("segment", .integer).notNull()
+                t.primaryKey(["deviceId", "startTs", "sport", "seq"])
+            }
+        }
         return migrator
     }
 }

@@ -58,7 +58,7 @@ object ActivityFileImporter {
 
     // MARK: - Normalized model (mirrors Swift ActivityFile)
 
-    data class RoutePoint(val lat: Double, val lon: Double)
+    data class RoutePoint(val lat: Double, val lon: Double, val timeS: Long? = null)
 
     /**
      * #137: one persisted HR sample — unix-second timestamp + bpm. Mirrors the Swift `ActivityHRSample`
@@ -217,6 +217,13 @@ object ActivityFileImporter {
 
         repo.upsertDevice(deviceId, name = "Workout files")
         repo.upsertWorkouts(listOf(row))
+        val timedRoute = activity.route.mapIndexedNotNull { seq, pt ->
+            pt.timeS?.takeIf { it > 0 }?.let { ts ->
+                com.noop.data.WorkoutRoutePointRow(row.deviceId, row.startTs, row.sport, seq,
+                    (pt.lat * 1_000_000).roundToInt(), (pt.lon * 1_000_000).roundToInt(), ts * 1000L)
+            }
+        }
+        repo.replaceWorkoutRoutePoints(row, timedRoute.takeIf { it.size >= 2 && it.size == activity.route.size } ?: emptyList())
 
         // #137 (A): persist the ride's real per-sample HR under the activity-file source. The insert is
         // keyed on (deviceId, ts) (OnConflict.REPLACE), so re-importing the same file is idempotent — an
@@ -433,7 +440,7 @@ object ActivityFileImporter {
     ): Result {
         if (samples.isEmpty()) return Result(null, kind, skipped)
 
-        val route = samples.mapNotNull { it.point }
+        val route = samples.mapNotNull { sample -> sample.point?.copy(timeS = sample.timeS) }
         val times = samples.mapNotNull { it.timeS }
         if (times.isEmpty()) {
             // A pure coordinate track (no timestamps): keep it but with no interval.
@@ -832,7 +839,7 @@ internal class FitDecoder(raw: ByteArray) {
 
     private fun build(): ActivityFileImporter.Result {
         if (samples.isEmpty() && sessionStartS == null) return fail()
-        val route = samples.mapNotNull { it.point }
+        val route = samples.mapNotNull { sample -> sample.point?.copy(timeS = sample.timeS) }
         val times = samples.mapNotNull { it.timeS }
 
         val distance = sessionDistance

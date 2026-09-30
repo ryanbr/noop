@@ -455,7 +455,10 @@ private struct FitDecoder {
             return ActivityFileImportResult(activity: nil, kind: .fit, skipped: skipped)
         }
 
-        let route = samples.compactMap { $0.point }
+        let route = samples.compactMap { sample -> RoutePoint? in
+            guard let point = sample.point else { return nil }
+            return RoutePoint(lat: point.lat, lon: point.lon, time: sample.time)
+        }
         let times = samples.compactMap { $0.time }
 
         // Prefer the session summary; fall back to lap sums, then the sampled track.
