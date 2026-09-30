@@ -267,6 +267,89 @@
       "platform": "kotlin",
       "rationale": "This Kotlin extension dispatches a computed window to repository persistence. The corresponding persistComputedScores dispatch is inline in the excluded Swift app-layer analyzeRecent; this records its architectural role.",
       "twin_path": "Strand/Data/IntelligenceEngine.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/IntelligenceEngine.kt::currentComputationStamp/1#1",
+      "identity_sha256": "022dc419bd8b30e22dc05c3d30e12ad77551e34270e3644e155598e36121dbe4",
+      "platform": "kotlin",
+      "rationale": "The Swift app engine captures the same per-pass build stamp in its currentComputationStamp method; Strand/ is outside the governed Swift roots.",
+      "twin_path": "Strand/Data/IntelligenceEngine.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/IntelligenceEngine.kt::persistFitnessVitalityAndSteps/16#1",
+      "identity_sha256": "df6e97e0fb9caaf7c15b177af22172a27e9120fd6cf217366462fc0e6232407f",
+      "platform": "kotlin",
+      "rationale": "Kotlin extracts the weekly fitness/vitality/steps persistence from the scoring coroutine; the corresponding pass is inline in the excluded Swift app engine.",
+      "twin_path": "Strand/Data/IntelligenceEngine.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/IntelligencePersistence.kt::prepareComputedWindow/13#1",
+      "identity_sha256": "75ec13ab0fa71b83d7de7674a53d8a9991ec711b6bb74117bccb983399fb91e6",
+      "platform": "kotlin",
+      "rationale": "Kotlin constructs the stamped computed window in a helper; Swift assembles the same daily, metric, and source rows inline in the excluded app engine.",
+      "twin_path": "Strand/Data/IntelligenceEngine.swift"
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/DeviceRegistryDao.kt::deleteScoreComputationProvenanceFor/1#1",
+      "identity_sha256": "a239191aa730a6cc1e96e93f99611105932b5bb72a19731e6748c81ac961c477",
+      "platform": "kotlin",
+      "rationale": "Room requires an annotated DAO delete for the new device-scoped table. Swift deletes the table inline through DeviceRegistryStore.deviceScopedTables rather than through a DAO."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/DeviceRegistryDao.kt::reKeyScoreComputationProvenance/2#1",
+      "identity_sha256": "309d9891ca5b94dde621df9af35cf44e713e2ec934e66665453406a80c24e8c9",
+      "platform": "kotlin",
+      "rationale": "Room requires a separate annotated DAO update during device identity adoption. Swift iterates its device-scoped tables and rekeys this table inline."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/Entities.kt::scoreComputationProvenanceRows/4#1",
+      "identity_sha256": "7313feafe3d270d97edc54d5be0012b66868d16d87f4830a78c8b2d6af1b4fc3",
+      "platform": "kotlin",
+      "rationale": "Room needs materialized entity rows before its batch @Upsert. Swift deduplicates and writes the corresponding cells inline in WhoopStore.persistComputedScores."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDao.kt::deleteScoreComputationProvenanceInRange/4#1",
+      "identity_sha256": "afdeb95897d66d3bf739cb4d8b0b1c80982ba362290cea5b156abea4908dbb7f",
+      "platform": "kotlin",
+      "rationale": "Room expresses the score-window deletion as an annotated DAO query. Swift issues the scoped DELETE inline in WhoopStore.persistComputedScores."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDatabase.kt::migrate/1#40",
+      "identity_sha256": "f2fcc9a538bee8eaef0fa7a5ada1eb2eb27a1d63ddcd443355b4086ca78cbc0c",
+      "platform": "kotlin",
+      "rationale": "This is the Room Migration_41_42 override for Android schema 42. Swift registers the analogous table in a GRDB v48 migration closure, with different platform versioning."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopRepository.kt::replaceComputedScoreWindow/9#1",
+      "identity_sha256": "321ae2ee2ea64fb3719c0b23d443c5405af922324ab9d4d5533d883328ae60c4",
+      "platform": "kotlin",
+      "rationale": "Android repository forwards this call to the Room DAO transaction. Swift WhoopStore exposes the transaction directly; that substantive transaction is paired with the DAO method."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopRepository.kt::upsertMetricSeriesWithProvenance/3#1",
+      "identity_sha256": "5a9e7f65fd5d1c2b3d075996772cf6751750f877431b7d9eff004b089c3a0cde",
+      "platform": "kotlin",
+      "rationale": "Android repository forwards this call to the Room DAO transaction. Swift WhoopStore exposes the transaction directly; that substantive transaction is paired with the DAO method."
     }
   ]
 }

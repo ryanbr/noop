@@ -3,6 +3,7 @@ package com.noop.analytics
 import com.noop.data.DailyMetric
 import com.noop.data.MetricSeriesRow
 import com.noop.data.ScoreInputProvenanceRow
+import com.noop.data.ScoreComputationStamp
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -22,6 +23,7 @@ class SleepWearHistoryWindowTest {
             dailies = days.reversed().map { DailyMetric(source, it, totalSleepMin = 400.0) },
             metricRows = (days + "2024-03-01").map { MetricSeriesRow(source, it, "sleep_performance", 80.0) },
             provenance = days.map { ScoreInputProvenanceRow(source, it, "recovery", "test") },
+            computation = ScoreComputationStamp(computedBy = "android:test+1", computedAt = 0),
             markerSourceIds = listOf(source, "test"),
         )
         val writes = IntelligencePersistence.byScoredDay(window)
@@ -31,6 +33,7 @@ class SleepWearHistoryWindowTest {
             assertTrue(write.dailies.all { it.day == write.from })
             assertTrue(write.metricRows.all { it.day == write.from })
             assertTrue(write.provenance.all { it.day == write.from })
+            assertEquals(window.computation, write.computation)
             assertEquals(window.markerSourceIds, write.markerSourceIds)
         }
         assertTrue(writes.none { "2024-03-01" in it.from..it.to })

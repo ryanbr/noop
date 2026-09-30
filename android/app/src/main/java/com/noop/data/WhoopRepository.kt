@@ -795,11 +795,12 @@ class WhoopRepository(
         dailyMetrics: List<DailyMetric>,
         metricPoints: List<MetricSeriesRow>,
         provenance: List<ScoreInputProvenanceRow>,
+        computation: ScoreComputationStamp,
         replaceMetricKeys: List<String> = emptyList(),
         replaceMetricSourceIds: List<String> = listOf(deviceId),
     ) = dao.replaceComputedScoreWindow(
         deviceId, from, to, dailyMetrics, metricPoints, provenance,
-        replaceMetricKeys, replaceMetricSourceIds,
+        computation, replaceMetricKeys, replaceMetricSourceIds,
     )
 
     /** Computed-only daily rows; unlike daysMerged this can never substitute imported/calendar steps. */
@@ -826,7 +827,8 @@ class WhoopRepository(
     suspend fun upsertMetricSeriesWithProvenance(
         rows: List<MetricSeriesRow>,
         provenance: List<ScoreInputProvenanceRow>,
-    ) = dao.upsertMetricSeriesWithProvenance(rows, provenance)
+        computation: ScoreComputationStamp,
+    ) = dao.upsertMetricSeriesWithProvenance(rows, provenance, computation)
 
     /** Hand-correct the bed (onset) / wake (end) time of an existing sleep session, DURABLY , port
      *  of iOS PR #395 (Repository.editSleepTimes + MetricsCache.applySleepEdit).
