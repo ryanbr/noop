@@ -455,11 +455,13 @@ object LabMarkerCsvImport {
      * neighbour already maps to "_"), so "LYMPH %", "LYMPH%" and "Lymph (%)" all give
      * `custom_lymph_pct`. Names without "%" keep their keys except those containing Unicode
      * number letters or other numbers, which Android previously replaced with underscores (#2351).
-     * Byte-identical to Swift `LabMarkerCsvImport.customKey`.
+     * Swift twin: `LabMarkerCsvImport.customKey`. NFC-composable names produce the same key;
+     * Swift's grapheme clusters and Kotlin's code points can differ for uncomposed marks.
      */
     internal fun customKey(name: String): String {
         val lowered = Normalizer.normalize(name, Normalizer.Form.NFC).trim().lowercase()
         // Swift Character.isNumber also keeps Unicode letter/other numbers (e.g. Ⅻ, ²).
+        // Swift twin: `LabMarkerCsvImport.isWordChar`.
         fun isWordChar(cp: Int): Boolean = Character.isLetterOrDigit(cp) ||
             Character.getType(cp) == Character.LETTER_NUMBER.toInt() ||
             Character.getType(cp) == Character.OTHER_NUMBER.toInt()
