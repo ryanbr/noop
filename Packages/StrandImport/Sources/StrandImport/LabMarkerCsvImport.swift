@@ -356,6 +356,7 @@ public enum LabMarkerCsvImport {
     public static func customKey(_ name: String) -> String {
         let lowered = Array(name.precomposedStringWithCanonicalMapping
             .trimmingCharacters(in: .whitespaces).lowercased())
+        // Kotlin twin: `LabMarkerCsvImport.isWordChar`.
         func isWordChar(_ ch: Character) -> Bool { ch.isLetter || ch.isNumber }
         var mapped = ""
         for (i, ch) in lowered.enumerated() {
