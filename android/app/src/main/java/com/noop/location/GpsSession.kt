@@ -70,7 +70,7 @@ object GpsSession {
         val next = TimedPoint(fix.lat, fix.lon, fix.tMs, elapsed, s.segment)
         val track = s.track + pt
         val dist = s.distanceM + if (previous != null && previous.segment == s.segment) {
-            RouteMath.haversineMeters(LatLng(previous.lat, previous.lon), pt)
+            RouteMath.totalMeters(listOf(LatLng(previous.lat, previous.lon), pt))
         } else 0.0
         val secs = elapsed / 1000.0
         _state.value = s.copy(track = track, timedPoints = s.timedPoints + next,

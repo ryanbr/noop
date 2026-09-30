@@ -134,7 +134,7 @@ public struct DeviceRegistryStore: Sendable {
     static let deviceScopedTables = [
         "hrSample", "rrInterval", "spo2Sample", "skinTempSample", "respSample", "gravitySample",
         "stepSample", "ppgHrSample", "event", "battery", "dailyMetric", "sleepSession",
-        "journal", "workout", "appleDaily", "metricSeries", "dayOwnership",
+        "journal", "workout", "workoutRoutePoint", "appleDaily", "metricSeries", "dayOwnership",
         "scoreInputProvenance",
         // Added: device-keyed tables introduced by later migrations that the list previously missed, so a
         // "delete all of this device's data" left raw captures (rawBatch), user-entered lab/blood markers

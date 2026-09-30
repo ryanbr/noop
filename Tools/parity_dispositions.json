@@ -267,6 +267,118 @@
       "platform": "kotlin",
       "rationale": "This Kotlin extension dispatches a computed window to repository persistence. The corresponding persistComputedScores dispatch is inline in the excluded Swift app-layer analyzeRecent; this records its architectural role.",
       "twin_path": "Strand/Data/IntelligenceEngine.swift"
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-file",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/WorkoutRoutePoints.swift",
+      "identity_sha256": "df7255820cad578d2c890c2ca4d37cdac03f4cd1f5964f2e4241859e1c8d8aa2",
+      "platform": "swift",
+      "rationale": "Swift keeps its GRDB route storage API in an extension file; Android keeps equivalent Room schema and methods in its existing entity, DAO and repository files."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/WorkoutRoutePoints.swift::copyWorkoutRoutePoints/6#1",
+      "identity_sha256": "613e601a73b09616d2c1e20090d01dc0cc08cb1b0a77b65171b4432673a4d8c7",
+      "platform": "swift",
+      "rationale": "Swift copies route rows through a GRDB transaction when a workout key changes; Android handles the same edit in its Room repository with a different API shape."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/WorkoutRoutePoints.swift::deleteWorkoutRoutePoints/3#1",
+      "identity_sha256": "36a397d42a23bac4290a42031065e00f257787d715a232e866efa86d159b37d6",
+      "platform": "swift",
+      "rationale": "Swift exposes a GRDB deletion method for a workout route; Android performs the equivalent Room DAO deletion with a platform-specific declaration."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/WorkoutRoutePoints.swift::replaceWorkoutRoutePoints/4#1",
+      "identity_sha256": "df7593b11ea1e134ab5ee543300935766452910c2ba3288a0e3410fceee09be0",
+      "platform": "swift",
+      "rationale": "Swift stores a route through one GRDB transaction; Android splits the equivalent replacement between its Room DAO and repository methods."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/WorkoutRoutePoints.swift::workoutRoutePoints/3#1",
+      "identity_sha256": "4c10615bc96128af78fc5322f5eaa3a1d670ef2fd0c884ff2c04dbaff0991a3e",
+      "platform": "swift",
+      "rationale": "Swift reads the stored route through a GRDB method; Android exposes the equivalent Room DAO query and repository method with different signatures."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/DeviceRegistryDao.kt::deleteWorkoutRoutePointsFor/1#1",
+      "identity_sha256": "a3e7ee8e9835e7b9803a4c03dfe7c0660536e48d6d8bca42e2a8d30f39659917",
+      "platform": "kotlin",
+      "rationale": "Room requires a fixed-table DAO query to delete route points for a device; Swift uses its deviceScopedTables loop to delete the same rows."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/DeviceRegistryDao.kt::reKeyWorkoutRoutePoints/2#1",
+      "identity_sha256": "b26052f94248723ebdcee7e8c1c7395fd30a5b0b1e5bc50c96acbf60831e1dcc",
+      "platform": "kotlin",
+      "rationale": "Room requires a fixed-table DAO query to re-key route points; Swift uses its deviceScopedTables loop for the equivalent move."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDao.kt::deleteWorkoutRoutePoints/3#1",
+      "identity_sha256": "f1a9e044134269148e49239c9d7fa8a02b6e26b888a84c6a8c5a466f0e303d47",
+      "platform": "kotlin",
+      "rationale": "Room declares a route deletion query in its DAO; Swift performs the same storage operation through its GRDB route extension."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDao.kt::replaceWorkoutRoutePoints/4#1",
+      "identity_sha256": "d360fd255b22cc9ae9af371fc7d05356a515474b52d8b3011a4e8a5a0e74a457",
+      "platform": "kotlin",
+      "rationale": "Room provides a route replacement query as part of its DAO; Swift wraps the equivalent writes in one GRDB method."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDao.kt::upsertWorkoutRoutePoints/1#1",
+      "identity_sha256": "af44525421076170f1db14ba3c66e377d91f7aaa54af8ab33a414b6737db2fc5",
+      "platform": "kotlin",
+      "rationale": "Room uses a dedicated batch upsert DAO method for route rows; Swift inserts the same rows inside its GRDB replacement transaction."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDao.kt::workoutRoutePoints/3#1",
+      "identity_sha256": "606cdd3906e4d7442e01705d4280e464a777d46d73aeaaf2646abe770304f901",
+      "platform": "kotlin",
+      "rationale": "Room declares the route read as a DAO query; Swift reads equivalent fields through its GRDB route extension."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDatabase.kt::migrate/1#40",
+      "identity_sha256": "f2fcc9a538bee8eaef0fa7a5ada1eb2eb27a1d63ddcd443355b4086ca78cbc0c",
+      "platform": "kotlin",
+      "rationale": "This numbered Room migration object is Android-specific plumbing; Swift adds the same route table in its separately versioned GRDB migration."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopRepository.kt::replaceWorkoutRoutePoints/2#1",
+      "identity_sha256": "be14fe61df4f0026497b636601e9f3611a66c8274077ba13a74f788bb265dab6",
+      "platform": "kotlin",
+      "rationale": "Android wraps Room route replacement in a repository method; Swift exposes an equivalent operation directly from WhoopStore with a different signature."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopRepository.kt::workoutRoutePoints/1#1",
+      "identity_sha256": "2b9033e6537a0b2f27366a6e03e54806c920f4bcb7b9020a67fc1666d6a9f8ab",
+      "platform": "kotlin",
+      "rationale": "Android wraps its Room route query in a repository method; Swift exposes the equivalent operation directly from WhoopStore with a different signature."
     }
   ]
 }
