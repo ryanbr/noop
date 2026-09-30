@@ -11889,8 +11889,9 @@ class WhoopBleClient(
         // flags, and it needs the disconnect `status` (which reset() does not receive). A probe still
         // mid-subscribe when the link goes is stage 1 ending with the LINK; a probe mid-GET_CLOCK-wait
         // is stage 2. Both get a verdict line so the silence budget advances correctly — EXCEPT when the
-        // link was terminated LOCALLY (status=22), which is our own stack ending the link and not a strap
-        // verdict. A local teardown is inconclusive and does NOT charge the budget (#1804).
+        // link was terminated LOCALLY (status=22), which does not say which side ended it: our paths
+        // produce a status 22, and so does the strap ending the link when a write is challenged. That is
+        // unattributable rather than ours, so it does NOT charge the budget (#1804).
         //
         // Cancel the probe runnables BEFORE emitting the verdict, so a runnable already dequeued and
         // waiting to run cannot fire on the stale state. reset() cancels them again idempotently.
@@ -11905,9 +11906,9 @@ class WhoopBleClient(
                     stage = stage,
                     localTeardownOrigin = lastLocalTeardown,
                 ))
-                // #1804: a local teardown is not a strap verdict, so it does NOT charge the silence
-                // budget. But it DOES charge the inconclusive budget, so a strap whose every link is
-                // torn down locally does not retry forever.
+                // #1804: a local teardown cannot be attributed to either side from the status alone, so
+                // it does NOT charge the silence budget. It DOES charge the inconclusive budget, so a
+                // strap whose every link ends this way does not retry forever.
                 chargeUnbondedProbeInconclusive()
             } else {
                 log(

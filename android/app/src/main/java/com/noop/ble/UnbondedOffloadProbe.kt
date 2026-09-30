@@ -104,8 +104,13 @@ internal fun unbondedProbeSkippedLine(
                 previouslyRefused -> "retired for this strap: a refusal is latched"
                 !unbondedProbeStillWorthAsking(silentLinksSoFar) ->
                     "retired for this strap: the silent-link budget is spent"
-                else -> "retired for this strap: the inconclusive-link budget is spent (our own stack" +
-                    " tore down every probe link, so the question was never asked of the strap)"
+                // Says what happened and points at the detail rather than restating it. The per-link
+                // teardown line already explains what a status 22 does and does not name, once per
+                // link; a second full copy here would be the noise, not the finding.
+                else -> "retired for this strap: the inconclusive-link budget is spent. Every probe link" +
+                    " ended in a LOCAL teardown before the strap answered, and the per-link lines above" +
+                    " carry what each one reported. Which side ended them is not established, and" +
+                    " separating the two needs an HCI capture"
             }
         else -> return null
     }
@@ -174,17 +179,19 @@ internal const val UNBONDED_PROBE_MAX_SILENT_LINKS = 3
 /**
  * How many CONSECUTIVE LOCAL TEARDOWNS may end a probe before it retires itself.
  *
- * #1804: a local teardown (status=22) is inconclusive about the strap — our own stack ended the
- * link, not the strap — so it does NOT charge the silence budget. But inconclusive cannot mean
+ * #1804: a local teardown (status=22) cannot be ATTRIBUTED to the strap — our paths produce one, and
+ * so does the strap ending the link when a write is challenged — so it does NOT charge the silence
+ * budget, which only counts links the strap answered or stayed quiet on. Note what that does not say:
+ * unattributable is not the same as ours, and reading it as ours is how the retirement line came to
+ * announce that the strap had never been asked. But inconclusive cannot mean
  * unbounded: the probe re-runs on every reconnect, and on the strap this fix was written for
  * EVERY attempt was a local teardown. Without a cap the probe re-runs indefinitely on precisely
  * the device the fix was written for, with no path to a conclusion.
  *
  * The cap is LARGER than the silence budget because inconclusive is genuinely weaker evidence
  * than silence: a silent link at least proved the subscriptions were accepted, while a local
- * teardown proved nothing about the strap at all. If our stack tears the link down every time,
- * the probe cannot complete regardless of what the strap would have said, and that is worth
- * recording and stopping on too.
+ * teardown leaves even that open. If every link ends this way the probe cannot complete, whoever
+ * ended them, and that is worth recording and stopping on too.
  *
  * Like the silence budget, cleared by a genuine answer and by turning the experiment off and on.
  */
@@ -438,7 +445,7 @@ internal fun puffinSubscribeRefusedLine(uuid: String, status: String): String =
  *
  * #1804: this line is now ONLY for strap-side drops (GATT_CONN_TIMEOUT, supervision timeout). A LOCAL
  * teardown (status=22) is handled by [unbondedProbeLinkLostLocalTeardownLine] instead, which does NOT
- * charge the budget — a local teardown is our own stack ending the link, not a strap verdict.
+ * charge the budget — a local teardown cannot be attributed to either side from the status alone.
  */
 internal fun unbondedProbeLinkLostLine(
     uptimeMs: Long,
@@ -506,10 +513,11 @@ internal fun unbondedProbeLinkLostIsLocalTeardown(
  *
  * Distinct from [unbondedProbeLinkLostLine] (stage 1, strap-side drop — carries the CLIENT_HELLO
  * signature) and [unbondedProbeLinkLostAskingLine] (stage 2, strap-side drop — carries no finding).
- * This one carries no finding EITHER way and does NOT charge the silence budget, because the link
- * was ended by our own stack, not by the strap. Charging the SILENCE budget would spend it on a
- * question that was never asked of the strap, which is exactly the false negative that latched the
- * probe permanently on the reporting install.
+ * This one carries no finding EITHER way and does NOT charge the silence budget, because who ended the
+ * link is not established: our paths produce a status 22, and so does the strap ending the link when a
+ * write is challenged. Charging the SILENCE budget would spend it on a link that may never have put the
+ * question to the strap, which is the false negative that latched the probe permanently on the
+ * reporting install.
  *
  * It DOES charge the INCONCLUSIVE budget ([UNBONDED_PROBE_MAX_INCONCLUSIVE_LINKS]), which has its
  * own larger cap. A local teardown is weaker evidence than silence, but it cannot be unbounded: on
@@ -524,8 +532,9 @@ internal fun unbondedProbeLinkLostLocalTeardownLine(
     val stageDesc = if (stage == 1) "while subscribing the puffin notify chars" else "after GET_CLOCK went out"
     val origin = localTeardownOrigin ?: "unknown"
     return "Unbonded offload probe: the link was terminated locally ${uptimeMs}ms into this connect" +
-        " $stageDesc (via=$origin). A local teardown is not a strap verdict, so this link is" +
-        " inconclusive and does not consume a silence-budget attempt (#1804, #1635)."
+        " $stageDesc (via=$origin). A local teardown does not say WHICH side ended the link — our own" +
+        " paths produce one, and so does the strap ending the link when a write is challenged — so this" +
+        " link is inconclusive and does not consume a silence-budget attempt (#1804, #1635)."
 }
 
 /**

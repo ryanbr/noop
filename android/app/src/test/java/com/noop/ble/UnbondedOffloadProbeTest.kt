@@ -625,7 +625,7 @@ class UnbondedOffloadProbeTest {
         assertTrue(spent, spent.contains("silent-link budget is spent"))
     }
 
-    // MARK: - #1804: local teardown is inconclusive, not a strap verdict
+    // MARK: - #1804: a local teardown is inconclusive, because it names neither side
 
     /** The field capture: status=22 (GATT_CONN_TERMINATE_LOCAL_HOST). This is the exact case that
      *  latched the probe permanently on the reporting install — a local teardown counted as a strap
@@ -703,7 +703,14 @@ class UnbondedOffloadProbeTest {
         ))
     }
 
-    /** The skipped line names the inconclusive budget when that is what retired the probe. */
+    /**
+     * The skipped line names the inconclusive budget when that is what retired the probe.
+     *
+     * It used to assert `our own stack` as the cause too. That half is gone rather than re-spelled: this
+     * function is given counts and no origins, and both a path of ours and the strap ending a challenged
+     * write arrive as status 22, so naming either was a claim it could not make. The budget it names is
+     * still its own, which is what this test is for.
+     */
     @Test
     fun `skipped line names inconclusive budget when it is the reason`() {
         val line = unbondedProbeSkippedLine(
@@ -718,7 +725,7 @@ class UnbondedOffloadProbeTest {
         )
         assertNotNull(line, line)
         assertTrue(line!!, line.contains("inconclusive-link budget is spent"))
-        assertTrue(line, line.contains("our own stack"))
+        assertTrue(line, line.contains("LOCAL teardown"))
     }
 
     /**
@@ -768,5 +775,52 @@ class UnbondedOffloadProbeTest {
                 inconclusiveLinksSoFar = UNBONDED_PROBE_MAX_INCONCLUSIVE_LINKS - 1,
             ),
         )
+    }
+
+    /**
+     * The retirement line may not name a cause it was never given.
+     *
+     * It used to read "our own stack tore down every probe link, so the question was never asked of the
+     * strap". Nothing establishes that. [unbondedProbeSkippedLine] receives counts and no origins, and a
+     * status-22 teardown is produced both by paths of ours and by the strap ending the link when a write
+     * is challenged. On a field run of six links, none of which any path of ours claimed, that sentence
+     * told the reader the strap had never been asked when it may well have answered every time.
+     */
+    @Test
+    fun theInconclusiveRetirementLineDoesNotNameACauseItWasNotGiven() {
+        val line = unbondedProbeSkippedLine(
+            isWhoop5 = true,
+            optedIn = true,
+            bonded = false,
+            helloWrittenThisLink = false,
+            alreadyProbedThisLink = false,
+            previouslyRefused = false,
+            silentLinksSoFar = 0,
+            inconclusiveLinksSoFar = UNBONDED_PROBE_MAX_INCONCLUSIVE_LINKS,
+        )
+        assertNotNull(line)
+        line!!
+        assertFalse("must not blame our stack", line.contains("our own stack tore down"))
+        assertFalse("must not claim the strap went unasked", line.contains("never asked of the strap"))
+        // What it MAY say: the observation, and that the cause is open.
+        assertTrue(line.contains("LOCAL teardown"))
+        assertTrue(line.contains("not established"))
+    }
+
+    /** The other two retirement reasons are unchanged, so this did not blur them together. */
+    @Test
+    fun theOtherRetirementReasonsStillReadAsThemselves() {
+        fun skipped(refused: Boolean, silent: Int, inconclusive: Int) = unbondedProbeSkippedLine(
+            isWhoop5 = true,
+            optedIn = true,
+            bonded = false,
+            helloWrittenThisLink = false,
+            alreadyProbedThisLink = false,
+            previouslyRefused = refused,
+            silentLinksSoFar = silent,
+            inconclusiveLinksSoFar = inconclusive,
+        )
+        assertTrue(skipped(true, 0, 0)!!.contains("a refusal is latched"))
+        assertTrue(skipped(false, UNBONDED_PROBE_MAX_SILENT_LINKS, 0)!!.contains("silent-link budget is spent"))
     }
 }
