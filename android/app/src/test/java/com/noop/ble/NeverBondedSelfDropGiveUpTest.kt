@@ -105,7 +105,7 @@ class NeverBondedSelfDropGiveUpTest {
                 staleDirectBond = false, status = STATUS_SELF_DROP, alreadyPausedForBondLoop = backoff.shouldGiveUp(),
                 helloSuppressed = false,
             )
-            return gate && backoff.recordBounce()
+            return gate && backoff.recordBounce(attributable = true)
         }
         assertFalse("cycle 1 keeps trying", cycle())
         assertFalse("cycle 2 keeps trying", cycle())
@@ -127,7 +127,7 @@ class NeverBondedSelfDropGiveUpTest {
                 staleDirectBond = false, status = STATUS_LOCAL_TERMINATE, alreadyPausedForBondLoop = false, helloSuppressed = false,
             )
         )
-        backoff.recordBounce() // the watchdog would have counted this cycle itself
+        backoff.recordBounce(attributable = true) // the watchdog would have counted this cycle itself
         // cycles 2-4: the strap self-drops (status 0) before the watchdog — the gate counts these.
         repeat(2) {
             assertTrue(
@@ -136,7 +136,7 @@ class NeverBondedSelfDropGiveUpTest {
                     staleDirectBond = false, status = STATUS_SELF_DROP, alreadyPausedForBondLoop = false, helloSuppressed = false,
                 )
             )
-            assertFalse(backoff.recordBounce())
+            assertFalse(backoff.recordBounce(attributable = true))
         }
         // the 4th total bounce (2 watchdog-style + this self-drop) crosses the shared threshold.
         assertTrue(
@@ -145,7 +145,7 @@ class NeverBondedSelfDropGiveUpTest {
                 staleDirectBond = false, status = STATUS_SELF_DROP, alreadyPausedForBondLoop = false, helloSuppressed = false,
             )
         )
-        assertTrue("shared streak crosses the give-up threshold at 4", backoff.recordBounce())
+        assertTrue("shared streak crosses the give-up threshold at 4", backoff.recordBounce(attributable = true))
         assertEquals(4, backoff.consecutiveBounces)
     }
 

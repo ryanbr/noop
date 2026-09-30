@@ -6769,11 +6769,43 @@ class WhoopBleClient(
         // re-pair guide the stale-bond / #617 paths show and PAUSE auto-reconnect (reusing the #747/#844
         // machinery [handleDisconnect] already honours) so the battery stops draining. A user Connect or a
         // genuine bond re-arms it via [bondWatchdogBackoff].reset().
-        val gaveUp = bondWatchdogBackoff.recordBounce()
+        // Only a link with somewhere to WRITE the handshake can speak for bonding, and
+        // [commandChannelReady] is already the resolver for that question. Two ways to lack one, both
+        // live on a 5/MG at range: discovery has not returned yet (the window can expire on a 14-17s MTU
+        // negotiation alone, against a 1.5s expected wait), or it returned without the custom service.
+        // Counting either walked the give-up to a 5h 57m auto-reconnect pause that blamed a strap which
+        // had not been asked anything. The window still escalates either way — a slow link should get
+        // longer — which is why the two counters are separate.
+        val attributable = commandChannelReady
+        val gaveUp = bondWatchdogBackoff.recordBounce(attributable = attributable)
+        // Bounded in BOTH directions. Excusing these from the pairing give-up without capping them would
+        // trade a wrong 6-hour pause for an endless bounce loop — the drain #971 exists to end. Different
+        // consequence though: stand the watchdog down and LEAVE THE LINK UP. Auto-reconnect keeps running
+        // because a weak link is transient, and the standard HR profile on that link may be the only data
+        // a strap that cannot bond will ever give (#1635).
+        if (!attributable && bondWatchdogBackoff.shouldStopBouncingWithoutCommandChannel()) {
+            // The trade, stated rather than left to be discovered: the watchdog is down for the REST of
+            // this link, so if discovery finally returns and a handshake does go out on it, nothing times
+            // that handshake out. Acceptable, because the alternative was bouncing forever, and a stuck
+            // handshake still ends in the supervision timeout the log is already full of. The next link
+            // re-arms at its own discovery.
+            log("Service discovery still had not returned after " +
+                "${bondWatchdogBackoff.unattributableBounces} bounces — standing the watchdog down for " +
+                "the rest of this link instead of bouncing again. Auto-reconnect is NOT paused: nothing " +
+                "here is evidence about pairing, and the link is left up in case live HR is still " +
+                "arriving on it. " + bondWatchdogContext())
+            cancelBondWatchdog()
+            return
+        }
         intentionalDisconnect = false
         if (gaveUp) {
-            log("Bond handshake never completed after ${bondWatchdogBackoff.consecutiveBounces} escalating tries " +
-                bondWatchdogContext() + " — pausing auto-reconnect and surfacing the re-pair guide (#971)")
+            // attributableBounces, not consecutiveBounces: the threshold is measured against the former,
+            // so quoting the latter would claim more handshake attempts than were made — the same
+            // over-claim, in the line that tells the user to go re-pair.
+            log("Bond handshake never completed after ${bondWatchdogBackoff.attributableBounces} escalating " +
+                "tries (${bondWatchdogBackoff.consecutiveBounces} link bounces in total, the rest before " +
+                "the command channel existed) " + bondWatchdogContext() +
+                " — pausing auto-reconnect and surfacing the re-pair guide (#971)")
             autoReconnectPausedForBondLoop = true
             bondLoopPausedAtMs = System.currentTimeMillis()   // the #78 hole-4 salvage probe covers this pause too
                 // #1539: park the connect in the same breath as the pause, so this can end while backgrounded.
@@ -6791,8 +6823,23 @@ class WhoopBleClient(
                 ) }
             }
         } else {
-            log("Bond handshake stuck for ${bondWatchdogBackoff.currentWindowMs() / 1000}s — bouncing link to retry " +
-                "(attempt ${bondWatchdogBackoff.consecutiveBounces}, #50/#971) " + bondWatchdogContext())
+            // Two different findings, so two different sentences. Saying "bond handshake stuck" for a link
+            // that never finished discovery names a cause that was never reached — the attribution rule,
+            // and the reason this whole branch was rewritten.
+            log(
+                if (attributable) {
+                    "Bond handshake stuck for ${bondWatchdogBackoff.currentWindowMs() / 1000}s — bouncing " +
+                        "link to retry (attempt ${bondWatchdogBackoff.consecutiveBounces}, #50/#971) " +
+                        bondWatchdogContext()
+                } else {
+                    "Service discovery had not returned after " +
+                        "${bondWatchdogBackoff.currentWindowMs() / 1000}s — bouncing link to retry (attempt " +
+                        "${bondWatchdogBackoff.consecutiveBounces}, #50/#971). NOT counted toward the " +
+                        "re-pair give-up: nothing was discovered and no handshake was written, so this says " +
+                        "nothing about whether the strap will bond. Usually a weak link — check the RSSI " +
+                        "and the MTU settle time above. " + bondWatchdogContext()
+                },
+            )
             // #1095: a 5/MG whose CLIENT_HELLO confirmed write never ACKs (writeInFlight still true, never
             // bonded) gets NEITHER the 5/15-refusal pairing hint NOR — until the 4-bounce give-up — the
             // re-pair guide, so it loops for ~46s with no advice. Surface a 5/MG-tailored re-pair guide on
@@ -6800,10 +6847,15 @@ class WhoopBleClient(
             // Guidance STRING ONLY — the loop is unchanged (the give-up still pauses at the cap, and its own
             // `reconnectGuide == null` check won't overwrite this). Unpairing is the right first step for any
             // 5/MG that connects but never bonds, so surfacing it early is safe even before the capture.
+            // attributableBounces, not consecutiveBounces: this guide is about a hello that went out and
+            // was never answered, so a weak-link bounce that never reached the command channel must
+            // neither advance it nor be counted in what it claims. Reading the total would surface a
+            // "CLIENT_HELLO never acknowledged" guide off bounces where no hello existed, and reach the
+            // threshold a link or two early.
             if (connectedFamily == DeviceFamily.WHOOP5 && !didBond && writeInFlight &&
-                bondWatchdogBackoff.consecutiveBounces >= 2 && _state.value.reconnectGuide == null
+                bondWatchdogBackoff.attributableBounces >= 2 && _state.value.reconnectGuide == null
             ) {
-                log("WHOOP 5/MG: CLIENT_HELLO never acknowledged across ${bondWatchdogBackoff.consecutiveBounces} silent bounces — surfacing the re-pair guide early (#1095)")
+                log("WHOOP 5/MG: CLIENT_HELLO never acknowledged across ${bondWatchdogBackoff.attributableBounces} silent bounces — surfacing the re-pair guide early (#1095)")
                 _state.update { it.copy(reconnectGuide = """
                     Your WHOOP 5.0/MG connects and reads battery, but never finishes pairing with NOOP, so no health data comes through. This is almost always the official WHOOP app still holding the strap (a 5.0 pairs with one phone at a time), or a stale Bluetooth pairing:
 
@@ -10117,7 +10169,17 @@ class WhoopBleClient(
         sessionStarted = true
         val cmd = cmdCharacteristic
         if (cmd == null) {
-            log("Subscribed, but no command characteristic — cannot open a session")
+            // The watchdog was armed at discovery, before discovery could report what it found. With no
+            // command characteristic there is no handshake to write and none to time out, so leaving it
+            // armed would bounce a link whose only fault is that the custom service was not there. The
+            // third stand-down site, after the #1635 suppression and the pairing deferral; the give-up
+            // is separately protected by [BondWatchdogBackoff.recordBounce]'s attributability.
+            cancelBondWatchdog()
+            log(
+                "Subscribed, but no command characteristic — cannot open a session. The standard HR and " +
+                    "battery profiles stay subscribed, so live HR is unaffected; the bond watchdog is " +
+                    "stood down because there is no handshake on this link for it to time out.",
+            )
             return
         }
         when (connectedFamily) {
@@ -11719,8 +11781,9 @@ class WhoopBleClient(
         // GATT_CONN_TIMEOUT). Feed THIS drop into the SAME #971 give-up counter so the loop is bounded and
         // hands off to the identical re-pair guide + paused auto-reconnect. `didBond` is still valid here
         // ([reset] clears it below); [shouldCountNeverBondedSelfDrop] excludes our own localTerminate bounce
-        // to avoid double-counting a cycle. recordBounce() (short-circuited off the gate) increments the
-        // shared streak and returns true only on the bounce that first crosses the give-up threshold.
+        // to avoid double-counting a cycle. recordBounce (short-circuited off the gate) increments the
+        // shared streak and returns true only on the bounce that first crosses the give-up threshold. It
+        // is passed attributable=true because this path fires only where the hello actually went out.
         if (shouldCountNeverBondedSelfDrop(
                 wasConnected = wasConnected,
                 didBond = didBond,
@@ -11744,7 +11807,9 @@ class WhoopBleClient(
                             helloOverrideAttempts,
                         )
                 }.getOrDefault(false),
-            ) && bondWatchdogBackoff.recordBounce()
+            // attributable: [shouldCountNeverBondedSelfDrop] fires only where the hello was actually
+            // sent, so the command channel existed and this drop IS evidence about bonding.
+            ) && bondWatchdogBackoff.recordBounce(attributable = true)
         ) {
             log("Strap connects and subscribes but never finishes pairing, then self-drops before the bond watchdog fires (${bondWatchdogBackoff.consecutiveBounces} cycles) " +
                 bondWatchdogContext() + " — pausing auto-reconnect and surfacing the re-pair guide (#982/#971)")

@@ -48,8 +48,23 @@ class BondWatchdogBackoff(
      */
     private val giveUpThreshold: Int = 4,
 ) {
-    /** Consecutive bond-watchdog bounces with no genuine bond in between. */
+    /** Consecutive bond-watchdog bounces with no genuine bond in between. Drives the window escalation. */
     var consecutiveBounces = 0
+        private set
+
+    /**
+     * The subset of [consecutiveBounces] that actually says something about BONDING, and the only one
+     * [giveUpThreshold] is measured against.
+     *
+     * A bounce is attributable only when the link reached the phase this watchdog is for. On a marginal
+     * link an MTU negotiation can take 14-17s against a 1.5s expected wait, so service discovery has not
+     * returned when the window expires: nothing was discovered, no handshake was written, and the strap
+     * was never asked anything. Counting that toward the give-up is how a range problem came to pause
+     * auto-reconnect for 5h 57m while reporting "strap keeps refusing to pair" — with `writeInFlight=false`
+     * in the same line. Escalating the WINDOW on those bounces is still right (a slow link should get
+     * longer), which is why the two counters are separate rather than one gated counter.
+     */
+    var attributableBounces = 0
         private set
 
     /** True once [giveUpThreshold] bounces have accrued — the caller must stop bouncing and hand off. */
@@ -74,10 +89,19 @@ class BondWatchdogBackoff(
      * Record one bond-watchdog bounce (the handshake didn't land inside its window). Returns true if THIS
      * bounce freshly crossed [giveUpThreshold] — the caller then stops bouncing and surfaces the re-pair
      * guide + pauses auto-reconnect exactly once.
+     *
+     * [attributable] is whether this bounce is evidence about BONDING: false when the link never reached
+     * the bond phase at all, which on a weak link is the common case rather than an edge one. It has NO
+     * default on purpose. A default is how a counter comes to count things nobody decided it should, and
+     * that is the whole of the bug this parameter exists to end. An
+     * unattributable bounce still escalates the window — it is still a link that did not get where it
+     * needed to in time — but it can never trip the give-up, because there is nothing to give up ON.
      */
-    fun recordBounce(): Boolean {
+    fun recordBounce(attributable: Boolean): Boolean {
         consecutiveBounces += 1
-        if (!gaveUp && consecutiveBounces >= giveUpThreshold) {
+        if (!attributable) return false
+        attributableBounces += 1
+        if (!gaveUp && attributableBounces >= giveUpThreshold) {
             gaveUp = true
             return true
         }
@@ -87,12 +111,32 @@ class BondWatchdogBackoff(
     /** Whether the caller should give up bouncing now (already at/over the threshold). */
     fun shouldGiveUp(): Boolean = gaveUp
 
+    /** Bounces that said nothing about bonding, because the link never reached the command channel. */
+    val unattributableBounces: Int get() = consecutiveBounces - attributableBounces
+
+    /**
+     * Should the caller STOP bouncing links that never reached the command channel?
+     *
+     * Bouncing is bounded in both directions or it is not bounded at all. Excusing these bounces from the
+     * give-up (which is right — they are no evidence about pairing) would otherwise hand them an infinite
+     * loop instead: a link that never completes discovery would be dropped every window, forever, which
+     * is precisely the battery drain [giveUpThreshold] was introduced to end.
+     *
+     * The CONSEQUENCE differs, and that is the whole point of keeping them apart. Reaching the pairing
+     * give-up pauses auto-reconnect and tells the user to re-pair. Reaching this one only stops the
+     * bouncing: auto-reconnect keeps running, because a weak link is transient and the next attempt may
+     * well succeed, and the link is left up, because the standard HR profile can still be delivering the
+     * only data a strap that cannot bond will ever give (#1635).
+     */
+    fun shouldStopBouncingWithoutCommandChannel(): Boolean = unattributableBounces >= giveUpThreshold
+
     /**
      * Clear the streak: a genuine bond landed, or the user explicitly reconnected. Re-arms the tight
      * base window and lets a later slow handshake escalate afresh.
      */
     fun reset() {
         consecutiveBounces = 0
+        attributableBounces = 0
         gaveUp = false
     }
 }
