@@ -160,10 +160,35 @@ fun TestCentreScreen(vm: AppViewModel, onOpenGroundTruthCollector: () -> Unit = 
             blurb = "Each test logs extra detail for one part of the app while you wear the strap, then bundles it for a bug report.",
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                TestCentreLayout.visibleModes(is5MG).forEach { mode ->
+                val modes = TestCentreLayout.visibleModes(is5MG)
+                // Resolve each mode's active flag ONCE. `active()` is a pref read, and for UNIVERSAL it
+                // falls through to anyActive(), which sweeps every domain doing one each. The row below
+                // needs the same answer, so asking twice per recomposition would spend on this screen
+                // what the rest of this is saving.
+                val modesWithActive = modes.map { it to testCentre.active(it.domain) }
+                val anyRowObservesLog = modesWithActive.any { (m, on) ->
+                    TestCentreLiveRefreshPolicy.sources(m, on).observeLogRevision
+                }
+                // ONE archive snapshot for the screen, not one per row.
+                //
+                // Each active row used to call this itself, and every call is a fresh ArrayList of the
+                // WHOLE archive (previous sessions included, read from disk) built under a lock on the
+                // main thread, every 250ms. Then each row ran the domain Regex over all of it to find
+                // its own lines. With the archive at ~21k lines that is a per-row full-archive copy plus
+                // a per-row full-archive scan, per tick, while the strap is connected and writing
+                // hardest — which is exactly when this screen is open. The cost scaled with total
+                // history rather than with anything on screen, so it grew every session.
+                //
+                // Nothing is truncated: readouts like "Reconnects this run" count from these lines, so a
+                // bounded tail would quietly change what they report.
+                val logSnapshot =
+                    if (anyRowObservesLog) rememberActiveLogSnapshot(vm.ble) else TestCentreLogSnapshot.EMPTY
+                modesWithActive.forEach { (mode, isActive) ->
                     TestModeRow(
                         mode = mode,
-                        active = testCentre.active(mode.domain),
+                        active = isActive,
+                        sharedLogLines = logSnapshot.lines,
+                        domainLogLines = logSnapshot.byDomain[mode.id].orEmpty(),
                         startedAtSeconds = testCentre.startedAt(mode.domain),
                         live = live,
                         activeStrapId = activeStrapId,
@@ -573,6 +598,10 @@ private suspend fun buildPending(
 private fun TestModeRow(
     mode: TestMode,
     active: Boolean,
+    /** The screen's ONE archive snapshot; empty when no visible row needs it. */
+    sharedLogLines: List<String>,
+    /** This mode's lines, already filtered out of [sharedLogLines] in the screen's single pass. */
+    domainLogLines: List<String>,
     startedAtSeconds: Long?,
     live: LiveState,
     activeStrapId: String,
@@ -584,11 +613,12 @@ private fun TestModeRow(
     var on by remember { mutableStateOf(active) }
     val elapsed = startedAtSeconds?.let { (System.currentTimeMillis() / 1000.0) - it }
     val refreshSources = TestCentreLiveRefreshPolicy.sources(mode, on)
-    // An active row observes the log's own revision, coalesced during bursty offloads. An inactive row
-    // creates no collector and never snapshots/export-formats the log.
+    // The snapshot arrives from the screen, which takes it once for every row. An inactive row still
+    // reads nothing: `observeLogRevision` is false for it, so it passes an empty list on to its
+    // consumers exactly as before.
     // #1468 follow-up: LINES, not a joined string. Both consumers below immediately work line-wise, so the
     // string this replaced was built (and re-split) on every 250 ms tick for nothing.
-    val logLines = if (refreshSources.observeLogRevision) rememberActiveLogLines(vm.ble) else emptyList()
+    val logLines = if (refreshSources.observeLogRevision) sharedLogLines else emptyList()
     // #965: HONEST per-mode captured-day count for a guided row (distinct days THIS mode produced its own
     // trace on), read from the same log the report exports, so each active mode accumulates its OWN count
     // instead of every guided row sharing one elapsed number. null for a toggle mode (no "K of N") / when off.
@@ -624,6 +654,7 @@ private fun TestModeRow(
             TestCentreLiveReadoutPanel(
                 mode = mode,
                 logLines = logLines,
+                domainLogLines = if (refreshSources.observeLogRevision) domainLogLines else null,
                 live = live,
                 is5MG = is5MG,
                 activeStrapId = activeStrapId,
@@ -649,6 +680,8 @@ private fun TestModeRow(
 private fun TestCentreLiveReadoutPanel(
     mode: TestMode,
     logLines: List<String>,
+    /** Pre-filtered for this mode by the screen's single pass; null falls back to filtering here. */
+    domainLogLines: List<String>?,
     live: LiveState,
     is5MG: Boolean,
     activeStrapId: String,
@@ -712,6 +745,7 @@ private fun TestCentreLiveReadoutPanel(
         active = true,
         snapshot = TestCentreLiveSnapshot(
             logLines = logLines,
+            domainLogLines = domainLogLines,
             nowUnix = nowUnix,
             connected = live.connected,
             batteryPct = live.batteryPct,
@@ -745,10 +779,29 @@ private fun boundedRevision(flow: StateFlow<Long>, coalesceMs: Long): Long {
     return revision
 }
 
+/** The archive snapshot plus its per-domain grouping, taken together so both share one revision. */
+private data class TestCentreLogSnapshot(
+    val lines: List<String>,
+    val byDomain: Map<String, List<String>>,
+) {
+    companion object { val EMPTY = TestCentreLogSnapshot(emptyList(), emptyMap()) }
+}
+
+/**
+ * The archive, and every domain's lines from one pass over it, keyed on the log's REVISION.
+ *
+ * Keyed on the revision and not on the lines: `remember` compares keys with `equals`, and a List
+ * compares element by element, so keying on a 21k-line snapshot walks all of it on any recomposition
+ * where the size happens to match. A Long is the cheap key, and the grouping belongs in the same
+ * `remember` as the copy it is derived from, or the two can be recomputed at different moments.
+ */
 @Composable
-private fun rememberActiveLogLines(ble: WhoopBleClient): List<String> {
+private fun rememberActiveLogSnapshot(ble: WhoopBleClient): TestCentreLogSnapshot {
     val revision = boundedRevision(ble.logRevision, coalesceMs = 250)
-    return remember(ble, revision) { ble.exportLogLines() }
+    return remember(ble, revision) {
+        val lines = ble.exportLogLines()
+        TestCentreLogSnapshot(lines, TestCentreLiveReadouts.tagLinesByDomain(lines))
+    }
 }
 
 @Composable

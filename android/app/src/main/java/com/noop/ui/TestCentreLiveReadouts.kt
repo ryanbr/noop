@@ -21,6 +21,15 @@ internal data class TestCentreLiveSnapshot(
     /** #1468 follow-up: the log as LINES. Every consumer here filters by domain tag, so the joined
      *  string this replaced was built only to be split again. */
     val logLines: List<String> = emptyList(),
+    /**
+     * This mode's lines, already filtered out of [logLines] by the caller.
+     *
+     * Null means "not pre-filtered", and [rows] then does the tagging itself exactly as before, so a
+     * caller that has no pass of its own keeps working. The Test Centre screen supplies it because it
+     * filters ALL domains in one pass over the archive, instead of every visible row running the tag
+     * Regex over every line for itself.
+     */
+    val domainLogLines: List<String>? = null,
     val nowUnix: Long = System.currentTimeMillis() / 1_000,
     val connected: Boolean = false,
     val batteryPct: Double? = null,
@@ -65,7 +74,7 @@ internal object TestCentreLiveReadouts {
 
     fun rows(mode: TestMode, active: Boolean, snapshot: TestCentreLiveSnapshot): List<LiveReadoutRow> {
         if (!active) return emptyList()
-        val tail by lazy { taggedTail(snapshot.logLines, mode.id) }
+        val tail by lazy { snapshot.domainLogLines ?: taggedTail(snapshot.logLines, mode.id) }
         return mode.liveReadout.map { id ->
             require(id in mappedIds) { "Unmapped Test Centre liveReadout id: $id" }
             when (id) {
@@ -138,6 +147,23 @@ internal object TestCentreLiveReadouts {
         return logLines.filter { line ->
             firstDomainTag.find(line)?.groupValues?.get(1) == domainId
         }
+    }
+
+    /**
+     * Every domain's lines from ONE pass over [logLines], for a caller rendering several modes at once.
+     *
+     * Same matcher and therefore the same grouping [taggedTail] produces one domain at a time; this
+     * runs the Regex once per line rather than once per line per visible mode. Domains with no lines are
+     * absent, so a caller reads `[id].orEmpty()`.
+     */
+    fun tagLinesByDomain(logLines: List<String>): Map<String, List<String>> {
+        if (logLines.isEmpty()) return emptyMap()
+        val out = HashMap<String, MutableList<String>>()
+        for (line in logLines) {
+            val id = firstDomainTag.find(line)?.groupValues?.get(1) ?: continue
+            out.getOrPut(id) { ArrayList() }.add(line)
+        }
+        return out
     }
 
     // Match only a real leading TestDomain marker: raw test lines start with it; exported production lines
