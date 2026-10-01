@@ -91,6 +91,21 @@ func liquidSkyHasVisibleStars(_ stars: Double) -> Bool {
     liquidStarOpacity(stars: stars, depth: 1, twinkle: 1) >= liquidStarMinOpacity
 }
 
+/// The most a star can change a pixel of this sky, in 8-bit levels: white at the nearest star's peak opacity over
+/// the sky's top colour (its darkest band, where white shows most), through that colour's darkest channel.
+///
+/// Drawn is not the same as seen. On the dark sky a star at the 0.02 drawing floor already lifts its pixel ~4.6
+/// levels, but the light sky is near-white: its brightest star, at midnight, lifts a pixel ~1.3 levels.
+func liquidStarPeakLift(hour: Double, light: Bool) -> Double {
+    let sky = liquidSkyAt(hour, light: light)
+    let c = sky.top.liquidComponents()
+    return liquidStarOpacity(stars: sky.stars, depth: 1, twinkle: 1) * (1 - min(c.r, c.g, c.b)) * 255
+}
+
+/// A twinkle that moves no pixel by this many levels is not worth a frame. Measured on Today in light appearance at
+/// 03:00 (iPhone 17 Pro simulator): over 5 s of twinkling, 34 pixels of the upper sky changed, each by 1 level.
+let liquidStarMinLift = 2.0
+
 struct LiquidSky: View {
     /// Hour of day 0...24. Defaults to live time when nil.
     var hour: Double?
@@ -139,15 +154,21 @@ struct LiquidSky: View {
     }
 
     /// Whether the sky is drawn as one still frame instead of by the 20 fps loop: motion is unwanted, or
-    /// nothing in the picture can move.
+    /// nothing in the picture can visibly move.
     ///
     /// The loop exists for the stars' twinkle. The one other time-varying layer, the slow breath of light,
     /// moves no pixel by more than 2 of 255 levels in light appearance and 5 in dark over its whole ~29 s
     /// cycle (iPhone 17 Pro simulator, Today, five screenshots 7 s apart). So whenever no star is bright enough to be drawn (dark
     /// appearance ~7:07–19:10, light ~5:25–20:51), the loop redrew an unchanging sky 20 times a second. The
     /// still frame is redrawn whenever the hour passed in changes, and the loop comes back with the stars.
+    ///
+    /// In light appearance it does not come back at all: a white star on the near-white sky never lifts a pixel by
+    /// `liquidStarMinLift` levels (see `liquidStarPeakLift`), yet its 20 fps twinkle cost the render server ~18
+    /// CPU-seconds a minute on Today at night. The still frame keeps drawing those stars, unmoving. Dark
+    /// appearance is unchanged: there a drawable star always lifts its pixel more than that.
     static func pausesFrames(hour: Double, light: Bool, poseStill: Bool) -> Bool {
         poseStill || !liquidSkyHasVisibleStars(liquidSkyAt(hour, light: light).stars)
+            || liquidStarPeakLift(hour: hour, light: light) < liquidStarMinLift
     }
 
     private func render(_ base: GraphicsContext, _ size: CGSize, hour: Double, now: Double,
