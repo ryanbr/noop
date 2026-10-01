@@ -141,14 +141,6 @@ final class ProfileStore: ObservableObject {
 
     // MARK: - Profile picture
 
-    /// The profile photo as a SwiftUI `Image`, or nil when none is set (callers fall back to the
-    /// `person.crop.circle` SF Symbol). Bridges the stored JPEG bytes through the platform bitmap
-    /// type (`NSImage`/`UIImage`) via the shared `Image(platformImage:)` initializer.
-    var avatarImage: Image? {
-        guard let data = avatarImageData, let img = PlatformImage(data: data) else { return nil }
-        return Image(platformImage: img)
-    }
-
     /// Whether a profile photo is set.
     var hasAvatar: Bool { avatarImageData != nil }
 

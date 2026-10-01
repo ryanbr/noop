@@ -48,8 +48,6 @@ actor SkinTempBackfillWalker {
         let noRawData: [String]
         /// Whether another page might yield more fills (false when the last page was empty).
         let moreRemaining: Bool
-
-        var totalAttempted: Int { filled.count + declined.count + noRawData.count }
     }
 
     private let store: WhoopStore

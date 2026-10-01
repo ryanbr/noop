@@ -47,7 +47,6 @@ final class ImuSessionFileStore {
         seen.keys.filter { $0.hasPrefix(sessionDirectory(id).path) }.forEach { seen[$0] = nil }
         save(windows().filter { $0.id != id })
     }
-    func prepareForRead(_ id: String) { flushSession(id) }
 
     func deleteFiles(_ id: String, removeItem: (URL) throws -> Void = { try FileManager.default.removeItem(at: $0) }) -> Bool {
         flushSession(id); let dir = sessionDirectory(id)

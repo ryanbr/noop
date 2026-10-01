@@ -115,7 +115,6 @@ final class Collector {
     /// Last contact state buffered, so only transitions are recorded. See `shouldRecordContact`.
     private var lastStdContact: StandardHRContact?
     private var batchStartedAt: TimeInterval
-    var bufferedCount: Int { buffer.count }
 
     /// The per-stream accepted-row counts `StreamStore.insert` returns, named so the closure that carries
     /// them is readable at both ends.

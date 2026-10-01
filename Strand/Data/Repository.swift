@@ -102,8 +102,6 @@ struct RepositoryFreshness: Equatable, Sendable {
     var latestDay: String?
 
     static let empty = RepositoryFreshness()
-
-    var hasAnyHistory: Bool { importedDays > 0 || computedDays > 0 || appleDays > 0 }
 }
 
 /// What `deleteSleepSession` hands back so a transient UNDO can restore the night (#65). Carries the

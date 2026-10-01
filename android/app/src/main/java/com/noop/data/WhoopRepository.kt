@@ -397,8 +397,6 @@ data class DataFreshness(
     val earliestDay: String? = null,
     val latestDay: String? = null,
 ) {
-    val hasAnyHistory: Boolean get() = importedDays > 0 || computedDays > 0 || appleDays > 0
-
     companion object {
         val EMPTY = DataFreshness()
     }

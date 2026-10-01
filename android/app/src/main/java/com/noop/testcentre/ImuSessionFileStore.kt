@@ -66,8 +66,6 @@ class ImuSessionFileStore(private val context: Context) {
         }
     }
 
-    fun prepareForRead(id: String) = synchronized(lock) { flushSession(id) }
-
     fun deleteFiles(id: String): Boolean = synchronized(lock) {
         flushSession(id)
         val dir = sessionDir(id)

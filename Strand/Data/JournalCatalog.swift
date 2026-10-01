@@ -263,11 +263,6 @@ final class JournalCatalogStore: ObservableObject {
         edit(canonical) { $0.kind = kind }
     }
 
-    /// Set an item's sort index within its group (drag-reorder).
-    func setSortIndex(_ canonical: String, to sortIndex: Int) {
-        edit(canonical) { $0.sortIndex = sortIndex }
-    }
-
     // MARK: - Custom add / remove / restore (v1 API preserved)
 
     /// The display label for a canonical key: the user's rename, or the verbatim canonical.

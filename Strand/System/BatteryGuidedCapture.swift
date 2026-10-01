@@ -30,13 +30,4 @@ enum BatteryGuidedCapture {
         if elapsedDays >= target { return "Capture complete, \(target) of \(target) days" }
         return "Capturing day \(elapsedDays + 1) of \(target)"
     }
-
-    /// Convenience binding for the Battery row: reads the live started-at + the registry default count.
-    static func currentStatus(now: Date = Date()) -> String {
-        let target: Int = {
-            if case .guided(_, let count)? = TestModeRegistry.mode(.battery)?.capture { return count }
-            return 3
-        }()
-        return statusText(startedAt: TestCentre.startedAt(.battery), target: target, now: now)
-    }
 }

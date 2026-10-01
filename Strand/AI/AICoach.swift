@@ -16,10 +16,6 @@ import StrandImport
 // Pure macOS: Foundation + URLSession + Security (Keychain). Compiles on macOS 13, Swift 5.
 // Provider wire formats live in Providers/: OpenAI.swift, Anthropic.swift, Gemini.swift.
 
-/// One-line privacy note the UI should display verbatim near the composer / settings.
-public let aiCoachPrivacyNote =
-    "Private by default: nothing is sent until you add your own key and ask a question - only a short text summary of your metrics goes to the provider you pick."
-
 // MARK: - Chat model
 
 /// One turn in the coaching conversation.

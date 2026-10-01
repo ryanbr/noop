@@ -126,17 +126,6 @@ enum CoachBriefScheduler {
     // MARK: - K10: Widget-facing API (App Group, iOS only)
 
     #if os(iOS)
-    /// The stored brief text for the widget (App Group), or nil before the first successful generation.
-    /// The widget extension reads this — it can't see the app's `UserDefaults.standard`.
-    static var widgetBriefText: String? {
-        UserDefaults(suiteName: WidgetSnapshot.suiteName)?.string(forKey: K.widgetBriefKey)
-    }
-
-    /// Wall-clock date the widget brief was generated, so the widget can show honest staleness.
-    static var widgetBriefDate: Date? {
-        UserDefaults(suiteName: WidgetSnapshot.suiteName)?.object(forKey: K.widgetBriefDateKey) as? Date
-    }
-
     /// Publish (or clear) the brief into the App Group so the widget extension can read it. Called
     /// from `catchUpIfDue` / `generateNow` after a successful generation, and from `setEnabled(false)`
     /// to clear the widget when the user turns the feature off.

@@ -50,11 +50,6 @@ enum BiofeedbackPrefs {
         d.set(date.timeIntervalSince1970, forKey: K.lockedDate)
     }
 
-    static func clearLockedPace() {
-        d.removeObject(forKey: K.lockedPace)
-        d.removeObject(forKey: K.lockedDate)
-    }
-
     // MARK: - L3 toggles → engine Config
 
     static var checkInEnabled: Bool {

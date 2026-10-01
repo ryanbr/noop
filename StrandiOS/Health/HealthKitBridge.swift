@@ -357,14 +357,6 @@ final class HealthKitBridge: ObservableObject {
         }
     }
 
-    /// Foreground catch-up. Call on app-active so anything background delivery missed (the system can
-    /// throttle or skip wakes) is backfilled. A short window is enough because live delivery keeps the
-    /// recent days current; 7 covers a weekend of missed wakes. Exposed for the existing scenePhase
-    /// hook in `StrandiOSApp` to call — no other file is edited.
-    func foregroundCatchUp() async {
-        await sync(days: 7)
-    }
-
     /// Drive an incremental sync off an observer wake. We use an `HKAnchoredObjectQuery` per type to
     /// learn the span of days touched since we last looked (persisting the anchor so the same samples
     /// aren't walked twice and nothing between wakes is missed), then re-aggregate just that day window

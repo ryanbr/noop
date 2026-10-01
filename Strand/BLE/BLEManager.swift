@@ -607,11 +607,6 @@ public final class BLEManager: NSObject, ObservableObject {
     private var strapNewestTs: Int?
     /// Fires if the strap goes silent mid-offload; re-armed on every frame during backfill.
     private var backfillTimeout: DispatchWorkItem?
-    /// Periodic opportunistic upload while connected. Without it, upload only fires at connect +
-    /// backfill-exit, so during a long live session decoded rows pile up locally and the server
-    /// (dashboard) lags. Started on bond, cancelled on disconnect.
-    private var uploadTimer: DispatchSourceTimer?
-    static let uploadIntervalSeconds = 30
     /// Periodic re-trigger of the type-47 historical offload. This is the PRIMARY continuous metric
     /// source (mirrors how WHOOP syncs): the strap's 14-day biometric store is re-offloaded every
     /// `backfillIntervalSeconds` while connected+bonded, rather than once per connect. Started on
@@ -6294,8 +6289,6 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         backfillTimeout = nil
         backfillFrameQueue.removeAll()
         backfillDraining = false
-        uploadTimer?.cancel()
-        uploadTimer = nil
         backfillTimer?.cancel()
         backfillTimer = nil
         keepAliveTimer?.cancel()
