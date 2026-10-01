@@ -73,6 +73,15 @@ enum BiofeedbackPrefs {
         get { d.object(forKey: K.useResonance) as? Bool ?? true }
         set { d.set(newValue, forKey: K.useResonance) }
     }
+
+    /// The locked pace a stress check-in's one-minute breath should run at, or nil for the coherence
+    /// fallback: the user's locked resonance pace only while "Use my resonance pace" is on. That switch
+    /// promises exactly this, and until it was read here the check-in used a locked pace whatever it said.
+    /// Kotlin twin: `BiofeedbackPrefs.checkInLockedPace`.
+    static func checkInLockedPace(useResonance: Bool, locked: Double?) -> Double? {
+        useResonance ? locked : nil
+    }
+
     static var quietStartMinutes: Int {
         get { d.object(forKey: K.quietStart) as? Int ?? 22 * 60 }
         set { d.set(newValue, forKey: K.quietStart) }

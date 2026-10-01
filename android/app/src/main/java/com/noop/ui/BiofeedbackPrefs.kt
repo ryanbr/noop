@@ -67,6 +67,13 @@ object BiofeedbackPrefs {
     fun setUseResonancePace(context: Context, on: Boolean) =
         NoopPrefs.of(context).edit().putBoolean(KEY_USE_RESONANCE, on).apply()
 
+    /**
+     * The locked pace a stress check-in's one-minute breath should run at, or null for the coherence
+     * fallback: the user's locked resonance pace only while "Use my resonance pace" is on (default on).
+     * Swift twin: `BiofeedbackPrefs.checkInLockedPace`, which the iOS switch of that name drives.
+     */
+    fun checkInLockedPace(useResonance: Boolean, locked: Double?): Double? = if (useResonance) locked else null
+
     private fun quietStartMin(context: Context): Int = NoopPrefs.of(context).getInt(KEY_QUIET_START, 22 * 60)
     private fun quietEndMin(context: Context): Int = NoopPrefs.of(context).getInt(KEY_QUIET_END, 7 * 60)
 

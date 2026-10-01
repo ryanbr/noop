@@ -257,11 +257,13 @@ private struct BreathingContent: View {
         if !live.bonded { hapticHint }
     }
 
-    /// Start a one-minute haptic breathing cue at the user's locked resonance pace (or 5.5 fallback) —
-    /// the L3 card's "Breathe now" action. Switches to Resonance/Breathe context and runs the controller.
+    /// Start a one-minute haptic breathing cue at the user's locked resonance pace when "Use my resonance
+    /// pace" is on (else the 5.5 fallback) — the L3 card's "Breathe now" action. Switches to
+    /// Resonance/Breathe context and runs the controller.
     private func startOneMinuteCue() {
         if running { stop() }
-        let bpm = lockedBpm ?? ResonanceEngine.fallbackBpm
+        let bpm = BiofeedbackPrefs.checkInLockedPace(useResonance: BiofeedbackPrefs.useResonancePace,
+                                                     locked: lockedBpm) ?? ResonanceEngine.fallbackBpm
         let cycles = max(1, Int((60.0 * bpm / 60.0).rounded()))   // ~1 minute of breaths
         controller.startResonanceSession(bpm: bpm, cycles: cycles)
     }

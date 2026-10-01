@@ -491,10 +491,13 @@ fun BreatheScreen(viewModel: AppViewModel) {
         // L3 passive stress check-in card (surfaces when StressOnsetDetector fires).
         StressCheckInCard(
             onBreatheNow = {
-                // Switch to Breathe and start a one-minute session. Coherence (5.5 br/min) is the
-                // resonance fallback pace; the felt cue is identical (one buzz in, two out).
+                // Switch to Breathe and start a one-minute session: at the locked resonance pace when the
+                // user has one and keeps "Use my resonance pace" on (as on iOS), else coherence (5.5
+                // br/min), the resonance fallback pace. The felt cue is identical (one buzz in, two out).
                 mode = BreatheMode.Breathe
-                pace = PaceSelection.Catalog("coherence_5_5")
+                val useLocked = BiofeedbackPrefs.checkInLockedPace(
+                    BiofeedbackPrefs.useResonancePace(context), lockedBpm) != null
+                pace = if (useLocked) PaceSelection.Resonance else PaceSelection.Catalog("coherence_5_5")
                 startSession()
             },
         )
