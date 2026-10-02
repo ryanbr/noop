@@ -1088,9 +1088,10 @@ private struct ConnectionReadoutPanel: View {
             ReadoutRow(label: String(localized: "Rows drained (session)"),
                        value: sessionRows.map(String.init) ?? String(localized: "no offload yet"))
             ReadoutRow(label: String(localized: "Rows drained (all time)"), value: String(allTimeRows))
-            ReadoutRow(label: String(localized: "Clock latched"),
-                       value: ConnectionReadout.clockLatchedLabel(deviceClockUnix: deviceClock,
-                                                                  strapNewestUnix: live.strapRange?.newestUnix))
+            ReadoutRow(label: String(localized: "Clock"),
+                       value: ConnectionReadout.clockStatusLabel(deviceClockUnix: deviceClock,
+                                                                 strapNewestUnix: live.strapRange?.newestUnix,
+                                                                 nowUnix: now))
             ReadoutRow(label: String(localized: "Last frame"),
                        value: ConnectionReadout.lastFrameLabel(lastFrameUnix: live.lastFrameAtUnix, nowUnix: now))
             if let rtcWarning {

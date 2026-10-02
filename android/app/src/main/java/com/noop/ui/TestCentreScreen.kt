@@ -687,6 +687,8 @@ private fun TestCentreLiveReadoutPanel(
     activeStrapId: String,
     vm: AppViewModel,
 ) {
+    val context = LocalContext.current
+    val testCentre = remember { TestCentre.from(context) }
     var hrSamples by remember(mode.id) { mutableStateOf(emptyList<HrSample>()) }
     var gravitySamples by remember(mode.id) { mutableStateOf(emptyList<GravitySample>()) }
     var batteryEstimate by remember(mode.id) { mutableStateOf<BatteryEstimator.Estimate?>(null) }
@@ -748,7 +750,11 @@ private fun TestCentreLiveReadoutPanel(
             domainLogLines = domainLogLines,
             nowUnix = nowUnix,
             connected = live.connected,
+            strapNewestUnix = live.strapNewestUnix.takeIf { live.connected },
+            lastFrameUnix = vm.ble.lastInboundFrameUnix().takeIf { live.connected },
+            allTimeDrainedRows = testCentre.cumulativeDrainedRows(),
             batteryPct = live.batteryPct,
+            currentLinkBatteryPct = live.batteryPct.takeIf { live.connected && live.batterySeenThisLink },
             batteryEstimate = batteryEstimate,
             hrSamples = hrSamples,
             gravitySamples = gravitySamples,
@@ -756,10 +762,14 @@ private fun TestCentreLiveReadoutPanel(
     )
     Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(top = 2.dp)) {
         rows.forEach { row ->
+            if (row.id == "clockWarning" && row.value != "none") {
+                Text(row.value, style = NoopType.footnote, color = Palette.textSecondary)
+            } else if (row.id != "clockWarning") {
             Row(Modifier.fillMaxWidth()) {
                 Text(row.label, style = NoopType.footnote, color = Palette.textTertiary)
                 Spacer(Modifier.weight(1f))
                 Text(row.value, style = NoopType.mono, color = Palette.textSecondary)
+            }
             }
         }
     }

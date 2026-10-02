@@ -191,39 +191,30 @@ final class ConnectionReadoutTests: XCTestCase {
         XCTAssertNil(ConnectionReadout.clockCorrelatedDevice(logLines: ["connect up"]))
     }
 
-    func testClockLatchedLabel() {
-        XCTAssertEqual(ConnectionReadout.clockLatchedLabel(deviceClockUnix: 1_782_475_600), "yes")
-        XCTAssertEqual(ConnectionReadout.clockLatchedLabel(deviceClockUnix: 40_000_000), "no (RTC reads 1970/71)")
-        XCTAssertEqual(ConnectionReadout.clockLatchedLabel(deviceClockUnix: nil), "no (waiting for the strap clock)")
-    }
-
-    // #261: a WHOOP 5/MG never populates deviceClockUnix (its GET_CLOCK reply rides the puffin channel,
-    // never the WHOOP4 correlation path) — the data-range fallback is what keeps the row from reading
-    // "waiting" forever on a strap that's actually fine.
-    func testClockLatchedLabelFallsBackToStrapNewestForFiveMG() {
-        XCTAssertEqual(
-            ConnectionReadout.clockLatchedLabel(deviceClockUnix: nil, strapNewestUnix: 1_782_475_600),
-            "yes")
-        // #1823: no clock was READ on this path - it is the 5/MG fallback, where the only evidence is
-        // how the strap dated its records. The wording must not claim a clock reading.
-        XCTAssertEqual(
-            ConnectionReadout.clockLatchedLabel(deviceClockUnix: nil, strapNewestUnix: 40_000_000),
-            "no (records dated 1970/71)")
-        XCTAssertEqual(
-            ConnectionReadout.clockLatchedLabel(deviceClockUnix: nil, strapNewestUnix: nil),
-            "no (waiting for the strap clock)")
-        // deviceClockUnix wins when BOTH signals are present (the WHOOP4 correlation is the more direct one).
-        XCTAssertEqual(
-            ConnectionReadout.clockLatchedLabel(deviceClockUnix: 1_782_475_600, strapNewestUnix: 40_000_000),
-            "yes")
-    }
-
     func testRtcWarningFiresOnEpochEraClockOrNewest() {
         XCTAssertNotNil(ConnectionReadout.rtcWarning(deviceClockUnix: 40_000_000, strapNewestUnix: nil))
         XCTAssertNotNil(ConnectionReadout.rtcWarning(deviceClockUnix: nil, strapNewestUnix: 30_000_000))
         XCTAssertNil(ConnectionReadout.rtcWarning(deviceClockUnix: 1_782_475_600, strapNewestUnix: 1_782_475_000))
         XCTAssertNil(ConnectionReadout.rtcWarning(deviceClockUnix: nil, strapNewestUnix: nil),
                      "no signal seen yet must not fabricate a fault")
+    }
+
+    func testClockStatusRejectsFutureDatedRecords() {
+        XCTAssertEqual(ConnectionReadout.clockStatusLabel(deviceClockUnix: nil,
+                                                         strapNewestUnix: nil,
+                                                         nowUnix: 1_800_000_000), "waiting for clock evidence")
+        XCTAssertEqual(ConnectionReadout.clockStatusLabel(deviceClockUnix: 1_799_999_990,
+                                                         strapNewestUnix: nil,
+                                                         nowUnix: 1_800_000_000), "clock OK")
+        XCTAssertEqual(ConnectionReadout.clockStatusLabel(deviceClockUnix: nil,
+                                                         strapNewestUnix: 1_800_003_600,
+                                                         nowUnix: 1_800_000_000), "future-dated")
+        XCTAssertEqual(ConnectionReadout.clockStatusLabel(deviceClockUnix: nil,
+                                                         strapNewestUnix: 40_000_000,
+                                                         nowUnix: 1_800_000_000), "records dated 1970/71")
+        XCTAssertEqual(ConnectionReadout.clockStatusLabel(deviceClockUnix: nil,
+                                                         strapNewestUnix: 1_799_999_990,
+                                                         nowUnix: 1_800_000_000), "records dated normally")
     }
 
     /// #1818: the remedy must track the battery. A charged strap told to "charge to 100%" is the bug

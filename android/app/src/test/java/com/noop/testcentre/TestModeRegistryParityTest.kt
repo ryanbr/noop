@@ -172,7 +172,8 @@ class TestModeRegistryParityTest {
     }
 
     @Test fun phase2LiveReadoutIds() {
-        assertEquals(listOf("connectionUptime", "reconnectCount", "lastOffloadResult"),
+        assertEquals(listOf("connectionUptime", "reconnectCount", "lastOffloadResult",
+            "sessionRows", "allTimeDrainedRows", "clockStatus", "lastFrame", "clockWarning"),
             TestModeRegistry.mode(TestDomain.CONNECTION)?.liveReadout)
         assertEquals(listOf("lastSessionSummary"),
             TestModeRegistry.mode(TestDomain.WORKOUTS)?.liveReadout)

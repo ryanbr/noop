@@ -2880,4 +2880,5 @@
     <string name="raw_diag_ecg_probe_start">Start ECG capture</string>
     <string name="raw_diag_ecg_probe_stop">Stop ECG capture</string>
     <string name="raw_diag_ecg_probe_running">A capture may still be running on this strap. The verdict goes to the strap log.</string>
+    <string name="connection_clock_status">Clock: %1$s</string>
 </resources>

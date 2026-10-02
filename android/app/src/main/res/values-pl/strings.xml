@@ -2867,4 +2867,5 @@
     <string name="raw_diag_ecg_probe_start">Rozpocznij zapis EKG</string>
     <string name="raw_diag_ecg_probe_stop">Zatrzymaj zapis EKG</string>
     <string name="raw_diag_ecg_probe_running">Na tym pasku może nadal trwać zapis. Werdykt trafia do strap log.</string>
+    <string name="connection_clock_status">Zegar: %1$s</string>
 </resources>

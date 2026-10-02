@@ -1,6 +1,7 @@
 package com.noop.ui
 
 import com.noop.R
+import com.noop.analytics.ConnectionReadout
 import androidx.compose.ui.res.stringResource
 import android.widget.Toast
 import androidx.compose.foundation.background
@@ -289,6 +290,14 @@ fun DevicesScreen(
                 // Historical record layout from the current backfill, distinct from strap firmware.
                 liveHistoryLayout = if (device.status == DeviceStatus.active.name && live.connected)
                     live.historyLayoutVersion else null,
+                clockStatus = if (device.status == DeviceStatus.active.name && live.connected &&
+                    device.brand.equals("WHOOP", ignoreCase = true))
+                    ConnectionReadout.clockStatusLabel(null, live.strapNewestUnix,
+                        System.currentTimeMillis() / 1_000L) else null,
+                clockWarning = if (device.status == DeviceStatus.active.name && live.connected &&
+                    device.brand.equals("WHOOP", ignoreCase = true))
+                    ConnectionReadout.rtcWarning(null, live.strapNewestUnix,
+                        live.batteryPct.takeIf { live.batterySeenThisLink }) else null,
                 onMakeActive = { switchTarget = device },
                 onRename = { renameTarget = device },
                 onRemove = { removeTarget = device },
@@ -748,6 +757,8 @@ private fun DeviceCard(
     liveFirmware: String? = null,
     /** The active+connected strap's observed banked-history record layout (`hist_version`). */
     liveHistoryLayout: Int? = null,
+    clockStatus: String? = null,
+    clockWarning: String? = null,
     onMakeActive: () -> Unit,
     onRename: () -> Unit,
     onRemove: (() -> Unit)?,
@@ -857,6 +868,13 @@ private fun DeviceCard(
             // that used to sit in the text line below. The SAME `liveBatteryPct` binding drives it.
             if (liveBatteryPct != null) {
                 BatteryTube(pct = liveBatteryPct)
+            }
+            if (clockStatus != null) {
+                Text(stringResource(R.string.connection_clock_status, clockStatus),
+                    style = NoopType.footnote, color = Palette.textSecondary)
+            }
+            if (clockWarning != null) {
+                Text(clockWarning, style = NoopType.footnote, color = Palette.textSecondary)
             }
 
             // #592: strap pack voltage (mV → volts, 2dp) beside the percent, when the battery event has

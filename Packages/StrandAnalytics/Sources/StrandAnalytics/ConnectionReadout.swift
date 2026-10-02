@@ -210,32 +210,26 @@ public enum ConnectionReadout {
         return nil
     }
 
-    /// #987/#261: the "clock latched" readout value. "yes" once EITHER signal lands with a plausible
-    /// (post-1972) timestamp: a GET_CLOCK correlation (`deviceClockUnix`, the WHOOP4 path), or a
-    /// GET_DATA_RANGE reply's newest banked record (`strapNewestUnix`, the fallback). "no (RTC reads
-    /// 1970/71)" when whichever signal landed reads epoch-era; "no (waiting for the strap clock)" before
-    /// either replies.
-    ///
-    /// A WHOOP 5/MG's GET_CLOCK reply rides the puffin notify channel and never reaches the WHOOP4-only
-    /// correlation path that sets `deviceClockUnix` (see `BLEManager`'s connect-handshake comment) — its
-    /// records carry absolute timestamps, so it never NEEDS that correlation to decode history. Without
-    /// this fallback the row read "no (waiting for the strap clock)" forever on every 5/MG, even a fully
-    /// working one, because the one signal it checked structurally never populates for that family. The
-    /// data-range reply is an equal-weight proof the strap answered with a working clock, not a downgrade
-    /// — `rtcWarning` below already trusts it the same way.
-    public static func clockLatchedLabel(deviceClockUnix: Int?, strapNewestUnix: Int? = nil) -> String {
-        if let d = deviceClockUnix {
-            return d < ConnectionTrace.rtcEpochCeilingUnix ? "no (RTC reads 1970/71)" : "yes"
+    /// The current link's clock evidence, including future-dated and stale records. A post-1972
+    /// timestamp alone is not proof that the clock is right (#2091).
+    /// Kotlin twin: `ConnectionReadout.clockStatusLabel`.
+    public static func clockStatusLabel(deviceClockUnix: Int?, strapNewestUnix: Int?, nowUnix: Int) -> String {
+        guard deviceClockUnix != nil || strapNewestUnix != nil else { return "waiting for clock evidence" }
+        let clock = deviceClockUnix.map { unix in
+            ConnectionTrace.clockVerdict(aheadSeconds: unix - nowUnix, newestUnix: unix,
+                                         futureToleranceSeconds: 120,
+                                         behindToleranceSeconds: ConnectionTrace.behindToleranceDefault)
         }
-        // #1823: this branch has NOT read a clock. It is reached when no clock correlation exists - which
-        // is every 5/MG, whose GET_CLOCK reply rides the puffin notify chars and never touches the WHOOP4
-        // correlation path - so the only evidence is how the strap DATED its banked records. Saying "RTC
-        // reads 1970/71" there claimed a reading we never took, in the one readout a reporter quotes when
-        // asking why nothing syncs. Report the evidence we actually have.
-        if let n = strapNewestUnix {
-            return n < ConnectionTrace.rtcEpochCeilingUnix ? "no (records dated 1970/71)" : "yes"
+        let record = strapNewestUnix.map { unix in
+            ConnectionTrace.clockVerdict(aheadSeconds: unix - nowUnix, newestUnix: unix,
+                                         futureToleranceSeconds: 120,
+                                         behindToleranceSeconds: ConnectionTrace.behindToleranceDefault)
         }
-        return "no (waiting for the strap clock)"
+        if clock?.contains("FUTURE-DATED") == true || record?.contains("FUTURE-DATED") == true { return "future-dated" }
+        if clock?.contains("RTC-EPOCH") == true { return "RTC reads 1970/71" }
+        if record?.contains("RTC-EPOCH") == true { return "records dated 1970/71" }
+        if record?.contains("CLOCK-WARNING") == true { return "record is over 48h old" }
+        return strapNewestUnix != nil ? "records dated normally" : "clock OK"
     }
 
     /// #1818: at or above this charge the "charge it" remedy is already satisfied, so repeating it is

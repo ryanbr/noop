@@ -2821,4 +2821,5 @@
     <string name="raw_diag_ecg_probe_start">开始心电图采集</string>
     <string name="raw_diag_ecg_probe_stop">停止心电图采集</string>
     <string name="raw_diag_ecg_probe_running">此腕带上可能仍在采集。结论会写入 strap log。</string>
+    <string name="connection_clock_status">时钟：%1$s</string>
 </resources>

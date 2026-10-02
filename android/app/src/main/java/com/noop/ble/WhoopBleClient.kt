@@ -153,6 +153,8 @@ data class LiveState(
      *  [withRRIntervals]; emptied by [clearedBiometrics]. Twin of macOS LiveState.rrRecent (PR#191). */
     val rrRecent: List<Int> = emptyList(),
     val batteryPct: Double? = null,
+    /** A battery event arrived on this link; the retained percentage alone may be from an older link. */
+    val batterySeenThisLink: Boolean = false,
     /** Strap battery pack VOLTAGE (mV), decoded from the ~8-min BATTERY_LEVEL event (mv@21/@25) and the
      *  GET_EXTENDED_BATTERY_INFO response (#592). Shown on the Devices card as a "x.xx V" readout beside
      *  the percent. null until the first battery event lands. */
@@ -300,6 +302,8 @@ data class LiveState(
      *  5.0/MG. null before the first reply this session, or when the frame did not decode. Twin of
      *  macOS LiveState.pagesBehindAtConnect. */
     val pagesBehindAtConnect: Int? = null,
+    /** Newest banked record from this link's validated GET_DATA_RANGE reply, for clock diagnostics. */
+    val strapNewestUnix: Long? = null,
     /** #612: TRUE when the WHOOP-4/generic empty-offload streak ([emptySyncTracker]) is currently
      *  SUSTAINED (3+ consecutive completed-but-empty offloads). Not 5/MG-specific and not coupled to HR:
      *  a connected strap that keeps handing over nothing has this true regardless of live-HR status.
@@ -2315,7 +2319,7 @@ class WhoopBleClient(
      * ignored. Mirrors the Swift StandardHRSource→LiveState.setBattery wiring.
      */
     fun publishExternalBattery(pct: Int) {
-        if (pct in 0..100) _state.update { it.copy(batteryPct = pct.toDouble()) }
+        if (pct in 0..100) _state.update { it.copy(batteryPct = pct.toDouble(), batterySeenThisLink = true) }
     }
 
     // MARK: Android Bluetooth handles.
@@ -3654,6 +3658,10 @@ class WhoopBleClient(
     @Volatile private var realtimeArmed = false
     /** Wall-clock of the last inbound notification — drives the keep-alive liveness watchdog. */
     @Volatile private var lastDataAtMs = 0L
+    @Volatile private var lastInboundFrameAtMs = 0L
+
+    /** Read without publishing every inbound frame to all LiveState observers. */
+    fun lastInboundFrameUnix(): Long? = lastInboundFrameAtMs.takeIf { it > 0L }?.div(1_000L)
 
     /**
      * #1865: when a LIVE HR sample last arrived — distinct from [lastDataAtMs], which any inbound frame
@@ -7976,6 +7984,7 @@ class WhoopBleClient(
         inboundBytes += bytes.size
         if (uuid == CMD_NOTIFY_CHAR) cmdChannelFrames++
         lastDataAtMs = System.currentTimeMillis()   // feeds the keep-alive liveness watchdog
+        lastInboundFrameAtMs = lastDataAtMs
         resubscribedSinceData = false               // data is flowing again — re-arm the one-shot resubscribe
         when {
             uuid == HEART_RATE_CHAR -> parseStandardHr(bytes)       // 0x2A37
@@ -8268,6 +8277,7 @@ class WhoopBleClient(
                         }
                         (if (acceptsWindow) dataRangeNewestUnix(frame) else null)?.let {
                             strapNewestTs = it
+                            _state.update { state -> state.copy(strapNewestUnix = it) }
                             // Capture the wall clock of THIS reading so the backfiller correlation pairs
                             // the strap's device time with the wall time of the same instant (see field doc).
                             strapNewestTsWall = System.currentTimeMillis() / 1000L
@@ -9166,7 +9176,7 @@ class WhoopBleClient(
 
     /** Single funnel for battery readings (port of LiveState.setBattery). */
     private fun setBattery(pct: Double) {
-        _state.update { it.copy(batteryPct = pct) }
+        _state.update { it.copy(batteryPct = pct, batterySeenThisLink = true) }
         // Battery test mode: one tagged (t, soc) line per reading, gated zero-cost when off (the gate is a
         // single SharedPreferences bool read; the formatter below only runs when the mode is on). Rides the
         // redacting log() sink; the Room battery series is the readout + trace source (#713, Test Centre).
@@ -12160,6 +12170,8 @@ class WhoopBleClient(
         backfilling = false
         backfillDrain.reset()
         strapNewestTs = null
+        _state.update { it.copy(strapNewestUnix = null, batterySeenThisLink = false) }
+        lastInboundFrameAtMs = 0L
         strapNewestTsWall = null
         offloadFramesThisSession = 0
         lastOffloadFrameAtMs = 0L   // #174: don't carry a stale cooldown reference into the next session

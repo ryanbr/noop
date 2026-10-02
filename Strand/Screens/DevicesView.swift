@@ -102,14 +102,15 @@ private struct DevicesContent: View {
         guard live.connected else { return nil }
         let deviceClock = ConnectionReadout.clockCorrelatedDevice(logLines: live.log)
         guard deviceClock != nil || live.strapRange != nil || live.lastFrameAtUnix != nil else { return nil }
-        let latched = ConnectionReadout.clockLatchedLabel(deviceClockUnix: deviceClock,
-                                                          strapNewestUnix: live.strapRange?.newestUnix)
+        let latched = ConnectionReadout.clockStatusLabel(deviceClockUnix: deviceClock,
+                                                        strapNewestUnix: live.strapRange?.newestUnix,
+                                                        nowUnix: Int(Date().timeIntervalSince1970))
         let frame = ConnectionReadout.lastFrameLabel(lastFrameUnix: live.lastFrameAtUnix,
                                                      nowUnix: Int(Date().timeIntervalSince1970))
         let warning = ConnectionReadout.rtcWarning(deviceClockUnix: deviceClock,
                                                    strapNewestUnix: live.strapRange?.newestUnix,
                                                    batteryPct: live.batterySamples.last?.soc)
-        return (String(localized: "Clock latched: \(latched) · last frame \(frame)"), warning)
+        return (String(localized: "Clock") + ": \(latched) · last frame \(frame)", warning)
     }
 
     /// #802: same shape and copy as `LiveView.reconnectGuideBanner`. Duplicated rather than hoisted
@@ -753,7 +754,7 @@ private struct DeviceCard: View {
     var liveFirmware: String? = nil
     /// The active+connected strap's observed banked-history record layout (`hist_version`).
     var liveHistoryLayout: Int? = nil
-    /// #987: the active+connected strap's clock-state line ("Clock latched: yes · last frame 12s ago"),
+    /// #987/#2091: the active+connected strap's clock-state line ("Clock: records dated normally · last frame 12s ago"),
     /// nil for every other card. Built by the parent off the same pure ConnectionReadout parsers the
     /// Test Centre Connection panel binds, so the two readouts can never disagree.
     var liveClockLine: String? = nil

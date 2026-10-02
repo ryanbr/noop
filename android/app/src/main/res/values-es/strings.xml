@@ -2851,4 +2851,5 @@
     <string name="raw_diag_ecg_probe_start">Iniciar captura de ECG</string>
     <string name="raw_diag_ecg_probe_stop">Detener captura de ECG</string>
     <string name="raw_diag_ecg_probe_running">Puede que siga activa una captura en esta correa. El veredicto se registra en el strap log.</string>
+    <string name="connection_clock_status">Reloj: %1$s</string>
 </resources>
