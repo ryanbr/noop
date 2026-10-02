@@ -130,7 +130,9 @@ internal class NotifyDayStateCache(
             widgetRecovery = anchorRow?.recovery?.roundToInt(),
             widgetRest = anchorRow?.let { RestScorer.restFromDaily(it)?.roundToInt() },
             widgetEffort = anchorRow?.strain?.roundToInt(),
-            illness = if (illnessEnabled) illnessEvaluator(days) else null,
+            illness = if (illnessEnabled && todayRow != null && days.lastOrNull()?.day == todayRow.day) {
+                illnessEvaluator(days)
+            } else null,
             days = days,
         )
         cachedDays = days

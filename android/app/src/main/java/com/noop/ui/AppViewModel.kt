@@ -1006,7 +1006,11 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 val localKey = java.time.LocalDate.now().toString()
                 _today.value = resolveTodayRow(days, logicalKey, localKey)
                 _healthAlert.value =
-                    if (_illnessWatchEnabled.value) IllnessWatch.evaluate(days) else null
+                    if (_illnessWatchEnabled.value && _today.value != null &&
+                        days.lastOrNull()?.day == _today.value?.day
+                    ) {
+                        IllnessWatch.evaluate(days)
+                    } else null
                 // EVERY evaluation is reported, raised or clear. The clear-to-raised edge now lives in
                 // the notifier's PERSISTED state (#2586): `_healthAlert` starts null on every ViewModel
                 // build, so gating here made a cold start look like a transition, and the day gate then
@@ -2833,7 +2837,12 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         _illnessWatchEnabled.value = enabled
         NoopPrefs.setIllnessWatch(appContext, enabled)
         // Recompute now — the recentDays collector only fires on data changes.
-        _healthAlert.value = if (enabled) IllnessWatch.evaluate(recentDays.value) else null
+        val days = recentDays.value
+        _healthAlert.value = if (enabled && _today.value != null &&
+            days.lastOrNull()?.day == _today.value?.day
+        ) {
+            IllnessWatch.evaluate(days)
+        } else null
         // Reported like any other evaluation, because the persisted edge (#2586) is only correct if
         // EVERY change of state reaches it. Switching the watch off while an alert was raised used to
         // clear the banner here and leave the stored flag raised, so the next genuine transition —

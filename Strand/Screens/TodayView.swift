@@ -1474,9 +1474,11 @@ struct TodayView: View {
                 // Compact top bar: profile/settings (left) · ‹ Today › day-nav (centre, bold) · strap
                 // battery (right). Replaces the big title + the full-width day-nav pill (WHOOP-style).
                 todayTopBar
-                HealthAlertBanner()
+                if selectedDayOffset == 0, let currentDay = repo.today?.day,
+                   currentDay == repo.days.last?.day { HealthAlertBanner() }
                 #else
-                HealthAlertBanner()
+                if selectedDayOffset == 0, let currentDay = repo.today?.day,
+                   currentDay == repo.days.last?.day { HealthAlertBanner() }
                 // Browse past days: chevrons + a date jump capped at today (no future days). Anchored to
                 // the LOGICAL day (the same anchor `selectedLogicalDay` uses) so the full-date label tracks
                 // the data shown in the 00:00-04:00 window instead of jumping a calendar day ahead (#14).
