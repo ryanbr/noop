@@ -28,11 +28,11 @@ class EffortDayCalibrationTest {
     @Test
     fun `the line is exactly this`() {
         assertEquals(
-            "effort calib day=2026-09-25 hrmax=195 src=override tanaka=187 peak=178 rhr=52 sustained=171",
+            "effort calib day=2026-09-25 hrmax=195 src=override tanaka=187 peak=178 rhr=52 sustained=171 span=4",
             StrainScorer.dayCalibrationLine(
                 day = "2026-09-25", hrmax = 195.0, hrmaxSource = "override",
                 tanaka = 187.0, observedPeak = 178.0, restingHR = 52.0,
-            ) + StrainScorer.sustainedPeakField(171.0),
+            ) + StrainScorer.sustainedPeakField(171.0) + StrainScorer.sustainedPeakSpanField(4L),
         )
     }
 
@@ -44,11 +44,11 @@ class EffortDayCalibrationTest {
     @Test
     fun `missing values render as nil not zero`() {
         assertEquals(
-            "effort calib day=2026-09-25 hrmax=nil src=default tanaka=nil peak=nil rhr=60 sustained=nil",
+            "effort calib day=2026-09-25 hrmax=nil src=default tanaka=nil peak=nil rhr=60 sustained=nil span=nil",
             StrainScorer.dayCalibrationLine(
                 day = "2026-09-25", hrmax = null, hrmaxSource = "default",
                 tanaka = null, observedPeak = null, restingHR = 60.0,
-            ) + StrainScorer.sustainedPeakField(null),
+            ) + StrainScorer.sustainedPeakField(null) + StrainScorer.sustainedPeakSpanField(null),
         )
     }
 
@@ -73,7 +73,7 @@ class EffortDayCalibrationTest {
     @Test
     fun `an override is named as one and still prints tanaka`() {
         assertEquals(
-            "effort calib day=2026-09-25 hrmax=195 src=override tanaka=187 peak=178 rhr=60 sustained=178",
+            "effort calib day=2026-09-25 hrmax=195 src=override tanaka=187 peak=178 rhr=60 sustained=178 span=4",
             calibLine(age = 30.0, maxHROverride = 195.0, peakBpm = 178),
         )
     }
@@ -85,7 +85,7 @@ class EffortDayCalibrationTest {
     @Test
     fun `no override is named tanaka and agrees with it`() {
         assertEquals(
-            "effort calib day=2026-09-25 hrmax=187 src=tanaka tanaka=187 peak=178 rhr=60 sustained=178",
+            "effort calib day=2026-09-25 hrmax=187 src=tanaka tanaka=187 peak=178 rhr=60 sustained=178 span=4",
             calibLine(age = 30.0, maxHROverride = null, peakBpm = 178),
         )
     }
@@ -102,7 +102,7 @@ class EffortDayCalibrationTest {
     @Test
     fun `an ageless profile reports the substituted default`() {
         assertEquals(
-            "effort calib day=2026-09-25 hrmax=190 src=default tanaka=nil peak=178 rhr=60 sustained=178",
+            "effort calib day=2026-09-25 hrmax=190 src=default tanaka=nil peak=178 rhr=60 sustained=178 span=4",
             calibLine(age = 0.0, maxHROverride = null, peakBpm = 178),
         )
     }
@@ -125,7 +125,7 @@ class EffortDayCalibrationTest {
     @Test
     fun `a single high minute stays out of sustained`() {
         val line = calibLine(age = 30.0, maxHROverride = null, peakBpm = 178, spikeBpm = 201)
-        assertTrue(line, line.contains(" peak=201 ") && line.endsWith(" sustained=178"))
+        assertTrue(line, line.contains(" peak=201 ") && line.endsWith(" sustained=178 span=4"))
     }
 
     // ---- sustained peak ----
@@ -201,6 +201,67 @@ class EffortDayCalibrationTest {
         }
         assertEquals(
             "77,97,148,97,nil,90,113,69,87,147,109,nil,nil,115,102,112,89,88,130,87,114,128,75,nil,119,103,144,nil,123,124,82,119,136,62,161,nil,nil,79,nil,90,102,163,130,133,79,146,87,nil",
+            out.joinToString(","),
+        )
+    }
+
+    /**
+     * The span is the run that set the value, not the widest qualifying run of the day: a dense run at a
+     * high value wins over a sparse one at a lower value, and the span reported is the dense one's.
+     */
+    @Test
+    fun `sustained peak span belongs to the winning run`() {
+        val hr = run(List(5) { 180 }) + run(List(5) { 150 }, stepS = 15, start = 1_790_298_000L)
+        assertEquals(180.0, StrainScorer.sustainedPeak(hr))
+        assertEquals(4L, StrainScorer.sustainedPeakSpan(hr))
+    }
+
+    /**
+     * Two runs reaching the same value report the longer span, the stronger evidence of a hold. The 60 s
+     * boundary is inclusive here too.
+     */
+    @Test
+    fun `sustained peak span takes the longest tie`() {
+        val hr = run(List(5) { 170 }) + run(List(5) { 170 }, stepS = 15, start = 1_790_298_000L)
+        assertEquals(60L, StrainScorer.sustainedPeakSpan(hr))
+        assertEquals(60L, StrainScorer.sustainedPeakSpan(hr.reversed()))
+    }
+
+    /** Null exactly when `sustainedPeak` is null: a span without a value would describe no run. */
+    @Test
+    fun `sustained peak span is null when the value is`() {
+        assertNull(StrainScorer.sustainedPeakSpan(run(listOf(120, 130, 140, 150, 160, 170), stepS = 300)))
+        assertNull(StrainScorer.sustainedPeakSpan(run(List(4) { 180 })))
+        assertNull(StrainScorer.sustainedPeakSpan(emptyList()))
+    }
+
+    /**
+     * Parity oracle for the span, over the same 48 generated days as the value's oracle above. The
+     * expected literal is the stdout of the Swift implementation compiled on its own;
+     * `EffortDayCalibrationTests` pins the same one. Its nulls sit exactly where the value's do.
+     */
+    @Test
+    fun `sustained peak span parity oracle`() {
+        var state = 2438L
+        fun next(m: Int): Int {
+            state = state * 6364136223846793005L + 1442695040888963407L
+            return ((state ushr 33) % m).toInt()
+        }
+        val out = mutableListOf<String>()
+        for (c in 0 until 48) {
+            val n = next(40)
+            val maxGap = intArrayOf(2, 8, 20, 40)[c % 4]
+            var ts = 1_790_294_400L
+            val hr = mutableListOf<HrSample>()
+            repeat(n) {
+                ts += next(maxGap)
+                hr.add(HrSample("t", ts, 60 + next(140)))
+            }
+            if (c % 3 == 0) hr.reverse()
+            out.add(StrainScorer.sustainedPeakSpan(hr)?.toString() ?: "nil")
+        }
+        assertEquals(
+            "2,19,33,49,nil,8,41,46,4,14,33,nil,nil,11,36,56,2,20,35,52,1,9,59,nil,3,11,44,nil,3,9,48,45,0,16,36,nil,nil,16,nil,60,1,7,23,57,0,19,52,nil",
             out.joinToString(","),
         )
     }

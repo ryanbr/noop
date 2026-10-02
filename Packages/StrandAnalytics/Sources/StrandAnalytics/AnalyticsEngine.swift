@@ -944,7 +944,8 @@ public enum AnalyticsEngine {
                 observedPeak: hrForPeak.max(by: { $0.bpm < $1.bpm }).map { Double($0.bpm) },
                 restingHR: restForStrain)
                 // The raw peak is usually one isolated sample on a ring; this is the value held (#2438).
-                + StrainScorer.sustainedPeakField(StrainScorer.sustainedPeak(hrForPeak)))
+                + StrainScorer.sustainedPeakField(StrainScorer.sustainedPeak(hrForPeak))
+                + StrainScorer.sustainedPeakSpanField(StrainScorer.sustainedPeakSpan(hrForPeak)))
         }
 
         // ── Workouts ──────────────────────────────────────────────────────────

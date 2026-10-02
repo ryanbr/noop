@@ -510,6 +510,44 @@ public enum StrainScorer {
         return best.map(Double.init)
     }
 
+    /// The ` span=` field appended after `sustained=`: how many seconds the run behind that value covered
+    /// (`sustainedPeakSpan`). Its own function, appended by the caller, like `sustainedPeakField`. nil
+    /// renders as `nil`, not 0.
+    ///
+    /// Byte-identical to the Kotlin twin `sustainedPeakSpanField`.
+    public static func sustainedPeakSpanField(_ spanS: Int?) -> String {
+        " span=\(spanS.map(String.init) ?? "nil")"
+    }
+
+    /// The seconds covered by the run that sets `sustainedPeak`, or nil when that is nil.
+    ///
+    /// `sustainedPeak` bounds a run's span from above only, so the same value can stand for five samples
+    /// inside four seconds of dense heart rate or across a whole minute of sparse heart rate. On one ring
+    /// with all-day heart rate the winning run covered 4 s on some days and 57 s on others. This field
+    /// carries the span beside the value, so a contributed log says which kind of hold it was.
+    ///
+    /// When several runs reach the same value, the longest span among them: the strongest evidence that
+    /// the value was held. Same rule and same ordering as `sustainedPeak`, so the two fields always
+    /// describe the same run.
+    ///
+    /// Byte-identical to the Kotlin twin `sustainedPeakSpan`.
+    public static func sustainedPeakSpan(_ hr: [HRSample],
+                                         samples: Int = sustainedPeakSamples,
+                                         windowS: Int = sustainedPeakWindowS) -> Int? {
+        guard samples > 0, hr.count >= samples else { return nil }
+        let sorted = hr.sorted { ($0.ts, $0.bpm) < ($1.ts, $1.bpm) }
+        var best: (held: Int, span: Int)?
+        for i in 0 ... (sorted.count - samples) {
+            let last = i + samples - 1
+            let span = sorted[last].ts - sorted[i].ts
+            guard span <= windowS else { continue }
+            let held = sorted[i ... last].lazy.map { $0.bpm }.min() ?? sorted[i].bpm
+            if let b = best, (b.held, b.span) >= (held, span) { continue }
+            best = (held, span)
+        }
+        return best?.span
+    }
+
     /// One line naming what an Effort score was computed FROM, or why it could not be computed.
     ///
     /// The gap this closes: `strain` is the only score in the app with no trace at all. WorkoutDetector,
