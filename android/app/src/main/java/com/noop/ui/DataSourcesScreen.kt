@@ -897,7 +897,7 @@ fun DataSourcesScreen(vm: AppViewModel) {
             subtitle = uiString(R.string.data_sources_whoop_live_subtitle),
         ) {
             val (label, tone) = when {
-                // encryptedBond, not bonded — see strapStatusTitle. A 5/MG streaming over the open
+                // encryptedBond, not bonded — see strapStatusTitleRes. A 5/MG streaming over the open
                 // profile has bonded == true with no pairing at all, and after #1635 hello suppression it
                 // stays there for good rather than passing through.
                 //
