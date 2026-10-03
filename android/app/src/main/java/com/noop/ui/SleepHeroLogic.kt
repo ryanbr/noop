@@ -1,15 +1,21 @@
 package com.noop.ui
 
+import androidx.annotation.StringRes
+import com.noop.R
 import com.noop.analytics.RestScorer
 import com.noop.data.DailyMetric
 import com.noop.data.SleepSession
 
-/** A short Rest state word for the hero gauge — same banding the synthesis hero uses. */
-internal fun sleepScoreWord(score: Double): String = when {
-    score < 50.0 -> "Poor"
-    score < 70.0 -> "Fair"
-    score < 85.0 -> "Good"
-    else -> "Optimal"
+/**
+ * A short Rest state word for the hero gauge — same banding the synthesis hero uses. Returns a string
+ * resource rather than text so the banding stays testable in a plain JVM test.
+ */
+@StringRes
+internal fun sleepScoreWordRes(score: Double): Int = when {
+    score < 50.0 -> R.string.l10n_sleep_hero_logic_poor_4e0fa437
+    score < 70.0 -> R.string.l10n_sleep_hero_logic_fair_64b98589
+    score < 85.0 -> R.string.l10n_sleep_hero_logic_good_61dedcf0
+    else -> R.string.l10n_sleep_hero_logic_optimal_5193a461
 }
 
 /**
@@ -46,13 +52,15 @@ internal fun navHeaderClockLabel(
 /**
  * Short night-relative label ("Last night" / "1 night ago" / "N nights ago") for the ◀/▶-navigated
  * night. Shared by the Rest hero overline and the hypnogram nav header so both name the SAME night
- * the hero's score is resolved for. Mirrors iOS SleepView.nightRelativeLabel.
+ * the hero's score is resolved for. Mirrors iOS SleepView.nightRelativeLabel. The count goes through a
+ * `<plurals>` so languages with more than two plural forms (Polish, Russian) read correctly.
  */
-internal fun nightRelativeLabel(offset: Int): String = when (offset) {
-    0 -> "Last night"
-    1 -> "1 night ago"
-    else -> "$offset nights ago"
-}
+internal fun nightRelativeLabel(offset: Int): String =
+    if (offset == 0) {
+        uiString(R.string.l10n_sleep_hero_logic_last_night_6eaba4dd)
+    } else {
+        uiPlural(R.plurals.l10n_sleep_hero_logic_nights_ago, offset, offset)
+    }
 
 /**
  * How many nights back the carousel night at [offset] is FROM TODAY.

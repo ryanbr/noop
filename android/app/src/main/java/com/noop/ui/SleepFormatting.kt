@@ -1,6 +1,8 @@
 package com.noop.ui
 
+import androidx.annotation.StringRes
 import androidx.compose.ui.graphics.Color
+import com.noop.R
 import com.noop.analytics.SleepDebt
 import com.noop.analytics.SleepDebtLedger
 import kotlin.math.abs
@@ -16,12 +18,12 @@ internal fun pctValue(v: Double?): String = v?.let { "${it.roundToInt()}%" } ?: 
 
 /** "+12% vs typical" / "−0.4 rpm vs typical" — the latest-vs-mean caption every tile carries. */
 internal fun vsTypical(latest: Double?, typical: Double?, suffix: String, decimals: Int = 0): String {
-    if (latest == null || typical == null || typical == 0.0) return "vs typical - "
+    if (latest == null || typical == null || typical == 0.0) return uiString(R.string.l10n_sleep_formatting_vs_typical_2d0865ea)
     val diff = latest - typical
     val sign = if (diff >= 0) "+" else "−"
     val mag = abs(diff)
     val num = if (decimals == 0) "${mag.roundToInt()}" else String.format(java.util.Locale.US, "%.${decimals}f", mag)
-    return "$sign$num$suffix vs typical"
+    return uiString(R.string.l10n_sleep_formatting_vs_typical_b07f374b, sign, num, suffix)
 }
 
 /** #1946: a carried prior-day value is stamped "Carried · <date>" instead of "vs typical", so it is
@@ -43,9 +45,14 @@ internal fun tileCaption(
     return vsTypical(latest, typical, suffix, decimals)
 }
 
-internal fun debtCaption(debt: Double?): String {
-    if (debt == null) return "vs need"
-    return if (debt < SleepDebt.ON_TARGET_BAND_MIN) "On target" else "Below need"
+internal fun debtCaption(debt: Double?): String = uiString(debtCaptionRes(debt))
+
+/** The resource behind [debtCaption], kept apart so the 10-minute boundary stays testable on the JVM. */
+@StringRes
+internal fun debtCaptionRes(debt: Double?): Int = when {
+    debt == null -> R.string.l10n_sleep_formatting_vs_need_6d942bfe
+    debt < SleepDebt.ON_TARGET_BAND_MIN -> R.string.l10n_sleep_formatting_on_target_412a8343
+    else -> R.string.l10n_sleep_formatting_below_need_85eb30c0
 }
 
 internal fun debtColor(debt: Double?): Color = when {
@@ -62,28 +69,28 @@ internal fun debtColor(debt: Double?): Color = when {
  * "On target" inside the deadband so a few stray minutes don't show as debt.
  */
 internal fun debtHeadline(ledger: SleepDebtLedger): String =
-    if (ledger.magnitudeMin < SleepDebt.ON_TARGET_BAND_MIN) "On target"
+    if (ledger.magnitudeMin < SleepDebt.ON_TARGET_BAND_MIN) uiString(R.string.l10n_sleep_formatting_on_target_412a8343)
     else "≈${durationText(ledger.magnitudeMin)}"
 
 /** Short tag beside the headline: the recurrence never creates a positive surplus. */
 internal fun debtTag(ledger: SleepDebtLedger): String = when {
-    ledger.magnitudeMin < SleepDebt.ON_TARGET_BAND_MIN -> "balanced"
-    ledger.isDebt -> "sleep debt"
-    else -> "balanced"
+    ledger.magnitudeMin < SleepDebt.ON_TARGET_BAND_MIN -> uiString(R.string.l10n_sleep_formatting_balanced_6217e69f)
+    ledger.isDebt -> uiString(R.string.l10n_sleep_formatting_sleep_debt_cbdd4bd3)
+    else -> uiString(R.string.l10n_sleep_formatting_balanced_6217e69f)
 }
 
 /** Plain-English read of the actionable addition to the next night's target. */
 internal fun debtRead(ledger: SleepDebtLedger): String {
     val nights = ledger.nightCount
-    val span = "the last $nights night${if (nights == 1) "" else "s"}"
+    val span = uiPlural(R.plurals.l10n_sleep_formatting_the_last_nights, nights, nights)
     if (ledger.magnitudeMin < SleepDebt.ON_TARGET_BAND_MIN) {
-        return "You've met your current sleep target across $span. No extra debt needs carrying into tonight."
+        return uiString(R.string.l10n_sleep_formatting_you_ve_met_your_current_sleep_1206a442, span)
     }
     val mag = durationText(ledger.magnitudeMin)
     return if (ledger.isDebt) {
-        "Aim for about $mag beyond your base need tonight. Meeting that target clears the displayed sleep debt."
+        uiString(R.string.l10n_sleep_formatting_aim_for_about_beyond_your_base_601117a6, mag)
     } else {
-        "You're carrying about $mag of surplus over $span. You've slept past your need on balance. Nicely ahead."
+        uiString(R.string.l10n_sleep_formatting_you_re_carrying_about_of_surplus_a8522bd4, mag, span)
     }
 }
 
