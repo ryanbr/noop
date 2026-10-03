@@ -274,6 +274,7 @@ private data class TodayLiveSnapshot(
      *  most once per connection, so it costs the snapshot nothing. */
     val historyReady: Boolean,
     val historySyncExperimental: Boolean,
+    val sustainedEmptyOffload: Boolean,
     /** Whether a scan is running, so the header chip can say so and refuse a second tap while it is
      *  (#2169). Flips twice per scan rather than per tick, so it costs this snapshot nothing. */
     val scanning: Boolean,
@@ -338,6 +339,7 @@ fun TodayScreen(
     // source streams, and the strap's percentage is never cleared, so under an active ring both halves of
     // the old gate passed and Today drew the strap's charge. Same seam the Devices list already uses.
     val activeIsWhoop by viewModel.activeIsWhoop.collectAsStateWithLifecycle()
+    val activeIsOura by viewModel.activeIsOura.collectAsStateWithLifecycle()
     // The ring's OWN charge while a ring source is live (null otherwise, #2075), so the header can draw the
     // active ring's battery instead of nothing. Changes a few times a session, no per-tick churn.
     val ouraBatteryPct by viewModel.ouraBatteryPct.collectAsStateWithLifecycle()
@@ -405,6 +407,7 @@ fun TodayScreen(
                 syncChunksThisSession = s.syncChunksThisSession,
                 historyReady = s.historyReady,
                 historySyncExperimental = s.historySyncExperimental,
+                sustainedEmptyOffload = s.sustainedEmptyOffload,
                 scanning = s.scanning,
                 pagesBehindAtConnect = s.pagesBehindAtConnect,
                 batteryPct = s.batteryPct,
@@ -1492,6 +1495,18 @@ fun TodayScreen(
                 )
             }
         }
+        }
+
+        // The sync chip describes history offload; it cannot say whether live data is being saved.
+        // These existing strings describe a strap, so hide the chip for an active Oura ring. Show
+        // "Not recording" when no device is selected, which is when its Connect action matters most.
+        if (!activeIsOura && selectedDayOffset == 0) {
+            item {
+                RecordingStatusChip(
+                    live = liveSnap,
+                    onConnect = requestScan,
+                )
+            }
         }
 
         // A "workout in progress" indicator whenever a manual workout is active (iOS parity: the Today
@@ -5837,6 +5852,55 @@ private fun ChargeLegacyRrGapNote() {
                 Text(detail, style = NoopType.subhead, color = Palette.textSecondary)
             }
         }
+    }
+}
+
+/** A live-data status beneath Today's header. The existing recording model keeps a connected but
+ * silent strap distinct from one that is actually sending heart-rate samples. */
+@Composable
+private fun RecordingStatusChip(live: TodayLiveSnapshot, onConnect: () -> Unit) {
+    var nowSec by remember(live.lastSyncAt) { mutableStateOf(System.currentTimeMillis() / 1000L) }
+    LaunchedEffect(live.lastSyncAt) {
+        if (live.lastSyncAt != null) {
+            while (true) {
+                delay(60_000)
+                nowSec = System.currentTimeMillis() / 1000L
+            }
+        }
+    }
+    val state = if (live.connected && live.historySyncExperimental) {
+        RecordingState.HistoryExperimental
+    } else {
+        recordingStateFor(
+            connected = live.connected,
+            liveHeartRate = if (live.hrStreaming) 1 else null,
+            lastSyncAtSec = live.lastSyncAt,
+            nowSec = nowSec,
+            sustainedEmptyOffload = live.sustainedEmptyOffload,
+        )
+    }
+    val title = when (state) {
+        is RecordingState.LastSynced -> uiString(state.titleRes, state.minutesAgo)
+        else -> uiString(state.titleRes)
+    }
+    val detail = uiString(state.detailRes)
+    val canConnect = state is RecordingState.NotRecording || state is RecordingState.LastSynced
+    Row(
+        modifier = Modifier.fillMaxWidth().then(
+            if (canConnect) Modifier.clickable(onClick = onConnect) else Modifier
+        ),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        StatePill(title = title, tone = state.tone, pulsing = state is RecordingState.Recording)
+        Text(
+            detail,
+            style = NoopType.footnote,
+            color = Palette.textTertiary,
+            modifier = Modifier.weight(1f),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
