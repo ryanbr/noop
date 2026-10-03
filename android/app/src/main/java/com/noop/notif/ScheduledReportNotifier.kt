@@ -9,8 +9,14 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.noop.R
+import com.noop.data.WhoopRepository
 import com.noop.ui.NoopPrefs
+import com.noop.ui.mainSleepGroup
 import com.noop.ui.appLaunchIntent
+import java.time.Instant
+import java.time.ZoneId
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.math.roundToInt
 
 // MARK: - Scheduled report notifications (#517)
@@ -45,6 +51,7 @@ object ScheduledReportPolicy {
      * recap for the night they slept, rather than silence.
      */
     const val EARLIEST_MORNING_MINUTE = 5 * 60
+    const val WAKE_SETTLE_SECONDS = 30 * 60L
 
     /** Fire the morning recap at most once per REPORTED NIGHT: only when enabled, a recap value exists, and
      *  we haven't already posted for [reportDay]. [reportDay] is the day of the banked night the recap is
@@ -52,31 +59,23 @@ object ScheduledReportPolicy {
      *  it re-fire at midnight for anyone up late, since the row still resolves to last night's until a new
      *  night is banked (#567).
      *
-     *  [nowMinuteOfDay] holds the recap until [earliestMinuteOfDay]. A suppressed recap posts on the next
-     *  evaluation of this gate, and the once-per-night key is untouched while it waits, so deferring cannot
-     *  produce a second copy.
-     *
-     *  What deferring CAN do is lose one, and the bound is worth knowing rather than discovering. This gate
-     *  runs from `AppViewModel`'s `recentDays` collector, a Room-backed StateFlow with
-     *  `WhileSubscribed(5_000)`: it re-evaluates on a database write or on re-subscription, NOT on a clock.
-     *  A connected strap writes rows through the night, and backgrounding the app drops the subscription so
-     *  reopening replays, which covers the ordinary paths. But a process that stays alive from 00:40 past
-     *  the floor with no write in between never re-evaluates, and that day's recap does not arrive at all,
-     *  where before it would have arrived at 00:40 to someone asleep.
-     *
-     *  That is the second cost of a floor, beside a late recap still calling itself "Good morning". Both
-     *  are why this is a stopgap and the wake-based version is the real answer (#2289). */
+     *  [wakeEndTs] is the recorded end of the main sleep group for [reportDay]. Wait until it has ended
+     *  and settled for [WAKE_SETTLE_SECONDS]; a banked partial night must not immediately announce a
+     *  morning. A missing session keeps the 05:00 fallback for score-only imports. */
     fun shouldNotifyMorning(
         enabled: Boolean,
         chargeOrRestPresent: Boolean,
         lastNotifiedDay: String?,
         reportDay: String,
         nowMinuteOfDay: Int,
+        nowEpochSec: Long = Long.MAX_VALUE,
+        wakeEndTs: Long? = null,
         earliestMinuteOfDay: Int = EARLIEST_MORNING_MINUTE,
     ): Boolean = enabled &&
         chargeOrRestPresent &&
         lastNotifiedDay != reportDay &&
-        nowMinuteOfDay >= earliestMinuteOfDay
+        nowMinuteOfDay >= earliestMinuteOfDay &&
+        (wakeEndTs == null || nowEpochSec >= wakeEndTs + WAKE_SETTLE_SECONDS)
 
     /** Fire the post-workout summary only for a workout STRICTLY newer than the last one summarised, so a
      *  re-sync of the same backlog never re-notifies. [lastWorkoutTs] is 0 before the first ever. */
@@ -130,6 +129,7 @@ object ScheduledReportPolicy {
 }
 
 object ScheduledReportNotifier {
+    private val morningMutex = Mutex()
     private const val CHANNEL_ID = "noop_scheduled_reports"
     // #297: distinct ids so a report never silently replaces another notifier's (tagless notify()).
     // Map: 4201 connection, 4202 illness, 4203 inactivity, 4204 smart alarm, 4205/4206/4207 battery.
@@ -142,28 +142,40 @@ object ScheduledReportNotifier {
      * policy, so the caller can fire it freely each time the days collector republishes.
      */
     @SuppressLint("MissingPermission") // guarded by areNotificationsEnabled() + runCatching
-    fun onMorning(context: Context, reportDay: String, chargePct: Int?, restPct: Int?) {
-        // reportDay is the banked night's day (the resolved today-row's `day`), NOT LocalDate.now() — the
-        // calendar day rolls at midnight while the row still resolves to last night's until a new night is
-        // banked, which re-fired the recap at the start of a new day for late-nighters (#567).
-        if (!ScheduledReportPolicy.shouldNotifyMorning(
-                enabled = NoopPrefs.morningReportEnabled(context),
-                chargeOrRestPresent = chargePct != null || restPct != null,
-                lastNotifiedDay = NoopPrefs.reportMorningDay(context),
-                reportDay = reportDay,
-                // The clock the floor compares against. Read here rather than inside the policy, so the policy
-                // stays pure and the test can pin 00:40 and 07:00 without a fake clock.
-                nowMinuteOfDay = java.time.LocalTime.now().let { it.hour * 60 + it.minute },
-            )
-        ) return
-        val copy = ScheduledReportPolicy.morningCopy(chargePct, restPct) ?: return
-        runCatching {
-            if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return
-            ensureChannel(context)
-            post(context, MORNING_NOTIF_ID, copy.first, copy.second)
-            // Mark fired only after a successful post, so a notifications-disabled night still notifies
-            // once they're re-enabled while the same night's row is showing.
-            NoopPrefs.setReportMorningDay(context, reportDay)
+    suspend fun onMorning(
+        context: Context, reportDay: String, chargePct: Int?, restPct: Int?,
+        repository: WhoopRepository, deviceId: String,
+    ) {
+        if (!NoopPrefs.morningReportEnabled(context) || NoopPrefs.reportMorningDay(context) == reportDay ||
+            (chargePct == null && restPct == null)) return
+        val zone = ZoneId.systemDefault()
+        val now = System.currentTimeMillis()
+        val nowMinuteOfDay = Instant.ofEpochMilli(now).atZone(zone).let { it.hour * 60 + it.minute }
+        if (nowMinuteOfDay < ScheduledReportPolicy.EARLIEST_MORNING_MINUTE) return
+        val wakeEndTs = repository.allSleepSessionsUnion(deviceId, days = 2)
+            .filter { Instant.ofEpochSecond(it.endTs).atZone(zone).toLocalDate().toString() == reportDay }
+            .let { mainSleepGroup(it).maxOfOrNull { block -> block.endTs } }
+        morningMutex.withLock {
+            // reportDay is the banked night's day, not the calendar day; the persisted marker prevents
+            // a late-night republish from posting the same night twice (#567).
+            if (!ScheduledReportPolicy.shouldNotifyMorning(
+                    enabled = NoopPrefs.morningReportEnabled(context),
+                    chargeOrRestPresent = chargePct != null || restPct != null,
+                    lastNotifiedDay = NoopPrefs.reportMorningDay(context),
+                    reportDay = reportDay,
+                    nowMinuteOfDay = nowMinuteOfDay,
+                    nowEpochSec = now / 1000,
+                    wakeEndTs = wakeEndTs,
+                )
+            ) return@withLock
+            val copy = ScheduledReportPolicy.morningCopy(chargePct, restPct) ?: return@withLock
+            runCatching {
+                if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) return@runCatching
+                ensureChannel(context)
+                post(context, MORNING_NOTIF_ID, copy.first, copy.second)
+                // Mark only after a successful post; both the UI and the worker share this lock.
+                NoopPrefs.setReportMorningDay(context, reportDay)
+            }
         }
     }
 

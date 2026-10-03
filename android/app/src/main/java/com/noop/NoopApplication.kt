@@ -59,6 +59,7 @@ class NoopApplication : Application() {
         // case it exists for is a strap that stopped talking. Scheduled here rather than beside a widget
         // so it does not inherit that widget's lifecycle. KEEP, so this is a no-op once scheduled.
         com.noop.notif.StaleBatteryWorker.ensureScheduled(this)
+        com.noop.notif.MorningRecapRefresh.reschedule(this)
     }
 
     /** Process-wide Room-backed store. One instance shared by the UI and the background service. */
