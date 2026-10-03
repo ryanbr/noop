@@ -28,6 +28,11 @@ final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
+        // The silent "strap not synced" reminder stays silent with NOOP open: into the list, no banner.
+        if notification.request.identifier == SyncReminderPolicy.identifier {
+            completionHandler([.list])
+            return
+        }
         completionHandler([.banner, .sound, .list])
     }
 

@@ -57,6 +57,11 @@ final class BehaviorStore: ObservableObject {
     /// recovery-derived optimal band. Default OFF like every other automation.
     @Published var strainTargetNudge: Bool { didSet { d.set(strainTargetNudge, forKey: K.strainTargetNudge) } }
 
+    // MARK: Sync reminder (iOS)
+    /// A silent notification when NOOP has not synced the strap for three hours (`SyncReminderPolicy`). Default
+    /// ON: it never shows while NOOP syncs, and without notification permission it never shows at all.
+    @Published var syncReminder: Bool { didSet { d.set(syncReminder, forKey: K.syncReminder) } }
+
     private let d = UserDefaults.standard
     private enum K {
         static let dtAction = "behavior.doubleTapAction"
@@ -80,6 +85,7 @@ final class BehaviorStore: ObservableObject {
         static let batteryAlerts = "behavior.batteryAlerts"
         static let batteryPredictiveAlerts = "behavior.batteryPredictiveAlerts"
         static let strainTargetNudge = "behavior.strainTargetNudge"
+        static let syncReminder = "behavior.syncReminder"
     }
 
     init() {
@@ -102,6 +108,7 @@ final class BehaviorStore: ObservableObject {
         batteryAlerts = d.object(forKey: K.batteryAlerts) as? Bool ?? true
         batteryPredictiveAlerts = d.object(forKey: K.batteryPredictiveAlerts) as? Bool ?? true
         strainTargetNudge = d.object(forKey: K.strainTargetNudge) as? Bool ?? false
+        syncReminder = d.object(forKey: K.syncReminder) as? Bool ?? true
     }
 
     // MARK: Charge baseline recalibration

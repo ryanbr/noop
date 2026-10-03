@@ -781,8 +781,19 @@ final class AppModel: ObservableObject {
         // raced the data it was meant to publish and last night's sleep reached Health an app-open late.
         // Set by StrandiOSApp; nil on macOS and in tests, where there is no bridge.
         await healthWriteBack?()
+        // The sync that just completed moves the "strap not synced" reminder three hours ahead.
+        rearmSyncReminder()
         #endif
     }
+
+    #if os(iOS)
+    /// Move the silent "strap not synced" reminder `SyncReminderPolicy.quietInterval` ahead, or withdraw it when
+    /// its switch is off. Called after every completed sync and whenever NOOP comes on screen or leaves it.
+    func rearmSyncReminder() {
+        SyncReminder.rearm(enabled: behavior.syncReminder, lastSyncedAt: live.lastSyncedAt,
+                           log: { [live] line in live.append(log: AppModel.stamped(line)) })
+    }
+    #endif
 
     /// Fold a fresh reading into the smoothing window and republish a stable bpm.
     /// Prefers the strap's reported HR; falls back to 60000/R-R. Clamps to a plausible
