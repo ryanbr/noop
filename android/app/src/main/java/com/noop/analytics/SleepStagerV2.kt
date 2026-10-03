@@ -197,8 +197,11 @@ object SleepStagerV2 {
     internal fun motionQuiescent(f: Epoch): Boolean =
         f.moveFrac <= 0.0 && f.jerkMax <= f.jerkScale * jerkFloorGateMult
 
-    /** Weight of the RSA respiration-regularity term (regular → deep, irregular → REM). */
-    private const val respWeight = 0.6
+    /** Weight of the RSA respiration-regularity term (regular → deep, irregular → REM). 0.3, halved from 0.6
+     *  on PSG with R-R live (PhysioNet DREAMT, n = 100): at 0.6 a light epoch's z of about ±1 moved it into deep
+     *  or REM; 0.3 raises per-subject kappa for 61 of 100 and lowers it for 28. Swift twin, with the full
+     *  evidence: `SleepStagerV2.respWeight`. */
+    internal const val respWeight = 0.3
 
     /** Transition matrix (rows = from, cols = to). Self-transitions dominate; deep↔rem rare; wake mostly
      *  to/from light. A priori, not fit.

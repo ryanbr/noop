@@ -197,8 +197,14 @@ public enum SleepStagerV2 {
         f.moveFrac <= 0.0 && f.jerkMax <= f.jerkScale * jerkFloorGateMult
     }
 
-    /// Weight of the RSA respiration-regularity term (regular → deep, irregular → REM).
-    static let respWeight = 0.6
+    /// Weight of the RSA respiration-regularity term (regular → deep, irregular → REM). 0.3, halved from 0.6
+    /// on PSG with R-R live (PhysioNet DREAMT, n = 100, `Tools/SleepPSG` section 8): the feature does separate
+    /// the stages the way the term assumes (AUC deep vs REM 0.658, light vs REM 0.597), but at 0.6 a light
+    /// epoch's z of about ±1 moved it into deep or REM. Per subject, 0.3 raises kappa for 61 and lowers it for
+    /// 28 (mean 0.204 → 0.216) and REM falls from 21.4 to 18.4 % of sleep against 14.0 % true; the separation
+    /// itself implies a weight of 0.29–0.35. sleep-accel carries no R-R, so it is unaffected. Kotlin twin:
+    /// `SleepStagerV2.respWeight`.
+    static let respWeight = 0.3
 
     /// Transition matrix (rows = from, cols = to). Self-transitions dominate; deep↔rem rare; wake mostly
     /// to/from light. A priori, not fit.
