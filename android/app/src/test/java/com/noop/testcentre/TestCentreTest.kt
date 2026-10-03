@@ -59,6 +59,21 @@ class TestCentreTest {
 
     private fun newCentre() = TestCentre(FakeSharedPreferences())
 
+    @Test fun lifetimeDrainedRowsSurviveReloadAndExceedIntRange() {
+        val prefs = FakeSharedPreferences()
+        val first = TestCentre(prefs)
+        // This tally accrues even while Connection diagnostics are off.
+        assertFalse(first.active(TestDomain.CONNECTION))
+        first.noteDrainedRows(1_500_000_000)
+        first.noteDrainedRows(1_500_000_000)
+        val reloaded = TestCentre(prefs)
+        assertEquals(3_000_000_000L, reloaded.cumulativeDrainedRows())
+        reloaded.noteDrainedRows(42)
+        assertEquals(3_000_000_042L, reloaded.cumulativeDrainedRows())
+        reloaded.noteDrainedRows(0)
+        assertEquals(3_000_000_042L, reloaded.cumulativeDrainedRows())
+    }
+
     @Test fun activateThenActiveThenDeactivate() {
         val tc = newCentre()
         assertFalse(tc.active(TestDomain.SLEEP))

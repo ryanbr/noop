@@ -2848,4 +2848,7 @@
     <string name="raw_diag_ecg_probe_start">Iniciar captura de ECG</string>
     <string name="raw_diag_ecg_probe_stop">Parar captura de ECG</string>
     <string name="raw_diag_ecg_probe_running">Pode ainda estar a decorrer uma captura nesta pulseira. O veredicto vai para o strap log.</string>
+    <string name="test_centre_rows_drained_session">Linhas transferidas (sessão)</string>
+    <string name="test_centre_rows_drained_all_time">Linhas transferidas (total)</string>
+    <string name="test_centre_no_offload_yet">ainda sem transferência</string>
 </resources>

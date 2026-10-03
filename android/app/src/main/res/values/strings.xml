@@ -2885,4 +2885,7 @@
     <string name="raw_diag_ecg_probe_start">Start ECG capture</string>
     <string name="raw_diag_ecg_probe_stop">Stop ECG capture</string>
     <string name="raw_diag_ecg_probe_running">A capture may still be running on this strap. The verdict goes to the strap log.</string>
+    <string name="test_centre_rows_drained_session">Rows drained (session)</string>
+    <string name="test_centre_rows_drained_all_time">Rows drained (all time)</string>
+    <string name="test_centre_no_offload_yet">no offload yet</string>
 </resources>

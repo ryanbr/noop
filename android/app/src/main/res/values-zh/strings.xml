@@ -2826,4 +2826,7 @@
     <string name="raw_diag_ecg_probe_start">开始心电图采集</string>
     <string name="raw_diag_ecg_probe_stop">停止心电图采集</string>
     <string name="raw_diag_ecg_probe_running">此腕带上可能仍在采集。结论会写入 strap log。</string>
+    <string name="test_centre_rows_drained_session">已传输行数（本次会话）</string>
+    <string name="test_centre_rows_drained_all_time">已传输行数（累计）</string>
+    <string name="test_centre_no_offload_yet">尚未传输</string>
 </resources>

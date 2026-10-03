@@ -43,7 +43,7 @@ class TestCentreLiveReadoutsTest {
 
     @Test fun everyRegistryDeclaredIdHasExactlyOnePresentationMapping() {
         val declared = TestModeRegistry.all.flatMap { it.liveReadout }.toSet()
-        assertEquals(16, declared.size)
+        assertEquals(18, declared.size)
         assertEquals(declared, TestCentreLiveReadouts.mappedIds)
 
         TestModeRegistry.all.forEach { mode ->
@@ -56,6 +56,29 @@ class TestCentreLiveReadoutsTest {
                 ).map { it.id },
             )
         }
+    }
+
+    @Test fun connectionRowsKeepSessionProgressSeparateFromLifetimeTotal() {
+        val mode = requireNotNull(TestModeRegistry.mode(TestDomain.CONNECTION))
+        val progress = listOf("[connection] offload progress trim=100 chunkRows=5 sessionRows=57 sessionMotion=2 nights=1")
+        fun render(lines: List<String>, total: Long) = TestCentreLiveReadouts.rows(
+            mode, active = true,
+            snapshot = TestCentreLiveSnapshot(logLines = lines, cumulativeDrainedRows = total),
+        ).associateBy { it.id }
+
+        val ongoing = render(progress, 3_000_000_000L)
+        assertEquals(LiveReadoutRow("sessionRows", "Rows drained (session)", "57"), ongoing["sessionRows"])
+        assertEquals(LiveReadoutRow("allTimeRows", "Rows drained (all time)", "3000000000"), ongoing["allTimeRows"])
+        // A completed empty offload must not keep showing a previous session's rows.
+        val empty = render(progress + "[connection] offload result=empty", 3_000_000_000L)
+        assertEquals("0", empty.getValue("sessionRows").value)
+        assertEquals("3000000000", empty.getValue("allTimeRows").value)
+        val completed = render(progress + "[connection] offload result=ok rows=42", 3_000_000_042L)
+        assertEquals("42", completed.getValue("sessionRows").value)
+        assertEquals("3000000042", completed.getValue("allTimeRows").value)
+        val fresh = render(emptyList(), 0)
+        assertEquals("no offload yet", fresh.getValue("sessionRows").value)
+        assertEquals("0", fresh.getValue("allTimeRows").value)
     }
 
     @Test fun inactiveRowIsCompactAndDoesNotResolveEvenAnUnknownReadout() {

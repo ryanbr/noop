@@ -2872,4 +2872,7 @@
     <string name="raw_diag_ecg_probe_start">Rozpocznij zapis EKG</string>
     <string name="raw_diag_ecg_probe_stop">Zatrzymaj zapis EKG</string>
     <string name="raw_diag_ecg_probe_running">Na tym pasku może nadal trwać zapis. Werdykt trafia do strap log.</string>
+    <string name="test_centre_rows_drained_session">Przesłane wiersze (sesja)</string>
+    <string name="test_centre_rows_drained_all_time">Przesłane wiersze (łącznie)</string>
+    <string name="test_centre_no_offload_yet">jeszcze nie przesłano danych</string>
 </resources>

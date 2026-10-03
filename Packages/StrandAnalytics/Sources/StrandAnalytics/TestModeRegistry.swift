@@ -96,7 +96,7 @@ public enum TestModeRegistry {
         questionnaire: [
             Question(id: "otherDevicePaired", prompt: "Is another phone or the WHOOP app paired to the strap right now?", kind: .yesNo),
         ],
-        liveReadout: ["connectionUptime", "reconnectCount", "lastOffloadResult"],
+        liveReadout: ["connectionUptime", "reconnectCount", "lastOffloadResult", "sessionRows", "allTimeRows"],
         capture: .toggle,
         includesScreenshot: false, requires5MG: false)
 
