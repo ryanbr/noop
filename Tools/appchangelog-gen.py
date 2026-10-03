@@ -16,7 +16,8 @@ A per-version notes file docs/releases/v<VER>.md may carry a YAML front-matter b
         es: "..."
         fr: "..."
         pt-PT: "..."
-        zh: "..."
+        zh: "..."        # Android and Apple Simplified Chinese
+        zh-Hant: "..."   # Apple Traditional Chinese
     ---
     # NOOP v<VER>
     <the full release notes — the GitHub release body; the front-matter is stripped there>
@@ -26,21 +27,23 @@ Running `Tools/appchangelog-gen.py docs/releases/v8.2.2.md` prepends the generat
 version. Idempotent: if the version is already the newest entry it only re-checks the constant. The
 version comes from the filename (v8.2.2.md -> 8.2.2).
 
-ANDROID TITLE LOCALIZATION (#878). Compose has no auto-extraction, so a raw Kotlin `title = "..."`
-is a hardcoded literal: the i18n gate fails on it, and because that gate audits the WHOLE tree the
-failure red-checks every open PR on a line none of them touched. Apple is unaffected (SwiftUI
-auto-extracts into the catalog), so the Swift entry keeps its literal title.
+TITLE LOCALIZATION (#878, #2037). Compose has no auto-extraction, so a raw Kotlin
+`title = "..."` is a hardcoded literal. SwiftUI also cannot extract the old
+`Text(release.title)` call because `title` is a runtime String. Each Swift entry
+therefore uses `String(localized:)` with a literal title, and the Apple catalog
+receives the same `title_locales` translations as Android.
 
 This script therefore emits `title = uiString(R.string.<key>)` for Kotlin and writes the string
 itself, using the repo's key scheme: `l10n_app_changelog_<first 6 alnum words, lowercased>_<sha1 of
 the exact title>[:8]` — verified to reproduce the existing 9.2.0 and 9.2.1 keys.
 
-Translations come from `whatsnew.title_locales`. A locale with no entry falls back to the ENGLISH
-title and is named in a warning, because the alternative — leaving the key out of that locale — is
-the same red gate this exists to prevent. An English title in a German card is a visible, fixable
-wart; a red main after every release is not.
+Translations come from `whatsnew.title_locales`. Android uses the English title
+for missing locales and warns. Apple's catalog includes only supplied locales;
+the i18n gate checks for new gaps, so release notes should supply all shipped
+Apple locales before publication.
 """
 import hashlib
+import json
 import re
 import sys
 import pathlib
@@ -50,6 +53,7 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 KT = ROOT / "android/app/src/main/java/com/noop/ui/AppChangelog.kt"
 SW = ROOT / "Strand/System/AppChangelog.swift"
 RES = ROOT / "android/app/src/main/res"
+APPLE_STRINGS = ROOT / "Strand/Resources/Localizable.xcstrings"
 
 #: The locale resource dirs the i18n gate treats as the focus set. `values` is the English source.
 # Polish shipped in #1250 but was never added here, so a `title_locales.pl` entry was accepted and then
@@ -60,6 +64,8 @@ RES = ROOT / "android/app/src/main/res"
 LOCALE_DIRS = {"en": "values", "de": "values-de", "es": "values-es",
                "fr": "values-fr", "pt-PT": "values-pt-rPT", "zh": "values-zh",
                "pl": "values-pl", "ru": "values-ru", "it": "values-it"}
+APPLE_LOCALES = {"de": "de", "es": "es", "fr": "fr", "pt-PT": "pt-PT",
+                 "pl": "pl", "ru": "ru", "it": "it", "zh-Hans": "zh", "zh-Hant": "zh-Hant"}
 
 
 def title_key(title: str) -> str:
@@ -87,7 +93,9 @@ def write_title_strings(key: str, title: str, locales: dict) -> None:
             print(f"  WARNING: {path} not found — skipped")
             continue
         text = path.read_text()
-        if f'name="{key}"' in text:
+        tag = f'<string name="{key}">'
+        # An existing manually translated value wins when the notes supply no replacement.
+        if tag in text and loc != "en" and loc not in locales:
             continue
         value = title if loc == "en" else locales.get(loc)
         if value is None:
@@ -95,13 +103,51 @@ def write_title_strings(key: str, title: str, locales: dict) -> None:
             missing.append(loc)
         else:
             fell_back = False
-        text = text.replace("</resources>",
-                            f'    <string name="{key}">{esc_xml(value)}</string>\n</resources>')
+        if tag in text:
+            pattern = re.compile(f'({re.escape(tag)})(.*?)</string>')
+            text, changes = pattern.subn(lambda match: match.group(1) + esc_xml(value) + '</string>', text, count=1)
+            if changes != 1:
+                raise ValueError(f"could not update {key} in {path}")
+        else:
+            text = text.replace("</resources>",
+                                f'    {tag}{esc_xml(value)}</string>\n</resources>')
+        if text == path.read_text():
+            continue
         path.write_text(text)
-        print(f"  {d}/strings.xml: + {key}" + ("  (ENGLISH FALLBACK)" if fell_back else ""))
+        print(f"  {d}/strings.xml: updated {key}" + ("  (ENGLISH FALLBACK)" if fell_back else ""))
     if missing:
         print(f"  WARNING: no whatsnew.title_locales for {', '.join(missing)} — those cards show the "
               f"English title. Add them to the release notes front-matter and re-run to fix.")
+
+
+def write_apple_title(title: str, locales: dict) -> None:
+    """Update one catalog entry without reformatting the large hand-maintained catalog."""
+    path = APPLE_STRINGS
+    text = path.read_text()
+    catalog = json.loads(text)
+    entry = {"localizations": {
+        apple: {"stringUnit": {"state": "translated", "value": locales[source]}}
+        for apple, source in APPLE_LOCALES.items() if source in locales
+    }}
+    if catalog["strings"].get(title) == entry:
+        return
+    encoded = json.dumps(title, ensure_ascii=False)
+    line = f"        {encoded}: "
+    rendered = json.dumps(entry, ensure_ascii=False)
+    if title in catalog["strings"]:
+        match = re.search(rf'(?m)^\s*{re.escape(encoded)}: ', text)
+        if not match:
+            raise ValueError(f"cannot locate existing catalog title: {title}")
+        start = match.end()
+        _, length = json.JSONDecoder().raw_decode(text[start:])
+        text = text[:start] + rendered + text[start + length:]
+    else:
+        marker = '\n  },\n  "version": "1.0"'
+        if marker not in text:
+            raise ValueError(f"unexpected catalog layout: {path}")
+        text = text.replace(marker, f',\n{line}{rendered}' + marker, 1)
+    path.write_text(text)
+    print(f"  {path.name}: title + {len(entry['localizations'])} locales")
 
 
 def frontmatter(md: pathlib.Path) -> dict:
@@ -149,7 +195,7 @@ def sw_block(ver, wn):
     return (
         "        Release(\n"
         f'            version: "{ver}",\n'
-        f'            title: "{esc_sw(wn["title"])}",\n'
+        f'            title: String(localized: "{esc_sw(wn["title"])}"),\n'
         f'            date: "{esc_sw(wn["date"])}",\n'
         "            items: [\n"
         f"{items}\n"
@@ -161,8 +207,7 @@ def sw_block(ver, wn):
 def apply(path, anchor, block, ver, const_re, const_new, title_line=None):
     """Insert `block` at `anchor`, or refresh an existing entry for `ver`, then bump the constant.
 
-    `title_line` is the platform's rendered title assignment (Kotlin's `title = uiString(...)`, Swift's
-    `title: "..."`). It is re-applied to an entry that already exists, because re-running after editing
+    `title_line` is the platform's rendered title assignment. It is re-applied to an entry that already exists, because re-running after editing
     the headline is a normal thing to do during a release — and without this the two halves disagree:
     `write_title_strings` would mint and write the NEW key while the entry kept referencing the old one,
     so the card showed the previous headline and the new key sat orphaned in six locale files. Found by
@@ -203,12 +248,13 @@ def main():
     wn = frontmatter(md)
     print(f"appchangelog-gen: v{ver} — {wn['title']}")
     write_title_strings(title_key(wn["title"]), wn["title"], wn.get("title_locales") or {})
+    write_apple_title(wn["title"], wn.get("title_locales") or {})
     apply(KT, "val releases: List<Release> = listOf(\n", kt_block(ver, wn), ver,
           r'(const val CURRENT_VERSION = ")[^"]*(")', rf'\g<1>{ver}\g<2>',
           title_line=f'title = uiString(R.string.{title_key(wn["title"])}),')
     apply(SW, "static let releases: [Release] = [\n", sw_block(ver, wn), ver,
           r'(static let currentVersion = ")[^"]*(")', rf'\g<1>{ver}\g<2>',
-          title_line=f'title: "{esc_sw(wn["title"])}",')
+          title_line=f'title: String(localized: "{esc_sw(wn["title"])}"),')
     print("appchangelog-gen: done. Review the diff, then compile.")
 
 

@@ -12,9 +12,12 @@ the hashing or the slugging drifts from what is already in strings.xml.
 """
 import hashlib
 import importlib.util
+import json
 import pathlib
 import re
+import tempfile
 import unittest
+from unittest import mock
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 _spec = importlib.util.spec_from_file_location("acg", ROOT / "Tools/appchangelog-gen.py")
@@ -81,11 +84,10 @@ class EmittedBlockTests(unittest.TestCase):
         block = acg.kt_block("9.2.1", self.WN)
         self.assertNotRegex(block, r'title\s*=\s*"')
 
-    def test_swift_title_stays_a_literal(self):
-        """SwiftUI auto-extracts into the catalog, so Apple needs no reference — and changing it
-        would break the baseline that tracks these titles."""
+    def test_swift_title_uses_a_literal_localized_lookup(self):
+        """A runtime String passed to Text cannot be extracted into the Apple catalog."""
         block = acg.sw_block("9.2.1", self.WN)
-        self.assertIn(f'title: "{SHIPPED_TITLE}"', block)
+        self.assertIn(f'title: String(localized: "{SHIPPED_TITLE}")', block)
 
     def test_items_stay_literals_on_both_platforms(self):
         """Only the title moved. Items are long-form prose the gate does not require extracting, and
@@ -192,6 +194,45 @@ class LocaleTargetTests(unittest.TestCase):
 
     def test_english_source_is_the_values_dir(self):
         self.assertEqual("values", acg.LOCALE_DIRS["en"])
+
+
+class AppleTitleTests(unittest.TestCase):
+
+    def test_writer_preserves_catalog_and_refreshes_translations(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = pathlib.Path(directory) / "Localizable.xcstrings"
+            path.write_text('{\n  "sourceLanguage": "en",\n  "strings": {\n'
+                            '        "Existing": {}\n  },\n  "version": "1.0"\n}\n')
+            with mock.patch.object(acg, "APPLE_STRINGS", path):
+                acg.write_apple_title("New title", {"de": "Neuer Titel", "zh": "新标题", "zh-Hant": "新標題"})
+                first = path.read_text()
+                acg.write_apple_title("New title", {"de": "Neuer Titel", "zh": "新标题", "zh-Hant": "新標題"})
+                self.assertEqual(first, path.read_text())
+                acg.write_apple_title("New title", {"de": "Aktueller Titel", "zh": "新标题", "zh-Hant": "新標題"})
+            strings = json.loads(path.read_text())["strings"]
+            self.assertEqual({}, strings["Existing"])
+            self.assertEqual("Aktueller Titel", strings["New title"]["localizations"]["de"]["stringUnit"]["value"])
+            self.assertEqual("新标题", strings["New title"]["localizations"]["zh-Hans"]["stringUnit"]["value"])
+            self.assertEqual("新標題", strings["New title"]["localizations"]["zh-Hant"]["stringUnit"]["value"])
+
+
+class AndroidTitleRefreshTests(unittest.TestCase):
+
+    def test_existing_english_fallback_is_replaced_when_a_translation_arrives(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            for folder in ("values", "values-it"):
+                target = root / folder
+                target.mkdir()
+                (target / "strings.xml").write_text(
+                    '<resources>\n    <string name="headline">English title</string>\n</resources>\n'
+                )
+            with mock.patch.object(acg, "RES", root), mock.patch.object(
+                acg, "LOCALE_DIRS", {"en": "values", "it": "values-it"}
+            ):
+                acg.write_title_strings("headline", "English title", {"it": "Titolo italiano"})
+            self.assertIn("Titolo italiano", (root / "values-it/strings.xml").read_text())
+            self.assertIn("English title", (root / "values/strings.xml").read_text())
 
 
 if __name__ == "__main__":

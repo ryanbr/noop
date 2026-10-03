@@ -21,7 +21,7 @@ enum AppChangelog {
     static let releases: [Release] = [
         Release(
             version: "11.8.0",
-            title: "A gym log book on your wrist, a Coach you can switch off, and a Sync Strap shortcut",
+            title: String(localized: "A gym log book on your wrist, a Coach you can switch off, and a Sync Strap shortcut"),
             date: "September 2026",
             items: [
                 "**A lift log you advance from the strap (#2098, #2099, #2232, thanks @UtkuDenizAltiok).** An on-device gym log book on iPhone and Mac: build a session, then move between sets with a double-tap on the strap instead of reaching for the phone. Android gets the groundwork this release, the new schema with its Room twin and the same set-metrics engine, but not the log book itself yet (#2327).",
@@ -39,7 +39,7 @@ enum AppChangelog {
         ),
         Release(
             version: "11.7.0",
-            title: "A stress screen that keeps up, WHOOP 5 readings in the units the strap sends, and a ring that stops repeating itself",
+            title: String(localized: "A stress screen that keeps up, WHOOP 5 readings in the units the strap sends, and a ring that stops repeating itself"),
             date: "September 2026",
             items: [
                 "**A stress screen that keeps up (#2191, #2194, #2202, #2116).** Scoring a day of samples no longer happens on the thread that is drawing the screen, so Today and Stress stay responsive while they load. The baseline is reduced a day at a time instead of holding a month of readings at once, and the unprompted rescore now yields to whatever you are doing rather than competing with it.",
@@ -56,7 +56,7 @@ enum AppChangelog {
         ),
         Release(
             version: "11.6.0",
-            title: "A Today screen you arrange yourself, stress on the home screen, and backups that check themselves",
+            title: String(localized: "A Today screen you arrange yourself, stress on the home screen, and backups that check themselves"),
             date: "September 2026",
             items: [
                 "**Stress on your home screen (#2044, #2045).** A widget showing today's stress curve, on both platforms. It fills without needing the app opened, and when it has nothing to draw it says why instead of sitting blank (#2074).",
@@ -73,7 +73,7 @@ enum AppChangelog {
         ),
         Release(
             version: "11.5.0",
-            title: "A coach that keeps the thread, your heart rate on the home screen, and charts that claim less",
+            title: String(localized: "A coach that keeps the thread, your heart rate on the home screen, and charts that claim less"),
             date: "September 2026",
             items: [
                 "**A coach you can hold a conversation with (#1862, thanks @kggreco11).** Replies stream in as they are written rather than arriving in one lump, the conversation is kept between sessions, and it can speak and be spoken to. A morning brief sums up the night behind you. There are widgets and Siri shortcuts, and an optional Today launcher card that stays off until you turn it on.",
@@ -90,7 +90,7 @@ enum AppChangelog {
         ),
         Release(
             version: "11.1.0",
-            title: "Choose a 12-hour clock, sleep from straps that bank no motion, and a strap log that stops guessing",
+            title: String(localized: "Choose a 12-hour clock, sleep from straps that bank no motion, and a strap log that stops guessing"),
             date: "September 2026",
             items: [
                 "**Pick the clock you read times in (#1821).** Settings → Appearance now offers System, 12-hour or 24-hour. It defaults to System, so nothing changes unless you ask — and System now means your phone's own 24-hour switch, which NOOP was previously ignoring in favour of your region's default. A reader in a 24-hour country who prefers 12-hour had no way to say so.",
@@ -106,7 +106,7 @@ enum AppChangelog {
         ),
         Release(
             version: "11.0.0",
-            title: "A WHOOP 5 that stays connected, your body clock on the Sleep screen, and a Journal that knows No from nothing",
+            title: String(localized: "A WHOOP 5 that stays connected, your body clock on the Sleep screen, and a Journal that knows No from nothing"),
             date: "September 2026",
             items: [
                 "**The WHOOP 5.0 and MG stop dropping every few seconds (#1635, thanks @Zebsi235).** A handshake the strap never answers was knocking a perfectly good link down about every five seconds, all day. NOOP now recognises a strap that will not complete that handshake, stops attempting it, and holds the link instead — live heart rate keeps streaming rather than restarting forever. Tapping Connect costs one reconnect now, not five.",
@@ -119,7 +119,7 @@ enum AppChangelog {
         ),
         Release(
             version: "10.6.0",
-            title: "An Effort scale you choose, a ring that gets to sleep, and far fewer wasted re-scores",
+            title: String(localized: "An Effort scale you choose, a ring that gets to sleep, and far fewer wasted re-scores"),
             date: "August 2026",
             items: [
                 "**Pick how Effort is scored (#1562, #1563).** Banister TRIMP is now wired end to end and selectable, so Effort can follow the method you trust rather than the one that happened to ship. A workout is also scored against the same HRmax as the day containing it (#1565).",
@@ -132,7 +132,7 @@ enum AppChangelog {
         ),
         Release(
             version: "10.5.0",
-            title: "Training load, a VO₂max without a tape measure, and far less battery spent re-scoring",
+            title: String(localized: "Training load, a VO₂max without a tape measure, and far less battery spent re-scoring"),
             date: "August 2026",
             items: [
                 "**Training load — CTL, ATL and form (#1423, #1425).** A Trends card tracks fitness, fatigue and the balance between them, so a hard block and the recovery it needs are both visible.",
@@ -144,7 +144,7 @@ enum AppChangelog {
         ),
         Release(
             version: "10.1.0",
-            title: "Personalized heart-rate zones, compare and switch between straps, and more honest HRV, sleep and Oura reads",
+            title: String(localized: "Personalized heart-rate zones, compare and switch between straps, and more honest HRV, sleep and Oura reads"),
             date: "August 2026",
             items: [
                 "**Personalized heart-rate zones (#531).** Set your own BPM thresholds in a Settings editor; every zone read-out, and your .noopbak backup, uses them.",
@@ -156,7 +156,7 @@ enum AppChangelog {
         ),
         Release(
             version: "10.0.0",
-            title: "Make NOOP yours — theme colours and custom backgrounds, forty more sports with GPS routes, and a calorie heatmap",
+            title: String(localized: "Make NOOP yours — theme colours and custom backgrounds, forty more sports with GPS routes, and a calorie heatmap"),
             date: "August 2026",
             items: [
                 "**Make NOOP yours (#1171, #1172, #1177, #1234).** Pick a chrome accent — Mint, WHOOP Blue, or a custom colour from a full HSV picker — save a named theme preset that coordinates the accent, charts, backdrop and cards together, and set your own photo as the background behind every tab.",
@@ -168,7 +168,7 @@ enum AppChangelog {
         ),
         Release(
             version: "9.3.1",
-            title: "Widgets stop inventing numbers, naps count toward sleep debt, and the Android status chips speak your language",
+            title: String(localized: "Widgets stop inventing numbers, naps count toward sleep debt, and the Android status chips speak your language"),
             date: "August 2026",
             items: [
                 "**iPhone widgets showed made-up numbers (#887).** A Home Screen widget that could not read your data fell back to the gallery sample — 72% Charge, 58 bpm, 84% battery — for everyone. It now shows dashes when there is nothing to show, and sample values appear only in the widget gallery.",
@@ -180,7 +180,7 @@ enum AppChangelog {
         ),
         Release(
             version: "9.3.0",
-            title: "Water and caffeine from Apple Health, a sharper Effort score, and an Oura resting-heart-rate fix",
+            title: String(localized: "Water and caffeine from Apple Health, a sharper Effort score, and an Oura resting-heart-rate fix"),
             date: "July 2026",
             items: [
                 "**Water and caffeine import themselves (#949).** Log a drink in Apple Health or Health Connect and it shows up in NOOP, kept in its own row so it can never overwrite what you typed by hand. iPhone will ask permission once for the two new data types.",
