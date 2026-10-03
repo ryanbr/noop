@@ -340,12 +340,22 @@ class Whoop5RRSqliteTest {
 
         val restored = score()
         assertEquals(40.0, restored.avgHrv!!, 0.001)
-        assertNotNull(restored.recovery)
+        if (expectsProtection) {
+            // #2126: the first labelled beat restarts the WHOOP 5 HRV baseline. This one-day
+            // fixture has a real HRV again, but Charge must calibrate rather than compare it
+            // with the eight pre-label history nights seeded above.
+            assertNull(restored.recovery)
+        } else {
+            assertNotNull(restored.recovery)
+        }
         if (expectsProtection) {
             assertNotEquals(legacySnapshot.respRateBpm, restored.respRateBpm)
             assertNotEquals(legacySnapshot.avgSdnn, restored.avgSdnn)
         }
-        if (expectsProtection) assertEquals(owner, repo.scoreInputSource(computedId, restored.day, "recovery"))
+        if (expectsProtection) {
+            assertNull("a calibrating Charge has no scoring provenance",
+                repo.scoreInputSource(computedId, restored.day, "recovery"))
+        }
         assertFalse(showsLegacyGap(restored, owner))
         val idle = score()
         assertEquals(restored.avgHrv, idle.avgHrv)
