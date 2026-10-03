@@ -2869,4 +2869,5 @@
     <string name="raw_diag_ecg_probe_start">EKG-Aufzeichnung starten</string>
     <string name="raw_diag_ecg_probe_stop">EKG-Aufzeichnung stoppen</string>
     <string name="raw_diag_ecg_probe_running">Auf diesem Strap läuft möglicherweise noch eine Aufzeichnung. Das Ergebnis steht im Strap-Log.</string>
+    <string name="today_customize_live_session_availability">Erscheint heute, wenn Live Sessions in den Einstellungen aktiviert sind oder eine Session aktiv ist.</string>
 </resources>

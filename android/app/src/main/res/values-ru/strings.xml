@@ -2751,4 +2751,5 @@
     <string name="raw_diag_ecg_probe_start">Начать запись ЭКГ</string>
     <string name="raw_diag_ecg_probe_stop">Остановить запись ЭКГ</string>
     <string name="raw_diag_ecg_probe_running">На этом ремешке запись может всё ещё идти. Результат попадёт в strap log.</string>
+    <string name="today_customize_live_session_availability">Появляется сегодня, если сессии в реальном времени включены в Настройках или сеанс уже активен.</string>
 </resources>

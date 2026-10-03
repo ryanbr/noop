@@ -2848,4 +2848,5 @@
     <string name="raw_diag_ecg_probe_start">Iniciar captura de ECG</string>
     <string name="raw_diag_ecg_probe_stop">Parar captura de ECG</string>
     <string name="raw_diag_ecg_probe_running">Pode ainda estar a decorrer uma captura nesta pulseira. O veredicto vai para o strap log.</string>
+    <string name="today_customize_live_session_availability">Aparece hoje quando as sessões em direto estão ativadas nas Definições ou existe uma sessão ativa.</string>
 </resources>

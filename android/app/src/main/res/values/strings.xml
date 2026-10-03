@@ -2885,4 +2885,5 @@
     <string name="raw_diag_ecg_probe_start">Start ECG capture</string>
     <string name="raw_diag_ecg_probe_stop">Stop ECG capture</string>
     <string name="raw_diag_ecg_probe_running">A capture may still be running on this strap. The verdict goes to the strap log.</string>
+    <string name="today_customize_live_session_availability">Appears today when Live Sessions is enabled in Settings or a session is active.</string>
 </resources>

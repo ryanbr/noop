@@ -2872,4 +2872,5 @@
     <string name="raw_diag_ecg_probe_start">Rozpocznij zapis EKG</string>
     <string name="raw_diag_ecg_probe_stop">Zatrzymaj zapis EKG</string>
     <string name="raw_diag_ecg_probe_running">Na tym pasku może nadal trwać zapis. Werdykt trafia do strap log.</string>
+    <string name="today_customize_live_session_availability">Pojawia się dzisiaj, gdy sesje na żywo są włączone w Ustawieniach lub trwa sesja.</string>
 </resources>

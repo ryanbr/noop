@@ -2855,4 +2855,5 @@
     <string name="raw_diag_ecg_probe_start">Démarrer la capture ECG</string>
     <string name="raw_diag_ecg_probe_stop">Arrêter la capture ECG</string>
     <string name="raw_diag_ecg_probe_running">Une capture est peut-être encore active sur ce bracelet. Le verdict est écrit dans le strap log.</string>
+    <string name="today_customize_live_session_availability">Apparaît aujourd’hui si les sessions en direct sont activées dans Paramètres ou si une session est active.</string>
 </resources>

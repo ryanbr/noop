@@ -281,6 +281,8 @@ private struct TodaySectionsCustomizationPage: View {
 
     private func subtitle(for section: TodaySection) -> String? {
         switch section {
+        case .liveSession:
+            return String(localized: "Requires Live Sessions to be enabled in Settings.")
         case .keyMetrics:
             return String(localized: "\(keyMetricCount) metrics shown")
         case .yourCards:
