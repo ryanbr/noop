@@ -18,13 +18,16 @@ enum StrapSyncShortcutOutcome {
 }
 
 extension AppModel {
-    /// Execute any actions queued by App Intents while the app was suspended (mark moment, buzz,
+    /// Execute any actions queued by App Intents while the app was suspended (moment, sleep mark, buzz,
     /// ask coach). Call when the app becomes active. The optional `router` lets the ask-coach
     /// intent navigate to the Coach tab after sending the question.
     func drainPendingIntents(router: NavRouter? = nil) {
         for item in PendingIntents.drain() {
             switch item.action {
             case .markMoment: markMoment(at: item.date ?? Date())
+            case .markBedtime, .markWake:
+                guard let mark = item.sleepMark else { continue }
+                markSleep(at: mark.date, type: mark.type)
             // #921: the "Buzz Strap" Siri shortcut logged its write but a WHOOP 4.0 never vibrated.
             // The one-shot routine sends the confirmed pattern + RUN_ALARM sequence, acked, so a
             // busy just-foregrounded BLE link can't silently drop it.
