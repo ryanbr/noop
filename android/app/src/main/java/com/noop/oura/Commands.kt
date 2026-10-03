@@ -57,16 +57,17 @@ object OuraCommands {
 
     // MARK: - Notifications / state
 
-    /** The SetNotification mask NOOP has always sent: `3f`. `3f`/`bf`=all per OURA_PROTOCOL.md s4.1. */
-    const val NOTIFICATION_MASK_DEFAULT = 0x3F
-    /** The SetNotification mask the official app sends (`ff`, 08-25 HCI capture). Its only known
-     *  difference from `3f` is the two high bits, and whether those are what makes the ring pack ~10
-     *  packets per notification (OURA_PROTOCOL.md s2.3, the 9x drain) is the open A/B. Test Centre only. */
+    /** The SetNotification mask the official app sends: `ff` (08-25 HCI capture). `3f`/`bf`=all per
+     *  OURA_PROTOCOL.md s4.1; the s2.3 A/B showed that `ff` is what makes the ring pack 10-17 history
+     *  records per notification (~12x the drain rate) while leaving live pushes unchanged. */
     const val NOTIFICATION_MASK_FULL = 0xFF
+    /** The SetNotification mask NOOP sends on every session: the official app's `ff`. NOOP sent `3f`
+     *  until the s2.3 A/B. Twin of Swift's `notificationMaskDefault`. */
+    const val NOTIFICATION_MASK_DEFAULT = 0xFF
 
-    /** SetNotification (enable all): `1c 01 <mask>`, `3f` by default. `00`=none, `3f`/`bf`=all. Per
-     *  OURA_PROTOCOL.md s4.1. A non-default mask carries its value in the label (`notify_all(ff)`) so the
-     *  `-> notify_all` strap-log line shows which session shape an A/B ran under. Twin of Swift's
+    /** SetNotification (enable all): `1c 01 <mask>`, `ff` by default. `00`=none, `3f`/`bf`=all. Per
+     *  OURA_PROTOCOL.md s4.1. A non-default mask carries its value in the label (`notify_all(3f)`) so the
+     *  `-> notify_all` strap-log line shows which session shape it ran under. Twin of Swift's
      *  `enableAllNotifications(mask:)`. */
     fun enableAllNotifications(mask: Int = NOTIFICATION_MASK_DEFAULT): OuraCommand {
         val label = if (mask == NOTIFICATION_MASK_DEFAULT) "notify_all" else "notify_all(%02x)".format(mask)
