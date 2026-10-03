@@ -424,6 +424,7 @@ object Metrics {
     val dialogScrollableMaxHeight = 560.dp
     val divider = 1.dp
     val compactChartHeight = chartHeight - 90.dp
+    val chartAxisLabelWidth = 40.dp
     val selectorTopUp = sectionGap - screenRowSpacing
     val iconButton = 36.dp
     val iconSmall = 18.dp

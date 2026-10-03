@@ -37,6 +37,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalDensity
@@ -365,6 +366,11 @@ fun LineChart(
     // Optional per-point display labels, index-aligned with [values]. Daily charts use this for a
     // human-readable date prefix ("16 Jul · 87"); live charts keep using [timestamps].
     selectionLabels: List<String>? = null,
+    // Optional color for each point and the line leading from it to the next point.
+    // The workout HR chart uses this to show when its bucket means reached each HR zone.
+    pointColors: List<Color>? = null,
+    // Override only the selection readout size; the established 30 px default stays unchanged.
+    selectionLabelTextSize: TextUnit? = null,
     // Optional sequential line-segment ids, index-aligned with [values]. Adjacent unequal ids break the
     // stroke/fill without dropping either reading; used by VO₂max when its estimator changes.
     segmentIds: List<String>? = null,
@@ -408,6 +414,10 @@ fun LineChart(
     val cleanSelectionLabels = remember(values, selectionLabels) {
         if (selectionLabels == null || selectionLabels.size != values.size) null
         else values.indices.filter { values[it].isFinite() }.map { selectionLabels[it] }
+    }
+    val cleanPointColors = remember(values, pointColors) {
+        if (pointColors == null || pointColors.size != values.size) null
+        else values.indices.filter { values[it].isFinite() }.map { pointColors[it] }
     }
     val cleanSegmentIds = remember(values, segmentIds) {
         if (segmentIds == null || segmentIds.size != values.size) null
@@ -487,10 +497,17 @@ fun LineChart(
         // separate drawWithContent overlay so a cursor drag re-issues only the marker, never the chart.
         // The pre-laid Paint for the value label is remembered, not allocated per draw. Pixel-identical:
         // same pointsFor geometry, same strokePx/pads, same gradient stops, same marker + label drawing.
-        val markerPaint = remember(color) {
+        val density = LocalDensity.current
+        val selectionTextPx = selectionLabelTextSize?.let { with(density) { it.toPx() } } ?: 30f
+        // Workout zone fills keep their color near the baseline. Light cards need a little more
+        // opacity than dark cards for the blue and gray zones to remain distinct on white.
+        val zoneFillTopAlpha = if (Palette.isLight) 0.62f else 0.52f
+        val zoneFillMiddleAlpha = if (Palette.isLight) 0.40f else 0.32f
+        val zoneFillBottomAlpha = if (Palette.isLight) 0.20f else 0.15f
+        val markerPaint = remember(color, selectionTextPx) {
             android.graphics.Paint().apply {
                 isAntiAlias = true
-                textSize = 30f
+                textSize = selectionTextPx
                 this.color = color.copy(alpha = StrandAlpha.chartLabel).toArgb()
                 typeface = android.graphics.Typeface.create(
                     android.graphics.Typeface.DEFAULT,
@@ -515,7 +532,7 @@ fun LineChart(
                         onDrawBehind { drawBaseline() }
                     } else {
                         val segments = lineChartSegmentRanges(pts.size, cleanSegmentIds)
-                        val fillPaths = if (fill) segments.map { range ->
+                        val fillPaths = if (fill && cleanPointColors == null) segments.map { range ->
                             Path().apply {
                                 val first = pts[range.first]
                                 val last = pts[range.last]
@@ -526,7 +543,30 @@ fun LineChart(
                                 close()
                             }
                         } else emptyList()
-                        val fillBrush = if (fill) {
+                        val zoneFillPaths = if (fill && cleanPointColors != null) {
+                            segments.flatMap { range ->
+                                ((range.first + 1)..range.last).map { i ->
+                                    val path = Path().apply {
+                                        moveTo(pts[i - 1].x, size.height)
+                                        lineTo(pts[i - 1].x, pts[i - 1].y)
+                                        lineTo(pts[i].x, pts[i].y)
+                                        lineTo(pts[i].x, size.height)
+                                        close()
+                                    }
+                                    val tint = cleanPointColors[i - 1]
+                                    path to Brush.verticalGradient(
+                                        colors = listOf(
+                                            tint.copy(alpha = zoneFillTopAlpha),
+                                            tint.copy(alpha = zoneFillMiddleAlpha),
+                                            tint.copy(alpha = zoneFillBottomAlpha),
+                                        ),
+                                        startY = 0f,
+                                        endY = size.height,
+                                    )
+                                }
+                            }
+                        } else emptyList()
+                        val fillBrush = if (fill && cleanPointColors == null) {
                             Brush.verticalGradient(
                                 colors = listOf(
                                     color.copy(alpha = StrandAlpha.chartFillStrong),
@@ -539,12 +579,12 @@ fun LineChart(
                         } else {
                             null
                         }
-                        val linePaths = segments.map { range ->
+                        val linePaths = if (cleanPointColors == null) segments.map { range ->
                             Path().apply {
                                 moveTo(pts[range.first].x, pts[range.first].y)
                                 for (i in (range.first + 1)..range.last) lineTo(pts[i].x, pts[i].y)
                             }
-                        }
+                        } else emptyList()
                         val lineStroke = Stroke(width = strokePx, cap = StrokeCap.Round, join = StrokeJoin.Round)
                         onDrawBehind {
                             // Under the fill and the line: the rule annotates the series rather than
@@ -554,8 +594,24 @@ fun LineChart(
                             if (fillBrush != null) {
                                 for (path in fillPaths) drawPath(path = path, brush = fillBrush)
                             }
-                            // The line itself.
-                            for (path in linePaths) drawPath(path = path, color = color, style = lineStroke)
+                            for ((path, brush) in zoneFillPaths) drawPath(path = path, brush = brush)
+                            // The line itself. A zone-colored chart assigns each sampled interval the
+                            // zone at its starting bucket; gaps still follow the same segment ranges.
+                            if (cleanPointColors == null) {
+                                for (path in linePaths) drawPath(path = path, color = color, style = lineStroke)
+                            } else {
+                                for (range in segments) {
+                                    for (i in (range.first + 1)..range.last) {
+                                        drawLine(
+                                            color = cleanPointColors[i - 1],
+                                            start = pts[i - 1],
+                                            end = pts[i],
+                                            strokeWidth = strokePx,
+                                            cap = StrokeCap.Round,
+                                        )
+                                    }
+                                }
+                            }
                             // Markers only while they can still be told apart. On the ALL range a daily
                             // series is hundreds of points, and a dot every few pixels merges into a
                             // thick smear that hides the line it was meant to annotate.
@@ -583,16 +639,17 @@ fun LineChart(
                         val pts = pointsFor(cleanValues, size.width, size.height, topPad, bottomPad, yDomain, cleanTimestamps)
                         if (selectedIndex in pts.indices) {
                             val p = pts[selectedIndex]
+                            val selectedColor = cleanPointColors?.getOrNull(selectedIndex) ?: color
                             drawLine(
-                                color = color.copy(alpha = StrandAlpha.chartMarker),
+                                color = selectedColor.copy(alpha = StrandAlpha.chartMarker),
                                 start = Offset(p.x, 0f),
                                 end = Offset(p.x, size.height),
                                 strokeWidth = 1.5f,
                                 cap = StrokeCap.Round,
                             )
-                            drawCircle(color = color, radius = 5f, center = p)
+                            drawCircle(color = selectedColor, radius = 5f, center = p)
                             drawCircle(color = Palette.surfaceBase.copy(alpha = StrandAlpha.chartShadow), radius = 9f, center = p)
-                            drawCircle(color = color, radius = 4.5f, center = p)
+                            drawCircle(color = selectedColor, radius = 4.5f, center = p)
                             drawContext.canvas.nativeCanvas.apply {
                                 val label = lineChartSelectionLabel(
                                     value = cleanValues[selectedIndex],
@@ -600,7 +657,7 @@ fun LineChart(
                                     epochSec = cleanTimestamps?.getOrNull(selectedIndex),
                                     pointLabel = cleanSelectionLabels?.getOrNull(selectedIndex),
                                 )
-                                drawText(label, 8f, 32f, markerPaint)
+                                drawText(label, 8f, markerPaint.textSize + 2f, markerPaint)
                             }
                         }
                     }
