@@ -181,13 +181,13 @@ private fun StartSportRow(sp: Sport, isSelected: Boolean, onPick: () -> Unit) {
 }
 
 /**
- * Start-a-workout entry for the Workouts screen (#115) — mirrors the Live screen's control so a user
- * can begin a session from either place. Shows a compact "running" banner while a workout is active
+ * Shared workout entry for Workouts and Today — mirrors the Live screen's control so a user
+ * can begin a session from each place. Shows a compact "running" banner while a workout is active
  * (the rich live card stays on Live); otherwise an action row with Start (when a strap is bonded, since
- * a live session needs the strap to stream) beside Add — or just Add when there's no strap.
+ * a live session needs the strap to stream). Workouts supplies Add; Today omits manual entry.
  */
 @Composable
-fun WorkoutStartSection(vm: AppViewModel, onAdd: () -> Unit) {
+fun WorkoutStartSection(vm: AppViewModel, onAdd: (() -> Unit)? = null) {
     val live by vm.live.collectAsStateWithLifecycle()
     val activeWorkout by vm.activeWorkout.collectAsStateWithLifecycle()
     var showSportPicker by remember { mutableStateOf(false) }
@@ -261,7 +261,7 @@ fun WorkoutStartSection(vm: AppViewModel, onAdd: () -> Unit) {
                     }
                 }
             }
-            AddWorkoutButton(onAdd, Modifier.fillMaxWidth())
+            if (onAdd != null) AddWorkoutButton(onAdd, Modifier.fillMaxWidth())
         }
     } else if (live.bonded) {
         // Start + Add as an equal-width action row (EXP-018 parity with the iOS workoutActionRow).
@@ -278,9 +278,9 @@ fun WorkoutStartSection(vm: AppViewModel, onAdd: () -> Unit) {
                 onClick = { showSportPicker = true },
                 modifier = Modifier.weight(1f),
             )
-            AddWorkoutButton(onAdd, Modifier.weight(1f))
+            if (onAdd != null) AddWorkoutButton(onAdd, Modifier.weight(1f))
         }
-    } else {
+    } else if (onAdd != null) {
         // No strap to stream from: no live Start, but keep Add so a user with no imports can still log.
         // PRIMARY here, unlike the pair above. There is no Start to be secondary to, and this is the
         // only action the screen offers, so the secondary treatment would leave a wearer with no strap

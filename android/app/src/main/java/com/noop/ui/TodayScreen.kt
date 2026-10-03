@@ -1494,13 +1494,17 @@ fun TodayScreen(
         }
         }
 
-        // A "workout in progress" indicator whenever a manual workout is active (iOS parity: the Today
-        // ActiveWorkoutIndicator). A tap routes to Live and re-opens the in-exercise overlay. Gated purely on
-        // `activeWorkout`, so it auto-appears/clears with no extra lifecycle wiring. Its per-second clock
-        // ticks inside the card's own LaunchedEffect, never recomposing the Today body.
-        activeWorkout?.let { w ->
-            item {
-                WorkoutInProgressCard(workout = w, onReturn = onOpenActiveWorkout)
+        // Today's shared workout host offers Start when idle and the recording controls when active.
+        // Past days retain the active-workout shortcut. Per-second clocks remain inside their leaves.
+        if (selectedDayOffset == 0) {
+            // Keep the existing picker/live-view host mounted across idle → recording transitions.
+            // Manual entry stays on Workouts; Today offers the same live recording controls.
+            item { WorkoutStartSection(viewModel) }
+        } else {
+            activeWorkout?.let { w ->
+                item {
+                    WorkoutInProgressCard(workout = w, onReturn = onOpenActiveWorkout)
+                }
             }
         }
 
