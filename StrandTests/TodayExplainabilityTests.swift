@@ -1,5 +1,6 @@
 import XCTest
 import SwiftUI
+import StrandAnalytics
 import WhoopStore
 @testable import Strand
 
@@ -82,6 +83,62 @@ final class TodayExplainabilityTests: XCTestCase {
         XCTAssertEqual(rendered(s.title), "Latest sleep · 14 May")
         XCTAssertEqual(s.accessibilityText,
                        "Latest sleep, 14 May. This is your last scored session. Wear the strap overnight for a fresh score.")
+    }
+
+    func testScoreState_gapLongerThanTheChargeWindow_calibratesRatherThanCarrying() {
+        // #2525 WINS OVER #779 here, pinned as a decision of record rather than left as a side effect.
+        // #779 (the test directly above) chose to keep showing a weeks-old carry, relabelled "Latest
+        // sleep", so the number is never passed off as "Last night". Since #2525 a Charge baseline reads
+        // ONLY nights inside `ChargeBaselines.windowDays`, so after a longer gap the folded history is
+        // EMPTY, the calibration count is non-nil (0, which #335 deliberately includes), and calibrating
+        // takes precedence over the carry. The Today Charge tile therefore reads "Calibrating" on a gap
+        // this long where it used to read "Latest sleep".
+        //
+        // BOTH displays are pinned from the SAME nights, so the contrast is the test rather than a claim
+        // about it. The night count matters: fewer than `minNightsSeed` banked nights calibrate under
+        // either rule, which would pin nothing, so these fourteen would have been TRUSTED by the old
+        // whole-history fold and the carry genuinely used to win. The count is converted to "nights
+        // remaining" with the same expression the TodayView call site uses, so the nil that lets the
+        // carry through is the production one.
+        // Twin of the Kotlin `scoreState_gapLongerThanTheChargeWindow_calibratesRatherThanCarrying`.
+        let anchor = "2026-02-11"
+        // 2026-01-01..2026-01-14 are 41..28 days before the anchor: fourteen nights, every one of them
+        // outside the 21-day window (which opens 2026-01-22).
+        let oldNights: [(day: String, value: Double?)] = (1...14).map {
+            (day: String(format: "2026-01-%02d", $0), value: 70)
+        }
+        let remaining: (Int?) -> Int? = { $0.map { max(1, Baselines.minNightsSeed - $0) } }
+
+        // BEFORE #2525: the fold saw every banked night, so nValid was 14, over `minNightsSeed`, the
+        // count was nil and the carry won. That is the "Latest sleep" the test above describes.
+        let unwindowed = RecoveryScorer.calibrationNights(nightlyHrv: oldNights.map(\.value),
+                                                          dayKeys: oldNights.map(\.day),
+                                                          hasRecovery: false)
+        XCTAssertNil(unwindowed, "fourteen banked nights were trusted, so the tile carried")
+        XCTAssertEqual(MetricTileState.resolve(hasTodayValue: false,
+                                               calibratingNightsRemaining: remaining(unwindowed),
+                                               carriedDate: "14 Jan",
+                                               carriedStale: true),
+                       .carriedLastNight(date: "14 Jan", stale: true))
+
+        // SINCE #2525: the window drops all fourteen, so the fold is empty and the count is 0.
+        let history = ChargeBaselines.history(imported: [],
+                                              own: oldNights,
+                                              anchorDay: anchor,
+                                              cfg: Baselines.hrvCfg,
+                                              baselineEpoch: 0)
+        XCTAssertEqual(history.ownValidNights, 0)
+        XCTAssertTrue(history.values.isEmpty, "nights outside the window must not reach the fold")
+
+        let n = RecoveryScorer.calibrationNights(nightlyHrv: history.values,
+                                                 dayKeys: history.dayKeys,
+                                                 hasRecovery: false)
+        XCTAssertEqual(n, 0)
+        XCTAssertEqual(MetricTileState.resolve(hasTodayValue: false,
+                                               calibratingNightsRemaining: remaining(n),
+                                               carriedDate: "14 Jan",
+                                               carriedStale: true),
+                       .calibrating(nightsRemaining: Baselines.minNightsSeed))
     }
 
     func testScoreState_nothingBanked_isNeedsStrap() {

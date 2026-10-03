@@ -1,6 +1,8 @@
 package com.noop.ui
 
 import com.noop.R
+import com.noop.analytics.Baselines
+import com.noop.analytics.ChargeBaselines
 import com.noop.analytics.FusionSource
 import com.noop.data.DailyMetric
 import org.junit.Assert.assertEquals
@@ -82,6 +84,67 @@ class TodayExplainabilityTest {
         assertEquals(ScoreState.CarriedLastNight("14 Jan", true), state)
         assertEquals(R.string.score_state_title_latest_sleep, state.titleRes)
         assertEquals(R.string.score_state_detail_carried_stale, state.detailRes)
+    }
+
+    @Test
+    fun scoreState_gapLongerThanTheChargeWindow_calibratesRatherThanCarrying() {
+        // #2525 WINS OVER #779 here, pinned as a decision of record rather than left as a side effect.
+        // #779 (the test directly above) chose to keep showing a weeks-old carry, relabelled "Latest
+        // sleep", so the number is never passed off as "Last night". Since #2525 a Charge baseline reads
+        // ONLY nights inside `ChargeBaselines.windowDays`, so after a longer gap the folded history is
+        // EMPTY, the calibration count is non-null (0, which #335 deliberately includes), and calibrating
+        // takes precedence over the carry. The Today Charge tile therefore reads "Calibrating" on a gap
+        // this long where it used to read "Latest sleep".
+        //
+        // BOTH displays are pinned from the SAME nights, so the contrast is the test rather than a
+        // claim about it. The night count matters: fewer than `minNightsSeed` banked nights calibrate
+        // under either rule, which would pin nothing, so these fourteen would have been TRUSTED by the
+        // old whole-history fold and the carry genuinely used to win.
+        // Twin of the Swift `testScoreState_gapLongerThanTheChargeWindow_calibratesRatherThanCarrying`.
+        val anchor = "2026-02-11"
+        // 2026-01-01..2026-01-14 are 41..28 days before the anchor: fourteen nights, every one of them
+        // outside the 21-day window (which opens 2026-01-22).
+        val oldNights = (1..14).map { String.format("2026-01-%02d", it) to 70.0 }
+        val lastNight = oldNights.last().first
+
+        // BEFORE #2525: the fold saw every banked night, so nValid was 14, over `minNightsSeed`, the
+        // count was null and the carry won. That is the "Latest sleep" the test above describes.
+        val unwindowed = recoveryCalibrationNights(
+            oldNights.map { it.second }, oldNights.map { it.first },
+            hasRecovery = false, hrvBaselineEpoch = 0.0,
+        )
+        assertNull("fourteen banked nights were trusted, so the tile carried", unwindowed)
+        assertEquals(
+            ScoreState.CarriedLastNight("14 Jan", true),
+            scoreStateForToday(
+                todayRecovery = null, calibratingNights = unwindowed,
+                carriedDay = day(lastNight, recovery = 65.0), today = anchor,
+            ),
+        )
+
+        // SINCE #2525: the window drops all fourteen, so the fold is empty and the count is 0.
+        val history = ChargeBaselines.history(
+            imported = emptyList(),
+            own = oldNights,
+            anchorDay = anchor,
+            cfg = Baselines.hrvCfg,
+            baselineEpoch = 0.0,
+        )
+        assertEquals(0, history.ownValidNights)
+        assertTrue("nights outside the window must not reach the fold", history.values.isEmpty())
+
+        val n = recoveryCalibrationNights(
+            history.values, history.dayKeys, hasRecovery = false, hrvBaselineEpoch = 0.0,
+        )
+        assertEquals(0, n)
+
+        val state = scoreStateForToday(
+            todayRecovery = null, calibratingNights = n,
+            carriedDay = day(lastNight, recovery = 65.0), today = anchor,
+        )
+        assertTrue("an empty Charge window must calibrate, not carry", state is ScoreState.Calibrating)
+        assertEquals(ScoreState.Calibrating(Baselines.minNightsSeed), state)
+        assertEquals(R.string.score_state_title_calibrating, state.titleRes)
     }
 
     @Test
