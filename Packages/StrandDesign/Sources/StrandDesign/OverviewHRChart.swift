@@ -271,6 +271,12 @@ public struct OverviewHRChart: View {
     // and gets clipped by the card's fixed height on 13, so we position labels ourselves.
 
     @ChartContentBuilder private var marks: some ChartContent {
+        // Styles depend on the chart, not the individual sample. Share them across marks so a
+        // dense HR series does not recreate the same gradient for every line and area vertex.
+        let areaFill = LinearGradient(
+            colors: [StrandPalette.sample(stops: gradient.toStops(), at: unit(averageValue)).opacity(0.28), .clear],
+            startPoint: .top, endPoint: .bottom)
+        let lineStroke = valueGradient
         // Sleep band — shaded region behind the curve (drawn first so the HR line/area sit on top).
         if let sleep, sleep.end > xDomain.lowerBound {
             RectangleMark(
@@ -283,21 +289,13 @@ public struct OverviewHRChart: View {
         ForEach(displayPoints) { p in
             AreaMark(x: .value("Time", p.date), y: .value("BPM", p.value))
                 .interpolationMethod(.catmullRom)
-                .foregroundStyle(
-                    LinearGradient(
-                        colors: [
-                            StrandPalette.sample(stops: gradient.toStops(), at: unit(averageValue)).opacity(0.28),
-                            Color.clear
-                        ],
-                        startPoint: .top, endPoint: .bottom
-                    )
-                )
+                .foregroundStyle(areaFill)
         }
         ForEach(displayPoints) { p in
             LineMark(x: .value("Time", p.date), y: .value("BPM", p.value))
                 .interpolationMethod(.catmullRom)
                 .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
-                .foregroundStyle(valueGradient)
+                .foregroundStyle(lineStroke)
         }
 
         // Wake divider — the sleep→day boundary. Always shown with a sleep band so the band reads
