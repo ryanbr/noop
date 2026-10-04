@@ -2535,10 +2535,12 @@ private struct LiquidLiveHR: View {
             if series.count >= 2 {
                 ZStack {
                     LiquidHeartRateGrid()
+                    // Historical buckets cannot change between live ticks. Do not run the decorative
+                    // trace clock for this fallback; genuine live HR keeps its existing animation.
                     LiquidThread(bpm: series,
                                  segments: isLive ? nil : (fallbackSegments.count == series.count
                                                            ? fallbackSegments : nil),
-                                 tint: tint, height: 92, animated: animated)
+                                 tint: tint, height: 92, animated: animated && isLive)
                 }
                 .frame(height: 92)
                 .clipShape(RoundedRectangle(cornerRadius: NoopMetrics.space2, style: .continuous))
