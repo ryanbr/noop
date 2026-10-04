@@ -42,9 +42,11 @@ enum RouteExportFormatChoice: String, AppEnum, CaseIterable {
 
     static var typeDisplayRepresentation = TypeDisplayRepresentation(name: "Route Format")
 
+    // FIT carries a session summary that GPX has no element for, and the parts of it this path cannot
+    // supply are named here rather than left for a wearer to discover in Strava. See the `render` call.
     static var caseDisplayRepresentations: [RouteExportFormatChoice: DisplayRepresentation] = [
         .gpx: DisplayRepresentation(title: "GPX"),
-        .fit: DisplayRepresentation(title: "FIT"),
+        .fit: DisplayRepresentation(title: "FIT", subtitle: "Route and GPS distance, without the heart-rate and calorie summary"),
     ]
 
     var exporterFormat: RouteExporter.Format { self == .gpx ? .gpx : .fit }
@@ -74,6 +76,14 @@ struct ExportWorkoutRouteIntent: AppIntent {
             // than asking the wearer to pick GPX again.
             throw RouteExportIntentError.noExportableRoute
         }
+        // `energyKcal`, `avgHr` and `maxHr` are deliberately NOT passed, and GPX is unaffected either
+        // way: `buildGpx` takes none of them, so a GPX from here is byte-identical to the share sheet's.
+        // FIT does carry them as session fields, and the share sheet supplies them from the `WorkoutRow`.
+        // This path has no row, and copying them into `RouteStore` to get them would plant a second copy
+        // of a fact the database owns: the edit and merge paths re-store a route without touching them,
+        // and a later offload fills heart rate for a window after the route was saved. A stored snapshot
+        // would then disagree with the workout, which is the failure the project forbids outright. So the
+        // FIT written here is a route plus its GPS distance, and the format picker says so.
         let data = RouteExporter.render(
             format.exporterFormat,
             route: newest.points.map { RoutePoint(lat: $0.lat, lon: $0.lon) },
