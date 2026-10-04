@@ -422,9 +422,20 @@ final class HealthKitBridge: ObservableObject {
             return try? NSKeyedUnarchiver.unarchivedObject(ofClass: HKQueryAnchor.self, from: data)
         }()
 
+        // Observer ingestion already caps its re-aggregation window at 31 days. Match that bound
+        // here so a fresh anchor does not decode years of Watch samples that cannot be ingested by
+        // this path. Explicit historical imports keep their existing query windows, and anchors
+        // still advance only after the corresponding aggregate sync commits.
+        let cal = Calendar.current
+        guard let oldestRelevant = cal.date(byAdding: .day, value: -31,
+                                            to: cal.startOfDay(for: Date())) else { return (nil, nil) }
+        let predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            HKQuery.predicateForSamples(withStart: oldestRelevant, end: nil, options: []),
+            Self.notNoopAuthored,
+        ])
         return await withCheckedContinuation { (cont: CheckedContinuation<(Date?, HKQueryAnchor?), Never>) in
             let q = HKAnchoredObjectQuery(
-                type: type, predicate: Self.notNoopAuthored,
+                type: type, predicate: predicate,
                 anchor: priorAnchor, limit: HKObjectQueryNoLimit
             ) { _, samples, _, newAnchor, _ in
                 // Return the advanced anchor but do NOT persist it here: the caller commits it only after
