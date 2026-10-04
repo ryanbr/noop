@@ -14060,9 +14060,33 @@
           }
         },
         "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%lld процентов"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld процент"
+                }
+              },
+              "few": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld процента"
+                }
+              },
+              "many": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld процентов"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld процента"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -140259,9 +140283,33 @@
           }
         },
         "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Скользящее RMSSD %lld миллисекунд"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Скользящее RMSSD %lld миллисекунда"
+                }
+              },
+              "few": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Скользящее RMSSD %lld миллисекунды"
+                }
+              },
+              "many": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Скользящее RMSSD %lld миллисекунд"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Скользящее RMSSD %lld миллисекунды"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
