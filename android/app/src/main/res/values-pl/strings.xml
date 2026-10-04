@@ -800,6 +800,7 @@
     <string name="l10n_sleep_screen_logged_as_a_nap_wrong_tap_4285d23e">Zapisano jako drzemkę. Zło? Stuknij opcję Edytuj, aby dostosować godziny snu i budzenia.</string>
     <string name="l10n_sleep_screen_nap_window_durationtext_durmin_bbc35167">Drzemka %1$s, %2$s</string>
     <string name="l10n_sleep_screen_no_movement_detail_for_this_night_a6f9736a">Brak szczegółów ruchu tej nocy.</string>
+    <string name="l10n_sleep_screen_move_relative_to_tonight_fd71d87b">Ruch, w odniesieniu do tej nocy</string>
     <string name="l10n_sleep_screen_no_nights_here_yet_607248f5">Nie ma tu jeszcze żadnych nocy</string>
     <string name="l10n_sleep_screen_no_nights_with_sleep_data_yet_fa71b6b3">Nie ma jeszcze nocy z danymi dotyczącymi snu. Twoja księga zapełnia się, gdy zakładasz pasek do łóżka.</string>
     <string name="l10n_sleep_screen_not_enough_history_in_this_range_7e2fd640">Za mało historii w tym zakresie. Wypróbuj 3M, 6M lub WSZYSTKIE.</string>

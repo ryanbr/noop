@@ -789,6 +789,7 @@
     <string name="l10n_sleep_screen_nap_window_durationtext_durmin_bbc35167">小睡 %1$s, 持续 %2$s</string>
     <string name="l10n_sleep_screen_night_detail_8f271bcf">夜间详情</string>
     <string name="l10n_sleep_screen_no_movement_detail_for_this_night_a6f9736a">缺少昨晚的详细体动数据。</string>
+    <string name="l10n_sleep_screen_move_relative_to_tonight_fd71d87b">活动，相对于今晚</string>
     <string name="l10n_sleep_screen_no_nights_here_yet_607248f5">暂无睡眠记录</string>
     <string name="l10n_sleep_screen_no_nights_with_sleep_data_yet_fa71b6b3">目前还没有睡眠数据。戴着手环入睡后，您的睡眠账本将在这里逐渐完善。</string>
     <string name="l10n_sleep_screen_not_enough_history_in_this_range_7e2fd640">该时间范围内历史数据不足。请尝试切换到 3个月、6个月 或 全部 视图。</string>

@@ -938,6 +938,7 @@
     <string name="l10n_sleep_screen_nap_window_durationtext_durmin_bbc35167">Nap %1$s, %2$s</string>
     <string name="l10n_sleep_screen_night_detail_8f271bcf">Night detail</string>
     <string name="l10n_sleep_screen_no_movement_detail_for_this_night_a6f9736a">No movement detail for this night.</string>
+    <string name="l10n_sleep_screen_move_relative_to_tonight_fd71d87b">Move, relative to tonight</string>
     <string name="l10n_sleep_screen_no_nights_here_yet_607248f5">No nights here yet</string>
     <string name="l10n_sleep_screen_no_nights_with_sleep_data_yet_fa71b6b3">No nights with sleep data yet. Your ledger fills in as you wear the strap to bed.</string>
     <string name="l10n_sleep_screen_not_enough_history_in_this_range_7e2fd640">Not enough history in this range. Try 3M, 6M, or ALL.</string>

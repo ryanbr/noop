@@ -909,6 +909,7 @@
     <string name="l10n_sleep_screen_nap_window_durationtext_durmin_bbc35167">Sonnellino %1$s, %2$s</string>
     <string name="l10n_sleep_screen_night_detail_8f271bcf">Dettaglio notte</string>
     <string name="l10n_sleep_screen_no_movement_detail_for_this_night_a6f9736a">Nessun dettaglio sul movimento per questa notte.</string>
+    <string name="l10n_sleep_screen_move_relative_to_tonight_fd71d87b">Movimento, rispetto a questa notte</string>
     <string name="l10n_sleep_screen_no_nights_here_yet_607248f5">Ancora nessuna notte qui</string>
     <string name="l10n_sleep_screen_no_nights_with_sleep_data_yet_fa71b6b3">Ancora nessuna notte con dati sul sonno. Il tuo registro si riempie man mano che indossi la fascia a letto.</string>
     <string name="l10n_sleep_screen_not_enough_history_in_this_range_7e2fd640">Cronologia insufficiente in questo intervallo. Prova 3M, 6M o ALL.</string>

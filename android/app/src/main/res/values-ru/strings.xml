@@ -849,6 +849,7 @@
     <string name="l10n_sleep_screen_nap_window_durationtext_durmin_bbc35167">Дневной сон %1$s, %2$s</string>
     <string name="l10n_sleep_screen_night_detail_8f271bcf">Подробности ночи</string>
     <string name="l10n_sleep_screen_no_movement_detail_for_this_night_a6f9736a">Нет данных о движении за эту ночь.</string>
+    <string name="l10n_sleep_screen_move_relative_to_tonight_fd71d87b">Движение, относительно этой ночи</string>
     <string name="l10n_sleep_screen_no_nights_here_yet_607248f5">Здесь пока нет ночей</string>
     <string name="l10n_sleep_screen_no_nights_with_sleep_data_yet_fa71b6b3">Ночей с данными о сне пока нет. История будет пополняться по мере того, как вы носите браслет во время сна.</string>
     <string name="l10n_sleep_screen_not_enough_history_in_this_range_7e2fd640">Недостаточно истории в этом диапазоне. Попробуйте 3М, 6М или ВСЁ.</string>

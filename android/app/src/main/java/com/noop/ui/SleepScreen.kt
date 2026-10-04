@@ -2129,7 +2129,13 @@ internal fun StageTimeline(
         }
         // #407 — MotionStrip component + data path untouched; relocated UNDER the rows on the SAME
         // timeline. Same inner insets as the rows' tracks so epochs don't skew against the segments.
-        Box(modifier = Modifier.padding(horizontal = Metrics.stageRowPadH)) {
+        // Column, not Box: `MotionStrip` emits its label AND its trace, and a Box stacks children in
+        // z-order, so the two would be drawn over each other. The Box was only ever carrying padding.
+        // Spacing matches the Swift `motionStrip`'s `VStack(alignment: .leading, spacing: 2)`.
+        Column(
+            modifier = Modifier.padding(horizontal = Metrics.stageRowPadH),
+            verticalArrangement = Arrangement.spacedBy(Metrics.space2),
+        ) {
             MotionStrip(motionEpochs)
         }
         if (onsetTs != null && wakeTs != null) {
@@ -2296,7 +2302,23 @@ internal fun stageSharePercent(label: String, s: Stages): Int {
  */
 @Composable
 private fun MotionStrip(epochs: List<Double>) {
+    // Emits TWO children, the label and then the trace, so the caller must lay them out vertically
+    // (see `StageTimeline`, which uses a Column for exactly this reason).
+    //
+    // The label names the strip (Android drew it unlabelled, so a wearer had no way to tell what the
+    // trace was) and states the scale in the same breath. The trace is normalised to THIS night's peak,
+    // so the tallest spike is full height whatever its absolute size and heights do not compare between
+    // nights. The strap calibrates no absolute magnitude, so saying "relative to tonight" is the honest
+    // axis label rather than a number. Twin of the Swift `motionStrip` label.
+    Text(
+        uiString(R.string.l10n_sleep_screen_move_relative_to_tonight_fd71d87b),
+        style = NoopType.footnote,
+        color = Palette.textTertiary,
+    )
     if (epochs.size < 2) {
+        // No explicit contentDescription: a Compose `Text` already exposes its own content to
+        // TalkBack, so the Apple side's `accessibilityLabel` is covering a SwiftUI need rather than
+        // a gap here, and a near-duplicate string would be ten more locale entries for nothing.
         Text(
             uiString(R.string.l10n_sleep_screen_no_movement_detail_for_this_night_a6f9736a),
             style = NoopType.footnote,

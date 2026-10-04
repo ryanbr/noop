@@ -212,7 +212,12 @@ struct StageDetailView: View {
         // Label above the trace, plot inset 10pt to line up with the stage-timeline rows' strips
         // (the old 44+12 gutter matched the removed Hypnogram's y-axis column). (ryanAtriumAi #988)
         VStack(alignment: .leading, spacing: 2) {
-            Text("Move")
+            // Same label as `SleepView.motionStrip`, which this is a byte-identical copy of. The trace is
+            // normalised to THIS night's peak, so the tallest spike is full height whatever its absolute
+            // size and heights do not compare between nights; the strap calibrates no absolute magnitude.
+            // This copy renders on Today (`TodayView`, `LiquidTodayView`), so letting the two drift would
+            // put two different names on one chart across two screens.
+            Text("Move, relative to tonight")
                 .font(StrandFont.footnote)
                 .foregroundStyle(StrandPalette.textTertiary)
             if night.motionEpochs.count >= 2 {

@@ -811,6 +811,7 @@
     <string name="l10n_sleep_screen_nap_window_durationtext_durmin_bbc35167">Sesta %1$s, %2$s</string>
     <string name="l10n_sleep_screen_night_detail_8f271bcf">Detalhe noturno</string>
     <string name="l10n_sleep_screen_no_movement_detail_for_this_night_a6f9736a">Sem detalhes de movimento para esta noite.</string>
+    <string name="l10n_sleep_screen_move_relative_to_tonight_fd71d87b">Movimento, em relação a esta noite</string>
     <string name="l10n_sleep_screen_no_nights_here_yet_607248f5">Nenhuma noite aqui ainda</string>
     <string name="l10n_sleep_screen_no_nights_with_sleep_data_yet_fa71b6b3">Ainda não há noites com dados de sono. O teu livro-razão é preenchido à medida que usa a pega para dormir.</string>
     <string name="l10n_sleep_screen_not_enough_history_in_this_range_7e2fd640">Não há histórico suficiente nesta faixa. Experimente 3M, 6M ou TODOS.</string>
