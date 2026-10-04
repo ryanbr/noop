@@ -18,9 +18,8 @@ import AppKit
 //   • `.staggeredAppear(index:)` — list/grid items fade + rise in, once, in sequence
 //   • `.softCardTransition()` — card insert/remove (opacity + a hair of scale)
 //
-// Every helper is PUBLIC, GPU-cheap (opacity / offset / scale only), and honours
-// `@Environment(\.accessibilityReduceMotion)` — under Reduce Motion animations collapse
-// to their final frame instantly, with no offset, scale or counting.
+// Count-up values and staggered entrances use the shared quiet-motion gate so
+// Low Power Mode and the in-app preference also suppress their one-shot work.
 //
 // This complements `StrandMotion` (the physiological breathe/pulse set) rather than
 // replacing it: where StrandMotion leans organic, NoopMotion leans crisp and mechanical,
@@ -258,7 +257,7 @@ public final class NoopMotionState: ObservableObject {
 // so it works on the iOS 16 / macOS 13 floor (no TimelineView spring / PhaseAnimator needed)
 // and rides whatever animation the environment supplies — by default `NoopMotion.value`.
 //
-// Reduce Motion → the final value is shown instantly, with no tick.
+// Quiet motion → the final value is shown instantly, with no tick.
 
 /// A text view whose number animates from its previous value to the new one.
 /// Use for the big scores / hero metric read-outs.
@@ -283,6 +282,10 @@ public struct CountUpText: View {
     @State private var hasAppeared = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    // The system flag alone misses NOOP's own preference and Low Power Mode. Use the same
+    // live gate as the decorative loops so a refresh cannot restart suppressed count-up work.
+    @ObservedObject private var motion = NoopMotionState.shared
+    private var poseStill: Bool { motion.poseStill(reduceMotion) }
 
     /// - Parameters:
     ///   - value: the number to display / animate to.
@@ -309,7 +312,7 @@ public struct CountUpText: View {
             .onAppear {
                 guard !hasAppeared else { return }
                 hasAppeared = true
-                if reduceMotion {
+                if poseStill {
                     target = value                      // snap, no tick
                 } else {
                     target = 0
@@ -317,7 +320,7 @@ public struct CountUpText: View {
                 }
             }
             .onChangeCompat(of: value) { newValue in
-                if reduceMotion {
+                if poseStill {
                     var tx = Transaction(); tx.disablesAnimations = true
                     withTransaction(tx) { target = newValue }
                 } else {
@@ -359,7 +362,7 @@ private struct _AnimatableNumber: View, Animatable {
 // MARK: - Staggered appear
 //
 // Fade-in + 8pt rise, sequenced by `index`. Runs ONCE per element (guarded by `hasAppeared`),
-// so re-renders / scroll recycling don't re-trigger it. Reduce Motion → visible instantly,
+// so re-renders / scroll recycling don't re-trigger it. Quiet motion → visible instantly,
 // no offset.
 
 private struct StaggeredAppear: ViewModifier {
@@ -368,17 +371,20 @@ private struct StaggeredAppear: ViewModifier {
 
     @State private var hasAppeared = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    // Lazy sections enter repeatedly while scrolling. Quiet motion must expose their final pose
+    // immediately rather than scheduling another delayed entrance when they become visible.
+    @ObservedObject private var motion = NoopMotionState.shared
+    private var poseStill: Bool { motion.poseStill(reduceMotion) }
 
     func body(content: Content) -> some View {
-        // `shown` is true once we've appeared (or immediately under Reduce Motion / when the
-        // element is asked to appear without animation).
-        let shown = hasAppeared || reduceMotion
+        // Show immediately when the shared quiet-motion gate is closed.
+        let shown = hasAppeared || poseStill
         content
             .opacity(isVisible ? (shown ? 1 : 0) : 1)
             .offset(y: (isVisible && !shown) ? NoopMotion.riseOffset : 0)
             .onAppear {
                 guard isVisible, !hasAppeared else { return }
-                if reduceMotion {
+                if poseStill {
                     hasAppeared = true                  // no animation, no delay
                 } else {
                     let delay = Double(max(0, index)) * NoopMotion.stagger
@@ -387,13 +393,13 @@ private struct StaggeredAppear: ViewModifier {
                     }
                 }
             }
+            .onChangeCompat(of: poseStill) { if $0 { hasAppeared = true } }
     }
 }
 
 public extension View {
     /// Fade-in + 8pt rise on first appearance, delayed by `index * 0.04s` for a sequenced
-    /// list/grid reveal. Runs ONCE per element. Honours Reduce Motion (appears instantly,
-    /// no offset).
+    /// list/grid reveal. Runs ONCE per element. The quiet-motion gate shows it instantly.
     ///
     /// - Parameters:
     ///   - index: position in the sequence (0 = first / no delay).

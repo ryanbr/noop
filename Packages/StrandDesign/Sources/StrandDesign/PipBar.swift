@@ -11,7 +11,7 @@ import SwiftUI
 // to the value in a quick eased sweep (~0.5–0.7s). The whole effect is driven by a SINGLE animated
 // fraction on a spring — each segment derives its own fill from that one value over a short per-segment
 // ramp, so the pips appear to light up in sequence with NO per-segment timers (cheap to animate).
-// Reduce Motion → the fraction is set instantly and the bar renders static at its final frame.
+// Quiet motion → the fraction is set instantly and the bar renders static at its final frame.
 //
 // HARD constraints honoured: NO GLOW (flat fills only), TOKENS only (surfaceInset track, tint fill),
 // crisp high-contrast, PUBLIC stable API, self-contained in this file.
@@ -51,16 +51,20 @@ public struct PipBar: View {
     }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    // Keep the fill sweep on the same gate as count-up text: an in-app Reduce Motion choice
+    // or Low Power Mode must suppress the decorative transition even when the OS flag is off.
+    @ObservedObject private var motion = NoopMotionState.shared
+    private var poseStill: Bool { motion.poseStill(reduceMotion) }
 
     /// The single animated driver: a 0…1 fraction that the whole bar derives from. One eased sweep moves
-    /// it 0 → target so segments light in sequence; Reduce Motion snaps it to the target with no animation.
+    /// it 0 → target so segments light in sequence; quiet motion snaps it to the target.
     @State private var animatedFraction: Double = 0
 
     /// The count-up curve: a quick eased cascade (~0.6s total) so the pips light left→right. Suppressed to
-    /// `nil` under Reduce Motion so `withAnimation` sets the fraction instantly and the bar renders static.
+    /// `nil` under the shared quiet-motion gate so the bar renders static.
     /// Self-contained here (no edit to StrandMotion); mirrors `StrandMotion.drawIn(reduced:)`'s pattern.
     private var countUp: Animation? {
-        reduceMotion ? nil : .easeOut(duration: 0.6)
+        poseStill ? nil : .easeOut(duration: 0.6)
     }
 
     /// The target fill fraction (value mapped into 0…1, clamped).
@@ -94,7 +98,7 @@ public struct PipBar: View {
         }
         .frame(height: height)
         .onAppear {
-            // Count-up on first appear (or snap when Reduce Motion is on).
+            // Count-up on first appear (or snap when quiet motion is on).
             withAnimation(countUp) { animatedFraction = targetFraction }
         }
         .onChangeCompat(of: value) { _ in
