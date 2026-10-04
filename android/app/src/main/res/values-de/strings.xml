@@ -2872,4 +2872,17 @@
     <string name="raw_diag_ecg_probe_running">Auf diesem Strap läuft möglicherweise noch eine Aufzeichnung. Das Ergebnis steht im Strap-Log.</string>
     <string name="today_customize_live_session_availability">Erscheint heute, wenn Live Sessions in den Einstellungen aktiviert sind oder eine Session aktiv ist.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Today nach Ihren Wünschen, Herzfrequenz für jede App und Italienisch</string>
+    <string name="l10n_notifications_settings_screen_apps_on_this_phone_that_can_6b7ae956">Apps auf diesem Telefon, die Benachrichtigungen senden können. NOOP entdeckt sie, sobald sie dich benachrichtigen – wähle sie unten einzeln aus.</string>
+    <string name="l10n_notifications_settings_screen_search_apps_ca3ce8f3">Apps suchen</string>
+    <string name="l10n_notifications_settings_screen_scan_again_f6ab55dd">Erneut scannen</string>
+    <string name="l10n_notifications_settings_screen_no_apps_discovered_post_a_notification_0ca6e7bc">Noch keine Apps entdeckt. Sende eine Benachrichtigung von einer App und scanne erneut.</string>
+    <string name="l10n_notifications_settings_screen_also_buzz_for_apps_not_listed_e60214ec">Vibriert auch für Apps, die nicht oben aufgelistet sind. NOOP entdeckt Apps, sobald sie dich benachrichtigen – eine App, die nie in der Liste oben erschien, vibriert damit ebenfalls. Kann viel sein; Ruhezeiten und „Nur vibrieren, wenn getragen“ gelten weiterhin.</string>
+    <string name="l10n_notifications_settings_screen_notification_access_is_on_for_this_af3ffc72">Der Benachrichtigungszugriff ist für diese App aktiv. Alarme am Handgelenk können ankommen.</string>
+    <string name="l10n_notifications_settings_screen_notification_access_is_off_for_this_b27ba957">Der Benachrichtigungszugriff ist für diese App deaktiviert. Öffne die Einstellungen unten und aktiviere NOOP, sonst können keine Alarme am Handgelenk ankommen.</string>
+    <string name="l10n_notifications_settings_screen_when_all_other_apps_is_every_bf6e5671">Wenn Alle anderen Apps aktiviert ist, vibriert dein Handgelenk für jede App, also sind die einzelnen Schalter unten deaktiviert. Deaktiviere es, um Apps einzeln auszuwählen.</string>
+    <string name="l10n_notifications_settings_screen_other_apps_notifications_8bcd3596">Benachrichtigungen anderer Apps</string>
+    <string name="l10n_notifications_settings_screen_installed_apps_c21260b2">Installierte Apps</string>
+    <string name="l10n_notifications_settings_screen_app_notifications_00e65fd6">App-Benachrichtigungen</string>
+    <string name="l10n_notifications_settings_screen_choose_apps_72d037f2">Apps auswählen</string>
+    <string name="l10n_notifications_settings_screen_scanning_installed_04ab2344">Installierte Apps werden gescannt…</string>
 </resources>

@@ -2754,4 +2754,17 @@
     <string name="raw_diag_ecg_probe_running">На этом ремешке запись может всё ещё идти. Результат попадёт в strap log.</string>
     <string name="today_customize_live_session_availability">Появляется сегодня, если сессии в реальном времени включены в Настройках или сеанс уже активен.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">«Сегодня» на ваш вкус, пульс для любого приложения и итальянский язык</string>
+    <string name="l10n_notifications_settings_screen_apps_on_this_phone_that_can_6b7ae956">Приложения на этом телефоне, которые могут присылать уведомления. NOOP обнаруживает их, когда они вас уведомляют — выберите их ниже по одному.</string>
+    <string name="l10n_notifications_settings_screen_search_apps_ca3ce8f3">Поиск приложений</string>
+    <string name="l10n_notifications_settings_screen_scan_again_f6ab55dd">Сканировать снова</string>
+    <string name="l10n_notifications_settings_screen_no_apps_discovered_post_a_notification_0ca6e7bc">Пока не обнаружено ни одного приложения. Отправьте уведомление из приложения и выполните сканирование снова.</string>
+    <string name="l10n_notifications_settings_screen_also_buzz_for_apps_not_listed_e60214ec">Вибрировать также для приложений, которых нет в списке выше. NOOP обнаруживает приложения, когда они вас уведомляют, поэтому приложение, которого вы не видели в списке, тоже будет вибрировать с этим включённым. Может быть болтливым; тихие часы и «вибрировать, только когда браслет надет» по-прежнему действуют.</string>
+    <string name="l10n_notifications_settings_screen_notification_access_is_on_for_this_af3ffc72">Доступ к уведомлениям включён для этого приложения. Оповещения на запястье могут приходить.</string>
+    <string name="l10n_notifications_settings_screen_notification_access_is_off_for_this_b27ba957">Доступ к уведомлениям выключен для этого приложения. Откройте настройки ниже и включите NOOP, иначе оповещения на запястье не смогут приходить.</string>
+    <string name="l10n_notifications_settings_screen_when_all_other_apps_is_every_bf6e5671">Когда «Все другие приложения» включено, каждое приложение вибрирует на запястье, поэтому отдельные переключатели ниже неактивны. Выключите, чтобы выбирать приложения по одному.</string>
+    <string name="l10n_notifications_settings_screen_other_apps_notifications_8bcd3596">Уведомления других приложений</string>
+    <string name="l10n_notifications_settings_screen_installed_apps_c21260b2">Установленные приложения</string>
+    <string name="l10n_notifications_settings_screen_app_notifications_00e65fd6">Уведомления приложений</string>
+    <string name="l10n_notifications_settings_screen_choose_apps_72d037f2">Выбрать приложения</string>
+    <string name="l10n_notifications_settings_screen_scanning_installed_04ab2344">Сканирование установленных приложений…</string>
 </resources>

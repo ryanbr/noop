@@ -31,6 +31,13 @@ class NoopNotificationListener : NotificationListenerService() {
         val ctx = applicationContext
         val n = sbn.notification ?: return
 
+        // Discovery for the per-app picker: every package that posts becomes selectable in the
+        // Notifications screen's "Other apps" card. Package NAME only — content is never read.
+        // The notification-access grant that delivers this callback also grants visibility of the
+        // posting package, which is what lets us list apps a PackageManager query cannot see
+        // (pre-API-33 targets that never declare POST_NOTIFICATIONS). See NotifierAppDiscovery.
+        NotifierAppDiscovery.record(ctx, sbn.packageName)
+
         if (VoipCallClassifier.isKnownVoipPackage(sbn.packageName)) {
             val metadata = VoipCallClassifier.metadataOf(n, isOngoing = sbn.isOngoing)
             if (VoipCallClassifier.isIncomingCallNotification(sbn.packageName, metadata)) {
@@ -89,8 +96,10 @@ class NoopNotificationListener : NotificationListenerService() {
         // Only-when-worn (default on): don't buzz an empty strap on the desk.
         if (NotifPrefs.getBool(ctx, NotifPrefs.WORN, true) && !ble.state.value.worn) return
 
-        // Buzz with the app's chosen pattern. send() is a safe no-op if the strap isn't connected.
-        ble.buzz(NotifPrefs.appLoops(ctx, sbn.packageName))
+        // Buzz with the app's chosen pattern — ACKNOWLEDGED write (#921 lesson): a bare write on a
+        // busy link is silently dropped, which reads to the user as "toggled the app, got nothing".
+        // send() is a safe no-op if the strap isn't connected.
+        ble.buzzAcknowledged(NotifPrefs.appLoops(ctx, sbn.packageName))
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification) {

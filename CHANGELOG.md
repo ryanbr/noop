@@ -17,6 +17,39 @@ approximate; downloads are on the [Releases](https://github.com/NoopApp/noop/rel
 
 ---
 
+## 12.0.1: Pick any app that notifies you (Android)
+
+**Wrist alerts, per app, for the whole phone**
+
+- **The App Notifications page lists real installed notifier apps (#168 follow-up).** Wrist alerts
+  used to offer a curated list of nine common apps, with an "all other apps" catch-all for everything
+  else — because Android's package-visibility rules (API 30+) looked like they barred enumerating
+  apps. They don't: every launchable app is visible through an intent-shaped `<queries>` entry, and
+  the picker keeps the ones that declare the notification-posting permission, plus every app the
+  notification listener sees post (the Notification Access grant carries their visibility, which
+  covers older apps that never declare the permission). System packages (FLAG_SYSTEM) are filtered
+  out — OEM agents and bundled services are not apps the user installed. Toggle each app's wrist
+  buzz and pattern individually, with search, real app icons, and your picked apps pinned above the
+  list. No QUERY_ALL_PACKAGES, no network, no notification content read — package names only,
+  on-device. The catch-all stays as the default-off fallback for the moment an app notifies before
+  you ever open the picker.
+
+- **The Notifications page drops the redundant category cards.** Alerts Email, Messaging, Meetings
+  and Calendar & Reminders were curated lists; the picker covers them. The App Notifications section
+  sits right after Calls, and the header pill counts every app that will buzz.
+
+- **The delivery note shows the Notification Access grant live.** The grant is per app: a fresh
+  install does not inherit any other app's grant, and without it the listener is never bound — no
+  wrist alert can arrive no matter what the picker has toggled. The note now says on / off,
+  re-checked on every screen resume, so a silent dead link reads as what it is.
+
+- **Mirrored buzzes are written acknowledged.** A bare haptics write can be silently dropped on a
+  busy link (the same drop #921 fixed for the one-shot buzz); the per-app mirror now sends
+  RUN_HAPTICS_PATTERN with a response request.
+
+---
+
+
 ## 12.0.0: Today your way, heart rate any app can read, and Italian (all platforms)
 
 A major release about choice and about honesty. Today can be drawn two different ways, a WHOOP 4.0 can
