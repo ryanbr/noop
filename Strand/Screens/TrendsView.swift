@@ -240,9 +240,8 @@ struct TrendsView: View {
 
     private var scaffold: some View {
         ScreenScaffold(title: "Trends", subtitle: "The thread of you over time.",
-                       // PERF (scroll): lazy column — byte-identical layout (LazyVStack == eager VStack
-                       // alignment/spacing/header). The content is one inner eager VStack, so the staggered
-                       // section reveal is unchanged; this only defers building that stack until it scrolls in.
+                       // The outer lazy column defers the content, and the inner lazy column below
+                       // defers each chart section as it enters the viewport.
                        onRefresh: { await repo.refresh() },
                        lazy: true,
                        topBackground: liquidScaffoldSky()) {
@@ -262,7 +261,7 @@ struct TrendsView: View {
                 // Rest = the sleep_performance composite — the same number the Today Rest score shows
                 // (#732); see sleepPerfByDay. resolve() still does the windowing/widening.
                 let rest = resolve { sleepPerfByDay[$0.day] }
-                VStack(alignment: .leading, spacing: NoopMetrics.sectionSpacing) {
+                LazyVStack(alignment: .leading, spacing: NoopMetrics.sectionSpacing) {
                     // The main card list ripples in once on appear (Reduce-Motion safe).
                     Group {
                         // Week-in-review digest (#208) with prev/next week browsing (#710) — self-hides
