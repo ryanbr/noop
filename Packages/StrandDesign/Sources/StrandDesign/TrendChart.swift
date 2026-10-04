@@ -106,6 +106,22 @@ private struct WorkoutTimeAxisModifier: ViewModifier {
     }
 }
 
+/// Find a reading in the date-sorted, full-resolution series retained by both chart initializers.
+/// Binary search avoids scanning every reading on each drag or hover event. Drawing may omit points,
+/// but selection must still return the original reading; an equal-distance tie chooses the earlier one.
+func nearestTrendPoint(to date: Date, in points: [TrendPoint]) -> TrendPoint? {
+    guard !points.isEmpty else { return nil }
+    var lower = 0, upper = points.count
+    while lower < upper {
+        let middle = (lower + upper) / 2
+        if points[middle].date < date { lower = middle + 1 } else { upper = middle }
+    }
+    if lower == 0 { return points[0] }
+    if lower == points.count { return points[lower - 1] }
+    let before = points[lower - 1], after = points[lower]
+    return date.timeIntervalSince(before.date) <= after.date.timeIntervalSince(date) ? before : after
+}
+
 public struct TrendChart: View {
 
     public var points: [TrendPoint]
@@ -251,10 +267,7 @@ public struct TrendChart: View {
         // Map the cursor x (relative to the plot area) back to a Date.
         let relX = x - plot.minX
         guard let date: Date = proxy.value(atX: relX) else { return nil }
-        // Find the TrendPoint whose date is closest.
-        return points.min(by: {
-            abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date))
-        })
+        return nearestTrendPoint(to: date, in: points)
     }
 
     /// The days the x-axis marks, so the marks and their label format agree about which days are shown.

@@ -81,4 +81,32 @@ final class ChartDownsampleTests: XCTestCase {
         XCTAssertEqual(viaConcreteOverload.map(\.date), viaGenericOverload.map(\.date))
         XCTAssertEqual(viaConcreteOverload.map(\.value), viaGenericOverload.map(\.value))
     }
+
+    func testNearestPointKeepsFullResolutionAndEarlierTie() {
+        let pts = [0, 10, 20].map { TrendPoint(date: Date(timeIntervalSince1970: Double($0)), value: Double($0)) }
+        XCTAssertNil(nearestTrendPoint(to: Date(), in: []))
+        XCTAssertEqual(nearestTrendPoint(to: Date(timeIntervalSince1970: -1), in: pts)?.value, 0)
+        XCTAssertEqual(nearestTrendPoint(to: Date(timeIntervalSince1970: 5), in: pts)?.value, 0)
+        XCTAssertEqual(nearestTrendPoint(to: Date(timeIntervalSince1970: 16), in: pts)?.value, 20)
+        XCTAssertEqual(nearestTrendPoint(to: Date(timeIntervalSince1970: 30), in: pts)?.value, 20)
+    }
+
+    func testNearestPointMatchesLinearLookupAcrossGaps() {
+        // Compare the pre-optimization rule at every query position, including gaps, exact readings,
+        // midpoint ties and dates outside the retained full-resolution series.
+        let pts = [0, 2, 10, 18, 100, 102].enumerated().map { index, seconds in
+            TrendPoint(date: Date(timeIntervalSince1970: Double(seconds)),
+                       value: Double(index), segment: index < 3 ? "first" : "second")
+        }
+        for tick in -4...212 {
+            let date = Date(timeIntervalSince1970: Double(tick) / 2)
+            let expected = pts.min {
+                abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date))
+            }
+            let actual = nearestTrendPoint(to: date, in: pts)
+            XCTAssertEqual(actual?.date, expected?.date)
+            XCTAssertEqual(actual?.value, expected?.value)
+            XCTAssertEqual(actual?.segment, expected?.segment)
+        }
+    }
 }

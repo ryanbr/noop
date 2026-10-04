@@ -259,9 +259,7 @@ public struct OverviewHRChart: View {
         guard !points.isEmpty else { return nil }
         let relX = x - plot.minX
         guard let date: Date = proxy.value(atX: relX) else { return nil }
-        return points.min(by: {
-            abs($0.date.timeIntervalSince(date)) < abs($1.date.timeIntervalSince(date))
-        })
+        return nearestTrendPoint(to: date, in: points)
     }
 
     // MARK: Mark layers
