@@ -51,10 +51,10 @@
         "zh-Hant": {"stringUnit": {"state": "translated", "value": "你的 Oura 戒指只有在 NOOP 讓它保持該模式時才會測量白天心率，而螢幕關閉五分鐘後 NOOP 就會停止請求——這在夜間保護了戒指自身的睡眠追蹤，但也會讓手機放在口袋裡的白天在心率和 HRV 圖表上一片空白。開啟後，NOOP 全天持續請求，僅在你從睡眠紀錄中學到的慣常夜間停止（從通常就寢前一小時到通常醒來後一小時），因此夜間不受影響。會消耗戒指電量：戒指的光學感測器全天運作。在學到足夠的夜晚之前，其行為與關閉時相同。預設關閉。"}}
     } },
         "Ring battery %lld percent": { "localizations": {
-          "de": {"stringUnit": {"state": "translated", "value": "Ring-Akku %lld Prozent"}}, "es": {"stringUnit": {"state": "translated", "value": "Batería del anillo %lld por ciento"}}, "fr": {"stringUnit": {"state": "translated", "value": "Batterie de la bague %lld pour cent"}}, "it": {"stringUnit": {"state": "translated", "value": "Batteria dell'anello %lld percento"}}, "pl": {"stringUnit": {"state": "translated", "value": "Bateria pierścienia %lld procent"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Bateria do anel %lld por cento"}}, "ru": {"stringUnit": {"state": "translated", "value": "Заряд кольца %lld процентов"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "戒指电量百分之 %lld"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "戒指電量百分之 %lld"}}
+          "de": {"stringUnit": {"state": "translated", "value": "Ring-Akku %lld Prozent"}}, "es": {"stringUnit": {"state": "translated", "value": "Batería del anillo %lld por ciento"}}, "fr": {"stringUnit": {"state": "translated", "value": "Batterie de la bague %lld pour cent"}}, "it": {"stringUnit": {"state": "translated", "value": "Batteria dell'anello %lld percento"}}, "pl": {"stringUnit": {"state": "translated", "value": "Bateria pierścienia %lld procent"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Bateria do anel %lld por cento"}}, "ru": {"variations": {"plural": {"one": {"stringUnit": {"state": "translated", "value": "Заряд кольца %lld процент"}}, "few": {"stringUnit": {"state": "translated", "value": "Заряд кольца %lld процента"}}, "many": {"stringUnit": {"state": "translated", "value": "Заряд кольца %lld процентов"}}, "other": {"stringUnit": {"state": "translated", "value": "Заряд кольца %lld процента"}}}}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "戒指电量百分之 %lld"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "戒指電量百分之 %lld"}}
         } },
         "Ring battery %lld percent, charging": { "localizations": {
-          "de": {"stringUnit": {"state": "translated", "value": "Ring-Akku %lld Prozent, wird geladen"}}, "es": {"stringUnit": {"state": "translated", "value": "Batería del anillo %lld por ciento, cargando"}}, "fr": {"stringUnit": {"state": "translated", "value": "Batterie de la bague %lld pour cent, en charge"}}, "it": {"stringUnit": {"state": "translated", "value": "Batteria dell'anello %lld percento, in carica"}}, "pl": {"stringUnit": {"state": "translated", "value": "Bateria pierścienia %lld procent, ładowanie"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Bateria do anel %lld por cento, a carregar"}}, "ru": {"stringUnit": {"state": "translated", "value": "Заряд кольца %lld процентов, заряжается"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "戒指电量百分之 %lld，正在充电"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "戒指電量百分之 %lld，正在充電"}}
+          "de": {"stringUnit": {"state": "translated", "value": "Ring-Akku %lld Prozent, wird geladen"}}, "es": {"stringUnit": {"state": "translated", "value": "Batería del anillo %lld por ciento, cargando"}}, "fr": {"stringUnit": {"state": "translated", "value": "Batterie de la bague %lld pour cent, en charge"}}, "it": {"stringUnit": {"state": "translated", "value": "Batteria dell'anello %lld percento, in carica"}}, "pl": {"stringUnit": {"state": "translated", "value": "Bateria pierścienia %lld procent, ładowanie"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Bateria do anel %lld por cento, a carregar"}}, "ru": {"variations": {"plural": {"one": {"stringUnit": {"state": "translated", "value": "Заряд кольца %lld процент, заряжается"}}, "few": {"stringUnit": {"state": "translated", "value": "Заряд кольца %lld процента, заряжается"}}, "many": {"stringUnit": {"state": "translated", "value": "Заряд кольца %lld процентов, заряжается"}}, "other": {"stringUnit": {"state": "translated", "value": "Заряд кольца %lld процента, заряжается"}}}}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "戒指电量百分之 %lld，正在充电"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "戒指電量百分之 %lld，正在充電"}}
         } },
         "Oura notification mask ff (experimental)": { "localizations": {
           "de": {"stringUnit": {"state": "translated", "value": "Oura-Benachrichtigungsmaske ff (experimentell)"}}, "es": {"stringUnit": {"state": "translated", "value": "Máscara de notificación Oura ff (experimental)"}}, "fr": {"stringUnit": {"state": "translated", "value": "Masque de notification Oura ff (expérimental)"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Máscara de notificação Oura ff (experimental)"}}, "it": {"stringUnit": {"state": "translated", "value": "Maschera di notifica Oura ff (sperimentale)"}}, "pl": {"stringUnit": {"state": "translated", "value": "Maska powiadomień Oura ff (eksperymentalne)"}}, "ru": {"stringUnit": {"state": "translated", "value": "Маска уведомлений Oura ff (экспериментально)"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "Oura 通知掩码 ff（实验性）"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "Oura 通知遮罩 ff（實驗性）"}}
@@ -105,10 +105,10 @@
           "de": {"stringUnit": {"state": "translated", "value": "Strap-Akku, Strap nicht verbunden"}}, "es": {"stringUnit": {"state": "translated", "value": "Batería de la banda, banda no conectada"}}, "fr": {"stringUnit": {"state": "translated", "value": "Batterie du bracelet, bracelet non connecté"}}, "it": {"stringUnit": {"state": "translated", "value": "Batteria della fascia, fascia non connessa"}}, "pl": {"stringUnit": {"state": "translated", "value": "Bateria opaski, opaska niepołączona"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Bateria da pulseira, pulseira não ligada"}}, "ru": {"stringUnit": {"state": "translated", "value": "Заряд ремешка, ремешок не подключён"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "手环电量，手环未连接"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "手環電量，手環未連線"}}
         } },
         "Strap battery %lld percent": { "localizations": {
-          "de": {"stringUnit": {"state": "translated", "value": "Strap-Akku %lld Prozent"}}, "es": {"stringUnit": {"state": "translated", "value": "Batería de la banda %lld por ciento"}}, "fr": {"stringUnit": {"state": "translated", "value": "Batterie du bracelet %lld pour cent"}}, "it": {"stringUnit": {"state": "translated", "value": "Batteria della fascia %lld percento"}}, "pl": {"stringUnit": {"state": "translated", "value": "Bateria opaski %lld procent"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Bateria da pulseira %lld por cento"}}, "ru": {"stringUnit": {"state": "translated", "value": "Заряд ремешка %lld процентов"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "手环电量百分之 %lld"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "手環電量百分之 %lld"}}
+          "de": {"stringUnit": {"state": "translated", "value": "Strap-Akku %lld Prozent"}}, "es": {"stringUnit": {"state": "translated", "value": "Batería de la banda %lld por ciento"}}, "fr": {"stringUnit": {"state": "translated", "value": "Batterie du bracelet %lld pour cent"}}, "it": {"stringUnit": {"state": "translated", "value": "Batteria della fascia %lld percento"}}, "pl": {"stringUnit": {"state": "translated", "value": "Bateria opaski %lld procent"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Bateria da pulseira %lld por cento"}}, "ru": {"variations": {"plural": {"one": {"stringUnit": {"state": "translated", "value": "Заряд ремешка %lld процент"}}, "few": {"stringUnit": {"state": "translated", "value": "Заряд ремешка %lld процента"}}, "many": {"stringUnit": {"state": "translated", "value": "Заряд ремешка %lld процентов"}}, "other": {"stringUnit": {"state": "translated", "value": "Заряд ремешка %lld процента"}}}}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "手环电量百分之 %lld"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "手環電量百分之 %lld"}}
         } },
         "Strap battery %lld percent, charging": { "localizations": {
-          "de": {"stringUnit": {"state": "translated", "value": "Strap-Akku %lld Prozent, wird geladen"}}, "es": {"stringUnit": {"state": "translated", "value": "Batería de la banda %lld por ciento, cargando"}}, "fr": {"stringUnit": {"state": "translated", "value": "Batterie du bracelet %lld pour cent, en charge"}}, "it": {"stringUnit": {"state": "translated", "value": "Batteria della fascia %lld percento, in carica"}}, "pl": {"stringUnit": {"state": "translated", "value": "Bateria opaski %lld procent, ładowanie"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Bateria da pulseira %lld por cento, a carregar"}}, "ru": {"stringUnit": {"state": "translated", "value": "Заряд ремешка %lld процентов, заряжается"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "手环电量百分之 %lld，正在充电"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "手環電量百分之 %lld，正在充電"}}
+          "de": {"stringUnit": {"state": "translated", "value": "Strap-Akku %lld Prozent, wird geladen"}}, "es": {"stringUnit": {"state": "translated", "value": "Batería de la banda %lld por ciento, cargando"}}, "fr": {"stringUnit": {"state": "translated", "value": "Batterie du bracelet %lld pour cent, en charge"}}, "it": {"stringUnit": {"state": "translated", "value": "Batteria della fascia %lld percento, in carica"}}, "pl": {"stringUnit": {"state": "translated", "value": "Bateria opaski %lld procent, ładowanie"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Bateria da pulseira %lld por cento, a carregar"}}, "ru": {"variations": {"plural": {"one": {"stringUnit": {"state": "translated", "value": "Заряд ремешка %lld процент, заряжается"}}, "few": {"stringUnit": {"state": "translated", "value": "Заряд ремешка %lld процента, заряжается"}}, "many": {"stringUnit": {"state": "translated", "value": "Заряд ремешка %lld процентов, заряжается"}}, "other": {"stringUnit": {"state": "translated", "value": "Заряд ремешка %lld процента, заряжается"}}}}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "手环电量百分之 %lld，正在充电"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "手環電量百分之 %lld，正在充電"}}
         } },
         "Syncing strap history, chunk %lld": { "localizations": {
           "de": {"stringUnit": {"state": "translated", "value": "Strap-Verlauf wird synchronisiert, Block %lld"}}, "es": {"stringUnit": {"state": "translated", "value": "Sincronizando historial de la banda, bloque %lld"}}, "fr": {"stringUnit": {"state": "translated", "value": "Synchronisation de l'historique du bracelet, bloc %lld"}}, "it": {"stringUnit": {"state": "translated", "value": "Sincronizzazione della cronologia della fascia, blocco %lld"}}, "pl": {"stringUnit": {"state": "translated", "value": "Synchronizacja historii opaski, fragment %lld"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "A sincronizar o histórico da pulseira, bloco %lld"}}, "ru": {"stringUnit": {"state": "translated", "value": "Синхронизация истории ремешка, фрагмент %lld"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "正在同步手环历史数据，第 %lld 块"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "正在同步手環歷史資料，第 %lld 塊"}}
@@ -37841,9 +37841,33 @@
           }
         },
         "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Заряд батареи %lld процентов"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Заряд батареи %lld процент"
+                }
+              },
+              "few": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Заряд батареи %lld процента"
+                }
+              },
+              "many": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Заряд батареи %lld процентов"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Заряд батареи %lld процента"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
@@ -156543,9 +156567,33 @@
           }
         },
         "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Батарея браслета: %1$lld процентов%2$@%3$@"
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Батарея браслета: %1$lld процент%2$@%3$@"
+                }
+              },
+              "few": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Батарея браслета: %1$lld процента%2$@%3$@"
+                }
+              },
+              "many": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Батарея браслета: %1$lld процентов%2$@%3$@"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "Батарея браслета: %1$lld процента%2$@%3$@"
+                }
+              }
+            }
           }
         },
         "zh-Hans": {
