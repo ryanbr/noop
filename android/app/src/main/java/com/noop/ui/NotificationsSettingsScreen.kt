@@ -917,11 +917,8 @@ private fun DiscoveredAppRow(
         }
 
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            // The switch alone carries the on/off state — no caption under the name.
             Text(app.label, style = NoopType.body, color = Palette.textPrimary)
-            // The off state reads from the switch itself; only the on state gets the caption.
-            if (enabled) {
-                Text("Buzzes your wrist", style = NoopType.footnote, color = Palette.accent)
-            }
         }
 
         if (enabled) {
