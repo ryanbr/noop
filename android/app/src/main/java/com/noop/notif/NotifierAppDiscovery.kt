@@ -85,6 +85,12 @@ object NotifierAppDiscovery {
      * discovered poster that is installed — sorted by label. Discovered apps that were
      * uninstalled are dropped (their per-app prefs stay, so a reinstall keeps the user's choice).
      * Read OFF the main thread: [InstalledNotifierApps.list] walks every visible package.
+     *
+     * The two paths filter system packages differently, on purpose. The enumeration path drops
+     * FLAG_SYSTEM so OEM agents and bundled services that never notify the user do not flood the
+     * list. The discovered path does NOT: a preinstalled app that has actually posted a
+     * notification (Gmail, Samsung Messages, a carrier app) is one the user demonstrably uses, and
+     * hiding it would leave a real notifier unpickable. Posting is the evidence; the flag is not.
      */
     fun load(ctx: Context): List<NotifierApp> {
         val installed = InstalledNotifierApps.list(ctx)
@@ -95,9 +101,9 @@ object NotifierAppDiscovery {
             .mapNotNull { pkg ->
                 val info = runCatching { pm.getApplicationInfo(pkg, 0) }.getOrNull() ?: return@mapNotNull null
                 if (!info.enabled) return@mapNotNull null
-                // User-installed only: a system package that posts (OEM agent, bundled updater) is
-                // not an app the user installed — same FLAG_SYSTEM rule as the installed path.
-                if ((info.flags and ApplicationInfo.FLAG_SYSTEM) != 0) return@mapNotNull null
+                // No FLAG_SYSTEM gate here, unlike the enumeration path: this package has actually
+                // posted a notification, which is the signal the feature is built on. Preinstalled
+                // mail/messaging apps carry FLAG_SYSTEM on most OEM builds and must stay pickable.
                 NotifierApp(pkg, labelOf(pm, info))
             }
         return (installed + discovered).sortedBy { it.label.lowercase() }

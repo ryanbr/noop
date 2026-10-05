@@ -81,15 +81,39 @@ class NotifierAppDiscoveryTest {
     }
 
     @Test
-    fun `system packages are not offered`() {
-        // FLAG_SYSTEM apps (OEM agents, bundled services, the launcher's own messaging stack) are
-        // not apps the user installed — the picker lists what the user installed, per the user's
-        // rule. A system app that declares POST_NOTIFICATIONS must still be dropped.
+    fun `system packages are not offered by the enumeration path`() {
+        // The enumeration path lists apps by what they DECLARE, with no evidence they ever notify,
+        // so FLAG_SYSTEM apps (OEM agents, bundled services) stay out. A system app that actually
+        // POSTS is handled by the discovered path instead — see the Gmail test below.
         val kept = InstalledNotifierApps.filterNotifierCandidates(
             listOf(candidate("com.acme.chat"), candidate("com.oem.agent", system = true)),
             selfPackage = "com.noop.whoop",
         )
         assertEquals(listOf("com.acme.chat"), kept.map { it.packageName })
+    }
+
+    @Test
+    fun `a preinstalled app that actually posted is offered`() {
+        // The Gmail case: OEM builds mark Gmail / Samsung Messages / carrier apps FLAG_SYSTEM, so a
+        // blanket flag filter hid them even after they posted and the listener recorded them.
+        // Posting is the evidence the feature is built on — the flag is not.
+        val ctx = org.robolectric.RuntimeEnvironment.getApplication()
+        val pm = ctx.packageManager
+        val pkg = "com.google.android.gm"
+        val info = android.content.pm.PackageInfo().apply {
+            packageName = pkg
+            applicationInfo = android.content.pm.ApplicationInfo().apply {
+                packageName = pkg
+                flags = android.content.pm.ApplicationInfo.FLAG_SYSTEM
+                enabled = true
+            }
+            requestedPermissions = arrayOf(InstalledNotifierApps.POST_NOTIFICATIONS)
+        }
+        org.robolectric.Shadows.shadowOf(pm).installPackage(info)
+
+        NotifierAppDiscovery.record(ctx, pkg)
+        val packages = NotifierAppDiscovery.load(ctx).map { it.packageName }
+        assertTrue("preinstalled poster must be pickable", pkg in packages)
     }
 
     @Test
