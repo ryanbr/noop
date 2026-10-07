@@ -2859,4 +2859,6 @@
     <string name="raw_diag_ecg_probe_running">Puede que siga activa una captura en esta correa. El veredicto se registra en el strap log.</string>
     <string name="today_customize_live_session_availability">Aparece hoy si Live Sessions está activado en Ajustes o hay una sesión activa.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Hoy a tu manera, frecuencia cardíaca para cualquier aplicación e italiano</string>
+    <string name="settings_oura_met_calories_title">Calorías activas a partir del flujo MET del anillo</string>
+    <string name="settings_oura_met_calories_caption">Usa el método documentado por Oura: la intensidad de cada minuto por encima de 1,5 MET, a la tasa MET estándar para tu peso, además de la energía en reposo de los minutos que el anillo registró. Es una estimación, no una medición: en un día sin entrenamiento registrado coincide con la cifra de la propia app de Oura (Oura vuelve a puntuar los minutos de un entrenamiento registrado según el tipo de actividad, cosa que NOOP no hace), y un día que el anillo cubrió menos de la mitad no muestra ningún número en lugar de una suposición. Al activarlo también se empiezan a guardar las muestras MET del anillo en este dispositivo; nunca alimenta la puntuación de recuperación ni de enfermedad. Desactivado por defecto.</string>
 </resources>

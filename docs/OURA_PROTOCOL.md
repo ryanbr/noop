@@ -1050,6 +1050,10 @@ edit of the ring's tag.
     computing from the wire alone reads 10–31 % below the app on such a day and agrees with it on every
     other day. Still an estimate of true expenditure
     (Kristiansson et al. 2023: lab MET vs calorimetry r 0.93 / MAPE 21 %, free-living AEE MAPE 46–90 %).
+    NOOP's `Calories.estimateDayEnergyFromMET` (#2242, behind a default-off Experimental toggle) scores this
+    rule per minute from the persisted `ouraMetSample` rows, with resting energy from revised Harris–Benedict
+    over the covered minutes. It cannot see a workout confirmed in the Oura app and does not model the floor,
+    so on such a day the app's figure sits above NOOP's; on every other day the two agree.
   - **Walking-equivalent step estimate, scored against two reference devices (NOOP, 2026-08-02).** For the
     same walk, `activeMinutes × 100` (MET ≥ 3.0 → 82 active min) gives **8,200** against a measured
     **8,834** (Suunto `.fit` `total_cycles × 2`) and **7,868** (WHOOP, same walk): −7 % and +4 %. The

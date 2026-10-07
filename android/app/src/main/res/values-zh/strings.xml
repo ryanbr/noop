@@ -2829,4 +2829,6 @@
     <string name="raw_diag_ecg_probe_running">此腕带上可能仍在采集。结论会写入 strap log。</string>
     <string name="today_customize_live_session_availability">在设置中启用Live Sessions 实时记录或有正在进行的训练时，今天会显示此部分。</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">自定义「今天」页面、任何应用都能读取的心率，以及意大利语</string>
+    <string name="settings_oura_met_calories_title">根据戒指的 MET 数据流计算活动卡路里</string>
+    <string name="settings_oura_met_calories_caption">采用 Oura 公开的方法：每一分钟高于 1.5 MET 的部分，按您体重对应的标准 MET 速率计算，再加上戒指已报告分钟的静息能量。这是估算而非测量——在没有记录锻炼的日子里，它与 Oura 应用自身的数值一致（Oura 会按活动类型重新计算已记录锻炼的分钟，NOOP 不会）；戒指覆盖不足半天的日子将不显示数字，而不是给出猜测。开启后也会开始在本设备上存储戒指的 MET 样本；它永远不会影响恢复或疾病评分。默认关闭。</string>
 </resources>

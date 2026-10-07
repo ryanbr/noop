@@ -2872,4 +2872,6 @@
     <string name="raw_diag_ecg_probe_running">Auf diesem Strap läuft möglicherweise noch eine Aufzeichnung. Das Ergebnis steht im Strap-Log.</string>
     <string name="today_customize_live_session_availability">Erscheint heute, wenn Live Sessions in den Einstellungen aktiviert sind oder eine Session aktiv ist.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Today nach Ihren Wünschen, Herzfrequenz für jede App und Italienisch</string>
+    <string name="settings_oura_met_calories_title">Aktive Kalorien aus dem MET-Datenstrom des Rings</string>
+    <string name="settings_oura_met_calories_caption">Verwendet die von Oura dokumentierte Methode: die Intensität jeder Minute über 1,5 MET, mit der Standard-MET-Rate für Ihr Gewicht, zusätzlich zur Ruheenergie für die Minuten, die der Ring gemeldet hat. Eine Schätzung, keine Messung – an einem Tag ohne protokolliertes Training entspricht sie dem Wert der Oura-App (Oura bewertet die Minuten eines protokollierten Trainings nach Aktivitätstyp neu, NOOP nicht), und ein Tag, den der Ring weniger als zur Hälfte abgedeckt hat, zeigt keine Zahl statt einer Vermutung. Beim Einschalten werden außerdem die MET-Werte des Rings auf diesem Gerät gespeichert; sie fließen nie in die Erholungs- oder Krankheitsbewertung ein. Standardmäßig aus.</string>
 </resources>

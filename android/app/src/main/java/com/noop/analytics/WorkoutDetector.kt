@@ -880,4 +880,126 @@ object Calories {
     ): Double {
         return estimateDayEnergy(hrSamples, profile, hrmax, restingHR).totalKcal
     }
+
+    // ── MET-stream day energy (Oura 0x50, #2242) ─────────────────────────────────────────────────
+
+    /**
+     * One metabolic-equivalent sample from a device that streams its OWN activity intensity — the Oura
+     * ring's `0x50` activity record, one value per 60 s (`OURA_PROTOCOL.md` s6.13). [ts] is the unix
+     * second the sample's interval STARTS; [secPerSample] is how long it covers (60 on every ring
+     * observed; carried per sample rather than assumed so a different cadence scales, not skews).
+     * Twin of Swift `Calories.MetSample`.
+     */
+    data class MetSample(val ts: Long, val met: Double, val secPerSample: Int = 60)
+
+    /**
+     * Whole-day energy from a MET stream. Same split as [DayEnergyEstimate] (so the persisted
+     * [totalKcal] keeps its meaning), plus the share of the day the stream actually covered — the caller
+     * decides whether that is enough to mint a number ([MET_MIN_COVERAGE_FRACTION]), and the UI can
+     * caption it. [coverageFraction] is over the day window the caller passed, so today's partial day is
+     * judged against the hours that have elapsed, not against 24 h. Twin of Swift `MetEnergyEstimate`.
+     */
+    data class MetEnergyEstimate(
+        val restingKcal: Double,
+        val activeKcal: Double,
+        val observedSeconds: Double,
+        val coverageFraction: Double,
+    ) {
+        val totalKcal: Double get() = restingKcal + activeKcal
+    }
+
+    /**
+     * Below this MET a minute is rest, not activity, and it is also what an active minute is measured
+     * FROM: Oura's documented method counts "the portion that exceeds 1.5 MET" (Oura support, "How Oura
+     * Measures Steps & Activity"; Kristiansson et al. 2023 — "AEE starts accumulating at > 1.5 MET").
+     */
+    const val MET_ACTIVE_THRESHOLD = 1.5
+    /**
+     * kcal per kg per MET-minute — the definition of a MET, not a fit: 1 MET = 3.5 ml O₂·kg⁻¹·min⁻¹
+     * (ACSM) at ≈ 5 kcal per litre of O₂ → 0.0175 kcal·kg⁻¹·min⁻¹. Against Oura's own export this exact
+     * rule reproduces `active_calories` with r = 1.000 and 0.6 kcal/day RMSE over 75 days (and r 0.9999 /
+     * 3 kcal over 396 pre-2025 days), the wearer's weight being the only input — see OURA_PROTOCOL.md
+     * s6.13. The constant was IDENTIFIED by that comparison, not fitted to it.
+     */
+    const val KCAL_PER_KG_PER_MET_MINUTE = 0.0175
+    /**
+     * The least of the day the stream must cover before the MET estimate is trusted for the persisted
+     * number. Below it the day is mostly unknown — a ring off the finger, a drain that never came — and
+     * a half-day sum would read as a low-activity day rather than a missing one.
+     */
+    const val MET_MIN_COVERAGE_FRACTION = 0.5
+
+    /**
+     * Active + resting energy for one calendar day from the device's own MET stream. Twin of Swift
+     * `Calories.estimateDayEnergyFromMET`; byte-identical by oracle (`MetCaloriesOracleTest`).
+     *
+     * `active = Σ_{met ≥ 1.5} (met − 1.5) × 0.0175 × weightKg × (secPerSample/60)` over the samples
+     * inside `[dayStart, dayEnd)` — Oura's documented method (the portion above 1.5 MET) at the standard
+     * MET→kcal definition, applied to the ring's own minute-by-minute series. No fitted constant, and it
+     * IS Oura's number: against the Oura export it reproduces `active_calories` to 0.6 kcal/day RMSE
+     * (r = 1.000). `restingKcal` is the same revised Harris–Benedict BMR the HR path uses
+     * ([restingKcalPerS]), over the covered seconds, so `totalKcal` keeps the HR path's meaning. A
+     * MET→kcal figure is still an ESTIMATE of true expenditure (free-living MAPE 46–90 % against
+     * accelerometry in Kristiansson 2023) — label it so.
+     *
+     * Coverage: [MetEnergyEstimate.observedSeconds] is the sum of the covered sample intervals, capped
+     * at the day span. A minute counts ONCE: a duplicate `ts` keeps the LOWER MET (the conservative
+     * direction), and a sample that starts within HALF a period of the one already counted is that
+     * minute again and is dropped — the ring re-serves a record under a fresh per-session `0x13` anchor
+     * a few seconds off the first copy (2026-09-17: 157 of 1,035 stored rows were 3–4 s twins of another
+     * minute, +8 % on the day), and two rows 3 s apart are one minute, not two. Half a period, not "any
+     * overlap": the ring's own minute grid steps by a second between records (the per-record anchor
+     * rounds differently — `:02` then `:01`), so a successor can start 59 s after the minute before it
+     * and overlap it by one second; judged by overlap, that successor was dropped and the day lost a
+     * whole minute per phase step (2026-09-18: six on one day, the day's 7.8-MET peak among them,
+     * −5.5 % on active energy). A twin is 2–5 s off; a successor is 55–61 s off; 30 s tells them apart.
+     * Missing minutes are UNKNOWN and contribute nothing to either term: never extrapolate a gap to
+     * activity, and never bank resting energy for time nobody observed. `restingKcal` therefore scales
+     * with coverage exactly as the HR path's does.
+     */
+    fun estimateDayEnergyFromMet(
+        samples: List<MetSample>,
+        profile: UserProfile,
+        dayStart: Long,
+        dayEnd: Long,
+    ): MetEnergyEstimate {
+        val daySpan = maxOf(0L, dayEnd - dayStart).toDouble()
+        val inDay = samples.filter { it.ts >= dayStart && it.ts < dayEnd && it.secPerSample > 0 }
+        if (inDay.isEmpty() || daySpan <= 0) return MetEnergyEstimate(0.0, 0.0, 0.0, 0.0)
+
+        val weightKg = if (profile.weightKg > 0) profile.weightKg else 70.0
+        val heightCm = if (profile.heightCm > 0) profile.heightCm else 170.0
+        val age = if (profile.age > 0) profile.age else 30.0
+        val coeffs = resolveCoeffs(profile.sex)
+        val restingRate = restingKcalPerS(coeffs, weightKg, heightCm, age)
+        // kcal per excess-MET-minute for THIS wearer (the MET definition scales with body mass).
+        val kcalPerMetMin = KCAL_PER_KG_PER_MET_MINUTE * weightKg
+
+        // Ties on ts: ascending MET on a tie keeps the LOWER reading. Twins: a sample that starts less
+        // than half a period after the previously counted start is the same minute served again (see
+        // the doc above) — the earlier-starting copy wins and the twin is skipped, so neither coverage
+        // nor active energy counts a minute twice. Integer test, same expression as the Swift twin and
+        // as `OuraMetSampleEntity.isTwin`: `Δ × 2 < min(period, lastPeriod)`.
+        val ordered = inDay.sortedWith(compareBy<MetSample> { it.ts }.thenBy { it.met })
+        var covered = 0.0
+        var activeKcal = 0.0
+        var lastStart = Long.MIN_VALUE
+        var lastPeriod = 0
+        for (s in ordered) {
+            if (lastPeriod > 0 && (s.ts - lastStart) * 2 < minOf(s.secPerSample, lastPeriod)) continue
+            lastStart = s.ts
+            lastPeriod = s.secPerSample
+            val minutes = s.secPerSample.toDouble() / 60.0
+            covered += s.secPerSample.toDouble()
+            if (s.met < MET_ACTIVE_THRESHOLD) continue
+            activeKcal += (s.met - MET_ACTIVE_THRESHOLD) * kcalPerMetMin * minutes
+        }
+        val observedSeconds = minOf(covered, daySpan)
+        return MetEnergyEstimate(
+            restingKcal = restingRate * observedSeconds,
+            activeKcal = activeKcal,
+            observedSeconds = observedSeconds,
+            coverageFraction = observedSeconds / daySpan,
+        )
+    }
 }

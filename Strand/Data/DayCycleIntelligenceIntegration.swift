@@ -46,6 +46,14 @@ import WhoopStore
     }
     private static func computedId(_ owner: String) -> String { owner + "-noop" }
 
+    /// The cycle owner's own per-minute MET rows in `[from, to]` (#2242) — `nil` while the Experimental
+    /// MET-calories toggle is off, which is the byte-identical HR path. Injected rather than read from
+    /// `store` directly so the fold's MET decision can be pinned in a test without a live ring.
+    typealias MetReader = (_ owner: String, _ from: Int, _ to: Int) async -> [Calories.MetSample]
+    /// `(count, maxTs)` of the cycle owner's MET rows in `[from, to]`, the witness the load cache keys a
+    /// MET-scored cycle on (#2242); `nil` return = unread, which never serves a cached load.
+    typealias MetFingerprint = (_ owner: String, _ from: Int, _ to: Int) async -> (count: Int, maxTs: Int)?
+
     static func recover(candidates: [(owner: String, priority: Int)], reader: BoundaryRecoveryReader,
                                 claimedDays: Set<String>, windowStart: Int, now: Int,
                                 offsetSec: Int, habitualMidsleepSec: Int?) async throws -> [PersistedBoundary] {
@@ -96,6 +104,8 @@ import WhoopStore
                         mode: DayCycleMode, cache: Cache,
                         profile: UserProfile, maxHROverride: Double?, effortMethod: StrainScorer.Method,
                         recoveryReader: BoundaryRecoveryReader? = nil,
+                        metReader: MetReader? = nil,
+                        metFingerprint: MetFingerprint? = nil,
                         trace: ((String) -> Void)? = nil) async -> Result {
         guard mode == .sleepOnset else {
             return Result(stepsByWakeDay: [:], strainByWakeDay: [:], caloriesByWakeDay: [:],
@@ -213,10 +223,25 @@ import WhoopStore
                     hrWitness.append("\(owner)=\(fp.map { "\($0.count):\($0.maxTs)" } ?? "unread")")
                 }
             }
-            let loadKey = "\(window.onset)-\(window.endExclusive)|\(hrWitness.joined(separator: ","))"
+            // #2242: with the MET-calories toggle on, an ended cycle's calories come from the owner's MET
+            // series, which the HR witness cannot see. Without this, a drain that banks MET minutes inside an
+            // ended window leaves the key unchanged and the cache serves calories from the thinner stream.
+            // `met=off` names the toggle state, so flipping it over unchanged data never serves the figure
+            // cached under the other setting.
+            let metWitness: String
+            if metReader == nil {
+                metWitness = "met=off"
+            } else if hrEndInclusive < window.onset {
+                metWitness = "met=empty"
+            } else {
+                let fp = await metFingerprint?(fallback, window.onset, hrEndInclusive)
+                metWitness = "met=\(fallback)=\(fp.map { "\($0.count):\($0.maxTs)" } ?? "unread")"
+            }
+            let loadKey = "\(window.onset)-\(window.endExclusive)|\(hrWitness.joined(separator: ","))|\(metWitness)"
                 + "|rhr=\(restingHR)|max=\(effectiveMaxHR.map { "\($0)" } ?? "nil")|\(effortMethod)|\(profile.cacheKey)"
             let load: CachedLoad
-            if let hit = cache.loads[window.sleepId], hit.key == loadKey, !hrWitness.contains(where: { $0.hasSuffix("=unread") }) {
+            if let hit = cache.loads[window.sleepId], hit.key == loadKey, !hrWitness.contains(where: { $0.hasSuffix("=unread") }),
+               !metWitness.hasSuffix("=unread") {
                 load = hit
             } else {
                 var hrByTimestamp: [Int: HRSample] = [:]
@@ -232,8 +257,10 @@ import WhoopStore
                     key: loadKey,
                     strain: StrainScorer.strain(cycleHR, maxHR: effectiveMaxHR, restingHR: restingHR,
                                                 method: effortMethod, sex: profile.sex),
-                    calories: cycleHR.isEmpty ? nil : Calories.estimateDayCalories(
-                        cycleHR, profile: profile, hrmax: effectiveMaxHR, restingHR: restingHR))
+                    calories: await cycleCalories(
+                        cycleHR, onset: window.onset, endExclusive: window.endExclusive, day: day, owner: fallback, hrEndInclusive: hrEndInclusive,
+                        now: now, profile: profile, effectiveMaxHR: effectiveMaxHR, restingHR: restingHR,
+                        metReader: metReader, trace: trace))
                 cache.loads[window.sleepId] = load
             }
             if let strain = load.strain { strains[day] = strain }
@@ -342,6 +369,31 @@ import WhoopStore
             firstWakeDay: wakeDayById.values.min(), markerUpdate: .replace(
                 points: recoveredMarkers,
                 sourceIds: Array(Set(candidates.map { computedId($0.owner) })).sorted()))
+    }
+
+    /// The cycle's energy, by the SAME decision `AnalyticsEngine.analyzeDay` takes for the calendar day (#2242),
+    /// over the wake-to-wake window `[onset, min(endExclusive, now))` instead. A device that measures its own
+    /// minute-by-minute intensity decides it by that stream. This fold used to recompute Keytel over the
+    /// cycle's HR unconditionally and `applying()` wrote that over the day's `activeKcalEst`, so on any phone
+    /// with a day-cycle history the MET number never reached the row (2026-09-17: the log said 1220 kcal, the
+    /// export held 743 — the HR figure). Below the coverage floor the cycle is WITHHELD — `nil`, and the HR
+    /// figure is not substituted — exactly as on the day path. No reader (toggle off) or no rows = Keytel.
+    private static func cycleCalories(_ cycleHR: [HRSample], onset: Int, endExclusive: Int, day: String,
+                                      owner: String, hrEndInclusive: Int, now: Int, profile: UserProfile,
+                                      effectiveMaxHR: Double?, restingHR: Double, metReader: MetReader?,
+                                      trace: ((String) -> Void)?) async -> Double? {
+        let cycleMet = hrEndInclusive >= onset ? await metReader?(owner, onset, hrEndInclusive) ?? [] : []
+        if !cycleMet.isEmpty {
+            let met = Calories.estimateDayEnergyFromMET(cycleMet, profile: profile,
+                                                        dayStart: onset, dayEnd: min(endExclusive, now))
+            let covered = met.coverageFraction >= Calories.metMinCoverageFraction
+            trace?("stepsCycle calories day=\(day) path=met coverage=\(Int((met.coverageFraction * 100).rounded()))% "
+                   + "active=\(Int(met.activeKcal.rounded())) total=\(Int(met.totalKcal.rounded())) "
+                   + (covered ? "" : "withheld"))
+            return covered ? met.totalKcal : nil
+        }
+        return cycleHR.isEmpty ? nil : Calories.estimateDayCalories(
+            cycleHR, profile: profile, hrmax: effectiveMaxHR, restingHR: restingHR)
     }
 
     static func applying(_ result: Result, to daily: DailyMetric) -> DailyMetric {

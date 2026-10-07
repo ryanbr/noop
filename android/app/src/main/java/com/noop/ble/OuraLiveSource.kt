@@ -142,6 +142,12 @@ class OuraLiveSource(
      *  switching the toggle off restores the default with nothing left on the ring. Twin of Swift's
      *  `notifyMaskFull`. */
     private val notifyMaskFull: () -> Boolean = { false },
+    /** #2242: persist one anchored 0x50 record's samples as `ouraMetSample` rows (one per minute) under
+     *  [deviceId] — wired to `repository.insertOuraMetSamples`; default no-op keeps the scanner + tests inert. */
+    private val persistMetSamples: (List<com.noop.data.OuraMetSampleEntity>) -> Unit = {},
+    /** #2242 (default OFF): read live per record — the writer runs only while this is true, so an install
+     *  that never turns the Experimental toggle on never grows the table. */
+    private val metCalories: () -> Boolean = { false },
     /** Diagnostic sink for the connect/auth/stream lifecycle - the SAME exportable strap log (#421).
      *  Every line is prefixed "Oura: ". Statuses / UUIDs / counts only, NEVER a device address. Default
      *  no-op keeps existing call sites compiling and tests silent. */
@@ -2223,6 +2229,28 @@ class OuraLiveSource(
                         ringTs = e.value.ringTimestamp, utc = utc, state = e.value.state,
                         secPerSample = 60, met = e.value.met, // 60 s = assumed MET cadence (s6.13)
                     )
+                    // #2242: persist the record as one row per minute when the Experimental MET-calories
+                    // toggle is on (anchored records only, same rule as the sidecar; the (deviceId, ts) key
+                    // absorbs a re-serve). Placing the samples on the clock is [OuraActivityRecordTiming]:
+                    // the record's timestamp is the END of its LAST sample, so the series is addressed
+                    // backwards from it, and a record straddling local midnight lands its minutes on the
+                    // right days. The rule, its evidence and its edge cases are pinned there against a
+                    // fixture the Swift twin asserts too - this call site only supplies the anchor, the
+                    // cadence and the toggle.
+                    if (metCalories() && e.value.met.isNotEmpty()) {
+                        val epoch = 60
+                        val starts = com.noop.oura.OuraActivityRecordTiming.sampleStarts(
+                            endUtc = utc, sampleCount = e.value.met.size, epochSeconds = epoch,
+                        )
+                        persistMetSamples(
+                            starts.zip(e.value.met).map { (ts, met) ->
+                                com.noop.data.OuraMetSampleEntity(
+                                    deviceId = deviceId, ts = ts,
+                                    met = met, state = e.value.state, epochS = epoch,
+                                )
+                            },
+                        )
+                    }
                 }
             }
             is OuraEvent.RealStepsFields -> {

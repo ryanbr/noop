@@ -440,6 +440,10 @@ final class SourceCoordinator: ObservableObject {
                     }
                 }
             },
+            persistMetSamples: { [storeHandle] rows in   // #2242
+                Task { if let store = await storeHandle() { _ = try? await store.insertOuraMetSamples(rows, deviceId: id) } }
+            },
+            metCalories: { UserDefaults.standard.bool(forKey: AppModel.ouraMetCaloriesKey) },   // #2242
             allDayLiveHR: { UserDefaults.standard.bool(forKey: AppModel.ouraAllDayLiveHRKey) },   // item 27
             nightBand: ouraNightBand,   // item 27
             log: straplog,

@@ -2888,4 +2888,6 @@
     <string name="raw_diag_ecg_probe_running">A capture may still be running on this strap. The verdict goes to the strap log.</string>
     <string name="today_customize_live_session_availability">Appears today when Live Sessions is enabled in Settings or a session is active.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Today your way, heart rate any app can read, and Italian</string>
+    <string name="settings_oura_met_calories_title">Active calories from the ring\'s MET stream</string>
+    <string name="settings_oura_met_calories_caption">Uses Oura\'s documented method: each minute\'s intensity above 1.5 MET, at the standard MET rate for your weight, on top of resting energy for the minutes the ring reported. An estimate, not a measurement — on a day without a logged workout it matches the Oura app\'s own figure (Oura re-scores a logged workout\'s minutes by activity type, which NOOP does not), and a day the ring covered less than half of shows no number rather than a guess. Turning this on also starts storing the ring\'s MET samples on this device; it never feeds recovery or illness scoring. Off by default.</string>
 </resources>

@@ -2851,4 +2851,6 @@
     <string name="raw_diag_ecg_probe_running">Pode ainda estar a decorrer uma captura nesta pulseira. O veredicto vai para o strap log.</string>
     <string name="today_customize_live_session_availability">Aparece hoje quando as sessões em direto estão ativadas nas Definições ou existe uma sessão ativa.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Hoje à sua maneira, frequência cardíaca para qualquer aplicação e italiano</string>
+    <string name="settings_oura_met_calories_title">Calorias ativas a partir do fluxo MET do anel</string>
+    <string name="settings_oura_met_calories_caption">Usa o método documentado pela Oura: a intensidade de cada minuto acima de 1,5 MET, à taxa MET padrão para o seu peso, além da energia de repouso dos minutos que o anel registou. Uma estimativa, não uma medição — num dia sem treino registado coincide com o valor da própria app Oura (a Oura reavalia os minutos de um treino registado pelo tipo de atividade, o que o NOOP não faz), e um dia que o anel cobriu menos de metade não mostra número em vez de um palpite. Ao ativar, começa também a guardar as amostras MET do anel neste dispositivo; nunca alimenta a pontuação de recuperação nem de doença. Desligado por predefinição.</string>
 </resources>
