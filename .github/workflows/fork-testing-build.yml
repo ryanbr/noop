@@ -89,12 +89,12 @@ jobs:
           fi
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --prerelease --target "${{ github.sha }}" \
             --title "NOOP Staging — base ${VER} · ${DATE} · ${SHA}" \
-            --notes "Rolling **latest** testing build — refreshed in place, so this tag is always the newest. NOOP main + ryanbr's open PRs + vetted community PRs, built with the **NOOP Staging** identity (installs **beside** the official app, separate data). Filenames carry the base app version (\`v${VER}\`).
+            --notes "Rolling **latest** testing build — refreshed in place, so this tag is always the newest. NOOP main + ryanbr's open PRs + vetted community PRs, built with the **NOOP Staging** identity. Android and macOS install **beside** the official app; the iOS ipa carries the **production** bundle id, so it **replaces** an installed official app and uses its data. Filenames carry the base app version (\`v${VER}\`).
 
           - **Android (release)** — \`NOOP-android-v${VER}.apk\` — optimized, non-debuggable build; installs beside the official app. \`com.noop.whoop.staging\`.
           - **Android (debug)** — \`NOOP-android-debug-v${VER}.apk\` — debuggable build. \`com.noop.whoop.debug\`.
           - **macOS** — \`NOOP-macos-v${VER}.zip\` — unzip, then **right-click → Open** (ad-hoc signed, not notarized; Gatekeeper warns once). If it says *\"damaged\"*, run \`xattr -dr com.apple.quarantine /Applications/NOOP.app\`.
-          - **iOS** — \`NOOP-ios-unsigned-v${VER}.ipa\` — sideload via **AltStore / Sideloadly** (re-signs on-device); embedded watch app stripped, widget extension retained for Home/Lock-Screen widgets and Live Activities.
+          - **iOS** — \`NOOP-ios-unsigned-v${VER}.ipa\` — sideload via **AltStore / Sideloadly** (re-signs on-device). **Replaces** an installed official app (production bundle id, shared data), so back up first if you have one. Embedded watch app stripped, widget extension retained for Home/Lock-Screen widgets and Live Activities.
 
           Base app version ${VER} · built ${DATE} · \`${SHA}\`."
           # Belt-and-braces: a rolling tag is deleted with --cleanup-tag and recreated seconds later, and

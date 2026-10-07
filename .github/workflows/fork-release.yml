@@ -147,10 +147,14 @@ jobs:
               echo "First release (no prior release tag) — skipping the auto PR breakdown."
             fi
             {
-              printf '\n---\n\n**Downloads** — NOOP Staging identity, installs **beside** the official app (separate data):\n'
-              printf -- '- **Android** — `NOOP-android-v%s.apk` (`com.noop.whoop.staging`)\n' "$NEW"
-              printf -- '- **macOS** — `NOOP-macos-v%s.zip` (unzip, then right-click → Open)\n' "$NEW"
-              printf -- '- **iOS** — `NOOP-ios-unsigned-v%s.ipa` (AltStore / Sideloadly)\n' "$NEW"
+              # The beside-install claim is per-platform, not global: 749c94118 gave the iOS family the
+              # PRODUCTION bundle id, so an iOS sideload REPLACES an installed official app and uses its
+              # data. Android (.staging via -PstagingRelease) and macOS (.noop.staging, kept per #39) do
+              # install beside. Saying "separate data" for all three told iOS users the opposite.
+              printf '\n---\n\n**Downloads:**\n'
+              printf -- '- **Android** — `NOOP-android-v%s.apk` (`com.noop.whoop.staging`) — installs **beside** the official app, with its own data.\n' "$NEW"
+              printf -- '- **macOS** — `NOOP-macos-v%s.zip` (unzip, then right-click → Open) — installs **beside** the official app; on first launch it copies any data the official app already has, leaving the original untouched.\n' "$NEW"
+              printf -- '- **iOS** — `NOOP-ios-unsigned-v%s.ipa` (AltStore / Sideloadly) — carries the **production** bundle id, so it **replaces** an installed official app and uses its data. Not a beside-install.\n' "$NEW"
             } >> "$BODY"
             gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$(git rev-parse HEAD)" \
               --title "NOOP ${NEW}" --notes-file "$BODY"
