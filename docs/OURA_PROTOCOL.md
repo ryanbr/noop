@@ -98,19 +98,39 @@ Returned during history fetch (`0x10`/`0x11`) and live streaming. Each record: [
 - **Total record length = `len + 2`.** [ringverse]
 - Several records may pack into one notification; consume `2 + len` per record and loop. [open_ring]
   **Measured 2026-09-15 (Gen 3, iOS, raw sidecar):** the ring does both, per session. Every NOOP history
-  drain captured to date arrives one packet per ≤ 20-byte notification (40,696 notifications across two
+  drain captured under the former `3f` mask arrives one packet per ≤ 20-byte notification (40,696 notifications across two
   bundles, each one exactly `2 + len` long); the same ring serving the official app on the same link
   (same negotiated MTU 203, same `10 09 <cursor> ff ffffffff` get_events bytes) packs ~10 packets into
   each 196–200-byte notification (3,613 notifications, 38,136 packets, every value tiling exactly on
-  `2 + len` boundaries) — ≈ 19 KB/s against NOOP's ≈ 2.1 KB/s at the same notification rate. What flips
-  the ring between the modes is not yet identified; the candidates are the SetNotification mask
-  (`1c 01 ff` in the app's session vs NOOP's `3f`, `0x1C` in §4) and the app's unexplained `16 01 02` write.
+  `2 + len` boundaries) — ≈ 19 KB/s against NOOP's ≈ 2.1 KB/s at the same notification rate.
   NOOP's reassembler walks a value only when it tiles exactly into two or more well-formed packets and
   otherwise reads the single lenient packet (the phantom-storm rule) — see `OuraReassembler.feed`.
-  The mask half of the A/B is runnable from the Test Centre ("Oura notification mask ff"): the next
-  connect sends `1c 01 ff` (`OuraCommands.enableAllNotifications(mask:)`, logged as `-> notify_all(ff)`)
-  and the raw sidecar's notification-size histogram is the readout. Nothing persists on the ring — the
-  mask is re-sent on every session, so the toggle off is `3f` again at the next connect.
+  **The switch is the SetNotification mask (A/B 2026-09-21 → 09-24, Gen 3, iOS):** with `1c 01 ff`, the
+  mask the official app sends, instead of NOOP's former `3f` (`0x1C` in §4), the ring packs 10–17 records
+  into each notification of the HISTORY DRAIN (peak 3,210 pkt/s / 55 kB/s against 259 pkt/s / 4.9 kB/s
+  under `3f`, a night's history in 89 active seconds instead of 229), while live pushes keep their
+  one-packet framing (≈ 1.07 pkt/s, ≤ 20 B, under both masks). The packed values carry no per-packet CRC:
+  `[tag][len][payload]` repeated, every one tiling exactly on `2 + len`. Three full nights and a 9-hour
+  radio-off catch-up drain (2026-10-02, 6 min 11 s) ran clean: no CRC, malformed or unknown-tag frames,
+  battery drain unchanged at the same state of charge. NOOP therefore
+  sends `ff` on every session (`OuraCommands.notificationMaskDefault`); the app's `16 01 02` write was not
+  needed. Nothing persists on the ring — the mask is re-sent on every session. The `0x1C` write names the
+  mask it sent on its own log line (`-> notify_all(ff)`), default included, so a session's framing shape is
+  attributable without cross-referencing the build. Validated on a Gen 3 ring
+  over iOS only; Android runs the same packed walk (`Framing.kt`, unit-tested twin) without a hardware
+  night yet.
+  **The failure mode packing makes reachable, and its evidence line.** `tiledRecords` rejects a value whole
+  on any irregularity, and `feed` then falls back to the ONE lenient packet. Under `3f` that was the correct
+  answer — a notification was a single ≤ 20-byte packet — but under `ff` the same fallback keeps one record
+  in ten to seventeen, and a drain that loses them still looks like it worked. So a notification LONGER than
+  one packet (`OuraFraming.singlePacketNotificationMaxLen` = 20, the default ATT MTU 23 less its 3-byte
+  header) that fails to tile is reported on an always-on line, not a Test-Centre-gated one:
+  `packed notification did not tile - <n>B, head <4 bytes>, <n>B of it unread, #<k> this session`. It states
+  only what it can attribute — the length, the tag/`len`/2 timestamp bytes (no payload, so nothing about the
+  wearer), how many bytes no record covered, and the session's running count — and the reassembler rate-limits
+  it to the first five plus one per decade, so a ring that packs nothing readable cannot flood a
+  ring-buffered strap log while the surviving line still carries the magnitude. Nothing in the parse reads
+  this state.
 
 ### 2.4 Multi-packet payloads
 There is no application-level fragmentation header beyond the TLV `len`. A record never spans two notifications in the verified corpus; each notification contains whole frames/records. NOOP's parser must still be defensive: buffer partial trailing bytes across notifications and only emit complete `2+len` records.
@@ -244,7 +264,7 @@ Compiled from [ringverse] (BLE.md) and [open_ring] (PROTOCOL.md); examples are e
 | `0x19` | ProductInfo resp | ←ring | | [ringverse] |
 | `0x1A` | FactoryReset | →ring | | DANGEROUS [ringverse] |
 | `0x1B` | FactoryReset resp | ←ring | | [ringverse] |
-| `0x1C` | SetNotification / state_cmd | →ring | `1c 01 <flags>` | `00`=none, `3f`/`bf`=all [ringverse][open_ring][open_oura-r3] |
+| `0x1C` | SetNotification / state_cmd | →ring | `1c 01 <flags>` | `00`=none, `3f`/`bf`=all [ringverse][open_ring][open_oura-r3]; `ff` = the official app's mask and NOOP's (packs the history drain, §2.3) |
 | `0x1D` | SetNotification resp | ←ring | `1d 01 00` | [ringverse] |
 | `0x1E` | state_query | →ring | | [open_ring] |
 | `0x1F` | state_query resp | ←ring | | [open_ring] |

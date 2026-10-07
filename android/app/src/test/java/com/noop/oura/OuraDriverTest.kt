@@ -47,8 +47,8 @@ class OuraDriverTest {
         // ready -> enable notifications + request nonce.
         val onReady = d.nextStep(OuraTransition.Ready)
         assertEquals(OuraDriverPhase.Authenticating, d.phase)
-        assertEquals(listOf("notify_all", "get_nonce"), onReady.map { it.label })
-        assertArrayEquals(intArrayOf(0x1C, 0x01, 0x3F), onReady[0].bytes)   // the default mask, unchanged
+        assertEquals(listOf("notify_all(ff)", "get_nonce"), onReady.map { it.label })
+        assertArrayEquals(intArrayOf(0x1C, 0x01, 0xFF), onReady[0].bytes)   // the default mask, the official app's
         assertArrayEquals(intArrayOf(0x2F, 0x01, 0x2B), onReady[1].bytes)
 
         // nonce -> submit proof.
@@ -174,7 +174,7 @@ class OuraDriverTest {
 
         // The ring acks with `25 01 00`; the transport calls back and the driver drives re-auth.
         val onAck = d.keyInstallAcknowledged()
-        assertEquals(listOf("notify_all", "get_nonce"), onAck.map { it.label })
+        assertEquals(listOf("notify_all(ff)", "get_nonce"), onAck.map { it.label })
         assertArrayEquals(intArrayOf(0x2F, 0x01, 0x2B), onAck[1].bytes)
         assertEquals(OuraDriverPhase.Authenticating, d.phase)
 
@@ -922,22 +922,25 @@ class OuraDriverTest {
             d.unixSeconds(forRingTimestamp = anchorRt))
     }
 
-    // MARK: - SetNotification mask (the packed-notification A/B, OURA_PROTOCOL.md s2.3)
+    // MARK: - SetNotification mask (OURA_PROTOCOL.md s2.3)
 
-    /** Twin of Swift's testNotificationMaskFullReachesBothHandshakePaths: the official app's `ff` mask
-     *  reaches BOTH handshake paths (Ready and the post-install re-auth), carries its value in the label,
-     *  and changes nothing else. The default stays `3f`. */
+    /** Twin of Swift's testDefaultNotificationMaskIsFfOnBothHandshakePaths: the default mask is the
+     *  official app's `ff` on BOTH handshake paths (Ready and the post-install re-auth) with no injection,
+     *  and changes nothing else. EVERY mask names itself in the label, default included, so a
+     *  `-> notify_all(..)` strap-log line attributes the session's framing shape by itself. */
     @Test
-    fun testNotificationMaskFullReachesBothHandshakePaths() {
-        assertArrayEquals(intArrayOf(0x1C, 0x01, 0x3F), OuraCommands.enableAllNotifications().bytes)
-        assertEquals("notify_all", OuraCommands.enableAllNotifications().label)
-        assertArrayEquals(intArrayOf(0x1C, 0x01, 0xFF),
-            OuraCommands.enableAllNotifications(mask = OuraCommands.NOTIFICATION_MASK_FULL).bytes)
-        assertEquals("notify_all(ff)",
-            OuraCommands.enableAllNotifications(mask = OuraCommands.NOTIFICATION_MASK_FULL).label)
+    fun testDefaultNotificationMaskIsFfOnBothHandshakePaths() {
+        assertArrayEquals(intArrayOf(0x1C, 0x01, 0xFF), OuraCommands.enableAllNotifications().bytes)
+        assertEquals("notify_all(ff)", OuraCommands.enableAllNotifications().label)
+        assertArrayEquals(intArrayOf(0x1C, 0x01, 0x3F), OuraCommands.enableAllNotifications(mask = 0x3F).bytes)
+        assertEquals("notify_all(3f)", OuraCommands.enableAllNotifications(mask = 0x3F).label)
+        // No mask may render as a bare `notify_all`: that text meant `3f` before the s2.3 default moved
+        // and `ff` after it, so it cannot attribute a session on its own.
+        for (mask in 0..0xFF) {
+            assertEquals("notify_all(%02x)".format(mask), OuraCommands.enableAllNotifications(mask = mask).label)
+        }
 
-        val d = OuraDriver(ringGen = OuraRingGen.GEN3, authKey = key,
-                           notificationMask = OuraCommands.NOTIFICATION_MASK_FULL)
+        val d = OuraDriver(ringGen = OuraRingGen.GEN3, authKey = key)
         val onReady = d.nextStep(OuraTransition.Ready)
         assertEquals(OuraDriverPhase.Authenticating, d.phase)
         assertEquals(listOf("notify_all(ff)", "get_nonce"), onReady.map { it.label })
@@ -945,8 +948,7 @@ class OuraDriverTest {
         assertArrayEquals(intArrayOf(0x2F, 0x01, 0x2B), onReady[1].bytes)
 
         // The post-install re-auth path sends the same mask.
-        val installing = OuraDriver(ringGen = OuraRingGen.GEN3, authKey = null, allowKeyInstall = true,
-                                    notificationMask = OuraCommands.NOTIFICATION_MASK_FULL)
+        val installing = OuraDriver(ringGen = OuraRingGen.GEN3, authKey = null, allowKeyInstall = true)
         assertEquals(emptyList<OuraCommand>(), installing.nextStep(OuraTransition.Ready))
         assertNotNull(installing.beginKeyInstall(key))
         val onAck = installing.keyInstallAcknowledged()

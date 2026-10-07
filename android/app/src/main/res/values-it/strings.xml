@@ -2805,8 +2805,6 @@
     <string name="l10n_settings_screen_gauge_numbers_db0d45e3">Numeri degli indicatori</string>
     <string name="l10n_settings_screen_bold_19e07430">Grassetto</string>
     <string name="l10n_settings_screen_softer_9edfeba1">Più tenue</string>
-    <string name="oura_notify_mask_full_title">Maschera di notifica Oura ff (sperimentale)</string>
-    <string name="oura_notify_mask_full_desc">Alla prossima connessione invia la maschera SetNotification dell’app ufficiale (1c 01 ff) invece del 3f di NOOP. L’anello impacchetta ~10 pacchetti per notifica per l’app ufficiale e uno solo per NOOP (scarico 9× più lento); questo è il primo interruttore candidato. Disattivato per impostazione predefinita; la connessione successiva alla disattivazione torna a 3f. Cerca “-&gt; notify_all(ff)” nel registro della fascia e confronta le dimensioni delle notifiche nella cattura grezza.</string>
     <string name="data_sources_whoop_live_subtitle">Si abbina direttamente alla tua fascia tramite Bluetooth: niente app WHOOP, niente cloud. La fascia può anche trasmettere la frequenza cardiaca come un normale sensore Bluetooth.</string>
     <string name="data_sources_band_broadcast_description">Trasmette la frequenza cardiaca in diretta della fascia tramite Bluetooth per Garmin, Zwift o attrezzi da palestra.</string>
     <string name="whoop4_direct_broadcast_explainer">La tua WHOOP 4.0 può trasmettere direttamente la frequenza cardiaca. Apri Sorgenti dati e usa “Trasmetti la frequenza cardiaca dalla fascia” per Zwift, Peloton, Garmin o attrezzi da palestra. In alternativa, se serve, puoi usare “Trasmetti la FC da questo telefono”.</string>

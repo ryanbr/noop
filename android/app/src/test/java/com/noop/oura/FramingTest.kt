@@ -389,6 +389,129 @@ class FramingTest {
         assertEquals("00fffffff7d7d555555555543fff", hex(recs[0].payload))
     }
 
+    // MARK: - Non-tiling packed notification: the always-on evidence (PR #2643 review)
+
+    /**
+     * Twin of Swift's testShouldReportTilingFailureRateLimit. Which n-th failure of a session is
+     * reported: the first [OuraReassembler.tilingFailureReportCap] are, then one per decade, so the
+     * line count is `cap + log10(n)` and the session's final magnitude is always on record within a
+     * factor of ten. The literal is the standalone Swift twin's stdout over 1..200000, pasted
+     * verbatim, and the Swift suite asserts the SAME literal — so both suites passing is the proof
+     * that the two predicates agree, not two greens read side by side.
+     */
+    @Test
+    fun testShouldReportTilingFailureRateLimit() {
+        val reported = (1..200_000).filter { OuraReassembler.shouldReportTilingFailure(it) }
+        assertEquals("1,2,3,4,5,10,100,1000,10000,100000", reported.joinToString(","))
+    }
+
+    /**
+     * Twin of Swift's testPackedTilingFailureReportsOverASpreadOfNotifications. The whole reported
+     * behaviour over one spread of notifications fed in order, as
+     * `recs=<returned> report=<length|head|unread|count>`. Expected = the standalone Swift twin's
+     * stdout over the same six values, pasted verbatim.
+     *
+     * The six cases, in order: a 20-byte non-tiling value (one packet, NOT reported — at the
+     * single-packet length the lenient read IS the whole value); a 21-byte one (reported, the
+     * smallest length that can be); the real 184-byte packed notification captured from the ring on
+     * 2026-09-15 (tiles into ten, nothing reported); a 23-byte value whose `len` is below the record
+     * floor (nothing parses, so all 23 bytes are unread); a 6-byte garbled value (nothing parses, not
+     * reported — a short notification was never a packed one); and a second 21-byte non-tiling value
+     * (reported, count 3 — the count spans notifications until [OuraReassembler.reset]).
+     */
+    @Test
+    fun testPackedTilingFailureReportsOverASpreadOfNotifications() {
+        val values = listOf(
+            bytes("5a0a1dbdb40200fffffff7d7d555555555543fff"),
+            bytes("7b060200010003ca" + "4e0602" + "ffeeddccbbaa99887766"),
+            bytes(
+                "5a1209e7b30206f00000005555555555555555405a120ae7b302070000014555555555555545f0ff5a120be7b30208" +
+                "fffffffffffffffffffff7f555580b0ce7b302185f1033563c645a120de7b302095555555555555555555555557f4f" +
+                "0f0ee7b302772514020d0100008000004c120fe7b30201001f00d9007f0047013b3405146e1118e7b3028a7c7b797b" +
+                "7a7a947c919051616e1127e7b30204797a7d797b80d0dfe7a7bdca60122ee7b3027a7c797a8180bbb96572889d1761"
+            ),
+            bytes("7b030200010003ca" + "4e0602" + "ffeeddccbbaa998877665544"),
+            bytes("7b0302000100"),
+            bytes("6e060200010003ca" + "4f0602" + "ffeeddccbbaa99887766"),
+        )
+        val r = OuraReassembler()
+        val lines = ArrayList<String>()
+        for (value in values) {
+            val recs = r.feed(value)
+            val reports = r.takePackedTilingFailures().map { f ->
+                "${f.length}|${f.head.joinToString(" ") { "%02x".format(it) }}|${f.unreadBytes}|${f.count}"
+            }
+            lines.add("recs=${recs.size} report=${reports.firstOrNull() ?: "-"}")
+            assertTrue("one notification can fail to tile at most once", reports.size <= 1)
+        }
+        assertEquals(
+            listOf(
+                "recs=1 report=-",
+                "recs=1 report=21|7b 06 02 00|13|1",
+                "recs=10 report=-",
+                "recs=0 report=23|7b 03 02 00|23|2",
+                "recs=0 report=-",
+                "recs=1 report=21|6e 06 02 00|13|3",
+            ),
+            lines,
+        )
+        assertEquals(3, r.packedTilingFailureCount)
+    }
+
+    /**
+     * Twin of Swift's testTakeDrainsOnceAndResetClearsThePerSessionCount: `take` hands each report out
+     * ONCE, and [OuraReassembler.reset] (disconnect teardown) makes the count a per-connection figure
+     * rather than a lifetime one.
+     */
+    @Test
+    fun testTakeDrainsOnceAndResetClearsThePerSessionCount() {
+        val r = OuraReassembler()
+        val nonTiling = bytes("7b060200010003ca" + "4e0602" + "ffeeddccbbaa99887766")
+        r.feed(nonTiling)
+        assertEquals(listOf(1), r.takePackedTilingFailures().map { it.count })
+        assertTrue("a report is handed out once, never twice", r.takePackedTilingFailures().isEmpty())
+        assertEquals(1, r.packedTilingFailureCount)
+        r.reset()
+        assertEquals(0, r.packedTilingFailureCount)
+        r.feed(nonTiling)
+        assertEquals(listOf(1), r.takePackedTilingFailures().map { it.count })
+    }
+
+    /**
+     * Twin of Swift's testPackedTilingFailureRateLimitHoldsOverAFlood: past the cap only the decades
+     * are reported, but every failure is still COUNTED, so the line that does print carries the true
+     * magnitude.
+     */
+    @Test
+    fun testPackedTilingFailureRateLimitHoldsOverAFlood() {
+        val r = OuraReassembler()
+        val nonTiling = bytes("7b060200010003ca" + "4e0602" + "ffeeddccbbaa99887766")
+        val counts = ArrayList<Int>()
+        repeat(120) {
+            r.feed(nonTiling)
+            counts.addAll(r.takePackedTilingFailures().map { f -> f.count })
+        }
+        assertEquals(listOf(1, 2, 3, 4, 5, 10, 100), counts)
+        assertEquals(120, r.packedTilingFailureCount)
+    }
+
+    /**
+     * Twin of Swift's testPackedTilingFailureIgnoresValuesAtOrBelowOnePacket: a value AT the
+     * single-packet length is never reported however garbled — under the `3f` mask every notification
+     * was one <= 20-byte packet, so the lenient read was the correct answer and a line there would be
+     * noise on every pre-`ff` session.
+     */
+    @Test
+    fun testPackedTilingFailureIgnoresValuesAtOrBelowOnePacket() {
+        val r = OuraReassembler()
+        r.feed(bytes("5a0a1dbdb40200fffffff7d7d555555555543fff"))   // 20 bytes, tail does not tile
+        r.feed(bytes("7b0302000100"))                               // 6 bytes, len below the floor
+        r.feed(bytes("7b0602"))                                     // 3 bytes, below the record floor
+        assertEquals(0, r.packedTilingFailureCount)
+        assertTrue(r.takePackedTilingFailures().isEmpty())
+        assertEquals(20, OuraFraming.singlePacketNotificationMaxLen)
+    }
+
     @Test
     fun testFeedNeverBuffersAcrossNotifications() {
         // A truncated notification is dropped whole (nothing buffered), and the next notification is

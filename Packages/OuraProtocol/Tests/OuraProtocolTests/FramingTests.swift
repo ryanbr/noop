@@ -256,6 +256,105 @@ final class FramingTests: XCTestCase {
         XCTAssertEqual(recs[0].payload, bytes("00fffffff7d7d555555555543fff"))
     }
 
+    // MARK: - Non-tiling packed notification: the always-on evidence (PR #2643 review)
+
+    /// The oracle: which n-th failure of a session is reported. The first `tilingFailureReportCap`
+    /// are, then one per decade, so the line count is `cap + log10(n)` and the session's final
+    /// magnitude is always on record within a factor of ten. Literal = the standalone Swift twin's
+    /// stdout over 1...200000, pasted verbatim; the SAME literal gates the Kotlin twin, so both
+    /// suites passing is the proof that the two predicates agree.
+    func testShouldReportTilingFailureRateLimit() {
+        let reported = (1...200_000).filter { OuraReassembler.shouldReportTilingFailure($0) }
+        XCTAssertEqual(reported.map(String.init).joined(separator: ","),
+                       "1,2,3,4,5,10,100,1000,10000,100000")
+    }
+
+    /// The whole reported behaviour over one spread of notifications fed in order, as
+    /// `recs=<returned> report=<length|head|unread|count>`. Oracle: the standalone Swift twin's stdout
+    /// over the same six values, pasted verbatim (the same literal gates the Kotlin twin).
+    ///
+    /// The six cases, in order: a 20-byte non-tiling value (one packet, NOT reported — at the
+    /// single-packet length the lenient read IS the whole value); a 21-byte one (reported, the
+    /// smallest length that can be); the real 184-byte packed notification captured from the ring on
+    /// 2026-09-15 (tiles into ten, nothing reported); a 23-byte value whose `len` is below the record
+    /// floor (nothing parses, so all 23 bytes are unread); a 6-byte garbled value (nothing parses, not
+    /// reported — a short notification was never a packed one); and a second 21-byte non-tiling value
+    /// (reported, count 3 — the count spans notifications until `reset`).
+    func testPackedTilingFailureReportsOverASpreadOfNotifications() {
+        let values = [
+            bytes("5a0a1dbdb40200fffffff7d7d555555555543fff"),
+            bytes("7b060200010003ca" + "4e0602" + "ffeeddccbbaa99887766"),
+            bytes("5a1209e7b30206f00000005555555555555555405a120ae7b302070000014555555555555545f0ff5a120be7b30208"
+                  + "fffffffffffffffffffff7f555580b0ce7b302185f1033563c645a120de7b302095555555555555555555555557f4f"
+                  + "0f0ee7b302772514020d0100008000004c120fe7b30201001f00d9007f0047013b3405146e1118e7b3028a7c7b797b"
+                  + "7a7a947c919051616e1127e7b30204797a7d797b80d0dfe7a7bdca60122ee7b3027a7c797a8180bbb96572889d1761"),
+            bytes("7b030200010003ca" + "4e0602" + "ffeeddccbbaa998877665544"),
+            bytes("7b0302000100"),
+            bytes("6e060200010003ca" + "4f0602" + "ffeeddccbbaa99887766"),
+        ]
+        let r = OuraReassembler()
+        var lines: [String] = []
+        for value in values {
+            let recs = r.feed(value)
+            let reports = r.takePackedTilingFailures().map {
+                "\($0.length)|\($0.head.map { String(format: "%02x", $0) }.joined(separator: " "))|\($0.unreadBytes)|\($0.count)"
+            }
+            lines.append("recs=\(recs.count) report=\(reports.first ?? "-")")
+            XCTAssertLessThanOrEqual(reports.count, 1, "one notification can fail to tile at most once")
+        }
+        XCTAssertEqual(lines, [
+            "recs=1 report=-",
+            "recs=1 report=21|7b 06 02 00|13|1",
+            "recs=10 report=-",
+            "recs=0 report=23|7b 03 02 00|23|2",
+            "recs=0 report=-",
+            "recs=1 report=21|6e 06 02 00|13|3",
+        ])
+        XCTAssertEqual(r.packedTilingFailureCount, 3)
+    }
+
+    /// `take` hands each report out ONCE, and `reset` (disconnect teardown) makes the count a
+    /// per-connection figure rather than a lifetime one.
+    func testTakeDrainsOnceAndResetClearsThePerSessionCount() {
+        let r = OuraReassembler()
+        let nonTiling = bytes("7b060200010003ca" + "4e0602" + "ffeeddccbbaa99887766")
+        _ = r.feed(nonTiling)
+        XCTAssertEqual(r.takePackedTilingFailures().map { $0.count }, [1])
+        XCTAssertTrue(r.takePackedTilingFailures().isEmpty, "a report is handed out once, never twice")
+        XCTAssertEqual(r.packedTilingFailureCount, 1, "the count is not consumed by the take")
+        r.reset()
+        XCTAssertEqual(r.packedTilingFailureCount, 0)
+        _ = r.feed(nonTiling)
+        XCTAssertEqual(r.takePackedTilingFailures().map { $0.count }, [1], "counts from 1 again")
+    }
+
+    /// Past the cap, only the decades are reported — but every failure is still COUNTED, so the line
+    /// that does print carries the true magnitude.
+    func testPackedTilingFailureRateLimitHoldsOverAFlood() {
+        let r = OuraReassembler()
+        let nonTiling = bytes("7b060200010003ca" + "4e0602" + "ffeeddccbbaa99887766")
+        var counts: [Int] = []
+        for _ in 1...120 {
+            _ = r.feed(nonTiling)
+            counts.append(contentsOf: r.takePackedTilingFailures().map { $0.count })
+        }
+        XCTAssertEqual(counts, [1, 2, 3, 4, 5, 10, 100], "6 lines + the 100th, not 120 lines")
+        XCTAssertEqual(r.packedTilingFailureCount, 120, "every one is counted, reported or not")
+    }
+
+    /// A value AT the single-packet length is never reported however garbled: under the `3f` mask
+    /// every notification was one <= 20-byte packet, so the lenient read was the correct answer and a
+    /// line there would be noise on every pre-`ff` session.
+    func testPackedTilingFailureIgnoresValuesAtOrBelowOnePacket() {
+        let r = OuraReassembler()
+        _ = r.feed(bytes("5a0a1dbdb40200fffffff7d7d555555555543fff"))   // 20 bytes, tail does not tile
+        _ = r.feed(bytes("7b0302000100"))                               // 6 bytes, len below the floor
+        _ = r.feed(bytes("7b0602"))                                     // 3 bytes, below the record floor
+        XCTAssertEqual(r.packedTilingFailureCount, 0)
+        XCTAssertTrue(r.takePackedTilingFailures().isEmpty)
+        XCTAssertEqual(OuraFraming.singlePacketNotificationMaxLen, 20, "ATT MTU 23 minus the 3-byte header")
+    }
+
     func testFeedNeverBuffersAcrossNotifications() {
         // A too-short notification is dropped whole (no leftover bytes carried); the NEXT notification is
         // parsed independently. This is the property the old buffering reassembler lacked — a leftover
