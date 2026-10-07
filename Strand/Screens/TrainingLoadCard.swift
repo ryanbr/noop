@@ -21,15 +21,6 @@ import WhoopStore
 struct TrainingLoadCard: View {
     let days: [DailyMetric]
 
-    // yyyy-MM-dd → Date (en_US_POSIX, UTC) — same keying TrendsView uses so the x-axis matches.
-    private static let dayParser: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.timeZone = TimeZone(identifier: "UTC")
-        f.dateFormat = "yyyy-MM-dd"
-        return f
-    }()
-
     /// `internal` (not `private`): `TrainingLoadChart` (its own file) plots these.
     struct Row: Identifiable {
         let date: Date
@@ -41,7 +32,7 @@ struct TrainingLoadCard: View {
     /// One modelled point per day of the contiguous suffix the engine returned.
     private func rows(from result: TrainingLoadEngine.Result) -> [Row] {
         result.points.compactMap { p in
-            guard let d = Self.dayParser.date(from: p.day) else { return nil }
+            guard let d = DayKey.date(p.day) else { return nil }
             return Row(date: d, ctl: p.chronicLoad, atl: p.acuteLoad)
         }
     }

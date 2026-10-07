@@ -11,7 +11,6 @@ import java.text.NumberFormat
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -523,17 +522,27 @@ object LiftingImporter {
         return finish(sessions, skipped + (accs.size - sessions.size))
     }
 
-    /** Build the result: sort sessions oldest-first and compute the day span. */
+    /** Build the result: sort sessions oldest-first and compute the day span, in the device zone the
+     *  wearer reads the import summary in. */
     private fun finish(sessions: List<Session>, skipped: Int): Result {
         val sorted = sessions.sortedBy { it.startTs }
-        fun day(ts: Long): String =
-            Instant.ofEpochSecond(ts).atOffset(ZoneOffset.UTC).toLocalDate().toString()
+        val span = daySpan(sorted, ZoneId.systemDefault())
         return Result(
             sessions = sorted,
             skipped = skipped,
-            firstDay = sorted.firstOrNull()?.let { day(it.startTs) },
-            lastDay = sorted.lastOrNull()?.let { day(it.startTs) },
+            firstDay = span?.first,
+            lastDay = span?.second,
         )
+    }
+
+    /** The first and last session days as "yyyy-MM-dd" in [zone], for the import summary. Named where
+     *  the wearer is: a session start is a real instant, and its UTC date is already tomorrow on an
+     *  evening west of UTC. Twin of the Swift `LiftingImportResult.daySpan`. */
+    internal fun daySpan(sessions: List<Session>, zone: ZoneId): Pair<String, String>? {
+        val first = sessions.minByOrNull { it.startTs } ?: return null
+        val last = sessions.maxByOrNull { it.startTs } ?: return null
+        fun day(ts: Long): String = Instant.ofEpochSecond(ts).atZone(zone).toLocalDate().toString()
+        return day(first.startTs) to day(last.startTs)
     }
 
     /** Group an integer-kg figure with thousands separators (e.g. 12400 → "12,400"). */

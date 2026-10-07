@@ -3,6 +3,8 @@ package com.noop.ingest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import com.noop.inEachTimeZone
+import com.noop.inTimeZone
 import org.junit.Test
 import java.time.ZoneId
 
@@ -195,6 +197,30 @@ class LiftingImporterTest {
         assertEquals(100 * 0.45359237 * 5, s.volumeLoadKg, 1e-4)
     }
 
+    /** The import's day span names each workout's day where the wearer is. A 20:30 session in New York
+     *  is 00:30 UTC on the 26th, so the span read "to 2026-08-26" for a workout done on the 25th; a 07:00
+     *  one in Sydney is 21:00 UTC on the 24th, and the span started a day early. */
+    @Test
+    fun theDaySpanNamesTheWearersDay() {
+        val csv = """
+            title,start_time,end_time,exercise_title,set_index,set_type,weight_kg,reps
+            Early,2026-08-25 07:00:00,2026-08-25 08:00:00,Squat,0,normal,100,5
+            Late,2026-08-25 20:30:00,2026-08-25 21:30:00,Squat,0,normal,100,5
+        """.trimIndent().toByteArray()
+        inEachTimeZone(listOf("Pacific/Honolulu", "America/New_York", "UTC", "Australia/Sydney", "Pacific/Kiritimati")) { zone ->
+            val r = LiftingImporter.parse(csv, ZoneId.of(zone))
+            assertEquals(zone, 2, r.sessions.size)
+            assertEquals(zone, "2026-08-25", r.firstDay)
+            assertEquals(zone, "2026-08-25", r.lastDay)
+        }
+        val liftosaur = inTimeZone("America/New_York") {
+            LiftingImporter.parseLiftosaur(
+                """[ { "startTime": 1787704200000, "entries": [ { "sets": [ { "weight": 50, "completedReps": 10 } ] } ] } ]""",
+            )
+        }
+        assertEquals("2026-08-25", liftosaur.firstDay) // 2026-08-26T00:30Z, 20:30 the evening before in New York
+    }
+
     @Test
     fun liftosaurAcceptsBareArrayAndStorageWrapper() {
         val bare =
@@ -219,7 +245,7 @@ class LiftingImporterTest {
             ] }
             """.trimIndent()
 
-        val r = LiftingImporter.parse(json.toByteArray())
+        val r = inTimeZone("UTC") { LiftingImporter.parse(json.toByteArray()) }
 
         assertEquals(listOf(1748772000L), r.sessions.map { it.startTs })
         assertEquals(1, r.sessions.size)

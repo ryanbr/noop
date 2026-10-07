@@ -74,15 +74,7 @@ struct TrendsView: View {
     @AppStorage(UnitPrefs.trendChartStyleKey) private var trendChartStyleRaw = TrendChartStyle.line.rawValue
     private var effortScale: EffortScale { UnitPrefs.resolveEffortScale(effortScaleRaw) }
 
-    // yyyy-MM-dd → Date (en_US_POSIX, UTC), per task spec.
-    private static let dayParser: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.timeZone = TimeZone(identifier: "UTC")
-        f.dateFormat = "yyyy-MM-dd"
-        return f
-    }()
-    private func date(_ day: String) -> Date? { Self.dayParser.date(from: day) }
+    private func date(_ day: String) -> Date? { DayKey.date(day) }
 
     // MARK: Window selection (relative to the LATEST day, with auto-expand)
 
@@ -788,7 +780,8 @@ struct TrendsView: View {
                     sparsePlaceholder.frame(height: 120)
                 } else {
                     ScrollView(.horizontal, showsIndicators: false) {
-                        YearHeatStrip(days: recoveryDays).padding(.vertical, NoopMetrics.space1 / 2)
+                        YearHeatStrip(days: recoveryDays, calendar: DayKey.calendar)
+                            .padding(.vertical, NoopMetrics.space1 / 2)
                     }
                     Divider().overlay(StrandPalette.hairline)
                     legend
@@ -844,7 +837,8 @@ struct TrendsView: View {
                    showsArea: true,
                    showsBars: TrendChartStyle(rawValue: trendChartStyleRaw) == .bar,
                    height: NoopMetrics.chartHeight, valueFormat: valueFormat,
-                   accessibilityLabel: accessibilityLabel, nowCapColor: tip)
+                   accessibilityLabel: accessibilityLabel, nowCapColor: tip,
+                   calendar: DayKey.calendar)
     }
 
     private var sparsePlaceholder: some View {
@@ -861,10 +855,6 @@ struct TrendsView: View {
 private func previewRepo() -> Repository {
     let repo = Repository(deviceId: "preview")
     let cal = Calendar(identifier: .gregorian)
-    let fmt = DateFormatter()
-    fmt.locale = Locale(identifier: "en_US_POSIX")
-    fmt.timeZone = TimeZone(identifier: "UTC")
-    fmt.dateFormat = "yyyy-MM-dd"
     let today = Date()
     var seeded: [DailyMetric] = []
     let span = 365 * 3
@@ -877,7 +867,7 @@ private func previewRepo() -> Repository {
         let strain = 9 + 6 * sin(phase / 5.0 + 1.2) + Double((Int(phase) * 5) % 4) - 2
         let gap = Int(phase) % 23 == 0
         seeded.append(DailyMetric(
-            day: fmt.string(from: d),
+            day: DayKey.key(d),
             totalSleepMin: 420, efficiency: 0.9, deepMin: 90, remMin: 110, lightMin: 200,
             disturbances: 6, restingHr: gap ? nil : Int(rhr.rounded()),
             avgHrv: gap ? nil : max(15, hrv), recovery: gap ? nil : max(2, min(99, rec)),

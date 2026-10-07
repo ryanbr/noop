@@ -15,16 +15,7 @@ import WhoopStore
 // metric loads from repo.resolvedSeries (freshest-wins across imported / NOOP-computed /
 // compatible Apple Health, PR#196); everything else is derived in-view.
 
-// yyyy-MM-dd → Date, fixed UTC / en_US_POSIX (per task spec).
-private let compareDayParser: DateFormatter = {
-    let f = DateFormatter()
-    f.locale = Locale(identifier: "en_US_POSIX")
-    f.timeZone = TimeZone(identifier: "UTC")
-    f.dateFormat = "yyyy-MM-dd"
-    return f
-}()
-
-private func parseCompareDay(_ day: String) -> Date? { compareDayParser.date(from: day) }
+private func parseCompareDay(_ day: String) -> Date? { DayKey.date(day) }
 
 // MARK: - Range control (shared spec — W / M / 3M / 6M / 1Y / ALL)
 
@@ -911,7 +902,8 @@ private struct OverlayChart: View {
     var body: some View {
         let model = currentModel
         // Computed once so the marks and their label format agree about which days are shown.
-        let axisDays = ChartAxisDays.spanning(model.plots.map(\.date))
+        // Day keys are UTC midnight (`DayKey`), so the days are chosen and named in UTC.
+        let axisDays = ChartAxisDays.spanning(model.plots.map(\.date), calendar: DayKey.calendar)
         Chart(model.plots) { p in
             LineMark(
                 x: .value("Date", p.date),
@@ -974,7 +966,7 @@ private struct OverlayChart: View {
         .chartXAxis {
             AxisMarks(values: axisDays) { _ in
                 AxisGridLine().foregroundStyle(StrandPalette.hairline.opacity(0.4))
-                AxisValueLabel(format: ChartAxisDays.labelFormat(for: axisDays))
+                AxisValueLabel(format: ChartAxisDays.labelFormat(for: axisDays, calendar: DayKey.calendar))
                     .foregroundStyle(StrandPalette.textTertiary)
                     .font(StrandFont.footnote)
             }
@@ -1088,16 +1080,11 @@ private struct MultiTooltip: View {
     let anchorX: CGFloat
     let container: CGSize
 
-    /// Shared formatter; was rebuilt from scratch on every hover frame.
-    private static let dateLabelFormatter: DateFormatter = {
-        let f = DateFormatter()
-        // Device locale (not en_US_POSIX) so the DISPLAYED weekday/month names translate — the crosshair
-        // parser above still uses en_US_POSIX for stable yyyy-MM-dd parsing. Same pattern + device locale
-        // as the Android twin so both localize consistently.
-        f.locale = Locale.autoupdatingCurrent
-        f.dateFormat = "EEE d MMM yyyy"
-        return f
-    }()
+    /// Shared formatter; was rebuilt from scratch on every hover frame. Device locale (not en_US_POSIX)
+    /// so the DISPLAYED weekday/month names translate, with the same pattern + device locale as the
+    /// Android twin so both localize consistently. In UTC, like every day-key formatter: the crosshair
+    /// date is a day key at UTC midnight.
+    private static let dateLabelFormatter = DayKey.formatter("EEE d MMM yyyy", locale: .autoupdatingCurrent)
 
     private var dateLabel: String { Self.dateLabelFormatter.string(from: date) }
 

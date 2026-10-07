@@ -49,11 +49,7 @@ struct TrainingLoadChart: View {
 
     private func fmt(_ v: Double) -> String { String(format: "%.1f", v) }
 
-    private static let tooltipDateFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "d MMM yyyy"
-        return f
-    }()
+    private static let tooltipDateFormatter = DayKey.formatter("d MMM yyyy", locale: .current)
 
     var body: some View {
         // Floor at 1 (matching the Android `fold(1.0)` twin): an all-rest window of zero loads would

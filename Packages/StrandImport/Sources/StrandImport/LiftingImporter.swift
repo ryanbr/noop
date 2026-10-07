@@ -83,6 +83,18 @@ public struct LiftingImportResult: Sendable, Equatable {
     }
 
     public var sessionCount: Int { sessions.count }
+
+    /// The first and last workout days as "yyyy-MM-dd" in `zone`, for the import summary. Named where
+    /// the wearer is: a session start is a real instant, and its UTC date is already tomorrow on an
+    /// evening west of UTC. Twin of the Kotlin `LiftingImporter.daySpan`.
+    public func daySpan(in zone: TimeZone = .current) -> (first: String, last: String)? {
+        guard let earliest, let latest else { return nil }
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.timeZone = zone
+        f.dateFormat = "yyyy-MM-dd"
+        return (f.string(from: earliest), f.string(from: latest))
+    }
 }
 
 public enum LiftingImporter {

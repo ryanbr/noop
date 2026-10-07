@@ -55,24 +55,13 @@ struct XiaomiBandView: View {
         "stress", "vitality",
     ]
 
-    private static let dayParser: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.timeZone = TimeZone(identifier: "UTC")
-        f.dateFormat = "yyyy-MM-dd"
-        return f
-    }()
-    private static let spanFormatter: DateFormatter = {
-        let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "d MMM yyyy"; return f
-    }()
-    private static let asOfFormatter: DateFormatter = {
-        let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "d MMM"; return f
-    }()
+    private static let spanFormatter = DayKey.formatter("d MMM yyyy")
+    private static let asOfFormatter = DayKey.formatter("d MMM")
     private static let groupedIntFmt: NumberFormatter = {
         let f = NumberFormatter(); f.numberStyle = .decimal; f.maximumFractionDigits = 0; return f
     }()
 
-    private func date(_ day: String) -> Date? { Self.dayParser.date(from: day) }
+    private func date(_ day: String) -> Date? { DayKey.date(day) }
 
     // MARK: - Range control (W / M / 3M / 6M / 1Y / ALL)
 
@@ -416,7 +405,8 @@ struct XiaomiBandView: View {
                 if pts.count >= 2 {
                     TrendChart(points: pts, gradient: gradient,
                                valueRange: valueRange(pts, fallback: fallback),
-                               showsArea: true, height: NoopMetrics.chartHeight, valueFormat: fmt)
+                               showsArea: true, height: NoopMetrics.chartHeight, valueFormat: fmt,
+                               calendar: DayKey.calendar)
                 } else if let only = vals.last {
                     singlePoint(only, fmt: fmt, accent: StrandPalette.sample(stops: gradient.stops, at: 0.85))
                 } else {

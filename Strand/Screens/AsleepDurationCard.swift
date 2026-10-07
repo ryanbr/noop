@@ -16,15 +16,6 @@ struct AsleepDurationData {
     let points: [TrendPoint]
     let typicalTotalMin: Double?
 
-    /// yyyy-MM-dd → Date (en_US_POSIX, UTC) — matches `SleepView.dayParser`.
-    private static let dayParser: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.timeZone = TimeZone(identifier: "UTC")
-        f.dateFormat = "yyyy-MM-dd"
-        return f
-    }()
-
     /// Trailing 30 days of total sleep in HOURS, falling back to all nights with data when the trailing
     /// window is too sparse (verbatim of `SleepView.durationTrendPoints`). `typicalTotalMin` is the mean
     /// asleep minutes across nights with data (verbatim of `SleepView.typicalTotalMin`).
@@ -32,7 +23,7 @@ struct AsleepDurationData {
         func mk(_ slice: ArraySlice<DailyMetric>) -> [TrendPoint] {
             slice.compactMap { d -> TrendPoint? in
                 guard let mins = d.totalSleepMin, mins > 0,
-                      let date = dayParser.date(from: d.day) else { return nil }
+                      let date = DayKey.date(d.day) else { return nil }
                 return TrendPoint(date: date, value: mins / 60.0)
             }
         }
@@ -67,7 +58,8 @@ struct AsleepDurationCard: View {
                                    showsBars: true,
                                    height: NoopMetrics.chartHeight,
                                    valueFormat: { String(format: "%.1f h", $0) },
-                                   accessibilityLabel: String(localized: "Hours asleep trend"))
+                                   accessibilityLabel: String(localized: "Hours asleep trend"),
+                                   calendar: DayKey.calendar)
                     } else {
                         Self.sparsePlaceholder
                     }

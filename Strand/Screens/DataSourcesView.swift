@@ -486,10 +486,8 @@ struct DataSourcesView: View {
                 if totalVolume > 0 {
                     msg += " · " + String(localized: "\(LiftingImporter.groupedKg(totalVolume)) kg total volume")
                 }
-                if let a = result.earliest, let b = result.latest {
-                    let span = liftingDayFormatter
-                    let lo = span.string(from: a), hi = span.string(from: b)
-                    if lo != hi { msg += " · \(lo)-\(hi)" }
+                if let span = result.daySpan(), span.first != span.last {
+                    msg += " · \(span.first)-\(span.last)"
                 }
                 if result.skipped > 0 { msg += " · " + String(localized: "\(result.skipped) skipped") }
                 liftingSummary = msg
@@ -739,14 +737,6 @@ struct DataSourcesView: View {
             }
             appleHealthDeleting = false
         }
-    }
-
-    private var liftingDayFormatter: DateFormatter {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.timeZone = TimeZone(identifier: "UTC")   // sessions are stored at UTC; label the same span
-        f.dateFormat = "yyyy-MM-dd"
-        return f
     }
 
     private enum ImportTarget {

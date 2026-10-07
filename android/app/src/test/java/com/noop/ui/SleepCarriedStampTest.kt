@@ -5,6 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import com.noop.inEachTimeZone
 import org.junit.Test
 
 /** #1946: a carried prior-night metric value must be stamped with its day so it is not passed off
@@ -68,6 +69,17 @@ class SleepCarriedStampTest {
         assertTrue("caption must be a Resource", caption is DisplayText.Resource)
         val resolved = caption.asString()
         assertTrue("caption must contain 'Carried': $resolved", resolved!!.contains("Carried"))
+    }
+
+    /** The stamp names the carried CALENDAR day in every zone. West of UTC it read the day before
+     *  ("10 Aug"): the key parsed as UTC midnight and was formatted in the device zone. Pins the
+     *  default zone so a UTC runner catches it too. Twin of the Swift
+     *  `testTheStampReadsTheSameDayInEveryTimeZone`. */
+    @Test fun stampReadsTheSameDayInEveryTimeZone() {
+        inEachTimeZone { zone ->
+            val label = Metric.shortDayLabel("2026-08-11")
+            assertTrue("$zone: $label", label.contains("11") && !label.contains("10"))
+        }
     }
 
     /** A nil latest has no stamp — the tile falls through to "vs typical" or "—". */

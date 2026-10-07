@@ -612,7 +612,8 @@ struct StressView: View {
                         height: NoopMetrics.chartHeight,
                         valueFormat: { StressTrace.formatLevel($0) },
                         accessibilityLabel: String(localized: "Stress trend"),
-                        yDomain: 0...yTop
+                        yDomain: 0...yTop,
+                        calendar: DayKey.calendar
                     )
                 } footer: {
                     ChartFooter([
@@ -829,14 +830,6 @@ struct StressModel {
     /// Last up-to-14 trend values, for the hero tile sparkline.
     var sparkValues: [Double] { Array(fullTrend.suffix(14)).map(\.value) }
 
-    private static let dayParser: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.timeZone = TimeZone(identifier: "UTC")
-        f.dateFormat = "yyyy-MM-dd"
-        return f
-    }()
-
     /// Build from oldest→newest daily metrics plus any stored "stress" series.
     /// Returns nil only when there is no usable signal at all.
     init?(days: [DailyMetric], stored: [(day: String, value: Double)]) {
@@ -904,7 +897,7 @@ struct StressModel {
         // z-score derivation against the SAME baseline so the line is comparable.
         var pts: [TrendPoint] = []
         for d in days {
-            guard let date = Self.dayParser.date(from: d.day) else { continue }
+            guard let date = DayKey.date(d.day) else { continue }
             if let v = storedByDay[d.day] {
                 pts.append(TrendPoint(date: date, value: v))
                 continue

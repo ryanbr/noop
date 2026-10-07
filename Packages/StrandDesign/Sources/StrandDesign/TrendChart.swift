@@ -169,6 +169,10 @@ public struct TrendChart: View {
     public var yDomain: ClosedRange<Double>?
     /// Optional elapsed time window for a workout trace, with workout-relative tick labels.
     public var workoutTimeAxis: ClosedRange<Date>?
+    /// The calendar the x-axis days and the default tooltip date are resolved in. Real timestamps keep
+    /// `.current`; a series of day keys parsed at UTC midnight passes `DayKey.calendar`, or every mark
+    /// and tooltip names the day before west of UTC.
+    public var calendar: Calendar
 
     /// Mean of all point values, computed once in `init` so the area fill's gradient
     /// stop doesn't run an O(n) reduce for every mark on every render.
@@ -187,14 +191,15 @@ public struct TrendChart: View {
         height: CGFloat = 220,
         showsHover: Bool = true,
         valueFormat: @escaping (Double) -> String = { String(Int($0.rounded())) },
-        dateFormat: @escaping (Date) -> String = { TrendChart.defaultDateString($0) },
+        dateFormat: ((Date) -> String)? = nil,
         accessibilityLabel: String? = nil,
         nowCapColor: Color? = nil,
         yDomain: ClosedRange<Double>? = nil,
         workoutTimeAxis: ClosedRange<Date>? = nil,
         yAxisStep: Double? = nil,
         showsBarValues: Bool = false,
-        largeSelection: Bool = false
+        largeSelection: Bool = false,
+        calendar: Calendar = .current
     ) {
         let sorted = points.sorted { $0.date < $1.date }
         self.points = sorted
@@ -206,7 +211,9 @@ public struct TrendChart: View {
         self.height = height
         self.showsHover = showsHover
         self.valueFormat = valueFormat
-        self.dateFormat = dateFormat
+        self.dateFormat = dateFormat ?? { [timeZone = calendar.timeZone] in
+            TrendChart.defaultDateString($0, timeZone: timeZone)
+        }
         self.accessibilityLabel = accessibilityLabel
         self.nowCapColor = nowCapColor
         self.yDomain = yDomain
@@ -214,6 +221,7 @@ public struct TrendChart: View {
         self.yAxisStep = yAxisStep
         self.showsBarValues = showsBarValues
         self.largeSelection = largeSelection
+        self.calendar = calendar
         let avg = sorted.isEmpty
             ? valueRange.lowerBound
             : sorted.map(\.value).reduce(0, +) / Double(sorted.count)
@@ -247,14 +255,15 @@ public struct TrendChart: View {
     /// accessibility stay on the full-resolution `points` so those readouts are unchanged.
     private let displayPoints: [TrendPoint]
 
-    private static let sharedDateFormatter: DateFormatter = {
-        let f = DateFormatter(); f.dateFormat = "EEE d MMM"; return f
-    }()
-
-    /// Default tooltip date format ("EEE d MMM"), exposed so it can seed the
-    /// `dateFormat` default argument.
+    /// Default tooltip date format ("EEE d MMM") in the device zone, for real timestamps.
     public static func defaultDateString(_ date: Date) -> String {
-        sharedDateFormatter.string(from: date)
+        defaultDateString(date, timeZone: .current)
+    }
+
+    /// `defaultDateString` in `timeZone`. A day key parsed at UTC midnight passes
+    /// `DayKey.calendar.timeZone`, or it reads as the day before west of UTC.
+    public static func defaultDateString(_ date: Date, timeZone: TimeZone) -> String {
+        DayZone.for(timeZone).day.string(from: date)
     }
 
     private static func axisNumberLabel(_ value: Double) -> String {
@@ -275,7 +284,7 @@ public struct TrendChart: View {
     /// Spans `displayPoints`, the set the marks are actually built from, rather than `points`. Bucketing
     /// keeps the extremes, so the two agree today; deriving the axis from a collection the chart is not
     /// drawing is the kind of thing that stops being true quietly.
-    private var axisDays: [Date] { ChartAxisDays.spanning(displayPoints.map(\.date)) }
+    private var axisDays: [Date] { ChartAxisDays.spanning(displayPoints.map(\.date), calendar: calendar) }
 
     // Map data values onto the unit interval for gradient stops.
     private func unit(_ value: Double) -> Double {
@@ -424,7 +433,7 @@ public struct TrendChart: View {
         .chartXAxis {
             AxisMarks(values: axisDays) { _ in
                 AxisGridLine().foregroundStyle(StrandPalette.hairline.opacity(0.4))
-                AxisValueLabel(format: ChartAxisDays.labelFormat(for: axisDays))
+                AxisValueLabel(format: ChartAxisDays.labelFormat(for: axisDays, calendar: calendar))
                     .foregroundStyle(StrandPalette.textTertiary)
                     .font(StrandFont.footnote)
             }
