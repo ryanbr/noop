@@ -126,11 +126,12 @@ public enum HRVAnalyzer {
         guard nn.count > ectopicWindowRadius else { return nn }
         var kept: [Double] = []
         kept.reserveCapacity(nn.count)
+        var neighbours: [Double] = []
+        neighbours.reserveCapacity(2 * ectopicWindowRadius)
         for i in 0..<nn.count {
             let lo = max(0, i - ectopicWindowRadius)
             let hi = min(nn.count - 1, i + ectopicWindowRadius)
-            var neighbours: [Double] = []
-            neighbours.reserveCapacity(hi - lo)
+            neighbours.removeAll(keepingCapacity: true)
             for j in lo...hi where j != i { neighbours.append(nn[j]) }
             guard neighbours.count >= 2 else { kept.append(nn[i]); continue }
             let med = median(neighbours)
@@ -181,10 +182,12 @@ public enum HRVAnalyzer {
             // rejectEctopic returns the input unchanged for a series this short.
             for k in 0..<rangedVal.count { keptOrig.append(rangedIdx[k]); keptVal.append(rangedVal[k]) }
         } else {
+            var neighbours: [Double] = []
+            neighbours.reserveCapacity(2 * ectopicWindowRadius)
             for i in 0..<rangedVal.count {
                 let lo = max(0, i - ectopicWindowRadius)
                 let hi = min(rangedVal.count - 1, i + ectopicWindowRadius)
-                var neighbours: [Double] = []; neighbours.reserveCapacity(hi - lo)
+                neighbours.removeAll(keepingCapacity: true)
                 for j in lo...hi where j != i { neighbours.append(rangedVal[j]) }
                 let keep: Bool
                 if neighbours.count < 2 {

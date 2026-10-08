@@ -160,10 +160,11 @@ object HrvAnalyzer {
     fun rejectEctopic(nn: List<Double>): List<Double> {
         if (nn.size <= ECTOPIC_WINDOW_RADIUS) return nn
         val kept = ArrayList<Double>(nn.size)
+        val neighbours = ArrayList<Double>(2 * ECTOPIC_WINDOW_RADIUS)
         for (i in nn.indices) {
             val lo = maxOf(0, i - ECTOPIC_WINDOW_RADIUS)
             val hi = minOf(nn.size - 1, i + ECTOPIC_WINDOW_RADIUS)
-            val neighbours = ArrayList<Double>(hi - lo)
+            neighbours.clear()
             for (j in lo..hi) {
                 if (j != i) neighbours.add(nn[j])
             }
@@ -221,10 +222,11 @@ object HrvAnalyzer {
             // rejectEctopic returns the input unchanged for a series this short.
             for (k in rangedVal.indices) { keptOrig.add(rangedIdx[k]); keptVal.add(rangedVal[k]) }
         } else {
+            val neighbours = ArrayList<Double>(2 * ECTOPIC_WINDOW_RADIUS)
             for (i in rangedVal.indices) {
                 val lo = maxOf(0, i - ECTOPIC_WINDOW_RADIUS)
                 val hi = minOf(rangedVal.size - 1, i + ECTOPIC_WINDOW_RADIUS)
-                val neighbours = ArrayList<Double>(hi - lo)
+                neighbours.clear()
                 for (j in lo..hi) if (j != i) neighbours.add(rangedVal[j])
                 val keep = when {
                     neighbours.size < 2 -> true
