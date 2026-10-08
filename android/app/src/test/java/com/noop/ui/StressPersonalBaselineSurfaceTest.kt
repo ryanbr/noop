@@ -89,7 +89,17 @@ class StressPersonalBaselineSurfaceTest {
         val liquidToday = source("Strand/Liquid/LiquidTodayView.swift")
         val widget = source("StrandiOS/Widgets/WidgetPublish.swift")
 
-        assertTrue(detail.contains("let mode = await DaytimeStressMode.selected("))
+        assertTrue(
+            "Stress detail must pass the selected personal-baseline preference",
+            Regex("DaytimeStressMode\\.selected\\([\\s\\S]*?personalBaseline:\\s*" +
+                "PuffinExperiment\\.stressPersonalBaselineEnabled")
+                .containsMatchIn(detail),
+        )
+        assertTrue(
+            "Stress detail must analyze with the selected mode",
+            Regex("DaytimeStress\\.analyze\\([\\s\\S]*?mode:\\s*mode,")
+                .containsMatchIn(detail),
+        )
         assertTrue(producer.contains("let mode = await DaytimeStressMode.selected("))
         assertTrue(
             "the shared Apple producer must analyze with the selected mode",

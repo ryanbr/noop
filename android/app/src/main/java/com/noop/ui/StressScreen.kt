@@ -115,9 +115,9 @@ fun StressScreen(vm: AppViewModel, onBreathe: () -> Unit = {}) {
     var stored by remember { mutableStateOf<Map<String, Double>>(emptyMap()) }
     var storedLoaded by remember { mutableStateOf(false) }
     androidx.compose.runtime.LaunchedEffect(Unit) {
-        val rows = runCatching {
+        val rows = StressLoadCancellation.read {
             vm.repo.metricSeries("my-whoop", "stress", "0000-01-01", "9999-12-31")
-        }.getOrDefault(emptyList())
+        }.orEmpty()
         stored = rows.associate { it.day to it.value.coerceIn(0.0, 3.0) }
         storedLoaded = true
     }
@@ -151,9 +151,9 @@ fun StressScreen(vm: AppViewModel, onBreathe: () -> Unit = {}) {
             while (true) {
                 val nowSeconds = System.currentTimeMillis() / 1000L
                 val window = stressLocalDayWindowContaining(nowSeconds, ZoneId.systemDefault())
-                val fingerprint = runCatching {
+                val fingerprint = StressLoadCancellation.read {
                     vm.repo.hrFingerprintWindow(vm.activeStrapId, window.fromEpochSecond, nowSeconds)
-                }.getOrNull()
+                }
                 // A failed fingerprint reads as "cannot tell", which loads rather than skips: being
                 // wrong about this costs one pass, being wrong the other way freezes the screen.
                 if (fingerprint == null || fingerprint != lastHrFingerprint) {
@@ -169,11 +169,11 @@ fun StressScreen(vm: AppViewModel, onBreathe: () -> Unit = {}) {
                     daytime = core?.daytime ?: DaytimeStress.Result.EMPTY
                     daytimeUsesPersonalBaseline = core?.usesPersonalBaseline == true
                     val beats = core?.rr.orEmpty()
-                    val lenses = if (beats.isEmpty()) null else runCatching {
+                    val lenses = if (beats.isEmpty()) null else StressLoadCancellation.read {
                         withContext(Dispatchers.Default) {
                             StressIndex.components(beats) to HrvFreqDomain.freqDomain(beats)
                         }
-                    }.getOrNull()
+                    }
                     stressIndex = lenses?.first
                     freqHrv = lenses?.second
                 }

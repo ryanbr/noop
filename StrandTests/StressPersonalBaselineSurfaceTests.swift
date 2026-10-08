@@ -18,7 +18,14 @@ final class StressPersonalBaselineSurfaceTests: XCTestCase {
         let today = try source("Strand/Screens/TodayView.swift")
         let liquidToday = try source("Strand/Liquid/LiquidTodayView.swift")
 
-        XCTAssertTrue(detail.contains("let mode = await DaytimeStressMode.selected("))
+        XCTAssertNotNil(detail.range(
+            of: #"DaytimeStressMode\.selected\([\s\S]*?personalBaseline:\s*PuffinExperiment\.stressPersonalBaselineEnabled"#,
+            options: .regularExpression
+        ))
+        XCTAssertNotNil(detail.range(
+            of: #"DaytimeStress\.analyze\([\s\S]*?mode:\s*mode,"#,
+            options: .regularExpression
+        ))
         XCTAssertTrue(producer.contains("let mode = await DaytimeStressMode.selected("))
         XCTAssertTrue(producer.contains("tzOffsetSeconds: tz, mode: mode,"))
         for body in [today, liquidToday] {
