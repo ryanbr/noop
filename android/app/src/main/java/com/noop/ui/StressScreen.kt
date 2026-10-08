@@ -146,7 +146,7 @@ fun StressScreen(vm: AppViewModel, onBreathe: () -> Unit = {}) {
         // not: with the strap disconnected, or simply quiet, nothing about today's heart rate has moved
         // and re-reading produces a result identical to the one already on screen. An indexed count and
         // max answers that for the price of neither.
-        var lastHrFingerprint: Pair<Int, Long>? = null
+        val refresh = StressCoreRefresh<DaytimeCore>()
         lifecycleOwner.lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
             while (true) {
                 val nowSeconds = System.currentTimeMillis() / 1000L
@@ -156,19 +156,18 @@ fun StressScreen(vm: AppViewModel, onBreathe: () -> Unit = {}) {
                 }.getOrNull()
                 // A failed fingerprint reads as "cannot tell", which loads rather than skips: being
                 // wrong about this costs one pass, being wrong the other way freezes the screen.
-                if (fingerprint == null || fingerprint != lastHrFingerprint) {
-                    lastHrFingerprint = fingerprint
+                val personal = NoopPrefs.stressPersonalBaseline(context)
+                val core = refresh.loadIfChanged(fingerprint) { loadDaytimeCore(vm, personal) }
+                if (core != null) {
                     // TWO phases, so the chart is not held behind work it does not use (#2181). The
                     // scoring pass publishes first and the line can draw; the two optional HRV lenses,
                     // which live in their own card and include a Lomb-Scargle periodogram over the whole
                     // day of beats, fill in after. Both phases run on Dispatchers.Default rather than on
                     // the LaunchedEffect's main thread, which is what made this a frozen screen instead
                     // of a slow one.
-                    val personal = NoopPrefs.stressPersonalBaseline(context)
-                    val core = runCatching { loadDaytimeCore(vm, personal) }.getOrNull()
-                    daytime = core?.daytime ?: DaytimeStress.Result.EMPTY
-                    daytimeUsesPersonalBaseline = core?.usesPersonalBaseline == true
-                    val beats = core?.rr.orEmpty()
+                    daytime = core.daytime
+                    daytimeUsesPersonalBaseline = core.usesPersonalBaseline
+                    val beats = core.rr
                     val lenses = if (beats.isEmpty()) null else runCatching {
                         withContext(Dispatchers.Default) {
                             StressIndex.components(beats) to HrvFreqDomain.freqDomain(beats)
