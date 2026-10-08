@@ -1,10 +1,11 @@
 # NOOP — Android Port Guide
 
-NOOP is a standalone, fully **offline** companion app for WHOOP straps (4.0 and 5.0). It pairs
-directly with the strap over Bluetooth Low Energy, stores everything on-device in SQLite, imports
+NOOP is a standalone companion app for WHOOP straps (4.0 and 5.0), with **offline collection and analytics**.
+It pairs directly with the strap over Bluetooth Low Energy, stores everything on-device in SQLite, imports
 WHOOP CSV exports and Apple Health exports, and computes recovery / strain / HRV / sleep locally.
-There is no cloud, no account — the app talks only to **your own device** and
-works only with **your own data**.
+There is no NOOP cloud or account; collection and analytics need no network connection.
+Optional network features and the default-on update check are documented in the
+[privacy inventory](PRIVACY_SECURITY.md#11-network-paths-canonical-inventory).
 
 This document covers the **Android client** under [`android/`](../android). The macOS app is the
 reference implementation; the Android app is a native re-implementation of the same wire protocol
@@ -46,7 +47,7 @@ the same analytics so results match macOS.)
 - [Raw capture import (`capture.json`)](#raw-capture-import-capturejson)
 - [Analytics](#analytics)
 - [Compose UI](#compose-ui)
-- [Permissions and the no-internet posture](#permissions-and-the-no-internet-posture)
+- [Permissions and offline collection](#permissions-and-offline-collection)
 - [Verification checklist](#verification-checklist)
 - [Credits](#credits)
 
@@ -122,8 +123,8 @@ bump forces matching KSP and Compose-compiler bumps:
 | `sourceCompatibility` / `jvmTarget` | `17` | JDK 17 |
 | `applicationId` | `com.noop.whoop` | `.debug` suffix on debug builds |
 
-The app declares **no `INTERNET` permission** by design (see
-[Permissions](#permissions-and-the-no-internet-posture)) and sets `android:allowBackup="false"`.
+The app declares `INTERNET` for its documented network features (see
+[Permissions](#permissions-and-offline-collection)) and sets `android:allowBackup="false"`.
 
 ---
 
@@ -538,8 +539,8 @@ A few Swift tables are not yet mirrored as Room entities (`rawBatch`, `cursors`,
 `workout`, `appleDaily`) — add them as the corresponding collector / journal / workout features are
 ported.
 
-The database is created **without** an `INTERNET` permission and lives entirely in the app's private
-storage; nothing is uploaded.
+The database lives in the app's private storage. Collection and scoring do not need internet;
+optional exports are governed by the [network inventory](PRIVACY_SECURITY.md#11-network-paths-canonical-inventory).
 
 ---
 
@@ -641,13 +642,21 @@ UI, keep that parity.
 
 ---
 
-## Permissions and the no-internet posture
+<a id="permissions-and-the-no-internet-posture"></a>
 
-The manifest is deliberately minimal and **declares no `INTERNET` permission** — nothing leaves the
-device. Permissions, straight from `android/app/src/main/AndroidManifest.xml`:
+## Permissions and offline collection
+
+`android/app/src/main/AndroidManifest.xml` **declares `INTERNET`**. It permits the app's
+network clients; it does not make BLE collection or local scoring depend on a connection.
+The [canonical privacy inventory](PRIVACY_SECURITY.md#11-network-paths-canonical-inventory)
+describes each feature's default, trigger and payload. In particular, automatic release checks
+are on by default; AI Coach and Experimental self-hosted push require configuration.
+
+Selected permissions from the manifest (the manifest is the complete list):
 
 | Permission | API range | Why |
 | --- | --- | --- |
+| `INTERNET` | all | documented network features; a [normal install-time permission](https://developer.android.com/reference/android/Manifest.permission#INTERNET), not a runtime consent prompt |
 | `BLUETOOTH_SCAN` (`neverForLocation`) | 31+ | scan for the strap; opt out of location coupling |
 | `BLUETOOTH_CONNECT` | 31+ | connect / bond / GATT I/O |
 | `BLUETOOTH`, `BLUETOOTH_ADMIN` | ≤30 | legacy install-time BLE perms |
@@ -678,7 +687,7 @@ should be re-verified against a real build, a real device, and a real strap befo
 - [x] `./gradlew :app:testDebugUnitTest` is green (analytics vectors).
 - [x] `./gradlew assembleDebug` produces `app-debug.apk`.
 - [x] `./gradlew assembleFullRelease` / `assembleDemoRelease` succeed with R8 full mode + resource shrinking.
-- [x] APK declares **no `INTERNET` permission** (`aapt dump permissions app-debug.apk`).
+- [x] Manifest declares `INTERNET`; feature gates and payloads are documented in [Privacy & Security §1.1](PRIVACY_SECURITY.md#11-network-paths-canonical-inventory).
 
 **Protocol parity (JVM, no device)**
 

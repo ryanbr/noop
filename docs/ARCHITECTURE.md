@@ -374,8 +374,9 @@ computed locally.
 
 ## 11. Design principles, restated
 
-1. **Offline by construction.** There is no network client anywhere in the data path. The strap, the
-   SQLite file, and the UI are the whole system.
+1. **Offline collection and analytics.** The strap → SQLite → scoring pipeline needs no network
+   connection. App HTTP clients and platform services are documented in the canonical
+   [privacy inventory](PRIVACY_SECURITY.md#11-network-paths-canonical-inventory).
 2. **Decoded-first durability.** Metrics are committed before raw is queued; the raw outbox is a
    prunable convenience, never the source of truth.
 3. **Resumable safe-trim.** The strap forgets historical data only after NOOP has it durably and has

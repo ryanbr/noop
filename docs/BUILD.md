@@ -1,10 +1,10 @@
 # Building NOOP
 
-NOOP is a standalone, fully **offline** companion app for WHOOP straps (4.0 and 5.0). It pairs
-directly with the strap over Bluetooth Low Energy, stores everything on-device in SQLite, imports
+NOOP is a standalone companion app for WHOOP straps (4.0 and 5.0), with **offline collection and analytics**.
+It pairs directly with the strap over Bluetooth Low Energy, stores everything on-device in SQLite, imports
 WHOOP CSV exports and Apple Health exports, and computes recovery / strain / HRV / sleep locally.
-There is no cloud, no account — the app talks only to **your own device** and
-works only with **your own data**.
+There is no NOOP cloud or account. Network features and the default-on release check are
+documented in the [privacy inventory](PRIVACY_SECURITY.md#11-network-paths-canonical-inventory).
 
 > **Not affiliated with WHOOP, and not a medical device.** "WHOOP" is used only to identify the
 > hardware this software interoperates with. NOOP contains no WHOOP code, firmware, or assets. All

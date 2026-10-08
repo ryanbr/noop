@@ -96,7 +96,11 @@ Pre-built apps you can run right now:
 
 Prefer to build it yourself? See [`docs/BUILD.md`](docs/BUILD.md).
 
-Everything runs **offline by default** — nothing about you leaves the device unless you switch on a feature that sends it. NOOP makes only three kinds of network request, all described in [`docs/PRIVACY_SECURITY.md`](docs/PRIVACY_SECURITY.md): the optional **AI Coach** (off until you add your own API key), a once-a-day check for a newer release, which sends nothing about you and never installs anything, and Android's default-off Experimental one-way **push** to an endpoint you own. Turn the check off in Settings → About and it makes no request at all. NOOP operates no server, account, or telemetry service.
+Strap collection and analytics work **offline**. NOOP operates no server, account or telemetry service.
+The release check is **on by default** and sends no health data; turn off **Check automatically**
+in Settings → About to stop automatic checks. Optional features can send data when configured.
+See the canonical [network and privacy inventory](docs/PRIVACY_SECURITY.md#11-network-paths-canonical-inventory)
+for their defaults, destinations and payloads, including platform services such as Apple's route map.
 
 ---
 
@@ -540,11 +544,10 @@ export or optional network feature you deliberately configure, including Android
 Experimental one-way push to your own endpoint; see
 [`docs/PRIVACY_SECURITY.md`](docs/PRIVACY_SECURITY.md).
 
-The app makes two kinds of network request, neither carrying anything about you: the optional
-**AI Coach** (off until you add your own key), and a once-a-day read of the latest release number so a
-sideloaded install can tell you an update exists — on by default, switchable off in Settings → About,
-and it never installs anything. Both are detailed in
-[`docs/PRIVACY_SECURITY.md`](docs/PRIVACY_SECURITY.md).
+The [canonical network inventory](docs/PRIVACY_SECURITY.md#11-network-paths-canonical-inventory)
+explains what each feature sends and how to control it. The default-on release check sends no
+health data and never installs an update. AI requests can include health summaries with your
+consent; exports and platform services have their own boundaries.
 
 ---
 
