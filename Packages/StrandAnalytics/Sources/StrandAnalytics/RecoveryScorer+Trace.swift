@@ -59,11 +59,13 @@ extension RecoveryScorer {
         // unusable one, so without the same gate here the trace would list an rhr term the score
         // did not use, which is precisely the divergence the line below promises cannot happen.
         let rhrB = rhrBaseline.flatMap { $0.usable ? $0 : nil }
+        // Only eligible personal baselines may appear in respiration rows or diagnostic terms.
+        let respB = respBaseline.flatMap { $0.usable ? $0 : nil }
 
         // The score the dashboard reads, verbatim, so the trace cannot diverge from it.
         let score = recovery(hrv: hrv, rhr: rhr, resp: resp,
                              hrvBaseline: hrvBaseline, rhrBaseline: rhrB,
-                             respBaseline: respBaseline, sleepPerf: sleepPerf,
+                             respBaseline: respB, sleepPerf: sleepPerf,
                              skinTempDev: skinTempDev)
 
         // Cold-start gate: HRV baseline not usable -> recovery() returns nil before any term is built.
@@ -83,7 +85,7 @@ extension RecoveryScorer {
             lines.append("charge baseline rhr mean=\(r2(b.baseline)) spread=\(r2(b.spread)) "
                 + "nValid=\(b.nValid) status=\(b.status.rawValue)")
         }
-        if let b = respBaseline {
+        if let b = respB {
             lines.append("charge baseline resp mean=\(r2(b.baseline)) spread=\(r2(b.spread)) "
                 + "nValid=\(b.nValid) status=\(b.status.rawValue)")
         }
@@ -117,7 +119,7 @@ extension RecoveryScorer {
         }
 
         // Resp term: lower is better, optional (needs BOTH the value and a baseline).
-        if let r = resp, let b = respBaseline {
+        if let r = resp, let b = respB {
             let z = zScore(b.baseline, mean: r, spread: b.spread)
             terms.append(("resp", z, wResp))
             lines.append("charge term resp z=\(r2(z)) w=\(r2(wResp)) (lower resp is better)")

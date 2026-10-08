@@ -124,10 +124,12 @@ object RecoveryDrivers {
         // score and row alike, sees the same thing. Named rather than shadowing the parameter, which
         // would warn.
         val rhrB = rhrBaseline?.takeIf { it.usable }
+        // Only eligible personal baselines may appear in respiration rows or diagnostic terms.
+        val respB = respBaseline?.takeIf { it.usable }
         val full = RecoveryScorer.recovery(
             hrv = hrv, rhr = rhr, resp = resp,
             hrvBaseline = hrvBaseline, rhrBaseline = rhrB,
-            respBaseline = respBaseline, sleepPerf = sleepPerf, skinTempDev = skinTempDev,
+            respBaseline = respB, sleepPerf = sleepPerf, skinTempDev = skinTempDev,
         ) ?: return emptyList()
 
         // Marginal-vs-neutral attribution: a term's deltaPoints is the full score minus the score
@@ -161,7 +163,7 @@ object RecoveryDrivers {
             RecoveryScorer.recovery(
                 hrv = hrvBaseline.baseline, rhr = rhr, resp = resp,
                 hrvBaseline = hrvBaseline, rhrBaseline = rhrB,
-                respBaseline = respBaseline, sleepPerf = sleepPerf, skinTempDev = skinTempDev,
+                respBaseline = respB, sleepPerf = sleepPerf, skinTempDev = skinTempDev,
             ),
         )
         drivers.add(
@@ -185,7 +187,7 @@ object RecoveryDrivers {
                 RecoveryScorer.recovery(
                     hrv = hrv, rhr = rhrB.baseline, resp = resp,
                     hrvBaseline = hrvBaseline, rhrBaseline = rhrB,
-                    respBaseline = respBaseline, sleepPerf = sleepPerf, skinTempDev = skinTempDev,
+                    respBaseline = respB, sleepPerf = sleepPerf, skinTempDev = skinTempDev,
                 ),
             )
             drivers.add(
@@ -208,7 +210,7 @@ object RecoveryDrivers {
                         RecoveryScorer.recovery(
                             hrv = hrv, rhr = rhr, resp = resp,
                             hrvBaseline = hrvBaseline, rhrBaseline = rhrB,
-                            respBaseline = respBaseline, sleepPerf = RecoveryScorer.sleepPerfCenter,
+                            respBaseline = respB, sleepPerf = RecoveryScorer.sleepPerfCenter,
                             skinTempDev = skinTempDev,
                         ),
                     ),
@@ -220,12 +222,12 @@ object RecoveryDrivers {
             )
         }
         // Respiration (lower vs baseline supports recovery). Neutral = respiration at the baseline mean.
-        if (resp != null && respBaseline != null) {
+        if (resp != null && respB != null) {
             val respPoints = points(
                 RecoveryScorer.recovery(
-                    hrv = hrv, rhr = rhr, resp = respBaseline.baseline,
+                    hrv = hrv, rhr = rhr, resp = respB.baseline,
                     hrvBaseline = hrvBaseline, rhrBaseline = rhrB,
-                    respBaseline = respBaseline, sleepPerf = sleepPerf, skinTempDev = skinTempDev,
+                    respBaseline = respB, sleepPerf = sleepPerf, skinTempDev = skinTempDev,
                 ),
             )
             drivers.add(
@@ -233,10 +235,10 @@ object RecoveryDrivers {
                     label = ChargeDriverLabel.RESPIRATORY_RATE,
                     deltaPoints = respPoints,
                     value = resp,
-                    baseline = respBaseline.baseline,
+                    baseline = respB.baseline,
                     unit = ChargeDriverUnit.BREATHS_PER_MINUTE,
                     verdict = respVerdict(
-                        value = resp, baseline = respBaseline.baseline, deltaPoints = respPoints,
+                        value = resp, baseline = respB.baseline, deltaPoints = respPoints,
                     ),
                 ),
             )
@@ -248,7 +250,7 @@ object RecoveryDrivers {
                 RecoveryScorer.recovery(
                     hrv = hrv, rhr = rhr, resp = resp,
                     hrvBaseline = hrvBaseline, rhrBaseline = rhrB,
-                    respBaseline = respBaseline, sleepPerf = sleepPerf, skinTempDev = 0.0,
+                    respBaseline = respB, sleepPerf = sleepPerf, skinTempDev = 0.0,
                 ),
             )
             drivers.add(

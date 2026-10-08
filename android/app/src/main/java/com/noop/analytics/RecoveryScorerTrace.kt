@@ -75,12 +75,14 @@ object RecoveryScorerTrace {
         // unusable one, so without the same gate here the trace would list an rhr term the score
         // did not use, which is precisely the divergence the line below promises cannot happen.
         val rhrB = rhrBaseline?.takeIf { it.usable }
+        // Only eligible personal baselines may appear in respiration rows or diagnostic terms.
+        val respB = respBaseline?.takeIf { it.usable }
 
         // The score the dashboard reads, verbatim, so the trace cannot diverge from it.
         val score = RecoveryScorer.recovery(
             hrv = hrv, rhr = rhr, resp = resp,
             hrvBaseline = hrvBaseline, rhrBaseline = rhrB,
-            respBaseline = respBaseline, sleepPerf = sleepPerf, skinTempDev = skinTempDev,
+            respBaseline = respB, sleepPerf = sleepPerf, skinTempDev = skinTempDev,
         )
 
         // Cold-start gate: HRV baseline not usable -> recovery() returns null before any term is built.
@@ -104,7 +106,7 @@ object RecoveryScorerTrace {
                     "nValid=${b.nValid} status=${b.status.raw}",
             )
         }
-        respBaseline?.let { b ->
+        respB?.let { b ->
             lines.add(
                 "charge baseline resp mean=${r2(b.baseline)} spread=${r2(b.spread)} " +
                     "nValid=${b.nValid} status=${b.status.raw}",
@@ -140,8 +142,8 @@ object RecoveryScorerTrace {
         }
 
         // Resp term: lower is better, optional (needs BOTH the value and a baseline).
-        if (resp != null && respBaseline != null) {
-            val z = RecoveryScorer.zScore(respBaseline.baseline, resp, respBaseline.spread)
+        if (resp != null && respB != null) {
+            val z = RecoveryScorer.zScore(respB.baseline, resp, respB.spread)
             terms.add(z to RecoveryScorer.wResp)
             lines.add("charge term resp z=${r2(z)} w=${r2(RecoveryScorer.wResp)} (lower resp is better)")
         } else {

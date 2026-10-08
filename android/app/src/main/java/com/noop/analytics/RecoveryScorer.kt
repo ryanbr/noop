@@ -404,8 +404,9 @@ object RecoveryScorer {
     }
 
     /**
-     * Convenience overload taking [BaselineState] directly. Enforces the cold-start
-     * gate using `hrvBaseline.usable`. Mirrors the Swift `recovery(...)` overload.
+     * Convenience overload taking [BaselineState] directly. HRV must be usable for a score;
+     * unusable optional personal baselines are omitted before weight renormalization.
+     * Mirrors the Swift `recovery(...)` overload.
      */
     fun recovery(
         hrv: Double,
@@ -431,12 +432,12 @@ object RecoveryScorer {
         // call site: the headline and the driver breakdown then agree by construction. Mirrors how
         // hrvBaselineUsable is already derived below.
         rhrBaseline = rhrBaseline?.takeIf { it.usable }?.let { DriverBaseline(it) },
-        respBaseline = respBaseline?.let { DriverBaseline(it) },
+        respBaseline = respBaseline?.takeIf { it.usable }?.let { DriverBaseline(it) },
         sleepPerf = sleepPerf,
         skinTempDev = skinTempDev,
         hrvBaselineUsable = hrvBaseline.usable,
         recoveryIndexSlope = recoveryIndexSlope,
-        effortBaseline = effortBaseline?.let { DriverBaseline(it) },
+        effortBaseline = effortBaseline?.takeIf { it.usable }?.let { DriverBaseline(it) },
         priorDayEffort = priorDayEffort,
     )
 }

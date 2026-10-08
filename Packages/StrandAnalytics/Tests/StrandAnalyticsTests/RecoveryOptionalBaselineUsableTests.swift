@@ -55,6 +55,7 @@ final class RecoveryOptionalBaselineUsableTests: XCTestCase {
         let respStates: [BaselineState?] = [nil] + statuses.map { optionalBaselineFixture(16, 2, $0) }
         let effortStates: [BaselineState?] = [nil] + statuses.map { optionalBaselineFixture(45, 10, $0) }
         var cases = 0
+        var oracleLines: [String] = []
         for respBase in respStates {
             for effortBase in effortStates {
                 for resp in respiratoryValues {
@@ -68,15 +69,47 @@ final class RecoveryOptionalBaselineUsableTests: XCTestCase {
                             sleepPerf: 0.85, skinTempDev: 0.2, recoveryIndexSlope: -0.5,
                             effortBaseline: effortBase.flatMap { $0.usable ? RecoveryScorer.DriverBaseline($0) : nil },
                             priorDayEffort: effort)
-                        XCTAssertEqual(optionalChargeFixture(respBase: respBase, effortBase: effortBase,
-                                                              resp: resp, effort: effort)?.bitPattern,
-                                       expected?.bitPattern)
+                        let actual = optionalChargeFixture(respBase: respBase, effortBase: effortBase,
+                                                           resp: resp, effort: effort)
+                        XCTAssertEqual(actual?.bitPattern, expected?.bitPattern)
+                        if resp == 14, effort == 60 {
+                            let bits = actual.map { String($0.bitPattern, radix: 16) } ?? "nil"
+                            oracleLines.append("\(respBase?.status.rawValue ?? "nil")/\(effortBase?.status.rawValue ?? "nil")|\(bits)")
+                        }
                         cases += 1
                     }
                 }
             }
         }
         XCTAssertEqual(cases, 625)
+        // Compiled original Swift output with only eligible states supplied, copied verbatim to Kotlin.
+        XCTAssertEqual(oracleLines.joined(separator: "\n"), """
+        nil/nil|4051b9be0a68921e
+        nil/calibrating|4051b9be0a68921e
+        nil/provisional|405119a83eb9de93
+        nil/trusted|405119a83eb9de93
+        nil/stale|4051b9be0a68921e
+        calibrating/nil|4051b9be0a68921e
+        calibrating/calibrating|4051b9be0a68921e
+        calibrating/provisional|405119a83eb9de93
+        calibrating/trusted|405119a83eb9de93
+        calibrating/stale|4051b9be0a68921e
+        provisional/nil|4051e5d635c94772
+        provisional/calibrating|4051e5d635c94772
+        provisional/provisional|40514d26488c9eb1
+        provisional/trusted|40514d26488c9eb1
+        provisional/stale|4051e5d635c94772
+        trusted/nil|4051e5d635c94772
+        trusted/calibrating|4051e5d635c94772
+        trusted/provisional|40514d26488c9eb1
+        trusted/trusted|40514d26488c9eb1
+        trusted/stale|4051e5d635c94772
+        stale/nil|4051b9be0a68921e
+        stale/calibrating|4051b9be0a68921e
+        stale/provisional|405119a83eb9de93
+        stale/trusted|405119a83eb9de93
+        stale/stale|4051b9be0a68921e
+        """)
         XCTAssertNotEqual(optionalChargeFixture(respBase: nil)?.bitPattern,
                           optionalChargeFixture(respBase: optionalBaselineFixture(16, 2))?.bitPattern)
         XCTAssertNotEqual(optionalChargeFixture(respBase: nil)?.bitPattern,

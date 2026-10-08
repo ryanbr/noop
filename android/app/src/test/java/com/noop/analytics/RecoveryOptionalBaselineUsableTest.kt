@@ -1,6 +1,10 @@
 package com.noop.analytics
 
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** Swift twin: RecoveryOptionalBaselineUsableTests. */
@@ -57,6 +61,7 @@ class RecoveryOptionalBaselineUsableTest {
         val respStates = listOf(null) + statuses.map { optionalBaselineFixture(16.0, 2.0, it) }
         val effortStates = listOf(null) + statuses.map { optionalBaselineFixture(45.0, 10.0, it) }
         var cases = 0
+        val oracleLines = ArrayList<String>()
         for (respBase in respStates) for (effortBase in effortStates) {
             for (resp in respiratoryValues) for (effort in effortValues) {
                 val expected = RecoveryScorer.recovery(
@@ -68,11 +73,44 @@ class RecoveryOptionalBaselineUsableTest {
                     effortBaseline = effortBase?.takeIf { it.usable }?.let { RecoveryScorer.DriverBaseline(it) },
                     priorDayEffort = effort,
                 )
-                assertEquals(expected?.toRawBits(), optionalChargeFixture(respBase, effortBase, resp, effort)?.toRawBits())
+                val actual = optionalChargeFixture(respBase, effortBase, resp, effort)
+                assertEquals(expected?.toRawBits(), actual?.toRawBits())
+                if (resp == 14.0 && effort == 60.0) {
+                    val bits = actual?.let { java.lang.Long.toHexString(it.toRawBits()) } ?: "nil"
+                    oracleLines.add("${respBase?.status?.raw ?: "nil"}/${effortBase?.status?.raw ?: "nil"}|$bits")
+                }
                 cases++
             }
         }
         assertEquals(625, cases)
+        // Compiled original Swift stdout; exact Double bits, shared with the Swift regression.
+        assertEquals("""
+            nil/nil|4051b9be0a68921e
+            nil/calibrating|4051b9be0a68921e
+            nil/provisional|405119a83eb9de93
+            nil/trusted|405119a83eb9de93
+            nil/stale|4051b9be0a68921e
+            calibrating/nil|4051b9be0a68921e
+            calibrating/calibrating|4051b9be0a68921e
+            calibrating/provisional|405119a83eb9de93
+            calibrating/trusted|405119a83eb9de93
+            calibrating/stale|4051b9be0a68921e
+            provisional/nil|4051e5d635c94772
+            provisional/calibrating|4051e5d635c94772
+            provisional/provisional|40514d26488c9eb1
+            provisional/trusted|40514d26488c9eb1
+            provisional/stale|4051e5d635c94772
+            trusted/nil|4051e5d635c94772
+            trusted/calibrating|4051e5d635c94772
+            trusted/provisional|40514d26488c9eb1
+            trusted/trusted|40514d26488c9eb1
+            trusted/stale|4051e5d635c94772
+            stale/nil|4051b9be0a68921e
+            stale/calibrating|4051b9be0a68921e
+            stale/provisional|405119a83eb9de93
+            stale/trusted|405119a83eb9de93
+            stale/stale|4051b9be0a68921e
+        """.trimIndent(), oracleLines.joinToString("\n"))
         assertNotEquals(optionalChargeFixture(null)?.toRawBits(),
             optionalChargeFixture(optionalBaselineFixture(16.0, 2.0))?.toRawBits())
         assertNotEquals(optionalChargeFixture(null)?.toRawBits(),
