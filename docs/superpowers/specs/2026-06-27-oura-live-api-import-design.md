@@ -1,5 +1,16 @@
 # Oura live API import — design
 
+This is a historical design proposal, not current setup instructions. The implementation lives in
+[`Strand/Oura/`](../../../Strand/Oura/), with pure parsers in
+[`StrandImport`](../../../Packages/StrandImport/Sources/StrandImport/) and storage in
+[`OuraRawStore`](../../../Packages/WhoopStore/Sources/WhoopStore/OuraRawStore.swift).
+Current build opt-in, credentials and privacy behavior are documented in
+[Privacy/security §1.1b](../../PRIVACY_SECURITY.md#11b-the-oura-history-import-compiled-out-by-default-bring-your-own-oauth-app).
+The original completed execution recipes remain available at their implementation commit:
+[foundation](https://github.com/ryanbr/noop/blob/cb749ae8cc2fedd5cb67ef5c44d82a493f041e0e/docs/superpowers/plans/2026-06-27-oura-live-api-import-1-foundation.md),
+[network/auth](https://github.com/ryanbr/noop/blob/cb749ae8cc2fedd5cb67ef5c44d82a493f041e0e/docs/superpowers/plans/2026-06-27-oura-live-api-import-2-network-auth.md),
+[orchestration/UI](https://github.com/ryanbr/noop/blob/cb749ae8cc2fedd5cb67ef5c44d82a493f041e0e/docs/superpowers/plans/2026-06-27-oura-live-api-import-3-orchestration-ui.md).
+
 - **Date:** 2026-06-27
 - **Status:** Draft for review
 - **Scope:** iOS only (the Swift app). macOS, Android explicitly out (see §13).

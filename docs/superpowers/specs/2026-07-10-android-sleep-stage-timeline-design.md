@@ -1,5 +1,15 @@
 # Android Sleep "Stage breakdown" — mirror iOS #988 stage-timeline rows
 
+This is the historical design record. The maintained implementation is in
+[`SleepScreen.kt`](../../../android/app/src/main/java/com/noop/ui/SleepScreen.kt),
+[`SleepStageTimelineLogic.kt`](../../../android/app/src/main/java/com/noop/ui/SleepStageTimelineLogic.kt) and
+[`SleepStageBreakdownUi.kt`](../../../android/app/src/main/java/com/noop/ui/SleepStageBreakdownUi.kt),
+with [interval](../../../android/app/src/test/java/com/noop/ui/StageTimelineIntervalsTest.kt),
+[smoothing](../../../android/app/src/test/java/com/noop/ui/StageDisplaySmoothingTest.kt) and
+[row-span](../../../android/app/src/test/java/com/noop/ui/StageRowSpansTest.kt) tests.
+The [original completed execution recipe](https://github.com/ryanbr/noop/blob/5e8f0e8b33df470d4a12c86b04083acb18775794/docs/superpowers/plans/2026-07-10-android-sleep-stage-timeline.md)
+is retained in Git history; the design and useful manual checks remain here.
+
 **Date:** 2026-07-10
 **Scope:** Android `SleepScreen` hero card only — graph + legend. `MotionStrip` component unchanged.
 **Decision trail:** user approved mirroring iOS's WHOOP sleep-details layout (ryanAtriumAi #988,
@@ -91,3 +101,23 @@ The rows stack is taller than the old strip. iOS uses `height: 524` for the time
   (follow the `Charts.kt` PERF hoist convention).
 - **MotionStrip alignment**: rows have horizontal padding the old full-bleed strip didn't; MotionStrip
   must adopt the same inner insets or epochs skew against the tracks.
+
+## Manual checks
+
+The execution recipe's UI checks remain useful when changing this component:
+
+1. **Real-stage night** (a night the on-device stager persisted — any recent strap night):
+   - Four rows in order AWAKE · LIGHT · DEEP · REM; percents/durations agree with the night's stage totals.
+   - Segments read as clean blocks (no 30 s comb); track hatching visible where the stage is absent.
+   - MotionStrip sits under the rows, epochs visually aligned with segment edges (check first/last
+     epoch against onset/wake); clock labels onset · midpoint · wake under it.
+   - Tap DEEP: other rows' segments and % dim, DEEP row gets a stroke, insight slot shows
+     "Deep tonight: …". Tap again: selection clears, hint returns, card height does NOT change.
+   - Navigate to another night and back: selection cleared.
+2. **Fallback night** (imported night, e.g. a Health Connect / minutes-only import): flat strip +
+   `StageBreakdownRows` footer, "approx. stages (on-device)" absent, **no** MotionStrip, no dot legend.
+3. **Honest empties**: night with no stage data → "No stage data recorded for this night."; real
+   night with no persisted motion → MotionStrip's "No movement detail for this night." note.
+4. **Accessibility**: with TalkBack, each row reads as one node — "Awake: 49 min, 10 percent of
+   the night", action hint "Highlights this stage on the sleep chart".
+5. **Theme**: check Classic and default palettes (row bg is a `textPrimary` alpha, must work on both).

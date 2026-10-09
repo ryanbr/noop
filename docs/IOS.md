@@ -1,5 +1,8 @@
 # iOS — Install & Build
 
+[Documentation index](README.md) · [Install](#install-sideload) · [Build](#build-from-source) ·
+[Historical porting notes](#historical-porting-notes)
+
 > **iOS is now a direct download (v1.96).** Grab **`NOOP-v<version>-ios.ipa`** from the
 > [Releases](https://github.com/ryanbr/noop/releases) page and install it with **AltStore** or **SideStore** — see
 > **[Install (sideload)](#install-sideload)** below. No Mac, no Xcode, no App Store, and no Apple
@@ -9,7 +12,7 @@
 > shared with the widget. The app target (`NOOPiOS` +
 > `NOOPiOSWidgets`) also still builds from source in Xcode if you'd rather (**[Build from source](#build-from-source)**).
 > A CI job ([`app-build.yml`](../.github/workflows/app-build.yml)) compiles both the macOS and iOS
-> targets on every change so iOS can't silently break.
+> targets on relevant app and package changes so iOS can't silently break.
 
 ## Install (sideload)
 
@@ -121,7 +124,7 @@ are very welcome.
 
 Prefer to build it yourself (which also grants HealthKit/widgets under your own Apple ID)? Run
 `xcodegen generate`, then build the **`NOOPiOS`** scheme in Xcode. The reconciliation that brought the
-[PR #42](../../../pull/42) port onto current `main` is summarised in **"Lessons from the fold-in"**
+[PR #42](https://github.com/ryanbr/noop/pull/42) port onto current `main` is summarised in **"Lessons from the fold-in"**
 below.
 
 > 🛠️ **Signing it under your own Apple ID** (thanks @gingerbeardman for the original recipe). Apple
@@ -144,9 +147,15 @@ below.
 > Swift↔Kotlin parity discipline, and the playbook for adding a feature across all three. Read that
 > first if you're building something that should land on more than one client.
 
-This document describes how NOOP — a standalone, fully offline companion app for
-WHOOP straps — is positioned for iOS, what already works, and the concrete plan
-for a native iOS app target.
+## Historical porting notes
+
+<details>
+<summary>Original iOS port plan and v1.94 fold-in notes</summary>
+
+The following records the original port and its implementation. Forward-looking statements and
+package counts describe that work, not the current release. For current targets, deployment floors
+and build commands, use [BUILD.md](BUILD.md#ios) and `project.yml`; for shared-code conventions, use
+[CROSS_PLATFORM.md](CROSS_PLATFORM.md). The notes are retained at this URL for existing references.
 
 > **Not affiliated with WHOOP.** NOOP is an independent, unofficial project. It is
 > not affiliated with, endorsed by, or connected to WHOOP, Inc. "WHOOP" is used
@@ -230,7 +239,7 @@ charts, and palette render on iOS as-is.
 
 The macOS app target lives in [`Strand/`](../Strand/). It is the reference
 implementation; Android ships as a full app (`android/`), and the iOS app is an
-experimental, build-from-source community port ([PR #42](../../../pull/42)). The macOS app composes
+experimental, build-from-source community port ([PR #42](https://github.com/ryanbr/noop/pull/42)). The macOS app composes
 the packages like this:
 
 - `Strand/App/StrandApp.swift` — the `@main` SwiftUI `App`. Declares a `WindowGroup`
@@ -637,3 +646,5 @@ How PR #42's port was brought onto current `main` — useful the next time a scr
 *NOOP keeps everything on-device. The iOS plan changes the front door (menu bar →
 widgets, AppKit → UIKit, file import → HealthKit) but not the principle: your strap,
 your data, no cloud.*
+
+</details>
