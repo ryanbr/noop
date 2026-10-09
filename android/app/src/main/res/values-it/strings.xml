@@ -2309,7 +2309,8 @@
     <string name="today_show_all_metrics">Mostra tutte le metriche (%1$d)</string>
     <string name="today_hr_empty_selected_day">Nessuna frequenza cardiaca per questo giorno. Torna a un giorno in cui la fascia era indossata.</string>
     <string name="today_hr_empty_window">Nessuna frequenza cardiaca nelle ultime %1$s. Prova una finestra più ampia o Oggi.</string>
-    <string name="today_hr_calibrating">Calibrazione, ancora nessuna frequenza cardiaca salvata oggi. La curva si riempie man mano che la fascia scarica i dati.</string>
+    <string name="today_hr_none_today">Per oggi non è ancora salvata alcuna frequenza cardiaca. La curva viene tracciata quando la fascia scarica i dati o quando li porta un’importazione.</string>
+    <string name="today_hr_one_block">Per oggi è salvato un solo blocco di cinque minuti di frequenza cardiaca. Per tracciare una linea ne servono due.</string>
     <string name="today_hr_average_last_window">Media su 5 minuti | ultime %1$s</string>
     <string name="today_hr_zoomed_hint">Zoom attivo · trascina per spostarti</string>
     <string name="today_not_connected">Non connesso</string>

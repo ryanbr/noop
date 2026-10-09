@@ -2243,7 +2243,8 @@
     <string name="today_show_all_metrics">Afficher toutes les mesures (%1$d)</string>
     <string name="today_hr_empty_selected_day">Aucune donnée de fréquence cardiaque pour ce jour. Revenez à un jour où vous portiez le bracelet.</string>
     <string name="today_hr_empty_window">Aucune donnée de fréquence cardiaque au cours des dernières %1$s. Essayez une période plus large ou « Aujourd’hui ».</string>
-    <string name="today_hr_calibrating">Étalonnage en cours. Aucune fréquence cardiaque enregistrée aujourd’hui. La courbe se complétera lorsque le bracelet transférera ses données.</string>
+    <string name="today_hr_none_today">Aucune fréquence cardiaque n’est encore enregistrée pour aujourd’hui. La courbe se trace dès que le bracelet transfère ses données ou qu’un import en apporte.</string>
+    <string name="today_hr_one_block">Un seul bloc de cinq minutes de fréquence cardiaque est enregistré pour aujourd’hui. Il en faut deux pour tracer une ligne.</string>
     <string name="today_hr_average_last_window">Moyenne sur 5 minutes | dernières %1$s</string>
     <string name="today_hr_zoomed_hint">Vue agrandie · faites glisser pour déplacer</string>
     <string name="today_not_connected">Non connecté</string>

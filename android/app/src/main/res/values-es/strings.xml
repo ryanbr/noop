@@ -2244,7 +2244,8 @@
     <string name="today_show_all_metrics">Mostrar todas las métricas (%1$d)</string>
     <string name="today_hr_empty_selected_day">No hay datos de frecuencia cardíaca para este día. Vuelve a un día en que llevaras la pulsera.</string>
     <string name="today_hr_empty_window">No hay datos de frecuencia cardíaca en las últimas %1$s. Prueba un intervalo mayor o «Hoy».</string>
-    <string name="today_hr_calibrating">Calibrando. Aún no se han guardado datos de frecuencia cardíaca hoy. La curva se completará cuando la pulsera transfiera los datos.</string>
+    <string name="today_hr_none_today">Aún no hay datos de frecuencia cardíaca guardados para hoy. La curva se dibujará cuando la pulsera los transfiera o cuando una importación los traiga.</string>
+    <string name="today_hr_one_block">Solo hay un bloque de cinco minutos de frecuencia cardíaca guardado para hoy. La curva necesita dos para trazar una línea.</string>
     <string name="today_hr_average_last_window">Media de 5 minutos | últimas %1$s</string>
     <string name="today_hr_zoomed_hint">Ampliado · arrastra para desplazarte</string>
     <string name="today_not_connected">Sin conexión</string>

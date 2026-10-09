@@ -2199,7 +2199,8 @@
     <string name="today_show_all_metrics">Показать все метрики (%1$d)</string>
     <string name="today_hr_empty_selected_day">Нет пульса за этот день. Вернитесь к дню, когда браслет был надет.</string>
     <string name="today_hr_empty_window">Нет пульса за последние %1$s. Попробуйте более широкое окно или «Сегодня».</string>
-    <string name="today_hr_calibrating">Калибровка, пульс за сегодня ещё не накоплен. Ваша кривая заполнится по мере выгрузки с браслета.</string>
+    <string name="today_hr_none_today">За сегодня пульс ещё не сохранён. Кривая появится, когда браслет выгрузит данные или их принесёт импорт.</string>
+    <string name="today_hr_one_block">За сегодня сохранён только один пятиминутный блок пульса. Чтобы провести линию, нужно два.</string>
     <string name="today_hr_average_last_window">5-минутное среднее | последние %1$s</string>
     <string name="today_hr_zoomed_hint">Увеличено · перетащите для панорамирования</string>
     <string name="today_not_connected">Не подключено</string>

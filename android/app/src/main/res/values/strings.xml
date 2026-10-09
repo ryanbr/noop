@@ -2365,7 +2365,8 @@
     <string name="today_show_all_metrics">Show all metrics (%1$d)</string>
     <string name="today_hr_empty_selected_day">No heart rate for this day. Step back to a day the strap was worn.</string>
     <string name="today_hr_empty_window">No heart rate in the last %1$s. Try a wider window or Today.</string>
-    <string name="today_hr_calibrating">Calibrating, no heart rate banked yet today. Your curve fills in as the strap offloads.</string>
+    <string name="today_hr_none_today">No heart rate stored for today yet. The curve draws once the strap offloads, or once an import brings one in.</string>
+    <string name="today_hr_one_block">Only one five-minute block of heart rate is stored for today. The curve needs two of them to draw a line.</string>
     <string name="today_hr_average_last_window">5-minute average | last %1$s</string>
     <string name="today_hr_zoomed_hint">Zoomed in · drag to pan</string>
     <string name="today_not_connected">Not connected</string>

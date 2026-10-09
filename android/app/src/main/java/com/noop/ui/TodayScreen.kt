@@ -1,5 +1,6 @@
 package com.noop.ui
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -6455,6 +6456,35 @@ private fun HrWindowPills(selection: HrWindow, onSelect: (HrWindow) -> Unit) {
     )
 }
 
+/**
+ * Which line the Today HR card shows when it cannot draw a curve, chosen from what the read returned
+ * and from nothing else (#863).
+ *
+ * The card's gate is that the active-strap-plus-imports union came back with under two 5-minute
+ * buckets. It does NOT know whether a strap is calibrating, whether it has offloaded, or whether rows
+ * sit under a source the union cannot reach, which is why no branch here names a cause: the old single
+ * line opened "Calibrating" and asserted "no heart rate banked yet today", and a card naming an
+ * unchecked cause sends a reader looking in the wrong place.
+ *
+ * [dayBucketCount] is the DAY's count, never the windowed subset, because every branch below speaks
+ * about the day: a narrow rolling window that happens to exclude the one stored block must not make the
+ * card claim the day holds nothing. The window branch is the one exception and says so explicitly, and
+ * it only applies while the day itself has a drawable curve to go back to.
+ *
+ * Pure so the selection is pinned without a Compose host. Swift twin: `TodayView.hrEmptyTitle`.
+ */
+@StringRes
+internal fun hrEmptyMessageRes(
+    isToday: Boolean,
+    windowIsWholeDay: Boolean,
+    dayBucketCount: Int,
+): Int = when {
+    !isToday -> R.string.today_hr_empty_selected_day
+    !windowIsWholeDay && dayBucketCount >= 2 -> R.string.today_hr_empty_window
+    dayBucketCount == 1 -> R.string.today_hr_one_block
+    else -> R.string.today_hr_none_today
+}
+
 /** The width of the Today HR card's buckets.
  *
  *  ONE literal, read by the load below and by the gap test in [OverviewHRChart]. They have to agree:
@@ -6583,6 +6613,14 @@ private fun HeartRateTrendCard(
     // #985: the check reads the WINDOWED subset, and the pills stay visible in the empty state, so a
     // too-narrow rolling window (say 1h with no recent offload) is never a dead end — the user widens it
     // or steps back to Today, and the message says which window came up empty.
+    //
+    // The copy states what the READ returned and nothing else. It used to open "Calibrating" and assert
+    // "no heart rate banked yet today", neither of which is checked here: the gate is simply that the
+    // active-strap-plus-imports union came back with under two buckets. Nothing on this branch knows
+    // whether a strap is calibrating, whether it has offloaded, or whether rows are banked somewhere this
+    // union cannot see, and a card that names a cause it has not established sends a reader looking in the
+    // wrong place. One stored block is also not "no heart rate", so it gets its own line rather than being
+    // rounded down to zero.
     if (winBuckets.size < 2) {
         SectionHeader(uiString(R.string.today_section_heart_rate), overline = selectedLabel)
         NoopCard {
@@ -6591,14 +6629,17 @@ private fun HeartRateTrendCard(
                 if (selectedDay == today) {
                     HrWindowPills(hrWindow) { hrWindowOrdinal = it.ordinal }
                 }
+                val emptyRes = hrEmptyMessageRes(
+                    isToday = selectedDay == today,
+                    windowIsWholeDay = hrWindow == HrWindow.TODAY,
+                    dayBucketCount = buckets.size,
+                )
                 Text(
-                    when {
-                        selectedDay != today ->
-                            uiString(R.string.today_hr_empty_selected_day)
-                        hrWindow != HrWindow.TODAY && buckets.size >= 2 ->
-                            uiString(R.string.today_hr_empty_window, uiString(hrWindow.labelRes))
-                        else ->
-                            uiString(R.string.today_hr_calibrating)
+                    // Only the window line takes an argument; the rest are plain.
+                    if (emptyRes == R.string.today_hr_empty_window) {
+                        uiString(emptyRes, uiString(hrWindow.labelRes))
+                    } else {
+                        uiString(emptyRes)
                     },
                     style = NoopType.footnote,
                     color = Palette.textTertiary,

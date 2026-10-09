@@ -2242,7 +2242,8 @@
     <string name="today_show_all_metrics">Pokaż wszystkie wskaźniki (%1$d)</string>
     <string name="today_hr_empty_selected_day">Brak danych tętna dla tego dnia. Wróć do dnia, w którym opaska była noszona.</string>
     <string name="today_hr_empty_window">Brak danych tętna z ostatnich %1$s. Wybierz dłuższy okres lub „Dzisiaj”.</string>
-    <string name="today_hr_calibrating">Trwa kalibracja. Dzisiaj nie zapisano jeszcze tętna. Wykres wypełni się po przesłaniu danych z opaski.</string>
+    <string name="today_hr_none_today">Na dziś nie zapisano jeszcze żadnych danych tętna. Wykres pojawi się, gdy opaska prześle dane lub przyniesie je import.</string>
+    <string name="today_hr_one_block">Na dziś zapisano tylko jeden pięciominutowy blok tętna. Do narysowania linii potrzebne są dwa.</string>
     <string name="today_hr_average_last_window">Średnia 5-minutowa | ostatnie %1$s</string>
     <string name="today_hr_zoomed_hint">Powiększono · przeciągnij, aby przesunąć</string>
     <string name="today_not_connected">Brak połączenia</string>

@@ -2164,7 +2164,8 @@
     <string name="today_show_all_metrics">显示全部指标（%1$d）</string>
     <string name="today_hr_empty_selected_day">当天没有心率数据。请返回到佩戴手环的日期。</string>
     <string name="today_hr_empty_window">过去 %1$s 内没有心率数据。请尝试更长的时间范围或选择“今天”。</string>
-    <string name="today_hr_calibrating">正在校准。今天尚未保存心率数据，手环传输数据后曲线会逐步显示。</string>
+    <string name="today_hr_none_today">今天尚未保存心率数据。手环传输数据或导入带入数据后，曲线就会绘制。</string>
+    <string name="today_hr_one_block">今天只保存了一个五分钟的心率数据块。绘制曲线需要两个。</string>
     <string name="today_hr_average_last_window">5 分钟平均值 | 过去 %1$s</string>
     <string name="today_hr_zoomed_hint">已放大 · 拖动平移</string>
     <string name="today_not_connected">未连接</string>

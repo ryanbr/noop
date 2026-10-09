@@ -2257,7 +2257,8 @@
     <string name="today_show_all_metrics">Alle Messwerte anzeigen (%1$d)</string>
     <string name="today_hr_empty_selected_day">Keine Herzfrequenzdaten für diesen Tag. Gehe zu einem Tag zurück, an dem du den Strap getragen hast.</string>
     <string name="today_hr_empty_window">Keine Herzfrequenzdaten in den letzten %1$s. Wähle einen größeren Zeitraum oder „Heute“.</string>
-    <string name="today_hr_calibrating">Kalibrierung läuft. Heute wurden noch keine Herzfrequenzdaten gespeichert. Die Kurve füllt sich, sobald der Strap Daten überträgt.</string>
+    <string name="today_hr_none_today">Für heute sind noch keine Herzfrequenzdaten gespeichert. Die Kurve wird gezeichnet, sobald der Strap überträgt oder ein Import welche mitbringt.</string>
+    <string name="today_hr_one_block">Für heute ist nur ein Fünf-Minuten-Block der Herzfrequenz gespeichert. Für eine Linie braucht die Kurve zwei davon.</string>
     <string name="today_hr_average_last_window">5-Minuten-Durchschnitt | letzte %1$s</string>
     <string name="today_hr_zoomed_hint">Vergrößert · zum Verschieben ziehen</string>
     <string name="today_not_connected">Nicht verbunden</string>

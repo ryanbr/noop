@@ -3570,6 +3570,27 @@ struct TodayView: View {
 
     // MARK: HEART RATE, today's continuous HR, off the strap's own ~1Hz history.
 
+    /// The Today HR card's empty-state heading, which states what the bucket read returned and nothing
+    /// else. It used to open "Calibrating" and assert that nothing had been banked today, neither of which
+    /// is established here: the gate is simply that the active-strap-plus-imports union came back with
+    /// under two buckets. Nothing on that branch knows whether a strap is calibrating, whether it has
+    /// offloaded, or whether rows sit under a source this union cannot see, and a card naming a cause it
+    /// has not checked sends a reader looking in the wrong place. One stored block is not "no heart rate"
+    /// either, so it gets its own line rather than being rounded down to zero. Android twin: the `when` in
+    /// `HeartRateTrendCard`'s empty branch.
+    private var hrEmptyTitle: String {
+        if selectedDayOffset != 0 { return String(localized: "No heart rate for this day") }
+        if hrPoints.count == 1 { return String(localized: "One five-minute block of heart rate today") }
+        return String(localized: "No heart rate stored for today yet")
+    }
+
+    /// The line under `hrEmptyTitle`: what would put a curve here, without claiming why there is not one.
+    private var hrEmptyDetail: String {
+        if selectedDayOffset != 0 { return String(localized: "Step back to a day the strap was worn.") }
+        if hrPoints.count == 1 { return String(localized: "The curve needs two of them to draw a line.") }
+        return String(localized: "The curve draws once the strap offloads, or once an import brings one in.")
+    }
+
     /// A full-width 24-hour heart-rate trend, plotted from 5-minute bucket means of the strap's
     /// `hrSample` history (offloaded even while the app was closed, so the day reads continuously).
     /// When there are fewer than two buckets it shows an explicit calibrating/empty card rather than
@@ -3632,23 +3653,20 @@ struct TodayView: View {
                 hrZoomHint
             }
         } else {
-            // #863: an empty / single-bucket day. A calibrating 4.0 banks HR slowly, so an empty curve early
-            // on isn't a fault , say so explicitly instead of leaving a blank where the chart was (which read
-            // as the graph freezing). We don't silently swap in another day's curve here; the honest empty
-            // state is the parity-matched fix. Mirrors the Android HeartRateTrendCard empty branch.
+            // #863: an empty / single-bucket day. An empty curve early on isn't a fault, so say what the
+            // read came back with instead of leaving a blank where the chart was (which read as the graph
+            // freezing). We don't silently swap in another day's curve here; the honest empty state is the
+            // parity-matched fix. The wording lives in `hrEmptyTitle` / `hrEmptyDetail`, which say what was
+            // found rather than why. Mirrors the Android HeartRateTrendCard empty branch.
             VStack(alignment: .leading, spacing: NoopMetrics.gap) {
                 SectionHeader("Heart Rate", overline: "\(selectedDayOverline)")
                 ChartCard(
                     title: "Beats per minute",
-                    subtitle: selectedDayOffset == 0
-                        ? String(localized: "Calibrating, no heart rate banked yet today")
-                        : String(localized: "No heart rate for this day"),
+                    subtitle: hrEmptyTitle,
                     trailing: nil,
                     tint: StrandPalette.metricRose
                 ) {
-                    Text(selectedDayOffset == 0
-                        ? String(localized: "Your curve fills in as the strap offloads its history.")
-                        : String(localized: "Step back to a day the strap was worn."))
+                    Text(hrEmptyDetail)
                         .font(StrandFont.footnote)
                         .foregroundStyle(StrandPalette.textTertiary)
                         .frame(maxWidth: .infinity, alignment: .center)
