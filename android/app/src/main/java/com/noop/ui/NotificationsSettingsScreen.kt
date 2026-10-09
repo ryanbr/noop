@@ -491,6 +491,7 @@ fun NotificationsSettingsScreen(vm: AppViewModel) {
                 onChange = {
                     morningReport = it
                     NoopPrefs.setMorningReportEnabled(context, it)
+                    com.noop.notif.MorningRecapRefresh.reschedule(context)
                 },
             )
             RowDivider()
