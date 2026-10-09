@@ -513,6 +513,27 @@ public final class FrameRouter {
                     state.charging = true
                 } else if ev.hasPrefix("BATTERY_PACK_REMOVED") {
                     state.charging = false
+                    // A detached pack must not leave its last charge sitting on the device card.
+                    state.packSocPct = nil
+                }
+                // The 5/MG pack's own charge. The strap volunteers the full pack record in uncatalogued
+                // event 109 every couple of minutes while a pack is attached, so this adds no command,
+                // send-allowlist entry, polling, or other wire traffic. Match the event BYTE rather than
+                // its rendered "0x6D(109)" label: adding a schema name later must not break the route.
+                //
+                // `BatteryPackInfo.displayable` is the one shared safety gate for both transports:
+                // present, carrying a charge, and inside 0...100. A moved offset therefore yields no
+                // reading rather than a confident wrong one. Unlike Android's history path, this router is
+                // live-only, so a replayed offload event cannot move live state.
+                if family == .whoop5, frame.count > 10,
+                   Int(frame[10]) == BatteryPackInfo.packInfoEvent,
+                   let info = BatteryPackInfo.decodeEventFrame(frame) {
+                    if info.displayable, let soc = info.socPct {
+                        // SoC only: pack presence does not prove that current is flowing (#1935).
+                        state.packSocPct = soc
+                    } else if !info.present {
+                        state.packSocPct = nil
+                    }
                 }
                 // The other physical inputs the strap exposes — live only, as above. The double-tap
                 // was handled before the sync kick.

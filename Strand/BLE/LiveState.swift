@@ -127,6 +127,18 @@ public final class LiveState: ObservableObject {
     /// link. Flag ONLY — the battery % keeps its family-specific source (#77).
     @Published public var charging: Bool? = nil
 
+    /// The attached WHOOP 5/MG battery pack's own charge, in percent with tenths precision.
+    ///
+    /// This is separate from [batteryPct], which is the STRAP's charge. The strap volunteers the pack
+    /// record in pushed event 109 every couple of minutes while a pack is attached; no command or polling
+    /// is needed. nil until that event lands, and cleared on BATTERY_PACK_REMOVED or disconnect so a stale
+    /// pack reading can never outlive the accessory or link. A WHOOP 4.0 has no pack fuel-gauge reading;
+    /// its command-98 voltage remains in [batteryMv], which is a different quantity.
+    ///
+    /// Do not infer [charging] from this value. Event 109 proves pack PRESENCE and charge, not that current
+    /// is flowing; the strap's BATTERY_LEVEL gauge remains the charging authority (#1935).
+    @Published public var packSocPct: Double? = nil
+
     /// The Oura ring's current wear/charge state (nil for non-Oura straps or before any evidence this
     /// session). Driven by OuraLiveSource from the live-HR push + the ring's STATE charger strings: a live
     /// beat only comes from a finger (`.worn`); "chg. detected"/"stopped" bracket `.charging`; a silent
@@ -757,6 +769,7 @@ public final class LiveState: ObservableObject {
         lastFrameAtUnix = nil             // #987: a stale "last frame" freshness must not outlive it either
         ouraWearState = nil               // a stale worn/charging badge must not outlive the link either
         ouraBatteryPct = nil              // nor a stale ring charge (#2075)
+        packSocPct = nil                  // nor an attached pack's charge
     }
 
     /// Cap on the in-app strap-log ring buffer. Raised from the old ~1h (200 lines) to retain a rolling

@@ -199,6 +199,10 @@ private struct DevicesContent: View {
                             whoopPct: live.batteryPct, ringPct: live.ouraBatteryPct)
                         : nil,
                     liveBatteryMv: (device.status == .active && live.connected) ? live.batteryMv : nil,
+                    livePackSocPct: (device.status == .active && live.connected
+                                     && DeviceFamily.isWhoop5Registry(model: device.model,
+                                                                      brand: device.brand))
+                        ? live.packSocPct : nil,
                     // Firmware version for the ACTIVE strap. It's a STABLE property (NOOP can't change a
                     // strap's firmware), so prefer the live handshake value but fall back to the last-known
                     // persisted firmware (written on connect in FrameRouter) when the live value is momentarily
@@ -748,6 +752,9 @@ private struct DeviceCard: View {
     var liveBatteryPct: Int? = nil
     /// #592: strap pack voltage (mV) for the active+connected strap; nil otherwise. Shown beside the percent.
     var liveBatteryMv: Int? = nil
+    /// The attached WHOOP 5/MG battery pack's own charge. nil before its pushed pack-info event arrives,
+    /// when no pack is attached, or for every other device family.
+    var livePackSocPct: Double? = nil
     /// The active+connected strap's firmware version (from the connect handshake). nil when not the
     /// active/connected device, or for a source that reports no firmware (e.g. a non-WHOOP strap).
     var liveFirmware: String? = nil
@@ -892,6 +899,14 @@ private struct DeviceCard: View {
                             .font(StrandFont.footnote)
                             .foregroundStyle(StrandPalette.textSecondary)
                             .accessibilityLabel("Battery voltage \(Double(mv) / 1000.0, specifier: "%.2f") volts")
+                    }
+                    // The pack and strap gauges are distinct facts. Show the pack once, only while the
+                    // live event says it exists; detach/disconnect clears the source value.
+                    if let soc = livePackSocPct {
+                        Text("·").font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
+                        Text("Battery pack \(soc, specifier: "%.1f")%")
+                            .font(StrandFont.footnote)
+                            .foregroundStyle(StrandPalette.textSecondary)
                     }
                     if let layout = liveHistoryLayout {
                         Text("·").font(StrandFont.footnote).foregroundStyle(StrandPalette.textTertiary)
@@ -1760,7 +1775,8 @@ struct DeviceCardCatalog: View {
                            onMakeActive: {}, onRename: {}, onRemove: nil)
                 DeviceCard(device: Self.dev("whoop-5d", "WHOOP", "5.0 MG",
                                             Self.whoopCaps.union([.steps])),
-                           isActive: false, isLiveConnected: false,
+                           isActive: true, isLiveConnected: true,
+                           liveBatteryPct: 64, livePackSocPct: 56.9,
                            onMakeActive: {}, onRename: {}, onRemove: {})
                 // #221: a WHOOP 5/MG that's BLE-connected but whose encrypted bond was refused (#78) — no
                 // data flows despite the link being up. Renders the "Connected · not paired" pill + the
