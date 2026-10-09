@@ -1881,7 +1881,7 @@
     <string name="l10n_settings_screen_r22disable_confirm_cancel">Просто перестать отправлять</string>
     <string name="l10n_settings_screen_r22_accepted_all">✓ Браслет принял все %1$d флагов R22</string>
     <string name="l10n_settings_screen_r22_accepted_partial">Браслет принял %1$d из %2$d флагов R22…</string>
-    <string name="l10n_app_changelog_water_and_caffeine_from_apple_health_5123b6b0">Вода и кофеин из Apple Health, точнее оценка Усилия и исправление пульса покоя Oura</string>
+    <string name="l10n_app_changelog_water_and_caffeine_from_apple_health_5123b6b0">Вода и кофеин из Apple Health, более точный показатель Effort и исправление пульса в покое Oura</string>
     <string name="onboarding_cta_begin">Начать</string>
     <string name="onboarding_cta_continue">Продолжить</string>
     <string name="onboarding_cta_save_continue">Сохранить и продолжить</string>
@@ -1966,7 +1966,7 @@
     <string name="score_state_detail_needs_strap">Данных за сегодня нет. Был ли браслет надет и подключён ночью?</string>
     <string name="score_state_detail_carried_fresh">Сегодняшний появится после того, как вы поспите в браслете.</string>
     <string name="score_state_detail_carried_stale">Это ваш последний оценённый сеанс. Наденьте браслет на ночь, чтобы получить новую оценку.</string>
-    <string name="l10n_app_changelog_widgets_stop_inventing_numbers_naps_count_4f7491bb">Виджеты перестали выдумывать числа, дневной сон учитывается в недосыпе, а статусы на Android говорят на вашем языке</string>
+    <string name="l10n_app_changelog_widgets_stop_inventing_numbers_naps_count_4f7491bb">Виджеты больше не выдумывают числа, дневной сон учитывается в долге сна, а индикаторы Android говорят на вашем языке</string>
     <string name="l10n_sleep_screen_may_be_incomplete_7230dc27">Возможно, неполно</string>
     <string name="l10n_sleep_screen_little_motion_was_recorded_over_f061b7e4">За ночь записано мало движения, поэтому эта ночь может быть определена не полностью, а общее время сна — заниженным. Убедитесь, что браслет полностью синхронизировался.</string>
     <string name="l10n_sleep_screen_partly_recorded_f43509ab">Записано частично</string>
@@ -2038,13 +2038,13 @@
     <string name="skin_temp_missing_caption">Пока нет ночной температуры кожи — нужно ~4 ночи ношения (или импортируйте CSV из WHOOP)</string>
     <string name="skin_temp_delta_title">Темп. кожи Δ</string>
     <string name="skin_temp_vs_baseline">относит. исходного</string>
-    <string name="l10n_app_changelog_make_noop_yours_theme_colours_and_6bdef2a7">Сделайте NOOP своим — цвета темы и свои фоны, ещё сорок видов спорта с GPS-маршрутами и тепловая карта калорий</string>
+    <string name="l10n_app_changelog_make_noop_yours_theme_colours_and_6bdef2a7">Настройте NOOP под себя: цвета темы и свои фоны, более сорока видов спорта с маршрутами GPS и тепловая карта калорий</string>
     <string name="l10n_settings_screen_custom_hr_zones_84736ca5">Свои зоны пульса</string>
     <string name="l10n_settings_screen_custom_hr_zones_hint_f7fa3bae">Задайте пульс, с которого начинается каждая зона. Выключите, чтобы вернуть стандартные зоны в процентах от максимального пульса.</string>
     <string name="l10n_settings_screen_zone_starts_a0a60d45">Зона %1$d начинается с</string>
     <string name="l10n_health_screen_add_your_waist_for_a_more_accurate_vo_max_829f5e1e">Укажите обхват талии для более точного VO₂max</string>
     <string name="l10n_health_screen_fix_in_settings_d7472915">Исправить в настройках</string>
-    <string name="l10n_app_changelog_personalized_heart_rate_zones_compare_and_8d89ee2a">Персональные зоны пульса, сравнение и переключение между браслетами и более честные данные ВСР, сна и Oura</string>
+    <string name="l10n_app_changelog_personalized_heart_rate_zones_compare_and_8d89ee2a">Персональные зоны пульса, сравнение и переключение браслетов, а также более точные данные ВСР, сна и Oura</string>
     <string name="breath_presence_intro_title">Процесс Presence</string>
     <string name="breath_presence_intro_body">Сознательно связанное дыхание (CCB): вдох и выдох в непрерывном цикле без задержки наверху или внизу. Найдите комфортный ритм — связность важнее интенсивности. Обычно около 15 минут дважды в день. Regular — устойчивый стартовый темп; Mid — более быстрый старт для следующих раундов; Punching Through — только чтобы продавить сонливость или застревание (не режим для новичков).</string>
     <string name="breath_stage_belly_in">Живот внутрь</string>
@@ -2441,7 +2441,7 @@
     <string name="power_saving_low_refresh">Редкое обновление</string>
     <string name="power_saving_low_refresh_desc">Синхронизировать в фоне раз в час вместо каждых 15 минут, независимо от заряда браслета — меньше переподключений даёт наибольшую экономию на WHOOP 4.0. Ничего не теряется: браслет всё накапливает и отдаёт большими порциями. Синхронизация жестом по-прежнему работает сразу, а живой пульс не затрагивается.</string>
     <string name="nav_power_saving">Энергосбережение</string>
-    <string name="l10n_app_changelog_training_load_a_vo_max_without_f9205a67">Тренировочная нагрузка, VO₂max без сантиметровой ленты и намного меньше батареи на пересчёты</string>
+    <string name="l10n_app_changelog_training_load_a_vo_max_without_f9205a67">Тренировочная нагрузка, оценка VO₂max без измерительной ленты и гораздо меньший расход батареи при пересчёте</string>
     <string name="l10n_sleep_screen_sleep_outside_the_new_times_was_6229881e">Сон вне нового интервала удалён. NOOP не определит его снова.</string>
     <string name="workout_action_pause">Пауза</string>
     <string name="workout_action_resume">Продолжить</string>
@@ -2453,7 +2453,7 @@
     <string name="workout_delete_message">Это остановит запись и безвозвратно удалит тренировку.</string>
     <string name="l10n_settings_screen_effort_exponential_scale">Усилие: экспоненциальная шкала интенсивности</string>
     <string name="l10n_settings_screen_effort_exponential_scale_desc">Оценивает Усилие по экспоненциальной кривой интенсивности (TRIMP Банистера) вместо стандартных пульсовых зон (Эдвардс). Стандартный вариант не засчитывает ничего ниже половины резерва пульса, поэтому час силовой тренировки — где тяжёлые подходы усредняются с отдыхом — может дать почти ноль. У экспоненциальной кривой нет порога, и она гораздо сильнее учитывает короткие интенсивные усилия. Пересчитывает историю, и обе шкалы достигают одного максимума. По умолчанию выключено.</string>
-    <string name="l10n_app_changelog_an_effort_scale_you_choose_a_a7c2478d">Шкала Усилия на ваш выбор, кольцо, которое засыпает, и намного меньше лишних пересчётов</string>
+    <string name="l10n_app_changelog_an_effort_scale_you_choose_a_a7c2478d">Шкала Effort на ваш выбор, кольцо, которому дают спать, и гораздо меньше лишних пересчётов</string>
     <string name="l10n_health_screen_this_vital_needs_at_least_two_0e41b8b0">Этому показателю нужно минимум два измерения в истории, прежде чем NOOP сможет построить график.</string>
     <string name="l10n_health_screen_the_blood_oxygen_estimate_is_turned_4c403ab2">Оценка насыщения крови кислородом отключена</string>
     <string name="l10n_health_screen_your_strap_reports_a_blood_oxygen_349fe34a">Ваш браслет сообщает оценку насыщения крови кислородом, но она не проверена и по умолчанию отключена. Включите оценку браслета в Настройках, чтобы увидеть её, или импортируйте выгрузку WHOOP в «Источниках данных» для калиброванного значения.</string>
@@ -2551,8 +2551,8 @@
     <string name="l10n_body_clock_dial_card_last_night_6eaba4dd">Последняя ночь</string>
     <string name="l10n_body_clock_dial_card_your_clock_1b91f5ee">Ваши часы</string>
     <string name="vo2max_method_change_caption">Линия прерывается там, где метод оценки изменился или не был записан.</string>
-    <string name="l10n_app_changelog_a_whoop_5_that_stays_connected_7b490eee">WHOOP 5, который остаётся на связи, ваши биологические часы на экране «Сон» и Журнал, отличающий «Нет» от пустоты</string>
-    <string name="l10n_app_changelog_choose_a_12_hour_clock_sleep_8a19db5c">Выбор 12-часового формата, сон с браслетов без записи движения и журнал браслета, который перестал гадать</string>
+    <string name="l10n_app_changelog_a_whoop_5_that_stays_connected_7b490eee">WHOOP 5 со стабильным подключением, ваши биологические часы на экране сна и дневник, отличающий «Нет» от отсутствия ответа</string>
+    <string name="l10n_app_changelog_choose_a_12_hour_clock_sleep_8a19db5c">Выберите 12-часовой формат, отслеживайте сон без записей о движении и читайте журнал браслета без догадок</string>
     <string name="l10n_settings_screen_skin_temperature_fc103030">Температура кожи</string>
     <string name="l10n_health_screen_no_measured_temperature_for_these_nights_showing_the_differe_69d4efae">Для этих ночей нет измеренной температуры — показано отклонение от вашей нормы. Синхронизация пересчитает недавние ночи и заполнит это.</string>
     <string name="l10n_health_screen_only_nights_with_a_measured_temperature_are_shown_the_others_b6f7c45b">Показаны только ночи с измеренной температурой; для остальных записано лишь отклонение от нормы.</string>

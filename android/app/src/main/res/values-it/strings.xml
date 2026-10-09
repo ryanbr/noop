@@ -1976,7 +1976,7 @@
     <string name="l10n_settings_screen_r22disable_confirm_cancel">Smetti solo di inviare</string>
     <string name="l10n_settings_screen_r22_accepted_all">✓ La fascia ha accettato tutti i %1$d flag R22</string>
     <string name="l10n_settings_screen_r22_accepted_partial">La fascia ha accettato %1$d/%2$d flag R22…</string>
-    <string name="l10n_app_changelog_water_and_caffeine_from_apple_health_5123b6b0">Acqua e caffeina da Apple Health, un punteggio di Sforzo più preciso e una correzione della FC a riposo per Oura</string>
+    <string name="l10n_app_changelog_water_and_caffeine_from_apple_health_5123b6b0">Acqua e caffeina da Apple Salute, un punteggio Effort più preciso e una correzione della frequenza cardiaca a riposo di Oura</string>
     <string name="onboarding_cta_begin">Inizia</string>
     <string name="onboarding_cta_continue">Continua</string>
     <string name="onboarding_cta_save_continue">Salva e continua</string>
@@ -2063,7 +2063,7 @@
         <item quantity="one">Creazione della tua linea di base. Ancora circa %1$d notte prima che i punteggi siano personalizzati.</item>
         <item quantity="other">Creazione della tua linea di base. Ancora circa %1$d notti prima che i punteggi siano personalizzati.</item>
     </plurals>
-    <string name="l10n_app_changelog_widgets_stop_inventing_numbers_naps_count_4f7491bb">I widget smettono di inventare numeri, i sonnellini contano per il debito di sonno e i chip di stato Android parlano la tua lingua</string>
+    <string name="l10n_app_changelog_widgets_stop_inventing_numbers_naps_count_4f7491bb">I widget smettono di inventare numeri, i sonnellini contano nel debito di sonno e gli indicatori di stato Android parlano la tua lingua</string>
     <string name="l10n_sleep_screen_may_be_incomplete_7230dc27">Potrebbe essere incompleto</string>
     <string name="l10n_sleep_screen_little_motion_was_recorded_over_f061b7e4">Durante la notte è stato registrato poco movimento, quindi questa notte potrebbe essere rilevata solo in parte e il totale del sonno potrebbe risultare basso. Assicurati che la fascia abbia completato la sincronizzazione.</string>
     <string name="l10n_sleep_screen_partly_recorded_f43509ab">Registrazione parziale</string>
@@ -2135,13 +2135,13 @@
     <string name="skin_temp_missing_caption">Ancora nessuna temperatura della pelle notturna — servono ~4 notti indossata (o importa un CSV WHOOP)</string>
     <string name="skin_temp_delta_title">Temp. pelle Δ</string>
     <string name="skin_temp_vs_baseline">vs linea di base</string>
-    <string name="l10n_app_changelog_make_noop_yours_theme_colours_and_6bdef2a7">Rendi NOOP tuo — colori del tema e sfondi personalizzati, altri quaranta sport con percorsi GPS e una mappa di calore delle calorie</string>
+    <string name="l10n_app_changelog_make_noop_yours_theme_colours_and_6bdef2a7">Rendi NOOP tuo: colori del tema e sfondi personalizzati, oltre quaranta sport con percorsi GPS e una mappa di calore delle calorie</string>
     <string name="l10n_settings_screen_custom_hr_zones_84736ca5">Zone FC personalizzate</string>
     <string name="l10n_settings_screen_custom_hr_zones_hint_f7fa3bae">Imposta i BPM a cui inizia ogni zona. Disattiva per ripristinare le zone predefinite in percentuale della frequenza massima.</string>
     <string name="l10n_settings_screen_zone_starts_a0a60d45">Inizio zona %1$d</string>
     <string name="l10n_health_screen_add_your_waist_for_a_more_accurate_vo_max_829f5e1e">Aggiungi il girovita per una VO₂max più precisa</string>
     <string name="l10n_health_screen_fix_in_settings_d7472915">Correggi nelle Impostazioni</string>
-    <string name="l10n_app_changelog_personalized_heart_rate_zones_compare_and_8d89ee2a">Zone di frequenza cardiaca personalizzate, confronta e passa da una fascia all\'altra, e letture di HRV, sonno e Oura più oneste</string>
+    <string name="l10n_app_changelog_personalized_heart_rate_zones_compare_and_8d89ee2a">Zone cardiache personalizzate, confronto e cambio dei dispositivi, e letture più attendibili di HRV, sonno e Oura</string>
     <string name="l10n_breathe_screen_elapsed_target_b1c2d3e4">%1$s / %2$s</string>
     <string name="breath_presence_intro_title">Il Presence Process</string>
     <string name="breath_presence_intro_body">Respiro consapevolmente connesso (CCB): inspira ed espira in un ciclo continuo senza trattenute in alto o in basso. Trova un ritmo comodo: la connessione conta più dell’intensità. La pratica tipica è di circa 15 minuti, due volte al giorno. Regular è il tempo di partenza sostenibile; Mid un avvio più rapido per i round successivi; Punching Through solo quando serve superare sonnolenza o blocco (non il default per principianti).</string>
@@ -2579,7 +2579,7 @@
     <string name="power_saving_low_refresh">Aggiornamento ridotto</string>
     <string name="power_saving_low_refresh_desc">Sincronizza in background ogni ora invece che ogni 15 minuti, qualunque sia la carica della fascia: meno riconnessioni sono il risparmio maggiore su una WHOOP 4.0. Non si perde nulla: la fascia conserva tutto e lo trasferisce in blocchi più grandi. Il trascinamento per sincronizzare funziona comunque subito e la frequenza cardiaca in diretta non viene toccata.</string>
     <string name="nav_power_saving">Risparmio energetico</string>
-    <string name="l10n_app_changelog_training_load_a_vo_max_without_f9205a67">Carico di allenamento, un VO₂max senza metro da sarta e molta meno batteria spesa nei ricalcoli</string>
+    <string name="l10n_app_changelog_training_load_a_vo_max_without_f9205a67">Carico di allenamento, una stima del VO₂max senza metro e molti meno consumi per il ricalcolo</string>
     <string name="l10n_sleep_screen_sleep_outside_the_new_times_was_6229881e">Il sonno al di fuori dei nuovi orari è stato rimosso. NOOP non lo rileverà più.</string>
     <string name="workout_action_pause">Pausa</string>
     <string name="workout_action_resume">Riprendi</string>
@@ -2591,7 +2591,7 @@
     <string name="workout_delete_message">Interrompe la registrazione e scarta definitivamente l\'allenamento.</string>
     <string name="l10n_settings_screen_effort_exponential_scale">Sforzo: scala di intensità esponenziale</string>
     <string name="l10n_settings_screen_effort_exponential_scale_desc">Calcola lo Sforzo su una curva di intensità esponenziale (TRIMP di Banister) invece delle zone di frequenza cardiaca predefinite (Edwards). L’impostazione predefinita non conta nulla sotto la metà della tua riserva di frequenza cardiaca, quindi un’ora di pesi — dove le serie intense si compensano con i recuperi — può valere quasi zero. La curva esponenziale non ha soglia e pesa molto di più gli sforzi brevi e intensi. Ricalcola la cronologia ed entrambe le scale raggiungono lo stesso massimo. Disattivato per impostazione predefinita.</string>
-    <string name="l10n_app_changelog_an_effort_scale_you_choose_a_a7c2478d">Una scala di sforzo a tua scelta, un anello che arriva al sonno e molti meno ricalcoli sprecati</string>
+    <string name="l10n_app_changelog_an_effort_scale_you_choose_a_a7c2478d">Una scala Effort a tua scelta, un anello che torna a dormire e molti meno ricalcoli inutili</string>
     <string name="l10n_health_screen_this_vital_needs_at_least_two_0e41b8b0">Questo parametro vitale richiede almeno due letture storiche prima che NOOP possa mostrarlo in un grafico.</string>
     <string name="l10n_health_screen_the_blood_oxygen_estimate_is_turned_4c403ab2">La stima dell\'ossigeno nel sangue è disattivata</string>
     <string name="l10n_health_screen_your_strap_reports_a_blood_oxygen_349fe34a">La tua fascia fornisce una stima dell\'ossigeno nel sangue, ma non è verificata ed è disattivata per impostazione predefinita. Attiva la stima della fascia in Impostazioni per vederla, oppure importa un\'esportazione WHOOP in Sorgenti dati per il valore calibrato.</string>
@@ -2694,8 +2694,8 @@
     <string name="l10n_body_clock_dial_card_last_night_6eaba4dd">La scorsa notte</string>
     <string name="l10n_body_clock_dial_card_your_clock_1b91f5ee">Il tuo orologio</string>
     <string name="vo2max_method_change_caption">La linea si interrompe dove il metodo di stima è cambiato o non è stato registrato.</string>
-    <string name="l10n_app_changelog_a_whoop_5_that_stays_connected_7b490eee">Una WHOOP 5 che resta connessa, il tuo orologio biologico nella schermata Sonno e un Diario che distingue un No dal nulla</string>
-    <string name="l10n_app_changelog_choose_a_12_hour_clock_sleep_8a19db5c">Scegli l\'orologio a 12 ore, sonno dalle fasce che non memorizzano movimento e un registro della fascia che smette di tirare a indovinare</string>
+    <string name="l10n_app_changelog_a_whoop_5_that_stays_connected_7b490eee">Un WHOOP 5 che resta connesso, il tuo orologio biologico nella schermata Sonno e un diario che distingue No da nessuna risposta</string>
+    <string name="l10n_app_changelog_choose_a_12_hour_clock_sleep_8a19db5c">Scegli l’orologio a 12 ore, rileva il sonno anche senza dati di movimento e leggi un registro che non tira a indovinare</string>
     <string name="l10n_settings_screen_skin_temperature_fc103030">Temperatura della pelle</string>
     <string name="l10n_health_screen_no_measured_temperature_for_these_nights_showing_the_differe_69d4efae">Nessuna temperatura misurata per queste notti — viene mostrata la differenza rispetto alla tua linea di base. Una sincronizzazione ricalcola le notti recenti e la completa.</string>
     <string name="l10n_health_screen_only_nights_with_a_measured_temperature_are_shown_the_others_b6f7c45b">Sono mostrate solo le notti con una temperatura misurata; le altre hanno registrato solo una differenza rispetto alla linea di base.</string>
@@ -2758,7 +2758,7 @@
     <string name="units_follow_body">Come misure corporee</string>
     <string name="l10n_today_screen_see_the_charge_trend_9dcbcff7">Vedi l\'andamento della carica</string>
     <string name="l10n_today_screen_every_day_s_score_over_time_a00ea7c7">Il punteggio di ogni giorno, nel tempo.</string>
-    <string name="l10n_app_changelog_a_coach_that_keeps_the_thread_2ee52e0c">Un coach che non perde il filo, la tua frequenza cardiaca nella schermata Home e grafici che affermano meno</string>
+    <string name="l10n_app_changelog_a_coach_that_keeps_the_thread_2ee52e0c">Un Coach che ricorda la conversazione, la frequenza cardiaca nella schermata Home e grafici più prudenti</string>
     <string name="charge_legacy_rr_gap_title">I battiti precedenti non sono valutabili</string>
     <string name="charge_legacy_rr_gap_detail">Questa notte è stata registrata prima che NOOP indicasse da quale trasporto WHOOP 5 provenisse ogni battito, quindi i suoi intervalli mescolano due unità diverse e non è memorizzato nulla che permetta di distinguerle. La notte resta nella tua cronologia e le notti registrate da ora in poi vengono valutate normalmente.</string>
     <string name="coach_key_rejected_hint">Incolla la chiave corretta. La tua conversazione viene mantenuta.</string>
@@ -2766,13 +2766,13 @@
     <string name="coach_key_rejected_action">Aggiorna chiave</string>
     <string name="coach_consent_on">Attivo: carica, riposo, HRV e allenamenti vengono inviati al provider, ogni allenamento con sport, durata, distanza e frequenza cardiaca.</string>
     <string name="coach_consent_off">Off, il coach risponde in modo generico e non invia nessuna delle tue metriche.</string>
-    <string name="l10n_app_changelog_a_today_screen_you_arrange_yourself_6194ccd0">Una schermata Oggi che organizzi tu, lo stress nella schermata Home e backup che si verificano da soli</string>
+    <string name="l10n_app_changelog_a_today_screen_you_arrange_yourself_6194ccd0">Una schermata Oggi che organizzi tu, lo stress nella schermata Home e backup che si controllano da soli</string>
     <string name="l10n_stress_screen_scored_through_1_s_later_hours_fbb7d6c7">Calcolato fino alle %1$s. Le ore successive richiedono più campioni di frequenza cardiaca.</string>
     <string name="l10n_today_screen_scan_and_connect_40157030">Cerca e collega</string>
     <string name="l10n_health_screen_fitness_age_stops_here_vo_max_383d989a">L’Età fitness si ferma qui. Il VO₂max no.</string>
-    <string name="l10n_app_changelog_a_stress_screen_that_keeps_up_f7ec3f36">Una schermata Stress che tiene il passo, letture WHOOP 5 nelle unità inviate dalla fascia e un anello che smette di ripetersi</string>
+    <string name="l10n_app_changelog_a_stress_screen_that_keeps_up_f7ec3f36">Una schermata Stress più rapida, letture WHOOP 5 nelle unità inviate dal dispositivo e un anello che smette di ripetersi</string>
     <string name="l10n_settings_screen_ai_coach_130c3eab">Coach IA</string>
-    <string name="l10n_app_changelog_a_gym_log_book_on_your_e0f00272">Un registro della palestra al polso, un Coach che puoi disattivare e una scorciatoia Sincronizza fascia</string>
+    <string name="l10n_app_changelog_a_gym_log_book_on_your_e0f00272">Un diario di allenamento al polso, un Coach che puoi disattivare e una scorciatoia per sincronizzare il dispositivo</string>
     <string name="l10n_live_screen_reconnect_ring_3111ab8f">Riconnetti anello</string>
     <string name="l10n_live_screen_ring_not_connected_c2418ea8">Anello non connesso.</string>
     <string name="l10n_live_screen_connecting_to_the_ring_af2900ea">Connessione all\'anello…</string>
