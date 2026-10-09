@@ -3189,32 +3189,23 @@ object SleepStager {
         minBinSamples: Int = rhrMinBinSamples,
         minPlausibleBpm: Double = rhrMinPlausibleBpm,
     ): String? {
-        val windowS = 5 * 60L
         var bins = 0
         var thin = 0
         var implausible = 0
-        var ungated: Double? = null      // the pre-#1943 rule: min over every non-empty bin
+        var ungated: Double? = null
         var ungatedN = 0
-        var gated: Double? = null        // the current rule: min over qualifying bins only
+        var gated: Double? = null
         for ((start, end) in sessions) {
-            val seg = hr.filter { it.ts in start..end }
-            if (seg.isEmpty()) continue
-            var t = start
-            do {
-                val isFinal = t + windowS >= end
-                val win = seg.filter { it.ts >= t && (isFinal || it.ts < t + windowS) }
-                if (win.isNotEmpty()) {
-                    bins += 1
-                    val mean = win.sumOf { it.bpm }.toDouble() / win.size.toDouble()
-                    if (win.size < minBinSamples) thin += 1
-                    if (mean < minPlausibleBpm) implausible += 1
-                    if (ungated == null || mean < ungated!!) { ungated = mean; ungatedN = win.size }
-                    if (win.size >= minBinSamples && mean >= minPlausibleBpm &&
-                        (gated == null || mean < gated!!)
-                    ) gated = mean
-                }
-                t += windowS
-            } while (t < end)
+            for ((sum, count) in restingHRBins(start, end, hr)) {
+                bins += 1
+                val mean = sum.toDouble() / count.toDouble()
+                if (count < minBinSamples) thin += 1
+                if (mean < minPlausibleBpm) implausible += 1
+                if (ungated == null || mean < ungated) { ungated = mean; ungatedN = count }
+                if (count >= minBinSamples && mean >= minPlausibleBpm &&
+                    (gated == null || mean < gated)
+                ) gated = mean
+            }
         }
         if (bins == 0) return null
         // `roundToInt`, matching sessionRestingHR: these numbers are compared against that function's
@@ -3240,38 +3231,50 @@ object SleepStager {
      * silently ignored. A zero-length window (`start == end`) is that single closed bin.
      */
     internal fun sessionRestingHR(start: Long, end: Long, hr: List<HrSample>): Int? {
-        val seg = hr.filter { it.ts in start..end }
-        if (seg.isEmpty()) return null
-        val windowS = 5 * 60L
-        // #1943: a bin qualifies to WIN the floor only when it is well-populated (≥ rhrMinBinSamples)
-        // and its mean is physiologically plausible (≥ rhrMinPlausibleBpm). A one-sample bin at the
-        // edge of a wear gap, or a dropout-driven sub-physiological dip, cannot become the night's
-        // resting HR — that number is displayed, stored on the daily row, and fed to the baseline
-        // later nights are scored against. If no bin qualifies, fall back to the lowest of ALL bin
-        // means (ungated), then the all-sample mean — preserving the never-null-on-data behaviour.
-        val gatedMeans = ArrayList<Double>()
-        val allMeans = ArrayList<Double>()
-        var t = start
-        do {
-            // The last bin (its half-open end reaches or passes `end`) closes on `end` instead,
-            // catching an endpoint sample the prefilter already admitted. `seg` holds nothing past
-            // `end`, so "everything from t onwards" IS [t, end]. `do` runs once for a zero-length
-            // window, where that single closed bin is the whole window.
-            val isFinal = t + windowS >= end
-            val win = seg.filter { it.ts >= t && (isFinal || it.ts < t + windowS) }
-            if (win.isNotEmpty()) {
-                val mean = win.sumOf { it.bpm }.toDouble() / win.size.toDouble()
-                allMeans.add(mean)
-                if (win.size >= rhrMinBinSamples && mean >= rhrMinPlausibleBpm) gatedMeans.add(mean)
+        // A well-populated, plausible bin can win the floor. If none qualifies, use the lowest
+        // ungated mean so any in-window data still has a result. The thresholds are unchanged.
+        var gated: Double? = null
+        var ungated: Double? = null
+        for ((sum, count) in restingHRBins(start, end, hr)) {
+            val mean = sum.toDouble() / count.toDouble()
+            if (ungated == null || mean < ungated) ungated = mean
+            if (count >= rhrMinBinSamples && mean >= rhrMinPlausibleBpm &&
+                (gated == null || mean < gated)
+            ) gated = mean
+        }
+        return (gated ?: ungated)?.roundToInt()
+    }
+
+    /**
+     * Nonempty five-minute bins in time order, with the final bin closed on [end].
+     * Visits each HR row once; stores integer sums/counts rather than rescanning and copying the night
+     * for every bin. Input order does not matter. Sparse spans allocate only occupied bins.
+     * Swift twin: `SleepStager.restingHRBins`.
+     */
+    internal fun restingHRBins(start: Long, end: Long, hr: List<HrSample>): List<Pair<Int, Int>> {
+        if (end < start) return emptyList()
+        val finalBin = maxOf(0L, (end - start - 1) / 300)
+        val bins = HashMap<Long, Pair<Int, Int>>()
+        // Keep the current bin in locals: ordered rows need a dictionary access only at a bin change.
+        // Reload an existing bin on revisits so shuffled rows and duplicates retain every sample.
+        var currentBin = 0L
+        var sum = 0
+        var count = 0
+        for (row in hr) {
+            if (row.ts < start || row.ts > end) continue
+            val index = minOf((row.ts - start) / 300, finalBin)
+            if (count == 0 || index != currentBin) {
+                if (count > 0) bins[currentBin] = sum to count
+                val previous = bins[index]
+                currentBin = index
+                sum = previous?.first ?: 0
+                count = previous?.second ?: 0
             }
-            t += windowS
-        } while (t < end)
-        val m = gatedMeans.minOrNull()
-        if (m != null) return m.roundToInt()
-        val am = allMeans.minOrNull()
-        if (am != null) return am.roundToInt()
-        val all = seg.sumOf { it.bpm }.toDouble() / seg.size.toDouble()
-        return all.roundToInt()
+            sum += row.bpm
+            count += 1
+        }
+        if (count > 0) bins[currentBin] = sum to count
+        return bins.keys.sorted().map { bins.getValue(it) }
     }
 
     /** One 5-min HRV window: its start ts, the sleep stage at its center, the clean-beat count, and the

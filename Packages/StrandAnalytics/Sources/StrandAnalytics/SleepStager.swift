@@ -2875,28 +2875,19 @@ public enum SleepStager {
     public static func rhrBinGateLogLine(day: String, sessions: [(Int, Int)], hr: [HRSample],
                                          shippedFloor: Int, minBinSamples: Int = rhrMinBinSamples,
                                          minPlausibleBpm: Double = rhrMinPlausibleBpm) -> String? {
-        let windowS = 5 * 60
         var bins = 0, thin = 0, implausible = 0, ungatedN = 0
         var ungated: Double?
         var gated: Double?
         for (start, end) in sessions {
-            let seg = hr.filter { $0.ts >= start && $0.ts <= end }
-            if seg.isEmpty { continue }
-            var t = start
-            repeat {
-                let isFinal = t + windowS >= end
-                let win = seg.filter { $0.ts >= t && (isFinal || $0.ts < t + windowS) }
-                if !win.isEmpty {
-                    bins += 1
-                    let mean = Double(win.reduce(0) { $0 + $1.bpm }) / Double(win.count)
-                    if win.count < minBinSamples { thin += 1 }
-                    if mean < minPlausibleBpm { implausible += 1 }
-                    if ungated == nil || mean < ungated! { ungated = mean; ungatedN = win.count }
-                    if win.count >= minBinSamples, mean >= minPlausibleBpm,
-                       gated == nil || mean < gated! { gated = mean }
-                }
-                t += windowS
-            } while t < end
+            for bin in restingHRBins(start: start, end: end, hr: hr) {
+                bins += 1
+                let mean = Double(bin.sum) / Double(bin.count)
+                if bin.count < minBinSamples { thin += 1 }
+                if mean < minPlausibleBpm { implausible += 1 }
+                if ungated == nil || mean < ungated! { ungated = mean; ungatedN = bin.count }
+                if bin.count >= minBinSamples, mean >= minPlausibleBpm,
+                   gated == nil || mean < gated! { gated = mean }
+            }
         }
         if bins == 0 { return nil }
         let ungatedFloor = ungated.map { Int($0.rounded()) }
@@ -2912,36 +2903,41 @@ public enum SleepStager {
     }
 
     static func sessionRestingHR(start: Int, end: Int, hr: [HRSample]) -> Int? {
-        let seg = hr.filter { $0.ts >= start && $0.ts <= end }
-        guard !seg.isEmpty else { return nil }
-        let windowS = 5 * 60
-        // #1943: a bin qualifies to WIN the floor only when it is well-populated (≥ rhrMinBinSamples)
-        // and its mean is physiologically plausible (≥ rhrMinPlausibleBpm). A one-sample bin at the
-        // edge of a wear gap, or a dropout-driven sub-physiological dip, cannot become the night's
-        // resting HR — that number is displayed, stored on the daily row, and fed to the baseline
-        // later nights are scored against. If no bin qualifies, fall back to the lowest of ALL bin
-        // means (ungated), then the all-sample mean — preserving the never-null-on-data behaviour.
-        var gatedMeans: [Double] = []
-        var allMeans: [Double] = []
-        var t = start
-        repeat {
-            // The last bin (its half-open end reaches or passes `end`) closes on `end` instead,
-            // catching an endpoint sample the prefilter already admitted. `seg` holds nothing past
-            // `end`, so "everything from t onwards" IS [t, end]. `repeat` runs once for a
-            // zero-length window, where that single closed bin is the whole window.
-            let isFinal = t + windowS >= end
-            let win = seg.filter { $0.ts >= t && (isFinal || $0.ts < t + windowS) }
-            if !win.isEmpty {
-                let mean = Double(win.reduce(0) { $0 + $1.bpm }) / Double(win.count)
-                allMeans.append(mean)
-                if win.count >= rhrMinBinSamples && mean >= rhrMinPlausibleBpm { gatedMeans.append(mean) }
+        // A well-populated, plausible bin can win the floor. If none qualifies, use the lowest
+        // ungated mean so any in-window data still has a result. The thresholds are unchanged.
+        var gated: Double?
+        var ungated: Double?
+        for bin in restingHRBins(start: start, end: end, hr: hr) {
+            let mean = Double(bin.sum) / Double(bin.count)
+            if ungated == nil || mean < ungated! { ungated = mean }
+            if bin.count >= rhrMinBinSamples, mean >= rhrMinPlausibleBpm,
+               gated == nil || mean < gated! { gated = mean }
+        }
+        return (gated ?? ungated).map { Int($0.rounded()) }
+    }
+
+    /// Nonempty five-minute bins in time order, with the final bin closed on `end`.
+    /// Visits each HR row once; stores integer sums/counts rather than rescanning and copying the night
+    /// for every bin. Input order does not matter. Sparse spans allocate only occupied bins.
+    /// Kotlin twin: `SleepStager.restingHRBins`.
+    static func restingHRBins(start: Int, end: Int, hr: [HRSample]) -> [(sum: Int, count: Int)] {
+        guard end >= start else { return [] }
+        let finalBin = max(0, (end - start - 1) / 300)
+        var bins: [Int: (sum: Int, count: Int)] = [:]
+        // Keep the current bin in locals: ordered rows need a dictionary access only at a bin change.
+        // Reload an existing bin on revisits so shuffled rows and duplicates retain every sample.
+        var currentBin = 0, sum = 0, count = 0
+        for row in hr where row.ts >= start && row.ts <= end {
+            let index = min((row.ts - start) / 300, finalBin)
+            if count == 0 || index != currentBin {
+                if count > 0 { bins[currentBin] = (sum: sum, count: count) }
+                let previous = bins[index] ?? (sum: 0, count: 0)
+                currentBin = index; sum = previous.sum; count = previous.count
             }
-            t += windowS
-        } while t < end
-        if let m = gatedMeans.min() { return Int(m.rounded()) }
-        if let m = allMeans.min() { return Int(m.rounded()) }
-        let all = Double(seg.reduce(0) { $0 + $1.bpm }) / Double(seg.count)
-        return Int(all.rounded())
+            sum += row.bpm; count += 1
+        }
+        if count > 0 { bins[currentBin] = (sum: sum, count: count) }
+        return bins.keys.sorted().map { bins[$0]! }
     }
 
     /// One 5-min HRV window: its start ts, the sleep stage at its center, the clean-beat count, and the

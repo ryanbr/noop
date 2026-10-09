@@ -3236,7 +3236,9 @@ object IntelligenceEngine {
         val inBedBpms = hr.filter { s -> sessions.any { s.ts >= it.start && s.ts < it.end } }.map { it.bpm }
         val out = ArrayList<String>(2)
         out.add(rhrFloorMeanLogLine(day, rhrFloor, inBedBpms))
-        SleepStager.rhrBinGateLogLine(day, sessions.map { it.start to it.end }, hr, rhrFloor)
+        SleepStager.rhrBinGateLogLine(day, sessions.map { it.start to it.end }, hr, rhrFloor,
+            minBinSamples = SleepStager.rhrMinBinSamples,
+            minPlausibleBpm = SleepStager.rhrMinPlausibleBpm)
             ?.let { out.add(it) }
         return out
     }
