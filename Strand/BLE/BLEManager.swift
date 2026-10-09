@@ -1529,7 +1529,14 @@ public final class BLEManager: NSObject, ObservableObject {
                                 connectionLog: { [weak self] s in self?.state.append(log: s, domain: .connection) },
                                 // UNIVERSAL clock-drift: bank the strap's historical layout so the export's
                                 // universal clock-drift line is firmware-aware on every export. Unconditional.
-                                firmwareLayout: { [weak self] v in self?.state.setStrapFirmwareLayout(v) })
+                                firmwareLayout: { [weak self] v in self?.state.setStrapFirmwareLayout(v) },
+                                // Sync progress (Devices card + Today ring): where this session's drain began and
+                                // how far it has reached, from the samples' own times.
+                                onChunkDataRange: { [weak self] earliest, latest in
+                                    guard let self else { return }
+                                    if self.state.syncFirstDataUnix == nil { self.state.syncFirstDataUnix = earliest }
+                                    self.state.syncFrontierUnix = max(self.state.syncFrontierUnix ?? latest, latest)
+                                })
         // Strand: no server uploader/sync — all data stays on-device.
 
         // Retro-decode: when the decoder gains a historical layout (e.g. WHOOP 4.0 v25), re-run every
@@ -2568,6 +2575,9 @@ public final class BLEManager: NSObject, ObservableObject {
         backfilling = true
         state.backfilling = true
         state.syncChunksThisSession = 0
+        state.syncFirstDataUnix = nil
+        state.syncFrontierUnix = nil
+        state.syncSessionStartedAt = Date()
         state.rejectedFramesThisSession = 0
         state.rejectedFramesUnarchived = 0
         state.decodedChunksThisSession = 0

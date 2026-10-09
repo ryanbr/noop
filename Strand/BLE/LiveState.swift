@@ -579,6 +579,22 @@ public final class LiveState: ObservableObject {
     /// Chunks acked during the current offload session — an honest progress signal (total pending is
     /// unknowable from the protocol, so a count, never a percent).
     @Published public var syncChunksThisSession: Int = 0
+    /// Time-based progress for the same session. The chunk total is unknowable, but the samples carry their
+    /// own times, so the earliest one decoded, the newest one decoded and the session's start give a share
+    /// and a time-remaining estimate (`SyncProgress`). All nil until the first chunk decodes; reset with the
+    /// chunk count.
+    @Published public var syncFirstDataUnix: Int? = nil
+    @Published public var syncFrontierUnix: Int? = nil
+    @Published public var syncSessionStartedAt: Date? = nil
+
+    /// The current session's progress estimate, or nil while nothing has decoded yet.
+    func syncProgress(now: Date = Date()) -> SyncProgress? {
+        guard backfilling, let first = syncFirstDataUnix, let frontier = syncFrontierUnix,
+              let started = syncSessionStartedAt else { return nil }
+        return SyncProgress.estimate(firstDataUnix: first, frontierUnix: frontier,
+                                     sessionStartedUnix: Int(started.timeIntervalSince1970),
+                                     nowUnix: Int(now.timeIntervalSince1970))
+    }
 
     /// Undecodable HISTORICAL_DATA record frames seen this offload session whose raw bytes WERE
     /// preserved to the on-device archive (#77 / #91). Drives the honest "saved on this Mac" sync

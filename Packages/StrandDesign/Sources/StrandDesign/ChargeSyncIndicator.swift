@@ -23,6 +23,12 @@ private enum SyncRing {
     /// Tone of that numeral, and the scale floor it recedes to as it crossfades out.
     static let numberOpacity: Double = 0.9
     static let numberMinScale: Double = 0.92
+    /// Horizontal room kept between the centre readout and the ring, past the arc's own inset and stroke,
+    /// so a wide value shrinks to fit instead of touching the ring. The floor it may shrink to.
+    /// Sized for the 36pt control: ~23pt of text width inside a ~28pt inner diameter, so "100%" (≈27pt at
+    /// 9pt bold) scales to ~0.85 rather than truncating to "10…".
+    static let numberInset: CGFloat = 1.4
+    static let numberFitScale: CGFloat = 0.6
 
     /// The charging bolt: point size, and how far above centre it clears the ring.
     static let boltSize: CGFloat = 7
@@ -50,6 +56,22 @@ private enum SyncRing {
     static func numberScale(opacity: Double) -> Double {
         numberMinScale + (1 - numberMinScale) * opacity
     }
+
+    /// What the spinner shows in its centre: the sync share when known, else the chunk tally, else nothing.
+    static func centreText(percent: Int?, chunks: Int) -> String? {
+        if let percent { return "\(percent)%" }
+        return chunks > 0 ? "\(chunks)" : nil
+    }
+
+    /// The centre readout, held inside the ring: one line, shrinking rather than overrunning the arc.
+    static func centreReadout(_ text: String) -> some View {
+        Text(verbatim: text)
+            .font(StrandFont.number(numberSize, weight: .bold))
+            .foregroundStyle(StrandPalette.textPrimary.opacity(numberOpacity))
+            .lineLimit(1)
+            .minimumScaleFactor(numberFitScale)
+            .padding(.horizontal, NoopMetrics.syncIndicatorArcInset + spinnerWidth + numberInset)
+    }
 }
 
 /// Compact strap-battery chrome that morphs into an activity indicator while history is syncing.
@@ -74,6 +96,9 @@ public struct ChargeSyncIndicator: View {
     /// Chunks acked this session. Rendered inside the spinner, in the spot the battery percentage
     /// occupies when idle — 0 shows nothing, so a live-HR-only session spins with a bare ring.
     private let chunks: Int
+    /// Share of the sync done, as a whole percent. When set it replaces the chunk tally in the centre: a
+    /// count alone says the drain is moving but not how far it has to go.
+    private let progressPercent: Int?
     private let label: LocalizedStringKey
 
     /// The label's natural width, measured by `labelWidthReader`. 0 until the first layout pass, which
@@ -108,11 +133,13 @@ public struct ChargeSyncIndicator: View {
         batteryState: BatteryState,
         syncing: Bool,
         chunks: Int = 0,
+        progressPercent: Int? = nil,
         label: LocalizedStringKey = "Syncing"
     ) {
         self.batteryState = batteryState
         self.syncing = syncing
         self.chunks = chunks
+        self.progressPercent = progressPercent
         self.label = label
     }
 
@@ -236,6 +263,7 @@ public struct ChargeSyncIndicator: View {
                 batteryTint: Self.ringColor(percent),
                 spinBaseDegrees: spinBaseDegrees,
                 chunks: chunks,
+                progressPercent: progressPercent,
                 spinStartedAt: spinStartedAt,
                 exitStartDegrees: exitStartDegrees,
                 exitStartArc: exitStartArc
@@ -328,10 +356,8 @@ public struct ChargeSyncIndicator: View {
     /// there is no count to state, and a live-HR-only session never gets one.
     @ViewBuilder
     private var chunkNumber: some View {
-        if chunks > 0 {
-            Text("\(chunks)")
-                .font(StrandFont.number(SyncRing.numberSize, weight: .bold))
-                .foregroundStyle(StrandPalette.textPrimary.opacity(SyncRing.numberOpacity))
+        if let text = SyncRing.centreText(percent: progressPercent, chunks: chunks) {
+            SyncRing.centreReadout(text)
                 .accessibilityHidden(true)
         }
     }
@@ -617,6 +643,7 @@ private struct ChargeSyncMorph: View, Animatable {
     /// Spin base for the morph's own reads, mirroring what the entry is handed.
     let spinBaseDegrees: Double
     let chunks: Int
+    let progressPercent: Int?
     let spinStartedAt: Date?
     let exitStartDegrees: Double
     let exitStartArc: Double
@@ -802,10 +829,8 @@ private struct ChargeSyncMorph: View, Animatable {
     /// centre, so across the morph one number appears to replace the other in place. Hidden at 0.
     @ViewBuilder
     private func chunkNumber(opacity: Double) -> some View {
-        if chunks > 0 {
-            Text("\(chunks)")
-                .font(StrandFont.number(SyncRing.numberSize, weight: .bold))
-                .foregroundStyle(StrandPalette.textPrimary.opacity(SyncRing.numberOpacity))
+        if let text = SyncRing.centreText(percent: progressPercent, chunks: chunks) {
+            SyncRing.centreReadout(text)
                 .scaleEffect(SyncRing.numberScale(opacity: opacity))
                 .opacity(opacity)
                 .accessibilityHidden(true)

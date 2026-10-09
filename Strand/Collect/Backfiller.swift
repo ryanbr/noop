@@ -272,6 +272,10 @@ final class Backfiller {
     /// on EVERY export, not only in Connection mode. Called UNCONDITIONALLY (it is observability, not gated)
     /// once per distinct layout this session. Default nil (inert) so tests / non-prod inits are untouched.
     private let firmwareLayout: ((Int) -> Void)?
+    /// Earliest and latest sample time (unix seconds) a decoded history chunk carried, so the sync UI can
+    /// say how far the drain has reached ("synced up to 1:34 AM") and estimate how long is left. Called
+    /// once per chunk that decoded any timestamped sample. Default nil (inert) for tests / non-prod inits.
+    private let onChunkDataRange: ((_ earliest: Int, _ latest: Int) -> Void)?
 
     init(store: BackfillStoreWriting,
          deviceId: String,
@@ -286,6 +290,7 @@ final class Backfiller {
          connectionActive: @escaping () -> Bool = { false },
          connectionLog: ((String) -> Void)? = nil,
          firmwareLayout: ((Int) -> Void)? = nil,
+         onChunkDataRange: ((_ earliest: Int, _ latest: Int) -> Void)? = nil,
          // The default (prod) Extractor reads the opt-in HR-from-PPG sub-lag interpolation flag (Test Centre →
          // Experimental algorithms) at decode time and threads it into the pure decoder, so the pure package
          // never reaches for UserDefaults. Default OFF = byte-identical to today. Tests inject their own seam.
@@ -304,6 +309,7 @@ final class Backfiller {
         self.connectionActive = connectionActive
         self.connectionLog = connectionLog
         self.firmwareLayout = firmwareLayout
+        self.onChunkDataRange = onChunkDataRange
         self.extract = extract
     }
 
@@ -641,6 +647,12 @@ final class Backfiller {
                                            wallClockRef: ref.wall,
                                            rrTimestamps: d.decoded.rr.map(\.ts)) {
                 log?(l)
+            }
+            // Sync progress: the time span this chunk covered. HR is one sample a second whenever the strap
+            // is worn; gravity and R-R cover the stretches HR does not.
+            let chunkTimes = d.decoded.hr.map(\.ts) + d.decoded.gravity.map(\.ts) + d.decoded.rr.map(\.ts)
+            if let earliest = chunkTimes.min(), let latest = chunkTimes.max() {
+                onChunkDataRange?(earliest, latest)
             }
             // Observability (PR #241): log which layout this strap emits on a HEALTHY sync too — the
             // unmapped-version path below only fires for layouts NOOP can't decode, so a normal log
