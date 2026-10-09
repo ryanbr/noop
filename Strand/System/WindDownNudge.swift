@@ -90,9 +90,7 @@ enum WindDownNudge {
     /// The nudge minute-of-day for a given weekday — that day's wake (override or default) minus sleep need
     /// minus lead, wrapped into [0, 1440). Pure; mirrors `nudgeMinuteOfDay()` per-day. (PR#554)
     static func nudgeMinuteOfDay(forWeekday weekday: Int) -> Int {
-        let raw = wakeMinutes(forWeekday: weekday) - sleepNeedMinutes - leadMinutes
-        let day = 24 * 60
-        return ((raw % day) + day) % day
+        nudgeMinuteOfDay(forWake: wakeMinutes(forWeekday: weekday))
     }
 
     /// The day shift for a given weekday's nudge — 0 if the nudge lands on the same day as the wake,
@@ -184,7 +182,14 @@ enum WindDownNudge {
 
     /// The minute-of-day the nudge fires: wake − sleepNeed − lead, wrapped into [0, 1440).
     static func nudgeMinuteOfDay() -> Int {
-        let raw = wakeMinutes - sleepNeedMinutes - leadMinutes
+        nudgeMinuteOfDay(forWake: wakeMinutes)
+    }
+
+    /// The nudge minute-of-day for an explicit wake minute. Lets the Alarms screen show the reminder for
+    /// the wake time it is displaying in the same render, instead of reading back a stored value its own
+    /// change handler has not written yet.
+    static func nudgeMinuteOfDay(forWake wake: Int) -> Int {
+        let raw = wake - sleepNeedMinutes - leadMinutes
         let day = 24 * 60
         return ((raw % day) + day) % day
     }
