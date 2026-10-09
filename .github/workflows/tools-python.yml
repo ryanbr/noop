@@ -131,6 +131,8 @@ jobs:
           fi
         working-directory: Tools
 
+      # The Oura interrupted-drain source contract lives in this core suite too: it reads BOTH
+      # OuraLiveSource implementations, so an Android-only trigger would miss Swift regressions.
       # Parity governance has its own path-filtered workflow because that suite scans the repository and
       # is intentionally much slower. Keep this core floor independent so growth in parity cannot hide
       # accidental deletion here; these six source-reference checks raise it to 114.
