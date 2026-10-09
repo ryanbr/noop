@@ -30,7 +30,7 @@ class PushHttpTransport(
             .url(endpoint.url)
             .header("Authorization", "Bearer $bearerToken")
             .header("Accept", "application/json")
-            .header(ACCEPT_VERSION_HEADER, PushProtocol.VERSION)
+            .header(ACCEPT_VERSION_HEADER, PushProtocol.SUPPORTED_VERSIONS.joinToString(", "))
             .get()
             .build()
         val response = try {

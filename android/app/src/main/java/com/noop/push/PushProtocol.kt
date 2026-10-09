@@ -6,9 +6,11 @@ import java.util.UUID
 
 class PushProtocolException(message: String) : IllegalArgumentException(message)
 
-/** Deterministic, bounded NDJSON encoder and acknowledgement codec for protocol 1.0. */
+/** Deterministic, bounded NDJSON encoder and acknowledgement codec for the negotiated push version. */
 object PushProtocol {
     const val VERSION = "1.0"
+    const val LATEST_VERSION = "1.1"
+    val SUPPORTED_VERSIONS = listOf(LATEST_VERSION, VERSION)
     const val MAX_RECORDS = 5_000
     /** Hard limit for the decoded UTF-8 NDJSON entity, before optional content coding. */
     const val MAX_BODY_BYTES = 4 * 1024 * 1024
@@ -29,13 +31,15 @@ object PushProtocol {
         deviceId: String,
         startCursor: PushCursor?,
         records: List<PushAppendRecord>,
+        protocolVersion: String = VERSION,
     ): PushBatch {
+        requireSupportedVersion(protocolVersion)
         validateUuid(sourceId, "sourceId")
         if (records.isEmpty()) throw PushProtocolException("append batch must contain a record")
         require(records.zipWithNext().all { (a, b) -> a.rowId < b.rowId }) {
             "append records must be strictly ordered by rowid"
         }
-        records.forEach { validateRecord(table, it.key, it.data) }
+        records.forEach { validateRecord(table, it.key, it.data, protocolVersion) }
         val candidates = records.take(MAX_RECORDS)
         val selectedRows = ArrayList<PushAppendRecord>(candidates.size)
         val selectedLines = ArrayList<ByteArray>(candidates.size)
@@ -48,7 +52,7 @@ object PushProtocol {
             val end = cursorFor(table, deviceId, candidate)
             val candidateCount = selectedRows.size + 1
             val headerSize = appendHeader(
-                sourceId, table, deviceId, startCursor, end, candidateCount, UUID_PLACEHOLDER,
+                sourceId, table, deviceId, startCursor, end, candidateCount, UUID_PLACEHOLDER, protocolVersion,
             ).size
             if (headerSize + rowBytes + encodedRow.size > MAX_BODY_BYTES) break
             selectedRows += candidate
@@ -58,13 +62,13 @@ object PushProtocol {
         if (selectedRows.isEmpty()) throw PushProtocolException("first append record exceeds the 4 MiB decoded batch limit")
 
         val endCursor = cursorFor(table, deviceId, selectedRows.last())
-        val identity = appendIdentity(sourceId, table, deviceId, startCursor, endCursor, selectedRows.size)
+        val identity = appendIdentity(sourceId, table, deviceId, startCursor, endCursor, selectedRows.size, protocolVersion)
         val batchId = stableUuid(identity, selectedLines)
-        val header = appendHeader(sourceId, table, deviceId, startCursor, endCursor, selectedRows.size, batchId)
+        val header = appendHeader(sourceId, table, deviceId, startCursor, endCursor, selectedRows.size, batchId, protocolVersion)
         val body = concatenate(header, selectedLines)
         check(body.size <= MAX_BODY_BYTES)
         return PushBatch(
-            protocolVersion = VERSION,
+            protocolVersion = protocolVersion,
             batchId = batchId,
             sourceId = sourceId,
             table = table,
@@ -85,16 +89,18 @@ object PushProtocol {
         deviceId: String,
         window: PushWindow,
         records: List<PushMutableRecord>,
+        protocolVersion: String = VERSION,
     ): List<PushBatch> {
+        requireSupportedVersion(protocolVersion)
         validateUuid(sourceId, "sourceId")
-        records.forEach { validateRecord(table, it.key, it.data) }
+        records.forEach { validateRecord(table, it.key, it.data, protocolVersion) }
         val duplicate = records.groupingBy { orderedObjectJson(it.key) }.eachCount().any { it.value > 1 }
         if (duplicate) throw PushProtocolException("replace_window contains a duplicate key")
         val lines = records.map(::encodeRecordLine)
         val replacementIdentity = mapOf(
             "deviceId" to deviceId,
             "delivery" to "replace_window",
-            "protocolVersion" to VERSION,
+            "protocolVersion" to protocolVersion,
             "sourceId" to sourceId,
             "stream" to table.wireName,
             "window" to selectorBounds(table, window),
@@ -116,6 +122,7 @@ object PushProtocol {
                 parts = Int.MAX_VALUE,
                 count = nextCount,
                 batchId = UUID_PLACEHOLDER,
+                protocolVersion = protocolVersion,
             )
             if (nextCount > MAX_RECORDS || conservativeHeader.size + currentBytes + line.size > MAX_BODY_BYTES) {
                 if (current.isEmpty()) throw PushProtocolException("first replace_window record exceeds the 4 MiB decoded batch limit")
@@ -125,7 +132,7 @@ object PushProtocol {
             }
             val oneHeader = mutableHeader(
                 sourceId, table, deviceId, window, replacementId,
-                Int.MAX_VALUE, Int.MAX_VALUE, 1, UUID_PLACEHOLDER,
+                Int.MAX_VALUE, Int.MAX_VALUE, 1, UUID_PLACEHOLDER, protocolVersion,
             )
             if (oneHeader.size + line.size > MAX_BODY_BYTES) {
                 throw PushProtocolException("replace_window record exceeds the 4 MiB decoded batch limit")
@@ -139,16 +146,16 @@ object PushProtocol {
         return chunks.mapIndexed { index, partLines ->
             val part = index + 1
             val identity = mutableIdentity(
-                sourceId, table, deviceId, window, replacementId, part, parts, partLines.size,
+                sourceId, table, deviceId, window, replacementId, part, parts, partLines.size, protocolVersion,
             )
             val batchId = stableUuid(identity, partLines)
             val header = mutableHeader(
-                sourceId, table, deviceId, window, replacementId, part, parts, partLines.size, batchId,
+                sourceId, table, deviceId, window, replacementId, part, parts, partLines.size, batchId, protocolVersion,
             )
             val body = concatenate(header, partLines)
             check(partLines.size <= MAX_RECORDS && body.size <= MAX_BODY_BYTES)
             PushBatch(
-                protocolVersion = VERSION,
+                protocolVersion = protocolVersion,
                 batchId = batchId,
                 sourceId = sourceId,
                 table = table,
@@ -172,7 +179,8 @@ object PushProtocol {
         deviceId: String,
         window: PushWindow,
         records: List<PushMutableRecord>,
-    ): PushBatch = mutableBatches(table, sourceId, deviceId, window, records).singleOrNull()
+        protocolVersion: String = VERSION,
+    ): PushBatch = mutableBatches(table, sourceId, deviceId, window, records, protocolVersion).singleOrNull()
         ?: throw PushProtocolException("replace_window requires multiple parts")
 
     /** SHA-256(stream LF device LF compact-natural-key), matching cursor invalidation contract. */
@@ -181,8 +189,12 @@ object PushProtocol {
         return sha256Hex("${table.wireName}\n$deviceId\n${orderedObjectJson(key)}".toByteArray(Charsets.UTF_8))
     }
 
-    internal fun mutableRecordEncodedSize(table: PushMutableTable, record: PushMutableRecord): Int {
-        validateRecord(table, record.key, record.data)
+    internal fun mutableRecordEncodedSize(
+        table: PushMutableTable,
+        record: PushMutableRecord,
+        protocolVersion: String = VERSION,
+    ): Int {
+        validateRecord(table, record.key, record.data, protocolVersion)
         return encodeRecordLine(record).size
     }
 
@@ -190,13 +202,14 @@ object PushProtocol {
     internal fun mutableSnapshotHash(
         table: PushMutableTable,
         records: List<PushMutableRecord>,
+        protocolVersion: String = VERSION,
     ): String {
         val lines = records.map { record ->
-            validateRecord(table, record.key, record.data)
+            validateRecord(table, record.key, record.data, protocolVersion)
             encodeRecordLine(record)
         }.sortedWith { left, right -> compareBytes(left, right) }
         val digest = MessageDigest.getInstance("SHA-256")
-        digest.update("noop-push-day-hash\n$VERSION\n${table.wireName}\n".toByteArray(Charsets.UTF_8))
+        digest.update("noop-push-day-hash\n$protocolVersion\n${table.wireName}\n".toByteArray(Charsets.UTF_8))
         lines.forEach(digest::update)
         return digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }
     }
@@ -277,11 +290,12 @@ object PushProtocol {
         start: PushCursor?,
         end: PushCursor,
         count: Int,
+        protocolVersion: String,
     ): Map<String, Any?> = mapOf(
         "delivery" to "append",
         "deviceId" to deviceId,
         "endCursor" to cursorJson(end),
-        "protocolVersion" to VERSION,
+        "protocolVersion" to protocolVersion,
         "recordCount" to count,
         "sourceId" to sourceId,
         "startCursor" to start?.let(::cursorJson),
@@ -297,7 +311,10 @@ object PushProtocol {
         end: PushCursor,
         count: Int,
         batchId: String,
-    ): ByteArray = encodeLine(appendIdentity(sourceId, table, deviceId, start, end, count) + ("batchId" to batchId))
+        protocolVersion: String,
+    ): ByteArray = encodeLine(
+        appendIdentity(sourceId, table, deviceId, start, end, count, protocolVersion) + ("batchId" to batchId),
+    )
 
     private fun mutableIdentity(
         sourceId: String,
@@ -308,11 +325,12 @@ object PushProtocol {
         part: Int,
         parts: Int,
         count: Int,
+        protocolVersion: String,
     ): Map<String, Any?> = mapOf(
         "delivery" to "replace_window",
         "deviceId" to deviceId,
         "endCursor" to null,
-        "protocolVersion" to VERSION,
+        "protocolVersion" to protocolVersion,
         "recordCount" to count,
         "sourceId" to sourceId,
         "startCursor" to null,
@@ -335,8 +353,9 @@ object PushProtocol {
         parts: Int,
         count: Int,
         batchId: String,
+        protocolVersion: String,
     ): ByteArray = encodeLine(
-        mutableIdentity(sourceId, table, deviceId, window, replacementId, part, parts, count) +
+        mutableIdentity(sourceId, table, deviceId, window, replacementId, part, parts, count, protocolVersion) +
             ("batchId" to batchId),
     )
 
@@ -394,14 +413,44 @@ object PushProtocol {
         return left.size - right.size
     }
 
-    private fun validateRecord(table: PushTable, key: Map<String, Any?>, data: Map<String, Any?>) {
+    private fun validateRecord(
+        table: PushTable,
+        key: Map<String, Any?>,
+        data: Map<String, Any?>,
+        protocolVersion: String,
+    ) {
+        requireSupportedVersion(protocolVersion)
         val spec = REGISTRY.getValue(table.wireName)
+        val dataMembers = dataMembers(table, protocolVersion)
         if (key.keys.toList() != spec.first) throw PushProtocolException("${table.wireName} key does not match registry")
-        if (data.keys.toSet() != spec.second.toSet() || data.size != spec.second.size) {
+        if (data.keys.toSet() != dataMembers.toSet() || data.size != dataMembers.size) {
             throw PushProtocolException("${table.wireName} data does not match registry")
+        }
+        if (table == PushMutableTable.DAILY_METRIC && protocolVersion == LATEST_VERSION) {
+            for (name in listOf("sleepPerformance", "sleepConsistency")) {
+                val score = data[name]
+                if (score != null &&
+                    (score !is Number || !score.toDouble().isFinite() || score.toDouble() !in 0.0..100.0)
+                ) {
+                    throw PushProtocolException("dailyMetric.$name must be null or within 0..100")
+                }
+            }
         }
         if ("deviceId" in key || "deviceId" in data || "synced" in data) {
             throw PushProtocolException("batch-scoped or local-only column in record")
+        }
+    }
+
+    private fun dataMembers(table: PushTable, protocolVersion: String): List<String> {
+        val members = REGISTRY.getValue(table.wireName).second
+        return if (table == PushMutableTable.DAILY_METRIC && protocolVersion == LATEST_VERSION) {
+            members + listOf("sleepPerformance", "sleepConsistency")
+        } else members
+    }
+
+    private fun requireSupportedVersion(protocolVersion: String) {
+        if (protocolVersion !in SUPPORTED_VERSIONS) {
+            throw PushProtocolException("unsupported protocol version")
         }
     }
 
@@ -482,20 +531,23 @@ data class PushAck(
             batch.endCursor, batch.recordCount, "accepted",
         )
 
-        fun parse(bytes: ByteArray): PushAck {
+        fun parse(bytes: ByteArray, expectedVersion: String = PushProtocol.VERSION): PushAck {
             if (bytes.size > PushProtocol.MAX_ACK_BYTES) throw PushProtocolException("ack exceeds size limit")
             val obj = try {
                 JSONObject(bytes.toString(Charsets.UTF_8))
             } catch (_: Throwable) {
                 throw PushProtocolException("ack is not valid JSON")
             }
+            val protocolVersion = (obj.opt("protocolVersion") as? String)
+                ?.takeIf { it == expectedVersion }
+                ?: throw PushProtocolException("ack protocolVersion does not match the negotiated version")
             val expectedMembers = setOf(
                 "protocolVersion", "batchId", "stream", "deviceId", "endCursor",
                 "acceptedRows", "status",
             )
             val actualMembers = obj.keys().asSequence().toSet()
             if (!actualMembers.containsAll(expectedMembers)) {
-                throw PushProtocolException("ack is missing required protocol 1.0 members")
+                throw PushProtocolException("ack is missing required members")
             }
             if (actualMembers.any { it in PushProtocol.FORBIDDEN_REMOTE_CONTROL_MEMBERS }) {
                 throw PushProtocolException("ack contains forbidden remote-control metadata")
@@ -514,7 +566,7 @@ data class PushAck(
                 null, JSONObject.NULL -> null
                 is JSONObject -> {
                     if (!raw.keys().asSequence().toSet().containsAll(setOf("rowId", "keySha256"))) {
-                        throw PushProtocolException("ack.endCursor is missing required protocol 1.0 members")
+                        throw PushProtocolException("ack.endCursor is missing required members")
                     }
                     val row = raw.opt("rowId") as? Number
                         ?: throw PushProtocolException("ack.endCursor.rowId must be an integer")
@@ -529,7 +581,7 @@ data class PushAck(
                 else -> throw PushProtocolException("ack.endCursor must be an object or null")
             }
             return PushAck(
-                protocolVersion = string("protocolVersion"),
+                protocolVersion = protocolVersion,
                 batchId = string("batchId"),
                 stream = string("stream"),
                 deviceId = string("deviceId"),

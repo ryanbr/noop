@@ -15,7 +15,11 @@ class PushCoordinator(
     private val zoneId: ZoneId,
     private val destinationStillCurrent: () -> Boolean = { true },
 ) {
-    suspend fun pushAppend(table: PushAppendTable, deviceId: String): PushResult {
+    suspend fun pushAppend(
+        table: PushAppendTable,
+        deviceId: String,
+        protocolVersion: String = PushProtocol.VERSION,
+    ): PushResult {
         val stored = try {
             progress.cursor(table, deviceId)
         } catch (cancelled: CancellationException) {
@@ -49,7 +53,7 @@ class PushCoordinator(
         }
         if (rows.isEmpty()) return PushResult.NoData
         val batch = try {
-            PushProtocol.appendBatch(table, sourceId, deviceId, effective, rows)
+            PushProtocol.appendBatch(table, sourceId, deviceId, effective, rows, protocolVersion)
         } catch (t: PushProtocolException) {
             return rejected(PushFailure(PushFailureCode.LOCAL_DATA))
         }
@@ -69,11 +73,15 @@ class PushCoordinator(
         }
     }
 
-    suspend fun pushMutable(table: PushMutableTable, deviceId: String): PushResult {
+    suspend fun pushMutable(
+        table: PushMutableTable,
+        deviceId: String,
+        protocolVersion: String = PushProtocol.VERSION,
+    ): PushResult {
         val fullWindow = PushWindow.ending(today(), zoneId)
         val rows = try {
             source.mutableRows(
-                table, deviceId, fullWindow, PushProtocol.MAX_MUTABLE_SNAPSHOT_RECORDS + 1,
+                table, deviceId, fullWindow, PushProtocol.MAX_MUTABLE_SNAPSHOT_RECORDS + 1, protocolVersion,
             )
         } catch (cancelled: CancellationException) {
             throw cancelled
@@ -92,7 +100,7 @@ class PushCoordinator(
         val recordsByDay = days.associateWith { mutableListOf<PushMutableRecord>() }
         for (record in rows) {
             val size = try {
-                PushProtocol.mutableRecordEncodedSize(table, record)
+                PushProtocol.mutableRecordEncodedSize(table, record, protocolVersion)
             } catch (t: PushProtocolException) {
                 return rejected(PushFailure(PushFailureCode.LOCAL_DATA))
             }
@@ -111,7 +119,7 @@ class PushCoordinator(
         }
         val currentHashes = try {
             recordsByDay.mapKeys { (day, _) -> day.toString() }
-                .mapValues { (_, dayRows) -> PushProtocol.mutableSnapshotHash(table, dayRows) }
+                .mapValues { (_, dayRows) -> PushProtocol.mutableSnapshotHash(table, dayRows, protocolVersion) }
         } catch (_: PushProtocolException) {
             return rejected(PushFailure(PushFailureCode.LOCAL_DATA))
         }
@@ -130,7 +138,7 @@ class PushCoordinator(
             .flatMap { recordsByDay.getValue(it).asSequence() }
             .toList()
         val batches = try {
-            PushProtocol.mutableBatches(table, sourceId, deviceId, window, changedRows)
+            PushProtocol.mutableBatches(table, sourceId, deviceId, window, changedRows, protocolVersion)
         } catch (t: PushProtocolException) {
             return rejected(PushFailure(PushFailureCode.LOCAL_DATA))
         }
@@ -215,7 +223,7 @@ class PushCoordinator(
         var selectedFailure: PushFailure? = null
         for (deviceId in selectedDevices) {
             for (table in PushAppendTable.entries.filter { it in capabilities.appendTables }) {
-                when (val result = pushAppend(table, deviceId)) {
+                when (val result = pushAppend(table, deviceId, capabilities.protocolVersion)) {
                     is PushResult.Accepted -> {
                         accepted += result.batchCount
                         acceptedRecords += result.recordCount
@@ -232,7 +240,7 @@ class PushCoordinator(
                 }
             }
             for (table in PushMutableTable.entries.filter { it in capabilities.mutableTables }) {
-                when (val result = pushMutable(table, deviceId)) {
+                when (val result = pushMutable(table, deviceId, capabilities.protocolVersion)) {
                     is PushResult.Accepted -> {
                         accepted += result.batchCount
                         acceptedRecords += result.recordCount
@@ -282,7 +290,7 @@ class PushCoordinator(
             )
         }
         val ack = try {
-            PushAck.parse(response.body)
+            PushAck.parse(response.body, batch.protocolVersion)
         } catch (t: PushProtocolException) {
             return rejected(PushFailure(PushFailureCode.ACK_INVALID))
         }

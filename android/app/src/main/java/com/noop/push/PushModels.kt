@@ -158,6 +158,15 @@ interface PushSnapshotSource {
         window: PushWindow,
         limit: Int,
     ): List<PushMutableRecord>
+
+    /** Newer wire versions may add an explicit projection without broadening older snapshots. */
+    suspend fun mutableRows(
+        table: PushMutableTable,
+        deviceId: String,
+        window: PushWindow,
+        limit: Int,
+        protocolVersion: String,
+    ): List<PushMutableRecord> = mutableRows(table, deviceId, window, limit)
 }
 
 sealed interface PushResult {
