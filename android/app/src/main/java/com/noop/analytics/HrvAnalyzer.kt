@@ -122,7 +122,9 @@ object HrvAnalyzer {
     /**
      * Task Force SDNN index: mean sample-SDNN across consecutive [segmentSec]-second segments.
      * Each segment uses the same range + Malik cleaning as [analyze]; segments with fewer than
-     * [MIN_BEATS] clean intervals are skipped. Timestamps are Unix seconds and segment boundaries are
+     * [MIN_BEATS] clean intervals are skipped, as are segments refused by the existing beat-spread or
+     * beat-value quality gates. Banked or over-counted intervals must not supply a daily SDNN merely
+     * because their values survived cleaning. Timestamps are Unix seconds and segment boundaries are
      * inclusive, matching the Swift `HRVAnalyzer.sdnnIndex` twin. This is deliberately distinct from
      * whole-night SDNN, whose slow between-stage heart-rate drift can dominate the result.
      */
@@ -139,8 +141,17 @@ object HrvAnalyzer {
             segments.getOrPut(bucket) { ArrayList() }.add(sample)
         }
         val values = segments.keys.sorted().mapNotNull { bucket ->
-            val start = first + bucket * segmentLength
-            analyze(segments.getValue(bucket), windowStart = start, windowEnd = start + segmentLength - 1).sdnn
+            val segment = segments.getValue(bucket).sortedBy { it.ts }
+            val times = segment.map { it.ts }
+            val intervals = segment.map { it.rrMs.toDouble() }
+            val coverage = rrCoverage(times, intervals)
+            // Both over-count verdicts refuse SDNN; collapsing duplicates just to distinguish them
+            // would add a sort without changing this gate's answer. Mirrors the Swift twin.
+            val verdict = classifyCoverage(coverage, coverage)
+            val accurate = beatAccurateFraction(times, intervals)
+            if (beatSpreadIsTrustworthy(verdict) && beatValuesAreTrustworthy(accurate)) {
+                analyze(segment).sdnn
+            } else null
         }
         return if (values.isEmpty()) null else values.sum() / values.size.toDouble()
     }

@@ -64,7 +64,9 @@ class AnalyticsEngineProvidedSleepTest {
         // HRV & resting HR re-derived from THIS day's rr/hr over the provided window (the ring row carried
         // neither) — the crux of #804 (avgHrv was nil despite 36 k rr present).
         assertNotNull("avgHrv must be derived from rr over the provided window", res.daily.avgHrv)
-        assertNotNull("avgSdnn must be derived from rr inside matched sleep", res.daily.avgSdnn)
+        // This fixture stamps ~1.1-second intervals every 2 seconds. It fails the existing beat-value
+        // accuracy gate: a provided hypnogram may supply sleep, but cannot make those intervals SDNN.
+        assertNull("untrustworthy beat values must not supply daily SDNN", res.daily.avgSdnn)
         assertNotNull(res.daily.restingHr)
     }
 
