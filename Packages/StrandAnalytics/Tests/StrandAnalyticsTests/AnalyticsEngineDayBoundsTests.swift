@@ -119,4 +119,60 @@ final class AnalyticsEngineDayBoundsTests: XCTestCase {
             XCTAssertNotNil(full.daily.activeKcalEst)
         }
     }
+
+    // #2517 asks for evidence before choosing a zone-aware scoring/history policy. These vectors
+    // deliberately characterize the current BUG, not the desired calendar-day behavior. Replace
+    // the expected output when that policy changes; do not treat fixed 24-hour scoring as a promise.
+    func testTransitionDayScoringCharacterization() throws {
+        let cases = [("Pacific/Auckland", "2026-09-27", 23),
+                     ("Pacific/Auckland", "2026-04-05", 25),
+                     ("America/New_York", "2026-03-08", 23),
+                     ("America/New_York", "2026-11-01", 25)]
+        var lines: [String] = []
+        for (zone, day, hours) in cases {
+            let timeZone = try XCTUnwrap(TimeZone(identifier: zone))
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = timeZone
+            let parts = day.split(separator: "-").compactMap { Int($0) }
+            let startDate = try XCTUnwrap(calendar.date(from: DateComponents(
+                year: parts[0], month: parts[1], day: parts[2])))
+            let endDate = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: startDate))
+            let start = Int(startDate.timeIntervalSince1970)
+            let end = Int(endDate.timeIntervalSince1970)
+            XCTAssertEqual(end - start, hours * 3600)
+            // Ten counter ticks per minute, with two hours of spill at BOTH calendar edges.
+            // The counter never wraps and every delta is plausible, isolating membership from math.
+            let samples = stride(from: start - 7200, to: end + 7200, by: 60).enumerated()
+                .map { StepSample(ts: $0.element, counter: 100 + $0.offset * 10) }
+            let calendarSamples = samples.filter { $0.ts >= start && $0.ts < end }
+            let calendarTicks = try XCTUnwrap(StepsCounter.stepsInWindow(calendarSamples))
+            XCTAssertEqual(calendarTicks, (hours * 60 - 1) * 10)
+            for (name, date) in [("before", startDate), ("after", endDate)] {
+                let offset = timeZone.secondsFromGMT(for: date)
+                let members = samples.filter { AnalyticsEngine.dayString($0.ts, offsetSec: offset) == day }
+                let first = try XCTUnwrap(members.first).ts
+                let last = try XCTUnwrap(members.last).ts
+                let scored = AnalyticsEngine.analyzeDay(day: day, daySteps: samples,
+                    profile: UserProfile(), tzOffsetSeconds: offset)
+                let scoredTicks = try XCTUnwrap(scored.daily.steps)
+                XCTAssertEqual(scoredTicks, StepsCounter.stepsInWindow(members))
+                XCTAssertNotEqual(scoredTicks, calendarTicks, "fixture must expose the DST discrepancy")
+                lines.append("\(zone) \(day) \(name) offset=\(offset) hours=\(hours) " +
+                    "firstDelta=\(first - start) endDelta=\(last + 60 - end) " +
+                    "calendarTicks=\(calendarTicks) scoredTicks=\(scoredTicks)")
+            }
+        }
+        // Verbatim output from the production Swift analyzeDay run; Kotlin pins the same block.
+        XCTAssertEqual(lines.joined(separator: "\n"), """
+        Pacific/Auckland 2026-09-27 before offset=43200 hours=23 firstDelta=0 endDelta=3600 calendarTicks=13790 scoredTicks=14390
+        Pacific/Auckland 2026-09-27 after offset=46800 hours=23 firstDelta=-3600 endDelta=0 calendarTicks=13790 scoredTicks=14390
+        Pacific/Auckland 2026-04-05 before offset=46800 hours=25 firstDelta=0 endDelta=-3600 calendarTicks=14990 scoredTicks=14390
+        Pacific/Auckland 2026-04-05 after offset=43200 hours=25 firstDelta=3600 endDelta=0 calendarTicks=14990 scoredTicks=14390
+        America/New_York 2026-03-08 before offset=-18000 hours=23 firstDelta=0 endDelta=3600 calendarTicks=13790 scoredTicks=14390
+        America/New_York 2026-03-08 after offset=-14400 hours=23 firstDelta=-3600 endDelta=0 calendarTicks=13790 scoredTicks=14390
+        America/New_York 2026-11-01 before offset=-14400 hours=25 firstDelta=0 endDelta=-3600 calendarTicks=14990 scoredTicks=14390
+        America/New_York 2026-11-01 after offset=-18000 hours=25 firstDelta=3600 endDelta=0 calendarTicks=14990 scoredTicks=14390
+        """)
+    }
+
 }
