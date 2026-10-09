@@ -354,11 +354,10 @@ struct LiquidTodayView: View {
                     // the same one Android pins it to (TodayScreen.kt) — so a warning cannot be reordered
                     // below the fold. Renders nothing when model.healthAlert is nil.
                     HealthAlertBanner()
-                    // #105: the live "workout in progress" card, dropped in the liquid Home rewrite. Restored
-                    // here as the SAME leaf the classic TodayView renders (and Android's WorkoutInProgressCard),
-                    // pinned above the reorderable block so an active manual workout is immediately visible
-                    // and opens the existing workout flow. Today also offers Start when no workout is active.
-                    ActiveWorkoutIndicatorSection(showStart: selectedDayOffset == 0)
+                    // Recording remains reachable when its idle entry is hidden or browsing a past day.
+                    if selectedDayOffset != 0 || !sectionOrder.contains(.workoutStart) {
+                        ActiveWorkoutIndicatorSection()
+                    }
                     // #today-layout (parity with Android): every Today section — the Charge/Effort/Rest hero
                     // and Start-session included — renders in the user's saved order. Reorder via the Arrange
                     // sheet (the header's up/down button; native drag rows); the order persists under the
@@ -366,6 +365,8 @@ struct LiquidTodayView: View {
                     // nothing and keeps its slot in the saved order.
                     ForEach(sectionOrder) { section in
                         switch section {
+                        case .workoutStart:
+                            if selectedDayOffset == 0 { ActiveWorkoutIndicatorSection(showStart: true) }
                         case .hero:
                             heroCard
                             if chargeLegacyRRGap { ChargeLegacyRRGapNote() }

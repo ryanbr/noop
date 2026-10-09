@@ -1501,17 +1501,12 @@ fun TodayScreen(
         }
         }
 
-        // Today's shared workout host offers Start when idle and the recording controls when active.
-        // Past days retain the active-workout shortcut. Per-second clocks remain inside their leaves.
-        if (selectedDayOffset == 0) {
-            // Keep the existing picker/live-view host mounted across idle → recording transitions.
-            // Manual entry stays on Workouts; Today offers the same live recording controls.
+        // Hiding the idle entry must not hide recording controls. Past days keep their shortcut.
+        if (selectedDayOffset == 0 && TodaySection.WORKOUT_START in hiddenSections && activeWorkout != null) {
             item { WorkoutStartSection(viewModel) }
-        } else {
+        } else if (selectedDayOffset != 0) {
             activeWorkout?.let { w ->
-                item {
-                    WorkoutInProgressCard(workout = w, onReturn = onOpenActiveWorkout)
-                }
+                item { WorkoutInProgressCard(workout = w, onReturn = onOpenActiveWorkout) }
             }
         }
 
@@ -1656,6 +1651,8 @@ fun TodayScreen(
                         (it != DashboardCard.COACH || BottomBarStyleStore.coachEnabled)
             }
             val sectionVisible = when (section) {
+                TodaySection.WORKOUT_START ->
+                    selectedDayOffset == 0 && (liveSnap.bonded || activeWorkout != null)
                 TodaySection.LIVE_SESSION ->
                     selectedDayOffset == 0 && (liveSessionsEnabled || activeLiveSession != null)
                 TodaySection.YOUR_CARDS ->
@@ -1678,6 +1675,7 @@ fun TodayScreen(
                     onDrop = { TodayLayoutPrefs.setOrder(context, sectionOrder) },
                 ) {
                     when (section) {
+                        TodaySection.WORKOUT_START -> WorkoutStartSection(viewModel)
                         // HERO, three equal Charge / Effort / Rest GlowRings in the compact pinned-dark
                         // card used by LiquidTodayView. Effort prefers today's live in-progress strain and
                         // falls back to the stored value (#402); the floating badge names the real score

@@ -4,6 +4,7 @@ import StrandDesign
 extension TodaySection {
     var customizationIcon: String {
         switch self {
+        case .workoutStart: return "figure.run"
         case .hero: return "gauge.with.dots.needle.67percent"
         case .liveSession: return "figure.run.circle"
         case .synthesis: return "sparkles"
@@ -20,6 +21,7 @@ extension TodaySection {
 
     var customizationTint: Color {
         switch self {
+        case .workoutStart: return StrandPalette.effortColor
         case .hero: return StrandPalette.chargeColor
         case .liveSession: return StrandPalette.metricCyan
         case .synthesis: return StrandPalette.accent

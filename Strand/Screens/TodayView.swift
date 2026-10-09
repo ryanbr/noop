@@ -1488,10 +1488,11 @@ struct TodayView: View {
                 DayNavBar(selectedOffset: selectedDayOffset,
                           today: Repository.logicalDay(Date())) { selectedDayOffset = $0 }
                 #endif
-                // A "workout in progress" indicator whenever a manual workout is active. A tap routes to Live
-                // and opens the in-exercise screen. Its own leaf owns the AppModel observation + per-second
-                // clock, so the live tick never re-renders TodayView.body.
-                ActiveWorkoutIndicatorSection(showStart: selectedDayOffset == 0)
+                // Recording remains reachable when the idle entry is hidden or browsing a past day.
+                // Its leaf owns AppModel observation and the clock, keeping live ticks off TodayView.body.
+                if selectedDayOffset != 0 || !sectionOrder.contains(.workoutStart) {
+                    ActiveWorkoutIndicatorSection()
+                }
                 // The "still building" and "new here?" prompts are about getting today's scores going,
                 // so they stay anchored to today rather than reappearing on every navigated past day.
                 if selectedDayOffset == 0 && repo.today?.recovery == nil {
@@ -1940,6 +1941,8 @@ struct TodayView: View {
     @ViewBuilder
     private func todaySection(_ section: TodaySection) -> some View {
         switch section {
+        case .workoutStart:
+            if selectedDayOffset == 0 { ActiveWorkoutIndicatorSection(showStart: true) }
         case .hero:
             classicHeroSection
         case .liveSession:

@@ -23,6 +23,7 @@ import com.noop.R
  * the macOS `TodaySection` enum so a backup/restore reads the same layout on either OS.
  */
 enum class TodaySection(val raw: String, @StringRes val titleRes: Int) {
+    WORKOUT_START("workoutStart", R.string.l10n_workout_start_start_workout_d0f3f2cd),
     HERO("hero", R.string.today_section_hero),
     LIVE_SESSION("liveSession", R.string.today_section_live_session),
     SYNTHESIS("synthesis", R.string.today_section_synthesis),
@@ -45,7 +46,7 @@ enum class TodaySection(val raw: String, @StringRes val titleRes: Int) {
         /** The original, hard-coded section order — the default when the layout isn't customised. The
          *  journal widget (#656) is last by default, where it was first added, above the data-sources card. */
         val defaultOrder: List<TodaySection> = listOf(
-            HERO, LIVE_SESSION, SYNTHESIS, KEY_METRICS, WORKOUTS, HEART_RATE, RECOVERY_VITALS, YOUR_CARDS,
+            WORKOUT_START, HERO, LIVE_SESSION, SYNTHESIS, KEY_METRICS, WORKOUTS, HEART_RATE, RECOVERY_VITALS, YOUR_CARDS,
             MENSTRUAL_CYCLE, JOURNAL, ADDED_CARDS,
         )
     }

@@ -21,14 +21,14 @@ class TodayLayoutPrefsTest {
     @Test
     fun encodeDecode_roundTripsAReorderedList() {
         val reordered = listOf(
-            TodaySection.HEART_RATE, TodaySection.HERO, TodaySection.YOUR_CARDS,
+            TodaySection.WORKOUT_START, TodaySection.HEART_RATE, TodaySection.HERO, TodaySection.YOUR_CARDS,
             TodaySection.LIVE_SESSION, TodaySection.SYNTHESIS, TodaySection.KEY_METRICS,
             TodaySection.WORKOUTS, TodaySection.RECOVERY_VITALS, TodaySection.JOURNAL,
             TodaySection.MENSTRUAL_CYCLE, TodaySection.ADDED_CARDS,
         )
         val encoded = TodayLayoutPrefs.encode(reordered)
         assertEquals(
-            "heartRate,hero,yourCards,liveSession,synthesis,keyMetrics,workouts,recoveryVitals,journal,menstrualCycle,addedCards",
+            "workoutStart,heartRate,hero,yourCards,liveSession,synthesis,keyMetrics,workouts,recoveryVitals,journal,menstrualCycle,addedCards",
             encoded,
         )
         assertEquals(reordered, TodayLayoutPrefs.decodeOrder(encoded))
@@ -42,7 +42,7 @@ class TodayLayoutPrefsTest {
         val firstCut = "synthesis,keyMetrics,workouts,heartRate,recoveryVitals,yourCards"
         assertEquals(
             listOf(
-                TodaySection.HERO, TodaySection.LIVE_SESSION,
+                TodaySection.WORKOUT_START, TodaySection.HERO, TodaySection.LIVE_SESSION,
                 TodaySection.SYNTHESIS, TodaySection.KEY_METRICS, TodaySection.WORKOUTS,
                 TodaySection.HEART_RATE, TodaySection.RECOVERY_VITALS, TodaySection.YOUR_CARDS,
                 TodaySection.MENSTRUAL_CYCLE, TodaySection.JOURNAL, TodaySection.ADDED_CARDS,
@@ -60,9 +60,9 @@ class TodayLayoutPrefsTest {
         assertEquals(TodaySection.entries.size, decoded.size)
         assertEquals(
             listOf(
-                // hero(0), liveSession(1), workouts(4) all precede heartRate(5) in default order, so all
+                // workoutStart, hero, liveSession and workouts precede heartRate in default order, so all
                 // insert before the saved heartRate, in default order among themselves:
-                TodaySection.HERO, TodaySection.LIVE_SESSION, TodaySection.WORKOUTS,
+                TodaySection.WORKOUT_START, TodaySection.HERO, TodaySection.LIVE_SESSION, TodaySection.WORKOUTS,
                 TodaySection.HEART_RATE, TodaySection.SYNTHESIS, TodaySection.KEY_METRICS,
                 TodaySection.RECOVERY_VITALS,
                 TodaySection.YOUR_CARDS, TodaySection.MENSTRUAL_CYCLE, TodaySection.JOURNAL,
@@ -79,9 +79,9 @@ class TodayLayoutPrefsTest {
         assertEquals(TodaySection.entries.size, decoded.size)
         assertEquals(
             listOf(
-                // Every missing section's default index precedes yourCards(7), so each inserts before it,
+                // Every missing leading section precedes yourCards, so each inserts before it,
                 // accumulating in default order; the saved yourCards→heartRate order is preserved at the end.
-                TodaySection.HERO, TodaySection.LIVE_SESSION, TodaySection.SYNTHESIS,
+                TodaySection.WORKOUT_START, TodaySection.HERO, TodaySection.LIVE_SESSION, TodaySection.SYNTHESIS,
                 TodaySection.KEY_METRICS, TodaySection.WORKOUTS, TodaySection.RECOVERY_VITALS,
                 TodaySection.YOUR_CARDS, TodaySection.HEART_RATE,
                 TodaySection.MENSTRUAL_CYCLE, TodaySection.JOURNAL, TodaySection.ADDED_CARDS,
@@ -107,7 +107,7 @@ class TodayLayoutPrefsTest {
         val order = "heartRate,hero,yourCards,liveSession,synthesis,keyMetrics,workouts,recoveryVitals,journal"
         assertEquals(
             listOf(
-                TodaySection.HEART_RATE, TodaySection.YOUR_CARDS, TodaySection.LIVE_SESSION,
+                TodaySection.WORKOUT_START, TodaySection.HEART_RATE, TodaySection.YOUR_CARDS, TodaySection.LIVE_SESSION,
                 TodaySection.SYNTHESIS, TodaySection.KEY_METRICS, TodaySection.RECOVERY_VITALS,
                 TodaySection.MENSTRUAL_CYCLE, TodaySection.JOURNAL, TodaySection.ADDED_CARDS,
             ),
@@ -140,11 +140,33 @@ class TodayLayoutPrefsTest {
         // Pin the exact wire strings — they cross the .noopbak boundary and must match macOS byte-for-byte.
         assertEquals(
             listOf(
-                "hero", "liveSession", "synthesis", "keyMetrics",
+                "workoutStart", "hero", "liveSession", "synthesis", "keyMetrics",
                 "workouts", "heartRate", "recoveryVitals", "yourCards", "menstrualCycle", "journal",
                 "addedCards",
             ),
             raws,
         )
     }
+    @Test
+    fun workoutEntry_upgradeHideAndRestore_matchesSwiftOracle() {
+        val oldOrder = "hero,liveSession,synthesis,keyMetrics,workouts,heartRate,recoveryVitals,yourCards,menstrualCycle,journal,addedCards"
+        val outputs = listOf("", "workoutStart", "workoutStart,workouts", "workouts").map {
+            TodayLayoutPrefs.encode(TodayLayoutPrefs.visibleOrder(oldOrder, it))
+        }
+        // Verbatim output of the optimized production Swift layout decoder.
+        assertEquals(
+            """
+            workoutStart,hero,liveSession,synthesis,keyMetrics,workouts,heartRate,recoveryVitals,yourCards,menstrualCycle,journal,addedCards
+            hero,liveSession,synthesis,keyMetrics,workouts,heartRate,recoveryVitals,yourCards,menstrualCycle,journal,addedCards
+            hero,liveSession,synthesis,keyMetrics,heartRate,recoveryVitals,yourCards,menstrualCycle,journal,addedCards
+            workoutStart,hero,liveSession,synthesis,keyMetrics,heartRate,recoveryVitals,yourCards,menstrualCycle,journal,addedCards
+            """.trimIndent(),
+            outputs.joinToString("\n"),
+        )
+        val moved = "$oldOrder,workoutStart"
+        assertEquals(moved, TodayLayoutPrefs.encode(TodayLayoutPrefs.decodeOrder(moved)))
+        assertEquals(oldOrder, TodayLayoutPrefs.encode(TodayLayoutPrefs.visibleOrder(moved, "workoutStart")))
+        assertEquals(moved, TodayLayoutPrefs.encode(TodayLayoutPrefs.visibleOrder(moved, "")))
+    }
+
 }
