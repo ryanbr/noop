@@ -1259,6 +1259,7 @@ public final class BLEManager: NSObject, ObservableObject {
     private var bondLoopPausedAt: Date?
     /// NotificationCenter token for the app-foreground salvage probe (installForegroundSalvageProbe).
     private var foregroundSalvageObserver: NSObjectProtocol?
+    private var protectedDataStartupObserver: NSObjectProtocol?
     /// Multi-WHOOP stale-pin recovery (#52). Consecutive "Encryption/Authentication is insufficient" bond
     /// refusals on the CURRENTLY PINNED peripheral. A stale registry pin (pointing at a strap that bonds to
     /// the official app / isn't really here) makes `connect()` drop the strap that DOES bond and loop
@@ -1386,8 +1387,6 @@ public final class BLEManager: NSObject, ObservableObject {
         installForegroundSalvageProbe()
     }
 
-    /// Build the WhoopStore + Collector + Backfiller asynchronously. Safe to call multiple
-    /// times — bails out early if the collector is already initialised.
     /// Seed the last-sync display from the ACTIVE strap's own stamp — PR #556's intent, correctly attributed.
     ///
     /// Resolved against the registry's active row, exactly as the debug export resolves firmware. NOT from
@@ -1422,7 +1421,19 @@ public final class BLEManager: NSObject, ObservableObject {
         }
     }
 
+    private let startupGate = BLEStartupGate()
+
+    /// Build the store once for overlapping startup callbacks, allowing retries after a failed open.
     func bootstrapStore() async {
+        _ = await startupGate.prepare { await self.prepareStoreForStartup() }
+    }
+
+    private func prepareStoreForStartup() async -> Bool {
+        await openStore()
+        return collector != nil && registryStore != nil
+    }
+
+    private func openStore() async {
         guard collector == nil else { return }
         // Surface store-open failures instead of swallowing them with `try?` (#222): a silent failure
         // here left `backfiller` nil forever and the only visible symptom was the downstream
@@ -1461,8 +1472,8 @@ public final class BLEManager: NSObject, ObservableObject {
             //
             // Fail-open on an unknown row (nil): unchanged behaviour for anything the registry can't
             // classify. Only a POSITIVELY non-WHOOP active device is refused, and that same fact seeds the
-            // connect gate — which closes the launch race where `poweredOn` can reach the WHOOP flow
-            // before `SourceCoordinator` has wired up and asserted it.
+            // connect gate. Automatic startup awaits this seed before connecting or discovering services,
+            // even when `SourceCoordinator` has not wired up yet (#2604).
             let activeRow = (try? registry.all())?.first(where: { $0.id == activeId })
             if let activeRow, !SourceIdentity.isWhoop(activeRow) {
                 setWhoopIsActiveDevice(false)
@@ -1976,8 +1987,26 @@ public final class BLEManager: NSObject, ObservableObject {
         foregroundSalvageObserver = NotificationCenter.default.addObserver(
             forName: name, object: nil, queue: .main
         ) { [weak self] _ in
-            Task { @MainActor in self?.salvageProbeIfBondLoopPaused() }
+            Task { @MainActor in
+                guard let self else { return }
+                if self.collector == nil && !self.intentionalDisconnect {
+                    await self.resumeSystemConnection(reason: "foreground-store-retry")
+                }
+                self.salvageProbeIfBondLoopPaused()
+            }
         }
+        #if os(iOS)
+        // A background restoration can meet a data-protected database. Retry on unlock without
+        // first connecting to an unknown active device merely to start the backfill retry timer.
+        protectedDataStartupObserver = NotificationCenter.default.addObserver(
+            forName: UIApplication.protectedDataDidBecomeAvailableNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.collector == nil, !self.intentionalDisconnect else { return }
+                await self.resumeSystemConnection(reason: "protected-data-store-retry")
+            }
+        }
+        #endif
         #endif
     }
 
@@ -5135,9 +5164,36 @@ public final class BLEManager: NSObject, ObservableObject {
         }
     }
 
-    /// Issue a direct connect to a restored peripheral, logging that it actually happened and arming the
-    /// #730 pending-connect probe. Both restore entry points funnel through here so the two paths can be
-    /// told apart in a strap log.
+    /// Resume radio-driven startup only after the registry has seeded the active-device gate.
+    private func resumeSystemConnection(reason: String) async {
+        await startupGate.resume(
+            prepare: { await self.prepareStoreForStartup() },
+            isAllowed: {
+                self.central.state == .poweredOn && !self.intentionalDisconnect
+                    && self.whoopConnectAllowed("startup/\(reason)")
+            },
+            action: {
+                if let p = self.restoredPeripheral {
+                    self.adoptSourceIdentity(for: p)
+                    if p.state == .connected {
+                        self.state.connected = true
+                        // Inherited subscriptions need a real off→on cycle (#613), after the gate opens.
+                        self.restoreNeedsResubscribe = true
+                        self.log("Restored CONNECTED peripheral \(p.identifier) — re-discovering services (\(reason))")
+                        self.discoverPrimaryServices(on: p)
+                    } else {
+                        self.state.connected = false
+                        self.connectRestored(p, reason: reason)
+                    }
+                } else {
+                    // Radio-driven startup retains the bond-loop give-up; it is not a manual retry (#78).
+                    self.connectFromSystem()
+                }
+            }
+        )
+    }
+
+    /// Issue a direct connect to a restored peripheral and arm the pending-connect probe (#730).
     private func connectRestored(_ p: CBPeripheral, reason: String) {
         guard whoopConnectAllowed("restored/\(reason)") else { return }
         log("Connecting to restored peripheral (\(reason)) — peripheral state=\(peripheralStateName(p.state))")
@@ -5840,21 +5896,7 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
             state.lastSyncError = nil
             radioStateErrorShown = false
         }
-        // Bootstrap the async store once on first poweredOn (idempotent if already set).
-        Task { @MainActor in await bootstrapStore() }
-        if let p = restoredPeripheral {
-            log("poweredOn with restored peripheral — reconnecting \(p.identifier)")
-            if p.state != .connected {
-                connectRestored(p, reason: "poweredOn")
-            } else {
-                discoverPrimaryServices(on: p)
-            }
-        } else {
-            // #78 hole-2: poweredOn is SYSTEM-initiated (every Bluetooth toggle / bluetoothd restart
-            // lands here), so it must not reset a latched bond-loop give-up - it gets ONE bounded
-            // attempt with the give-up intact (Android onBluetoothRadioOn parity), not a fresh hammer.
-            connectFromSystem()
-        }
+        Task { @MainActor in await resumeSystemConnection(reason: "poweredOn") }
     }
 
     public func centralManager(_ central: CBCentralManager,
@@ -5948,6 +5990,27 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
     }
 
     public func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+        // A restored pending connection can complete while the database is still opening. It must
+        // pass the same startup gate before publishing/adopting its identity or discovering services.
+        if restoredPeripheral?.identifier == peripheral.identifier {
+            Task { @MainActor in
+                await startupGate.resume(
+                    prepare: { await self.prepareStoreForStartup() },
+                    isAllowed: {
+                        self.central.state == .poweredOn && !self.intentionalDisconnect
+                            && self.restoredPeripheral?.identifier == peripheral.identifier
+                            && peripheral.state == .connected
+                            && self.whoopConnectAllowed("startup/restored-didConnect")
+                    },
+                    action: { self.completeConnect(peripheral) }
+                )
+            }
+            return
+        }
+        completeConnect(peripheral)
+    }
+
+    private func completeConnect(_ peripheral: CBPeripheral) {
         cancelScanFallback()
         cancelPendingConnectProbe()   // #730: the connect resolved; no pending-connect log needed
         failedConnectAttempts = 0   // a successful connect clears the reconnect backoff (#414)
@@ -6479,9 +6542,8 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
     }
 
     /// State restoration entry point (M3 background collection).
-    /// Stores the restored peripheral and — if already connected — immediately
-    /// re-discovers services so `cmdCharacteristic` is re-acquired and
-    /// notifications are re-routed without user interaction.
+    /// Stores the restored peripheral, then awaits the registry and active-device gate before
+    /// re-discovering services or reconnecting without user interaction.
     public func centralManager(_ central: CBCentralManager,
                                willRestoreState dict: [String: Any]) {
         guard let peripherals = dict[CBCentralManagerRestoredStatePeripheralsKey] as? [CBPeripheral],
@@ -6520,32 +6582,9 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         // Reset the flag so the post-restore didWriteValueFor issues exactly one getClock.
         clockRequested = false
         clockRetries = 0
-        // Ensure the store is ready before restored BLE data arrives (idempotent; no-op if already built).
-        Task { @MainActor in
-            await bootstrapStore()
-            // #1881: `didConnect` never fires on this path (see above), so the identity adoption that lives
-            // there would be skipped for a restored link — the very path a radio toggle and a relaunch take.
-            // After `bootstrapStore`, because it is what creates `registryStore`.
-            if let p = self.peripheral ?? self.restoredPeripheral { self.adoptSourceIdentity(for: p) }
-        }
-        if p.state == .connected {
-            state.connected = true
-            // #613: the inherited notify subscriptions come back reported-active but dead. Force one real
-            // off→on re-subscribe this session (see `requestNotify`) so live HR/R-R resume AND
-            // `didUpdateNotificationStateFor` fires → `cmdNotifyConfirmedActive` → `connectSettled` → the
-            // alarm re-arm. Cleared when `connectSettled` bumps.
-            restoreNeedsResubscribe = true
-            log("Restored CONNECTED peripheral \(p.identifier) — re-discovering services")
-            discoverPrimaryServices(on: p)
-        } else {
-            state.connected = false
-            log("Restored DISCONNECTED peripheral \(p.identifier) — reconnect on poweredOn")
-            if central.state == .poweredOn {
-                connectRestored(p, reason: "willRestoreState")
-            } else {
-                log("Restore: central not poweredOn yet (state=\(central.state.rawValue)) — deferring to poweredOn")
-            }
-        }
+        // Even an already-connected restored link must await the active-device seed before discovery.
+        // poweredOn may arrive while the store opens; both callbacks share the same preparation (#2604).
+        Task { @MainActor in await resumeSystemConnection(reason: "willRestoreState") }
     }
 }
 
