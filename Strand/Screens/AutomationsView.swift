@@ -68,6 +68,9 @@ struct AutomationsView: View {
             illnessCard
             healthInsightsCard
             batteryCard
+            #if os(iOS)
+            syncReminderCard
+            #endif
             strainTargetCard
         }
     }
@@ -419,6 +422,26 @@ struct AutomationsView: View {
             }
         }
     }
+
+    // MARK: - Sync reminder (iOS)
+
+    #if os(iOS)
+    /// The silent "strap not synced" reminder (`SyncReminderPolicy`). iOS only: a swipe away stops NOOP syncing
+    /// there, while Android's foreground service survives one.
+    private var syncReminderCard: some View {
+        Section2(icon: "arrow.triangle.2.circlepath", title: String(localized: "Sync reminder"),
+                 blurb: String(localized: "Swiping NOOP away stops it syncing your strap until you open it again. This shows a silent notification when NOOP hasn't synced for 3 hours, so a swipe or a strap left out of reach doesn't go unnoticed."),
+                 active: behavior.syncReminder) {
+            ToggleRow(label: String(localized: "Remind me when syncing stops"),
+                      help: String(localized: "No sound and no screen wake. Every sync moves it 3 hours ahead, so it never shows while NOOP is syncing."),
+                      isOn: $behavior.syncReminder)
+                .onChangeCompat(of: behavior.syncReminder) { on in
+                    if on { SyncReminder.requestAuthorization() }
+                    model.rearmSyncReminder()
+                }
+        }
+    }
+    #endif
 
     // MARK: - Strain target nudge (#593)
 
