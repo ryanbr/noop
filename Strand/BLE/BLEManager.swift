@@ -6973,7 +6973,8 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
             return
         }
 
-        if !didBond {
+        switch Whoop4BondAck.classify(didBond: didBond, encryptedBond: state.encryptedBond) {
+        case .firstBond:
             didBond = true
             state.bonded = true
             state.encryptedBond = true   // WHOOP 4 confirmed-write bond is always genuine — #69
@@ -6981,6 +6982,15 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
             noteGenuineBond(of: peripheral)   // #52: this strap bonds fine; clears any pin-refusal streak
             emitConnectionBondState("encryptedBond family=whoop4 (confirmed write acked)")
             log("BONDED (confirmed write acknowledged) — custom channels should now flow")
+        case .reprove:
+            // didConnect re-entered with no disconnect before it (a Bluetooth power cycle) and cleared the
+            // flag; this ack is the same proof the first bond recorded. See `Whoop4BondAck`.
+            state.encryptedBond = true
+            noteGenuineBond(of: peripheral)
+            emitConnectionBondState("encryptedBond family=whoop4 (confirmed write acked, re-entered link)")
+            log("BONDED again (confirmed write acknowledged on a re-entered link)")
+        case .alreadyProven:
+            break
         }
         // Run the connect handshake EXACTLY ONCE per connection. didWriteValueFor re-fires on EVERY
         // .withResponse write — the bond write, every SEND_HISTORICAL, every HISTORY_END ack. Without
