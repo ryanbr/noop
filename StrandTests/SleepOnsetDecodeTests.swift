@@ -1,4 +1,5 @@
 import XCTest
+import WhoopStore
 @testable import Strand
 
 /// The 2026-07-14 "shown bedtime 1:29 instead of 12:16" regression, pinned at the DECODE PATH.
@@ -74,18 +75,18 @@ final class SleepOnsetDecodeTests: XCTestCase {
     // MARK: - The golden: the real night's onset comes from the 12:16 fragment
 
     /// END-TO-END through the decode path: both REAL blocks of the 2026-07-14 night, decoded from their
-    /// stored segment-array JSON (NOT pre-computed minutes), walk to onset index 0 — the 12:16 fragment.
+    /// stored segment-array JSON (NOT pre-computed minutes), resolve the first fragment's timestamp.
     /// Before the fix both decoded to 0 asleep, the fragment classified as a sleepless stub, and the
     /// index was 1 (the 1:29 main block) — the "last night's sleep 1:29" VK saw on the Sleep tab hero.
-    func testRealNightOnsetIndexIsTheFirstSleepFragment() {
+    func testRealNightOnsetIsTheFirstSleepFragment() {
         let frags: [(json: String, effStart: Int, end: Int)] = [
             (Self.fragmentStagesJSON, Self.fragmentEffectiveStartTs, Self.fragmentEndTs),
             (Self.mainStagesJSON, Self.mainEffectiveStartTs, Self.mainEndTs),
         ]
-        let spansMin = frags.map { Double($0.end - $0.effStart) / 60.0 }
-        let asleepsMin = frags.map {
-            SleepView.decodedAsleepMinutes($0.json, effectiveStartTs: $0.effStart)
+        let sessions = frags.map {
+            CachedSleepSession(startTs: $0.effStart, endTs: $0.end,
+                               efficiency: nil, restingHr: nil, avgHrv: nil, stagesJSON: $0.json)
         }
-        XCTAssertEqual(SleepView.nightOnsetIndex(spansMin: spansMin, asleepsMin: asleepsMin), 0)
+        XCTAssertEqual(SleepModel.nightOnsetTs(sessions), Self.fragmentEffectiveStartTs)
     }
 }

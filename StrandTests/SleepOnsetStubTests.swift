@@ -1,13 +1,41 @@
 import XCTest
+import WhoopStore
 @testable import Strand
 
 /// #736: the Sleep tab showed the WRONG bedtime (the earliest pre-sleep fragment, e.g. 21:41) while the
 /// pencil edit targeted the night's MAIN block — so the displayed onset and the edit target were different
 /// fragments and editing couldn't move the shown bedtime. The fix aligns the displayed onset to the same
 /// fragment the edit targets by skipping a leading SPURIOUS pre-onset awake stub (BRIEF + essentially
-/// sleepless). These golden tests pin that rule on the pure helpers so a regression can't slip past the
-/// view internals. The Android twin lives in SleepScreen's isPreOnsetAwakeStub.
+/// sleepless). These tests exercise the production timestamp resolver with stored-session fixtures,
+/// including stage decoding and effective onset handling. The Android twin lives in SleepScreen's isPreOnsetAwakeStub.
 final class SleepOnsetStubTests: XCTestCase {
+
+    private func assertOnset(spansMin: [Double], asleepsMin: [Double], expectedIndex: Int,
+                             file: StaticString = #filePath, line: UInt = #line) {
+        var start = 10_000
+        let sessions = zip(spansMin, asleepsMin).map { span, asleep in
+            let end = start + Int((span * 60).rounded())
+            let session = CachedSleepSession(
+                startTs: start, endTs: end, efficiency: nil, restingHr: nil, avgHrv: nil,
+                stagesJSON: "{\"light\":\(asleep),\"awake\":\(span - asleep)}")
+            start = end + 300
+            return session
+        }
+        XCTAssertEqual(SleepModel.nightOnsetTs(sessions), sessions[expectedIndex].effectiveStartTs,
+                       file: file, line: line)
+    }
+
+    func testEmptyGroupHasNoOnset() {
+        XCTAssertEqual(SleepModel.nightOnsetTs([]), 0)
+    }
+
+    func testAdjustedOnsetTrimsLeadingAwakeAndReturnsEditedTimestamp() {
+        let session = CachedSleepSession(
+            startTs: 1_000, endTs: 4_600, efficiency: nil, restingHr: nil, avgHrv: nil,
+            stagesJSON: #"[{"start":1000,"end":1600,"stage":"wake"},{"start":1600,"end":4600,"stage":"light"}]"#,
+            userEdited: true, startTsAdjusted: 1_600)
+        XCTAssertEqual(SleepModel.nightOnsetTs([session]), 1_600)
+    }
 
     // MARK: - isPreOnsetAwakeStub (the per-fragment rule)
 
@@ -65,42 +93,41 @@ final class SleepOnsetStubTests: XCTestCase {
     /// #259 GOLDEN at the walk level: a minor leading SLEEP fragment (10 asleep, over the old 3-min cap but
     /// tiny next to the 400-asleep main block) is now skipped, so the displayed onset comes from the main
     /// block (index 1) instead of jumping to the stray 1am lead. Before this rule it returned 0.
-    func testMinorLeadingSleepFragmentSkippedByOnsetIndex() {
-        XCTAssertEqual(SleepView.nightOnsetIndex(spansMin: [30, 420], asleepsMin: [10, 400]), 1)
+    func testMinorLeadingSleepFragmentSkippedByOnsetResolver() {
+        assertOnset(spansMin: [30, 420], asleepsMin: [10, 400], expectedIndex: 1)
     }
 
-    // MARK: - nightOnsetIndex (which fragment supplies the displayed bedtime)
+    // MARK: - nightOnsetTs (which fragment supplies the displayed bedtime)
 
     /// THE #736 GOLDEN: a two-fragment night where fragment 1 is a brief pre-sleep awake stub. The displayed
     /// onset must come from fragment 2 (the real sleep), the SAME fragment the pencil edits — not fragment 1
     /// (the 21:41 stub) the tab used to show.
     func testTwoFragmentNightWithLeadingAwakeStubPicksSecondFragment() {
         // fragment 0: 14 min, 0 asleep (the spurious stub). fragment 1: 7 hours, ~400 asleep (the real night).
-        let onsetIdx = SleepView.nightOnsetIndex(spansMin: [14, 420], asleepsMin: [0, 400])
-        XCTAssertEqual(onsetIdx, 1)
+        assertOnset(spansMin: [14, 420], asleepsMin: [0, 400], expectedIndex: 1)
     }
 
-    /// A normal single-block night is unchanged: index 0.
+    /// A normal single-block night keeps its effective onset.
     func testSingleBlockNightUnchanged() {
-        XCTAssertEqual(SleepView.nightOnsetIndex(spansMin: [430], asleepsMin: [415]), 0)
+        assertOnset(spansMin: [430], asleepsMin: [415], expectedIndex: 0)
     }
 
     /// A genuine biphasic / interrupted night (both fragments are real sleep) keeps fragment 0 as the
     /// onset — we must NOT swallow a real first sleep block as if it were a stub (#555 stays intact).
     func testGenuineBiphasicNightKeepsFirstFragment() {
         // fragment 0: 90 min with 80 asleep (real sleep before a wake), fragment 1: the longer main block.
-        XCTAssertEqual(SleepView.nightOnsetIndex(spansMin: [90, 300], asleepsMin: [80, 280]), 0)
+        assertOnset(spansMin: [90, 300], asleepsMin: [80, 280], expectedIndex: 0)
     }
 
     /// Two leading stubs collapse: the onset walks to the first real-sleep fragment (index 2).
     func testTwoLeadingStubsWalkToFirstRealSleep() {
-        XCTAssertEqual(SleepView.nightOnsetIndex(spansMin: [8, 12, 400], asleepsMin: [0, 1, 380]), 2)
+        assertOnset(spansMin: [8, 12, 400], asleepsMin: [0, 1, 380], expectedIndex: 2)
     }
 
     /// Degenerate guard: an all-stub group (shouldn't reach the hero, mergeDay gates on asleep > 0) falls
     /// back to index 0 rather than returning an out-of-range value.
     func testAllStubGroupFallsBackToZero() {
-        XCTAssertEqual(SleepView.nightOnsetIndex(spansMin: [5, 10], asleepsMin: [0, 0]), 0)
+        assertOnset(spansMin: [5, 10], asleepsMin: [0, 0], expectedIndex: 0)
     }
 
     // MARK: - Real-night regression: a genuine short first sleep is NOT a spurious lead
@@ -113,7 +140,7 @@ final class SleepOnsetStubTests: XCTestCase {
     /// asleep floor keeps a real sleep episode as the onset: index 0, the 12:16 fragment.
     func testRealFirstSleepFragmentIsTheDisplayedOnset() {
         // fragment: 66.8 span / 34 asleep. main: 363.6 span / 340 asleep.
-        XCTAssertEqual(SleepView.nightOnsetIndex(spansMin: [66.8, 363.6], asleepsMin: [34, 340]), 0)
+        assertOnset(spansMin: [66.8, 363.6], asleepsMin: [34, 340], expectedIndex: 0)
     }
 
     /// The per-fragment rule: a real 34-min sleep episode beside a 340-min main is NOT a stub, even though

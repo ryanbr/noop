@@ -2059,19 +2059,6 @@ struct SleepView: View {
             && asleepMin < preOnsetStubMinorAsleepFloorMin
     }
 
-    /// The index into an ascending-by-onset group whose fragment supplies the DISPLAYED bedtime: the first
-    /// fragment that is NOT a spurious leading pre-onset awake stub, falling back to 0 when every fragment is
-    /// stub-like. Pure mirror of `nightOnsetTs`'s walk, driven by per-fragment (spanMin, asleepMin) so a
-    /// golden test can pin the #736 behaviour without view internals. (#736)
-    static func nightOnsetIndex(spansMin: [Double], asleepsMin: [Double]) -> Int {
-        let refAsleepMin = asleepsMin.max() ?? 0
-        for i in spansMin.indices {
-            let asleep = i < asleepsMin.count ? asleepsMin[i] : 0
-            if !isPreOnsetAwakeStub(spanMin: spansMin[i], asleepMin: asleep, refAsleepMin: refAsleepMin) { return i }
-        }
-        return 0
-    }
-
     /// The real stored blocks composing the day at `offset` (for the stage-less stub Night, so its edit
     /// affordance still targets a real row). Empty when out of range.
     private func dayBlocks(at offset: Int) -> [CachedSleepSession] {
