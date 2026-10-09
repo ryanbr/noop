@@ -1501,17 +1501,22 @@ fun TodayScreen(
         }
         }
 
-        // Today's shared workout host offers Start when idle and the recording controls when active.
-        // Past days retain the active-workout shortcut. Per-second clocks remain inside their leaves.
-        if (selectedDayOffset == 0) {
-            // Keep the existing picker/live-view host mounted across idle → recording transitions.
-            // Manual entry stays on Workouts; Today offers the same live recording controls.
-            item { WorkoutStartSection(viewModel) }
-        } else {
-            activeWorkout?.let { w ->
-                item {
-                    WorkoutInProgressCard(workout = w, onReturn = onOpenActiveWorkout)
-                }
+        // A "workout in progress" indicator whenever a manual workout is active (iOS parity: the Today
+        // ActiveWorkoutIndicator). A tap routes to Live and re-opens the in-exercise overlay. Gated purely on
+        // `activeWorkout`, so it auto-appears/clears with no extra lifecycle wiring. Its per-second clock
+        // ticks inside the card's own LaunchedEffect, never recomposing the Today body.
+        //
+        // STARTING a workout is deliberately not offered here, and that is the whole of #2467's first part
+        // being held back until its other four exist. #2467 asked for Today's Start to come WITH the merge
+        // of recording and heart-rate coaching into one session: one Start/Pause/End pair, one screen, one
+        // saved summary. Only the button was built, so Today ended up carrying both of the entry points the
+        // report opened about, "Start session" for coaching and "Start workout" for recording, which is more
+        // of the confusion it described rather than less. It also drew as a full-width primary slab above the
+        // scores, because the Start-beside-Add row it belongs to collapses to a single weighted child when
+        // Today passes no Add. Starting stays on Workouts, the centre FAB and Live meanwhile.
+        activeWorkout?.let { w ->
+            item {
+                WorkoutInProgressCard(workout = w, onReturn = onOpenActiveWorkout)
             }
         }
 

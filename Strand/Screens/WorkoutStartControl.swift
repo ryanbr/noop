@@ -15,31 +15,21 @@ import StrandDesign
 /// re-renders only this small leaf. Owns its own sheet-presentation state so nothing about it needs to
 /// live on the parent either.
 struct WorkoutStartControl: View {
-    var showsActiveIndicator = false
     @EnvironmentObject var model: AppModel
     @State private var showLiveWorkout = false
     @State private var showStartSport = false
 
     var body: some View {
-        Group {
-            if showsActiveIndicator, let active = ActiveWorkoutIndicatorModel.make(from: model.activeWorkout) {
-                ActiveWorkoutIndicatorCard(model: active) {
-                    StrandHaptic.selection.play()
-                    showLiveWorkout = true
-                }
-            } else {
-                NoopButton(model.activeWorkout == nil ? "Start workout" : "View active workout",
-                           systemImage: model.activeWorkout == nil ? "figure.run" : "timer",
-                           kind: .primary,
-                           fullWidth: true) {
-                    // No active session → pick a named sport first (#519), then the sheet's onStart begins it
-                    // and opens the in-exercise view. Already active → jump straight back into the live view.
-                    if model.activeWorkout == nil { showStartSport = true }
-                    else { showLiveWorkout = true }
-                }
-                .accessibilityLabel(model.activeWorkout == nil ? "Start a workout" : "View the active workout")
-            }
+        NoopButton(model.activeWorkout == nil ? "Start workout" : "View active workout",
+                   systemImage: model.activeWorkout == nil ? "figure.run" : "timer",
+                   kind: .primary,
+                   fullWidth: true) {
+            // No active session → pick a named sport first (#519), then the sheet's onStart begins it
+            // and opens the in-exercise view. Already active → jump straight back into the live view.
+            if model.activeWorkout == nil { showStartSport = true }
+            else { showLiveWorkout = true }
         }
+        .accessibilityLabel(model.activeWorkout == nil ? "Start a workout" : "View the active workout")
         // #459: the in-exercise view, presented when Start Workout is tapped here (same screen LiveView
         // shows). activeWorkout is global on AppModel, so ending it from either surface stays in sync.
         .sheet(isPresented: $showLiveWorkout) {

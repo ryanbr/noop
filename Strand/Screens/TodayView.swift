@@ -95,7 +95,7 @@ struct ActiveWorkoutIndicatorModel: Equatable {
     }
 }
 
-struct ActiveWorkoutIndicatorCard: View {
+private struct ActiveWorkoutIndicatorCard: View {
     let model: ActiveWorkoutIndicatorModel
     let onReturn: () -> Void
 
@@ -165,23 +165,19 @@ struct ActiveWorkoutIndicatorCard: View {
 
 /// Leaf-isolated so an in-progress workout's ~per-sample `AppModel` churn (the elapsed clock tick + the
 /// rewritten `activeWorkout`) re-renders ONLY this card, never the whole Today dashboard, the same
-/// leaf-isolation pattern the file documents for the live status/sync rows. With `showStart`, today's
-/// idle state offers the shared workout picker; past days only show an active-workout indicator.
+/// leaf-isolation pattern the file documents for the live status/sync rows. Renders nothing when no workout
+/// is active, so the card auto-appears/clears purely off `AppModel.activeWorkout`.
 ///
 /// Non-private so the liquid Home (`LiquidTodayView`) renders the SAME leaf — the liquid rewrite dropped this
 /// indicator (#105), and sharing one implementation keeps the two Today screens (and Android's
 /// `WorkoutInProgressCard`) from drifting. It carries its own `app`/`router` environment objects, so a caller
 /// only needs to place `ActiveWorkoutIndicatorSection()` in its body.
 struct ActiveWorkoutIndicatorSection: View {
-    var showStart = false
     @EnvironmentObject var app: AppModel
     @EnvironmentObject var router: NavRouter
 
     var body: some View {
-        if showStart {
-            // Keep this host mounted when a workout starts so its picker and live view survive the update.
-            WorkoutStartControl(showsActiveIndicator: true)
-        } else if let model = ActiveWorkoutIndicatorModel.make(from: app.activeWorkout) {
+        if let model = ActiveWorkoutIndicatorModel.make(from: app.activeWorkout) {
             ActiveWorkoutIndicatorCard(model: model) {
                 StrandHaptic.selection.play()
                 router.openActiveWorkout()
@@ -1491,7 +1487,11 @@ struct TodayView: View {
                 // A "workout in progress" indicator whenever a manual workout is active. A tap routes to Live
                 // and opens the in-exercise screen. Its own leaf owns the AppModel observation + per-second
                 // clock, so the live tick never re-renders TodayView.body.
-                ActiveWorkoutIndicatorSection(showStart: selectedDayOffset == 0)
+                //
+                // No Start here, the Android twin carries the reasoning (TodayScreen.kt, the same block):
+                // #2467 wanted Today's Start to arrive WITH the recording-plus-coaching merge, and only the
+                // button was built, so Today held both of the entry points the report was about.
+                ActiveWorkoutIndicatorSection()
                 // The "still building" and "new here?" prompts are about getting today's scores going,
                 // so they stay anchored to today rather than reappearing on every navigated past day.
                 if selectedDayOffset == 0 && repo.today?.recovery == nil {
