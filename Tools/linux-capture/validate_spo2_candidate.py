@@ -173,12 +173,23 @@ HEADER_ALIASES = {
     "hora de inicio del ciclo": "cycle_start_time",
     "oxígeno en sangre %": "blood_oxygen_pct",
     "temp. cutánea (grados centígrados)": "skin_temp_celsius",
+    # Italian
+    "ora di inizio ciclo": "cycle_start_time",
+    "ora di fine ciclo": "cycle_end_time",
+    "inizio del sonno": "sleep_onset",
+    "inizio del risveglio": "wake_onset",
+    "ossigeno nel sangue %": "blood_oxygen_pct",
+    "temp. cutanea (c)": "skin_temp_celsius",
+    "frequenza cardiaca a riposo (bpm)": "resting_heart_rate_bpm",
+    "variabilità della frequenza cardiaca (ms)": "heart_rate_variability_ms",
+    "frequenza respiratoria (rpm)": "respiratory_rate_rpm",
 }
 
 CYCLES_FILES = {
     "physiological_cycles.csv",
     "physiologische_zyklen.csv",
     "ciclos_fisiologicos.csv",
+    "cicli_fisiologici.csv",
 }
 
 
@@ -244,7 +255,8 @@ def load_cycles(export_path: str) -> List[dict]:
         # Header sniff: any CSV that carries blood oxygen + cycle start.
         for body in files.values():
             head = body.splitlines()[0].lower() if body else ""
-            if "blood oxygen" in head or "blutsauerstoff" in head or "oxígeno en sangre" in head:
+            if ("blood oxygen" in head or "blutsauerstoff" in head or "oxígeno en sangre" in head
+                    or "ossigeno nel sangue" in head):
                 text = body
                 break
     if not text:

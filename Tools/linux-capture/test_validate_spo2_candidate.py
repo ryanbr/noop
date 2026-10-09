@@ -159,6 +159,25 @@ class HeaderAndTsTests(unittest.TestCase):
         self.assertEqual(vs._norm_header("Blood oxygen %"), "blood_oxygen_pct")
         self.assertEqual(vs._norm_header("Cycle start time"), "cycle_start_time")
 
+    def test_italian_blood_oxygen_header(self):
+        self.assertEqual(vs._norm_header("Ossigeno nel sangue %"), "blood_oxygen_pct")
+        self.assertEqual(vs._norm_header("Ora di inizio ciclo"), "cycle_start_time")
+        self.assertEqual(vs._norm_header("Inizio del risveglio"), "wake_onset")
+
+    def test_load_cycles_reads_an_italian_export(self):
+        # Real Italian cycles filename + headers; one synthetic night.
+        cycles = ("Ora di inizio ciclo,Ora di fine ciclo,Ossigeno nel sangue %,Inizio del sonno,"
+                  "Inizio del risveglio\n"
+                  "2026-07-15 22:00:00,2026-07-16 22:00:00,96.5,2026-07-15 23:00:00,2026-07-16 07:00:00\n")
+        folder = tempfile.mkdtemp()
+        with open(os.path.join(folder, "cicli_fisiologici.csv"), "w", encoding="utf-8") as f:
+            f.write(cycles)
+        nights = vs.load_cycles(folder)
+        self.assertEqual(len(nights), 1)
+        self.assertEqual(nights[0]["spo2_export"], 96.5)
+        self.assertEqual(nights[0]["t0"], _utc(2026, 7, 15, 23, 0, 0))   # sleep onset, not cycle start
+        self.assertEqual(nights[0]["t1"], _utc(2026, 7, 16, 7, 0, 0))
+
     def test_parse_export_ts(self):
         self.assertEqual(
             vs._parse_export_ts("2026-07-15 23:25:58"),

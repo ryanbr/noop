@@ -377,4 +377,55 @@ final class WhoopExportImporterTests: XCTestCase {
         XCTAssertEqual(rows[0].dayStrain, 12.5)
         XCTAssertEqual(rows[0].cycleStart, Fixtures.utc(2024, 3, 1, 6, 0, 0))
     }
+
+    // MARK: - Localized (Italian) column headers
+
+    func testItalianHeaderNormalizationAliases() {
+        XCTAssertEqual(HeaderNorm.normalize("Ora di inizio ciclo"), "cycle_start_time")
+        XCTAssertEqual(HeaderNorm.normalize("Variabilità della frequenza cardiaca (ms)"), "heart_rate_variability_ms")
+        XCTAssertEqual(HeaderNorm.normalize("Temp. cutanea (C)"), "skin_temp_celsius")
+        XCTAssertEqual(HeaderNorm.normalize("Ossigeno nel sangue %"), "blood_oxygen_pct")
+        XCTAssertEqual(HeaderNorm.normalize("Durata profondo (SWS) (min)"), "deep_sws_duration_min")
+        XCTAssertEqual(HeaderNorm.normalize("Regolarità del sonno %"), "sleep_consistency_pct")
+        XCTAssertEqual(HeaderNorm.normalize("Riposo breve"), "nap")
+        XCTAssertEqual(HeaderNorm.normalize("Nome attività"), "activity_name")
+        XCTAssertEqual(HeaderNorm.normalize("Sforzo richiesto dall'attività"), "activity_strain")
+        XCTAssertEqual(HeaderNorm.normalize("Zona FC 3 %"), "hr_zone_3_pct")
+        XCTAssertEqual(HeaderNorm.normalize("Risposta affermativa"), "answered_yes_no")
+        // "FC max." / "FC media" share the French / pt-BR aliases and must still resolve.
+        XCTAssertEqual(HeaderNorm.normalize("FC max. (bpm)"), "max_hr_bpm")
+        XCTAssertEqual(HeaderNorm.normalize("FC media (bpm)"), "average_hr_bpm")
+    }
+
+    func testItalianCyclesValuesParse() throws {
+        // The exact cicli_fisiologici.csv header from a real Italian export + one synthetic data row.
+        let csv = """
+        Ora di inizio ciclo,Ora di fine ciclo,Fuso orario ciclo,Punteggio di recupero %,Frequenza cardiaca a riposo (bpm),Variabilità della frequenza cardiaca (ms),Temp. cutanea (C),Ossigeno nel sangue %,Sforzo giornaliero,Energia bruciata (cal),FC max. (bpm),FC media (bpm),Inizio del sonno,Inizio del risveglio,Andamento del sonno %,Frequenza respiratoria (rpm),Durata del sonno (min),Tempo a letto (min),Durata del sonno leggero (min),Durata profondo (SWS) (min),Durata REM (min),Durata del risveglio (min),Sonno richiesto (min),Sonno arretrato (min),Efficienza del sonno %,Regolarità del sonno %
+        2024-03-01 06:00:00,2024-03-02 06:00:00,UTC+00:00,80,52,95,33.5,96,12.5,2000,150,61,2024-03-01 23:00:00,2024-03-02 06:30:00,90,14,420,450,200,120,100,30,480,60,93,85
+        """
+        let rows = WhoopExportImporter().parseCycles(CSVTable(text: csv))
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows[0].recoveryScore, 80)
+        XCTAssertEqual(rows[0].restingHeartRate, 52)
+        XCTAssertEqual(rows[0].hrvMs, 95)
+        XCTAssertEqual(rows[0].dayStrain, 12.5)
+        XCTAssertEqual(rows[0].cycleStart, Fixtures.utc(2024, 3, 1, 6, 0, 0))
+    }
+
+    func testItalianJournalReadsQuestionAnswerAndNotes() throws {
+        // The exact voci_diario.csv header from a real Italian export + synthetic rows. "Note" is read
+        // through the parser's "note" fallback, not an alias (see HeaderNorm.foreignAliases).
+        let csv = """
+        Ora di inizio ciclo,Ora di fine ciclo,Fuso orario ciclo,Testo domanda,Risposta affermativa,Note
+        2024-03-01 23:00:00,2024-03-02 23:00:00,UTC+01:00,Any alcohol?,true,One glass of wine
+        2024-03-01 23:00:00,2024-03-02 23:00:00,UTC+01:00,Any caffeine?,false,
+        """
+        let rows = WhoopExportImporter().parseJournal(CSVTable(text: csv))
+        XCTAssertEqual(rows.count, 2)
+        XCTAssertEqual(rows[0].question, "Any alcohol?")
+        XCTAssertEqual(rows[0].answer, "true")
+        XCTAssertEqual(rows[0].notes, "One glass of wine")
+        XCTAssertEqual(rows[1].answer, "false")
+        XCTAssertNil(rows[1].notes)
+    }
 }
