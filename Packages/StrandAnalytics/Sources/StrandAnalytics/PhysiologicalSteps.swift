@@ -56,10 +56,9 @@ public enum PhysiologicalSteps {
             let eligible = SleepStageTotals.bridgedNightGroups(nightBlocks, offsetSec: offsetSec)
                 .filter { group in
                     let total = group.indices.reduce(0) { $0 + max(0, nightBlocks[$1].durationS) }
-                    let onset = group.indices.map { nightBlocks[$0].start }.min()
-                    return total >= minMainSleepSeconds && onset.map {
-                        SleepStageTotals.isOvernightOnset($0, offsetSec: offsetSec)
-                    } == true
+                    // #2626: rank early-bedtime and shift sleeps with the canonical selector below.
+                    // Its timing bonus is a preference, not an onset-band eligibility gate.
+                    return total >= minMainSleepSeconds
                 }
                 .flatMap { $0.indices }
             let candidates = eligible.map { index in
