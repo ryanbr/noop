@@ -5892,16 +5892,6 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
                     advertisementData[CBAdvertisementDataLocalNameKey] as? String),
                 connectable: (advertisementData[CBAdvertisementDataIsConnectable] as? NSNumber)?.boolValue ?? true))
         }
-        // #716: the seeded "my-whoop" device has model "WHOOP" (no generation). Once a live scan
-        // confirms which service family the strap advertises, stamp the correct model so
-        // forRegistryModel returns the right DeviceFamily (fixes skin-temp ADC scale + display).
-        if !modelStamped, let rs = registryStore,
-           let stale = try? rs.all().first(where: { $0.status == .active && $0.model == "WHOOP" }) {
-            let correct = selectedModel == .whoop4 ? "WHOOP 4.0" : "WHOOP 5.0 / MG"
-            try? rs.setModel(stale.id, model: correct)
-            log("Updated device model from \"WHOOP\" to \"\(correct)\" (#716)")
-            modelStamped = true
-        }
         let advertisedServiceUUIDs = (advertisementData[CBAdvertisementDataServiceUUIDsKey] as? [CBUUID] ?? [])
             .map { $0.uuidString.lowercased() }
         let scanDecision = whoopGattScanDecision(
@@ -5941,10 +5931,26 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         // and a scan only runs because the user asked or because the gated system entry allowed it.
         cancelScanFallback()
         persistSelectedModel(selectedModel)
+        stampSeededModelIfNeeded()
         log("Discovered \(safeName) (rssi \(RSSI)) — connecting")
         central.stopScan()
         preparePeripheral(peripheral)
         central.connect(peripheral, options: nil)
+    }
+
+    /// #716: the seeded "my-whoop" device has model "WHOOP" (no generation). Stamp the family of the
+    /// strap NOOP is about to connect to, so `forRegistryModel` returns the right DeviceFamily (skin-temp
+    /// ADC scale + display). Called only once the scan has accepted a strap for `selectedModel`: stamping
+    /// on ANY advertisement labelled a 5/MG install "WHOOP 4.0" whenever an unsupported advertiser
+    /// (e.g. service 1150) was heard during the auto-scan's 4.0 leg, before the 5/MG leg even ran.
+    private func stampSeededModelIfNeeded() {
+        guard !modelStamped, let rs = registryStore,
+              let stale = try? rs.all().first(where: { $0.status == .active && $0.model == "WHOOP" })
+        else { return }
+        let correct = selectedModel == .whoop4 ? "WHOOP 4.0" : "WHOOP 5.0 / MG"
+        try? rs.setModel(stale.id, model: correct)
+        log("Updated device model from \"WHOOP\" to \"\(correct)\" (#716)")
+        modelStamped = true
     }
 
     public func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
