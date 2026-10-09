@@ -5258,13 +5258,28 @@ class WhoopBleClient(
         send(cmd, Whoop5Ecg.commandPayload(arg).map { it.toByte() }.toByteArray())
     }
 
-    private fun beginEcgProbeRun() {
+    /**
+     * [keepingEvidence] carries a capture's collected R17 lines, packet count and start time into the
+     * STOP run that follows it, instead of clearing them with the steps.
+     *
+     * Without it the stop discards exactly what this probe exists to retain. The reading completes at 38
+     * to 39 s (#891) while the sheet still reads "waiting", so the natural next action is to stop a
+     * session the user can tell has finished, and that wiped every candidate line, the terminal frame
+     * among them. The 30 s window hid this by rendering the verdict before most people got there.
+     *
+     * The START TIME travels with the packets on purpose. The report states "packets seen in Ns", so
+     * keeping a count from a 47 s capture under a 30 s stop window would attribute those packets to a
+     * span that did not collect them.
+     */
+    private fun beginEcgProbeRun(keepingEvidence: Boolean = false) {
         synchronized(ecgProbeLock) {
             ecgProbeSteps.clear()
-            ecgProbeCandidates.clear()
-            ecgProbePacketsSeen = 0
+            if (!keepingEvidence) {
+                ecgProbeCandidates.clear()
+                ecgProbePacketsSeen = 0
+                ecgProbeStartedAtMs = System.currentTimeMillis()
+            }
             ecgProbeRunToken += 1
-            ecgProbeStartedAtMs = System.currentTimeMillis()
             ecgProbeTerminalExtended = false
             ecgProbeTerminalLinesKept = 0
         }
@@ -5395,7 +5410,15 @@ class WhoopBleClient(
             }
             return
         }
-        if (reportsResult) beginEcgProbeRun() else synchronized(ecgProbeLock) { ecgProbeSteps.clear() }
+        // Read BEFORE the run is re-armed: an open window means the capture's verdict has not rendered
+        // yet, so its evidence has never been reported and must survive into this run. Once the verdict
+        // has rendered the lines are already out, and a later stop is a genuinely separate run.
+        val captureStillListening = ecgProbeListening
+        if (reportsResult) {
+            beginEcgProbeRun(keepingEvidence = captureStillListening)
+        } else {
+            synchronized(ecgProbeLock) { ecgProbeSteps.clear() }
+        }
         log("ECG probe: stopping ECG data generation and both streams")
         ecgProbeArmed = true
         try {
