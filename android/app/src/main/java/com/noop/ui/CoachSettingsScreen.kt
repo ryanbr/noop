@@ -67,7 +67,10 @@ fun CoachSettingsScreen(vm: CoachViewModel) {
 
     // The brief settings are read from prefs on show, the same as the coach page did before the
     // split: this screen can now be the first one to render them.
-    androidx.compose.runtime.LaunchedEffect(Unit) { vm.loadBriefSettings(context) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        vm.loadBriefSettings(context)
+        vm.refreshModelsIfStale(context)
+    }
 
     val showDayCycleBackground = remember { NoopPrefs.showDayCycleBackground(context) }
     val skyBehindCards = remember { NoopPrefs.skyBehindCards(context) }
