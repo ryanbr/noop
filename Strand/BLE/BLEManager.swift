@@ -1093,7 +1093,9 @@ public final class BLEManager: NSObject, ObservableObject {
     /// Structural-triage hits: the empirical search for the packet TYPE these records arrive under.
     private var ecgProbeCandidates: [String] = []
     private var ecgProbePacketsSeen = 0
-    /// Non-nil while the listen window is open; drives `ecgProbeArmed`.
+    /// Non-nil while the listen window is open; drives `ecgProbeArmed`. A MARKER, not a deadline:
+    /// nothing compares the stamp to the clock, and the window's length lives only in the verdict
+    /// timer, so do not start reading this as the moment a run ends.
     private var ecgProbeDeadline: Date?
     /// Supersedes a previous run's pending verdict timer when the user taps again.
     private var ecgProbeRunToken = 0
@@ -4457,7 +4459,7 @@ public final class BLEManager: NSObject, ObservableObject {
     public func ecgStartCapture() {
         guard ecgGatesAllow() else { return }
         ecgMayBeRunning = true      // latched BEFORE the sends, so a mid-sequence drop still leaves Stop offered
-        beginEcgProbeRun(clearingSteps: true, window: BLEManager.ecgProbeCaptureWindow)
+        beginEcgProbeRun(clearingSteps: true)
         log("ECG probe: starting the ECG turn-on sequence on an MG (experimental, unvalidated instrumentation)")
         sendEcgCommand(.toggleLabradorFiltered, arg: 1)
         sendEcgCommand(.toggleLabradorRawSave, arg: 1)
@@ -4553,9 +4555,7 @@ public final class BLEManager: NSObject, ObservableObject {
     /// The START TIME travels with the packets on purpose. The report states "packets seen in Ns", so
     /// keeping a count from a 47 s capture under a 30 s stop window would attribute those packets to a
     /// span that did not collect them.
-    private func beginEcgProbeRun(clearingSteps: Bool,
-                                  keepingEvidence: Bool = false,
-                                  window: TimeInterval = BLEManager.ecgProbeWindow) {
+    private func beginEcgProbeRun(clearingSteps: Bool, keepingEvidence: Bool = false) {
         if clearingSteps {
             ecgProbeSteps = []
             if !keepingEvidence {
@@ -4567,13 +4567,20 @@ public final class BLEManager: NSObject, ObservableObject {
         if !keepingEvidence { ecgProbeStartedAt = Date() }
         ecgProbeTerminalExtended = false
         ecgProbeTerminalLinesKept = 0
-        ecgProbeDeadline = Date().addingTimeInterval(window)
+        // Armed from HERE rather than from `scheduleEcgProbeVerdict`, because the sends in between can
+        // draw a COMMAND_RESPONSE and the triage is gated on this. The VALUE is a marker only: nothing
+        // compares it to the clock, and the length of the window lives in the verdict timer alone, so
+        // there is one number to get right instead of two that can disagree.
+        ecgProbeDeadline = Date()
         state.ecgProbe = BLEManager.ecgProbeWaiting
     }
 
     /// Render the verdict once the listen window closes. BLE callbacks and this timer both run on the
     /// main queue, so the token check is race-free without a lock.
     private func scheduleEcgProbeVerdict(after window: TimeInterval = BLEManager.ecgProbeWindow) {
+        // Renews the armed marker as well as the timer: a terminal frame re-arms through here, and the
+        // two must not be able to drift apart.
+        ecgProbeDeadline = Date()
         let token = ecgProbeRunToken
         DispatchQueue.main.asyncAfter(deadline: .now() + window) { [weak self] in
             guard let self, self.ecgProbeRunToken == token else { return }
@@ -4669,7 +4676,6 @@ public final class BLEManager: NSObject, ObservableObject {
             // Re-arm rather than cancel: bumping the token strands the pending verdict timer, which is
             // the same mechanism a second user tap already uses.
             ecgProbeRunToken &+= 1
-            ecgProbeDeadline = Date().addingTimeInterval(TimeInterval(grace))
             log("ECG probe: terminal frame (state=\(packet.classifierState) progress="
                 + "\(packet.progress.raw)) — listening \(grace)s more before the verdict")
             scheduleEcgProbeVerdict(after: TimeInterval(grace))
