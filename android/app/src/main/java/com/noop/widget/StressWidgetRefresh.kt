@@ -7,6 +7,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.noop.NoopApplication
+import com.noop.data.WhoopRepository
 import com.noop.ui.stressLocalDayWindowContaining
 import java.time.ZoneId
 import java.util.concurrent.TimeUnit
@@ -57,6 +58,38 @@ object StressWidgetRefresh {
 
     /** What one wake-up should do, as a value a test can assert without WorkManager or a Context. */
     enum class Action { Retire, Skip, Score }
+
+    /**
+     * The stored gate's identity: the union heart-rate witness over today's window, plus the day that
+     * window belongs to.
+     *
+     * UNION, not the active strap. [StressWidgetProducer.todayCurve] scores from `hrSamplesUnion` and
+     * its two siblings, so a witness keyed on [deviceId] alone is narrower than the read this gate
+     * stands in front of. A backfill that lands today's rows under an alias id (#908, a strap re-added
+     * through the device manager) then leaves the stored value unmoved and the worker returns before
+     * scoring at all — the widget half of #2710, a curve that stays wrong until something happens to
+     * move the active strap's own count.
+     *
+     * The day is part of the identity because a witness that happened to match across midnight would
+     * otherwise hold yesterday's published line as today's. [StressWidgetProducer] guards its memo the
+     * same way, for the same reason.
+     *
+     * The one caller that PERSISTS a union witness, because a worker woken after the app was killed has
+     * no process memory to compare against. A stored value only ever compares equal to one written in
+     * the same format, so changing the format costs one extra scoring pass and can never produce a
+     * false hit.
+     */
+    internal suspend fun storedFingerprint(
+        repo: WhoopRepository,
+        deviceId: String,
+        nowMs: Long,
+        zone: ZoneId,
+    ): String {
+        val nowSeconds = nowMs / 1000L
+        val window = stressLocalDayWindowContaining(nowSeconds, zone)
+        return repo.hrUnionFingerprint(deviceId, window.fromEpochSecond, nowSeconds) +
+            "|day=${window.day.toEpochDay()}"
+    }
 
     /**
      * The whole of the worker's decision, kept pure for the same reason `shouldRescore` and
@@ -115,13 +148,13 @@ class StressWidgetRefreshWorker(
         // killed starts with an empty one — so it would pay a full pass to rebuild the curve already on
         // screen. With background connection off no rows arrive between wakes at all, which is exactly
         // the user this feature exists for, so that pass is pure waste in the common case. Two indexed
-        // queries answer it instead. An empty stored fingerprint means "no idea" and admits the pass.
+        // queries per source id answer it instead. An empty stored fingerprint means "no idea" and
+        // admits the pass.
         val deviceId = app.activeDeviceId
         val fingerprint = runCatching {
-            val nowSeconds = nowMs / 1000L
-            val window = stressLocalDayWindowContaining(nowSeconds, ZoneId.systemDefault())
-            val fp = app.repository.hrFingerprintWindow(deviceId, window.fromEpochSecond, nowSeconds)
-            "${fp.first}:${fp.second}:${window.day.toEpochDay()}"
+            StressWidgetRefresh.storedFingerprint(
+                app.repository, deviceId, nowMs, ZoneId.systemDefault(),
+            )
         }.getOrNull()
         if (fingerprint != null && fingerprint == WidgetSnapshotStore.lastStressFingerprint(applicationContext)) {
             // Nothing new to score. The stamp still moves, so the next wake measures from this check

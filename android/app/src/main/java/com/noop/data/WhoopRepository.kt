@@ -1181,14 +1181,18 @@ class WhoopRepository(
      *
      * Cost is one COUNT plus one MAX per id via [hrFingerprintWindow], index range walks that materialise
      * no rows, against the full per-day row fetches a caller would otherwise repeat. Compared only to
-     * itself in memory, so the format is free to change, and no caller persists it. The Swift
+     * itself, so the format carries no contract beyond equality. One caller does persist a value
+     * ([com.noop.widget.StressWidgetRefresh.storedFingerprint], whose worker has no process memory
+     * between wakes), and a stored value only ever compares equal to one written in the same format, so
+     * changing the format costs one extra scoring pass and can never produce a false hit. The Swift
      * `Repository.hrFingerprintUnion` is a twin in ROLE only, encoding the same facts differently; there
      * is no byte-identity contract between them and no oracle asserting one.
      *
-     * The single union witness for both callers (#2566): the cycle load cache in
-     * [com.noop.analytics.PhysiologicalStepCycleEngine] and the daytime stress lens memo in
-     * [com.noop.ui.selectedDaytimeStressMode]. Two of these that were free to disagree is what #2566
-     * removed, so route a new caller here rather than adding a third.
+     * The single union witness for every caller (#2566): the cycle load cache in
+     * [com.noop.analytics.PhysiologicalStepCycleEngine], the daytime stress lens memo in
+     * [com.noop.ui.selectedDaytimeStressMode], the Stress screen's periodic re-read gate and the widget
+     * refresh worker's stored gate (#2710). Two of these that were free to disagree is what #2566
+     * removed, so route a new caller here rather than adding another.
      */
     suspend fun hrUnionFingerprint(activeDeviceId: String, from: Long, to: Long): String {
         // An explicit loop rather than joinToString: the per-id read suspends and that builder's lambda

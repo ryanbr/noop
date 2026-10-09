@@ -9,8 +9,9 @@ import StrandAnalytics
 /// bounded at 200 000 rows each, which is the work the Stress screen does when you open it. The screen
 /// does that once, on a deliberate act. A widget producer runs on the publish path, which fires when
 /// the app becomes active and after every Health sync, so nothing is read until `Repository`'s cheap
-/// heart-rate fingerprint — a COUNT and a MAX over an indexed column — says today's heart rate actually
-/// moved. A publish that changed nothing costs that one query and reuses the previous curve.
+/// union heart-rate witness — one COUNT and one MAX per source id, over an indexed column, no rows —
+/// says today's heart rate actually moved. A publish that changed nothing costs those queries and
+/// reuses the previous curve.
 ///
 /// SCORING MODE. Background callers keep the `.dayRelative` default: resolving the personal lens reads
 /// trailing days of heart rate, which a foreground screen can afford and an unprompted publish cannot.
@@ -25,8 +26,7 @@ enum StressDayCurve {
     /// against. Both callers are `@MainActor` today, so the window is narrow, but an immutable holder
     /// closes it for free.
     private struct Memo {
-        let count: Int
-        let maxTs: Int
+        let fingerprint: String
         let day: Int
         let personalBaseline: Bool
         let result: DaytimeStress.Result
@@ -61,14 +61,21 @@ enum StressDayCurve {
         let to = Int(now.timeIntervalSince1970)
         let day = localDayNumber(now, calendar: calendar)
 
-        guard let fingerprint = await repo.hrFingerprint(from: from, to: to) else { return nil }
+        // UNION, and per source id rather than collapsed into one pair. A gate narrower than the read
+        // it guards is worse than none: `hrSamples` below walks every raw source, so a witness that
+        // summed those ids could hold steady while the window's composition changed under it. This is
+        // the witness `DaytimeStressMode` already gates on and the Kotlin producer's twin of it.
+        //
+        // An EMPTY string means there is no store yet, which a caller must read as "cannot tell"
+        // rather than "unchanged": nil here is the same refusal the summed witness returned.
+        let fingerprint = await repo.hrFingerprintUnion(from: from, to: to)
+        guard !fingerprint.isEmpty else { return nil }
         // Same day, same heart rate: nothing can have changed the score, so nothing is read. The day is
         // part of the check because a fingerprint that happened to match across midnight would otherwise
         // serve yesterday's curve as today's.
         // Foreground Today and the widget publisher can call in either order. Include the requested
         // lens so an unchanged HR fingerprint can never replay one surface's result into the other.
-        if let memo = memos[personalBaseline], memo.day == day,
-           memo.count == fingerprint.count, memo.maxTs == fingerprint.maxTs {
+        if let memo = memos[personalBaseline], memo.day == day, memo.fingerprint == fingerprint {
             return (memo.result, day)
         }
 
@@ -112,7 +119,7 @@ enum StressDayCurve {
         }
         // Too little signal leaves an EMPTY result, which is a real answer about today rather than a
         // refusal: a reader should drop yesterday's line rather than keep drawing it.
-        memos[personalBaseline] = Memo(count: fingerprint.count, maxTs: fingerprint.maxTs, day: day,
+        memos[personalBaseline] = Memo(fingerprint: fingerprint, day: day,
                                        personalBaseline: personalBaseline, result: scored)
         return (scored, day)
     }

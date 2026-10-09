@@ -140,19 +140,25 @@ fun StressScreen(vm: AppViewModel, onBreathe: () -> Unit = {}) {
     // one. Both surfaces now age at the same rate, which is the actual ask in the report.
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     androidx.compose.runtime.LaunchedEffect(vm.activeStrapId, lifecycleOwner) {
-        // Guarded on the same fingerprint the widget producer memoises against, for the same reason.
-        // `loadDaytimeStress` is the expensive read on this screen, three windowed row fetches plus the
+        // Guarded on a witness as WIDE as the read it stands in front of. `loadDaytimeCore` fetches
+        // hrSamplesUnion, rrIntervalsUnion and gravitySamplesUnion, so a gate keyed on the active strap
+        // alone is narrower than what it guards: a backfill landing today's rows under an alias id
+        // (#908, a strap re-added through the device manager) moves the read's answer without moving
+        // the gate, and this screen then holds the pre-backfill curve for as long as it stays open.
+        // That is the screen half of #2710.
+        //
+        // `loadDaytimeCore` is the expensive read on this screen, three windowed row fetches plus the
         // two HRV engines, and repeating it was free when it happened once on open. On a timer it is
         // not: with the strap disconnected, or simply quiet, nothing about today's heart rate has moved
-        // and re-reading produces a result identical to the one already on screen. An indexed count and
-        // max answers that for the price of neither.
-        var lastHrFingerprint: Pair<Int, Long>? = null
+        // and re-reading produces a result identical to the one already on screen. One indexed count
+        // and max per source id answers that for the price of neither.
+        var lastHrFingerprint: String? = null
         lifecycleOwner.lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
             while (true) {
                 val nowSeconds = System.currentTimeMillis() / 1000L
                 val window = stressLocalDayWindowContaining(nowSeconds, ZoneId.systemDefault())
                 val fingerprint = StressLoadCancellation.read {
-                    vm.repo.hrFingerprintWindow(vm.activeStrapId, window.fromEpochSecond, nowSeconds)
+                    vm.repo.hrUnionFingerprint(vm.activeStrapId, window.fromEpochSecond, nowSeconds)
                 }
                 // A failed fingerprint reads as "cannot tell", which loads rather than skips: being
                 // wrong about this costs one pass, being wrong the other way freezes the screen.

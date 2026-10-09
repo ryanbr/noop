@@ -1220,9 +1220,10 @@ final class Repository: ObservableObject {
     /// materialized, against the per-day row fetches a caller would otherwise repeat. Compared only to
     /// itself in memory, so the format is free to change. Kotlin twin:
     /// `WhoopRepository.hrUnionFingerprint`, which is a twin in ROLE only: each side compares its own
-    /// value against its own previous value, neither is persisted or sent anywhere, and the two encode
-    /// the same facts differently. There is no byte-identity contract here and no oracle asserting one,
-    /// so do not "align" the encodings on the assumption that there is.
+    /// value against its own previous value, and the two encode the same facts differently. This one is
+    /// never stored or sent anywhere; the Kotlin side does persist one, for a widget worker that has no
+    /// process memory between wakes (#2710). There is no byte-identity contract here and no oracle
+    /// asserting one, so do not "align" the encodings on the assumption that there is.
     func hrFingerprintUnion(from: Int, to: Int) async -> String {
         guard let store = await ensureStore() else { return "" }
         var parts: [String] = []
@@ -1249,25 +1250,6 @@ final class Repository: ObservableObject {
             }
         }
         return byTs.values.sorted { $0.ts < $1.ts }
-    }
-
-    /// Cheap change-detector over a window of heart rate: a COUNT and a MAX on an indexed column, no
-    /// rows and no decode.
-    ///
-    /// Exists for the stress widget (#2040), whose producer must not read a day's streams on a periodic
-    /// tick just to discover nothing moved. Unions the same ids the reads above do, so a change under
-    /// either source is seen; nil when there is no store yet, which a caller treats as "cannot tell"
-    /// rather than as "unchanged". Twin of Kotlin's `hrFingerprintWindow`.
-    func hrFingerprint(from: Int, to: Int) async -> (count: Int, maxTs: Int)? {
-        guard let store = await ensureStore() else { return nil }
-        var count = 0
-        var maxTs = 0
-        for id in rawPhysiologyReadIds(store: store) {
-            guard let fp = try? await store.hrFingerprint(deviceId: id, from: from, to: to) else { continue }
-            count += fp.count
-            maxTs = max(maxTs, fp.maxTs)
-        }
-        return (count, maxTs)
     }
 
     /// R-R beats across the active physical WHOOP and canonical history. Exact duplicates are removed
