@@ -4614,6 +4614,19 @@ class WhoopBleClient(
     }
 
     /**
+     * Mirrored-alert buzz, written ACKNOWLEDGED. Same frame as [buzz]; the difference is the
+     * withResponse flag, the #921 lesson applied to notification mirrors: a busy link can silently
+     * drop a without-response write, which logs the command with no vibration — exactly the
+     * "toggled the app, got nothing on the wrist" report. An acknowledged write gets a write
+     * callback, so a dropped buzz is a link problem the log can attribute, not a silent one.
+     */
+    fun buzzAcknowledged(loops: Int = 2) {
+        val n = loops.coerceIn(0, 255)
+        send(CommandNumber.RUN_HAPTICS_PATTERN, byteArrayOf(2, n.toByte(), 0, 0, 0), withResponse = true)
+        log("Buzz: patternId=2 loops=$n (acked)")
+    }
+
+    /**
      * One-shot user buzz (#921): the on-device-confirmed "vibrate the strap now" sequence, the twin
      * of Swift `BLEManager.buzzStrapOnce()`. RUN_HAPTICS_PATTERN(79) with `[patternId=2, loops=3,
      * 0, 0, 0]` followed by RUN_ALARM(68) `[0x01]` as a belt-and-suspenders; a bare pattern write is

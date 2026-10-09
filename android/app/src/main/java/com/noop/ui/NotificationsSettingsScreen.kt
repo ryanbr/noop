@@ -9,6 +9,7 @@ import android.content.pm.PackageManager
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,24 +23,24 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.automirrored.filled.Chat
-import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -47,6 +48,7 @@ import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TimePickerDefaults
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -57,6 +59,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
@@ -64,9 +68,15 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.toBitmap
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.noop.notif.CallAlertController
 import com.noop.notif.CallAlertSource
+import com.noop.notif.NotifierApp
+import com.noop.notif.NotifierAppDiscovery
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.util.Calendar
 
 // MARK: - NotificationsSettingsScreen
@@ -75,10 +85,12 @@ import java.util.Calendar
 // how (per-app buzz pattern), with a master switch and overnight quiet hours.
 //
 // macOS resolves real installed apps via LaunchServices/NSWorkspace. Android restricts
-// package visibility (API 30+) and there is no equivalent "notification-capable app"
-// query, so we ship a curated catalog of common notification apps grouped exactly like
-// the Mac screen. Preferences persist in SharedPreferences (the Android counterpart to
-// UserDefaults); when the background bridge ships it reads the same prefs.
+// package visibility (API 30+), so the App Notifications page enumerates the notifier apps
+// itself: apps that declare POST_NOTIFICATIONS (via the manifest's intent-shaped <queries>
+// entry) plus every app the notification listener has seen post (the Notification Access
+// grant carries their visibility — see com/noop/notif/NotifierAppDiscovery.kt). Preferences
+// persist in SharedPreferences (the Android counterpart to UserDefaults); the notification
+// listener reads the same prefs, keyed by package name.
 //
 // Delivery requires a NotificationListenerService with Notification Access granted — the
 // behaviour card deep-links to Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS for that.
@@ -93,52 +105,6 @@ internal enum class BuzzPattern(val label: String, val loops: Int) {
     Long("Long", 5),
 }
 
-/** Grouping for the settings screen, with its header icon + default pattern. */
-internal enum class NotifCategory(
-    val title: String,
-    val icon: ImageVector,
-    val defaultPattern: BuzzPattern,
-) {
-    Email("Email", Icons.Filled.Email, BuzzPattern.Double),
-    Messaging("Messaging", Icons.AutoMirrored.Filled.Chat, BuzzPattern.Single),
-    Meetings("Meetings", Icons.Filled.Videocam, BuzzPattern.Triple),
-    Calendar("Calendar & Reminders", Icons.Filled.CalendarMonth, BuzzPattern.Double),
-}
-
-/** A notification-capable app NOOP can mirror to the wrist. `id` is the persistence key. */
-internal data class NotifApp(
-    val id: String,
-    val name: String,
-    val category: NotifCategory,
-    val glyph: ImageVector,
-)
-
-/**
- * Curated catalog of common Android notification apps, grouped to match the Mac screen.
- * Unlike macOS we cannot enumerate which are actually installed (restricted package
- * visibility), so we present the full set as configurable examples.
- */
-private val notifCatalog: List<NotifApp> = listOf(
-    NotifApp("com.google.android.gm", "Gmail", NotifCategory.Email, Icons.Filled.Email),
-    NotifApp("com.microsoft.office.outlook", "Outlook", NotifCategory.Email, Icons.Filled.Email),
-    NotifApp("com.whatsapp", "WhatsApp", NotifCategory.Messaging, Icons.AutoMirrored.Filled.Chat),
-    NotifApp("com.google.android.apps.messaging", "Messages", NotifCategory.Messaging, Icons.AutoMirrored.Filled.Chat),
-    NotifApp("com.Slack", "Slack", NotifCategory.Messaging, Icons.AutoMirrored.Filled.Chat),
-    NotifApp("org.telegram.messenger", "Telegram", NotifCategory.Messaging, Icons.AutoMirrored.Filled.Chat),
-    // Teams' ringing-call notifications are handled by the Calls card below (VoIP path). This
-    // per-app row covers everything else Teams sends to the shade (chats, @-mentions, channel
-    // posts), which read as messages, so it lives under Messaging with the chat glyph.
-    NotifApp("com.microsoft.teams", "Microsoft Teams", NotifCategory.Messaging, Icons.AutoMirrored.Filled.Chat),
-    NotifApp("us.zoom.videomeetings", "Zoom", NotifCategory.Meetings, Icons.Filled.Videocam),
-    NotifApp("com.google.android.calendar", "Calendar", NotifCategory.Calendar, Icons.Filled.CalendarMonth),
-)
-
-private fun appsIn(category: NotifCategory): List<NotifApp> =
-    notifCatalog.filter { it.category == category }
-
-private val activeCategories: List<NotifCategory> =
-    NotifCategory.entries.filter { appsIn(it).isNotEmpty() }
-
 // MARK: - SharedPreferences store (mirrors the UserDefaults-backed Swift store)
 
 /**
@@ -149,8 +115,8 @@ private val activeCategories: List<NotifCategory> =
 internal object NotifPrefs {
     private const val FILE = "noop_notif_prefs"
     const val MASTER = "notif.masterEnabled"
-    /** Catch-all: buzz for any app NOT in the curated catalog (Android can't enumerate installed
-     *  apps, so this is how a user covers BeReal/etc. that aren't listed). Opt-in, default OFF. (#168) */
+    /** Catch-all: buzz for every app the user has NOT individually enabled on the Other apps
+     *  page. Opt-in, default OFF. (#168) */
     const val ALL_OTHER = "notif.allOtherApps"
     const val WORN = "notif.onlyWhenWorn"
     const val QUIET = "notif.quietHoursEnabled"
@@ -185,13 +151,26 @@ internal object NotifPrefs {
     fun setAppEnabled(ctx: Context, id: String, value: Boolean) =
         prefs(ctx).edit().putBoolean("app.$id.enabled", value).apply()
 
-    fun appPattern(ctx: Context, app: NotifApp): BuzzPattern {
-        val name = prefs(ctx).getString("app.${app.id}.pattern", null)
-        return BuzzPattern.entries.firstOrNull { it.name == name } ?: app.category.defaultPattern
+    /** Package-keyed pattern read for discovered apps (no curated [NotifApp] exists for them).
+     *  Defaults to Double — the same default [appLoops] gives the listener. */
+    fun appPatternFor(ctx: Context, id: String): BuzzPattern {
+        val name = prefs(ctx).getString("app.$id.pattern", null)
+        return BuzzPattern.entries.firstOrNull { it.name == name } ?: BuzzPattern.Double
     }
 
     fun setAppPattern(ctx: Context, id: String, pattern: BuzzPattern) =
         prefs(ctx).edit().putString("app.$id.pattern", pattern.name).apply()
+
+    /** Every per-app wrist-alert opt-in persisted — the picks made on the App Notifications page.
+     *  The Notifications header counts these, so the pill tells the truth about what will buzz. */
+    fun enabledAppCount(ctx: Context): Int = enabledAppPackages(ctx).size
+
+    /** The app packages the user has opted in. The App Notifications page pins these rows above
+     *  the search field for the whole visit, so the picks stay in sight. */
+    fun enabledAppPackages(ctx: Context): Set<String> =
+        prefs(ctx).all.entries.filter { (key, value) ->
+            value == true && key.startsWith("app.") && key.endsWith(".enabled")
+        }.map { (key, _) -> key.removePrefix("app.").removeSuffix(".enabled") }.toSet()
 
     /** Buzz loop-count for [pkg] (for the notification listener; no NotifApp needed). Defaults to
      *  Double if no per-app pattern was chosen. */
@@ -224,14 +203,13 @@ internal object NotifPrefs {
 // MARK: - Screen
 
 @Composable
-fun NotificationsSettingsScreen(vm: AppViewModel) {
+fun NotificationsSettingsScreen(vm: AppViewModel, onOpenOtherApps: () -> Unit = {}) {
     val context = LocalContext.current
     val live by vm.live.collectAsStateWithLifecycle()
 
     // Header settings, seeded from prefs once and written through on change.
     var masterEnabled by remember { mutableStateOf(NotifPrefs.getBool(context, NotifPrefs.MASTER, false)) }
     var onlyWhenWorn by remember { mutableStateOf(NotifPrefs.getBool(context, NotifPrefs.WORN, true)) }
-    var allOtherApps by remember { mutableStateOf(NotifPrefs.getBool(context, NotifPrefs.ALL_OTHER, false)) }
     var quietHoursEnabled by remember { mutableStateOf(NotifPrefs.getBool(context, NotifPrefs.QUIET, false)) }
     var quietStartMinutes by remember { mutableStateOf(NotifPrefs.getInt(context, NotifPrefs.QUIET_START, 22 * 60)) }
     var quietEndMinutes by remember { mutableStateOf(NotifPrefs.getInt(context, NotifPrefs.QUIET_END, 7 * 60)) }
@@ -254,18 +232,14 @@ fun NotificationsSettingsScreen(vm: AppViewModel) {
         NotifPrefs.setBool(context, NotifPrefs.CALLS_PHONE, granted)
     }
 
-    // Per-app enabled state, seeded from prefs so the UI is reactive within the session.
-    val enabledState: SnapshotStateMap<String, Boolean> = remember {
-        mutableStateMapOf<String, Boolean>().apply {
-            notifCatalog.forEach { put(it.id, NotifPrefs.appEnabled(context, it.id)) }
-        }
+    // The header pill counts every app that will buzz — the per-app picks persisted on the
+    // Other apps page. SharedPreferences isn't reactive, so the count is re-read on every
+    // resume: returning from that page updates the pill.
+    var enabledCount by remember { mutableStateOf(NotifPrefs.enabledAppCount(context)) }
+    LifecycleResumeEffect(Unit) {
+        enabledCount = NotifPrefs.enabledAppCount(context)
+        onPauseOrDispose { }
     }
-    val patternState: SnapshotStateMap<String, BuzzPattern> = remember {
-        mutableStateMapOf<String, BuzzPattern>().apply {
-            notifCatalog.forEach { put(it.id, NotifPrefs.appPattern(context, it)) }
-        }
-    }
-    val enabledCount = enabledState.values.count { it }
 
     ScreenScaffold(
         title = uiString(R.string.l10n_notifications_settings_screen_notifications_753a22b2),
@@ -359,6 +333,15 @@ fun NotificationsSettingsScreen(vm: AppViewModel) {
             onTest = { vm.buzz(loops = callsPattern.loops) },
         )
 
+        // MARK: App Notifications — the picker for which apps buzz the wrist lives on its own
+        // page (OtherAppsScreen); the pill on the master card counts its picks.
+        AlertSection(
+            icon = Icons.Filled.Apps,
+            title = uiString(R.string.l10n_notifications_settings_screen_app_notifications_00e65fd6),
+        ) {
+            ChooseAppsButton(onClick = onOpenOtherApps)
+        }
+
         // #1115 follow-up: buzz the strap when the phone's native Clock fires a timer or alarm
         // (CATEGORY_ALARM, any clock app). Android-only — iOS can't observe another app's notifications.
         AlertSection(
@@ -387,27 +370,6 @@ fun NotificationsSettingsScreen(vm: AppViewModel) {
         // than never having had it: a caption telling the user their setting does nothing, next to a
         // control that now works.
 
-        // MARK: Category cards
-        activeCategories.forEach { cat ->
-            CategoryCard(
-                category = cat,
-                apps = appsIn(cat),
-                masterEnabled = masterEnabled,
-                bonded = live.bonded,
-                enabledState = enabledState,
-                patternState = patternState,
-                onToggle = { app, value ->
-                    enabledState[app.id] = value
-                    NotifPrefs.setAppEnabled(context, app.id, value)
-                },
-                onPattern = { app, pattern ->
-                    patternState[app.id] = pattern
-                    NotifPrefs.setAppPattern(context, app.id, pattern)
-                },
-                onTest = { app -> vm.buzz(loops = (patternState[app.id] ?: app.category.defaultPattern).loops) },
-            )
-        }
-
         // MARK: Behaviour card
         AlertSection(
             icon = Icons.Filled.Tune,
@@ -423,18 +385,8 @@ fun NotificationsSettingsScreen(vm: AppViewModel) {
                     NotifPrefs.setBool(context, NotifPrefs.WORN, it)
                 },
             )
-            RowDivider()
-            FormToggleRow(
-                label = uiString(R.string.l10n_notifications_settings_screen_all_other_apps_51a8af2c),
-                help = "Also buzz for apps that aren't in the lists above (e.g. BeReal). Android " +
-                    "doesn't let NOOP see every installed app, so this is how you cover the rest. " +
-                    "Can be chatty; quiet hours and \"only when worn\" still apply.",
-                checked = allOtherApps,
-                onChange = {
-                    allOtherApps = it
-                    NotifPrefs.setBool(context, NotifPrefs.ALL_OTHER, it)
-                },
-            )
+            // The "All other apps" catch-all moved to the top of the Other apps page, where it
+            // can explain what it does to the per-app picks below it.
             RowDivider()
             FormToggleRow(
                 label = uiString(R.string.l10n_notifications_settings_screen_quiet_hours_706b24d0),
@@ -620,6 +572,13 @@ private fun CallsCard(
 @Composable
 private fun DeliveryNote() {
     val context = LocalContext.current
+    // The Notification Access grant is PER APP and can change while this screen is open (the user
+    // taps through to system settings and back), so re-check on every resume, not just first draw.
+    var accessGranted by remember { mutableStateOf(NotifierAppDiscovery.notificationAccessGranted(context)) }
+    LifecycleResumeEffect(Unit) {
+        accessGranted = NotifierAppDiscovery.notificationAccessGranted(context)
+        onPauseOrDispose { }
+    }
     val shape = RoundedCornerShape(10.dp)
     Column(
         modifier = Modifier
@@ -641,6 +600,30 @@ private fun DeliveryNote() {
                 uiString(R.string.l10n_notifications_settings_screen_wrist_delivery_needs_notification_access_so_2a14e784),
                 style = NoopType.footnote,
                 color = Palette.textSecondary,
+            )
+        }
+        // Live grant state: the #1 cause of "toggled the app, got nothing on the wrist" is this
+        // app not being granted (the grant is per app — a fresh install starts ungranted).
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(if (accessGranted) Palette.statusPositive else Palette.statusCritical),
+            )
+            Text(
+                uiString(
+                    if (accessGranted) {
+                        R.string.l10n_notifications_settings_screen_notification_access_is_on_for_this_af3ffc72
+                    } else {
+                        R.string.l10n_notifications_settings_screen_notification_access_is_off_for_this_b27ba957
+                    },
+                ),
+                style = NoopType.footnote,
+                color = if (accessGranted) Palette.statusPositive else Palette.statusCritical,
             )
         }
         Row(
@@ -670,47 +653,234 @@ private fun DeliveryNote() {
     }
 }
 
-// MARK: - Category card (rows of apps, dimmed/disabled when master is off)
+// MARK: - App Notifications page (discovered notifier apps, per-app opt-in)
 
+/**
+ * The App Notifications page: every app on this phone that can notify the user, discovered live
+ * instead of curated, entered from the Notifications screen via a button. Sources merged by
+ * [NotifierAppDiscovery.load]: apps declaring POST_NOTIFICATIONS (visible via the manifest's
+ * intent-shaped <queries> entry) plus every app the notification listener has seen post (the
+ * Notification Access grant carries their visibility, covering pre-API-33 targets that never
+ * declare the permission).
+ *
+ * Apps the user has already opted in are pinned above the search field for the whole visit, from
+ * the moment the page opens (their labels resolve in the first off-thread sweep, ahead of the full
+ * scan), so their switches stay in sight; the snapshot is taken at entry, so toggling mid-visit
+ * never reorders the page.
+ *
+ * The "All other apps" catch-all lives at the top of this page in its own section: with it on,
+ * every app buzzes, so the per-app switches below are inert — the page says so and dims the list. Rows reuse the same per-app prefs the notification listener
+ * gates on — `app.<pkg>.enabled` / `app.<pkg>.pattern` — so a discovered app buzzes exactly
+ * like a curated one, with its own pattern. The PackageManager walk runs off the main thread;
+ * the list re-scans on demand.
+ */
 @Composable
-private fun CategoryCard(
-    category: NotifCategory,
-    apps: List<NotifApp>,
-    masterEnabled: Boolean,
-    bonded: Boolean,
-    enabledState: SnapshotStateMap<String, Boolean>,
-    patternState: SnapshotStateMap<String, BuzzPattern>,
-    onToggle: (NotifApp, Boolean) -> Unit,
-    onPattern: (NotifApp, BuzzPattern) -> Unit,
-    onTest: (NotifApp) -> Unit,
-) {
-    val contentAlpha = if (masterEnabled) 1f else Palette.disabledOpacity
-    AlertSection(icon = category.icon, title = category.title) {
-        Column(modifier = Modifier.alphaIf(contentAlpha)) {
-            apps.forEachIndexed { idx, app ->
-                AppRow(
-                    app = app,
-                    enabled = enabledState[app.id] ?: false,
-                    pattern = patternState[app.id] ?: app.category.defaultPattern,
-                    interactive = masterEnabled,
-                    bonded = bonded,
-                    onToggle = { onToggle(app, it) },
-                    onPattern = { onPattern(app, it) },
-                    onTest = { onTest(app) },
+fun OtherAppsScreen(vm: AppViewModel) {
+    val context = LocalContext.current
+    val live by vm.live.collectAsStateWithLifecycle()
+
+    var masterEnabled by remember { mutableStateOf(NotifPrefs.getBool(context, NotifPrefs.MASTER, false)) }
+    var allOtherApps by remember { mutableStateOf(NotifPrefs.getBool(context, NotifPrefs.ALL_OTHER, false)) }
+    var apps by remember { mutableStateOf<List<NotifierApp>>(emptyList()) }
+    var scanning by remember { mutableStateOf(true) }
+    var scanTick by remember { mutableStateOf(0) }
+    var query by remember { mutableStateOf("") }
+    // Snapshot taken when the page opens: the apps already opted in. Positions are frozen for the
+    // visit — toggling mid-visit flips the switch where the row sits, it never reorders the page.
+    // Leaving and re-entering (or re-scanning after a reopen) re-takes the snapshot.
+    val pinnedAtEntry = remember { NotifPrefs.enabledAppPackages(context) }
+    // The opted-in rows resolved straight from prefs at entry: their labels land in the first
+    // off-thread sweep, so the pinned band shows BEFORE the full scan finishes and stays after it.
+    var pinnedSeed by remember { mutableStateOf<List<NotifierApp>>(emptyList()) }
+    val enabledState = remember {
+        mutableStateMapOf<String, Boolean>().apply {
+            pinnedAtEntry.forEach { put(it, NotifPrefs.appEnabled(context, it)) }
+        }
+    }
+    val patternState = remember {
+        mutableStateMapOf<String, BuzzPattern>().apply {
+            pinnedAtEntry.forEach { put(it, NotifPrefs.appPatternFor(context, it)) }
+        }
+    }
+    val iconState = remember { mutableStateMapOf<String, ImageBitmap>() }
+
+    LaunchedEffect(scanTick) {
+        // Opted-in apps first: labels + icons for the pinned band resolve in this quick sweep, so
+        // the user's picks are on screen before the full scan lands.
+        val seed = withContext(Dispatchers.IO) {
+            pinnedAtEntry.mapNotNull { NotifierAppDiscovery.appFor(context, it) }
+        }
+        val seedIcons = withContext(Dispatchers.IO) {
+            seed.associate { app ->
+                app.packageName to runCatching {
+                    context.packageManager.getApplicationIcon(app.packageName).toBitmap(96, 96).asImageBitmap()
+                }.getOrNull()
+            }
+        }
+        pinnedSeed = seed
+        seed.forEach { app ->
+            seedIcons[app.packageName]?.let { iconState.putIfAbsent(app.packageName, it) }
+        }
+        // getInstalledPackages(GET_PERMISSIONS) walks every visible package — IO thread, not the UI.
+        val list = withContext(Dispatchers.IO) { NotifierAppDiscovery.load(context) }
+        // Real launcher icons, loaded off-thread in the same sweep (getApplicationIcon decodes
+        // every app's icon — a main-thread walk over dozens of apps would jank the page).
+        val icons = withContext(Dispatchers.IO) {
+            list.associate { app ->
+                app.packageName to runCatching {
+                    context.packageManager.getApplicationIcon(app.packageName).toBitmap(96, 96).asImageBitmap()
+                }.getOrNull()
+            }
+        }
+        list.forEach { put ->
+            enabledState.putIfAbsent(put.packageName, NotifPrefs.appEnabled(context, put.packageName))
+            patternState.putIfAbsent(put.packageName, NotifPrefs.appPatternFor(context, put.packageName))
+            icons[put.packageName]?.let { iconState.putIfAbsent(put.packageName, it) }
+        }
+        apps = list
+        scanning = false
+    }
+
+    // Pinned band: the opted-in apps from the prefs snapshot at entry. Before the scan lands the
+    // rows come from [pinnedSeed]; after it, from the scanned list (same rows, richer data).
+    val pinned = pinnedSeed.sortedBy { it.label.lowercase() }.map { seed ->
+        apps.firstOrNull { it.packageName == seed.packageName } ?: seed
+    }
+    val visible = apps.filter { it.packageName !in pinnedAtEntry }.filter {
+        query.isBlank() ||
+            it.label.contains(query, ignoreCase = true) ||
+            it.packageName.contains(query, ignoreCase = true)
+    }
+
+    ScreenScaffold(
+        title = uiString(R.string.l10n_notifications_settings_screen_app_notifications_00e65fd6),
+        subtitle = uiString(R.string.l10n_notifications_settings_screen_apps_on_this_phone_that_can_6b7ae956),
+    ) {
+        // MARK: All other apps — the catch-all, in its own section at the top of the page.
+        AlertSection(
+            icon = Icons.Filled.NotificationsActive,
+            title = uiString(R.string.l10n_notifications_settings_screen_all_other_apps_51a8af2c),
+        ) {
+            FormToggleRow(
+                label = uiString(R.string.l10n_notifications_settings_screen_all_other_apps_51a8af2c),
+                help = uiString(R.string.l10n_notifications_settings_screen_also_buzz_for_apps_not_listed_e60214ec),
+                checked = allOtherApps,
+                onChange = {
+                    allOtherApps = it
+                    NotifPrefs.setBool(context, NotifPrefs.ALL_OTHER, it)
+                },
+            )
+            RowDivider()
+            Text(
+                uiString(R.string.l10n_notifications_settings_screen_when_all_other_apps_is_every_bf6e5671),
+                style = NoopType.footnote,
+                color = Palette.textSecondary,
+            )
+        }
+
+        // MARK: Detected apps — dense per-app list. Inert while the catch-all is on: it already
+        // covers every app below, so individual picks would promise nothing the catch-all doesn't.
+        AlertSection(
+            icon = Icons.Filled.Apps,
+            title = uiString(R.string.l10n_notifications_settings_screen_installed_apps_c21260b2),
+        ) {
+            Column(
+                modifier = Modifier.alphaIf(if (masterEnabled && !allOtherApps) 1f else Palette.disabledOpacity),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                // Apps already opted in when the page opened sit above the search field, shown from
+                // the moment the page opens (labels resolve in the first off-thread sweep) — they
+                // don't wait for the full scan, and they stay visible after it.
+                pinned.forEachIndexed { idx, app ->
+                    DiscoveredAppRow(
+                        app = app,
+                        enabled = enabledState[app.packageName] ?: false,
+                        pattern = patternState[app.packageName] ?: BuzzPattern.Double,
+                        icon = iconState[app.packageName],
+                        interactive = masterEnabled && !allOtherApps,
+                        bonded = live.bonded,
+                        dense = true,
+                        onToggle = { value ->
+                            enabledState[app.packageName] = value
+                            NotifPrefs.setAppEnabled(context, app.packageName, value)
+                        },
+                        onPattern = { pattern ->
+                            patternState[app.packageName] = pattern
+                            NotifPrefs.setAppPattern(context, app.packageName, pattern)
+                        },
+                        onTest = { vm.buzz(loops = (patternState[app.packageName] ?: BuzzPattern.Double).loops) },
+                    )
+                    if (idx < pinned.size - 1) RowDivider()
+                }
+                if (pinned.isNotEmpty()) RowDivider()
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    singleLine = true,
+                    placeholder = { Text(uiString(R.string.l10n_notifications_settings_screen_search_apps_ca3ce8f3), style = NoopType.body, color = Palette.textTertiary) },
+                    label = { Text(uiString(R.string.l10n_notifications_settings_screen_search_apps_ca3ce8f3), style = NoopType.caption, color = Palette.textSecondary) },
+                    colors = notifFieldColors(),
+                    modifier = Modifier.fillMaxWidth(),
                 )
-                if (idx < apps.size - 1) RowDivider()
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    PillButton(
+                        label = uiString(R.string.l10n_notifications_settings_screen_scan_again_f6ab55dd),
+                        icon = Icons.Filled.PlayArrow,
+                        enabled = masterEnabled && !allOtherApps,
+                        onClick = { scanTick++ },
+                    )
+                    Spacer(Modifier.weight(1f))
+                }
+                if (visible.isEmpty() && scanning) {
+                    // The scan starts the moment the page opens; until the PackageManager walk
+                    // lands, the list area shows this placeholder instead of an empty void.
+                    Text(
+                        uiString(R.string.l10n_notifications_settings_screen_scanning_installed_04ab2344),
+                        style = NoopType.footnote,
+                        color = Palette.textTertiary,
+                    )
+                } else if (visible.isEmpty()) {
+                    Text(
+                        uiString(R.string.l10n_notifications_settings_screen_no_apps_discovered_post_a_notification_0ca6e7bc),
+                        style = NoopType.footnote,
+                        color = Palette.textTertiary,
+                    )
+                }
+                visible.forEachIndexed { idx, app ->
+                    DiscoveredAppRow(
+                        app = app,
+                        enabled = enabledState[app.packageName] ?: false,
+                        pattern = patternState[app.packageName] ?: BuzzPattern.Double,
+                        icon = iconState[app.packageName],
+                        interactive = masterEnabled && !allOtherApps,
+                        bonded = live.bonded,
+                        dense = true,
+                        onToggle = { value ->
+                            enabledState[app.packageName] = value
+                            NotifPrefs.setAppEnabled(context, app.packageName, value)
+                        },
+                        onPattern = { pattern ->
+                            patternState[app.packageName] = pattern
+                            NotifPrefs.setAppPattern(context, app.packageName, pattern)
+                        },
+                        onTest = { vm.buzz(loops = (patternState[app.packageName] ?: BuzzPattern.Double).loops) },
+                    )
+                    if (idx < visible.size - 1) RowDivider()
+                }
             }
         }
     }
 }
 
 @Composable
-private fun AppRow(
-    app: NotifApp,
+private fun DiscoveredAppRow(
+    app: NotifierApp,
     enabled: Boolean,
     pattern: BuzzPattern,
+    icon: ImageBitmap? = null,
     interactive: Boolean,
     bonded: Boolean,
+    dense: Boolean = false,
     onToggle: (Boolean) -> Unit,
     onPattern: (BuzzPattern) -> Unit,
     onTest: () -> Unit,
@@ -718,52 +888,69 @@ private fun AppRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(48.dp)
-            // An enabled app reads as a selected row: a soft accentMuted wash behind it.
+            .height(if (dense) 40.dp else 48.dp)
             .clip(RoundedCornerShape(10.dp))
             .then(if (enabled) Modifier.background(Palette.accentMuted) else Modifier)
             .padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // App glyph in a rounded inset tile (stand-in for the real macOS app icon).
+        // The app's REAL launcher icon, decoded off-thread at scan time (see the iconState sweep
+        // in OtherAppsScreen). The generic apps glyph stays as the fallback for the rare package
+        // whose icon refuses to decode.
         Box(
             modifier = Modifier
-                .size(34.dp)
+                .size(if (dense) 28.dp else 34.dp)
                 .clip(RoundedCornerShape(8.dp))
                 .background(Palette.surfaceInset),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(app.glyph, contentDescription = null, tint = Palette.textSecondary, modifier = Modifier.size(18.dp))
+            if (icon != null) {
+                Image(
+                    bitmap = icon,
+                    contentDescription = app.label,
+                    modifier = Modifier.size(if (dense) 24.dp else 28.dp),
+                )
+            } else {
+                Icon(Icons.Filled.Apps, contentDescription = null, tint = Palette.textSecondary, modifier = Modifier.size(if (dense) 15.dp else 18.dp))
+            }
         }
 
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(app.name, style = NoopType.body, color = Palette.textPrimary)
-            Text(
-                if (enabled) "Buzzes your wrist" else "Off",
-                style = NoopType.footnote,
-                color = if (enabled) Palette.accent else Palette.textTertiary,
-            )
+            // The switch alone carries the on/off state — no caption under the name.
+            Text(app.label, style = NoopType.body, color = Palette.textPrimary)
         }
 
         if (enabled) {
             PatternMenu(
                 pattern = pattern,
                 enabled = interactive,
-                appName = app.name,
+                appName = app.label,
                 onSelect = onPattern,
             )
-            TestIconButton(enabled = interactive && bonded, appName = app.name, onClick = onTest)
+            TestIconButton(enabled = interactive && bonded, appName = app.label, onClick = onTest)
         }
 
         NoopSwitch(
             checked = enabled,
             onChange = onToggle,
             enabled = interactive,
-            label = uiString(R.string.l10n_notifications_settings_screen_app_name_wrist_alerts_dd3540fa, app.name),
+            label = uiString(R.string.l10n_notifications_settings_screen_app_name_wrist_alerts_dd3540fa, app.label),
         )
     }
 }
+
+/** Field colors for the search box, mirroring AddDeviceWizard's wizardFieldColors (private there). */
+@Composable
+private fun notifFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = Palette.textPrimary,
+    unfocusedTextColor = Palette.textPrimary,
+    cursorColor = Palette.accent,
+    focusedBorderColor = Palette.accent,
+    unfocusedBorderColor = Palette.hairline,
+    focusedContainerColor = Palette.surfaceInset,
+    unfocusedContainerColor = Palette.surfaceInset,
+)
 
 // MARK: - Pattern menu (DropdownMenu replacing the macOS Menu)
 
@@ -817,6 +1004,43 @@ private fun PatternMenu(
                 )
             }
         }
+    }
+}
+
+// MARK: - Choose Apps button (full-width entry into the discovered-app picker page)
+
+/**
+ * The App Notifications section's entry into [OtherAppsScreen]: a big full-width button, padded
+ * like the rows it sits beside. Bigger than the compact [PillButton] on purpose — it is the door
+ * to a whole page, not an inline action.
+ */
+@Composable
+private fun ChooseAppsButton(onClick: () -> Unit) {
+    val shape = RoundedCornerShape(12.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(Palette.accent.copy(alpha = 0.12f))
+            .border(1.dp, Palette.accent.copy(alpha = 0.30f), shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(Icons.Filled.Apps, contentDescription = null, tint = Palette.accent, modifier = Modifier.size(20.dp))
+        Text(
+            uiString(R.string.l10n_notifications_settings_screen_choose_apps_72d037f2),
+            style = NoopType.body,
+            color = Palette.accent,
+        )
+        Spacer(Modifier.weight(1f))
+        Icon(
+            Icons.AutoMirrored.Filled.OpenInNew,
+            contentDescription = null,
+            tint = Palette.accent,
+            modifier = Modifier.size(15.dp),
+        )
     }
 }
 

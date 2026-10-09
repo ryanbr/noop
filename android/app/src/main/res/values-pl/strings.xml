@@ -2876,4 +2876,17 @@
     <string name="raw_diag_ecg_probe_running">Na tym pasku może nadal trwać zapis. Werdykt trafia do strap log.</string>
     <string name="today_customize_live_session_availability">Pojawia się dzisiaj, gdy sesje na żywo są włączone w Ustawieniach lub trwa sesja.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Dziś po swojemu, tętno dostępne dla każdej aplikacji i język włoski</string>
+    <string name="l10n_notifications_settings_screen_apps_on_this_phone_that_can_6b7ae956">Aplikacje na tym telefonie, które mogą wysyłać powiadomienia. NOOP odkrywa je, gdy Cię powiadamiają — wybierz je poniżej pojedynczo.</string>
+    <string name="l10n_notifications_settings_screen_search_apps_ca3ce8f3">Szukaj aplikacji</string>
+    <string name="l10n_notifications_settings_screen_scan_again_f6ab55dd">Skanuj ponownie</string>
+    <string name="l10n_notifications_settings_screen_no_apps_discovered_post_a_notification_0ca6e7bc">Nie odkryto jeszcze żadnych aplikacji. Wyślij powiadomienie z aplikacji i zeskanuj ponownie.</string>
+    <string name="l10n_notifications_settings_screen_also_buzz_for_apps_not_listed_e60214ec">Brzęczy także dla aplikacji niewymienionych powyżej. NOOP odkrywa aplikacje, gdy Cię powiadamiają, więc aplikacja niewidziana na liście też będzie brzęczeć z tą opcją. Może bywać gadatliwe; godziny ciszy i „brzęczą tylko podczas noszenia” nadal obowiązują.</string>
+    <string name="l10n_notifications_settings_screen_notification_access_is_on_for_this_af3ffc72">Dostęp do powiadomień jest włączony dla tej aplikacji. Alerty na nadgarstku mogą docierać.</string>
+    <string name="l10n_notifications_settings_screen_notification_access_is_off_for_this_b27ba957">Dostęp do powiadomień jest wyłączony dla tej aplikacji. Otwórz ustawienia poniżej i włącz NOOP, inaczej alerty na nadgarstku nie dotrą.</string>
+    <string name="l10n_notifications_settings_screen_when_all_other_apps_is_every_bf6e5671">Gdy Wszystkie inne aplikacje jest włączone, każda aplikacja wibruje na nadgarstku, więc pojedyncze przełączniki poniżej są wyłączone. Wyłącz, aby wybierać aplikacje pojedynczo.</string>
+    <string name="l10n_notifications_settings_screen_other_apps_notifications_8bcd3596">Powiadomienia innych aplikacji</string>
+    <string name="l10n_notifications_settings_screen_installed_apps_c21260b2">Zainstalowane aplikacje</string>
+    <string name="l10n_notifications_settings_screen_app_notifications_00e65fd6">Powiadomienia aplikacji</string>
+    <string name="l10n_notifications_settings_screen_choose_apps_72d037f2">Wybierz aplikacje</string>
+    <string name="l10n_notifications_settings_screen_scanning_installed_04ab2344">Skanowanie zainstalowanych aplikacji…</string>
 </resources>
