@@ -201,6 +201,68 @@ public enum Whoop5EcgProbe {
         }
     }
 
+    /// How long one run listens, in seconds, chosen by what started it.
+    ///
+    /// `capture` is 60 rather than 30 because of @meta1971's field timing in #891: across five MG
+    /// sessions the strap's terminal frame (classifier state 2, progress 100) landed 38 to 39 s after the
+    /// first live frame, so a 30 s window could not reach a completed reading on ANY strap or firmware.
+    /// The verdict sheet landing at 30 s made that worse than a missed deadline: Stop is the next control
+    /// a person reaches for, so the window trained people to end the session 8 to 9 s before the
+    /// classifier would have answered, and the probe then reported the silence it had caused.
+    ///
+    /// `selectOrStop` stays at 30. Those runs wait for a COMMAND_RESPONSE rather than for a reading, so
+    /// the longer window would be dead time in front of an answer that already arrived.
+    ///
+    /// `terminalGrace` is how long a run keeps listening AFTER the terminal frame instead of ending on
+    /// it. @meta1971 measured the variability field sitting at `0xffff` for 2 to 9 s past that frame
+    /// before it settled, so a probe that stopped on the terminal frame would pin the unset value as the
+    /// reading's own. It also means a run that ends early reports early: a terminal frame at 12 s renders
+    /// the verdict at 22 s rather than holding the sheet for the rest of the window.
+    public enum Window {
+        public static let selectOrStop = 30
+        public static let capture = 60
+        public static let terminalGrace = 10
+    }
+
+    /// Cap on the per-packet candidate lines one run records. Each line is rendered into both the report
+    /// and the strap log, so a chatty stream must not grow either without bound.
+    public static let maxCandidateLines = 12
+
+    /// Slots a run keeps in reserve for TERMINAL frames once `maxCandidateLines` is spent.
+    ///
+    /// R17 arrives at about one frame a second, so a flat cap keeps seconds 1 to 12 and discards
+    /// everything after. Per #891 the result, average HR and reason mask populate only on the terminal
+    /// frame, which means the flat cap threw away the single frame carrying the answer and kept twelve
+    /// that could not. A reserve rather than a bigger cap: the point is not more evidence, it is the RIGHT
+    /// evidence, and the ceiling stays bounded at `maxCandidateLines + maxTerminalCandidateLines`.
+    public static let maxTerminalCandidateLines = 4
+
+    /// Whether a decoded frame's line is kept, given what the run has already recorded.
+    ///
+    /// A terminal frame inside the first `maxCandidateLines` is kept by the ordinary rule and still spends
+    /// one reserve slot, so a run can never record more than the ceiling either way.
+    ///
+    /// Kotlin twin: `Whoop5EcgProbe.retainsCandidate`.
+    public static func retainsCandidate(linesKept: Int,
+                                        terminalLinesKept: Int,
+                                        isTerminal: Bool) -> Bool {
+        if linesKept < maxCandidateLines { return true }
+        return isTerminal && terminalLinesKept < maxTerminalCandidateLines
+    }
+
+    /// Seconds to wait before rendering the verdict once a terminal frame lands, or nil to leave the
+    /// run's existing deadline alone.
+    ///
+    /// ONCE per run (`alreadyExtended`), because the strap sends more than one terminal frame: extending
+    /// on each would let a terminal stream push the verdict out indefinitely and the report would never
+    /// render.
+    ///
+    /// Kotlin twin: `Whoop5EcgProbe.terminalGraceSeconds`.
+    public static func terminalGraceSeconds(isTerminal: Bool, alreadyExtended: Bool) -> Int? {
+        guard isTerminal, !alreadyExtended else { return nil }
+        return Window.terminalGrace
+    }
+
     /// Classify the run.
     ///
     /// Order matters, and it puts the ATTESTED signals first: the COMMAND_RESPONSE result codes are

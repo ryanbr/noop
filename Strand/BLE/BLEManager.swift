@@ -1097,6 +1097,15 @@ public final class BLEManager: NSObject, ObservableObject {
     private var ecgProbeDeadline: Date?
     /// Supersedes a previous run's pending verdict timer when the user taps again.
     private var ecgProbeRunToken = 0
+    /// When the run in flight began, so the report states the time actually listened rather than the
+    /// window asked for. A terminal frame ends a run early (`Whoop5EcgProbe.terminalGraceSeconds`), so
+    /// those two stopped being the same number.
+    private var ecgProbeStartedAt: Date?
+    /// Whether this run already pushed its deadline out on a terminal frame. Once only, or a terminal
+    /// stream would postpone the verdict forever.
+    private var ecgProbeTerminalExtended = false
+    /// How many TERMINAL candidate lines this run has kept, against the reserve the cap holds back.
+    private var ecgProbeTerminalLinesKept = 0
     private var clockRequested = false
     /// #700: retry count for GET_CLOCK when no correlation establishes before backfill. Capped at 3.
     private var clockRetries = 0
@@ -4299,10 +4308,12 @@ public final class BLEManager: NSObject, ObservableObject {
 
     /// Sentinel shown while a probe run is in flight (twin of the #592/#690 constants).
     public static let ecgProbeWaiting = "__waiting__"
-    /// How long the probe listens for ECG-shaped packets before rendering its verdict.
-    private static let ecgProbeWindow: TimeInterval = 30
-    /// Cap on recorded candidate-frame lines, so a chatty stream can't grow the report without bound.
-    private static let ecgProbeMaxCandidates = 12
+    /// How long a run that is waiting on a COMMAND_RESPONSE listens before rendering its verdict.
+    /// Derived from `Whoop5EcgProbe.Window` so the two platforms cannot hold different numbers: that
+    /// they both held 30 independently is how the window outlived the evidence against it (#891).
+    private static let ecgProbeWindow = TimeInterval(Whoop5EcgProbe.Window.selectOrStop)
+    /// The CAPTURE run's window. Longer, because a reading's terminal frame lands at 38 to 39 s.
+    private static let ecgProbeCaptureWindow = TimeInterval(Whoop5EcgProbe.Window.capture)
     /// Cap on recorded steps. A run sends at most three, so the headroom is for UNSOLICITED replies —
     /// which are inbound-driven and therefore need the same bound as the candidate list.
     private static let ecgProbeMaxSteps = 12
@@ -4446,13 +4457,13 @@ public final class BLEManager: NSObject, ObservableObject {
     public func ecgStartCapture() {
         guard ecgGatesAllow() else { return }
         ecgMayBeRunning = true      // latched BEFORE the sends, so a mid-sequence drop still leaves Stop offered
-        beginEcgProbeRun(clearingSteps: true)
+        beginEcgProbeRun(clearingSteps: true, window: BLEManager.ecgProbeCaptureWindow)
         log("ECG probe: starting the ECG turn-on sequence on an MG (experimental, unvalidated instrumentation)")
         sendEcgCommand(.toggleLabradorFiltered, arg: 1)
         sendEcgCommand(.toggleLabradorRawSave, arg: 1)
         ecgSendAbortHistorical()
         sendEcgCommand(.toggleLabradorDataGeneration, arg: Whoop5Ecg.ControlSignal.start.rawValue)
-        scheduleEcgProbeVerdict()
+        scheduleEcgProbeVerdict(after: BLEManager.ecgProbeCaptureWindow)
     }
 
     /// The START list's first member: ABORT_HISTORICAL_TRANSMITS (20), immediately ahead of `124`.
@@ -4523,28 +4534,36 @@ public final class BLEManager: NSObject, ObservableObject {
     /// Clear the probe result (dialog dismissed).
     public func clearEcgProbe() { state.ecgProbe = nil }
 
-    private func beginEcgProbeRun(clearingSteps: Bool) {
+    private func beginEcgProbeRun(clearingSteps: Bool,
+                                  window: TimeInterval = BLEManager.ecgProbeWindow) {
         if clearingSteps {
             ecgProbeSteps = []
             ecgProbeCandidates = []
             ecgProbePacketsSeen = 0
         }
         ecgProbeRunToken &+= 1
-        ecgProbeDeadline = Date().addingTimeInterval(BLEManager.ecgProbeWindow)
+        ecgProbeStartedAt = Date()
+        ecgProbeTerminalExtended = false
+        ecgProbeTerminalLinesKept = 0
+        ecgProbeDeadline = Date().addingTimeInterval(window)
         state.ecgProbe = BLEManager.ecgProbeWaiting
     }
 
     /// Render the verdict once the listen window closes. BLE callbacks and this timer both run on the
     /// main queue, so the token check is race-free without a lock.
-    private func scheduleEcgProbeVerdict() {
+    private func scheduleEcgProbeVerdict(after window: TimeInterval = BLEManager.ecgProbeWindow) {
         let token = ecgProbeRunToken
-        DispatchQueue.main.asyncAfter(deadline: .now() + BLEManager.ecgProbeWindow) { [weak self] in
+        DispatchQueue.main.asyncAfter(deadline: .now() + window) { [weak self] in
             guard let self, self.ecgProbeRunToken == token else { return }
             self.ecgProbeDeadline = nil
+            // The time LISTENED, not the window asked for. A terminal frame cuts a run short, and the
+            // verdict text quotes this number ("no ECG packet arrived in Ns"), so quoting the request
+            // would have the report claim a window it did not run.
+            let listened = Int((Date().timeIntervalSince(self.ecgProbeStartedAt ?? Date())).rounded())
             let text = Whoop5EcgProbe.report(steps: self.ecgProbeSteps,
                                              ecgPacketsSeen: self.ecgProbePacketsSeen,
                                              candidateFrames: self.ecgProbeCandidates,
-                                             windowSeconds: Int(BLEManager.ecgProbeWindow))
+                                             windowSeconds: listened)
             self.log("ECG probe:\n\(text)")
             self.state.ecgProbe = text
         }
@@ -4617,7 +4636,26 @@ public final class BLEManager: NSObject, ObservableObject {
     private func noteEcgProbeCandidate(_ frame: [UInt8]) {
         guard frame.count >= 12, let packet = Whoop5Ecg.r17FromFrame(frame) else { return }
         ecgProbePacketsSeen += 1
-        guard ecgProbeCandidates.count < BLEManager.ecgProbeMaxCandidates else { return }
+        // A TERMINAL frame is kept even past the cap, and ends the run on a grace period rather than on
+        // the frame itself. Both halves come from #891: the result, average HR and reason mask populate
+        // only on that frame, so the old flat cap kept seconds 1 to 12 and discarded the one frame that
+        // carried the answer; and the variability field reads 0xffff for several seconds after it, so
+        // stopping on the frame would pin the unset value as the reading's own.
+        if let grace = Whoop5EcgProbe.terminalGraceSeconds(isTerminal: packet.isTerminal,
+                                                           alreadyExtended: ecgProbeTerminalExtended) {
+            ecgProbeTerminalExtended = true
+            // Re-arm rather than cancel: bumping the token strands the pending verdict timer, which is
+            // the same mechanism a second user tap already uses.
+            ecgProbeRunToken &+= 1
+            ecgProbeDeadline = Date().addingTimeInterval(TimeInterval(grace))
+            log("ECG probe: terminal frame (state=\(packet.classifierState) progress="
+                + "\(packet.progress.raw)) — listening \(grace)s more before the verdict")
+            scheduleEcgProbeVerdict(after: TimeInterval(grace))
+        }
+        guard Whoop5EcgProbe.retainsCandidate(linesKept: ecgProbeCandidates.count,
+                                              terminalLinesKept: ecgProbeTerminalLinesKept,
+                                              isTerminal: packet.isTerminal) else { return }
+        if packet.isTerminal { ecgProbeTerminalLinesKept += 1 }
         // The classifier byte is logged as a NUMBER, never as its token name: a strap log is a shareable
         // artefact, and no line in it should read like a clinical finding. The decoder maps the value
         // offline; the raw byte is lossless.
@@ -6192,6 +6230,9 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         ecgProbeSteps = []
         ecgProbeCandidates = []
         ecgProbePacketsSeen = 0
+        ecgProbeStartedAt = nil
+        ecgProbeTerminalExtended = false
+        ecgProbeTerminalLinesKept = 0
         // The DIS strings belong to the link that just dropped; a stale variant must not keep an MG-only
         // capability unlocked for whatever connects next.
         state.whoop5Variant = nil

@@ -5146,12 +5146,13 @@ class WhoopBleClient(
      */
     // ---- WHOOP MG ECG ("Labrador") turn-on probe — twin of macOS BLEManager.ecg* ----------------
 
-    /** Listen window after the turn-on burst, matching macOS `ecgProbeWindow`. */
-    private val ECG_PROBE_WINDOW_SECONDS = 30
+    /** Listen window for a run waiting on a COMMAND_RESPONSE, matching macOS `ecgProbeWindow`.
+     *  Derived from [Whoop5EcgProbe.Window] so the two platforms cannot hold different numbers: that
+     *  they both held 30 independently is how the window outlived the evidence against it (#891). */
+    private val ECG_PROBE_WINDOW_SECONDS = Whoop5EcgProbe.Window.SELECT_OR_STOP
 
-    /** Detailed candidate lines are capped; the PACKET COUNT is not, so the verdict stays complete
-     *  while a chatty stream cannot grow the strap log without bound. Matches macOS. */
-    private val ECG_PROBE_MAX_CANDIDATES = 12
+    /** The CAPTURE run's window. Longer, because a reading's terminal frame lands at 38 to 39 s. */
+    private val ECG_PROBE_CAPTURE_WINDOW_SECONDS = Whoop5EcgProbe.Window.CAPTURE
 
     /**
      * Guards every probe accumulator below. [noteEcgProbeCandidate] runs on the BINDER thread (the
@@ -5169,6 +5170,21 @@ class WhoopBleClient(
     private val ecgProbeCandidates = mutableListOf<String>()
 
     private var ecgProbePacketsSeen = 0
+
+    /** Supersedes a previous run's pending verdict post when a run is re-armed. Guarded by
+     *  [ecgProbeLock], because a terminal frame re-arms from the binder thread. */
+    private var ecgProbeRunToken = 0
+
+    /** When the run in flight began, so the report states the time actually listened rather than the
+     *  window asked for: a terminal frame ends a run early, so those stopped being the same number. */
+    private var ecgProbeStartedAtMs = 0L
+
+    /** Whether this run already pushed its deadline out on a terminal frame. Once only, or a terminal
+     *  stream would postpone the verdict forever. */
+    private var ecgProbeTerminalExtended = false
+
+    /** How many TERMINAL candidate lines this run has kept, against the reserve the cap holds back. */
+    private var ecgProbeTerminalLinesKept = 0
 
     /**
      * True only while a probe run is sending. The send() allowlist reads this, so the three toggles are
@@ -5247,19 +5263,48 @@ class WhoopBleClient(
             ecgProbeSteps.clear()
             ecgProbeCandidates.clear()
             ecgProbePacketsSeen = 0
+            ecgProbeRunToken += 1
+            ecgProbeStartedAtMs = System.currentTimeMillis()
+            ecgProbeTerminalExtended = false
+            ecgProbeTerminalLinesKept = 0
         }
         ecgProbeListening = true
     }
 
-    private fun scheduleEcgProbeVerdict() {
+    private fun scheduleEcgProbeVerdict(windowSeconds: Int = ECG_PROBE_WINDOW_SECONDS) {
+        val token = synchronized(ecgProbeLock) { ecgProbeRunToken }
         handler.postDelayed({
-            ecgProbeListening = false
-            val (steps, packets, candidates) = synchronized(ecgProbeLock) {
-                Triple(ecgProbeSteps.toList(), ecgProbePacketsSeen, ecgProbeCandidates.toList())
+            // Token check, not removeCallbacks: a terminal frame re-arms the run from the binder thread
+            // and a second user tap re-arms from main, so a stale post must simply do nothing. Twin of
+            // the macOS run-token guard.
+            val (stale, steps, packets, candidates, listened) = synchronized(ecgProbeLock) {
+                EcgVerdictSnapshot(
+                    ecgProbeRunToken != token,
+                    ecgProbeSteps.toList(),
+                    ecgProbePacketsSeen,
+                    ecgProbeCandidates.toList(),
+                    // Integer rounding rather than a Double hop: this is a whole number of seconds in
+                    // a report line, and it matches the Swift side's `.rounded()` for a positive span.
+                    ((System.currentTimeMillis() - ecgProbeStartedAtMs + 500L) / 1000L).toInt(),
+                )
             }
-            log(Whoop5EcgProbe.report(steps, packets, candidates, ECG_PROBE_WINDOW_SECONDS))
-        }, ECG_PROBE_WINDOW_SECONDS * 1000L)
+            if (stale) return@postDelayed
+            ecgProbeListening = false
+            // The time LISTENED, not the window asked for. The verdict text quotes this number ("no ECG
+            // packet arrived in Ns"), so quoting the request would have the report claim a window it
+            // did not run.
+            log(Whoop5EcgProbe.report(steps, packets, candidates, listened))
+        }, windowSeconds * 1000L)
     }
+
+    /** The verdict's inputs, read under [ecgProbeLock] in one go so the report cannot mix two runs. */
+    private data class EcgVerdictSnapshot(
+        val stale: Boolean,
+        val steps: List<Whoop5EcgProbe.Step>,
+        val packets: Int,
+        val candidates: List<String>,
+        val listenedSeconds: Int,
+    )
 
     /**
      * The START list's first member: ABORT_HISTORICAL_TRANSMITS (20), immediately ahead of `124`.
@@ -5331,7 +5376,7 @@ class WhoopBleClient(
             // Scheduled in the finally, because it is what CLOSES the listen window. If a send threw,
             // an early return would leave `ecgProbeListening` true forever and the triage running on
             // every frame for the life of the process.
-            scheduleEcgProbeVerdict()
+            scheduleEcgProbeVerdict(ECG_PROBE_CAPTURE_WINDOW_SECONDS)
         }
     }
 
@@ -5379,10 +5424,35 @@ class WhoopBleClient(
     private fun noteEcgProbeCandidate(frame: ByteArray) {
         if (frame.size < 12) return
         val packet = Whoop5Ecg.r17FromFrame(frame) ?: return
-        synchronized(ecgProbeLock) {
+        // A TERMINAL frame is kept even past the cap, and ends the run on a grace period rather than on
+        // the frame itself. Both halves come from #891: the result, average HR and reason mask populate
+        // only on that frame, so the old flat cap kept seconds 1 to 12 and discarded the one frame that
+        // carried the answer; and the variability field reads 0xffff for several seconds after it, so
+        // stopping on the frame would pin the unset value as the reading's own.
+        var grace: Int? = null
+        val keep = synchronized(ecgProbeLock) {
             ecgProbePacketsSeen += 1
-            if (ecgProbeCandidates.size >= ECG_PROBE_MAX_CANDIDATES) return
+            grace = Whoop5EcgProbe.terminalGraceSeconds(packet.isTerminal, ecgProbeTerminalExtended)
+            if (grace != null) ecgProbeTerminalExtended = true
+            val retain = Whoop5EcgProbe.retainsCandidate(
+                linesKept = ecgProbeCandidates.size,
+                terminalLinesKept = ecgProbeTerminalLinesKept,
+                isTerminal = packet.isTerminal,
+            )
+            if (retain && packet.isTerminal) ecgProbeTerminalLinesKept += 1
+            retain
         }
+        grace?.let { seconds ->
+            log(
+                "ECG probe: terminal frame (state=${packet.classifierState} " +
+                    "progress=${packet.progress.raw}) — listening ${seconds}s more before the verdict",
+            )
+            // Re-arms the run: beginEcgProbeRun bumped the token at the start, and scheduling against a
+            // fresh token strands the pending verdict post. Same mechanism a second user tap uses.
+            synchronized(ecgProbeLock) { ecgProbeRunToken += 1 }
+            scheduleEcgProbeVerdict(seconds)
+        }
+        if (!keep) return
         // The classifier byte is logged as a NUMBER, never as its token name: a strap log is a shareable
         // artefact, and no line in it should read like a clinical finding.
         //
