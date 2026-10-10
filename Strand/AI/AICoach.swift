@@ -298,6 +298,18 @@ final class AICoachEngine: ObservableObject {
         return Self.defaultSystemPrompt
     }
 
+    /// The running bundle's language also applies to briefs and replies to English context/history.
+    var requestSystemPrompt: String {
+        Self.localizedSystemPrompt(systemPrompt, languageTag: Bundle.main.preferredLocalizations.first ?? "en")
+    }
+
+    static func localizedSystemPrompt(_ prompt: String, languageTag: String) -> String {
+        let tag = languageTag.trimmingCharacters(in: .whitespacesAndNewlines)
+        return prompt + "\n\nReply in the app's language (BCP-47: \(tag.isEmpty ? "en" : tag)). "
+            + "Use this language even if the context or earlier messages are in another language, "
+            + "unless the user explicitly requests a different language."
+    }
+
     /// The user's stored prompt override, or the default when nothing custom is set. The UI binds its
     /// editor to this: writing persists the override; writing a blank string clears it (back to default).
     var customSystemPrompt: String {
@@ -1048,7 +1060,7 @@ final class AICoachEngine: ObservableObject {
         try await provider.client.send(
             key: key,
             model: model,
-            systemPrompt: systemPrompt,
+            systemPrompt: requestSystemPrompt,
             messages: messages,
             session: session
         )
@@ -1065,7 +1077,7 @@ final class AICoachEngine: ObservableObject {
         try await provider.client.streamWithImage(
             key: key,
             model: model,
-            systemPrompt: systemPrompt,
+            systemPrompt: requestSystemPrompt,
             messages: messages,
             inlineImage: inlineImage,
             session: session,
