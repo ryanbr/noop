@@ -40,6 +40,7 @@ struct LiftSessionDetailSheet: View {
     private var unitSystem: UnitSystem { UnitSystem(rawValue: unitSystemRaw) ?? .metric }
 
     private var durationSec: Int {
+        if let duration = workout?.durationS { return max(0, Int(duration)) }
         guard let end = session.endTs else { return 0 }
         return max(0, end - session.startTs)
     }

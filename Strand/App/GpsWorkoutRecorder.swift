@@ -594,9 +594,9 @@ final class GpsWorkoutRecorder: NSObject, ObservableObject {
         return final
     }
 
-    func pause() {
+    func pause(at date: Date = Date()) {
         guard isRecording else { return }
-        pausedAtMs = Int64(Date().timeIntervalSince1970 * 1000)
+        pausedAtMs = Int64(date.timeIntervalSince1970 * 1000)
         manager.stopUpdatingLocation()
         isRecording = false
     }

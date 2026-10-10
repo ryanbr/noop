@@ -243,7 +243,10 @@ final class Repository: ObservableObject {
         workoutsLog(build())
     }
 
-    init(deviceId: String) { self.deviceId = deviceId }
+    init(deviceId: String, store: WhoopStore? = nil) {
+        self.deviceId = deviceId
+        self.store = store
+    }
 
     /// Re-point the read model's ACTIVE-strap id at the device registry's active device, so a re-added
     /// strap's LIVE raw (written under its fresh "whoop-<uuid>" id) surfaces on the dashboard (#814).
@@ -3020,7 +3023,12 @@ final class Repository: ObservableObject {
             }
             return
         }
-        _ = try? await store.upsertWorkouts([row], deviceId: deviceId)
+        do {
+            _ = try await store.upsertWorkouts([row], deviceId: deviceId)
+            if let old, row.avgHr != old.avgHr || row.energyKcal != old.energyKcal {
+                RecordedWorkoutHistory.forget(old, deviceId: deviceId)
+            }
+        } catch { return }
     }
 
     /// Re-label a legacy detected bout: copy it to a manual strap row with the chosen sport, then delete

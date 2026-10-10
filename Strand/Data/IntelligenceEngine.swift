@@ -34,6 +34,7 @@ final class IntelligenceEngine: ObservableObject {
     /// canonical `-noop` sibling. The Repository's union read then surfaces both the canonical computed
     /// history and the active strap's live data together. So this never moves after construction.
     private let deviceId: String
+    private var recordedWorkoutFingerprints: [String: String] = [:]
 
     @Published var results: [Computed] = []      // newest first
     @Published var computing = false
@@ -2095,6 +2096,7 @@ final class IntelligenceEngine: ObservableObject {
         // analytics/enrichment input, but the opt-in confirmation card is now the only creator of a new
         // visible workout; legacy `sport="detected"` rows are preserved rather than reconciled here.
         var backfilledByDevice: [String: [WorkoutRow]] = [:]
+        let recordedWorkouts = RecordedWorkoutHistory.load()
         // Rest composite (0–100) per computed night, persisted as the `sleep_performance` metric
         // series so the dashboard's Rest score reflects the new composite, not raw efficiency.
         var restPoints: [MetricPoint] = []
@@ -2369,14 +2371,16 @@ final class IntelligenceEngine: ObservableObject {
                     // thin, silently showing no HR/calories). Same natural key (deviceId, startTs,
                     // sport), so the upsert below updates the existing row in place rather than
                     // duplicating it.
-                    let backfilled = WorkoutDetector.backfillWorkout(
+                    let hitDeviceId = hit.source == "apple-health" ? "apple-health" : deviceId
+                    // Recorded sessions use their own window and pauses, not a detected overlapping bout.
+                    let usesHistory = recordedWorkouts.contains { $0.matches(hit, deviceId: hitDeviceId) }
+                    let backfilled = usesHistory ? hit : WorkoutDetector.backfillWorkout(
                         hit, avgBpm: avgBpm, peakHR: s.peakHR, caloriesKcal: s.caloriesKcal, strain: s.strain)
                     let didBackfill = backfilled != hit
                     if didBackfill {
                         // realWorkouts merges TWO device groups (see above): the strap's own `deviceId`
                         // (imported WHOOP rows AND manual/re-labelled ones) and "apple-health" — the
                         // Swift WorkoutRow carries no deviceId of its own, so route by that same split.
-                        let hitDeviceId = hit.source == "apple-health" ? "apple-health" : deviceId
                         backfilledByDevice[hitDeviceId, default: []].append(backfilled)
                     }
                     if workoutsTraceActive {
@@ -3173,10 +3177,22 @@ final class IntelligenceEngine: ObservableObject {
     /// #137: re-score under-sampled manual workouts. A `manual` workout is scored from the live HR
     /// captured during the session; on a 5/MG that stream is sparse, so calories/strain land near zero.
     /// The strap banks its own HR and offloads it on sync , once that denser HR covers the workout's
-    /// window, recompute from it. Conservative + idempotent: only `manual` rows that look under-scored
-    /// (negligible calories), and only when the recompute is a genuine improvement , so a well-scored
-    /// 4.0 workout is never touched and a still-sparse window is a no-op.
-    private func rescoreManualWorkouts(store: WhoopStore, profile up: UserProfile,
+    /// window, recompute from it only when metrics improve. Recorded sessions remain eligible for
+    /// subsequent sync chunks; hand-entered metrics retain the conservative gate. Stream fingerprints
+    /// avoid rescoring unchanged recorded windows.
+    func rescoreManualWorkouts(store: WhoopStore, profile up: UserProfile,
+                              restingHR: Double? = nil, effortMethod: StrainScorer.Method = .edwards) async {
+        let recorded = RecordedWorkoutHistory.load()
+        let keys = Set(recorded.map { "\($0.deviceId):\($0.startTs):\($0.sport)" })
+        recordedWorkoutFingerprints = recordedWorkoutFingerprints.filter { keys.contains($0.key) }
+        let owners = Set([deviceId] + recorded.map(\.deviceId))
+        for owner in owners {
+            await rescoreManualWorkouts(store: store, workoutDeviceId: owner, profile: up,
+                                       restingHR: restingHR, effortMethod: effortMethod)
+        }
+    }
+
+    private func rescoreManualWorkouts(store: WhoopStore, workoutDeviceId: String, profile up: UserProfile,
                                        restingHR: Double? = nil,
                                        // #1545: the recipe THIS PASS scored its days with, threaded in
                                        // rather than re-read. Re-reading would let a toggle flipped
@@ -3186,20 +3202,34 @@ final class IntelligenceEngine: ObservableObject {
                                        effortMethod: StrainScorer.Method = .edwards) async {
         let now = Int(Date().timeIntervalSince1970)
         let since = now - 14 * 86_400
-        guard let rows = try? await store.workouts(deviceId: deviceId, from: since, to: now, limit: 200)
+        guard let rows = try? await store.workouts(deviceId: workoutDeviceId, from: since, to: now, limit: 200)
         else { return }
         let hrMax = Double(profile.hrMax)
         var updated: [WorkoutRow] = []
+        let recorded = RecordedWorkoutHistory.load(now: now).filter { $0.deviceId == workoutDeviceId }
+        var fingerprintsToCommit: [String: String] = [:]
         // A manual row is eligible when it looks under-scored (negligible kcal, #137) OR it's missing
         // strain (the merged-workout case, where kcal is the SUM of inputs so it never looks under-scored
         // yet Effort stays blank forever). `improves` then accepts a strain-only gain for the latter.
-        for row in rows where row.source == "manual"
-            && (ManualWorkoutRescore.looksUnderScored(currentKcal: row.energyKcal) || row.strain == nil) {
-            guard let samples = try? await store.hrSamples(deviceId: deviceId, from: row.startTs,
-                                                           to: row.endTs, limit: 20_000),
-                  let s = ManualWorkoutRescore.scored(windowSamples: samples, profile: up, hrMax: hrMax,
-                                                      restingHR: restingHR,
-                                                      effortMethod: effortMethod),
+        for row in rows where row.source == "manual" {
+            let entry = recorded.first { $0.matches(row, deviceId: workoutDeviceId) }
+            guard entry != nil || ManualWorkoutRescore.looksUnderScored(currentKcal: row.energyKcal) || row.strain == nil else { continue }
+            let key = "\(workoutDeviceId):\(row.startTs):\(row.sport)"
+            let fingerprint = entry == nil ? nil : await repo.hrFingerprintUnion(from: row.startTs, to: row.endTs)
+            if let fingerprint, recordedWorkoutFingerprints[key] == fingerprint { continue }
+            let samples: [HRSample]
+            if entry != nil {
+                samples = await repo.hrSamples(from: row.startTs, to: row.endTs, limit: 200_000)
+            } else {
+                guard let stored = try? await store.hrSamples(deviceId: workoutDeviceId, from: row.startTs, to: row.endTs, limit: 20_000) else { continue }
+                samples = stored
+            }
+            if let fingerprint { fingerprintsToCommit[key] = fingerprint }
+            let scored = await Task.detached(priority: .utility) {
+                ManualWorkoutRescore.scored(windowSamples: entry?.activeSamples(samples) ?? samples,
+                                           profile: up, hrMax: hrMax, restingHR: restingHR, effortMethod: effortMethod)
+            }.value
+            guard let s = scored,
                   ManualWorkoutRescore.improves(s, over: row.energyKcal, currentStrain: row.strain,
                                                 allowStrainOnlyFill: true)
             else { continue }
@@ -3213,7 +3243,10 @@ final class IntelligenceEngine: ObservableObject {
                 strain: s.strain, distanceM: row.distanceM, zonesJSON: row.zonesJSON, notes: row.notes,
                 steps: row.steps))
         }
-        if !updated.isEmpty { _ = try? await store.upsertWorkouts(updated, deviceId: deviceId) }
+        do {
+            if !updated.isEmpty { _ = try await store.upsertWorkouts(updated, deviceId: workoutDeviceId) }
+            recordedWorkoutFingerprints.merge(fingerprintsToCommit) { _, new in new }
+        } catch { /* Keep the old fingerprints so a failed write can be retried. */ }
     }
 
     /// Pass 1 has no seeded skin baseline. Attach the deviation before scoring so the score,

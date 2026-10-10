@@ -40,14 +40,29 @@ final class LiftSessionTimingTests: XCTestCase {
         c.start(plan: plan(restSec: 2), programId: "p", programName: "Upper A")
         c.advance()                                              // set 1 working
         c.advance()                                              // set 1 done: a 2 s rest
-        XCTAssertEqual(c.presentation(system: .metric)?.status, "Resting after set 1")
+        let setIndex = 1
+        XCTAssertEqual(c.presentation(system: .metric)?.status, String(localized: "Resting after set \(setIndex)"))
         var changes = 0
         let watching = c.objectWillChange.sink { changes += 1 }
         RunLoop.main.run(until: Date().addingTimeInterval(3.2))
         watching.cancel()
         XCTAssertEqual(changes, 1, "the rest's end, once")
         XCTAssertEqual(buzzes, [LiftSessionController.restWarningBuzzes], "the warning, once")
-        XCTAssertEqual(c.presentation(system: .metric)?.status, "Ready for the next set")
+        XCTAssertEqual(c.presentation(system: .metric)?.status, String(localized: "Ready for the next set"))
+    }
+
+    func testPauseCancelsRestWarningAndPreservesTheRemainingTime() {
+        var buzzes: [UInt8] = []
+        let controller = LiftSessionController(buzz: { buzzes.append($0) }, setStrapHandler: { _ in })
+        controller.start(plan: plan(restSec: 2), programId: nil, programName: nil)
+        controller.advance()
+        controller.advance()
+        controller.pause()
+        let remaining = controller.engine?.restRemaining(now: LiftSessionController.unixNow)
+        RunLoop.main.run(until: Date().addingTimeInterval(2.5))
+        XCTAssertEqual(buzzes, [])
+        XCTAssertEqual(controller.engine?.restRemaining(now: LiftSessionController.unixNow), remaining)
+        XCTAssertEqual(LiftSessionPersistence.load()?.pausedAt, controller.engine?.pausedAt)
     }
 
     /// When the warning and the end fire. A rest inside the warning window warns a second from now, clear of

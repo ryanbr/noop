@@ -26,6 +26,7 @@ final class DetectedWorkoutReconciliationTests: XCTestCase {
             PuffinExperiment.autoDetectWorkoutsKey,
             WorkoutSource.dismissedDefaultsKey,
             "testcentre.active.workouts", "testcentre.active.master",
+            RecordedWorkoutHistory.defaultsKey,
         ]
         let saved = keys.map { ($0, defaults.object(forKey: $0)) }
         defer {
@@ -49,6 +50,32 @@ final class DetectedWorkoutReconciliationTests: XCTestCase {
             GravitySample(ts: start + second, x: second.isMultiple(of: 2) ? -0.6 : 0.6, y: 0, z: 1)
         }
         return (hr, gravity)
+    }
+
+    func testRecordedWorkoutRescoresItsOwnWindowAndExcludesPauses() async throws {
+        try await withPreferences {
+            let store = try await WhoopStore.inMemory()
+            let start = Int(Date().timeIntervalSince1970) - 3_600
+            let pause = DateInterval(start: Date(timeIntervalSince1970: Double(start + 300)), duration: 300)
+            let hr = (0...1_800).map { HRSample(ts: start + $0, bpm: (300..<600).contains($0) ? 190 : 150) }
+            let gravity = (0...1_800).map { GravitySample(ts: start + $0, x: $0.isMultiple(of: 2) ? -0.6 : 0.6, y: 0, z: 1) }
+            _ = try await store.insert(Streams(hr: hr, gravity: gravity), deviceId: deviceId)
+            let workout = WorkoutRow(startTs: start, endTs: start + 1_800, sport: "Running", source: "manual",
+                                     durationS: 1_500, energyKcal: nil, avgHr: nil, maxHr: nil, strain: nil,
+                                     distanceM: 4_000, zonesJSON: nil, notes: "recorded", steps: nil)
+            _ = try await store.upsertWorkouts([workout], deviceId: deviceId)
+            RecordedWorkoutHistory.remember(workout, deviceId: deviceId, pauses: [pause])
+            let repo = Repository(deviceId: deviceId, store: store)
+            let engine = IntelligenceEngine(repo: repo, profile: ProfileStore(), deviceId: deviceId)
+            await engine.analyzeRecent(maxDays: 2, force: true)
+            let rows = try await store.workouts(deviceId: deviceId, from: start, to: start + 1_800, limit: 10)
+            let saved = try XCTUnwrap(rows.first { $0.sport == "Running" })
+            XCTAssertEqual(saved.avgHr, 150)
+            XCTAssertEqual(saved.maxHr, 150, "the 190 bpm readings arrived during a pause")
+            XCTAssertEqual(saved.durationS, 1_500)
+            XCTAssertEqual(saved.distanceM, 4_000)
+            XCTAssertEqual(saved.notes, "recorded")
+        }
     }
 
     func testCandidateSelectionHonorsBothLegacyDismissalStores() {
