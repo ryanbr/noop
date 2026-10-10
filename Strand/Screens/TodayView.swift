@@ -4689,24 +4689,27 @@ struct TodayView: View {
         async let weightSpark        = sparkValues("weight", source: "apple-health", window: 90)
         async let activeKcalSpark    = sparkValues("active_kcal", source: "apple-health", window: 14)
 
-        sparks["recovery"]        = await recoverySpark
-        sparks["strain"]          = await strainSpark
-        sparks["sleep_total_min"] = await sleepTotalSpark
-        sparks["hrv"]             = await hrvSpark
-        sparks["rhr"]             = await rhrSpark
-        sparks["spo2"]            = await spo2Spark
-        sparks["spo2_candidate"]  = await spo2CandidateSpark
-        sparks["skin_temp"]       = await skinTempSpark
-        sparks["resp_rate"]   = await respRateSpark
-        sparks["steps"]       = await stepsAppleSpark
+        // Await into local values so each completed read does not rebuild the entire dashboard.
+        var loadedSparks = await [
+            "recovery": recoverySpark,
+            "strain": strainSpark,
+            "sleep_total_min": sleepTotalSpark,
+            "hrv": hrvSpark,
+            "rhr": rhrSpark,
+            "spo2": spo2Spark,
+            "spo2_candidate": spo2CandidateSpark,
+            "skin_temp": skinTempSpark,
+            "resp_rate": respRateSpark,
+            "steps": stepsAppleSpark,
+            "weight": weightSpark,
+            "active_kcal": activeKcalSpark
+        ]
         // Steps prefer the strap's own @57 daily total (no metricSeries, it lives on the daily row),
         // so a strap-only WHOOP 5/MG user gets a steps trend without Apple Health. Falls back to the
         // Apple Health series above when the strap supplied no steps (#276). This synchronous overwrite
-        // must run AFTER sparks["steps"] is assigned from the Apple-Health read above (unchanged order).
+        // must run AFTER the Apple-Health read above (unchanged precedence).
         let strapSteps = repo.days.suffix(14).compactMap { $0.steps.map(Double.init) }
-        if !strapSteps.isEmpty { sparks["steps"] = strapSteps }
-        sparks["weight"]      = await weightSpark
-        sparks["active_kcal"] = await activeKcalSpark
+        if !strapSteps.isEmpty { loadedSparks["steps"] = strapSteps }
 
         // Steps ESTIMATE per day (WHOOP 4.0 motion → calibrated steps), the Mi-Band series, workout +
         // Apple-daily rows, and the three "your cards" series, all history-wide (none depends on the
@@ -4738,24 +4741,24 @@ struct TodayView: View {
         // Only consulted when a day has no REAL step count (see the .steps tile), so it never overrides a
         // measured value, it just fills the gap a 4.0 user would otherwise see as ", ".
         let stepsEstSeries = await stepsEstSeriesA
-        stepsEstByDay = Dictionary(stepsEstSeries.map { ($0.day, Int($0.value.rounded())) },
-                                   uniquingKeysWith: { _, last in last })
+        let loadedStepsEstByDay = Dictionary(stepsEstSeries.map { ($0.day, Int($0.value.rounded())) },
+                                             uniquingKeysWith: { _, last in last })
 
-        workouts = await workoutsA
-        appleDays = await appleDaysA
+        let loadedWorkouts = await workoutsA
+        let loadedAppleDays = await appleDaysA
         // Mi Band (Mi Fitness import), distinct days across its representative metric keys.
         let xSteps = await xStepsA
         let xSleep = await xSleepA
-        xiaomiDays = Set(xSteps.map(\.day) + xSleep.map(\.day)).count
+        let loadedXiaomiDays = Set(xSteps.map(\.day) + xSleep.map(\.day)).count
         // Your cards (#582 / Design Reset): Stress / Fitness age / Vitality for the pinned home cards.
         // #753: Stress mirrors StressView. `StressModel(days:stored:).score` is TODAY's score (stored row
         // preferred, else derived off the live RHR/HRV baseline), so the pinned card never lags the detail
         // page on a day with no banked stress row. nil (no usable signal) keeps the honest "Calibrating"
         // placeholder, matching StressView's empty state. Fitness age / Vitality keep their merged reads.
-        stressToday = StressModel(days: repo.days, stored: await stressStoredA)?.score
-        fitnessAgeToday = (await fitnessAgeSeriesA).last?.value
-        vo2maxToday = (await vo2maxSeriesA).last?.value   // #1391: latest banked VO₂max estimate
-        vitalityToday = (await vitalitySeriesA).last?.value
+        let loadedStress = StressModel(days: repo.days, stored: await stressStoredA)?.score
+        let loadedFitnessAge = (await fitnessAgeSeriesA).last?.value
+        let loadedVo2max = (await vo2maxSeriesA).last?.value
+        let loadedVitality = (await vitalitySeriesA).last?.value
         // Hydration card (opt-in): today's stored total + the sex/Effort goal. Only loaded when the
         // feature is on, so a disabled feature does zero work and the card stays hidden.
         await reloadHydration()
@@ -4764,6 +4767,16 @@ struct TodayView: View {
             let farFuture = Int(Date.distantFuture.timeIntervalSince1970)
             xiaomiSleeps = ((try? await store.sleepSessions(deviceId: "xiaomi-band", from: 0, to: farFuture, limit: 4000))?.count) ?? 0
         }
+        // Preserve the day-scoped Rest spark and commit the history-wide values without suspending.
+        sparks.merge(loadedSparks) { _, loaded in loaded }
+        stepsEstByDay = loadedStepsEstByDay
+        workouts = loadedWorkouts
+        appleDays = loadedAppleDays
+        xiaomiDays = loadedXiaomiDays
+        stressToday = loadedStress
+        fitnessAgeToday = loadedFitnessAge
+        vo2maxToday = loadedVo2max
+        vitalityToday = loadedVitality
         // #849: snapshot everything just computed onto the long-lived `repo`, keyed by the seq we loaded for,
         // so a later re-mount with unchanged data restores it in-memory instead of re-running this pass.
         // Note the Rest-tile spark (`sparks["sleep_performance"]`) is written by loadDayScoped, which always
