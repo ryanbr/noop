@@ -5700,6 +5700,8 @@ public final class BLEManager: NSObject, ObservableObject {
             log("HR: skin contact \(m.contact.rawValue) (was \(lastLoggedHRContact?.rawValue ?? "unknown")), \(m.hr) bpm")
             lastLoggedHRContact = m.contact
         }
+        // Reconcile a training deadline before either biometric publisher can capture a sample.
+        if readable { state.noteReadableHeartRate() }
         if !rr.isEmpty, readable { state.setRRIntervals(rr) }
         // A run of unreadable samples clears the shown heart rate instead of leaving the last one standing.
         if heartRateReadability.clearsShownHeartRate(bpm: m.hr, contact: m.contact), state.heartRate != nil {
@@ -5712,7 +5714,6 @@ public final class BLEManager: NSObject, ObservableObject {
         // live perf: only publish on a real change so a steady resting HR doesn't re-render the whole
         // Live console every second.
         if readable {
-            state.noteReadableHeartRate()
             if state.heartRate != m.hr { state.heartRate = m.hr }
         }
         // Record it continuously — independent of the realtime stream or the open screen.

@@ -245,6 +245,8 @@ struct RootTabView: View {
                 // (InsightsView), matching the FAB's "Log journal" action. Calm sheet easing.
                 withAnimation(Self.sheetEase) { quickAction = .journal }
                 router.requestedDestination = nil
+            case .trainingFavorites:
+                presentPendingExternalActionIfPossible()
             case nil:
                 break
             }
@@ -256,16 +258,16 @@ struct RootTabView: View {
                 router.quickActionsRequested = false
             }
         }
-        // A cold-launch selection is already pending when this shell appears; a warm selection arrives
-        // through the change callback. Both route through the same screens as the centre FAB.
+        // Cold-launch requests are already pending when this shell appears; warm requests arrive
+        // through the change callbacks. Both wait for the same mandatory launch gates.
         .onAppear {
-            presentPendingHomeScreenQuickActionIfPossible()
+            presentPendingExternalActionIfPossible()
         }
         .onChange(of: homeScreenQuickActions.pendingAction) { _, _ in
-            presentPendingHomeScreenQuickActionIfPossible()
+            presentPendingExternalActionIfPossible()
         }
         .onChange(of: homeScreenQuickActionsEnabled) { _, _ in
-            presentPendingHomeScreenQuickActionIfPossible()
+            presentPendingExternalActionIfPossible()
         }
         // The running gym session, reachable from ANY tab. It sits above the tab bar rather than
         // inside the Lift Log screen, because a workout outlives whichever screen you wandered to —
@@ -289,10 +291,20 @@ struct RootTabView: View {
         }
     }
 
-    /// Mandatory launch gates defer an external action. Once the shell is available, an explicit Home
-    /// Screen choice supersedes any ordinary shell sheet; choosing the already-open destination simply
+    /// Mandatory launch gates defer an external action. Once the shell is available, an explicit widget
+    /// or Home Screen choice supersedes any ordinary shell sheet; choosing the already-open destination simply
     /// consumes the request and leaves that screen in place.
-    private func presentPendingHomeScreenQuickActionIfPossible() {
+    private func presentPendingExternalActionIfPossible() {
+        if router.consumeTrainingFavoritesRequest(isReady: homeScreenQuickActionsEnabled) {
+            if let action = homeScreenQuickActions.pendingAction { homeScreenQuickActions.consume(action) }
+            showDevices = false
+            routedPillar = nil
+            quickAction = nil
+            liftSession.isPresented = false
+            selectedTab = 4
+            tabPaths[4] = NavigationPath([MoreDestination.trainingFavorites])
+            return
+        }
         guard homeScreenQuickActionsEnabled,
               let action = homeScreenQuickActions.pendingAction else { return }
 
@@ -340,6 +352,7 @@ struct RootTabView: View {
                 // it ever reaches the host.
                 case .coach: CoachView()
                 case .alarms: SmartAlarmView()
+                case .trainingFavorites: MoreDestination.trainingFavorites.destination
                 }
             }
             // The Trends/Today fallbacks above emit TabRoute value pushes (#198), which need a
@@ -600,7 +613,7 @@ private enum MoreDestination: Hashable {
     case insightsHub, intelligence, coach, insights, explore, compare
     case live, workouts, liftLog, health, labBook, stress, breathe, intervals, rhythm
     case fusedRecord, appleHealth, miBand, dataSources, backupSync, shortcutsExport, noopLimitations
-    case alarms, automations, testCentre, siriShortcuts, powerSaving, settings
+    case alarms, automations, testCentre, siriShortcuts, powerSaving, settings, trainingFavorites
 
     @ViewBuilder var destination: some View {
         switch self {
@@ -632,6 +645,7 @@ private enum MoreDestination: Hashable {
         case .siriShortcuts:   SiriShortcutsSettingsView()
         case .powerSaving:     PowerSavingView()
         case .settings:        SettingsView()
+        case .trainingFavorites: ScreenScaffold(title: nil) { TrainingFavoritesView() }
         }
     }
 }

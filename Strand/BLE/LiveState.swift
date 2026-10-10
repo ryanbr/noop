@@ -729,10 +729,14 @@ public final class LiveState: ObservableObject {
     private var heartRateSilenceTimer: DispatchSourceTimer?
     private var heartRateSilenceArmedAt: DispatchTime?
 
+    /// Receipt observers run before biometric publication; they do not invalidate SwiftUI views.
+    public var onReadableHeartRate: ((Date) -> Void)?
+
     /// A readable heart-rate sample arrived (`BLEManager`'s standard profile, `FrameRouter`'s realtime frames): move the
     /// silence deadline on. One timer, rescheduled at most every tenth of the wait (once a second in use), so it costs
     /// nothing while samples flow and fires once when they stop.
     public func noteReadableHeartRate() {
+        onReadableHeartRate?(Date())
         let now = DispatchTime.now()
         let rearmNanos = UInt64(heartRateSilence / 10 * 1_000_000_000)
         if let armed = heartRateSilenceArmedAt, now.uptimeNanoseconds &- armed.uptimeNanoseconds < rearmNanos { return }

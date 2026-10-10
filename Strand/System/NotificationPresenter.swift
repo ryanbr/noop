@@ -22,6 +22,7 @@ final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
     /// is a safe no-op (the tap is simply not routed) rather than a crash if this ever fires before the
     /// root has wired it.
     var onCoachBriefTapped: (() -> Void)?
+    var onTrainingAction: ((String, String, @escaping () -> Void) -> Void)?
 
     func userNotificationCenter(
         _ center: UNUserNotificationCenter,
@@ -41,6 +42,13 @@ final class NotificationPresenter: NSObject, UNUserNotificationCenterDelegate {
     ) {
         if response.notification.request.content.categoryIdentifier == CoachBriefScheduler.notificationCategoryId {
             onCoachBriefTapped?()
+        }
+        if response.notification.request.content.categoryIdentifier == "noop-training-pulse-loss",
+           let id = response.notification.request.content.userInfo["sessionID"] as? String {
+            if let onTrainingAction {
+                onTrainingAction(response.actionIdentifier, id, completionHandler)
+                return
+            }
         }
         completionHandler()
     }

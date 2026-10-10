@@ -30,8 +30,8 @@ struct LiftSessionView: View {
 
     @State private var showingFinish = false
     @State private var confirmingDiscard = false
-    @State private var sessionRpeText = ""
     @State private var saving = false
+    @State private var saveError = false
     /// The two questions finishing can ask. Nil until answered: saving waits for an answer rather than
     /// deciding for the user.
     @State private var unfinishedChoice: UnfinishedChoice?
@@ -91,7 +91,7 @@ struct LiftSessionView: View {
         .dismissesKeyboardOnTap($focused)
         // Re-read whenever the session's exercises change, so an exercise added mid-session that was
         // done before shows last time's numbers in grey, like every other line.
-        .task(id: engine?.plan.map(\.exercise)) { await loadLastTime() }
+        .task(id: engine?.plan.map(\.exercise)) { await session.loadLastSession(repo: repo) }
         // Release a field's draft once the user leaves it, so the row returns to the canonical
         // formatting ("45.50" typed becomes "45.5"). The single-argument form on purpose: the
         // two-argument `onChange` is macOS 14+ and this file also builds for macOS 13.
@@ -550,8 +550,11 @@ struct LiftSessionView: View {
             }
 
             HStack(spacing: NoopMetrics.rowSpacing) {
-                Button { session.advance() } label: {
-                    Text(actionLabel(engine)).frame(maxWidth: .infinity)
+                if !engine.isPaused {
+                    Button("Pause") { session.pause() }.buttonStyle(.noopSecondary)
+                }
+                Button { if engine.isPaused { session.resume() } else { session.advance() } } label: {
+                    Text(engine.isPaused ? "Resume" : actionLabel(engine)).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.noopPrimary)
 
@@ -607,7 +610,7 @@ struct LiftSessionView: View {
         switch engine.stage {
         case .working:
             clock(String(localized: "This set"), tint: StrandPalette.statusPositive) {
-                $0 - engine.stageStartedAt
+                engine.stageElapsed(now: $0)
             }
         case .resting:
             // "Rest period", never "Rest": the catalog's "Rest" key is NOOP's SLEEP metric, so this
@@ -618,7 +621,7 @@ struct LiftSessionView: View {
             }
         case .warmup, .finished:
             clock(String(localized: "Warm-up"), tint: StrandPalette.textSecondary) {
-                $0 - engine.stageStartedAt
+                engine.stageElapsed(now: $0)
             }
         }
     }
@@ -645,7 +648,7 @@ struct LiftSessionView: View {
                 NoopCard {
                     VStack(alignment: .leading, spacing: NoopMetrics.gap) {
                         Text("How hard was the whole session? (1–10)").strandOverline()
-                        TextField("7", text: $sessionRpeText)
+                        TextField("7", text: $session.sessionRpeText)
                             .textFieldStyle(.plain)
                             .font(StrandFont.bodyNumber)
                             .foregroundStyle(StrandPalette.textPrimary)
@@ -705,6 +708,9 @@ struct LiftSessionView: View {
         #endif
         .background(StrandPalette.surfaceBase)
         .keyboardDoneToolbar($focused)
+        .alert("Training could not be saved", isPresented: $saveError) {
+            Button("OK", role: .cancel) {}
+        } message: { Text("Your paused training is still available. Please try again.") }
         .task { await loadSetCountChanges() }
     }
 
@@ -789,88 +795,19 @@ struct LiftSessionView: View {
 
     // MARK: - Loading and saving
 
-    /// What was lifted for each of this session's exercises LAST time, by set number — the middle
-    /// layer of the grey numbers, handed to the controller that owns the chain.
-    private func loadLastTime() async {
-        guard let engine, let store = await repo.storeHandle() else { return }
-        var out: [String: [Int: LiftSetCarry]] = [:]
-        // One query per DISTINCT exercise, not per plan line. A program that programs the same
-        // movement twice — or an imported one with many lines — would otherwise re-ask the store the
-        // same question, and this runs when the sheet opens.
-        for exercise in NSOrderedSet(array: engine.plan.map(\.exercise)).compactMap({ $0 as? String }) {
-            let rows = (try? await store.lastLiftSets(deviceId: repo.deviceId,
-                                                      exercise: exercise,
-                                                      before: engine.startTs)) ?? []
-            var bySet: [Int: LiftSetCarry] = [:]
-            for r in rows where !r.isWarmup {
-                bySet[r.setIndex] = LiftSetCarry(weightKg: r.weightKg, reps: r.reps)
-            }
-            out[exercise] = bySet
-        }
-        session.setLastSession(out)
-    }
-
     private func save() async {
         guard !saving, let store = await repo.storeHandle() else { return }
         saving = true
         defer { saving = false }
 
-        session.finish()
-        guard let engine = session.engine else { return }
-        let endTs = Int(Date().timeIntervalSince1970)
-        let sessionId = UUID().uuidString
-        // After `finish`, which closes out the running rest: that set's measured rest belongs to it.
-        let finished = session.setsToSave(completingUnfinished: unfinishedChoice == .complete)
-
-        // Nothing to file, so file nothing. With no set done, "Discard them" turns every set into a zero.
-        // Filing that anyway wrote a session with nothing in it AND a manual workout, and the engine fills
-        // that workout's strain from the heart rate the strap measured — so an hour that recorded nothing
-        // still read back as a workout. The finish sheet says so before Save. The program's set counts
-        // are a separate thing the user chose explicitly, so those still apply.
-        guard LiftSessionController.anyPerformed(finished) else {
-            await writeProgram(store: store, plan: engine.plan, sets: finished)
-            await finishAndDismiss()
+        do {
+            let saved = try await session.save(repo: repo, completingUnfinished: unfinishedChoice == .complete,
+                                               sessionRpe: LiftFormat.number(session.sessionRpeText))
+            await writeProgram(store: store, plan: saved.plan, sets: saved.sets)
+        } catch {
+            saveError = true
             return
         }
-
-        let row = LiftSessionRow(
-            id: sessionId, deviceId: repo.deviceId,
-            startTs: engine.startTs, endTs: endTs, sport: LiftSessionView.sport,
-            programId: session.programId,
-            // Snapshot the name: renaming or deleting the program never rewrites this session.
-            programName: session.programName,
-            sessionRpe: LiftFormat.number(sessionRpeText),
-            note: session.programName)
-        _ = try? await store.upsertLiftSessions([row])
-
-        // `ord` is COMPLETION order, which with out-of-order work is not the plan's order — and it
-        // is the order that actually happened, which is what a session should read back as. Sets
-        // completed at finish without being started come last.
-        let rows = finished.enumerated().map { ord, s -> LiftSetRow in
-            let item = engine.planItem(for: s.slot)
-            return LiftSetRow(
-                id: UUID().uuidString, deviceId: repo.deviceId, sessionId: sessionId,
-                ord: ord, exercise: item?.exercise ?? "",
-                // Snapshot the classification AS IT WAS, so reclassifying later never rewrites what
-                // past weeks were counted as.
-                primaryMuscle: item?.primaryMuscle,
-                secondaryMuscles: item?.secondaryMuscles ?? [],
-                setIndex: s.slot.setIndex, weightKg: s.weightKg, reps: s.reps, rpe: s.rpe,
-                isWarmup: s.isWarmup, startTs: s.startTs, endTs: s.endTs,
-                restSec: s.restSec, note: nil)
-        }
-        _ = try? await store.upsertLiftSets(rows)
-        await writeProgram(store: store, plan: engine.plan, sets: finished)
-
-        // Through the SAME path a manual workout takes, so it inherits overlap dedup, the engine's
-        // HR-derived strain fill and delete/merge. `strain` stays nil deliberately: the engine fills
-        // it from the heart rate the strap MEASURED, never from typed sets and reps.
-        let workout = WorkoutRow(
-            startTs: engine.startTs, endTs: endTs, sport: LiftSessionView.sport,
-            source: "manual", durationS: Double(max(0, endTs - engine.startTs)),
-            energyKcal: nil, avgHr: nil, maxHr: nil, strain: nil,
-            distanceM: nil, zonesJSON: nil, notes: session.programName, steps: nil)
-        await repo.saveManualWorkout(workout)
 
         await finishAndDismiss()
     }

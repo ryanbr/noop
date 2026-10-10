@@ -186,36 +186,7 @@ struct LiftLogView: View {
     /// Flatten a program into the plan the session runs. The plan is SNAPSHOT at start: editing or
     /// deleting the program mid-session cannot change what is being tapped through.
     private func start(_ program: LiftProgramRow) async {
-        guard let store = await repo.storeHandle() else { return }
-        let items = (try? await store.liftProgramItems(programId: program.id)) ?? []
-        guard !items.isEmpty else { return }
-        let vocabulary = (try? await store.liftExercises(deviceId: repo.deviceId)) ?? []
-
-        let plan = items.map { item -> LiftPlanItem in
-            // The classification comes from the exercise vocabulary, which is the one place that owns
-            // it — the program line deliberately stores no muscle of its own to drift from.
-            let known = vocabulary.first { $0.name == item.exercise }
-            return LiftPlanItem(exercise: item.exercise,
-                                primaryMuscle: known?.primaryMuscle,
-                                secondaryMuscles: known?.secondaryMuscles ?? [],
-                                targetSets: item.targetSets,
-                                restSec: item.restSec,
-                                targetRepsLow: item.targetRepsLow,
-                                targetRepsHigh: item.targetRepsHigh,
-                                targetRpe: item.targetRpe,
-                                targetWeightKg: item.targetWeightKg,
-                                note: item.note,
-                                // Carried so a set added or dropped mid-session can be written back
-                                // onto the line it came from, and be there next time.
-                                programItemId: item.id)
-        }
-        // Refuse to start a second session over a running one: two live sessions would both claim
-        // the strap gesture and both write the in-flight snapshot.
-        guard !session.isActive else {
-            session.isPresented = true
-            return
-        }
-        session.start(plan: plan, programId: program.id, programName: program.name)
+        try? await session.start(program: program, repo: repo)
     }
 
     // MARK: - This week, per muscle

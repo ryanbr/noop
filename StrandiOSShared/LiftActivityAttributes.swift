@@ -35,6 +35,8 @@ public struct LiftActivityAttributes: ActivityAttributes {
         public var stageStartedAt: Date
         /// When the running rest is due to end; the widget counts DOWN to it. Nil while working.
         public var restEndsAt: Date?
+        var training: TrainingDisplay?
+        var trainingLabels: [String: String]?
 
         public init(isResting: Bool, exercise: String, status: String, detail: String?,
                     bpm: Int?, next: String,

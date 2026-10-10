@@ -30,6 +30,7 @@ final class LiftLiveActivityController {
     /// The state the banner is showing, so a heart-rate tick can push a copy of it without the app
     /// building a whole presentation again (`updateHeartRate`).
     private var lastState: LiftActivityAttributes.ContentState?
+    private(set) var pendingUpdate: Task<Void, Never>?
     /// Cached for the controller's lifetime — the same reasoning as `LiveActivityController`: this is
     /// consulted on every push and its value only changes via Settings.
     private let authInfo = ActivityAuthorizationInfo()
@@ -77,7 +78,7 @@ final class LiftLiveActivityController {
     /// Dynamic Island instead. ActivityKit offers no setting for vibration; the sound is silence.
     /// Returns what happened about lighting when `alert` was asked for; nil otherwise.
     @discardableResult
-    func update(state: LiftActivityAttributes.ContentState?, alert: Bool = false) -> LightUp? {
+    func update(state: LiftActivityAttributes.ContentState?, alert: Bool = false, allowBackgroundStart: Bool = false) -> LightUp? {
         guard authInfo.areActivitiesEnabled else { return alert ? .noBanner : nil }
 
         // A banner the lifter swiped off the Lock Screen, or one iOS ended, takes no more updates: let it
@@ -93,7 +94,7 @@ final class LiftLiveActivityController {
         // Its own switch (`UnitPrefs.liftLiveActivityEnabled`), so the everyday heart-rate banner can be off while
         // the gym banner stays; turning this one off also ends a banner already showing.
         guard UnitPrefs.liftLiveActivityEnabled(), let state else {
-            if activity != nil { Task { await end() } }
+            if activity != nil { pendingUpdate = Task { await end() } }
             return alert ? .noBanner : nil
         }
         if adopted != nil {
@@ -108,6 +109,10 @@ final class LiftLiveActivityController {
             state.detail ?? "", state.next,
             "\(state.stageStartedAt.timeIntervalSince1970)",
             "\(state.restEndsAt?.timeIntervalSince1970 ?? 0)",
+            "\(state.training?.pausedAt?.timeIntervalSince1970 ?? 0)",
+            state.training?.id ?? "",
+            state.training?.confirmationToken ?? "",
+            state.training?.error ?? "",
         ].joined(separator: "|")
 
         let contentChanged = signature != lastSignature
@@ -129,15 +134,15 @@ final class LiftLiveActivityController {
                     body: LocalizedStringResource(stringLiteral: state.detail.map { "\(state.status) — \($0)" }
                                                   ?? state.status),
                     sound: .named(Self.silentAlertSound))
-                Task { await activity.update(content, alertConfiguration: stepAlert) }
+                pendingUpdate = Task { await activity.update(content, alertConfiguration: stepAlert) }
             } else {
-                Task { await activity.update(content) }
+                pendingUpdate = Task { await activity.update(content) }
             }
             return alert ? (lightsScreen ? .askedIOS : .appOnScreen) : nil
         } else {
             // iOS starts a Live Activity only for the app on screen; asked from the background it throws,
             // and this runs several times a second. The banner comes back the next time NOOP is opened.
-            guard UIApplication.shared.applicationState == .active else {
+            guard UIApplication.shared.applicationState == .active || allowBackgroundStart else {
                 if !waitingForForeground {
                     waitingForForeground = true
                     log("Lift Log: no Lock Screen banner — iOS starts one only while NOOP is open, so it "
@@ -181,7 +186,7 @@ final class LiftLiveActivityController {
         lastState = next
         lastPush = Date()
         let content = ActivityContent(state: next, staleDate: Date().addingTimeInterval(Self.staleAfter))
-        Task { await activity.update(content) }
+        pendingUpdate = Task { await activity.update(content) }
     }
 
     func end() async {
