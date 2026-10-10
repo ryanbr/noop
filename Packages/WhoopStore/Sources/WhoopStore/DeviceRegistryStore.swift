@@ -245,6 +245,94 @@ public struct DeviceRegistryStore: Sendable {
         }
     }
 
+    /// The id the v15 migration seeds for the pre-registry single-WHOOP install. It is a first-class
+    /// device id in its own right — the engine's fallback owner, the import surface, the RR policy's
+    /// canonical alias — which is exactly why `WhoopSerialIdentity.mayAdopt` refuses to re-point it
+    /// onto a serial id the way a provisional pairing id is re-pointed (#1303/#1304).
+    public static let legacyWhoopId = "my-whoop"
+
+    /// Re-home the legacy `my-whoop` alias's rows onto the ACTIVE WHOOP's registry id, healing the
+    /// #814 read/write split for the one install shape that can produce it.
+    ///
+    /// The split: the write id is per-launch session state (`BLEManager.deviceId`, seeded to
+    /// `my-whoop` and adopted to the registry's active id at bootstrap), so sessions launched under
+    /// different active rows — the pairing session above all, which bootstraps while the seed is
+    /// still active and pairs the serial id afterwards — file one physical strap's history under
+    /// BOTH ids. Nothing ever reconciles the pair: serial adoption deliberately excludes the seed
+    /// (`mayAdopt`), and scoring resolves ONE owner per day (`resolveDayOwner`) and reads only that
+    /// id's rows, so the days the partial registry slice owns score NO-NIGHT and the days the seed
+    /// owns never see the beats the other id holds (nil HRV).
+    ///
+    /// The merge is `adoptSerialIdentity`'s, run in the other direction and under guards that make
+    /// it a no-op unless the two ids provably denote the same single strap:
+    ///   • the ACTIVE device is a `whoop-…` WHOOP row (the serial/provisional registry id) — never
+    ///     the seed itself, never another brand;
+    ///   • the registry holds EXACTLY two WHOOP rows (the pair) — a third WHOOP row means a second
+    ///     physical strap may own the seed's history, and merging could blend two straps;
+    ///   • the seed never adopted a `peripheralId` that DIFFERS from the active row's — a differing
+    ///     adopted peripheral is positive evidence of a different physical strap;
+    ///   • the seed actually holds rows in some device-scoped table (otherwise nothing is split).
+    /// On a clash the ACTIVE id's row wins (`UPDATE OR IGNORE`, as in `adoptSerialIdentity`), the
+    /// computed `<id>-noop` sibling travels with the raw id, and the seed registry row is dropped —
+    /// the same end state #1304's adoption would have produced had the seed been adoptable. One
+    /// transaction; idempotent (a second call finds no seed row and returns false).
+    ///
+    /// Called by the v48 migration (once, at upgrade) and by `BLEManager.bootstrapStore` on every
+    /// launch, so a split re-created by a later session heals on the next launch instead of
+    /// persisting. Kotlin twin: `DeviceRegistryStore.rehomeLegacyWhoopAlias` (Room MIGRATION_41_42
+    /// + the same bootstrap call) — required for parity, not part of this change.
+    @discardableResult
+    public func rehomeLegacyWhoopAliasIfNeeded() throws -> Bool {
+        try dbQueue.write { db in try Self.rehomeLegacyWhoopAlias(db) }
+    }
+
+    /// The `Database`-level body of `rehomeLegacyWhoopAliasIfNeeded`, so a GRDB migration (which
+    /// already holds a `Database` inside its own transaction) can run it without a second writer.
+    @discardableResult
+    static func rehomeLegacyWhoopAlias(_ db: Database) throws -> Bool {
+        let legacy = legacyWhoopId
+        // The seed row must exist. Its `peripheralId` distinguishes "row absent" (fetchOne → nil)
+        // from "row present, never adopted a peripheral" (row with a NULL column).
+        guard let legacyRow = try Row.fetchOne(db, sql: "SELECT peripheralId FROM pairedDevice WHERE id = ?",
+                                               arguments: [legacy]) else { return false }
+        let legacyPeripheral: String? = legacyRow["peripheralId"]
+        // The active device must be a registry WHOOP id other than the seed itself.
+        guard let active = try String.fetchOne(db, sql: Self.activeDeviceIdSQL),
+              active != legacy, active.hasPrefix(WhoopSerialIdentity.idPrefix + "-"),
+              let activeRow = try Row.fetchOne(db, sql: "SELECT brand, peripheralId FROM pairedDevice WHERE id = ?",
+                                               arguments: [active]),
+              (activeRow["brand"] as String).caseInsensitiveCompare("WHOOP") == .orderedSame
+        else { return false }
+        let activePeripheral: String? = activeRow["peripheralId"]
+        // Exactly the pair: any third WHOOP row and the seed's history is not provably this strap's.
+        let whoopRows = try Int.fetchOne(db, sql: """
+            SELECT COUNT(*) FROM pairedDevice
+            WHERE id = ? OR id LIKE 'whoop-%' OR UPPER(brand) = 'WHOOP'
+            """, arguments: [legacy]) ?? 0
+        guard whoopRows == 2 else { return false }
+        // A differing adopted peripheral on the seed is positive evidence of another physical strap.
+        if let legacyPeripheral, let activePeripheral,
+           legacyPeripheral.caseInsensitiveCompare(activePeripheral) != .orderedSame { return false }
+        // Nothing banked under the seed → nothing split; leave the seed row standing.
+        var legacyHoldsRows = false
+        for table in Self.deviceScopedTables {
+            if try Bool.fetchOne(db, sql: "SELECT EXISTS(SELECT 1 FROM \(table) WHERE deviceId = ?)",
+                                 arguments: [legacy]) ?? false { legacyHoldsRows = true; break }
+        }
+        guard legacyHoldsRows else { return false }
+        // The merge itself is `adoptSerialIdentity`'s: canonical (here the active id) wins a PK
+        // clash, the computed sibling travels, then the alias row is dropped.
+        for (from, to) in [(legacy, active), (legacy + Self.computedSuffix, active + Self.computedSuffix)] {
+            for table in Self.deviceScopedTables {
+                try db.execute(sql: "UPDATE OR IGNORE \(table) SET deviceId = ? WHERE deviceId = ?", arguments: [to, from])
+                try db.execute(sql: "DELETE FROM \(table) WHERE deviceId = ?", arguments: [from])
+            }
+        }
+        try db.execute(sql: "DELETE FROM pairedDevice WHERE id = ?", arguments: [legacy])
+        try db.execute(sql: "DELETE FROM device WHERE id = ?", arguments: [legacy])
+        return true
+    }
+
     // MARK: day ownership
     public struct DayOwner: Equatable { public let deviceId: String; public let locked: Bool }
 

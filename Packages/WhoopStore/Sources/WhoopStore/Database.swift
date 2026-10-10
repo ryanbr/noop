@@ -1103,6 +1103,20 @@ extension WhoopStore {
         migrator.registerMigration("v47-rr-whoop5-fill") { db in
             try db.execute(sql: WhoopStore.whoop5RrFillMigrationSQL)
         }
+        // v48: heal the #814 read/write split for the legacy single-WHOOP install that later paired
+        // the same strap in the multi-device registry. Such an install holds one strap's rows under
+        // BOTH the v15 seed id "my-whoop" (sessions launched while the seed was the active row —
+        // the pairing session above all) and the registry's `whoop-…` id, and scoring's one-owner-
+        // per-day reads can only ever see one side: seed-owned days lose the registry side's beats
+        // (nil HRV), registry-owned days score from a partial slice (NO-NIGHT). Data only, no schema
+        // change: re-home the seed's rows onto the active WHOOP id with `adoptSerialIdentity`'s
+        // merge, under guards that make it a no-op unless the two ids provably denote the same
+        // single strap (see `DeviceRegistryStore.rehomeLegacyWhoopAlias`). The same heal re-runs at
+        // every bootstrap, so this migration is the upgrade-time instance, not the only one. Twin
+        // of Room MIGRATION_41_42.
+        migrator.registerMigration("v48-legacy-whoop-alias-rehome") { db in
+            _ = try DeviceRegistryStore.rehomeLegacyWhoopAlias(db)
+        }
         return migrator
     }
 }
