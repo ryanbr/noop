@@ -166,10 +166,6 @@ struct LiquidTodayView: View {
     @State private var pullHaptic = 0
     private let pullThreshold: CGFloat = 80
 
-    /// Measured width of the trailing header-control cluster, feeding the day title's fade mask. Seeded
-    /// with the design-system default so the first frame is not laid out against a reserve of zero.
-    @State private var headerControlsWidth = NoopMetrics.headerControlReserveWidth
-
     /// Mock Vitality purple (#9b7bff) has no exact StrandPalette token in this theme.
     private let liquidPurple = Color(.sRGB, red: 0x9b / 255, green: 0x7b / 255, blue: 0xff / 255, opacity: 1)
     /// The liquid heart pink shared with the sync indicator and LiquidThread.
@@ -565,99 +561,14 @@ struct LiquidTodayView: View {
     // MARK: - Scene (sky title + controls + hero)
 
     private var scene: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ZStack(alignment: .topTrailing) {
-                Button { showDayPicker = true } label: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(dayTitle)
-                            .font(StrandFont.rounded(28))
-                            .foregroundStyle(StrandPalette.textPrimary)
-                            .shadow(color: .black.opacity(0.4), radius: 10, y: 1)
-                        Text(dateLine)
-                            .font(StrandFont.caption)
-                            .foregroundStyle(StrandPalette.textSecondary)
-                            .shadow(color: .black.opacity(0.35), radius: 8, y: 1)
-                    }
-                    .contentShape(Rectangle())
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("\(dayTitle). Tap to pick a day, swipe to change day.")
-                .popover(isPresented: $showDayPicker) {
-                    DatePicker("", selection: dayPickerBinding, in: ...Repository.logicalDay(Date()),
-                               displayedComponents: [.date])
-                        .datePickerStyle(.graphical)
-                        .labelsHidden()
-                        .padding(12)
-                        .frame(minWidth: 320, minHeight: 360)
-                        .liquidPopoverAdaptation()
-                }
-                // Long names fade beneath the trailing controls while an expanded transient control
-                // participates in layout and pushes its preceding siblings left. The reserve is the
-                // cluster's MEASURED width, not a constant: a constant is only ever right for the exact
-                // set of controls it was written against, and this row has already gained one (Customize,
-                // #1207) since. Measuring also means the fade tracks the sync capsule as it expands,
-                // which is the push-left behaviour rather than a separate approximation of it.
-                .headerTrailingControlFadeMask(reserving: headerControlsWidth)
-                HStack(spacing: headerClusterSpacing) {
-                    // Profile pic (the one set in Settings) → opens Settings, matching the classic Today.
-                    Button { showSettings = true } label: {
-                        Color.clear.frame(
-                            width: NoopMetrics.compactControlSize,
-                            height: NoopMetrics.compactControlSize
-                        )
-                    }
-                    .nativeLiquidGlassHeaderButton()
-                    .overlay {
-                        GeometryReader { proxy in
-                            let diameter = min(proxy.size.width, proxy.size.height)
-                            ProfileAvatarView(imageData: profile.avatarImageData, size: diameter)
-                                .frame(width: diameter, height: diameter)
-                                .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
-                        }
-                        .allowsHitTesting(false)
-                    }
-                    .nativeLiquidGlassPhotoFinish()
-                    .accessibilityLabel("Profile and settings")
-                    LiquidAddButton()
-                    LiquidBatteryButton()
-                    // One entry point for section order/visibility and both nested card editors.
-                    Button { customizationDestination = .today } label: {
-                        Image(systemName: "slider.horizontal.3")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(StrandPalette.textPrimary)
-                            .frame(
-                                width: NoopMetrics.compactControlSize,
-                                height: NoopMetrics.compactControlSize
-                            )
-                    }
-                    .nativeLiquidGlassHeaderButton()
-                    .accessibilityLabel("Customize Today")
-                }
-                .background(
-                    GeometryReader { proxy in
-                        Color.clear.preference(
-                            key: HeaderControlsWidthKey.self,
-                            value: proxy.size.width
-                        )
-                    }
-                )
-                .zIndex(1)
-            }
-            .onPreferenceChange(HeaderControlsWidthKey.self) { measured in
-                // Ignore sub-point churn so a rounding wobble cannot re-render the mask every frame.
-                guard measured > 0, abs(measured - headerControlsWidth) > 0.5 else { return }
-                headerControlsWidth = measured
-            }
-            // Subtle NOOP wordmark in the sky between header and hero. Perfectly centred (a letter row has
-            // no trailing tracking gap the way `Text(...).tracking()` does), with a tap easter egg.
-            // #today-layout: the hero + Start-session row moved OUT of the scene into the reorderable
-            // section block below. The wordmark's bottom pad (10) + the section VStack's 12 spacing keeps
-            // the default hero-under-wordmark gap at the original 22.
-            LiquidWordmark()
-                .padding(.top, 30)
-                .padding(.bottom, 10)
-        }
+        LiquidTodayHeader(
+            dayTitle: dayTitle,
+            dateLine: dateLine,
+            dayPickerBinding: dayPickerBinding,
+            showDayPicker: $showDayPicker,
+            showSettings: $showSettings,
+            customizationDestination: $customizationDestination
+        )
     }
 
     /// One-tap Live Session start (silent guardian, beta) — sits directly under the hero scores, the
@@ -2354,11 +2265,10 @@ private struct LiquidRefreshIndicator: View {
 
 /// The ONE debounce for the raw "a sync is happening" signal, for any surface that reflects it.
 ///
-/// `live.backfilling` toggles false→true between EVERY offload chunk (`exitBackfilling` at each
-/// HISTORY_END → auto-continue re-kick → `beginBackfill`), with a real BLE round-trip gap in between, and
-/// a deep backlog is up to ~24 chunks in ONE connection (#594 raised the auto-continue cap 6→24). Bound
-/// straight to that signal, an indicator strobes in and out on every chunk boundary. (The MenuBar header
-/// pins a constant height for the same reason — see MenuBarContent.)
+/// `live.backfilling` drops after HISTORY_COMPLETE (or a timeout), before an automatic continuation
+/// starts another offload. Individual HISTORY_END chunks keep the session active. A deep backlog can
+/// need several completed slices in one connection; binding directly to the raw signal can flash the
+/// indicator between them. The MenuBar header pins a constant height for the same reason.
 ///
 /// Rises INSTANTLY, and falls only after riding out `syncIndicatorSignalDebounceNanoseconds` with no new
 /// chunk. Written once on purpose: this existed as two hand-rolled copies with the delay spelled two
@@ -2379,11 +2289,11 @@ private struct DebouncedSyncSignal: ViewModifier {
     private func apply(_ raw: Bool) {
         hideTask?.cancel()
         guard !raw else {
-            debounced = true                        // a sync is active — show at once
+            if !debounced { debounced = true }      // a sync is active — show at once
             return
         }
         guard debounced else { return }
-        // Might just be the gap between two chunks — wait it out; a new chunk cancels this.
+        // An automatic continuation may follow this completed slice; a new sync cancels the delay.
         hideTask = Task { @MainActor in
             try? await Task.sleep(
                 nanoseconds: StrandMotion.syncIndicatorSignalDebounceNanoseconds
@@ -2394,11 +2304,123 @@ private struct DebouncedSyncSignal: ViewModifier {
     }
 }
 
-private extension View {
+extension View {
     /// Drive `debounced` from the raw sync signal through the shared debounce above.
     func debouncedSyncSignal(_ raw: Bool, into debounced: Binding<Bool>) -> some View {
         modifier(DebouncedSyncSignal(raw: raw, debounced: debounced))
     }
+}
+
+/// Keeps animated header-width measurements local so sync transitions do not rebuild Today's charts.
+private struct LiquidTodayHeader: View {
+    @EnvironmentObject private var profile: ProfileStore
+    let dayTitle: String
+    let dateLine: String
+    let dayPickerBinding: Binding<Date>
+    @Binding var showDayPicker: Bool
+    @Binding var showSettings: Bool
+    @Binding var customizationDestination: TodayCustomizationDestination?
+
+    /// Measured width of the trailing header-control cluster, feeding the day title's fade mask. Seeded
+    /// with the design-system default so the first frame is not laid out against a reserve of zero.
+    @State private var headerControlsWidth = NoopMetrics.headerControlReserveWidth
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ZStack(alignment: .topTrailing) {
+                Button { showDayPicker = true } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(dayTitle)
+                            .font(StrandFont.rounded(28))
+                            .foregroundStyle(StrandPalette.textPrimary)
+                            .shadow(color: .black.opacity(0.4), radius: 10, y: 1)
+                        Text(dateLine)
+                            .font(StrandFont.caption)
+                            .foregroundStyle(StrandPalette.textSecondary)
+                            .shadow(color: .black.opacity(0.35), radius: 8, y: 1)
+                    }
+                    .contentShape(Rectangle())
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(dayTitle). Tap to pick a day, swipe to change day.")
+                .popover(isPresented: $showDayPicker) {
+                    DatePicker("", selection: dayPickerBinding, in: ...Repository.logicalDay(Date()),
+                               displayedComponents: [.date])
+                        .datePickerStyle(.graphical)
+                        .labelsHidden()
+                        .padding(12)
+                        .frame(minWidth: 320, minHeight: 360)
+                        .liquidPopoverAdaptation()
+                }
+                // Long names fade beneath the trailing controls while an expanded transient control
+                // participates in layout and pushes its preceding siblings left. The reserve is the
+                // cluster's MEASURED width, not a constant: a constant is only ever right for the exact
+                // set of controls it was written against, and this row has already gained one (Customize,
+                // #1207) since. Measuring also means the fade tracks the sync capsule as it expands,
+                // which is the push-left behaviour rather than a separate approximation of it.
+                .headerTrailingControlFadeMask(reserving: headerControlsWidth)
+                HStack(spacing: headerClusterSpacing) {
+                    // Profile pic (the one set in Settings) → opens Settings, matching the classic Today.
+                    Button { showSettings = true } label: {
+                        Color.clear.frame(
+                            width: NoopMetrics.compactControlSize,
+                            height: NoopMetrics.compactControlSize
+                        )
+                    }
+                    .nativeLiquidGlassHeaderButton()
+                    .overlay {
+                        GeometryReader { proxy in
+                            let diameter = min(proxy.size.width, proxy.size.height)
+                            ProfileAvatarView(imageData: profile.avatarImageData, size: diameter)
+                                .frame(width: diameter, height: diameter)
+                                .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
+                        }
+                        .allowsHitTesting(false)
+                    }
+                    .nativeLiquidGlassPhotoFinish()
+                    .accessibilityLabel("Profile and settings")
+                    LiquidAddButton()
+                    LiquidBatteryButton()
+                    // One entry point for section order/visibility and both nested card editors.
+                    Button { customizationDestination = .today } label: {
+                        Image(systemName: "slider.horizontal.3")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(StrandPalette.textPrimary)
+                            .frame(
+                                width: NoopMetrics.compactControlSize,
+                                height: NoopMetrics.compactControlSize
+                            )
+                    }
+                    .nativeLiquidGlassHeaderButton()
+                    .accessibilityLabel("Customize Today")
+                }
+                .background(
+                    GeometryReader { proxy in
+                        Color.clear.preference(
+                            key: HeaderControlsWidthKey.self,
+                            value: proxy.size.width
+                        )
+                    }
+                )
+                .zIndex(1)
+            }
+            .onPreferenceChange(HeaderControlsWidthKey.self) { measured in
+                // Ignore sub-point churn so a rounding wobble cannot re-render the mask every frame.
+                guard measured > 0, abs(measured - headerControlsWidth) > 0.5 else { return }
+                headerControlsWidth = measured
+            }
+            // Subtle NOOP wordmark in the sky between header and hero. Perfectly centred (a letter row has
+            // no trailing tracking gap the way `Text(...).tracking()` does), with a tap easter egg.
+            // #today-layout: the hero + Start-session row moved OUT of the scene into the reorderable
+            // section block below. The wordmark's bottom pad (10) + the section VStack's 12 spacing keeps
+            // the default hero-under-wordmark gap at the original 22.
+            LiquidWordmark()
+                .padding(.top, 30)
+                .padding(.bottom, 10)
+        }
+    }
+
 }
 
 /// Carries the trailing header cluster's measured width out to the day title's fade mask, so the reserve
@@ -3097,29 +3119,30 @@ private extension View {
 /// card as the detailed view; `LiquidBatteryButton` above is the header's ambient at-a-glance signal.
 private struct LiquidSyncStatusRow: View {
     @EnvironmentObject var live: LiveState
+    @State private var syncing = false
     var body: some View {
-        if live.backfilling {
-            row(String(localized: "Strap history"), value: chunks, tone: StrandPalette.accent)
-        } else if let ts = live.lastSyncedAt {
-            row(String(localized: "Strap history"),
-                value: String(localized: "Synced \(relativeAgo(ts))"), tone: StrandPalette.textPrimary)
+        Group {
+            if syncing {
+                row(String(localized: "Strap history"), value: chunks, tone: StrandPalette.accent)
+            } else if let ts = live.lastSyncedAt {
+                row(String(localized: "Strap history"),
+                    value: String(localized: "Synced \(relativeAgo(ts))"), tone: StrandPalette.textPrimary)
+            } else {
+                row(String(localized: "Strap history"), value: String(localized: "Not synced yet"), tone: StrandPalette.textTertiary)
+            }
         }
+        .debouncedSyncSignal(live.backfilling, into: $syncing)
     }
 
-    /// "Syncing…" alone reads as a spinner that might be stuck; the chunk count is the cheapest available
-    /// proof that the drain is actually moving. Suppressed at zero — a session that has pulled nothing yet
-    /// should not claim "0 chunks pulled" as if that were progress.
     private var chunks: String {
-        live.syncChunksThisSession > 0
-            ? String(localized: "Syncing… \(live.syncChunksThisSession) chunks")
-            : String(localized: "Syncing…")
+        SyncActivityCopy.syncing(chunks: live.syncChunksThisSession, pagesBehind: nil).status
     }
 
     private func row(_ label: String, value: String, tone: Color) -> some View {
         HStack {
             Text(label).font(StrandFont.subhead).foregroundStyle(StrandPalette.textSecondary)
             Spacer()
-            Text(value).font(StrandFont.subhead).foregroundStyle(tone)
+            Text(value).font(StrandFont.subhead).foregroundStyle(tone).lineLimit(1)
         }
         .accessibilityElement(children: .combine)
     }

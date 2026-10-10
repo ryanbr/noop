@@ -35,7 +35,7 @@ private enum SyncRing {
     static let ellipsisGlyphSize: CGFloat = 9
     static let dimGlyphOpacity: Double = 0.5
 
-    /// The transient "Syncing" label's tone.
+    /// The "Syncing" label's tone.
     static let labelOpacity: Double = 0.92
 
     /// Stroke weight `eased` of the way from the battery ring to the spinner. The entry passes its own
@@ -428,20 +428,8 @@ public struct ChargeSyncIndicator: View {
                 showsLabel = true
             }
 
-            try? await Task.sleep(
-                nanoseconds: StrandMotion.syncIndicatorLabelVisibilityNanoseconds
-            )
-            guard !Task.isCancelled else { return }
-            animate(poseStill ? nil : StrandMotion.syncIndicatorLabelOut) {
-                showsLabel = false
-            }
-            try? await Task.sleep(
-                nanoseconds: StrandMotion.syncIndicatorCollapseDelayNanoseconds
-            )
-            guard !Task.isCancelled else { return }
-            animate(poseStill ? nil : StrandMotion.syncIndicatorMorph) {
-                pillProgress = 0
-            }
+            // Keep the label and capsule stable until endSync; collapsing during an active sync
+            // shifts the neighbouring header controls while the strap is still handing over data.
         }
     }
 
