@@ -1112,8 +1112,10 @@ extension WhoopStore {
         // change: re-home the seed's rows onto the active WHOOP id with `adoptSerialIdentity`'s
         // merge, under guards that make it a no-op unless the two ids provably denote the same
         // single strap (see `DeviceRegistryStore.rehomeLegacyWhoopAlias`). The same heal re-runs at
-        // every bootstrap, so this migration is the upgrade-time instance, not the only one. Twin
-        // of Room MIGRATION_41_42.
+        // every bootstrap, so this migration is the upgrade-time instance, not the only one. No
+        // Room twin in this change: the split originates in the legacy seed-id install flow, and
+        // the PR calls the parity question out explicitly rather than asserting a twin that does
+        // not exist.
         migrator.registerMigration("v48-legacy-whoop-alias-rehome") { db in
             _ = try DeviceRegistryStore.rehomeLegacyWhoopAlias(db)
         }
