@@ -155,6 +155,7 @@ struct StrandiOSApp: App {
             noopDeviceId: model.deviceId
         )
         _health = StateObject(wrappedValue: bridge)
+        DisplayPerformanceMonitor.shared.configure(live: model.live, repo: model.repo)
         // Register a separate, always-on-while-authorized refresh task for Apple Health write-back.
         // The operation is write-only and bounded to the bridge's recent window; fresh BLE offloads still
         // use the immediate hook below. BGTaskScheduler chooses the actual wake time.
@@ -346,6 +347,7 @@ struct StrandiOSApp: App {
         // HealthKitBridge.sync guards on `auth == .authorized`, so the scenePhase trigger stays a
         // safe no-op until the user opts in.
         .onChange(of: scenePhase, initial: true) { _, phase in
+            DisplayPerformanceMonitor.shared.setForegroundActive(phase == .active)
             if phase == .active {
                 CoachBriefScheduler.activateIfEnabled { await model.coach.generateBrief() }
                 model.drainPendingIntents(router: router)

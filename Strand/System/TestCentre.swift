@@ -36,10 +36,16 @@ public enum TestCentre {
     @MainActor public static func activate(_ d: TestDomain) {
         UserDefaults.standard.set(true, forKey: activePrefix + d.id)
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: startedPrefix + d.id)
+        #if os(iOS)
+        if d == .display || d == .master { DisplayPerformanceMonitor.shared.refreshActivation() }
+        #endif
     }
 
     @MainActor public static func deactivate(_ d: TestDomain) {
         UserDefaults.standard.set(false, forKey: activePrefix + d.id)
+        #if os(iOS)
+        if d == .display || d == .master { DisplayPerformanceMonitor.shared.refreshActivation() }
+        #endif
     }
 
     public static func startedAt(_ d: TestDomain) -> Date? {

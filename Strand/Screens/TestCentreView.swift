@@ -933,9 +933,11 @@ private struct TestModeRow: View {
                         // Display & Performance owns a live frame monitor. It must run ONLY while the mode
                         // is on: start it on toggle-on (after wiring its sink to the redacting .display
                         // log), tear it down on toggle-off so no display link survives. Zero-cost when off.
+                        #if os(macOS)
                         if mode.domain == .display {
                             if isOn { startDisplayMonitor() } else { DisplayPerformanceMonitor.shared.stop() }
                         }
+                        #endif
                     }
             }
             Text(mode.blurb)
@@ -984,29 +986,28 @@ private struct TestModeRow: View {
             on = TestCentre.active(mode.domain)
             // If the Display mode was already on when the screen appears, (re)start its frame monitor and
             // wire the sink, so a monitor that was torn down (e.g. the screen left and came back) resumes.
+            #if os(macOS)
             if mode.domain == .display, on { startDisplayMonitor() }
+            #endif
         }
         .onDisappear {
             // Leaving the screen tears the frame monitor down so no display link survives a navigation
             // away. The mode flag stays on (the user's test is still active); the monitor resumes on
             // .onAppear above. This keeps the perpetual-display-link contract: a link exists only while the
             // Test Centre is on screen with the mode on.
+            #if os(macOS)
             if mode.domain == .display { DisplayPerformanceMonitor.shared.stop() }
+            #endif
         }
     }
 
     /// Wire the Display monitor's sink to the redacting `.display` log and start it. The sink is set every
     /// start so a fresh LiveState (e.g. after a screen re-entry) is always the live target.
     private func startDisplayMonitor() {
-        DisplayPerformanceMonitor.shared.emit = { [weak live] line in
-            live?.append(log: line, domain: .display)
-        }
         // CAPTURE-D (#797): wire the data-volume provider so start() emits one `dataVolume` line read STRAIGHT
         // from the store (Repository.dataVolumeSnapshot queries the store, not the @Published caches), so an
         // import-driven-lag report shows the read-set behind the frame stats.
-        DisplayPerformanceMonitor.shared.dataVolumeProvider = { [weak model] in
-            await model?.repo.dataVolumeSnapshot()
-        }
+        DisplayPerformanceMonitor.shared.configure(live: live, repo: model.repo)
         DisplayPerformanceMonitor.shared.start()
     }
 }

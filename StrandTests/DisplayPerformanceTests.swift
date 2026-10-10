@@ -14,11 +14,14 @@ final class DisplayPerformanceTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "testcentre.active.display")
         UserDefaults.standard.removeObject(forKey: "testcentre.active.master")
         DisplayPerformanceMonitor.shared.stop()
+        DisplayPerformanceMonitor.shared.setForegroundActive(false)
+        DisplayPerformanceMonitor.shared.setTab(.unknown)
         DisplayPerformanceMonitor.shared.emit = nil
     }
 
     override func tearDown() {
         DisplayPerformanceMonitor.shared.stop()
+        DisplayPerformanceMonitor.shared.setForegroundActive(false)
         DisplayPerformanceMonitor.shared.emit = nil
         DisplayPerformanceMonitor.shared.dataVolumeProvider = nil
         UserDefaults.standard.removeObject(forKey: "testcentre.active.display")
@@ -61,6 +64,7 @@ final class DisplayPerformanceTests: XCTestCase {
         DisplayPerformanceMonitor.shared.emit = { captured.append($0) }
         DisplayPerformanceMonitor.shared.start()
         XCTAssertTrue(DisplayPerformanceMonitor.shared.isRunning)
+        XCTAssertEqual(captured.filter { $0.hasPrefix("captureStart ") }.count, 1)
         XCTAssertTrue(captured.contains { $0.hasPrefix("deviceMetrics ") },
                       "start() must emit one device-metrics line, got \(captured)")
         DisplayPerformanceMonitor.shared.stop()
@@ -110,14 +114,76 @@ final class DisplayPerformanceTests: XCTestCase {
         DisplayPerformanceMonitor.shared.stop()
     }
 
+    func testForegroundCaptureAcrossTabsAndBackground() {
+        let monitor = DisplayPerformanceMonitor.shared
+        var captured: [String] = []
+        monitor.emit = { captured.append($0) }
+        monitor.setForegroundActive(true)
+        XCTAssertFalse(monitor.isRunning)
+        XCTAssertTrue(captured.isEmpty)
+
+        TestCentre.activate(.display)
+        monitor.refreshActivation()
+        XCTAssertTrue(monitor.isRunning)
+        monitor.setTab(.today)
+        monitor.foldFrame(timestamp: 100, expectedInterval: 1.0 / 120)
+        monitor.foldFrame(timestamp: 100 + 1.0 / 60, expectedInterval: 1.0 / 120)
+        monitor.setTab(.trends)
+        XCTAssertTrue(monitor.isRunning)
+        XCTAssertTrue(captured.contains { $0.contains("tab=today") && $0.contains("lateCallbacks=1") })
+        monitor.foldFrame(timestamp: 100 + 2.0 / 60, expectedInterval: 1.0 / 120)
+        monitor.setForegroundActive(false)
+        XCTAssertFalse(monitor.isRunning)
+        XCTAssertTrue(captured.contains { $0.contains("tab=trends") })
+
+        monitor.setForegroundActive(true)
+        XCTAssertTrue(monitor.isRunning)
+        TestCentre.deactivate(.display)
+        monitor.refreshActivation()
+        XCTAssertFalse(monitor.isRunning)
+    }
+
+    func testLateCallbacksFollowActualCadence() {
+        XCTAssertFalse(DisplayPerformanceMonitor.callbackIsLate(durationMs: 8.4, expectedMs: 8.33))
+        XCTAssertTrue(DisplayPerformanceMonitor.callbackIsLate(durationMs: 16.67, expectedMs: 8.33))
+        XCTAssertFalse(DisplayPerformanceMonitor.callbackIsLate(durationMs: 16.67, expectedMs: 16.67))
+        XCTAssertTrue(DisplayPerformanceMonitor.callbackIsLate(durationMs: 33.34, expectedMs: 16.67))
+        XCTAssertFalse(DisplayPerformanceMonitor.callbackIsLate(durationMs: 33.34, expectedMs: 33.34))
+        XCTAssertFalse(DisplayPerformanceMonitor.callbackIsLate(durationMs: 33.34, expectedMs: 0))
+        let monitor = DisplayPerformanceMonitor.shared
+        var captured: [String] = []
+        monitor.emit = { captured.append($0) }
+        monitor.start()
+        monitor.foldFrame(timestamp: 100, expectedInterval: 1.0 / 60)
+        monitor.foldFrame(timestamp: 100 + 1.0 / 60, expectedInterval: 1.0 / 120)
+        monitor.stop()
+        XCTAssertTrue(captured.contains { $0.contains("lateCallbacks=0") })
+    }
+
+    func testStoppedCaptureDoesNotEmitDelayedDataVolume() async {
+        let monitor = DisplayPerformanceMonitor.shared
+        let captured = LineBox()
+        monitor.emit = { captured.append($0) }
+        monitor.dataVolumeProvider = {
+            try? await Task.sleep(nanoseconds: 10_000_000)
+            return DataVolume(dbRows: 1, importedDays: 1, workouts: 1, lastRenderRows: nil)
+        }
+        monitor.start()
+        await Task.yield()
+        monitor.stop()
+        try? await Task.sleep(nanoseconds: 30_000_000)
+        XCTAssertFalse(captured.lines.contains { $0.hasPrefix("dataVolume ") })
+    }
+
     // MARK: - Pure window stats (no display link needed).
 
     func testWindowStatsMeanAndP95() {
-        // 19 frames at 16 ms and one 100 ms hitch: mean is pulled up a little, p95 picks the hitch.
+        // 19 frames at 16 ms and one 100 ms hitch: the first 95% remain at 16 ms.
         let durations = Array(repeating: 16.0, count: 19) + [100.0]
         let stats = DisplayPerformanceMonitor.windowStats(durationsMs: durations)
         XCTAssertEqual(stats.mean, (16.0 * 19 + 100.0) / 20.0, accuracy: 0.001)
-        XCTAssertEqual(stats.p95, 100.0, accuracy: 0.001, "p95 of 20 frames is the worst (nearest-rank)")
+        XCTAssertEqual(stats.p95, 16.0, accuracy: 0.001)
+        XCTAssertEqual(DisplayPerformanceMonitor.windowStats(durationsMs: [42]).p95, 42)
     }
 
     func testWindowStatsEmptyIsZero() {
