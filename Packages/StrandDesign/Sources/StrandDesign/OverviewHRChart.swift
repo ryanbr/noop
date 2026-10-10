@@ -268,50 +268,75 @@ public struct OverviewHRChart: View {
     // overlay (below) via the proxy — Swift Charts' `.annotation` overflow-clamping needs macOS 14
     // and gets clipped by the card's fixed height on 13, so we position labels ourselves.
 
-    @ChartContentBuilder private var marks: some ChartContent {
-        // Styles depend on the chart, not the individual sample. Share them across marks so a
-        // dense HR series does not recreate the same gradient for every line and area vertex.
-        let areaFill = LinearGradient(
-            colors: [StrandPalette.sample(stops: gradient.toStops(), at: unit(averageValue)).opacity(0.28), .clear],
-            startPoint: .top, endPoint: .bottom)
-        let lineStroke = valueGradient
-        // Sleep band — shaded region behind the curve (drawn first so the HR line/area sit on top).
-        if let sleep, sleep.end > xDomain.lowerBound {
-            RectangleMark(
-                xStart: .value("Sleep start", clampX(sleep.start)),
-                xEnd: .value("Sleep end", clampX(sleep.end))
-            )
-            .foregroundStyle(StrandPalette.sleepDeep.opacity(0.32))
-        }
+    @available(iOS 18, macOS 15, *)
+    @ChartContentBuilder
+    private func vectorizedMarks(areaFill: LinearGradient, lineStroke: LinearGradient) -> some ChartContent {
+        AreaPlot(displayPoints, x: .value("Time", \.date), y: .value("BPM", \.value))
+            .interpolationMethod(.catmullRom)
+            .foregroundStyle(areaFill)
+        LinePlot(displayPoints, x: .value("Time", \.date), y: .value("BPM", \.value))
+            .interpolationMethod(.catmullRom)
+            .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+            .foregroundStyle(lineStroke)
+    }
 
-        ForEach(displayPoints) { p in
-            AreaMark(x: .value("Time", p.date), y: .value("BPM", p.value))
-                .interpolationMethod(.catmullRom)
-                .foregroundStyle(areaFill)
+    // Resolve availability outside Plot's builder for Xcode 26.
+    private func curveMarks(areaFill: LinearGradient, lineStroke: LinearGradient) -> AnyChartContent {
+        if #available(iOS 18, macOS 15, *) {
+            return AnyChartContent(vectorizedMarks(areaFill: areaFill, lineStroke: lineStroke))
         }
-        ForEach(displayPoints) { p in
-            LineMark(x: .value("Time", p.date), y: .value("BPM", p.value))
-                .interpolationMethod(.catmullRom)
-                .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
-                .foregroundStyle(lineStroke)
-        }
+        return AnyChartContent(Plot {
+            ForEach(displayPoints) { p in
+                AreaMark(x: .value("Time", p.date), y: .value("BPM", p.value))
+                    .interpolationMethod(.catmullRom)
+                    .foregroundStyle(areaFill)
+            }
+            ForEach(displayPoints) { p in
+                LineMark(x: .value("Time", p.date), y: .value("BPM", p.value))
+                    .interpolationMethod(.catmullRom)
+                    .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                    .foregroundStyle(lineStroke)
+            }
+        })
+    }
 
-        // Wake divider — the sleep→day boundary. Always shown with a sleep band so the band reads
-        // even before recovery calibrates (when the gold recovery rule is absent).
-        if let sleep, sleep.end > xDomain.lowerBound, sleep.end < xDomain.upperBound {
-            RuleMark(x: .value("Wake", clampX(sleep.end)))
-                .foregroundStyle(StrandPalette.sleepLight.opacity(0.5))
-                .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
-        }
-        if let recovery {
-            RuleMark(x: .value("Recovery", clampX(recovery.date)))
-                .foregroundStyle(recovery.color.opacity(0.85))
-                .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
-        }
-        if let effort {
-            RuleMark(x: .value("Effort", clampX(effort.date)))
-                .foregroundStyle(effort.color.opacity(0.85))
-                .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
+    private var marks: some ChartContent {
+        Plot {
+            // Styles depend on the chart, not the individual sample. Share them across marks so a
+            // dense HR series does not recreate the same gradient for every line and area vertex.
+            let areaFill = LinearGradient(
+                colors: [StrandPalette.sample(stops: gradient.toStops(), at: unit(averageValue)).opacity(0.28), .clear],
+                startPoint: .top, endPoint: .bottom)
+            let lineStroke = valueGradient
+            // Sleep band — shaded region behind the curve (drawn first so the HR line/area sit on top).
+            if let sleep, sleep.end > xDomain.lowerBound {
+                RectangleMark(
+                    xStart: .value("Sleep start", clampX(sleep.start)),
+                    xEnd: .value("Sleep end", clampX(sleep.end))
+                )
+                .foregroundStyle(StrandPalette.sleepDeep.opacity(0.32))
+            }
+
+            // Vectorized plots retain the same samples and styles without a view per vertex.
+            curveMarks(areaFill: areaFill, lineStroke: lineStroke)
+
+            // Wake divider — the sleep→day boundary. Always shown with a sleep band so the band reads
+            // even before recovery calibrates (when the gold recovery rule is absent).
+            if let sleep, sleep.end > xDomain.lowerBound, sleep.end < xDomain.upperBound {
+                RuleMark(x: .value("Wake", clampX(sleep.end)))
+                    .foregroundStyle(StrandPalette.sleepLight.opacity(0.5))
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
+            }
+            if let recovery {
+                RuleMark(x: .value("Recovery", clampX(recovery.date)))
+                    .foregroundStyle(recovery.color.opacity(0.85))
+                    .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
+            }
+            if let effort {
+                RuleMark(x: .value("Effort", clampX(effort.date)))
+                    .foregroundStyle(effort.color.opacity(0.85))
+                    .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
+            }
         }
     }
 
