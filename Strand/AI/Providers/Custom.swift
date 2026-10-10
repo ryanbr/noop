@@ -23,9 +23,7 @@ struct CustomClient: AIProviderClient {
         do {
             return try await chat(key: key, model: model, wire: wire, modernParams: false, session: session)
         } catch let AICoachError.server(code, detail) where code == 400 {
-            let d = detail.lowercased()
-            if d.contains("max_completion_tokens") || d.contains("max_tokens")
-                || d.contains("temperature") || d.contains("unsupported") {
+            if Self.needsModernParams(detail) {
                 return try await chat(key: key, model: model, wire: wire, modernParams: true, session: session)
             }
             throw AICoachError.server(code, detail)
@@ -34,7 +32,7 @@ struct CustomClient: AIProviderClient {
 
     /// K1: Stream via `stream: true` (most local OpenAI-compatible servers support it). Same body
     /// as `send`'s standard-params path, with `stream: true`. SSE parsing via `SseDeltas.openAiDelta`.
-    /// The modern-params retry on 400 is NOT streamed (rare path; falls back to `send`'s retry).
+    /// A parameter rejection retries once with modern parameters and emits the full reply.
     func stream(
         key: String,
         model: String,
@@ -61,11 +59,20 @@ struct CustomClient: AIProviderClient {
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        try await performStreamingRequest(req, session: session) { payload in
-            if let delta = SseDeltas.openAiDelta(payload) {
-                onDelta(delta)
+        do {
+            try await performStreamingRequest(req, session: session) { payload in
+                if let delta = SseDeltas.openAiDelta(payload) {
+                    onDelta(delta)
+                }
             }
+        } catch let AICoachError.server(code, detail) where code == 400 && Self.needsModernParams(detail) {
+            onDelta(try await chat(key: key, model: model, wire: wire, modernParams: true, session: session))
         }
+    }
+
+    private static func needsModernParams(_ detail: String) -> Bool {
+        let d = detail.lowercased()
+        return d.contains("max_completion_tokens") || d.contains("max_tokens") || d.contains("temperature")
     }
 
     /// Appended to a reply when the server stopped early because it ran out of context window.

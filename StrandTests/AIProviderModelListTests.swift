@@ -49,6 +49,12 @@ final class AIProviderModelListTests: XCTestCase {
         XCTAssertTrue(GeminiClient().parseModels(body).isEmpty)
     }
 
+    func testGeminiRequiresTextGenerationAndExcludesSpecializedModels() throws {
+        let fixture = #"{"models":[{"name":"models/gemini-3-pro","supportedGenerationMethods":["generateContent","countTokens"]},{"name":"models/gemini-live","supportedGenerationMethods":["bidiGenerateContent"]},{"name":"models/gemini-3-flash-preview-tts","supportedGenerationMethods":["generateContent"]},{"name":"models/gemini-2.5-flash-native-audio","supportedGenerationMethods":["bidiGenerateContent"]},{"name":"models/gemini-no-generation","supportedGenerationMethods":[]},{"name":" models/gemini-3-pro "}]}"#
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(fixture.utf8)) as? [String: Any])
+        XCTAssertEqual(GeminiClient().parseModels(json), ["gemini-3-pro"])
+    }
+
     // MARK: - existing providers unchanged
 
     func testOpenAIFiltersToGptAndOFamilies() {
@@ -56,11 +62,21 @@ final class AIProviderModelListTests: XCTestCase {
             "data": [
                 ["id": "gpt-4o"],
                 ["id": "o3-mini"],
+                ["id": "gpt-5.4"],
+                ["id": "gpt-5.4-pro"],               // Responses only — drop
+                ["id": "gpt-5.4-pro-2026-03-05"],    // Responses snapshot — drop
+                ["id": "gpt-image-1"],
+                ["id": "gpt-5.3-codex"],
+                ["id": "o3-deep-research"],
+                ["id": "gpt-4o-realtime-preview"],
+                ["id": "gpt-4o-mini-transcribe"],
+                ["id": "gpt-3.5-turbo-instruct"],
+                ["id": "omni-moderation-latest"],   // moderation — drop
                 ["id": "text-embedding-3-large"], // not gpt/o — drop
                 ["id": ""]                         // empty — drop
             ]
         ]
-        XCTAssertEqual(OpenAIClient().parseModels(body), ["gpt-4o", "o3-mini"])
+        XCTAssertEqual(OpenAIClient().parseModels(body), ["gpt-4o", "o3-mini", "gpt-5.4"])
     }
 
     func testAnthropicKeepsAllNonEmptyIds() {
@@ -72,6 +88,12 @@ final class AIProviderModelListTests: XCTestCase {
             ]
         ]
         XCTAssertEqual(AnthropicClient().parseModels(body), ["claude-sonnet-4-6", "claude-opus-4-8"])
+    }
+
+    func testAnthropicPickerOffersActiveModelsInsteadOfRetiredClaude3() {
+        XCTAssertTrue(AIProvider.anthropic.modelOptions.contains("claude-sonnet-5-5"))
+        XCTAssertTrue(AIProvider.anthropic.modelOptions.contains("claude-opus-5-5"))
+        XCTAssertFalse(AIProvider.anthropic.modelOptions.contains { $0.hasPrefix("claude-3") })
     }
 
     // MARK: - Custom (OpenAI-compatible / local LLM)

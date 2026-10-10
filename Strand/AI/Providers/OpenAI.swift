@@ -1,6 +1,23 @@
 import Foundation
 import StrandAnalytics
 
+/// Shared Chat Completions body for regular and streaming requests, including reasoning models.
+func openAIChatBody(model: String, messages: [[String: Any]], stream: Bool) -> [String: Any] {
+    var body: [String: Any] = ["model": model, "messages": messages, "max_completion_tokens": 4096]
+    if (model.hasPrefix("gpt-4") || model.hasPrefix("gpt-3.5") || model.hasPrefix("gpt-audio")),
+       !model.contains("-search") { body["temperature"] = 0.6 }
+    if stream { body["stream"] = true }
+    return body
+}
+
+/// Exclude models whose endpoints or output formats this text-chat client cannot handle.
+func isOpenAIChatModel(_ id: String) -> Bool {
+    let reasoning = id.hasPrefix("o") && id.dropFirst().first.map { ("0"..."9").contains($0) } == true
+    let gpt = id.hasPrefix("gpt")
+    let specialized = ["gpt-image", "-pro", "-codex", "-deep-research", "-instruct", "-realtime", "-transcribe", "-tts"]
+    return (gpt || reasoning) && !specialized.contains(where: id.contains)
+}
+
 struct OpenAIClient: AIProviderClient {
 
     func send(
@@ -13,23 +30,19 @@ struct OpenAIClient: AIProviderClient {
         var wire: [[String: Any]] = [["role": "system", "content": systemPrompt]]
         for m in messages { wire.append(["role": m.role.rawValue, "content": m.content]) }
 
-        // Standard params first (gpt-4 family). Newer/reasoning models reject `temperature` and want
-        // `max_completion_tokens`; if the provider 400s about either, retry with the modern shape.
-        do {
-            return try await chat(key: key, model: model, wire: wire, modernParams: false, session: session)
-        } catch let AICoachError.server(code, detail) where code == 400 {
-            let d = detail.lowercased()
-            if d.contains("max_completion_tokens") || d.contains("max_tokens")
-                || d.contains("temperature") || d.contains("unsupported") {
-                return try await chat(key: key, model: model, wire: wire, modernParams: true, session: session)
-            }
-            throw AICoachError.server(code, detail)
+        let req = try chatRequest(key: key, model: model, wire: wire, stream: false)
+        let json = try await performRequest(req, session: session)
+        guard let choices = json["choices"] as? [[String: Any]],
+              let first = choices.first,
+              let message = first["message"] as? [String: Any],
+              let content = (message["content"] as? String)?
+                  .trimmingCharacters(in: .whitespacesAndNewlines), !content.isEmpty else {
+            throw emptyReplyError(json)
         }
+        return content
     }
 
-    /// K1: Stream via `stream: true`. Same body as `send`, with `stream: true` added. SSE parsing
-    /// via `SseDeltas.openAiDelta`. The modern-params retry on 400 is NOT streamed (rare path;
-    /// falls back to `send`'s retry). Byte-parity pin in `SseDeltasTests.openAiReassembleMatchesFullReply`.
+    /// Stream the same parameters as `send`, with `stream: true` added.
     func stream(
         key: String,
         model: String,
@@ -41,15 +54,7 @@ struct OpenAIClient: AIProviderClient {
         var wire: [[String: Any]] = [["role": "system", "content": systemPrompt]]
         for m in messages { wire.append(["role": m.role.rawValue, "content": m.content]) }
 
-        var body: [String: Any] = ["model": model, "messages": wire, "stream": true]
-        body["temperature"] = 0.6
-        body["max_tokens"] = 4096
-
-        var req = URLRequest(url: AIProvider.openAI.endpoint)
-        req.httpMethod = "POST"
-        req.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let req = try chatRequest(key: key, model: model, wire: wire, stream: true)
 
         try await performStreamingRequest(req, session: session) { payload in
             if let delta = SseDeltas.openAiDelta(payload) {
@@ -66,49 +71,31 @@ struct OpenAIClient: AIProviderClient {
         return parseModels(try await performRequest(req, session: session))
     }
 
-    /// Pure: unwrap the `/models` body into chat-capable ids (gpt*/o*). No network — unit-tested.
+    /// Unwrap the `/models` body into candidates for this client's Chat Completions endpoint.
     func parseModels(_ json: [String: Any]) -> [String] {
         guard let list = json["data"] as? [[String: Any]] else { return [] }
-        return list.compactMap { row in
-            guard let id = row["id"] as? String, !id.isEmpty else { return nil }
-            return (id.hasPrefix("gpt") || id.hasPrefix("o")) ? id : nil
+        var ids: [String] = []
+        for row in list {
+            guard let raw = row["id"] as? String else { continue }
+            let id = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            if isOpenAIChatModel(id), !ids.contains(id) { ids.append(id) }
         }
+        return ids
     }
 
     // MARK: Private
 
-    /// `modernParams`: use `max_completion_tokens`, drop `temperature` — required by reasoning models.
-    private func chat(
+    private func chatRequest(
         key: String,
         model: String,
         wire: [[String: Any]],
-        modernParams: Bool,
-        session: URLSession
-    ) async throws -> String {
-        var body: [String: Any] = ["model": model, "messages": wire]
-        // #1074: 900 truncated detailed coaching replies mid-sentence; 4096 lets a full multi-section
-        // reply complete (a cap, not a target — the system prompt keeps it short). Matches Gemini + Android.
-        if modernParams {
-            body["max_completion_tokens"] = 4096
-        } else {
-            body["temperature"] = 0.6
-            body["max_tokens"] = 4096
-        }
-
+        stream: Bool
+    ) throws -> URLRequest {
         var req = URLRequest(url: AIProvider.openAI.endpoint)
         req.httpMethod = "POST"
         req.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-        let json = try await performRequest(req, session: session)
-        guard let choices = json["choices"] as? [[String: Any]],
-              let first = choices.first,
-              let message = first["message"] as? [String: Any],
-              let content = (message["content"] as? String)?
-                  .trimmingCharacters(in: .whitespacesAndNewlines), !content.isEmpty else {
-            throw emptyReplyError(json)   // #1074: surface the provider's real error if the 200 body has one
-        }
-        return content
+        req.httpBody = try JSONSerialization.data(withJSONObject: openAIChatBody(model: model, messages: wire, stream: stream))
+        return req
     }
 }

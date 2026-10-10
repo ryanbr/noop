@@ -24,7 +24,7 @@ enum AIProvider: String, CaseIterable, Identifiable {
         switch self {
         case .openAI:    return "gpt-5-mini"
         case .anthropic: return "claude-sonnet-4-6"
-        case .gemini:    return "gemini-flash-latest"   // stable alias → current Flash, no version churn (#400)
+        case .gemini:    return "gemini-flash-latest"   // provider-managed alias for the current Flash model
         case .custom:    return ""   // the user picks the model their server serves
         }
     }
@@ -34,16 +34,12 @@ enum AIProvider: String, CaseIterable, Identifiable {
     var modelOptions: [String] {
         switch self {
         case .openAI:
-            // Pinned ids, not aliases: OpenAI has no stable per-tier "-latest" alias the way Gemini
-            // does (#400), so this list is bumped by hand. `refreshModels()` merges the live /models
-            // catalogue, which stays the authority for anything released after this.
+            // Versioned model families; refreshModels merges newer releases from the live catalogue.
             //
-            // The reasoning tiers (o3, o4-mini) and the GPT-5 family reject `temperature` and
-            // `max_tokens`. Nothing special is needed for them here: the request path sends the
-            // classic parameters, and on a 400 naming one of them retries with
-            // `max_completion_tokens` and no temperature (see AiCoach's modernParams leg). The cost
-            // is one extra round trip on the first message, not a per-model table to maintain.
+            // Both request paths use max_completion_tokens; classic GPT sampling stays unchanged.
             return [
+                "gpt-5.4",
+                "gpt-5.4-mini",
                 "gpt-5",
                 "gpt-5-mini",
                 "gpt-5-nano",
@@ -57,18 +53,15 @@ enum AIProvider: String, CaseIterable, Identifiable {
             ]
         case .anthropic:
             return [
+                "claude-opus-5-5",
+                "claude-sonnet-5-5",
                 "claude-opus-4-8",
                 "claude-sonnet-4-6",
-                "claude-haiku-4-5-20251001",
-                "claude-3-7-sonnet-latest",
-                "claude-3-5-sonnet-latest",
-                "claude-3-5-haiku-latest",
-                "claude-3-opus-latest"
+                "claude-haiku-4-5-20251001"
             ]
         case .gemini:
-            // Stable `-latest` ALIASES, not pinned versions (#400): they always resolve to the current
-            // stable model in each tier, so Gemini's rapid releases never need a code bump. `refreshModels()`
-            // still merges the live `/models` catalogue, so a user with a key can pin a concrete version.
+            // Provider-managed aliases may point to stable or preview releases. The live model list
+            // lets the user pin a concrete version instead.
             return [
                 "gemini-pro-latest",
                 "gemini-flash-latest",
@@ -391,6 +384,10 @@ func performStreamingRequest(
         // Read line-by-line from the SSE byte stream. `URLSession.AsyncBytes` splits on \n.
         for try await line in bytes.0.lines {
             if let payload = SseDeltas.dataPayload(fromLine: line) {
+                if let json = try? JSONSerialization.jsonObject(with: Data(payload.utf8)) as? [String: Any],
+                   json["error"] is [String: Any] {
+                    throw emptyReplyError(json)
+                }
                 onLine(payload)
             }
         }
