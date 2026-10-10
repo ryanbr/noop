@@ -20,22 +20,20 @@ struct AutoWorkoutCard: View {
     /// Whether the toggle is on. Read here too so the card disappears the instant it's switched off.
     @AppStorage(PuffinExperiment.autoDetectWorkoutsKey) private var autoDetectEnabled = false
 
-    /// The current suggestion, loaded in `.task`. nil → nothing to show.
-    @State private var candidate: DetectedWorkout?
-    /// Hide immediately on Save/X without waiting for the next reload (avoids a flash of the old card).
-    @State private var handledThisSession = false
+    /// The current suggestion and the session guard, owned outside the view tree (see
+    /// `AutoWorkoutCandidateLoader` for why a `.task` here could never start).
+    @StateObject private var loader = AutoWorkoutCandidateLoader()
     /// Guards the Save button while the write is in flight.
     @State private var saving = false
 
     var body: some View {
-        Group {
-            if autoDetectEnabled, !handledThisSession, let w = candidate {
-                card(for: w)
-            }
+        // Re-scan whenever the data refreshes (a sync bumps refreshSeq) or the toggle flips. The body
+        // re-runs on both (it observes `repo` and the toggle), and the loader ignores an unchanged key.
+        let _ = loader.request(AutoWorkoutLoadKey(seq: repo.refreshSeq, enabled: autoDetectEnabled)) { [repo] in
+            await repo.autoDetectCandidate()
         }
-        // Re-scan whenever the data refreshes (a sync bumps refreshSeq) or the toggle flips on.
-        .task(id: AutoWorkoutLoadKey(seq: repo.refreshSeq, enabled: autoDetectEnabled)) {
-            await reload()
+        if autoDetectEnabled, !loader.handled, let w = loader.candidate {
+            card(for: w)
         }
     }
 
@@ -106,17 +104,9 @@ struct AutoWorkoutCard: View {
         return String(localized: "Looks like a workout on \(Self.dateFmt.string(from: startDate)) around \(start)-\(end) (avg HR \(w.avgBpm), \(w.durationMin) min). Save it?")
     }
 
-    private func reload() async {
-        guard autoDetectEnabled else { candidate = nil; return }
-        let next = await repo.autoDetectCandidate()
-        // A fresh scan resets the session guard so a NEW window can surface after one is handled.
-        if next != candidate { handledThisSession = false }
-        candidate = next
-    }
-
     private func save(_ w: DetectedWorkout) {
         saving = true
-        handledThisSession = true
+        loader.markHandled()
         Task {
             _ = await repo.saveDetectedWorkout(w)
             await repo.refresh()   // surfaces the new workout + drops it from re-suggestion
@@ -126,8 +116,7 @@ struct AutoWorkoutCard: View {
 
     private func dismiss(_ w: DetectedWorkout) {
         repo.dismissDetectedSuggestion(w)
-        handledThisSession = true
-        candidate = nil
+        loader.dismiss()
     }
 
     /// HH:mm in the user's locale/timezone.
@@ -149,4 +138,41 @@ struct AutoWorkoutCard: View {
 private struct AutoWorkoutLoadKey: Equatable {
     let seq: Int
     let enabled: Bool
+}
+
+/// Loads the detector's suggestion for `AutoWorkoutCard` outside the view tree. The card is empty until
+/// a suggestion exists, and SwiftUI never runs a `.task` attached to a `Group` with no child, so the
+/// scan never started and the card never appeared. Any always-present placeholder would start the task
+/// but take a slot in the dashboard's stack and add its spacing, so the view only reports the current
+/// key here and this object runs the scan.
+@MainActor
+final class AutoWorkoutCandidateLoader: ObservableObject {
+    @Published private(set) var candidate: DetectedWorkout?
+    /// Hide immediately on Save/X without waiting for the next scan (avoids a flash of the old card).
+    @Published private(set) var handled = false
+    private var lastKey: AutoWorkoutLoadKey?
+    private var scan: Task<Void, Never>?
+
+    /// Called from the card's body on every pass; starts a scan only when the key changed. Publishes
+    /// later, from the task, never during the view update.
+    fileprivate func request(_ key: AutoWorkoutLoadKey,
+                             load: @escaping @MainActor () async -> DetectedWorkout?) {
+        guard key != lastKey else { return }
+        lastKey = key
+        scan?.cancel()
+        scan = Task { [weak self] in
+            let next = key.enabled ? await load() : nil
+            guard !Task.isCancelled, let self else { return }
+            // A fresh scan resets the session guard so a NEW window can surface after one is handled.
+            if next != self.candidate { self.handled = false }
+            self.candidate = next
+        }
+    }
+
+    func markHandled() { handled = true }
+
+    func dismiss() {
+        handled = true
+        candidate = nil
+    }
 }
