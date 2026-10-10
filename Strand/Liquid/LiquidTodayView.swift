@@ -343,7 +343,10 @@ struct LiquidTodayView: View {
 
                 liquidRefreshIndicator   // grows in the revealed space; a vessel filling with the pull
 
-                VStack(alignment: .leading, spacing: 12) {
+                // An eager inner stack constructs the entire dashboard even inside a lazy scroll
+                // scaffold. Defer individual sections; keep the pull probe outside so refresh still
+                // observes the top offset before any section has been materialized.
+                LazyVStack(alignment: .leading, spacing: NoopMetrics.space3) {
                     scene
                     // The strain/illness early-warning banner, dropped in the liquid Home rewrite. Liquid is
                     // the DEFAULT Today on both platforms (RootTabView.swift's liquidTodayEnabled = true,

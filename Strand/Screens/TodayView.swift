@@ -1455,10 +1455,8 @@ struct TodayView: View {
 
     var body: some View {
         ScreenScaffold(title: scaffoldTitle, onRefresh: { await repo.refresh() },
-                       // PERF (scroll): lazy column so the scaffold materialises Today's content on demand.
-                       // Today supplies its own inner eager VStack (below), so the staggered section reveal is
-                       // unchanged, this only defers building the single inner stack until it scrolls in.
-                       // Byte-identical layout (LazyVStack == eager VStack alignment/spacing/header).
+                       // Keep the scaffold's lazy column; the inner lazy stack below also defers each
+                       // off-screen Today section instead of eagerly constructing the whole dashboard.
                        lazy: true,
                        // PERF (scroll stutter): the day-cycle scene is a static masked Image. CoreAnimation
                        // already caches it as a stable image layer, so it does NOT re-rasterize on body
@@ -1468,7 +1466,7 @@ struct TodayView: View {
                        // lag regression; removing the flatten restores native layer caching.
                        topBackground: showDayCycleBackground
                            ? AnyView(SceneScreenBackground(hour: demoSceneHour)) : nil) {
-            VStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
+            LazyVStack(alignment: .leading, spacing: NoopMetrics.sectionGap) {
                 #if os(iOS)
                 // Compact top bar: profile/settings (left) · ‹ Today › day-nav (centre, bold) · strap
                 // battery (right). Replaces the big title + the full-width day-nav pill (WHOOP-style).

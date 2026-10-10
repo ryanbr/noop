@@ -291,9 +291,8 @@ struct TrendsView: View {
 
     private var scaffold: some View {
         ScreenScaffold(title: "Trends", subtitle: "The thread of you over time.",
-                       // PERF (scroll): lazy column — byte-identical layout (LazyVStack == eager VStack
-                       // alignment/spacing/header). The content is one inner eager VStack, so the staggered
-                       // section reveal is unchanged; this only defers building that stack until it scrolls in.
+                       // The outer lazy column defers the content, and the inner lazy column below
+                       // defers each chart section as it enters the viewport.
                        onRefresh: { await repo.refresh() },
                        lazy: true,
                        topBackground: liquidScaffoldSky()) {
@@ -305,31 +304,23 @@ struct TrendsView: View {
                 // Reuse the resolved windows until the data, range, or loaded Rest series changes.
                 // An unrelated Repository publication must not re-filter five years of history.
                 let metrics = resolvedMetrics
-                VStack(alignment: .leading, spacing: NoopMetrics.sectionSpacing) {
-                    // The main card list ripples in once on appear (Reduce-Motion safe).
+                LazyVStack(alignment: .leading, spacing: NoopMetrics.sectionSpacing) {
+                    // Lazy charts appear directly instead of starting a layout animation while scrolling.
                     Group {
                         // Week-in-review digest (#208) with prev/next week browsing (#710) — self-hides
                         // only when NO week in history has data. Past weeks render in the same format.
                         weeklyDigestNav
-                            .staggeredAppear(index: 0)
                         // The Charge / Effort / Rest trio, presented in NOOP's pip language.
                         weekInReview(charge: metrics.recovery, effort: metrics.strain, rest: metrics.rest)
-                            .staggeredAppear(index: 1)
                         rangeBar(recovery: metrics.recovery)
-                            .staggeredAppear(index: 2)
                         heroRecovery(recovery: metrics.recovery)
-                            .staggeredAppear(index: 3)
                         smallMultiples(hrv: metrics.hrv, rhr: metrics.rhr, strain: metrics.strain)
-                            .staggeredAppear(index: 4)
                         // Long-horizon training load (CTL/ATL/TSB). Uses the FULL history, not the
                         // range window — chronic load is inherently a 42-day horizon. Self-hides its
                         // chart behind an honest "needs N more days" state until enough history exists.
                         TrainingLoadCard(days: repo.days)
-                            .staggeredAppear(index: 5)
                         yearStrip
-                            .staggeredAppear(index: 6)
                         exportReportRow
-                            .staggeredAppear(index: 7)
                     }
                 }
             }
