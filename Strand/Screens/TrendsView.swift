@@ -116,10 +116,11 @@ struct TrendsView: View {
         let rhr: ResolvedMetric
         let strain: ResolvedMetric
         let rest: ResolvedMetric
+        let recoveryDays: [RecoveryDay]
     }
 
     /// Repository status publications can redraw Trends without changing its historical data.
-    /// Retain the five resolved windows across those redraws; invalidate on the data generation,
+    /// Retain the resolved windows and calendar dates; invalidate on the data generation,
     /// range, Rest-series revision, local day, or locale so readings and captions remain current.
     /// This reference does not publish changes of its own, avoiding a body-to-state update loop.
     @MainActor private final class ResolvedCache {
@@ -154,7 +155,10 @@ struct TrendsView: View {
                             hrv: resolve { $0.avgHrv },
                             rhr: resolve { $0.restingHr.map(Double.init) },
                             strain: resolve { $0.strain },
-                            rest: resolve { sleepPerfByDay[$0.day] })
+                            rest: resolve { sleepPerfByDay[$0.day] },
+                            recoveryDays: repo.days.suffix(max(range.days ?? repo.days.count, 365)).compactMap { d in
+                                date(d.day).map { RecoveryDay(date: $0, score: d.recovery) }
+                            })
         }
     }
 
@@ -326,7 +330,7 @@ struct TrendsView: View {
                         // chart behind an honest "needs N more days" state until enough history exists.
                         TrainingLoadCard(days: repo.days)
                             .staggeredAppear(index: 5)
-                        yearStrip
+                        yearStrip(recoveryDays: metrics.recoveryDays)
                             .staggeredAppear(index: 6)
                         exportReportRow
                             .staggeredAppear(index: 7)
@@ -772,14 +776,7 @@ struct TrendsView: View {
 
     // MARK: Year heat-strip
 
-    private var yearStrip: some View {
-        // Always show at least a full year for context; expand to all history on ALL.
-        let stripDays = max(range.days ?? repo.days.count, 365)
-        let recent = repo.days.suffix(stripDays)
-        let recoveryDays: [RecoveryDay] = recent.compactMap { d in
-            guard let dt = date(d.day) else { return nil }
-            return RecoveryDay(date: dt, score: d.recovery)
-        }
+    private func yearStrip(recoveryDays: [RecoveryDay]) -> some View {
         let title = (range == .all && repo.days.count > 365) ? String(localized: "Charge (all history)") : String(localized: "Charge (past year)")
         return NoopCard {
             VStack(alignment: .leading, spacing: NoopMetrics.cardInnerSpacing) {

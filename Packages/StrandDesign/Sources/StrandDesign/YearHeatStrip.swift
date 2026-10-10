@@ -12,7 +12,7 @@ import SwiftUI
 
 /// A day's recovery datum for the heat strip.
 public struct RecoveryDay: Identifiable, Sendable {
-    public let id = UUID()
+    public var id: Date { date }
     public var date: Date
     /// Recovery 0...100, or nil if no data for that day.
     public var score: Double?
@@ -79,7 +79,7 @@ public struct YearHeatStrip: View {
 
     // Group days into week columns. weekday 0 = Monday ... 6 = Sunday.
     private struct Week: Identifiable {
-        let id = UUID()
+        let id: Date
         var cells: [RecoveryDay?] // length 7, indexed by weekday row
         var monthLabel: String?
     }
@@ -89,7 +89,7 @@ public struct YearHeatStrip: View {
     private static func buildWeeks(from days: [RecoveryDay]) -> [Week] {
         guard let first = days.first?.date else { return [] }
         var weeks: [Week] = []
-        var current = Week(cells: Array(repeating: nil, count: 7), monthLabel: nil)
+        var current = Week(id: first, cells: Array(repeating: nil, count: 7), monthLabel: nil)
         var lastMonth = -1
         // Pad the first week so the first day lands on its weekday row.
         let firstRow = weekdayRow(first)
@@ -100,7 +100,7 @@ public struct YearHeatStrip: View {
             let row = weekdayRow(day.date)
             if row == 0 && filledThisWeek > 0 {
                 weeks.append(current)
-                current = Week(cells: Array(repeating: nil, count: 7), monthLabel: nil)
+                current = Week(id: day.date, cells: Array(repeating: nil, count: 7), monthLabel: nil)
                 filledThisWeek = 0
             }
             current.cells[row] = day
