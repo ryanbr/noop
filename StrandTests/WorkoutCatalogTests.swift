@@ -91,7 +91,7 @@ final class WorkoutCatalogTests: XCTestCase {
     }
 
     /// Iconography lockstep: every catalogue sport must resolve to a `KnownWorkoutType` with a unique
-    /// preferred glyph so the live-workout Liquid Glass control never shares icons across types.
+    /// runtime glyph on the current OS, matching the live-workout Liquid Glass control.
     func testCatalogueSportsHaveUniqueWorkoutTypeIcons() {
         let catalogNames = WorkoutCatalog.all.map(\.name)
         let knownNames = KnownWorkoutType.allCases.map(\.rawValue)
@@ -103,7 +103,7 @@ final class WorkoutCatalogTests: XCTestCase {
             guard let type = KnownWorkoutType.exact(matching: sport.name) else {
                 return XCTFail("No KnownWorkoutType for catalogue sport \(sport.name)")
             }
-            let id = WorkoutTypeIconography.preferredIdentity(for: type)
+            let id = WorkoutTypeIconography.identity(for: type)
             XCTAssertFalse(identities.contains(id), "Duplicate icon \(id) for \(sport.name)")
             identities.insert(id)
         }
