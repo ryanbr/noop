@@ -13,6 +13,9 @@ import com.noop.ui.NoopPrefs
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -612,6 +615,11 @@ class SourceCoordinator(
             launch { source.ouraWearState.collect { _ouraWearState.value = it } }
             launch { source.batteryPct.collect { _ouraBatteryPct.value = it } }   // #2075
             launch { source.linkPhase.collect { _ouraLinkPhase.value = it } }     // #2305
+            launch {
+                ouraSightings(source.linkPhase).collect {
+                    runCatching { registry.touchLastSeen(id) }
+                }
+            }
         }
         return source
     }
@@ -669,6 +677,11 @@ class SourceCoordinator(
     }
 
     companion object {
+        /** Confirmed ring sessions refresh Last seen once; failed attempts never do. Swift twin:
+         *  SourceCoordinator.ouraSightings. */
+        internal fun ouraSightings(phases: Flow<OuraLiveSource.LinkPhase>): Flow<OuraLiveSource.LinkPhase> =
+            phases.distinctUntilChanged().filter { it == OuraLiveSource.LinkPhase.AUTHENTICATED }
+
         /**
          * Classify a device id as WHOOP vs a generic strap. WHOOP if the id is the canonical "my-whoop",
          * the registry row's `brand` is "WHOOP" (case-insensitive), OR the id is unknown — unknown ids
