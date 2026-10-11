@@ -9,7 +9,7 @@ import org.junit.Test
 
 /**
  * Mirror of the Swift TestCentreActivationTests: same activation semantics, master-implies-all,
- * universal-rides-any, answers round-trip, idempotent migration that preserves legacy keys.
+ * universal-rides-any, persisted-answer reads, and activation that preserves legacy keys.
  *
  * The project ships NO Robolectric (junit + kotlinx-coroutines-test only, see app/build.gradle.kts and
  * DeviceRegistryTest / MoodStoreTest), so rather than stand up a real Context we run the REAL [TestCentre]
@@ -90,21 +90,31 @@ class TestCentreTest {
         assertTrue((tc.startedAt(TestDomain.SLEEP) ?: 0L) > 0L)
     }
 
-    @Test fun answersRoundTrip() {
-        val tc = newCentre()
+    @Test fun answersReadsPersistedQuestionnaire() {
+        val prefs = FakeSharedPreferences()
+        val tc = TestCentre(prefs)
         assertEquals(emptyMap<String, String>(), tc.answers(TestDomain.BATTERY))
-        tc.setAnswers(TestDomain.BATTERY, mapOf("whoopAppInstalled" to "yes", "batterySaverApps" to "none"))
+        prefs.edit().putString("testcentre.answers.battery",
+            "{\"whoopAppInstalled\":\"yes\",\"batterySaverApps\":\"none\"}").apply()
         assertEquals(mapOf("whoopAppInstalled" to "yes", "batterySaverApps" to "none"), tc.answers(TestDomain.BATTERY))
+        assertEquals(emptyMap<String, String>(), tc.answers(TestDomain.SLEEP))
     }
 
-    @Test fun migrationIsIdempotentAndPreservesLegacyKeys() {
-        // A legacy experiments key set "before" lives in its OWN prefs store (noop_experiments). The Test
-        // Centre prefs file is separate; migrate() must never reach into or wipe the legacy store.
-        val legacy = FakeSharedPreferences()
-        legacy.edit().putBoolean("noopWhoop5DeepData", true).apply()
-        val tc = TestCentre(FakeSharedPreferences())
-        tc.migrate()
-        tc.migrate()
-        assertTrue(legacy.getBoolean("noopWhoop5DeepData", false))   // NOT renamed/wiped by migration
+    @Test fun answersRejectsMalformedPersistedQuestionnaire() {
+        val prefs = FakeSharedPreferences()
+        val tc = TestCentre(prefs)
+        for (raw in listOf("not JSON", "[]")) {
+            prefs.edit().putString("testcentre.answers.battery", raw).apply()
+            assertEquals(raw, emptyMap<String, String>(), tc.answers(TestDomain.BATTERY))
+        }
+    }
+
+    @Test fun activationPreservesUnrelatedKeys() {
+        val prefs = FakeSharedPreferences()
+        prefs.edit().putBoolean("unrelated", true).apply()
+        val tc = TestCentre(prefs)
+        tc.activate(TestDomain.BATTERY)
+        tc.deactivate(TestDomain.BATTERY)
+        assertTrue(prefs.getBoolean("unrelated", false))
     }
 }

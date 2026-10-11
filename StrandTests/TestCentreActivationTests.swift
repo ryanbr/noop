@@ -5,23 +5,33 @@ import StrandAnalytics
 @MainActor
 final class TestCentreActivationTests: XCTestCase {
 
-    // A clean suite so the test never touches the real app defaults.
-    private func freshDefaults() -> UserDefaults {
-        let name = "TestCentreTests-\(UUID().uuidString)"
-        let d = UserDefaults(suiteName: name)!
-        d.removePersistentDomain(forName: name)
-        return d
+    private var savedDefaults: [String: Any] = [:]
+    private var touchedKeys: [String] {
+        TestDomain.allCases.flatMap { domain in
+            ["testcentre.active.\(domain.id)", "testcentre.startedAt.\(domain.id)",
+             "testcentre.answers.\(domain.id)"]
+        } + [PuffinExperiment.deepDataKey]
     }
 
-    override func setUp() {
-        super.setUp()
-        // Reset the namespace this test relies on (TestCentre reads UserDefaults.standard).
-        for d in TestDomain.allCases {
-            UserDefaults.standard.removeObject(forKey: "testcentre.active.\(d.id)")
-            UserDefaults.standard.removeObject(forKey: "testcentre.startedAt.\(d.id)")
-            UserDefaults.standard.removeObject(forKey: "testcentre.answers.\(d.id)")
+    override func setUp() async throws {
+        try await super.setUp()
+        savedDefaults = [:]
+        for key in touchedKeys {
+            savedDefaults[key] = UserDefaults.standard.object(forKey: key)
+            UserDefaults.standard.removeObject(forKey: key)
         }
-        UserDefaults.standard.removeObject(forKey: "testcentre.migrated.v1")
+    }
+
+    override func tearDown() async throws {
+        for key in touchedKeys {
+            if let value = savedDefaults[key] {
+                UserDefaults.standard.set(value, forKey: key)
+            } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
+        savedDefaults = [:]
+        try await super.tearDown()
     }
 
     func testActivateThenActiveThenDeactivate() {
@@ -55,18 +65,27 @@ final class TestCentreActivationTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(s!.timeIntervalSince1970, before.timeIntervalSince1970 - 1)
     }
 
-    func testAnswersRoundTrip() {
+    func testAnswersReadsPersistedQuestionnaire() throws {
+        let key = "testcentre.answers.battery"
         XCTAssertEqual(TestCentre.answers(.battery), [:])
-        TestCentre.setAnswers(["whoopAppInstalled": "yes", "batterySaverApps": "none"], for: .battery)
-        XCTAssertEqual(TestCentre.answers(.battery), ["whoopAppInstalled": "yes", "batterySaverApps": "none"])
+        let answers = ["whoopAppInstalled": "yes", "batterySaverApps": "none"]
+        UserDefaults.standard.set(try JSONEncoder().encode(answers), forKey: key)
+        XCTAssertEqual(TestCentre.answers(.battery), answers)
+        XCTAssertEqual(TestCentre.answers(.sleep), [:])
     }
 
-    // Migration seeds nothing destructive and is idempotent (guarded by the v1 bool).
-    func testMigrationIsIdempotentAndPreservesLegacyKeys() {
-        UserDefaults.standard.set(true, forKey: PuffinExperiment.deepDataKey)   // a legacy key set "before"
-        TestCentre.migrate()
-        TestCentre.migrate()                                                    // second call is a no-op
-        XCTAssertTrue(UserDefaults.standard.bool(forKey: "testcentre.migrated.v1"))
-        XCTAssertTrue(UserDefaults.standard.bool(forKey: PuffinExperiment.deepDataKey))  // NOT renamed/wiped
+    func testAnswersRejectsMalformedPersistedQuestionnaire() {
+        let key = "testcentre.answers.battery"
+        for raw in ["not JSON", "[]", "{\"answer\":null}"] {
+            UserDefaults.standard.set(Data(raw.utf8), forKey: key)
+            XCTAssertEqual(TestCentre.answers(.battery), [:], raw)
+        }
+    }
+
+    func testActivationPreservesLegacyKeys() {
+        UserDefaults.standard.set(true, forKey: PuffinExperiment.deepDataKey)
+        TestCentre.activate(.battery)
+        TestCentre.deactivate(.battery)
+        XCTAssertTrue(UserDefaults.standard.bool(forKey: PuffinExperiment.deepDataKey))
     }
 }
