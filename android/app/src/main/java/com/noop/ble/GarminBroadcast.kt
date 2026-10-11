@@ -1,7 +1,7 @@
 package com.noop.ble
 
 /**
- * EXPERIMENTAL Garmin support — recognition + the in-app "enable Broadcast Heart Rate" hint.
+ * EXPERIMENTAL Garmin support — the in-app "enable Broadcast Heart Rate" hint.
  *
  * Faithful Kotlin twin of Strand/BLE/GarminBroadcast.swift.
  *
@@ -14,9 +14,6 @@ package com.noop.ble
  * through [StandardHrSource] — no new BLE driver is needed, and the WHOOP/standard paths are untouched.
  */
 object GarminBroadcast {
-
-    /** True when the advertised name reads as a Garmin watch. */
-    fun isGarmin(name: String): Boolean = ExperimentalBrand.recognise(name) == ExperimentalBrand.GARMIN
 
     /**
      * Step-by-step guidance to put a Garmin watch into Broadcast Heart Rate mode so NOOP (and any other

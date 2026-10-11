@@ -79,11 +79,23 @@ class ExperimentalDriversTest {
 
     @Test
     fun recogniseGarmin() {
-        assertEquals(ExperimentalBrand.GARMIN, ExperimentalBrand.recognise("Garmin Forerunner 265"))
-        assertEquals(ExperimentalBrand.GARMIN, ExperimentalBrand.recognise("fenix 7"))
-        // Accented branding (Garmin markets it as "vívoactive") must fold to the ASCII token. Parity
-        // with Swift ExperimentalDriversTests.testRecogniseGarmin.
-        assertEquals(ExperimentalBrand.GARMIN, ExperimentalBrand.recognise("vívoactive 5"))
+        // Same discovery inputs and routing assertions as ExperimentalDriversTests.swift.
+        for (name in listOf("Garmin Instinct 2", "Garmin Forerunner 265", "FORERUNNER 265",
+                            "fenix 7", "fēnix 7", "vívoactive 5", "Venu 3", "Instinct 2", "epix Pro", "vívosmart 5", "HRM-Pro")) {
+            val brand = ExperimentalBrand.recognise(name)
+            assertEquals(name, ExperimentalBrand.GARMIN, brand)
+            assertEquals(name, SourceKind.liveBLE, brand?.sourceKind)
+            assertEquals(name, "garmin", brand?.idPrefix)
+            assertEquals(name, true, brand?.canStreamLiveHR)
+        }
+    }
+
+    @Test
+    fun garminRecognitionDoesNotCaptureOtherBrands() {
+        assertEquals(ExperimentalBrand.AMAZFIT, ExperimentalBrand.recognise("Amazfit GTS"))
+        for (name in listOf("Polar H10", "Wahoo TICKR", "Some Random Speaker", "", "   ")) {
+            assertNull(name, ExperimentalBrand.recognise(name))
+        }
     }
 
     @Test
@@ -110,9 +122,7 @@ class ExperimentalDriversTest {
     // MARK: - Garmin is the standard path, not a proprietary one
 
     @Test
-    fun garminUsesStandardRecognitionHelper() {
-        assertTrue(GarminBroadcast.isGarmin("Garmin Instinct 2"))
-        assertFalse(GarminBroadcast.isGarmin("Amazfit GTS"))
+    fun garminBroadcastGuidanceExists() {
         assertTrue(GarminBroadcast.broadcastHint.isNotEmpty())
     }
 

@@ -55,9 +55,23 @@ final class ExperimentalDriversTests: XCTestCase {
     }
 
     func testRecogniseGarmin() {
-        XCTAssertEqual(ExperimentalBrand.recognise(name: "Garmin Forerunner 265"), .garmin)
-        XCTAssertEqual(ExperimentalBrand.recognise(name: "fenix 7"), .garmin)
-        XCTAssertEqual(ExperimentalBrand.recognise(name: "vívoactive 5"), .garmin)
+        // Exercise the catalog-to-enum bridge used by discovery, including model-only names and
+        // case/diacritic folding. Every recognised Garmin routes through standard broadcast HR.
+        for name in ["Garmin Instinct 2", "Garmin Forerunner 265", "FORERUNNER 265",
+                     "fenix 7", "fēnix 7", "vívoactive 5", "Venu 3", "Instinct 2", "epix Pro", "vívosmart 5", "HRM-Pro"] {
+            let brand = ExperimentalBrand.recognise(name: name)
+            XCTAssertEqual(brand, .garmin, name)
+            XCTAssertEqual(brand?.sourceKind, .liveBLE, name)
+            XCTAssertEqual(brand?.idPrefix, "garmin", name)
+            XCTAssertEqual(brand?.canStreamLiveHR, true, name)
+        }
+    }
+
+    func testGarminRecognitionDoesNotCaptureOtherBrands() {
+        XCTAssertEqual(ExperimentalBrand.recognise(name: "Amazfit GTS"), .amazfit)
+        for name in ["Polar H10", "Wahoo TICKR", "Some Random Speaker", "", "   "] {
+            XCTAssertNil(ExperimentalBrand.recognise(name: name), name)
+        }
     }
 
     func testRecogniseOura() {
@@ -83,9 +97,7 @@ final class ExperimentalDriversTests: XCTestCase {
 
     // MARK: - Garmin is the standard path, not a proprietary one
 
-    func testGarminUsesStandardRecognitionHelper() {
-        XCTAssertTrue(GarminBroadcast.isGarmin(name: "Garmin Instinct 2"))
-        XCTAssertFalse(GarminBroadcast.isGarmin(name: "Amazfit GTS"))
+    func testGarminBroadcastGuidanceExists() {
         // The hint exists and is non-empty so the prep step has guidance to show.
         XCTAssertFalse(GarminBroadcast.broadcastHint.isEmpty)
     }
