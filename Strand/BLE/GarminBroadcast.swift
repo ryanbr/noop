@@ -1,24 +1,17 @@
 import Foundation
 
-/// EXPERIMENTAL Garmin support — recognition + the in-app "enable Broadcast Heart Rate" hint.
+/// EXPERIMENTAL Garmin support — the in-app "enable Broadcast Heart Rate" hint.
 ///
 /// HONEST, NON-PROPRIETARY BY DESIGN. Garmin watches do NOT expose a NOOP-readable proprietary live
 /// stream. They DO broadcast the STANDARD Bluetooth Heart Rate profile (0x180D / 0x2A37) when the user
 /// turns on "Broadcast Heart Rate" on the watch. So Garmin live HR is the EXISTING generic-HR path
 /// (`StandardHRSource`) — there is nothing Garmin-proprietary to implement, and we don't pretend there is.
 ///
-/// This type therefore carries only:
-///   • recognition (delegated to `ExperimentalBrand`), and
-///   • the user-facing hint to enable Broadcast HR (the one thing that makes the watch discoverable on
-///     0x180D).
+/// This type carries the user-facing hint to enable Broadcast HR, which makes the watch discoverable
+/// on 0x180D. Advertised-name recognition lives in `ExperimentalBrand`.
 /// A Garmin device is registered with `sourceKind: .liveBLE` so the SourceCoordinator already runs it
 /// through `StandardHRSource` — no new BLE driver is needed, and the WHOOP/standard paths are untouched.
 public enum GarminBroadcast {
-
-    /// True when the advertised name reads as a Garmin watch.
-    public static func isGarmin(name: String) -> Bool {
-        ExperimentalBrand.recognise(name: name) == .garmin
-    }
 
     /// Step-by-step guidance to put a Garmin watch into Broadcast Heart Rate mode so NOOP (and any other
     /// standard-HR app) can read it. Human, US-neutral, no em-dashes. The exact menu path varies a little
