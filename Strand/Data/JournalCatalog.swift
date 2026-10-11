@@ -62,7 +62,7 @@ final class JournalCatalogStore: ObservableObject {
     /// Persisted as a single JSON blob under `journal.catalog.v2`.
     @Published var items: [JournalCatalogItem] { didSet { persistItems() } }
 
-    private let d = UserDefaults.standard
+    private let d: UserDefaults
     private enum K {
         static let items = JournalCatalogBackupKeys.items
         // Legacy (v1) keys, read once for the one-time migration, never written again.
@@ -70,7 +70,8 @@ final class JournalCatalogStore: ObservableObject {
         static let hidden = JournalCatalogBackupKeys.legacyHidden
     }
 
-    init() {
+    init(defaults: UserDefaults = .standard) {
+        d = defaults
         if let blob = d.data(forKey: K.items),
            let decoded = try? JSONDecoder().decode([JournalCatalogItem].self, from: blob) {
             items = decoded
@@ -164,33 +165,13 @@ final class JournalCatalogStore: ObservableObject {
             .lowercased()
     }
 
-    /// imported > starter > custom; case-insensitive dedupe, first casing wins, with `hidden`
-    /// questions filtered out. Imported questions lead so the export's exact strings (which the
-    /// effects engine keys on) survive verbatim and pull the matching starter/custom out of the list.
-    nonisolated static func mergeCatalog(imported: [String], custom: [String],
-                                         hidden: [String] = []) -> [String] {
-        let hiddenSet = Set(hidden.map(norm))
-        var seen = Set<String>()
-        var out: [String] = []
-        for q in imported + starterQuestions + custom {
-            // Display text trims surrounding whitespace/newlines; the dedup key normalises ALL
-            // whitespace (see `norm`) so an imported "…magnesium?\n" folds onto the starter (#224).
-            let t = q.trimmingCharacters(in: .whitespacesAndNewlines)
-            let key = norm(q)
-            if !t.isEmpty, !hiddenSet.contains(key), seen.insert(key).inserted { out.append(t) }
-        }
-        return out
-    }
-
     /// The merged catalog resolved into full v2 items, grouped and ordered for display. Imported +
     /// starter + custom questions are folded onto one canonical key (norm dedupe, #224); each carries
     /// the user's saved displayName / kind / group / sortIndex (a starter with no saved item gets its
     /// default group and `.bool`). Hidden items are dropped unless `includeHidden`. The `custom` flag
     /// is preserved so the edit UI can offer "Delete" vs "Hide".
     ///
-    /// This is the display-side twin of `mergeCatalog(imported:custom:hidden:)`: same fold + dedupe,
-    /// but returning the typed items instead of bare strings. `canonical` is always the verbatim key
-    /// the engine joins on; `displayName ?? canonical` is what the UI renders (rename is display-only).
+    /// `canonical` is always the verbatim key the engine joins on; `displayName ?? canonical` is what the UI renders (rename is display-only).
     func resolvedItems(imported: [String], includeHidden: Bool = false) -> [JournalCatalogItem] {
         var byKey: [String: JournalCatalogItem] = [:]
         for it in items { byKey[Self.norm(it.canonical)] = it }

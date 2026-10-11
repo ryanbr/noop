@@ -42,7 +42,7 @@ class JournalLogTest {
 
     @Test
     fun importedCasingWinsInCatalog() {
-        val cat = mergeJournalCatalog(listOf("DID YOU DRINK ANY ALCOHOL?"), emptyList())
+        val cat = resolveJournalItems(listOf("DID YOU DRINK ANY ALCOHOL?"), emptyList()).map { it.canonical }
         assertEquals("DID YOU DRINK ANY ALCOHOL?", cat[0])
         // The starter alcohol question deduped case-insensitively: 9 starters survive + 1 imported.
         assertEquals(STARTER_JOURNAL_QUESTIONS.size, cat.size)
@@ -50,7 +50,8 @@ class JournalLogTest {
 
     @Test
     fun customsAppendAndBlanksDrop() {
-        val cat = mergeJournalCatalog(emptyList(), listOf("  ", "Did you nap?", "did you NAP?"))
+        val saved = migrateLegacyJournalCatalog(listOf("  ", "Did you nap?", "did you NAP?"), emptyList())
+        val cat = resolveJournalItems(emptyList(), saved).map { it.canonical }
         assertEquals(STARTER_JOURNAL_QUESTIONS, cat.take(STARTER_JOURNAL_QUESTIONS.size))
         assertEquals("Did you nap?", cat.last())
         assertEquals(STARTER_JOURNAL_QUESTIONS.size + 1, cat.size)
@@ -59,11 +60,11 @@ class JournalLogTest {
     @Test
     fun hiddenQuestionsAreFilteredOutCaseInsensitively() {
         // Hide one starter (different casing) + one custom; both must drop from the merged catalog.
-        val cat = mergeJournalCatalog(
-            imported = emptyList(),
+        val saved = migrateLegacyJournalCatalog(
             custom = listOf("Did you nap?"),
             hidden = listOf("did you drink any alcohol?", "DID YOU NAP?"),
         )
+        val cat = resolveJournalItems(emptyList(), saved).map { it.canonical }
         assertFalse(cat.any { it.equals("Did you drink any alcohol?", ignoreCase = true) })
         assertFalse(cat.any { it.equals("Did you nap?", ignoreCase = true) })
         // The other 9 starters survive.
@@ -74,10 +75,10 @@ class JournalLogTest {
     fun importedMagnesiumWithTrailingWhitespaceDoesNotDoublePrompt() {
         // #224: a WHOOP export leaves a trailing newline / non-breaking space on the cell, so the
         // imported "Did you take magnesium?\n" must fold onto the starter, NOT add a second row.
-        val cat = mergeJournalCatalog(
-            imported = listOf("Did you take magnesium?\n", "Did you take  magnesium?"),
-            custom = emptyList(),
-        )
+        val cat = resolveJournalItems(
+            imported = listOf("Did you take magnesium?\n", "Did you take  magnesium?", "Did you take magnesium?\u00a0"),
+            savedItems = emptyList(),
+        ).map { it.canonical }
         assertEquals(1, cat.count { normJournalKey(it) == normJournalKey("Did you take magnesium?") })
         // No net growth — both imported variants dedupe against the starter.
         assertEquals(STARTER_JOURNAL_QUESTIONS.size, cat.size)
