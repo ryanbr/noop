@@ -114,6 +114,41 @@ class JournalCatalogTest {
         assertEquals(items.size, again.size)
     }
 
+    @Test
+    fun savedMetadataSurvivesNormalizedImportAndReload() {
+        val canonical = "Did you take magnesium?"
+        var saved = renameJournalItem(emptyList(), canonical, "Magnesium dose")
+        saved = setJournalItemKind(saved, canonical, JournalKind.Numeric("mg"))
+        saved = setJournalItemGroup(saved, canonical, JournalGroup.Supplements)
+        saved = saved.map { it.copy(sortIndex = 7) }
+        val imported = listOf(" DID YOU TAKE  MAGNESIUM?\n", canonical)
+        val reloaded = decodeJournalCatalog(encodeJournalCatalog(saved))
+        for (items in listOf(saved, reloaded)) {
+            val matches = resolveJournalItems(imported, items).filter {
+                normJournalKey(it.canonical) == normJournalKey(canonical)
+            }
+            assertEquals("saved key, display, type, group and order survive imported aliases", saved, matches)
+        }
+    }
+
+    @Test
+    fun hiddenImportedAliasCanBeRestoredWithoutDuplicatingItsSavedItem() {
+        var saved = migrateLegacyJournalCatalog(emptyList(), listOf("did you drink any alcohol?"))
+        val imported = listOf(" DID YOU DRINK ANY ALCOHOL?\n", "Did you drink any alcohol?")
+        val key = normJournalKey(imported[0])
+        assertFalse(resolveJournalItems(imported, saved).any { normJournalKey(it.canonical) == key })
+        val hidden = resolveJournalItems(imported, saved, includeHidden = true).filter {
+            normJournalKey(it.canonical) == key
+        }
+        assertEquals(1, hidden.size)
+        assertTrue(hidden.single().hidden)
+        saved = restoreJournalItem(saved, imported[0])
+        val restored = resolveJournalItems(imported, saved).filter { normJournalKey(it.canonical) == key }
+        assertEquals(1, restored.size)
+        assertFalse(restored.single().hidden)
+        assertEquals(hidden.single().canonical, restored.single().canonical)
+    }
+
     // MARK: - JSON round-trip (persistence)
 
     @Test

@@ -45,7 +45,7 @@ const val JOURNAL_DEVICE_ID = "noop-journal"
 
 /** Starter behaviour catalog (mirrors WHOOP's most popular journal questions, full-question
  *  phrasing matching the export style). Question strings are opaque exact-match labels to the
- *  effects engine, so imported question strings always take precedence (mergeJournalCatalog).
+ *  effects engine, so imported question strings lead the catalog resolution.
  *  They are DATA, not UI literals, stored verbatim in the journal table and never localised.
  *  Mirrors macOS JournalCatalogStore.starterQuestions value-for-value. */
 val STARTER_JOURNAL_QUESTIONS: List<String> = listOf(
@@ -87,28 +87,6 @@ internal fun normJournalKey(s: String): String =
             }
         }
     }.trim().lowercase()
-
-/** Catalog = imported questions (exact strings → logged days join imported history), then starter
- *  defaults, then user customs. Case-insensitive dedupe, first casing wins, with `hidden` questions
- *  (starter/imported ones the user removed) filtered out. */
-internal fun mergeJournalCatalog(
-    imported: List<String>,
-    custom: List<String>,
-    hidden: List<String> = emptyList(),
-    starter: List<String> = STARTER_JOURNAL_QUESTIONS,
-): List<String> {
-    val hiddenSet = hidden.map { normJournalKey(it) }.toHashSet()
-    val out = ArrayList<String>()
-    val seen = HashSet<String>()
-    for (q in imported + starter + custom) {
-        // Display text trims surrounding whitespace; the dedup key normalises ALL whitespace (see
-        // normJournalKey) so an imported "…magnesium?\n" folds onto the starter (#224).
-        val t = q.trim()
-        val key = normJournalKey(q)
-        if (t.isNotEmpty() && key !in hiddenSet && seen.add(key)) out.add(t)
-    }
-    return out
-}
 
 /** Union of imported + native entries; on a (day, question) collision the NATIVE row wins (the
  *  in-app answer is the user's most recent explicit action and stays editable). */

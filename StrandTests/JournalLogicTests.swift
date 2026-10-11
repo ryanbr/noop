@@ -2,10 +2,24 @@ import XCTest
 import WhoopStore
 @testable import Strand
 
-/// Pins the native-journal merge logic, mirroring the Android JournalLogTest value-for-value so the
-/// two platforms merge catalogs and entries identically, question strings are opaque exact-match
-/// keys to the effects engines on both sides.
+/// Pins native journal-entry merging and the production typed catalog. Canonical question strings
+/// remain exact-match keys to the effects engines on both platforms.
 final class JournalLogicTests: XCTestCase {
+
+    private func isolatedDefaults() -> UserDefaults {
+        let name = "JournalLogicTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        addTeardownBlock { UserDefaults(suiteName: name)?.removePersistentDomain(forName: name) }
+        return defaults
+    }
+
+    @MainActor
+    private func makeCatalog(custom: [String] = [], hidden: [String] = []) -> JournalCatalogStore {
+        let defaults = isolatedDefaults()
+        defaults.set(custom, forKey: JournalCatalogBackupKeys.legacyCustom)
+        defaults.set(hidden, forKey: JournalCatalogBackupKeys.legacyHidden)
+        return JournalCatalogStore(defaults: defaults)
+    }
 
     private func e(_ day: String, _ q: String, _ yes: Bool) -> JournalEntry {
         JournalEntry(day: day, question: q, answeredYes: yes, notes: nil)
@@ -31,7 +45,7 @@ final class JournalLogicTests: XCTestCase {
 
     @MainActor
     func testCatalogAdoptsImportedCasing() {
-        let cat = JournalCatalogStore.mergeCatalog(imported: ["DID YOU DRINK ANY ALCOHOL?"], custom: [])
+        let cat = makeCatalog().resolvedItems(imported: ["DID YOU DRINK ANY ALCOHOL?"]).map(\.canonical)
         XCTAssertEqual(cat.first, "DID YOU DRINK ANY ALCOHOL?")
         // The starter alcohol question deduped case-insensitively: 9 starters survive + 1 imported.
         XCTAssertEqual(cat.count, JournalCatalogStore.starterQuestions.count)
@@ -39,8 +53,8 @@ final class JournalLogicTests: XCTestCase {
 
     @MainActor
     func testCustomsAppendAndBlanksDrop() {
-        let cat = JournalCatalogStore.mergeCatalog(imported: [],
-                                                   custom: ["  ", "Did you nap?", "did you NAP?"])
+        let store = makeCatalog(custom: ["  ", "Did you nap?", "did you NAP?"])
+        let cat = store.resolvedItems(imported: []).map(\.canonical)
         XCTAssertEqual(Array(cat.prefix(JournalCatalogStore.starterQuestions.count)),
                        JournalCatalogStore.starterQuestions)
         XCTAssertEqual(cat.last, "Did you nap?")
@@ -51,9 +65,9 @@ final class JournalLogicTests: XCTestCase {
     func testImportedMagnesiumWithTrailingWhitespaceDoesNotDoublePrompt() {
         // #224: a WHOOP export leaves a trailing newline / non-breaking space on the cell, so the
         // imported "Did you take magnesium?\n" must fold onto the starter, NOT add a second row.
-        let cat = JournalCatalogStore.mergeCatalog(
-            imported: ["Did you take magnesium?\n", "Did you take  magnesium?"],
-            custom: [])
+        let cat = makeCatalog().resolvedItems(
+            imported: ["Did you take magnesium?\n", "Did you take  magnesium?", "Did you take magnesium?\u{00a0}"])
+            .map(\.canonical)
         let magCount = cat.filter {
             $0.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.joined(separator: " ")
                 .caseInsensitiveCompare("Did you take magnesium?") == .orderedSame
@@ -66,13 +80,55 @@ final class JournalLogicTests: XCTestCase {
     @MainActor
     func testHiddenQuestionsFilteredOutCaseInsensitively() {
         // Hide one starter (different casing) + one custom; both must drop from the merged catalog.
-        let cat = JournalCatalogStore.mergeCatalog(
-            imported: [],
-            custom: ["Did you nap?"],
-            hidden: ["did you drink any alcohol?", "DID YOU NAP?"])
+        let store = makeCatalog(custom: ["Did you nap?"],
+                                hidden: ["did you drink any alcohol?", "DID YOU NAP?"])
+        let cat = store.resolvedItems(imported: []).map(\.canonical)
         XCTAssertFalse(cat.contains { $0.caseInsensitiveCompare("Did you drink any alcohol?") == .orderedSame })
         XCTAssertFalse(cat.contains { $0.caseInsensitiveCompare("Did you nap?") == .orderedSame })
         XCTAssertEqual(cat.count, JournalCatalogStore.starterQuestions.count - 1)
+    }
+
+    @MainActor
+    func testSavedMetadataSurvivesNormalizedImportAndReload() throws {
+        let defaults = isolatedDefaults()
+        let store = JournalCatalogStore(defaults: defaults)
+        let canonical = "Did you take magnesium?"
+        store.rename(canonical, to: "Magnesium dose")
+        store.setKind(canonical, to: .numeric(unitLabel: "mg"))
+        store.setGroup(canonical, to: .supplements)
+        store.items[0].sortIndex = 7
+        let saved = try XCTUnwrap(store.item(for: canonical))
+        let imported = [" DID YOU TAKE  MAGNESIUM?\n", canonical]
+
+        let reloaded = JournalCatalogStore(defaults: defaults)
+        for catalog in [store, reloaded] {
+            let matches = catalog.resolvedItems(imported: imported).filter {
+                JournalCatalogStore.norm($0.canonical) == JournalCatalogStore.norm(canonical)
+            }
+            XCTAssertEqual(matches, [saved], "saved key, display, type, group and order survive imported aliases")
+        }
+    }
+
+    @MainActor
+    func testHiddenImportedAliasCanBeRestoredWithoutDuplicatingItsSavedItem() throws {
+        let store = makeCatalog(hidden: ["did you drink any alcohol?"])
+        let imported = [" DID YOU DRINK ANY ALCOHOL?\n", "Did you drink any alcohol?"]
+        let key = JournalCatalogStore.norm(imported[0])
+        XCTAssertFalse(store.resolvedItems(imported: imported).contains {
+            JournalCatalogStore.norm($0.canonical) == key
+        })
+        let hidden = store.resolvedItems(imported: imported, includeHidden: true).filter {
+            JournalCatalogStore.norm($0.canonical) == key
+        }
+        XCTAssertEqual(hidden.count, 1)
+        XCTAssertTrue(try XCTUnwrap(hidden.first).hidden)
+        store.restore(imported[0])
+        let restored = store.resolvedItems(imported: imported).filter {
+            JournalCatalogStore.norm($0.canonical) == key
+        }
+        XCTAssertEqual(restored.count, 1)
+        XCTAssertFalse(try XCTUnwrap(restored.first).hidden)
+        XCTAssertEqual(restored.first?.canonical, hidden.first?.canonical)
     }
 
     // MARK: - v2 catalog (#322): legacy migration, rename key-stability, grouping, numeric type
@@ -103,7 +159,7 @@ final class JournalLogicTests: XCTestCase {
         // THE key-stability guarantee (#322): renaming an item changes only the display label; the
         // stored canonical (the DB/engine join key) is untouched, so all logged + imported history, 
         // which is keyed on the canonical question string, still lines up after a rename.
-        let store = JournalCatalogStore()
+        let store = makeCatalog()
         store.items = []   // start from a clean catalog for a deterministic assertion
         let canonical = "Did you have caffeine late in the day?"
 
@@ -136,7 +192,7 @@ final class JournalLogicTests: XCTestCase {
 
     @MainActor
     func testSetGroupAndKindPreserveCanonical() {
-        let store = JournalCatalogStore()
+        let store = makeCatalog()
         store.items = []
         let canonical = "Did you take magnesium?"
         store.setGroup(canonical, to: .supplements)
@@ -150,7 +206,7 @@ final class JournalLogicTests: XCTestCase {
 
     @MainActor
     func testResolvedItemsGroupStartersByDefaultAndDropHidden() {
-        let store = JournalCatalogStore()
+        let store = makeCatalog()
         store.items = []
         let resolved = store.resolvedItems(imported: [], includeHidden: false)
         // Every starter is present with a default group and .bool kind.
@@ -168,7 +224,7 @@ final class JournalLogicTests: XCTestCase {
 
     @MainActor
     func testAddCustomNumericItem() {
-        let store = JournalCatalogStore()
+        let store = makeCatalog()
         store.items = []
         store.addCustom("Water (L)", kind: .numeric(unitLabel: "L"), group: .nutrition)
         XCTAssertTrue(store.isCustom("Water (L)"))
