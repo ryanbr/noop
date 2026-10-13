@@ -129,6 +129,8 @@ internal object NotifPrefs {
     /** Buzz the strap when the phone's native Clock fires a timer/alarm (CATEGORY_ALARM). Android-only
      *  (iOS can't observe another app's notifications). Default OFF. */
     const val ALARM_TIMER = "notif.alarmTimer"
+    /** One-time flag for [seedLegacyCategoryPatternDefaults]; set on the first startup walk. */
+    private const val PATTERN_SEED_DONE = "notif.patternSeedV1"
 
     private fun prefs(ctx: Context) =
         ctx.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
@@ -161,6 +163,47 @@ internal object NotifPrefs {
     fun setAppPattern(ctx: Context, id: String, pattern: BuzzPattern) =
         prefs(ctx).edit().putString("app.$id.pattern", pattern.name).apply()
 
+    /** The buzz pattern each curated app inherited from its old category card (the per-category
+     *  default applied when the user never picked one). Kept verbatim from the removed catalog so
+     *  the upgrade migration can pin what a user was actually hearing before it was replaced by
+     *  the picker's package-keyed read. */
+    internal val legacyCategoryPatternDefaults: Map<String, BuzzPattern> = mapOf(
+        "com.google.android.gm" to BuzzPattern.Double,   // Email
+        "com.microsoft.office.outlook" to BuzzPattern.Double,   // Email
+        "com.whatsapp" to BuzzPattern.Single,   // Messaging
+        "com.google.android.apps.messaging" to BuzzPattern.Single,   // Messaging
+        "com.Slack" to BuzzPattern.Single,   // Messaging
+        "org.telegram.messenger" to BuzzPattern.Single,   // Messaging
+        "com.microsoft.teams" to BuzzPattern.Single,   // Messaging
+        "us.zoom.videomeetings" to BuzzPattern.Triple,   // Meetings
+        "com.google.android.calendar" to BuzzPattern.Double,   // Calendar
+    )
+
+    /**
+     * One-time startup migration for the App Notifications upgrade (#2707 review). The category
+     * cards applied a per-category default pattern (Messaging = Single, Email/Calendar = Double,
+     * Meetings = Triple) to every opted-in app that never picked one; nothing was persisted for
+     * them. The picker's package-keyed read defaults to Double for ALL apps, so upgrading
+     * without this seed silently changes a Messaging user's Single buzz into Double.
+     *
+     * Seed = write the old category default as an explicit pattern ONLY where one is absent; an
+     * explicit choice is never overwritten. Runs once per install (flag-guarded) and is a no-op
+     * on fresh installs, where no app is opted in before the first picker visit.
+     */
+    fun seedLegacyCategoryPatternDefaults(ctx: Context) {
+        val p = prefs(ctx)
+        if (p.getBoolean(PATTERN_SEED_DONE, false)) return
+        val editor = p.edit()
+        for ((pkg, pattern) in legacyCategoryPatternDefaults) {
+            val key = "app.$pkg.pattern"
+            if (p.getBoolean("app.$pkg.enabled", false) && p.getString(key, null) == null) {
+                editor.putString(key, pattern.name)
+            }
+        }
+        // The flag is written even when nothing was seeded, so a fresh install pays this walk
+        // once, not on every launch.
+        editor.putBoolean(PATTERN_SEED_DONE, true).apply()
+    }
     /** Every per-app wrist-alert opt-in persisted — the picks made on the App Notifications page.
      *  The Notifications header counts these, so the pill tells the truth about what will buzz. */
     fun enabledAppCount(ctx: Context): Int = enabledAppPackages(ctx).size
