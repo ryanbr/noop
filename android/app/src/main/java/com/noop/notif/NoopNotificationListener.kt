@@ -96,10 +96,8 @@ class NoopNotificationListener : NotificationListenerService() {
         // Only-when-worn (default on): don't buzz an empty strap on the desk.
         if (NotifPrefs.getBool(ctx, NotifPrefs.WORN, true) && !ble.state.value.worn) return
 
-        // Buzz with the app's chosen pattern — ACKNOWLEDGED write (#921 lesson): a bare write on a
-        // busy link is silently dropped, which reads to the user as "toggled the app, got nothing".
-        // send() is a safe no-op if the strap isn't connected.
-        ble.buzzAcknowledged(NotifPrefs.appLoops(ctx, sbn.packageName))
+        // Buzz with the app's chosen pattern. send() is a safe no-op if the strap isn't connected.
+        ble.buzz(NotifPrefs.appLoops(ctx, sbn.packageName))
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification) {
