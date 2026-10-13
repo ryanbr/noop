@@ -54,6 +54,10 @@ enum ClientHelloOutcome {
     /// outstanding window, so an offload ack on fd4b0002 can no more restore the flag than it could set
     /// it. Only the `alreadyBonded` disqualification is lifted, and only when the flag was cleared.
     ///
+    /// `alreadyBonded` is process-global while the ack is evidence about ONE peripheral, so re-proving also
+    /// asks whether this is the strap the recorded bond came from. See `Whoop4BondAck` for why that window
+    /// exists and why a different strap's own ack is routed to `firstBond` rather than refused.
+    ///
     /// Pure, so the rule is tested without a radio. Android tears this link down at the radio-off edge
     /// (#314) and so has no state to re-prove from; there is no Kotlin counterpart to pair with.
     enum HelloAck: Equatable {
@@ -73,10 +77,12 @@ enum ClientHelloOutcome {
         helloOutstanding: Bool,
         alreadyBonded: Bool,
         encryptedBond: Bool,
+        samePeripheralAsBond: Bool,
         isWhoop5: Bool
     ) -> HelloAck {
         guard isWhoop5, isHelloChar, helloOutstanding else { return .notAnAck }
         if !alreadyBonded { return .firstBond }
+        if !samePeripheralAsBond { return .firstBond }
         return encryptedBond ? .alreadyProven : .reprove
     }
 
@@ -108,6 +114,7 @@ enum ClientHelloOutcome {
                  helloOutstanding: helloOutstanding,
                  alreadyBonded: alreadyBonded,
                  encryptedBond: false,
+                 samePeripheralAsBond: true,
                  isWhoop5: isWhoop5) == .firstBond
     }
 

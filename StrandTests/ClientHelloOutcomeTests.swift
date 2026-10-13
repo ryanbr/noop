@@ -75,7 +75,7 @@ final class ClientHelloOutcomeTests: XCTestCase {
     func testTheHellosOwnCompletionOnAnUnbondedLinkIsTheFirstBond() {
         XCTAssertEqual(ClientHelloOutcome.classify(
             isHelloChar: true, helloOutstanding: true, alreadyBonded: false,
-            encryptedBond: false, isWhoop5: true), .firstBond)
+            encryptedBond: false, samePeripheralAsBond: true, isWhoop5: true), .firstBond)
     }
 
     /// The case this exists for. `didConnect` re-entered a live link (no disconnect, so `didBond` survives)
@@ -84,14 +84,14 @@ final class ClientHelloOutcomeTests: XCTestCase {
     func testTheHellosOwnCompletionAfterAReenteredConnectReprovesTheBond() {
         XCTAssertEqual(ClientHelloOutcome.classify(
             isHelloChar: true, helloOutstanding: true, alreadyBonded: true,
-            encryptedBond: false, isWhoop5: true), .reprove)
+            encryptedBond: false, samePeripheralAsBond: true, isWhoop5: true), .reprove)
     }
 
     /// Every offload ack on fd4b0002 lands here once bonded; none may re-run bond bookkeeping.
     func testLaterAcksOnAProvenLinkRecordNothing() {
         XCTAssertEqual(ClientHelloOutcome.classify(
             isHelloChar: true, helloOutstanding: true, alreadyBonded: true,
-            encryptedBond: true, isWhoop5: true), .alreadyProven)
+            encryptedBond: true, samePeripheralAsBond: true, isWhoop5: true), .alreadyProven)
     }
 
     /// The #1635 hazard, re-asked of the new path: re-proving must demand the hello's OWN window, or an
@@ -100,14 +100,14 @@ final class ClientHelloOutcomeTests: XCTestCase {
     func testAQueuedCommandCannotReproveABondOnAReenteredLink() {
         XCTAssertEqual(ClientHelloOutcome.classify(
             isHelloChar: true, helloOutstanding: false, alreadyBonded: true,
-            encryptedBond: false, isWhoop5: true), .notAnAck)
+            encryptedBond: false, samePeripheralAsBond: true, isWhoop5: true), .notAnAck)
     }
 
     /// Nor may a completion from a different characteristic that happens to land inside the window.
     func testAForeignCompletionCannotReproveABondOnAReenteredLink() {
         XCTAssertEqual(ClientHelloOutcome.classify(
             isHelloChar: false, helloOutstanding: true, alreadyBonded: true,
-            encryptedBond: false, isWhoop5: true), .notAnAck)
+            encryptedBond: false, samePeripheralAsBond: true, isWhoop5: true), .notAnAck)
     }
 
     /// A WHOOP 4.0 link never reaches this classifier; its own `Whoop4BondAck` owns that family.
@@ -116,7 +116,7 @@ final class ClientHelloOutcomeTests: XCTestCase {
             for encrypted in [false, true] {
                 XCTAssertEqual(ClientHelloOutcome.classify(
                     isHelloChar: true, helloOutstanding: true, alreadyBonded: bonded,
-                    encryptedBond: encrypted, isWhoop5: false), .notAnAck)
+                    encryptedBond: encrypted, samePeripheralAsBond: true, isWhoop5: false), .notAnAck)
             }
         }
     }
@@ -133,7 +133,8 @@ final class ClientHelloOutcomeTests: XCTestCase {
                             alreadyBonded: alreadyBonded, isWhoop5: isWhoop5)
                         let classified = ClientHelloOutcome.classify(
                             isHelloChar: isHelloChar, helloOutstanding: helloOutstanding,
-                            alreadyBonded: alreadyBonded, encryptedBond: false, isWhoop5: isWhoop5)
+                            alreadyBonded: alreadyBonded, encryptedBond: false,
+                            samePeripheralAsBond: true, isWhoop5: isWhoop5)
                         XCTAssertEqual(ack, classified == .firstBond,
                                        "hello=\(isHelloChar) outstanding=\(helloOutstanding) "
                                        + "bonded=\(alreadyBonded) whoop5=\(isWhoop5)")
@@ -141,6 +142,24 @@ final class ClientHelloOutcomeTests: XCTestCase {
                 }
             }
         }
+    }
+
+    /// The 5/MG half of the strap-identity guard, same reasoning as `Whoop4BondAckTests`: a second strap's
+    /// own hello ack arriving while `didBond` still reads true from the first must run ITS first bond.
+    func testADifferentStrapsOwnHelloAckIsItsFirstBond() {
+        for encrypted in [false, true] {
+            XCTAssertEqual(ClientHelloOutcome.classify(
+                isHelloChar: true, helloOutstanding: true, alreadyBonded: true,
+                encryptedBond: encrypted, samePeripheralAsBond: false, isWhoop5: true), .firstBond)
+        }
+    }
+
+    /// The guard does not loosen the evidence standard: a queued command on the shared characteristic is
+    /// still not an ack, whichever strap it came from.
+    func testTheStrapGuardDoesNotAdmitAQueuedCommand() {
+        XCTAssertEqual(ClientHelloOutcome.classify(
+            isHelloChar: true, helloOutstanding: false, alreadyBonded: true,
+            encryptedBond: false, samePeripheralAsBond: false, isWhoop5: true), .notAnAck)
     }
 
     // MARK: - #1883: Apple bond timing tell

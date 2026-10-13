@@ -8,20 +8,47 @@ import XCTest
 final class Whoop4BondAckTests: XCTestCase {
 
     func testFirstAckOnALinkIsTheFirstBond() {
-        XCTAssertEqual(Whoop4BondAck.classify(didBond: false, encryptedBond: false), .firstBond)
+        XCTAssertEqual(Whoop4BondAck.classify(didBond: false, encryptedBond: false, samePeripheralAsBond: true), .firstBond)
     }
 
     func testAckAfterAReenteredConnectReprovesTheEncryptedBond() {
-        XCTAssertEqual(Whoop4BondAck.classify(didBond: true, encryptedBond: false), .reprove)
+        XCTAssertEqual(Whoop4BondAck.classify(didBond: true, encryptedBond: false, samePeripheralAsBond: true), .reprove)
     }
 
     func testLaterAcksOnAProvenLinkRecordNothing() {
         // Every SEND_HISTORICAL / HISTORY_END ack lands here during an offload; none may re-run bond bookkeeping.
-        XCTAssertEqual(Whoop4BondAck.classify(didBond: true, encryptedBond: true), .alreadyProven)
+        XCTAssertEqual(Whoop4BondAck.classify(didBond: true, encryptedBond: true, samePeripheralAsBond: true), .alreadyProven)
     }
 
     func testAStaleEncryptedFlagWithoutABondIsStillTheFirstBond() {
         // didBond is the link-level fact; a first ack always runs the full first-bond path.
-        XCTAssertEqual(Whoop4BondAck.classify(didBond: false, encryptedBond: true), .firstBond)
+        XCTAssertEqual(Whoop4BondAck.classify(didBond: false, encryptedBond: true, samePeripheralAsBond: true), .firstBond)
+    }
+
+    // MARK: - The ack is evidence about ONE strap
+
+    /// `didBond` is process-global and cleared by the disconnect CALLBACK, so a connect to a second strap
+    /// can complete while it still reads true from the first. Strap B's own ack must then run B's FIRST
+    /// bond, not inherit A's: a reprove would restore the flag while skipping the bondedAt stamp, the
+    /// suppression clear and `state.bonded` that B has never had.
+    func testADifferentStrapsOwnAckIsItsFirstBondNotAReprove() {
+        XCTAssertEqual(Whoop4BondAck.classify(didBond: true, encryptedBond: false,
+                                              samePeripheralAsBond: false), .firstBond)
+    }
+
+    /// Same routing even when the flag is still set: the question is whose bond this is, not whether some
+    /// bond is currently proven.
+    func testADifferentStrapIsNotCoveredByAnotherStrapsProvenFlag() {
+        XCTAssertEqual(Whoop4BondAck.classify(didBond: true, encryptedBond: true,
+                                              samePeripheralAsBond: false), .firstBond)
+    }
+
+    /// An unrecorded peripheral against a true `didBond` compares false and takes the full first-bond
+    /// path. That is the safe direction: bookkeeping runs twice at worst, rather than not at all.
+    func testTheGuardFailsTowardsDoingTheFullFirstBondWork() {
+        for encrypted in [false, true] {
+            XCTAssertEqual(Whoop4BondAck.classify(didBond: true, encryptedBond: encrypted,
+                                                  samePeripheralAsBond: false), .firstBond)
+        }
     }
 }
