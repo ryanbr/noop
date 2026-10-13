@@ -69,6 +69,80 @@ final class ClientHelloOutcomeTests: XCTestCase {
             isHelloChar: true, helloOutstanding: true, alreadyBonded: false, isWhoop5: false))
     }
 
+    // MARK: - Re-proving a bond on a re-entered link
+
+    /// The first bond is untouched: the hello's own completion on a link that has never bonded.
+    func testTheHellosOwnCompletionOnAnUnbondedLinkIsTheFirstBond() {
+        XCTAssertEqual(ClientHelloOutcome.classify(
+            isHelloChar: true, helloOutstanding: true, alreadyBonded: false,
+            encryptedBond: false, isWhoop5: true), .firstBond)
+    }
+
+    /// The case this exists for. `didConnect` re-entered a live link (no disconnect, so `didBond` survives)
+    /// and cleared `encryptedBond`; re-discovery wrote a fresh CLIENT_HELLO and this is its completion.
+    /// Declining it leaves the strap on "Live HR (not fully paired)" with buzz refused for the whole link.
+    func testTheHellosOwnCompletionAfterAReenteredConnectReprovesTheBond() {
+        XCTAssertEqual(ClientHelloOutcome.classify(
+            isHelloChar: true, helloOutstanding: true, alreadyBonded: true,
+            encryptedBond: false, isWhoop5: true), .reprove)
+    }
+
+    /// Every offload ack on fd4b0002 lands here once bonded; none may re-run bond bookkeeping.
+    func testLaterAcksOnAProvenLinkRecordNothing() {
+        XCTAssertEqual(ClientHelloOutcome.classify(
+            isHelloChar: true, helloOutstanding: true, alreadyBonded: true,
+            encryptedBond: true, isWhoop5: true), .alreadyProven)
+    }
+
+    /// The #1635 hazard, re-asked of the new path: re-proving must demand the hello's OWN window, or an
+    /// ordinary command completing on the shared command characteristic would re-grant the bond. That is
+    /// the DISABLE_ALARM capture all over again, just on a link that bonded once.
+    func testAQueuedCommandCannotReproveABondOnAReenteredLink() {
+        XCTAssertEqual(ClientHelloOutcome.classify(
+            isHelloChar: true, helloOutstanding: false, alreadyBonded: true,
+            encryptedBond: false, isWhoop5: true), .notAnAck)
+    }
+
+    /// Nor may a completion from a different characteristic that happens to land inside the window.
+    func testAForeignCompletionCannotReproveABondOnAReenteredLink() {
+        XCTAssertEqual(ClientHelloOutcome.classify(
+            isHelloChar: false, helloOutstanding: true, alreadyBonded: true,
+            encryptedBond: false, isWhoop5: true), .notAnAck)
+    }
+
+    /// A WHOOP 4.0 link never reaches this classifier; its own `Whoop4BondAck` owns that family.
+    func testWhoop4NeverReachesThisClassifier() {
+        for bonded in [false, true] {
+            for encrypted in [false, true] {
+                XCTAssertEqual(ClientHelloOutcome.classify(
+                    isHelloChar: true, helloOutstanding: true, alreadyBonded: bonded,
+                    encryptedBond: encrypted, isWhoop5: false), .notAnAck)
+            }
+        }
+    }
+
+    /// `isAck` is now derived from `classify`, so the two cannot drift. Pin that across every input, which
+    /// also means the existing `isAck` cases above are assertions about the classifier.
+    func testIsAckAgreesWithTheClassifierOnEveryInput() {
+        for isHelloChar in [false, true] {
+            for helloOutstanding in [false, true] {
+                for alreadyBonded in [false, true] {
+                    for isWhoop5 in [false, true] {
+                        let ack = ClientHelloOutcome.isAck(
+                            isHelloChar: isHelloChar, helloOutstanding: helloOutstanding,
+                            alreadyBonded: alreadyBonded, isWhoop5: isWhoop5)
+                        let classified = ClientHelloOutcome.classify(
+                            isHelloChar: isHelloChar, helloOutstanding: helloOutstanding,
+                            alreadyBonded: alreadyBonded, encryptedBond: false, isWhoop5: isWhoop5)
+                        XCTAssertEqual(ack, classified == .firstBond,
+                                       "hello=\(isHelloChar) outstanding=\(helloOutstanding) "
+                                       + "bonded=\(alreadyBonded) whoop5=\(isWhoop5)")
+                    }
+                }
+            }
+        }
+    }
+
     // MARK: - #1883: Apple bond timing tell
 
     /// A completion faster than one connection interval did not come from the strap — that is the

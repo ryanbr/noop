@@ -6876,12 +6876,14 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                 // Declining must not be silent — see `ClientHelloOutcome.declinedLine`.
                 log(ClientHelloOutcome.declinedLine(charUuid: characteristic.uuid.uuidString, status: nil))
             }
-            if ClientHelloOutcome.isAck(
+            switch ClientHelloOutcome.classify(
                 isHelloChar: isHelloChar,
                 helloOutstanding: helloOutstanding,
                 alreadyBonded: didBond,
+                encryptedBond: state.encryptedBond,
                 isWhoop5: true
             ) {
+            case .firstBond:
                 didBond = true
                 // #1635: the handshake demonstrably works on this strap - drop the latch so a later
                 // transient failure starts from a clean slate rather than inheriting an old verdict.
@@ -6906,6 +6908,25 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                 if let elapsed = helloElapsedMs, let timingLine = ClientHelloOutcome.unverifiedBondTimingLine(elapsedMs: elapsed) {
                     log(timingLine)
                 }
+            case .reprove:
+                // #2716's WHOOP 4.0 case on the other family: `didConnect` re-entered a live link with no
+                // disconnect before it (a Bluetooth power cycle) and cleared the flag, and this hello's own
+                // completion is the same proof the first bond recorded. Restore the flag ONLY. `didBond`,
+                // `bondedAt`, the suppression latch and the give-up counters all describe a bond this link
+                // already made, so re-running them would restart the bond-loop stopwatch and the #982
+                // never-bonded detector on a bond that never lapsed. See `ClientHelloOutcome.HelloAck`.
+                state.encryptedBond = true
+                noteGenuineBond(of: peripheral)
+                emitConnectionBondState("encryptedBond family=whoop5 (CLIENT_HELLO acked, re-entered link)")
+                log("WHOOP 5/MG: CLIENT_HELLO acked again on a re-entered link — encrypted bond restored.")
+                // The #1883 timing tell still applies: a re-entered link is no more able to verify the
+                // completion came from the strap than the first one was, and dropping the line here would
+                // leave the one tell Apple has missing from exactly the path that re-grants the bond.
+                if let elapsed = helloElapsedMs, let timingLine = ClientHelloOutcome.unverifiedBondTimingLine(elapsedMs: elapsed) {
+                    log(timingLine)
+                }
+            case .alreadyProven, .notAnAck:
+                break
             }
             for c in whoop5NotifyCharacteristics where !c.isNotifying || restoreNeedsResubscribe {
                 requestNotify(c, on: peripheral, reason: "post-bond puffin")   // #613: force re-arm on restore
