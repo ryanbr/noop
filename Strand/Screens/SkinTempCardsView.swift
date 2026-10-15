@@ -286,14 +286,25 @@ struct MenstrualCycleHomeCard: View {
     /// The user's "not for me" opt-out (#hide-cycle): when set, the card is suppressed entirely,
     /// reversibly from Automations. USER-controlled, never age-based.
     @AppStorage(AppModel.cycleAwarenessHiddenKey) private var cycleHidden = false
-    @State private var starts: [String] = []
+    /// Logged period starts, loaded outside the view tree (see `PeriodStartsLoader` for why a `.task` here
+    /// could never start while the card was hidden).
+    @StateObject private var loader = PeriodStartsLoader()
     @State private var showingTracker = false
+
+    private var starts: [String] { loader.starts }
 
     private var shouldShow: Bool {
         !cycleHidden && (profile.cycleAwarenessApplies || cycleEnabled || !starts.isEmpty)
     }
 
     var body: some View {
+        // Re-read whenever a period start is logged or deleted. The body re-runs on that (it observes `repo`),
+        // and the loader ignores an unchanged seq.
+        let _ = loader.request(seq: repo.cycleTrackingSeq) { [repo, model, cycleEnabled] in
+            let starts = await repo.periodStarts()
+            if cycleEnabled, model.cyclePhase == nil { await model.refreshV5Signals() }
+            return starts
+        }
         Group {
             if shouldShow {
                 NoopCard(tint: StrandPalette.restColor) {
@@ -375,10 +386,6 @@ struct MenstrualCycleHomeCard: View {
                 .accessibilityElement(children: .contain)
             }
         }
-        .task(id: repo.cycleTrackingSeq) {
-            starts = await repo.periodStarts()
-            if cycleEnabled, model.cyclePhase == nil { await model.refreshV5Signals() }
-        }
         .sheet(isPresented: $showingTracker) {
             Group {
                 if let result = model.cyclePhase {
@@ -427,6 +434,31 @@ struct MenstrualCycleHomeCard: View {
         parser.dateFormat = "yyyy-MM-dd"
         guard let date = parser.date(from: day) else { return day }
         return date.formatted(date: .abbreviated, time: .omitted)
+    }
+}
+
+/// Loads the logged period starts for `MenstrualCycleHomeCard` outside the view tree. One reason to show
+/// the card is that starts exist, and SwiftUI never runs a `.task` attached to a `Group` with no child, so
+/// with cycle awareness off and the toggle off the load never started and the card never appeared. That
+/// empty state is permanent for most users, so an always-present placeholder would hold a slot in the
+/// Today stack and add its spacing; the view only reports the current seq here and this object loads.
+@MainActor
+final class PeriodStartsLoader: ObservableObject {
+    @Published private(set) var starts: [String] = []
+    private var lastSeq: Int?
+    private var load: Task<Void, Never>?
+
+    /// Called from the card's body on every pass; starts a load only when the seq changed. Publishes
+    /// later, from the task, never during the view update.
+    func request(seq: Int, load fetch: @escaping @MainActor () async -> [String]) {
+        guard seq != lastSeq else { return }
+        lastSeq = seq
+        load?.cancel()
+        load = Task { [weak self] in
+            let next = await fetch()
+            guard !Task.isCancelled, let self else { return }
+            self.starts = next
+        }
     }
 }
 
