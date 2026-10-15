@@ -31,13 +31,19 @@ struct AnthropicClient: AIProviderClient {
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let json = try await performRequest(req, session: session)
-        guard let content = json["content"] as? [[String: Any]],
-              let first = content.first,
-              let text = (first["text"] as? String)?
-                  .trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else {
+        let text = Self.replyText(json)
+        guard !text.isEmpty else {
             throw emptyReplyError(json)   // #1074: surface the provider's real error if the 200 body has one
         }
         return text
+    }
+
+    /// Thinking and tool blocks may precede or separate the visible text blocks.
+    static func replyText(_ json: [String: Any]) -> String {
+        let blocks = json["content"] as? [[String: Any]] ?? []
+        return blocks.compactMap { block -> String? in
+            block["type"] as? String == "text" ? block["text"] as? String : nil
+        }.joined().trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// K1: Stream via `stream: true`. Anthropic SSE uses typed events; we extract `content_block_delta`
@@ -77,20 +83,31 @@ struct AnthropicClient: AIProviderClient {
     }
 
     func fetchModels(key: String, session: URLSession) async throws -> [String] {
-        var req = URLRequest(url: AIProvider.anthropic.modelsEndpoint)
-        req.httpMethod = "GET"
-        req.setValue(key, forHTTPHeaderField: "x-api-key")
-        req.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-
-        return parseModels(try await performRequest(req, session: session))
+        var ids: [String] = []
+        var cursor: String?
+        var seenCursors = Set<String>()
+        repeat {
+            var url = URLComponents(url: AIProvider.anthropic.modelsEndpoint, resolvingAgainstBaseURL: false)!
+            if let cursor { url.queryItems = [URLQueryItem(name: "after_id", value: cursor)] }
+            var req = URLRequest(url: url.url!)
+            req.setValue(key, forHTTPHeaderField: "x-api-key")
+            req.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+            let json = try await performRequest(req, session: session)
+            for id in parseModels(json) where !ids.contains(id) { ids.append(id) }
+            cursor = json["has_more"] as? Bool == true ? json["last_id"] as? String : nil
+        } while cursor.map { !$0.isEmpty && seenCursors.insert($0).inserted } == true
+        return ids
     }
 
     /// Pure: unwrap the `/models` body into ids (Anthropic keeps all non-empty). No network — unit-tested.
     func parseModels(_ json: [String: Any]) -> [String] {
         guard let list = json["data"] as? [[String: Any]] else { return [] }
-        return list.compactMap { row in
-            guard let id = row["id"] as? String, !id.isEmpty else { return nil }
-            return id
+        var ids: [String] = []
+        for row in list {
+            guard let raw = row["id"] as? String else { continue }
+            let id = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !id.isEmpty, !ids.contains(id) { ids.append(id) }
         }
+        return ids
     }
 }
