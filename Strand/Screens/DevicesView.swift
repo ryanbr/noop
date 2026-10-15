@@ -646,14 +646,25 @@ private struct DeviceSyncStatusCard: View {
     var body: some View {
         switch SyncChipState.resolve(live: live) {
         case .syncing(let chunks, _):
-            statusCard(
-                systemImage: "arrow.triangle.2.circlepath",
-                detail: chunks > 0
-                    ? String(localized: "Syncing… \(chunks) chunks")
-                    : String(localized: "Syncing…"),
-                tint: StrandPalette.accent,
-                accessibility: String(localized: "Syncing strap history, \(chunks) chunks")
-            )
+            // Time-based progress once a chunk has decoded; the bare chunk count only until then.
+            if let progress = live.syncProgress() {
+                statusCard(
+                    systemImage: "arrow.triangle.2.circlepath",
+                    detail: String(localized: "Syncing… \(progress.summaryLine())"),
+                    tint: StrandPalette.accent,
+                    accessibility: String(localized: "Syncing strap history, \(progress.summaryLine())"),
+                    progress: progress.fraction
+                )
+            } else {
+                statusCard(
+                    systemImage: "arrow.triangle.2.circlepath",
+                    detail: chunks > 0
+                        ? String(localized: "Syncing… \(chunks) chunks")
+                        : String(localized: "Syncing…"),
+                    tint: StrandPalette.accent,
+                    accessibility: String(localized: "Syncing strap history, \(chunks) chunks")
+                )
+            }
         case .synced(let agoText):
             statusCard(
                 systemImage: "checkmark.circle.fill",
@@ -677,7 +688,8 @@ private struct DeviceSyncStatusCard: View {
         systemImage: String,
         detail: String,
         tint: Color,
-        accessibility: String
+        accessibility: String,
+        progress: Double? = nil
     ) -> some View {
         NoopCard(tint: tint) {
             HStack(alignment: .center, spacing: NoopMetrics.space3) {
@@ -694,6 +706,11 @@ private struct DeviceSyncStatusCard: View {
                         .font(StrandFont.subhead)
                         .foregroundStyle(StrandPalette.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
+                    if let progress {
+                        LiquidTube(frac: progress, tint: tint, height: 6, animated: false)
+                            .padding(.top, NoopMetrics.space1)
+                            .accessibilityHidden(true)
+                    }
                 }
                 Spacer(minLength: 0)
             }
