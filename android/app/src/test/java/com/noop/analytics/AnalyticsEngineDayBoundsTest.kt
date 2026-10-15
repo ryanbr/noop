@@ -3,6 +3,9 @@ package com.noop.analytics
 import com.noop.data.HrSample
 import com.noop.data.StepSample
 import org.junit.Assert.assertEquals
+import java.time.LocalDate
+import java.time.ZoneId
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -126,4 +129,57 @@ class AnalyticsEngineDayBoundsTest {
             assertNotNull(full.daily.activeKcalEst)
         }
     }
+
+    // #2517: characterize the current BUG before a zone-aware scoring/history policy is chosen.
+    // Update these expectations when that policy changes; fixed 24-hour scoring is not the goal.
+    @Test fun transitionDayScoringCharacterization() {
+        val cases = listOf(Triple("Pacific/Auckland", "2026-09-27", 23),
+            Triple("Pacific/Auckland", "2026-04-05", 25),
+            Triple("America/New_York", "2026-03-08", 23),
+            Triple("America/New_York", "2026-11-01", 25))
+        val lines = mutableListOf<String>()
+        for ((zoneName, day, hours) in cases) {
+            val zone = ZoneId.of(zoneName)
+            val localDate = LocalDate.parse(day)
+            val startInstant = localDate.atStartOfDay(zone).toInstant()
+            val endInstant = localDate.plusDays(1).atStartOfDay(zone).toInstant()
+            val start = startInstant.epochSecond
+            val end = endInstant.epochSecond
+            assertEquals(hours * 3600L, end - start)
+            // Same minute-spaced cumulative counter and two-hour spill as the Swift twin.
+            val samples = (start - 7200 until end + 7200 step 60).mapIndexed { index, ts ->
+                StepSample(deviceId = "t", ts = ts, counter = 100 + index * 10)
+            }
+            val calendarSamples = samples.filter { it.ts >= start && it.ts < end }
+            val calendarTicks = requireNotNull(StepsCounter.stepsInWindow(calendarSamples))
+            assertEquals((hours * 60 - 1) * 10, calendarTicks)
+            for ((name, instant) in listOf("before" to startInstant, "after" to endInstant)) {
+                val offset = zone.rules.getOffset(instant).totalSeconds.toLong()
+                val members = samples.filter { AnalyticsEngine.dayString(it.ts, offset) == day }
+                val first = members.first().ts
+                val last = members.last().ts
+                val scored = AnalyticsEngine.analyzeDay(day = day, daySteps = samples,
+                    profile = UserProfile(), tzOffsetSeconds = offset)
+                val scoredTicks = requireNotNull(scored.daily.steps)
+                assertEquals(StepsCounter.stepsInWindow(members), scoredTicks)
+                assertNotEquals("fixture must expose the DST discrepancy", calendarTicks, scoredTicks)
+                lines += "$zoneName $day $name offset=$offset hours=$hours " +
+                    "firstDelta=${first - start} endDelta=${last + 60 - end} " +
+                    "calendarTicks=$calendarTicks scoredTicks=$scoredTicks"
+            }
+        }
+        // Verbatim stdout of the production Swift analyzeDay oracle run, not hand-derived totals.
+        val expected = """
+            Pacific/Auckland 2026-09-27 before offset=43200 hours=23 firstDelta=0 endDelta=3600 calendarTicks=13790 scoredTicks=14390
+            Pacific/Auckland 2026-09-27 after offset=46800 hours=23 firstDelta=-3600 endDelta=0 calendarTicks=13790 scoredTicks=14390
+            Pacific/Auckland 2026-04-05 before offset=46800 hours=25 firstDelta=0 endDelta=-3600 calendarTicks=14990 scoredTicks=14390
+            Pacific/Auckland 2026-04-05 after offset=43200 hours=25 firstDelta=3600 endDelta=0 calendarTicks=14990 scoredTicks=14390
+            America/New_York 2026-03-08 before offset=-18000 hours=23 firstDelta=0 endDelta=3600 calendarTicks=13790 scoredTicks=14390
+            America/New_York 2026-03-08 after offset=-14400 hours=23 firstDelta=-3600 endDelta=0 calendarTicks=13790 scoredTicks=14390
+            America/New_York 2026-11-01 before offset=-14400 hours=25 firstDelta=0 endDelta=-3600 calendarTicks=14990 scoredTicks=14390
+            America/New_York 2026-11-01 after offset=-18000 hours=25 firstDelta=3600 endDelta=0 calendarTicks=14990 scoredTicks=14390
+        """.trimIndent()
+        assertEquals(expected, lines.joinToString("\n"))
+    }
+
 }
