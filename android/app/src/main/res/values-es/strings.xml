@@ -2860,4 +2860,17 @@
     <string name="raw_diag_ecg_probe_running">Puede que siga activa una captura en esta correa. El veredicto se registra en el strap log.</string>
     <string name="today_customize_live_session_availability">Aparece hoy si Live Sessions está activado en Ajustes o hay una sesión activa.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Hoy a tu manera, frecuencia cardíaca para cualquier aplicación e italiano</string>
+    <string name="l10n_notifications_settings_screen_apps_on_this_phone_that_can_6b7ae956">Aplicaciones de este teléfono que pueden enviar notificaciones. NOOP las descubre cuando te notifican; elígelas una a una abajo.</string>
+    <string name="l10n_notifications_settings_screen_search_apps_ca3ce8f3">Buscar aplicaciones</string>
+    <string name="l10n_notifications_settings_screen_scan_again_f6ab55dd">Volver a escanear</string>
+    <string name="l10n_notifications_settings_screen_no_apps_discovered_post_a_notification_0ca6e7bc">Aún no se descubrieron aplicaciones. Envía una notificación desde una aplicación y vuelve a escanear.</string>
+    <string name="l10n_notifications_settings_screen_also_buzz_for_apps_not_listed_e60214ec">Vibra también para aplicaciones que no están en la lista anterior. NOOP descubre las aplicaciones cuando te notifican, así que una aplicación que nunca viste en la lista también vibrará con esto activado. Puede ser pesado; las horas de silencio y «vibrar solo cuando se lleva puesta» siguen aplicando.</string>
+    <string name="l10n_notifications_settings_screen_notification_access_is_on_for_this_af3ffc72">El acceso a las notificaciones está activado para esta app. Las alertas de muñeca pueden llegar.</string>
+    <string name="l10n_notifications_settings_screen_notification_access_is_off_for_this_b27ba957">El acceso a las notificaciones está desactivado para esta app. Abre la configuración de abajo y activa NOOP, o las alertas de muñeca no podrán llegar.</string>
+    <string name="l10n_notifications_settings_screen_when_all_other_apps_is_every_bf6e5671">Cuando Todas las demás apps está activado, cada app hace vibrar tu muñeca, así que los interruptores individuales de abajo están desactivados. Desactívalo para elegir apps una por una.</string>
+    <string name="l10n_notifications_settings_screen_other_apps_notifications_8bcd3596">Notificaciones de otras apps</string>
+    <string name="l10n_notifications_settings_screen_installed_apps_c21260b2">Apps instaladas</string>
+    <string name="l10n_notifications_settings_screen_app_notifications_00e65fd6">Notificaciones de apps</string>
+    <string name="l10n_notifications_settings_screen_choose_apps_72d037f2">Elegir apps</string>
+    <string name="l10n_notifications_settings_screen_scanning_installed_04ab2344">Escaneando aplicaciones instaladas…</string>
 </resources>
