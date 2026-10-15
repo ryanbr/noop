@@ -49,6 +49,28 @@ class ScheduledReportPolicyTest {
         )
     }
 
+    @Test fun scoredNightWaitsForRecordedWakeToSettle() {
+        val wake = 1_800_000_000L
+        assertFalse(ScheduledReportPolicy.shouldNotifyMorning(
+            enabled = true, chargeOrRestPresent = true, lastNotifiedDay = null,
+            reportDay = "2026-06-21", nowMinuteOfDay = 7 * 60,
+            nowEpochSec = wake + ScheduledReportPolicy.WAKE_SETTLE_SECONDS - 1, wakeEndTs = wake,
+        ))
+        assertTrue(ScheduledReportPolicy.shouldNotifyMorning(
+            enabled = true, chargeOrRestPresent = true, lastNotifiedDay = null,
+            reportDay = "2026-06-21", nowMinuteOfDay = 7 * 60,
+            nowEpochSec = wake + ScheduledReportPolicy.WAKE_SETTLE_SECONDS, wakeEndTs = wake,
+        ))
+    }
+
+    @Test fun scoreOnlyNightUsesMorningFloorWithoutARecordedWake() {
+        assertTrue(ScheduledReportPolicy.shouldNotifyMorning(
+            enabled = true, chargeOrRestPresent = true, lastNotifiedDay = null,
+            reportDay = "2026-06-21", nowMinuteOfDay = 7 * 60,
+            nowEpochSec = 1_800_000_000L, wakeEndTs = null,
+        ))
+    }
+
     @Test fun aLateSyncStillDelivers() {
         // A floor, not a window: someone who has not synced all day still gets last night's recap when they
         // finally do, rather than silence because "morning" had passed.
