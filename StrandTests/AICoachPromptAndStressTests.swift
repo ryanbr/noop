@@ -69,6 +69,25 @@ final class AICoachPromptAndStressTests: XCTestCase {
         XCTAssertFalse(engine.hasCustomSystemPrompt)
     }
 
+    func testReplyLanguageFollowsAppLanguageWhilePreservingEditedPrompt() {
+        let engine = makeEngine()
+        engine.customSystemPrompt = "Coach in two sentences."
+        XCTAssertEqual(engine.systemPrompt, "Coach in two sentences.")
+        XCTAssertEqual(engine.requestSystemPrompt, AICoachEngine.localizedSystemPrompt(
+            engine.systemPrompt, languageTag: Bundle.main.preferredLocalizations.first ?? "en"
+        ))
+        for tag in ["de", "en", "es", "fr", "it", "pt-PT", "pl", "zh", "de-DE"] {
+            let prompt = AICoachEngine.localizedSystemPrompt(engine.systemPrompt, languageTag: tag)
+            XCTAssertEqual(prompt, "Coach in two sentences.\n\nReply in the app's language (BCP-47: \(tag)). "
+                + "Use this language even if the context or earlier messages are in another language, "
+                + "unless the user explicitly requests a different language.")
+        }
+        XCTAssertEqual(
+            AICoachEngine.localizedSystemPrompt("Coach", languageTag: " \n "),
+            AICoachEngine.localizedSystemPrompt("Coach", languageTag: "en")
+        )
+    }
+
     // MARK: - Feature 2: derived stress line
 
     func testStressIndexSummaryFormatsOneRoundedNumber() {
