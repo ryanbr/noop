@@ -276,6 +276,7 @@ private data class TodayLiveSnapshot(
      *  most once per connection, so it costs the snapshot nothing. */
     val historyReady: Boolean,
     val historySyncExperimental: Boolean,
+    val sustainedEmptyOffload: Boolean,
     /** Whether a scan is running, so the header chip can say so and refuse a second tap while it is
      *  (#2169). Flips twice per scan rather than per tick, so it costs this snapshot nothing. */
     val scanning: Boolean,
@@ -343,6 +344,7 @@ fun TodayScreen(
     // source streams, and the strap's percentage is never cleared, so under an active ring both halves of
     // the old gate passed and Today drew the strap's charge. Same seam the Devices list already uses.
     val activeIsWhoop by viewModel.activeIsWhoop.collectAsStateWithLifecycle()
+    val activeIsOura by viewModel.activeIsOura.collectAsStateWithLifecycle()
     // The ring's OWN charge while a ring source is live (null otherwise, #2075), so the header can draw the
     // active ring's battery instead of nothing. Changes a few times a session, no per-tick churn.
     val ouraBatteryPct by viewModel.ouraBatteryPct.collectAsStateWithLifecycle()
@@ -398,6 +400,8 @@ fun TodayScreen(
         delay(4_500)
         scanHint = null
     }
+    // One composition snapshot for both status chips; neither child owns a clock or timer.
+    val statusNowSec = System.currentTimeMillis() / 1000L
     val liveSnap by remember {
         derivedStateOf {
             val s = live
@@ -410,6 +414,7 @@ fun TodayScreen(
                 syncChunksThisSession = s.syncChunksThisSession,
                 historyReady = s.historyReady,
                 historySyncExperimental = s.historySyncExperimental,
+                sustainedEmptyOffload = s.sustainedEmptyOffload,
                 scanning = s.scanning,
                 pagesBehindAtConnect = s.pagesBehindAtConnect,
                 batteryPct = s.batteryPct,
@@ -1416,6 +1421,7 @@ fun TodayScreen(
             LiquidTodayHeader(
                 dayTitle = dayTitle,
                 humanDate = humanDate,
+                nowSec = statusNowSec,
                 selectedDay = selectedDay,
                 battery = HeaderBatteryDisplay.resolve(
                     activeIsWhoop = activeIsWhoop, connected = liveSnap.connected,
@@ -1500,6 +1506,19 @@ fun TodayScreen(
                 )
             }
         }
+        }
+
+        // The sync chip describes history offload; it cannot say whether live data is being saved.
+        // These existing strings describe a strap, so hide the chip for an active Oura ring. Show
+        // "Not recording" when no device is selected, which is when its Connect action matters most.
+        if (!activeIsOura && selectedDayOffset == 0) {
+            item {
+                RecordingStatusChip(
+                    live = liveSnap,
+                    nowSec = statusNowSec,
+                    onConnect = requestScan,
+                )
+            }
         }
 
         // A "workout in progress" indicator whenever a manual workout is active (iOS parity: the Today
@@ -2555,6 +2574,7 @@ private val HeaderClusterControl = 36.dp
 
 @Composable
 private fun LiquidTodayHeader(
+    nowSec: Long,
     dayTitle: String,
     humanDate: String,
     selectedDay: LocalDate,
@@ -2667,6 +2687,7 @@ private fun LiquidTodayHeader(
             // so the absence of active syncing reads as caught-up (the full SyncingHistoryNote is gated on
             // recovery == null). Twin of iOS SyncStatusChip.
             SyncStatusChip(
+                nowSec = nowSec,
                 backfilling = backfilling, chunks = syncChunksThisSession,
                 lastSyncAt = lastSyncAt, historySyncExperimental = historySyncExperimental,
                 pagesBehind = pagesBehindAtConnect,
@@ -2716,6 +2737,7 @@ private fun LiquidTodayHeader(
  *  building-scores note owns that). Twin of iOS SyncStatusChip. DRAFT (#245): final styling/wording TBD. */
 @Composable
 private fun SyncStatusChip(
+    nowSec: Long,
     backfilling: Boolean,
     chunks: Int,
     lastSyncAt: Long?,
@@ -2729,16 +2751,13 @@ private fun SyncStatusChip(
     scanning: Boolean = false,
     onRescan: (() -> Unit)? = null,
 ) {
-    // The clock and the translated "now" word are resolved HERE, in the composable that already depends
-    // on both, and handed down — so `SyncChipState.resolve` stays a genuinely pure decision that a plain
-    // JVM unit test can call with no attached Application. Reading the clock at composition time (rather
-    // than snapshotting it) is unchanged behaviour: `shortSyncAgo` did exactly this on every recomposition.
+    // The screen supplies the same clock snapshot to both status chips.
     val state = SyncChipState.resolve(
         backfilling = backfilling,
         chunks = chunks,
         lastSyncAtSec = lastSyncAt,
         historySyncExperimental = historySyncExperimental,
-        nowSec = System.currentTimeMillis() / 1000L,
+        nowSec = nowSec,
         pagesBehind = pagesBehind,
     )
     // Offered only when there is an action to run and no scan already running, the same rule the
@@ -5869,6 +5888,42 @@ private fun ChargeLegacyRrGapNote() {
                 Text(detail, style = NoopType.subhead, color = Palette.textSecondary)
             }
         }
+    }
+}
+
+/** A live-data status beneath Today's header. The existing recording model keeps a connected but
+ * silent strap distinct from one that is actually sending heart-rate samples. */
+@Composable
+private fun RecordingStatusChip(live: TodayLiveSnapshot, nowSec: Long, onConnect: () -> Unit) {
+    // The header owns last-sync age and experimental history. This row reports live data only;
+    // omit the historical fallback instead of restating it beside the sync chip.
+    val state = recordingStateFor(
+        connected = live.connected,
+        liveHeartRate = if (live.hrStreaming) 1 else null,
+        lastSyncAtSec = live.lastSyncAt,
+        nowSec = nowSec,
+        sustainedEmptyOffload = live.sustainedEmptyOffload,
+    )
+    if (state is RecordingState.LastSynced) return
+    val title = uiString(state.titleRes)
+    val detail = uiString(state.detailRes)
+    val canConnect = state is RecordingState.NotRecording
+    Row(
+        modifier = Modifier.fillMaxWidth().then(
+            if (canConnect) Modifier.clickable(onClick = onConnect) else Modifier
+        ),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        StatePill(title = title, tone = state.tone, pulsing = state is RecordingState.Recording)
+        Text(
+            detail,
+            style = NoopType.footnote,
+            color = Palette.textTertiary,
+            modifier = Modifier.weight(1f),
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
