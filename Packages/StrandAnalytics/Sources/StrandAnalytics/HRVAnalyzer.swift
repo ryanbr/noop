@@ -303,7 +303,9 @@ public enum HRVAnalyzer {
     /// ACROSS sleep stages and can read 2-3× higher — the index reflects SHORT-TERM variability, so it is
     /// window-comparable to a wearable's short SDNN reading (e.g. Apple Watch's ~1-min
     /// `heartRateVariabilitySDNN` samples) and is the value that can be honestly cross-checked against one.
-    /// Segments with fewer than `minBeats` clean intervals are skipped; nil when no segment qualifies.
+    /// Segments with fewer than `minBeats` clean intervals are skipped, as are segments refused by the
+    /// existing beat-spread or beat-value quality gates. A banked or over-counted segment must not supply
+    /// a daily SDNN merely because its values survived cleaning. nil when no segment qualifies.
     /// Pure, deterministic. Kotlin twin: `HrvAnalyzer.sdnnIndex`.
     public static func sdnnIndex(_ rr: [RRInterval], segmentSec: Int = 300) -> Double? {
         guard segmentSec > 0, let first = rr.map(\.ts).min(), let last = rr.map(\.ts).max(),
@@ -311,7 +313,16 @@ public enum HRVAnalyzer {
         var segStart = first
         var segmentSDNNs: [Double] = []
         while segStart <= last {
-            if let sd = analyze(rr, windowStart: segStart, windowEnd: segStart + segmentSec - 1).sdnn {
+            let segment = rr.filter { $0.ts >= segStart && $0.ts < segStart + segmentSec }.sortedByTsStable()
+            let times = segment.map(\.ts)
+            let values = segment.map { Double($0.rrMs) }
+            let coverage = rrCoverage(tsSec: times, rrMs: values)
+            // Both over-count verdicts refuse SDNN, so no duplicate-collapse sort is needed to tell
+            // them apart. Use the same existing gates the timestamp-aware SDNN callers must apply.
+            let verdict = classifyCoverage(coverage: coverage, collapsed: coverage)
+            let accurate = beatAccurateFraction(tsSec: times, rrMs: values)
+            if beatSpreadIsTrustworthy(verdict), beatValuesAreTrustworthy(beatAccurateFraction: accurate),
+               let sd = analyze(rawRR: values).sdnn {
                 segmentSDNNs.append(sd)
             }
             segStart += segmentSec

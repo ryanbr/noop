@@ -56,6 +56,9 @@ final class AnalyticsEngineProvidedSleepTests: XCTestCase {
         // HRV & resting HR are re-derived from THIS day's rr/hr over the provided window (the ring row
         // carried neither) — the whole point of #804 (avgHrv was nil despite 36 k rr present).
         XCTAssertNotNil(res.daily.avgHrv, "avgHrv must be derived from rr over the provided sleep window")
+        // ~1.1-second intervals stamped every 2 seconds fail the existing beat-value accuracy gate.
+        // The supplied hypnogram still scores sleep, but cannot make those intervals trustworthy SDNN.
+        XCTAssertNil(res.daily.avgSdnn, "untrustworthy beat values must not supply daily SDNN")
         XCTAssertNotNil(res.daily.restingHr)
     }
 
