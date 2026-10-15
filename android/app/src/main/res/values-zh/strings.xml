@@ -1609,12 +1609,12 @@
     <string name="l10n_sleep_screen_no_stage_data_recorded_for_this_93a86806">该晚未记录到任何睡眠分期数据。</string>
     <string name="l10n_sleep_screen_open_journal_4bf0daee">打开日记</string>
     <string name="l10n_sleep_screen_previous_night_9f339047">上一晚</string>
-    <string name="l10n_sleep_screen_recompute_a_night_to_clear_its_fd9e15c3">重新计算某一晚，即可清除它的删除标记，并利用现存的原始数据重新进行睡眠分析。</string>
+    <string name="l10n_sleep_screen_recompute_clears_the_deletion_marker_and_a8922cbb">重新计算会清除删除标记，并分析最近 21 天的数据。</string>
     <string name="l10n_sleep_screen_recompute_this_deleted_sleep_night_2d2f46f6">重新计算并恢复这个被删除的夜晚</string>
     <string name="l10n_sleep_screen_recompute_this_night_5ba0d05c">重新计算本晚数据</string>
     <string name="l10n_sleep_screen_recomputing_6f8e54e3">正在重新计算…</string>
     <string name="l10n_sleep_screen_sleep_3cac34e6">睡眠</string>
-    <string name="l10n_sleep_screen_sleep_detection_reran_using_the_data_01757aad">已使用本晚所有可用的原始数据重新运行了睡眠检测算法。</string>
+    <string name="l10n_sleep_screen_deletion_marker_cleared_fc781c48">已清除删除标记。</string>
     <string name="l10n_sleep_screen_stage_breakdown_e9b714f9">各睡眠阶段拆解</string>
     <string name="l10n_sleep_screen_this_moves_the_night_to_a_fac2fb46">这会将该晚睡眠强行移动到一个没有任何原始记录数据的时间段。由于缺失基础数据，NOOP 无法推导出睡眠分期，因此它会一直显示为空，直到您同步了补全该时段的手环数据。</string>
     <string name="l10n_sleep_screen_your_night_data_is_in_logging_ec461720">您的夜间数据已就绪。每天记录下您的主观感受，能帮助 NOOP 分析出什么样的习惯最能促进您的身体恢复。</string>

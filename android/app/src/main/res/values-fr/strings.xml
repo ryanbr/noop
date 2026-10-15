@@ -1488,12 +1488,12 @@
     <string name="l10n_sleep_screen_no_stage_data_recorded_for_this_93a86806">Aucune donnée de stade enregistrée pour cette nuit.</string>
     <string name="l10n_sleep_screen_open_journal_4bf0daee">Journal ouvert</string>
     <string name="l10n_sleep_screen_previous_night_9f339047">Nuit précédente</string>
-    <string name="l10n_sleep_screen_recompute_a_night_to_clear_its_fd9e15c3">Recalculez une nuit pour effacer son marqueur de suppression et analyser à nouveau les données brutes disponibles.</string>
+    <string name="l10n_sleep_screen_recompute_clears_the_deletion_marker_and_a8922cbb">Recalculer efface le marqueur de suppression et analyse les 21 derniers jours.</string>
     <string name="l10n_sleep_screen_recompute_this_deleted_sleep_night_2d2f46f6">Recalculer cette nuit de sommeil supprimée</string>
     <string name="l10n_sleep_screen_recompute_this_night_5ba0d05c">Recalculer cette nuit</string>
     <string name="l10n_sleep_screen_recomputing_6f8e54e3">Recalcul en cours…</string>
     <string name="l10n_sleep_screen_sleep_3cac34e6">Sommeil</string>
-    <string name="l10n_sleep_screen_sleep_detection_reran_using_the_data_01757aad">La détection du sommeil a été relancée avec les données disponibles pour cette nuit.</string>
+    <string name="l10n_sleep_screen_deletion_marker_cleared_fc781c48">Marqueur de suppression effacé.</string>
     <string name="l10n_sleep_screen_stage_breakdown_e9b714f9">Répartition des stades</string>
     <string name="l10n_sleep_screen_this_moves_the_night_to_a_fac2fb46">Cela déplace la nuit à une heure sans données enregistrées. Les étapes ne peuvent pas être dérivées là, donc il peut apparaître comme vide jusqu\'à ce que les données le couvrent.</string>
     <string name="l10n_sleep_screen_your_night_data_is_in_logging_ec461720">Vos données de nuit sont dedans. L\'exploitation de vos sentiments aide NOOP à apprendre ce qui motive votre meilleure récupération.</string>

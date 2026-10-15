@@ -1775,12 +1775,12 @@
     <string name="l10n_sleep_screen_no_stage_data_recorded_for_this_93a86806">No stage data recorded for this night.</string>
     <string name="l10n_sleep_screen_open_journal_4bf0daee">Open Journal</string>
     <string name="l10n_sleep_screen_previous_night_9f339047">Previous night</string>
-    <string name="l10n_sleep_screen_recompute_a_night_to_clear_its_fd9e15c3">Recompute a night to clear its deletion marker and scan the available raw data again.</string>
+    <string name="l10n_sleep_screen_recompute_clears_the_deletion_marker_and_a8922cbb">Recompute clears the deletion marker and scans the most recent 21 days.</string>
     <string name="l10n_sleep_screen_recompute_this_deleted_sleep_night_2d2f46f6">Recompute this deleted sleep night</string>
     <string name="l10n_sleep_screen_recompute_this_night_5ba0d05c">Recompute this night</string>
     <string name="l10n_sleep_screen_recomputing_6f8e54e3">Recomputing…</string>
     <string name="l10n_sleep_screen_sleep_3cac34e6">Sleep</string>
-    <string name="l10n_sleep_screen_sleep_detection_reran_using_the_data_01757aad">Sleep detection reran using the data available for this night.</string>
+    <string name="l10n_sleep_screen_deletion_marker_cleared_fc781c48">Deletion marker cleared.</string>
     <string name="l10n_sleep_screen_stage_breakdown_e9b714f9">Stage breakdown</string>
     <string name="l10n_sleep_screen_this_moves_the_night_to_a_fac2fb46">This moves the night to a time with no recorded data. Stages can\'t be derived there, so it may show as empty until data covers it.</string>
     <string name="l10n_sleep_screen_your_night_data_is_in_logging_ec461720">Your night data is in. Logging how you felt helps NOOP learn what drives your best recovery.</string>

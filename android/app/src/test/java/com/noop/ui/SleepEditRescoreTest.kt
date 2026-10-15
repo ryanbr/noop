@@ -23,7 +23,10 @@ import org.junit.Test
  * resolveTodayRow): persist-then-rescore, best-effort persist, best-effort rescore, and cancellation
  * propagation (the #125 rule the 15-min loop already follows).
  *
- * The exact shapes mirrored from AppViewModel:
+ * Deleted-window cases call the production `reopenDeletedSleepWindow` used by AppViewModel.
+ * The remaining edit cases retain the existing mirrors below.
+ *
+ * The exact edit shapes mirrored from AppViewModel:
  *
  *   suspend fun updateSleepSessionTimes(...) { runCatching { repository.updateSleepSessionTimes(...) }; rescoreAfterSleepEdit() }
  *   suspend fun deleteSleepSession(...)      { runCatching { repository.deleteSleepSession(...) };      rescoreAfterSleepEdit() }
@@ -53,17 +56,6 @@ class SleepEditRescoreTest {
     ) {
         runCatching { persist() }
         rescoreAfterSleepEdit(analyzeRecent)
-    }
-
-    /** Pure mirror of recomputeDeletedSleep: the marker must be cleared before analysis, and a failed
-     *  clear must not run a detector that would still suppress the same night. */
-    private suspend fun recomputeDeletedSleep(
-        clearMarker: suspend () -> Unit,
-        analyzeRecent: suspend () -> Unit,
-    ): Boolean {
-        if (runCatching { clearMarker() }.isFailure) return false
-        rescoreAfterSleepEdit(analyzeRecent)
-        return true
     }
 
     @Test
@@ -115,9 +107,9 @@ class SleepEditRescoreTest {
     @Test
     fun deletedSleepMarkerIsClearedBeforeRedetection() = runTest {
         val rec = Recorder()
-        val accepted = recomputeDeletedSleep(
+        val accepted = reopenDeletedSleepWindow(
             clearMarker = { rec.events += "clear" },
-            analyzeRecent = { rec.events += "redetect" },
+            scanRecent = { rec.events += "redetect" },
         )
         assertTrue(accepted)
         assertEquals(listOf("clear", "redetect"), rec.events)
@@ -126,11 +118,49 @@ class SleepEditRescoreTest {
     @Test
     fun failedMarkerClearDoesNotRunRedetection() = runTest {
         val rec = Recorder()
-        val accepted = recomputeDeletedSleep(
+        val accepted = reopenDeletedSleepWindow(
             clearMarker = { throw IllegalStateException("DB write failed") },
-            analyzeRecent = { rec.events += "redetect" },
+            scanRecent = { rec.events += "redetect" },
         )
         assertTrue(!accepted)
         assertTrue(rec.events.isEmpty())
+    }
+
+    @Test
+    fun markerClearStillSucceedsWhenRecentScanFails() = runTest {
+        assertTrue(reopenDeletedSleepWindow(
+            clearMarker = {},
+            scanRecent = { throw IllegalStateException("no scan completed") },
+        ))
+    }
+
+    @Test
+    fun cancellingMarkerClearDoesNotRequestScan() = runTest {
+        val rec = Recorder()
+        try {
+            reopenDeletedSleepWindow(
+                clearMarker = { throw CancellationException("clear cancelled") },
+                scanRecent = { rec.events += "scan" },
+            )
+            fail("marker cancellation must propagate")
+        } catch (e: CancellationException) {
+            assertEquals("clear cancelled", e.message)
+        }
+        assertTrue(rec.events.isEmpty())
+    }
+
+    @Test
+    fun cancellingRecentScanPropagatesAfterMarkerClear() = runTest {
+        val rec = Recorder()
+        try {
+            reopenDeletedSleepWindow(
+                clearMarker = { rec.events += "clear" },
+                scanRecent = { throw CancellationException("scan cancelled") },
+            )
+            fail("scan cancellation must propagate")
+        } catch (e: CancellationException) {
+            assertEquals("scan cancelled", e.message)
+        }
+        assertEquals(listOf("clear"), rec.events)
     }
 }
