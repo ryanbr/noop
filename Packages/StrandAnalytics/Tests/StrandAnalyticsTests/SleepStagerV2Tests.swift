@@ -280,7 +280,7 @@ final class SleepStagerV2Tests: XCTestCase {
     // MARK: - 7.0.0: the V2 flag drives the NORMAL detected-night staging path
 
     /// A regular R-R stream at ~1 Hz (steady ~1000 ms beats with a small respiratory sinus oscillation),
-    /// long enough for the V2 recipe to express both early deep and later REM across the night.
+    /// long enough for the V2 recipe to stage a whole night.
     private func regularRRLong(start: Int, durationS: Int) -> [RRInterval] {
         (0..<durationS).map { i -> RRInterval in
             let rsa = Int(40.0 * sin(2.0 * Double.pi * Double(i) / 4.0))  // ~0.25 Hz breathing
@@ -290,7 +290,7 @@ final class SleepStagerV2Tests: XCTestCase {
 
     /// 7.0.0 regression: the "Experimental sleep staging (V2)" toggle must affect a NORMAL detected
     /// night — not only the userEdited self-heal restage. With the flag ON, `detectSleep` stages the
-    /// accepted window with V2 (deep + REM present); with the flag OFF it returns the EXACT V1 result, so
+    /// accepted window with V2 (its own hypnogram, not V1's); with the flag OFF it returns the EXACT V1 result, so
     /// the byte-identical default (and the frozen-golden tests) is preserved.
     func testDetectSleepThreadsV2FlagIntoNormalNight() {
         // A 3 h still overnight window (anchored at 01:00 UTC → center ~02:30, clear of the daytime
@@ -322,14 +322,19 @@ final class SleepStagerV2Tests: XCTestCase {
         XCTAssertEqual(v2.start, v1.start)
         XCTAssertEqual(v2.end, v1.end)
         // The hypnogram is V2's: it matches a direct V2 stageSession over the accepted span, and (proof
-        // the flag actually flipped the engine) it expresses both deep and REM.
+        // the flag actually flipped the engine) it is not V1's. This used to assert that V2 expressed deep
+        // here, but nothing in this night calls for deep (flat HR, identical breathing in every epoch): 354 of
+        // its 360 epochs score 0.812972, and the three at each edge, whose beat windows reach past the stream,
+        // differ in the fourth decimal. The per-night z-score (sd 0.00016) turns that into z of +2.7 to +11.6,
+        // which the RSA term at 0.6 painted deep. At 0.3 it no longer does.
         let v2Direct = SleepStagerV2.stageSession(start: v2.start, end: v2.end,
                                                   grav: grav, hr: hr, rr: rr, resp: [])
         XCTAssertEqual(v2.stages.map { $0.stage }, v2Direct.map { $0.stage },
                        "flag ON must produce the V2 hypnogram")
-        let v2Stages = Set(v2.stages.map { $0.stage })
-        XCTAssertTrue(v2Stages.contains("deep"), "V2 night should express deep")
-        XCTAssertTrue(v2Stages.contains("rem"), "V2 night should express REM")
+        XCTAssertNotEqual(v2.stages.map { "\($0.start) \($0.end) \($0.stage)" },
+                          v1.stages.map { "\($0.start) \($0.end) \($0.stage)" },
+                          "flag ON must not produce the V1 hypnogram")
+        XCTAssertTrue(v2.stages.contains { $0.stage == "rem" }, "V2 night should express REM")
     }
 
     // MARK: - #277: lock the V2 recipe shape + parity (golden) and the tuned deep-boundary values (directly)
@@ -374,7 +379,7 @@ final class SleepStagerV2Tests: XCTestCase {
         let segs = SleepStagerV2.stageSession(start: start, end: start + dur, grav: grav, hr: hr, rr: rr, resp: [])
         let golden: [(Int, Int, String)] = [
             (0, 5070, "deep"), (5070, 5310, "light"), (5310, 5550, "rem"),
-            (5550, 10740, "light"), (10740, 16290, "rem"), (16290, 21600, "wake")]
+            (5550, 10740, "light"), (10740, 16200, "rem"), (16200, 21600, "wake")]
         XCTAssertEqual(segs.count, golden.count, "segment count")
         for k in 0..<min(segs.count, golden.count) {
             XCTAssertEqual(segs[k].start, start + golden[k].0, "seg \(k) start")
@@ -404,6 +409,13 @@ final class SleepStagerV2Tests: XCTestCase {
     func testBaseLogPriorsArePinned() {
         XCTAssertEqual(SleepStagerV2.baseLogPrior,
                        ["light": log(0.50), "deep": log(0.15), "rem": log(0.22), "awake": log(0.10)])
+    }
+
+    /// Pin the RSA respiration weight. The golden above moves with it by three epochs at one boundary, which a
+    /// smaller edit need not do, so the value is pinned directly. 0.3, not 0.6: `Tools/SleepPSG` section 8
+    /// (DREAMT, R-R live). Twin: `SleepStagerV2Test.respWeightIsPinned`.
+    func testRespWeightIsPinned() {
+        XCTAssertEqual(SleepStagerV2.respWeight, 0.3)
     }
 
     /// Pin the AWAKE transition row directly, for the same reason the deep row is pinned: the end-to-end
