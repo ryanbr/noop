@@ -4,11 +4,15 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertThrows
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.io.IOException
+import java.io.OutputStream
 import java.util.zip.ZipEntry
+import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
 
 /**
@@ -135,7 +139,7 @@ class BackupSettingsCodecTest {
             BackupSettingsCodec.encode(mapOf("profile.age" to 41, "profile.weightKg" to 90.5)),
         )
         val backup = tmp.newFile("with-settings.noopbak")
-        DataBackup.writeBackupZip(liveDb, backup, settingsJson)
+        DataBackup.writeBackupZip(liveDb, backup.outputStream(), settingsJson)
 
         val stagedDb = tmp.newFile()
         val stagedSettings = File(tmp.root, "staged-settings.json")
@@ -154,7 +158,7 @@ class BackupSettingsCodecTest {
     @Test fun legacySingleEntryZipStagesDbAndNoSettings() {
         val liveDb = fakeSqlite("legacy-rows")
         val backup = tmp.newFile("legacy.noopbak")
-        DataBackup.writeBackupZip(liveDb, backup) // settingsJson defaults null → pre-#1000 shape
+        DataBackup.writeBackupZip(liveDb, backup.outputStream()) // settingsJson defaults null → pre-#1000 shape
 
         val stagedDb = tmp.newFile()
         val stagedSettings = File(tmp.root, "staged-settings.json")
@@ -171,12 +175,56 @@ class BackupSettingsCodecTest {
         // The pre-#1000 call shape (no settingsDest) keeps working for a 2-entry zip.
         val liveDb = fakeSqlite("rows2")
         val backup = tmp.newFile("two-entry.noopbak")
-        DataBackup.writeBackupZip(liveDb, backup, """{"profile.age":30}""")
+        DataBackup.writeBackupZip(liveDb, backup.outputStream(), """{"profile.age":30}""")
 
         val stagedDb = tmp.newFile()
         val result = DataBackup.stageBackupSqlite(backup.inputStream(), DataBackup.peekHeader(backup), stagedDb)
         assertEquals(DataBackup.StageResult.OK, result)
         assertEquals(liveDb.readBytes().toList(), stagedDb.readBytes().toList())
+    }
+
+    @Test fun productionArchiveIncludesManifestAndCountsOnlyDatabaseBytes() {
+        val liveDb = fakeSqlite("database rows")
+        val backup = tmp.newFile("with-manifest.noopbak")
+        val settings = """{"profile.age":41}"""
+        val manifest = """{"platform":"android","note":"é"}"""
+        val copiedBytes = DataBackup.writeBackupZip(liveDb, backup.outputStream(), settings, manifest)
+
+        assertEquals(liveDb.length(), copiedBytes)
+        // ZipFile reads the central directory, unlike the streaming restore path. Opening it proves
+        // the writer finished the archive; entry order and payloads must match the live export contract.
+        ZipFile(backup).use { zip ->
+            val entries = zip.entries().toList()
+            assertEquals(listOf("noop-backup.sqlite", "settings.json", "manifest.json"), entries.map { it.name })
+            assertEquals(liveDb.readBytes().toList(), zip.getInputStream(entries[0]).use { it.readBytes().toList() })
+            assertEquals(settings, zip.getInputStream(entries[1]).bufferedReader(Charsets.UTF_8).use { it.readText() })
+            assertEquals(manifest, zip.getInputStream(entries[2]).bufferedReader(Charsets.UTF_8).use { it.readText() })
+        }
+        val staged = tmp.newFile()
+        assertEquals(DataBackup.StageResult.OK,
+            DataBackup.stageBackupSqlite(backup.inputStream(), DataBackup.peekHeader(backup), staged))
+        assertEquals(liveDb.readBytes().toList(), staged.readBytes().toList())
+    }
+
+    @Test fun manifestWithoutSettingsStillFollowsDatabase() {
+        val liveDb = fakeSqlite("rows")
+        val backup = tmp.newFile("manifest-only.noopbak")
+        DataBackup.writeBackupZip(liveDb, backup.outputStream(), manifestJson = "{}")
+        ZipFile(backup).use { zip ->
+            assertEquals(listOf("noop-backup.sqlite", "manifest.json"), zip.entries().toList().map { it.name })
+        }
+    }
+
+    @Test fun archiveWriteFailurePropagatesAndClosesOutput() {
+        var closed = false
+        val failingOutput = object : OutputStream() {
+            override fun write(value: Int) { throw IOException("synthetic provider failure") }
+            override fun close() { closed = true }
+        }
+        assertThrows(IOException::class.java) {
+            failingOutput.use { DataBackup.writeBackupZip(fakeSqlite("rows"), it, manifestJson = "{}") }
+        }
+        assertTrue("Failed export must release its output stream", closed)
     }
 
     @Test fun zipWithNonCanonicalSqliteEntryIsRejected() {

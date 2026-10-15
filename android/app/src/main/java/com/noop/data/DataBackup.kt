@@ -294,24 +294,7 @@ object DataBackup {
             // unaffected. Anything committed after the checkpoint above lives in the new WAL and
             // is simply (consistently) absent from this snapshot, same as before.
             db.runInTransaction {
-                ZipOutputStream(out).use { zip ->
-                    zip.putNextEntry(ZipEntry(ZIP_ENTRY_NAME))
-                    // #1807: count what actually LANDS in the entry, rather than reading dbFile.length()
-                    // afterwards. The copy runs inside this transaction against a snapshot; once it
-                    // commits, Room can checkpoint again and the main file's length can move, so a later
-                    // read is a different number from the one the restore path will meet. The cap is
-                    // enforced on this entry, so this is the only measurement that answers the question.
-                    dbFile.inputStream().use { input -> entryBytes = input.copyTo(zip) }
-                    zip.closeEntry()
-                    if (settingsJson != null) {
-                        zip.putNextEntry(ZipEntry(SETTINGS_ENTRY_NAME))
-                        zip.write(settingsJson.toByteArray(Charsets.UTF_8))
-                        zip.closeEntry()
-                    }
-                    zip.putNextEntry(ZipEntry(MANIFEST_ENTRY_NAME))
-                    zip.write(manifestJson.toByteArray(Charsets.UTF_8))
-                    zip.closeEntry()
-                }
+                entryBytes = writeBackupZip(dbFile, out, settingsJson, manifestJson)
             }
         }
         // #1014 (write-side): the SOURCE was verified before archiving, but the PRODUCED file can still
@@ -675,24 +658,35 @@ object DataBackup {
         }
     }
 
-    /** Write [dbFile]'s bytes into a deflate ZIP at [dest] (the `.noopbak` container), DB entry first,
-     *  plus the optional `settings.json` entry (#1000) when [settingsJson] is non-null. Context-free
-     *  twin of the stream the live [exportTo] writes, so tests round-trip a real archive of either
-     *  shape (legacy single-entry when [settingsJson] is null). */
+    /**
+     * Write the container used by [exportTo] and return the DB bytes copied into its first entry.
+     * The caller holds Room's write transaction while copying its checkpointed snapshot; measuring
+     * this copy keeps the restore-ceiling warning tied to the archived DB rather than a later file size.
+     * Optional settings and provenance follow the DB, preserving older importers' entry-order contract.
+     * Finishes and closes the ZIP before verification. The caller also scopes [output] with `use` so
+     * provider failures during ZIP finalization cannot prevent the underlying stream from closing.
+     */
     @Throws(IOException::class)
-    fun writeBackupZip(dbFile: File, dest: File, settingsJson: String? = null) {
-        FileOutputStream(dest).use { out ->
-            ZipOutputStream(out).use { zip ->
-                zip.putNextEntry(ZipEntry(ZIP_ENTRY_NAME))
-                dbFile.inputStream().use { input -> input.copyTo(zip) }
-                zip.closeEntry()
-                if (settingsJson != null) {
-                    zip.putNextEntry(ZipEntry(SETTINGS_ENTRY_NAME))
-                    zip.write(settingsJson.toByteArray(Charsets.UTF_8))
-                    zip.closeEntry()
-                }
-            }
+    internal fun writeBackupZip(
+        dbFile: File,
+        output: java.io.OutputStream,
+        settingsJson: String? = null,
+        manifestJson: String? = null,
+    ): Long = ZipOutputStream(output).use { zip ->
+        zip.putNextEntry(ZipEntry(ZIP_ENTRY_NAME))
+        val entryBytes = dbFile.inputStream().use { input -> input.copyTo(zip) }
+        zip.closeEntry()
+        if (settingsJson != null) {
+            zip.putNextEntry(ZipEntry(SETTINGS_ENTRY_NAME))
+            zip.write(settingsJson.toByteArray(Charsets.UTF_8))
+            zip.closeEntry()
         }
+        if (manifestJson != null) {
+            zip.putNextEntry(ZipEntry(MANIFEST_ENTRY_NAME))
+            zip.write(manifestJson.toByteArray(Charsets.UTF_8))
+            zip.closeEntry()
+        }
+        entryBytes
     }
 
     /** True when [file] begins with the SQLite 3 magic. Pure; used by [importFrom] and the tests. */

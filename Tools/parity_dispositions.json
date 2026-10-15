@@ -300,6 +300,15 @@
       "platform": "kotlin",
       "rationale": "Swift Repository.refresh reads the same imported daily union (unionDailyMetrics) in the excluded app layer and hands it, still apart from the computed union, to ChargeBaselines.resolve (#2525); this disposition does not assert behavioral parity.",
       "twin_path": "Strand/Data/Repository.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/DataBackup.kt::writeBackupZip/4#1",
+      "identity_sha256": "c6f74cc3acf36fb9f2695fb06f73513dbd9465c66543c5da266fbc7d6178fd94",
+      "platform": "kotlin",
+      "rationale": "Refs #2708: the Swift DataBackup.writeBackupZip(dbURL:to:settingsJSON:manifestJSON:) archive writer is in the excluded app layer. This records the container-writing role twin for the Android production stream extraction without asserting byte-identical ZIP compression.",
+      "twin_path": "Strand/Data/DataBackup.swift"
     }
   ]
 }
