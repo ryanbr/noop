@@ -37,7 +37,7 @@ public struct OnboardingWizard: View {
     // caused flicker. Child steps observe what they need; a hidden BondWatcher (below)
     // handles the bond→celebration transition without re-rendering the root.
 
-    private enum Step: Int, CaseIterable {
+    enum Step: Int, CaseIterable {
         case welcome, what, expectations, bluetooth, wear, scan, bonded, profile, importData, notifications, appearance, done
 
         var isFirst: Bool { self == .welcome }
@@ -45,6 +45,7 @@ public struct OnboardingWizard: View {
     }
 
     @State private var step: Step = .welcome
+    @State private var hasBond = false
     @State private var glow = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Low Power Mode / "Reduce motion in NOOP" pose these looping glows still too. Onboarding is
@@ -98,11 +99,12 @@ public struct OnboardingWizard: View {
         .onAppear { if !poseStill { glow = true } }
         // Isolated live observation — a hidden watcher slides Scan → celebration on bond
         // without subscribing the whole wizard to per-tick updates.
-        .background(BondWatcher(onBonded: handleBond))
+        .background(BondWatcher(onBondChanged: handleBond))
     }
 
-    private func handleBond() {
-        if step == .scan { withAnimation(StrandMotion.hero) { step = .bonded } }
+    private func handleBond(_ bonded: Bool) {
+        hasBond = bonded
+        if bonded && step == .scan { withAnimation(StrandMotion.hero) { step = .bonded } }
     }
 
     // MARK: Backgrounds
@@ -241,13 +243,22 @@ public struct OnboardingWizard: View {
         advanceStep()
     }
 
+    /// The connection celebration is reachable only after a bond, including when navigating back.
+    static func navigationStep(from step: Step, forward: Bool, bonded: Bool) -> Step? {
+        if !bonded {
+            if forward && step == .scan { return .profile }
+            if !forward && step == .profile { return .scan }
+        }
+        return Step(rawValue: step.rawValue + (forward ? 1 : -1))
+    }
+
     private func advanceStep() {
-        guard let next = Step(rawValue: step.rawValue + 1) else { onFinished(); return }
+        guard let next = Self.navigationStep(from: step, forward: true, bonded: hasBond) else { onFinished(); return }
         withAnimation(StrandMotion.gentle) { step = next }
     }
 
     private func back() {
-        guard let prev = Step(rawValue: step.rawValue - 1) else { return }
+        guard let prev = Self.navigationStep(from: step, forward: false, bonded: hasBond) else { return }
         withAnimation(StrandMotion.gentle) { step = prev }
     }
 
@@ -260,13 +271,15 @@ public struct OnboardingWizard: View {
 }
 
 /// Hidden, isolated observer — re-renders on live updates (it's just Color.clear, so no
-/// visible cost) and fires `onBonded` when the strap bonds, keeping the main wizard body
+/// visible cost) and reports the initial bond state and subsequent changes, keeping the main wizard body
 /// out of the per-tick re-render path that caused flicker.
 private struct BondWatcher: View {
     @EnvironmentObject private var live: LiveState
-    let onBonded: () -> Void
+    let onBondChanged: (Bool) -> Void
     var body: some View {
-        Color.clear.onChangeCompat(of: live.bonded) { newValue in if newValue { onBonded() } }
+        Color.clear
+            .onAppear { onBondChanged(live.bonded) }
+            .onChangeCompat(of: live.bonded) { onBondChanged($0) }
     }
 }
 
