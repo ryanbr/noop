@@ -21,7 +21,7 @@ enum AppChangelog {
     static let releases: [Release] = [
         Release(
             version: "12.0.0",
-            title: "Today your way, heart rate any app can read, and Italian",
+            title: String(localized: "Today your way, heart rate any app can read, and Italian"),
             date: "October 2026",
             items: [
                 "**Today the way you want it (#2311, #2320, #2410, #2374, #2421, thanks @andigandhi and @mailingjash).** Today can draw its gauges as rings or as the liquid vessels, on Android and on Apple, and the choice is yours per device. The hero ring draws flat rather than through a bloom stand-in, its label sits centred on the ring, the active strap's own battery appears in the Liquid header, and Reduce Motion is honoured throughout. Nothing redraws while nothing moves (#2444, thanks @UtkuDenizAltiok).",
@@ -2515,19 +2515,19 @@ enum AppChangelog {
     static let expectations: [Expectation] = [
         Expectation(
             icon: "flask",
-            title: String(localized: "Independent, and experimental"),
+            title: "Independent, and experimental",
             body: String(localized: "NOOP is a personal, open project: not the WHOOP app, and not affiliated with WHOOP. It reads a strap you own, on your own device. Treat it as a capable work-in-progress rather than a finished product.")),
         Expectation(
             icon: "checkmark.seal",
-            title: String(localized: "WHOOP 4.0 is the supported path"),
+            title: "WHOOP 4.0 is the supported path",
             body: String(localized: "WHOOP 4.0 is tested and works end to end. WHOOP 5.0/MG is newer: live heart rate works today, but deeper metrics (recovery, strain, sleep) for 5/MG are still being figured out. NOOP always tells you what's live versus still building.")),
         Expectation(
             icon: "hourglass",
-            title: String(localized: "Your scores build over a few nights"),
+            title: "Your scores build over a few nights",
             body: String(localized: "Live heart rate is instant. Recovery, strain and sleep sharpen as NOOP learns your baseline over your first nights of wear. Want your history now? Import your WHOOP export in Data Sources and it backfills in about a minute.")),
         Expectation(
             icon: "lock.shield",
-            title: String(localized: "Everything stays on your device"),
+            title: "Everything stays on your device",
             body: String(localized: "No account, no cloud, no sync. NOOP talks only to your strap and keeps everything local. Your data is yours alone.")),
     ]
 }

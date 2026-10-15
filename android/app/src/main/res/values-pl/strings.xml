@@ -1878,7 +1878,7 @@
     <string name="l10n_settings_screen_r22disable_confirm_cancel">Po prostu przestań wysyłać</string>
     <string name="l10n_settings_screen_r22_accepted_all">✓ Pasek akceptuje wszystkie flagi %1$d R22</string>
     <string name="l10n_settings_screen_r22_accepted_partial">Pasek akceptowany %1$d/%2$d Flagi R22…</string>
-    <string name="l10n_app_changelog_water_and_caffeine_from_apple_health_5123b6b0">Woda i kofeina z Apple Health, ostrzejszy wynik Wysiłek i poprawka tętna spoczynkowego Oura</string>
+    <string name="l10n_app_changelog_water_and_caffeine_from_apple_health_5123b6b0">Woda i kofeina z Apple Health, dokładniejszy wynik Effort i poprawka tętna spoczynkowego Oura</string>
     <string name="onboarding_cta_begin">Zaczynać</string>
     <string name="onboarding_cta_continue">Dalej</string>
     <string name="onboarding_cta_save_continue">Zapisz i kontynuuj</string>
@@ -1969,7 +1969,7 @@
         <item quantity="many">Tworzymy Twój poziom bazowy. Jeszcze około %1$d nocy, aby wyniki były spersonalizowane.</item>
         <item quantity="other">Tworzymy Twój poziom bazowy. Jeszcze około %1$d nocy, aby wyniki były spersonalizowane.</item>
     </plurals>
-    <string name="l10n_app_changelog_widgets_stop_inventing_numbers_naps_count_4f7491bb">Widżety przestają wymyślać liczby, drzemki wliczają się do długów snu, a chipy stanu Android mówią w Twoim języku</string>
+    <string name="l10n_app_changelog_widgets_stop_inventing_numbers_naps_count_4f7491bb">Widżety przestają wymyślać liczby, drzemki liczą się do długu snu, a wskaźniki stanu Androida mówią w Twoim języku</string>
     <string name="l10n_sleep_screen_may_be_incomplete_7230dc27">Może być niekompletny</string>
     <string name="l10n_sleep_screen_little_motion_was_recorded_over_f061b7e4">W nocy zarejestrowano niewielki ruch, więc ta noc może zostać niedostatecznie wykryta, a całkowity sen może być krótki. Upewnij się, że pasek jest w pełni zsynchronizowany.</string>
     <string name="l10n_sleep_screen_partly_recorded_f43509ab">Częściowo zarejestrowane</string>
@@ -2047,7 +2047,7 @@
     <string name="l10n_sleep_screen_sleep_debt_ledger_8cc9a992">Bilans długu snu</string>
     <string name="l10n_sleep_screen_stages_c1d33ad5">Fazy</string>
     <string name="l10n_sleep_screen_stages_vs_typical_28463f24">Fazy na tle typowych wartości</string>
-    <string name="l10n_app_changelog_make_noop_yours_theme_colours_and_6bdef2a7">Dostosuj NOOP do siebie — kolory motywu i własne tła, czterdzieści kolejnych dyscyplin z trasami GPS oraz mapa cieplna kalorii</string>
+    <string name="l10n_app_changelog_make_noop_yours_theme_colours_and_6bdef2a7">Dostosuj NOOP do siebie: kolory motywu i własne tła, ponad czterdzieści sportów z trasami GPS oraz mapa cieplna kalorii</string>
     <string name="l10n_app_changelog_personalized_heart_rate_zones_compare_and_8d89ee2a">Spersonalizowane strefy tętna, porównywanie i przełączanie opasek oraz bardziej rzetelne odczyty HRV, snu i Oura</string>
     <string name="l10n_settings_screen_custom_hr_zones_84736ca5">Własne strefy HR</string>
     <string name="l10n_settings_screen_custom_hr_zones_hint_f7fa3bae">Ustaw tętno, przy którym zaczyna się każda strefa. Wyłącz, aby przywrócić domyślne strefy oparte na procencie tętna maksymalnego.</string>
