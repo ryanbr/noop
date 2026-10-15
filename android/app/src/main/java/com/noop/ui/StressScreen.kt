@@ -206,11 +206,10 @@ fun StressScreen(vm: AppViewModel, onBreathe: () -> Unit = {}) {
         fullBleedBackground = screenBackdropFullBleed(showDayCycleBackground, skyBehindCards),
     ) {
         when {
-            model != null -> StressContent(
+            model == null && !storedLoaded && daytime == null -> item { StressLoading() }
+            else -> StressContent(
                 model, daytime, daytimeUsesPersonalBaseline, stressIndex, freqHrv, onBreathe,
             )
-            !storedLoaded -> item { StressLoading() }
-            else -> item { StressEmpty() }
         }
     }
 }
@@ -297,7 +296,7 @@ private suspend fun loadDaytimeCore(
 // `staggeredAppear(0..4)` indices, and the inter-section spacing is the scaffold's 20dp
 // `Arrangement.spacedBy` — identical to the eager ColumnScope it replaced.
 private fun androidx.compose.foundation.lazy.LazyListScope.StressContent(
-    model: StressModel,
+    model: StressModel?,
     daytime: DaytimeStress.Result?,
     daytimeUsesPersonalBaseline: Boolean,
     stressIndex: StressIndex.Components?,
@@ -308,7 +307,9 @@ private fun androidx.compose.foundation.lazy.LazyListScope.StressContent(
     //     (the needle/semicircle gauge is gone, matching the iOS redesign: a big WHITE
     //     CountUpText value with "of 3" + the band word beside it, over a band-tinted
     //     PipBar on the 0…3 scale. Flat, crisp, no needle, no gauge, no glow, no scenic).
-    item { StressHeroCard(model, modifier = Modifier.staggeredAppear(0)) }
+    if (model != null) {
+        item { StressHeroCard(model, modifier = Modifier.staggeredAppear(0)) }
+    }
 
     // 1b · ADVANCED HRV readouts (additive, on-demand). A separate, clearly-labelled card shown
     //      only when at least one engine returned a value. It sits BELOW the hero and never alters
@@ -318,43 +319,57 @@ private fun androidx.compose.foundation.lazy.LazyListScope.StressContent(
     }
 
     // 2 · Today's markers — uniform fixed-height tiles, two-up.
-    item {
-        Column(
-            modifier = Modifier.staggeredAppear(1),
-            verticalArrangement = Arrangement.spacedBy(Metrics.gap),
-        ) {
-            SectionHeader("Today", overline = "Markers", trailing = "vs 30-day baseline")
-            StressTiles(model)
+    if (model != null) {
+        item {
+            Column(
+                modifier = Modifier.staggeredAppear(1),
+                verticalArrangement = Arrangement.spacedBy(Metrics.gap),
+            ) {
+                SectionHeader("Today", overline = "Markers", trailing = "vs 30-day baseline")
+                StressTiles(model)
+            }
         }
     }
 
     // 3 · Today's intraday timeline — when in the day stress ran high, + a passive Breathe
     //     suggestion when the recent hours stay elevated.
-    // #2535: THREE states, not two. `daytime` is null only while the read is still running, and this used
-    // to render nothing in that case, so a fold that takes seconds looked exactly like a day with no data.
-    // The reporter described it as "detail page shows nothing, 15 secs later the data appears". The screen's
-    // existing `StressLoading` is wired to `storedLoaded`, which flips almost immediately; the expensive read
-    // is this one, and it had no affordance at all.
-    when {
-        daytime == null -> item { StressDaytimeLoading(modifier = Modifier.staggeredAppear(2)) }
-        daytime.scored.isNotEmpty() -> item {
+    // Today's HR is sufficient to render this section even before a nightly baseline exists.
+    when (StressDaytimeState.resolve(daytime, model != null, hasAdvancedReadouts(stressIndex, freqHrv))) {
+        StressDaytimeState.Loading -> item { StressDaytimeLoading(modifier = Modifier.staggeredAppear(2)) }
+        StressDaytimeState.Timeline -> item {
             StressDaytimeSection(
-                daytime,
+                requireNotNull(daytime),
                 daytimeUsesPersonalBaseline,
                 onBreathe,
                 modifier = Modifier.staggeredAppear(2),
             )
         }
-        // Read finished and the day has no usable intraday HR. Staying silent is deliberate and unchanged:
-        // an empty result is a fact about the day, not something still in flight.
-        else -> Unit
+        StressDaytimeState.Empty -> item { StressEmpty() }
+        StressDaytimeState.Hidden -> Unit
     }
 
-    // 4 · Trend over the chosen window.
-    item { StressTrendSection(model, modifier = Modifier.staggeredAppear(3)) }
+    if (model != null) {
+        // 4 · Trend over the chosen window.
+        item { StressTrendSection(model, modifier = Modifier.staggeredAppear(3)) }
 
-    // 5 · Transparency — how the number is built.
-    item { StressMethodologyCard(model, modifier = Modifier.staggeredAppear(4)) }
+        // 5 · Transparency — how the number is built.
+        item { StressMethodologyCard(model, modifier = Modifier.staggeredAppear(4)) }
+    }
+}
+
+/** Intraday presentation is independent of the daily score's nightly baseline. */
+internal enum class StressDaytimeState {
+    Loading, Timeline, Empty, Hidden;
+
+    companion object {
+        fun resolve(daytime: DaytimeStress.Result?, hasDailyModel: Boolean, hasAdvancedReadouts: Boolean): StressDaytimeState =
+            when {
+                daytime == null -> Loading
+                daytime.scored.isNotEmpty() -> Timeline
+                hasDailyModel || hasAdvancedReadouts -> Hidden
+                else -> Empty
+            }
+    }
 }
 
 // MARK: - Liquid hero tokens (the liquid restyle)
@@ -1563,9 +1578,8 @@ private fun androidx.compose.foundation.layout.RowScope.BandLegend(range: String
 /**
  * The intraday timeline while its read is still running (#2535).
  *
- * Deliberately NOT the same as [StressEmpty]: that one says there is no stress history at all, which is a
- * conclusion. This one says the answer is still being computed, which is what a caller waiting on the
- * thirty-day fold actually needs to see.
+ * Unlike [StressEmpty], this says the answer is still being computed rather than already unavailable.
+ * A caller waiting on the thirty-day fold needs to see which state the read is in.
  *
  * Keeps the header and the tint [StressDaytimeSection] uses, so the section does not appear out of nowhere
  * when the read lands. The height is approximate, not equal: the real card carries a chart and is taller.
@@ -1616,7 +1630,7 @@ private fun StressLoading() {
 private fun StressEmpty() {
     DataPendingNote(
         title = uiString(R.string.l10n_stress_screen_no_stress_history_yet_ec962e3c),
-        body = "No stress history yet. Import your WHOOP export in Data Sources to see it.",
+        body = uiString(R.string.stress_no_intraday_data),
     )
 }
 

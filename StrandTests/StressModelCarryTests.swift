@@ -1,4 +1,6 @@
 import XCTest
+import StrandAnalytics
+import WhoopProtocol
 import WhoopStore
 @testable import Strand
 
@@ -9,8 +11,8 @@ import WhoopStore
 /// pin the carry: score the newest day that actually has RHR/HRV. Twin of the Android StressModelTest.
 final class StressModelCarryTests: XCTestCase {
 
-    private func day(_ d: String, rhr: Int?, hrv: Double?) -> DailyMetric {
-        DailyMetric(day: d, totalSleepMin: nil, efficiency: nil, deepMin: nil, remMin: nil,
+    private func day(_ d: String, rhr: Int?, hrv: Double?, sleepMin: Double? = nil) -> DailyMetric {
+        DailyMetric(day: d, totalSleepMin: sleepMin, efficiency: nil, deepMin: nil, remMin: nil,
                     lightMin: nil, disturbances: nil, restingHr: rhr, avgHrv: hrv, recovery: nil,
                     strain: nil, exerciseCount: nil)
     }
@@ -33,6 +35,28 @@ final class StressModelCarryTests: XCTestCase {
         // Genuine cold start: no day has RHR/HRV and nothing stored → honestly calibrating (nil).
         let days = (1...5).map { day("2026-07-0\($0)", rhr: nil, hrv: nil) }
         XCTAssertNil(StressModel(days: days, stored: []))
+    }
+
+    func testFirstNightWithoutBaselineStillShowsTodaysTimeline() {
+        let daily = StressModel(days: [day("2026-07-01", rhr: 55, hrv: 60, sleepMin: 420)], stored: [])
+        XCTAssertNil(daily, "one night cannot establish the daily stress baseline")
+        let hr = (0..<DaytimeStress.minHourHRSamples).map { HRSample(ts: 7 * 3_600 + $0, bpm: 65) }
+        let daytime = DaytimeStress.analyze(hr: hr, rr: [])
+        XCTAssertFalse(daytime.scored.isEmpty)
+        XCTAssertEqual(StressDaytimeState.resolve(daytime: daytime, hasDailyModel: daily != nil,
+                                                 hasAdvancedReadouts: false), .timeline)
+    }
+
+    func testIntradayLoadingAndEmptyStatesRespectIndependentReadouts() {
+        for hasDaily in [false, true] {
+            for hasAdvanced in [false, true] {
+                XCTAssertEqual(StressDaytimeState.resolve(daytime: nil, hasDailyModel: hasDaily,
+                                                         hasAdvancedReadouts: hasAdvanced), .loading)
+                XCTAssertEqual(StressDaytimeState.resolve(daytime: .empty, hasDailyModel: hasDaily,
+                                                         hasAdvancedReadouts: hasAdvanced),
+                               hasDaily || hasAdvanced ? .hidden : .empty)
+            }
+        }
     }
 
     func testStoredStressOnLatestVitalsLessDayIsUsedNotSkipped() {

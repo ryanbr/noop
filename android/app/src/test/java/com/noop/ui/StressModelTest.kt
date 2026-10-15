@@ -1,7 +1,10 @@
 package com.noop.ui
 
+import com.noop.analytics.DaytimeStress
 import com.noop.data.DailyMetric
+import com.noop.data.HrSample
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -39,6 +42,32 @@ class StressModelTest {
         // Genuine cold start: no day has RHR/HRV and nothing stored -> honestly calibrating (null).
         val days = (1..5).map { day("2026-07-0$it", rhr = null, hrv = null) }
         assertNull(StressModel.build(days, emptyMap()))
+    }
+
+    @Test
+    fun firstNightWithoutBaselineStillShowsTodaysTimeline() {
+        val night = day("2026-07-01", rhr = 55, hrv = 60.0).copy(totalSleepMin = 420.0)
+        val daily = StressModel.build(listOf(night), emptyMap())
+        assertNull("one night cannot establish the daily stress baseline", daily)
+        val hr = (0 until DaytimeStress.minHourHrSamples).map {
+            HrSample(deviceId = "t", ts = 7 * 3_600L + it, bpm = 65)
+        }
+        val daytime = DaytimeStress.analyze(hr, emptyList())
+        assertFalse(daytime.scored.isEmpty())
+        assertEquals(StressDaytimeState.Timeline, StressDaytimeState.resolve(daytime, daily != null, false))
+    }
+
+    @Test
+    fun intradayLoadingAndEmptyStatesRespectIndependentReadouts() {
+        for (hasDaily in listOf(false, true)) {
+            for (hasAdvanced in listOf(false, true)) {
+                assertEquals(StressDaytimeState.Loading, StressDaytimeState.resolve(null, hasDaily, hasAdvanced))
+                assertEquals(
+                    if (hasDaily || hasAdvanced) StressDaytimeState.Hidden else StressDaytimeState.Empty,
+                    StressDaytimeState.resolve(DaytimeStress.Result.EMPTY, hasDaily, hasAdvanced),
+                )
+            }
+        }
     }
 
     @Test
