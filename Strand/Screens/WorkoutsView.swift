@@ -264,6 +264,8 @@ struct WorkoutsView: View {
                 Task {
                     // A copy pre-fills the form but replaces nothing — see `WorkoutSheetTarget.isCopy`.
                     await repo.saveManualWorkout(row, replacing: target.isCopy ? nil : replacing)
+                    // An existing edit must reach the list without waiting for the full scoring pass (#1488).
+                    if !target.isCopy && replacing != nil { await reload() }
                     // #598: rescore the just-added workout from the strap's HR for its window NOW, so its
                     // average / peak HR, strain and calories appear immediately (from your own strap data)
                     // instead of waiting up to 15 minutes for the next analyze tick. No-ops when the strap

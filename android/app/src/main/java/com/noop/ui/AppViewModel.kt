@@ -2253,6 +2253,8 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
     fun saveManualWorkout(row: WorkoutRow, replacing: WorkoutRow? = null) {
         viewModelScope.launch {
             runCatching { repository.saveManualWorkout(row, replacing) }
+            // An existing edit must reach the list without waiting for the full scoring pass (#1488).
+            if (replacing != null) loadWorkouts()
             // #598: rescore the just-added workout from the strap's HR for its window NOW, so its average /
             // peak HR, strain and calories appear immediately instead of waiting for the next analyze tick.
             // No-ops when there's no strap HR for the window; never overrides a value the user typed.
