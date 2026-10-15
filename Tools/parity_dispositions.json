@@ -300,6 +300,30 @@
       "platform": "kotlin",
       "rationale": "Swift Repository.refresh reads the same imported daily union (unionDailyMetrics) in the excluded app layer and hands it, still apart from the computed union, to ChargeBaselines.resolve (#2525); this disposition does not assert behavioral parity.",
       "twin_path": "Strand/Data/Repository.swift"
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-constant",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/DeviceRegistryStore.swift::legacyWhoopId",
+      "identity_sha256": "2be3b893cf166b121ca9fc9f7f15612291c0b74bcbda9c741e2c52284c5826fa",
+      "platform": "swift",
+      "rationale": "The GRDB store's name for the legacy 'my-whoop' seed device id, read by the v48 re-home. The Room store resolves its seed id in NoopApplication and does not use this constant (this PR is Swift-only)."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/DeviceRegistryStore.swift::rehomeLegacyWhoopAlias/1#1",
+      "identity_sha256": "7920348061904f8e8a274c05a0ba5ad9c8654a7db8f318c466eb94f0bcef0e17",
+      "platform": "swift",
+      "rationale": "Re-homes WhoopStore rows split between the legacy 'my-whoop' seed id and the registry id, run by the v48 migration and the launch bootstrap. The Room store has no equivalent re-home migration in this change; adding one is a follow-up, called out in the PR."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/DeviceRegistryStore.swift::rehomeLegacyWhoopAliasIfNeeded/0#1",
+      "identity_sha256": "9a56cfb20be58fc416031e55dfaec501eb63979d1e5264064f0fe793ea31dd6e",
+      "platform": "swift",
+      "rationale": "Public entry point for the v48 re-home of rows split between the legacy 'my-whoop' seed id and the registry id in the GRDB store. The Room store has no equivalent re-home migration in this change; adding one is a follow-up, called out in the PR."
     }
   ]
 }

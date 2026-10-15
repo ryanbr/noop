@@ -1471,6 +1471,16 @@ public final class BLEManager: NSObject, ObservableObject {
                 self.deviceId = activeId
             }
         }
+        // #814: heal a legacy-alias split before the Collector/Backfiller are built below. If a past
+        // session filed this strap's rows under BOTH the v15 seed id "my-whoop" (launched while the
+        // seed was still the active row — the pairing session above all) and the registry's
+        // `whoop-…` id, re-home the seed's rows onto the active id so the per-day single-owner
+        // scoring reads see the strap's whole history under one id. The v48 migration already ran
+        // this once at store open; repeating the same guarded heal here keeps a split created by a
+        // LATER session (pairing, a Devices-screen switch) from persisting past the next launch.
+        // Heavily guarded inside — a no-op unless the registry holds exactly the seed + one active
+        // WHOOP row for the same strap.
+        _ = try? registry.rehomeLegacyWhoopAliasIfNeeded()
         // Restore the ECG latch for THIS device now that `deviceId` has settled for the launch. Done
         // here rather than at init because the id is not known that early, and the latch is per device.
         // Read-only: nothing is sent to the strap, matching the rule that these opcodes are never
