@@ -164,6 +164,11 @@ targets:
     deploymentTarget: "13.0"
     sources:
       - StrandTests
+      # Compile the exact iOS Home Assistant HTTP client into the macOS test bundle so the
+      # app's GET/POST contract can run against a deterministic fake transport.
+      - StrandiOS/Integration/HomeAssistantAPIClient.swift
+      # Keep the sensor/state mapping under test without requiring repository or strap state.
+      - StrandiOS/Integration/HomeAssistantPayload.swift
       # Compile the exact cross-target snapshot source into the test bundle so the AltStore App Group
       # resolver is covered without adding this iOS/widget-only type to the macOS application module.
       - StrandiOSShared/WidgetSnapshot.swift
@@ -300,6 +305,7 @@ targets:
           # none, so that task would never run in the one case the warning exists for.
           - $(PRODUCT_BUNDLE_IDENTIFIER).stalebattery
         NSBluetoothAlwaysUsageDescription: "NOOP connects directly to your WHOOP strap over Bluetooth to read heart rate, R-R intervals, battery, and sensor data locally on your iPhone. Nothing leaves your device."
+        NSLocalNetworkUsageDescription: "NOOP connects to the Home Assistant and Coach servers you configure on your local network."
         NSLocationWhenInUseUsageDescription: "NOOP records your route during an outdoor workout to show distance, pace, and a map, and keeps recording while the screen is off. The route stays on your device. Nothing leaves it."
         NSHealthShareUsageDescription: "NOOP reads your own Apple Health data on-device to compute recovery, strain, and sleep. Nothing leaves your device."
         NSHealthUpdateUsageDescription: "NOOP writes the metrics it computes from your strap back into Apple Health, on-device and only when you allow it."

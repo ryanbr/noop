@@ -40,6 +40,7 @@ struct RootTabView: View {
     @State private var quickAction: QuickAction?
     /// Presents the Devices manager (pair / switch bands) when a screen asks the shell to open it.
     @State private var showDevices = false
+    @State private var homeAssistantExportTask: Task<Void, Never>?
     /// A routed v5 pillar screen (Insights hub / Lab Book / fused record / Rhythm) presented as a sheet
     /// when a hub row deep-links to it via NavRouter. nil = closed.
     @State private var routedPillar: NavRouter.Destination?
@@ -99,6 +100,19 @@ struct RootTabView: View {
         }
     }
 
+    /// Automatic Home Assistant delivery is driven by completed local repository refreshes. It is a
+    /// separate task, so network latency can never sit on the BLE offload/write path.
+    private func exportToHomeAssistantIfEnabled() {
+        guard UserDefaults.standard.bool(forKey: HomeAssistantExport.enabledKey),
+              homeAssistantExportTask == nil else { return }
+        let endpoint = UserDefaults.standard.string(forKey: HomeAssistantExport.endpointKey) ?? ""
+        guard HomeAssistantExport.hasToken(), !endpoint.isEmpty else { return }
+        homeAssistantExportTask = Task { @MainActor in
+            defer { homeAssistantExportTask = nil }
+            _ = try? await HomeAssistantExport.exportLatest(repository: repo, baseURL: endpoint)
+        }
+    }
+
     /// The anywhere-swipe tab-switch drag (2026-07-02). Held as a property so the attachment site can
     /// enable or disable it through a `GestureMask` instead of attaching it conditionally: a conditional
     /// attachment changes view identity, and this condition toggles on every push and pop, which would
@@ -146,6 +160,9 @@ struct RootTabView: View {
         // only in that case, so a flip made from anywhere else does not move them.
         .onChangeCompat(of: coachEnabled) { enabled in
             if !enabled && selectedTab == 3 { selectedTab = 0 }
+        }
+        .onChangeCompat(of: repo.refreshSeq) { _ in
+            exportToHomeAssistantIfEnabled()
         }
         // #1841: the same "Hide bar when scrolling" preference Android drives its own bar with. Here the
         // system owns the behaviour — iOS 26's tab bar MINIMISES to a pill on scroll down rather than
@@ -492,6 +509,7 @@ struct RootTabView: View {
                     // #155: HealthKit-free Apple Health path for sideloaded installs (Siri Shortcut
                     // reads the opt-in Documents/noop_sync.txt drop file).
                     MoreRow("Shortcuts Export", "square.and.arrow.up.fill", .shortcutsExport)
+                    MoreRow("Home Assistant", "house.fill", .homeAssistant)
                     // The plain 4.0 vs 5.0/MG capability grid — what NOOP reads live off each strap.
                     MoreRow("NOOP Limitations", "list.bullet.rectangle", .noopLimitations)
                 }
@@ -599,7 +617,7 @@ struct RootTabView: View {
 private enum MoreDestination: Hashable {
     case insightsHub, intelligence, coach, insights, explore, compare
     case live, workouts, liftLog, health, labBook, stress, breathe, intervals, rhythm
-    case fusedRecord, appleHealth, miBand, dataSources, backupSync, shortcutsExport, noopLimitations
+    case fusedRecord, appleHealth, miBand, dataSources, backupSync, shortcutsExport, homeAssistant, noopLimitations
     case alarms, automations, testCentre, siriShortcuts, powerSaving, settings
 
     @ViewBuilder var destination: some View {
@@ -626,6 +644,7 @@ private enum MoreDestination: Hashable {
         case .noopLimitations: NoopLimitationsView()
         case .backupSync:      BackupSyncView()
         case .shortcutsExport: ShortcutExportSettingsView()
+        case .homeAssistant:  HomeAssistantSettingsView()
         case .alarms:          SmartAlarmView()
         case .automations:     AutomationsView()
         case .testCentre:      TestCentreView()

@@ -589,6 +589,7 @@ enum DemoScreens {
         case "explore":  return AnyView(MetricExplorerView())
         case "compare":  return AnyView(CompareView())
         case "settings": return AnyView(SettingsView())
+        case "homeassistant": return AnyView(HomeAssistantSettingsView())
         case "chargebreakdown": return AnyView(ChargeBreakdownDemoHost())
         case "devices":  return AnyView(DevicesView())
         case "devicescatalog": return AnyView(DeviceCardCatalog())

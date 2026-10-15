@@ -66,6 +66,22 @@ read-back, remote writes, or making app behaviour depend on endpoint availabilit
 scope. The feature stays Experimental until its Android background behaviour is proven quiet and
 reliable in real-world use.
 
+## iOS Home Assistant export
+
+The iOS build also has an explicit, default-off Home Assistant integration requested for this build.
+It writes a fixed set of NOOP sensor states to the user's own Home Assistant REST API using a
+user-supplied long-lived token stored in iOS Keychain. It sends the latest daily summary, a recent
+heart-rate sample, and the latest strap battery state; it does not install a receiver, read entities,
+accept commands, or make strap collection depend on Home Assistant. The **Test connection** action
+checks only `GET /api/` and sends no health data. This is a separate, opt-in iOS destination and does
+not change the versioned push protocol or its receiver contract.
+
+Home Assistant's REST state API creates state-backed entities without configuring an integration
+entry. They may need a new export after Home Assistant restarts, and are not managed through the
+entity registry. Automatic delivery runs after local repository refreshes while the iOS setting is
+enabled; **Send latest data now** is also available. This exception does not authorize a hosted NOOP
+service, other third-party destinations, or data read-back.
+
 ## Proposing a scope change
 
 Scope changes are deliberate, not incidental. If you believe one of the out-of-scope areas should move,

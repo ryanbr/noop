@@ -14,9 +14,11 @@ NOOP is an **offline-by-default, on-device** companion app for WHOOP 4.0 and 5.0
 strap). It pairs over Bluetooth, stores everything in on-device SQLite, and computes recovery / strain
 / HRV / sleep locally. There is **no NOOP-operated server, no account, no cloud dependency, no
 telemetry**, and the project stays **anonymous** (iOS/Android ship build-from-source / sideload, not
-via the App Store). Issue #1314 permits one narrow exception: a default-off Experimental client may
-export data one way to an HTTP(S) endpoint the user owns and configures. It must remain outside strap
-sync, never read data back, and ship no receiver or hosted service in this repository.
+via the App Store). Issue #1314 permits a default-off Experimental client to export data one way to
+an HTTP(S) endpoint the user owns and configures; the iOS app also has the narrowly scoped,
+default-off Home Assistant state export documented in [`docs/SCOPE.md`](docs/SCOPE.md). Both remain
+outside strap sync, never read health data or commands back, and ship no receiver or hosted service
+in this repository.
 
 These are hard constraints, not preferences. A PR is out of scope if it:
 - adds a server, account, cloud dependency, or sends data off-device without the explicit user export

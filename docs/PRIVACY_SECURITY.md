@@ -54,6 +54,7 @@ these are features, not a count of individual requests or destinations.
 | Path / platforms | Default and trigger | What is sent | Destination |
 | --- | --- | --- | --- |
 | AI Coach / macOS, iOS, Android (§1.1a) | Unconfigured initially; requests after provider setup for chat, model refresh or enabled briefs | Provider authentication when required; conversation text; health summaries only with data consent; optional chart attachment on Apple/Gemini | Chosen provider or Custom server |
+| Home Assistant export / iOS (§1.1e) | Off by default; manual export or after local data refresh when enabled | Bearer token; latest daily metric values, recent heart-rate sample and strap battery state | User-configured Home Assistant REST endpoint |
 | Oura history import / opt-in macOS, iOS build (§1.1b) | Compiled out by default; user starts authorization/import | OAuth credentials, authorization/refresh tokens and history query parameters; no existing NOOP health data | `cloud.ouraring.com`, `api.ouraring.com` |
 | Update check / macOS, iOS, Android (§1.1c) | Automatic check **on by default**, at most daily after onboarding/Terms; manual check on tap | Public release `GET`; no health data or app-added user/account identifier | `api.github.com` |
 | Self-hosted push / Android (§1.1d) | Experimental, **off by default**; configured export after offload/launch or on tap; explicit connection test | Bearer authentication; capability `GET`; versioned health batches with local installation/device IDs on export | User-owned HTTP(S) endpoint |
@@ -65,12 +66,12 @@ Opening a web link hands it to a browser; Apple Health/Health Connect and sidelo
 own network and sharing settings. This inventory does not promise those services are offline.
 
 For ordinary strap collection without NOOP's direct HTTP requests: turn off **Check automatically**
-in Settings → About, leave the AI Coach and self-hosted push unconfigured, use a default build
-without the Oura cloud import, and do not tap the manual update check. This does not disable
-platform-service traffic such as the route map.
+in Settings → About, leave the AI Coach and self-hosted push unconfigured, keep Home Assistant
+automatic export off, use a default build without the Oura cloud import, and do not tap the manual
+update check. This does not disable platform-service traffic such as the route map.
 
 Networking clients live in the app targets: `Strand/AI/`, `Strand/Oura/`, `Strand/System/UpdateChecker.swift`,
-and Android's `ai/`, `update/` and `push/` packages. The biometric pipeline and Swift packages under
+`StrandiOS/Integration/`, and Android's `ai/`, `update/` and `push/` packages. The biometric pipeline and Swift packages under
 `Packages/` do not make runtime network requests; shared parsers such as `SseDeltas` only process
 already-received text. Android's Oura support is local BLE, with no equivalent to the cloud import.
 
@@ -213,6 +214,37 @@ not a NOOP cloud, account, restore path, or two-way sync:
 
 The repository ships the Android client and protocol document, not a server. The feature remains
 Experimental and default-off under the boundary in [`SCOPE.md`](SCOPE.md).
+
+### 1.1e Home Assistant export (iOS, off by default)
+
+The iOS app can publish a fixed set of the latest NOOP values to a Home Assistant instance the user
+configures. It is separate from BLE collection and never reads Home Assistant entities or commands:
+
+- **Off until enabled.** The user saves a Home Assistant URL and long-lived access token in
+  **More → Home Assistant**. The token is stored in iOS Keychain. A manual **Send latest data now**
+  action sends immediately; automatic export runs after a local repository refresh only when its
+  switch is enabled. **Test connection** sends only an authenticated `GET /api/` and no health data.
+- **What is sent.** The latest available daily recovery, strain, sleep, HRV, resting heart rate,
+  steps, SpO₂, respiratory rate, skin-temperature deviation and strap battery values, plus a recent
+  heart-rate sample in the status sensor attributes and a sync timestamp. Unavailable values are
+  omitted. Each value is written separately with `POST /api/states/<entity_id>`; no database or BLE
+  history is uploaded.
+- **What comes back.** Only the HTTP success/failure status is used. NOOP does not query entity
+  state, issue Home Assistant services, or change collection based on Home Assistant availability.
+  HTTP redirects are not followed, so the bearer token is not forwarded to another host.
+- **Destination and transport.** Requests go only to the URL entered by the user. HTTPS is
+  recommended. On a trusted private network, a user may choose a local HTTP URL; the token and
+  values then travel in cleartext on that network. iOS may require Local Network permission for a
+  local Home Assistant host.
+- **Entity behavior.** The REST state API creates state-backed entities such as
+  `sensor.noop_recovery`; they are not configured through Home Assistant's entity registry and may
+  need to be republished after a Home Assistant restart.
+
+Code: `StrandiOS/Integration/HomeAssistantAPIClient.swift`,
+`StrandiOS/Integration/HomeAssistantPayload.swift`,
+`StrandiOS/Integration/HomeAssistantExport.swift`, and
+`StrandiOS/Integration/HomeAssistantSettingsView.swift`. Setup notes are in
+[`HOME_ASSISTANT.md`](HOME_ASSISTANT.md).
 
 ### 1.2 The macOS sandbox (and what it means for the AI Coach and the Oura import)
 
@@ -605,8 +637,9 @@ dedicated source id `nutrition-csv`, alongside your other metrics and entirely o
   Keychain.
 - **No telemetry / analytics / crash reporting.** No third-party SDKs of that kind.
 - **No NOOP cloud, account sync, or operated remote backup.** The Oura history import (§1.1b) is
-  **inbound only**. Android self-hosted push (§1.1d) is the sole standing outbound export: off by
-  default, one-way, and directed only to the endpoint the user configured and owns.
+  **inbound only**. The Android self-hosted push (§1.1d) and iOS Home Assistant export (§1.1e) are
+  the only standing health-data exports: both are off by default, one-way, and directed only to an
+  endpoint the user configures.
 - **No advertising identifiers, no tracking.**
 - **No WHOOP account or API credentials.** NOOP talks only to the strap over local
   BLE; it does not authenticate against, or pull from, any WHOOP server. (Oura is the
