@@ -119,14 +119,13 @@ object SleepStageTotals {
 
     // ── Canonical main-night selection (#525 / #547 — learned-timing scored pick) ────────────────────
 
-    /** Broad overnight band used ONLY for the cold-start alignment bonus (NOT a gate). The band is
-     *  [OVERNIGHT_START_HOUR, OVERNIGHT_END_HOUR) local, reconciled with the detector's
-     *  `SleepStager.isOvernightOnset` window [20:00, 11:00) so the selector and detector agree (removes the
-     *  old [10:00, 11:00) off-by-one). Mirrors Swift. (#547) */
-    const val OVERNIGHT_START_HOUR = 20
+    /** Broad overnight band for the cold-start timing bonus and physiological-day eligibility.
+     *  The 19:00 edge admits early bedtimes (#2626); the 11:00 closing edge retains late-morning onsets.
+     *  The raw detector has its own onset band, unchanged by this selection policy. */
+    const val OVERNIGHT_START_HOUR = 19
 
     /** Local hour (exclusive) that closes the cold-start overnight band. Now 11 (was 10) to match the
-     *  detector's [20:00, 11:00) onset window. A block onset in [OVERNIGHT_END_HOUR, OVERNIGHT_START_HOUR)
+     *  detector's late-morning edge. A block onset in [OVERNIGHT_END_HOUR, OVERNIGHT_START_HOUR)
      *  is daytime; everything else is overnight. */
     const val OVERNIGHT_END_HOUR = 11
 
@@ -178,8 +177,8 @@ object SleepStageTotals {
 
     /** True when a block's onset falls in the cold-start overnight band (>= [OVERNIGHT_START_HOUR] or
      *  < [OVERNIGHT_END_HOUR], local). Retained for callers/tests that still ask the binary question, but
-     *  the scored selector no longer GATES on it — it only feeds the cold-start alignment bonus. Mirrors
-     *  `SleepStager.isOvernightOnset`. [offsetSec] is seconds EAST of UTC. (#525 / #547) */
+     *  the scored selector no longer GATES on it. Physiological-day classification still uses this
+     *  band to exclude unclassified daytime naps; its early edge admits 19:00 bedtimes (#2626). [offsetSec] is seconds EAST of UTC. (#525 / #547) */
     fun isOvernightOnset(ts: Long, offsetSec: Long): Boolean {
         val local = ts + offsetSec
         val secOfDay = ((local % SECONDS_PER_DAY) + SECONDS_PER_DAY) % SECONDS_PER_DAY
