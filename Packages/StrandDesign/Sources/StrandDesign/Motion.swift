@@ -101,9 +101,8 @@ public enum StrandMotion {
     /// distinct mid-sweep.
     static let syncIndicatorTintBandTurns: Double = 0.10
 
-    /// Transient label fades after the capsule has settled.
+    /// Sync label fades after the capsule has settled.
     static let syncIndicatorLabelIn = Animation.easeOut(duration: 0.26)
-    static let syncIndicatorLabelOut = Animation.easeInOut(duration: 0.26)
 
     static let syncIndicatorFrameInterval = 1.0 / 60.0
     static let syncIndicatorSpinPeriod = 1.25
@@ -123,13 +122,11 @@ public enum StrandMotion {
 
     /// Grace period the SCREEN applies to the falling edge of the sync signal before it tells the
     /// indicator to wind down. Public because the raw signal is the screen's to own: `backfilling` drops
-    /// between history chunks, and without this the control would flap back to the battery reading in the
-    /// middle of one logical sync.
+    /// between automatically continued offload sessions, and otherwise the control would flap back to
+    /// the battery reading in the middle of one logical sync.
     public static let syncIndicatorSignalDebounceNanoseconds: UInt64 = 3_000_000_000
 
     static let syncIndicatorLabelDelayNanoseconds: UInt64 = 650_000_000
-    static let syncIndicatorLabelVisibilityNanoseconds: UInt64 = 1_900_000_000
-    static let syncIndicatorCollapseDelayNanoseconds: UInt64 = 240_000_000
     /// Steady spinner rate in degrees per second. Derived from the spin period rather than written out,
     /// so the wind-down cannot drift out of step with the spin it has to hand off from.
     static var syncIndicatorSpinRateDegrees: Double { 360 / syncIndicatorSpinPeriod }
