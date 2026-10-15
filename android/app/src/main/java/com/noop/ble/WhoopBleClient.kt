@@ -6537,22 +6537,6 @@ class WhoopBleClient(
                     ),
                 )
             }
-            // #716: the seeded "my-whoop" device has model "WHOOP" (no generation). Once a live
-            // scan confirms which service family the strap advertises, stamp the correct model so
-            // forRegistryModel returns the right DeviceFamily (fixes skin-temp ADC scale + display).
-            if (!modelStamped) {
-                modelStamped = true
-                ioScope.launch {
-                    val stale = repository.pairedDevices().firstOrNull {
-                        it.status == "active" && it.model == "WHOOP"
-                    }
-                    if (stale != null) {
-                        val correct = if (selectedModel == WhoopModel.WHOOP4) "WHOOP 4.0" else "WHOOP 5.0 / MG"
-                        repository.setDeviceModel(stale.id, correct)
-                        log("Updated device model from \"WHOOP\" to \"$correct\" (#716)")
-                    }
-                }
-            }
             val advertisedServiceUuids = result.scanRecord?.serviceUuids
                 ?.map { it.uuid.toString().lowercase() }
                 .orEmpty()
@@ -6596,10 +6580,34 @@ class WhoopBleClient(
             // Persist the family that actually advertised so the next scan starts on the right service —
             // this is what makes a one-time rotation stick after a stale-preference reconnect. (PR#195)
             persistSelectedModel(selectedModel)
+            stampSeededModelIfNeeded()
             _state.update { it.copy(statusNote = "Found $name, connecting…") }
             // Port of didDiscover: stop scanning, then connect to this peripheral.
             stopScan()
             connectToDevice(device, alreadyAuthorised = true)   // #1881: a scan result is already authorised
+        }
+
+        /**
+         * #716: the seeded "my-whoop" device has model "WHOOP" (no generation). Stamp the family of the
+         * strap NOOP is about to connect to, so forRegistryModel returns the right DeviceFamily (skin-temp
+         * ADC scale + display). Called only once the scan has accepted a strap for [selectedModel]:
+         * stamping on ANY scan result labelled a 5/MG install "WHOOP 4.0" whenever an unsupported
+         * advertiser (e.g. service 1150) was heard during the auto-scan's 4.0 leg.
+         */
+        private fun stampSeededModelIfNeeded() {
+            if (modelStamped) return
+            modelStamped = true
+            val family = selectedModel
+            ioScope.launch {
+                val stale = repository.pairedDevices().firstOrNull {
+                    it.status == "active" && it.model == "WHOOP"
+                }
+                if (stale != null) {
+                    val correct = if (family == WhoopModel.WHOOP4) "WHOOP 4.0" else "WHOOP 5.0 / MG"
+                    repository.setDeviceModel(stale.id, correct)
+                    log("Updated device model from \"WHOOP\" to \"$correct\" (#716)")
+                }
+            }
         }
 
         override fun onScanFailed(errorCode: Int) {
