@@ -10,7 +10,7 @@ import WhoopProtocol
 /// that know they have a WHOOP 5 should use `rrRawTicks` instead of `rr`.
 public enum StandardHeartRate {
     public static func parse(_ data: [UInt8]) -> (hr: Int, rr: [Int], rrRawTicks: [Int], contact: StandardHRContact)? {
-        guard !data.isEmpty else { return nil }
+        guard StandardHRMeasurement.hasCompleteFields(data) else { return nil }
         let flags = data[0]
         let contact = StandardHRContact.fromMeasurementFlags(flags)
         var idx = 1

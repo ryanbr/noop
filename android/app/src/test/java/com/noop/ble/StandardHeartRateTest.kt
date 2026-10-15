@@ -93,4 +93,98 @@ class StandardHeartRateTest {
         // flags claim a 16-bit HR but only one HR byte follows → truncated → null.
         assertNull(StandardHeartRate.parse(bytes(0x01, 0x40)))
     }
+
+    @Test fun incompleteDeclaredEnergyRefusesWholeReading() {
+        val heartRates = listOf(bytes(72), bytes(0x40, 1))
+        for ((format, hr) in heartRates.withIndex()) {
+            for (extraFlags in listOf(0x00, 0x06, 0xe0, 0xe6, 0x10, 0x16, 0xf0, 0xf6)) {
+                for (energy in listOf(ByteArray(0), bytes(0xff))) {
+                    val frame = bytes(format or 0x08 or extraFlags) + hr + energy
+                    assertNull("incomplete energy: ${frame.toList()}", StandardHeartRate.parse(frame))
+                }
+            }
+        }
+    }
+
+    @Test fun incompleteRrTailRefusesWholeReading() {
+        val heartRates = listOf(bytes(72), bytes(0x40, 1))
+        for ((format, hr) in heartRates.withIndex()) {
+            for (energy in listOf(ByteArray(0), bytes(0x34, 0x12))) {
+                for (extraFlags in listOf(0x00, 0x06, 0xe0, 0xe6)) {
+                    for (tail in listOf(bytes(0xff), bytes(0, 4, 0xff), bytes(0, 4, 0xff, 0xff, 0xab))) {
+                        val flags = format or 0x10 or extraFlags or (if (energy.isEmpty()) 0 else 0x08)
+                        val frame = bytes(flags) + hr + energy + tail
+                        assertNull("incomplete R-R: ${frame.toList()}", StandardHeartRate.parse(frame))
+                    }
+                }
+            }
+        }
+    }
+
+    @Test fun completeReadingsMatchOriginalSwiftOracle() {
+        val frames = listOf(
+            bytes(0x00, 72),
+            bytes(0x02, 0),
+            bytes(0x04, 220),
+            bytes(0x06, 255),
+            bytes(0x01, 0x00, 0x01),
+            bytes(0x07, 0xff, 0xff),
+            bytes(0x08, 72, 0, 0),
+            bytes(0x09, 0x40, 1, 0xff, 0xff),
+            bytes(0x10, 60),
+            bytes(0x11, 0x40, 1),
+            bytes(0x18, 65, 0xff, 0),
+            bytes(0x19, 0xff, 0xff, 0xff, 0xff),
+            bytes(0x10, 60, 0, 4),
+            bytes(0x16, 72, 0, 4),
+            bytes(0x18, 65, 0xff, 0, 0, 4),
+            bytes(0x19, 0x40, 1, 0x34, 0x12, 0, 4),
+            bytes(0x10, 58, 0, 2, 0, 4),
+            bytes(0x10, 72, 0, 0, 0x40, 0, 0xc0, 0, 0xff, 0xff),
+            bytes(0xe0, 72),
+            bytes(0xe0, 72, 0xff),
+            bytes(0xf0, 72, 0, 4),
+            bytes(0xf6, 72, 0, 2, 0, 4),
+            bytes(0xf9, 0x40, 1, 0, 0, 0, 4),
+            bytes(0xfe, 72, 0, 0, 0, 4),
+            bytes(0xff, 0x40, 1, 0, 0, 1, 0),
+            bytes(0x00, 72, 0xff, 0, 4),
+            bytes(0x01, 0x40, 1, 0xff)
+        )
+        val expected = """
+            0048|72|||unsupported
+            0200|0|||unsupported
+            04dc|220|||supported_not_detected
+            06ff|255|||supported_detected
+            010001|256|||unsupported
+            07ffff|65535|||supported_detected
+            08480000|72|||unsupported
+            094001ffff|320|||unsupported
+            103c|60|||unsupported
+            114001|320|||unsupported
+            1841ff00|65|||unsupported
+            19ffffffff|65535|||unsupported
+            103c0004|60|1000|1024|unsupported
+            16480004|72|1000|1024|supported_detected
+            1841ff000004|65|1000|1024|unsupported
+            19400134120004|320|1000|1024|unsupported
+            103a00020004|58|500,1000|512,1024|unsupported
+            104800004000c000ffff|72|0,63,188,63999|0,64,192,65535|unsupported
+            e048|72|||unsupported
+            e048ff|72|||unsupported
+            f0480004|72|1000|1024|unsupported
+            f64800020004|72|500,1000|512,1024|supported_detected
+            f9400100000004|320|1000|1024|unsupported
+            fe4800000004|72|1000|1024|supported_detected
+            ff400100000100|320|1|1|supported_detected
+            0048ff0004|72|||unsupported
+            014001ff|320|||unsupported
+        """.trimIndent()
+        val actual = frames.joinToString("\n") { data ->
+            val hex = data.joinToString("") { java.lang.String.format(java.util.Locale.ROOT, "%02x", it.toInt() and 0xff) }
+            val r = StandardHeartRate.parse(data)
+            if (r == null) "$hex|nil" else "$hex|${r.hr}|${r.rr.joinToString(",")}|${r.rrRawTicks.joinToString(",")}|${r.contact.storageValue}"
+        }
+        assertEquals(expected, actual)
+    }
 }

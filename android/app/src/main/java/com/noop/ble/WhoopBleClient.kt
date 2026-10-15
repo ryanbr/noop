@@ -9181,7 +9181,10 @@ class WhoopBleClient(
      * The standard profile is the RELIABLE source for both HR and R-R.
      */
     private fun parseStandardHr(data: ByteArray) {
-        if (data.isEmpty()) return
+        if (!com.noop.protocol.StandardHrMeasurement.hasCompleteFields(data)) {
+            log("HR notify parse failed: incomplete measurement fields")
+            return
+        }
         val flags = data[0].toInt() and 0xFF
         val hr16 = (flags and 0x01) != 0
         val rrPresent = (flags and 0x10) != 0

@@ -1,6 +1,7 @@
 package com.noop.ble
 
 import com.noop.protocol.StandardHrContact
+import com.noop.protocol.StandardHrMeasurement
 
 /**
  * Pure parser for the standard BLE Heart Rate Measurement characteristic (0x2A37).
@@ -9,8 +10,8 @@ import com.noop.protocol.StandardHrContact
  * R-R intervals (ms). Pure → unit-testable away from android.bluetooth.
  *
  * This is a SEPARATE parser from [WhoopBleClient.parseStandardHr] on purpose: the new isolated
- * [StandardHrSource] uses THIS one so the WHOOP client's inline parse stays untouched (slight
- * duplication is fine — it keeps the hardware-verified WHOOP path from regressing). Both encode the
+ * [StandardHrSource] uses THIS one so the WHOOP client's hardware-verified field decode stays separate.
+ * Both use [StandardHrMeasurement] for complete-field validation and encode the
  * same Bluetooth SIG layout:
  *   - flags bit0 (0x01): HR is u16 (else u8)
  *   - flags bit3 (0x08): Energy-Expended field present → skip its 2 bytes before R-R
@@ -31,7 +32,7 @@ object StandardHeartRate {
      * whose declared HR/R-R bytes run past the buffer), matching the Swift `guard` bounds checks.
      */
     fun parse(data: ByteArray): Reading? {
-        if (data.isEmpty()) return null
+        if (!StandardHrMeasurement.hasCompleteFields(data)) return null
         val flags = data[0].toInt() and 0xFF
         val contact = StandardHrContact.fromMeasurementFlags(flags)
         var idx = 1
