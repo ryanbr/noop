@@ -200,9 +200,8 @@ the paired phone's Bluetooth fully off. This matches CoreBluetooth's documented 
 `connect()` has no built-in timeout (an unanswered connect just stays pending forever), so the
 practical symptom is a silent, permanent hang rather than an error.
 
-This is a different (and apparently more total) failure surface than the already-known WHOOP 5.0/MG
-macOS limitation (see `docs/WHOOP5_DEEP_DATA.md`, "iOS / Android only on real hardware") - WHOOP 5/MG
-at least connects and discovers services, failing only at an authenticated characteristic write
+This is a different (and apparently more total) failure surface than the known WHOOP 5.0/MG case, where
+the strap at least connects and discovers services, failing only at an authenticated characteristic write
 (`CBATTError` "Encryption is insufficient"). Oura's connect doesn't get that far at all. The exact
 CoreBluetooth/bluetoothd mechanism isn't diagnosed further than this (would need a low-level HCI/SMP
 trace).

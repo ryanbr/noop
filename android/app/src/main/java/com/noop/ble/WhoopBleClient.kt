@@ -1160,14 +1160,16 @@ class WhoopBleClient(
          *  to another app. Mirrors the iOS BLEManager streak>=2 gate. */
         private const val BOND_REFUSAL_HINT_THRESHOLD = 2
 
-        /** Concrete pairing-mode guidance for a WHOOP 5/MG that keeps refusing the encrypted bond because
-         *  it's still bonded to the official WHOOP app (#78). Plain, country-neutral wording; Android
-         *  settings path. Parity with the macOS pairingHint text. */
+        /** Concrete pairing-mode guidance for a WHOOP 5/MG that keeps refusing the encrypted bond (#78).
+         *  Names the two likely causes (held by the official WHOOP app, or this phone holding an old
+         *  pairing) without asserting either, the same hedge as BondRefusalGiveUp.pausedHint. Plain,
+         *  country-neutral wording; Android settings path. */
         private const val PAIRING_HINT_TEXT =
-            "Your WHOOP won't pair because it's still bonded to the official WHOOP app. To fix it: " +
+            "NOOP can see your strap but it's refusing to pair. It is likely still held by the official " +
+                "WHOOP app, or your phone is holding an old pairing. To fix it: " +
                 "1. Close the official WHOOP app (or turn off Bluetooth on that phone). " +
-                "2. Hold or tap the band until its LEDs flash blue (pairing mode). " +
-                "3. Open Settings > Bluetooth, find your WHOOP, and choose Forget This Device. " +
+                "2. Tap the band repeatedly until its LEDs flash blue (pairing mode). " +
+                "3. Open Settings → Bluetooth, find your WHOOP, and Forget / Unpair it. " +
                 "Then come back and tap Connect."
 
         /** 5/MG raw-capture file (app filesDir; shared via Settings → "Share 5/MG capture"). */
@@ -1619,7 +1621,7 @@ class WhoopBleClient(
             }
             val verdict = when {
                 resultCode == 3 -> "opcode 98 REJECTED by firmware (UNSUPPORTED) — evidence for the decompile's 87"
-                hasPayload -> "opcode 98 ACCEPTED — ${pay.size}-byte payload"
+                hasPayload -> "opcode 98 answered — ${pay.size}-byte payload (not a success verdict; see the bytes below)"
                 else -> "opcode 98 answered with a bare stub — ambiguous"
             }
 
@@ -1787,7 +1789,8 @@ class WhoopBleClient(
                 sb.append("DID NOT DECODE as a 151 SUCCESS response at this offset.\n")
                 sb.append("Either the reply is not a 151 response, or its result byte is not SUCCESS, or\n")
                 sb.append("the frame is shorter than the candidate layout needs. The raw hex above is the\n")
-                sb.append("evidence — the opcode may be right and the OFFSETS wrong.")
+                sb.append("evidence — the opcode may be right and the OFFSETS wrong.\n")
+                sb.append("On WHOOP MG firmware 50.39.1.0 a FAILURE result here is the known answer, with or without a pack attached; on its own it does not mean the offsets are wrong.")
                 return sb.toString()
             }
             if (!info.present) {
@@ -1865,7 +1868,7 @@ class WhoopBleClient(
             }
             val verdict = when {
                 resultCode == 3 -> "opcode 84 REJECTED by firmware (UNSUPPORTED)"
-                hasPayload -> "opcode 84 ACCEPTED — ${pay.size}-byte payload"
+                hasPayload -> "opcode 84 answered — ${pay.size}-byte payload (not a success verdict; see the bytes below)"
                 else -> "opcode 84 answered with a bare stub — ambiguous"
             }
 
@@ -4873,8 +4876,8 @@ class WhoopBleClient(
         // what settles whether the frame was accepted.
         if (connectedFamily == DeviceFamily.WHOOP5) {
             if (!testCentre.active(com.noop.testcentre.TestDomain.CONNECTION)) {
-                _state.update { it.copy(renameStatus = "5/MG renaming is experimental. Turn on Test Centre, Connection first.") }
-                log("Strap rename: 5/MG write refused, Test Centre Connection is off (#2338)")
+                _state.update { it.copy(renameStatus = "5/MG renaming is experimental. Turn on Connection & Sync in Test Centre first.") }
+                log("Strap rename: 5/MG write refused, Test Centre Connection & Sync is off (#2338)")
                 return
             }
             if (!_state.value.connected || !_state.value.bonded) {
@@ -5119,7 +5122,11 @@ class WhoopBleClient(
             val msg = "Advertising-name probe: no COMMAND_RESPONSE for opcode 141 within " +
                 "${ADVERTISING_NAME_PROBE_TIMEOUT_MS / 1000}s — the strap served no reply. That is the " +
                 "answer for now: renaming stays WHOOP 4.0 only (#2338)."
-            if (_advertisingNameProbe.compareAndSet(WAITING_ADVERTISING_NAME_PROBE, msg)) log(msg)
+            // The strap log keeps the opcode-level text; the Settings line gets plain wording that does not
+            // claim renaming is 4.0-only (it sits beside the 5/MG Rename button).
+            val shown = "No reply from the strap within ${ADVERTISING_NAME_PROBE_TIMEOUT_MS / 1000} s. " +
+                "This strap may not support reading its name yet."
+            if (_advertisingNameProbe.compareAndSet(WAITING_ADVERTISING_NAME_PROBE, shown)) log(msg)
         }, ADVERTISING_NAME_PROBE_TIMEOUT_MS)
     }
 
@@ -5223,7 +5230,7 @@ class WhoopBleClient(
      */
     private fun ecgGatesAllow(requiresOptIn: Boolean = true): Boolean {
         if (requiresOptIn && !puffinExperiment.ecgEnabled) {
-            log("ECG probe: ignored — the Experimental ECG opt-in is off")
+            log("ECG probe: ignored — turn on 'WHOOP MG ECG turn-on probe' in Test Centre → 5/MG protocol diagnostics first")
             return false
         }
         if (!whoop5Variant().isMG) {
@@ -5517,7 +5524,7 @@ class WhoopBleClient(
         // this guard is not merely belt-and-braces on every family — for the family most likely to run
         // this first, it is the belt.
         if (!testCentre.active(com.noop.testcentre.TestDomain.CONNECTION)) {
-            log("Feature-flag probe (#761) ignored — Test Centre → Connection is off")
+            log("Feature-flag probe (#761) ignored — Test Centre → Connection & Sync is off")
             return
         }
         if (featureFlagReport != null) {
@@ -5587,7 +5594,7 @@ class WhoopBleClient(
         // Defence in depth: the menu entry is already Test-Centre gated, but the sender re-checks so no
         // other path can start a probe on a default install (twin of the macOS guard).
         if (!testCentre.active(com.noop.testcentre.TestDomain.CONNECTION)) {
-            log("Device-config read probe (#103) ignored — Test Centre → Connection is off")
+            log("Device-config read probe (#103) ignored — Test Centre → Connection & Sync is off")
             return
         }
         if (deviceConfigReport != null) {
@@ -7130,9 +7137,9 @@ class WhoopBleClient(
             if (_state.value.pairingHint == null) {
                 log("WHOOP 5/MG: encrypted bond refused $bondRefusalStreak times — surfacing pairing guidance (#78)")
             }
-            // PAIRING_HINT_TEXT names a specific cause (still bonded to the official app). Only an auth
-            // refusal is evidence for that; an unanswered handshake is not, so it waits for the give-up's
-            // honest paused hint rather than being told to close an app that may be irrelevant.
+            // PAIRING_HINT_TEXT names two likely causes (held by the official app, or an old phone pairing).
+            // Only an auth refusal is evidence for that; an unanswered handshake is not, so it waits for the
+            // give-up's honest paused hint rather than being told to close an app that may be irrelevant.
             if (authRefusal) {
                 _state.update { it.copy(pairingHint = PAIRING_HINT_TEXT, statusNote = PAIRING_HINT_TEXT) }
             }
@@ -7591,8 +7598,9 @@ class WhoopBleClient(
                 _state.update { it.copy(
                     whoop5Detected = true,
                     statusNote = "WHOOP 5/MG connected - experimental. After bonding, NOOP brings up live " +
-                        "heart rate from the strap's realtime stream. Deeper metrics (recovery, strain, " +
-                        "sleep) for 5/MG are still being figured out. WHOOP 4.0 is fully supported today.",
+                        "heart rate from the strap's realtime stream and scores sleep, recovery and strain " +
+                        "from what it syncs; 5/MG sleep stages are approximate while some overnight inputs " +
+                        "are incomplete.",
                 ) }
                 cmdCharacteristic = whoop5.getCharacteristic(WHOOP5_CMD_WRITE_CHAR)
                 // #1635: dump what the strap actually OFFERS, once per strap. Every characteristic in this
@@ -9767,7 +9775,7 @@ class WhoopBleClient(
             log("ECG gate (#891): needs a WHOOP 5/MG strap — ignored."); return
         }
         if (!puffinExperiment.ecgRawData) {
-            log("ECG gate (#891): the experiment is off — enable it in Settings → Experimental first.")
+            log("ECG gate (#891): the experiment is off — turn on 'WHOOP MG ECG raw-data gate' in Test Centre → 5/MG protocol diagnostics first.")
             return
         }
         val variant = whoop5Variant()
@@ -9860,7 +9868,7 @@ class WhoopBleClient(
             log("Deep-data: needs a WHOOP 5.0/MG strap — ignored."); return
         }
         if (!puffinExperiment.isDeepDataEnabled) {
-            log("Deep-data: the deep-data experiment is off — enable it in Settings first."); return
+            log("Deep-data: the deep-data experiment is off — turn on 'Legacy R22 feature-flag experiment' in Test Centre → 5/MG protocol diagnostics first."); return
         }
         val s = _state.value
         if (!s.connected || !s.encryptedBond) {

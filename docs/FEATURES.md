@@ -42,7 +42,7 @@ Screens are grouped below by whether they need a connected strap:
 
 | Needs a connected strap (live BLE) | Works from imported data alone |
 | --- | --- |
-| Live, Breathe (for haptics), Intervals (for haptics), Health Monitor (live HR), Automations (to act), Notifications (to buzz) | Control Center, Explore, Compare, Insights, Sleep, Trends, Workouts, Stress, Mind, Apple Health, Data Sources |
+| Live, Breathe (for haptics), Intervals (for haptics), Health Monitor (live HR), Automations (to act), Alarms (to arm), Notifications (to buzz) | Control Center, Explore, Compare, Insights, Sleep, Trends, Workouts, Stress, Mind, Apple Health, Data Sources |
 
 Most of NOOP works the moment you import an export. The strap adds the *live* layer — real-time
 heart rate, haptic cues, and physical-input automations.
@@ -57,8 +57,9 @@ Throughout the app the strap reports one of three states:
 - **Connecting** — found and connecting, finishing the secure pairing handshake (warning / amber).
 - **Bonded** — paired and streaming; haptics and live HR are available (positive / green).
 
-> WHOOP straps do **not** appear in *System Settings → Bluetooth*. They advertise on a custom
-> profile that only apps like NOOP can find — so there's nothing to pair in System Settings.
+> You don't pair a WHOOP in *System Settings → Bluetooth*. It advertises on a custom profile that
+> only apps like NOOP can find, so don't try to pair it there. A strap paired before may still be
+> listed there, and that's expected.
 
 Commands that drive the strap motor (any wrist buzz) and the live realtime stream require a
 **bonded** connection. Where a feature needs this, it is noted below and the button is disabled
@@ -78,7 +79,7 @@ The onboarding wizard (`OnboardingWizard.swift`) appears on first launch and run
    your Mac; the connection is local BLE with no server in the middle.
 4. **Wear & wake** — put the strap on (snug, sensor on skin), charge it, keep it within ~1 m.
 5. **Scan** — a radar sweep; tapping **Scan** calls the BLE engine. If it hasn't bonded after
-   ~12 seconds, a reassurance card appears explaining the strap won't show in System Settings,
+   ~12 seconds, a reassurance card appears explaining the strap isn't paired from System Settings,
    that only one host can hold it at a time (close the WHOOP phone app), etc.
 6. **Bonded celebration** — a Charge ring blooms in when the strap bonds, with battery %.
 7. **Profile** — age, sex, weight, height (feeds zones, calories and baselines). Shows your
@@ -104,11 +105,13 @@ The home dashboard (`TodayView.swift`, titled "Control Center"). A tight, gaples
   **wake with Charge**, **spend it as Effort**, and **rebuild it with Rest**.
 - **Key Metrics** — a uniform tile grid, each with a 14-day sparkline: Charge, Effort
   (of 100), Rest (hours + efficiency), HRV, Resting HR, Blood Oxygen, Respiratory,
-  Steps (on-device only for WHOOP 5/MG; on a 4.0, NOOP shows your imported Apple Health /
-  Health Connect steps, because it can't yet read steps off the 4.0 strap over Bluetooth —
-  the 4.0 itself does count steps in the official WHOOP app — and approximate),
-  Weight, Calories. WHOOP metrics come from the `my-whoop` source; Steps/Weight/Calories/
-  Respiratory pull from `apple-health`. Sparse series (e.g. weight) fall back to all history so
+  Steps (on a WHOOP 5/MG, read from the strap's own motion counter; on a 4.0, which sends no step
+  count over Bluetooth, NOOP shows your imported Apple Health / Health Connect steps for a day when
+  it has them, and otherwise an on-device estimate from strap motion calibrated against your phone's
+  steps, marked "est." — calibrate or set it by hand under Settings → Profile → Steps estimate; both
+  are approximate),
+  Weight, Calories. WHOOP metrics come from the `my-whoop` source; Weight/Calories/Respiratory
+  pull from `apple-health`, and Steps follows the rule above. Sparse series (e.g. weight) fall back to all history so
   a tile never shows empty when data exists.
 - **Last Workouts** — up to six recent sessions as tiles (duration, date, avg HR, kcal).
 - **Data Sources** — a footer showing whether WHOOP and Apple Health data are present, with day/
@@ -471,13 +474,22 @@ React when the strap comes off or goes on:
 - **Stress check-ins (haptic)** — offer a guided breathing check-in after a fresh HRV dip while
   you are still. Off by default, with optional auto-nudges, quiet hours, and your resonance pace.
 
-### Smart alarm
-Wake to a wrist buzz. This arms the strap's **own firmware alarm**, so it still fires even if the
-Mac is asleep or NOOP is closed. Set your wake time — the strap buzzes at exactly that time.
-NOOP does not currently do light-sleep early wake.
-
 Mac side-effects are sandbox-friendly: screen lock uses macOS's own lock entry point, and
 Shortcuts run via the `shortcuts://` URL scheme — anything you can build in Shortcuts is reachable.
+
+## Alarms
+
+**Sidebar: Alarms · needs a connected strap to arm; the wake time saves without one.**
+
+`SmartAlarmView.swift` — the strap wake-alarm and the wind-down reminder, in one place.
+
+### Strap wake-alarm
+Wake to a wrist buzz. This arms the strap's **own firmware alarm**, so on a WHOOP 4.0 it still fires
+even if the Mac is asleep or NOOP is closed, at the time you set. On a WHOOP 5.0 / MG the alarm is
+experimental: it is only armed when **Protocol probes** is on (Test Centre → 5/MG protocol
+diagnostics). Without it, your wake time is saved but the strap is not armed. With it on, a wake is
+not guaranteed, so keep a backup alarm. NOOP does not currently do light-sleep early wake on Apple
+platforms; the phone-based smart wake (light-sleep detection) is Android-only.
 
 ---
 
@@ -515,12 +527,13 @@ of history. On-device and approximate — informational only, **not** a diagnosi
   normally.
 - **Siri & Shortcuts (iOS)** — a **Sync Strap** action ("Sync my NOOP strap") starts the same on-demand
   history sync as the Sync now button, from Siri, Spotlight, the Shortcuts app, a Back Tap or an
-  automation, **without opening NOOP**. If the strap link is already up (NOOP in the background) the
-  sync starts at once and the reply says so. If NOOP had to be launched for the shortcut and is still
-  connecting, the request is parked and runs the moment the connect handshake settles, and the reply
-  says NOOP is connecting and will sync when ready.
+  automation, **without opening NOOP**. If the strap is already ready for history (NOOP in the background,
+  handshake finished) the sync starts at once and the reply says so. Otherwise the reply says the sync
+  is waiting for the strap: the request runs only if the strap becomes ready within 10 minutes, and a
+  strap that is connected but whose handshake NOOP has switched off does not start it until you tap
+  Connect in the app.
 - **Strap-sync Live Activity (iOS)** — while history syncs, the Lock Screen and Dynamic Island show
-  the same read-out as the Today sync control: Connecting… / Syncing… with the chunk count, the elapsed
+  the same read-out as the Today sync control: Waiting for your strap… / Syncing… with the chunk count, the elapsed
   time, and the strap's connect-time backlog when it reported one; then "Synced · N chunks" or "Sync
   interrupted" for a few seconds. No progress bar, because the strap never says how much is pending. A
   sync started from the app or the Sync Strap shortcut shows it; an automatic background sync can only

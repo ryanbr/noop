@@ -318,7 +318,7 @@ fun HrvSnapshotScreen(
             item { ResultCard(done) }
         }
 
-        // Methodology — source-aware caveat (a 5/MG's R-R is optical PPG, noisier than a chest strap).
+        // Methodology — source-aware caveat (a WHOOP strap's R-R is optical PPG, noisier than an electrical chest strap).
         // The same RMSSD math the nightly HRV uses (Task Force 1996, cleaned), so the spot number is
         // comparable to your overnight figure.
         item {

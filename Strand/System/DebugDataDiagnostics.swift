@@ -505,7 +505,7 @@ enum DebugDataDiagnostics {
             // and the refusal logs were corrected in #2484 / #2488 and this line was missed, so a wearer
             // reading their own strap log was still sent hunting for the old name.
             lines.append("Model: \(WhoopModel.whoop5mg.displayName) · Protocol probes (Test Centre): "
-                         + (PuffinExperiment.isEnabled ? "on" : "off → firmware alarm NOT armed"))
+                         + (PuffinExperiment.isEnabled ? "on" : "off → NOOP does not arm the firmware alarm (one sent earlier may still be set)"))
         case .whoop4:
             lines.append("Model: \(WhoopModel.whoop4.displayName)")
         case nil:

@@ -19,7 +19,7 @@ final class ExtendedBatteryProbeTests: XCTestCase {
     func testWhoop4RealCapture_acceptedWithVoltageAndGrid() {
         let (text, payHex) = ExtendedBatteryProbe.format(frame: hexToBytes(realFrame), cmdOff: 6, isWhoop5: false, prevPayloadHex: nil)
         XCTAssertTrue(text.contains("WHOOP 4.0"))
-        XCTAssertTrue(text.contains("opcode 98 ACCEPTED — 29-byte payload"))
+        XCTAssertTrue(text.contains("opcode 98 answered — 29-byte payload (not a success verdict; see the bytes below)"))
         XCTAssertTrue(text.contains(realFrame))                  // full raw hex on one copyable line
         XCTAssertTrue(text.contains("Voltage: 3.97 V"))          // pay[7..8] = 0x0f82 = 3970 mV
         XCTAssertTrue(text.contains("(mV=3970 @07)"))

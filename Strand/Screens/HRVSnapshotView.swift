@@ -25,8 +25,8 @@ struct HRVSnapshotView: View {
     var onClose: (() -> Void)? = nil
 
     /// Where the live R-R is coming from, so the methodology caveat is honest (#537): a WHOOP 5/MG
-    /// derives R-R from the optical pulse signal (noisier) while a WHOOP 4 / chest strap is electrical
-    /// R-R. Defaults to `.unknown` for callers that do not pass a strap model, matching the Android twin.
+    /// derives R-R from the optical pulse signal (noisier), as does a WHOOP 4, unlike an electrical
+    /// chest strap. Defaults to `.unknown` for callers that do not pass a strap model, matching the Android twin.
     var source: SpotHrvReading.Source = .unknown
 
     // MARK: - Capture phase
@@ -345,7 +345,7 @@ struct HRVSnapshotView: View {
     /// Source-aware methodology (#537): the first line states the spot RMSSD uses the SAME cleaned
     /// Task-Force math as the nightly HRV (so the number is comparable to your overnight figure), then
     /// `SpotHrvReading.caveatFor` adds the honest limits — including the noisier optical-PPG note on a
-    /// WHOOP 5/MG. Single-sourced with Android via the shared helper, no em-dashes.
+    /// WHOOP strap. Single-sourced with Android via the shared helper, no em-dashes.
     private var methodologyCard: some View {
         StrandCard(tint: StrandPalette.restColor) {
             VStack(alignment: .leading, spacing: 8) {

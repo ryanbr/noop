@@ -59,7 +59,7 @@ struct BodyVitalReading: Identifiable {
         // #1636: the secondary reading leads, so it sits directly under the headline value.
         var parts = secondary.map { [$0] } ?? []
         parts.append(Self.dayLabel(day))
-        if let sourceText = Self.sourceLabel(source, key: key) {
+        if let sourceText = Self.sourceLabel(source, key: key, deviationLed: unit.hasPrefix("Δ")) {
             parts.append(sourceText)
         }
         parts.append(stateText)
@@ -91,15 +91,17 @@ struct BodyVitalReading: Identifiable {
     }
 
     /// Short provenance word for the caption. The local-cache fallback stays unnamed (previews/tests),
-    /// and computed skin temp reads "vs baseline" (#622) since that figure is a ±°C nightly deviation.
-    private static func sourceLabel(_ source: DailyMetricSource?, key: String) -> String? {
+    /// and computed skin temp reads "vs baseline" (#622) only when the tile shows the ±°C nightly deviation;
+    /// an absolute-led tile (#1636) is a plain temperature and reads "NOOP computed" like other computed vitals.
+    private static func sourceLabel(_ source: DailyMetricSource?, key: String, deviationLed: Bool) -> String? {
         guard let source else { return nil }
         switch source {
         case .whoopImport:
             return String(localized: "WHOOP import")
         case .noopComputed:
-            // Live pipeline stores ±°C vs personal baseline (#622) — not absolute wrist °C.
-            if key == "skin" { return String(localized: "vs baseline") }
+            // #622: a deviation-led tile names its scale. The absolute °C is stored from night one (#1636),
+            // so an absolute-led tile has no baseline to name (none exists yet on a calibrating night).
+            if key == "skin" && deviationLed { return String(localized: "vs baseline") }
             return String(localized: "NOOP computed")
         case .appleHealth:
             return String(localized: "Apple Health")
@@ -372,7 +374,7 @@ enum BodyVitalSigns {
                 metricColor: StrandPalette.metricCyan,
                 day: spo2rawRow?.day,
                 source: spo2rawRow?.source,
-                missingCaption: String(localized: "No raw SpO₂ decode for the night"),
+                missingCaption: String(localized: "No raw SpO₂ counts (WHOOP 4.0 only)"),
                 sparkline: trail(spo2rawPoints)
             ),
             BodyVitalReading(
@@ -422,9 +424,10 @@ enum BodyVitalSigns {
                 metricColor: StrandPalette.metricAmber,
                 day: skinRow?.day,
                 source: skinRow?.source,
-                // #548/#622: empty is often calibrating (needs ~4 nights for ±deviation) or import-less —
-                // not a silent "broken sensor". Absolute °C still arrives via WHOOP CSV import.
-                missingCaption: String(localized: "No nightly skin-temp yet — needs ~4 worn nights (or import a WHOOP CSV)"),
+                // #548/#622: empty means no scored night has a nightly mean yet (no worn, synced sleep) —
+                // not a silent "broken sensor". The absolute is stored from night one; only the
+                // ±deviation waits for the baseline. Absolute °C can also arrive via WHOOP CSV import.
+                missingCaption: String(localized: "No nightly skin-temp yet — wear the strap overnight and let it sync (or import a WHOOP CSV)"),
                 // Keep the trail on the displayed value's kind — absolute °C and ±deviation must not
                 // mix on one sparkline (matches the banding partition above).
                 sparkline: trail(skinSeries.filter { VitalBands.isAbsoluteSkinTemp($0.value) == skinIsAbsolute }),

@@ -121,7 +121,7 @@ private struct DevicesContent: View {
                 .foregroundStyle(StrandPalette.statusWarning)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
-                Text("Can't connect: your strap's pairing was reset")
+                Text("Your strap needs help to reconnect: steps below")
                     .font(StrandFont.subhead).foregroundStyle(StrandPalette.textPrimary)
                 Text(guide)
                     .font(StrandFont.footnote).foregroundStyle(StrandPalette.textSecondary)
@@ -362,7 +362,7 @@ private struct DevicesContent: View {
             Button("Send probe (read-only)") { model.probeExtendedBatteryInfo(); batteryProbeTarget = nil }
             Button("Cancel", role: .cancel) { batteryProbeTarget = nil }
         } message: { _ in
-            Text("Two independent protocol tables disagree on the extended-battery opcode (98 vs 87). This sends the curated read-only 98 and shows the strap's full raw reply. A battery-style payload confirms 98 on your firmware; a short stub means it stays ambiguous. Nothing is written to the strap.")
+            Text("Two independent protocol tables disagree on the extended-battery opcode (98 vs 87). This sends the curated read-only 98 and shows the strap's full raw reply. On a WHOOP 4.0, a battery-style payload confirms 98 on your firmware and the result decodes the pack voltage; a short stub means it stays ambiguous. On a WHOOP 5/MG, NOOP decodes no value from the reply and the pack charge does not come from this command; read the \"Result code\" line instead: UNSUPPORTED means this firmware rejects 98. Nothing is written to the strap.")
         }
         // #592 probe result: the strap's reply (or a "waiting…" state), readable + copyable in place.
         .sheet(isPresented: Binding(get: { live.extendedBatteryProbe != nil },
@@ -1169,9 +1169,10 @@ private struct DeviceCard: View {
 ///
 /// Derived from brand/model/sourceKind, NOT from the stored capability `Set`. The stored set is generic
 /// across WHOOP models (it would render an identical "Heart rate · HRV · Blood oxygen · Skin temp · …"
-/// line for a 4.0 and a 5/MG alike) and it mislabels: no SpO₂ **percentage** ever comes off any WHOOP
-/// strap (raw red/IR only — a real % exists only from a WHOOP CSV / Apple Health import), skin temp is a
-/// nightly ±°C sleep deviation rather than a live reading, steps are 5/MG-only and a raw motion count,
+/// line for a 4.0 and a 5/MG alike) and it mislabels: no verified SpO₂ **percentage** comes off any WHOOP
+/// strap (raw red/IR only on a 4.0 — a real % exists only from a WHOOP CSV / Apple Health import; a 5/MG's
+/// @82 estimate is unverified and opt-in), skin temp is measured nightly rather than a live reading, steps
+/// are 5/MG-only (the strap's walk/run motion counter, scaled by Step calibration),
 /// and Charge/Effort/Rest are NOOP-derived scores. Verdicts are source-verified against the decode +
 /// scoring paths (the device-capability audit). `*` in a label = an on-device estimate, not a raw sensor.
 struct DeviceCapabilityProfile {
@@ -1250,13 +1251,13 @@ struct DeviceCapabilityProfile {
         }
         let whoopPowers = String(localized: "Powers Charge, Effort, Rest, Sleep + Health Monitor")
         let model = d.model.lowercased()
-        // WHOOP 5.0 / MG — adds a (raw) step count the 4.0 can't read over BLE.
+        // WHOOP 5.0 / MG — adds a step count (the strap's motion counter) the 4.0 can't read over BLE.
         if model.contains("5") || model.contains("mg") {
             return DeviceCapabilityProfile(
                 displayModel: "WHOOP 5.0 / MG",
-                captures: String(localized: "Heart rate · HRV · Skin temp* · Resp rate* · Steps* · Sleep · Strain · Battery"),
+                captures: String(localized: "Heart rate · HRV · Skin temp · Resp rate* · Steps* · Sleep · Strain · Battery"),
                 powers: whoopPowers,
-                footnote: String(localized: "* on-device estimate: skin temp is a nightly ±°C deviation, steps are a raw motion count (#78). No SpO₂ % off the strap; import a WHOOP CSV for a real %."))
+                footnote: String(localized: "* on-device estimate: respiratory rate is derived from beat-to-beat data, and steps count the strap's motion counter only while it reports walking or running, scaled by your Step calibration. Skin temp is measured nightly (°C, or vs your baseline). No verified SpO₂ % off the strap: an unverified estimate is opt-in via “Blood Oxygen: strap estimate (WHOOP 5/MG, Oura)”; import a WHOOP CSV for a real %."))
         }
         // WHOOP 4.0 — NOOP's primary band; no steps over BLE.
         if model.contains("4") {
@@ -1264,7 +1265,7 @@ struct DeviceCapabilityProfile {
                 displayModel: "WHOOP 4.0",
                 captures: String(localized: "Heart rate · HRV · Skin temp* · Resp rate* · Sleep · Strain · Battery"),
                 powers: whoopPowers,
-                footnote: String(localized: "* on-device estimate: skin temp is a nightly ±°C deviation (firmware-dependent); no steps over BLE on a 4.0. No SpO₂ % off the strap; import a WHOOP CSV for a real %."))
+                footnote: String(localized: "* on-device estimate: skin temp is measured nightly (firmware-dependent; °C, or vs your baseline); no steps over BLE on a 4.0. No SpO₂ % off the strap; import a WHOOP CSV for a real %."))
         }
         // Legacy / unknown WHOOP (the seeded device, model just "WHOOP") — show only the common-to-all set.
         return DeviceCapabilityProfile(
@@ -1513,7 +1514,7 @@ private struct EcgProbeSheets: ViewModifier {
                 Button("Set which wrist you wear it on…") { target = nil; wristTarget = device }
                 Button("Cancel", role: .cancel) { target = nil }
             } message: { _ in
-                Text("NOOP is not a medical device and this is not an ECG test. It asks your MG to start its ECG subsystem and logs whatever comes back — unvalidated instrumentation for protocol research, never a measurement or a diagnosis, including any heart-rhythm classification the strap happens to send. Don't use it to make a health decision; see a doctor if you have symptoms.\n\nHold the two indents on the clasp with the fingers of your other hand for the whole capture. The MG measures across your wrist AND that clasp, so until you hold it the circuit is open, the strap has nothing to record, and you would see zero packets whatever the firmware did.\n\nNobody has confirmed a strap honours these commands, so the likely outcome is that nothing happens. Everything here is reversible: “Stop” turns the streams back off. Results land in the strap log.")
+                Text("NOOP is not a medical device and this is not an ECG test. It asks your MG to start its ECG subsystem and logs whatever comes back — unvalidated instrumentation for protocol research, never a measurement or a diagnosis, including any heart-rhythm classification the strap happens to send. Don't use it to make a health decision; see a doctor if you have symptoms.\n\nHold the two indents on the clasp with the fingers of your other hand for the whole capture. The MG measures across your wrist AND that clasp, so until you hold it the circuit is open, the strap has nothing to record, and you would see zero packets whatever the firmware did.\n\nResults vary between straps: some MG runs have streamed live ECG frames, others acknowledge every command and send nothing, so an empty capture is a common result. Everything here is reversible: “Stop” turns the streams back off. Results land in the strap log.")
             }
             // Wrist selection: its own step, with its own confirmation and its own warning.
             //
@@ -1785,7 +1786,7 @@ struct DeviceCardCatalog: View {
                 DeviceCard(device: Self.dev("whoop-5-refused", "WHOOP", "5.0 MG",
                                             Self.whoopCaps.union([.steps])),
                            isActive: true, isLiveConnected: true, bondRefused: true,
-                           pairingHint: "NOOP can see your strap but it's refusing to pair - it's likely still bonded to the official WHOOP app, or your phone is holding an old pairing. To fix it: (1) fully close the WHOOP app, (2) on a 5.0/MG, tap the band repeatedly until the LEDs flash blue (pairing mode), (3) if your strap is listed under iPhone Settings → Bluetooth, tap it and choose Forget This Device, then reconnect in NOOP.",
+                           pairingHint: "NOOP can see your strap but it's refusing to pair. It is likely still held by the official WHOOP app, or your iPhone is holding an old pairing. To fix it: (1) fully close the WHOOP app, (2) tap the band repeatedly until the LEDs flash blue (pairing mode), (3) if your strap is listed under iPhone Settings → Bluetooth, tap it and choose Forget This Device, then reconnect in NOOP.",
                            onMakeActive: {}, onRename: {}, onRemove: {})
                 DeviceCard(device: Self.dev("strap-d", "Polar", "H10", [.hr, .hrv]),
                            isActive: false, isLiveConnected: false,
@@ -1841,7 +1842,7 @@ struct BondRefusedDemoScreen: View {
                                             capabilities: WhoopLiveCapabilities.metrics(forModel: "5.0 MG"),
                                             status: .active, addedAt: 0, lastSeenAt: 0),
                        isActive: true, isLiveConnected: true, bondRefused: true,
-                       pairingHint: "NOOP can see your strap but it's refusing to pair - it's likely still bonded to the official WHOOP app, or your phone is holding an old pairing. To fix it: (1) fully close the WHOOP app, (2) on a 5.0/MG, tap the band repeatedly until the LEDs flash blue (pairing mode), (3) if your strap is listed under iPhone Settings → Bluetooth, tap it and choose Forget This Device, then reconnect in NOOP.",
+                       pairingHint: "NOOP can see your strap but it's refusing to pair. It is likely still held by the official WHOOP app, or your iPhone is holding an old pairing. To fix it: (1) fully close the WHOOP app, (2) tap the band repeatedly until the LEDs flash blue (pairing mode), (3) if your strap is listed under iPhone Settings → Bluetooth, tap it and choose Forget This Device, then reconnect in NOOP.",
                        onMakeActive: {}, onRename: {}, onRemove: {})
         }
     }

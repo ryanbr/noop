@@ -22,7 +22,7 @@ class BodyLocationProbeFormatTest {
     @Test fun whoop4AcceptedDecodesTheFourFields() {
         val (text, payHex) = WhoopBleClient.formatBodyLocationProbe(hexToBytes(wristFrame), 6, false, null)
         assertTrue(text.contains("WHOOP 4.0"))
-        assertTrue(text.contains("opcode 84 ACCEPTED — 4-byte payload"))
+        assertTrue(text.contains("opcode 84 answered — 4-byte payload (not a success verdict; see the bytes below)"))
         assertTrue(text.contains(wristFrame))
         assertTrue(text.contains("  @00  01 01 5a 00"))
         assertTrue(text.contains("revision:   1"))
@@ -75,7 +75,7 @@ class BodyLocationProbeFormatTest {
         val (text, _) = WhoopBleClient.formatBodyLocationProbe(hexToBytes(wristFrame), 6, false, null)
         val golden = listOf(
             "#690 BODY-LOCATION PROBE — WHOOP 4.0",
-            "Verdict: opcode 84 ACCEPTED — 4-byte payload",
+            "Verdict: opcode 84 answered — 4-byte payload (not a success verdict; see the bytes below)",
             "",
             "Raw frame (15 B):",
             "aa09000024005401015a00deadbeef",

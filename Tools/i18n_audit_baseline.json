@@ -234,10 +234,6 @@
     ],
     [
       "android/app/src/main/java/com/noop/ui/HealthScreen.kt",
-      "Pairing…"
-    ],
-    [
-      "android/app/src/main/java/com/noop/ui/HealthScreen.kt",
       "Ready to sync"
     ],
     [
@@ -1196,10 +1192,6 @@
     ],
     [
       "Strand/Screens/FullDayChartView.swift",
-      "This strap doesn’t send SpO₂ over Bluetooth. Import a WHOOP export or Health Connect to see it."
-    ],
-    [
-      "Strand/Screens/FullDayChartView.swift",
       "This strap sends no raw respiration stream. Your estimated respiratory rate appears on the Health screen."
     ],
     [
@@ -1440,7 +1432,7 @@
     ],
     [
       "Strand/Screens/SettingsView.swift",
-      "Your WHOOP 5.0/MG sends a strap-computed SpO₂ percentage (the @82 candidate byte) every second — an 8-night independent validation tracked it at corr +0.99 against the WHOOP app, but two nights on the original test device moved the OPPOSITE direction, so device/firmware variance is unresolved. An Oura ring's own SpO₂ reading runs high on the wire (over 100% on a fifth to a half of samples on a clean night); this instead surfaces the ring's mean with each sample capped at 100% first, which has matched the Oura app's own displayed value on every full night checked against it so far, though only a few nights. Turning this on surfaces whichever applies to your device as \\\"strap estimate (unverified)\\\" in the Blood Oxygen tile when no calibrated import exists. It never feeds recovery or illness scoring. WHOOP 4.0 has no @82 stream, so this does nothing there."
+      "Your WHOOP 5.0/MG sends a strap-computed SpO₂ percentage (the @82 candidate byte) every second while you sleep — an 8-night independent validation tracked it at corr +0.99 against the WHOOP app, but two nights on the original test device moved the OPPOSITE direction, so device/firmware variance is unresolved. An Oura ring's own SpO₂ reading runs high on the wire (over 100% on a fifth to a half of samples on a clean night); this instead surfaces the ring's mean with each sample capped at 100% first, which has matched the Oura app's own displayed value on every full night checked against it so far, though only a few nights. Turning this on surfaces whichever applies to your device as \\\"strap estimate (unverified)\\\" in the Blood Oxygen tile when no calibrated import exists. It never feeds recovery or illness scoring. WHOOP 4.0 has no @82 stream, so this does nothing there."
     ],
     [
       "Strand/Screens/SettingsView.swift",
@@ -1629,10 +1621,6 @@
     [
       "Strand/Screens/TrendsView.swift",
       "Opens the full \\(accessibilityTitle) metric."
-    ],
-    [
-      "Strand/Screens/VitalSignsSummary.swift",
-      "No raw SpO₂ decode for the night"
     ],
     [
       "Strand/Screens/VitalSignsSummary.swift",

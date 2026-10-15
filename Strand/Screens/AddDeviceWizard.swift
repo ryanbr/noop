@@ -478,7 +478,7 @@ struct AddDeviceWizard: View {
         case .whoop5mg:
             return [
                 String(localized: "WHOOP 5.0 / MG bonds to one device at a time. Unpair it from the official WHOOP app first."),
-                String(localized: "Put the band into pairing mode, on your wrist and awake."),
+                String(localized: "Put the band into pairing mode: tap it repeatedly until its LEDs flash blue. Keep it on your wrist and awake."),
                 String(localized: "NOOP will look for it nearby."),
             ]
         case .hrStrap:

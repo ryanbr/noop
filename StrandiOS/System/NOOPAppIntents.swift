@@ -88,7 +88,7 @@ struct BuzzStrapIntent: AppIntent {
 /// The spoken/shown reply reports only what this path observed about the sync starting.
 ///
 /// `LiveActivityIntent`, not plain `AppIntent`: that is what lets it START the strap-sync Live Activity
-/// (the Dynamic Island "Connecting… / Syncing… N chunks" readout) from the background. A plain intent
+/// (the Dynamic Island "Waiting for your strap… / Syncing… N chunks" readout) from the background. A plain intent
 /// running in a background-launched app is refused by ActivityKit.
 struct SyncStrapIntent: LiveActivityIntent {
     static var title: LocalizedStringResource = "Sync Strap"
@@ -100,7 +100,7 @@ struct SyncStrapIntent: LiveActivityIntent {
         switch await AppModel.startStrapSyncFromShortcut() {
         case .started:               return .result(dialog: "Syncing your strap.")
         case .alreadyRunning:        return .result(dialog: "Your strap is already syncing.")
-        case .willSyncWhenConnected: return .result(dialog: "NOOP is connecting to your strap and will sync as soon as it's ready.")
+        case .willSyncWhenConnected: return .result(dialog: "Your strap isn't ready to hand over its history yet, so the sync is waiting. It starts if the strap is connected and paired within the next 10 minutes. Open NOOP to see the strap's status.")
         case .strapNotReady:         return .result(dialog: "Your strap isn't connected to NOOP yet, so the sync didn't start.")
         case .notStarted:            return .result(dialog: "NOOP couldn't start the sync. Open NOOP to see the strap log.")
         }

@@ -193,8 +193,9 @@ shared cross-platform code.
 | **Data Sources** | One-tap import of a WHOOP CSV export, an Apple Health export, or a **nutrition CSV** (Cronometer / MacroFactor), plus live-strap status. "Bring your history in once, then it's yours." |
 | **Notifications** | Configure local notifications and thresholds (`Strand/Data/NotificationSettingsStore.swift`). |
 | **Automations** | Turn the strap's physical inputs and live biometrics into Mac actions — all on-device (see below). |
+| **Alarms** | Your strap wake-alarm and the evening wind-down reminder, in one place (see [Alarms](#alarms-on-device) below). |
 | **Coach** | An optional **AI Coach** you can ask about your data in plain language. It is off until you add your own key — Anthropic, OpenAI, or any OpenAI-compatible endpoint including a local/self-hosted model (Ollama, LM Studio) — and it sends only a short text summary of recent metrics plus your question, never raw streams or identifiers. With a local model the conversation never leaves your machine. Available on macOS, Android, and iOS. See [`docs/PRIVACY_SECURITY.md`](docs/PRIVACY_SECURITY.md). |
-| **Settings** | Profile, preferences, **step calibration** (tune the stride/step estimate to your own walking), unit choices, the in-app **What's new** changelog, and an opt-in **Experimental** section (WHOOP 5/MG protocol probes). On **iOS**, also **Export for Shortcuts** — a HealthKit-free path that hands your metrics to Apple Health via the Shortcuts app. |
+| **Settings** | Profile, preferences, **step calibration** (tune the stride/step estimate to your own walking), unit choices, the in-app **What's new** changelog, and **Test Centre**, which holds the opt-in WHOOP 5/MG protocol probes (Test Centre → 5/MG protocol diagnostics → Protocol probes). On **iOS**, also **Export for Shortcuts** — a HealthKit-free path that hands your metrics to Apple Health via the Shortcuts app. |
 
 There is also a **menu-bar extra** (`Strand/MenuBar/MenuBarContent.swift`) with a
 glanceable live HR readout and a compact popover, a first-run **onboarding wizard**
@@ -216,9 +217,18 @@ and an in-app **"What's new"** changelog shown after each update.
 - **Inactivity reminder.** An optional gentle wrist buzz after you've been sitting
   still too long — your idle threshold, your active hours, a re-nudge cooldown,
   respects quiet hours, **off by default**.
-- **Smart alarm.** Arms the strap's own **firmware** alarm to buzz at your wake
-  time (still fires if the Mac is asleep or NOOP is closed), with an optional
-  light-sleep wake window when the Mac stays awake and connected.
+
+### Alarms (on-device)
+
+`Strand/Screens/SmartAlarmView.swift` (the **Alarms** screen; Android has a matching Alarms screen):
+
+- **Strap wake-alarm.** Arms the strap's own **firmware** alarm to buzz at your wake time, so it still
+  fires if the Mac is asleep or NOOP is closed. Confirmed on WHOOP 4.0. On WHOOP 5.0 / MG it is
+  experimental: it is only armed when **Protocol probes** is on (Test Centre → 5/MG protocol
+  diagnostics), and even then a wake is not guaranteed, so keep a backup alarm.
+- **Wind-down reminder.** Lives on the same screen, so every wake and wind-down control sits together.
+- **No light-sleep early wake on Apple platforms.** The phone-based smart wake (light-sleep detection)
+  is Android-only.
 
 ---
 
@@ -249,7 +259,7 @@ NOOP is an independent, **experimental** project — capable, but a work in prog
 | Strap | Status |
 |---|---|
 | **WHOOP 4.0** | ✅ The tested, supported path. Live HR, recovery, strain, sleep, history offload — the full experience. (v1.95 also unlocked sleep + recovery on the newer "v25" 4.0 firmware layout that earlier versions could only read live HR from.) |
-| **WHOOP 5.0 / MG** | 🧪 **Live heart rate works** (confirmed on real hardware). Pick "WHOOP 5.0 / MG" before connecting — and see the pairing note below, because you can't just scan for it. Deeper 5/MG metrics (recovery, strain, sleep) are still being mapped; there's an opt-in **Settings → Experimental** toggle for 5/MG owners who want to help document the protocol. |
+| **WHOOP 5.0 / MG** | 🧪 **Live heart rate works** (confirmed on real hardware). Pick "WHOOP 5.0 / MG" before connecting — and see the pairing note below, because you can't just scan for it. Sleep, recovery and strain are scored on-device, with the overnight-input limits listed under "WHOOP 5.0 / MG analysis limits" below; there's an opt-in **Protocol probes** switch (Test Centre → 5/MG protocol diagnostics) for 5/MG owners who want to help document the protocol. |
 | **Oura Ring (Gen 3 measured; Ring 5 reported)** | 🧪 **Experimental, not a supported strap.** Pairs on **iOS / Android only** and reads real overnight data — heart rate, sleep stages, skin temperature, SpO₂, motion. The ring's night feeds the scorer, so a ring-only day gets a **Sleep** and a **Strain** score but **no Recovery** (it needs an HRV baseline the ring cannot provide), and some metrics are permanently out of reach. See **Oura ring support** below before you expect anything from it. |
 
 > ### WHOOP 5.0 / MG analysis limits
@@ -262,7 +272,7 @@ NOOP is an independent, **experimental** project — capable, but a work in prog
 > | Sleep duration / detection | Experimental; can fall back to heart rate when motion is sparse |
 > | Sleep stages | Approximate and not reliable while full overnight motion and cardiorespiratory inputs remain incomplete |
 > | Skin temperature | Raw values decode on supported historical layouts; not available consistently across 5/MG firmware |
-> | Blood oxygen / SpO₂ | Not recoverable offline from current time-multiplexed PPG data |
+> | Blood oxygen / SpO₂ | No verified value. NOOP cannot recover SpO₂ from the current time-multiplexed PPG data. The strap's own @82 SpO₂ candidate decodes only during sleep and is unverified. It appears only in the Blood Oxygen tile, as an "estimate", behind the default-off "Blood Oxygen: strap estimate" toggle, and never feeds recovery or illness scoring. |
 > | Overnight HRV and respiratory rate | Incomplete unless sufficient R-R intervals are captured |
 >
 > In short: seeing the Sleep, Health, Readiness, or Insights screens doesn't mean their deepest
@@ -291,8 +301,10 @@ NOOP is an independent, **experimental** project — capable, but a work in prog
 > **Only one device at a time.** Because the strap holds a single bond, don't leave it connected to your
 > phone *and* your Mac (or the WHOOP app) at once — live heart rate will still show on all of them
 > (that rides the bond-free standard profile), but **none** of them will have the real encrypted bond.
-> If HR streams fine yet **buzz, alarm, double-tap and history don't work**, that's the tell: the strap
-> isn't truly bonded to this device. Free it from everything else, then pair here.
+> If HR streams fine yet **buzz, double-tap and history don't work**, that's the tell: the strap
+> isn't truly bonded to this device. Free it from everything else, then pair here. (The 5/MG strap
+> alarm is separate and experimental: even on a properly bonded strap it stays off until you turn on
+> **Protocol probes** in Test Centre → 5/MG protocol diagnostics, and even then a wake is not guaranteed.)
 >
 > Bonding to NOOP may take the strap's bond away from the WHOOP app, so the official app might need to
 > re-pair afterwards. This is the **hardest part of 5/MG support** — if it refuses, you're almost

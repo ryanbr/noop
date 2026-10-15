@@ -923,7 +923,7 @@ private fun prepInstructions(type: DeviceType): List<String> = when (type) {
     )
     DeviceType.Whoop5MG -> listOf(
         "WHOOP 5.0 / MG bonds to one device at a time, so unpair it from the official WHOOP app first.",
-        "Put the band into pairing mode, on your wrist and awake.",
+        "Put the band into pairing mode: tap it repeatedly (firm taps on the sensor) until its LEDs flash blue. Keep it on your wrist and awake.",
         "NOOP will look for it nearby.",
     )
     DeviceType.HrStrap -> listOf(

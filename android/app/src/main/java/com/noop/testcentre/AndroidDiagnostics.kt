@@ -628,7 +628,7 @@ object AndroidDiagnostics {
                     add(
                         "Model: ${com.noop.ble.WhoopModel.WHOOP5_MG.displayName} · " +
                             "Protocol probes (Test Centre): " +
-                            if (exp) "on" else "off → firmware alarm NOT armed",
+                            if (exp) "on" else "off → NOOP does not arm the firmware alarm (one sent earlier may still be set)",
                     )
                 }
                 com.noop.ble.WhoopModel.WHOOP4 -> add("Model: ${com.noop.ble.WhoopModel.WHOOP4.displayName}")

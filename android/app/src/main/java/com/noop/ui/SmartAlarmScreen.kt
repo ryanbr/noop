@@ -228,10 +228,17 @@ fun SmartAlarmScreen(vm: AppViewModel) {
             RowDividerLocal()
             ToggleRowLocal(
                 label = uiString(R.string.l10n_smart_alarm_screen_buzz_strapname_813772f4, strapName),
-                help = if (bonded)
-                    "Also arms your $strapName to buzz at your earliest wake time, so the strap wakes you first and the phone alarm is the guaranteed backup."
-                else
-                    "Connect your strap to use this. It arms the strap to buzz at your earliest wake time as a gentler first wake-up.",
+                help = when {
+                    // Finding 1: a 5/MG strap alarm is only sent with Protocol probes on, and it is experimental.
+                    liveState.whoop5Detected && !PuffinExperiment.from(context).isEnabled ->
+                        uiString(R.string.l10n_smart_alarm_screen_your_whoop_5_mg_won_t_75029bae)
+                    liveState.whoop5Detected && bonded ->
+                        "Also arms your WHOOP 5/MG to buzz at your earliest wake time, using an experimental 5/MG command. Strap wakes have been reported on 5.0 and MG but are not guaranteed, so keep the phone alarm as your backup."
+                    bonded ->
+                        "Also arms your $strapName to buzz at your earliest wake time, so the strap wakes you first and the phone alarm is the guaranteed backup."
+                    else ->
+                        "Connect your strap to use this. It arms the strap to buzz at your earliest wake time as a gentler first wake-up."
+                },
                 checked = buzzWhoop4,
                 onChange = { vm.setBuzzWhoop4Enabled(it) },
             )
@@ -287,7 +294,7 @@ private fun StrapAlarmCard(vm: AppViewModel) {
             // 4.0 path experimental. The 5/MG Experimental-gate branch below is deliberately untouched.
             ToggleRowLocal(
                 label = uiString(R.string.l10n_smart_alarm_screen_wake_me_with_a_strap_buzz_1681ba1d),
-                help = "Arms the strap to buzz at your wake time, even if NOOP is closed. Sends the exact alarm command the official app sends, confirmed buzzing on a real WHOOP 4.0 (community wire capture + on-device test, #535). Keep a backup alarm for anything you truly can't miss.",
+                help = "Arms the strap to buzz at your wake time, even if NOOP is closed. Sends the exact alarm command the official app sends, confirmed buzzing on a real WHOOP 4.0 (community wire capture + on-device test, #535). On a WHOOP 5/MG this is experimental and only arms while Protocol probes is on (Test Centre → 5/MG protocol diagnostics). Keep a backup alarm for anything you truly can't miss.",
                 checked = smartAlarm,
                 onChange = { vm.setSmartAlarmEnabled(it) },
             )

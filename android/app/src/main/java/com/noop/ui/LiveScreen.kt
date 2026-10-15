@@ -188,12 +188,11 @@ fun LiveScreen(viewModel: AppViewModel, onManageDevices: () -> Unit = {}) {
             onDismissRequest = { showHrvSnapshot = false },
             properties = DialogProperties(usePlatformDefaultWidth = false),
         ) {
-            // Tell the reading where its R-R is coming from so the caveat is honest: a WHOOP 5/MG derives
-            // R-R from the optical pulse signal (noisier) while a WHOOP 4 / chest strap is electrical R-R.
-            // Driven off the picked strap model.
+            // Tell the reading where its R-R is coming from so the caveat is honest: every WHOOP strap
+            // (4.0, 5.0, MG) derives R-R from the optical pulse signal (noisier than an electrical chest
+            // strap). Driven off the picked strap model.
             val hrvSource = when (selectedModel) {
-                WhoopModel.WHOOP5_MG -> SpotHrvReading.Source.OPTICAL_PPG
-                WhoopModel.WHOOP4 -> SpotHrvReading.Source.CHEST_STRAP
+                WhoopModel.WHOOP5_MG, WhoopModel.WHOOP4 -> SpotHrvReading.Source.OPTICAL_PPG
             }
             HrvSnapshotScreen(
                 viewModel = viewModel,

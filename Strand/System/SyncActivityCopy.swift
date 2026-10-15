@@ -20,7 +20,7 @@ enum SyncActivityCopy {
     }
 
     static func connecting() -> Line {
-        Line(phase: .connecting, chunks: 0, status: String(localized: "Connecting…"), detail: nil)
+        Line(phase: .connecting, chunks: 0, status: String(localized: "Waiting for your strap…"), detail: nil)
     }
 
     static func syncing(chunks: Int, pagesBehind: Int?) -> Line {

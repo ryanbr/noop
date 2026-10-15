@@ -27,7 +27,8 @@ the same analytics so results match macOS.)
 > assembleDemoRelease`) — and is sideloaded by users (with features such as a **Sync-now** button).
 > The BLE pipeline, Compose UI, Room database, and importers are all present and working. It is
 > validated against a real **WHOOP 4.0** strap, and **live HR** is validated on **WHOOP 5.0 / MG**;
-> deeper 5.0/MG scores are still being reverse-engineered from offload data. The
+> deeper 5.0/MG scores depend on overnight inputs (history offload layouts, R-R coverage, motion) that
+> are still being decoded across 5.0/MG firmware; see the README's "WHOOP 5.0 / MG analysis limits". The
 > [verification checklist](#verification-checklist) below tracks what's confirmed versus the
 > genuinely-open items (chiefly full 5.0/MG deep-score validation).
 
@@ -63,7 +64,7 @@ re-implements the same observable behavior in idiomatic Kotlin:
 | `WhoopProtocol` — BLE framing, CRC, command/event/packet decode | `com.noop.protocol` (Kotlin) | shipped — framing/CRC, `parseFrame`, enums |
 | `WhoopStore` — GRDB/SQLite persistence | `com.noop.data` (Room) | shipped — entities, DAOs, database |
 | `StrandAnalytics` — HRV / recovery / strain / sleep math | `com.noop.analytics` | shipped — RMSSD / zones / illness-watch + scorers |
-| `StrandImport` — WHOOP CSV + Apple Health importers | `com.noop.data` / `com.noop.ingest` importers | shipped — WHOOP CSV, Apple Health, Health Connect, raw `capture.json` (see [Raw capture import](#raw-capture-import-capturejson)) |
+| `StrandImport` — WHOOP CSV + Apple Health importers | `com.noop.data` / `com.noop.ingest` importers | shipped — WHOOP CSV, Apple Health, Health Connect; raw `capture.json` importer present but not yet wired into the UI (see [Raw capture import](#raw-capture-import-capturejson)) |
 | `StrandDesign` — SwiftUI design system | Jetpack Compose theme | shipped — `Theme.NOOP` tokens + components |
 | `Strand/` macOS app (CoreBluetooth + UI) | `com.noop.ui` + `com.noop.ble` (Compose + `BluetoothGatt`) | shipped — Compose screens + BLE pipeline |
 
@@ -161,11 +162,11 @@ This section maps the surface so contributors know where each piece lives.
   `res/xml/data_extraction_rules.xml`, `app/proguard-rules.pro` (R8 release), and the committed
   Gradle wrapper (`gradlew`, `gradlew.bat`, `gradle/wrapper/gradle-wrapper.{jar,properties}`).
 
-**Still being reverse-engineered** (not a build gap — a data gap):
+**Still open** (not a build gap):
 
 | Area | State |
 | --- | --- |
-| WHOOP 5.0 / MG deep scores (recovery / strain / sleep depth) | live HR works on 5.0/MG; the derived scores are still being RE'd from offload data, so they build slowly without sustained wear |
+| WHOOP 5.0 / MG overnight inputs for recovery / strain / sleep | live HR works on 5.0/MG; the scorers have no 5.0/MG gate, but the history-offload inputs they need are only decoded on some 5.0/MG layouts, so scores build slowly without sustained wear |
 | Remaining Swift tables not yet mirrored as Room entities (`rawBatch`, `cursors`, `journal`, `workout`, `appleDaily`) | add as the corresponding collector / journal / workout features are ported |
 
 ---
@@ -546,10 +547,13 @@ optional exports are governed by the [network inventory](PRIVACY_SECURITY.md#11-
 
 ## Raw capture import (`capture.json`)
 
-**Settings → Data Sources → "Raw capture (.json)"** imports a strap offload that was captured on
-*another* device — most usefully the Linux `Tools/linux-capture/whoop_sync.py` tool, whose `export`
-subcommand writes exactly this format. It lets you pull a strap's history on a laptop (no phone, no
-WHOOP app) and then fold it into NOOP on the phone. Fully offline; nothing leaves the device.
+The Android app contains a `capture.json` importer (`com.noop.ingest.CaptureImporter`) for a strap
+offload captured on *another* device — most usefully the Linux `Tools/linux-capture/whoop_sync.py`
+tool, whose `export` subcommand writes exactly this format (WHOOP 4.0 `6108…` or 5/MG `fd4b…` frames).
+**It is not yet exposed in the app:** the Data Sources screen has no raw-capture import, so there is
+currently no in-app way to import a `capture.json`. To read one today, use the `whoop-decode` CLI or
+`whoop_sync.py decode` (see `Tools/linux-capture/README.md`). The pipeline below describes the importer
+itself, ready to be wired to a picker.
 
 **File format.** A JSON array of frame objects, one per stored BLE notify frame:
 
@@ -566,9 +570,9 @@ The format is identical to the macOS app's frame-export hook, so captures are in
 platforms and feed the one decoder of record.
 
 **Pipeline** (`com.noop.ingest.CaptureImporter`, a self-contained object with `CaptureImporterTest`
-covering the pure parts). The Data Sources screen wires it with a single call —
-`CaptureImporter.importCapture(context, uri, repo, RawHistoryArchive(context))`, then sizes the
-post-import rescore via `CaptureImporter.analyzeWindowDays(firstDay, today)`:
+covering the pure parts). Its entry point is
+`CaptureImporter.importCapture(context, uri, repo, RawHistoryArchive(context))`, with the post-import
+rescore sized by `CaptureImporter.analyzeWindowDays(firstDay, today)`; no screen calls it yet:
 
 1. **Parse — streamed and bounded.** A `capture.json` for a multi-day offload is tens of MB and
    hundreds of thousands of frames; loading it whole into a `String` + `JSONArray` OOMs a phone.
@@ -588,7 +592,7 @@ post-import rescore via `CaptureImporter.analyzeWindowDays(firstDay, today)`:
    `RawHistoryArchive`) so a future release can recover them — exactly as the live offload archives
    undecodable history before acking.
 5. **Recompute.** Raw samples are stored, but the dashboard reads *computed* recovery / strain / sleep,
-   produced by `IntelligenceEngine`. The screen fires one scoring pass right after the import, widening
+   produced by `IntelligenceEngine`. A caller is expected to fire one scoring pass right after the import, widening
    the look-back via `analyzeWindowDays` to cover the import's oldest day so an old historical capture
    is scored, not just the recent window.
 
@@ -621,8 +625,9 @@ See `Tools/linux-capture/README.md` for the capture/export side that produces th
 (`RecoveryScorer`, `StrainScorer`, `SleepStager`, `CorrelationEngine`, `Baselines`, …) is ported so
 the Android results match macOS; keep each module in parity against the Swift sources and extend the
 matching JVM unit tests as the math evolves. Strain computes from HR on **all** strap families —
-there's no hard 5.0/MG gate — but because 5.0/MG HR is currently sparse, those scores build slowly
-(and sit near 0 without sustained wear) until the deeper 5.0/MG offload is fully reverse-engineered.
+there's no hard 5.0/MG gate. On 5.0/MG, how much HR the history offload supplies depends on the
+firmware's record layout, so those scores can build slowly (and sit near 0 without sustained wear)
+until more 5.0/MG layouts are decoded.
 
 ---
 
@@ -717,7 +722,7 @@ should be re-verified against a real build, a real device, and a real strap befo
       (sorted keys, `event`/`event_timestamp` removed).
 
 **BLE on a real device with a real strap** — WHOOP 4.0 confirmed; WHOOP 5.0 / MG live-HR confirmed,
-deeper scores still being reverse-engineered.
+deep-score inputs still being decoded.
 
 - [x] Runtime permission flow: `BLUETOOTH_SCAN` + `BLUETOOTH_CONNECT` granted on API 31+.
 - [x] Scan finds the strap by the family service UUID (4.0 `61080001-…`, 5.0 `fd4b0001-…`).
@@ -734,7 +739,7 @@ deeper scores still being reverse-engineered.
 - [x] Historical offload (`sendHistoricalData [0x00]`) streams HISTORY_START → type-47 →
       HISTORY_END (acked via `historicalDataResult [0x01]+endData`) → HISTORY_COMPLETE (WHOOP 4.0).
 - [ ] WHOOP 5.0 / MG: full offload + **deep-score** parity (recovery / strain / sleep) on a real
-      5.0 strap — live HR confirmed; the derived scores are still being reverse-engineered.
+      5.0 strap — live HR confirmed; the deep-score inputs are still being decoded.
 - [x] Foreground service keeps the link alive while backgrounded.
 - [x] Decoded rows land in Room and survive an app restart.
 

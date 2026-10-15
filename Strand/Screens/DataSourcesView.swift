@@ -839,9 +839,10 @@ struct DataSourcesView: View {
 
             // FI-2 (#490) — the 4.0-vs-5.0 explainer. Broadcast works for BOTH strap generations because it
             // re-shares whatever LIVE heart rate NOOP already has off the strap; it doesn't depend on the
-            // 5/MG-only deep-data path. The honest distinction is WHERE that live HR comes from (4.0 = the
-            // strap's standard HR characteristic; 5/MG = PPG-derived once connected), not whether broadcast
-            // works at all. Stated plainly so a 4.0 owner knows this is for them too.
+            // 5/MG-only deep-data path. Both generations re-share the strap's own live HR (the standard
+            // 0x2A37 characteristic / REALTIME_DATA); NOOP's PPG-derived HR only fills gaps in stored
+            // history and never reaches the broadcaster. Stated plainly so a 4.0 owner knows this is for
+            // them too.
             generationExplainer
 
             // Honest live status only while it's on: a warning note if the radio can't run, else either
@@ -873,15 +874,13 @@ struct DataSourcesView: View {
     }
 
     /// FI-2 (#490) — a compact, honest "works with both strap generations" explainer under the broadcast
-    /// toggle. Two short lines (4.0 / 5.0·MG) frame WHERE the live HR comes from on each, so a WHOOP 4.0
-    /// owner knows broadcast is for them and a 5/MG owner understands the PPG-derived source — without
-    /// over-promising. Plain copy, no claim that either generation is "better".
+    /// toggle. One short line frames that the live HR is the strap's own on both generations, so a WHOOP
+    /// 4.0 owner knows broadcast is for them — without over-promising. Plain copy, no claim that either
+    /// generation is "better".
     private var generationExplainer: some View {
         VStack(alignment: .leading, spacing: 6) {
-            generationRow(title: "WHOOP 4.0",
+            generationRow(title: "WHOOP 4.0, 5.0 & MG",
                           detail: String(localized: "Broadcasts the strap's own live heart rate over Bluetooth."))
-            generationRow(title: "WHOOP 5.0 & MG",
-                          detail: String(localized: "Broadcasts the live heart rate NOOP derives from the strap once connected."))
         }
         .padding(.top, 2)
         .padding(.horizontal, 10).padding(.vertical, 8)

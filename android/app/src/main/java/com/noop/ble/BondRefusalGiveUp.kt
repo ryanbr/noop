@@ -105,8 +105,8 @@ class BondRefusalGiveUp(
         fun helloSuppressedHint(): String =
             "The secure handshake with your strap never completes, and the attempt itself is what drops t" +
             "he link. NOOP has switched it off for this strap so live heart rate keeps streaming. History" +
-            " sync stays unavailable until it pairs, and so do motion, skin temperature, SpO₂ and respira" +
-            "tory rate, so sleep is staged from heart rate alone. Some straps have paired again after bei" +
+            " sync stays unavailable until it pairs, and so do motion and skin temperature, so sleep is " +
+            "staged from heart rate alone. Some straps have paired again after bei" +
             "ng put in pairing mode. Tap until the LEDs flash blue, then tap Connect."
 
         /**

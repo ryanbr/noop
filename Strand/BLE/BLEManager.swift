@@ -220,7 +220,7 @@ struct BondRefusalGiveUp {
     ///
     /// Pure. Byte-identical to the Kotlin `BondRefusalGiveUp.helloSuppressedHint`.
     static func helloSuppressedHint() -> String {
-        "The secure handshake with your strap never completes, and the attempt itself is what drops the link. NOOP has switched it off for this strap so live heart rate keeps streaming. History sync stays unavailable until it pairs, and so do motion, skin temperature, SpO₂ and respiratory rate, so sleep is staged from heart rate alone. Some straps have paired again after being put in pairing mode. Tap until the LEDs flash blue, then tap Connect."
+        "The secure handshake with your strap never completes, and the attempt itself is what drops the link. NOOP has switched it off for this strap so live heart rate keeps streaming. History sync stays unavailable until it pairs, and so do motion and skin temperature, so sleep is staged from heart rate alone. Some straps have paired again after being put in pairing mode. Tap until the LEDs flash blue, then tap Connect."
     }
 
     /// The paused hint for a bond that failed WITHOUT the strap ever answering (#1635).
@@ -3489,7 +3489,7 @@ public final class BLEManager: NSObject, ObservableObject {
             log("Deep-data: needs a WHOOP 5.0/MG strap selected — ignored."); return
         }
         guard PuffinExperiment.deepDataEnabled else {
-            log("Deep-data: the deep-data experiment is off — enable it in Settings → Experimental first."); return
+            log("Deep-data: the deep-data experiment is off — turn on 'Legacy R22 feature-flag experiment' in Test Centre → 5/MG protocol diagnostics first."); return
         }
         guard state.connected, state.encryptedBond else {
             // The R22 SET_CONFIG writes go over the encrypted command channel, so the live-HR-only
@@ -3778,7 +3778,7 @@ public final class BLEManager: NSObject, ObservableObject {
             log("ECG gate (#891): needs a WHOOP 5/MG strap selected — ignored."); return
         }
         guard PuffinExperiment.ecgRawDataEnabled else {
-            log("ECG gate (#891): the experiment is off — enable it in Settings → Experimental first."); return
+            log("ECG gate (#891): the experiment is off — turn on 'WHOOP MG ECG raw-data gate' in Test Centre → 5/MG protocol diagnostics first."); return
         }
         let variant = whoop5Variant
         guard variant.isMG else {
@@ -4074,7 +4074,7 @@ public final class BLEManager: NSObject, ObservableObject {
         // branch, and 4.0 has no allowlist. So this guard is not merely belt-and-braces on every family —
         // for the family most likely to run this first, it is the belt.
         guard TestCentre.active(.connection) else {
-            log("Feature-flag probe (#761) ignored — Test Centre → Connection is off")
+            log("Feature-flag probe (#761) ignored — Test Centre → Connection & Sync is off")
             return
         }
         guard featureFlagReport == nil else {
@@ -4156,7 +4156,7 @@ public final class BLEManager: NSObject, ObservableObject {
         // Defence in depth: the menu entry is already Test-Centre gated, but the sender re-checks so no
         // other path can start a probe on a default install.
         guard TestCentre.active(.connection) else {
-            log("Device-config read probe (#103) ignored — Test Centre → Connection is off")
+            log("Device-config read probe (#103) ignored — Test Centre → Connection & Sync is off")
             return
         }
         guard deviceConfigReport == nil else {
@@ -6814,8 +6814,12 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                     // counting silently; recordRefusal() below stays false (latched), so no epitaph spam.
                     log("WHOOP 5/MG: bond still refused during a paused-state probe (streak \(bondRefusalStreak)) - the give-up stays latched")
                 } else if bondRefusalStreak >= 2 {
-                    state.pairingHint = "NOOP can see your strap but it's refusing to pair - it's likely still bonded to the official WHOOP app, or your phone is holding an old pairing. To fix it: (1) fully close the WHOOP app, (2) on a 5.0/MG, tap the band repeatedly until the LEDs flash blue (pairing mode), (3) if your strap is listed under iPhone Settings → Bluetooth, tap it and choose Forget This Device, then reconnect in NOOP."
-                    log("WHOOP 5/MG: bond refused \(bondRefusalStreak)× with no successful bond — the strap is refusing the encrypted link (WHOOP app holds it, or a stale iOS pairing). Surfacing pairing-mode + forget-device guidance (#78).")
+                    #if os(macOS)
+                    state.pairingHint = "NOOP can see your strap but it's refusing to pair. It is likely still held by the official WHOOP app, or this Mac is holding an old pairing. To fix it: (1) fully close the WHOOP app, (2) tap the band repeatedly until the LEDs flash blue (pairing mode), (3) if your strap is listed in System Settings → Bluetooth, open its details and choose Forget This Device, then reconnect in NOOP."
+                    #else
+                    state.pairingHint = "NOOP can see your strap but it's refusing to pair. It is likely still held by the official WHOOP app, or your iPhone is holding an old pairing. To fix it: (1) fully close the WHOOP app, (2) tap the band repeatedly until the LEDs flash blue (pairing mode), (3) if your strap is listed under iPhone Settings → Bluetooth, tap it and choose Forget This Device, then reconnect in NOOP."
+                    #endif
+                    log("WHOOP 5/MG: bond refused \(bondRefusalStreak)× with no successful bond — the strap is refusing the encrypted link (WHOOP app holds it, or a stale OS pairing). Surfacing pairing-mode + forget-device guidance (#78).")
                 } else {
                     log("WHOOP 5/MG: bond write refused (insufficient) — retrying once; will surface pairing-mode guidance if it persists (#78).")
                 }

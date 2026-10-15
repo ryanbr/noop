@@ -44,7 +44,7 @@ public enum BodyLocationProbe {
         if resultCode == 3 {
             verdict = "opcode 84 REJECTED by firmware (UNSUPPORTED)"
         } else if hasPayload {
-            verdict = "opcode 84 ACCEPTED — \(pay.count)-byte payload"
+            verdict = "opcode 84 answered — \(pay.count)-byte payload (not a success verdict; see the bytes below)"
         } else {
             verdict = "opcode 84 answered with a bare stub — ambiguous"
         }

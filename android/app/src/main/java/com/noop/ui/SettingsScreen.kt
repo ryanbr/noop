@@ -2206,7 +2206,14 @@ fun SettingsScreen(
                                     onClick = { vm.ble.probeAdvertisingName() },
                                 )
                             }
-                            (live.renameStatus ?: advertisingNameProbe)?.let {
+                            // The in-flight sentinel is a marker, not text: map it to the same translated
+                            // wait line every other probe uses instead of printing "__waiting__".
+                            val probeShown = if (advertisingNameProbe == WhoopBleClient.WAITING_ADVERTISING_NAME_PROBE) {
+                                uiString(R.string.l10n_devices_screen_waiting_for_the_straps_reply_5a06e7ac)
+                            } else {
+                                advertisingNameProbe
+                            }
+                            (live.renameStatus ?: probeShown)?.let {
                                 Text(it, style = NoopType.footnote, color = Palette.textSecondary)
                             }
                         }
@@ -2674,7 +2681,7 @@ fun SettingsScreen(
         // away. Mirrors the iOS SettingsView "Advanced" disclosure and the Test Centre Advanced group.
         SettingsDisclosureGroup(
             title = uiString(R.string.l10n_settings_screen_advanced_4d064726),
-            subtitle = "Experimental probes, diagnostics, raw-sensor export, and the Trends report. Tucked away to keep the everyday screen tidy.",
+            subtitle = "Self-hosted push, diagnostics, sleep-staging options, raw-sensor export, and the Trends report. Tucked away to keep the everyday screen tidy. The WHOOP 5/MG protocol probes are in Test Centre → 5/MG protocol diagnostics.",
             expanded = advancedOpen,
             onToggle = { advancedOpen = !advancedOpen; SettingsDisclosurePrefs.write(NoopPrefs.of(context), advancedOpen) },
         ) {

@@ -22,8 +22,8 @@ package com.noop.analytics
  *    result is [Insufficient] with the surviving/needed counts so the UI can say so plainly (never a
  *    fabricated value, unknown stays "—").
  *  - The caveat ([caveatFor]) is source-aware: a 60 s spot reading is not the overnight baseline, it
- *    needs enough beats, and R-R derived from a WHOOP 5/MG's optical PPG is noisier than a chest strap's
- *    electrical R-R. Pure strings, US-neutral, no em-dashes.
+ *    needs enough beats, and R-R derived from a WHOOP strap's optical PPG (4.0, 5.0 or MG) is noisier than
+ *    an electrical chest strap's R-R. Pure strings, US-neutral, no em-dashes.
  *
  * Pure arithmetic + small data holders, no I/O — fully unit-testable against a known RR series.
  */
@@ -31,10 +31,10 @@ object SpotHrvReading {
 
     /** Where the live R-R intervals came from — drives the honesty caveat (optical PPG is noisier). */
     enum class Source {
-        /** WHOOP 5/MG: R-R is derived from the optical PPG waveform — beat-to-beat, but noisier. */
+        /** Any WHOOP strap (4.0, 5.0, MG): R-R from the optical PPG via 0x2A37 — beat-to-beat, but noisier. */
         OPTICAL_PPG,
 
-        /** WHOOP 4 or a chest strap (e.g. Polar H10) over the standard 0x2A37 profile — electrical R-R. */
+        /** An electrical chest strap (e.g. Polar H10) over the standard 0x2A37 profile — electrical R-R. */
         CHEST_STRAP,
 
         /** Source not known (generic / unspecified strap). */
@@ -104,8 +104,8 @@ object SpotHrvReading {
                 "only a reading with enough clean beats is shown."
         return when (source) {
             Source.OPTICAL_PPG ->
-                base + " On a WHOOP 5.0/MG the intervals come from the optical pulse signal, which is " +
-                    "noisier than a chest strap, so treat the number as a rough estimate."
+                base + " On a WHOOP strap (4.0, 5.0 or MG) the intervals come from the optical pulse signal, which is " +
+                    "noisier than an electrical chest strap such as a Polar H10, so treat the number as a rough estimate."
             Source.CHEST_STRAP, Source.UNKNOWN -> base
         }
     }

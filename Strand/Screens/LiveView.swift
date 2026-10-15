@@ -37,13 +37,12 @@ struct LiveView: View {
     @AppStorage(CardAppearancePrefs.opacityKey) private var cardOpacityPercent = CardAppearancePrefs.defaultPercent
     private var cardOpacity: Double { max(0, min(1, Double(cardOpacityPercent) / 100)) }
 
-    /// Maps the picked strap model to the HRV-reading source so the spot caveat is honest (#537): a
-    /// WHOOP 5/MG's R-R is optical PPG (noisier), a WHOOP 4 is electrical R-R. Mirrors the Android
-    /// `LiveScreen` mapping.
+    /// Maps the picked strap model to the HRV-reading source so the spot caveat is honest (#537):
+    /// R-R from either WHOOP generation is optical PPG over 0x2A37 (noisier than a chest strap). Mirrors
+    /// the Android `LiveScreen` mapping.
     private var hrvSnapshotSource: SpotHrvReading.Source {
         switch selectedModel {
-        case .whoop5mg: return .opticalPPG
-        case .whoop4:   return .chestStrap
+        case .whoop5mg, .whoop4: return .opticalPPG
         }
     }
 
@@ -184,8 +183,8 @@ struct LiveView: View {
         // Manual HRV snapshot (#127) — a still, seated 60s R-R reading.
         .sheet(isPresented: $showHRVSnapshot) {
             // Tell the reading where its R-R is coming from so the caveat is honest (#537): a WHOOP 5/MG
-            // derives R-R from the optical pulse signal (noisier) while a WHOOP 4 / chest strap is
-            // electrical R-R. Driven off the picked strap model, mirroring the Android twin.
+            // derives R-R from the optical pulse signal (noisier), as does a WHOOP 4, unlike an
+            // electrical chest strap. Driven off the picked strap model, mirroring the Android twin.
             HRVSnapshotView(onClose: { showHRVSnapshot = false }, source: hrvSnapshotSource)
                 .environmentObject(model)
                 .environmentObject(live)
@@ -466,7 +465,7 @@ struct LiveView: View {
                 .foregroundStyle(StrandPalette.statusWarning)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
-                Text("Can't connect: your strap's pairing was reset")
+                Text("Your strap needs help to reconnect: steps below")
                     .font(StrandFont.subhead).foregroundStyle(StrandPalette.textPrimary)
                 Text(guide)
                     .font(StrandFont.footnote).foregroundStyle(StrandPalette.textSecondary)

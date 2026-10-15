@@ -255,7 +255,7 @@
     <string name="power_saving_kick_in">Включать при (заряде браслета)</string>
     <string name="power_saving_hrv_pause">Приостановить сбор ВСР</string>
     <string name="power_saving_hrv_pause_desc">Пока заряд браслета низкий, останавливать постоянный фоновый поток ВСР — самый большой непрерывный расход для браслета. Живой экран по-прежнему показывает пульс, а поток включится сам, как только браслет зарядится.</string>
-    <string name="l10n_add_device_wizard_a_whoop_strap_bonds_to_a_d39bdf4a">Браслет WHOOP сопрягается только с одним устройством. Пока он подключён к NOOP, он не будет передавать to the official WHOOP app, and the other way round. It\'s reversible: pair it in the other app whenever you want it back.</string>
+    <string name="l10n_add_device_wizard_a_whoop_strap_bonds_to_a_d39bdf4a">Браслет WHOOP сопрягается только с одним устройством. Сопряжение с NOOP может отнять его у официального приложения WHOOP, и наоборот. Это обратимо: сопрягите его в другом приложении, когда захотите вернуть.</string>
     <string name="l10n_add_device_wizard_add_61cc55aa">Добавить</string>
     <string name="l10n_add_device_wizard_advanced_i_already_have_my_ring_e87b9b49">Дополнительно: у меня уже есть ключ моего кольца</string>
     <string name="l10n_add_device_wizard_beta_is_an_on_device_estimate_128563e0">Бета. * — оценка на устройстве. Температура кожи — это тренд относительно вашей нормы, шаги are a raw motion count, and HRV needs you to be still. No Oura Readiness or SpO2 percentage comes off the ring (import an Oura file for those).</string>
@@ -287,7 +287,7 @@
     <string name="l10n_add_device_wizard_try_again_042c862e">Повторить</string>
     <string name="l10n_add_device_wizard_use_file_import_0e092cb4">Использовать импорт файла</string>
     <string name="l10n_add_device_wizard_we_could_not_take_over_this_fec1ce93">Не удалось перехватить управление этим кольцом.</string>
-    <string name="l10n_add_device_wizard_whoop_5_0_mg_support_is_e452e686">Поддержка WHOOP 5.0 / MG в NOOP новее и всё ещё экспериментальна.</string>
+    <string name="l10n_add_device_wizard_whoop_5_0_mg_support_is_e452e686">WHOOP 5.0 / MG поддерживает данные в реальном времени и историю браслета. Инструменты исследования протокола вынесены в Тестовый центр.</string>
     <string name="l10n_add_device_wizard_whoop_is_noop_s_primary_fully_ac6fa33b">WHOOP — основной, полностью поддерживаемый браслет NOOP. Другие пульсометры передают живой пульс и ВСР, но не более глубокие данные WHOOP о сне и восстановлении.</string>
     <string name="l10n_app_root_more_4bab2d8f">Ещё</string>
     <string name="l10n_apple_health_screen_no_readings_recorded_05018b26">Пока нет записанных измерений.</string>
@@ -504,7 +504,7 @@
     <string name="l10n_devices_screen_device_config_read_probe_103_re_837f46de">Проба чтения конфигурации устройства (#103 RE)…</string>
     <string name="l10n_devices_screen_device_config_read_probe_result_103_67d02ec9">Результат пробы чтения конфигурации устройства (#103)</string>
     <string name="l10n_devices_screen_device_config_probe_explainer_dd23169f">Запрашивает у ремешка ЗНАЧЕНИЯ конфигурации: GET_DEVICE_CONFIG_VALUE (0x79) и GET_FF_VALUE (0x80), по одному ключу за обмен. Обеих команд в этой прошивке может просто не быть — выяснить это и есть цель пробы. Только чтение — никакое значение не записывается, а команды SET из этой пробы никогда не отправляются. Результат показан здесь и записан в журнал ремешка.</string>
-    <string name="l10n_devices_screen_battery_probe_explainer_2858bb6a">Две независимые таблицы протокола расходятся в коде расширенных данных о батарее (98 против 87). Здесь отправляется проверенная команда только для чтения 98, а полный сырой ответ браслета записывается в журнал. Ответ в формате батареи подтверждает 98 на вашей прошивке; короткая заглушка означает, что вопрос остаётся открытым. На браслет ничего не записывается. Пожалуйста, экспортируйте и пришлите журнал браслета после этого.</string>
+    <string name="l10n_devices_screen_battery_probe_explainer_2858bb6a">Две независимые таблицы протокола расходятся в коде расширенных данных о батарее (98 против 87). Здесь отправляется проверенная команда только для чтения 98 и показывается полный сырой ответ браслета (он также записывается в журнал браслета). На WHOOP 4.0 ответ в формате батареи подтверждает 98 на вашей прошивке, а результат раскодирует напряжение батареи; короткая заглушка оставляет вопрос открытым. На WHOOP 5/MG заряд батареи берётся не из 98 (это чтение внешней батареи, команда 151), NOOP не раскодирует из ответа никакого значения, а читать нужно строку «Result code»: UNSUPPORTED означает, что эта прошивка отклоняет 98. На браслет ничего не записывается. После этого экспортируйте и отправьте журнал браслета.</string>
     <string name="l10n_devices_screen_cancel_77dfd213">Отмена</string>
     <string name="l10n_devices_screen_close_bbfa773e">Закрыть</string>
     <string name="l10n_devices_screen_copy_af74f7c5">Копировать</string>
@@ -900,7 +900,7 @@
     <string name="l10n_smart_alarm_screen_wind_down_nudge_5ca87a0f">Напоминание о подготовке ко сну</string>
     <string name="l10n_smart_alarm_screen_window_length_46179fcb">Длина окна</string>
     <string name="l10n_smart_alarm_screen_windowminutes_min_bd89fd82">%1$s мин</string>
-    <string name="l10n_smart_alarm_screen_your_whoop_5_mg_won_t_75029bae">Для будильника на браслете WHOOP 5/MG включите Пробы протокола (Тестовый центр → Диагностика протокола 5/MG). Время пробуждения сохранено, но будильник на браслете ещё не активирован. Оставьте резервный будильник.</string>
+    <string name="l10n_smart_alarm_screen_your_whoop_5_mg_won_t_75029bae">Для будильника на браслете WHOOP 5/MG включите Пробы протокола (Тестовый центр → Диагностика протокола 5/MG). Время пробуждения сохранено, но NOOP не отправляет его на браслет, пока Пробы протокола выключены. Ранее отправленный будильник может оставаться на браслете. Оставьте резервный будильник.</string>
     <string name="l10n_steps_calibration_screen_calibrate_your_steps_38b4e814">Откалибруйте шаги</string>
     <string name="l10n_steps_calibration_screen_close_bbfa773e">Закрыть</string>
     <string name="l10n_steps_calibration_screen_day_987b9ced">День</string>
@@ -909,7 +909,7 @@
     <string name="l10n_steps_calibration_screen_how_this_works_b895a8c3">Как это работает</string>
     <string name="l10n_steps_calibration_screen_no_days_yet_where_both_noop_71d6005b">Пока нет дней, где шаги считали и NOOP, и ваш телефон. Как только телефон запишет few days alongside the strap, they\'ll appear here so you can see how close the estimate is.</string>
     <string name="l10n_steps_calibration_screen_no_motion_synced_yet_65106670">Данные о движении пока не синхронизированы</string>
-    <string name="l10n_steps_calibration_screen_noop_estimates_your_steps_from_your_d569bc31">NOOP оценивает ваши шаги по движению вашего WHOOP, калибруя их по счётчику шагов телефона. Это оценка, а не шагомер. WHOOP 4.0 не передаёт шаги.</string>
+    <string name="l10n_steps_calibration_screen_noop_estimates_your_steps_from_your_d569bc31">NOOP оценивает ваши шаги по сохранённому движению вашего WHOOP, калибруя их по счётчику шагов телефона. Это оценка, а не аппаратный шагомер. WHOOP 4.0 не передаёт число шагов. На WHOOP 5.0 / MG за дни, которые покрывает его собственный счётчик шагов, показывается его значение; чтобы скорректировать это число, используйте «Калибровка шагов» в Настройках.</string>
     <string name="l10n_steps_calibration_screen_not_calibrated_yet_30abe0d0">Пока не откалибровано</string>
     <string name="l10n_steps_calibration_screen_on_the_days_your_phone_also_2f65a14c">В дни, когда телефон тоже считал шаги, NOOP выясняет, как ваше движение соотносится с steps, then applies that to the strap-only days. The more matching days it has, the more it trusts the estimate.</string>
     <string name="l10n_steps_calibration_screen_open_noop_near_your_strap_and_e08ddd6d">Откройте NOOP рядом с браслетом и дайте ему догнать (полная синхронизация истории может занять время на first run). Once a day or two of motion lands, your step estimate and the calibration below will start to fill in.</string>
@@ -921,7 +921,7 @@
     <string name="l10n_steps_calibration_screen_these_are_the_days_where_your_ae5c9c2c">Это дни, когда телефон также считал шаги, поэтому NOOP может понять, как ваше движение соотносится с шагами. Либо задайте коэффициент вручную ниже.</string>
     <string name="l10n_steps_calibration_screen_these_days_are_excluded_from_the_6bedabbf">Эти дни исключены из оценки (вместо неё показан реальный счёт вашего телефона). Они здесь только для того, чтобы вы могли оценить точность.</string>
     <string name="l10n_steps_calibration_screen_we_re_not_seeing_any_motion_6ac8e092">Мы пока не видим движения с вашего браслета. Шаги оцениваются по движению вашего WHOOP banked motion history, so your strap needs to sync that history before NOOP has anything to count.</string>
-    <string name="l10n_steps_calibration_screen_whoop_4_0_motion_steps_a63239dc">WHOOP 4.0 · движение → шаги</string>
+    <string name="l10n_steps_calibration_screen_whoop_4_0_motion_steps_a63239dc">WHOOP · движение → шаги</string>
     <string name="l10n_strand_components_next_day_38f859dd">Следующий день</string>
     <string name="l10n_strand_components_previous_day_e2b6b0a1">Предыдущий день</string>
     <string name="l10n_stress_screen_band_title_hours_hours_f9779fd3">%1$s %2$s часов</string>
@@ -1325,7 +1325,7 @@
     <string name="l10n_app_changelog_updates_check_github_again_1e00ced1">Обновления снова проверяются через GitHub</string>
     <string name="l10n_app_changelog_v5_the_raw_signal_release_noop_c109e3f2">v5 — выпуск о сыром сигнале: NOOP читает сигнал, на вашем устройстве, бесплатно</string>
     <string name="l10n_app_changelog_week_in_review_is_honest_about_4c225bd3">Итоги недели честно говорят о незавершённой неделе</string>
-    <string name="l10n_app_changelog_whoop_4_0_is_the_supported_16893d9d">WHOOP 4.0 — поддерживаемый вариант</string>
+    <string name="l10n_app_changelog_whoop_4_0_is_the_supported_16893d9d">WHOOP 4.0 — наиболее проверенный вариант</string>
     <string name="l10n_app_changelog_whoop_5_0_history_decoding_comes_a8848386">Декодирование истории WHOOP 5.0 приходит на Android</string>
     <string name="l10n_app_changelog_whoop_5_0_mg_buzz_the_c1ab45a8">Вибрация WHOOP 5.0/MG — настоящая команда (совпадение байт в байт)</string>
     <string name="l10n_app_changelog_whoop_5_0_mg_buzz_trying_98373c44">Вибрация WHOOP 5.0/MG — пробуем правильную команду (эксперимент)</string>
@@ -1413,7 +1413,7 @@
     <string name="l10n_connection_help_turn_bluetooth_on_75868e97">Включите Bluetooth</string>
     <string name="l10n_connection_help_whoop_5_mg_experimental_109076ae">WHOOP 5 / MG (эксперимент)</string>
     <string name="l10n_connection_help_won_t_connect_run_through_these_cfef82f3">Не подключается? Пройдите по этим пунктам</string>
-    <string name="l10n_connection_help_your_strap_is_connected_and_we_8ab98ac6">Ваш браслет подключён, и мы пробуем экспериментальное рукопожатие, чтобы включить живой heart rate from the standard profile. This isn\'t verified on 5/MG hardware yet, so HR may or may not appear, and deeper metrics (recovery, strain, sleep) aren\'t decoded for 5/MG yet. Nothing\'s wrong with your strap - WHOOP 4.0 is fully supported.</string>
+    <string name="l10n_connection_help_your_strap_is_connected_and_we_8ab98ac6">Ваш браслет подключён, и мы пробуем экспериментальное рукопожатие, чтобы включить живой пульс через стандартный профиль. Это ещё не проверено на оборудовании 5/MG, поэтому пульс может появиться или нет, а часть ночных данных 5/MG пока неполна, поэтому фазы сна приблизительны. С вашим браслетом всё в порядке — WHOOP 4.0 поддерживается полностью.</string>
     <string name="l10n_coupled_screen_day_987b9ced">День</string>
     <string name="l10n_devices_screen_delete_all_of_this_device_s_754cde90">Удалить все данные этого устройства?</string>
     <string name="l10n_devices_screen_delete_this_device_s_data_3cae7a2a">Удалить данные этого устройства…</string>
@@ -1482,7 +1482,7 @@
     <string name="l10n_journal_reminder_tap_a_day_to_catch_up_10d16728">Нажмите на день, чтобы наверстать</string>
     <string name="l10n_live_screen_avg_cdc93143">Сред.</string>
     <string name="l10n_live_screen_buzz_edbd47b2">Вибрация</string>
-    <string name="l10n_live_screen_can_t_connect_your_strap_s_cf78be83">Не удаётся подключиться — сопряжение браслета было сброшено</string>
+    <string name="l10n_live_screen_can_t_connect_your_strap_s_cf78be83">Браслету нужна помощь, чтобы переподключиться — шаги ниже</string>
     <string name="l10n_live_screen_charging_5f99fe21">Зарядка</string>
     <string name="l10n_live_screen_distance_42320809">Расстояние</string>
     <string name="l10n_live_screen_effort_8c974bc6">Усилие</string>
@@ -1498,7 +1498,7 @@
     <string name="l10n_live_screen_start_workout_d0f3f2cd">Начать тренировку</string>
     <string name="l10n_live_screen_strap_02b88eeb">Браслет</string>
     <string name="l10n_live_screen_take_an_hrv_reading_20ecb2d2">Сделать измерение ВСР</string>
-    <string name="l10n_live_screen_whoop_5_0_mg_pairs_with_b93143f2">WHOOP 5.0/MG сопрягается с одним приложением за раз. Если поиск ничего не находит, отмените сопряжение в the official WHOOP app and fully close that app, then Connect again.</string>
+    <string name="l10n_live_screen_whoop_5_0_mg_pairs_with_b93143f2">WHOOP 5.0/MG сопрягается только с одним приложением одновременно. Если поиск ничего не находит, отвяжите его в официальном приложении WHOOP и полностью закройте это приложение, затем снова нажмите «Подключить».</string>
     <string name="l10n_noop_button_save_changes_179359b3">Сохранить изменения</string>
     <string name="l10n_rhythm_screen_an_experimental_picture_of_your_beat_966289c6">Экспериментальная картина межударного ритма. Сначала прочитайте это.</string>
     <string name="l10n_rhythm_screen_before_you_turn_on_rhythm_e85a832c">Перед включением Rhythm</string>
@@ -1537,7 +1537,7 @@
     <string name="l10n_settings_screen_contact_support_at_support_email_f0c4adce">Связаться с поддержкой: %1$s</string>
     <string name="l10n_settings_screen_continuous_hrv_capture_1f0805d8">Непрерывный захват ВСР</string>
     <string name="l10n_settings_screen_couldn_t_check_try_again_b3c885d9">Не удалось проверить. Попробуйте снова.</string>
-    <string name="l10n_settings_screen_counter_ticks_per_step_leave_at_3ce8c1d5">Тиков счётчика на шаг. Оставьте 1.0, если только шаги не завышены. На WHOOP 5/MG они могут быть очень завышены (в 10 раз и более), поэтому предел здесь до 30. Пройдите известные 1000 шагов и разделите счёт NOOP на реальное число, чтобы получить своё значение.</string>
+    <string name="l10n_settings_screen_counter_ticks_per_step_leave_at_3ce8c1d5">Тики счётчика на шаг для собственного счётчика шагов WHOOP 5/MG. Оставьте 1,0, если ваши шаги стабильно не завышены. Пройдите известные 1000 шагов и разделите значение NOOP на реальное, чтобы получить своё значение.</string>
     <string name="l10n_settings_screen_show_cycle_awareness_59709019">Показывать осведомлённость о цикле</string>
     <string name="l10n_settings_screen_cycle_awareness_ffb94783">Осведомлённость о цикле</string>
     <string name="l10n_settings_screen_day_cycle_background_8c254f01">Фон суточного цикла</string>
@@ -1603,7 +1603,7 @@
     <string name="l10n_settings_screen_reviews_each_scored_wake_block_for_537924ea">Проверяет каждый оценённый блок бодрствования на реальные признаки подъёма (ритм шагов, change in body position) instead of just a heart-rate rise. A wake block with no locomotion and a stable posture -- a hot night, a brief turn-over -- is folded back into light sleep; a real get-up is left alone. Self-checks how much motion detail your strap actually recorded and stays off on a night that\'s too sparse to trust (older WHOOP 4.0 firmware, mainly). Off by default; takes effect on the next nights staged.</string>
     <string name="l10n_settings_screen_rhythm_experimental_12d357da">Ритм (эксперимент)</string>
     <string name="l10n_settings_screen_runs_the_continuous_hrv_stream_only_3fed47c5">Запускает непрерывный поток ВСР только в ваши тихие часы (по умолчанию 22:00–07:00), примерно вдвое снижая расход батареи. Дневные измерения стресса станут реже. Note: continuous background HRV capture (including daytime naps) is paused outside this window. For on-demand daytime HRV readings (including naps), use the \"Take an HRV reading\" button on the Live screen.</string>
-    <string name="l10n_settings_screen_saves_the_last_24h_of_decoded_f7026f47">Сохраняет последние 24 часа декодированных данных с датчиков (пульс, R-R, движение, шаги и любые глубокие потоки 5/MG, которые вы разблокировали) в один CSV, которым можно поделиться, чтобы поэкспериментировать со своими данными. Ничего не покидает телефон, пока вы сами не поделитесь.</string>
+    <string name="l10n_settings_screen_saves_the_last_24h_of_decoded_f7026f47">Сохраняет последние 24 часа декодированных данных датчиков (пульс, R-R, движение, шаги, SpO₂, температура кожи, дыхание и события) в один CSV-файл, которым можно поделиться, чтобы изучать собственные данные. Ничто не покидает телефон, пока вы сами не поделитесь файлом.</string>
     <string name="l10n_settings_screen_send_enable_sequence_to_strap_04ff8a22">Отправить последовательность включения на браслет</string>
     <string name="l10n_settings_screen_set_up_automatic_backups_00b4780c">Настроить автоматические резервные копии</string>
     <string name="l10n_settings_screen_settings_c7f73bb5">Настройки</string>
@@ -1830,7 +1830,7 @@
     <string name="l10n_workouts_screen_hrr_last_7_days_516">последние 7 дней</string>
     <string name="l10n_workouts_screen_hrr_last_30_days_516">последние 30 дней</string>
     <string name="l10n_workouts_screen_hrr_last_90_days_516">последние 90 дней</string>
-    <string name="timeline_spo2_not_on_whoop5">Этот браслет не передаёт SpO₂ по Bluetooth. Импортируйте выгрузку WHOOP или Health Connect, чтобы увидеть его.</string>
+    <string name="timeline_spo2_not_on_whoop5">Этот браслет не передаёт сигнал SpO₂ для этого графика. Импортируйте выгрузку WHOOP или данные Health Connect, чтобы увидеть его.</string>
     <string name="timeline_resp_not_on_whoop5">Этот браслет не передаёт сырой поток дыхания. Ваша расчётная частота дыхания показана на экране «Здоровье».</string>
     <string name="settings_disclosure_expanded">Развёрнуто</string>
     <string name="settings_disclosure_collapsed">Свёрнуто</string>
@@ -1870,6 +1870,9 @@
     <string name="l10n_app_changelog_battery_saver_quiets_the_gauges_translated_bdbe8650">Энергосбережение успокаивает индикаторы, переведённые уведомления Android и мгновенная загрузка графиков</string>
     <string name="l10n_health_screen_no_spo_import_or_health_value_408f8c55">Нет импортированных данных SpO₂ или значения из Health</string>
     <string name="l10n_health_screen_raw_counts_only_needs_an_import_d0e33552">Только сырые значения — нужен импорт</string>
+    <string name="l10n_health_screen_no_raw_spo2_counts_4_0_only">Нет необработанных значений SpO₂ (только WHOOP 4.0)</string>
+    <string name="health_sync_hint_needs_full_pairing">Синхронизировать сейчас. Требуется полное защищённое сопряжение браслета, которое не завершено.</string>
+    <string name="health_sync_pill_not_fully_paired">Сопряжение не завершено</string>
     <string name="l10n_settings_screen_turn_deep_data_back_off_r22disable">Выключить глубокие данные обратно</string>
     <string name="l10n_settings_screen_r22disable_needs_bond">Требуется полное шифрованное сопряжение: сначала закройте официальное приложение WHOOP и сопрягите браслет с NOOP (канал только для пульса в реальном времени не может передать запись).</string>
     <string name="l10n_settings_screen_r22disable_reason">Записывает значение выключения во все 16 флагов и читает каждый обратно, чтобы вы видели, что браслет хранит, а не только что он подтвердил. Значение выключения выведено из флага, который NOOP уже так отключает для трансляции на Garmin: на флаге R22 оно никогда не наблюдалось, поэтому NOOP сначала пробует один флаг и останавливается, если браслет его отвергнет. Очистка флагов — не то же самое, что увидеть остановку подробных записей: проверьте это последующей синхронизацией.</string>
@@ -1892,13 +1895,13 @@
     <string name="onboarding_local_data_body">Всё хранится на этом телефоне. Без аккаунта, без синхронизации, без облака.</string>
     <string name="onboarding_expectations_subtitle">Несколько честных слов, чтобы ничто не стало сюрпризом.</string>
     <string name="onboarding_expectation_independent_body">NOOP — личный открытый проект, а не приложение WHOOP, и он не связан с WHOOP. Он читает браслет, которым вы владеете, на вашем собственном устройстве. Относитесь к нему как к работающей, но незавершённой разработке, а не к готовому продукту.</string>
-    <string name="onboarding_expectation_whoop_support_body">WHOOP 4.0 протестирован и работает полностью. WHOOP 5.0/MG новее: живой пульс работает уже сегодня, но более глубокие метрики (восстановление, нагрузка, сон) для 5/MG всё ещё разбираются. NOOP всегда сообщает, что работает, а что ещё в разработке.</string>
+    <string name="onboarding_expectation_whoop_support_body">WHOOP 4.0 проверен и работает от начала до конца. WHOOP 5.0/MG новее: пульс в реальном времени и история браслета работают, а NOOP считает по ним сон, восстановление и нагрузку на вашем устройстве. Часть ночных данных на 5/MG пока неполна, поэтому фазы сна на нём приблизительны. NOOP всегда показывает, что уже работает, а что ещё в разработке.</string>
     <string name="onboarding_expectation_scores_body">Пульс в реальном времени доступен сразу. Восстановление, нагрузка и сон становятся точнее по мере того, как NOOP изучает вашу норму за первые ночи ношения. Хотите получить историю прямо сейчас? Импортируйте экспорт WHOOP в разделе «Источники данных» — она подгрузится примерно за минуту.</string>
     <string name="onboarding_expectation_local_body">Ни аккаунта, ни облака, ни синхронизации. NOOP общается только с вашим браслетом и хранит всё локально. Ваши данные принадлежат только вам.</string>
     <string name="onboarding_bluetooth_subtitle">NOOP использует Bluetooth, чтобы найти ваш браслет. Продолжив, выдайте разрешение, чтобы он мог выполнить поиск.</string>
     <string name="onboarding_bluetooth_local_body">NOOP общается с браслетом напрямую по Bluetooth Low Energy. Между вами нет сервера. Соединение локальное — как и каждое считанное показание.</string>
     <string name="onboarding_bluetooth_permission">Когда Android спросит, разрешите Bluetooth, чтобы NOOP мог искать и подключаться.</string>
-    <string name="onboarding_whoop_pairing_mode">WHOOP 5.0/MG может потребовать режим сопряжения в первый раз, при закрытом официальном приложении WHOOP.</string>
+    <string name="onboarding_whoop_pairing_mode">WHOOP 5.0/MG в первый раз может потребовать режима сопряжения: закройте официальное приложение WHOOP, затем несколько раз коснитесь браслета, пока светодиоды не начнут мигать синим.</string>
     <string name="onboarding_wear_subtitle">Датчику нужен контакт с кожей, прежде чем данные начнут что-то значить.</string>
     <string name="onboarding_wear_snug">Наденьте плотно на запястье или бицепс, датчиком к коже.</string>
     <string name="onboarding_wear_charge">Дайте ему зарядиться несколько минут, если заряд низкий.</string>
@@ -1947,7 +1950,7 @@
     <string name="recording_chip_detail_recording">Ваш браслет подключён и сохраняет данные.</string>
     <string name="recording_chip_detail_last_synced">Переподключитесь, чтобы получить последние данные.</string>
     <string name="recording_chip_detail_not_recording">Браслет не подключён. Нажмите, чтобы подключить.</string>
-    <string name="recording_chip_detail_history_experimental">Синхронизация истории экспериментальна на 5.0.</string>
+    <string name="recording_chip_detail_history_experimental">Синхронизация истории экспериментальна на WHOOP 5.0/MG.</string>
     <string name="recording_chip_detail_connected_no_data">Пока нет ни пульса в реальном времени, ни синхронизированной истории в этой сессии.</string>
     <string name="score_state_title_calibrating">Калибровка</string>
     <string name="l10n_stress_glance_widget_resumes_in_the_morning_a640b49f">Возобновится утром</string>
@@ -2035,7 +2038,7 @@
     <string name="cycle_phase_learning">Изучаем ваш паттерн</string>
     <string name="cycle_day_single">· ~день %1$d</string>
     <string name="cycle_day_range">· ~день %1$d–%2$d</string>
-    <string name="skin_temp_missing_caption">Пока нет ночной температуры кожи — нужно ~4 ночи ношения (или импортируйте CSV из WHOOP)</string>
+    <string name="skin_temp_missing_caption">Ночной температуры кожи пока нет — она появится после синхронизации ночи, когда браслет был надет (или импортируйте CSV из WHOOP)</string>
     <string name="skin_temp_delta_title">Темп. кожи Δ</string>
     <string name="skin_temp_vs_baseline">относит. исходного</string>
     <string name="l10n_app_changelog_make_noop_yours_theme_colours_and_6bdef2a7">Сделайте NOOP своим — цвета темы и свои фоны, ещё сорок видов спорта с GPS-маршрутами и тепловая карта калорий</string>
@@ -2457,7 +2460,7 @@
     <string name="l10n_app_changelog_an_effort_scale_you_choose_a_a7c2478d">Шкала Усилия на ваш выбор, кольцо, которое засыпает, и намного меньше лишних пересчётов</string>
     <string name="l10n_health_screen_this_vital_needs_at_least_two_0e41b8b0">Этому показателю нужно минимум два измерения в истории, прежде чем NOOP сможет построить график.</string>
     <string name="l10n_health_screen_the_blood_oxygen_estimate_is_turned_4c403ab2">Оценка насыщения крови кислородом отключена</string>
-    <string name="l10n_health_screen_your_strap_reports_a_blood_oxygen_349fe34a">Ваш браслет сообщает оценку насыщения крови кислородом, но она не проверена и по умолчанию отключена. Включите оценку браслета в Настройках, чтобы увидеть её, или импортируйте выгрузку WHOOP в «Источниках данных» для калиброванного значения.</string>
+    <string name="l10n_health_screen_your_strap_reports_a_blood_oxygen_349fe34a">Ваш браслет сообщает оценку кислорода в крови, но она не проверена и по умолчанию выключена. Чтобы увидеть её, включите \"Blood Oxygen: strap estimate\" в Настройки → Дополнительно → Диагностика или импортируйте экспорт WHOOP в разделе «Источники данных», чтобы получить откалиброванное значение.</string>
     <string name="l10n_health_screen_no_blood_oxygen_percentage_from_a_1d3d383e">WHOOP 4.0 не даёт процент насыщения крови кислородом</string>
     <string name="l10n_health_screen_your_strap_banks_the_raw_optical_b52a0f80">Ваш браслет накапливает сырые оптические каналы, но NOOP не превращает их в процент насыщения крови кислородом, поэтому здесь будет пусто, сколько бы вы его ни носили. Импортируйте выгрузку WHOOP в разделе «Источники данных», чтобы заполнить это из истории вашего аккаунта.</string>
     <string name="ground_truth_title">Сборщик сырых данных 5/MG</string>
@@ -2529,7 +2532,7 @@
     <string name="raw_diag_passive">Пассивная трассировка истории/протокола</string>
     <string name="raw_diag_share">Поделиться пассивной сырой трассировкой</string>
     <string name="raw_diag_export_log">Экспорт пассивной трассировки + журнала браслета</string>
-    <string name="raw_diag_moved">Сырой захват и его экспорт трассировки протокола теперь находятся в Центре тестирования → Диагностика протокола 5/MG.</string>
+    <string name="raw_diag_moved">Сырой захват и его экспорт трассировки протокола теперь находятся в Тестовом центре → Диагностика протокола 5/MG.</string>
     <string name="l10n_settings_screen_send_hello_despite_bond_refusal_experimental_2f8de795">Отправлять hello несмотря на отказ в сопряжении (эксперимент)</string>
     <string name="l10n_settings_screen_send_hello_despite_bond_refusal_65c9d9fd">Отправлять hello несмотря на отказ в сопряжении</string>
     <string name="l10n_settings_screen_check_automatically_7cd229d2">Проверять автоматически</string>
@@ -2647,7 +2650,7 @@
         <item quantity="many">%1$s тренировок</item>
         <item quantity="other">%1$s тренировки</item>
     </plurals>
-    <string name="l10n_today_screen_this_night_was_staged_from_heart_rate_4d0f1f9b">Эта ночь определена только по пульсу, без записанного движения, поэтому вариабельность сердечного ритма и пульс в покое измерить не удалось. Обычная причина — ремешок, сопряжённый не полностью.</string>
+    <string name="l10n_today_screen_this_night_was_staged_from_heart_rate_4d0f1f9b">Эта ночь определена только по пульсу, без записанного движения, поэтому её время и фазы приблизительны. Пустое значение ВСР или пульса покоя означает, что за эту ночь не набралось достаточно пригодных данных о пульсе для измерения. Не полностью сопряжённый браслет — обычная причина того, что за ночь нет данных о движении.</string>
     <string name="settings_day_cycle_title">Суточный цикл</string>
     <string name="settings_day_cycle_description">Выберите, когда начинается новый отсчёт шагов и текущей нагрузки. Дневной сон не начинает новый день.</string>
     <string name="settings_day_cycle_starts">Начало дня</string>
@@ -2668,7 +2671,7 @@
     <string name="units_follow_body">Как для параметров тела</string>
     <string name="l10n_devices_screen_battery_pack_probe_151_re_d722af00">Проба батарейного блока (151 RE)…</string>
     <string name="l10n_devices_screen_battery_pack_probe_result_151_df43dff2">Результат пробы батарейного блока (151)</string>
-    <string name="l10n_devices_screen_battery_pack_probe_explainer_40b3470d">Отправляет команду батарейного блока только для чтения (151) и декодирует ответ браслета — заряд блока, серийный номер и Bluetooth-адрес. На браслет ничего не записывается, и это не влияет на ваши данные. У WHOOP 4.0 нет команды блока, и ожидается молчание; само это молчание — полезный результат.</string>
+    <string name="l10n_devices_screen_battery_pack_probe_explainer_40b3470d">Отправляет команду только для чтения внешней батареи (151) и показывает ответ браслета. Ответ SUCCESS декодируется как заряд, серийный номер и Bluetooth-адрес батареи. Известный результат: WHOOP MG с прошивкой 50.39.1.0 отвечает FAILURE независимо от того, подключена ли батарея, поэтому заряд батареи на карточке «Устройства» берётся из события батареи, которое присылает сам браслет, а не из этой команды. У WHOOP 4.0 нет команды для батареи, и ожидается, что он промолчит; это молчание само по себе полезный результат. На браслет ничего не записывается, и ничто не попадает в ваши данные.</string>
     <string name="l10n_today_screen_pending_sync_cbe01f9e">Ожидает синхронизации</string>
     <string name="l10n_today_screen_strap_history_still_offloading_80140264">история браслета ещё передаётся</string>
     <string name="l10n_hr_glance_widget_min_lo_max_hi_ef900e49">Мин %1$d • Макс %2$d</string>
@@ -2708,7 +2711,7 @@
     <string name="l10n_sleep_screen_this_night_scored_high_efficiency_but_a11d90eb">Этой ночью эффективность высокая, но глубокого сна и REM очень мало. Скорее всего, это ошибка определения фаз, а не реальная нехватка восстановительного сна. Итоги сохранены, читайте распределение с осторожностью.</string>
     <string name="l10n_health_screen_over_reports_r_r_so_no_9d050d53">Завышает число интервалов R-R, поэтому значение не показано</string>
     <string name="l10n_settings_screen_check_current_name_read_only_acb2f01a">Запросить текущее имя (только чтение)</string>
-    <string name="l10n_settings_screen_renaming_is_not_supported_on_a_02f7af2c">Переименование пока не поддерживается на WHOOP 5.0 и MG. NOOP может запросить у ремешка его текущее имя, и это решит, возможно ли переименование вообще.</string>
+    <string name="l10n_settings_screen_renaming_is_not_supported_on_a_02f7af2c">Переименование пока не поддерживается на WHOOP 5.0 и MG. Экспериментальное переименование и проверка имени только для чтения появляются здесь, пока включён режим Тестовый центр → Connection &amp; Sync.</string>
     <string name="l10n_settings_screen_experimental_on_a_whoop_5_0_711d5341">Экспериментально на WHOOP 5.0 и MG: эта команда никогда не подтверждалась на данном поколении. Она обратима, поэтому переименуйте ещё раз, если что-то пойдёт не так, и проверьте результат через Запросить текущее имя.</string>
     <string name="l10n_smart_alarm_screen_alarm_in_1_s_688166e3">Будильник через %1$s</string>
     <string name="l10n_smart_alarm_screen_alarm_in_less_than_a_minute_9821dce0">Будильник менее чем через минуту</string>
@@ -2745,8 +2748,8 @@
     <string name="l10n_today_screen_pending_sync_complete_5940c589">Ожидает синхронизации · %1$s</string>
     <string name="l10n_today_screen_value_bpm_complete_ab58df4e">%1$s уд/мин%2$s</string>
     <string name="fused_record_contribution_in_use">%1$s, %2$s, используется</string>
-    <string name="smart_alarm_5mg_armed_experimental">Будильник установлен на браслете экспериментальной командой 5/MG. Сообщалось о срабатывании на 5.0 и MG, но оно не гарантировано. Оставьте резервный будильник для важных событий.</string>
-    <string name="raw_diag_protocol_probes_detail">Отправляет экспериментальные запросы протокола и включает будильник браслета 5/MG. Не требуется для обычной синхронизации, сна, восстановления или подсчёта шагов.</string>
+    <string name="smart_alarm_5mg_armed_experimental">NOOP устанавливает будильник на браслете экспериментальной командой 5/MG при каждом подключении браслета и при каждом изменении будильника. Сообщалось о срабатывании на 5.0 и MG, но оно не гарантировано. Оставьте резервный будильник для важных событий.</string>
+    <string name="raw_diag_protocol_probes_detail">Отправляет экспериментальные запросы протокола и записывает ответы в журнал браслета. Также разрешает экспериментальный будильник браслета 5/MG: NOOP отправляет его при следующем подключении браслета или при изменении будильника. Выключение не удаляет будильник, уже установленный на браслете. Не требуется для обычной синхронизации, сна, восстановления или подсчёта шагов.</string>
     <string name="sleep_result_updated_title">Результат сна обновлён</string>
     <string name="sleep_result_updated_message">Время засыпания, пробуждения или общая продолжительность сна этой ночи изменились как минимум на пять минут.</string>
     <string name="raw_diag_ecg_probe">Проба включения ЭКГ WHOOP MG</string>

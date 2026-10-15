@@ -21,7 +21,7 @@ final class BodyLocationProbeTests: XCTestCase {
     func testWhoop4_acceptedDecodesTheFourFields() {
         let (text, payHex) = BodyLocationProbe.format(frame: hexToBytes(wristFrame), cmdOff: 6, isWhoop5: false, prevPayloadHex: nil)
         XCTAssertTrue(text.contains("WHOOP 4.0"))
-        XCTAssertTrue(text.contains("opcode 84 ACCEPTED — 4-byte payload"))
+        XCTAssertTrue(text.contains("opcode 84 answered — 4-byte payload (not a success verdict; see the bytes below)"))
         XCTAssertTrue(text.contains(wristFrame))                 // full raw hex on one copyable line
         XCTAssertTrue(text.contains("  @00  01 01 5a 00"))       // offset-labelled hex grid
         XCTAssertTrue(text.contains("revision:   1"))
@@ -79,7 +79,7 @@ final class BodyLocationProbeTests: XCTestCase {
         let (text, _) = BodyLocationProbe.format(frame: hexToBytes(wristFrame), cmdOff: 6, isWhoop5: false, prevPayloadHex: nil)
         let golden = [
             "#690 BODY-LOCATION PROBE — WHOOP 4.0",
-            "Verdict: opcode 84 ACCEPTED — 4-byte payload",
+            "Verdict: opcode 84 answered — 4-byte payload (not a success verdict; see the bytes below)",
             "",
             "Raw frame (15 B):",
             "aa09000024005401015a00deadbeef",

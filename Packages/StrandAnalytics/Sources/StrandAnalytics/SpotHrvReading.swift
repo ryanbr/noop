@@ -22,7 +22,7 @@ import Foundation
 ///    result is `.insufficient` with the surviving/needed counts so the UI can say so plainly (never a
 ///    fabricated value, unknown stays the "no value" glyph).
 ///  - The caveat (`caveatFor`) is source-aware: a 60 s spot reading is not the overnight baseline, it
-///    needs enough beats, and R-R derived from a WHOOP 5/MG's optical PPG is noisier than a chest
+///    needs enough beats, and R-R derived from a WHOOP strap's optical PPG is noisier than a chest
 ///    strap's electrical R-R. Pure strings, US-neutral, no em-dashes.
 ///
 /// Pure arithmetic + small value types, no I/O — fully unit-testable against a known RR series.
@@ -30,9 +30,9 @@ public enum SpotHrvReading {
 
     /// Where the live R-R intervals came from — drives the honesty caveat (optical PPG is noisier).
     public enum Source: Sendable {
-        /// WHOOP 5/MG: R-R is derived from the optical PPG waveform — beat-to-beat, but noisier.
+        /// Any WHOOP strap (4.0, 5.0, MG): R-R is derived from the optical PPG via 0x2A37 — beat-to-beat, but noisier.
         case opticalPPG
-        /// WHOOP 4 or a chest strap (e.g. Polar H10) over the standard 0x2A37 profile — electrical R-R.
+        /// An electrical chest strap (e.g. Polar H10) over the standard 0x2A37 profile.
         case chestStrap
         /// Source not known (generic / unspecified strap).
         case unknown
@@ -89,8 +89,8 @@ public enum SpotHrvReading {
             "only a reading with enough clean beats is shown."
         switch source {
         case .opticalPPG:
-            return base + " On a WHOOP 5.0/MG the intervals come from the optical pulse signal, which is " +
-                "noisier than a chest strap, so treat the number as a rough estimate."
+            return base + " On a WHOOP strap (4.0, 5.0 or MG) the intervals come from the optical pulse signal, which is " +
+                "noisier than an electrical chest strap such as a Polar H10, so treat the number as a rough estimate."
         case .chestStrap, .unknown:
             return base
         }
