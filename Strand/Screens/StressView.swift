@@ -82,12 +82,10 @@ struct StressView: View {
                        // fixed, full-bleed time-of-day sky behind the scroll content (does not scroll), so the
                        // Stress screen sits in the same liquid atmosphere as every other tab.
                        topBackground: liquidScaffoldSky()) {
-            if let model {
-                content(model)
-            } else if !loaded {
+            if model == nil && !loaded && daytime == nil {
                 ComingSoon(what: "Reading your heart-rate variability and resting heart rate…")
             } else {
-                emptyState
+                content(model)
             }
         }
         .onAppear { rebuildModelIfNeeded() }
@@ -214,12 +212,14 @@ struct StressView: View {
     // MARK: Loaded content
 
     @ViewBuilder
-    private func content(_ model: StressModel) -> some View {
+    private func content(_ model: StressModel?) -> some View {
         VStack(alignment: .leading, spacing: NoopMetrics.sectionSpacing) {
 
             // 1. HERO — the liquid stress-level vessel + band + one plain-English line, all in one card.
-            heroCard(model)
-                .staggeredAppear(index: 0)
+            if let model {
+                heroCard(model)
+                    .staggeredAppear(index: 0)
+            }
 
             // 1b. ADVANCED HRV readouts (additive, on-demand). A separate, clearly-labelled card
             //     that appears only when at least one engine returned a value. It sits BELOW the
@@ -230,32 +230,42 @@ struct StressView: View {
             }
 
             // 2. Today's numbers — uniform tiles in one grid.
-            VStack(alignment: .leading, spacing: NoopMetrics.gap) {
-                SectionHeader("Today", overline: "Markers", trailing: String(localized: "vs 30-day baseline"))
-                tileGrid(model)
+            if let model {
+                VStack(alignment: .leading, spacing: NoopMetrics.gap) {
+                    SectionHeader("Today", overline: "Markers", trailing: String(localized: "vs 30-day baseline"))
+                    tileGrid(model)
+                }
+                .staggeredAppear(index: 1)
             }
-            .staggeredAppear(index: 1)
 
             // 3. Today's intraday timeline — when in the day stress ran high, + a
             //    passive Breathe suggestion when the recent hours stay elevated.
-            // #2535: THREE states, not two. `daytime` is nil only while the read is still running, and this
-            // used to render nothing then, so a fold that takes seconds looked exactly like a day with no
-            // data. An empty `scored` after the read is a fact about the day and still stays silent.
-            if daytime == nil {
+            // Today's HR is sufficient to render this section even before a nightly baseline exists.
+            switch StressDaytimeState.resolve(daytime: daytime, hasDailyModel: model != nil,
+                                             hasAdvancedReadouts: hasAdvancedReadouts) {
+            case .loading:
                 daytimeLoading()
                     .staggeredAppear(index: 2)
-            } else if let daytime, !daytime.scored.isEmpty {
-                daytimeSection(daytime)
-                    .staggeredAppear(index: 2)
+            case .timeline:
+                if let daytime {
+                    daytimeSection(daytime)
+                        .staggeredAppear(index: 2)
+                }
+            case .empty:
+                emptyState
+            case .hidden:
+                EmptyView()
             }
 
-            // 4. Trend over the chosen window.
-            trendSection(model)
-                .staggeredAppear(index: 3)
+            if let model {
+                // 4. Trend over the chosen window.
+                trendSection(model)
+                    .staggeredAppear(index: 3)
 
-            // 5. Transparency — how the number is built.
-            methodologyCard(model)
-                .staggeredAppear(index: 4)
+                // 5. Transparency — how the number is built.
+                methodologyCard(model)
+                    .staggeredAppear(index: 4)
+            }
         }
         // The sustained-stress suggestion opens the existing Breathe trainer in a sheet —
         // in-app and passive (no alert / notification), inheriting the app environment.
@@ -704,7 +714,19 @@ struct StressView: View {
     // MARK: Empty state
 
     private var emptyState: some View {
-        ComingSoon(what: "No stress history yet. Import your WHOOP export in Data Sources to see it.")
+        ComingSoon(what: "No intraday stress data yet today.")
+    }
+}
+
+/// Intraday presentation is independent of the daily score's nightly baseline.
+enum StressDaytimeState: Equatable {
+    case loading, timeline, empty, hidden
+
+    static func resolve(daytime: DaytimeStress.Result?, hasDailyModel: Bool,
+                        hasAdvancedReadouts: Bool) -> Self {
+        guard let daytime else { return .loading }
+        if !daytime.scored.isEmpty { return .timeline }
+        return hasDailyModel || hasAdvancedReadouts ? .hidden : .empty
     }
 }
 
