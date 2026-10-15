@@ -404,7 +404,7 @@ struct FullDayChartView: View {
             .map { w in
                 .init(start: Date(timeIntervalSince1970: TimeInterval(w.startTs)),
                       end: Date(timeIntervalSince1970: TimeInterval(w.endTs)),
-                      symbol: sportSymbol(w.sport))
+                      symbol: sportSymbol(w.sport), sport: w.sport, source: w.source)
             }
         guard !Task.isCancelled else { return }
         // The pure, headless-tested selection (StrandDesignTests) — window = the shown DAY, not the zoom.

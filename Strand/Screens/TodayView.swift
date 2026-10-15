@@ -3774,7 +3774,7 @@ struct TodayView: View {
             let start = Date(timeIntervalSince1970: TimeInterval(w.startTs))
             let end = Date(timeIntervalSince1970: TimeInterval(w.endTs))
             guard end >= win.lowerBound, start <= win.upperBound else { return nil }
-            return .init(start: start, end: end, symbol: sportSymbol(w.sport))
+            return .init(start: start, end: end, symbol: sportSymbol(w.sport), sport: w.sport, source: w.source)
         }
     }
 

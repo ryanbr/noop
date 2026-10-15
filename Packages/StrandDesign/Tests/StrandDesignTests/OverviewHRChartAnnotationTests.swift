@@ -20,6 +20,32 @@ final class OverviewHRChartAnnotationTests: XCTestCase {
     /// A day window: 86 400 s starting at t=100 000 (arbitrary epoch, values only matter relatively).
     private let day: ClosedRange<Date> = Date(timeIntervalSince1970: 100_000)...Date(timeIntervalSince1970: 186_400)
 
+    func testRebuiltWorkoutAnnotationsKeepIdentity() {
+        let original = workout(110_000, 113_600)
+        XCTAssertEqual(original.id, workout(110_000, 113_600).id)
+        XCTAssertNotEqual(original.id, workout(110_000, 114_000).id)
+        let otherSport = OverviewHRChart.WorkoutSpan(start: original.start, end: original.end,
+                                                     symbol: "figure.walk")
+        XCTAssertNotEqual(original.id, otherSport.id)
+        let saved = OverviewHRChart.WorkoutSpan(start: original.start, end: original.end,
+                                                symbol: "figure.run", sport: "Running", source: "manual")
+        let imported = OverviewHRChart.WorkoutSpan(start: original.start, end: original.end,
+                                                   symbol: "figure.run", sport: "Running", source: "import")
+        XCTAssertNotEqual(saved.id, imported.id, "Coincident annotations from different sources remain distinct")
+    }
+
+    func testVerticalScrollingDoesNotPanTheChart() {
+        for dx in [-8.0, 0, 8] {
+            for dy in [-30.0, 30] {
+                XCTAssertFalse(OverviewHRChart.isHorizontalPan(CGSize(width: dx, height: dy)))
+            }
+        }
+        XCTAssertFalse(OverviewHRChart.isHorizontalPan(.zero))
+        XCTAssertFalse(OverviewHRChart.isHorizontalPan(CGSize(width: 20, height: 20)))
+        XCTAssertTrue(OverviewHRChart.isHorizontalPan(CGSize(width: -30, height: 8)))
+        XCTAssertTrue(OverviewHRChart.isHorizontalPan(CGSize(width: 30, height: -8)))
+    }
+
     // MARK: mainSleep — the main night, never a nap
 
     /// The LONGEST overlapping block wins, exactly like the classic Today: a 7h night beats a 40m nap.
