@@ -337,4 +337,40 @@ final class LabMarkerCsvImportTests: XCTestCase {
         ]
         XCTAssertEqual(names.map(LabMarkerCsvImport.customKey), expected)
     }
+    func testLegacyKeyMatchesAndroidHistory() {
+        let names = ["eGFR mL/min/1.73m²", "Ⅻ Marker", "²%", "𐄇 Marker", "!!!", "²", "Apo B", "Café Marker", "q̇ Marker", "🧪αⅫ²%", "A___B"]
+        let actual = names.enumerated().map { "\($0.offset):\(LabMarkerCsvImport.legacyCustomKey($0.element))" }.joined(separator: "\n")
+        XCTAssertEqual(actual, """
+        0:custom_egfr_ml_min_1_73m
+        1:custom_marker
+        2:custom_pct
+        3:custom_marker
+        4:
+        5:
+        6:custom_apo_b
+        7:custom_café_marker
+        8:custom_q_marker
+        9:custom_α_pct
+        10:custom_a__b
+        """)
+    }
+
+    func testImportCarriesOnlyUnambiguousNonemptyLegacyAliases() {
+        let single = LabMarkerCsvImport.parse(text: "date,marker,value\n2026-01-01,eGFR mL/min/1.73m²,90")
+        XCTAssertEqual(single.rows.first?.legacyMarkerKey, "custom_egfr_ml_min_1_73m")
+        XCTAssertEqual(single.legacyKeyChanges, ["custom_egfr_ml_min_1_73m": "custom_egfr_ml_min_1_73m²"])
+        for names in [["Ⅻ Marker", "𐄇 Marker"], ["𐄇 Marker", "Marker"]] {
+            let csv = "date,marker,value\n" + names.map { "2026-01-01,\($0),90" }.joined(separator: "\n")
+            let parsed = LabMarkerCsvImport.parse(text: csv)
+            XCTAssertEqual(parsed.rows.count, names.count)
+            XCTAssertTrue(parsed.legacyKeyChanges.isEmpty)
+        }
+        let empty = LabMarkerCsvImport.parse(text: "date,marker,value\n2026-01-01,²,90")
+        XCTAssertTrue(empty.legacyKeyChanges.isEmpty)
+        XCTAssertEqual(empty.skippedRows, 1)
+        let vendor = WhoopBiomarkerExportParser.parse(text:
+            "Biomarker Name,Value,Status,Recorded On Date\neGFR mL/min/1.73m²,90 unit,Original status,1/1/26")
+        XCTAssertEqual(vendor.legacyKeyChanges, single.legacyKeyChanges)
+    }
+
 }

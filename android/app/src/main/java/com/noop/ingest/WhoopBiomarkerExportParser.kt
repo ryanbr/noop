@@ -124,7 +124,9 @@ object WhoopBiomarkerExportParser {
             val note = rawStatus?.trim()
                 ?.takeIf { it.isNotEmpty() && !isNoData(it) }
                 ?.let { "WHOOP: $it" }
-            store(LabMarkerCsvRow(key, category, day, value, unit, isCustomMarker = def == null, note = note))
+            store(LabMarkerCsvRow(key, category, day, value, unit, isCustomMarker = def == null, note = note,
+                legacyMarkerKey = if (def == null) LabMarkerCsvImport.legacyCustomKey(rawName)
+                    .takeIf { it.isNotEmpty() && it != key } else null))
         }
 
         val rows = byCell.values.sortedWith(compareBy({ it.day }, { it.markerKey }))

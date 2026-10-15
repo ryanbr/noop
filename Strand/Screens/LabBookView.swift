@@ -276,7 +276,7 @@ struct LabBookView: View {
                         referenceText: nil
                     )
                 }
-                try await store.upsertLabMarkers(rows)
+                try await store.upsertLabMarkers(rows, legacyKeys: result.legacyKeyChanges)
                 await repo.refresh()   // re-resolves the lab-book projection into Compare/Explore/Coach
                 await load()
                 var msg = String(localized: "Imported \(result.importedReadings) readings (\(result.distinctMarkers) markers)")

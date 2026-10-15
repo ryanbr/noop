@@ -107,14 +107,41 @@ extension WhoopStore {
     /// `LabBookProjection.project(.latest)`. Only NUMERIC readings project (a
     /// REAL-only `metricSeries` cell can't carry `valueText`).
     ///
+    /// `legacyKeys` comes from names in a reimport. Only an absent target may receive that device's
+    /// legacy history; re-keying, incoming writes and both projections commit or roll back together.
     /// Returns the number of marker rows written/updated.
+    // Kotlin twin: `WhoopDao.upsertLabMarkers`.
     @discardableResult
-    public func upsertLabMarkers(_ rows: [LabMarkerRow]) async throws -> Int {
+    public func upsertLabMarkers(_ rows: [LabMarkerRow], legacyKeys: [String: String] = [:]) async throws -> Int {
         guard !rows.isEmpty else { return 0 }
         return try syncWrite { db in
             var written = 0
             // Track which (deviceId, markerKey, day) cells need re-projecting.
             var touched: Set<DayCell> = []
+            for (deviceId, imported) in Dictionary(grouping: rows, by: \.deviceId) where !legacyKeys.isEmpty {
+                let currentKeys = Set(imported.map(\.markerKey))
+                var presentKeys = Set(try String.fetchAll(db, sql:
+                    "SELECT DISTINCT markerKey FROM labMarker WHERE deviceId = ?", arguments: [deviceId]))
+                for old in legacyKeys.keys.sorted() {
+                    guard let new = legacyKeys[old], old != new,
+                          old.hasPrefix("custom_"), old.count > 7,
+                          new.hasPrefix("custom_"), new.count > 7,
+                          !currentKeys.contains(old), currentKeys.contains(new),
+                          presentKeys.contains(old), !presentKeys.contains(new) else { continue }
+                    let days = try String.fetchAll(db, sql:
+                        "SELECT DISTINCT day FROM labMarker WHERE deviceId = ? AND markerKey = ?",
+                        arguments: [deviceId, old])
+                    try Self.rekeyLegacyLabMarkers(deviceId: deviceId, from: old, to: new, in: db)
+                    if db.changesCount > 0 {
+                        presentKeys.remove(old)
+                        presentKeys.insert(new)
+                        for day in days {
+                            touched.insert(DayCell(deviceId: deviceId, markerKey: old, day: day))
+                            touched.insert(DayCell(deviceId: deviceId, markerKey: new, day: day))
+                        }
+                    }
+                }
+            }
             for r in rows {
                 // Upsert keyed on the natural index, NOT on the `id` PK: a re-import of the
                 // "same reading" (same deviceId+markerKey+takenAt+source) must update, not
@@ -142,6 +169,15 @@ extension WhoopStore {
             try reprojectCells(db, cells: touched)
             return written
         }
+    }
+
+    // Kotlin twin: `WhoopDao.rekeyLegacyLabMarkers`.
+    private static func rekeyLegacyLabMarkers(deviceId: String, from: String, to: String, in db: Database) throws {
+        // The surrounding import transaction checked the target has no readings on any day/source.
+        // UPDATE preserves every reading field, including its stable id.
+        try db.execute(sql: """
+            UPDATE labMarker SET markerKey = ? WHERE deviceId = ? AND markerKey = ?
+            """, arguments: [to, deviceId, from])
     }
 
     // MARK: - Reads

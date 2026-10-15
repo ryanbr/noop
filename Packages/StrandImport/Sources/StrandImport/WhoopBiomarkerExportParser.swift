@@ -126,9 +126,11 @@ public enum WhoopBiomarkerExportParser {
                       !s.isEmpty, !isNoData(s) else { return nil }
                 return "WHOOP: " + s
             }()
+            let legacy = LabMarkerCsvImport.legacyCustomKey(rawName)
             store(LabMarkerCsvRow(markerKey: key, category: category, day: day, value: value,
                                   unit: unit, isCustomMarker: MarkerCatalog.definition(for: key) == nil,
-                                  note: note))
+                                  note: note,
+                                  legacyMarkerKey: MarkerCatalog.definition(for: key) == nil && !legacy.isEmpty && legacy != key ? legacy : nil))
         }
 
         let rows = byCell.values.sorted {

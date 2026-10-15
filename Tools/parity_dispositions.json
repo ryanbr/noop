@@ -300,6 +300,15 @@
       "platform": "kotlin",
       "rationale": "Swift Repository.refresh reads the same imported daily union (unionDailyMetrics) in the excluded app layer and hands it, still apart from the computed union, to ChargeBaselines.resolve (#2525); this disposition does not assert behavioral parity.",
       "twin_path": "Strand/Data/Repository.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopRepository.kt::upsertLabMarkers/2#1",
+      "identity_sha256": "5198540370e00422eccecff3684bafea749a2cb9b04c52881c51dcb4e08fbef0",
+      "platform": "kotlin",
+      "rationale": "Android repository facade forwards readings and name-derived legacy aliases to the Room transaction. Swift importMarkersCsv passes the same pair directly to the actor store from LabBookView, outside the Swift package scanner roots; the storage transactions are paired separately.",
+      "twin_path": "Strand/Screens/LabBookView.swift"
     }
   ]
 }

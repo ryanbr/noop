@@ -67,6 +67,9 @@ object LabMarkerCsvImport {
          *  status column, source-attributed). null for the generic (date,marker,value,unit)
          *  importer, which never annotates. Maps to LabMarker.note. */
         val note: String? = null,
+        /** Historical Android key derived from this input name; import-time repair metadata only. */
+        // Swift twin: `LabMarkerCsvRow.legacyMarkerKey`.
+        val legacyMarkerKey: String? = null,
     )
 
     /** Result of parsing a markers CSV. Mirrors the Swift LabMarkerCsvResult. */
@@ -88,6 +91,20 @@ object LabMarkerCsvImport {
          *  export doesn't look broken. Always 0 for the generic importer. */
         val notMeasured: Int = 0,
     ) {
+        /** Only unambiguous aliases from names in this file may repair a stored legacy key. */
+        // Swift twin: `LabMarkerCsvResult.legacyKeyChanges`.
+        val legacyKeyChanges: Map<String, String> get() {
+            val currentKeys = rows.map { it.markerKey }.toSet()
+            return rows.mapNotNull { row ->
+                val old = row.legacyMarkerKey
+                if (!row.isCustomMarker || old.isNullOrEmpty() || old == row.markerKey || old in currentKeys) null
+                else old to row.markerKey
+            }.groupBy { it.first }.mapNotNull { (old, aliases) ->
+                val targets = aliases.map { it.second }.toSet()
+                if (targets.size == 1) old to targets.single() else null
+            }.toMap()
+        }
+
         val importedReadings: Int get() = rows.size
         val distinctMarkers: Int get() = rows.map { it.markerKey }.toHashSet().size
     }
@@ -161,7 +178,7 @@ object LabMarkerCsvImport {
                 referenceText = null,
             )
         }
-        repo.upsertLabMarkers(markerRows)
+        repo.upsertLabMarkers(markerRows, legacyKeys = result.legacyKeyChanges)
 
         return ImportSummary(
             source = SOURCE_LABEL,
@@ -306,7 +323,8 @@ object LabMarkerCsvImport {
                 unit = rawUnit ?: ""
                 customKeys.add(key)
             }
-            store(LabMarkerCsvRow(key, category, day, value, unit, isCustomMarker = def == null))
+            store(LabMarkerCsvRow(key, category, day, value, unit, isCustomMarker = def == null,
+                legacyMarkerKey = if (def == null) legacyCustomKey(rawName).takeIf { it.isNotEmpty() && it != key } else null))
         }
 
         val rows = byCell.values.sortedWith(compareBy({ it.day }, { it.markerKey }))
@@ -474,6 +492,28 @@ object LabMarkerCsvImport {
                     if (i + 1 < chars.size && isWordChar(chars[i + 1])) append('_')
                 } else {
                     if (isWordChar(ch)) appendCodePoint(ch) else append('_')
+                }
+            }
+        }
+        val collapsed = mapped.replace("__", "_").trim('_')
+        return if (collapsed.isEmpty()) "" else "custom_$collapsed"
+    }
+
+    /** Historical Android UTF-16 letter/decimal-digit key, used only while a reimport still has the marker name.
+     * An empty result cannot identify any legacy history and must never be re-keyed. */
+    // Swift twin: `LabMarkerCsvImport.legacyCustomKey`.
+    internal fun legacyCustomKey(name: String): String {
+        val lowered = Normalizer.normalize(name, Normalizer.Form.NFC).trim().lowercase()
+        // Swift twin: `LabMarkerCsvImport.isLegacyWordUnit`.
+        fun isLegacyWordUnit(unit: Char): Boolean = unit.isLetterOrDigit()
+        val mapped = buildString {
+            lowered.forEachIndexed { i, ch ->
+                if (ch == '%') {
+                    if (i > 0 && isLegacyWordUnit(lowered[i - 1])) append('_')
+                    append("pct")
+                    if (i + 1 < lowered.length && isLegacyWordUnit(lowered[i + 1])) append('_')
+                } else {
+                    append(if (isLegacyWordUnit(ch)) ch else '_')
                 }
             }
         }
