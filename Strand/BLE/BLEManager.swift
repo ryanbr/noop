@@ -5573,8 +5573,13 @@ public final class BLEManager: NSObject, ObservableObject {
     ///
     /// Both writes are ACKNOWLEDGED (.withResponse): a backgrounded shortcut on a busy link can
     /// silently drop an unacknowledged write, which is how #921 logged "Run Haptics" with no
-    /// vibration. On a 5/MG, send() remaps cmd 79 to the maverick 0x13 notify buzz and RUN_ALARM
-    /// carries the REVISION_2 body; both are already on the 5/MG command allowlist.
+    /// vibration.
+    ///
+    /// On a 5/MG, send() remaps cmd 79 to the maverick 0x13 notify buzz, which is hardware-confirmed
+    /// to buzz on its own (#926), and nothing else is sent. RUN_ALARM is NOT a buzz helper there:
+    /// its REVISION_2 form `[2, ID]` runs the alarm stored in that slot and then clears it
+    /// (docs/PROTOCOL_ALARMS.md), so pairing it with a one-shot buzz would fire and remove an armed
+    /// wake alarm in slot 1. This matches the Android twin (`WhoopBleClient.buzzStrapOnce`).
     ///
     /// Alternative waveform form (12-byte):
     ///   [wfe1=47, wfe2=152, 0,0,0,0,0,0, loop u16=0, overall_loop=7, dur=30]
@@ -5584,8 +5589,8 @@ public final class BLEManager: NSObject, ObservableObject {
     func buzzStrapOnce() {
         send(.runHapticsPattern, payload: [2, 3, 0, 0, 0], writeType: .withResponse)  // patternId=2, 3 loops (5/MG: send() remaps to the maverick notify buzz)
         if selectedModel.deviceFamily == .whoop5 {
-            send(.runAlarm, payload: AlarmPayload.runAlarmRev2(), writeType: .withResponse)   // REVISION_2 [0x02, alarmId]
-            log("Buzz: one-shot fired (5/MG maverick buzz + runAlarm rev2, acked)")
+            // No RUN_ALARM on a 5/MG: RUN [2, ID] runs and clears the stored alarm in that slot.
+            log("Buzz: one-shot fired (5/MG maverick buzz, acked)")
             return
         }
         send(.runAlarm, payload: [0x01], writeType: .withResponse)
