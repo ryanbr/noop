@@ -88,4 +88,17 @@ final class AICoachRefreshModelsRaceTests: XCTestCase {
                           "fetched id \(id) should be merged when the provider does not change")
         }
     }
+
+    /// A custom gateway's live model list is authoritative: do not keep sending a retired alias
+    /// when the server exposes the replacement model (e.g. private-local → noop-coach).
+    func testCustomRefreshReplacesModelNotServedByGateway() async {
+        let engine = makeEngine(deviceId: "test-aicoach-stale-custom-model")
+        engine.model = "private-local"
+        engine.fetchModelsOverride = { _, _ in ["noop-coach"] }
+
+        await engine.refreshModels()
+
+        XCTAssertEqual(engine.availableModels, ["noop-coach"])
+        XCTAssertEqual(engine.model, "noop-coach")
+    }
 }

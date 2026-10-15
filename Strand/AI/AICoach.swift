@@ -606,7 +606,16 @@ final class AICoachEngine: ObservableObject {
             let builtin = capturedProvider.modelOptions
             let discovered = Set(ids).subtracting(builtin).sorted()
             var merged = builtin + discovered
-            if !merged.contains(model) { merged.insert(model, at: 0) }
+            if capturedProvider == .custom {
+                // For a custom gateway, the live /models list is the allowlist. Keeping a typed or
+                // previously configured alias that the gateway no longer serves makes every later
+                // chat request target a stale id (e.g. private-local after moving to noop-coach).
+                if !ids.contains(model), let servedModel = ids.first {
+                    model = servedModel
+                }
+            } else if !merged.contains(model) {
+                merged.insert(model, at: 0)
+            }
             availableModels = merged
             // Stamp only on a SUCCESSFUL pull, so a provider that is down does not buy itself a week
             // of silence from `refreshModelsIfStale()`.
