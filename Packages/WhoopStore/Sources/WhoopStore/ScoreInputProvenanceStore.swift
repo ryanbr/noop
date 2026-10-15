@@ -46,7 +46,11 @@ extension WhoopStore {
         to: String,
         replaceMetricKeys: [String] = [],
         additionalMetricPoints: [SourcedMetricPoint] = [],
-        replaceMetricSourceIds: [String] = []
+        replaceMetricSourceIds: [String] = [],
+        sleepSessions: [CachedSleepSession]? = nil,
+        dependentRecoveryUpdates: [SleepRecoveryUpdate] = [],
+        sleepMotion: [Int: [Double]] = [:], sleepStates: [Int: [Int]] = [:],
+        selectedSleepBounds: ClosedRange<Int>? = nil
     ) async throws {
         // #1196: an empty scoring pass must not destructively rewrite the window — with no daily rows to
         // write, the provenance wide-delete below would blank the window's attribution while a degenerate
@@ -54,7 +58,18 @@ extension WhoopStore {
         // nothing. A real pass always carries the days it scored, so this guard never fires in steady state.
         // Twin of the Android WhoopDao.replaceComputedScoreWindow empty guard.
         guard !dailyMetrics.isEmpty else { return }
+        if sleepSessions != nil { try Task.checkCancellation() }
+        if selectedSleepBounds != nil && !dailyMetrics.allSatisfy({ (from...to).contains($0.day) }) {
+            throw NSError(domain: "WhoopStore.selectedSleepScope", code: 1)
+        }
+        let scopedPoints = selectedSleepBounds == nil ? metricPoints : metricPoints.filter { (from...to).contains($0.day) }
+        let scopedAdditional = selectedSleepBounds == nil ? additionalMetricPoints : additionalMetricPoints.filter { (from...to).contains($0.point.day) }
+        let scopedProvenance = selectedSleepBounds == nil ? provenance : provenance.filter { (from...to).contains($0.day) }
         try syncWrite { db in
+            if let sleepSessions {
+                try Task.checkCancellation()
+                _ = try Self.writeSleepSessions(sleepSessions, deviceId: deviceId, in: db, rejectIncompleteReplacement: true)
+            }
             _ = try Self.upsertDailyMetrics(dailyMetrics, deviceId: deviceId, in: db)
             for source in Set(replaceMetricSourceIds + [deviceId]) {
                 for key in replaceMetricKeys {
@@ -62,8 +77,8 @@ extension WhoopStore {
                                    arguments: [source, key, from, to])
                 }
             }
-            _ = try Self.upsertMetricSeries(metricPoints, deviceId: deviceId, in: db)
-            for group in Dictionary(grouping: additionalMetricPoints, by: \.deviceId) {
+            _ = try Self.upsertMetricSeries(scopedPoints, deviceId: deviceId, in: db)
+            for group in Dictionary(grouping: scopedAdditional, by: \.deviceId) {
                 _ = try Self.upsertMetricSeries(group.value.map(\.point), deviceId: group.key, in: db)
             }
 
@@ -74,13 +89,52 @@ extension WhoopStore {
                 DELETE FROM scoreInputProvenance
                 WHERE deviceId = ? AND day >= ? AND day <= ? AND key != 'vo2max_est'
                 """, arguments: [deviceId, from, to])
-            for row in provenance {
+            for row in scopedProvenance {
                 try db.execute(sql: """
                     INSERT INTO scoreInputProvenance (deviceId, day, key, sourceId)
                     VALUES (?, ?, ?, ?)
                     ON CONFLICT(deviceId, day,key) DO UPDATE SET sourceId = excluded.sourceId
                     """, arguments: [deviceId, row.day, row.key, row.sourceId])
             }
+            for update in dependentRecoveryUpdates {
+                try Self.writeSleepDependentRecovery(update, deviceId: deviceId, in: db)
+            }
+            if let sleepSessions {
+                let freshStarts = Set(sleepSessions.map(\.startTs))
+                for (start, values) in sleepMotion where freshStarts.contains(start) {
+                    try db.execute(sql: "UPDATE sleepSession SET motionJSON = ? WHERE deviceId = ? AND startTs = ?",
+                                   arguments: [Self.encodeDoubleArray(values), deviceId, start])
+                }
+                for (start, values) in sleepStates where freshStarts.contains(start) {
+                    try db.execute(sql: "UPDATE sleepSession SET sleepStateJSON = ? WHERE deviceId = ? AND startTs = ?",
+                                   arguments: [Self.encodeIntArray(values), deviceId, start])
+                }
+                if let bounds = selectedSleepBounds, !sleepSessions.isEmpty {
+                    guard deviceId.hasSuffix("-noop") else {
+                        throw NSError(domain: "WhoopStore.selectedSleepScope", code: 2)
+                    }
+                    let stored = try Self.readSleepSessions(deviceId: deviceId, from: bounds.lowerBound - 30 * 3600,
+                        to: bounds.upperBound, limit: 4000, in: db).filter { bounds.contains($0.endTs) }
+                    for stale in SleepSessionDedup.dedupe(stored, freshStarts: freshStarts).dropped {
+                        try db.execute(sql: "DELETE FROM sleepSession WHERE deviceId = ? AND startTs = ?",
+                                       arguments: [deviceId, stale.startTs])
+                    }
+                }
+                try Task.checkCancellation()
+            }
+        }
+    }
+
+    /// Kotlin twin: `WhoopDao.updateSleepDependentRecovery`.
+    static func writeSleepDependentRecovery(_ update: SleepRecoveryUpdate, deviceId: String, in db: Database) throws {
+        try db.execute(sql: "UPDATE dailyMetric SET recovery = ?, skinTempDevC = ? WHERE deviceId = ? AND day = ?",
+                       arguments: [update.recovery, update.skinTempDevC, deviceId, update.day])
+        if update.recovery == nil {
+            try db.execute(sql: "DELETE FROM scoreInputProvenance WHERE deviceId = ? AND day = ? AND key = 'recovery'",
+                           arguments: [deviceId, update.day])
+        } else if let source = update.sourceId {
+            try db.execute(sql: "INSERT INTO scoreInputProvenance (deviceId, day, key, sourceId) VALUES (?, ?, 'recovery', ?) ON CONFLICT(deviceId, day, key) DO UPDATE SET sourceId = excluded.sourceId",
+                           arguments: [deviceId, update.day, source])
         }
     }
 

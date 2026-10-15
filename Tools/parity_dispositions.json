@@ -300,6 +300,158 @@
       "platform": "kotlin",
       "rationale": "Swift Repository.refresh reads the same imported daily union (unionDailyMetrics) in the excluded app layer and hands it, still apart from the computed union, to ChargeBaselines.resolve (#2525); this disposition does not assert behavioral parity.",
       "twin_path": "Strand/Data/Repository.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/IntelligenceEngine.kt::analyzeRecent/28#1",
+      "identity_sha256": "5ac21b9d48f33cd95888f0962e85e7e37239c9e8a7e8ac4d03590329a2b17b53",
+      "platform": "kotlin",
+      "rationale": "Selected-night scoring and persistence orchestration has its Swift role twin inside IntelligenceEngine.analyzeRecent and its selectedNightRecoveryUpdates helper in the excluded Apple app target. The Kotlin helper keeps the instrumented scorer below its existing method budget; shared window and dependent-score math are paired separately and covered by production oracles.",
+      "twin_path": "Strand/Data/IntelligenceEngine.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/IntelligenceEngine.kt::selectedNightRecoveryUpdates/6#1",
+      "identity_sha256": "efac557f09a27c69b4ef2bac0d99db2a26e668e4cf7e262b80a73535d9b05a00",
+      "platform": "kotlin",
+      "rationale": "Selected-night scoring and persistence orchestration has its Swift role twin inside IntelligenceEngine.analyzeRecent and its selectedNightRecoveryUpdates helper in the excluded Apple app target. The Kotlin helper keeps the instrumented scorer below its existing method budget; shared window and dependent-score math are paired separately and covered by production oracles.",
+      "twin_path": "Strand/Data/IntelligenceEngine.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/IntelligenceEngine.kt::selectedSleepWrites/5#1",
+      "identity_sha256": "93d12e3c7c7cd28ea8ad9c6cac772467063e4f12438c0a91c8b21ee266fec958",
+      "platform": "kotlin",
+      "rationale": "Selected-night scoring and persistence orchestration has its Swift role twin inside IntelligenceEngine.analyzeRecent and its selectedNightRecoveryUpdates helper in the excluded Apple app target. The Kotlin helper keeps the instrumented scorer below its existing method budget; shared window and dependent-score math are paired separately and covered by production oracles.",
+      "twin_path": "Strand/Data/IntelligenceEngine.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/IntelligenceEngine.kt::scoringEditedRows/7#1",
+      "identity_sha256": "0965a5d52a7a89f46d018785698d267f3fca8064730b949ba8087e8b3746de57",
+      "platform": "kotlin",
+      "rationale": "Selected-night scoring and persistence orchestration has its Swift role twin inside IntelligenceEngine.analyzeRecent and its selectedNightRecoveryUpdates helper in the excluded Apple app target. The Kotlin helper keeps the instrumented scorer below its existing method budget; shared window and dependent-score math are paired separately and covered by production oracles.",
+      "twin_path": "Strand/Data/IntelligenceEngine.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/IntelligenceEngine.kt::scoringEditedRowsForDay/3#1",
+      "identity_sha256": "4e62ec038beaaf3313ac4c35c50641f573149902139515b7de99dea4ef070c44",
+      "platform": "kotlin",
+      "rationale": "Selected-night scoring and persistence orchestration has its Swift role twin inside IntelligenceEngine.analyzeRecent and its selectedNightRecoveryUpdates helper in the excluded Apple app target. The Kotlin helper keeps the instrumented scorer below its existing method budget; shared window and dependent-score math are paired separately and covered by production oracles.",
+      "twin_path": "Strand/Data/IntelligenceEngine.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/IntelligenceEngine.kt::selectedNightBaselineHistory/3#1",
+      "identity_sha256": "18553ba01b1373dd3f89abeedb620e63b8d6f568fc0530eb928c5b67e515f1fe",
+      "platform": "kotlin",
+      "rationale": "Selected-night scoring and persistence orchestration has its Swift role twin inside IntelligenceEngine.analyzeRecent and its selectedNightRecoveryUpdates helper in the excluded Apple app target. The Kotlin helper keeps the instrumented scorer below its existing method budget; shared window and dependent-score math are paired separately and covered by production oracles.",
+      "twin_path": "Strand/Data/IntelligenceEngine.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/IntelligencePersistence.kt::persistDetectedSleepDetails/5#1",
+      "identity_sha256": "31a4cb40b124b9a6024e5e5335127bba95be671e76b06069b61c6954d7a5e194",
+      "platform": "kotlin",
+      "rationale": "Selected-night scoring and persistence orchestration has its Swift role twin inside IntelligenceEngine.analyzeRecent and its selectedNightRecoveryUpdates helper in the excluded Apple app target. The Kotlin helper keeps the instrumented scorer below its existing method budget; shared window and dependent-score math are paired separately and covered by production oracles.",
+      "twin_path": "Strand/Data/IntelligenceEngine.swift"
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/IntelligenceEngine.kt::scoringPreservedSleep/4#1",
+      "identity_sha256": "435eb41c8a8f0e060dd5a8dcc64393a63ffe837c3b8e7724954ded118dce6359",
+      "platform": "kotlin",
+      "twin_path": "Strand/Data/IntelligenceEngine.swift",
+      "rationale": "Swift selected-night scoring loads saved user-edited sessions inline in the excluded IntelligenceEngine app layer; Kotlin extracts that read outside its CPU coroutine to preserve the instrumentation budget. The shared analyzer performs the paired authoritative manual-window merge."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDao.kt::deleteRecoveryProvenance/2#1",
+      "identity_sha256": "be10b1789a263393272e048b4aa0d3f9c044ecfb9ff6d95f6d1bfe386bad881c",
+      "platform": "kotlin",
+      "rationale": "Room requires a separate suspend @Query to delete one recovery provenance cell. Swift executes the identical DELETE inline in the paired WhoopStore.writeSleepDependentRecovery transaction writer; no shared score formula or source policy is exempted."
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/IntelligenceEngine.kt::seedSelectedNightBaselines/4#1",
+      "identity_sha256": "49c272b66af498efd502a03ba064f952498be99d432998c7580f83bc31fdc230",
+      "platform": "kotlin",
+      "twin_path": "Strand/Data/IntelligenceEngine.swift",
+      "rationale": "The selected-night baseline/read/transaction preparation is inline in the excluded Swift IntelligenceEngine app layer. Kotlin extracts this app orchestration outside the large scorer coroutine to preserve the unchanged instrumentation budget; shared scoring math remains paired and oracle-tested."
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/IntelligenceEngine.kt::readDaySkinAndWristOff/13#1",
+      "identity_sha256": "54d34d0730b740901a4965943c16789371072e60cfb6458e84518d688226abc6",
+      "platform": "kotlin",
+      "twin_path": "Strand/Data/IntelligenceEngine.swift",
+      "rationale": "The selected-night baseline/read/transaction preparation is inline in the excluded Swift IntelligenceEngine app layer. Kotlin extracts this app orchestration outside the large scorer coroutine to preserve the unchanged instrumentation budget; shared scoring math remains paired and oracle-tested."
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/IntelligenceEngine.kt::selectedScanFoundNoSleep/1#1",
+      "identity_sha256": "d08fb130670760ce183f4aa5b9bfd7e13256a636733b04a2684c23ac74f9f8af",
+      "platform": "kotlin",
+      "twin_path": "Strand/Data/IntelligenceEngine.swift",
+      "rationale": "The equivalent selected-night write preparation, no-detection guard and bounded weekly-input read are inline in the excluded Swift IntelligenceEngine app layer. Kotlin keeps this orchestration outside its large CPU coroutine to preserve the instrumentation budget; shared detector/scoring/persistence helpers remain paired."
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/IntelligenceEngine.kt::priorFitnessRows/4#1",
+      "identity_sha256": "5783b03594451b08aafd84a652c058d87d7f7e64d9d37dfe3f4d7b7bc1b0cfa3",
+      "platform": "kotlin",
+      "twin_path": "Strand/Data/IntelligenceEngine.swift",
+      "rationale": "The equivalent selected-night write preparation, no-detection guard and bounded weekly-input read are inline in the excluded Swift IntelligenceEngine app layer. Kotlin keeps this orchestration outside its large CPU coroutine to preserve the instrumentation budget; shared detector/scoring/persistence helpers remain paired."
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/IntelligenceEngine.kt::persistSelectedOrRecentWindow/10#1",
+      "identity_sha256": "7fcbe4b471c3dcb8801dad0a6d98110daf9ce865407b5444a043b110385c50ad",
+      "platform": "kotlin",
+      "twin_path": "Strand/Data/IntelligenceEngine.swift",
+      "rationale": "The equivalent selected-night write preparation, no-detection guard and bounded weekly-input read are inline in the excluded Swift IntelligenceEngine app layer. Kotlin keeps this orchestration outside its large CPU coroutine to preserve the instrumentation budget; shared detector/scoring/persistence helpers remain paired."
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/IntelligencePersistence.kt::persistComputedWindow/8#1",
+      "identity_sha256": "25b796e72769523ef2c0aec7fdcd46840bc13d143ff33381232769baaee40e9a",
+      "platform": "kotlin",
+      "twin_path": "Strand/Data/IntelligenceEngine.swift",
+      "rationale": "The equivalent selected-night write preparation, no-detection guard and bounded weekly-input read are inline in the excluded Swift IntelligenceEngine app layer. Kotlin keeps this orchestration outside its large CPU coroutine to preserve the instrumentation budget; shared detector/scoring/persistence helpers remain paired."
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/IntelligencePersistence.kt::persistInto/6#1",
+      "identity_sha256": "62c20fcbb2b642f7a2876648348856473b0cb5e60477349e41c3a3e3d67180ec",
+      "platform": "kotlin",
+      "twin_path": "Strand/Data/IntelligenceEngine.swift",
+      "rationale": "The equivalent selected-night write preparation, no-detection guard and bounded weekly-input read are inline in the excluded Swift IntelligenceEngine app layer. Kotlin keeps this orchestration outside its large CPU coroutine to preserve the instrumentation budget; shared detector/scoring/persistence helpers remain paired."
+    },
+    {
+      "type": "out_of_scope_twin",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/analytics/IntelligencePersistence.kt::replaceComputedScoreWindow/6#1",
+      "identity_sha256": "0fbceed895d693d49dc0e5013e2d04a1d62653a5a37435ad7dacf6110da5ecb8",
+      "platform": "kotlin",
+      "twin_path": "Strand/Data/IntelligenceEngine.swift",
+      "rationale": "The equivalent selected-night write preparation, no-detection guard and bounded weekly-input read are inline in the excluded Swift IntelligenceEngine app layer. Kotlin keeps this orchestration outside its large CPU coroutine to preserve the instrumentation budget; shared detector/scoring/persistence helpers remain paired."
     }
   ]
 }

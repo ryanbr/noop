@@ -2830,4 +2830,14 @@
     <string name="raw_diag_ecg_probe_running">此腕带上可能仍在采集。结论会写入 strap log。</string>
     <string name="today_customize_live_session_availability">在设置中启用Live Sessions 实时记录或有正在进行的训练时，今天会显示此部分。</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">自定义「今天」页面、任何应用都能读取的心率，以及意大利语</string>
+    <string name="sleep_recalculate_title">重新计算睡眠</string>
+    <string name="sleep_recalculate_description">选择你醒来的日期。仅使用已保存在此设备上的数据。保留导入记录、手动编辑和已删除的时段。</string>
+    <string name="sleep_recalculate_wake_date">醒来日期: %1$s</string>
+    <string name="sleep_recalculate_completed">已根据可用数据重新计算所选日期的睡眠。</string>
+    <string name="sleep_recalculate_no_sleep">未在可用数据中检测到睡眠。已保留保存的编辑和已删除的时段。</string>
+    <string name="sleep_recalculate_no_data">此日期没有足够的可用数据。请同步腕带后重试。重新计算不会获取新数据。</string>
+    <string name="sleep_recalculate_invalid_date">请选择已结束的过去日期作为醒来日期。</string>
+    <string name="sleep_recalculate_busy">另一次重新计算正在进行。请在完成后重试。</string>
+    <string name="sleep_recalculate_failed">无法重新计算此日期。请重试。</string>
+    <string name="sleep_recalculate_deleted">此日期包含已删除的睡眠。删除状态已保留，未进行重新计算。</string>
 </resources>

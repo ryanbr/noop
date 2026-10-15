@@ -236,6 +236,8 @@ fun SleepScreen(
     // mergeSleep but WITHOUT the per-night collapse). Keyed on `days` so a sync/import (which always
     // rewrites dailyMetric too) reloads; these reads have no Flow. (#160, #170)
     var sleeps by remember { mutableStateOf<List<SleepSession>>(emptyList()) }
+    var selectedSleepReload by remember { mutableIntStateOf(0) }
+    var requestedSleepDay by remember { mutableStateOf<String?>(null) }
     var loadedSleepDays by remember { mutableStateOf<List<DailyMetric>?>(null) }
     var loadedSleepStrap by remember { mutableStateOf<String?>(null) }
     val sleepRowsReady = loadedSleepDays == days && loadedSleepStrap == vm.activeStrapId
@@ -248,7 +250,7 @@ fun SleepScreen(
     // `sleeps` in place WITHOUT touching `days`, so it must not reset the browse — keeping the
     // user on the night they just edited. (#160)
     var nightOffset by remember { mutableIntStateOf(0) }
-    LaunchedEffect(days, vm.activeStrapId) {
+    LaunchedEffect(days, vm.activeStrapId, selectedSleepReload) {
         loadedSleepDays = null
         val strap = vm.activeStrapId
         val loaded = runCatching {
@@ -512,6 +514,15 @@ fun SleepScreen(
             .toSortedMap(reverseOrder())                       // newest day first
             .map { (_, blocks) -> blocks.sortedBy { it.effectiveStartTs } }
     }
+    LaunchedEffect(sleeps, loadedSleepDays, requestedSleepDay) {
+        val selected = requestedSleepDay
+        if (selected != null && loadedSleepDays != null) {
+            val index = navDays.indexOfFirst { group -> group.any { localDayString(it.endTs) == selected } }
+            if (index >= 0) nightOffset = index
+            requestedSleepDay = null
+        }
+    }
+
 
     // The navigated night, decoded once per (offset, data) change — chevron taps re-pick
     // instantly without re-parsing stagesJSON on every recomposition. The offset now indexes
@@ -615,6 +626,10 @@ fun SleepScreen(
         // (Today / metric-detail parity — the same two prefs drive the same two behaviours everywhere).
         fullBleedBackground = screenBackdropFullBleed(showDayCycleBackground, skyBehindCards),
     ) {
+        item { SelectedNightRecalculationCard(vm) { day ->
+            requestedSleepDay = day
+            selectedSleepReload++
+        } }
         // #65: the transient UNDO banner after a suppressing delete. Restores the deleted row into its
         // ORIGINAL namespace + lifts the tombstone. Mirrors the macOS SleepView sleepUndoBanner.
         sleepUndo?.let { undo ->
@@ -1000,6 +1015,62 @@ fun SleepScreen(
                     }
                 }
               }
+            }
+        }
+    }
+}
+
+/** Explicit completed-date action, available even when no sleep session exists. */
+@Composable
+private fun SelectedNightRecalculationCard(vm: AppViewModel, onRecalculated: (String) -> Unit) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var day by remember { mutableStateOf(LocalDate.now().minusDays(1)) }
+    var running by remember { mutableStateOf(false) }
+    var outcome by remember { mutableStateOf<SleepRecalculationResult?>(null) }
+    NoopCard(tint = Palette.restColor) {
+        Column(verticalArrangement = Arrangement.spacedBy(Metrics.space12)) {
+            Text(stringResource(R.string.sleep_recalculate_title), style = NoopType.headline)
+            Text(stringResource(R.string.sleep_recalculate_description), style = NoopType.footnote,
+                color = Palette.textSecondary)
+            TextButton(enabled = !running, onClick = {
+                android.app.DatePickerDialog(context, { _, year, month, date ->
+                    day = LocalDate.of(year, month + 1, date)
+                    outcome = null
+                }, day.year, day.monthValue - 1, day.dayOfMonth).apply {
+                    datePicker.maxDate = LocalDate.now().atStartOfDay(java.time.ZoneId.systemDefault())
+                        .toInstant().toEpochMilli() - 1
+                }.show()
+            }) { Text(stringResource(R.string.sleep_recalculate_wake_date, day.toString())) }
+            Button(enabled = !running, onClick = {
+                if (!running) {
+                    val selected = day.toString()
+                    running = true
+                    outcome = null
+                    scope.launch {
+                        try {
+                            val result = vm.recalculateSleepNight(selected)
+                            outcome = result
+                            if (result == SleepRecalculationResult.COMPLETED || result == SleepRecalculationResult.NO_SLEEP_DETECTED) {
+                                onRecalculated(selected)
+                            }
+                        }
+                        finally { running = false }
+                    }
+                }
+            }) { Text(stringResource(R.string.sleep_recalculate_title)) }
+            if (running) androidx.compose.material3.CircularProgressIndicator(color = Palette.restColor)
+            outcome?.let { result ->
+                val message = when (result) {
+                    SleepRecalculationResult.COMPLETED -> R.string.sleep_recalculate_completed
+                    SleepRecalculationResult.NO_SLEEP_DETECTED -> R.string.sleep_recalculate_no_sleep
+                    SleepRecalculationResult.INSUFFICIENT_DATA -> R.string.sleep_recalculate_no_data
+                    SleepRecalculationResult.INVALID_DATE -> R.string.sleep_recalculate_invalid_date
+                    SleepRecalculationResult.BUSY -> R.string.sleep_recalculate_busy
+                    SleepRecalculationResult.DELETION_SUPPRESSED -> R.string.sleep_recalculate_deleted
+                    SleepRecalculationResult.FAILED -> R.string.sleep_recalculate_failed
+                }
+                Text(stringResource(message), style = NoopType.footnote, color = Palette.textSecondary)
             }
         }
     }

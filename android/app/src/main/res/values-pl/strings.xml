@@ -2876,4 +2876,14 @@
     <string name="raw_diag_ecg_probe_running">Na tym pasku może nadal trwać zapis. Werdykt trafia do strap log.</string>
     <string name="today_customize_live_session_availability">Pojawia się dzisiaj, gdy sesje na żywo są włączone w Ustawieniach lub trwa sesja.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Dziś po swojemu, tętno dostępne dla każdej aplikacji i język włoski</string>
+    <string name="sleep_recalculate_title">Przelicz sen</string>
+    <string name="sleep_recalculate_description">Wybierz datę przebudzenia. Wykorzystuje tylko dane już zapisane na tym urządzeniu. Importy, ręczne zmiany i usunięte przedziały pozostają zachowane.</string>
+    <string name="sleep_recalculate_wake_date">Data przebudzenia: %1$s</string>
+    <string name="sleep_recalculate_completed">Sen z wybranego dnia przeliczono na podstawie dostępnych danych.</string>
+    <string name="sleep_recalculate_no_sleep">Nie wykryto snu w dostępnych danych. Zachowano zapisane zmiany i usunięte przedziały.</string>
+    <string name="sleep_recalculate_no_data">Brakuje wystarczających danych dla tego dnia. Zsynchronizuj opaskę i spróbuj ponownie. Przeliczanie nie pobiera danych.</string>
+    <string name="sleep_recalculate_invalid_date">Wybierz datę przebudzenia z zakończonego dnia w przeszłości.</string>
+    <string name="sleep_recalculate_busy">Trwa inne przeliczanie. Spróbuj ponownie po jego zakończeniu.</string>
+    <string name="sleep_recalculate_failed">Nie udało się przeliczyć tego dnia. Spróbuj ponownie.</string>
+    <string name="sleep_recalculate_deleted">Ten dzień zawiera usunięty sen. Usunięcie zachowano; nie wykonano przeliczania.</string>
 </resources>

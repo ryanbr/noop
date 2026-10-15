@@ -314,6 +314,7 @@ public enum AnalyticsEngine {
     /// and low enough to keep a partially-drained night. Twin of the Kotlin constant.
     public static let vendorRespMinSpanS = 3_600
 
+    /// Kotlin twin: `AnalyticsEngine.analyzeDay`.
     public static func analyzeDay(day: String,
                                   // Optional sink for the Effort funnel line. Nil (the default) builds
                                   // nothing at all — see StrainScorer.strain. A parameter rather than a
@@ -491,7 +492,9 @@ public enum AnalyticsEngine {
                                   // %HRR with no floor. Threaded rather than read from a global so this
                                   // stays a pure function, and defaulted so every existing caller and
                                   // test is byte-identical.
-                                  effortMethod: StrainScorer.Method = .edwards) -> DayResult {
+                                  effortMethod: StrainScorer.Method = .edwards,
+                                  sleepDayWindow: SleepRecalculationWindow? = nil,
+                                  preservedSleep: [CachedSleepSession] = []) -> DayResult {
 
         // Precompute the day's UTC bounds ONCE (#996). `dayString(ts, offsetSec:)` formats the UTC
         // calendar day of (ts + offset) with a FIXED offset, so "== day" is exactly membership in
@@ -501,7 +504,13 @@ public enum AnalyticsEngine {
         // formatter compare (locked by AnalyticsEngineDayBoundsTests, incl. fractional offsets).
         let dayStartUtc = dayStartUtcSeconds(day)
         let dayEndUtc = dayStartUtc + 86_400
-        func tsInDay(_ ts: Int) -> Bool { (ts + tzOffsetSeconds) >= dayStartUtc && (ts + tzOffsetSeconds) < dayEndUtc }
+        func tsInDay(_ ts: Int) -> Bool {
+            if let window = sleepDayWindow {
+                precondition(window.day == day)
+                return window.contains(ts)
+            }
+            return (ts + tzOffsetSeconds) >= dayStartUtc && (ts + tzOffsetSeconds) < dayEndUtc
+        }
 
         // ── Sleep detection + staging ─────────────────────────────────────────
         let detectedSessions = SleepStager.detectSleep(hr: hr, rr: rr, resp: resp, gravity: gravity,
@@ -514,20 +523,27 @@ public enum AnalyticsEngine {
         // night-window stream the caller passed for the rest of this analysis; the pass self-gates on its
         // observed density, so an empty/sparse `steps` (e.g. a WHOOP 4.0, which never emits StepSample at
         // all) is a no-op regardless of `useMotionAwareWake`.
-        let refinedSessions = useMotionAwareWake
+        let refined = useMotionAwareWake
             ? detectedSessions.map { WakeMotionRefinement.refine($0, grav: gravity, steps: steps) }
             : detectedSessions
+        let refinedSessions = refined.filter { detected in
+            !preservedSleep.contains { $0.effectiveStartTs < detected.end && detected.start < $0.endTs }
+        }
+        let protectedProvided = preservedSleep.compactMap { sleepSession(fromProvided: $0) }
+        let allProvidedSleep = providedSleep.filter { provided in
+            !preservedSleep.contains { $0.effectiveStartTs < provided.end && provided.start < $0.endTs }
+        } + protectedProvided
         // #804 Fix A: fold in the caller's device-provided hypnogram (see `providedSleep`). Empty = the
         // byte-identical motion-only path. Otherwise enrich each provided session's nightly restingHR/avgHRV
         // from THIS day's hr/rr over its window (the stored ring row carries neither), using the SAME helpers
         // detectSleep populates a session with, then keep only the detected sessions that DON'T overlap a
         // provided one (provided is authoritative where they collide; a separate nap survives).
         let allSessions: [SleepSession]
-        if providedSleep.isEmpty {
+        if allProvidedSleep.isEmpty {
             allSessions = refinedSessions
         } else {
             let rrSorted = rr.sortedByTsStable()
-            let enrichedProvided: [SleepSession] = providedSleep.map { s in
+            let enrichedProvided: [SleepSession] = allProvidedSleep.map { s in
                 // #1884: no HR-only special case any more. This used to short-circuit on `s.hrOnly` to
                 // preserve #1801's display-only guarantee, which withheld both values. Now that an HR-only
                 // session reports what it measured, that clause is not merely redundant — an HR-only night

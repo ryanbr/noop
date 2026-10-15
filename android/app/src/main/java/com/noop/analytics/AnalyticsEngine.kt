@@ -1,6 +1,7 @@
 package com.noop.analytics
 
 import com.noop.data.DailyMetric
+import com.noop.data.SleepSession
 import com.noop.data.EventRow
 import com.noop.data.GravitySample
 import com.noop.data.V18AuxRow
@@ -420,6 +421,8 @@ object AnalyticsEngine {
         // Threaded rather than read from a global so this stays a pure function, and defaulted so every
         // existing caller and test is byte-identical.
         effortMethod: StrainScorer.Method = StrainScorer.Method.EDWARDS,
+        sleepDayWindow: SleepRecalculationWindow? = null,
+        preservedSleep: List<SleepSession> = emptyList(),
     ): DayResult {
 
         // Precompute the day's UTC bounds ONCE (#996). isoDay is a FIXED-UTC formatter, so
@@ -430,7 +433,13 @@ object AnalyticsEngine {
         // incl. fractional offsets), matching the Swift twin.
         val dayStartUtc = dayStartUtcSeconds(day)
         val dayEndUtc = dayStartUtc + 86_400
-        fun tsInDay(ts: Long): Boolean = (ts + tzOffsetSeconds) >= dayStartUtc && (ts + tzOffsetSeconds) < dayEndUtc
+        fun tsInDay(ts: Long): Boolean {
+            if (sleepDayWindow != null) {
+                require(sleepDayWindow.day == day)
+                return sleepDayWindow.contains(ts)
+            }
+            return (ts + tzOffsetSeconds) >= dayStartUtc && (ts + tzOffsetSeconds) < dayEndUtc
+        }
 
         // ── Sleep detection + staging ─────────────────────────────────────────
         val detectedSessions = SleepStager.detectSleep(
@@ -444,7 +453,7 @@ object AnalyticsEngine {
         // night-window stream the caller passed for the rest of this analysis; the pass self-gates on its
         // observed density, so an empty/sparse `steps` (e.g. a WHOOP 4.0, which never emits a step sample
         // at all) is a no-op regardless of `useMotionAwareWake`.
-        val refinedSessions = if (useMotionAwareWake) {
+        val refined = if (useMotionAwareWake) {
             detectedSessions.map { WakeMotionRefinement.refine(it, gravity, steps) }
         } else {
             detectedSessions
@@ -454,11 +463,17 @@ object AnalyticsEngine {
         // from THIS day's hr/rr over its window (the stored ring row carries neither), using the SAME helpers
         // detectSleep populates a session with, then keep only the detected sessions that DON'T overlap a
         // provided one (provided is authoritative where they collide; a separate nap survives).
-        val allSessions: List<DetectedSleep> = if (providedSleep.isEmpty()) {
+        val refinedSessions = refined.filter { detected ->
+            preservedSleep.none { it.effectiveStartTs < detected.end && detected.start < it.endTs }
+        }
+        val allProvidedSleep = providedSleep.filter { provided ->
+            preservedSleep.none { it.effectiveStartTs < provided.end && provided.start < it.endTs }
+        } + preservedSleep.mapNotNull { sleepSessionFromProvided(it) }
+        val allSessions: List<DetectedSleep> = if (allProvidedSleep.isEmpty()) {
             refinedSessions
         } else {
             val rrSorted = rr.sortedBy { it.ts }
-            val enrichedProvided = providedSleep.map { s ->
+            val enrichedProvided = allProvidedSleep.map { s ->
                 // #1884: no HR-only special case any more. This used to short-circuit on `s.hrOnly` to
                 // preserve #1801's display-only guarantee, which withheld both values. Now that an HR-only
                 // session reports what it measured, that clause is not merely redundant — an HR-only night

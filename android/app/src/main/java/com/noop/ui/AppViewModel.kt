@@ -1944,6 +1944,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         rescoreAfterEdit()
     }
 
+    private val selectedSleepRecalculation = SelectedSleepRecalculation()
+
+    // The selected scan retains deletion markers, imported rows, and manual edits.
+    suspend fun recalculateSleepNight(day: String): SleepRecalculationResult {
+        val window = com.noop.analytics.SleepRecalculationWindow.make(
+            day, java.time.ZoneId.systemDefault(), System.currentTimeMillis() / 1000L,
+        )
+        return selectedSleepRecalculation.run(window, hasDeletedWindow = { selected ->
+            repository.dismissedSleepsUnion(activeStrapId).any {
+                it.startTs < selected.end && it.endTs >= selected.start
+            }
+        }) { scoreSleepWindow(it) }
+    }
+
     /** Re-open one deliberately deleted sleep window (#515): remove its durable tombstone first, then
      *  immediately run the normal detector/scorer over the stored raw data. Unlike optimistic edits, this
      *  returns false when the marker could not be removed — rescoring while it is still present would keep
@@ -2014,13 +2028,20 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
      * is rethrown so a ViewModel teardown mid-edit isn't swallowed (matches the loop's #125 handling).
      */
     private suspend fun rescoreAfterEdit() {
-        runCatching {
-            // #1816: set the motion sink before the pass, clear it after (same pattern as the 15-min loop).
-            IntelligenceEngine.stepsHasMotionSink = { hasMotion ->
-                profileStore.stepsHasBankedMotion = hasMotion
-            }
-            IntelligenceEngine.analyzeRecent(
+        runCatching { scoreSleepWindow(null) }
+            .onFailure { if (it is kotlin.coroutines.cancellation.CancellationException) throw it }
+    }
+
+    private suspend fun scoreSleepWindow(
+        selectedNight: com.noop.analytics.SleepRecalculationWindow?,
+    ): List<IntelligenceEngine.Computed> {
+        if (selectedNight == null) IntelligenceEngine.stepsHasMotionSink = { hasMotion -> profileStore.stepsHasBankedMotion = hasMotion }
+        try {
+            return IntelligenceEngine.analyzeRecent(
                 repo = repository,
+                maxDays = if (selectedNight == null) 21 else 1,
+                nowSeconds = selectedNight?.let { it.end - 1 } ?: (System.currentTimeMillis() / 1000L),
+                selectedNight = selectedNight,
                 profile = currentProfile(),
                 importedDeviceId = deviceId,
                 maxHROverride = profileStore.hrMaxOverride
@@ -2057,8 +2078,9 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 effortMethod = NoopPrefs.effortMethod(appContext),
                 dayCycleMode = NoopPrefs.dayCycleMode(appContext),
             )
-        }.onFailure { if (it is kotlin.coroutines.cancellation.CancellationException) throw it }
-        IntelligenceEngine.stepsHasMotionSink = null
+        } finally {
+            if (selectedNight == null) IntelligenceEngine.stepsHasMotionSink = null
+        }
     }
     fun loadWorkouts() {
         viewModelScope.launch {
