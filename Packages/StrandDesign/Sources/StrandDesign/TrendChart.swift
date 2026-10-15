@@ -305,6 +305,52 @@ public struct TrendChart: View {
         return showsBars ? min(0, resolvedYDomain.lowerBound)...resolvedYDomain.upperBound : resolvedYDomain
     }
 
+    @available(iOS 18, macOS 15, *)
+    @ChartContentBuilder
+    private func vectorizedMarks(areaFill: LinearGradient, lineStroke: LinearGradient) -> some ChartContent {
+        if showsArea {
+            AreaPlot(displayPoints, x: .value("Date", \.date), y: .value("Value", \.value),
+                     series: .value("Segment", \.segment))
+                .interpolationMethod(.catmullRom)
+                .foregroundStyle(areaFill)
+        }
+        LinePlot(displayPoints, x: .value("Date", \.date), y: .value("Value", \.value),
+                 series: .value("Segment", \.segment))
+            .interpolationMethod(.catmullRom)
+            .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+            .foregroundStyle(lineStroke)
+    }
+
+    // Resolve availability outside Chart's builder for Xcode 26.
+    private func curveMarks(areaFill: LinearGradient, lineStroke: LinearGradient) -> AnyChartContent {
+        if #available(iOS 18, macOS 15, *) {
+            return AnyChartContent(vectorizedMarks(areaFill: areaFill, lineStroke: lineStroke))
+        }
+        return AnyChartContent(Plot {
+            if showsArea {
+                ForEach(displayPoints) { p in
+                    AreaMark(
+                        x: .value("Date", p.date),
+                        y: .value("Value", p.value),
+                        series: .value("Segment", p.segment)
+                    )
+                    .interpolationMethod(.catmullRom)
+                    .foregroundStyle(areaFill)
+                }
+            }
+            ForEach(displayPoints) { p in
+                LineMark(
+                    x: .value("Date", p.date),
+                    y: .value("Value", p.value),
+                    series: .value("Segment", p.segment)
+                )
+                .interpolationMethod(.catmullRom)
+                .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                .foregroundStyle(lineStroke)
+            }
+        })
+    }
+
     public var body: some View {
         // Resolve against current data so the marker and readout never refer to a removed date.
         let currentSelection = selectedPoint.flatMap { selected in points.first { $0.date == selected.date } }
@@ -357,27 +403,7 @@ public struct TrendChart: View {
                         .foregroundStyle(StrandPalette.textSecondary)
                 }
             } else {
-                if showsArea {
-                    ForEach(displayPoints) { p in
-                        AreaMark(
-                            x: .value("Date", p.date),
-                            y: .value("Value", p.value),
-                            series: .value("Segment", p.segment)
-                        )
-                        .interpolationMethod(.catmullRom)
-                        .foregroundStyle(areaFill)
-                    }
-                }
-                ForEach(displayPoints) { p in
-                    LineMark(
-                        x: .value("Date", p.date),
-                        y: .value("Value", p.value),
-                        series: .value("Segment", p.segment)
-                    )
-                    .interpolationMethod(.catmullRom)
-                    .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
-                    .foregroundStyle(lineStroke)
-                }
+                curveMarks(areaFill: areaFill, lineStroke: lineStroke)
                 // 18pt dots are invisible on dense series (e.g. a 365-day year) but still cost the
                 // GPU a mark each — hide them past a threshold; the line carries the data there. The gate
                 // stays on the full `points.count` (≤60 is never downsampled, so displayPoints == points).
