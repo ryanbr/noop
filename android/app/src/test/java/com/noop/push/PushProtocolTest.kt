@@ -25,6 +25,65 @@ class PushProtocolTest {
     }
 
     @Test
+    fun version11AddsOnlyTheExplicitDailySleepScoreProjections() {
+        val score = PushMutableRecord(
+            linkedMapOf("day" to "2026-08-18"),
+            linkedMapOf(
+                "totalSleepMin" to null, "efficiency" to null, "deepMin" to null, "remMin" to null,
+                "lightMin" to null, "disturbances" to null, "restingHr" to null, "avgHrv" to null,
+                "recovery" to null, "strain" to null, "exerciseCount" to null, "spo2Pct" to null,
+                "skinTempDevC" to null, "respRateBpm" to null, "steps" to null, "activeKcalEst" to null,
+                "spo2Red" to null, "spo2Ir" to null, "sleepPerformance" to 87.5,
+                "sleepConsistency" to 82.0,
+            ),
+        )
+        val batch = PushProtocol.mutableBatch(
+            PushMutableTable.DAILY_METRIC, SOURCE_A, "strap-noop", testWindow(), listOf(score),
+            PushProtocol.LATEST_VERSION,
+        )
+        val lines = batch.body.toString(Charsets.UTF_8).trimEnd().lines()
+        assertEquals("1.1", JSONObject(lines.first()).getString("protocolVersion"))
+        assertEquals(87.5, JSONObject(lines[1]).getJSONObject("data").getDouble("sleepPerformance"), 0.0)
+        assertEquals(82.0, JSONObject(lines[1]).getJSONObject("data").getDouble("sleepConsistency"), 0.0)
+        assertTrue(PushAck.parse(PushAck.fromBatch(batch).encode(), PushProtocol.LATEST_VERSION).exactlyMatches(batch))
+
+        var rejectedByV10 = false
+        try {
+            PushProtocol.mutableBatch(
+                PushMutableTable.DAILY_METRIC, SOURCE_A, "strap-noop", testWindow(), listOf(score),
+                PushProtocol.VERSION,
+            )
+        } catch (_: PushProtocolException) {
+            rejectedByV10 = true
+        }
+        assertTrue("protocol 1.0 must not emit the 1.1 member", rejectedByV10)
+
+        var rejectedOutOfRangeScore = false
+        try {
+            PushProtocol.mutableBatch(
+                PushMutableTable.DAILY_METRIC, SOURCE_A, "strap-noop", testWindow(),
+                listOf(score.copy(data = score.data + ("sleepPerformance" to 101.0))),
+                PushProtocol.LATEST_VERSION,
+            )
+        } catch (_: PushProtocolException) {
+            rejectedOutOfRangeScore = true
+        }
+        assertTrue("sleepPerformance must be bounded to 0..100", rejectedOutOfRangeScore)
+
+        var rejectedOutOfRangeConsistency = false
+        try {
+            PushProtocol.mutableBatch(
+                PushMutableTable.DAILY_METRIC, SOURCE_A, "strap-noop", testWindow(),
+                listOf(score.copy(data = score.data + ("sleepConsistency" to 101.0))),
+                PushProtocol.LATEST_VERSION,
+            )
+        } catch (_: PushProtocolException) {
+            rejectedOutOfRangeConsistency = true
+        }
+        assertTrue("sleepConsistency must be bounded to 0..100", rejectedOutOfRangeConsistency)
+    }
+
+    @Test
     fun appendRegistryIsExactlyTheEightDocumentedStreams() {
         assertEquals(
             listOf(
@@ -174,6 +233,10 @@ class PushProtocolTest {
         assertNotEquals(
             PushProtocol.mutableSnapshotHash(PushMutableTable.JOURNAL, listOf(first)),
             PushProtocol.mutableSnapshotHash(PushMutableTable.JOURNAL, emptyList()),
+        )
+        assertNotEquals(
+            PushProtocol.mutableSnapshotHash(PushMutableTable.JOURNAL, listOf(first), PushProtocol.VERSION),
+            PushProtocol.mutableSnapshotHash(PushMutableTable.JOURNAL, listOf(first), PushProtocol.LATEST_VERSION),
         )
     }
 

@@ -90,7 +90,7 @@ class PushHttpTransportPolicyTest {
 
         assertEquals("GET", method)
         assertEquals("Bearer secret", authorization)
-        assertEquals("1.0", acceptedVersions)
+        assertEquals("1.1, 1.0", acceptedVersions)
         assertEquals(
             PushCapabilitiesResult.Available(
                 PushCapabilities(
@@ -101,6 +101,16 @@ class PushHttpTransportPolicyTest {
             ),
             result,
         )
+    }
+
+    @Test fun v11CapabilitiesSelectTheNewDailyMetricProjection() {
+        val result = PushCapabilities.parse(
+            """{"type":"capabilities","protocolVersion":"1.1","receiverStateId":"00000000-0000-4000-8000-000000000099","streams":["dailyMetric"]}"""
+                .toByteArray(),
+        )
+
+        assertEquals("1.1", result.protocolVersion)
+        assertEquals(setOf(PushMutableTable.DAILY_METRIC), result.mutableTables)
     }
 
     @Test fun receiverWithoutCapabilitiesFailsClosedBeforeHealthDataIsSent() = runBlocking {

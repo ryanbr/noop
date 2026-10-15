@@ -3,7 +3,7 @@ package com.noop.push
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** A receiver may only narrow the fixed protocol 1.0 registry, never name new data. */
+/** A receiver may only narrow the fixed v1 registry for its selected minor version, never name new data. */
 data class PushCapabilities(
     val appendTables: Set<PushAppendTable>,
     val mutableTables: Set<PushMutableTable>,
@@ -32,12 +32,13 @@ data class PushCapabilities(
             val required = setOf("type", "protocolVersion", "receiverStateId", "streams")
             val actualMembers = obj.keys().asSequence().toSet()
             if (!actualMembers.containsAll(required)) {
-                throw PushProtocolException("capabilities are missing required protocol 1.0 members")
+                throw PushProtocolException("capabilities are missing required members")
             }
             if (actualMembers.any { it in PushProtocol.FORBIDDEN_REMOTE_CONTROL_MEMBERS }) {
                 throw PushProtocolException("capabilities contain forbidden remote-control metadata")
             }
-            if (obj.opt("type") != "capabilities" || obj.opt("protocolVersion") != PushProtocol.VERSION) {
+            val protocolVersion = obj.opt("protocolVersion") as? String
+            if (obj.opt("type") != "capabilities" || protocolVersion == null || protocolVersion !in PushProtocol.SUPPORTED_VERSIONS) {
                 throw PushProtocolException("unsupported capability document")
             }
             val receiverStateId = (obj.opt("receiverStateId") as? String)?.takeIf(::isCanonicalUuid)
@@ -59,7 +60,7 @@ data class PushCapabilities(
                     else -> throw PushProtocolException("unknown capability stream")
                 }
             }
-            return PushCapabilities(append, mutable, PushProtocol.VERSION, receiverStateId)
+            return PushCapabilities(append, mutable, protocolVersion!!, receiverStateId)
         }
 
         private fun isCanonicalUuid(value: String): Boolean = runCatching {
