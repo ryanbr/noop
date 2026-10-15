@@ -235,6 +235,48 @@ internal object HeaderNorm {
         "texto_de_pergunta" to "question_text",
         "respondeu_sim" to "answered_yes_no",
         "notas" to "notes",
+        // — Italian (cicli_fisiologici / sonno / allenamenti / voci_diario). Every header the importers read
+        //   across cycles, sleeps, workouts and journal, from a real Italian export ("Durata (min)" and
+        //   "GPS abilitato" are not read in any language). "FC max." and "FC media" fold to the same
+        //   keys as the French and pt-BR aliases above, so they are deliberately NOT repeated here. The
+        //   journal "Note" column is NOT aliased either: a global "note" key would rename the lift-program
+        //   template's own "Note" column, so the journal parser reads "note" as a fallback instead. —
+        "ora_di_inizio_ciclo" to "cycle_start_time",
+        "ora_di_fine_ciclo" to "cycle_end_time",
+        "fuso_orario_ciclo" to "cycle_timezone",
+        "punteggio_di_recupero_pct" to "recovery_score_pct",
+        "frequenza_cardiaca_a_riposo_bpm" to "resting_heart_rate_bpm",
+        "variabilita_della_frequenza_cardiaca_ms" to "heart_rate_variability_ms",
+        "temp_cutanea_c" to "skin_temp_celsius",
+        "ossigeno_nel_sangue_pct" to "blood_oxygen_pct",
+        "sforzo_giornaliero" to "day_strain",
+        "energia_bruciata_cal" to "energy_burned_cal",
+        "inizio_del_sonno" to "sleep_onset",
+        "inizio_del_risveglio" to "wake_onset",
+        "andamento_del_sonno_pct" to "sleep_performance_pct",
+        "frequenza_respiratoria_rpm" to "respiratory_rate_rpm",
+        "durata_del_sonno_min" to "asleep_duration_min",
+        "tempo_a_letto_min" to "in_bed_duration_min",
+        "durata_del_sonno_leggero_min" to "light_sleep_duration_min",
+        "durata_profondo_sws_min" to "deep_sws_duration_min",
+        "durata_rem_min" to "rem_duration_min",
+        "durata_del_risveglio_min" to "awake_duration_min",
+        "sonno_richiesto_min" to "sleep_need_min",
+        "sonno_arretrato_min" to "sleep_debt_min",
+        "efficienza_del_sonno_pct" to "sleep_efficiency_pct",
+        "regolarita_del_sonno_pct" to "sleep_consistency_pct",
+        "riposo_breve" to "nap",
+        "ora_di_inizio_allenamento" to "workout_start_time",
+        "ora_di_fine_allenamento" to "workout_end_time",
+        "nome_attivita" to "activity_name",
+        "sforzo_richiesto_dall_attivita" to "activity_strain",
+        "zona_fc_1_pct" to "hr_zone_1_pct",
+        "zona_fc_2_pct" to "hr_zone_2_pct",
+        "zona_fc_3_pct" to "hr_zone_3_pct",
+        "zona_fc_4_pct" to "hr_zone_4_pct",
+        "zona_fc_5_pct" to "hr_zone_5_pct",
+        "testo_domanda" to "question_text",
+        "risposta_affermativa" to "answered_yes_no",
     )
 }
 

@@ -266,4 +266,65 @@ class WhoopCsvImporterTest {
         // Day Strain 12.5 is rescaled onto NOOP's 0–100 Effort axis (×100/21).
         assertEquals(12.5 * (100.0 / 21.0), r.strain!!, 1e-9)
     }
+
+    // --- Localized (Italian) headers ----------------------------------------------------------
+
+    /** Diacritic-folded it headers land on the canonical English keys (parity with Swift). */
+    @Test
+    fun italianHeaderAliasesNormalize() {
+        assertEquals("cycle_start_time", HeaderNorm.normalize("Ora di inizio ciclo"))
+        assertEquals("heart_rate_variability_ms", HeaderNorm.normalize("Variabilità della frequenza cardiaca (ms)"))
+        assertEquals("skin_temp_celsius", HeaderNorm.normalize("Temp. cutanea (C)"))
+        assertEquals("blood_oxygen_pct", HeaderNorm.normalize("Ossigeno nel sangue %"))
+        assertEquals("deep_sws_duration_min", HeaderNorm.normalize("Durata profondo (SWS) (min)"))
+        assertEquals("sleep_consistency_pct", HeaderNorm.normalize("Regolarità del sonno %"))
+        assertEquals("nap", HeaderNorm.normalize("Riposo breve"))
+        assertEquals("activity_name", HeaderNorm.normalize("Nome attività"))
+        assertEquals("activity_strain", HeaderNorm.normalize("Sforzo richiesto dall'attività"))
+        assertEquals("hr_zone_3_pct", HeaderNorm.normalize("Zona FC 3 %"))
+        assertEquals("answered_yes_no", HeaderNorm.normalize("Risposta affermativa"))
+        // "FC max." / "FC media" share the French / pt-BR aliases and must still resolve.
+        assertEquals("max_hr_bpm", HeaderNorm.normalize("FC max. (bpm)"))
+        assertEquals("average_hr_bpm", HeaderNorm.normalize("FC media (bpm)"))
+    }
+
+    /** A real cicli_fisiologici.csv header + one synthetic data row: values flow through the it aliases. */
+    @Test
+    fun italianCyclesValuesParse() {
+        val rows = cycles(
+            """
+            Ora di inizio ciclo,Ora di fine ciclo,Fuso orario ciclo,Punteggio di recupero %,Frequenza cardiaca a riposo (bpm),Variabilità della frequenza cardiaca (ms),Temp. cutanea (C),Ossigeno nel sangue %,Sforzo giornaliero,Energia bruciata (cal),FC max. (bpm),FC media (bpm),Inizio del sonno,Inizio del risveglio,Andamento del sonno %,Frequenza respiratoria (rpm),Durata del sonno (min),Tempo a letto (min),Durata del sonno leggero (min),Durata profondo (SWS) (min),Durata REM (min),Durata del risveglio (min),Sonno richiesto (min),Sonno arretrato (min),Efficienza del sonno %,Regolarità del sonno %
+            2024-03-01 06:00:00,2024-03-02 06:00:00,UTC+00:00,80,52,95,33.5,96,12.5,2000,150,61,2024-03-01 23:00:00,2024-03-02 06:30:00,90,14,420,450,200,120,100,30,480,60,93,85
+            """
+        )
+        assertEquals(1, rows.size)
+        val r = rows.single()
+        assertEquals(80.0, r.recovery!!, 1e-9)
+        assertEquals(52, r.restingHr)
+        assertEquals(95.0, r.avgHrv!!, 1e-9)
+        // Keyed off wake_onset (Inizio del risveglio 2024-03-02 06:30) = the wake day, not the onset day.
+        assertEquals("2024-03-02", r.day)
+        // Day Strain 12.5 is rescaled onto NOOP's 0–100 Effort axis (×100/21).
+        assertEquals(12.5 * (100.0 / 21.0), r.strain!!, 1e-9)
+    }
+
+    /** A real voci_diario.csv header + synthetic rows. "Note" is read through the parser's "note"
+     *  fallback, not an alias (see HeaderNorm.foreignAliases). */
+    @Test
+    fun italianJournalReadsQuestionAnswerAndNotes() {
+        val entries = journal(
+            """
+            Ora di inizio ciclo,Ora di fine ciclo,Fuso orario ciclo,Testo domanda,Risposta affermativa,Note
+            2024-03-01 23:00:00,2024-03-02 23:00:00,UTC+01:00,Any alcohol?,true,One glass of wine
+            2024-03-01 23:00:00,2024-03-02 23:00:00,UTC+01:00,Any caffeine?,false,
+            """,
+            emptyMap(),
+        )
+        assertEquals(2, entries.size)
+        assertEquals("Any alcohol?", entries[0].question)
+        assertEquals(true, entries[0].answeredYes)
+        assertEquals("One glass of wine", entries[0].notes)
+        assertEquals(false, entries[1].answeredYes)
+        assertEquals(null, entries[1].notes)
+    }
 }

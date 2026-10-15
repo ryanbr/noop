@@ -95,6 +95,12 @@ public struct WhoopExportImporter {
         case "sonos.csv":                 return sleepsName
         case "treinos.csv":               return workoutsName
         case "entradas_diário.csv", "entradas_diario.csv": return journalName
+        // Italian: like pt-BR, all four filenames are localized. Names from a real Italian export; none of
+        // them carries a diacritic, so no folded variant is needed.
+        case "cicli_fisiologici.csv":     return cyclesName
+        case "sonno.csv":                 return sleepsName
+        case "allenamenti.csv":           return workoutsName
+        case "voci_diario.csv":           return journalName
         default:                          return nil
         }
     }
@@ -398,7 +404,8 @@ public struct WhoopExportImporter {
             // journal import silently zeroed out to "without" because neither of the old keys ever
             // matched, regardless of the account's actual answers.
             r.answer   = row.cell("answered_yes", "answered_yes_no", "answer", "answer_text")
-            r.notes    = row.cell("notes")
+            // "note": the Italian export's "Note" column (see the Italian block in HeaderNorm.foreignAliases).
+            r.notes    = row.cell("notes", "note")
 
             // A journal row is only meaningful if it has a question.
             if r.question == nil && r.answer == nil && r.notes == nil { continue }

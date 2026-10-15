@@ -32,6 +32,13 @@ class HeaderAliasTests(unittest.TestCase):
         self.assertEqual(cg._norm_header("Skin temp (celsius)"), "skin_temp_celsius")
         self.assertEqual(cg._norm_header("Cycle start time"), "cycle_start_time")
 
+    def test_italian_headers_map_to_canonical(self):
+        self.assertEqual(cg._norm_header("Variabilità della frequenza cardiaca (ms)"),
+                         "heart_rate_variability_ms")
+        self.assertEqual(cg._norm_header("Ossigeno nel sangue %"), "blood_oxygen_pct")
+        self.assertEqual(cg._norm_header("Temp. cutanea (C)"), "skin_temp_celsius")
+        self.assertEqual(cg._norm_header("Ora di inizio ciclo"), "cycle_start_time")
+
     def test_bom_stripped(self):
         self.assertEqual(cg._norm_header("﻿Startzeit des Zyklus"), "cycle_start_time")
 
@@ -80,6 +87,26 @@ class CsvLoadingTests(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         truth = cg.truth_values(rows)
         self.assertEqual(truth["hrv_ms"], [92.0])
+        self.assertEqual(truth["respiratory_rate"], [14.6])
+
+
+    def test_load_italian_cycles_and_sleep_from_zip(self):
+        # Real Italian export filenames; headers taken from a real Italian export.
+        cycles = ("Ora di inizio ciclo,Variabilità della frequenza cardiaca (ms),Ossigeno nel sangue %\n"
+                  "2026-06-20 00:24:31,92,96.5\n")
+        sleep = "Ora di inizio ciclo,Frequenza respiratoria (rpm)\n2026-06-20 00:24:31,14.6\n"
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:
+            z.writestr("cicli_fisiologici.csv", cycles)
+            z.writestr("sonno.csv", sleep)
+        with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as f:
+            f.write(buf.getvalue())
+            path = f.name
+        rows = cg.load_ground_truth(path)
+        self.assertEqual(len(rows), 1)
+        truth = cg.truth_values(rows)
+        self.assertEqual(truth["hrv_ms"], [92.0])
+        self.assertEqual(truth["spo2_pct"], [96.5])
         self.assertEqual(truth["respiratory_rate"], [14.6])
 
 

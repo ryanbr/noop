@@ -299,6 +299,12 @@ object WhoopCsvImporter {
         "sonos.csv" -> SLEEPS_NAME
         "treinos.csv" -> WORKOUTS_NAME
         "entradas_diário.csv", "entradas_diario.csv" -> JOURNAL_NAME
+        // Italian: like pt-BR, all four filenames are localized. Names from a real Italian export; none of
+        // them carries a diacritic, so no folded variant is needed.
+        "cicli_fisiologici.csv" -> CYCLES_NAME
+        "sonno.csv" -> SLEEPS_NAME
+        "allenamenti.csv" -> WORKOUTS_NAME
+        "voci_diario.csv" -> JOURNAL_NAME
         else -> null
     }
 
@@ -597,7 +603,8 @@ object WhoopCsvImporter {
             // journal import silently zeroed out to "without" because neither of the old keys ever
             // matched, regardless of the account's actual answers.
             val answer = row.cell("answered_yes", "answered_yes_no", "answer", "answer_text")
-            val notes = row.cell("notes")
+            // "note": the Italian export's "Note" column (see the Italian block in HeaderNorm.foreignAliases).
+            val notes = row.cell("notes", "note")
 
             // Swift: a journal row is only meaningful if it has a question/answer/notes.
             if (question == null && answer == null && notes == null) continue
