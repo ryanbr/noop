@@ -43,12 +43,32 @@ final class VitalReadingsTableTests: XCTestCase {
     }
 
     func testReadingDatesShowWeekdaysIncludingTodayAndYesterday() {
-        let today = ISO8601DateFormatter().date(from: "2026-09-30T00:00:00Z")!
+        // Local noon: "today" is the device's calendar date, and UTC midnight is still the 29th west of UTC.
+        let today = Calendar.current.date(from: DateComponents(year: 2026, month: 9, day: 30, hour: 12))!
         let english = Locale(identifier: "en_US")
         XCTAssertEqual(vitalReadingDateLabel("2026-09-30", now: today, locale: english), "Today · Wed")
         XCTAssertEqual(vitalReadingDateLabel("2026-09-29", now: today, locale: english), "Yesterday · Tue")
         XCTAssertEqual(vitalReadingDateLabel("2026-09-26", now: today, locale: english), "Sat 26 Sep")
         XCTAssertEqual(vitalReadingDateLabel("bad-day", now: today, locale: english), "bad-day")
+    }
+
+    /// Today and yesterday are the device's calendar dates in every zone, as on Android. An evening west
+    /// of UTC is already tomorrow in UTC and a morning east of it is still yesterday, and comparing UTC
+    /// dates called tonight's reading "Yesterday" and last night's "Today". Pins the process zone so a
+    /// UTC runner catches it too.
+    func testTodayAndYesterdayFollowTheDeviceDateInEveryZone() {
+        let english = Locale(identifier: "en_US")
+        // A local hour whose UTC date differs from the local one: evenings to the west, mornings to the east.
+        let localHour = ["Pacific/Honolulu": 21, "America/New_York": 22, "UTC": 12,
+                         "Asia/Tokyo": 7, "Pacific/Kiritimati": 6]
+        inEachTimeZone { zone in
+            var cal = Calendar(identifier: .gregorian)
+            cal.timeZone = TimeZone(identifier: zone)!
+            let now = cal.date(from: DateComponents(year: 2026, month: 9, day: 30, hour: localHour[zone]!))!
+            XCTAssertEqual(vitalReadingDateLabel("2026-09-30", now: now, locale: english), "Today · Wed", zone)
+            XCTAssertEqual(vitalReadingDateLabel("2026-09-29", now: now, locale: english), "Yesterday · Tue", zone)
+            XCTAssertEqual(vitalReadingDateLabel("2026-10-01", now: now, locale: english), "Thu 1 Oct", zone)
+        }
     }
 
     func testSourceLabelsResolvePerSample() {

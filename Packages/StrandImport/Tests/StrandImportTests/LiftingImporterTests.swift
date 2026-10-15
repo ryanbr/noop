@@ -204,6 +204,27 @@ final class LiftingImporterTests: XCTestCase {
         XCTAssertEqual(r.skipped, 3)
     }
 
+    /// The summary's day span names each workout's day where the wearer is. A 20:30 session in New York
+    /// is 00:30 UTC on the 26th, so the span read "-2026-08-26" for a workout done on the 25th; a 07:00
+    /// one in Sydney is 21:00 UTC on the 24th, and the span started a day early. Twin of the Kotlin
+    /// `theDaySpanNamesTheWearersDay`.
+    func testTheDaySpanNamesTheWearersDay() throws {
+        let csv = """
+        title,start_time,end_time,exercise_title,set_index,set_type,weight_kg,reps
+        Early,2026-08-25 07:00:00,2026-08-25 08:00:00,Squat,0,normal,100,5
+        Late,2026-08-25 20:30:00,2026-08-25 21:30:00,Squat,0,normal,100,5
+        """
+        for id in ["Pacific/Honolulu", "America/New_York", "UTC", "Australia/Sydney", "Pacific/Kiritimati"] {
+            let zone = try XCTUnwrap(TimeZone(identifier: id))
+            let r = LiftingImporter.parseHevy(text: csv, zone: zone)
+            XCTAssertEqual(r.sessionCount, 2, id)
+            let span = try XCTUnwrap(r.daySpan(in: zone), id)
+            XCTAssertEqual(span.first, "2026-08-25", id)
+            XCTAssertEqual(span.last, "2026-08-25", id)
+        }
+        XCTAssertNil(LiftingImportResult(sessions: [], skipped: 0, earliest: nil, latest: nil).daySpan())
+    }
+
     // MARK: - Auto-detection + note
 
     func testDetectFormatRoutesByLeadingByte() {

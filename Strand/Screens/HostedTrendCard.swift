@@ -10,15 +10,6 @@ import WhoopStore
 /// was tuned. `TrendsView.resolve` calls this too.
 enum HostedTrendData {
 
-    /// Day strings are banked as `yyyy-MM-dd` in UTC; parsing them any other way shifts every point.
-    private static let dayParser: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.timeZone = TimeZone(identifier: "UTC")
-        f.dateFormat = "yyyy-MM-dd"
-        return f
-    }()
-
     /// The metric's points for the smallest window at or wider than `selected` that holds any data,
     /// and the window it settled on.
     ///
@@ -61,7 +52,7 @@ enum HostedTrendData {
 
     private static func points(_ days: [DailyMetric], _ value: (DailyMetric) -> Double?) -> [TrendPoint] {
         days.compactMap { d in
-            guard let v = value(d), let dt = dayParser.date(from: d.day) else { return nil }
+            guard let v = value(d), let dt = DayKey.date(d.day) else { return nil }
             return TrendPoint(date: dt, value: v)
         }
     }
@@ -126,7 +117,8 @@ struct HostedTrendCard: View {
                        // would compete with the tap that opens the metric — the same conflict that
                        // keeps the tap-to-log card out of the navigation map. The Trends tab keeps the
                        // scrub; the Today host mirrors only the display, as the hosted Stages card does.
-                       showsHover: false)
+                       showsHover: false,
+                       calendar: DayKey.calendar)
         }
         .accessibilityElement(children: .combine)
         // The average goes into the spoken label, not just the visible corner. `children: .combine`

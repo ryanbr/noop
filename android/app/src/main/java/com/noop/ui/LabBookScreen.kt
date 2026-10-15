@@ -68,7 +68,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.min
@@ -679,8 +678,11 @@ private fun latestLabel(row: LabMarkerRow?, key: String): String {
     return row.value?.let { "${formatValue(it, key)} ${row.unit}" } ?: (row.valueText ?: "—")
 }
 
-private fun lastTakenCaption(row: LabMarkerRow?): String =
-    if (row == null) "no readings yet" else "last taken ${labDayLabel(row.takenAt)}"
+/** From the stored day key, as the history list renders it. `takenAt` is UTC noon for a CSV import, which
+ *  a device-zone render names as the next day from UTC+12 onwards. Mirrors Swift
+ *  `LabBookFormat.lastTakenCaption`. */
+internal fun lastTakenCaption(row: LabMarkerRow?): String =
+    if (row == null) "no readings yet" else "last taken ${labDayFromKey(row.day)}"
 
 private fun formatValue(v: Double, key: String): String = LabValueFormat.value(v, key)
 
@@ -759,9 +761,6 @@ private fun pearson(xy: List<Pair<Double, Double>>): LabCorrelation? {
     if (r < -1.0) r = -1.0
     return LabCorrelation(r, n)
 }
-
-private val labDayFmt = SimpleDateFormat("d MMM yyyy", Locale.US)
-private fun labDayLabel(epochSeconds: Long): String = labDayFmt.format(Date(epochSeconds * 1000L))
 
 /** "yyyy-MM-dd" parser + "d MMM yyyy" render, both pinned to UTC, so a stored day key renders the same
  *  calendar date regardless of the device zone (the takenAt is UTC noon). Falls back to the raw key if it

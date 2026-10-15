@@ -1,4 +1,5 @@
 import XCTest
+import WhoopStore
 @testable import Strand
 
 /// Lab Book value formatting. The expected lists are the same literals pinned in the Android twin's
@@ -8,6 +9,19 @@ final class LabBookFormatTests: XCTestCase {
         0.27, 1.020, 1.02, 140, 0, -0.0, -0.0001, 0.0004, 0.0005, 1.0005, 0.0625, 2.675, 12.5, 0.125,
         3.14159, 1234567.891, 5.2, 0.1, 0.30000000000000004, 99.9995, -3.25, 1e-7,
     ]
+
+    /// A CSV import's `takenAt` is UTC noon, which is the next day from UTC+12. The caption names the stored
+    /// day in every zone, as the history list does. Pins the process zone so a UTC runner catches it too.
+    func testLastTakenNamesTheStoredDayInEveryZone() {
+        let row = LabMarkerRow(id: "ldl-1", deviceId: "d", markerKey: "ldl", category: "blood_panel",
+                               day: "2026-08-25", takenAt: LabBookFormat.noonEpoch("2026-08-25"),
+                               value: 3.1, valueText: nil, unit: "mmol/L", source: "csv", note: nil,
+                               referenceText: nil)
+        inEachTimeZone(["Pacific/Honolulu", "UTC", "Pacific/Auckland", "Pacific/Kiritimati"]) { zone in
+            let caption = LabBookFormat.lastTakenCaption(row)
+            XCTAssertTrue(caption.hasSuffix("25 Aug 2026"), "\(zone): \(caption)")
+        }
+    }
 
     func testCustomMarkerKeepsItsOwnPrecision() {
         XCTAssertEqual(LabBookFormat.value(0.27, key: "custom_plateletcrit"), "0.27")

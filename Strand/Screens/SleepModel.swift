@@ -166,24 +166,11 @@ struct SleepModel {
     /// "12 Jul" for a "yyyy-MM-dd" key — the SAME format `TodayView.carriedCaption` uses for the
     /// recovery carry stamp, so a carried Rest on Today and a carried metric on Sleep read identically.
     static func shortDayLabel(_ key: String) -> String {
-        guard let date = dayKeyParser.date(from: key) else { return key }
+        guard let date = DayKey.date(key) else { return key }
         return Self.shortDayFormatter.string(from: date)
     }
 
-    private static let dayKeyParser: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd"
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.timeZone = TimeZone(identifier: "UTC")
-        return f
-    }()
-
-    private static let shortDayFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = AppLanguage.activeLocale
-        f.setLocalizedDateFormatFromTemplate("dMMM")
-        return f
-    }()
+    private static let shortDayFormatter = DayKey.formatter(template: "dMMM", locale: AppLanguage.activeLocale)
 
     let night: Night
     /// Stage intervals for the hypnogram — computed once (Night.intervals is a computed

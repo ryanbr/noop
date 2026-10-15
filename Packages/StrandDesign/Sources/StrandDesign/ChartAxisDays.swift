@@ -69,10 +69,14 @@ public enum ChartAxisDays {
     /// Declared here rather than spelled at each axis so the three cannot drift into formatting the same
     /// marks differently. That is the whole reason: the ternary also type-checks inline, passed straight
     /// into the generic `AxisValueLabel(format:)`, so this is not working around an inference limit.
+    ///
+    /// Formats in `calendar`'s zone, the one `spanning` chose the days in, so each mark names its own day.
     public static func labelFormat(for marks: [Date], calendar: Calendar = .current) -> Date.FormatStyle {
-        needsYear(marks, calendar: calendar)
+        var style: Date.FormatStyle = needsYear(marks, calendar: calendar)
             ? .dateTime.month(.abbreviated).day().year(.twoDigits)
             : .dateTime.month(.abbreviated).day()
+        style.timeZone = calendar.timeZone
+        return style
     }
 
 }

@@ -45,6 +45,16 @@ final class SleepCarriedStampTests: XCTestCase {
         XCTAssertTrue(caption!.contains("11"), caption!)
     }
 
+    /// The stamp names the carried CALENDAR day in every zone. West of UTC it read the day before
+    /// ("Aug 10"): the key parsed as UTC midnight and was formatted in local time. Pins the process zone
+    /// so a UTC runner catches it too.
+    func testTheStampReadsTheSameDayInEveryTimeZone() {
+        inEachTimeZone { zone in
+            let label = SleepModel.shortDayLabel("2026-08-11")
+            XCTAssertTrue(label.contains("11") && !label.contains("10"), "\(zone): \(label)")
+        }
+    }
+
     /// A nil latest has no stamp — the tile falls through to "vs typical" or "—".
     func testNoValueHasNoStamp() {
         XCTAssertNil(SleepModel.carriedMetricCaption(latestDay: "2026-08-11", latest: nil))

@@ -45,16 +45,14 @@ internal data class Metric(
         }
 
         /** "12 Jul" for a "yyyy-MM-dd" key — the SAME format the Today carry stamp uses, so a carried
-         *  Rest on Today and a carried metric on Sleep read identically. */
-        private val dayKeyParser = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).apply {
-            timeZone = java.util.TimeZone.getTimeZone("UTC")
-        }
-
-        fun shortDayLabel(key: String): String {
-            val date = runCatching { dayKeyParser.parse(key) }.getOrNull() ?: return key
-            val f = java.text.SimpleDateFormat("d MMM", java.util.Locale.getDefault())
-            return f.format(date)
-        }
+         *  Rest on Today and a carried metric on Sleep read identically. `LocalDate`, not the old
+         *  SimpleDateFormat pair: that parsed the key at UTC midnight and formatted it in the DEVICE
+         *  zone, so west of UTC the stamp named the day before. */
+        fun shortDayLabel(key: String): String =
+            runCatching {
+                java.time.LocalDate.parse(key)
+                    .format(java.time.format.DateTimeFormatter.ofPattern("d MMM", java.util.Locale.getDefault()))
+            }.getOrDefault(key)
     }
 }
 

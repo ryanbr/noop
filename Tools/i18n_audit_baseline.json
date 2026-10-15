@@ -924,7 +924,7 @@
     ],
     [
       "Packages/StrandDesign/Sources/StrandDesign/YearHeatStrip.swift",
-      "\\(DateFormatterCache.day.string(from: day.date)) · recovery \\(Int(score.rounded()))"
+      "\\(zone.day.string(from: day.date)) · recovery \\(Int(score.rounded()))"
     ],
     [
       "Strand/BLE/PuffinDeepBufferLog.swift",

@@ -42,13 +42,20 @@ public struct YearHeatStrip: View {
     /// memoizes the layout on `days` identity for free, with no behaviour change.
     private let weeks: [Week]
 
+    /// The calendar, cells and labels in the zone the days are dated in.
+    private let zone: DayZone
+
+    /// `calendar` names the zone the dates are in: day keys parsed at UTC midnight pass `DayKey.calendar`,
+    /// or every cell lands on the weekday before west of UTC. Only its time zone is read; the grid itself
+    /// is always Gregorian and Monday-first.
     public init(
         days: [RecoveryDay],
         cellSize: CGFloat = 12,
         spacing: CGFloat = 3,
         showsMonthLabels: Bool = true,
         showsHover: Bool = true,
-        valueFormat: @escaping (Double) -> String = { "Recovery \(Int($0.rounded()))" }
+        valueFormat: @escaping (Double) -> String = { "Recovery \(Int($0.rounded()))" },
+        calendar: Calendar = .current
     ) {
         let sorted = days.sorted { $0.date < $1.date }
         self.days = sorted
@@ -57,7 +64,8 @@ public struct YearHeatStrip: View {
         self.showsMonthLabels = showsMonthLabels
         self.showsHover = showsHover
         self.valueFormat = valueFormat
-        self.weeks = YearHeatStrip.buildWeeks(from: sorted)
+        self.zone = DayZone.for(calendar.timeZone)
+        self.weeks = YearHeatStrip.buildWeeks(from: sorted, zone: zone)
     }
 
     // The grid layout constants used both for drawing and hover hit-testing.
@@ -67,16 +75,6 @@ public struct YearHeatStrip: View {
     /// Hovered cell as (weekIndex, row), or nil.
     @State private var hoverCell: (week: Int, row: Int)? = nil
 
-    // A fixed Monday-first Gregorian calendar, stored once as a constant rather than a computed
-    // property. `buildWeeks()` runs on every render (including each hover, which mutates @State)
-    // and reads `.component` for up to 365 days, so the old computed form allocated a fresh
-    // Calendar on every one of those ~730 accesses per render.
-    private static let calendar: Calendar = {
-        var c = Calendar(identifier: .gregorian)
-        c.firstWeekday = 2 // Monday-first columns read nicely
-        return c
-    }()
-
     // Group days into week columns. weekday 0 = Monday ... 6 = Sunday.
     private struct Week: Identifiable {
         let id = UUID()
@@ -85,19 +83,19 @@ public struct YearHeatStrip: View {
     }
 
     /// Pure: group the (already-sorted) days into Monday-first week columns. Static so it can run once
-    /// from `init` (no instance state is read — only the static calendar + formatter cache).
-    private static func buildWeeks(from days: [RecoveryDay]) -> [Week] {
+    /// from `init` (no instance state is read — only the zone's calendar + formatters).
+    private static func buildWeeks(from days: [RecoveryDay], zone: DayZone) -> [Week] {
         guard let first = days.first?.date else { return [] }
         var weeks: [Week] = []
         var current = Week(cells: Array(repeating: nil, count: 7), monthLabel: nil)
         var lastMonth = -1
         // Pad the first week so the first day lands on its weekday row.
-        let firstRow = weekdayRow(first)
+        let firstRow = weekdayRow(first, calendar: zone.calendar)
         var filledThisWeek = 0
         for _ in 0..<firstRow { filledThisWeek += 1 }
 
         for day in days {
-            let row = weekdayRow(day.date)
+            let row = weekdayRow(day.date, calendar: zone.calendar)
             if row == 0 && filledThisWeek > 0 {
                 weeks.append(current)
                 current = Week(cells: Array(repeating: nil, count: 7), monthLabel: nil)
@@ -105,9 +103,9 @@ public struct YearHeatStrip: View {
             }
             current.cells[row] = day
             // tag month label at the first cell of a new month
-            let month = calendar.component(.month, from: day.date)
+            let month = zone.calendar.component(.month, from: day.date)
             if month != lastMonth {
-                current.monthLabel = monthShort(day.date)
+                current.monthLabel = zone.month.string(from: day.date)
                 lastMonth = month
             }
             filledThisWeek += 1
@@ -116,15 +114,10 @@ public struct YearHeatStrip: View {
         return weeks
     }
 
-    private static func weekdayRow(_ date: Date) -> Int {
+    static func weekdayRow(_ date: Date, calendar: Calendar) -> Int {
         // Map Calendar weekday (1=Sun...7=Sat) to Monday-first 0...6.
         let wd = calendar.component(.weekday, from: date)
         return (wd + 5) % 7
-    }
-
-    private static func monthShort(_ date: Date) -> String {
-        let f = DateFormatterCache.month
-        return f.string(from: date)
     }
 
     private let rowLabels = ["Mon", "", "Wed", "", "Fri", "", "Sun"]
@@ -264,7 +257,7 @@ public struct YearHeatStrip: View {
                     container: gridSize,
                     tooltip: ChartTooltip(
                         value: valueFormat(score),
-                        label: "\(DateFormatterCache.day.string(from: day.date)) · \(StrandPalette.recoveryState(score))",
+                        label: "\(zone.day.string(from: day.date)) · \(StrandPalette.recoveryState(score))",
                         accent: StrandPalette.recoveryColor(score)
                     )
                 )
@@ -283,7 +276,7 @@ public struct YearHeatStrip: View {
                 .fill(StrandPalette.recoveryColor(score))
                 .frame(width: cellSize, height: cellSize)
                 .opacity(isHovered ? 1.0 : (hoverCell == nil ? 1.0 : 0.78))
-                .help("\(DateFormatterCache.day.string(from: day.date)) · recovery \(Int(score.rounded()))")
+                .help("\(zone.day.string(from: day.date)) · recovery \(Int(score.rounded()))")
                 // No per-cell a11y element: the whole strip is one collapsed VoiceOver element (see the
                 // `children: .ignore` summary on the body), so per-day detail no longer builds an O(days)
                 // semantics subtree. The `.help` above stays — it's a macOS pointer tooltip, not an a11y node.
@@ -298,16 +291,6 @@ public struct YearHeatStrip: View {
                 .frame(width: cellSize, height: cellSize)
         }
     }
-}
-
-// Small cached formatters (creating DateFormatter is expensive).
-private enum DateFormatterCache {
-    static let month: DateFormatter = {
-        let f = DateFormatter(); f.dateFormat = "MMM"; return f
-    }()
-    static let day: DateFormatter = {
-        let f = DateFormatter(); f.dateFormat = "EEE d MMM"; return f
-    }()
 }
 
 #if DEBUG

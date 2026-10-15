@@ -103,28 +103,9 @@ struct AppleHealthView: View {
         "weight", "body_fat", "lean_mass", "bmi"
     ]
 
-    // yyyy-MM-dd → Date (en_US_POSIX / UTC), per the project's date contract.
-    private static let dayParser: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.timeZone = TimeZone(identifier: "UTC")
-        f.dateFormat = "yyyy-MM-dd"
-        return f
-    }()
+    private static let spanFormatter = DayKey.formatter("d MMM yyyy")
 
-    private static let spanFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "d MMM yyyy"
-        return f
-    }()
-
-    private static let asOfFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "en_US_POSIX")
-        f.dateFormat = "d MMM"
-        return f
-    }()
+    private static let asOfFormatter = DayKey.formatter("d MMM")
 
     /// Thousands-grouped integer formatter (steps / calories). Static so it isn't reallocated
     /// per tile on every render. (perf plan Q3)
@@ -135,7 +116,7 @@ struct AppleHealthView: View {
         return f
     }()
 
-    private func date(_ day: String) -> Date? { Self.dayParser.date(from: day) }
+    private func date(_ day: String) -> Date? { DayKey.date(day) }
 
     // MARK: - Range control (W / M / 3M / 6M / 1Y / ALL) — the ONE pill control.
 
@@ -657,7 +638,8 @@ struct AppleHealthView: View {
                         valueRange: valueRange(pts, fallback: fallback),
                         showsArea: true,
                         height: NoopMetrics.chartHeight,
-                        valueFormat: fmt
+                        valueFormat: fmt,
+                        calendar: DayKey.calendar
                     )
                 } else if let only = vals.last {
                     // A single point is not a line — present the lone reading,
@@ -825,10 +807,6 @@ extension AppleHealthView {
 @MainActor
 private func appleHealthPreviewData() -> AppleHealthView.PreviewData {
     let cal = Calendar(identifier: .gregorian)
-    let fmt = DateFormatter()
-    fmt.locale = Locale(identifier: "en_US_POSIX")
-    fmt.timeZone = TimeZone(identifier: "UTC")
-    fmt.dateFormat = "yyyy-MM-dd"
     let today = Date()
 
     var rows: [AppleDaily] = []
@@ -841,7 +819,7 @@ private func appleHealthPreviewData() -> AppleHealthView.PreviewData {
     // Seed ~2 years so the range control has real depth to window into.
     for i in stride(from: 729, through: 0, by: -1) {
         guard let d = cal.date(byAdding: .day, value: -i, to: today) else { continue }
-        let day = fmt.string(from: d)
+        let day = DayKey.key(d)
         let phase = Double(729 - i)
         let steps  = 8000 + 3200 * sin(phase / 6.0) + Double((Int(phase) * 53) % 1800)
         let active = 420 + 180 * sin(phase / 5.0 + 0.6) + Double((Int(phase) * 17) % 90)

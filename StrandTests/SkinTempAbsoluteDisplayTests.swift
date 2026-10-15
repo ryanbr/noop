@@ -33,6 +33,15 @@ final class SkinTempAbsoluteDisplayTests: XCTestCase {
                       "the day must still be there — got \(caption)")
     }
 
+    /// The day key is a calendar day, not an instant, so it reads the same date in every zone. West of UTC
+    /// it read the day before ("24 Aug"): the key parsed as UTC midnight and was formatted in local time.
+    /// Pins the process zone so a UTC runner catches it too.
+    func testTheDayReadsTheSameInEveryTimeZone() {
+        inEachTimeZone { zone in
+            XCTAssertEqual(BodyVitalReading.dayLabel("2026-08-25"), "25 Aug", zone)
+        }
+    }
+
     func testWithoutASecondaryTheCaptionIsUnchanged() {
         // Every other vital passes nil, so their captions must be byte-identical to before.
         let caption = reading(secondary: nil).stateCaption
