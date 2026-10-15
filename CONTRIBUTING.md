@@ -18,8 +18,8 @@ non-trivial PR.
 
 ## Quick start
 
-The codebase is reusable Swift packages (`Packages/`) plus a thin macOS app
-(`Strand/`) and a full Android app (`android/`). The fastest feedback loop is the
+The codebase is reusable Swift packages (`Packages/`), a macOS app (`Strand/`),
+an iOS shell (`StrandiOS/`) and a full Android app (`android/`). The fastest feedback loop is the
 packages — they build and test on their own, no Xcode project and no strap needed.
 
 ### Swift packages
@@ -29,10 +29,12 @@ packages — they build and test on their own, no Xcode project and no strap nee
 cd Packages/WhoopProtocol && swift build && swift test
 ```
 
-The five packages are `WhoopProtocol` (BLE framing / decode), `WhoopStore`
+The shared packages include `WhoopProtocol` (BLE framing / decode), `WhoopStore`
 (SQLite persistence), `StrandAnalytics` (recovery / strain / HRV / sleep math),
 `StrandImport` (WHOOP CSV + Apple Health importers), and `StrandDesign` (the
 SwiftUI design system).
+
+See the [documentation index](docs/README.md) for the current platform guides and package references.
 
 ### macOS app
 
