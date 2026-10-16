@@ -16,7 +16,8 @@ import UserNotifications
 struct StrandiOSApp: App {
     /// UIKit bridge for Home Screen quick actions. SwiftUI keeps ownership of the scene and window.
     @UIApplicationDelegateAdaptor(HomeScreenQuickActionAppDelegate.self) private var appDelegate
-    @StateObject private var model: AppModel
+    // Own the model here; live-value views observe it without invalidating every scene on a pulse.
+    @State private var model: AppModel
     @StateObject private var health: HealthKitBridge
     /// The phone→watch link. Built + activated here so the watch app actually receives snapshots on a
     /// real device; without an owner that pushes it, the watch only ever shows placeholder data.
@@ -85,7 +86,7 @@ struct StrandiOSApp: App {
         _router = StateObject(wrappedValue: router)
         NotificationPresenter.shared.onCoachBriefTapped = { [weak router] in router?.openCoach() }
         let model = AppModel()
-        _model = StateObject(wrappedValue: model)
+        _model = State(initialValue: model)
         CoachBriefScheduler.register(generateBrief: { [weak coach = model.coach] in
             await coach?.generateBrief()
         }, log: { [weak model] line in
@@ -177,48 +178,9 @@ struct StrandiOSApp: App {
         }
     }
 
-    /// The Shortcut-import alert's presentation binding, hoisted OUT of the `.alert` chain.
-    ///
-    /// An inline `Binding(get:set:)` is two untyped closures the solver must infer in place, on a
-    /// modifier chain that had already blown the type-check budget. Declaring it as a `Binding<Bool>`
-    /// property replaces all of that with one known type. Hoisting the message alone was not enough —
-    /// the build failed again at the same modifier, which is why this one is here too.
-    private var healthImportAlertPresented: Binding<Bool> {
-        Binding(
-            get: { model.pendingShortcutHealthImport != nil },
-            set: { showing in
-                if !showing { model.cancelPendingHealthImport() }
-            }
-        )
-    }
-
-    /// The Shortcut-import alert's buttons, hoisted for the same reason as the binding above.
-    @ViewBuilder
-    private var healthImportAlertButtons: some View {
-        Button("Import") { model.confirmPendingHealthImport() }
-        Button("Cancel", role: .cancel) { model.cancelPendingHealthImport() }
-    }
-
-    /// The Shortcut-import alert's message, hoisted OUT of the `.alert` chain.
-    ///
-    /// Not a style preference. This closure — an `if let` around two interpolated `Text`s — sits on a
-    /// modifier chain that grew past the Swift type-checker's budget, and the build failed with
-    /// "unable to type-check this expression in reasonable time" pointing at `} message: {`. The
-    /// expression did not change; the chain around it did. Hoisting a sub-expression into its own
-    /// declaration gives the solver a fixed type to work from instead of one more unknown in a chain
-    /// it is already struggling with.
-    @ViewBuilder
-    private var healthImportAlertMessage: some View {
-        if let pending = model.pendingShortcutHealthImport {
-            Text("A Shortcut wants to add \(pending.daysCount) days and \(pending.workoutsCount) workouts to the Apple Health import source.")
-        } else {
-            Text("A Shortcut wants to add data to the Apple Health import source.")
-        }
-    }
-
     var body: some Scene {
         WindowGroup {
-            iOSRootView()
+            iOSRootView(repo: model.repo)
                 .environmentObject(model)
                 .environmentObject(model.ble)   // #334: Today pull-to-sync reads BLEManager (no HR churn)
                 .environmentObject(model.live)
@@ -323,11 +285,7 @@ struct StrandiOSApp: App {
                         model.handleHealthImportURL(url)
                     }
                 }
-                .alert("Import Apple Health data?", isPresented: healthImportAlertPresented) {
-                    healthImportAlertButtons
-                } message: {
-                    healthImportAlertMessage
-                }
+                .modifier(ShortcutHealthImportAlert(model: model))
                 // Bring the watch link up once at launch (WCSession ignores a redundant activate), then
                 // push the first snapshot so a watch that's already on-wrist gets current scores without
                 // waiting for the next foreground. activate() is idempotent + a no-op where WC isn't
@@ -452,6 +410,7 @@ struct StrandiOSApp: App {
 /// excluded `RootView()` sidebar for `RootTabView()`. The shared `OnboardingWizard`, `TermsGateView`,
 /// `WhatsNewView`, `AppChangelog`, and `Terms` symbols all compile into the iOS target unchanged.
 private struct iOSRootView: View {
+    let repo: Repository
     @AppStorage("noop.onboarded") private var onboarded = false
     @AppStorage("noop.lastSeenChangelogVersion") private var lastSeenChangelog = ""
     @AppStorage("noop.acceptedTermsVersion") private var acceptedTerms = ""
@@ -482,7 +441,7 @@ private struct iOSRootView: View {
 
     private var shell: some View {
         ZStack {
-            RootTabView(homeScreenQuickActionsEnabled:
+            RootTabView(repo: repo, homeScreenQuickActionsEnabled:
                 demoBypass || (onboarded && acceptedTerms == Terms.currentVersion
                     && automaticLaunchSheetResolved))
             if !onboarded && !demoBypass {

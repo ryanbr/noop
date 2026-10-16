@@ -26,9 +26,11 @@ struct StrandApp: App {
         let router = NavRouter()
         _router = StateObject(wrappedValue: router)
         NotificationPresenter.shared.onCoachBriefTapped = { [weak router] in router?.openCoach() }
+        _model = State(initialValue: AppModel())
     }
 
-    @StateObject private var model = AppModel()
+    // Own the model here; live-value views observe it without invalidating every scene on a pulse.
+    @State private var model: AppModel
     /// Shared cross-screen navigation hook (e.g. Live → Devices). The macOS shell (`RootView`)
     /// observes it and drives the sidebar selection.
     @StateObject private var router: NavRouter
