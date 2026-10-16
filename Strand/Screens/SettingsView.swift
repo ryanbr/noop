@@ -121,6 +121,7 @@ struct SettingsView: View {
     @AppStorage(UnitPrefs.liveActivityKey) private var liveActivityEnabled = true
     // Strap-sync Live Activity, iOS only. Separate from the live-HR one on purpose. Default on.
     @AppStorage(UnitPrefs.syncLiveActivityKey) private var syncLiveActivityEnabled = true
+    @AppStorage("noop.workoutLiveActivity") private var workoutLiveActivityEnabled = true
     @AppStorage(UnitPrefs.liftLiveActivityKey) private var liftLiveActivityEnabled = true
     @AppStorage(DayCycleMode.storageKey) private var dayCycleModeRaw = DayCycleMode.sleepOnset.rawValue
     // Alternate app icon (iOS only) — false = Titanium (primary AppIcon), true = Blue Titanium
@@ -267,6 +268,7 @@ struct SettingsView: View {
                 strapCard.staggeredAppear(index: 3)
                 #if os(iOS)
                 liveNotificationsCard.staggeredAppear(index: 3)
+                TrainingFavoritesView()
                 #endif
                 streakCard.staggeredAppear(index: 4)
                 featuresCard.staggeredAppear(index: 5)
@@ -1573,6 +1575,9 @@ struct SettingsView: View {
                 liveNotificationSwitch("Live heart rate", isOn: $liveActivityEnabled,
                                        detail: "While the strap is connected.")
                 rowDivider
+                liveNotificationSwitch("Training", isOn: $workoutLiveActivityEnabled,
+                                       detail: "Control a running workout from the Lock Screen.")
+                rowDivider
                 liveNotificationSwitch("Lift Log session", isOn: $liftLiveActivityEnabled,
                                        detail: "Your set, rest and heart rate, and the Lock Screen light-up on a double-tap.")
                 rowDivider
@@ -2836,7 +2841,7 @@ private struct SettingsDisclosureGroup<Content: View>: View {
 
 /// A grouped settings card: a "Settings" overline + icon + title header, an explanatory blurb,
 /// then content. The surface stays neutral; accent blue is reserved for the icon and controls.
-private struct SettingsSection<Content: View>: View {
+struct SettingsSection<Content: View>: View {
     let icon: String
     let title: LocalizedStringKey
     let blurb: LocalizedStringKey

@@ -34,7 +34,7 @@ final class LiveSessionRunner: ObservableObject {
 
     /// Continuous stale time (seconds) after which the session ends itself — the strap is gone, and a
     /// "guarding" screen over no data would be a false promise.
-    static let autoEndStaleSec = 600
+    static let autoEndStaleSec = TrainingPulseGuard.timeoutSeconds
     /// Where the guarded HR came from. v1 only coaches the strap's live feed (see `LiveSessionRow.hrSource`).
     static let hrSource = "whoop"
     /// The UI/staleness tick does not need an exact wakeup. A ten-percent tolerance lets the system

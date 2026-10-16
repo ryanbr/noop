@@ -335,6 +335,7 @@ struct RootView: View {
             // stays in exactly one place.
             case .coach: selection = .coach
             case .alarms: selection = .smartAlarm
+            case .trainingFavorites: selection = .settings
             case nil: break
             }
             if dest != nil { router.requestedDestination = nil }

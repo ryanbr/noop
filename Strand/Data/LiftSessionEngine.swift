@@ -135,6 +135,39 @@ struct LiftSessionEngine: Equatable {
     private(set) var sets: [LiftRecordedSet]
     /// When the current stage began, so a set's duration is measurable.
     private(set) var stageStartedAt: Int
+    private(set) var pausedAt: Int?
+    private(set) var pausedDuration = 0
+    private(set) var stagePausedDuration = 0
+    var isPaused: Bool { pausedAt != nil }
+
+    func elapsed(now: Int) -> Int {
+        Int(ActiveWorkoutClock.activeElapsed(
+            start: Date(timeIntervalSince1970: Double(startTs)),
+            pausedAt: pausedAt.map { Date(timeIntervalSince1970: Double($0)) },
+            pausedDuration: Double(pausedDuration), now: Date(timeIntervalSince1970: Double(now))))
+    }
+
+    func stageElapsed(now: Int) -> Int { max(0, (pausedAt ?? now) - stageStartedAt - stagePausedDuration) }
+
+    mutating func pause(now: Int) {
+        guard !isPaused, !isFinished else { return }
+        pausedAt = max(startTs, now)
+    }
+
+    mutating func resume(now: Int) {
+        guard let pausedAt else { return }
+        let gap = max(0, now - pausedAt)
+        pausedDuration += gap
+        stagePausedDuration += gap
+        if case .resting(let slot, let endsAt) = stage { stage = .resting(slot, endsAt: endsAt + gap) }
+        for i in history.indices {
+            history[i].stagePausedDuration += gap
+            if case .resting(let slot, let end) = history[i].stage {
+                history[i].stage = .resting(slot, endsAt: end + gap)
+            }
+        }
+        self.pausedAt = nil
+    }
 
     /// Undo stack: whole-state snapshots rather than inverse operations. A gym is a bad place to be
     /// one tap ahead of yourself, and restoring a snapshot cannot get the arithmetic wrong the way a
@@ -151,6 +184,7 @@ struct LiftSessionEngine: Equatable {
         var stage: Stage
         var sets: [LiftRecordedSet]
         var stageStartedAt: Int
+        var stagePausedDuration: Int
     }
 
     init(plan: [LiftPlanItem], startTs: Int) {
@@ -166,12 +200,16 @@ struct LiftSessionEngine: Equatable {
     /// The undo history is deliberately NOT restored: it is a within-sitting convenience, and a
     /// stack that survives a relaunch invites reaching back past a save boundary.
     init(restoring plan: [LiftPlanItem], startTs: Int, stage: Stage,
-         sets: [LiftRecordedSet], stageStartedAt: Int) {
+         sets: [LiftRecordedSet], stageStartedAt: Int, pausedAt: Int? = nil,
+         pausedDuration: Int = 0, stagePausedDuration: Int = 0) {
         self.plan = plan
         self.startTs = startTs
         self.stage = stage
         self.sets = sets
         self.stageStartedAt = stageStartedAt
+        self.pausedAt = pausedAt
+        self.pausedDuration = max(0, pausedDuration)
+        self.stagePausedDuration = max(0, stagePausedDuration)
     }
 
     // MARK: - The sheet
@@ -260,7 +298,7 @@ struct LiftSessionEngine: Equatable {
     /// actually means: the user has not moved on yet.
     func restRemaining(now: Int) -> Int? {
         guard case .resting(_, let endsAt) = stage else { return nil }
-        return max(0, endsAt - now)
+        return max(0, endsAt - (pausedAt ?? now))
     }
 
     /// The nearest earlier set of this exercise already performed in THIS session. Nil for the first
@@ -322,15 +360,17 @@ struct LiftSessionEngine: Equatable {
     /// because nothing was finished. Starting an already-completed slot re-opens it for a redo,
     /// dropping its previous record so the set is not counted twice.
     mutating func start(_ slot: LiftSlot, now: Int) {
-        guard planItem(for: slot) != nil else { return }
+        guard !isPaused, planItem(for: slot) != nil else { return }
         pushHistory()
         sets.removeAll { $0.slot == slot }
         stage = .working(slot)
         stageStartedAt = now
+        stagePausedDuration = 0
     }
 
     /// The big button. Context decides what it means.
     mutating func advance(now: Int) {
+        guard !isPaused else { return }
         switch stage {
         case .warmup:
             guard let next = nextPendingSlot else { return }
@@ -346,22 +386,25 @@ struct LiftSessionEngine: Equatable {
             let rest = planItem(for: slot)?.restSec ?? LiftPlanItem.defaultRestSec
             stage = .resting(slot, endsAt: now + rest)
             stageStartedAt = now
+            stagePausedDuration = 0
 
         case .resting(let slot, _):
             pushHistory()
             // Record what was ACTUALLY rested — the figure each set row shows, and the one thing
             // only the taps can know.
             if let i = sets.firstIndex(where: { $0.slot == slot }) {
-                sets[i].restSec = max(0, now - stageStartedAt)
+                sets[i].restSec = stageElapsed(now: now)
             }
             if let next = slotAfter(slot) {
                 stage = .working(next)
                 stageStartedAt = now
+                stagePausedDuration = 0
             } else {
                 // Sheet complete: stay put rather than inventing a stage. The user finishes when
                 // they are ready, and the time until then is the cool-down.
                 stage = .resting(slot, endsAt: now)
                 stageStartedAt = now
+                stagePausedDuration = 0
             }
 
         case .finished:
@@ -453,22 +496,25 @@ struct LiftSessionEngine: Equatable {
         pushHistory()
         if case .resting(let slot, _) = stage,
            let i = sets.firstIndex(where: { $0.slot == slot }), sets[i].restSec == nil {
-            sets[i].restSec = max(0, now - stageStartedAt)
+            sets[i].restSec = stageElapsed(now: now)
         }
         stage = .finished
         stageStartedAt = now
+        stagePausedDuration = 0
     }
 
     mutating func undo() {
+        guard !isPaused else { return }
         guard let previous = history.popLast() else { return }
         plan = previous.plan
         stage = previous.stage
         sets = previous.sets
         stageStartedAt = previous.stageStartedAt
+        stagePausedDuration = previous.stagePausedDuration
     }
 
     private mutating func pushHistory() {
         history.append(Snapshot(plan: plan, stage: stage,
-                                sets: sets, stageStartedAt: stageStartedAt))
+                                sets: sets, stageStartedAt: stageStartedAt, stagePausedDuration: stagePausedDuration))
     }
 }
