@@ -10,8 +10,9 @@ import WhoopProtocol
 /// records a route too, and its fixes are banked by `ActiveRouteStore` rather than by this snapshot,
 /// which stays the cheap per-sample write it was built as.) This is the Apple analogue of Android's
 /// `ActiveWorkoutStore`/`ActiveWorkoutPersistence`: a tiny `Codable` snapshot (start time, sport, the
-/// accumulated HR samples + running stats) is written to `UserDefaults` on start and on every captured
-/// sample, and read back on launch so an interrupted session can still be ended and saved.
+/// accumulated HR samples + running stats) is checkpointed on start and lifecycle transitions. Captured
+/// samples queue scoring and encoding off the main actor before the snapshot is written to `UserDefaults`.
+/// It is read back on launch so an interrupted session can still be ended and saved.
 ///
 /// On-device only; mirrors the existing `moments` / `sleepMarks` `UserDefaults` persistence in `AppModel`.
 /// The encode/decode is pure (no `UserDefaults` dependency on the codec itself) so the persist/rehydrate
@@ -30,6 +31,9 @@ enum ActiveWorkoutPersistence {
         var liveStrain: Double
         var pausedAtSec: Int? = nil
         var pausedDurationSec: Int? = nil
+        var sessionID: String? = nil
+        var pausedForPulseLoss: Bool? = nil
+        var completedPauses: [DateInterval]? = nil
     }
 
     /// The single `UserDefaults` key (JSON-encoded `Snapshot`). Namespaced like `moments`/`sleepMarks`.
@@ -60,10 +64,13 @@ enum ActiveWorkoutPersistence {
             liveStrain: raw.liveStrain.isFinite ? max(0, raw.liveStrain) : 0,
             pausedAtSec: raw.pausedAtSec.flatMap { $0 > 0 ? $0 : nil },
             pausedDurationSec: raw.pausedDurationSec.map { max(0, $0) },
+            sessionID: raw.sessionID,
+            pausedForPulseLoss: raw.pausedForPulseLoss,
+            completedPauses: raw.completedPauses
         )
     }
 
-    /// Persist (overwrite) the snapshot. Cheap; called on start + each captured sample.
+    /// Persist (overwrite) a lifecycle checkpoint synchronously.
     static func store(_ snapshot: Snapshot, into defaults: UserDefaults = .standard) {
         guard let data = encode(snapshot) else { return }
         defaults.set(data, forKey: defaultsKey)
