@@ -6900,6 +6900,7 @@ class WhoopBleClient(
                 "the command channel existed) " + bondWatchdogContext() +
                 " — pausing auto-reconnect and surfacing the re-pair guide (#971)")
             autoReconnectPausedForBondLoop = true
+            bondLoopPauseCause = BondLoopPauseCause.PairingNeverFinished
             bondLoopPausedAtMs = System.currentTimeMillis()   // the #78 hole-4 salvage probe covers this pause too
                 // #1539: park the connect in the same breath as the pause, so this can end while backgrounded.
                 standingConnectWhilePausedIfDue(justTripped = true)
@@ -7025,6 +7026,8 @@ class WhoopBleClient(
      *  `autoReconnectPausedForBondLoop`. */
     @Volatile
     private var autoReconnectPausedForBondLoop = false
+    /** What tripped the current pause, for the paused-disconnect line. Set with the latch at every trip site. */
+    private var bondLoopPauseCause: BondLoopPauseCause = BondLoopPauseCause.RefusedBond
 
     /** When the bond-loop pause last tripped (or last salvage-probed), epoch ms. Drives the #78 hole-4
      *  salvage probe's floor ([BOND_LOOP_SALVAGE_FLOOR_MS] via [shouldSalvageProbe]): a paused strap the
@@ -7155,6 +7158,7 @@ class WhoopBleClient(
                 log(BondRefusalGiveUp.helloSuppressedEpitaph(bondGiveUp.refusals, opaque))
             } else {
                 autoReconnectPausedForBondLoop = true
+                bondLoopPauseCause = BondLoopPauseCause.RefusedBond
                 bondLoopPausedAtMs = System.currentTimeMillis()   // #78 hole-4 salvage-probe floor starts here
                 // #1539: park the connect in the same breath as the pause, so this can end while backgrounded.
                 standingConnectWhilePausedIfDue(justTripped = true)
@@ -11850,6 +11854,7 @@ class WhoopBleClient(
             // touch the bond/parse path — the bond is real; the stale OS pairing is the problem. Mirrors the
             // Swift BLEManager #844 fix.
             autoReconnectPausedForBondLoop = true
+            bondLoopPauseCause = BondLoopPauseCause.DroppedAfterPairing(postBondLoop.consecutiveBondTimeouts)
             bondLoopPausedAtMs = System.currentTimeMillis()   // the #78 hole-4 salvage probe covers this pause too (one bounded cycle)
                 // #1539: park the connect in the same breath as the pause, so this can end while backgrounded.
                 standingConnectWhilePausedIfDue(justTripped = true)
@@ -11907,6 +11912,7 @@ class WhoopBleClient(
             log("Strap connects and subscribes but never finishes pairing, then self-drops before the bond watchdog fires (${bondWatchdogBackoff.consecutiveBounces} cycles) " +
                 bondWatchdogContext() + " — pausing auto-reconnect and surfacing the re-pair guide (#982/#971)")
             autoReconnectPausedForBondLoop = true
+            bondLoopPauseCause = BondLoopPauseCause.PairingNeverFinished
             bondLoopPausedAtMs = System.currentTimeMillis()   // the #78 hole-4 salvage probe covers this pause too
                 // #1539: park the connect in the same breath as the pause, so this can end while backgrounded.
                 standingConnectWhilePausedIfDue(justTripped = true)
@@ -12031,13 +12037,13 @@ class WhoopBleClient(
             // #747: the bond keeps being refused, so auto-reconnect is paused: we stop hammering a strap that
             // can't bond (the epitaph + paused hint were already surfaced when the give-up tripped). The user
             // re-arms it by tapping Connect (clearPairingHintForUserConnect). We do NOT schedule a reconnect.
-            log("Disconnected ${disconnectStatusLabel(status)}; auto-reconnect paused (strap keeps refusing to pair; tap Connect once it's free)")
+            log("Disconnected ${disconnectStatusLabel(status)}; auto-reconnect paused (${bondLoopPauseCause.pausedReason}; tap Connect once it's free)")
             // #1539: a connect attempt CONSUMES the parked request, so re-park it — floored, so a reachable
             // strap that keeps refusing gets one attempt per window instead of a connect/refuse spin.
             standingConnectWhilePausedIfDue()
             if (testCentre.active(com.noop.testcentre.TestDomain.CONNECTION)) {
                 log("connect down (uptime ends)", com.noop.testcentre.TestDomain.CONNECTION)
-                log("reconnect paused=bondLoop (strap refusing bond)", com.noop.testcentre.TestDomain.CONNECTION)
+                log("reconnect paused=bondLoop (${bondLoopPauseCause.pausedReason})", com.noop.testcentre.TestDomain.CONNECTION)
             }
         } else if (!intentionalDisconnect) {
             // Connection test mode: count + describe the reconnect churn, and mark the link down for the

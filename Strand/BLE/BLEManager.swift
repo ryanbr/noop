@@ -134,6 +134,26 @@ struct PostBondTimeoutLoopDetector {
     }
 }
 
+/// Why auto-reconnect is paused, so the paused-disconnect line names what was observed rather than one
+/// cause for all of them. The pause trips on a refused bond (#747), on a link that drops within seconds of
+/// pairing (#617), or (Android only) on a pairing that never finishes (#971/#982); only the first is a
+/// refusal. Twin of Kotlin `BondLoopPauseCause`, same phrases.
+enum BondLoopPauseCause: Equatable {
+    case refusedBond
+    case pairingNeverFinished
+    case droppedAfterPairing(cycles: Int)
+
+    /// The parenthetical of the paused-disconnect line.
+    var pausedReason: String {
+        switch self {
+        case .refusedBond: return "strap keeps refusing to pair"
+        case .pairingNeverFinished: return "pairing never finished"
+        case .droppedAfterPairing(let cycles):
+            return "the link dropped within seconds of pairing \(cycles) times in a row"
+        }
+    }
+}
+
 /// #747 / #750: decides when a strap that keeps REFUSING the encrypted bond ("Encryption/Authentication is
 /// insufficient", no genuine bond in between) has refused enough times that hammering it further is
 /// pointless. Two responsibilities, both pure so they're unit-testable without a CoreBluetooth seam:
@@ -1249,6 +1269,8 @@ public final class BLEManager: NSObject, ObservableObject {
     /// disconnect() clears it via `bondGiveUp.reset()`. Distinct from `intentionalDisconnect` so a paused
     /// link still reports its state honestly rather than looking like a user teardown.
     private var autoReconnectPausedForBondLoop = false
+    /// What tripped the current pause, for the paused-disconnect line. Set with the latch at every trip site.
+    private var bondLoopPauseCause: BondLoopPauseCause = .refusedBond
     /// When the bond-loop pause last tripped (or last salvage-probed). Drives the #78 hole-4 salvage
     /// probe's 10-minute floor (`shouldSalvageProbe`): a paused strap the user has since FREED self-heals
     /// on the next app-foreground instead of staying disconnected until a manual Connect, while a strap
@@ -1951,17 +1973,35 @@ public final class BLEManager: NSObject, ObservableObject {
     /// is backgrounded, which is exactly where the foreground probe cannot reach. Re-stamps
     /// `bondLoopPausedAt` so a strap that is reachable and still refusing gets one attempt per window
     /// rather than a connect/refuse spin.
+    ///
+    /// Evaluated on the next main-queue turn, as the Kotlin twin's `handler.post` is. Every trip site runs
+    /// inside `didDisconnectPeripheral` before that handler sets `state.connected = false`; read there, the
+    /// dying link still counted as up, nothing was parked, and the floored re-park in the paused branch then
+    /// refused because the trip had just started the floor. The pause stayed stranded until the next app
+    /// foreground, the #1539 symptom this exists to prevent.
     func standingConnectWhilePausedIfDue(now: Date = Date(), justTripped: Bool = false) {
-        let since = justTripped ? nil : bondLoopPausedAt.map { now.timeIntervalSince($0) }
-        guard BLEManager.shouldStandingConnectWhilePaused(
-            pausedForBondLoop: autoReconnectPausedForBondLoop,
-            connected: state.connected,
-            intentionalDisconnect: intentionalDisconnect,
-            secondsSincePauseTripped: since) else { return }
-        bondLoopPausedAt = now
-        log("Bond-loop pause: parking a standing connect so the strap is claimed the moment it is reachable (#1539) - the give-up stays latched")
-        issueStandingConnect(whilePausedForBondLoop: true)
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            let since = justTripped ? nil : self.bondLoopPausedAt.map { now.timeIntervalSince($0) }
+            guard BLEManager.shouldStandingConnectWhilePaused(
+                pausedForBondLoop: self.autoReconnectPausedForBondLoop,
+                connected: self.state.connected,
+                intentionalDisconnect: self.intentionalDisconnect,
+                secondsSincePauseTripped: since) else { return }
+            self.bondLoopPausedAt = now
+            self.log("Bond-loop pause: parking a standing connect so the strap is claimed the moment it is reachable (#1539) - the give-up stays latched")
+            self.issueStandingConnect(whilePausedForBondLoop: true)
+        }
     }
+
+    #if DEBUG
+    /// Test seam: latch the bond-loop pause the way a trip site does, without a CoreBluetooth link.
+    func latchBondLoopPauseForTesting(cause: BondLoopPauseCause) {
+        autoReconnectPausedForBondLoop = true
+        bondLoopPauseCause = cause
+        bondLoopPausedAt = Date()
+    }
+    #endif
 
     /// Observe the app-foreground notification and run the salvage probe. Installed once per manager from
     /// init; self-contained here so the probe needs no per-target scene wiring. iOS and macOS only (the
@@ -6078,6 +6118,7 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
             log(BondRefusalGiveUp.helloSuppressedEpitaph(refusals: bondGiveUp.refusals, opaqueId: opaque))
         } else {
             autoReconnectPausedForBondLoop = true
+            bondLoopPauseCause = .refusedBond
             bondLoopPausedAt = Date()   // starts the #78 hole-4 salvage-probe floor
             // #1539: park the connect in the same breath as the pause, so this can end while backgrounded.
             standingConnectWhilePausedIfDue(justTripped: true)
@@ -6218,6 +6259,7 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
             // Connect (connect()) or a genuine bond re-arms it. We do NOT touch the bond/parse path — the bond
             // is real; the stale OS pairing is the problem, which the guide tells the user how to clear.
             autoReconnectPausedForBondLoop = true
+            bondLoopPauseCause = .droppedAfterPairing(cycles: postBondLoop.consecutiveBondTimeouts)
             bondLoopPausedAt = Date()   // the #78 hole-4 salvage probe covers this pause too (one bounded cycle)
             // #1539: arm the parked connect in the same breath as the pause. The salvage probe only fires on
             // app-foreground, so without this a pause tripped with the phone in a pocket strands the strap
@@ -6373,13 +6415,13 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
             // #747: the bond keeps being refused, so auto-reconnect is paused: we stop hammering a strap that
             // can't bond (the epitaph + paused hint were already surfaced when the give-up tripped). The user
             // re-arms it by tapping Connect. We do NOT schedule a rescan here.
-            log("Disconnected\(error.map { ": \($0.localizedDescription)" } ?? "")\(BLEManager.bleErrorSuffix(error)); auto-reconnect paused (strap keeps refusing to pair; tap Connect once it's free)")
+            log("Disconnected\(error.map { ": \($0.localizedDescription)" } ?? "")\(BLEManager.bleErrorSuffix(error)); auto-reconnect paused (\(bondLoopPauseCause.pausedReason); tap Connect once it's free)")
             // #1539: a connect attempt CONSUMES the parked request, so re-park it — floored, so a reachable
             // strap that keeps refusing gets one attempt per window instead of a connect/refuse spin.
             standingConnectWhilePausedIfDue()
             if TestCentre.active(.connection) {
                 state.append(log: "connect down (uptime ends)", domain: .connection)
-                state.append(log: "reconnect paused=bondLoop (strap refusing bond)", domain: .connection)
+                state.append(log: "reconnect paused=bondLoop (\(bondLoopPauseCause.pausedReason))", domain: .connection)
             }
         } else if !intentionalDisconnect {
             log("Disconnected\(error.map { " — \($0.localizedDescription)" } ?? "")\(BLEManager.bleErrorSuffix(error))")
