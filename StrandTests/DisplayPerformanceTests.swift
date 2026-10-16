@@ -14,11 +14,14 @@ final class DisplayPerformanceTests: XCTestCase {
         UserDefaults.standard.removeObject(forKey: "testcentre.active.display")
         UserDefaults.standard.removeObject(forKey: "testcentre.active.master")
         DisplayPerformanceMonitor.shared.stop()
+        DisplayPerformanceMonitor.shared.setForegroundActive(false)
+        DisplayPerformanceMonitor.shared.setTab(.unknown)
         DisplayPerformanceMonitor.shared.emit = nil
     }
 
     override func tearDown() {
         DisplayPerformanceMonitor.shared.stop()
+        DisplayPerformanceMonitor.shared.setForegroundActive(false)
         DisplayPerformanceMonitor.shared.emit = nil
         DisplayPerformanceMonitor.shared.dataVolumeProvider = nil
         UserDefaults.standard.removeObject(forKey: "testcentre.active.display")
@@ -61,6 +64,7 @@ final class DisplayPerformanceTests: XCTestCase {
         DisplayPerformanceMonitor.shared.emit = { captured.append($0) }
         DisplayPerformanceMonitor.shared.start()
         XCTAssertTrue(DisplayPerformanceMonitor.shared.isRunning)
+        XCTAssertEqual(captured.filter { $0.hasPrefix("captureStart ") }.count, 1)
         XCTAssertTrue(captured.contains { $0.hasPrefix("deviceMetrics ") },
                       "start() must emit one device-metrics line, got \(captured)")
         DisplayPerformanceMonitor.shared.stop()
@@ -110,14 +114,177 @@ final class DisplayPerformanceTests: XCTestCase {
         DisplayPerformanceMonitor.shared.stop()
     }
 
+    func testForegroundCaptureAcrossTabsAndBackground() {
+        let monitor = DisplayPerformanceMonitor.shared
+        var captured: [String] = []
+        monitor.emit = { captured.append($0) }
+        monitor.setForegroundActive(true)
+        XCTAssertFalse(monitor.isRunning)
+        XCTAssertTrue(captured.isEmpty)
+
+        TestCentre.activate(.display)
+        monitor.refreshActivation()
+        XCTAssertTrue(monitor.isRunning)
+        monitor.setTab(.today)
+        monitor.foldFrame(timestamp: 100, expectedInterval: 1.0 / 120)
+        monitor.foldFrame(timestamp: 100 + 1.0 / 60, expectedInterval: 1.0 / 120)
+        monitor.setTab(.trends)
+        XCTAssertTrue(monitor.isRunning)
+        XCTAssertTrue(captured.contains { $0.contains("tab=today") && $0.contains("lateCallbacks=1") })
+        monitor.foldFrame(timestamp: 100 + 2.0 / 60, expectedInterval: 1.0 / 120)
+        monitor.setForegroundActive(false)
+        XCTAssertFalse(monitor.isRunning)
+        XCTAssertTrue(captured.contains { $0.contains("tab=trends") })
+
+        monitor.setForegroundActive(true)
+        XCTAssertTrue(monitor.isRunning)
+        TestCentre.deactivate(.display)
+        monitor.refreshActivation()
+        XCTAssertFalse(monitor.isRunning)
+    }
+
+    func testLateCallbacksFollowActualCadence() {
+        XCTAssertFalse(DisplayPerformanceMonitor.callbackIsLate(durationMs: 8.4, expectedMs: 8.33))
+        XCTAssertTrue(DisplayPerformanceMonitor.callbackIsLate(durationMs: 16.67, expectedMs: 8.33))
+        XCTAssertFalse(DisplayPerformanceMonitor.callbackIsLate(durationMs: 16.67, expectedMs: 16.67))
+        XCTAssertTrue(DisplayPerformanceMonitor.callbackIsLate(durationMs: 33.34, expectedMs: 16.67))
+        XCTAssertFalse(DisplayPerformanceMonitor.callbackIsLate(durationMs: 33.34, expectedMs: 33.34))
+        XCTAssertFalse(DisplayPerformanceMonitor.callbackIsLate(durationMs: 33.34, expectedMs: 0))
+        let monitor = DisplayPerformanceMonitor.shared
+        var captured: [String] = []
+        monitor.emit = { captured.append($0) }
+        monitor.start()
+        monitor.foldFrame(timestamp: 100, expectedInterval: 1.0 / 60)
+        monitor.foldFrame(timestamp: 100 + 1.0 / 60, expectedInterval: 1.0 / 120)
+        monitor.stop()
+        XCTAssertTrue(captured.contains { $0.contains("lateCallbacks=0") })
+    }
+
+    func testWorkoutPhasesSplitWindowsAcrossTodayAndTrends() {
+        withTrainingSources { model, _, monitor in
+            var captured: [String] = []
+            monitor.emit = { captured.append($0) }
+            monitor.setTab(.today)
+            monitor.start()
+            monitor.foldFrame(timestamp: 100, expectedInterval: 1.0 / 60)
+            monitor.foldFrame(timestamp: 100.02, expectedInterval: 1.0 / 60)
+            model.activeWorkout = AppModel.ActiveWorkout(start: Date(timeIntervalSince1970: 100))
+            monitor.foldFrame(timestamp: 100.04, expectedInterval: 1.0 / 60)
+            model.activeWorkout?.avgHr = 150
+            XCTAssertEqual(captured.filter { $0.hasPrefix("trainingPhase ") }.count, 1)
+            monitor.setTab(.trends)
+            monitor.foldFrame(timestamp: 100.06, expectedInterval: 1.0 / 60)
+            model.pauseWorkout(at: Date(timeIntervalSince1970: 101))
+            monitor.foldFrame(timestamp: 100.08, expectedInterval: 1.0 / 60)
+            model.resumeWorkout(at: Date(timeIntervalSince1970: 102))
+            monitor.foldFrame(timestamp: 100.10, expectedInterval: 1.0 / 60)
+            model.activeWorkout = nil
+            monitor.foldFrame(timestamp: 100.12, expectedInterval: 1.0 / 60)
+            monitor.stop()
+
+            let windows = captured.filter { $0.hasPrefix("frameSummary ") }
+            XCTAssertEqual(windows.count, 6)
+            for (line, expected) in zip(windows, ["none", "active", "active", "paused", "active", "none"]) {
+                XCTAssertTrue(line.contains("workout=\(expected) lift=none"), line)
+            }
+            XCTAssertTrue(windows[0].contains("tab=today"))
+            XCTAssertTrue(windows[1].contains("tab=today"))
+            XCTAssertTrue(windows.dropFirst(2).allSatisfy { $0.contains("tab=trends") })
+            XCTAssertEqual(captured.filter { $0.hasPrefix("trainingPhase ") }.count, 4)
+        }
+    }
+
+    func testLiftPhasesAndForegroundRestartReadTheCurrentSession() {
+        withTrainingSources { model, lift, monitor in
+            var captured: [String] = []
+            monitor.emit = { captured.append($0) }
+            model.activeWorkout = AppModel.ActiveWorkout(start: Date())
+            lift.start(plan: [.init(exercise: "Row")], programId: nil, programName: nil)
+            lift.pause()
+            XCTAssertTrue(captured.isEmpty, "training changes emit nothing while capture is stopped")
+            monitor.start()
+            XCTAssertTrue(captured.first?.hasSuffix("workout=active lift=paused") == true)
+            monitor.foldFrame(timestamp: 100, expectedInterval: 1.0 / 60)
+            monitor.foldFrame(timestamp: 100.02, expectedInterval: 1.0 / 60)
+            lift.resume()
+            XCTAssertTrue(captured.contains { $0.hasPrefix("frameSummary ") && $0.hasSuffix("workout=active lift=paused") })
+            monitor.foldFrame(timestamp: 100.22, expectedInterval: 1.0 / 60)
+            lift.finish()
+            XCTAssertTrue(captured.contains { $0.hasPrefix("frameSummary ") && $0.contains("hitches=1") && $0.hasSuffix("workout=active lift=active") })
+            XCTAssertTrue(captured.last?.hasSuffix("workout=active lift=none") == true)
+            monitor.stop()
+
+            let stoppedCount = captured.count
+            model.pauseWorkout()
+            lift.discard()
+            lift.start(plan: [.init(exercise: "Row")], programId: nil, programName: nil)
+            monitor.foldFrame(timestamp: 101, expectedInterval: 1.0 / 60)
+            XCTAssertEqual(captured.count, stoppedCount)
+            monitor.start()
+            XCTAssertTrue(captured.contains { $0.hasPrefix("captureStart ") && $0.hasSuffix("workout=paused lift=active") })
+            monitor.foldFrame(timestamp: 200, expectedInterval: 1.0 / 60)
+            monitor.foldFrame(timestamp: 200.02, expectedInterval: 1.0 / 60)
+            monitor.stop()
+            XCTAssertTrue(captured.contains { $0.hasPrefix("frameSummary ") && $0.hasSuffix("workout=paused lift=active") })
+        }
+    }
+
+    func testMissingLiftSourceDoesNotClaimThereIsNoSession() {
+        withTrainingSources { model, _, monitor in
+            monitor.configure(model: model)
+            var captured: [String] = []
+            monitor.emit = { captured.append($0) }
+            monitor.start()
+            XCTAssertTrue(captured.first?.hasSuffix("workout=none lift=n/a") == true)
+        }
+    }
+
+    private func withTrainingSources(_ check: (AppModel, LiftSessionController, DisplayPerformanceMonitor) -> Void) {
+        let defaults = UserDefaults.standard
+        let keys = [ActiveWorkoutPersistence.defaultsKey, LiftSessionPersistence.defaultsKey]
+        let saved = keys.map { defaults.object(forKey: $0) }
+        let previousModel = AppModel.shared
+        let model = AppModel()
+        model.activeWorkout = nil
+        let lift = LiftSessionController(buzz: { _ in }, setStrapHandler: { _ in })
+        let monitor = DisplayPerformanceMonitor.shared
+        monitor.configure(model: model, lift: lift)
+        defer {
+            monitor.stop()
+            lift.discard()
+            AppModel.shared = previousModel
+            for (key, value) in zip(keys, saved) {
+                if let value { defaults.set(value, forKey: key) }
+                else { defaults.removeObject(forKey: key) }
+            }
+        }
+        check(model, lift, monitor)
+    }
+
+    func testStoppedCaptureDoesNotEmitDelayedDataVolume() async {
+        let monitor = DisplayPerformanceMonitor.shared
+        let captured = LineBox()
+        monitor.emit = { captured.append($0) }
+        monitor.dataVolumeProvider = {
+            try? await Task.sleep(nanoseconds: 10_000_000)
+            return DataVolume(dbRows: 1, importedDays: 1, workouts: 1, lastRenderRows: nil)
+        }
+        monitor.start()
+        await Task.yield()
+        monitor.stop()
+        try? await Task.sleep(nanoseconds: 30_000_000)
+        XCTAssertFalse(captured.lines.contains { $0.hasPrefix("dataVolume ") })
+    }
+
     // MARK: - Pure window stats (no display link needed).
 
     func testWindowStatsMeanAndP95() {
-        // 19 frames at 16 ms and one 100 ms hitch: mean is pulled up a little, p95 picks the hitch.
+        // 19 frames at 16 ms and one 100 ms hitch: the first 95% remain at 16 ms.
         let durations = Array(repeating: 16.0, count: 19) + [100.0]
         let stats = DisplayPerformanceMonitor.windowStats(durationsMs: durations)
         XCTAssertEqual(stats.mean, (16.0 * 19 + 100.0) / 20.0, accuracy: 0.001)
-        XCTAssertEqual(stats.p95, 100.0, accuracy: 0.001, "p95 of 20 frames is the worst (nearest-rank)")
+        XCTAssertEqual(stats.p95, 16.0, accuracy: 0.001)
+        XCTAssertEqual(DisplayPerformanceMonitor.windowStats(durationsMs: [42]).p95, 42)
     }
 
     func testWindowStatsEmptyIsZero() {

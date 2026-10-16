@@ -273,7 +273,11 @@ enum TestBundleAssembler {
         //    capEntries budgets raw-capture as capBytes - (everything else), so a large/retina PNG shrinks
         //    the raw-capture tail rather than breaching the cap. Only raw-capture is trimmed; report.txt and
         //    last-crash are bounded and the PNG is kept whole.
-        let textEntries = [reportEntry] + (rawCapture.map { [$0] } ?? []) + (crash.map { [$0] } ?? []) + ouraDiagnostics
+        let performanceText = (profile == .display || profile == .master)
+            ? DisplayPerformanceMonitor.shared.performanceLogText : ""
+        let performance = performanceText.isEmpty ? []
+            : [FileExport.BundleEntry(name: "performance.txt", data: Data(performanceText.utf8))]
+        let textEntries = [reportEntry] + performance + (rawCapture.map { [$0] } ?? []) + (crash.map { [$0] } ?? []) + ouraDiagnostics
         let redacted = redactEntries(textEntries)
         let (capped, truncated) = capEntries(redacted + (shot.map { [$0] } ?? []))
         var entries = capped

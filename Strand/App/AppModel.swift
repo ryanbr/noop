@@ -124,6 +124,8 @@ final class AppModel: ObservableObject {
         var peakHr: Int = 0
         var pausedAt: Date?
         var pausedDuration: TimeInterval = 0
+        var sessionID = UUID().uuidString
+        var pausedForPulseLoss = false
 
         var isPaused: Bool { pausedAt != nil }
 
@@ -900,7 +902,8 @@ final class AppModel: ObservableObject {
                 peakHr: w.peakHr,
                 liveStrain: w.liveStrain,
                 pausedAtSec: w.pausedAt.map { Int($0.timeIntervalSince1970) },
-                pausedDurationSec: Int(w.pausedDuration)))
+                pausedDurationSec: Int(w.pausedDuration),
+                sessionID: w.sessionID, pausedForPulseLoss: w.pausedForPulseLoss))
     }
 
     /// If a manual workout was in flight when iOS killed the app, rebuild `activeWorkout` from the durable
@@ -917,6 +920,8 @@ final class AppModel: ObservableObject {
         w.liveStrain = snap.liveStrain
         w.pausedAt = snap.pausedAtSec.map { Date(timeIntervalSince1970: TimeInterval($0)) }
         w.pausedDuration = TimeInterval(snap.pausedDurationSec ?? 0)
+        w.sessionID = snap.sessionID ?? "workout-\(snap.startSec)"
+        w.pausedForPulseLoss = snap.pausedForPulseLoss ?? false
         activeWorkout = w
 
         // Rebuild the transient GPS lifecycle flag as well as the durable workout value. Without this,
@@ -935,21 +940,35 @@ final class AppModel: ObservableObject {
     }
 
     func toggleWorkoutPause() {
-        guard var w = activeWorkout else { return }
-        if let pausedAt = w.pausedAt {
-            w.pausedDuration += Date().timeIntervalSince(pausedAt)
-            w.pausedAt = nil
-            if activeWorkoutIsGps { gpsRecorder.resume() }
-        } else {
-            w.pausedAt = Date()
-            if activeWorkoutIsGps { gpsRecorder.pause() }
-        }
+        if activeWorkout?.isPaused == true { resumeWorkout() } else { pauseWorkout() }
+    }
+
+    func pauseWorkout(at date: Date = Date(), pulseLoss: Bool = false) {
+        guard var w = activeWorkout, !w.isPaused else { return }
+        w.pausedAt = max(w.start, date)
+        w.pausedForPulseLoss = pulseLoss
         activeWorkout = w
+        if activeWorkoutIsGps { gpsRecorder.pause(at: date) }
+        persistActiveWorkout()
+    }
+
+    func resumeWorkout(at date: Date = Date()) {
+        guard var w = activeWorkout, let pausedAt = w.pausedAt, !isFinishingWorkout else { return }
+        w.pausedDuration += max(0, date.timeIntervalSince(pausedAt))
+        w.pausedAt = nil
+        w.pausedForPulseLoss = false
+        activeWorkout = w
+        if activeWorkoutIsGps { gpsRecorder.resume() }
         persistActiveWorkout()
     }
 
     /// Abort the active session without saving a workout.
     func discardWorkout() {
+        guard !isFinishingWorkout else { return }
+        clearActiveWorkout()
+    }
+
+    private func clearActiveWorkout() {
         guard activeWorkout != nil else { return }
         activeWorkout = nil
         if activeWorkoutIsGps { gpsRecorder.stop() }
@@ -973,32 +992,32 @@ final class AppModel: ObservableObject {
         elapsedSeconds < minimumWorkoutSeconds
     }
 
-    func endWorkout() {
+    private(set) var isFinishingWorkout = false
+
+    func endWorkout() { Task { try? await finishWorkout() } }
+
+    func finishWorkout() async throws {
+        guard activeWorkout != nil, !isFinishingWorkout else { return }
+        isFinishingWorkout = true
+        defer { isFinishingWorkout = false }
+        pauseWorkout()
         guard let w = activeWorkout else { return }
-        activeWorkout = nil
         let wasGps = activeWorkoutIsGps
-        activeWorkoutIsGps = false
-        // Drop the durable snapshot the instant the session ends , whether it saves below or is discarded
-        // as too-short , so a relaunch never rehydrates an already-finished session (#529).
-        ActiveWorkoutPersistence.clear()
-        // #524: finalize the GPS route. Stop the recorder and take its captured route , it kept
+        // Keep the paused snapshot and route until the write succeeds, so a failed save remains retryable.
+        // #524: capture the GPS route; it kept
         // accumulating from CoreLocation independently of the HR window. `capturedRoute()` is nil unless
         // ≥2 points actually landed (honest: no route, no distance, when nothing was captured , e.g. a
         // Mac with no GPS, or denied permission). A non-GPS session never armed the recorder.
         var route: WorkoutRoute?
         if wasGps {
-            gpsRecorder.stop()
             route = gpsRecorder.capturedRoute()
         }
         let samples = w.samples
-        // Save when there's an HR window OR a real GPS route , a GPS-only walk (HR not streaming) is
-        // still a workout (parity with Android's `samples.size < 2 && track.size < 2` discard gate).
         guard samples.count >= 2 || route != nil else {
-            // Workouts & GPS test mode: record WHY a session vanished (too short / no route), tagged `.workouts`.
             emitWorkoutsTrace(WorkoutsTrace.sessionLine(
                 event: "discarded", sportKey: WorkoutSource.traceSportKey(w.sport),
                 hrSamples: samples.count, gpsPoints: route == nil ? 0 : nil))
-            lastWorkout = nil
+            clearActiveWorkout()
             return
         }
         let end = Date()
@@ -1009,8 +1028,6 @@ final class AppModel: ObservableObject {
         // and no cloud copy, so a later prune would be irreversible; this is not, because nothing with real
         // data is ever removed.
         //
-        // Sits after the sample/route gate above so that gate's meaning is unchanged: a 30-second session
-        // can easily carry two HR samples and would otherwise have been saved.
         let elapsed = w.elapsed(at: end)
         if Self.isTooShortToSave(elapsedSeconds: elapsed) {
             emitWorkoutsTrace(WorkoutsTrace.sessionLine(
@@ -1019,7 +1036,7 @@ final class AppModel: ObservableObject {
                 gpsPoints: wasGps ? gpsRecorder.pointCount : nil))
             // Drop the route too: keeping a polyline for a session that was never saved would orphan it in
             // RouteStore under a natural key no row claims.
-            lastWorkout = nil
+            clearActiveWorkout()
             return
         }
         let avg = samples.isEmpty ? nil
@@ -1032,22 +1049,19 @@ final class AppModel: ObservableObject {
         // disagree with its own re-score. Read once here, at save time; the live readout during the
         // session is a transient running estimate and deliberately left alone.
         let restingHR = repo.today?.restingHr.map(Double.init) ?? StrainScorer.defaultRestingHR
-        let strain = samples.count >= 2
-            ? StrainScorer.strain(samples, maxHR: Double(profile.hrMax),
-                                  restingHR: restingHR,
-                                  method: PuffinExperiment.effortMethod, sex: profile.sex) : nil
-        // Estimate calories from the captured HR window (same Keytel/Harris–Benedict model the
-        // auto-detector uses) so a manual session shows energy too, not just duration/strain. (#117)
         let up = UserProfile(weightKg: profile.weightKg, heightCm: profile.heightCm,
                              age: Double(profile.age), sex: profile.sex)
-        let kcal = samples.count >= 2
-            // #983: same measured resting HR as the strain above, not nil. The calories model's
-            // active-vs-resting threshold sits at resting + 30% HRR, so the default silently shifts what
-            // counts as active — and #972 already threads it in the rescore path, so leaving it nil here
-            // meant a saved workout's kcal disagreed with its own re-score just as its Effort did.
-            ? Calories.estimateBoutCalories(samples, profile: up, hrmax: Double(profile.hrMax),
-                                            restingHR: restingHR).0
-            : 0
+        let hrMax = Double(profile.hrMax)
+        let method = PuffinExperiment.effortMethod
+        let sex = profile.sex
+        // Pure scoring uses an immutable snapshot, leaving the main actor free for UI and BLE.
+        let (strain, kcal) = await Task.detached(priority: .userInitiated) {
+            let strain = samples.count >= 2
+                ? StrainScorer.strain(samples, maxHR: hrMax, restingHR: restingHR, method: method, sex: sex) : nil
+            let kcal = samples.count >= 2
+                ? Calories.estimateBoutCalories(samples, profile: up, hrmax: hrMax, restingHR: restingHR).0 : 0
+            return (strain, kcal)
+        }.value
         let startTs = Int(w.start.timeIntervalSince1970)
         let row = WorkoutRow(
             startTs: startTs, endTs: Int(end.timeIntervalSince1970),
@@ -1060,6 +1074,9 @@ final class AppModel: ObservableObject {
         // Persist the route polyline under the row's natural key so WorkoutDetailView can draw it. On
         // device only; mirrors the moments / sleepMarks UserDefaults persistence. (#524)
         if let route { RouteStore.store(route, startTs: startTs, sport: w.sport) }
+        guard let store = await repo.storeHandle() else { throw CocoaError(.fileWriteUnknown) }
+        _ = try await store.upsertWorkouts([row], deviceId: deviceId)
+        clearActiveWorkout()
         lastWorkout = row
         // Workouts & GPS test mode: one session-end summary tagged `.workouts` (the lastSessionSummary readout
         // source) carrying the captured HR window size, the duration, and the accepted GPS point count, so the
@@ -1070,13 +1087,7 @@ final class AppModel: ObservableObject {
             durationSec: Int(w.elapsed(at: end)),
             gpsPoints: wasGps ? gpsRecorder.pointCount : nil))
         buzz(loops: 2, gate: HapticPrefs.workout)
-        Task { [weak self] in
-            guard let self else { return }
-            if let store = await self.repo.storeHandle() {
-                _ = try? await store.upsertWorkouts([row], deviceId: self.deviceId)
-                await self.repo.refresh()
-            }
-        }
+        await repo.refresh()
     }
 
     /// Append the current smoothed `bpm` to the active workout and recompute its running strain. Called
