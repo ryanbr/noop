@@ -34,6 +34,12 @@ struct DataSourcesView: View {
     @State private var wearableImporting = false
     @State private var wearableSummary: String?
     @State private var wearableFailed = false
+    // GPX heart-rate merge state (#2679, option-1 family): READ-ONLY on the store — the picked file's
+    // time window selects stored HR samples, GpxHrInjector splices them in, and the merged file goes
+    // straight back out through the share sheet / save panel. Nothing is imported or persisted.
+    @State private var hrMergeBusy = false
+    @State private var hrMergeSummary: String?
+    @State private var hrMergeFailed = false
     #if OURA_CLOUD_IMPORT
     // Oura history import (compiled in ONLY with OURA_CLOUD_IMPORT): a one-time, user-initiated,
     // foreground OAuth + backfill of the user's own history over the Oura API, as an alternative to
@@ -98,11 +104,12 @@ struct DataSourcesView: View {
                 liftingCard.staggeredAppear(index: 4)
                 activityFileCard.staggeredAppear(index: 5)
                 wearableCard.staggeredAppear(index: 6)
+                hrMergeCard.staggeredAppear(index: 7)
                 #if OURA_CLOUD_IMPORT
-                ouraCloudCard.staggeredAppear(index: 7)
+                ouraCloudCard.staggeredAppear(index: 8)
                 #endif
-                broadcastHrCard.staggeredAppear(index: 8)
-                liveCard.staggeredAppear(index: 9)
+                broadcastHrCard.staggeredAppear(index: 9)
+                liveCard.staggeredAppear(index: 10)
             }
         }
         .onAppear {
@@ -296,6 +303,31 @@ struct DataSourcesView: View {
         }
     }
 
+    /// GPX heart-rate merge (#2679, option-1 family): the OUTBOUND sibling of the activity-file
+    /// importer above. The wearer exports a run recorded in another app (Strava: activity → ⋯ →
+    /// Export GPX), NOOP splices the strap's stored heart rate into its trackpoints by timestamp
+    /// (`GpxHrInjector`), and the merged file goes back out through the share sheet — upload it to
+    /// the same service and the activity shows the route AND heart rate/zones. Fully offline,
+    /// file-in/file-out; the store is only read, never written.
+    private var hrMergeCard: some View {
+        card(title: String(localized: "Add heart rate to a workout file"), icon: "heart.text.square",
+             tint: DomainTheme.effort.color,
+             subtitle: String(localized: "Recorded a run or ride in another app without a heart-rate sensor? Export its GPX (Strava: activity → ⋯ → Export GPX), choose it here, and NOOP merges the heart rate your strap recorded over that window into the file — route and times untouched. Share the merged file back to the app to see heart rate and zones there. Fully offline; nothing leaves \(Platform.deviceNounPhrase).")) {
+            HStack(spacing: NoopMetrics.space3) {
+                Button { presentImporter(.hrMerge) } label: {
+                    Label(hrMergeBusy ? "Merging…" : "Choose .gpx…", systemImage: "heart.circle")
+                }
+                .buttonStyle(NoopButtonStyle(.primary))
+                .disabled(hrMergeBusy)
+                if hrMergeBusy { ProgressView().controlSize(.small) }
+            }
+            if let s = hrMergeSummary {
+                Text(s).font(StrandFont.subhead)
+                    .foregroundStyle(hrMergeFailed ? StrandPalette.statusWarning : StrandPalette.statusPositive)
+            }
+        }
+    }
+
     #if OURA_CLOUD_IMPORT
     /// Oura history import: a one-time, user-initiated, foreground OAuth + API backfill of the user's
     /// own history — an *import* in the same family as the export-file importers above, not a sync
@@ -374,6 +406,8 @@ struct DataSourcesView: View {
             importActivityFile(url: url)
         case .wearable:
             importWearable(url: url)
+        case .hrMerge:
+            mergeHrIntoFile(url: url)
         }
     }
 
@@ -518,6 +552,91 @@ struct DataSourcesView: View {
     /// on a day a whole-day WHOOP import (priority 2) has HR, that import wins over the ride too. The
     /// workout row itself still stores `strain = nil` (we never fabricate a per-workout strain); the day
     /// Effort is computed from the measured HR stream, exactly as it is for a worn strap.
+    /// Merge the strap's stored HR into a picked GPX file and hand the result straight back out
+    /// (share sheet on iOS, save panel on macOS). READ-ONLY on the store: the file's own time window
+    /// selects `repo.hrSamples` — the same union/dedup funnel every HR read goes through — and the
+    /// merged bytes never touch the import pipeline. Every refusal is surfaced with its numbers; a
+    /// silent re-export of the unchanged file is the one outcome this flow must never produce.
+    private func mergeHrIntoFile(url: URL) {
+        hrMergeBusy = true
+        hrMergeSummary = nil
+        hrMergeFailed = false
+        Task {
+            let scoped = url.startAccessingSecurityScopedResource()
+            defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+            do {
+                // Same read cap as the importer — a hostile huge file can't OOM us before the guards.
+                let data = try Data(contentsOf: url, options: [.mappedIfSafe])
+                if data.count > ActivityFileImporter.maxBytes {
+                    hrMergeSummary = String(localized: "That file is too large to merge.")
+                    hrMergeFailed = true
+                    logImport("HR merge failed: file too large")
+                    hrMergeBusy = false
+                    return
+                }
+                let window = try GpxHrInjector.timeWindow(gpx: data)
+                // Pad by the match tolerance so an edge trackpoint still finds its nearest sample.
+                let pad = GpxHrInjector.defaultToleranceSec
+                let samples = await repo.hrSamples(from: window.lowerBound - pad,
+                                                   to: window.upperBound + pad,
+                                                   limit: StreamReadCap.hr)
+                let merged = try GpxHrInjector.inject(
+                    gpx: data,
+                    hr: samples.map { ActivityHRSample(ts: $0.ts, bpm: $0.bpm) })
+                // Named from the source file so the pair stays matched in a Files folder.
+                let name = "\(url.deletingPathExtension().lastPathComponent)-hr.gpx"
+                let out = NoopScratch.file(name)
+                try merged.gpx.write(to: out)
+                hrMergeSummary = String(localized: "Heart rate added to \(merged.matched) of \(merged.total) track points. Upload the merged file back to the app the activity came from.")
+                logImport("HR merge: \(merged.matched)/\(merged.total) points matched")
+                hrMergeBusy = false
+                FileExport.exportFile(at: out, suggestedName: name)
+            } catch let failure as GpxHrInjector.Failure {
+                hrMergeSummary = hrMergeMessage(for: failure)
+                hrMergeFailed = true
+                logImport("HR merge failed: \(hrMergeLogLabel(for: failure))")
+                hrMergeBusy = false
+            } catch {
+                // Read failure (permissions, vanished file) — surface it rather than a silent return.
+                hrMergeSummary = String(localized: "Couldn't read that file: \(error.localizedDescription)")
+                hrMergeFailed = true
+                logImport("HR merge failed: unreadable file")
+                hrMergeBusy = false
+            }
+        }
+    }
+
+    /// User-facing explanation for each merge refusal — every case says what happened AND what to do.
+    private func hrMergeMessage(for failure: GpxHrInjector.Failure) -> String {
+        switch failure {
+        case .notGpx:
+            return String(localized: "That file isn't a GPX document. Export the activity as GPX (Strava: activity → ⋯ → Export GPX) and choose that file.")
+        case .noTimedTrackpoints:
+            return String(localized: "The file's track carries no timestamps, so heart rate can't be matched to it.")
+        case .alreadyHasHeartRate(let points):
+            return String(localized: "This file already carries heart rate (\(points) track points) — there's nothing to add.")
+        case .noHeartRateMatched(let startTs, let endTs, let points, let samples):
+            let fmt = DateFormatter()
+            fmt.dateStyle = .medium
+            fmt.timeStyle = .short
+            let span = "\(fmt.string(from: Date(timeIntervalSince1970: TimeInterval(startTs)))) – \(fmt.string(from: Date(timeIntervalSince1970: TimeInterval(endTs))))"
+            return String(localized: "No recorded heart rate overlaps this activity (\(span); \(points) track points, \(samples) stored samples nearby). Was the strap worn and synced for that window?")
+        case .tooManyTrackpoints:
+            return String(localized: "The file has too many track points to merge.")
+        }
+    }
+
+    /// Strap-log label for a refusal: the CASE only, never a value that could identify the file.
+    private func hrMergeLogLabel(for failure: GpxHrInjector.Failure) -> String {
+        switch failure {
+        case .notGpx: return "not gpx"
+        case .noTimedTrackpoints: return "no timed trackpoints"
+        case .alreadyHasHeartRate: return "file already has HR"
+        case .noHeartRateMatched: return "no HR in window"
+        case .tooManyTrackpoints: return "too many trackpoints"
+        }
+    }
+
     private func importActivityFile(url: URL) {
         activityFileImporting = true
         activityFileSummary = nil
@@ -757,6 +876,7 @@ struct DataSourcesView: View {
         case lifting
         case activityFile
         case wearable
+        case hrMerge
 
         var allowedContentTypes: [UTType] {
             // `.folder` lets macOS users point at an *unzipped* export directory. On iOS the Files
@@ -807,6 +927,11 @@ struct DataSourcesView: View {
                 #else
                 return [.json, .zip, .data]
                 #endif
+            case .hrMerge:
+                // GPX only (the injector is GPX text surgery). .xml/.data keep a share-sheet file
+                // typed text/xml or untyped selectable; a non-GPX pick is refused loudly by the merge.
+                let gpx = UTType(filenameExtension: "gpx") ?? .xml
+                return [gpx, .xml, .data]
             }
         }
     }
