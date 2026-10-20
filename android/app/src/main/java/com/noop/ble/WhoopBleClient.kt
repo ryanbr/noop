@@ -1291,6 +1291,25 @@ class WhoopBleClient(
         }
 
         /**
+         * True when an offload frame is evidence that the strap is still handing over history, so the
+         * backfill idle watchdog may re-arm on it. Every [isOffloadFrame] frame is still routed to the
+         * drain; this only decides which ones count as PROGRESS.
+         *
+         * A WHOOP 4.0 EVENT frame (type 48) does not. The strap emits a fresh event roughly every 15 s
+         * whether or not it is offloading, and when it answers SEND_HISTORICAL_DATA with PENDING but
+         * never starts the type-47 stream, those events alone re-armed the 60 s watchdog forever: the
+         * session neither completed nor timed out, and `backfilling` stayed true, so every later sync
+         * trigger was refused for the life of the connection. A real offload streams type-47 records and
+         * closes chunks with METADATA (49), both of which still re-arm. 5/MG is unchanged: its offload
+         * has not been observed in this state, and its event cadence is unmeasured.
+         * Twin of Swift `BLEManager.offloadFrameShowsProgress`.
+         */
+        fun offloadFrameShowsProgress(frame: ByteArray, family: DeviceFamily): Boolean {
+            if (!isOffloadFrame(frame, family)) return false
+            return !(family == DeviceFamily.WHOOP4 && (frame[4].toInt() and 0xFF) == 48)
+        }
+
+        /**
          * The gate every offload kick passes through: a sync may start ONLY when the link is up
          * ([connected]), the command channel is usable ([bonded]), and no offload is already running
          * ([backfilling]). Extracted as a pure predicate so the auto-kick, the 900s periodic timer,
@@ -8528,7 +8547,7 @@ class WhoopBleClient(
                         // it; feeding it only delays each chunk's insert->trim-ack and stalls the strap).
                         if (isOffloadFrame(frame, connectedFamily)) {
                             offloadFramesThisSession++
-                            armBackfillTimeout()
+                            if (offloadFrameShowsProgress(frame, connectedFamily)) armBackfillTimeout()
                             routeBackfillFrame(frame)
                         }
                     } else {
@@ -11093,8 +11112,8 @@ class WhoopBleClient(
     }
 
     /**
-     * Re-arm the idle watchdog. Called on every offload frame during backfill; if the strap goes
-     * silent the timer fires and we exit the session. Port of `armBackfillTimeout`.
+     * Re-arm the idle watchdog. Called on every progress frame ([offloadFrameShowsProgress]); if the
+     * strap goes silent the timer fires and we exit the session. Port of `armBackfillTimeout`.
      */
     private fun armBackfillTimeout() {
         handler.removeCallbacks(backfillTimeoutRunnable)

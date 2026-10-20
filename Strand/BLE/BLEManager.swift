@@ -2641,8 +2641,24 @@ public final class BLEManager: NSObject, ObservableObject {
         }
     }
 
-    /// Re-arm the idle watchdog. Called on every offload frame during backfill so the timer resets
-    /// as long as the strap keeps sending HISTORY; if the strap goes silent the timer fires and we
+    /// True when an offload frame is evidence that the strap is still handing over history, so the
+    /// backfill idle watchdog may re-arm on it. Every `isOffloadFrame` frame is still routed to the
+    /// Backfiller; this only decides which ones count as PROGRESS.
+    ///
+    /// A WHOOP 4.0 EVENT frame (type 48) does not. The strap emits a fresh event roughly every 15 s
+    /// whether or not it is offloading, and when it answers SEND_HISTORICAL_DATA with PENDING but never
+    /// starts the type-47 stream, those events alone re-armed the 60 s watchdog forever: the session
+    /// neither completed nor timed out, and `backfilling` stayed true, so every later sync trigger was
+    /// refused for the life of the connection. A real offload streams type-47 records and closes chunks
+    /// with METADATA (49), both of which still re-arm. 5/MG is unchanged: its offload has not been
+    /// observed in this state, and its event cadence is unmeasured.
+    static func offloadFrameShowsProgress(_ frame: [UInt8], family: DeviceFamily) -> Bool {
+        guard isOffloadFrame(frame, family: family) else { return false }
+        return !(family == .whoop4 && frame[4] == 48)
+    }
+
+    /// Re-arm the idle watchdog. Called on every progress frame (`offloadFrameShowsProgress`) so the
+    /// timer resets as long as the strap keeps sending HISTORY; if the strap goes silent the timer fires and we
     /// exit the session (the durable strap_trim cursor means the next session resumes where we left
     /// off). Timeout is generous (60 s, not 20 s): the unstoppable ~2/s type-43 raw flood eats BLE
     /// airtime, so genuine offload frames can arrive in bursts with multi-second lulls between chunks
@@ -7403,7 +7419,7 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                     // is a permanent loss. The verdict is formed once here, from the verifier, and
                     // handed to the counter — no parse on this path, which is why it was skipped.
                     router.noteOffloadFrameVerdict(verifyFrame(frame, family: .whoop4))
-                    armBackfillTimeout()
+                    if BLEManager.offloadFrameShowsProgress(frame, family: .whoop4) { armBackfillTimeout() }
                     routeBackfillFrame(frame)
                     // …but a REAL-TIME physical gesture (double-tap / wrist) must still fire even mid-
                     // offload (#69). Gated on ts≈now so replayed historical EVENTs (old ts) are ignored.
