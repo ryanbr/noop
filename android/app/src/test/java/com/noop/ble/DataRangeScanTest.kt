@@ -196,4 +196,16 @@ class DataRangeScanTest {
     /** A negative cmdOff is rejected rather than indexing backwards. */
     @Test fun `isPendingResponse false for a negative cmdOff`() =
         assertFalse(DataRange.isPendingResponse(ByteArray(40), -1))
+
+    /** wearable5.0 golden vectors: the 5/MG newest-page clock at `cmdOff + 60`, and the 0xFFFFFFFF sentinel
+     *  read as no clock. Twin of the Swift `testWhoop5PageClockNewestIsFieldExact`. */
+    @Test fun `whoop5 page clock newest is field exact`() {
+        val normal = hex("aa014c00010032d12405220401010000000000000000780000006400000000000000000002000000000000000000000000000000000000000000000000000000000000000000fb3bb16a00000000000010266950")
+        val sentinel = hex("aa014c00010032d1240522040101000000000000000005000000feff010000000000000002000000000000000000000000000000000000000000000000000000000000000000ffffffff0000000000009904b681")
+        assertEquals(1_790_000_123L, DataRange.pageClockNewestUnix(normal, 10))
+        assertEquals(20L, DataRange.pagesBehind(normal, 10))
+        assertNull(DataRange.pageClockNewestUnix(sentinel, 10))
+        assertEquals(7L, DataRange.pagesBehind(sentinel, 10))
+        assertNull(DataRange.pageClockNewestUnix(normal.copyOf(60), 10))
+    }
 }

@@ -8359,7 +8359,14 @@ class WhoopBleClient(
                                     "values). The raw frame above is the evidence.",
                             )
                         }
-                        (if (acceptsWindow) dataRangeNewestUnix(frame) else null)?.let {
+                        // 5/MG: the newest-page clock is a fixed field (body @57), so read it exactly instead
+                        // of scanning; the scan stays for WHOOP 4.0 (wearable5.0 FINDINGS §3, 589 real replies).
+                        val newestRead = if (connectedFamily == DeviceFamily.WHOOP5) {
+                            com.noop.protocol.DataRange.pageClockNewestUnix(frame, cmdOff)
+                        } else {
+                            dataRangeNewestUnix(frame)
+                        }
+                        (if (acceptsWindow) newestRead else null)?.let {
                             strapNewestTs = it
                             // Capture the wall clock of THIS reading so the backfiller correlation pairs
                             // the strap's device time with the wall time of the same instant (see field doc).

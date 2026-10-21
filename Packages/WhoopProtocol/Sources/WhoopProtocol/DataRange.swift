@@ -88,6 +88,17 @@ public enum DataRange {
         return behind
     }
 
+    /// The last-written page's clock (unix seconds) from a 5/MG GET_DATA_RANGE SUCCESS reply: the u32 at body
+    /// offset 57, i.e. `cmdOff + 60`. Field-exact, no scan. nil for a short frame or the 0 / 0xFFFFFFFF
+    /// "no clock" sentinels. Confirmed on 589 real 5/MG replies (wearable5.0 FINDINGS §3). Kotlin twin:
+    /// `DataRange.pageClockNewestUnix`.
+    public static func pageClockNewestUnix(from frame: [UInt8], cmdOff: Int) -> Int? {
+        let o = cmdOff + 60
+        guard cmdOff >= 0, o + 4 <= frame.count else { return nil }
+        let v = Int(frame[o]) | Int(frame[o + 1]) << 8 | Int(frame[o + 2]) << 16 | Int(frame[o + 3]) << 24
+        return (v == 0 || v == 0xFFFF_FFFF) ? nil : v
+    }
+
     /// The BLE seam's decision on a GET_DATA_RANGE COMMAND_RESPONSE: is this a reply to `opcode`, and
     /// may it move state? A reply is accepted only on the verifier's FULL verdict.
     ///

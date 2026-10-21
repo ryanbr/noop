@@ -226,4 +226,21 @@ final class DataRangeTests: XCTestCase {
         XCTAssertTrue(parseFrame(other, family: .whoop4).ok)
         XCTAssertFalse(DataRange.acceptsReply(other, cmdOff: 6, opcode: getDataRangeOpcode, verdictOK: true))
     }
+
+    /// wearable5.0 golden vectors (synthetic 5/MG replies built to the field layout confirmed on 589 real
+    /// replies): the newest-page clock at `cmdOff + 60`, and the 0xFFFFFFFF sentinel read as no clock.
+    func testWhoop5PageClockNewestIsFieldExact() {
+        func hex(_ h: String) -> [UInt8] {
+            stride(from: 0, to: h.count, by: 2).map { i in
+                UInt8(h[h.index(h.startIndex, offsetBy: i)..<h.index(h.startIndex, offsetBy: i + 2)], radix: 16)!
+            }
+        }
+        let normal = hex("aa014c00010032d12405220401010000000000000000780000006400000000000000000002000000000000000000000000000000000000000000000000000000000000000000fb3bb16a00000000000010266950")
+        let sentinel = hex("aa014c00010032d1240522040101000000000000000005000000feff010000000000000002000000000000000000000000000000000000000000000000000000000000000000ffffffff0000000000009904b681")
+        XCTAssertEqual(DataRange.pageClockNewestUnix(from: normal, cmdOff: 10), 1_790_000_123)
+        XCTAssertEqual(DataRange.pagesBehind(from: normal, cmdOff: 10), 20)
+        XCTAssertNil(DataRange.pageClockNewestUnix(from: sentinel, cmdOff: 10))
+        XCTAssertEqual(DataRange.pagesBehind(from: sentinel, cmdOff: 10), 7)
+        XCTAssertNil(DataRange.pageClockNewestUnix(from: Array(normal.prefix(60)), cmdOff: 10))
+    }
 }

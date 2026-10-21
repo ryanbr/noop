@@ -7212,7 +7212,12 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                     + "the raw frame above is the input). Diagnostic only, sync is unaffected.")
             }
         }
-        if let newest = BLEManager.dataRangeNewestUnix(from: frame) {
+        // 5/MG (cmdOff 10): the newest-page clock is a fixed field (body @57), read exactly instead of
+        // scanned; WHOOP 4.0 keeps the scan (wearable5.0 FINDINGS §3, 589 real replies).
+        let newestRead = cmdOff == 10
+            ? DataRange.pageClockNewestUnix(from: frame, cmdOff: cmdOff)
+            : BLEManager.dataRangeNewestUnix(from: frame)
+        if let newest = newestRead {
             // #695: the sync-affecting side-effects (strapNewestTs, backfill window, LiveState range) only
             // apply when feedsSync — WHOOP4 today. The 5/MG path passes feedsSync=false: it LOGS the newest/
             // oldest/backlog (so a strap log validates the decode) but leaves sync UNCHANGED until confirmed
@@ -7618,10 +7623,10 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                     if frame.count > 10, frame[8] == 0x24,
                        DataRange.acceptsReply(frame, cmdOff: 10, opcode: WhoopCommand.getDataRange.rawValue,
                                               verdictOK: parseFrame(frame, family: .whoop5).ok) {
-                        // feedsSync: false — #695 diagnostic-only on 5/MG: log the dump/backlog/newest/oldest so
-                        // a strap log validates the decode, but DON'T feed strapNewestTs/backfill/state yet.
-                        // Flip to true once a real 5.0/MG strap confirms the newest/oldest are correct.
-                        handleDataRangeResponse(frame, cmdOff: 10, feedsSync: false)
+                        // feedsSync: true — the 5/MG newest-page clock is now read field-exact and was confirmed
+                        // on 589 real replies (wearable5.0 FINDINGS §3), so it feeds strapNewestTs/backfill/state
+                        // exactly as Android already does. Refs #1992.
+                        handleDataRangeResponse(frame, cmdOff: 10, feedsSync: true)
                     }
                     // NOTE: we deliberately do NOT ingest live 5/MG REALTIME_DATA into the Collector
                     // here. For a 5/MG the standard 0x2A37 Heart-Rate profile is already the RELIABLE,

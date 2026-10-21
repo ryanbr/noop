@@ -65,6 +65,18 @@ object DataRange {
         return oldest
     }
 
+    /** The last-written page's clock (unix seconds) from a 5/MG GET_DATA_RANGE SUCCESS reply: the u32 at
+     *  body offset 57, i.e. `cmdOff + 60`. Field-exact, no scan. null for a short frame or the 0 / 0xFFFFFFFF
+     *  "no clock" sentinels. Confirmed on 589 real 5/MG replies (wearable5.0 FINDINGS §3). Swift twin:
+     *  `DataRange.pageClockNewestUnix`. */
+    fun pageClockNewestUnix(frame: ByteArray, cmdOff: Int): Long? {
+        val o = cmdOff + 60
+        if (cmdOff < 0 || o + 4 > frame.size) return null
+        val v = (frame[o].toLong() and 0xFFL) or ((frame[o + 1].toLong() and 0xFFL) shl 8) or
+            ((frame[o + 2].toLong() and 0xFFL) shl 16) or ((frame[o + 3].toLong() and 0xFFL) shl 24)
+        return if (v == 0L || v == 0xFFFFFFFFL) null else v
+    }
+
     /**
      * #689/#815: the ring-buffer page backlog ("pages behind") the strap reports in a GET_DATA_RANGE
      * response — DIAGNOSTIC ONLY (feeds a future sync-progress UI, never gates sync or backfill itself).
