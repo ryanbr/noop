@@ -954,6 +954,8 @@ fun SettingsScreen(
                 )
             }
         }
+        val achievements by vm.achievements.collectAsStateWithLifecycle()
+        AchievementsCard(achievements)
 
         SettingsCard(
             icon = Icons.Outlined.AccountCircle,

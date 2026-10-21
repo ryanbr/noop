@@ -237,6 +237,25 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 com.noop.analytics.StreakCalculator.Streaks(0, 0),
             )
 
+    /** Milestones over the same merged daily metrics (local equivalent of the WHOOP app's server-side
+     *  achievements). Pure math in [com.noop.analytics.Achievements] (Swift/Kotlin twin); display-only. */
+    val achievements: StateFlow<List<com.noop.analytics.Achievements.Achievement>> =
+        repository.daysMergedFlow(noopApp.activeDeviceId)
+            .map { days ->
+                val nowSec = System.currentTimeMillis() / 1000L
+                val tz = java.util.TimeZone.getDefault().getOffset(nowSec * 1000L) / 1000L
+                com.noop.analytics.Achievements.evaluate(
+                    days.map {
+                        com.noop.analytics.Achievements.Day(
+                            day = it.day, recovery = it.recovery, strain = it.strain,
+                            sleepMin = it.totalSleepMin, steps = it.steps?.toDouble(),
+                        )
+                    },
+                    today = com.noop.analytics.AnalyticsEngine.dayString(nowSec, tz),
+                )
+            }
+            .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000L), emptyList())
+
     /** #1410: record an `APP_VERSION_CHANGED` event on the first launch after an update. `"noop-app"` is a
      *  synthetic, non-strap deviceId sentinel (strap ids are BLE UUIDs, so it can't collide). */
     private suspend fun recordAppVersionChange() {

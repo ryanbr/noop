@@ -2876,4 +2876,17 @@
     <string name="raw_diag_ecg_probe_running">Na tym pasku może nadal trwać zapis. Werdykt trafia do strap log.</string>
     <string name="today_customize_live_session_availability">Pojawia się dzisiaj, gdy sesje na żywo są włączone w Ustawieniach lub trwa sesja.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Dziś po swojemu, tętno dostępne dla każdej aplikacji i język włoski</string>
+    <string name="l10n_achievements_new_badge">NOWY</string>
+    <string name="l10n_achievements_title">Kamienie milowe</string>
+    <string name="l10n_achievements_overline">Odblokowano %1$d z %2$d</string>
+    <string name="l10n_achievements_locked">Zablokowane</string>
+    <string name="l10n_achievements_footnote">Odblokowane z Twojej własnej historii na tym urządzeniu.</string>
+    <string name="l10n_achievement_first_score">Pierwszy oceniony dzień</string>
+    <string name="l10n_achievement_streak_7">Seria 7 dni</string>
+    <string name="l10n_achievement_streak_30">Seria 30 dni</string>
+    <string name="l10n_achievement_scored_100">100 ocenionych dni</string>
+    <string name="l10n_achievement_charge_90">Charge 90%+</string>
+    <string name="l10n_achievement_sleep_8h">8 godzin snu</string>
+    <string name="l10n_achievement_effort_18">Wysiłek 18+</string>
+    <string name="l10n_achievement_steps_10k">10 000 kroków</string>
 </resources>

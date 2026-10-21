@@ -269,6 +269,7 @@ struct SettingsView: View {
                 liveNotificationsCard.staggeredAppear(index: 3)
                 #endif
                 streakCard.staggeredAppear(index: 4)
+                AchievementsCard(days: model.repo.days).staggeredAppear(index: 4)
                 featuresCard.staggeredAppear(index: 5)
                 #if os(iOS)
                 syncCard.staggeredAppear(index: 6)
