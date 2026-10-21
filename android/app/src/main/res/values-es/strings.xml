@@ -2860,4 +2860,19 @@
     <string name="raw_diag_ecg_probe_running">Puede que siga activa una captura en esta correa. El veredicto se registra en el strap log.</string>
     <string name="today_customize_live_session_availability">Aparece hoy si Live Sessions está activado en Ajustes o hay una sesión activa.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Hoy a tu manera, frecuencia cardíaca para cualquier aplicación e italiano</string>
+    <string name="l10n_personal_records_title">Récords personales</string>
+    <string name="l10n_personal_records_overline">Todo el historial</string>
+    <string name="l10n_personal_records_empty">Los récords aparecen cuando NOOP ha puntuado unos días.</string>
+    <string name="l10n_personal_records_footnote">De tu propio historial en este dispositivo. Las lecturas inverosímiles nunca cuentan como récord.</string>
+    <string name="l10n_personal_records_new_badge">NUEVO</string>
+    <string name="l10n_personal_records_previous">antes %1$s</string>
+    <string name="l10n_personal_records_hrv">VFC</string>
+    <string name="l10n_personal_records_resting_hr">FC en reposo</string>
+    <string name="l10n_personal_records_charge">Carga</string>
+    <string name="l10n_personal_records_strain">Mayor esfuerzo</string>
+    <string name="l10n_personal_records_sleep">Sueño más largo</string>
+    <string name="l10n_personal_records_efficiency">Eficiencia del sueño</string>
+    <string name="l10n_personal_records_deep_sleep">Sueño profundo</string>
+    <string name="l10n_personal_records_rem_sleep">Sueño REM</string>
+    <string name="l10n_personal_records_steps">Pasos</string>
 </resources>

@@ -237,6 +237,34 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 com.noop.analytics.StreakCalculator.Streaks(0, 0),
             )
 
+    /** All-time personal bests over the same merged daily metrics as [streaks] (local equivalent of the
+     *  WHOOP app's server-side records). Pure math lives in [com.noop.analytics.PersonalRecords]
+     *  (Swift/Kotlin twin); display-only. */
+    val personalRecords: StateFlow<List<com.noop.analytics.PersonalRecords.Record>> =
+        repository.daysMergedFlow(noopApp.activeDeviceId)
+            .map { days ->
+                val nowSec = System.currentTimeMillis() / 1000L
+                val tz = java.util.TimeZone.getDefault().getOffset(nowSec * 1000L) / 1000L
+                com.noop.analytics.PersonalRecords.records(
+                    days.map {
+                        com.noop.analytics.PersonalRecords.Day(
+                            day = it.day,
+                            hrvMs = it.avgHrv,
+                            restingHr = it.restingHr?.toDouble(),
+                            recovery = it.recovery,
+                            strain = it.strain,
+                            sleepMin = it.totalSleepMin,
+                            efficiency = it.efficiency,
+                            deepMin = it.deepMin,
+                            remMin = it.remMin,
+                            steps = it.steps?.toDouble(),
+                        )
+                    },
+                    today = com.noop.analytics.AnalyticsEngine.dayString(nowSec, tz),
+                )
+            }
+            .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000L), emptyList())
+
     /** #1410: record an `APP_VERSION_CHANGED` event on the first launch after an update. `"noop-app"` is a
      *  synthetic, non-strap deviceId sentinel (strap ids are BLE UUIDs, so it can't collide). */
     private suspend fun recordAppVersionChange() {

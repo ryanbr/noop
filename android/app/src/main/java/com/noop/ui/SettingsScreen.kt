@@ -954,6 +954,9 @@ fun SettingsScreen(
                 )
             }
         }
+        // Personal bests: all-time records from the same merged daily metrics as the streak above.
+        val personalRecords by vm.personalRecords.collectAsStateWithLifecycle()
+        PersonalRecordsCard(personalRecords)
 
         SettingsCard(
             icon = Icons.Outlined.AccountCircle,

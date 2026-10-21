@@ -2876,4 +2876,19 @@
     <string name="raw_diag_ecg_probe_running">Na tym pasku może nadal trwać zapis. Werdykt trafia do strap log.</string>
     <string name="today_customize_live_session_availability">Pojawia się dzisiaj, gdy sesje na żywo są włączone w Ustawieniach lub trwa sesja.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Dziś po swojemu, tętno dostępne dla każdej aplikacji i język włoski</string>
+    <string name="l10n_personal_records_title">Rekordy osobiste</string>
+    <string name="l10n_personal_records_overline">Cała historia</string>
+    <string name="l10n_personal_records_empty">Rekordy pojawią się, gdy NOOP oceni kilka dni.</string>
+    <string name="l10n_personal_records_footnote">Z Twojej własnej historii na tym urządzeniu. Nieprawdopodobne odczyty nigdy nie są rekordem.</string>
+    <string name="l10n_personal_records_new_badge">NOWY</string>
+    <string name="l10n_personal_records_previous">wcześniej %1$s</string>
+    <string name="l10n_personal_records_hrv">HRV</string>
+    <string name="l10n_personal_records_resting_hr">Tętno spoczynkowe</string>
+    <string name="l10n_personal_records_charge">Energia</string>
+    <string name="l10n_personal_records_strain">Największy wysiłek</string>
+    <string name="l10n_personal_records_sleep">Najdłuższy sen</string>
+    <string name="l10n_personal_records_efficiency">Wydajność snu</string>
+    <string name="l10n_personal_records_deep_sleep">Sen głęboki</string>
+    <string name="l10n_personal_records_rem_sleep">Sen REM</string>
+    <string name="l10n_personal_records_steps">Kroki</string>
 </resources>

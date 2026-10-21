@@ -2889,4 +2889,19 @@
     <string name="raw_diag_ecg_probe_running">A capture may still be running on this strap. The verdict goes to the strap log.</string>
     <string name="today_customize_live_session_availability">Appears today when Live Sessions is enabled in Settings or a session is active.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Today your way, heart rate any app can read, and Italian</string>
+    <string name="l10n_personal_records_title">Personal bests</string>
+    <string name="l10n_personal_records_overline">All time</string>
+    <string name="l10n_personal_records_empty">Records appear once NOOP has scored a few days.</string>
+    <string name="l10n_personal_records_footnote">From your own history on this device. Implausible readings never count as a record.</string>
+    <string name="l10n_personal_records_new_badge">NEW</string>
+    <string name="l10n_personal_records_previous">was %1$s</string>
+    <string name="l10n_personal_records_hrv">HRV</string>
+    <string name="l10n_personal_records_resting_hr">Resting HR</string>
+    <string name="l10n_personal_records_charge">Charge</string>
+    <string name="l10n_personal_records_strain">Highest Effort</string>
+    <string name="l10n_personal_records_sleep">Longest sleep</string>
+    <string name="l10n_personal_records_efficiency">Sleep efficiency</string>
+    <string name="l10n_personal_records_deep_sleep">Deep sleep</string>
+    <string name="l10n_personal_records_rem_sleep">REM sleep</string>
+    <string name="l10n_personal_records_steps">Steps</string>
 </resources>

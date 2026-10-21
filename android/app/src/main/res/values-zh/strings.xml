@@ -2830,4 +2830,19 @@
     <string name="raw_diag_ecg_probe_running">此腕带上可能仍在采集。结论会写入 strap log。</string>
     <string name="today_customize_live_session_availability">在设置中启用Live Sessions 实时记录或有正在进行的训练时，今天会显示此部分。</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">自定义「今天」页面、任何应用都能读取的心率，以及意大利语</string>
+    <string name="l10n_personal_records_title">个人最佳</string>
+    <string name="l10n_personal_records_overline">全部时间</string>
+    <string name="l10n_personal_records_empty">NOOP 为几天评分后会显示记录。</string>
+    <string name="l10n_personal_records_footnote">来自您在本设备上的历史数据。不合理的读数绝不计为记录。</string>
+    <string name="l10n_personal_records_new_badge">新</string>
+    <string name="l10n_personal_records_previous">之前 %1$s</string>
+    <string name="l10n_personal_records_hrv">HRV</string>
+    <string name="l10n_personal_records_resting_hr">静息心率</string>
+    <string name="l10n_personal_records_charge">充能</string>
+    <string name="l10n_personal_records_strain">最高负荷</string>
+    <string name="l10n_personal_records_sleep">最长睡眠</string>
+    <string name="l10n_personal_records_efficiency">睡眠效率</string>
+    <string name="l10n_personal_records_deep_sleep">深睡</string>
+    <string name="l10n_personal_records_rem_sleep">REM 睡眠</string>
+    <string name="l10n_personal_records_steps">步数</string>
 </resources>

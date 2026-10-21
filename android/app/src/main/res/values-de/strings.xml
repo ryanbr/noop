@@ -2873,4 +2873,19 @@
     <string name="raw_diag_ecg_probe_running">Auf diesem Strap läuft möglicherweise noch eine Aufzeichnung. Das Ergebnis steht im Strap-Log.</string>
     <string name="today_customize_live_session_availability">Erscheint heute, wenn Live Sessions in den Einstellungen aktiviert sind oder eine Session aktiv ist.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Today nach Ihren Wünschen, Herzfrequenz für jede App und Italienisch</string>
+    <string name="l10n_personal_records_title">Persönliche Bestwerte</string>
+    <string name="l10n_personal_records_overline">Gesamter Zeitraum</string>
+    <string name="l10n_personal_records_empty">Bestwerte erscheinen, sobald NOOP ein paar Tage bewertet hat.</string>
+    <string name="l10n_personal_records_footnote">Aus deinem eigenen Verlauf auf diesem Gerät. Unplausible Messwerte zählen nie als Bestwert.</string>
+    <string name="l10n_personal_records_new_badge">NEU</string>
+    <string name="l10n_personal_records_previous">vorher %1$s</string>
+    <string name="l10n_personal_records_hrv">HRV</string>
+    <string name="l10n_personal_records_resting_hr">Ruhepuls</string>
+    <string name="l10n_personal_records_charge">Ladung</string>
+    <string name="l10n_personal_records_strain">Höchste Anstrengung</string>
+    <string name="l10n_personal_records_sleep">Längster Schlaf</string>
+    <string name="l10n_personal_records_efficiency">Schlafeffizienz</string>
+    <string name="l10n_personal_records_deep_sleep">Tiefschlaf</string>
+    <string name="l10n_personal_records_rem_sleep">REM-Schlaf</string>
+    <string name="l10n_personal_records_steps">Schritte</string>
 </resources>
