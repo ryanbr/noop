@@ -2755,4 +2755,16 @@
     <string name="raw_diag_ecg_probe_running">На этом ремешке запись может всё ещё идти. Результат попадёт в strap log.</string>
     <string name="today_customize_live_session_availability">Появляется сегодня, если сессии в реальном времени включены в Настройках или сеанс уже активен.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">«Сегодня» на ваш вкус, пульс для любого приложения и итальянский язык</string>
+    <string name="l10n_weekly_plan_title">План на неделю</string>
+    <string name="l10n_weekly_plan_overline">Эта неделя</string>
+    <string name="l10n_weekly_plan_goal_sleep">Сон %1$s+</string>
+    <string name="l10n_weekly_plan_goal_effort">Нагрузка %1$s+</string>
+    <string name="l10n_weekly_plan_goal_steps">%1$s+ шагов</string>
+    <string name="l10n_weekly_plan_status_met">Выполнено · %1$d из %2$d дней</string>
+    <string name="l10n_weekly_plan_status_on_track">По плану · %1$d из %2$d дней</string>
+    <string name="l10n_weekly_plan_status_behind">На этой неделе уже не достичь · %1$d из %2$d дней</string>
+    <string name="l10n_weekly_plan_status_off">Выкл.</string>
+    <string name="l10n_weekly_plan_fewer_days">Меньше дней</string>
+    <string name="l10n_weekly_plan_more_days">Больше дней</string>
+    <string name="l10n_weekly_plan_footnote">Ваши собственные цели, считаются с понедельника по воскресенье по данным этого устройства.</string>
 </resources>

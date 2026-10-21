@@ -954,6 +954,8 @@ fun SettingsScreen(
                 )
             }
         }
+        val weeklyPlanDays by vm.weeklyPlanDays.collectAsStateWithLifecycle()
+        WeeklyPlanCard(weeklyPlanDays)
 
         SettingsCard(
             icon = Icons.Outlined.AccountCircle,

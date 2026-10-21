@@ -2876,4 +2876,16 @@
     <string name="raw_diag_ecg_probe_running">Na tym pasku może nadal trwać zapis. Werdykt trafia do strap log.</string>
     <string name="today_customize_live_session_availability">Pojawia się dzisiaj, gdy sesje na żywo są włączone w Ustawieniach lub trwa sesja.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Dziś po swojemu, tętno dostępne dla każdej aplikacji i język włoski</string>
+    <string name="l10n_weekly_plan_title">Plan tygodniowy</string>
+    <string name="l10n_weekly_plan_overline">Ten tydzień</string>
+    <string name="l10n_weekly_plan_goal_sleep">Sen %1$s+</string>
+    <string name="l10n_weekly_plan_goal_effort">Wysiłek %1$s+</string>
+    <string name="l10n_weekly_plan_goal_steps">%1$s+ kroków</string>
+    <string name="l10n_weekly_plan_status_met">Gotowe · %1$d z %2$d dni</string>
+    <string name="l10n_weekly_plan_status_on_track">Zgodnie z planem · %1$d z %2$d dni</string>
+    <string name="l10n_weekly_plan_status_behind">Poza zasięgiem w tym tygodniu · %1$d z %2$d dni</string>
+    <string name="l10n_weekly_plan_status_off">Wyłączone</string>
+    <string name="l10n_weekly_plan_fewer_days">Mniej dni</string>
+    <string name="l10n_weekly_plan_more_days">Więcej dni</string>
+    <string name="l10n_weekly_plan_footnote">Twoje własne cele, liczone od poniedziałku do niedzieli z danych tego urządzenia.</string>
 </resources>

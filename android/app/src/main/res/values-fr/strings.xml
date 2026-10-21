@@ -2859,4 +2859,16 @@
     <string name="raw_diag_ecg_probe_running">Une capture est peut-être encore active sur ce bracelet. Le verdict est écrit dans le strap log.</string>
     <string name="today_customize_live_session_availability">Apparaît aujourd’hui si les sessions en direct sont activées dans Paramètres ou si une session est active.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Aujourd\'hui à votre façon, fréquence cardiaque lisible par toute application, et l\'italien</string>
+    <string name="l10n_weekly_plan_title">Plan hebdomadaire</string>
+    <string name="l10n_weekly_plan_overline">Cette semaine</string>
+    <string name="l10n_weekly_plan_goal_sleep">Sommeil %1$s+</string>
+    <string name="l10n_weekly_plan_goal_effort">Effort %1$s+</string>
+    <string name="l10n_weekly_plan_goal_steps">%1$s+ pas</string>
+    <string name="l10n_weekly_plan_status_met">Atteint · %1$d sur %2$d jours</string>
+    <string name="l10n_weekly_plan_status_on_track">En bonne voie · %1$d sur %2$d jours</string>
+    <string name="l10n_weekly_plan_status_behind">Hors de portée cette semaine · %1$d sur %2$d jours</string>
+    <string name="l10n_weekly_plan_status_off">Désactivé</string>
+    <string name="l10n_weekly_plan_fewer_days">Moins de jours</string>
+    <string name="l10n_weekly_plan_more_days">Plus de jours</string>
+    <string name="l10n_weekly_plan_footnote">Vos propres objectifs, comptés du lundi au dimanche à partir des données de cet appareil.</string>
 </resources>

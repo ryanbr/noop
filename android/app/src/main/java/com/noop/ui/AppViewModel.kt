@@ -237,6 +237,18 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
                 com.noop.analytics.StreakCalculator.Streaks(0, 0),
             )
 
+    /** The weekly-plan inputs; the goals live in [WeeklyPlanPrefs] and are applied by the card. */
+    val weeklyPlanDays: StateFlow<List<com.noop.analytics.WeeklyPlan.Day>> =
+        repository.daysMergedFlow(noopApp.activeDeviceId)
+            .map { days ->
+                days.map {
+                    com.noop.analytics.WeeklyPlan.Day(
+                        day = it.day, sleepMin = it.totalSleepMin, strain = it.strain, steps = it.steps?.toDouble(),
+                    )
+                }
+            }
+            .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5_000L), emptyList())
+
     /** #1410: record an `APP_VERSION_CHANGED` event on the first launch after an update. `"noop-app"` is a
      *  synthetic, non-strap deviceId sentinel (strap ids are BLE UUIDs, so it can't collide). */
     private suspend fun recordAppVersionChange() {

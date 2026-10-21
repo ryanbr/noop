@@ -2889,4 +2889,16 @@
     <string name="raw_diag_ecg_probe_running">A capture may still be running on this strap. The verdict goes to the strap log.</string>
     <string name="today_customize_live_session_availability">Appears today when Live Sessions is enabled in Settings or a session is active.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Today your way, heart rate any app can read, and Italian</string>
+    <string name="l10n_weekly_plan_title">Weekly plan</string>
+    <string name="l10n_weekly_plan_overline">This week</string>
+    <string name="l10n_weekly_plan_goal_sleep">Sleep %1$s+</string>
+    <string name="l10n_weekly_plan_goal_effort">Effort %1$s+</string>
+    <string name="l10n_weekly_plan_goal_steps">%1$s+ steps</string>
+    <string name="l10n_weekly_plan_status_met">Done · %1$d of %2$d days</string>
+    <string name="l10n_weekly_plan_status_on_track">On track · %1$d of %2$d days</string>
+    <string name="l10n_weekly_plan_status_behind">Out of reach this week · %1$d of %2$d days</string>
+    <string name="l10n_weekly_plan_status_off">Off</string>
+    <string name="l10n_weekly_plan_fewer_days">Fewer days</string>
+    <string name="l10n_weekly_plan_more_days">More days</string>
+    <string name="l10n_weekly_plan_footnote">Your own goals, counted Monday to Sunday from this device\'s data.</string>
 </resources>
