@@ -2873,4 +2873,21 @@
     <string name="raw_diag_ecg_probe_running">Auf diesem Strap läuft möglicherweise noch eine Aufzeichnung. Das Ergebnis steht im Strap-Log.</string>
     <string name="today_customize_live_session_availability">Erscheint heute, wenn Live Sessions in den Einstellungen aktiviert sind oder eine Session aktiv ist.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Today nach Ihren Wünschen, Herzfrequenz für jede App und Italienisch</string>
+    <string name="l10n_sleep_planner_title">Schlafplaner</string>
+    <string name="l10n_sleep_planner_overline_tonight">Heute Nacht</string>
+    <string name="l10n_sleep_planner_needs_three_nights">Braucht drei aufeinanderfolgende Nächte mit Schlaf, bevor er heute Nacht planen kann.</string>
+    <string name="l10n_sleep_planner_base_need">Basis</string>
+    <string name="l10n_sleep_planner_debt">Schuld</string>
+    <string name="l10n_sleep_planner_naps">Nickerchen</string>
+    <string name="l10n_sleep_planner_tonight_need">Heute Nacht</string>
+    <string name="l10n_sleep_planner_wake_from_alarm">Wecken %1$s · von deinem Wecker</string>
+    <string name="l10n_sleep_planner_wake_from_last_night">Wecken %1$s · von letzter Nacht</string>
+    <string name="l10n_sleep_planner_wake_default">Wecken %1$s · noch kein Wecker oder Aufwachen</string>
+    <string name="l10n_sleep_planner_goal_minimum">Minimum</string>
+    <string name="l10n_sleep_planner_goal_solid">Solide</string>
+    <string name="l10n_sleep_planner_goal_full">Voll</string>
+    <string name="l10n_sleep_planner_tier_detail">%1$d%% des Bedarfs · %2$s Schlaf · %3$s im Bett</string>
+    <string name="l10n_sleep_planner_bed_by">Ins Bett bis</string>
+    <string name="l10n_sleep_planner_footnote_efficiency">Eine Planungshilfe, kein Score. Die Zeit im Bett setzt deine typische Schlafeffizienz von %1$d%% voraus.</string>
+    <string name="l10n_sleep_planner_footnote_no_efficiency">Eine Planungshilfe, kein Score. Noch keine Effizienzdaten, daher entspricht die Zeit im Bett dem Schlafziel.</string>
 </resources>

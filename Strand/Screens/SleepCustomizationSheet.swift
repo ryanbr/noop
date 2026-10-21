@@ -97,6 +97,7 @@ extension SleepSection {
         case .bodyClock:       return "clock.badge.checkmark"
         case .nightDetail:     return "square.grid.2x2"
         case .sleepDebt:       return "arrow.down.right.circle"
+        case .sleepPlanner:    return "bed.double.circle"
         case .stagesVsTypical: return "chart.bar"
         case .asleepDuration:  return "clock"
         }
@@ -111,6 +112,7 @@ extension SleepSection {
         case .bodyClock:       return StrandPalette.restColor
         case .nightDetail:     return StrandPalette.restBright
         case .sleepDebt:       return StrandPalette.effortColor
+        case .sleepPlanner:    return StrandPalette.restColor
         case .stagesVsTypical: return StrandPalette.restColor
         case .asleepDuration:  return StrandPalette.restBright
         }

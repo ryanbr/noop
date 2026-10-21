@@ -594,6 +594,29 @@ fun SleepScreen(
         model ?: fallbackSleepModel(days, imported, napSleepMinByDay, sessions = sleeps)
     }
 
+    // Sleep planner (display-only): tonight's need = the SAME need + debt the Hours-vs-Needed card prints
+    // (tilesModel trends), minus today's naps; the wake is the armed alarm's next-morning target, else last
+    // night's wake. Pure math in analytics/SleepPlanner (Swift twin: StrandAnalytics/SleepPlanner.swift).
+    val sleepPlanWake = remember(sleeps) {
+        val store = com.noop.alarm.SmartAlarmStore.from(context)
+        val lastWake = sleeps.maxByOrNull { it.endTs }?.endTs?.let { end ->
+            Calendar.getInstance().apply { timeInMillis = end * 1000L }
+                .let { it.get(Calendar.HOUR_OF_DAY) * 60 + it.get(Calendar.MINUTE) }
+        }
+        plannerWake(store.enabled, store::targetFor, nextMorningDayOfWeek(Calendar.getInstance()), lastWake)
+    }
+    val sleepPlan = remember(tilesModel, days, napSleepMinByDay, sleepPlanWake) {
+        tilesModel?.let { m ->
+            com.noop.analytics.SleepPlanner.plan(
+                nights = days.map { com.noop.analytics.SleepPlannerNight(it.day, it.totalSleepMin, it.efficiency) },
+                baseNeedMin = (m.trendNeedHours.lastOrNull() ?: 8.0) * 60.0,
+                debtMin = (m.trendDebtHours.lastOrNull() ?: 0.0) * 60.0,
+                napMinToday = days.lastOrNull()?.day?.let { napSleepMinByDay[it] } ?: 0.0,
+                wakeMinuteOfDay = sleepPlanWake.first,
+            )
+        }
+    }
+
     // Jump straight to a night by its (local) wake-day — the center date block opens a picker.
     // navDays is newest-day-first, so the day's index IS its offset (0 = last night). (#160, #59)
     val onPickNightDate: (LocalDate) -> Unit = { targetDate ->
@@ -985,6 +1008,14 @@ fun SleepScreen(
                                 Spacer(Modifier.height(Metrics.selectorTopUp))
                                 HoursVsNeededCard(m)
                             }
+                        }
+                    }
+                }
+                SleepSection.SLEEP_PLANNER -> if (tilesModel != null) item(key = k) {
+                    SleepReorderableSection(k, sleepListState, sleepSectionDrag, persistSleepOrder) {
+                        Column {
+                            Spacer(Modifier.height(Metrics.selectorTopUp))
+                            SleepPlannerCard(sleepPlan, sleepPlanWake, is24h)
                         }
                     }
                 }

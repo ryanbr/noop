@@ -14,10 +14,10 @@ final class SleepLayoutPrefsTests: XCTestCase {
 
     func testEncodeDecodeRoundTripsAReorderedList() {
         let reordered: [SleepSection] = [
-            .nightDetail, .sleepMarks, .asleepDuration, .stages, .sleepDebt, .stagesVsTypical,
+            .nightDetail, .sleepMarks, .asleepDuration, .stages, .sleepDebt, .sleepPlanner, .stagesVsTypical,
         ]
         let encoded = SleepLayoutPrefs.encode(reordered)
-        XCTAssertEqual(encoded, "nightDetail,sleepMarks,asleepDuration,stages,sleepDebt,stagesVsTypical")
+        XCTAssertEqual(encoded, "nightDetail,sleepMarks,asleepDuration,stages,sleepDebt,sleepPlanner,stagesVsTypical")
         // `bodyClock` is absent from the saved order, so decode inserts it at its default position — the
         // migration path every newly-added section takes for an existing customised layout.
         XCTAssertEqual(SleepLayoutPrefs.decodeOrder(encoded), [.bodyClock] + reordered)
@@ -30,7 +30,7 @@ final class SleepLayoutPrefsTests: XCTestCase {
         let decoded = SleepLayoutPrefs.decodeOrder("asleepDuration,sleepMarks")
         XCTAssertEqual(decoded.count, SleepSection.allCases.count)
         XCTAssertEqual(decoded, [
-            .stages, .bodyClock, .nightDetail, .sleepDebt, .stagesVsTypical, .asleepDuration, .sleepMarks,
+            .stages, .bodyClock, .nightDetail, .sleepDebt, .sleepPlanner, .stagesVsTypical, .asleepDuration, .sleepMarks,
         ])
     }
 
@@ -55,10 +55,10 @@ final class SleepLayoutPrefsTests: XCTestCase {
     }
 
     func testVisibleOrderFiltersHiddenWithoutChangingSavedOrder() {
-        let order = "nightDetail,sleepMarks,asleepDuration,stages,sleepDebt,stagesVsTypical"
+        let order = "nightDetail,sleepMarks,asleepDuration,stages,sleepDebt,sleepPlanner,stagesVsTypical"
         XCTAssertEqual(
             SleepLayoutPrefs.visibleOrder(orderRaw: order, hiddenRaw: "asleepDuration,sleepDebt"),
-            [.bodyClock, .nightDetail, .sleepMarks, .stages, .stagesVsTypical]
+            [.bodyClock, .nightDetail, .sleepMarks, .stages, .sleepPlanner, .stagesVsTypical]
         )
         XCTAssertEqual(SleepLayoutPrefs.decodeOrder(order).count, SleepSection.allCases.count)
     }
@@ -81,7 +81,7 @@ final class SleepLayoutPrefsTests: XCTestCase {
         XCTAssertEqual(raws.count, Set(raws).count)
         // Pin the exact wire strings — they cross the .noopbak boundary and must match Android byte-for-byte.
         XCTAssertEqual(raws, [
-            "sleepMarks", "stages", "bodyClock", "nightDetail", "sleepDebt", "stagesVsTypical",
+            "sleepMarks", "stages", "bodyClock", "nightDetail", "sleepDebt", "sleepPlanner", "stagesVsTypical",
             "asleepDuration",
         ])
     }

@@ -481,6 +481,9 @@ struct SleepView: View {
         case .bodyClock:       bodyClockDial(model)
         case .nightDetail:     NightDetailCard(model: model)
         case .sleepDebt:       SleepDebtLedgerCard(model: model)
+        case .sleepPlanner:    SleepPlannerCard(model: model,
+                                            napMinToday: Self.napSleepMinutes(navDays.first ?? [],
+                                                                              habitualMidsleepSec: habitualMidsleepSec))
         case .stagesVsTypical: StagesVsTypicalCard(model: model)
         case .asleepDuration:  durationTrend(model)
         }

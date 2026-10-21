@@ -2852,4 +2852,21 @@
     <string name="raw_diag_ecg_probe_running">Pode ainda estar a decorrer uma captura nesta pulseira. O veredicto vai para o strap log.</string>
     <string name="today_customize_live_session_availability">Aparece hoje quando as sessões em direto estão ativadas nas Definições ou existe uma sessão ativa.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Hoje à sua maneira, frequência cardíaca para qualquer aplicação e italiano</string>
+    <string name="l10n_sleep_planner_title">Planeador de sono</string>
+    <string name="l10n_sleep_planner_overline_tonight">Esta noite</string>
+    <string name="l10n_sleep_planner_needs_three_nights">Precisa de três noites seguidas com sono antes de poder planear esta noite.</string>
+    <string name="l10n_sleep_planner_base_need">Base</string>
+    <string name="l10n_sleep_planner_debt">Dívida</string>
+    <string name="l10n_sleep_planner_naps">Sestas</string>
+    <string name="l10n_sleep_planner_tonight_need">Esta noite</string>
+    <string name="l10n_sleep_planner_wake_from_alarm">Acordar %1$s · do teu alarme</string>
+    <string name="l10n_sleep_planner_wake_from_last_night">Acordar %1$s · da noite passada</string>
+    <string name="l10n_sleep_planner_wake_default">Acordar %1$s · ainda sem alarme nem despertar recente</string>
+    <string name="l10n_sleep_planner_goal_minimum">Mínimo</string>
+    <string name="l10n_sleep_planner_goal_solid">Sólido</string>
+    <string name="l10n_sleep_planner_goal_full">Completo</string>
+    <string name="l10n_sleep_planner_tier_detail">%1$d%% da necessidade · %2$s a dormir · %3$s na cama</string>
+    <string name="l10n_sleep_planner_bed_by">Deitar às</string>
+    <string name="l10n_sleep_planner_footnote_efficiency">Um guia de planeamento, não uma pontuação. O tempo na cama assume a tua eficiência de sono típica de %1$d%%.</string>
+    <string name="l10n_sleep_planner_footnote_no_efficiency">Um guia de planeamento, não uma pontuação. Ainda sem histórico de eficiência, por isso o tempo na cama é igual ao objetivo de sono.</string>
 </resources>

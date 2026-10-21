@@ -24,10 +24,10 @@ class SleepLayoutPrefsTest {
         val reordered = listOf(
             SleepSection.BODY_CLOCK, SleepSection.NIGHT_DETAIL, SleepSection.SLEEP_MARKS, SleepSection.ASLEEP_DURATION,
             SleepSection.STAGES, SleepSection.SLEEP_DEBT, SleepSection.STAGES_VS_TYPICAL,
-            SleepSection.HOURS_VS_NEEDED, SleepSection.CONSISTENCY,
+            SleepSection.HOURS_VS_NEEDED, SleepSection.SLEEP_PLANNER, SleepSection.CONSISTENCY,
         )
         val encoded = SleepLayoutPrefs.encode(reordered)
-        assertEquals("bodyClock,nightDetail,sleepMarks,asleepDuration,stages,sleepDebt,stagesVsTypical,hoursVsNeeded,consistency", encoded)
+        assertEquals("bodyClock,nightDetail,sleepMarks,asleepDuration,stages,sleepDebt,stagesVsTypical,hoursVsNeeded,sleepPlanner,consistency", encoded)
         assertEquals(reordered, SleepLayoutPrefs.decodeOrder(encoded))
     }
 
@@ -42,7 +42,7 @@ class SleepLayoutPrefsTest {
             listOf(
                 SleepSection.STAGES, SleepSection.BODY_CLOCK, SleepSection.NIGHT_DETAIL, SleepSection.SLEEP_DEBT,
                 SleepSection.STAGES_VS_TYPICAL, SleepSection.ASLEEP_DURATION, SleepSection.SLEEP_MARKS,
-                SleepSection.HOURS_VS_NEEDED, SleepSection.CONSISTENCY,
+                SleepSection.HOURS_VS_NEEDED, SleepSection.SLEEP_PLANNER, SleepSection.CONSISTENCY,
             ),
             decoded,
         )
@@ -77,7 +77,8 @@ class SleepLayoutPrefsTest {
         assertEquals(
             listOf(
                 SleepSection.BODY_CLOCK, SleepSection.NIGHT_DETAIL, SleepSection.SLEEP_MARKS, SleepSection.STAGES,
-                SleepSection.STAGES_VS_TYPICAL, SleepSection.HOURS_VS_NEEDED, SleepSection.CONSISTENCY,
+                SleepSection.STAGES_VS_TYPICAL, SleepSection.HOURS_VS_NEEDED, SleepSection.SLEEP_PLANNER,
+                SleepSection.CONSISTENCY,
             ),
             SleepLayoutPrefs.visibleOrder(order, "asleepDuration,sleepDebt"),
         )
@@ -105,7 +106,7 @@ class SleepLayoutPrefsTest {
         assertEquals("raw keys must be unique (they're the persisted identity)", raws.size, raws.toSet().size)
         // Pin the exact wire strings — they cross the .noopbak boundary and must match macOS byte-for-byte.
         assertEquals(
-            listOf("sleepMarks", "stages", "bodyClock", "nightDetail", "sleepDebt", "stagesVsTypical", "asleepDuration", "hoursVsNeeded", "consistency"),
+            listOf("sleepMarks", "stages", "bodyClock", "nightDetail", "sleepDebt", "stagesVsTypical", "asleepDuration", "hoursVsNeeded", "consistency", "sleepPlanner"),
             raws,
         )
     }

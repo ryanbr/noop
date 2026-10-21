@@ -40,7 +40,13 @@ enum class SleepSection(val raw: String, val title: String) {
      *  diverge here: `sleep.sectionOrder` is not in the .noopbak whitelist, so a cross-OS restore never
      *  reads them. (Consistency's underlying score also differs across platforms — a separate parity item.) */
     HOURS_VS_NEEDED("hoursVsNeeded", "Hours vs Needed"),
-    CONSISTENCY("consistency", "Consistency");
+    CONSISTENCY("consistency", "Consistency"),
+
+    /** Android-only like the two above: tonight's sleep target at three goals with the bedtime each implies
+     *  (pure math in analytics/SleepPlanner, Swift twin in StrandAnalytics). The Apple-platform card is a
+     *  follow-up, so this rawValue does not exist in the macOS `SleepSection` yet; `sleep.sectionOrder` is not
+     *  in the .noopbak whitelist, so a cross-OS restore never reads it. */
+    SLEEP_PLANNER("sleepPlanner", "Sleep planner");
 
     companion object {
         fun fromRaw(raw: String?): SleepSection? = entries.firstOrNull { it.raw == raw }
@@ -51,7 +57,7 @@ enum class SleepSection(val raw: String, val title: String) {
          *  card is a follow-up that requires hoisting the hero's edit/delete callbacks.) */
         val defaultOrder: List<SleepSection> = listOf(
             SLEEP_MARKS, STAGES, BODY_CLOCK, NIGHT_DETAIL, SLEEP_DEBT, STAGES_VS_TYPICAL, ASLEEP_DURATION,
-            HOURS_VS_NEEDED, CONSISTENCY,
+            HOURS_VS_NEEDED, SLEEP_PLANNER, CONSISTENCY,
         )
     }
 }
@@ -73,6 +79,7 @@ fun SleepSection.localizedTitle(): String = when (this) {
     SleepSection.ASLEEP_DURATION -> stringResource(R.string.l10n_sleep_screen_asleep_duration_3638413f)
     SleepSection.HOURS_VS_NEEDED -> stringResource(R.string.l10n_sleep_screen_hours_vs_needed_500a0aca)
     SleepSection.CONSISTENCY -> stringResource(R.string.l10n_sleep_screen_consistency_0ea7b95e)
+    SleepSection.SLEEP_PLANNER -> stringResource(R.string.l10n_sleep_planner_title)
 }
 
 /**

@@ -2889,4 +2889,21 @@
     <string name="raw_diag_ecg_probe_running">A capture may still be running on this strap. The verdict goes to the strap log.</string>
     <string name="today_customize_live_session_availability">Appears today when Live Sessions is enabled in Settings or a session is active.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Today your way, heart rate any app can read, and Italian</string>
+    <string name="l10n_sleep_planner_title">Sleep planner</string>
+    <string name="l10n_sleep_planner_overline_tonight">Tonight</string>
+    <string name="l10n_sleep_planner_needs_three_nights">Needs three nights in a row with sleep before it can plan tonight.</string>
+    <string name="l10n_sleep_planner_base_need">Base</string>
+    <string name="l10n_sleep_planner_debt">Debt</string>
+    <string name="l10n_sleep_planner_naps">Naps</string>
+    <string name="l10n_sleep_planner_tonight_need">Tonight</string>
+    <string name="l10n_sleep_planner_wake_from_alarm">Wake %1$s · from your alarm</string>
+    <string name="l10n_sleep_planner_wake_from_last_night">Wake %1$s · from last night</string>
+    <string name="l10n_sleep_planner_wake_default">Wake %1$s · no alarm or recent wake yet</string>
+    <string name="l10n_sleep_planner_goal_minimum">Minimum</string>
+    <string name="l10n_sleep_planner_goal_solid">Solid</string>
+    <string name="l10n_sleep_planner_goal_full">Full</string>
+    <string name="l10n_sleep_planner_tier_detail">%1$d%% of need · %2$s asleep · %3$s in bed</string>
+    <string name="l10n_sleep_planner_bed_by">Bed by</string>
+    <string name="l10n_sleep_planner_footnote_efficiency">A planning guide, not a score. Time in bed assumes your typical %1$d%% sleep efficiency.</string>
+    <string name="l10n_sleep_planner_footnote_no_efficiency">A planning guide, not a score. No efficiency history yet, so time in bed equals the sleep target.</string>
 </resources>

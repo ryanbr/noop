@@ -32,6 +32,8 @@ enum SleepSection: String, CaseIterable, Identifiable {
     case bodyClock
     case nightDetail
     case sleepDebt
+    /// Tonight's sleep target at three goals; rawValue matches the Android `SLEEP_PLANNER`.
+    case sleepPlanner
     case stagesVsTypical
     case asleepDuration
 
@@ -45,6 +47,7 @@ enum SleepSection: String, CaseIterable, Identifiable {
         case .bodyClock:       return String(localized: "Body clock")
         case .nightDetail:     return String(localized: "Night detail")
         case .sleepDebt:       return String(localized: "Sleep-debt ledger")
+        case .sleepPlanner:    return String(localized: "Sleep planner")
         case .stagesVsTypical: return String(localized: "Stages vs typical")
         case .asleepDuration:  return String(localized: "Asleep duration")
         }
@@ -55,7 +58,7 @@ enum SleepSection: String, CaseIterable, Identifiable {
     /// with Stages for now — it's drawn inside the stages hero; making it an independently arrangeable
     /// card is a follow-up that requires hoisting the hero's edit/delete callbacks.)
     static let defaultOrder: [SleepSection] = [
-        .sleepMarks, .stages, .bodyClock, .nightDetail, .sleepDebt, .stagesVsTypical, .asleepDuration,
+        .sleepMarks, .stages, .bodyClock, .nightDetail, .sleepDebt, .sleepPlanner, .stagesVsTypical, .asleepDuration,
     ]
 }
 

@@ -2830,4 +2830,21 @@
     <string name="raw_diag_ecg_probe_running">此腕带上可能仍在采集。结论会写入 strap log。</string>
     <string name="today_customize_live_session_availability">在设置中启用Live Sessions 实时记录或有正在进行的训练时，今天会显示此部分。</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">自定义「今天」页面、任何应用都能读取的心率，以及意大利语</string>
+    <string name="l10n_sleep_planner_title">睡眠规划</string>
+    <string name="l10n_sleep_planner_overline_tonight">今晚</string>
+    <string name="l10n_sleep_planner_needs_three_nights">需要连续三晚的睡眠数据才能规划今晚。</string>
+    <string name="l10n_sleep_planner_base_need">基础</string>
+    <string name="l10n_sleep_planner_debt">睡眠债</string>
+    <string name="l10n_sleep_planner_naps">小睡</string>
+    <string name="l10n_sleep_planner_tonight_need">今晚</string>
+    <string name="l10n_sleep_planner_wake_from_alarm">起床 %1$s · 来自你的闹钟</string>
+    <string name="l10n_sleep_planner_wake_from_last_night">起床 %1$s · 来自昨晚</string>
+    <string name="l10n_sleep_planner_wake_default">起床 %1$s · 尚无闹钟或最近起床时间</string>
+    <string name="l10n_sleep_planner_goal_minimum">最低</string>
+    <string name="l10n_sleep_planner_goal_solid">良好</string>
+    <string name="l10n_sleep_planner_goal_full">充足</string>
+    <string name="l10n_sleep_planner_tier_detail">需求的 %1$d%% · 睡眠 %2$s · 在床 %3$s</string>
+    <string name="l10n_sleep_planner_bed_by">上床时间</string>
+    <string name="l10n_sleep_planner_footnote_efficiency">这是规划参考，不是评分。在床时间按你通常 %1$d%% 的睡眠效率计算。</string>
+    <string name="l10n_sleep_planner_footnote_no_efficiency">这是规划参考，不是评分。尚无睡眠效率记录，因此在床时间等于睡眠目标。</string>
 </resources>

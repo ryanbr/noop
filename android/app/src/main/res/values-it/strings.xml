@@ -2828,4 +2828,21 @@
     <string name="raw_diag_ecg_probe_running">Una acquisizione potrebbe essere ancora attiva su questo strap. Il verdetto va nello strap log.</string>
     <string name="today_customize_live_session_availability">Compare oggi se le sessioni in diretta sono attivate nelle Impostazioni o una sessione è attiva.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Oggi a modo tuo, frequenza cardiaca leggibile da ogni app e l\'italiano</string>
+    <string name="l10n_sleep_planner_title">Pianificatore del sonno</string>
+    <string name="l10n_sleep_planner_overline_tonight">Stanotte</string>
+    <string name="l10n_sleep_planner_needs_three_nights">Servono tre notti consecutive con sonno prima di poter pianificare stanotte.</string>
+    <string name="l10n_sleep_planner_base_need">Base</string>
+    <string name="l10n_sleep_planner_debt">Debito</string>
+    <string name="l10n_sleep_planner_naps">Pisolini</string>
+    <string name="l10n_sleep_planner_tonight_need">Stanotte</string>
+    <string name="l10n_sleep_planner_wake_from_alarm">Sveglia %1$s · dalla tua sveglia</string>
+    <string name="l10n_sleep_planner_wake_from_last_night">Sveglia %1$s · dalla scorsa notte</string>
+    <string name="l10n_sleep_planner_wake_default">Sveglia %1$s · ancora nessuna sveglia o risveglio recente</string>
+    <string name="l10n_sleep_planner_goal_minimum">Minimo</string>
+    <string name="l10n_sleep_planner_goal_solid">Solido</string>
+    <string name="l10n_sleep_planner_goal_full">Pieno</string>
+    <string name="l10n_sleep_planner_tier_detail">%1$d%% del fabbisogno · %2$s di sonno · %3$s a letto</string>
+    <string name="l10n_sleep_planner_bed_by">A letto entro</string>
+    <string name="l10n_sleep_planner_footnote_efficiency">Una guida di pianificazione, non un punteggio. Il tempo a letto presuppone la tua efficienza del sonno tipica del %1$d%%.</string>
+    <string name="l10n_sleep_planner_footnote_no_efficiency">Una guida di pianificazione, non un punteggio. Nessuno storico di efficienza ancora, quindi il tempo a letto è pari all’obiettivo di sonno.</string>
 </resources>

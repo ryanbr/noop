@@ -2876,4 +2876,21 @@
     <string name="raw_diag_ecg_probe_running">Na tym pasku może nadal trwać zapis. Werdykt trafia do strap log.</string>
     <string name="today_customize_live_session_availability">Pojawia się dzisiaj, gdy sesje na żywo są włączone w Ustawieniach lub trwa sesja.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Dziś po swojemu, tętno dostępne dla każdej aplikacji i język włoski</string>
+    <string name="l10n_sleep_planner_title">Planer snu</string>
+    <string name="l10n_sleep_planner_overline_tonight">Dziś w nocy</string>
+    <string name="l10n_sleep_planner_needs_three_nights">Potrzebuje trzech kolejnych nocy ze snem, zanim zaplanuje dzisiejszą noc.</string>
+    <string name="l10n_sleep_planner_base_need">Baza</string>
+    <string name="l10n_sleep_planner_debt">Dług</string>
+    <string name="l10n_sleep_planner_naps">Drzemki</string>
+    <string name="l10n_sleep_planner_tonight_need">Dziś w nocy</string>
+    <string name="l10n_sleep_planner_wake_from_alarm">Pobudka %1$s · z twojego alarmu</string>
+    <string name="l10n_sleep_planner_wake_from_last_night">Pobudka %1$s · z ostatniej nocy</string>
+    <string name="l10n_sleep_planner_wake_default">Pobudka %1$s · brak alarmu i ostatniej pobudki</string>
+    <string name="l10n_sleep_planner_goal_minimum">Minimum</string>
+    <string name="l10n_sleep_planner_goal_solid">Solidnie</string>
+    <string name="l10n_sleep_planner_goal_full">Pełny</string>
+    <string name="l10n_sleep_planner_tier_detail">%1$d%% potrzeby · %2$s snu · %3$s w łóżku</string>
+    <string name="l10n_sleep_planner_bed_by">Do łóżka o</string>
+    <string name="l10n_sleep_planner_footnote_efficiency">Wskazówka do planowania, nie wynik. Czas w łóżku zakłada twoją typową wydajność snu %1$d%%.</string>
+    <string name="l10n_sleep_planner_footnote_no_efficiency">Wskazówka do planowania, nie wynik. Brak jeszcze historii wydajności, więc czas w łóżku równa się celowi snu.</string>
 </resources>
