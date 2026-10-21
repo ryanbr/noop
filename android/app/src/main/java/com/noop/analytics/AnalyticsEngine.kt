@@ -1150,6 +1150,12 @@ object AnalyticsEngine {
         return (redSum / kept).toInt() to (irSum / kept).toInt()
     }
 
+    /** Gap (seconds) that ends one @82 measurement window (wearable5.0 FINDINGS §13). */
+    const val SPO2_WINDOW_MAX_GAP_SEC: Long = 2L
+
+    /** In-band seconds a window needs before its median counts. */
+    const val SPO2_WINDOW_MIN_VALID_SEC: Int = 5
+
     /**
      * Nightly gated mean of the 5/MG SpO2 **candidate** byte (`@82`) over the detected in-bed [sessions],
      * paired with the sample count it rests on — or null when no in-band reading fell inside any span.
@@ -1176,23 +1182,41 @@ object AnalyticsEngine {
      * toward zero, silently biasing every candidate down by up to 0.99. All values here are positive
      * (70..100), so the rounding-rule choice (half-up vs half-away-from-zero) is inert. Byte-parity
      * twin of the Swift `nightlySpo2CandidateMean`.
+     *
+     * WINDOWED (wearable5.0 FINDINGS §13): nonzero @82 seconds are grouped into measurement windows, each
+     * window with at least [SPO2_WINDOW_MIN_VALID_SEC] in-band seconds yields its median, and the night is
+     * the mean of those medians. Byte-parity twin of the Swift version.
      */
     internal fun nightlySpo2CandidateMean(
         sessions: List<DetectedSleep>,
         aux: List<V18AuxRow>,
     ): Pair<Int, Int>? {
         if (sessions.isEmpty() || aux.isEmpty()) return null
-        var sum = 0L
-        var kept = 0
-        for (a in aux) {
-            val v = a.auxByte82 ?: continue
-            if (v < 70L || v > 100L) continue
-            if (sessions.none { a.ts in it.start..it.end }) continue
-            sum += v
-            kept += 1
+        val rows = aux.filter { a ->
+            val v = a.auxByte82
+            v != null && v != 0L && sessions.any { a.ts in it.start..it.end }
+        }.sortedBy { it.ts }
+        // Split into windows first (a gap over SPO2_WINDOW_MAX_GAP_SEC starts a new one), then reduce each.
+        val windows = ArrayList<MutableList<Long>>()
+        var lastTs: Long? = null
+        for (a in rows) {
+            val l = lastTs
+            if (l != null && a.ts - l <= SPO2_WINDOW_MAX_GAP_SEC) windows.last() += a.auxByte82!! else windows += mutableListOf(a.auxByte82!!)
+            lastTs = a.ts
         }
-        if (kept == 0) return null
-        return Pair((sum.toDouble() / kept.toDouble()).roundToInt(), kept)
+        val medians = ArrayList<Double>()
+        var kept = 0
+        for (w in windows) {
+            val valid = w.filter { it in 70L..100L }.sorted()
+            if (valid.size < SPO2_WINDOW_MIN_VALID_SEC) continue
+            val m = valid.size / 2
+            medians += if (valid.size % 2 == 1) valid[m].toDouble() else (valid[m - 1] + valid[m]).toDouble() / 2.0
+            kept += valid.size
+        }
+        if (medians.isEmpty()) return null
+        var sum = 0.0
+        for (m in medians) sum += m
+        return Pair((sum / medians.size).roundToInt(), kept)
     }
 
     /**

@@ -1348,7 +1348,11 @@ public enum AnalyticsEngine {
         return (red: redSum / kept, ir: irSum / kept)
     }
 
-    /// Nightly gated mean of the 5/MG SpO2 **candidate** byte (`@82`) over the detected in-bed
+    /// Gap (seconds) that ends one @82 measurement window, and the in-band seconds a window needs to count.
+    public static let spo2WindowMaxGapSec = 2
+    public static let spo2WindowMinValidSec = 5
+
+    /// Nightly windowed mean of the 5/MG SpO2 **candidate** byte (`@82`) over the detected in-bed
     /// `sessions`, with the sample count it rests on — or nil when no in-band reading fell inside any
     /// span. (#112, tracking #103.)
     ///
@@ -1377,17 +1381,45 @@ public enum AnalyticsEngine {
     /// value in range is positive (70...100), so round-half-up and round-half-away-from-zero agree —
     /// no platform-divergence risk from the rounding rule itself. Byte-parity twin of the Kotlin
     /// `nightlySpo2CandidateMean`.
+    ///
+    /// WINDOWED (wearable5.0 FINDINGS §13): the strap measures in 30 s windows every 1,200 s during sleep;
+    /// @82 is 0 outside them and inside holds a % or a status code per second. Seconds with a nonzero @82
+    /// are grouped into windows (gap <= `spo2WindowMaxGapSec`), each window with at least
+    /// `spo2WindowMinValidSec` in-band seconds yields its median, and the night is the mean of those
+    /// medians, so a thin window (1-4 valid seconds) cannot weigh like a full one. `samples` = the in-band
+    /// seconds of the windows that counted.
     public static func nightlySpo2CandidateMean(_ sessions: [SleepSession],
                                          aux: [V18AuxSample]) -> (mean: Int, samples: Int)? {
         guard !sessions.isEmpty, !aux.isEmpty else { return nil }
-        var sum = 0, kept = 0
-        for a in aux {
-            guard let v = a.auxByte82, (70...100).contains(v) else { continue }
-            guard sessions.contains(where: { $0.start <= a.ts && a.ts <= $0.end }) else { continue }
-            sum += v; kept += 1
+        let rows = aux.filter { a in
+            guard let v = a.auxByte82, v != 0 else { return false }
+            return sessions.contains(where: { $0.start <= a.ts && a.ts <= $0.end })
+        }.sorted { $0.ts < $1.ts }
+        // Split into windows first (a gap over `spo2WindowMaxGapSec` starts a new one), then reduce each.
+        var windows: [[Int]] = []
+        var lastTs: Int?
+        for a in rows {
+            if let l = lastTs, a.ts - l <= spo2WindowMaxGapSec {
+                windows[windows.count - 1].append(a.auxByte82!)
+            } else {
+                windows.append([a.auxByte82!])
+            }
+            lastTs = a.ts
         }
-        guard kept > 0 else { return nil }
-        return (mean: Int((Double(sum) / Double(kept)).rounded()), samples: kept)
+        var medians: [Double] = []
+        var kept = 0
+        for w in windows {
+            let valid = w.filter { (70...100).contains($0) }.sorted()
+            guard valid.count >= spo2WindowMinValidSec else { continue }
+            let m = valid.count / 2
+            medians.append(valid.count % 2 == 1 ? Double(valid[m]) : Double(valid[m - 1] + valid[m]) / 2.0)
+            kept += valid.count
+        }
+        guard !medians.isEmpty else { return nil }
+        // Sequential left-to-right sum so the Kotlin twin's sum is bit-identical.
+        var sum = 0.0
+        for m in medians { sum += m }
+        return (mean: Int((sum / Double(medians.count)).rounded()), samples: kept)
     }
 
     /// The plausible range for a raw Oura `0x6F` SpO2 sample before the ceiling transform below.

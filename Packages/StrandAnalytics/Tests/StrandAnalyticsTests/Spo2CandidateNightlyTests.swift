@@ -3,12 +3,11 @@ import WhoopProtocol
 import WhoopStore
 @testable import StrandAnalytics
 
-/// #112 / #103 — the nightly gated mean of the 5/MG SpO2 candidate byte.
+/// #112 / #103 — the nightly windowed SpO2 from the 5/MG @82 byte (wearable5.0 FINDINGS §13).
 ///
-/// This exists to make a volunteer's contribution checkable. The candidate cannot be promoted while two
-/// straps disagree about it, and breaking that tie means a third wearer comparing their nightly figure
-/// against the one the WHOOP app reports. Reading it off a scrolling chart is not an instrument; one
-/// number is. These pin what that number counts and — more importantly — what it refuses to count.
+/// Byte-parity twin of the Kotlin `Spo2CandidateNightlyTest`: same fixtures, same expected values. The strap
+/// measures in 30 s windows; each window with enough in-band seconds yields its median and the night is
+/// the mean of those medians. These pin what counts and, more importantly, what does not.
 final class Spo2CandidateNightlyTests: XCTestCase {
 
     private func session(_ start: Int, _ durSec: Int) -> SleepSession {
@@ -18,67 +17,56 @@ final class Spo2CandidateNightlyTests: XCTestCase {
 
     private func aux(_ ts: Int, _ v: Int?) -> V18AuxSample { V18AuxSample(ts: ts, auxByte82: v) }
 
-    func testMeanAndSampleCountOverTheSession() {
+    /// One window of consecutive seconds starting at `start`.
+    private func window(_ start: Int, _ values: [Int?]) -> [V18AuxSample] {
+        values.enumerated().map { aux(start + $0.offset, $0.element) }
+    }
+
+    func testOneWindowYieldsItsMedian() {
         let r = AnalyticsEngine.nightlySpo2CandidateMean(
-            [session(1000, 600)], aux: [aux(1100, 94), aux(1200, 96), aux(1300, 95)])
+            [session(1000, 3600)], aux: window(1100, [94, 95, 96, 96, 96, 97, 97, 97, 98, 97]))
+        XCTAssertEqual(r?.mean, 97)        // median (96 + 97) / 2 = 96.5, rounded half up
+        XCTAssertEqual(r?.samples, 10)
+    }
+
+    func testNightIsTheMeanOfWindowMedians() {
+        let a = window(1100, [96, 96, 96, 96, 96]) + window(2300, [99, 99, 99, 99, 99, 99, 99])
+        let r = AnalyticsEngine.nightlySpo2CandidateMean([session(1000, 3600)], aux: a)
+        XCTAssertEqual(r?.mean, 98)        // (96 + 99) / 2 = 97.5, not the per-second mean 97.75
+        XCTAssertEqual(r?.samples, 12)
+    }
+
+    /// Status codes (sub-70 and bit-7 values) stay in the window but never count as readings; a window
+    /// with fewer than five in-band seconds is dropped instead of weighing like a full one.
+    func testCodesAndThinWindowsDoNotCount() {
+        let full = window(1100, [160, 95, 128, 95, 95, 32, 96, 95])
+        let thin = window(2300, [78, 160, 128, 16])
+        let r = AnalyticsEngine.nightlySpo2CandidateMean([session(1000, 3600)], aux: full + thin)
         XCTAssertEqual(r?.mean, 95)
-        XCTAssertEqual(r?.samples, 3)
+        XCTAssertEqual(r?.samples, 5)
+        XCTAssertNil(AnalyticsEngine.nightlySpo2CandidateMean([session(1000, 3600)], aux: thin))
     }
 
-    /// The count is not decoration: a mean over 3 readings and a mean over 3000 are different evidence,
-    /// and a volunteer's correlation built on the first would be worthless.
-    func testSampleCountTravelsWithTheMean() {
-        let many = (0..<50).map { aux(1000 + $0, 93) }
-        XCTAssertEqual(AnalyticsEngine.nightlySpo2CandidateMean([session(900, 600)], aux: many)?.samples, 50)
+    /// A gap longer than two seconds ends a window, so two halves of three seconds are two thin windows.
+    func testGapSplitsWindows() {
+        let a = window(1100, [95, 95, 95]) + window(1106, [95, 95, 95])
+        XCTAssertNil(AnalyticsEngine.nightlySpo2CandidateMean([session(1000, 3600)], aux: a))
     }
 
-    /// Out-of-band values are DIAGNOSTIC CODES and SATURATION SENTINELS, not low blood oxygen. Averaging
-    /// them in would produce a number that is not a percentage of anything — the single most damaging
-    /// thing this helper could do, because it would look plausible.
-    func testSubSeventyAndSentinelValuesAreExcluded() {
-        let r = AnalyticsEngine.nightlySpo2CandidateMean(
-            [session(1000, 600)],
-            aux: [aux(1100, 94), aux(1150, 3), aux(1200, 0), aux(1250, 0x80), aux(1300, 96)])
-        XCTAssertEqual(r?.mean, 95, "only the two in-band readings may count")
-        XCTAssertEqual(r?.samples, 2)
-    }
-
-    func testDaytimeSamplesOutsideTheSessionAreExcluded() {
-        let r = AnalyticsEngine.nightlySpo2CandidateMean(
-            [session(1000, 600)], aux: [aux(500, 99), aux(1100, 94), aux(5000, 88)])
-        XCTAssertEqual(r?.samples, 1)
+    func testOutsideSessionZeroAndMissingAreSkipped() {
+        let a = window(500, [99, 99, 99, 99, 99]) + window(1100, [94, nil, 94, 94, 94, 94])
+        let r = AnalyticsEngine.nightlySpo2CandidateMean([session(1000, 600)], aux: a)
         XCTAssertEqual(r?.mean, 94)
-    }
-
-    func testNilWhenNothingInBandFallsInsideASession() {
-        XCTAssertNil(AnalyticsEngine.nightlySpo2CandidateMean([session(1000, 600)], aux: [aux(1100, 5)]))
-        XCTAssertNil(AnalyticsEngine.nightlySpo2CandidateMean([session(1000, 600)], aux: [aux(9999, 95)]))
-        XCTAssertNil(AnalyticsEngine.nightlySpo2CandidateMean([], aux: [aux(1100, 95)]))
+        XCTAssertEqual(r?.samples, 5)
+        XCTAssertNil(AnalyticsEngine.nightlySpo2CandidateMean([], aux: a))
         XCTAssertNil(AnalyticsEngine.nightlySpo2CandidateMean([session(1000, 600)], aux: []))
     }
 
-    /// A record with no @82 at all is not a zero reading.
-    func testMissingBytesAreSkippedNotCountedAsZero() {
-        let r = AnalyticsEngine.nightlySpo2CandidateMean(
-            [session(1000, 600)], aux: [aux(1100, nil), aux(1200, 96)])
-        XCTAssertEqual(r?.mean, 96)
-        XCTAssertEqual(r?.samples, 1)
-    }
-
-    /// Found 2026-08-24 on the Oura twin (`nightlySpo2CeilingMean`) and fixed here too — same bug, same
-    /// helper shape. `sum / kept` on two `Int`s truncates toward zero; three samples averaging
-    /// 97.666... must round to 98, not floor to 97.
-    func testMeanRoundsRatherThanFloors() {
-        let r = AnalyticsEngine.nightlySpo2CandidateMean(
-            [session(1000, 600)], aux: [aux(1100, 98), aux(1200, 98), aux(1300, 97)])
-        XCTAssertEqual(r?.mean, 98, "97.666... must round to 98, not floor to 97")
-    }
-
-    /// The boundaries are inclusive, matching the decoder's own `70...100` emit gate exactly.
+    /// Boundaries are inclusive, matching the decoder's own 70...100 emit gate exactly.
     func testBandBoundariesMatchTheDecoderGate() {
         XCTAssertEqual(AnalyticsEngine.nightlySpo2CandidateMean(
-            [session(1000, 600)], aux: [aux(1100, 70), aux(1200, 100)])?.samples, 2)
+            [session(1000, 600)], aux: window(1100, [70, 70, 100, 100, 100]))?.samples, 5)
         XCTAssertNil(AnalyticsEngine.nightlySpo2CandidateMean(
-            [session(1000, 600)], aux: [aux(1100, 69), aux(1200, 101)]))
+            [session(1000, 600)], aux: window(1100, [69, 69, 101, 101, 101])))
     }
 }
