@@ -38,6 +38,8 @@ final class SchemaOracleTests: XCTestCase {
         let columns: [OracleColumn]
         let primaryKey: [String]
         let indices: [OracleIndex]
+        let iosAdditionalIndices: [OracleIndex]?
+        let iosIndexDivergence: String?
         let androidColumnOrder: [String]?
         let androidColumnOrderDivergence: String?
     }
@@ -109,6 +111,10 @@ final class SchemaOracleTests: XCTestCase {
             .map { LiveColumn(name: $0.name, affinity: $0.affinity, notNull: $0.notNull, default: $0.default) }
     }
 
+    private func iosExpectedIndices(_ table: OracleTable) -> [OracleIndex] {
+        (table.indices + (table.iosAdditionalIndices ?? [])).sorted { $0.name < $1.name }
+    }
+
     // MARK: - Tests
 
     /// Every GRDB table matches the oracle: column names **in order**, affinity, NOT NULL, DEFAULT,
@@ -156,11 +162,12 @@ final class SchemaOracleTests: XCTestCase {
             if actual.primaryKey != table.primaryKey {
                 problems.append("\(name): PRIMARY KEY — oracle \(table.primaryKey), grdb \(actual.primaryKey)")
             }
-            if actual.indices.map({ $0.name }) != table.indices.map({ $0.name }) {
-                problems.append("\(name): index names — oracle \(table.indices.map { $0.name }), "
+            let expectedIndices = iosExpectedIndices(table)
+            if actual.indices.map({ $0.name }) != expectedIndices.map({ $0.name }) {
+                problems.append("\(name): index names — oracle \(expectedIndices.map { $0.name }), "
                                 + "grdb \(actual.indices.map { $0.name })")
             }
-            for want in table.indices {
+            for want in expectedIndices {
                 guard let got = actual.indices.first(where: { $0.name == want.name }) else { continue }
                 if got.unique != want.unique {
                     problems.append("\(name).\(want.name): UNIQUE — oracle \(want.unique), grdb \(got.unique)")
@@ -229,6 +236,7 @@ final class SchemaOracleTests: XCTestCase {
         for table in oracle.tables.values {
             for column in table.columns { column.divergence?.keys.forEach { used.insert($0) } }
             if let key = table.androidColumnOrderDivergence { used.insert(key) }
+            if let key = table.iosIndexDivergence { used.insert(key) }
         }
         let unused = Set(oracle.divergenceReasons.keys).subtracting(used).sorted()
         XCTAssertTrue(unused.isEmpty, "divergenceReasons entries nothing references: \(unused)")
@@ -267,6 +275,14 @@ final class SchemaOracleTests: XCTestCase {
                                   "\(name): androidColumnOrder equals the canonical order — delete it")
                 XCTAssertNotNil(table.androidColumnOrderDivergence,
                                 "\(name): androidColumnOrder with no reason key")
+            }
+            let commonNames = Set(table.indices.map(\.name))
+            let additional = table.iosAdditionalIndices ?? []
+            XCTAssertTrue(additional.allSatisfy { !commonNames.contains($0.name) },
+                          "\(name): iosAdditionalIndices overlaps a common index")
+            if !additional.isEmpty {
+                XCTAssertNotNil(table.iosIndexDivergence,
+                                "\(name): iosAdditionalIndices with no reason key")
             }
         }
     }

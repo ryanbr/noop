@@ -48,7 +48,8 @@
     "v44-ppg-waveform-base-code",
     "v45-rr-source-index",
     "v46-lift-log",
-    "v47-rr-whoop5-fill"
+    "v47-rr-whoop5-fill",
+    "v48-rr-device-source-index"
   ],
   "divergenceReasons": {
     "android-orphan-synced-column": "REAL COLUMN DRIFT: `synced` exists on Android only. GRDB's v10 note is explicit that stepSample gets no `synced` column ('unused; see StreamStore'), and v12's ppgHrSample never had one either; the Room entities copied the flag from the older per-second entities. Nothing reads it on Android \u2014 the per-row upload flag belongs to an upload path that does not exist there \u2014 so it is dead width, not divergent data. Removing it needs a Room table rebuild.",
@@ -58,7 +59,8 @@
     "ppg-hr-bpm-integer-on-android": "AFFINITY DRIFT, and NOT a data consequence: ppgHrSample.bpm is declared REAL on iOS and INTEGER on Android \u2014 but only the SQLITE COLUMN differs. The ROW type is `Int` on both sides: Swift's `PpgHrSample.bpm` is `Int`, carrying the comment 'the same Int domain as the measured HRSample.bpm and the Android PpgHr.Estimate.bpm, so the stored value and type match across platforms (#219)'. Both platforms also round to whole bpm before that \u2014 Swift `(fsD * 60 / refinedLag).rounded()` then `Int(est.bpm)`, Kotlin `Math.round(fsD * 60 / refinedLag).toInt()` \u2014 and the read path (`CAST(ROUND(p.bpm) AS INTEGER)`) rounds again, a no-op on a whole number. There is one writer and one construction site on each side. So REAL holds the same whole numbers INTEGER does and NO value differs. Recorded because the DECLARED affinity genuinely diverges, and a bpm that ever became fractional would then diverge silently; closing it means a GRDB table rebuild. Deliberately NOT the decoder-oracle (#869) class \u2014 that caught a real value divergence.",
     "room-omits-sql-default": "GRDB declares these columns NOT NULL DEFAULT 0; Room emits NOT NULL with no SQL DEFAULT, because a Kotlin constructor default never reaches the schema (only @ColumnInfo(defaultValue=) does). Both sides are NOT NULL and both always name the column on insert, so no row differs; an INSERT that omitted the column would fail on Android and get 0 on iOS. Closing it means adding @ColumnInfo(defaultValue = \"0\") plus a Room version bump, since the generated CREATE TABLE \u2014 and therefore Room's identity hash \u2014 changes.",
     "sqlite-text-pk-nullable": "GRDB writes `id TEXT PRIMARY KEY`; SQLite's legacy quirk leaves a non-INTEGER PRIMARY KEY column NULLable, so PRAGMA reports notnull=0. Room writes `id TEXT NOT NULL, PRIMARY KEY(id)`. Every writer on both platforms supplies a non-null id, so no stored row differs. Closing it means a GRDB table rebuild.",
-    "workout-route-polyline-android-only": "REAL COLUMN DRIFT \u2014 literally the case #775 was filed about: `workout.routePolyline` (encoded GPS route) was added by Room MIGRATION_3_4 and has no GRDB twin. A .noopbak exported from Android carries a column iOS's `workout` table cannot receive."
+    "workout-route-polyline-android-only": "REAL COLUMN DRIFT \u2014 literally the case #775 was filed about: `workout.routePolyline` (encoded GPS route) was added by Room MIGRATION_3_4 and has no GRDB twin. A .noopbak exported from Android carries a column iOS's `workout` table cannot receive.",
+    "ios-only-rr-device-source-index": "The iOS repair path needs a covering (deviceId, srcChannel) index for its per-owner WHOOP 5 absence witness. Android remains at Room 41 and keeps the common schema unchanged until its paired migration lands."
   },
   "tables": {
     "appleDaily": {
@@ -1876,7 +1878,18 @@
             "tsSuspect"
           ]
         }
-      ]
+      ],
+      "iosAdditionalIndices": [
+        {
+          "name": "rrInterval_device_source",
+          "unique": false,
+          "columns": [
+            "deviceId",
+            "srcChannel"
+          ]
+        }
+      ],
+      "iosIndexDivergence": "ios-only-rr-device-source-index"
     },
     "scoreInputProvenance": {
       "platform": "both",
