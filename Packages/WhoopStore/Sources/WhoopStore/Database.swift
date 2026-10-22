@@ -1106,7 +1106,8 @@ extension WhoopStore {
         // The per-day cache witness asks whether this owner has any WHOOP 5 transport rows.
         // A WHOOP 4 owner has none: the (deviceId, ts, rrMs, seq) key scans its entire history
         // to prove that absence, once for every day of a history repair, even empty days.
-        // Cover both predicates so absence is an index lookup. Twin of Room MIGRATION_41_42.
+        // Cover both predicates so absence is an index lookup. This Apple-only index is recorded as
+        // an explicit schema divergence until the Android counterpart lands.
         migrator.registerMigration("v48-rr-device-source-index") { db in
             try db.create(index: "rrInterval_device_source", on: "rrInterval",
                           columns: ["deviceId", "srcChannel"])
