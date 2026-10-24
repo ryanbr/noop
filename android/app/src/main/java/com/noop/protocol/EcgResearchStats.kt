@@ -146,20 +146,11 @@ object EcgResearchStats {
      *
      * ## The trap this is written around (#194)
      *
-     * The strap's raw records carry a FIXED sample count ([Whoop5Ecg.SAMPLES_PER_RAW_RECORD] = 101). Anything
+     * The strap's raw records carry a FIXED sample count ([Whoop5Ecg.SAMPLES_PER_RAW_RECORD] = 100). Anything
      * that repeats per record — a constant sub-header, a re-sent block, a seam where two records join — is
-     * periodic at the record period, and at 100 Hz that period is 1.01 s == 59.4 bpm: inside this search band
+     * periodic at the record period, and at 100 Hz that period is 1.00 s == 60.0 bpm: inside this search band
      * and inside resting heart-rate range. An autocorrelation fed a concatenated record stream will therefore
-     * report a confident ~59 bpm out of pure framing, with no cardiac content at all. That is the exact
-     * [excludeLag] is REQUIRED and has no default, which is the whole point of it. Passing the record
-     * period switches the guard on; passing null says "this source is not record-tiled" and accepts an
-     * unguarded estimate. Both are defensible, but only as a decision somebody made: with a default the
-     * shortest call, `estimateBpm(samples, fs)`, silently selected the unguarded form, and on a tiled
-     * 101-sample record at 100 Hz that form returns 59 — a believable resting rate manufactured from a
-     * buffer holding no rhythm at all. That is #194 exactly, and a wrong number nobody chose is the
-     * failure this whole method is shaped around. Requiring the argument costs one word at each call site
-     * and makes the unguarded path impossible to take by accident.
-     *
+     * report a confident ~60 bpm out of pure framing, with no cardiac content at all. That is the exact
      * failure mode behind NOOP's withdrawn PPG->HR estimate, so when [excludeLag] is supplied:
      *
      *  1. lags within [excludeLagTolerance] of it cannot win, and
@@ -169,7 +160,18 @@ object EcgResearchStats {
      *
      * The cost is stated rather than hidden: a genuine heart rate that lands in that narrow band is
      * indistinguishable from the artefact and is therefore DECLINED. Null means "this method cannot tell",
-     * never "no rhythm".
+     * never "no rhythm". And a 100-sample record at 100 Hz puts that band on 60.0 bpm rather than the 59.4
+     * it sat on while this constant was one sample too large, so the declined band is now dead centre of
+     * resting range: the guard matters MORE than the earlier arithmetic suggested, not less.
+     *
+     * [excludeLag] is REQUIRED and has no default, which is the whole point of it. Passing the record
+     * period switches the guard on; passing null says "this source is not record-tiled" and accepts an
+     * unguarded estimate. Both are defensible, but only as a decision somebody made: with a default the
+     * shortest call, `estimateBpm(samples, fs)`, silently selected the unguarded form, and on a tiled
+     * 100-sample record at 100 Hz that form returns 60 — a believable resting rate manufactured from a
+     * buffer holding no rhythm at all. That is #194 exactly, and a wrong number nobody chose is the
+     * failure this whole method is shaped around. Requiring the argument costs one word at each call site
+     * and makes the unguarded path impossible to take by accident.
      *
      * ## Two things that made an earlier version wrong
      *

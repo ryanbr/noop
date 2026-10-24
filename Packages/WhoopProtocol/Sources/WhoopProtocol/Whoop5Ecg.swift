@@ -726,11 +726,27 @@ public enum Whoop5Ecg {
     /// One past the last body byte; the remaining 4 bytes are the frame's CRC32 trailer.
     public static let rawBodyEnd = 236
 
-    /// Samples one record carries: 101. Load-bearing beyond arithmetic — a fixed sample count per record is
+    /// One past the last WAVEFORM byte. Bytes 234..235 are the record's two-byte alignment word, which is
+    /// never a sample: `docs/PROTOCOL_ECG.md` says so outright ("its last word is alignment, not data"), and
+    /// `parseR17` reaches the same boundary from the other direction by bounding the declared count at
+    /// `r17MaxSamples`. Reading on to `rawBodyEnd` instead harvests that word as a 101st sample, once per
+    /// record, at a fixed position — a per-record periodic artifact, which is the #194 shape exactly.
+    ///
+    /// A literal, like every other offset here, so the parity scanner can verify it against the Kotlin twin
+    /// by value. `Whoop5EcgRawRecordTests` pins it to `rawWaveformStart + r17MaxSamples * 2` instead, which
+    /// is the check an expression would only have made locally.
+    public static let rawWaveformEnd = 234
+
+    /// Samples one record carries: 100. Load-bearing beyond arithmetic — a fixed sample count per record is
     /// exactly the shape that makes autocorrelation manufacture a peak at the record period, so anything
     /// estimating a rate from these samples must exclude this lag. See the #194 withdrawal for what
     /// happens when that is not done.
-    public static let samplesPerRawRecord = (rawBodyEnd - rawWaveformStart) / 2
+    ///
+    /// This and `r17MaxSamples` are two readings of the same record length, and they disagreed by one for
+    /// as long as this was `(rawBodyEnd - rawWaveformStart) / 2`. Their equality is pinned by a test rather
+    /// than by deriving one from the other, because a literal is what the parity scanner can verify against
+    /// the Kotlin twin by value.
+    public static let samplesPerRawRecord = 100
 
     /// Non-zero body bytes above which a record is treated as carrying a waveform rather than baseline.
     public static let rawBodyActiveNonZeroBytes = 20
@@ -742,15 +758,17 @@ public enum Whoop5Ecg {
 
     /// The record's i16-LE sample series, or nil when `frame` is not a REALTIME_RAW_DATA record.
     ///
-    /// Signed two's-complement, little-endian, exactly `samplesPerRawRecord` values. Zero samples are
-    /// returned as zeros and never trimmed: for a research artifact a trailing run of zeros is evidence
-    /// about the record, not padding to be tidied away.
+    /// Signed two's-complement, little-endian, exactly `samplesPerRawRecord` values, stopping before the
+    /// alignment word at `rawWaveformEnd`. Zero samples are returned as zeros and never trimmed: for a
+    /// research artifact a trailing run of zeros is evidence about the record, not padding to be tidied
+    /// away. That is why the alignment word has to be excluded STRUCTURALLY rather than by dropping
+    /// trailing zeros — the word is zero-valued, so a trim would hide it while also editing real data.
     public static func realtimeRawSamples(_ frame: [UInt8]) -> [Int]? {
         guard isRealtimeRawRecord(frame) else { return nil }
         var out = [Int]()
         out.reserveCapacity(samplesPerRawRecord)
         var i = rawWaveformStart
-        while i + 1 < rawBodyEnd {
+        while i + 1 < rawWaveformEnd {
             let raw = Int(frame[i]) | (Int(frame[i + 1]) << 8)
             out.append(raw >= 0x8000 ? raw - 0x10000 : raw)
             i += 2

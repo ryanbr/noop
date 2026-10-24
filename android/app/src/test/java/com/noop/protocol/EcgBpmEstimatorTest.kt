@@ -15,7 +15,7 @@ import org.junit.Test
  * nothing — the method has to track a VARYING input, and for a synthetic test that means recovering SEVERAL
  * injected values rather than one. The previous test injected one rate. This injects a spread, and then
  * attacks the estimator with the specific artefact that got the earlier PPG->HR estimate withdrawn: the
- * strap's records carry a fixed 101 samples, so a seam between records is periodic at ~59 bpm all by itself.
+ * strap's records carry a fixed 100 samples, so a seam between records is periodic at 60 bpm all by itself.
  */
 class EcgBpmEstimatorTest {
 
@@ -53,14 +53,16 @@ class EcgBpmEstimatorTest {
 
     /**
      * THE regression that matters. A buffer assembled by tiling the SAME record content over and over has no
-     * cardiac information in it at all — its only periodicity is the record length. At 101 samples and 100 Hz
-     * that is lag 101 == ~59 bpm: inside the search band, and a thoroughly plausible resting heart rate.
+     * cardiac information in it at all — its only periodicity is the record length. At 100 samples and 100 Hz
+     * that is lag 100 == 60 bpm: inside the search band, and the single most plausible resting heart rate
+     * there is. The artefact used to be computed as 59 bpm here only because the decoder swept the record's
+     * alignment word in as a 101st sample; correcting that moved the trap to dead centre of resting range.
      *
      * This is the shape that got the earlier PPG->HR estimate withdrawn, so it is pinned twice: that the
      * artefact really is detectable (or the test proves nothing), and that the guarded call refuses it.
      */
     @Test
-    fun aPureRecordSeamArtefactIsRefusedRatherThanReportedAsFiftyNineBpm() {
+    fun aPureRecordSeamArtefactIsRefusedRatherThanReportedAsSixtyBpm() {
         val period = Whoop5Ecg.SAMPLES_PER_RAW_RECORD
         // One record's worth of arbitrary but fixed content, tiled — exactly what a repeated block looks like.
         var seed = 987654321L
@@ -74,8 +76,8 @@ class EcgBpmEstimatorTest {
         val unguarded = EcgResearchStats.estimateBpm(tiled, fs, excludeLag = null)
         assertNotNull("the artefact should be detectable at all, or this test proves nothing", unguarded)
         assertTrue(
-            "the artefact was expected near 60*100/101 = 59 bpm, got $unguarded",
-            abs(unguarded!! - 59) <= 4,
+            "the artefact was expected near 60*100/100 = 60 bpm, got $unguarded",
+            abs(unguarded!! - 60) <= 4,
         )
 
         // Guarded — the way the live view calls it — it declines rather than manufacturing physiology.
@@ -99,7 +101,7 @@ class EcgBpmEstimatorTest {
         // declines. Note the notch ALONE would not do this — it would just report the peak's shoulder as a
         // slightly different number; it is the dominance check that makes the refusal real. Pinned so the
         // documented cost cannot quietly regress into a confident false reading.
-        val onTheNotch = 60 * fs / Whoop5Ecg.SAMPLES_PER_RAW_RECORD   // 59 bpm
+        val onTheNotch = 60 * fs / Whoop5Ecg.SAMPLES_PER_RAW_RECORD   // 60 bpm
         assertNotNull(EcgResearchStats.estimateBpm(beats(onTheNotch), fs, excludeLag = null))
         assertNull(
             "a rate on the artefact lag must be declined, not reported",

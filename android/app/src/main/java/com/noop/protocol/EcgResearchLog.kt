@@ -233,8 +233,10 @@ class EcgResearchLog(
      * (record, monotonic_ms, sample_index, value). Non-diagnostic raw samples for plotting/analysis.
      *
      * The type-43 body opens with a constant 5×i16 sub-header at byte offsets 24..33; the waveform is the
-     * i16 LE series from offset 34 to 236. Empty (baseline) records are skipped. Capped so one long capture
-     * can't produce an unbounded file.
+     * i16 LE series from offset 34 to 234. Bytes 234..235 are the record's alignment word and are NOT in
+     * the series — writing them as a sample put a zero into every record at a fixed position, which is a
+     * per-record periodic artifact in a file whose whole purpose is rhythm analysis. Empty (baseline)
+     * records are skipped. Capped so one long capture can't produce an unbounded file.
      */
     fun waveformCsv(): String {
         val sb = StringBuilder("record,monotonic_ms,sample_index,value\n")

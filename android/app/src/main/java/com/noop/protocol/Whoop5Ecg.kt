@@ -607,11 +607,29 @@ object Whoop5Ecg {
     const val RAW_BODY_END = 236
 
     /**
-     * Samples one record carries: 101. Load-bearing beyond arithmetic — a fixed sample count per record is
+     * One past the last WAVEFORM byte. Bytes 234..235 are the record's two-byte alignment word, which is
+     * never a sample: `docs/PROTOCOL_ECG.md` says so outright ("its last word is alignment, not data"), and
+     * [parseR17] reaches the same boundary from the other direction by bounding the declared count at
+     * [R17_MAX_SAMPLES]. Reading on to [RAW_BODY_END] instead harvests that word as a 101st sample, once per
+     * record, at a fixed position — a per-record periodic artifact, which is the #194 shape exactly.
+     *
+     * A literal, like every other offset here, so the parity scanner can verify it against the Swift twin
+     * by value. [Whoop5EcgRawRecordTest] pins it to `RAW_WAVEFORM_START + R17_MAX_SAMPLES * 2` instead,
+     * which is the check an expression would only have made locally.
+     */
+    const val RAW_WAVEFORM_END = 234
+
+    /**
+     * Samples one record carries: 100. Load-bearing beyond arithmetic — a fixed sample count per record is
      * exactly the shape that makes autocorrelation manufacture a peak at the record period, so anything
      * estimating a rate from these samples must exclude this lag. See the #194 withdrawal.
+     *
+     * This and [R17_MAX_SAMPLES] are two readings of the same record length, and they disagreed by one for
+     * as long as this was `(RAW_BODY_END - RAW_WAVEFORM_START) / 2`. Their equality is pinned by a test
+     * rather than by deriving one from the other, because a literal is what the parity scanner can verify
+     * against the Swift twin by value.
      */
-    const val SAMPLES_PER_RAW_RECORD = (RAW_BODY_END - RAW_WAVEFORM_START) / 2
+    const val SAMPLES_PER_RAW_RECORD = 100
 
     /** Non-zero body bytes above which a record is treated as carrying a waveform rather than baseline. */
     const val RAW_BODY_ACTIVE_NONZERO_BYTES = 20
@@ -624,16 +642,18 @@ object Whoop5Ecg {
     /**
      * The record's i16-LE sample series, or null when [frame] is not a REALTIME_RAW_DATA record.
      *
-     * Signed two's-complement, little-endian, exactly [SAMPLES_PER_RAW_RECORD] values. Zero samples are
-     * returned as zeros and never trimmed: for a research artifact a trailing run of zeros is evidence
-     * about the record, not padding to be tidied away.
+     * Signed two's-complement, little-endian, exactly [SAMPLES_PER_RAW_RECORD] values, stopping before the
+     * alignment word at [RAW_WAVEFORM_END]. Zero samples are returned as zeros and never trimmed: for a
+     * research artifact a trailing run of zeros is evidence about the record, not padding to be tidied
+     * away. That is why the alignment word has to be excluded STRUCTURALLY rather than by dropping
+     * trailing zeros — the word is zero-valued, so a trim would hide it while also editing real data.
      */
     fun realtimeRawSamples(frame: ByteArray): IntArray? {
         if (!isRealtimeRawRecord(frame)) return null
         val out = IntArray(SAMPLES_PER_RAW_RECORD)
         var i = RAW_WAVEFORM_START
         var n = 0
-        while (i + 1 < RAW_BODY_END) {
+        while (i + 1 < RAW_WAVEFORM_END) {
             var v = (frame[i].toInt() and 0xFF) or ((frame[i + 1].toInt() and 0xFF) shl 8)
             if (v >= 0x8000) v -= 0x10000
             out[n] = v

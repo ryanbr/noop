@@ -108,7 +108,7 @@ class EcgResearchLogTest {
         val f = ByteArray(Whoop5Ecg.RAW_RECORD_LENGTH)
         f[Whoop5Ecg.RAW_TYPE_OFFSET] = PacketType.REALTIME_RAW_DATA.rawValue.toByte()
         var i = Whoop5Ecg.RAW_WAVEFORM_START
-        while (i + 1 < Whoop5Ecg.RAW_BODY_END) {
+        while (i + 1 < Whoop5Ecg.RAW_WAVEFORM_END) {
             f[i] = (value and 0xFF).toByte()
             f[i + 1] = ((value shr 8) and 0xFF).toByte()
             i += 2
@@ -157,7 +157,7 @@ class EcgResearchLogTest {
         log.recordRx(rawRecordRow(10, 0, crcOk = true))       // pure baseline: skipped entirely
         assertEquals("record,monotonic_ms,sample_index,value\n", log.waveformCsv())
 
-        // A record with content keeps its full 101 samples — no trailing-zero trimming, which would edit
+        // A record with content keeps its full 100 samples — no trailing-zero trimming, which would edit
         // the evidence. Build one with a single non-zero lead sample.
         val f = ByteArray(Whoop5Ecg.RAW_RECORD_LENGTH)
         f[Whoop5Ecg.RAW_TYPE_OFFSET] = PacketType.REALTIME_RAW_DATA.rawValue.toByte()
