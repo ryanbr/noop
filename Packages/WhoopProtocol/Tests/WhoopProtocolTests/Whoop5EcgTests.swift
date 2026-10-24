@@ -504,6 +504,10 @@ final class Whoop5EcgTests: XCTestCase {
         XCTAssertFalse(r17IsRecognised(r17Frame(r17Inner(revision: 16, samples: 2) + i16le([1, 2]))))
         // Right revision, a type nothing in this family uses.
         XCTAssertFalse(r17IsRecognised(r17Frame(r17Inner(type: 40, samples: 2) + i16le([1, 2]))))
+        // Type 51 is REALTIME_IMU_DATA_STREAM, the OTHER type the raw-IMU fail-safe acts on (#2846).
+        // Recognition must not reach it, or the ECG exemption would disarm the fail-safe for the one
+        // producer whose type says outright that it is the IMU.
+        XCTAssertFalse(r17IsRecognised(r17Frame(r17Inner(type: 51, samples: 2) + i16le([1, 2]))))
         // Stored records need to be asked for.
         let stored = r17Frame(r17Inner(type: 47, samples: 2) + i16le([1, 2]))
         XCTAssertFalse(r17IsRecognised(stored))

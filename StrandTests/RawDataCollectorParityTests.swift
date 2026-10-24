@@ -54,4 +54,29 @@ final class RawDataCollectorParityTests: XCTestCase {
         XCTAssertTrue(source.contains("send(.stopRawData, payload: [0x01]"))
         XCTAssertTrue(source.contains("send(.toggleIMUMode, payload: [0x01, 0x00]"))
     }
+
+    /// The fail-safe must not act on a live MG ECG record (#2846). Type 43 is `REALTIME_RAW_DATA`, which
+    /// an ECG capture also arrives under, so without this clause a capture draws a `stopRawData` +
+    /// `toggleIMUMode` pair every 30 s for as long as generation runs.
+    ///
+    /// Asserted as source rather than behaviour because `stopUnexpectedRealtimeImu` is private to the
+    /// manager and reaching it needs a live `CBCentralManager`. What the clause DECIDES is covered where
+    /// it can be run: `Whoop5EcgTests` pins `r17FromFrame` accepting a well-formed R17 record and
+    /// rejecting the wrong revision, the wrong type, a bad CRC and the IMU stream type.
+    ///
+    /// Scoped to the function's own text rather than to the file, because a whole-file `contains` is not
+    /// the assertion this test's name makes: it passes while the clause sits in any of ten thousand other
+    /// lines, including a comment, which is exactly how a guard gets moved out from under its own pin.
+    /// The window is the signature to the fail-safe's log line, so it cannot be satisfied from outside.
+    func testAppleExemptsALiveEcgRecordFromTheImuFailSafe() throws {
+        let source = try String(contentsOf: repoRoot.appendingPathComponent("Strand/BLE/BLEManager.swift"))
+        let signature = try XCTUnwrap(source.range(of: "private func stopUnexpectedRealtimeImu"),
+                                      "stopUnexpectedRealtimeImu not found")
+        let logLine = try XCTUnwrap(source.range(of: "log(\"Raw IMU fail-safe:",
+                                                 range: signature.upperBound..<source.endIndex),
+                                    "the fail-safe's log line not found after its signature")
+        let body = source[signature.lowerBound..<logLine.lowerBound]
+        XCTAssertTrue(body.contains("Whoop5Ecg.r17FromFrame(frame) == nil"),
+                      "the ECG exemption must sit INSIDE stopUnexpectedRealtimeImu, not merely in the file")
+    }
 }

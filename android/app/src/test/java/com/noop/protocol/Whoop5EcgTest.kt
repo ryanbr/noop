@@ -529,6 +529,10 @@ class Whoop5EcgTest {
         assertFalse(r17IsRecognised(r17Frame(r17Inner(revision = 16, samples = 2) + i16le(listOf(1, 2)))))
         // Right revision, a type nothing in this family uses.
         assertFalse(r17IsRecognised(r17Frame(r17Inner(type = 40, samples = 2) + i16le(listOf(1, 2)))))
+        // Type 51 is REALTIME_IMU_DATA_STREAM, the OTHER type the raw-IMU fail-safe acts on (#2846).
+        // Recognition must not reach it, or the ECG exemption would disarm the fail-safe for the one
+        // producer whose type says outright that it is the IMU.
+        assertFalse(r17IsRecognised(r17Frame(r17Inner(type = 51, samples = 2) + i16le(listOf(1, 2)))))
         // Stored records need to be asked for.
         val stored = r17Frame(r17Inner(type = 47, samples = 2) + i16le(listOf(1, 2)))
         assertFalse(r17IsRecognised(stored))
