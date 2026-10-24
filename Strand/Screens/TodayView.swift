@@ -3642,7 +3642,7 @@ struct TodayView: View {
                         // #2032: Min and Max come from the SAMPLES, not from the mean curve above them.
                         // They fall back to the curve only if the extremes are somehow absent, which
                         // cannot happen on this branch since the buckets that built `v` carry them.
-                        ("Min", "\(Int((hrDayMin ?? v.min() ?? 0).rounded()))"),
+                        ("Min", "\(Int((hrDayMin ?? v.filter { $0 > 0 }.min() ?? 0).rounded()))"),
                         ("Avg", "\(Int((v.reduce(0, +) / Double(v.count)).rounded()))"),
                         ("Max", "\(Int((hrDayMax ?? v.max() ?? 0).rounded()))"),
                     ])
@@ -5010,7 +5010,8 @@ struct TodayView: View {
             }
         hrPoints = hrPointsLocal
         // The chart keeps plotting means; only the footer reads the samples behind them (#2032).
-        hrDayMin = hrBucketsLocal.map(\.minBpm).min()
+        // #2800: filter > 0 so startup hr=0 or corrupted samples do not report min as 0 bpm.
+        hrDayMin = hrBucketsLocal.map(\.minBpm).filter { $0 > 0 }.min()
         hrDayMax = hrBucketsLocal.map(\.maxBpm).max()
 
         // #316 / @63, the selected day's representative activity class for the Steps tile icon. Reads the

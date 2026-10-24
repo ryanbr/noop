@@ -155,6 +155,14 @@ final class ReadTests: XCTestCase {
         XCTAssertEqual(other, [HRBucket(ts: 200, bpm: 99, minBpm: 99, maxBpm: 99)])
     }
 
+    // #2800: startup hr=0 or corrupt samples must not drag minBpm down to 0
+    func testHrBucketsFiltersOutZeroBpm() async throws {
+        let store = try await seeded()
+        _ = try await store.insert(Streams(hr: [HRSample(ts: 150, bpm: 0)]), deviceId: "dev1")
+        let buckets = try await store.hrBuckets(deviceId: "dev1", from: 0, to: 199, bucketSeconds: 200)
+        XCTAssertEqual(buckets, [HRBucket(ts: 0, bpm: 60, minBpm: 60, maxBpm: 60)])
+    }
+
     /// Both same-second beats survive the v24 key. Since #823 the read order is EMISSION order, and
     /// `seeded()` happens to insert these two ascending — so the expectation is unchanged, but it now
     /// holds because 800 was sent first, not because 800 < 820.

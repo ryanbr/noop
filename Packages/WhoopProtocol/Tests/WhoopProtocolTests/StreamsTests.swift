@@ -139,4 +139,15 @@ final class StreamsTests: XCTestCase {
         let s = extractStreams([p], deviceClockRef: deviceClockRef, wallClockRef: wallClockRef)
         XCTAssertTrue(s.rr.isEmpty, "…and no such row may reach the datastore")
     }
+
+    // MARK: - #2800: startup hr=0 skipped
+
+    func testRealtimeHRZeroDropped() {
+        let frame = ParsedFrame(ok: true, typeName: "REALTIME_DATA", seq: nil, cmdName: nil,
+                                crcOK: true, lenBytes: 0, rawHex: "", fields: [],
+                                parsed: ["timestamp": .int(deviceClockRef),
+                                         "heart_rate": .int(0)])
+        let s = extractStreams([frame], deviceClockRef: deviceClockRef, wallClockRef: wallClockRef)
+        XCTAssertTrue(s.hr.isEmpty, "startup heart_rate = 0 must not produce an HR row")
+    }
 }

@@ -1146,7 +1146,7 @@ fun extractHistoricalStreams(
                 // #547: gate the wall()-corrected REALTIME_RAW_DATA ts on the same plausibility window — a
                 // bad device clock here would otherwise inject a far-past / future-dated HR/RR row.
                 if (!plausible(ts.toLong())) { droppedImplausible++; continue }
-                parsed.parsed.intOrNull("heart_rate")?.let { bpm -> hr.add(HrRow(ts.toLong(), bpm)) }
+                parsed.parsed.intOrNull("heart_rate")?.let { bpm -> if (bpm > 0) hr.add(HrRow(ts.toLong(), bpm)) }
                 @Suppress("UNCHECKED_CAST")
                 (parsed.parsed["rr_intervals"] as? List<Int>)?.forEach { rrMs ->
                     rr.add(RrRow(ts.toLong(), rrMs))

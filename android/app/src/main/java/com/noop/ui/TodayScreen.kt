@@ -6658,7 +6658,10 @@ private fun HeartRateTrendCard(
     // contained it, and the resting dip read higher than it was. The y-rail below stays on the means,
     // because that is the series it labels: raw extremes there would squash the drawn curve into the
     // middle of its own axis. Avg is left on the means deliberately, see the PR.
-    val min = remember(winBuckets) { winBuckets.minOf { it.minBpm } }.roundToInt()
+    // #2800: filter > 0 so startup hr=0 or corrupted samples do not report min as 0 bpm.
+    val min = remember(winBuckets) {
+        winBuckets.map { it.minBpm }.filter { it > 0 }.minOrNull() ?: winBuckets.minOf { it.minBpm }
+    }.roundToInt()
     val max = remember(winBuckets) { winBuckets.maxOf { it.maxBpm } }.roundToInt()
     val avg = bpm.average().roundToInt()
 
@@ -6679,7 +6682,7 @@ private fun HeartRateTrendCard(
     // span — so it matches the subtitle and stays stable while you pinch around within that window.
     val visMax = visBpm.max().roundToInt()
     val visAvg = visBpm.average().roundToInt()
-    val visMin = visBpm.min().roundToInt()
+    val visMin = (visBpm.filter { it > 0 }.minOrNull() ?: visBpm.min()).roundToInt()
 
     // Round wall-clock ticks for the RENDERED extent, shared by the gridlines (drawn inside
     // OverviewHRChart) and the axis-label strip below so they align.
