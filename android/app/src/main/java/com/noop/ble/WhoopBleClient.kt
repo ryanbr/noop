@@ -10984,6 +10984,13 @@ class WhoopBleClient(
         val s = _state.value
         if (!canRequestSync(s.connected, s.bonded, backfilling)) return
         val clockUntrusted = isFutureDatedNewest(strapNewestTs, System.currentTimeMillis() / 1000L)
+        // A slower timer alone still lets pushed events offload every 90 s. Apply the timer's cadence
+        // to the shared automatic gate only while a user-elected Power saving lever is active.
+        val (batteryPct, charging) = batteryPctAndCharging()
+        val powerSavingActive = lowRefreshMode || idleThrottleActive(
+            batteryPct, charging, lowBatteryOffloadPct,
+        )
+        val automaticFloor = if (powerSavingActive) nextBackfillDelayMs() / 1000.0 else 0.0
         if (!BackfillPolicy.shouldRun(
                 trigger = trigger,
                 nowSeconds = System.currentTimeMillis() / 1000.0,
@@ -10993,6 +11000,7 @@ class WhoopBleClient(
                 // latter is what stops the 15-min radio poll spinning on a caught-up strap.
                 emptyStreak = maxOf(emptySyncTracker.consecutiveEmptySyncs, consecutiveEmptyOffloads),
                 clockUntrusted = clockUntrusted,
+                automaticFloorSeconds = automaticFloor,
             )
         ) {
             // #1683: the empty streak only stretches the floor for the AUTOMATIC triggers (PERIODIC and

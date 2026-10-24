@@ -2,7 +2,9 @@ package com.noop.ble
 
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.security.MessageDigest
 
 /**
  * Parity tests for [BackfillPolicy] — the port of the Swift `BackfillPolicy`
@@ -12,6 +14,81 @@ import org.junit.Test
  * 15 min.
  */
 class BackfillPolicyTest {
+
+    /** Verbatim SHA-256 from the compiled production Swift helper over these 5,760 decisions. */
+    @Test
+    fun powerSavingDecisionOracle() {
+        val times = listOf(-1.0, 0.0, 89.0, 90.0, 479.0, 480.0, 899.0, 900.0,
+            1799.0, 1800.0, 2699.0, 2700.0, 3599.0, 3600.0, 7199.0, 7200.0)
+        val bits = StringBuilder()
+        for (trigger in BackfillTrigger.values()) {
+            for (last in listOf(null, 0.0)) {
+                for (now in times) {
+                    for (streak in listOf(0, 2, 3, 4, 99)) {
+                        for (untrusted in listOf(false, true)) {
+                            for (floor in listOf(0.0, 2700.0, 3600.0)) {
+                                val run = BackfillPolicy.shouldRun(trigger, now, last, streak, untrusted, floor)
+                                bits.append(if (run) '1' else '0')
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assertEquals(5760, bits.length)
+        val digest = MessageDigest.getInstance("SHA-256").digest(bits.toString().toByteArray(Charsets.US_ASCII))
+            .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+        assertEquals("66d75a86f19bc42e51993cc47554f4cc514267e071953b79670a3b771c3766f9", digest)
+    }
+
+    @Test
+    fun lowRefreshCannotBeBypassedByStrapEvents() {
+        var last = 0.0
+        val starts = mutableListOf<Int>()
+        for (now in 90..7200 step 90) {
+            if (BackfillPolicy.shouldRun(BackfillTrigger.STRAP, now.toDouble(), last,
+                    automaticFloorSeconds = 3600.0)) {
+                starts.add(now)
+                last = now.toDouble()
+            }
+        }
+        assertEquals(listOf(3600, 7200), starts)
+    }
+
+    @Test
+    fun powerSavingFloorsBothAutomaticTriggersAtTheBoundary() {
+        for (trigger in listOf(BackfillTrigger.STRAP, BackfillTrigger.PERIODIC)) {
+            for (floor in listOf(2700.0, 3600.0)) {
+                assertFalse(BackfillPolicy.shouldRun(trigger, floor - 1, 0.0, automaticFloorSeconds = floor))
+                assertTrue(BackfillPolicy.shouldRun(trigger, floor, 0.0, automaticFloorSeconds = floor))
+            }
+        }
+        assertTrue(BackfillPolicy.shouldRun(BackfillTrigger.MANUAL, 600.0, 0.0, automaticFloorSeconds = 3600.0))
+        assertFalse(BackfillPolicy.shouldRun(BackfillTrigger.STRAP, 3600.0, 600.0, automaticFloorSeconds = 3600.0))
+        assertTrue(BackfillPolicy.shouldRun(BackfillTrigger.STRAP, 4200.0, 600.0, automaticFloorSeconds = 3600.0))
+    }
+
+    @Test
+    fun powerSavingNeverDelaysRecoveryOrAnActiveDrain() {
+        for (trigger in listOf(BackfillTrigger.CONNECT, BackfillTrigger.FOREGROUND,
+                BackfillTrigger.MANUAL, BackfillTrigger.AUTO_CONTINUE)) {
+            assertTrue(BackfillPolicy.shouldRun(trigger, 90.0, 0.0, emptyStreak = 99,
+                clockUntrusted = true, automaticFloorSeconds = 3600.0))
+        }
+        assertTrue(BackfillPolicy.shouldRun(BackfillTrigger.STRAP, 1.0, null, automaticFloorSeconds = 3600.0))
+    }
+
+    @Test
+    fun powerSavingComposesWithEmptyBackoffAndUntrustedClock() {
+        assertFalse(BackfillPolicy.shouldRun(BackfillTrigger.PERIODIC, 2700.0, 0.0,
+            emptyStreak = 5, automaticFloorSeconds = 2700.0))
+        assertTrue(BackfillPolicy.shouldRun(BackfillTrigger.PERIODIC, 3600.0, 0.0,
+            emptyStreak = 5, automaticFloorSeconds = 2700.0))
+        assertTrue(BackfillPolicy.shouldRun(BackfillTrigger.STRAP, 3600.0, 0.0,
+            emptyStreak = 99, automaticFloorSeconds = 3600.0))
+        assertFalse(BackfillPolicy.shouldRun(BackfillTrigger.STRAP, 7200.0, 0.0,
+            clockUntrusted = true, automaticFloorSeconds = 3600.0))
+    }
 
     // The first-ever call (no prior backfill) always runs, whatever the trigger.
     @Test

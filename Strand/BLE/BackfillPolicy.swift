@@ -40,9 +40,14 @@ enum BackfillPolicy {
     /// SKIPPED ENTIRELY while the clock is untrusted — the per-connection `.connect` pass still runs, so a
     /// clock that later self-corrects is picked up on the next connection (or a manual sync). As with
     /// `emptyStreak`, `.connect`/`.foreground`/`.manual`/`.autoContinue` are never affected.
+    /// `automaticFloorSeconds` carries the active Power saving cadence into BOTH automatic triggers.
+    /// Stretching only the periodic timer lets pushed strap events bypass Low refresh / low-battery
+    /// throttling through the 90 s event floor. Zero preserves normal event-driven syncing. Compose
+    /// with the empty backoff using max, not multiplication; user and connection triggers keep their floors.
     static func shouldRun(trigger: BackfillTrigger, now: TimeInterval,
                           lastBackfillAt: TimeInterval?, emptyStreak: Int = 0,
-                          clockUntrusted: Bool = false) -> Bool {
+                          clockUntrusted: Bool = false,
+                          automaticFloorSeconds: TimeInterval = 0) -> Bool {
         guard let last = lastBackfillAt else { return true }
         let elapsed = now - last
         let backoff: Double = emptyStreak >= emptyBackoffThreshold
@@ -56,8 +61,10 @@ enum BackfillPolicy {
         // #160: a future-dated-clock strap's recurring automatic offloads are near-useless (#1012 won't
         // trust the range) but each holds the link ~60s and starves the WHOOP4 realtime-HR re-arm, so skip
         // them entirely — not just stretch the floor. The .connect pass above still re-checks the clock.
-        case .strap:                 return !clockUntrusted && elapsed >= eventFloorSeconds * backoff
-        case .periodic:              return !clockUntrusted && elapsed >= periodicFloorSeconds * backoff
+        case .strap:
+            return !clockUntrusted && elapsed >= max(eventFloorSeconds * backoff, automaticFloorSeconds)
+        case .periodic:
+            return !clockUntrusted && elapsed >= max(periodicFloorSeconds * backoff, automaticFloorSeconds)
         }
     }
 }

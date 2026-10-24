@@ -1,4 +1,5 @@
 import XCTest
+import CryptoKit
 @testable import Strand
 
 /// `BackfillPolicy` rate-limiter, incl. the empty-streak backoff that stops an off-wrist / not-banking
@@ -6,6 +7,85 @@ import XCTest
 final class BackfillPolicyTests: XCTestCase {
     private let fe = BackfillPolicy.eventFloorSeconds      // 90
     private let fp = BackfillPolicy.periodicFloorSeconds   // 900
+
+    // Compiled from the production Swift helper with swiftc; Kotlin pins the same 5,760 outcomes.
+    func testPowerSavingDecisionOracle() {
+        let triggers: [BackfillTrigger] = [.periodic, .connect, .foreground, .manual, .strap, .autoContinue]
+        let times: [Double] = [-1, 0, 89, 90, 479, 480, 899, 900, 1799, 1800, 2699, 2700, 3599, 3600, 7199, 7200]
+        var bits = Data()
+        for trigger in triggers {
+            for last: Double? in [nil, 0] {
+                for now in times {
+                    for streak in [0, 2, 3, 4, 99] {
+                        for untrusted in [false, true] {
+                            for floor in [0.0, 2700.0, 3600.0] {
+                                let run = BackfillPolicy.shouldRun(trigger: trigger, now: now,
+                                    lastBackfillAt: last, emptyStreak: streak, clockUntrusted: untrusted,
+                                    automaticFloorSeconds: floor)
+                                bits.append(run ? 49 : 48)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        XCTAssertEqual(bits.count, 5760)
+        XCTAssertEqual(SHA256.hash(data: bits).map { String(format: "%02x", $0) }.joined(),
+            "66d75a86f19bc42e51993cc47554f4cc514267e071953b79670a3b771c3766f9")
+    }
+
+    func testLowRefreshCannotBeBypassedByStrapEvents() {
+        var last = 0.0
+        var starts: [Int] = []
+        for now in stride(from: 90, through: 7200, by: 90) {
+            if BackfillPolicy.shouldRun(trigger: .strap, now: Double(now), lastBackfillAt: last,
+                                        automaticFloorSeconds: 3600) {
+                starts.append(now)
+                last = Double(now)
+            }
+        }
+        XCTAssertEqual(starts, [3600, 7200])
+    }
+
+    func testPowerSavingFloorsBothAutomaticTriggersAtTheBoundary() {
+        for trigger in [BackfillTrigger.strap, .periodic] {
+            for floor in [2700.0, 3600.0] {
+                XCTAssertFalse(BackfillPolicy.shouldRun(trigger: trigger, now: floor - 1,
+                    lastBackfillAt: 0, automaticFloorSeconds: floor))
+                XCTAssertTrue(BackfillPolicy.shouldRun(trigger: trigger, now: floor,
+                    lastBackfillAt: 0, automaticFloorSeconds: floor))
+            }
+        }
+        // A manual sync becomes the new reference for subsequent automatic attempts too.
+        XCTAssertTrue(BackfillPolicy.shouldRun(trigger: .manual, now: 600,
+            lastBackfillAt: 0, automaticFloorSeconds: 3600))
+        XCTAssertFalse(BackfillPolicy.shouldRun(trigger: .strap, now: 3600,
+            lastBackfillAt: 600, automaticFloorSeconds: 3600))
+        XCTAssertTrue(BackfillPolicy.shouldRun(trigger: .strap, now: 4200,
+            lastBackfillAt: 600, automaticFloorSeconds: 3600))
+    }
+
+    func testPowerSavingNeverDelaysRecoveryOrAnActiveDrain() {
+        for trigger in [BackfillTrigger.connect, .foreground, .manual, .autoContinue] {
+            XCTAssertTrue(BackfillPolicy.shouldRun(trigger: trigger, now: 90,
+                lastBackfillAt: 0, emptyStreak: 99, clockUntrusted: true, automaticFloorSeconds: 3600))
+        }
+        XCTAssertTrue(BackfillPolicy.shouldRun(trigger: .strap, now: 1,
+            lastBackfillAt: nil, automaticFloorSeconds: 3600))
+    }
+
+    func testPowerSavingComposesWithEmptyBackoffAndUntrustedClock() {
+        // Existing periodic backoff (3600 s) wins over low-battery saving (2700 s).
+        XCTAssertFalse(BackfillPolicy.shouldRun(trigger: .periodic, now: 2700,
+            lastBackfillAt: 0, emptyStreak: 5, automaticFloorSeconds: 2700))
+        XCTAssertTrue(BackfillPolicy.shouldRun(trigger: .periodic, now: 3600,
+            lastBackfillAt: 0, emptyStreak: 5, automaticFloorSeconds: 2700))
+        // Hourly saving wins over the event backoff, without multiplying it to four hours.
+        XCTAssertTrue(BackfillPolicy.shouldRun(trigger: .strap, now: 3600,
+            lastBackfillAt: 0, emptyStreak: 99, automaticFloorSeconds: 3600))
+        XCTAssertFalse(BackfillPolicy.shouldRun(trigger: .strap, now: 7200,
+            lastBackfillAt: 0, clockUntrusted: true, automaticFloorSeconds: 3600))
+    }
 
     func testFirstSyncAlwaysRuns() {
         XCTAssertTrue(BackfillPolicy.shouldRun(trigger: .periodic, now: 1000, lastBackfillAt: nil))
