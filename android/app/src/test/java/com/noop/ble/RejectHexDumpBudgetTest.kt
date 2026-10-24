@@ -1,6 +1,10 @@
 package com.noop.ble
 
+import com.noop.protocol.Framing
+import com.noop.protocol.Whoop5Ecg
+
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -70,6 +74,44 @@ class RejectHexDumpBudgetTest {
     fun unmappedTypeDumpLineDerivesItsLengthFromTheBytes() {
         val line = Backfiller.unmappedTypeDumpLine("type53", "aabbccdd")
         assertEquals("Backfill: unmapped type type53 first frame 4B: aabbccdd", line)
+    }
+
+    /**
+     * An R16 ECG record gains a decoded summary beside its hex (#891).
+     *
+     * The dump exists to carry an unmapped layout to someone who can map it. R16 IS mapped now, so the
+     * line answers the question a reporter actually has: did the banked reading record a waveform. The
+     * hex still rides along, and the summary carries counts and flags only, never samples.
+     */
+    @Test
+    fun anR16RecordGainsADecodedSummaryBesideItsHex() {
+        val inner = IntArray(Whoop5Ecg.R16_INNER_LENGTH)
+        inner[0] = Whoop5Ecg.STORED_RECORD_TYPE
+        inner[1] = Whoop5Ecg.R16_REVISION
+        inner[17] = 100                                       // progress: terminal
+        inner[24] = 0xf4; inner[25] = 0x01                    // declared count 500
+        inner[Whoop5Ecg.R16_LEADS_OFF_COUNT_OFFSET] = 10
+        val frame = Framing.puffinCommandFrame(
+            cmd = inner[2], seq = inner[1],
+            payload = ByteArray(inner.size - 3) { inner[it + 3].toByte() },
+            type = inner[0],
+        )
+        val hex = frame.joinToString("") { "%02x".format(it) }
+        val line = Backfiller.unmappedTypeDumpLine("HISTORICAL_DATA", hex)
+        assertTrue(line, line.contains(hex))                  // the bytes are still there
+        assertTrue(line, line.contains("| R16 "))
+        assertTrue(line, line.contains("samples=500"))
+        assertTrue(line, line.contains("terminal"))
+        assertTrue(line, line.contains("grouping=51/50x8/49"))
+        // Never the samples themselves.
+        assertFalse(line, line.contains("sample["))
+    }
+
+    /** A frame that is not an R16 gains nothing, so the ordinary dump is unchanged. */
+    @Test
+    fun aNonR16FrameGainsNoSummary() {
+        val line = Backfiller.unmappedTypeDumpLine("type53", "aabbccdd")
+        assertFalse(line, line.contains("| R16"))
     }
 
     /** The full frame rides the line - no prefix cap, for the reason the reject dump has none. */

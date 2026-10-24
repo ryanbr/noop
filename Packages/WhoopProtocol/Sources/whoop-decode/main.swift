@@ -225,6 +225,13 @@ for (n, rec) in records.enumerated() {
     var head = frameInspectionLine(index: n, family: family, parsed: parsed)
     if let c = rec.char { head += " char=\(c)" }
     if let hr = rec.hr { head += " hr=\(hr)" }
+    // R16 is a flash-banked ECG record (#891). The generic dump describes its header and then calls
+    // 1550 bytes an opaque payload, which is exactly how a banked reading stayed invisible for three
+    // months. This says whether the record actually carried a waveform. Counts and flags only, never
+    // samples: a decode dump of someone's ECG is their cardiac data. Appended to `head` rather than
+    // bound to a new local, because this target has no Kotlin twin and every constant in it is
+    // unpaired by construction.
+    head += Whoop5Ecg.r16SummaryLine(frame).map { " | \($0)" } ?? ""
     print(head)
     for f in parsed.fields {
         let note = f.note.map { "  // \($0)" } ?? ""

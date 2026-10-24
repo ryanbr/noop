@@ -11,6 +11,7 @@ import com.noop.protocol.ChunkClockDiag
 import com.noop.protocol.DeviceFamily
 import com.noop.protocol.Framing
 import com.noop.protocol.HistoricalMeta
+import com.noop.protocol.Whoop5Ecg
 import com.noop.protocol.classifyHistoricalMeta
 import com.noop.protocol.decodeHistorical
 import com.noop.protocol.extractHistoricalStreams
@@ -858,8 +859,36 @@ class Backfiller(
          * `Backfiller.unmappedTypeDumpLine`; [hex] is the FULL frame, so the length is derived from it
          * rather than passed separately and able to disagree with the bytes beside it.
          */
-        internal fun unmappedTypeDumpLine(typeName: String, hex: String): String =
-            "Backfill: unmapped type $typeName first frame ${hex.length / 2}B: $hex"
+        internal fun unmappedTypeDumpLine(typeName: String, hex: String): String {
+            var line = "Backfill: unmapped type $typeName first frame ${hex.length / 2}B: $hex"
+            // The R16 ECG layout is mapped now (#891), so say what the record HOLDS rather than only
+            // carrying its bytes to someone who can map it. This dump is the one channel that reaches a
+            // reporter, and 3168 characters of hex cannot answer "did my reading record anything".
+            // Counts and flags only, never samples: a banked R16 is a recording of the wearer's heart.
+            val raw = hexFrameBytes(hex)
+            if (raw != null) {
+                val r16 = Whoop5Ecg.r16SummaryLine(raw)
+                if (r16 != null) line += " | $r16"
+            }
+            return line
+        }
+
+        /**
+         * [hex] as bytes, or null when it is not clean full-byte hex.
+         *
+         * Local to this dump rather than reaching for an importer helper: the dump must never throw on a
+         * malformed sample, and a nil here simply means the line keeps its hex and gains no summary.
+         * Swift twin: the `raw` bytes `unmappedTypeDumpLine` already holds, which needs no conversion.
+         */
+        private fun hexFrameBytes(hex: String): ByteArray? {
+            if (hex.length % 2 != 0 || hex.isEmpty()) return null
+            val out = ByteArray(hex.length / 2)
+            for (i in out.indices) {
+                val v = hex.substring(i * 2, i * 2 + 2).toIntOrNull(16) ?: return null
+                out[i] = v.toByte()
+            }
+            return out
+        }
 
         /**
          * How many reject frames this chunk may hex-dump, given what the session has already spent (#1992).

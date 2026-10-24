@@ -347,6 +347,160 @@ public struct RawLabradorPacket: Equatable, Sendable {
     }
 }
 
+/// The flash-banked raw ECG record: type 47 HISTORICAL_DATA, data revision 16, exactly 1584 bytes.
+///
+/// `TOGGLE_LABRADOR_RAW_SAVE(125)=1` banks the generation to flash as these, which arrive in the ordinary
+/// history offload rather than on a live channel. That delivery path is why every 30-second realtime listen
+/// in #891 reported silence while the strap was in fact recording.
+///
+/// Carries wire structure only: 500 three-byte slots holding signed 18-bit samples plus two flag bits, and
+/// a fixed lead-off diagnostic trailer. It establishes no volts per count and nothing clinical.
+public struct LabradorR16: Equatable, Sendable {
+    public let packetType: UInt8         // inner[0]
+    public let headerSecondary: UInt8    // inner[2]
+    public let sequence: UInt32          // inner[3...6]  u32 LE — the record index
+    public let strapSeconds: UInt32      // inner[7...10] u32 LE
+    public let subseconds: UInt16        // inner[11...12] u16 LE, 1/32768 s
+    public let signalQuality: EcgSignalQuality
+    public let signalQualityRaw: UInt8   // inner[13]
+    public let flags: EcgLabradorFlags   // inner[14]
+    public let arrhythmiaCheckResult: EcgArrhythmiaCheckResult?
+    public let arrhythmiaCheckResultRaw: UInt8  // inner[15]
+    public let classifierState: UInt8    // inner[16]
+    public let progress: EcgHeartKeyProgress    // inner[17]
+    public let unreadable: EcgUnreadableMask    // inner[18]
+    public let averageHR: UInt8          // inner[19]
+    /// `inner[20]`. OBSERVED to remain zero on R16, where R17 carries the live rate. Reported as it
+    /// arrives rather than asserted zero: the decoder states the wire, not the observation.
+    public let liveHR: UInt8
+    public let variabilityRaw: UInt16?   // inner[21...22], nil on the unavailable sentinel
+    public let reserved: UInt8           // inner[23]
+    public let sampleCount: UInt16       // inner[24...25] u16 LE, capacity 500
+
+    /// Signed 18-bit samples, `sampleCount` of them, in wire order. Range `-131072 ... 131071`.
+    public let samples: [Int32]
+
+    /// The tag byte of each decoded slot, byte-exact and one per entry in `samples`.
+    ///
+    /// Kept whole rather than split into booleans so nothing is discarded: it carries flag 7, flag 6, the
+    /// uninterpreted reserved bits 2-5, and the sample's own high bits 17-16. Use `flag6(at:)`,
+    /// `flag7(at:)` and `reservedBits(at:)` to read it.
+    public let sampleTags: [UInt8]
+
+    /// `inner[1526]`, verbatim. Capacity is `r16LeadsOffSlots`; a larger value is an anomaly and is
+    /// reported rather than clamped, because clamping would invent a count the strap never sent.
+    public let leadsOffCountRaw: UInt8
+
+    /// All 11 fixed I-channel halfwords. Fixed offsets, so these are present whatever the count says.
+    ///
+    /// Assembled LITTLE-ENDIAN, which is a candidate reading and not an attested one. `docs/PROTOCOL_ECG.md`
+    /// gives these a signed diagnostic meaning and no byte order, and the waveform slots in the same record
+    /// are big-endian, so the record is not uniformly one or the other. Little-endian is what every other
+    /// multi-byte field in this status region uses, which makes it the consistent reading rather than a
+    /// measured one. `Whoop5EcgR16Tests` pins the reading against explicit bytes so a change to it is a
+    /// visible decision; `sampleTags` and `leadsOffCountRaw` are the fields that are genuinely byte-exact.
+    /// Nothing in the tree derives a number from these, so the open question costs no output today.
+    public let leadsOffIRaw: [UInt16]
+
+    /// All 11 fixed Q-channel halfwords, on the same unattested little-endian reading as `leadsOffIRaw`.
+    public let leadsOffQRaw: [UInt16]
+
+    /// `inner[1571]`, the record's alignment byte, carried so a caller can see it really was zero.
+    public let alignmentByte: UInt8
+
+    public init(packetType: UInt8, headerSecondary: UInt8, sequence: UInt32, strapSeconds: UInt32,
+                subseconds: UInt16, signalQuality: EcgSignalQuality, signalQualityRaw: UInt8,
+                flags: EcgLabradorFlags, arrhythmiaCheckResult: EcgArrhythmiaCheckResult?,
+                arrhythmiaCheckResultRaw: UInt8, classifierState: UInt8, progress: EcgHeartKeyProgress,
+                unreadable: EcgUnreadableMask, averageHR: UInt8, liveHR: UInt8, variabilityRaw: UInt16?,
+                reserved: UInt8, sampleCount: UInt16, samples: [Int32], sampleTags: [UInt8],
+                leadsOffCountRaw: UInt8, leadsOffIRaw: [UInt16], leadsOffQRaw: [UInt16],
+                alignmentByte: UInt8) {
+        self.packetType = packetType
+        self.headerSecondary = headerSecondary
+        self.sequence = sequence
+        self.strapSeconds = strapSeconds
+        self.subseconds = subseconds
+        self.signalQuality = signalQuality
+        self.signalQualityRaw = signalQualityRaw
+        self.flags = flags
+        self.arrhythmiaCheckResult = arrhythmiaCheckResult
+        self.arrhythmiaCheckResultRaw = arrhythmiaCheckResultRaw
+        self.classifierState = classifierState
+        self.progress = progress
+        self.unreadable = unreadable
+        self.averageHR = averageHR
+        self.liveHR = liveHR
+        self.variabilityRaw = variabilityRaw
+        self.reserved = reserved
+        self.sampleCount = sampleCount
+        self.samples = samples
+        self.sampleTags = sampleTags
+        self.leadsOffCountRaw = leadsOffCountRaw
+        self.leadsOffIRaw = leadsOffIRaw
+        self.leadsOffQRaw = leadsOffQRaw
+        self.alignmentByte = alignmentByte
+    }
+
+    /// Electrode contact, from the flags byte.
+    public var presence: Bool { flags.presence }
+
+    /// The strap's completion condition.
+    public var isTerminal: Bool { progress.raw == 100 || classifierState == 2 }
+
+    /// The strap's invalid/abort sentinel.
+    public var isInvalid: Bool { progress.raw == 255 }
+
+    /// False when the lead-off count exceeds the slots the wire actually carries.
+    public var leadsOffCountWithinCapacity: Bool {
+        Int(leadsOffCountRaw) <= Whoop5Ecg.r16LeadsOffSlots
+    }
+
+    /// Flag 6 of a slot, which the firmware supplies PER SAMPLE.
+    /// Kotlin twin: `LabradorR16.flag6`.
+    public func flag6(at index: Int) -> Bool? {
+        guard sampleTags.indices.contains(index) else { return nil }
+        return (sampleTags[index] >> 6) & 1 == 1
+    }
+
+    /// Flag 7 of a slot.
+    ///
+    /// The bit is genuinely in every slot, but its VALUE is replicated from a slower lead-state stream, so
+    /// 500 of them are not 500 independent contact measurements. `leadStateGroup(at:)` says which single
+    /// measurement a slot's bit came from; treating this as a per-sample contact channel is the misreading
+    /// `docs/PROTOCOL_ECG.md` warns about.
+    /// Kotlin twin: `LabradorR16.flag7`.
+    public func flag7(at index: Int) -> Bool? {
+        guard sampleTags.indices.contains(index) else { return nil }
+        return (sampleTags[index] >> 7) & 1 == 1
+    }
+
+    /// Bits 2-5 of a slot's tag byte, uninterpreted. Retained because nothing establishes what they mean.
+    /// Kotlin twin: `LabradorR16.reservedBits`.
+    public func reservedBits(at index: Int) -> UInt8? {
+        guard sampleTags.indices.contains(index) else { return nil }
+        return (sampleTags[index] >> 2) & 0x0f
+    }
+
+    /// Which lead-state entry a sample's flag 7 was replicated from, or nil when the grouping is not
+    /// established for this record.
+    ///
+    /// Defined ONLY for the attested 500-raw / 10-slower case. The groups are 51, then eight of 50, then
+    /// 49 — the boundary sample keeps the EARLIER entry before the index advances, so entry 0 covers
+    /// samples 0...50 and not 0...49. Ten equal groups of 50 is the wrong answer. Rather than guess a
+    /// divisor for a shape nothing attests, this returns nil: for a zero count, for any other count, and
+    /// for a short record. A real strap sends a lead-state count of 11 often enough that a guessed
+    /// divisor would misreport live records.
+    /// Kotlin twin: `LabradorR16.leadStateGroup`.
+    public func leadStateGroup(at index: Int) -> Int? {
+        guard Int(leadsOffCountRaw) == Whoop5Ecg.r16LeadStateGroupCount,
+              Int(sampleCount) == Whoop5Ecg.r16MaxSamples,
+              samples.indices.contains(index) else { return nil }
+        let divisor = Whoop5Ecg.r16MaxSamples / Whoop5Ecg.r16LeadStateGroupCount
+        return index == 0 ? 0 : (index - 1) / divisor
+    }
+}
+
 // MARK: - Decode + command construction
 
 public enum Whoop5Ecg {
@@ -565,6 +719,119 @@ public enum Whoop5Ecg {
             tail: Array(inner[end...]))
     }
 
+    /// Decode a `LabradorR16` from a complete INNER record — the bytes from the packet-type byte onwards,
+    /// which on a 5/MG frame means `frame[8...]`.
+    ///
+    /// Accepts only a type-47 record of data revision 16 whose inner length is exactly `r16InnerLength`.
+    /// The length is REQUIRED rather than derived, unlike R17: every region after the waveform sits at a
+    /// FIXED offset, so a short buffer cannot be decoded by shrinking the sample block — it would read the
+    /// lead-off arrays from inside the waveform. A declared `sampleCount` above `r16MaxSamples` is an
+    /// anomaly and is refused.
+    ///
+    /// CRC validity is the caller's business; `r16FromFrame` enforces it.
+    /// Kotlin twin: `Whoop5Ecg.parseR16`.
+    public static func parseR16(inner: [UInt8]) -> LabradorR16? {
+        guard inner.count == r16InnerLength else { return nil }
+        guard inner[0] == storedRecordType, inner[1] == r16Revision else { return nil }
+        let count = Int(u16le(inner, 24))
+        guard count <= r16MaxSamples else { return nil }
+
+        var samples = [Int32]()
+        var tags = [UInt8]()
+        samples.reserveCapacity(count)
+        tags.reserveCapacity(count)
+        for i in 0..<count {
+            let o = r16SampleStart + i * r16SampleSlotBytes
+            let tag = inner[o]
+            // Big-endian pair under a tag byte whose low two bits are the sample's high bits. Reading this
+            // as little-endian i16 is the misdecode that puts a ~65,000-count cliff at every zero crossing.
+            let raw18 = (Int(tag & 0x03) << 16) | (Int(inner[o + 1]) << 8) | Int(inner[o + 2])
+            samples.append(Int32(raw18 >= r16SampleSignThreshold ? raw18 - r16SampleModulus : raw18))
+            tags.append(tag)
+        }
+
+        var leadsI = [UInt16]()
+        var leadsQ = [UInt16]()
+        leadsI.reserveCapacity(r16LeadsOffSlots)
+        leadsQ.reserveCapacity(r16LeadsOffSlots)
+        for i in 0..<r16LeadsOffSlots {
+            leadsI.append(u16le(inner, r16LeadsOffIStart + i * 2))
+            leadsQ.append(u16le(inner, r16LeadsOffQStart + i * 2))
+        }
+
+        let variability = u16le(inner, 21)
+        let quality = inner[13]
+        return LabradorR16(
+            packetType: inner[0],
+            headerSecondary: inner[2],
+            sequence: u32le(inner, 3),
+            strapSeconds: u32le(inner, 7),
+            subseconds: u16le(inner, 11),
+            signalQuality: EcgSignalQuality(rawValue: quality) ?? .unknown,
+            signalQualityRaw: quality,
+            flags: EcgLabradorFlags(raw: inner[14]),
+            arrhythmiaCheckResult: EcgArrhythmiaCheckResult(rawValue: inner[15]),
+            arrhythmiaCheckResultRaw: inner[15],
+            classifierState: inner[16],
+            progress: EcgHeartKeyProgress(raw: inner[17]),
+            unreadable: EcgUnreadableMask(raw: inner[18]),
+            averageHR: inner[19],
+            liveHR: inner[20],
+            variabilityRaw: variability == r17VariabilityUnavailable ? nil : variability,
+            reserved: inner[23],
+            sampleCount: UInt16(count),
+            samples: samples,
+            sampleTags: tags,
+            leadsOffCountRaw: inner[r16LeadsOffCountOffset],
+            leadsOffIRaw: leadsI,
+            leadsOffQRaw: leadsQ,
+            alignmentByte: inner[r16AlignmentOffset])
+    }
+
+    /// CRC-gated decode straight off a complete 5/MG frame. The frame must pass BOTH puffin CRCs — a frame
+    /// that fails is rejected before any field is read, per the BLE safety contract.
+    /// Kotlin twin: `Whoop5Ecg.r16FromFrame`.
+    public static func r16FromFrame(_ frame: [UInt8]) -> LabradorR16? {
+        guard let inner = innerPayload(frame, payloadStart: rawTypeOffset) else { return nil }
+        return parseR16(inner: inner)
+    }
+
+    /// A one-line, non-identifying summary of an R16 record, or nil when `frame` is not a CRC-valid one.
+    ///
+    /// Exists so a maintainer reading a strap log or a `whoop-decode` dump can tell at a glance whether a
+    /// banked reading actually carried a waveform, which is the question #891 spent three months unable to
+    /// answer. Counts and flags only: no serial, no wall clock, no sample values, so it is safe to paste
+    /// into an issue. The strap's own record index and clock are already in every history log line.
+    ///
+    /// Kotlin twin: `Whoop5Ecg.r16SummaryLine`.
+    public static func r16SummaryLine(_ frame: [UInt8]) -> String? {
+        guard isR16Record(frame), let p = r16FromFrame(frame) else { return nil }
+        let n = Int(p.sampleCount)
+        var contact = 0, leadFlag = 0, reservedNonZero = 0
+        for i in 0..<n {
+            if p.flag6(at: i) == true { contact += 1 }
+            if p.flag7(at: i) == true { leadFlag += 1 }
+            if (p.reservedBits(at: i) ?? 0) != 0 { reservedNonZero += 1 }
+        }
+        let grouping = p.leadStateGroup(at: 0) == nil ? "unavailable" : "51/50x8/49"
+        var out = "R16 idx=\(p.sequence) t=\(p.strapSeconds) q=\(p.signalQualityRaw)"
+        out += " prog=\(p.progress.raw) state=\(p.classifierState)"
+        out += p.isTerminal ? " terminal" : (p.isInvalid ? " invalid" : " running")
+        out += " samples=\(n) flag6=\(contact)/\(n) flag7=\(leadFlag)/\(n)"
+        out += " reservedNonZero=\(reservedNonZero) leadOff=\(p.leadsOffCountRaw)"
+        if !p.leadsOffCountWithinCapacity { out += "(over capacity)" }
+        out += " grouping=\(grouping)"
+        return out
+    }
+
+    /// True for a frame shaped like an R16 record. Shape only — says nothing about CRC.
+    /// Kotlin twin: `Whoop5Ecg.isR16Record`.
+    public static func isR16Record(_ frame: [UInt8]) -> Bool {
+        frame.count == r16RecordLength
+            && frame[rawTypeOffset] == storedRecordType
+            && frame[rawTypeOffset + 1] == r16Revision
+    }
+
     /// Kotlin twin: `Whoop5Ecg.u16le`.
     private static func u16le(_ b: [UInt8], _ i: Int) -> UInt16 {
         UInt16(b[i]) | (UInt16(b[i + 1]) << 8)
@@ -716,6 +983,68 @@ public enum Whoop5Ecg {
 
     /// `0xffff` at `inner[21...22]` means the variability value is unavailable.
     public static let r17VariabilityUnavailable: UInt16 = 0xffff
+
+    // MARK: The revision-16 layout
+    //
+    // The flash-banked record that `TOGGLE_LABRADOR_RAW_SAVE(125)=1` produces. It arrives in the ordinary
+    // history offload as a type-47 HISTORICAL_DATA frame of data revision 16, not on a live channel, which
+    // is why a realtime listen never saw it (#891).
+    //
+    // Offsets are INNER, like the R17 block above; `docs/PROTOCOL_ECG.md` states the same layout in FRAME
+    // offsets, which are these plus `rawTypeOffset`. The status region is byte-identical to R17 and is read
+    // with the same expressions here; `Whoop5EcgR16Tests` pins the two decoders against one header rather
+    // than sharing a reader, because `parseR17` is the live path and is not refactored for this.
+    //
+    // Everything here is wire structure and coding only. It establishes no volts per count, no sample rate,
+    // and nothing clinical.
+
+    /// `inner[1]` — the data revision that makes a record an R16.
+    public static let r16Revision: UInt8 = 16
+
+    /// A whole R16 FRAME is exactly this long, envelope and CRC32 trailer included.
+    public static let r16RecordLength = 1584
+
+    /// The inner record's length once the 8-byte envelope and the 4-byte CRC32 trailer are removed.
+    public static let r16InnerLength = 1572
+
+    /// Wire capacity: 500 waveform slots per record.
+    public static let r16MaxSamples = 500
+
+    /// First waveform byte, `inner[26]` — the same offset as `r17SampleStart`, because the two revisions
+    /// share their status header. Pinned equal by a test rather than aliased, so each stays a literal the
+    /// parity scanner can verify against its Kotlin twin by value.
+    public static let r16SampleStart = 26
+
+    /// Each waveform slot is three bytes: one tag byte then a big-endian pair. NOT little-endian i16, and
+    /// NOT a signed 24-bit sample.
+    public static let r16SampleSlotBytes = 3
+
+    /// `inner[1526]` — the lead-off diagnostic count.
+    public static let r16LeadsOffCountOffset = 1526
+
+    /// Lead-off diagnostic slots actually present on the wire, per channel. FIXED: the arrays do not move
+    /// when either count is smaller, so a `header + count * width` formula locates them incorrectly.
+    public static let r16LeadsOffSlots = 11
+
+    /// `inner[1527]` — first I-channel halfword.
+    public static let r16LeadsOffIStart = 1527
+
+    /// `inner[1549]` — first Q-channel halfword.
+    public static let r16LeadsOffQStart = 1549
+
+    /// `inner[1571]` — the record's single zero alignment byte, never a sample and never a diagnostic.
+    public static let r16AlignmentOffset = 1571
+
+    /// Sample values are signed 18-bit two's complement, so `raw18` at or above this subtracts
+    /// `r16SampleModulus`. The resulting range is `-131072 ... 131071`.
+    public static let r16SampleSignThreshold = 131_072
+
+    /// The 18-bit modulus used to sign-extend `raw18`.
+    public static let r16SampleModulus = 262_144
+
+    /// The lead-state array count for which the flag-7 grouping is ESTABLISHED. Other nonzero counts are
+    /// not attested as input to that rule, and a zero count omits flag-7 insertion entirely.
+    public static let r16LeadStateGroupCount = 10
 
     /// First body byte considered by `realtimeRawBodyNonZeroBytes` — excludes the constant sub-header.
     public static let rawBodyStart = 24

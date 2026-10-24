@@ -230,6 +230,128 @@ data class RawLabradorPacket(
         get() = if (header.numberOfECGSamples > 0) rawECGDataRaw.size / header.numberOfECGSamples else null
 }
 
+/**
+ * The flash-banked raw ECG record: type 47 HISTORICAL_DATA, data revision 16, exactly 1584 bytes.
+ *
+ * `TOGGLE_LABRADOR_RAW_SAVE(125)=1` banks the generation to flash as these, which arrive in the ordinary
+ * history offload rather than on a live channel. That delivery path is why every 30-second realtime listen
+ * in #891 reported silence while the strap was in fact recording.
+ *
+ * Carries wire structure only: 500 three-byte slots holding signed 18-bit samples plus two flag bits, and
+ * a fixed lead-off diagnostic trailer. It establishes no volts per count and nothing clinical.
+ *
+ * Swift twin: `LabradorR16`.
+ */
+data class LabradorR16(
+    val packetType: Int,            // inner[0]
+    val headerSecondary: Int,       // inner[2]
+    val sequence: Long,             // inner[3..6]   u32 LE — the record index
+    val strapSeconds: Long,         // inner[7..10]  u32 LE
+    val subseconds: Int,            // inner[11..12] u16 LE, 1/32768 s
+    val signalQuality: EcgSignalQuality,
+    val signalQualityRaw: Int,      // inner[13]
+    val flags: EcgLabradorFlags,    // inner[14]
+    val arrhythmiaCheckResult: EcgArrhythmiaCheckResult?,
+    val arrhythmiaCheckResultRaw: Int,  // inner[15]
+    val classifierState: Int,       // inner[16]
+    val progress: EcgHeartKeyProgress,  // inner[17]
+    val unreadable: EcgUnreadableMask,  // inner[18]
+    val averageHR: Int,             // inner[19]
+    /**
+     * `inner[20]`. OBSERVED to remain zero on R16, where R17 carries the live rate. Reported as it
+     * arrives rather than asserted zero: the decoder states the wire, not the observation.
+     */
+    val liveHR: Int,
+    val variabilityRaw: Int?,       // inner[21..22], null on the unavailable sentinel
+    val reserved: Int,              // inner[23]
+    val sampleCount: Int,           // inner[24..25] u16 LE, capacity 500
+    /** Signed 18-bit samples, [sampleCount] of them, in wire order. Range `-131072 .. 131071`. */
+    val samples: List<Int>,
+    /**
+     * The tag byte of each decoded slot, byte-exact and one per entry in [samples].
+     *
+     * Kept whole rather than split into booleans so nothing is discarded: it carries flag 7, flag 6, the
+     * uninterpreted reserved bits 2-5, and the sample's own high bits 17-16.
+     */
+    val sampleTags: List<Int>,
+    /**
+     * `inner[1526]`, verbatim. Capacity is [Whoop5Ecg.R16_LEADS_OFF_SLOTS]; a larger value is an anomaly
+     * and is reported rather than clamped, because clamping would invent a count the strap never sent.
+     */
+    val leadsOffCountRaw: Int,
+    /**
+     * All 11 fixed I-channel halfwords. Fixed offsets, so present whatever the count says.
+     *
+     * Assembled LITTLE-ENDIAN, which is a candidate reading and not an attested one. `docs/PROTOCOL_ECG.md`
+     * gives these a signed diagnostic meaning and no byte order, and the waveform slots in the same record
+     * are big-endian, so the record is not uniformly one or the other. Little-endian is what every other
+     * multi-byte field in this status region uses, which makes it the consistent reading rather than a
+     * measured one. Whoop5EcgR16Test pins the reading against explicit bytes so a change to it is a
+     * visible decision; [sampleTags] and [leadsOffCountRaw] are the fields that are genuinely byte-exact.
+     * Nothing in the tree derives a number from these, so the open question costs no output today.
+     */
+    val leadsOffIRaw: List<Int>,
+    /** All 11 fixed Q-channel halfwords, on the same unattested little-endian reading as [leadsOffIRaw]. */
+    val leadsOffQRaw: List<Int>,
+    /** `inner[1571]`, the record's alignment byte, carried so a caller can see it really was zero. */
+    val alignmentByte: Int,
+) {
+    /** Electrode contact, from the flags byte. */
+    val presence: Boolean get() = flags.presence
+
+    /** The strap's completion condition. */
+    val isTerminal: Boolean get() = progress.raw == 100 || classifierState == 2
+
+    /** The strap's invalid/abort sentinel. */
+    val isInvalid: Boolean get() = progress.raw == 255
+
+    /** False when the lead-off count exceeds the slots the wire actually carries. */
+    val leadsOffCountWithinCapacity: Boolean
+        get() = leadsOffCountRaw <= Whoop5Ecg.R16_LEADS_OFF_SLOTS
+
+    /** Flag 6 of a slot, which the firmware supplies PER SAMPLE. Swift twin: `LabradorR16.flag6`. */
+    fun flag6(index: Int): Boolean? =
+        if (index in sampleTags.indices) (sampleTags[index] shr 6) and 1 == 1 else null
+
+    /**
+     * Flag 7 of a slot.
+     *
+     * The bit is genuinely in every slot, but its VALUE is replicated from a slower lead-state stream, so
+     * 500 of them are not 500 independent contact measurements. [leadStateGroup] says which single
+     * measurement a slot's bit came from; treating this as a per-sample contact channel is the misreading
+     * `docs/PROTOCOL_ECG.md` warns about.
+     *
+     * Swift twin: `LabradorR16.flag7`.
+     */
+    fun flag7(index: Int): Boolean? =
+        if (index in sampleTags.indices) (sampleTags[index] shr 7) and 1 == 1 else null
+
+    /** Bits 2-5 of a slot's tag byte, uninterpreted. Swift twin: `LabradorR16.reservedBits`. */
+    fun reservedBits(index: Int): Int? =
+        if (index in sampleTags.indices) (sampleTags[index] shr 2) and 0x0f else null
+
+    /**
+     * Which lead-state entry a sample's flag 7 was replicated from, or null when the grouping is not
+     * established for this record.
+     *
+     * Defined ONLY for the attested 500-raw / 10-slower case. The groups are 51, then eight of 50, then
+     * 49 — the boundary sample keeps the EARLIER entry before the index advances, so entry 0 covers
+     * samples 0..50 and not 0..49. Ten equal groups of 50 is the wrong answer. Rather than guess a divisor
+     * for a shape nothing attests, this returns null: for a zero count, for any other count, and for a
+     * short record. A real strap sends a lead-state count of 11 often enough that a guessed divisor would
+     * misreport live records.
+     *
+     * Swift twin: `LabradorR16.leadStateGroup`.
+     */
+    fun leadStateGroup(index: Int): Int? {
+        if (leadsOffCountRaw != Whoop5Ecg.R16_LEAD_STATE_GROUP_COUNT) return null
+        if (sampleCount != Whoop5Ecg.R16_MAX_SAMPLES) return null
+        if (index !in samples.indices) return null
+        val divisor = Whoop5Ecg.R16_MAX_SAMPLES / Whoop5Ecg.R16_LEAD_STATE_GROUP_COUNT
+        return if (index == 0) 0 else (index - 1) / divisor
+    }
+}
+
 object Whoop5Ecg {
 
     /** Bytes in the shared status header that both packets open with. */
@@ -459,6 +581,122 @@ object Whoop5Ecg {
         )
     }
 
+    /**
+     * Decode a [LabradorR16] from a complete INNER record — the bytes from the packet-type byte onwards,
+     * which on a 5/MG frame means `frame[8..]`.
+     *
+     * Accepts only a type-47 record of data revision 16 whose inner length is exactly [R16_INNER_LENGTH].
+     * The length is REQUIRED rather than derived, unlike R17: every region after the waveform sits at a
+     * FIXED offset, so a short buffer cannot be decoded by shrinking the sample block — it would read the
+     * lead-off arrays from inside the waveform. A declared `sampleCount` above [R16_MAX_SAMPLES] is an
+     * anomaly and is refused.
+     *
+     * CRC validity is the caller's business; [r16FromFrame] enforces it.
+     * Swift twin: `Whoop5Ecg.parseR16`.
+     */
+    fun parseR16(inner: List<Int>): LabradorR16? {
+        if (inner.size != R16_INNER_LENGTH) return null
+        for (i in inner.indices) if (inner[i] !in 0..255) return null
+        if (inner[0] != STORED_RECORD_TYPE || inner[1] != R16_REVISION) return null
+        val count = u16le(inner, 24)
+        if (count > R16_MAX_SAMPLES) return null
+
+        val samples = ArrayList<Int>(count)
+        val tags = ArrayList<Int>(count)
+        for (i in 0 until count) {
+            val o = R16_SAMPLE_START + i * R16_SAMPLE_SLOT_BYTES
+            val tag = inner[o]
+            // Big-endian pair under a tag byte whose low two bits are the sample's high bits. Reading this
+            // as little-endian i16 is the misdecode that puts a ~65,000-count cliff at every zero crossing.
+            val raw18 = ((tag and 0x03) shl 16) or (inner[o + 1] shl 8) or inner[o + 2]
+            samples.add(if (raw18 >= R16_SAMPLE_SIGN_THRESHOLD) raw18 - R16_SAMPLE_MODULUS else raw18)
+            tags.add(tag)
+        }
+
+        val leadsI = ArrayList<Int>(R16_LEADS_OFF_SLOTS)
+        val leadsQ = ArrayList<Int>(R16_LEADS_OFF_SLOTS)
+        for (i in 0 until R16_LEADS_OFF_SLOTS) {
+            leadsI.add(u16le(inner, R16_LEADS_OFF_I_START + i * 2))
+            leadsQ.add(u16le(inner, R16_LEADS_OFF_Q_START + i * 2))
+        }
+
+        val variability = u16le(inner, 21)
+        val quality = inner[13]
+        return LabradorR16(
+            packetType = inner[0],
+            headerSecondary = inner[2],
+            sequence = u32le(inner, 3),
+            strapSeconds = u32le(inner, 7),
+            subseconds = u16le(inner, 11),
+            signalQuality = EcgSignalQuality.entries.firstOrNull { it.raw == quality } ?: EcgSignalQuality.UNKNOWN,
+            signalQualityRaw = quality,
+            flags = EcgLabradorFlags(inner[14]),
+            arrhythmiaCheckResult = EcgArrhythmiaCheckResult.entries.firstOrNull { it.raw == inner[15] },
+            arrhythmiaCheckResultRaw = inner[15],
+            classifierState = inner[16],
+            progress = EcgHeartKeyProgress(inner[17]),
+            unreadable = EcgUnreadableMask(inner[18]),
+            averageHR = inner[19],
+            liveHR = inner[20],
+            variabilityRaw = if (variability == R17_VARIABILITY_UNAVAILABLE) null else variability,
+            reserved = inner[23],
+            sampleCount = count,
+            samples = samples,
+            sampleTags = tags,
+            leadsOffCountRaw = inner[R16_LEADS_OFF_COUNT_OFFSET],
+            leadsOffIRaw = leadsI,
+            leadsOffQRaw = leadsQ,
+            alignmentByte = inner[R16_ALIGNMENT_OFFSET],
+        )
+    }
+
+    /**
+     * CRC-gated decode straight off a complete 5/MG frame. The frame must pass BOTH puffin CRCs — a frame
+     * that fails is rejected before any field is read, per the BLE safety contract.
+     * Swift twin: `Whoop5Ecg.r16FromFrame`.
+     */
+    fun r16FromFrame(frame: ByteArray): LabradorR16? {
+        val inner = innerPayload(frame, RAW_TYPE_OFFSET) ?: return null
+        return parseR16(inner)
+    }
+
+    /**
+     * A one-line, non-identifying summary of an R16 record, or null when [frame] is not a CRC-valid one.
+     *
+     * Exists so a maintainer reading a strap log can tell at a glance whether a banked reading actually
+     * carried a waveform, which is the question #891 spent three months unable to answer. Counts and
+     * flags only: no serial, no wall clock, no sample values, so it is safe to paste into an issue.
+     *
+     * Swift twin: `Whoop5Ecg.r16SummaryLine`.
+     */
+    fun r16SummaryLine(frame: ByteArray): String? {
+        if (!isR16Record(frame)) return null
+        val p = r16FromFrame(frame) ?: return null
+        val n = p.sampleCount
+        var contact = 0
+        var leadFlag = 0
+        var reservedNonZero = 0
+        for (i in 0 until n) {
+            if (p.flag6(i) == true) contact += 1
+            if (p.flag7(i) == true) leadFlag += 1
+            if ((p.reservedBits(i) ?: 0) != 0) reservedNonZero += 1
+        }
+        val grouping = if (p.leadStateGroup(0) == null) "unavailable" else "51/50x8/49"
+        val phase = if (p.isTerminal) " terminal" else if (p.isInvalid) " invalid" else " running"
+        return "R16 idx=${p.sequence} t=${p.strapSeconds} q=${p.signalQualityRaw}" +
+            " prog=${p.progress.raw} state=${p.classifierState}" + phase +
+            " samples=$n flag6=$contact/$n flag7=$leadFlag/$n" +
+            " reservedNonZero=$reservedNonZero leadOff=${p.leadsOffCountRaw}" +
+            (if (!p.leadsOffCountWithinCapacity) "(over capacity)" else "") +
+            " grouping=$grouping"
+    }
+
+    /** True for an R16-shaped frame. Shape only. Swift twin: `Whoop5Ecg.isR16Record`. */
+    fun isR16Record(frame: ByteArray): Boolean =
+        frame.size == R16_RECORD_LENGTH &&
+            (frame[RAW_TYPE_OFFSET].toInt() and 0xFF) == STORED_RECORD_TYPE &&
+            (frame[RAW_TYPE_OFFSET + 1].toInt() and 0xFF) == R16_REVISION
+
     /** Swift twin: `Whoop5Ecg.u16le`. */
     private fun u16le(b: List<Int>, i: Int): Int = b[i] or (b[i + 1] shl 8)
 
@@ -596,6 +834,78 @@ object Whoop5Ecg {
 
     /** `0xffff` at `inner[21..22]` means the variability value is unavailable. */
     const val R17_VARIABILITY_UNAVAILABLE = 0xFFFF
+
+    // The revision-16 layout.
+    //
+    // The flash-banked record that `TOGGLE_LABRADOR_RAW_SAVE(125)=1` produces. It arrives in the ordinary
+    // history offload as a type-47 HISTORICAL_DATA frame of data revision 16, not on a live channel, which
+    // is why a realtime listen never saw it (#891).
+    //
+    // Offsets are INNER, like the R17 block above; `docs/PROTOCOL_ECG.md` states the same layout in FRAME
+    // offsets, which are these plus [RAW_TYPE_OFFSET]. The status region is byte-identical to R17 and is
+    // read with the same expressions here; Whoop5EcgR16Test pins the two decoders against one header
+    // rather than sharing a reader, because `parseR17` is the live path and is not refactored for this.
+    //
+    // Everything here is wire structure and coding only. It establishes no volts per count, no sample
+    // rate, and nothing clinical.
+
+    /** `inner[1]` — the data revision that makes a record an R16. */
+    const val R16_REVISION = 16
+
+    /** A whole R16 FRAME is exactly this long, envelope and CRC32 trailer included. */
+    const val R16_RECORD_LENGTH = 1584
+
+    /** The inner record's length once the 8-byte envelope and the 4-byte CRC32 trailer are removed. */
+    const val R16_INNER_LENGTH = 1572
+
+    /** Wire capacity: 500 waveform slots per record. */
+    const val R16_MAX_SAMPLES = 500
+
+    /**
+     * First waveform byte, `inner[26]` — the same offset as [R17_SAMPLE_START], because the two revisions
+     * share their status header. Pinned equal by a test rather than aliased, so each stays a literal the
+     * parity scanner can verify against its Swift twin by value.
+     */
+    const val R16_SAMPLE_START = 26
+
+    /**
+     * Each waveform slot is three bytes: one tag byte then a big-endian pair. NOT little-endian i16, and
+     * NOT a signed 24-bit sample.
+     */
+    const val R16_SAMPLE_SLOT_BYTES = 3
+
+    /** `inner[1526]` — the lead-off diagnostic count. */
+    const val R16_LEADS_OFF_COUNT_OFFSET = 1526
+
+    /**
+     * Lead-off diagnostic slots actually present on the wire, per channel. FIXED: the arrays do not move
+     * when either count is smaller, so a `header + count * width` formula locates them incorrectly.
+     */
+    const val R16_LEADS_OFF_SLOTS = 11
+
+    /** `inner[1527]` — first I-channel halfword. */
+    const val R16_LEADS_OFF_I_START = 1527
+
+    /** `inner[1549]` — first Q-channel halfword. */
+    const val R16_LEADS_OFF_Q_START = 1549
+
+    /** `inner[1571]` — the record's single zero alignment byte, never a sample and never a diagnostic. */
+    const val R16_ALIGNMENT_OFFSET = 1571
+
+    /**
+     * Sample values are signed 18-bit two's complement, so `raw18` at or above this subtracts
+     * [R16_SAMPLE_MODULUS]. The resulting range is `-131072 .. 131071`.
+     */
+    const val R16_SAMPLE_SIGN_THRESHOLD = 131072
+
+    /** The 18-bit modulus used to sign-extend `raw18`. */
+    const val R16_SAMPLE_MODULUS = 262144
+
+    /**
+     * The lead-state array count for which the flag-7 grouping is ESTABLISHED. Other nonzero counts are
+     * not attested as input to that rule, and a zero count omits flag-7 insertion entirely.
+     */
+    const val R16_LEAD_STATE_GROUP_COUNT = 10
 
     /** First body byte considered by [realtimeRawBodyNonZeroBytes] — excludes the constant sub-header. */
     const val RAW_BODY_START = 24

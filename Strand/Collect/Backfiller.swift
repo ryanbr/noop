@@ -214,7 +214,13 @@ final class Backfiller {
                                      typeNames: [String]) -> String? {
         guard let raw = zip(frames, typeNames).first(where: { $0.1 == typeName })?.0 else { return nil }
         let hex = raw.map { String(format: "%02x", $0) }.joined()
-        return "Backfill: unmapped type \(typeName) first frame \(raw.count)B: \(hex)"
+        var line = "Backfill: unmapped type \(typeName) first frame \(raw.count)B: \(hex)"
+        // The R16 ECG layout is mapped now (#891), so say what the record HOLDS rather than only
+        // carrying its bytes to someone who can map it. This dump is the one channel that reaches a
+        // reporter, and 3168 characters of hex cannot answer "did my reading record anything". Counts
+        // and flags only, never samples: a banked R16 is a recording of the wearer's heart.
+        if let r16 = Whoop5Ecg.r16SummaryLine(raw) { line += " | \(r16)" }
+        return line
     }
 
     /// How many reject frames this chunk may hex-dump, given what the session has already spent (#1992).

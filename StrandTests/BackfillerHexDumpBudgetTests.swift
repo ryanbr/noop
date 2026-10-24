@@ -124,6 +124,38 @@ final class BackfillerHexDumpBudgetTests: XCTestCase {
                                                     typeNames: ["HISTORICAL_DATA"]))
     }
 
+    /// An R16 ECG record gains a decoded summary beside its hex (#891).
+    ///
+    /// The dump exists to carry an unmapped layout to someone who can map it. R16 IS mapped now, so the
+    /// line answers the question a reporter actually has: did the banked reading record a waveform. The
+    /// hex still rides along, and the summary carries counts and flags only, never samples.
+    @MainActor func testAnR16RecordGainsADecodedSummaryBesideItsHex() throws {
+        var inner = [UInt8](repeating: 0, count: Whoop5Ecg.r16InnerLength)
+        inner[0] = Whoop5Ecg.storedRecordType
+        inner[1] = Whoop5Ecg.r16Revision
+        inner[17] = 100                                        // progress: terminal
+        inner[24] = 0xf4; inner[25] = 0x01                     // declared count 500
+        inner[Whoop5Ecg.r16LeadsOffCountOffset] = 10
+        let frame = puffinCommandFrame(cmd: inner[2], seq: inner[1],
+                                       payload: Array(inner.dropFirst(3)), type: inner[0])
+        let hex = frame.map { String(format: "%02x", $0) }.joined()
+        let line = try XCTUnwrap(Backfiller.unmappedTypeDumpLine(
+            typeName: "HISTORICAL_DATA", frames: [frame], typeNames: ["HISTORICAL_DATA"]))
+        XCTAssertTrue(line.contains(hex))                      // the bytes are still there
+        XCTAssertTrue(line.contains("| R16 "))
+        XCTAssertTrue(line.contains("samples=500"))
+        XCTAssertTrue(line.contains("terminal"))
+        XCTAssertTrue(line.contains("grouping=51/50x8/49"))
+        XCTAssertFalse(line.contains("sample["))               // never the samples themselves
+    }
+
+    /// A frame that is not an R16 gains nothing, so the ordinary dump is unchanged.
+    @MainActor func testANonR16FrameGainsNoSummary() {
+        let line = Backfiller.unmappedTypeDumpLine(typeName: "type53", frames: [[0xaa, 0xbb, 0xcc, 0xdd]],
+                                                   typeNames: ["type53"])
+        XCTAssertEqual(line, "Backfill: unmapped type type53 first frame 4B: aabbccdd")
+    }
+
     /// The full frame rides the line - no prefix cap, for the reason the reject dump has none: an unmapped
     /// layout's fields are as likely to sit in the tail as the head.
     @MainActor func testUnmappedTypeDumpLineDoesNotTruncate() {
