@@ -97,6 +97,7 @@ final class SourceCoordinator: ObservableObject {
     private var connectedWhoopUuid: String?
 
     private var cancellables = Set<AnyCancellable>()
+    private var ouraSightingSubscription: AnyCancellable?
 
     // MARK: - Init
 
@@ -450,8 +451,17 @@ final class SourceCoordinator: ObservableObject {
             notifyMaskFull: { UserDefaults.standard.bool(forKey: AppModel.ouraNotifyMaskFullKey) },  // packed-notification A/B
             adoptIntent: adoptIntent)
         if adoptIntent { straplog("Oura: adopt consent granted - this session may install NOOP's key") }
+        ouraSightingSubscription = Self.ouraSightings(source.$linkPhase.eraseToAnyPublisher())
+            .sink { [registry] _ in registry.touchLastSeen(id) }
         ouraSource = source   // the published typed handle for the adopt mirror (same object as activeSource)
         return source
+    }
+
+    /// An authenticated ring session is a confirmed sighting, even when it has no new history.
+    /// Failed attempts and duplicate phase publications never refresh the Devices timestamp.
+    static func ouraSightings(_ phases: AnyPublisher<OuraLiveSource.LinkPhase, Never>)
+        -> AnyPublisher<OuraLiveSource.LinkPhase, Never> {
+        phases.removeDuplicates().filter { $0 == .authenticated }.eraseToAnyPublisher()
     }
 
     /// #771: the live Oura source read the ring's stable SERIAL (`serial`) on connect. Re-point this device
@@ -503,6 +513,7 @@ final class SourceCoordinator: ObservableObject {
     /// handle so the adopt mirror resets to `.idle` (when an Oura ring was live it is the same object as
     /// `activeSource`; otherwise it is already nil and this is a no-op).
     private func tearDownNonWhoopSource() {
+        ouraSightingSubscription = nil
         activeSource?.stop()
         activeSource = nil
         ouraSource = nil
