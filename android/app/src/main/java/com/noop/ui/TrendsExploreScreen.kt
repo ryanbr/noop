@@ -39,6 +39,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.annotation.StringRes
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -75,13 +76,24 @@ import kotlin.math.roundToInt
 
 // MARK: - Window range (W / M / 3M / 6M / 1Y / ALL)
 
-private enum class ExploreRange(val days: Int?, val label: String, val windowName: String) {
-    Week(7, "W", "week"),
-    Month(30, "M", "month"),
-    Quarter(90, "3M", "quarter"),
-    Half(180, "6M", "6 months"),
-    Year(365, "1Y", "year"),
-    All(null, "ALL", "all time");
+// Each window carries WHOLE-phrase string resources instead of a noun to splice into a sentence:
+// inflected languages (pl, ru, it, ...) cannot agree a spliced noun with the words around it.
+private enum class ExploreRange(
+    val days: Int?,
+    val label: String,
+    @StringRes val vsPrevRes: Int,
+    @StringRes val noPriorRes: Int,
+    @StringRes val trailingRes: Int,
+    // Null for Week: nothing is smaller than it, so a sparse widen can never land on it.
+    @StringRes val widenedRes: Int?,
+) {
+    Week(7, "W", R.string.explore_vs_prev_week, R.string.explore_no_prior_week, R.string.explore_trailing_week, null),
+    Month(30, "M", R.string.explore_vs_prev_month, R.string.explore_no_prior_month, R.string.explore_trailing_month, R.string.explore_sparse_widened_month),
+    Quarter(90, "3M", R.string.explore_vs_prev_quarter, R.string.explore_no_prior_quarter, R.string.explore_trailing_quarter, R.string.explore_sparse_widened_quarter),
+    Half(180, "6M", R.string.explore_vs_prev_half, R.string.explore_no_prior_half, R.string.explore_trailing_half, R.string.explore_sparse_widened_half),
+    Year(365, "1Y", R.string.explore_vs_prev_year, R.string.explore_no_prior_year, R.string.explore_trailing_year, R.string.explore_sparse_widened_year),
+    // All never has a previous window; the stat row shows "all history" instead.
+    All(null, "ALL", R.string.explore_all_history, R.string.explore_all_history, R.string.explore_trailing_all, R.string.explore_sparse_widened_all);
 
     /** This range plus every larger range, ascending , the auto-widen search order. */
     val widening: List<ExploreRange>
@@ -615,11 +627,7 @@ private fun HeroChartCard(
     val asOf = latest?.let { "as of ${it.day}" } ?: "no readings yet"
     // The range bar above already prints the authoritative reading-count caption; the hero only
     // names its window so the count isn't doubled in one card height.
-    val subtitle = if (fellBack) {
-        "Trailing ${effectiveRange.windowName}"
-    } else {
-        "Trailing ${range.windowName}"
-    }
+    val subtitle = stringResource((if (fellBack) effectiveRange else range).trailingRes)
     // Wash the hero card in the metric's domain world (Charge green / Effort amber / Rest indigo).
     NoopCard(tint = domainTint(metric.category)) {
         Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
@@ -797,9 +805,9 @@ private fun StatRow(
         else if ((delta > 0) == better) Palette.statusPositive else Palette.statusCritical
     }
     val deltaCaption = when {
-        hasDelta -> stringResource(R.string.explore_vs_prev_window, effectiveRange.windowName)
+        hasDelta -> stringResource(effectiveRange.vsPrevRes)
         effectiveRange == ExploreRange.All -> stringResource(R.string.explore_all_history)
-        else -> stringResource(R.string.explore_no_prior_window, effectiveRange.windowName)
+        else -> stringResource(effectiveRange.noPriorRes)
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(Metrics.gap)) {
@@ -870,6 +878,7 @@ private fun signed(metric: MetricSpec, delta: Double): String {
     return sign + metric.format(abs(delta))
 }
 
+@Composable
 private fun rangeCaption(
     series: List<SeriesPoint>,
     windowed: List<SeriesPoint>,
@@ -879,7 +888,11 @@ private fun rangeCaption(
 ): String {
     if (series.isEmpty()) return ","
     val n = windowed.size
-    val unit = if (n == 1) "reading" else "readings"
-    return if (fellBack) "$n $unit · sparse , widened to ${effectiveRange.windowName}"
-    else "$n $unit · ${range.windowName}"
+    val readings = pluralStringResource(R.plurals.explore_n_readings, n, n)
+    val window = if (fellBack) {
+        stringResource(effectiveRange.widenedRes ?: effectiveRange.trailingRes)
+    } else {
+        stringResource(range.trailingRes)
+    }
+    return "$readings · $window"
 }
