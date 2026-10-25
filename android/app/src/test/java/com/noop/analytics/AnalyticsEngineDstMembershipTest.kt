@@ -3,6 +3,8 @@ package com.noop.analytics
 import com.noop.data.HrSample
 import com.noop.data.StepSample
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
 import java.time.ZoneId
@@ -79,6 +81,14 @@ class AnalyticsEngineDstMembershipTest {
         val pulledFromPrevious: Int,
         val pulledFromNext: Int,
         val scoredSteps: Int,
+        /**
+         * The total the REAL local day would have produced, over exactly the samples inside it.
+         *
+         * This comparison is the one the first version of this file did not make, and #2694 is what
+         * supplied it. Without it the scored total looks invariant, because it IS invariant across the
+         * two offsets; what it is not is correct.
+         */
+        val realDaySteps: Int,
     )
 
     private fun measure(v: Vector): Measured {
@@ -128,6 +138,7 @@ class AnalyticsEngineDstMembershipTest {
             pulledFromPrevious = (scoredSet - realSet).count { it < realStart },
             pulledFromNext = (scoredSet - realSet).count { it >= realEnd },
             scoredSteps = result.daily.steps ?: -1,
+            realDaySteps = StepsCounter.stepsInWindow(daySteps.filter { it.ts in realSet }) ?: -1,
         )
     }
 
@@ -149,19 +160,29 @@ class AnalyticsEngineDstMembershipTest {
     }
 
     /**
-     * WHY THIS CHARACTERISATION IS WORTH HAVING, as an assertion rather than a remark.
+     * The scored total is INDEPENDENT of which offset the pass captured, and WRONG against the day it
+     * names. Both halves matter, and the first version of this test asserted only the first.
      *
-     * The flat window is always 1,440 minutes wide, so the additive day total is the SAME on a transition
-     * day as on any other: `steps` is identical across all eight vectors, including the ones that silently
-     * borrowed an hour from the neighbouring day. The error is invisible in the size of what a day reports
-     * and lives entirely in WHICH samples it reports on.
+     * CORRECTING WHAT THIS FILE ORIGINALLY CLAIMED. It asserted that the total is identical across all
+     * eight vectors, which is true, and concluded from that "the error is invisible in the size of what a
+     * day reports" and that nobody could have found it by reading step or calorie numbers. That
+     * conclusion was false, and the omission behind it was never comparing against the real local day at
+     * all. A flat window scores 1,440 minutes at either offset, so of course the two offsets agree; the
+     * true 23-hour day holds 1,380 of those minutes and the true 25-hour day 1,500, and the totals differ
+     * accordingly. @kavemang made exactly that comparison in #2694 and it is what disproved the claim.
      *
-     * That is the fact a policy decision needs, and the reason staring at step or calorie numbers would
-     * never have found this. It is also why the recorded line (#2855) is a log line rather than a number
-     * on the day: there is no number here that goes wrong.
+     * So the real shape is a SIGNED error with a direction: a short day over-reports, because the window
+     * reaches into a neighbour, and a long day under-reports, because the window stops short of its own
+     * end. That is visible in a day's numbers, and it is why #2694's vectors assert
+     * `scoredTicks != calendarTicks` rather than treating the totals as untouched.
+     *
+     * The recorded line in #2855 is still a log line rather than a field on the day, but for a narrower
+     * reason than originally given: the hour is misplaced rather than lost, so there is no single day
+     * whose number can be marked wrong without deciding where the hour belongs, which is the policy
+     * question #2517 settled by leaving it where it is.
      */
     @Test
-    fun theErrorIsInvisibleInTheDayTotals() {
+    fun theScoredTotalIsOffsetIndependentAndWrongAgainstTheRealDay() {
         val totals = HashSet<Int>()
         val scoredMinutes = HashSet<Int>()
         val realMinutes = HashSet<Int>()
@@ -170,6 +191,25 @@ class AnalyticsEngineDstMembershipTest {
             totals.add(m.scoredSteps)
             scoredMinutes.add(m.scoredMinutes)
             realMinutes.add(m.realMinutes)
+
+            // The half that was missing: the scored total against the day it claims to describe.
+            assertNotEquals(
+                "${v.zone} ${v.day} ${v.whichOffset}: the fixture must expose the discrepancy, or this " +
+                    "vector proves nothing",
+                m.realDaySteps.toLong(),
+                m.scoredSteps.toLong(),
+            )
+            if (m.realMinutes < 1_440) {
+                assertTrue(
+                    "${v.day}: a 23-hour day OVER-reports, the window reaching into a neighbour",
+                    m.scoredSteps > m.realDaySteps,
+                )
+            } else {
+                assertTrue(
+                    "${v.day}: a 25-hour day UNDER-reports, the window stopping short of its own end",
+                    m.scoredSteps < m.realDaySteps,
+                )
+            }
         }
         assertEquals("a flat window always scores a flat 1,440 minutes", setOf(1_440), scoredMinutes)
         assertEquals(
@@ -178,8 +218,8 @@ class AnalyticsEngineDstMembershipTest {
             realMinutes,
         )
         assertEquals(
-            "the day total must be identical across all eight vectors, which is what makes the " +
-                "misplaced hour invisible to anyone reading the numbers",
+            "the scored total is the same at either offset, because both score 1,440 minutes. That is " +
+                "offset-independence and NOT correctness: see the per-vector comparisons above.",
             1,
             totals.size,
         )

@@ -56,6 +56,12 @@ final class AnalyticsEngineDstMembershipTests: XCTestCase {
         /// The step total `analyzeDay` actually returns for the day, which is the membership rule's
         /// effect on a real additive metric rather than a restatement of it.
         let scoredSteps: Int
+        /// The total the REAL local day would have produced, over exactly the samples inside it.
+        ///
+        /// This comparison is the one the first version of this file did not make, and #2694 is what
+        /// supplied it. Without it the scored total looks invariant, because it IS invariant across the
+        /// two offsets; what it is not is correct.
+        let realDaySteps: Int
     }
 
     private func measure(_ vector: Vector) throws -> Measured {
@@ -99,7 +105,8 @@ final class AnalyticsEngineDstMembershipTests: XCTestCase {
             missedAtEnd: realSet.subtracting(scoredSet).filter { $0 > (scored.max() ?? realEnd) }.count,
             pulledFromPrevious: scoredSet.subtracting(realSet).filter { $0 < realStart }.count,
             pulledFromNext: scoredSet.subtracting(realSet).filter { $0 >= realEnd }.count,
-            scoredSteps: result.daily.steps ?? -1)
+            scoredSteps: result.daily.steps ?? -1,
+            realDaySteps: StepsCounter.stepsInWindow(daySteps.filter { realSet.contains($0.ts) }) ?? -1)
     }
 
     /// One line per vector, in the order above, captured from this compiled engine and pinned verbatim
@@ -159,17 +166,28 @@ final class AnalyticsEngineDstMembershipTests: XCTestCase {
                        "the day model's membership moved; replace these expectations deliberately")
     }
 
-    /// WHY THIS CHARACTERISATION IS WORTH HAVING, as an assertion rather than a remark.
+    /// The scored total is INDEPENDENT of which offset the pass captured, and WRONG against the day it
+    /// names. Both halves matter, and the first version of this test asserted only the first.
     ///
-    /// The flat window is always 1,440 minutes wide, so the additive day total is the SAME on a
-    /// transition day as on any other: `steps` is identical across all eight vectors, including the ones
-    /// that silently borrowed an hour from the neighbouring day. The error is invisible in the size of
-    /// what a day reports and lives entirely in WHICH samples it reports on.
+    /// CORRECTING WHAT THIS FILE ORIGINALLY CLAIMED. It asserted that the total is identical across all
+    /// eight vectors, which is true, and concluded from that "the error is invisible in the size of what
+    /// a day reports" and that nobody could have found it by reading step or calorie numbers. That
+    /// conclusion was false and the omission that produced it was never comparing against the real local
+    /// day at all. A flat window scores 1,440 minutes at either offset, so of course the two offsets
+    /// agree; the true 23-hour day holds 1,380 of those minutes and the true 25-hour day 1,500, and the
+    /// totals differ accordingly. @kavemang made exactly that comparison in #2694 and it is what
+    /// disproved the claim.
     ///
-    /// That is the fact a policy decision needs, and it is the reason staring at step or calorie numbers
-    /// would never have found this. It is also why the recorded line (#2855) is a log line rather than a
-    /// number on the day: there is no number here that goes wrong.
-    func testTheErrorIsInvisibleInTheDayTotals() throws {
+    /// So the real shape is a SIGNED error with a direction: a short day over-reports, because the window
+    /// reaches into a neighbour, and a long day under-reports, because the window stops short of its own
+    /// end. That is visible in a day's numbers, and it is why #2694's vectors assert
+    /// `scoredTicks != calendarTicks` rather than treating the totals as untouched.
+    ///
+    /// The recorded line in #2855 is still a log line rather than a field on the day, but for a narrower
+    /// reason than originally given: the hour is misplaced rather than lost, so there is no single day
+    /// whose number can be marked wrong without deciding where the hour belongs, which is the policy
+    /// question #2517 settled by leaving it where it is.
+    func testTheScoredTotalIsOffsetIndependentAndWrongAgainstTheRealDay() throws {
         var totals = Set<Int>()
         var scoredMinutes = Set<Int>()
         var realMinutes = Set<Int>()
@@ -178,11 +196,26 @@ final class AnalyticsEngineDstMembershipTests: XCTestCase {
             totals.insert(m.scoredSteps)
             scoredMinutes.insert(m.scoredMinutes)
             realMinutes.insert(m.realMinutes)
+
+            // The half that was missing: the scored total against the day it claims to describe.
+            XCTAssertNotEqual(m.scoredSteps, m.realDaySteps,
+                              "\(v.zone) \(v.day) \(v.whichOffset): the fixture must expose the "
+                                  + "discrepancy, or this vector proves nothing")
+            if m.realMinutes < 1_440 {
+                XCTAssertGreaterThan(m.scoredSteps, m.realDaySteps,
+                                     "\(v.day): a 23-hour day OVER-reports, the window reaching into a "
+                                         + "neighbour")
+            } else {
+                XCTAssertLessThan(m.scoredSteps, m.realDaySteps,
+                                  "\(v.day): a 25-hour day UNDER-reports, the window stopping short of "
+                                      + "its own end")
+            }
         }
         XCTAssertEqual(scoredMinutes, [1_440], "a flat window always scores a flat 1,440 minutes")
         XCTAssertEqual(realMinutes, [1_380, 1_500], "the fixtures must cover both a short and a long day")
         XCTAssertEqual(totals.count, 1,
-                       "the day total must be identical across all eight vectors, which is what makes "
-                           + "the misplaced hour invisible to anyone reading the numbers")
+                       "the scored total is the same at either offset, because both score 1,440 minutes. "
+                           + "That is offset-independence and NOT correctness: see the per-vector "
+                           + "comparisons above.")
     }
 }
