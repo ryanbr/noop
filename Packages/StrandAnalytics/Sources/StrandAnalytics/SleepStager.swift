@@ -724,10 +724,19 @@ public enum SleepStager {
     }
 
     /// Absorb runs shorter than mergeMin minutes into their neighbours.
+    ///
+    /// A short run is never absorbed into a neighbour across a data gap longer than `maxGapMin`, because
+    /// `buildRuns` closed the run there for that reason. Absorbing across it moves the neighbour's edge
+    /// over hours with no data. On a real WHOOP 5.0 night, a few minutes of evening stillness before a
+    /// charging gap of several hours were folded into the night that followed the gap. The merged run was
+    /// then more than half HR gap, so the off-wrist backstop dropped the whole night, including the hours
+    /// that were worn. A short run with no reachable neighbour is kept as it is, and the gates downstream
+    /// decide on it (a short sleep run still fails `minSleepMin`).
     static func mergePeriods(_ periods: [Period], mergeMinutes: Int = mergeMin) -> [Period] {
         if periods.isEmpty { return [] }
         var pending = periods
         let thresholdS = mergeMinutes * 60
+        let maxGapS = maxGapMin * 60
         var merged: [Period] = []
         var i = 0
         while i < pending.count {
@@ -737,17 +746,24 @@ public enum SleepStager {
 
             let hasPrev = i > 0 && !merged.isEmpty
             let hasNext = i + 1 < pending.count
-            let bridgesSame = hasPrev && hasNext && pending[i - 1].stage == pending[i + 1].stage
+            let prevReachable = hasPrev && current.start - merged[merged.count - 1].end <= maxGapS
+            let nextReachable = hasNext && pending[i + 1].start - current.end <= maxGapS
+            if (hasPrev || hasNext) && !prevReachable && !nextReachable {
+                merged.append(current)
+                i += 1
+                continue
+            }
+            let bridgesSame = prevReachable && nextReachable && pending[i - 1].stage == pending[i + 1].stage
 
             if bridgesSame {
                 let prev = merged.removeLast()
                 merged.append(Period(stage: prev.stage, start: prev.start, end: pending[i + 1].end))
                 i += 2
-            } else if hasNext {
+            } else if nextReachable {
                 pending[i + 1] = Period(stage: pending[i + 1].stage,
                                         start: current.start, end: pending[i + 1].end)
                 i += 1
-            } else if hasPrev {
+            } else if prevReachable {
                 let prev = merged.removeLast()
                 merged.append(Period(stage: prev.stage, start: prev.start, end: current.end))
                 i += 1

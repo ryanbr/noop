@@ -888,11 +888,22 @@ object SleepStager {
         return periods
     }
 
-    /** Absorb runs shorter than mergeMin minutes into their neighbours. */
+    /**
+     * Absorb runs shorter than mergeMin minutes into their neighbours.
+     *
+     * A short run is never absorbed into a neighbour across a data gap longer than [maxGapMin], because
+     * [buildRuns] closed the run there for that reason. Absorbing across it moves the neighbour's edge
+     * over hours with no data. On a real WHOOP 5.0 night, a few minutes of evening stillness before a
+     * charging gap of several hours were folded into the night that followed the gap. The merged run was
+     * then more than half HR gap, so the off-wrist backstop dropped the whole night, including the hours
+     * that were worn. A short run with no reachable neighbour is kept as it is, and the gates downstream
+     * decide on it (a short sleep run still fails minSleepMin). Twin of the Swift `mergePeriods`.
+     */
     internal fun mergePeriods(periods: List<Period>, mergeMinutes: Int = mergeMin): List<Period> {
         if (periods.isEmpty()) return emptyList()
         val pending = periods.toMutableList()
         val thresholdS = (mergeMinutes * 60).toLong()
+        val maxGapS = (maxGapMin * 60).toLong()
         val merged = ArrayList<Period>()
         var i = 0
         while (i < pending.size) {
@@ -906,20 +917,27 @@ object SleepStager {
 
             val hasPrev = i > 0 && merged.isNotEmpty()
             val hasNext = i + 1 < pending.size
-            val bridgesSame = hasPrev && hasNext && pending[i - 1].stage == pending[i + 1].stage
+            val prevReachable = hasPrev && current.start - merged[merged.size - 1].end <= maxGapS
+            val nextReachable = hasNext && pending[i + 1].start - current.end <= maxGapS
+            if ((hasPrev || hasNext) && !prevReachable && !nextReachable) {
+                merged.add(current)
+                i += 1
+                continue
+            }
+            val bridgesSame = prevReachable && nextReachable && pending[i - 1].stage == pending[i + 1].stage
 
             if (bridgesSame) {
                 val prev = merged.removeAt(merged.size - 1)
                 merged.add(Period(stage = prev.stage, start = prev.start, end = pending[i + 1].end))
                 i += 2
-            } else if (hasNext) {
+            } else if (nextReachable) {
                 pending[i + 1] = Period(
                     stage = pending[i + 1].stage,
                     start = current.start,
                     end = pending[i + 1].end,
                 )
                 i += 1
-            } else if (hasPrev) {
+            } else if (prevReachable) {
                 val prev = merged.removeAt(merged.size - 1)
                 merged.add(Period(stage = prev.stage, start = prev.start, end = current.end))
                 i += 1
