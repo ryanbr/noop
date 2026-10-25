@@ -421,7 +421,7 @@ private func parseFrameWhoop5(_ frame: [UInt8], collectFields: Bool) -> ParsedFr
 /// this replaced was a record from an unmapped layout that happened to decode a plausible `unix` and
 /// `gravity_x`/`heart_rate` slipping past the archive filter, so its bytes were kept nowhere at all.
 /// `Whoop5HistoricalLayoutMapTests` pins the set against the decoder's actual behaviour.
-public let mappedWhoop5HistoricalVersions: Set<Int> = [18, 20, 21, 26]
+public let mappedWhoop5HistoricalVersions: Set<Int> = [16, 18, 20, 21, 26]
 
 /// True when `frame` is a WHOOP 5/MG type-47 record whose layout version has NO field map — the
 /// records that reach the unmapped branch of `decodeWhoop5Historical` and are therefore never
@@ -460,6 +460,9 @@ private func decodeWhoop5Historical(_ frame: [UInt8], fb: FieldBuilder, payloadE
     switch version {
     case 26:
         decodeWhoop5HistoricalV26(frame, fb: fb, limit: limit)
+        return
+    case 16:
+        decodeWhoop5HistoricalV16(frame, fb: fb, limit: limit)
         return
     case 20, 21:
         decodeWhoop5HistoricalV2021(frame, fb: fb, version: version, payloadEnd: payloadEnd,
@@ -699,6 +702,89 @@ private func decodeWhoop5Historical(_ frame: [UInt8], fb: FieldBuilder, payloadE
     if let payloadEnd = payloadEnd, 82 < payloadEnd, payloadEnd <= frame.count {
         fb.region(82, payloadEnd, "optical/tail (mostly zero padding; see @106/@107/@108/@109/@113)", "unknown")
     }
+}
+
+/// Decode a WHOOP 5.0/MG type-47 **version-16** record — the flash-banked raw ECG record (#2847).
+///
+/// `TOGGLE_LABRADOR_RAW_SAVE(125)=1` banks an MG's ECG generation to flash as these, and they arrive in
+/// the ordinary history offload rather than on a live channel, which is why every realtime listen in #891
+/// reported silence while the strap was in fact recording. @ayiskakov found the record carries the ECG,
+/// @meta1971 confirmed the layout and the 500-samples-per-strap-second throughput, and @bhelm had
+/// specified the frame in `docs/PROTOCOL_ECG.md` before anyone had decoded one.
+///
+/// This function reads NO offsets of its own. `Whoop5Ecg.parseR16` is the decoder, it is CRC-gated, and
+/// `Whoop5EcgR16Tests` pins it byte-for-byte; all that happens here is publishing what it already read so
+/// `extractHistoricalStreams` can bank a row. A record that fails either puffin CRC decodes to nothing.
+///
+/// `ecg_record` carries the record's INNER bytes whole rather than a decoded sample array, and the
+/// reasoning is on `EcgWaveformSample`: 18-bit samples fit no integer blob, the lead-off halfwords have no
+/// attested byte order, and 1,572 verbatim bytes cost less than the judgement calls a column per field
+/// would bake into storage. It is the one value here that has to be large whatever its shape, because the
+/// waveform IS the payload, and it crosses as a byte array for the same reason `ppg_waveform` crosses as
+/// a sample array: `extractHistoricalStreams` is handed `ParsedFrame`s rather than frames on this
+/// platform, and `rawHex` is empty on the ingest path (`collectFields: false`), so there is nothing else
+/// to read the bytes from. One Int per byte is transient and freed with the chunk. Set on `parsed`
+/// directly rather than through `fb.add`, so the inspector's field list keeps describing regions instead
+/// of growing a cell with 1,572 numbers in it.
+///
+/// One known cost, since `ParsedFrame` is Codable and a parse result is serialised into capture files: in
+/// a raw capture these bytes are written twice, once here and once in `rawHex`, so an ECG record's JSON is
+/// a few KB larger than its frame. Accepted rather than worked around. Raw capture is an opt-in
+/// diagnostic whose whole purpose is keeping bytes, the duplication is bounded by the reading's length,
+/// and the alternative was a hand-rolled hex codec on the ingest path to save space in a file nobody
+/// collects by accident.
+///
+/// `unix` is read at @15, the slot v18/v20/v21/v26 all carry it in, which on an R16 is
+/// `LabradorR16.strapSeconds`. That the two are the same quantity is an INFERENCE from the layout and not
+/// a measurement: no capture in this tree pairs an R16 record with a known wall clock. What makes it safe
+/// to act on is the failure mode, not the confidence — the #547 plausibility gate checks every record's
+/// own ts, so a record whose @15 is not a real unix second is dropped by the extraction and falls to the
+/// raw archive exactly as it does today. A wrong reading costs the status quo, never a mis-dated row.
+///
+/// Nothing here is named `heart_rate` or `gravity_*`, and that is not an oversight. `averageHR` is the
+/// strap's own session average over an ECG reading, not a per-second wrist rate, so publishing it under
+/// the scoring funnel's name would feed a recovery input from a signal nobody has validated for it.
+/// Under `ecg_avg_hr` it is readable and inert. Kotlin twin: `decodeWhoop5HistoricalV16`.
+private func decodeWhoop5HistoricalV16(_ frame: [UInt8], fb: FieldBuilder, limit: Int) {
+    if let unix = readDType(frame, 15, "u32", limit) {
+        fb.add(15, 4, "unix", "time", value: .int(unix), note: "real unix seconds (strapSeconds)")
+    }
+    // SHAPE FIRST, then the CRC-gated decode. `isR16Record` is a length/type/revision test that reads
+    // three bytes; `r16FromFrame` verifies both puffin CRCs over 1,584 of them. On an offload where most
+    // records are some other layout, the cheap test is what keeps this out of the way.
+    let base = Whoop5Ecg.rawTypeOffset
+    guard Whoop5Ecg.isR16Record(frame), base + Whoop5Ecg.r16InnerLength <= frame.count else { return }
+    if let p = Whoop5Ecg.r16FromFrame(frame) {
+        // The row's payload. `parseR16` refuses any other length, so this is always `r16InnerLength`
+        // bytes and the store can assert that rather than trust it.
+        fb.parsed["ecg_record"] = .intArray(
+            frame[base..<(base + Whoop5Ecg.r16InnerLength)].map { Int($0) })
+        fb.add(base + 3, 4, "ecg_sequence", "ecg", value: .int(Int(p.sequence)),
+               note: "the strap's own record index")
+        fb.add(base + 24, 2, "ecg_sample_count", "ecg", value: .int(Int(p.sampleCount)),
+               note: "declared samples, capacity \(Whoop5Ecg.r16MaxSamples)")
+        fb.add(base + 13, 1, "ecg_signal_quality", "ecg", value: .int(Int(p.signalQualityRaw)))
+        fb.add(base + 17, 1, "ecg_progress", "ecg", value: .int(Int(p.progress.raw)),
+               note: "HeartKey progress; 100 = complete, 255 = invalid")
+        fb.add(base + 19, 1, "ecg_avg_hr", "ecg", value: .int(Int(p.averageHR)),
+               note: "the strap's own session average, NOT a per-second wrist rate")
+        fb.add(base + Whoop5Ecg.r16LeadsOffCountOffset, 1, "ecg_leads_off_count", "ecg",
+               value: .int(Int(p.leadsOffCountRaw)),
+               note: p.leadsOffCountWithinCapacity ? nil
+                   : "above the \(Whoop5Ecg.r16LeadsOffSlots) slots carried")
+    }
+    // One honest region over the waveform rather than 500 three-byte fields. The bytes are not dropped:
+    // `ecg_record` above carries every one of them, padding included. Category "unknown" like every
+    // other region in this file, and not merely for tidiness: `FieldBuilder.add` keeps a value in
+    // `parsed` for any category except "frame" and "unknown", so an "ecg" region would publish its own
+    // prose description as a parsed KEY — spaces, parentheses and all — into the dictionary the ingest
+    // funnel reads.
+    fb.region(base + Whoop5Ecg.r16SampleStart,
+              base + Whoop5Ecg.r16LeadsOffCountOffset,
+              "ECG waveform (\(Whoop5Ecg.r16MaxSamples) x \(Whoop5Ecg.r16SampleSlotBytes)-byte slots, "
+                  + "signed 18-bit big-endian under a tag byte)", "unknown")
+    fb.region(base + Whoop5Ecg.r16LeadsOffIStart, base + Whoop5Ecg.r16AlignmentOffset,
+              "lead-off diagnostic halfwords (11 I + 11 Q; byte order unattested)", "unknown")
 }
 
 /// Decode a WHOOP 5.0 type-47 **version-26** record — the high-rate optical PPG buffer.

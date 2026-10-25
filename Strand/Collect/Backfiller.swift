@@ -657,15 +657,23 @@ final class Backfiller {
                 // UNIVERSAL clock-drift: bank the layout so the export's universal clock-drift line is
                 // firmware-aware on every export (not only Connection mode). Unconditional observability.
                 firmwareLayout?(v)
-                // Connection test mode: the firmware layout as a compact tagged line. A layout that decoded
-                // a signature field (heart_rate / gravity_x / ppg_waveform) is decodable; otherwise the
-                // unmapped-version path below fires too. Gated zero-cost.
+                // Connection test mode: the firmware layout as a compact tagged line. Gated zero-cost.
+                //
+                // "Decodable" is asked of `historicalLayoutSupport`, the same function the #1992 line
+                // below uses, rather than of a second field list. It used to be that field list, and
+                // #2847 made the two contradict each other: a layout can now decode into its own stream
+                // while carrying none of the three named signals, so the line would print
+                // "UNMAPPED (no motion/HR decoded)" for v16 while the line below reported that NOOP
+                // decodes and stores it. One function means they cannot disagree again.
                 emitConnection({
-                    let decodable = parsed.contains {
+                    let carries = parsed.contains {
                         $0.parsed["heart_rate"] != nil || $0.parsed["gravity_x"] != nil
                             || $0.parsed["ppg_waveform"] != nil
                     }
-                    return ConnectionTrace.firmwareLine(version: v, decodable: decodable)
+                    let support = historicalLayoutSupport(version: v, family: family,
+                                                          hasHeartRate: carries, hasGravity: false,
+                                                          hasPpgWaveform: false)
+                    return ConnectionTrace.firmwareLine(version: v, decodable: support != .unmapped)
                 }())
             }
             // SpO2 RE dump (PR #945, reimplemented): while the Connection test mode is on, dump a few FULL
@@ -735,6 +743,11 @@ final class Backfiller {
                     log?("Historical records use firmware layout v\(v), which NOOP doesn't decode yet: those records carry no heart rate or motion, so any night made only of them can't be staged from the strap. A strap emitting a mix of layouts still stages the nights it can. Please report this (issue #1992).")
                 case .decodesWithoutNamedSignal:
                     log?("Historical records use firmware layout v\(v). NOOP decodes it, but these records carry no per-second heart rate and no motion (they hold raw sensor channels nothing scores yet), so any night made only of them can't be staged from the strap. A strap emitting a mix of layouts still stages the nights it can. Please report this (issue #1992).")
+                case .decodesIntoItsOwnStream:
+                    // No "please report this". The layout decodes, its payload is stored whole, and
+                    // nothing is scored from it on purpose, so there is no defect to report and the
+                    // #1992 line would be asking for a report about working software.
+                    log?("Historical records use firmware layout v\(v): a flash-banked ECG reading. NOOP stores these records whole and reads nothing from them (issue #752) - no rhythm interpretation, no alerts. Nothing is missing and nothing needs reporting.")
                 case .supported:
                     break
                 }

@@ -410,6 +410,47 @@ public struct PpgWaveformSample: Equatable, Codable, Sendable {
     }
 }
 
+/// One flash-banked MG ECG record (type 47, data revision 16), kept whole (#2847).
+///
+/// `record` is the record's INNER bytes verbatim — `Whoop5Ecg.r16InnerLength` of them, from the
+/// packet-type byte to the alignment byte, envelope and trailing CRC32 excluded. The row stores the wire
+/// form rather than a decoded field set, and that is the deliberate choice:
+///
+/// * The waveform is 500 three-byte slots holding signed 18-BIT samples, so no i16 blob can hold one and
+///   an i32 blob would be a third larger than the wire for no added meaning. @meta1971 measured the
+///   samples reaching ±126,977 over 13,178,493 of them, which settles the width question with data.
+/// * The 22 lead-off halfwords have no attested byte order — `LabradorR16.leadsOffIRaw` documents
+///   little-endian as the consistent reading rather than a measured one — so a decoded column would bake
+///   a guess into storage. Verbatim bytes let a later re-reading happen with no re-pull, which is what
+///   @meta1971 asked for on this issue and the reason the whole 46-byte trailer is kept as it arrives.
+/// * Keeping the header too costs 26 bytes and removes every "we stored quality but not progress" call
+///   from the schema. `Whoop5Ecg.parseR16` is the reader, already pinned byte-for-byte against fixtures
+///   by `Whoop5EcgR16Tests`, so the row needs no decoder of its own.
+///
+/// This is NOT the raw archive by another name. The archive is a 5 MiB forensic ring whose per-version
+/// floor protects 64 informative lines — 64 seconds of waveform — and @DX23876 measured a reading
+/// evicted down to that floor within a couple of hours on a live MG. These rows are per device, bounded
+/// by their own cap (`WhoopStore.ecgWaveformRetentionRows`), and nothing else competes for the space.
+///
+/// No volts per count, no rhythm reading, nothing clinical: #752 bounds that, and this type carries wire
+/// structure only. Kotlin twin: `EcgWaveformRow`.
+public struct EcgWaveformSample: Equatable, Codable, Sendable {
+    /// Corrected wall-clock unix seconds, from the record's own `strapSeconds` through the same
+    /// stale-RTC correction and #547 plausibility gate every other historical stream passes.
+    public let ts: Int
+    /// `LabradorR16.sequence` — the strap's own record index, lifted out of `record` so a reading can be
+    /// ordered and gap-checked in SQL without unpacking 1,572 bytes per row. A duplicate of bytes 3...6
+    /// of `record` by construction, written from the same decode, never from a second reading of them.
+    public let sequence: Int
+    /// The inner record, verbatim. Length is `Whoop5Ecg.r16InnerLength`; `Whoop5Ecg.parseR16` reads it.
+    public let record: [UInt8]
+    public init(ts: Int, sequence: Int, record: [UInt8]) {
+        self.ts = ts
+        self.sequence = sequence
+        self.record = record
+    }
+}
+
 /// One wire slot in the 5/MG v18 auxiliary-field record. The `rawValue` is the slot's bit position in
 /// the persisted presence bitmap, so it is a STORAGE CONTRACT: never reorder, renumber, or reuse a case.
 /// Appending a new case at the end is the only safe evolution (an old reader ignores a bit it has no case
@@ -627,6 +668,10 @@ public struct Streams: Equatable, Codable {
     /// samples `ppgHr` is derived FROM. Kept separate so a consumer that only wants the HR estimate
     /// never pays for the 24x-larger raw stream, and so the two can be persisted/pruned independently.
     public var ppgWaveform: [PpgWaveformSample]
+    /// The flash-banked MG ECG records this chunk carried (#2847), one per strap-second of a reading.
+    /// Empty on a WHOOP 4.0, on a WHOOP 5 without an MG's ECG front end, and on every offload from a
+    /// strap that has banked no reading. Persisted into `ecgWaveformSample`; nothing scores from it.
+    public var ecgWaveform: [EcgWaveformSample]
     /// Every remaining 5/MG v18 per-second field the decoder produces and this funnel used to discard —
     /// carried verbatim for a later census. Empty on WHOOP 4.0 and on the live path. Nothing reads it.
     public var v18Aux: [V18AuxSample]
@@ -752,12 +797,14 @@ public struct Streams: Equatable, Codable {
                 resp: [RespSample] = [], gravity: [GravitySample] = [],
                 steps: [StepSample] = [], sleepState: [SleepStateSample] = [],
                 ppgHr: [PpgHrSample] = [], ppgWaveform: [PpgWaveformSample] = [],
+                ecgWaveform: [EcgWaveformSample] = [],
                 v18Aux: [V18AuxSample] = [],
                 events: [WhoopEvent] = [], battery: [BatterySample] = []) {
         self.hr = hr; self.rr = rr
         self.spo2 = spo2; self.skinTemp = skinTemp; self.resp = resp; self.gravity = gravity
         self.steps = steps; self.sleepState = sleepState; self.ppgHr = ppgHr
         self.ppgWaveform = ppgWaveform
+        self.ecgWaveform = ecgWaveform
         self.v18Aux = v18Aux
         self.events = events; self.battery = battery
     }
@@ -768,7 +815,8 @@ public struct Streams: Equatable, Codable {
     public var isEmpty: Bool {
         hr.isEmpty && rr.isEmpty && spo2.isEmpty && skinTemp.isEmpty && resp.isEmpty
             && gravity.isEmpty && steps.isEmpty && sleepState.isEmpty && ppgHr.isEmpty
-            && ppgWaveform.isEmpty && v18Aux.isEmpty && events.isEmpty && battery.isEmpty
+            && ppgWaveform.isEmpty && ecgWaveform.isEmpty && v18Aux.isEmpty && events.isEmpty
+            && battery.isEmpty
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -776,6 +824,7 @@ public struct Streams: Equatable, Codable {
         case sleepState = "sleep_state"
         case ppgHr = "ppg_hr"
         case ppgWaveform = "ppg_waveform"
+        case ecgWaveform = "ecg_waveform"
         case v18Aux = "v18_aux"
         case events, battery
     }
@@ -794,6 +843,7 @@ public struct Streams: Equatable, Codable {
         sleepState = try c.decodeIfPresent([SleepStateSample].self, forKey: .sleepState) ?? []
         ppgHr = try c.decodeIfPresent([PpgHrSample].self, forKey: .ppgHr) ?? []
         ppgWaveform = try c.decodeIfPresent([PpgWaveformSample].self, forKey: .ppgWaveform) ?? []
+        ecgWaveform = try c.decodeIfPresent([EcgWaveformSample].self, forKey: .ecgWaveform) ?? []
         v18Aux = try c.decodeIfPresent([V18AuxSample].self, forKey: .v18Aux) ?? []
         events = try c.decodeIfPresent([WhoopEvent].self, forKey: .events) ?? []
         battery = try c.decodeIfPresent([BatterySample].self, forKey: .battery) ?? []

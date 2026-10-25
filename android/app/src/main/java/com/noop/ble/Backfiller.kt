@@ -498,10 +498,17 @@ class Backfiller(
                 // in their log and none of the explanation, while the same strap on iOS was told why.
                 // Asked of the LAYOUT: it counts as carrying a signal when ANY of the chunk's records of
                 // that version did, so one thin record cannot condemn it. Twin of the Swift emit.
-                when (com.noop.protocol.historicalLayoutSupport(
+                // ONE resolution of the verdict, used by both readouts below. They used to answer the
+                // same question from two expressions: this `when`, and a `carriesSignal` flag passed
+                // straight to the connection line. #2847 made that pair contradict itself, because a
+                // layout can now decode into its own stream while carrying no scoreable signal, so the
+                // line said "UNMAPPED (no motion/HR decoded)" about a layout this very block had just
+                // reported as decoding. Twin of the Swift emit.
+                val support = com.noop.protocol.historicalLayoutSupport(
                     version = v, family = family, hasHeartRate = carriesSignal,
                     hasGravity = false, hasPpgWaveform = false,
-                )) {
+                )
+                when (support) {
                     com.noop.protocol.HistoricalLayoutSupport.UNMAPPED ->
                         log(
                             "Historical records use firmware layout v$v, which NOOP doesn't decode yet: " +
@@ -517,13 +524,29 @@ class Backfiller(
                                 "strap. A strap emitting a mix of layouts still stages the nights it can. " +
                                 "Please report this (issue #1992).",
                         )
+                    com.noop.protocol.HistoricalLayoutSupport.DECODES_INTO_ITS_OWN_STREAM ->
+                        // No "please report this". The layout decodes, its payload is stored whole, and
+                        // nothing is scored from it on purpose, so there is no defect to report and the
+                        // #1992 line would be asking for a report about working software. Twin of the
+                        // Swift emit.
+                        log(
+                            "Historical records use firmware layout v$v: a flash-banked ECG reading. NOOP " +
+                                "stores these records whole and reads nothing from them (issue #752) - no " +
+                                "rhythm interpretation, no alerts. Nothing is missing and nothing needs " +
+                                "reporting.",
+                        )
                     com.noop.protocol.HistoricalLayoutSupport.SUPPORTED -> Unit
                 }
                 if (v == firstLayout) {
                     firmwareLayout(v)
                     // Connection test mode: the firmware layout as a compact tagged line. Gated zero-cost.
                     // Twin of the Swift Backfiller emit.
-                    emitConnection { com.noop.analytics.ConnectionTrace.firmwareLine(v, carriesSignal) }
+                    emitConnection {
+                        com.noop.analytics.ConnectionTrace.firmwareLine(
+                            v,
+                            support != com.noop.protocol.HistoricalLayoutSupport.UNMAPPED,
+                        )
+                    }
                 }
             }
             // SpO2 RE dump (PR #945, reimplemented): while the Connection test mode is on, dump a few FULL

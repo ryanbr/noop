@@ -63,6 +63,49 @@ extension WhoopStore {
         return out
     }
 
+    /// Rolling retention for the v48 ECG table (twin of Kotlin `ECG_WAVEFORM_RETENTION_ROWS`), #2847.
+    ///
+    /// 36,000 = 60 x 600: SIXTY READINGS AT THE STRAP'S OWN TEN-MINUTE SESSION LIMIT, which is the unit
+    /// this data actually arrives in. @meta1971's month on one MG is the measurement behind the figure:
+    /// 140 readings in 31 days, about 4.5 a day, a median of roughly 3 minutes (182 records), and 7 of
+    /// the 140 reaching the 10-minute cap. So the same 36,000 rows holds about 198 readings and 44 days
+    /// of that shape, and still 60 readings and 13 days if every single one ran to the strap's limit.
+    /// At ~1,600 B a row (a 1,572 B blob plus row and primary-key-index overhead) the ceiling is
+    /// **~58 MB per device**, in the same bracket as `ppgWaveformRetentionRows`' ~70 MB.
+    ///
+    /// **A ROW CAP THAT BEHAVES LIKE A READING CAP**, which is the non-obvious part and the reason this
+    /// issue's request for "a cap counted in readings" needs no reading-grouping machinery. The sweep
+    /// deletes the OLDEST rows, so the only reading it can ever cut in half is the oldest one still in
+    /// the window; every newer reading stays whole. A fragment at the far end of the window is the
+    /// tolerable case, and a fragment of the NEWEST reading, which is what a cap applied the other way
+    /// round would produce, is the useless one.
+    ///
+    /// The cap is read through `ts`, and a strap-second can hold two records at the start of a reading
+    /// (see the primary key's note in `Database.swift`), so the sweep keeps AT LEAST this many rows
+    /// rather than exactly this many. Erring upwards is the right direction for a ceiling stated in MB.
+    ///
+    /// Not an age-based drop, for the reason `ppgWaveformRetentionRows` gives below and more sharply:
+    /// readings are DISCRETE EVENTS. A user who takes one a week would be left with an empty table by
+    /// any wall-clock cutoff, and a waveform has no aggregate that survives its samples.
+    ///
+    /// RELAXING a cap is always cheaper than imposing one on a user who already has a year of history,
+    /// so this starts conservative and is a one-constant change with no migration.
+    public static let ecgWaveformRetentionRows = 36_000
+
+    /// Records to bank before sweeping `ecgWaveformSample` again. ONE MAXIMUM-LENGTH READING, which is
+    /// deliberately far tighter in proportion than the two 10,000-row budgets below (600 against 36,000
+    /// is 1.7%, ~1 MB of overshoot against a ~58 MB bound).
+    ///
+    /// The reason is the restart hole those budgets document: the counter is in-memory and per store
+    /// instance, so a store that never banks this many rows in one process lifetime never sweeps at all.
+    /// For `ppgWaveformSample` that is theoretical, since one night's offload banks ~28,800 rows. ECG
+    /// records arrive a few hundred at a time, days apart, so a budget of their size would be reached
+    /// rarely and the hole would be the normal case rather than the edge. At one full reading, any
+    /// session that offloads a long reading sweeps, and a run of median-length ones sweeps every third
+    /// or fourth. The hole is narrowed here, not closed: closing it needs a sweep forced once per
+    /// session, which belongs in a change that covers all three tables.
+    public static let ecgWaveformPruneEveryRows = 600
+
     /// Rolling retention for the v27 PPG waveform table (twin of Kotlin `PPG_WAVEFORM_RETENTION_ROWS`),
     /// added for #1911. This table was previously the only UNBOUNDED blob table, and it carries by far the
     /// largest PER-ROW cost of any decoded stream: ~120 B against ~30 B for a scalar row.
@@ -180,12 +223,15 @@ extension WhoopStore {
     func insert(_ streams: Streams, deviceId: String, v18AuxRetentionRows: Int,
                 v18AuxPruneEveryRows: Int,
                 ppgWaveformRetentionRows: Int = WhoopStore.ppgWaveformRetentionRows,
-                ppgWaveformPruneEveryRows: Int = WhoopStore.ppgWaveformPruneEveryRows) async throws
+                ppgWaveformPruneEveryRows: Int = WhoopStore.ppgWaveformPruneEveryRows,
+                ecgWaveformRetentionRows: Int = WhoopStore.ecgWaveformRetentionRows,
+                ecgWaveformPruneEveryRows: Int = WhoopStore.ecgWaveformPruneEveryRows) async throws
         -> (hr: Int, rr: Int, events: Int, battery: Int,
             spo2: Int, skinTemp: Int, resp: Int, gravity: Int) {
         // Banked rows, accumulated across batches so the sweep does not run on every one.
         var v18Written = 0
         var ppgWaveformWritten = 0
+        var ecgWaveformWritten = 0
         let result: (Int, Int, Int, Int, Int, Int, Int, Int) = try syncWrite { db in
             var hr = 0, rr = 0, ev = 0, bat = 0
             var spo2 = 0, skin = 0, resp = 0, grav = 0
@@ -415,6 +461,27 @@ extension WhoopStore {
                     ppgWaveformWritten += 1
                 }
             }
+            // Flash-banked MG ECG records (#2847), one row per strap-second of a reading, holding the
+            // record's inner bytes verbatim. Persist-only like the three streams above: not added to the
+            // 8-field return tuple, whose shape eleven call sites depend on.
+            //
+            // The length is ASSERTED rather than trusted. `parseR16` refuses a record of any other
+            // length, so a row that is not `r16InnerLength` bytes could only come from a caller that
+            // built the sample by hand, and a short blob would read back as a record the decoder rejects
+            // for the rest of that row's life. Skipping it keeps the table's one structural invariant
+            // true for every row in it.
+            if !streams.ecgWaveform.isEmpty {
+                let stmt = try db.cachedStatement(sql: """
+                    INSERT INTO ecgWaveformSample (deviceId, ts, sequence, record)
+                    VALUES (?, ?, ?, ?)
+                    ON CONFLICT(deviceId, ts, sequence) DO NOTHING
+                    """)
+                for s in streams.ecgWaveform {
+                    guard s.record.count == Whoop5Ecg.r16InnerLength else { continue }
+                    try stmt.execute(arguments: [deviceId, s.ts, s.sequence, Data(s.record)])
+                    ecgWaveformWritten += 1
+                }
+            }
             // Every remaining v18 slot (v31), one compact blob per strap-second. Persist-only, same as
             // steps/sleepState/ppgHr/ppgWaveform: not added to the 8-field return tuple. A sample whose
             // slots are all absent packs to empty and is SKIPPED rather than banking a meaningless row —
@@ -474,6 +541,24 @@ extension WhoopStore {
                        """, arguments: [deviceId, deviceId, ppgWaveformRetentionRows])
                }) != nil {
                 ppgWaveformRowsSincePrune[deviceId] = 0
+            }
+        }
+        // #2847 rolling retention for the ECG records, amortised and best-effort on exactly the same
+        // terms as the two sweeps above, and with its own counter and its own transaction for the same
+        // reason: an offload writes one of these tables far more often than it writes all three, and a
+        // failed sweep must not fail an insert whose rows are already committed.
+        if ecgWaveformWritten > 0 {
+            let banked = (ecgWaveformRowsSincePrune[deviceId] ?? 0) + ecgWaveformWritten
+            ecgWaveformRowsSincePrune[deviceId] = banked
+            if banked >= ecgWaveformPruneEveryRows,
+               (try? syncWrite { db in
+                   try db.execute(sql: """
+                       DELETE FROM ecgWaveformSample WHERE deviceId = ? AND ts < (
+                           SELECT MIN(ts) FROM (
+                               SELECT ts FROM ecgWaveformSample WHERE deviceId = ? ORDER BY ts DESC LIMIT ?))
+                       """, arguments: [deviceId, deviceId, ecgWaveformRetentionRows])
+               }) != nil {
+                ecgWaveformRowsSincePrune[deviceId] = 0
             }
         }
         return result

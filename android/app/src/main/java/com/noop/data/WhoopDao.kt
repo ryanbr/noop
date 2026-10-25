@@ -349,6 +349,10 @@ interface WhoopDao : DeviceRegistryDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertPpgWaveform(rows: List<PpgWaveformSampleEntity>): List<Long>
 
+    /** Flash-banked MG ECG records, the inner record verbatim. Idempotent by (deviceId, ts). (#2847) */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertEcgWaveform(rows: List<EcgWaveformSampleEntity>): List<Long>
+
     /**
      * The remaining 5/MG v18 per-second fields, one compact blob per strap-second. Idempotent by
      * (deviceId, ts) — IGNORE keeps the FIRST-seen row, matching every other per-second stream, so a
@@ -369,6 +373,20 @@ interface WhoopDao : DeviceRegistryDao {
             "ORDER BY ts DESC LIMIT :keep))",
     )
     suspend fun prunePpgWaveform(deviceId: String, keep: Int)
+
+    /**
+     * Bound the ECG table to the newest [keep] records for [deviceId] (#2847 rolling retention). Same
+     * shape and the same NEWEST-N semantic as [prunePpgWaveform] above, and here that also makes it
+     * behave like a cap counted in READINGS: cutting from the oldest end can only ever leave the OLDEST
+     * reading as a fragment. See `WhoopRepository.ECG_WAVEFORM_RETENTION_ROWS`. Swift twin: the DELETE at
+     * the end of `WhoopStore.insert`.
+     */
+    @Query(
+        "DELETE FROM ecgWaveformSample WHERE deviceId = :deviceId AND ts < " +
+            "(SELECT MIN(ts) FROM (SELECT ts FROM ecgWaveformSample WHERE deviceId = :deviceId " +
+            "ORDER BY ts DESC LIMIT :keep))",
+    )
+    suspend fun pruneEcgWaveform(deviceId: String, keep: Int)
 
     /**
      * Bound the v18 aux table to the newest [keep] rows for [deviceId] (rolling retention, v31). Same
@@ -607,6 +625,22 @@ interface WhoopDao : DeviceRegistryDao {
     )
     suspend fun ppgWaveformSamples(deviceId: String, from: Long, to: Long, limit: Int):
         List<PpgWaveformSampleEntity>
+
+    /**
+     * The flash-banked MG ECG records in [from, to] (ascending). Each row's `record` is the inner record
+     * verbatim; read it with `Whoop5Ecg.parseR16`. (#2847)
+     *
+     * [limit] is supplied by the caller rather than defaulted, as every read here is, but note the scale:
+     * a row is 1,572 bytes, so this is a thousand times heavier per row than [ppgWaveformSamples] above.
+     * INSTRUMENTATION: nothing in production calls it (#752 bounds what may be read off this signal at
+     * all). It exists so the banked bytes are reachable and the write path has a round-trip test.
+     */
+    @Query(
+        "SELECT * FROM ecgWaveformSample WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
+            "ORDER BY ts ASC LIMIT :limit"
+    )
+    suspend fun ecgWaveformSamples(deviceId: String, from: Long, to: Long, limit: Int):
+        List<EcgWaveformSampleEntity>
 
     /**
      * The banked 5/MG v18 auxiliary-field rows in [from, to] (ascending). Empty on a WHOOP 4.0 and for
@@ -1388,6 +1422,7 @@ interface WhoopDao : DeviceRegistryDao {
     @Query("SELECT COUNT(*) FROM ppgHrSample") suspend fun countPpgHr(): Int
     @Query("SELECT COUNT(*) FROM sleepStateSample") suspend fun countSleepState(): Int
     @Query("SELECT COUNT(*) FROM ppgWaveformSample") suspend fun countPpgWaveform(): Int
+    @Query("SELECT COUNT(*) FROM ecgWaveformSample") suspend fun countEcgWaveform(): Int
     @Query("SELECT COUNT(*) FROM v18AuxSample") suspend fun countV18Aux(): Int
     @Query("SELECT COUNT(*) FROM respSample") suspend fun countResp(): Int
     @Query("SELECT COUNT(*) FROM gravitySample") suspend fun countGravity(): Int
@@ -1449,6 +1484,9 @@ interface WhoopDao : DeviceRegistryDao {
 
     @Query("DELETE FROM ppgWaveformSample WHERE ts < :minTs OR ts > :maxTs")
     suspend fun prunePpgWaveformByTs(minTs: Long, maxTs: Long): Int
+
+    @Query("DELETE FROM ecgWaveformSample WHERE ts < :minTs OR ts > :maxTs")
+    suspend fun pruneEcgWaveformByTs(minTs: Long, maxTs: Long): Int
 
 
     @Query("DELETE FROM v18AuxSample WHERE ts < :minTs OR ts > :maxTs")

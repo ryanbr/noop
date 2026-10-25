@@ -3,7 +3,7 @@ import Foundation
 /// How well this platform handles a historical record's layout version, for the strap-log line that tells
 /// a user why their nights are not staging.
 ///
-/// The two negative cases are kept apart because they are different facts with different remedies, and the
+/// The negative cases are kept apart because they are different facts with different remedies, and the
 /// single line that used to cover both stated one of them wrongly. See `historicalLayoutSupport`.
 public enum HistoricalLayoutSupport: Equatable, Sendable {
     /// The layout decodes and the record carries a named signal NOOP scores from.
@@ -14,7 +14,32 @@ public enum HistoricalLayoutSupport: Equatable, Sendable {
     case decodesWithoutNamedSignal
     /// This platform has no field map for the layout at all; the record does not decode.
     case unmapped
+    /// The layout decodes, carries no scoreable signal, AND its whole payload is persisted in a stream of
+    /// its own, so there is nothing missing and nothing for the user to report (#2847).
+    ///
+    /// This exists because the line for `decodesWithoutNamedSignal` asks the user to report the layout on
+    /// #1992, and for a layout NOOP decodes, stores and deliberately scores nothing from, that request is
+    /// for a report about working software. The MG ECG record is the case: it reaches NOOP only because
+    /// the user took a reading, it is banked whole in `ecgWaveformSample`, and #752 is what keeps anything
+    /// from being derived off it.
+    ///
+    /// WHAT THIS GIVES UP, stated rather than hidden: the staging half of the other line is true of these
+    /// records too, so a night made ONLY of them could not be staged and this case says nothing about
+    /// that. The trade is deliberate, because such a night does not occur — an ECG reading lasts at most
+    /// the strap's own ten minutes and the strap keeps banking its ordinary per-second records throughout,
+    /// so a real offload carrying ECG records carries v18 records as well.
+    case decodesIntoItsOwnStream
 }
+
+/// The 5/MG layouts whose ENTIRE payload is persisted in a stream of its own, so a record of one is
+/// neither unmapped nor missing anything. Only v16, the flash-banked ECG record (#2847): it is banked
+/// whole in `ecgWaveformSample`, and it carries no per-second heart rate or motion to score.
+///
+/// v26 is NOT here and must not be added. Its waveform is persisted the same way, but it also decodes
+/// `ppg_waveform`, which the field test already counts as a named signal, so it answers `.supported` and
+/// nothing in it needs a special case. Keyed on the version rather than on a caller-supplied flag because
+/// the answer is a property of the LAYOUT, which is the question this whole function asks.
+private let whoop5HistoricalVersionsWithOwnStream: Set<Int> = [16]
 
 /// Classify a historical record's layout version.
 ///
@@ -45,7 +70,9 @@ public func historicalLayoutSupport(version: Int,
     switch family {
     case .whoop5:
         if !mappedWhoop5HistoricalVersions.contains(version) { return .unmapped }
-        return carriesNamedSignal ? .supported : .decodesWithoutNamedSignal
+        if carriesNamedSignal { return .supported }
+        if whoop5HistoricalVersionsWithOwnStream.contains(version) { return .decodesIntoItsOwnStream }
+        return .decodesWithoutNamedSignal
     case .whoop4:
         return carriesNamedSignal ? .supported : .unmapped
     }

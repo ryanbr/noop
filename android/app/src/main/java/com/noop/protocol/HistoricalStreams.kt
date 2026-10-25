@@ -2,6 +2,7 @@ package com.noop.protocol
 
 import com.noop.data.BatteryRow
 import com.noop.data.DynAccelDiag
+import com.noop.data.EcgWaveformRow
 import com.noop.data.EventEntry
 import com.noop.data.GravityRow
 import com.noop.data.HrRow
@@ -355,7 +356,55 @@ fun decodeHistorical(frame: ByteArray, family: DeviceFamily = DeviceFamily.WHOOP
  * so was already archived by the decode-outcome route. Add a version here only when a decoder for it
  * lands on this side. Pinned by `UnmappedHistoricalLayoutTest`.
  */
-val MAPPED_WHOOP5_HISTORICAL_VERSIONS: Set<Int> = setOf(18, 20, 21, 26)
+val MAPPED_WHOOP5_HISTORICAL_VERSIONS: Set<Int> = setOf(16, 18, 20, 21, 26)
+
+/**
+ * Decode a WHOOP 5.0/MG type-47 **version-16** record, the flash-banked raw ECG record (#2847). Twin of
+ * the Swift `decodeWhoop5HistoricalV16`.
+ *
+ * `TOGGLE_LABRADOR_RAW_SAVE(125)=1` banks an MG's ECG generation to flash as these, and they arrive in the
+ * ordinary history offload rather than on a live channel, which is why every realtime listen in #891
+ * reported silence while the strap was in fact recording. @ayiskakov found the record carries the ECG,
+ * @meta1971 confirmed the layout and the 500-samples-per-strap-second throughput, and @bhelm had specified
+ * the frame in `docs/PROTOCOL_ECG.md` before anyone had decoded one.
+ *
+ * This function reads NO offsets of its own. [Whoop5Ecg.parseR16] is the decoder, it is CRC-gated, and
+ * `Whoop5EcgR16Test` pins it byte-for-byte; all that happens here is publishing what it already read. A
+ * record that fails either puffin CRC decodes to nothing.
+ *
+ * `unix` is read from the record's own `strapSeconds`, which sits at @15, the slot v18/v20/v21/v26 all
+ * carry unix in. That the two are the same quantity is an INFERENCE from the layout and not a measurement:
+ * no capture in this repository pairs an R16 record with a known wall clock. What makes it safe to act on
+ * is the failure mode, not the confidence: the #547 plausibility gate checks every record's own ts, so a
+ * record whose @15 is not a real unix second is dropped by the extraction and falls to the raw archive
+ * exactly as it does today.
+ *
+ * Nothing here is named `heart_rate` or `gravity_*`, and that is not an oversight. `averageHR` is the
+ * strap's own session average over a reading, not a per-second wrist rate, so publishing it under the
+ * scoring funnel's name would feed a recovery input from a signal nobody has validated for it. Under
+ * `ecg_avg_hr` it is readable and inert.
+ *
+ * The record's BYTES do not travel through this map. The Swift twin has to carry them in `parsed` as a
+ * byte array, because its `extractHistoricalStreams` is handed `ParsedFrame`s rather than frames; this one
+ * is handed the frames, so [extractHistoricalStreams] reads the inner record straight out of one.
+ */
+private fun decodeWhoop5HistoricalV16(frame: ByteArray, limit: Int): Map<String, Any?>? {
+    if (frame.histU8(8, limit) != PacketType.HISTORICAL_DATA.rawValue) return null
+    if (frame.histU8(9, limit) != Whoop5Ecg.R16_REVISION) return null
+    val p = Whoop5Ecg.r16FromFrame(frame) ?: return null
+    val out = LinkedHashMap<String, Any?>()
+    out["hist_version"] = Whoop5Ecg.R16_REVISION
+    // Long, not Int: an unsigned 32-bit field, and a narrowed unix goes NEGATIVE past 2038 and fails the
+    // #547 floor. See [histU32], and the two synthetic high-bit fixtures in decoder_oracle.json.
+    out["unix"] = p.strapSeconds
+    out["ecg_sequence"] = p.sequence
+    out["ecg_sample_count"] = p.sampleCount
+    out["ecg_signal_quality"] = p.signalQualityRaw
+    out["ecg_progress"] = p.progress.raw
+    out["ecg_avg_hr"] = p.averageHR
+    out["ecg_leads_off_count"] = p.leadsOffCountRaw
+    return out
+}
 
 /**
  * WHOOP 5/MG historical layouts v20 (optical) and v21 (raw 6-axis IMU). Port of the Swift
@@ -463,6 +512,7 @@ private fun decodeWhoop5Historical(frame: ByteArray, limit: Int): Map<String, An
     // record gets archived raw, so the two cannot be allowed to drift; `UnmappedHistoricalLayoutTest`
     // pins the lockstep against the decoder's actual behaviour.
     if (version == 20 || version == 21) return decodeWhoop5HistoricalV2021(frame, version, limit)
+    if (version == 16) return decodeWhoop5HistoricalV16(frame, limit)
     if (version != 18) return null
 
     val out = LinkedHashMap<String, Any?>()
@@ -691,6 +741,8 @@ private fun decodeWhoop5HistoricalV26(frame: ByteArray, limit: Int): V26Record? 
  *   - INTACT WHOOP 5/MG v26 (raw PPG) records — stored in the dedicated waveform stream, so they do not
  *     belong in the rejected-record archive. A REJECTED v26 record banks no waveform either, so it is
  *     archived like any other rejected record.
+ *   - INTACT WHOOP 5/MG v16 (flash-banked ECG, #2847) records — on exactly the same terms: banked whole
+ *     in `ecgWaveformSample`, and the archive is the wrong home for a 1.5 KB record at one per second.
  *   - Non-record frames (METADATA, EVENT, etc.) — not type-47, so never returned.
  *
  * The Backfiller archives these raw bytes BEFORE acking the trim, so a user on an unmapped firmware
@@ -717,6 +769,26 @@ fun rejectedHistoricalRecords(
         // so skipping it on the version byte alone would leave it stored nowhere while its section is
         // acked anyway. Bind the skip to the verdict, not to the version. Twin of the Swift clause.
         if (family == DeviceFamily.WHOOP5 && frame.histU8(9, frame.size) == 26) {
+            return@filter !Framing.parseFrame(frame, family).ok
+        }
+        // v16 ECG (#2847): the same clause for the same reason. An intact R16 record is banked whole in
+        // `ecgWaveformSample`, so archiving it here too would hold a second copy of a ~1.5 KB record in a
+        // 5 MiB ring whose per-version floor protects 64 lines, which is 64 seconds of waveform for a
+        // record of one strap-second. @DX23876 measured a reading evicted to that floor within a couple
+        // of hours of ordinary MG traffic, and that is the eviction this is meant to stop competing with.
+        // A record that fails the verdict banks no row, so it is archived like any other broken frame.
+        //
+        // THE HOLE THIS SHARES WITH v26, stated rather than inherited: the skip asks whether the record
+        // is intact, not whether a row was actually written, and those differ for an intact record whose
+        // own @15 fails the #547 plausibility gate. Closing it needs this filter to know the wall clock it
+        // has no parameter for, and it would widen the archive for v26's far larger population at the same
+        // time, so it belongs in a change that covers both. Twin of the Swift clause.
+        if (family == DeviceFamily.WHOOP5 && frame.histU8(9, frame.size) == 16) {
+            // SHAPE FIRST, and tighter than the v26 clause above for a reason found by testing it:
+            // [Whoop5Ecg.parseR16] accepts a record of exactly R16_INNER_LENGTH and nothing else, so a
+            // type-47 revision-16 frame of any other length banks no row however intact it is. Keying the
+            // skip on the verdict alone sent such a frame nowhere at all. The archive is its only copy.
+            if (!Whoop5Ecg.isR16Record(frame)) return@filter true
             return@filter !Framing.parseFrame(frame, family).ok
         }
         // UNMAPPED LAYOUT (5/MG) — archive UNCONDITIONALLY, whatever it decoded.
@@ -952,6 +1024,9 @@ fun extractHistoricalStreams(
     // follow-up) — the same (ts, samples) the estimator above consumes, but grouped per second so it
     // persists as its own `ppgWaveformSample` stream rather than being flattened into the HR buffer.
     val ppgWaveform = ArrayList<PpgWaveformRow>()
+    // The flash-banked MG ECG records (#2847), one row per strap-second of a reading, each holding the
+    // record's inner bytes verbatim.
+    val ecgWaveform = ArrayList<EcgWaveformRow>()
     // Every remaining v18 per-second field the decoder produces and this funnel used to discard.
     val v18Aux = ArrayList<V18AuxRow>()
 
@@ -991,6 +1066,34 @@ fun extractHistoricalStreams(
                                     PpgWaveformRow(baseTs, rec.samples, rec.burstIndex, rec.baseCode),
                                 )
                             }
+                        }
+                    }
+                    // v16 flash-banked ECG (#2847): bank the inner record whole on its corrected
+                    // wall-second. Read straight off the frame rather than through [decodeHistorical],
+                    // like the v26 branch above, because the row's payload is the record's BYTES and a
+                    // decoded map is the wrong shape to carry 1,572 of them. The Swift twin has to carry
+                    // them through `parsed` as a byte array because it is handed parse results rather
+                    // than frames; this side is handed the frame and reads the bytes out of it.
+                    //
+                    // [Whoop5Ecg.innerPayload] re-checks both puffin CRCs, so this is CRC-gated twice
+                    // over (the branch is already inside the frame verdict above). That is deliberate
+                    // rather than redundant: it is the only entry point to the R16 decoder, and the BLE
+                    // safety contract is that no Labrador field is read out of an unverified frame.
+                    if (frame.histU8(9, frame.size) == Whoop5Ecg.R16_REVISION) {
+                        val inner = Whoop5Ecg.innerPayload(frame, Whoop5Ecg.RAW_TYPE_OFFSET)
+                        val rec = inner?.let { Whoop5Ecg.parseR16(it) }
+                        // #547 again: a record whose own @15 is implausible banks nothing, exactly as the
+                        // v26 branch drops one. `strapSeconds` is read as the unix slot every 5/MG
+                        // historical layout uses; the gate is what checks that reading per record.
+                        val ecgTs = rec?.let { correctedWall(it.strapSeconds) }
+                        if (rec != null && inner != null && ecgTs != null) {
+                            ecgWaveform.add(
+                                EcgWaveformRow(
+                                    ts = ecgTs,
+                                    sequence = rec.sequence,
+                                    record = ByteArray(inner.size) { i -> inner[i].toByte() },
+                                ),
+                            )
                         }
                     }
                 }
@@ -1227,6 +1330,7 @@ fun extractHistoricalStreams(
         sleepState = sleepState,
         ppgHr = ppgHr,
         ppgWaveform = ppgWaveform,
+        ecgWaveform = ecgWaveform,
         v18Aux = v18Aux,
         unhandledPacketTypes = unhandledTypes,   // #891 diag census (not persisted)
         unhandledPacketSamples = unhandledSamples,   // #891 one frame per unmapped type (not persisted)

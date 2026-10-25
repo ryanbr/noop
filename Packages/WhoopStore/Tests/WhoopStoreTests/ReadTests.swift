@@ -381,7 +381,7 @@ final class ReadTests: XCTestCase {
         let store = try await WhoopStore.inMemory()
         let counts = try await store.storageRowCounts()
         let expected = ["hr", "rr", "events", "battery", "spo2", "skinTemp", "resp", "gravity",
-                        "steps", "ppgHr", "sleepState", "ppgWaveform", "v18Aux"]
+                        "steps", "ppgHr", "sleepState", "ppgWaveform", "ecgWaveform", "v18Aux"]
         XCTAssertEqual(Set(counts.keys), Set(expected),
                        "key set must match Android's WhoopRepository.storageRowCounts exactly")
         for k in expected {

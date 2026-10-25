@@ -84,8 +84,9 @@ final class TestCentreReport: ObservableObject {
             // #1911: every accumulating table, not the nine this used to name. The old shape read eight
             // counts out of a test helper and bolted `steps` on beside them, which silently omitted
             // ppgHr, sleepState, ppgWaveform and v18Aux — the four Android already reports and flags as
-            // "can each be large". A footprint that leaves out the only blob table cannot attribute the
-            // bytes it exists to explain, which is exactly what #1911 needs answered.
+            // "can each be large". A footprint that leaves out a blob table cannot attribute the bytes it
+            // exists to explain, which is exactly what #1911 needs answered. There are two of them since
+            // #2847: `ppgWaveformSample` and `ecgWaveformSample`.
             if let counts = try? await store.storageRowCounts() { rows = counts }
             // #1911: bytes beside the counts. Rows alone cannot say which table holds a large store -
             // ppgWaveformSample's rows carry a BLOB, so it is precisely where a row model misleads, and

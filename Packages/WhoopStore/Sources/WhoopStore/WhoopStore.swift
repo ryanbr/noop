@@ -59,6 +59,12 @@ private actor StoreOpenGate {
 /// data or the query results.
 public actor WhoopStore {
 
+    /// ECG records banked since its retention sweep last ran, PER DEVICE, on the same terms as the two
+    /// counters below and for the same reason: the sweep is per device, so a shared counter would let one
+    /// strap spend another's budget. Its own counter because the caps differ by two orders of magnitude
+    /// and an offload routinely writes one of the three tables and not the others. See `StreamStore`.
+    var ecgWaveformRowsSincePrune: [String: Int] = [:]
+
     /// PPG waveform rows banked since its retention sweep last ran, PER DEVICE, for the same reason as
     /// `v18AuxRowsSincePrune` below: the sweep is per device, so a shared counter would let one strap
     /// spend another's budget. Separate counter from the v18 aux one because the two caps differ and a

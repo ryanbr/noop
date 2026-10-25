@@ -50,6 +50,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         LabMarkerRow::class,
         LiveSessionRow::class,
         PpgWaveformSampleEntity::class,
+        EcgWaveformSampleEntity::class,
         V18AuxSampleEntity::class,
         AppleStepHour::class,
         CoachMessageRow::class,
@@ -59,7 +60,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         LiftSessionRow::class,
         LiftSetEntity::class,
     ],
-    version = 41,
+    version = 42,
     // #775: ON so Room's KSP processor writes the generated schema (every table's exact `CREATE TABLE`,
     // columns in declaration order with affinity/NOT NULL/default, PK and indices) as JSON. That export
     // is what lets a plain JVM test — no device, no Robolectric — read Android's REAL schema and compare
@@ -79,7 +80,7 @@ abstract class WhoopDatabase : RoomDatabase() {
         const val DB_NAME = "noop_whoop.db"
         /** Room schema version — MUST equal the `@Database(version = …)` above. Surfaced in the backup
          *  manifest (#1410) so an export states its schema. Bump both together on a migration. */
-        const val SCHEMA_VERSION = 41
+        const val SCHEMA_VERSION = 42
 
         @Volatile
         private var instance: WhoopDatabase? = null
@@ -1101,6 +1102,46 @@ abstract class WhoopDatabase : RoomDatabase() {
         }
 
         /**
+         * v41 -> v42 (#2847): ADDITIVE, adds the `ecgWaveformSample` table, the Android twin of the Swift
+         * WhoopStore `v48-ecg-waveform` GRDB migration. Durable storage for the flash-banked MG ECG record
+         * (type 47, data revision 16), which #2839 taught both platforms to DECODE and neither had anywhere
+         * to put: layout 16 stayed out of [MAPPED_WHOOP5_HISTORICAL_VERSIONS], so every record went down the
+         * unmapped route into [RawHistoryArchive] and was evicted from it. That archive is a 5 MiB ring whose
+         * per-version floor protects 64 informative lines, which for a one-strap-second record is 64 seconds
+         * of waveform, and @DX23876 measured a reading evicted to that floor within a couple of hours of
+         * ordinary MG traffic.
+         *
+         * One row per record, holding the record's inner bytes verbatim rather than a decoded field set.
+         * The reasoning is on [EcgWaveformSampleEntity]: 18-bit samples fit no integer blob, the lead-off
+         * halfwords have no attested byte order, and [Whoop5Ecg.parseR16] is already the pinned reader.
+         * The key is (deviceId, ts, SEQUENCE) and not the usual (deviceId, ts), because two R16 records
+         * can be stamped inside one strap-second at the start of a reading; that note is on the entity.
+         *
+         * Retention: CAPPED at [WhoopRepository.ECG_WAVEFORM_RETENTION_ROWS] rolling rows per device, newest-N
+         * and never an age cutoff. Readings are discrete events, so a wall-clock cutoff empties the table for
+         * a user who takes one a week. Swift twin: the `v48-ecg-waveform` migration note.
+         *
+         * CREATE TABLE only (no existing data touched), so already-offloaded raw streams survive. The SQL MUST
+         * match Room's generated schema for [EcgWaveformSampleEntity] exactly: deviceId TEXT NOT NULL, ts
+         * INTEGER NOT NULL, sequence INTEGER NOT NULL, record BLOB NOT NULL (all Kotlin non-null, no SQL
+         * DEFAULT), composite PRIMARY KEY (deviceId, ts, sequence) in declaration order, matching the GRDB
+         * `t.column(...).notNull()` order deviceId, ts, sequence, record. No destructive fallback (see the
+         * class doc). Exposed as [ECG_WAVEFORM_MIGRATION_SQL] so a plain-JVM unit test can pin the shape
+         * without Robolectric.
+         */
+        internal val ECG_WAVEFORM_MIGRATION_SQL: List<String> = listOf(
+            "CREATE TABLE IF NOT EXISTS `ecgWaveformSample` (`deviceId` TEXT NOT NULL, " +
+                "`ts` INTEGER NOT NULL, `sequence` INTEGER NOT NULL, `record` BLOB NOT NULL, " +
+                "PRIMARY KEY(`deviceId`, `ts`, `sequence`))",
+        )
+
+        internal val MIGRATION_41_42 = object : Migration(41, 42) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                for (stmt in ECG_WAVEFORM_MIGRATION_SQL) db.execSQL(stmt)
+            }
+        }
+
+        /**
          * Every migration the builder registers, as a VALUE rather than an argument list.
          *
          * It was previously spelled inline in `addMigrations(...)`, which meant nothing could check it. A
@@ -1127,6 +1168,7 @@ abstract class WhoopDatabase : RoomDatabase() {
             MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30,
             MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36,
             MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41,
+            MIGRATION_41_42,
         )
 
         private fun build(appContext: Context): WhoopDatabase =

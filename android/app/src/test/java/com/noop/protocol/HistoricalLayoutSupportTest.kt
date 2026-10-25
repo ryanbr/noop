@@ -39,6 +39,45 @@ class HistoricalLayoutSupportTest {
         )
     }
 
+    /**
+     * v16, the flash-banked ECG record (#2847), is mapped and stored and must NOT draw the #1992 line.
+     * That line asks the user to report the layout, and for one NOOP decodes, banks whole and reads
+     * nothing from on purpose, the report would be about working software.
+     */
+    @Test
+    fun theEcgLayoutDecodesIntoItsOwnStreamRatherThanReportingAGap() {
+        assertTrue("v16 dispatches on this platform now", 16 in MAPPED_WHOOP5_HISTORICAL_VERSIONS)
+        assertEquals(
+            HistoricalLayoutSupport.DECODES_INTO_ITS_OWN_STREAM,
+            historicalLayoutSupport(16, DeviceFamily.WHOOP5, false, false, false),
+        )
+    }
+
+    /**
+     * The own-stream answer is NOT a way of saying "fine whatever it carried": a v16 record that somehow
+     * decoded a per-second heart rate would be scoreable, and the field test still wins. This is the
+     * direction a version-keyed case could have broken, by short-circuiting ahead of the field test.
+     */
+    @Test
+    fun theFieldTestStillWinsOverTheOwnStreamCase() {
+        assertEquals(
+            HistoricalLayoutSupport.SUPPORTED,
+            historicalLayoutSupport(16, DeviceFamily.WHOOP5, true, false, false),
+        )
+    }
+
+    /**
+     * And v26 must keep answering SUPPORTED rather than being quietly folded into the new case: its
+     * waveform IS a named signal the field test already counts, so nothing about it needs a carve-out.
+     */
+    @Test
+    fun theOpticalWaveformLayoutIsStillSupportedNotOwnStream() {
+        assertEquals(
+            HistoricalLayoutSupport.SUPPORTED,
+            historicalLayoutSupport(26, DeviceFamily.WHOOP5, false, false, true),
+        )
+    }
+
     /** A mapped layout that DOES carry a named signal is simply fine, and says nothing at all. */
     @Test
     fun aMappedLayoutCarryingASignalIsSupported() {

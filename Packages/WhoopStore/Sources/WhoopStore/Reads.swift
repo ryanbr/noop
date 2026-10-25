@@ -903,8 +903,10 @@ extension WhoopStore {
     /// #1911 wants to know WHICH table holds a multi-gigabyte database, and the answer was unavailable on
     /// Apple: the Test Centre probe emitted nine keys and left out `ppgHr`, `sleepState`, `ppgWaveform`
     /// and `v18Aux` — the four Android's own comment singles out as "can each be large", and the ones a
-    /// row-count model misprices worst, since `ppgWaveformSample` is the only blob table here. A footprint
-    /// that omits the blob table cannot attribute the bytes it was collected to explain.
+    /// row-count model misprices worst, since `ppgWaveformSample` was the only blob table here. A
+    /// footprint that omits the blob table cannot attribute the bytes it was collected to explain.
+    /// `ecgWaveformSample` (#2847) is the second, and the one where a row count misleads by the widest
+    /// margin: 1,572 bytes a row against roughly 30 for a scalar stream.
     ///
     /// Shares `rawTableKeys` with `storageStats()` and `TimestampHeal` so a table added to one is seen by
     /// all three — counted in the total, named in the breakdown, and healed. Best-effort
@@ -923,9 +925,9 @@ extension WhoopStore {
     /// Estimated payload bytes per decoded stream table, keyed as `storageRowCounts()` keys.
     ///
     /// #1911 asks which table holds a multi-gigabyte database, and row counts alone cannot answer it: the
-    /// twelve fixed-width tables are comparable by rows, but `ppgWaveformSample` stores a BLOB whose size
-    /// varies, and it is the table most likely to hold bytes a per-second row model does not predict. So
-    /// this measures the blob rather than assuming it.
+    /// fixed-width tables are comparable by rows, but `ppgWaveformSample` and `ecgWaveformSample` each
+    /// store a BLOB whose size varies, and those are the tables most likely to hold bytes a per-second row
+    /// model does not predict. So this measures the blob rather than assuming it.
     ///
     /// Sampled, not scanned: the mean payload of up to `sampleRows` rows, multiplied by the count. A full
     /// `SUM(LENGTH(...))` over a 6.5 GB store is exactly the kind of read this diagnostic exists to let
@@ -982,6 +984,7 @@ extension WhoopStore {
         ("spo2", "spo2Sample"), ("skinTemp", "skinTempSample"), ("resp", "respSample"),
         ("gravity", "gravitySample"), ("steps", "stepSample"), ("ppgHr", "ppgHrSample"),
         ("sleepState", "sleepStateSample"), ("ppgWaveform", "ppgWaveformSample"),
+        ("ecgWaveform", "ecgWaveformSample"),
         ("v18Aux", "v18AuxSample"),
     ]
 

@@ -78,7 +78,10 @@ public func isPlausibleHistoricalUnix(_ ts: Int, wallNow: Int,
 /// archive they are lost forever while the UI reports a clean sync (#77 / #91).
 ///
 /// Console (type-50, `frame[typeIndex] == 0x32`) frames are strap-side debug-log text that decode to
-/// zero rows BY DESIGN and are never returned. 5/MG v26 (raw PPG block, hist_version 26) is skipped
+/// zero rows BY DESIGN and are never returned. 5/MG v16 (flash-banked ECG, #2847) is skipped on the same
+/// terms as v26 below and for the same reason: its waveform has its own durable stream
+/// (`Streams.ecgWaveform` / `ecgWaveformSample`), and the archive is the wrong home for a 1.5 KB record
+/// at one per strap-second. 5/MG v26 (raw PPG block, hist_version 26) is skipped
 /// only while it is INTACT: a v26 record's payload is the optical waveform, which
 /// `extractHistoricalStreams` persists durably in its OWN stream (`Streams.ppgWaveform` / WhoopStore's
 /// `ppgWaveformSample` table, issue #156 follow-up) — but only for a record it accepts. Since the
@@ -118,6 +121,29 @@ public func rejectedHistoricalRecords(_ rawFrames: [[UInt8]], family: DeviceFami
         // is dropped by the extraction like any other, which leaves it stored nowhere while the section
         // is acked anyway. Bind the skip to the verdict, not to the version byte alone.
         if family == .whoop5, f.count > versionIndex, Int(f[versionIndex]) == 26 {
+            let p = parseFrame(f, family: family)
+            return !(p.ok && p.crcOK != false)
+        }
+        // v16 ECG (#2847): the same clause for the same reason. An intact R16 record's 500 three-byte
+        // slots are banked in `ecgWaveformSample` by `extractHistoricalStreams`, so archiving it here as
+        // well would hold a second copy of a ~1.5 KB record in a 5 MiB ring whose per-version floor
+        // protects 64 lines — @DX23876 measured an ECG reading evicted to that floor within a couple of
+        // hours of ordinary MG traffic, which is the eviction this issue exists to stop competing with.
+        // A record that fails the verdict banks no row, so it is archived like any other broken frame.
+        //
+        // THE HOLE THIS SHARES WITH v26, stated rather than inherited: the skip asks whether the record
+        // is intact, not whether a row was actually written, and those differ for an intact record whose
+        // own @15 fails the #547 plausibility gate — the extraction drops it and this skips it, so it is
+        // stored nowhere. Closing it needs this filter to know the wall clock it currently has no
+        // parameter for, and it would widen the archive for v26's far larger population at the same time,
+        // so it belongs in a change that covers both rather than in a one-version carve-out here.
+        if family == .whoop5, f.count > versionIndex, Int(f[versionIndex]) == 16 {
+            // SHAPE FIRST, and this clause is tighter than v26's above for a reason found by testing it:
+            // `parseR16` accepts a record of exactly `r16InnerLength` and nothing else, so a type-47
+            // revision-16 frame of any other length banks no row no matter how intact it is. Keying the
+            // skip on the verdict alone sent such a frame nowhere at all: a 1,484-byte one with both CRCs
+            // valid was skipped here and dropped by the extraction. The archive is its only copy.
+            guard Whoop5Ecg.isR16Record(f) else { return true }
             let p = parseFrame(f, family: family)
             return !(p.ok && p.crcOK != false)
         }
@@ -296,6 +322,23 @@ public func extractHistoricalStreams(_ parsed: [ParsedFrame],
                 out.ppgWaveform.append(PpgWaveformSample(ts: ts, samples: samples,
                                                          burstIndex: p["burst_index"]?.intValue,
                                                          baseCode: p["ppg_base_code"]?.intValue))
+            }
+            // v16 flash-banked ECG (#2847): bank the inner record whole on the record's corrected
+            // wall-second. BOTH keys are required rather than defaulted — the decoder emits them from one
+            // `parseR16` result, so a record that carries one without the other did not decode, and a row
+            // with an invented sequence would read as a real index to anything grouping a reading. Like
+            // v26 this record adds nothing to the branches below: it carries no wrist heart rate, no
+            // gravity and no SpO2, which is why its `ecg_avg_hr` is deliberately not called `heart_rate`.
+            if let bytes = p["ecg_record"]?.intArrayValue, let seq = p["ecg_sequence"]?.intValue,
+               bytes.count == Whoop5Ecg.r16InnerLength {
+                // `exactly`, not `truncatingIfNeeded`: the decoder only ever puts real bytes in here, but
+                // a `ParsedFrame` can also arrive decoded from a capture file, and a wrapped value would
+                // be stored as a plausible byte that was never on the wire. A short result means one
+                // value was out of range, and the row is skipped rather than quietly shortened.
+                let record = bytes.compactMap { UInt8(exactly: $0) }
+                if record.count == bytes.count {
+                    out.ecgWaveform.append(EcgWaveformSample(ts: ts, sequence: seq, record: record))
+                }
             }
             if let bpm = p["heart_rate"]?.intValue, bpm != 0 {  // skip startup hr=0
                 out.hr.append(HRSample(ts: ts, bpm: bpm))

@@ -51,13 +51,15 @@
     ],
     "fields": {
       "activity_class": 1, "aux_byte_82": 1, "cardiac_flags": 1, "cardiac_status": 1,
-      "dynamic_acceleration": 6, "gravity_mag": 9, "heart_rate": 11, "heart_rate_alt": 4,
-      "hist_version": 15, "hr_quality_flags": 4, "motion_wear_quality": 1, "onwrist": 2,
+      "dynamic_acceleration": 6, "ecg_avg_hr": 1, "ecg_leads_off_count": 1, "ecg_progress": 1,
+      "ecg_sample_count": 1, "ecg_sequence": 1, "ecg_signal_quality": 1,
+      "gravity_mag": 9, "heart_rate": 11, "heart_rate_alt": 4,
+      "hist_version": 16, "hr_quality_flags": 4, "motion_wear_quality": 1, "onwrist": 2,
       "optical_amp_a": 4, "optical_amp_b": 4, "optical_baseline_a": 4, "optical_baseline_b": 4,
       "record_index": 3, "resp_rate_raw": 1, "rr_count": 7, "rr_intervals": 11, "rr_packed": 1,
       "skin_temp_raw": 5, "sleep_state": 2, "spo2_ir": 1, "spo2_red": 1, "status_word": 1,
       "status_word_1": 2, "status_word_2": 2, "step_cadence": 1, "step_motion_counter": 1,
-      "temp_aux_1_raw": 2, "temp_aux_2_raw": 2, "unix": 15, "unknown_f32_113": 1,
+      "temp_aux_1_raw": 2, "temp_aux_2_raw": 2, "unix": 16, "unknown_f32_113": 1,
       "wake_quality": 2, "rr_raw_ticks": 4, "rr_source_channel": 4
     },
     "derived_fields": ["gravity_mag"],
@@ -67,17 +69,17 @@
       "whoop5_v18_real_offwrist", "whoop5_v18_real_ack_capture", "whoop5_v18_real_device2_hr57",
       "whoop5_v18_real_device2_hr63", "whoop5_v18_synthetic_record_index_high_bit",
       "whoop4_v24_synthetic_unix_high_bit", "whoop4_v25_synthetic_unix_high_bit",
-      "whoop5_v18_synthetic_unix_high_bit"
+      "whoop5_v18_synthetic_unix_high_bit", "whoop5_v16_synthetic_ecg_record"
     ],
     "batches": [
       "empty_input", "whoop4_v24_single", "whoop4_v25_gravity_only", "whoop5_v18_worn_pair",
       "whoop5_v18_offwrist_single", "whoop5_v18_outside_session_range",
       "whoop4_v24_high_bit_unix_survives", "whoop4_v25_high_bit_unix_survives",
-      "whoop5_v18_high_bit_unix_survives"
+      "whoop5_v18_high_bit_unix_survives", "whoop5_v16_ecg_record"
     ],
     "streams": [
       "hr", "rr", "spo2", "skin_temp", "resp", "gravity", "steps", "sleep_state", "ppg_hr",
-      "ppg_waveform", "v18_aux", "events", "battery"
+      "ppg_waveform", "ecg_waveform", "v18_aux", "events", "battery"
     ],
     "non_stream_lists": ["dropped_rtc_events"]
   },
@@ -407,6 +409,38 @@
         ],
         "rr_source_channel": 5
       }
+    },
+    {
+      "name": "whoop5_v16_synthetic_ecg_record",
+      "family": "whoop5",
+      "synthetic": true,
+      "note": [
+        "The flash-banked MG ECG record (#2847): type 47 HISTORICAL_DATA, data revision 16, 1584 bytes.",
+        "SYNTHETIC, built from the layout in docs/PROTOCOL_ECG.md in the same style as the fixtures in",
+        "Whoop5EcgR16Tests, because no capture in this repository holds an R16 frame: @meta1971's two",
+        "sanitised fixtures are measurements of their own strap, and this file carries only what both",
+        "platforms can rebuild from the documented layout. It is a CONTRACT fixture, not a hardware",
+        "measurement. It establishes no volts per count, no sample rate and nothing clinical.",
+        "The waveform is a deterministic ramp (slot i = tag 0x80|(i&3), then (i>>1)&0xff, then i&0xff),",
+        "so a decoder that read a slot little-endian, dropped the tag's low two bits, or walked the",
+        "slots at any stride but three would decode different samples from the same bytes.",
+        "strapSeconds is 1760000000 and not the R16 suite's 0x65430001, which is 1698889729 and sits",
+        "BELOW the #547 MIN_PLAUSIBLE_UNIX floor of 1700000000: a batch built on that value would pin",
+        "the dropped-record path instead of the storage path this fixture exists to cover.",
+        "ecg_record_hex is deliberately NOT pinned here. It is the record's 1572 inner bytes, which are",
+        "already in `hex` above, so asserting it would double the fixture and pin one fact twice."
+      ],
+      "hex": "aa01280600010db02f105a452301000078e768004003080102640040002a0000f40180000081000182010283010380020481020582030683030780040881040982050a83050b80060c81060d82070e83070f800810810811820912830913800a14810a15820b16830b17800c18810c19820d1a830d1b800e1c810e1d820f1e830f1f80102081102182112283112380122481122582132683132780142881142982152a83152b80162c81162d82172e83172f801830811831821932831933801a34811a35821b36831b37801c38811c39821d3a831d3b801e3c811e3d821f3e831f3f80204081204182214283214380224481224582234683234780244881244982254a83254b80264c81264d82274e83274f802850812851822952832953802a54812a55822b56832b57802c58812c59822d5a832d5b802e5c812e5d822f5e832f5f80306081306182316283316380326481326582336683336780346881346982356a83356b80366c81366d82376e83376f803870813871823972833973803a74813a75823b76833b77803c78813c79823d7a833d7b803e7c813e7d823f7e833f7f80408081408182418283418380428481428582438683438780448881448982458a83458b80468c81468d82478e83478f804890814891824992834993804a94814a95824b96834b97804c98814c99824d9a834d9b804e9c814e9d824f9e834f9f8050a08150a18251a28351a38052a48152a58253a68353a78054a88154a98255aa8355ab8056ac8156ad8257ae8357af8058b08158b18259b28359b3805ab4815ab5825bb6835bb7805cb8815cb9825dba835dbb805ebc815ebd825fbe835fbf8060c08160c18261c28361c38062c48162c58263c68363c78064c88164c98265ca8365cb8066cc8166cd8267ce8367cf8068d08168d18269d28369d3806ad4816ad5826bd6836bd7806cd8816cd9826dda836ddb806edc816edd826fde836fdf8070e08170e18271e28371e38072e48172e58273e68373e78074e88174e98275ea8375eb8076ec8176ed8277ee8377ef8078f08178f18279f28379f3807af4817af5827bf6837bf7807cf8817cf9827dfa837dfb807efc817efd827ffe837fff80800081800182810283810380820481820582830683830780840881840982850a83850b80860c81860d82870e83870f808810818811828912838913808a14818a15828b16838b17808c18818c19828d1a838d1b808e1c818e1d828f1e838f1f80902081902182912283912380922481922582932683932780942881942982952a83952b80962c81962d82972e83972f809830819831829932839933809a34819a35829b36839b37809c38819c39829d3a839d3b809e3c819e3d829f3e839f3f80a04081a04182a14283a14380a24481a24582a34683a34780a44881a44982a54a83a54b80a64c81a64d82a74e83a74f80a85081a85182a95283a95380aa5481aa5582ab5683ab5780ac5881ac5982ad5a83ad5b80ae5c81ae5d82af5e83af5f80b06081b06182b16283b16380b26481b26582b36683b36780b46881b46982b56a83b56b80b66c81b66d82b76e83b76f80b87081b87182b97283b97380ba7481ba7582bb7683bb7780bc7881bc7982bd7a83bd7b80be7c81be7d82bf7e83bf7f80c08081c08182c18283c18380c28481c28582c38683c38780c48881c48982c58a83c58b80c68c81c68d82c78e83c78f80c89081c89182c99283c99380ca9481ca9582cb9683cb9780cc9881cc9982cd9a83cd9b80ce9c81ce9d82cf9e83cf9f80d0a081d0a182d1a283d1a380d2a481d2a582d3a683d3a780d4a881d4a982d5aa83d5ab80d6ac81d6ad82d7ae83d7af80d8b081d8b182d9b283d9b380dab481dab582dbb683dbb780dcb881dcb982ddba83ddbb80debc81debd82dfbe83dfbf80e0c081e0c182e1c283e1c380e2c481e2c582e3c683e3c780e4c881e4c982e5ca83e5cb80e6cc81e6cd82e7ce83e7cf80e8d081e8d182e9d283e9d380ead481ead582ebd683ebd780ecd881ecd982edda83eddb80eedc81eedd82efde83efdf80f0e081f0e182f1e283f1e380f2e481f2e582f3e683f3e780f4e881f4e982f5ea83f5eb80f6ec81f6ed82f7ee83f7ef80f8f081f8f182f9f283f9f30b00010101020103010401050106010701080109010a0100020102020203020402050206020702080209020a0200ed7f3fcd",
+      "expect": {
+        "hist_version": 16,
+        "unix": 1760000000,
+        "ecg_sequence": 74565,
+        "ecg_sample_count": 500,
+        "ecg_signal_quality": 3,
+        "ecg_progress": 100,
+        "ecg_avg_hr": 64,
+        "ecg_leads_off_count": 11
+      }
     }
   ],
   "stream_batches": [
@@ -431,7 +465,8 @@
         "dropped_implausible": 0,
         "counts": {
           "hr": 0, "rr": 0, "spo2": 0, "skin_temp": 0, "resp": 0, "gravity": 0,
-          "steps": 0, "sleep_state": 0, "ppg_hr": 0, "ppg_waveform": 0, "v18_aux": 0, "events": 0, "battery": 0
+          "steps": 0, "sleep_state": 0, "ppg_hr": 0, "ppg_waveform": 0, "ecg_waveform": 0,
+          "v18_aux": 0, "events": 0, "battery": 0
         }
       }
     },
@@ -446,7 +481,8 @@
         "dropped_implausible": 0,
         "counts": {
           "hr": 1, "rr": 2, "spo2": 1, "skin_temp": 1, "resp": 1, "gravity": 1,
-          "steps": 0, "sleep_state": 0, "ppg_hr": 0, "ppg_waveform": 0, "v18_aux": 0, "events": 0, "battery": 0
+          "steps": 0, "sleep_state": 0, "ppg_hr": 0, "ppg_waveform": 0, "ecg_waveform": 0,
+          "v18_aux": 0, "events": 0, "battery": 0
         }
       }
     },
@@ -461,7 +497,8 @@
         "dropped_implausible": 0,
         "counts": {
           "hr": 0, "rr": 0, "spo2": 0, "skin_temp": 0, "resp": 0, "gravity": 3,
-          "steps": 0, "sleep_state": 0, "ppg_hr": 0, "ppg_waveform": 0, "v18_aux": 0, "events": 0, "battery": 0
+          "steps": 0, "sleep_state": 0, "ppg_hr": 0, "ppg_waveform": 0, "ecg_waveform": 0,
+          "v18_aux": 0, "events": 0, "battery": 0
         }
       }
     },
@@ -476,7 +513,8 @@
         "dropped_implausible": 0,
         "counts": {
           "hr": 2, "rr": 3, "spo2": 0, "skin_temp": 2, "resp": 0, "gravity": 2,
-          "steps": 2, "sleep_state": 2, "ppg_hr": 0, "ppg_waveform": 0, "v18_aux": 2, "events": 0, "battery": 0
+          "steps": 2, "sleep_state": 2, "ppg_hr": 0, "ppg_waveform": 0, "ecg_waveform": 0,
+          "v18_aux": 2, "events": 0, "battery": 0
         }
       }
     },
@@ -491,7 +529,8 @@
         "dropped_implausible": 0,
         "counts": {
           "hr": 0, "rr": 0, "spo2": 0, "skin_temp": 1, "resp": 0, "gravity": 1,
-          "steps": 1, "sleep_state": 1, "ppg_hr": 0, "ppg_waveform": 0, "v18_aux": 1, "events": 0, "battery": 0
+          "steps": 1, "sleep_state": 1, "ppg_hr": 0, "ppg_waveform": 0, "ecg_waveform": 0,
+          "v18_aux": 1, "events": 0, "battery": 0
         }
       }
     },
@@ -508,7 +547,8 @@
         "dropped_implausible": 2,
         "counts": {
           "hr": 0, "rr": 0, "spo2": 0, "skin_temp": 0, "resp": 0, "gravity": 0,
-          "steps": 0, "sleep_state": 0, "ppg_hr": 0, "ppg_waveform": 0, "v18_aux": 0, "events": 0, "battery": 0
+          "steps": 0, "sleep_state": 0, "ppg_hr": 0, "ppg_waveform": 0, "ecg_waveform": 0,
+          "v18_aux": 0, "events": 0, "battery": 0
         }
       }
     },
@@ -538,7 +578,8 @@
         "dropped_implausible": 0,
         "counts": {
           "hr": 1, "rr": 2, "spo2": 1, "skin_temp": 1, "resp": 1, "gravity": 1,
-          "steps": 0, "sleep_state": 0, "ppg_hr": 0, "ppg_waveform": 0, "v18_aux": 0, "events": 0, "battery": 0
+          "steps": 0, "sleep_state": 0, "ppg_hr": 0, "ppg_waveform": 0, "ecg_waveform": 0,
+          "v18_aux": 0, "events": 0, "battery": 0
         }
       }
     },
@@ -554,7 +595,8 @@
         "dropped_implausible": 0,
         "counts": {
           "hr": 0, "rr": 0, "spo2": 0, "skin_temp": 0, "resp": 0, "gravity": 1,
-          "steps": 0, "sleep_state": 0, "ppg_hr": 0, "ppg_waveform": 0, "v18_aux": 0, "events": 0, "battery": 0
+          "steps": 0, "sleep_state": 0, "ppg_hr": 0, "ppg_waveform": 0, "ecg_waveform": 0,
+          "v18_aux": 0, "events": 0, "battery": 0
         }
       }
     },
@@ -570,7 +612,32 @@
         "dropped_implausible": 0,
         "counts": {
           "hr": 1, "rr": 2, "spo2": 0, "skin_temp": 1, "resp": 0, "gravity": 1,
-          "steps": 1, "sleep_state": 1, "ppg_hr": 0, "ppg_waveform": 0, "v18_aux": 1, "events": 0, "battery": 0
+          "steps": 1, "sleep_state": 1, "ppg_hr": 0, "ppg_waveform": 0, "ecg_waveform": 0,
+          "v18_aux": 1, "events": 0, "battery": 0
+        }
+      }
+    },
+    {
+      "name": "whoop5_v16_ecg_record",
+      "family": "whoop5",
+      "_comment": [
+        "#2847: one R16 record assembles into exactly one ecgWaveformSample row and nothing else.",
+        "The zeros are the load-bearing half. An ECG record carries no wrist heart rate, no gravity and",
+        "no SpO2, so a platform that routed its averageHR into the `hr` stream would be feeding a",
+        "recovery input off the strap's own ECG-session average, and this is where that surfaces.",
+        "is_empty is false BECAUSE an ECG row is a row: a chunk made only of ECG records has not lost",
+        "its data, and Backfiller.finishChunk's silent-data-loss diagnostic reads that verdict."
+      ],
+      "frames": ["whoop5_v16_synthetic_ecg_record"],
+      "device_clock_ref": 0,
+      "wall_clock_ref": 0,
+      "expect": {
+        "is_empty": false,
+        "dropped_implausible": 0,
+        "counts": {
+          "hr": 0, "rr": 0, "spo2": 0, "skin_temp": 0, "resp": 0, "gravity": 0,
+          "steps": 0, "sleep_state": 0, "ppg_hr": 0, "ppg_waveform": 0, "ecg_waveform": 1,
+          "v18_aux": 0, "events": 0, "battery": 0
         }
       }
     }

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.room.withTransaction
 import com.noop.protocol.DroppedRtcEvent
 import com.noop.protocol.RrSourceChannel
+import com.noop.protocol.Whoop5Ecg
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -43,6 +44,13 @@ data class StreamBatch(
      * never pays for the 24x-larger raw stream. Persisted into `ppgWaveformSample` as a packed i16 BLOB.
      */
     val ppgWaveform: List<PpgWaveformRow> = emptyList(),
+    /**
+     * The flash-banked MG ECG records this batch carried (#2847), one per strap-second of a reading.
+     * Empty on a WHOOP 4.0, on a WHOOP 5 without an MG's ECG front end, and on every offload from a strap
+     * that has banked no reading. Persisted into `ecgWaveformSample` as the record's bytes verbatim.
+     * Nothing scores from it (#752). Swift twin: `Streams.ecgWaveform`.
+     */
+    val ecgWaveform: List<EcgWaveformRow> = emptyList(),
     /**
      * Every remaining 5/MG v18 per-second field the decoder produces and the extractor used to discard —
      * carried verbatim for a later census. Empty on a WHOOP 4.0 and on the live path. Nothing reads it.
@@ -111,7 +119,7 @@ data class StreamBatch(
         get() = hr.isEmpty() && rr.isEmpty() && events.isEmpty() && battery.isEmpty() &&
             spo2.isEmpty() && skinTemp.isEmpty() && resp.isEmpty() && gravity.isEmpty() &&
             steps.isEmpty() && sleepState.isEmpty() && ppgHr.isEmpty() && ppgWaveform.isEmpty() &&
-            v18Aux.isEmpty()
+            ecgWaveform.isEmpty() && v18Aux.isEmpty()
 }
 
 /**
@@ -322,6 +330,35 @@ data class PpgWaveformRow(
     val baseCode: Long? = null,
 )
 
+/**
+ * One flash-banked MG ECG record (#2847): [ts] the record's corrected wall-clock unix second, [sequence]
+ * the strap's own record index, [record] the record's INNER bytes verbatim.
+ *
+ * The wire form rather than a decoded field set, for the reasons on [EcgWaveformSampleEntity]: the samples
+ * are signed 18-bit so no integer blob holds them, the lead-off halfwords have no attested byte order, and
+ * `Whoop5Ecg.parseR16` is already the pinned reader. deviceId is attached on insert. Swift twin:
+ * `EcgWaveformSample`.
+ */
+data class EcgWaveformRow(
+    val ts: Long,
+    val sequence: Long,
+    val record: ByteArray,
+) {
+    // ByteArray needs structural equals/hashCode (the generated identity ones break round-trip asserts).
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is EcgWaveformRow) return false
+        return ts == other.ts && sequence == other.sequence && record.contentEquals(other.record)
+    }
+
+    override fun hashCode(): Int {
+        var result = ts.hashCode()
+        result = 31 * result + sequence.hashCode()
+        result = 31 * result + record.contentHashCode()
+        return result
+    }
+}
+
 /** Count of rows ACTUALLY inserted per stream (mirrors WhoopStore.insert return tuple). */
 data class InsertCounts(
     val hr: Int = 0,
@@ -452,6 +489,13 @@ class WhoopRepository(
      *  one table and not the other. Swift twin: `WhoopStore.ppgWaveformRowsSincePrune`. */
     private val ppgWaveformRowsSincePrune = mutableMapOf<String, Int>()
 
+    /** ECG records banked since its retention sweep last ran, PER DEVICE, on the same terms as the two
+     *  counters beside it: the sweep is per device, so a shared counter would let one strap spend
+     *  another's budget. Its own counter because the caps differ by two orders of magnitude and an
+     *  offload routinely writes one of the three tables and not the others. Swift twin:
+     *  `WhoopStore.ecgWaveformRowsSincePrune`. */
+    private val ecgWaveformRowsSincePrune = mutableMapOf<String, Int>()
+
     /** v18 aux rows banked since the retention sweep last ran, PER DEVICE — the sweep is per device too,
      *  so a shared counter would let one strap spend another's budget. Only the single-threaded offload
      *  path banks v18 rows, so a plain map is enough. Swift twin: `WhoopStore.v18AuxRowsSincePrune`. */
@@ -522,6 +566,8 @@ class WhoopRepository(
         v18AuxPruneEveryRows: Int = V18_AUX_PRUNE_EVERY_ROWS,
         ppgWaveformRetentionRows: Int = PPG_WAVEFORM_RETENTION_ROWS,
         ppgWaveformPruneEveryRows: Int = PPG_WAVEFORM_PRUNE_EVERY_ROWS,
+        ecgWaveformRetentionRows: Int = ECG_WAVEFORM_RETENTION_ROWS,
+        ecgWaveformPruneEveryRows: Int = ECG_WAVEFORM_PRUNE_EVERY_ROWS,
     ): InsertCounts {
         if (streams.isEmpty) return InsertCounts()
 
@@ -533,6 +579,8 @@ class WhoopRepository(
                 v18AuxPruneEveryRows = v18AuxPruneEveryRows,
                 ppgWaveformRetentionRows = ppgWaveformRetentionRows,
                 ppgWaveformPruneEveryRows = ppgWaveformPruneEveryRows,
+                ecgWaveformRetentionRows = ecgWaveformRetentionRows,
+                ecgWaveformPruneEveryRows = ecgWaveformPruneEveryRows,
             )
         }
         val counts = result.counts
@@ -567,6 +615,8 @@ class WhoopRepository(
         v18AuxPruneEveryRows: Int,
         ppgWaveformRetentionRows: Int,
         ppgWaveformPruneEveryRows: Int,
+        ecgWaveformRetentionRows: Int,
+        ecgWaveformPruneEveryRows: Int,
     ): InsertResult {
         val hrIds = if (streams.hr.isEmpty()) emptyList() else
             dao.insertHr(streams.hr.map { HrSample(deviceId, it.ts, it.bpm) })
@@ -652,6 +702,35 @@ class WhoopRepository(
                     // prunePpgWaveform is a suspend call, so a scope cancellation arrives here as a
                     // CancellationException that runCatching would otherwise swallow, leaving the caller
                     // running inside a cancelled coroutine. Same rethrow as the v18-aux sweep below.
+                    .onFailure { if (it is kotlin.coroutines.cancellation.CancellationException) throw it }
+            }
+        }
+
+        // Flash-banked MG ECG records (#2847), one row per strap-second of a reading, holding the
+        // record's inner bytes verbatim. Persist-only, same as steps/sleepState/ppgWaveform: not added to
+        // InsertCounts. Idempotent by (deviceId, ts), IGNORE-on-conflict keeps the FIRST-seen record for
+        // a second, as every other per-second stream does.
+        //
+        // The length is ASSERTED rather than trusted. `Whoop5Ecg.parseR16` refuses a record of any other
+        // length, so a short blob would read back as undecodable for the rest of that row's life, and
+        // keeping the table's one structural invariant true is worth more than a partial row. Mirrors the
+        // Swift insert's own guard.
+        val ecgRows = streams.ecgWaveform.filter { it.record.size == Whoop5Ecg.R16_INNER_LENGTH }
+        if (ecgRows.isNotEmpty()) {
+            dao.insertEcgWaveform(
+                ecgRows.map { EcgWaveformSampleEntity(deviceId, it.ts, it.sequence, it.record) },
+            )
+            // #2847 rolling retention, amortised and best-effort on exactly the same terms as the sweep
+            // above (see [ECG_WAVEFORM_RETENTION_ROWS] for why this is newest-N and not an age-based
+            // drop). Its own counter: an offload writes one of these tables far more often than all three.
+            val bankedEcg = (ecgWaveformRowsSincePrune[deviceId] ?: 0) + ecgRows.size
+            ecgWaveformRowsSincePrune[deviceId] = bankedEcg
+            if (bankedEcg >= ecgWaveformPruneEveryRows) {
+                runCatching { dao.pruneEcgWaveform(deviceId, ecgWaveformRetentionRows) }
+                    .onSuccess { ecgWaveformRowsSincePrune[deviceId] = 0 }
+                    // Same rethrow as the two sweeps beside it: pruneEcgWaveform is a suspend call, so a
+                    // scope cancellation arrives as a CancellationException that runCatching would
+                    // otherwise swallow, leaving the caller running inside a cancelled coroutine.
                     .onFailure { if (it is kotlin.coroutines.cancellation.CancellationException) throw it }
             }
         }
@@ -988,6 +1067,7 @@ class WhoopRepository(
         // The instrumentation streams, missing from this list since they landed (see the DAO note).
         deleted += dao.pruneSleepStateByTs(minTs, maxTs)
         deleted += dao.prunePpgWaveformByTs(minTs, maxTs)
+        deleted += dao.pruneEcgWaveformByTs(minTs, maxTs)
         deleted += dao.pruneV18AuxByTs(minTs, maxTs)
         deleted += dao.pruneEventByTs(minTs, maxTs)
         deleted += dao.pruneBatteryByTs(minTs, maxTs)
@@ -1979,6 +2059,7 @@ class WhoopRepository(
             // /v18Aux can each be large.
             "ppgHr" to dao.countPpgHr(), "sleepState" to dao.countSleepState(),
             "ppgWaveform" to dao.countPpgWaveform(),
+            "ecgWaveform" to dao.countEcgWaveform(),
             "v18Aux" to dao.countV18Aux(),
         )
     }.getOrDefault(emptyMap())
@@ -2443,6 +2524,44 @@ class WhoopRepository(
          * is one constant with no migration.
          */
         const val PPG_WAVEFORM_RETENTION_ROWS = 604_800
+
+        /**
+         * Rolling retention for the v42 ECG table (#2847). Swift twin: `WhoopStore.ecgWaveformRetentionRows`.
+         *
+         * 36,000 = 60 × 600: SIXTY READINGS AT THE STRAP'S OWN TEN-MINUTE SESSION LIMIT, which is the unit
+         * this data actually arrives in. @meta1971's month on one MG is the measurement behind the figure:
+         * 140 readings in 31 days, about 4.5 a day, a median of roughly 3 minutes (182 records), and 7 of
+         * the 140 reaching the 10-minute cap. So the same 36,000 rows holds about 198 readings and 44 days
+         * of that shape, and still 60 readings and 13 days if every one ran to the strap's limit. At
+         * ~1,600 B a row (a 1,572 B blob plus row and primary-key-index overhead) the ceiling is ~58 MB
+         * per device, in the same bracket as [PPG_WAVEFORM_RETENTION_ROWS]' ~70 MB.
+         *
+         * A ROW CAP THAT BEHAVES LIKE A READING CAP, which is why #2847's request for "a cap counted in
+         * readings" needs no reading-grouping machinery. The sweep deletes the OLDEST rows, so the only
+         * reading it can ever cut in half is the oldest one still in the window; every newer reading stays
+         * whole. A fragment at the far end of the window is the tolerable case, and a fragment of the
+         * NEWEST reading, which a cap applied the other way round would produce, is the useless one.
+         *
+         * Not an age-based drop, for the reason [PPG_WAVEFORM_RETENTION_ROWS] gives and more sharply:
+         * readings are DISCRETE EVENTS, so a user who takes one a week would be left with an empty table
+         * by any wall-clock cutoff, and a waveform has no aggregate that survives its samples.
+         */
+        const val ECG_WAVEFORM_RETENTION_ROWS = 36_000
+
+        /** Records to bank before sweeping `ecgWaveformSample` again: ONE MAXIMUM-LENGTH READING, and
+         *  deliberately far tighter in proportion than the two 10,000-row budgets beside it (600 against
+         *  36,000 is 1.7%, ~1 MB of overshoot against a ~58 MB bound). Swift twin:
+         *  `WhoopStore.ecgWaveformPruneEveryRows`.
+         *
+         *  The reason is the restart hole those budgets document: the counter is in-memory and per
+         *  repository instance, so a repository that never banks this many rows in one process lifetime
+         *  never sweeps. For `ppgWaveformSample` that is theoretical, since one night's offload banks
+         *  ~28,800 rows. ECG records arrive a few hundred at a time, days apart, so a budget of their size
+         *  would make the hole the normal case rather than the edge. At one full reading, any session that
+         *  offloads a long reading sweeps, and a run of median-length ones sweeps every third or fourth.
+         *  The hole is narrowed here, not closed: closing it needs a sweep forced once per session, which
+         *  belongs in a change that covers all three tables. */
+        const val ECG_WAVEFORM_PRUNE_EVERY_ROWS = 600
 
         /** Rows to bank before sweeping `ppgWaveformSample` again — same amortisation and magnitude as
          *  [V18_AUX_PRUNE_EVERY_ROWS] below, for the same reason: the sweep walks up to

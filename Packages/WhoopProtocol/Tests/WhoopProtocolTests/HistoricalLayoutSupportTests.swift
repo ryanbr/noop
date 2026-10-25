@@ -28,6 +28,36 @@ final class HistoricalLayoutSupportTests: XCTestCase {
             .decodesWithoutNamedSignal)
     }
 
+    /// v16, the flash-banked ECG record (#2847), is mapped and stored and must NOT draw the #1992 line.
+    /// That line asks the user to report the layout, and for one NOOP decodes, banks whole and reads
+    /// nothing from on purpose, the report would be about working software.
+    func testTheEcgLayoutDecodesIntoItsOwnStreamRatherThanReportingAGap() {
+        XCTAssertTrue(mappedWhoop5HistoricalVersions.contains(16))
+        XCTAssertEqual(
+            historicalLayoutSupport(version: 16, family: .whoop5, hasHeartRate: false,
+                                    hasGravity: false, hasPpgWaveform: false),
+            .decodesIntoItsOwnStream)
+    }
+
+    /// The own-stream answer is NOT a way of saying "fine whatever it carried": a v16 record that somehow
+    /// decoded a per-second heart rate would be scoreable, and the field test still wins. This is the
+    /// direction a version-keyed case could have broken, by short-circuiting ahead of the field test.
+    func testTheFieldTestStillWinsOverTheOwnStreamCase() {
+        XCTAssertEqual(
+            historicalLayoutSupport(version: 16, family: .whoop5, hasHeartRate: true,
+                                    hasGravity: false, hasPpgWaveform: false),
+            .supported)
+    }
+
+    /// And v26 must keep answering `.supported` rather than being quietly folded into the new case: its
+    /// waveform IS a named signal the field test already counts, so nothing about it needs a carve-out.
+    func testTheOpticalWaveformLayoutIsStillSupportedNotOwnStream() {
+        XCTAssertEqual(
+            historicalLayoutSupport(version: 26, family: .whoop5, hasHeartRate: false,
+                                    hasGravity: false, hasPpgWaveform: true),
+            .supported)
+    }
+
     /// A mapped layout that DOES carry a named signal is simply fine, and says nothing at all.
     func testAMappedLayoutCarryingASignalIsSupported() {
         for (hr, grav, ppg) in [(true, false, false), (false, true, false), (false, false, true)] {

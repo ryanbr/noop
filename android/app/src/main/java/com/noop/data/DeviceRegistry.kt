@@ -126,6 +126,7 @@ class DeviceRegistry(
         dao.reKeySteps(from, to); dao.deleteStepsFor(from)
         dao.reKeyPpgHr(from, to); dao.deletePpgHrFor(from)
         dao.reKeyPpgWaveform(from, to); dao.deletePpgWaveformFor(from)
+        dao.reKeyEcgWaveform(from, to); dao.deleteEcgWaveformFor(from)
         dao.reKeyV18Aux(from, to); dao.deleteV18AuxFor(from)
         dao.reKeyEvents(from, to); dao.deleteEventsFor(from)
         dao.reKeyBattery(from, to); dao.deleteBatteryFor(from)
@@ -195,7 +196,8 @@ class DeviceRegistry(
      * delete-data op empties recordings; archiving/removing the registry entry is a separate op (I4).
      *
      * The table set is EVERY device-keyed table of [WhoopDatabase]: hrSample, rrInterval, spo2Sample,
-     * skinTempSample, respSample, gravitySample, stepSample, ppgHrSample, ppgWaveformSample, event, battery, dailyMetric,
+     * skinTempSample, respSample, gravitySample, stepSample, ppgHrSample, ppgWaveformSample,
+     * ecgWaveformSample, event, battery, dailyMetric,
      * sleepSession, journal, workout, appleDaily, metricSeries, dayOwnership, sleepStateSample, labMarker,
      * liveSession, dismissedWorkout, dismissedSleep. DeviceRegistryTest.deleteDeviceDataCallsEveryDaoDeleteMethod
      * guards completeness (fails if a delete*For DAO method isn't wired in here).
@@ -211,6 +213,7 @@ class DeviceRegistry(
             dao.deleteStepsFor(id)
             dao.deletePpgHrFor(id)
             dao.deletePpgWaveformFor(id)
+            dao.deleteEcgWaveformFor(id)
             dao.deleteV18AuxFor(id)
             dao.deleteEventsFor(id)
             dao.deleteBatteryFor(id)

@@ -8,9 +8,11 @@ import kotlinx.coroutines.withContext
  * #1911: estimated payload bytes per decoded stream table. Swift twin: `WhoopStore.storageByteEstimates`,
  * and meta.json's `row_bytes` block beside `rows`.
  *
- * Rows alone cannot say which table holds a large store. `ppgWaveformSample` stores a BLOB whose size
- * varies, and it is both the table a per-second row model misprices worst and the one this question is
- * usually about — so the estimate MEASURES the blob rather than assuming a fixed row width.
+ * Rows alone cannot say which table holds a large store. `ppgWaveformSample` and, since #2847,
+ * `ecgWaveformSample` each store a BLOB whose size varies, and those are both the tables a per-second row
+ * model misprices worst and the ones this question is usually about, so the estimate MEASURES the blob
+ * rather than assuming a fixed row width. The ECG table is the wider miss of the two: 1,572 bytes a row
+ * against roughly 30 for a scalar stream.
  *
  * A hand-written class over [WhoopDatabase] rather than a method on [WhoopRepository], following
  * [com.noop.push.PushDao]: the repository takes a DAO and a transactor precisely so its writes stay
@@ -85,6 +87,7 @@ internal class StorageFootprint(private val db: WhoopDatabase) {
             "spo2" to "spo2Sample", "skinTemp" to "skinTempSample", "resp" to "respSample",
             "gravity" to "gravitySample", "steps" to "stepSample", "ppgHr" to "ppgHrSample",
             "sleepState" to "sleepStateSample", "ppgWaveform" to "ppgWaveformSample",
+            "ecgWaveform" to "ecgWaveformSample",
             "v18Aux" to "v18AuxSample",
         )
     }

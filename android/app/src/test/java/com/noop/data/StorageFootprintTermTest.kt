@@ -30,15 +30,19 @@ class StorageFootprintTermTest {
 
     /**
      * The key set is a cross-platform contract: Apple pins it in `WhoopStoreTests.ReadTests`, and the two
-     * meta.json blocks are only comparable while both sides report the same thirteen keys.
+     * meta.json blocks are only comparable while both sides report the same keys.
      */
     @Test fun `the table list matches the Apple key set`() {
         val expected = listOf(
             "hr", "rr", "events", "battery", "spo2", "skinTemp", "resp", "gravity",
-            "steps", "ppgHr", "sleepState", "ppgWaveform", "v18Aux",
+            "steps", "ppgHr", "sleepState", "ppgWaveform", "ecgWaveform", "v18Aux",
         )
         assertEquals(expected.sorted(), StorageFootprint.STORAGE_TABLES.map { it.first }.sorted())
-        assertTrue("the blob table must be in the list at all",
-                   StorageFootprint.STORAGE_TABLES.any { it.second == "ppgWaveformSample" })
+        // BOTH blob tables, named rather than counted: a footprint that omits one cannot attribute the
+        // bytes it was collected to explain, and the ECG table (#2847) is the wider miss of the two.
+        for (blob in listOf("ppgWaveformSample", "ecgWaveformSample")) {
+            assertTrue("the blob table $blob must be in the list at all",
+                       StorageFootprint.STORAGE_TABLES.any { it.second == blob })
+        }
     }
 }

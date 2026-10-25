@@ -393,6 +393,6 @@ final class FrameIntegrityTests: XCTestCase {
                                      from: resource("r20_optical_oracle")).records.enumerated() {
             assertValid(e.hex, .whoop5, "r20_optical_oracle.json #\(i)")
         }
-        XCTAssertEqual(checked, 116, "the corpus size is pinned so a lost resource cannot pass as green")
+        XCTAssertEqual(checked, 117, "the corpus size is pinned so a lost resource cannot pass as green")
     }
 }

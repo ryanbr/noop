@@ -151,6 +151,10 @@ public struct DeviceRegistryStore: Sendable {
         // "delete all of this device's data" leaves the raw waveform behind (the same privacy defect
         // this list exists to close).
         "ppgWaveformSample",
+        // v48-ecg-waveform (#2847): the banked MG ECG records are deviceId-keyed per-second rows like
+        // every stream above, and they are the most personal of them, so "delete all of this device's
+        // data" must clear them or a user's ECG readings survive the delete.
+        "ecgWaveformSample",
         // v28-raw-imu (#423): the opt-in 5/MG raw-IMU offload capture is deviceId-keyed too — "delete all
         // of this device's data" must clear it, or the raw inertial samples survive deletion (same defect).
         // v31-deep-capture-channels: the banked 5/MG v18 auxiliary fields are deviceId-keyed per-second

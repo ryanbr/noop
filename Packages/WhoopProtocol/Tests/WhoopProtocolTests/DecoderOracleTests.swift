@@ -219,7 +219,8 @@ final class DecoderOracleTests: XCTestCase {
             "hr": s.hr.count, "rr": s.rr.count, "spo2": s.spo2.count, "skin_temp": s.skinTemp.count,
             "resp": s.resp.count, "gravity": s.gravity.count, "steps": s.steps.count,
             "sleep_state": s.sleepState.count, "ppg_hr": s.ppgHr.count,
-            "ppg_waveform": s.ppgWaveform.count, "v18_aux": s.v18Aux.count,
+            "ppg_waveform": s.ppgWaveform.count, "ecg_waveform": s.ecgWaveform.count,
+            "v18_aux": s.v18Aux.count,
             "events": s.events.count, "battery": s.battery.count,
         ]
     }
@@ -243,6 +244,12 @@ final class DecoderOracleTests: XCTestCase {
             "sleep_state": Streams(sleepState: [SleepStateSample(ts: 1, state: 2)]),
             "ppg_hr": Streams(ppgHr: [PpgHrSample(ts: 1, bpm: 60, conf: 0.5)]),
             "ppg_waveform": Streams(ppgWaveform: [PpgWaveformSample(ts: 1, samples: [1, 2])]),
+            // A FULL-LENGTH record, not a short one: `EcgWaveformSample` carries the inner record and
+            // the store asserts `r16InnerLength`, so a one-byte stand-in would pass here and fail where
+            // it matters.
+            "ecg_waveform": Streams(ecgWaveform: [
+                EcgWaveformSample(ts: 1, sequence: 1,
+                                  record: [UInt8](repeating: 0, count: Whoop5Ecg.r16InnerLength))]),
             // Carries a real slot value rather than a bare `ts`: `V18AuxSample.isEmpty` is "every slot is
             // nil", so an all-nil sample would still make the ARRAY non-empty and pass this check while
             // saying nothing about a row that carries data.

@@ -300,6 +300,142 @@
       "platform": "kotlin",
       "rationale": "Swift Repository.refresh reads the same imported daily union (unionDailyMetrics) in the excluded app layer and hands it, still apart from the computed union, to ChargeBaselines.resolve (#2525); this disposition does not assert behavioral parity.",
       "twin_path": "Strand/Data/Repository.swift"
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-constant",
+      "identity": "swift\u0000Packages/WhoopProtocol/Sources/WhoopProtocol/HistoricalLayoutSupport.swift::whoop5HistoricalVersionsWithOwnStream",
+      "identity_sha256": "a734025699508751f63d093fac4b39a90a82c40e5230152825195fd8cb6a9140",
+      "platform": "swift",
+      "rationale": "The 5/MG layouts whose whole payload is persisted in a stream of their own, v16 ECG today (#2847). The Kotlin twin is WHOOP5_HISTORICAL_VERSIONS_WITH_OWN_STREAM in HistoricalLayoutSupport.kt, which has to be a `private val`: the value is a Set, so Kotlin cannot express it as the `const val` the ledger pairs constants on. Same shape as the existing mappedWhoop5HistoricalVersions pair."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "swift\u0000Packages/WhoopStore/Sources/WhoopStore/StreamStore.swift::insert/8#1",
+      "identity_sha256": "8193de5f371756ddffbcebf6fa41528099eb78e74ee2ce282b2fc845fb302de3",
+      "platform": "swift",
+      "rationale": "The internal insert overload gained the two #2847 ECG retention caps as parameters, moving its arity from 6 to 8. Kotlin's WhoopRepository.insert gained the same two in the same change, so the arity moved in lockstep, but the ledger does not pair StreamStore.swift with WhoopRepository.kt and no arity of this function has ever formed a pair. The caps are parameters so a test can prove the rolling delete with a small cap instead of writing tens of thousands of rows."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/DeviceRegistryDao.kt::deleteEcgWaveformFor/1#1",
+      "identity_sha256": "a7d1d6f31890320cbfa92564ba2cf2babce25be9a3ab45636c9b9fabd7053f8c",
+      "platform": "kotlin",
+      "rationale": "Room @Query DAO method clearing one device's banked ECG records (#2847). The Swift store names the table in DeviceRegistryStore.deviceScopedTables and loops over that list, so there is no Swift function to pair with; every sibling delete*For method is one-sided for the same reason."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/DeviceRegistryDao.kt::reKeyEcgWaveform/2#1",
+      "identity_sha256": "176903841b0db4ab63a0a1fe7ac8d1c94e3f65a836727e0a878afc62c6e27382",
+      "platform": "kotlin",
+      "rationale": "Room @Query DAO method re-keying banked ECG records onto an adopted serial identity (#2847). The Swift store drives the same re-key from its own table list rather than through a DAO, so there is no Swift function to pair with; every sibling reKey* method is one-sided for the same reason."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/Entities.kt::equals/1#3",
+      "identity_sha256": "292175a2bc7495579c0f38118e9d6737c27f42bb15950c27bf1b9b78bcb6b394",
+      "platform": "kotlin",
+      "rationale": "Structural equals on EcgWaveformSampleEntity (#2847). A Kotlin data class holding a ByteArray needs hand-written equals/hashCode, because the generated ones compare array identity and break every round-trip assertion. Swift's EcgWaveformSample holds [UInt8], which is Equatable by value, so there is no Swift declaration to pair with; PpgWaveformSampleEntity carries the same pair."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/Entities.kt::hashCode/0#3",
+      "identity_sha256": "71668ed9e85158b3476cca80c927596f6dec021e807f5a3fd1b3ac94284eb5f7",
+      "platform": "kotlin",
+      "rationale": "Structural hashCode on EcgWaveformSampleEntity (#2847), written for the same reason as its equals: a ByteArray member makes the generated hashCode identity-based. Swift's [UInt8] hashes by value, so there is no Swift declaration to pair with."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDao.kt::countEcgWaveform/0#1",
+      "identity_sha256": "21847ca62e4ae9edb308c9e4c3bf17a01f0c43a7c9910af3ae8c4329783b246d",
+      "platform": "kotlin",
+      "rationale": "Room @Query DAO method counting banked ECG records for the storage footprint (#2847). The Swift store issues the same COUNT inline from its rawTableKeys list in Reads.swift rather than through a DAO, so there is no Swift function to pair with, exactly as for countPpgWaveform."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDao.kt::ecgWaveformSamples/4#1",
+      "identity_sha256": "35dad8261ef53ee00264a21bb0da77d30d138b8ce3465a60dc241c03c5ae23f4",
+      "platform": "kotlin",
+      "rationale": "Room @Query DAO method reading the banked MG ECG records (#2847). The Swift store has no equivalent method at all: nothing in production would call one, and the ledger's call-graph rule records an in-scope Swift declaration reached only from tests as new debt its disposition schema has no kind for, so the Apple reader lands with its first real caller and its tests read the table through the store's own writer until then. ppgWaveformSamples is one-sided for the neighbouring reason, that the ledger does not pair WhoopDao.kt with StreamStore.swift."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDao.kt::insertEcgWaveform/1#1",
+      "identity_sha256": "a80967b5978f9f49c595a15ce89aff01637dba5d7e1b4f9630dc23080dba7ac4",
+      "platform": "kotlin",
+      "rationale": "Room @Insert DAO method banking ECG records (#2847). The Swift store prepares the same INSERT inline in StreamStore.insert rather than through a DAO, so there is no Swift function to pair with, exactly as for insertPpgWaveform and insertV18Aux."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDao.kt::pruneEcgWaveform/2#1",
+      "identity_sha256": "bd52aff33865f34268d130800101d1ea42c8dcb72b2c34a522af59ae2f5cf459",
+      "platform": "kotlin",
+      "rationale": "Room @Query DAO method applying the newest-N ECG retention cap (#2847). The Swift store runs the same DELETE inline at the end of StreamStore.insert rather than through a DAO, so there is no Swift function to pair with; the two statements are deliberately identical text modulo parameter syntax."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDao.kt::pruneEcgWaveformByTs/2#1",
+      "identity_sha256": "ef124caca20a4f9dbfc716101e5d54ebe4a9b3700ea5273a65885f7d06116e94",
+      "platform": "kotlin",
+      "rationale": "Room @Query DAO method deleting implausibly-dated ECG rows for the timestamp heal (#2847). The Swift heal runs the same DELETE inline over its shared rawTableKeys list in TimestampHeal.swift rather than through a DAO, so there is no Swift function to pair with, exactly as for prunePpgWaveformByTs."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopDatabase.kt::migrate/1#40",
+      "identity_sha256": "f2fcc9a538bee8eaef0fa7a5ada1eb2eb27a1d63ddcd443355b4086ca78cbc0c",
+      "platform": "kotlin",
+      "rationale": "Room Migration.migrate override of MIGRATION_41_42, the ecgWaveformSample table (#2847). GRDB registers each migration as a closure (`v48-ecg-waveform`), so there is no Swift function to pair with; the two are paired by the migration identifiers pinned in schema_oracle.json and by the resulting table shape, which both suites compare against that oracle."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopRepository.kt::equals/1#1",
+      "identity_sha256": "f9252ca90c84703c36280e281fe97e66813a7f897729c6bdd8ed56d321e1a05a",
+      "platform": "kotlin",
+      "rationale": "Structural equals on EcgWaveformRow (#2847), the decoded row the insert path carries. Hand-written for the same reason as the entity's: a ByteArray member makes the generated one identity-based. Swift's EcgWaveformSample holds [UInt8] and is Equatable by value, so nothing pairs with it."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopRepository.kt::hashCode/0#1",
+      "identity_sha256": "1fb07637a627ae3df91037553b9bf14aded27fe6e8f9cf290e699a2150721d87",
+      "platform": "kotlin",
+      "rationale": "Structural hashCode on EcgWaveformRow (#2847), written for the same reason as its equals: a ByteArray member makes the generated hashCode identity-based. Swift's [UInt8] hashes by value, so there is no Swift declaration to pair with."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopRepository.kt::insert/8#1",
+      "identity_sha256": "1d1d74fb211823ab22be440dd6efa01bf2bb08fd277e98bc8c02b4a9dd520893",
+      "platform": "kotlin",
+      "rationale": "The repository insert gained the two #2847 ECG retention caps as parameters, moving its arity from 6 to 8. Swift's StreamStore.insert gained the same two in the same change, so the arity moved in lockstep, but the ledger does not pair WhoopRepository.kt with StreamStore.swift and no arity of this function has ever formed a pair."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-function",
+      "identity": "kotlin\u0000android/app/src/main/java/com/noop/data/WhoopRepository.kt::insertWithinTransaction/8#1",
+      "identity_sha256": "48ab6d3d1bb23d1561b27282167a6ab09f4a4c151695ccc5ce165a72b7b51df4",
+      "platform": "kotlin",
+      "rationale": "Private helper that performs every DAO write for one decoded chunk inside the Room transaction insert opens; it gained the two #2847 ECG retention caps with its caller. Room transactions are opened by a suspending withTransaction block on this platform, where GRDB's syncWrite takes a closure inside StreamStore.insert itself, so there is no Swift function to pair with."
+    },
+    {
+      "type": "platform_specific",
+      "kind": "add-unpaired-constant",
+      "identity": "swift\u0000Packages/WhoopProtocol/Sources/WhoopProtocol/Interpreter.swift::p",
+      "identity_sha256": "6aa52285ae46cf0ae75a690feee01765f9401825b6c9845c146163fdf5b2bb3e",
+      "platform": "swift",
+      "rationale": "A LOCAL binding inside the private v16 ECG decoder (#2847), not a static constant. The ledger's Swift rule treats any four-space `let` in a file-scope function as a candidate `static let`, which is how it finds file-scope constants without parsing, so a local in a top-level `private func` lands in the inventory. The Kotlin twin's equivalent is a local `val` in its own decodeWhoop5HistoricalV16, which the Kotlin rule never inventories because it matches `const val` only, and a Set-valued or object-valued local cannot be `const` in Kotlin at all. There is nothing to pair and nothing to change in either decoder."
     }
   ]
 }

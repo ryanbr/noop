@@ -92,9 +92,14 @@ final class UnmappedHistoricalLayoutTests: XCTestCase {
         }
     }
 
-    /// The four mapped versions ARE recognised as mapped (the other direction of the lockstep).
+    /// The mapped versions ARE recognised as mapped (the other direction of the lockstep).
+    ///
+    /// v16 joined the set with #2847, when the flash-banked ECG record got somewhere to be stored. The
+    /// order of those two halves is the whole argument: mapping a version takes its records off the
+    /// archive's unconditional-archive branch, so a version mapped before its rows had a table would
+    /// have been freed by the trim ack and kept nowhere.
     func testMappedVersionsAreNotTreatedAsUnmapped() {
-        XCTAssertEqual(mappedWhoop5HistoricalVersions, [18, 20, 21, 26])
+        XCTAssertEqual(mappedWhoop5HistoricalVersions, [16, 18, 20, 21, 26])
         for v in mappedWhoop5HistoricalVersions {
             XCTAssertFalse(isUnmappedWhoop5HistoricalRecord(whoop5FrameWithVersion(UInt8(v))),
                            "v\(v) has a field map and must not be archived on layout grounds")
