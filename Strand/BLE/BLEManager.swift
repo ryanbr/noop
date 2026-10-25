@@ -5813,6 +5813,21 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         unauthorizedSettleWork?.cancel()
         unauthorizedSettleWork = nil
         guard central.state == .poweredOn else {
+            // CoreBluetooth sends NO didDisconnectPeripheral when the radio powers off or resets (a Mac
+            // sleeping, Bluetooth toggled off). Without this, every per-link flag survived into the next
+            // link: on poweredOn the app re-attached to the strap macOS still held, didBond and
+            // connectHandshakeDone were still true, so the connect handshake never ran again - no clock,
+            // no history request, no battery read, no alarm re-arm - and a backfill that was mid-drain
+            // stayed "Syncing" forever with a frozen frontier. Run the ordinary disconnect teardown here,
+            // marked intentional: a radio power-off is not the strap failing, so it must not feed the
+            // drop/bond-loop detectors, and there is no radio to reconnect into. poweredOn's
+            // connectFromSystem → connectCore clears the flag and connects afresh. Android twin:
+            // onBluetoothRadioOff → teardownAfterGattFailure (#314).
+            if BLEManager.radioStateEndsLink(central.state), let p = peripheral, state.connected || didBond {
+                log("Bluetooth \(central.state == .poweredOff ? "turned off" : "reset") - ending this link here (CoreBluetooth reports no disconnect for it); the next connect starts a fresh session")
+                intentionalDisconnect = true
+                centralManager(central, didDisconnectPeripheral: p, error: nil)
+            }
             // #280: a non-poweredOn radio state used to be a SILENT return — the strap log showed only
             // "Central state: 3" and the UI just read "not connected", so a user whose Mac had denied NOOP
             // Bluetooth (.unauthorized == raw 3) had nothing explaining why no strap was ever found. This is
@@ -6497,6 +6512,13 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         // about above cannot hot-loop. Inert when the pause is not latched (the gate checks it).
         standingConnectWhilePausedIfDue()
         scheduleReconnect()
+    }
+
+    /// Radio states after which the current link is gone even though CoreBluetooth delivers no
+    /// didDisconnectPeripheral for it. `.resetting` is bluetoothd restarting, which drops every link the
+    /// same way a power-off does. Pure so the rule is unit-tested without a radio.
+    nonisolated static func radioStateEndsLink(_ state: CBManagerState) -> Bool {
+        state == .poweredOff || state == .resetting
     }
 
     /// State restoration entry point (M3 background collection).
