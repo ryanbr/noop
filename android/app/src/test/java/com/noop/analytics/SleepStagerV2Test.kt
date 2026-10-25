@@ -4,6 +4,7 @@ import com.noop.data.GravitySample
 import com.noop.data.HrSample
 import com.noop.data.RrInterval
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -189,7 +190,7 @@ class SleepStagerV2Test {
     /**
      * 7.0.0 regression: the "Experimental sleep staging (V2)" toggle must affect a NORMAL detected
      * night — not only the userEdited self-heal restage. With the flag ON, [SleepStager.detectSleep]
-     * stages the accepted window with V2 (deep + REM present); with the flag OFF it returns the EXACT V1
+     * stages the accepted window with V2 (its own hypnogram, not V1's); with the flag OFF it returns the EXACT V1
      * result, so the byte-identical default (and the frozen-golden tests) is preserved. Android twin of
      * SleepStagerV2Tests.testDetectSleepThreadsV2FlagIntoNormalNight.
      */
@@ -220,13 +221,16 @@ class SleepStagerV2Test {
         assertEquals(v1.start, v2.start)
         assertEquals(v1.end, v2.end)
         // The hypnogram is V2's: it matches a direct V2 stageSession over the accepted span, and (proof the
-        // flag actually flipped the engine) it expresses both deep and REM.
+        // flag actually flipped the engine) it is not V1's. This used to assert that V2 expressed deep here,
+        // but nothing in this night calls for deep (flat HR, identical breathing in every epoch): 354 of its 360
+        // epochs score 0.812972, and the three at each edge, whose beat windows reach past the stream, differ in
+        // the fourth decimal. The per-night z-score (sd 0.00016) turns that into z of +2.7 to +11.6, which the
+        // RSA term at 0.6 painted deep. At 0.3 it no longer does.
         val v2Direct = SleepStagerV2.stageSession(
             start = v2.start, end = v2.end, grav = grav, hr = hr, rr = rr, resp = emptyList())
         assertEquals("flag ON must produce the V2 hypnogram", v2Direct, v2.stages)
-        val v2Stages = v2.stages.map { it.stage }.toSet()
-        assertTrue("V2 night should express deep", "deep" in v2Stages)
-        assertTrue("V2 night should express REM", "rem" in v2Stages)
+        assertNotEquals("flag ON must not produce the V1 hypnogram", v1.stages, v2.stages)
+        assertTrue("V2 night should express REM", v2.stages.any { it.stage == "rem" })
     }
 
     // ── #277 frozen golden: pin the tuned V2 recipe (deepGateThresh / deep emission / transition row) ──────
@@ -278,8 +282,8 @@ class SleepStagerV2Test {
             Triple(5070L, 5310L, "light"),
             Triple(5310L, 5550L, "rem"),
             Triple(5550L, 10740L, "light"),
-            Triple(10740L, 16290L, "rem"),
-            Triple(16290L, 21600L, "wake"))
+            Triple(10740L, 16200L, "rem"),
+            Triple(16200L, 21600L, "wake"))
         assertEquals("segment count", golden.size, segs.size)
         for (k in golden.indices) {
             assertEquals("seg $k start", start + golden[k].first, segs[k].start)
@@ -438,6 +442,16 @@ class SleepStagerV2Test {
         assertEquals(
             mapOf("light" to ln(0.50), "deep" to ln(0.15), "rem" to ln(0.22), "awake" to ln(0.10)),
             SleepStagerV2.baseLogPrior)
+    }
+
+    /**
+     * Pin the RSA respiration weight. The golden above moves with it by three epochs at one boundary, which a
+     * smaller edit need not do, so the value is pinned directly. 0.3, not 0.6: `Tools/SleepPSG` section 8
+     * (DREAMT, R-R live). Twin: `SleepStagerV2Tests.testRespWeightIsPinned`.
+     */
+    @Test
+    fun respWeightIsPinned() {
+        assertEquals(0.3, SleepStagerV2.respWeight, 0.0)
     }
 
     /**

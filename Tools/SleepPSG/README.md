@@ -28,6 +28,26 @@ unzip -q sleep-accel.zip
 The archive expands to a long-named directory containing `labels/`, `heart_rate/`, `motion/` and `steps/`.
 Pass either that directory or its parent — `--dataset` finds the level with `labels/` in it.
 
+## DREAMT — the second dataset, with beat-to-beat intervals
+
+`sleep-accel` has no R-R, so the recipe's RSA respiration term is silent on it. DREAMT (PhysioNet, v2.2.0:
+100 adults, an Empatica E4 on the wrist beside PSG, human-scored 30 s stages) has the E4's inter-beat
+intervals, so on it every input of the recipe runs. It is **restricted-access**: each user signs the
+PhysioNet Restricted Health Data Use Agreement 1.5.0 and downloads it themselves. It is never committed,
+and this tool prints only cohort aggregates and per-stratum counts from it. Only `data_64Hz/` (~14 GB) and
+`participant_info.csv` are read:
+
+```bash
+swift run -c release sleeppsg --dataset ~/datasets/dreamt            # every section, plus section 8
+swift run -c release sleeppsg --dataset ~/datasets/dreamt --section rsa
+```
+
+It is a **sleep-clinic cohort** (median AHI 13.5 events/hour; 26 subjects under 5): more wake and far less
+N3 than a healthy night (truth: wake 25 %, deep 3.4 % of the night). #348 fitted priors to it and #437
+reverted that within 48 h, because the cohort's base rates had become a prior applied to everyone. So the
+DREAMT report stratifies by AHI and by how many beats the E4 kept, and it is used here for one question the
+priors do not touch: what the RSA term does when it is live.
+
 ## Run it
 
 ```bash
@@ -37,8 +57,8 @@ swift run -c release sleeppsg --dataset ~/datasets/motion-and-heart-rate-*-1.0.0
 
 | flag | meaning |
 |---|---|
-| `--dataset PATH` | the extracted `sleep-accel` root. Required for every section except `port`. |
-| `--section S` | `all` (default), or one of `port`, `baseline`, `strata`, `rem`, `variants`, `priors`. |
+| `--dataset PATH` | the extracted `sleep-accel` root, or the DREAMT folder holding `data_64Hz/`. Required for every section except `port`. |
+| `--section S` | `all` (default), or one of `port`, `baseline`, `strata`, `rem`, `variants`, `priors`, `rsa` (DREAMT only). |
 | `--subjects N` | score only the first N subject ids — a fast smoke run. |
 | `--csv PATH` | write the per-variant table as CSV. |
 | `--seed N` | the port-validation corpus seed. |
@@ -179,6 +199,42 @@ pooled wake share to truth (4.15 % → 9.39 % against 9.07 %) but worsens the me
 (5.50 → 5.55 pp) by over-calling wake for the subjects it does not fix, which is the #437 failure. The R-R
 stream is empty here, so the RSA term is silent in all of this; on a WHOOP night it is live.
 
+### 8. The RSA term (DREAMT only)
+
+The recipe turns the R-R series into a breathing-regularity score per epoch (the spectral peakedness of the
+0.15–0.40 Hz band), z-scores it over the night, and adds `respWeight · z` to the deep emission and
+subtracts it from REM — regular breathing → deep, irregular → REM — leaving light alone. Section 8 runs the
+shipped `SleepStagerV2.stageSession` with the R-R stream and without it, then asks two separate questions.
+
+**Is the feature informative?** Yes, and in the direction the term assumes. Grouped by the PSG stage of the
+epoch, the mean z is +0.29 in deep, +0.06 in light, −0.09 in wake and −0.25 in REM; the AUC for "a deep
+epoch scores higher than a REM epoch" is 0.658, light against REM 0.597, and per subject NREM against REM
+has a median AUC of 0.559, above 0.5 for 50 of 71 subjects.
+
+**Is it weighted right?** It was not at 0.6, and `respWeight` is now 0.3 on this evidence. Light epochs sit
+near z = 0 with the same spread as every other stage, so a symmetric ±0.6·z moved light epochs into deep on
+one side and into REM on the other. At 0.6, with R-R live against withheld: pooled κ 0.217 → 0.208,
+per-subject κ lower for 55 subjects and higher for 38, REM 16.2 → 19.9 % of the night (truth 10.5 %), deep
+10.7 → 12.8 % (truth 3.4 %). Per subject, against the recipe at 0.6 (section 8 now prints the same rows
+against the shipped 0.3):
+
+| RSA term | mean κ | κ better / worse than 0.6 | mean \|deep bias\| | mean \|REM bias\| | REM % of sleep (truth 14.0) |
+|---|---|---|---|---|---|
+| symmetric 0.6 (before) | 0.204 | — | 10.60 | 11.16 | 21.4 |
+| symmetric 0.45 | 0.207 | 58 / 30 | 10.27 | 10.47 | 20.0 |
+| **symmetric 0.3 (shipped)** | **0.216** | **61 / 28** | **9.76** | **9.74** | **18.4** |
+| symmetric 0.2 | 0.217 | 58 / 35 | 9.51 | 9.57 | 17.6 |
+| off | 0.216 | 55 / 38 | 9.18 | 9.77 | 17.4 |
+| regular breathing only (max(z, 0)), 0.6 | 0.190 | 38 / 54 | 13.23 | 7.78 | 14.2 |
+| REM side only, 0.6 | 0.218 | 59 / 30 | 9.16 | 11.13 | 21.3 |
+
+The same ordering holds with AHI under 5 (n = 26: 0.3 better for 16, worse for 7) and where the E4 kept at
+least 80 % of the beats (n = 41: 31 / 10). The measured separation says the same thing independently: for
+two equal-variance classes a unit of z is worth d′ log-odds, and d′ = √2·Φ⁻¹(AUC) is 0.58 for deep against
+REM (the term's slope there is 2 × respWeight) and 0.35 for light against REM (slope respWeight), i.e. a
+weight of about 0.29–0.35, not 0.6. "Regular breathing only" fixes the REM share but floods deep; "REM side
+only" keeps the REM over-call. sleep-accel has no R-R, so every other section is unchanged by the weight.
+
 ---
 
 ## The self-check, and what it found
@@ -238,3 +294,9 @@ F1 0.515" is exactly this harness's measured REM **precision** (0.515), against 
   detection is not exercised, and nothing here says anything about it.
 - **n = 31 subjects**, in a sleep-lab setting, wearing a device on the wrist alongside PSG leads. That is
   more independent subjects than any other reference NOOP has, and it is still 31 people.
+- **DREAMT is not a WHOOP either, and not a healthy cohort.** Its R-R comes from the E4's PPG, which drops
+  beats it is unsure of (median 73 % kept over sleep) and quantises intervals to 1/64 s. On one wearer's six
+  WHOOP 5.0 nights, rounding the WHOOP R-R to 1/64 s moved the six-night mean deep and REM by under 1 pp of
+  sleep (single nights by up to 4 pp), where switching the term off moved each by about 4.5 pp, so the
+  quantisation is not what section 8 measures. Its stage fractions are a clinical population's: section 8
+  reads them per stratum and per subject, and nothing in the recipe is fitted to DREAMT's base rates.

@@ -47,6 +47,10 @@ struct PSGSubject {
     /// One entry per 30 s epoch of `[start, end)`. `nil` = the epoch carries no PSG score and is excluded
     /// from every metric rather than silently counted as wake.
     let truth: [String?]
+    /// Beat-to-beat intervals. Empty for `sleep-accel`, which carries none; DREAMT's E4 supplies them.
+    var rr: [RRInterval] = []
+    /// Apnoea–hypopnoea index (events per hour), where the dataset reports one (DREAMT).
+    var ahi: Double? = nil
 
     var scoredEpochs: Int { truth.reduce(0) { $0 + ($1 == nil ? 0 : 1) } }
     /// Duration of the scored night in minutes — the stratification variable.
