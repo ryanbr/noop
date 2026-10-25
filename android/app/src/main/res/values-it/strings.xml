@@ -1744,12 +1744,12 @@
     <string name="l10n_sleep_screen_no_stage_data_recorded_for_this_93a86806">Nessun dato sulle fasi registrato per questa notte.</string>
     <string name="l10n_sleep_screen_open_journal_4bf0daee">Apri Diario</string>
     <string name="l10n_sleep_screen_previous_night_9f339047">Notte precedente</string>
-    <string name="l10n_sleep_screen_recompute_a_night_to_clear_its_fd9e15c3">Ricalcola una notte per rimuoverne il contrassegno di eliminazione e analizzare di nuovo i dati grezzi disponibili.</string>
+    <string name="l10n_sleep_screen_recompute_clears_the_deletion_marker_and_a8922cbb">Ricalcola rimuove il contrassegno di eliminazione e analizza gli ultimi 21 giorni.</string>
     <string name="l10n_sleep_screen_recompute_this_deleted_sleep_night_2d2f46f6">Ricalcola questa notte di sonno eliminata</string>
     <string name="l10n_sleep_screen_recompute_this_night_5ba0d05c">Ricalcola questa notte</string>
     <string name="l10n_sleep_screen_recomputing_6f8e54e3">Ricalcolo…</string>
     <string name="l10n_sleep_screen_sleep_3cac34e6">Sonno</string>
-    <string name="l10n_sleep_screen_sleep_detection_reran_using_the_data_01757aad">Il rilevamento del sonno è stato rieseguito con i dati disponibili per questa notte.</string>
+    <string name="l10n_sleep_screen_deletion_marker_cleared_fc781c48">Contrassegno di eliminazione rimosso.</string>
     <string name="l10n_sleep_screen_stage_breakdown_e9b714f9">Dettaglio fasi</string>
     <string name="l10n_sleep_screen_this_moves_the_night_to_a_fac2fb46">Questo sposta la notte in un orario senza dati registrati. Lì non è possibile ricavare le fasi, quindi potrebbe risultare vuota finché non ci saranno dati.</string>
     <string name="l10n_sleep_screen_your_night_data_is_in_logging_ec461720">I dati della tua notte sono arrivati. Registrare come ti sei sentito aiuta NOOP a capire cosa favorisce il tuo recupero migliore.</string>

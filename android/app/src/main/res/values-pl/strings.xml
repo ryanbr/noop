@@ -1627,12 +1627,12 @@
     <string name="l10n_sleep_screen_no_stage_data_recorded_for_this_93a86806">Brak danych scenicznych zarejestrowanych dla tej nocy.</string>
     <string name="l10n_sleep_screen_open_journal_4bf0daee">Otwórz dziennik</string>
     <string name="l10n_sleep_screen_previous_night_9f339047">Poprzednia noc</string>
-    <string name="l10n_sleep_screen_recompute_a_night_to_clear_its_fd9e15c3">Oblicz ponownie noc, aby usunąć znacznik usunięcia i ponownie przeskanuj dostępne surowe dane.</string>
+    <string name="l10n_sleep_screen_recompute_clears_the_deletion_marker_and_a8922cbb">Ponowne obliczenie usuwa znacznik usunięcia i analizuje ostatnie 21 dni.</string>
     <string name="l10n_sleep_screen_recompute_this_deleted_sleep_night_2d2f46f6">Oblicz ponownie tę usuniętą noc snu</string>
     <string name="l10n_sleep_screen_recompute_this_night_5ba0d05c">Przelicz jeszcze raz tę noc</string>
     <string name="l10n_sleep_screen_recomputing_6f8e54e3">Przeliczam ponownie…</string>
     <string name="l10n_sleep_screen_sleep_3cac34e6">Sen</string>
-    <string name="l10n_sleep_screen_sleep_detection_reran_using_the_data_01757aad">Wykrywanie snu zostało ponownie przeprowadzone przy użyciu danych dostępnych dla tej nocy.</string>
+    <string name="l10n_sleep_screen_deletion_marker_cleared_fc781c48">Znacznik usunięcia został usunięty.</string>
     <string name="l10n_sleep_screen_stage_breakdown_e9b714f9">Podział sceny</string>
     <string name="l10n_sleep_screen_this_moves_the_night_to_a_fac2fb46">Spowoduje to przeniesienie nocy do czasu, w którym nie ma zarejestrowanych danych. Nie można tam wyprowadzić etapów, więc może być wyświetlany jako pusty, dopóki nie pokryją go dane.</string>
     <string name="l10n_sleep_screen_your_night_data_is_in_logging_ec461720">Dane z Twojej nocy są już dostępne. Rejestrowanie Twojego samopoczucia pomaga NOOP dowiedzieć się, co zapewnia najlepszą regenerację.</string>

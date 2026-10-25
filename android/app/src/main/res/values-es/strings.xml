@@ -1470,12 +1470,12 @@
     <string name="l10n_sleep_screen_no_stage_data_recorded_for_this_93a86806">No se registraron datos de fases para esta noche.</string>
     <string name="l10n_sleep_screen_open_journal_4bf0daee">Open Journal</string>
     <string name="l10n_sleep_screen_previous_night_9f339047">Noche anterior</string>
-    <string name="l10n_sleep_screen_recompute_a_night_to_clear_its_fd9e15c3">Vuelve a calcular una noche para borrar su marcador de eliminación y analizar de nuevo los datos sin procesar disponibles.</string>
+    <string name="l10n_sleep_screen_recompute_clears_the_deletion_marker_and_a8922cbb">Recalcular elimina la marca de borrado y analiza los últimos 21 días.</string>
     <string name="l10n_sleep_screen_recompute_this_deleted_sleep_night_2d2f46f6">Volver a calcular esta noche de sueño eliminada</string>
     <string name="l10n_sleep_screen_recompute_this_night_5ba0d05c">Volver a calcular esta noche</string>
     <string name="l10n_sleep_screen_recomputing_6f8e54e3">Recalculando…</string>
     <string name="l10n_sleep_screen_sleep_3cac34e6">Sueño</string>
-    <string name="l10n_sleep_screen_sleep_detection_reran_using_the_data_01757aad">La detección del sueño se volvió a ejecutar con los datos disponibles para esta noche.</string>
+    <string name="l10n_sleep_screen_deletion_marker_cleared_fc781c48">Marca de borrado eliminada.</string>
     <string name="l10n_sleep_screen_stage_breakdown_e9b714f9">Desglose de fases</string>
     <string name="l10n_sleep_screen_this_moves_the_night_to_a_fac2fb46">Esto mueve la noche a un tiempo sin datos registrados. Las etapas no se pueden derivar allí, por lo que puede mostrar como vacía hasta que los datos lo cubren.</string>
     <string name="l10n_sleep_screen_your_night_data_is_in_logging_ec461720">Tus datos nocturnos están dentro. Logging how you felt helps NOOP learn what drives your best recovery.</string>

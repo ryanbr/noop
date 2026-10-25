@@ -674,7 +674,7 @@ fun SleepScreen(
                             Toast.makeText(
                                 context,
                                 if (cleared) {
-                                    uiString(R.string.l10n_sleep_screen_sleep_detection_reran_using_the_data_01757aad)
+                                    uiString(R.string.l10n_sleep_screen_deletion_marker_cleared_fc781c48)
                                 } else {
                                     uiString(R.string.l10n_sleep_screen_couldn_t_reopen_this_night_try_88265690)
                                 },
@@ -1153,7 +1153,7 @@ private fun DeletedSleepWindowsCard(
                     color = Palette.textPrimary,
                 )
                 Text(
-                    uiString(R.string.l10n_sleep_screen_recompute_a_night_to_clear_its_fd9e15c3),
+                    uiString(R.string.l10n_sleep_screen_recompute_clears_the_deletion_marker_and_a8922cbb),
                     style = NoopType.footnote,
                     color = Palette.textSecondary,
                 )

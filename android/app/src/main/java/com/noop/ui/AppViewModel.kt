@@ -1944,18 +1944,13 @@ class AppViewModel(app: Application) : AndroidViewModel(app) {
         rescoreAfterEdit()
     }
 
-    /** Re-open one deliberately deleted sleep window (#515): remove its durable tombstone first, then
-     *  immediately run the normal detector/scorer over the stored raw data. Unlike optimistic edits, this
-     *  returns false when the marker could not be removed — rescoring while it is still present would keep
-     *  suppressing the night and make a successful-looking button a no-op. */
-    suspend fun recomputeDeletedSleep(marker: com.noop.data.DismissedSleep): Boolean {
-        val cleared = runCatching {
-            repository.allowSleepReDetection(marker.deviceId, marker.startTs)
-        }.isSuccess
-        if (!cleared) return false
-        rescoreAfterEdit()
-        return true
-    }
+    /** Clear a deleted window's marker, then request the normal recent scan. Success confirms only
+     * marker removal, not that this particular night was scanned or restored (Refs #515). */
+    suspend fun recomputeDeletedSleep(marker: com.noop.data.DismissedSleep): Boolean =
+        reopenDeletedSleepWindow(
+            clearMarker = { repository.allowSleepReDetection(marker.deviceId, marker.startTs) },
+            scanRecent = { rescoreAfterEdit() },
+        )
 
     /** Hide an unwanted deleted-sleep row from the persistent recompute card while preserving its
      *  detector tombstone. This is deliberately separate from [recomputeDeletedSleep], which removes the

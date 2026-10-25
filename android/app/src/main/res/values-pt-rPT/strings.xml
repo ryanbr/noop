@@ -1633,12 +1633,12 @@
     <string name="l10n_sleep_screen_no_stage_data_recorded_for_this_93a86806">Sem dados de palco registados para esta noite.</string>
     <string name="l10n_sleep_screen_open_journal_4bf0daee">Diário aberto</string>
     <string name="l10n_sleep_screen_previous_night_9f339047">Noite anterior</string>
-    <string name="l10n_sleep_screen_recompute_a_night_to_clear_its_fd9e15c3">Recalcule uma noite para limpar o teu marcador de eliminação e verifique novamente os dados brutos disponíveis.</string>
+    <string name="l10n_sleep_screen_recompute_clears_the_deletion_marker_and_a8922cbb">Recalcular remove a marca de eliminação e analisa os últimos 21 dias.</string>
     <string name="l10n_sleep_screen_recompute_this_deleted_sleep_night_2d2f46f6">Recalcule esta noite de sono excluída</string>
     <string name="l10n_sleep_screen_recompute_this_night_5ba0d05c">Recalcular esta noite</string>
     <string name="l10n_sleep_screen_recomputing_6f8e54e3">Recalculando…</string>
     <string name="l10n_sleep_screen_sleep_3cac34e6">Sono</string>
-    <string name="l10n_sleep_screen_sleep_detection_reran_using_the_data_01757aad">A deteção do sono foi novamente executada utilizando os dados disponíveis para esta noite.</string>
+    <string name="l10n_sleep_screen_deletion_marker_cleared_fc781c48">Marca de eliminação removida.</string>
     <string name="l10n_sleep_screen_stage_breakdown_e9b714f9">Análise do estágio</string>
     <string name="l10n_sleep_screen_this_moves_the_night_to_a_fac2fb46">Isto move a noite para um horário sem dados registados. Os estágios não podem ser derivados aí, pelo que pode aparecer como vazio até que os dados o cubram.</string>
     <string name="l10n_sleep_screen_your_night_data_is_in_logging_ec461720">Os teus dados noturnos estão disponíveis. Registar como se sentiu ajuda o NOOP a aprender o que impulsiona a tua melhor recuperação.</string>

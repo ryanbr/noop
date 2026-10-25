@@ -1688,12 +1688,12 @@
     <string name="l10n_sleep_screen_no_stage_data_recorded_for_this_93a86806">Данные о стадиях сна за эту ночь не записаны.</string>
     <string name="l10n_sleep_screen_open_journal_4bf0daee">Открыть Журнал</string>
     <string name="l10n_sleep_screen_previous_night_9f339047">Предыдущая ночь</string>
-    <string name="l10n_sleep_screen_recompute_a_night_to_clear_its_fd9e15c3">Пересчитайте ночь, чтобы снять метку удаления и заново просмотреть доступные сырые данные.</string>
+    <string name="l10n_sleep_screen_recompute_clears_the_deletion_marker_and_a8922cbb">Пересчёт снимает отметку об удалении и анализирует последние 21 день.</string>
     <string name="l10n_sleep_screen_recompute_this_deleted_sleep_night_2d2f46f6">Пересчитать эту удалённую ночь сна</string>
     <string name="l10n_sleep_screen_recompute_this_night_5ba0d05c">Пересчитать эту ночь</string>
     <string name="l10n_sleep_screen_recomputing_6f8e54e3">Пересчёт…</string>
     <string name="l10n_sleep_screen_sleep_3cac34e6">Сон</string>
-    <string name="l10n_sleep_screen_sleep_detection_reran_using_the_data_01757aad">Определение сна выполнено заново по данным, доступным за эту ночь.</string>
+    <string name="l10n_sleep_screen_deletion_marker_cleared_fc781c48">Отметка об удалении снята.</string>
     <string name="l10n_sleep_screen_stage_breakdown_e9b714f9">Структура стадий</string>
     <string name="l10n_sleep_screen_this_moves_the_night_to_a_fac2fb46">Это перенесёт ночь на время, где нет записанных данных. Стадии там вывести нельзя, поэтому она может отображаться пустой, пока данные её не покроют.</string>
     <string name="l10n_sleep_screen_your_night_data_is_in_logging_ec461720">Данные за ночь получены. Отметка о самочувствии помогает NOOP понять, что даёт вам лучшее восстановление.</string>

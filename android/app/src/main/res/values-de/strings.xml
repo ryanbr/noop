@@ -1670,12 +1670,12 @@
     <string name="l10n_sleep_screen_no_stage_data_recorded_for_this_93a86806">Keine Phasendaten für diese Nacht aufgezeichnet.</string>
     <string name="l10n_sleep_screen_open_journal_4bf0daee">Offenes Journal</string>
     <string name="l10n_sleep_screen_previous_night_9f339047">Vorherige Nacht</string>
-    <string name="l10n_sleep_screen_recompute_a_night_to_clear_its_fd9e15c3">Berechne eine Nacht neu, um ihre Löschmarkierung zu entfernen und die verfügbaren Rohdaten erneut zu prüfen.</string>
+    <string name="l10n_sleep_screen_recompute_clears_the_deletion_marker_and_a8922cbb">Neu berechnen entfernt die Löschmarkierung und prüft die letzten 21 Tage.</string>
     <string name="l10n_sleep_screen_recompute_this_deleted_sleep_night_2d2f46f6">Diese gelöschte Schlafaufzeichnung neu berechnen</string>
     <string name="l10n_sleep_screen_recompute_this_night_5ba0d05c">Diese Nacht neu berechnen</string>
     <string name="l10n_sleep_screen_recomputing_6f8e54e3">Wird neu berechnet…</string>
     <string name="l10n_sleep_screen_sleep_3cac34e6">Schlaf</string>
-    <string name="l10n_sleep_screen_sleep_detection_reran_using_the_data_01757aad">Die Schlaferkennung wurde mit den für diese Nacht verfügbaren Daten erneut ausgeführt.</string>
+    <string name="l10n_sleep_screen_deletion_marker_cleared_fc781c48">Löschmarkierung entfernt.</string>
     <string name="l10n_sleep_screen_stage_breakdown_e9b714f9">Phasen-Aufschlüsselung</string>
     <string name="l10n_sleep_screen_this_moves_the_night_to_a_fac2fb46">Dies bewegt die Nacht zu einer Zeit ohne aufgezeichnete Daten. Stufen können dort nicht abgeleitet werden, so dass sie als leer angezeigt werden können, bis die Daten sie abdecken.</string>
     <string name="l10n_sleep_screen_your_night_data_is_in_logging_ec461720">Deine nachtdaten sind in. Protokolliere, wie du dich gefühlt hast, hilft NOOP zu lernen, was deine beste Genesung antreibt.</string>
