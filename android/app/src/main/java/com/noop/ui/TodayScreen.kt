@@ -3766,9 +3766,10 @@ private fun HeroMetricRows(
     // on a pre-v36 row whose flag is merely unknown, and explain a different night's numbers.
     // Gated on something actually being blank, so a night that recovered its vitals stays quiet.
     val hrOnlyNight = showsHrOnlyNote(day, vitalsDay, carriedFromVitals, hrv, rhr)
-    // iOS `recoveryVitalsSection`: a frosted card with a "RECOVERY VITALS" header + a "last night · <date>"
-    // on the right, then three `vitalRow`s (26dp mini LIQUID RING + label + value). NoopCard supplies the
-    // same neutral surfaceRaised + hairline as iOS's frosted card. Inner spacing 12, matching iOS.
+    // A frosted card with a "RECOVERY VITALS" header + a "last night · <date>" on the right, then three
+    // `vitalRow`s with rings when enabled, otherwise distinct glyphs on fixed tinted backings.
+    // Static icons remain recognizable when glass desaturates colours (#150). NoopCard supplies
+    // the neutral surface + hairline.
     NoopCard(padding = Metrics.space16) {
         Column(
             modifier = Modifier.fillMaxWidth(),
@@ -3786,6 +3787,7 @@ private fun HeroMetricRows(
             HeroVitalRow(
                 label = uiString(R.string.l10n_today_screen_heart_rate_variability_a137586d),
                 value = hrv?.let { "${it.roundToInt()} ms" } ?: NO_DATA,
+                icon = Icons.Filled.MonitorHeart,
                 tint = Palette.metricCyan,
                 fraction = hrv?.let { (it / 120.0).coerceIn(0.0, 1.0) },
                 metricKey = dashboardCardMetricKey(DashboardCard.HRV),
@@ -3794,6 +3796,7 @@ private fun HeroMetricRows(
             HeroVitalRow(
                 label = uiString(R.string.l10n_today_screen_resting_heart_rate_348928d6),
                 value = rhr?.let { "$it bpm" } ?: NO_DATA,
+                icon = Icons.Filled.Favorite,
                 tint = Palette.metricRose,
                 fraction = rhr?.let { (it / 100.0).coerceIn(0.0, 1.0) },
                 metricKey = dashboardCardMetricKey(DashboardCard.RESTING_HR),
@@ -3802,6 +3805,7 @@ private fun HeroMetricRows(
             HeroVitalRow(
                 label = uiString(R.string.l10n_today_screen_breaths_per_minute_2b197c54),
                 value = resp?.let { String.format(Locale.getDefault(), "%.1f rpm", it) } ?: NO_DATA,
+                icon = Icons.Filled.Air,
                 tint = Palette.accent,
                 fraction = resp?.let { (it / 24.0).coerceIn(0.0, 1.0) },
                 metricKey = dashboardCardMetricKey(DashboardCard.RESPIRATORY),
@@ -3825,12 +3829,12 @@ private fun heroVitalsLastNightLine(): String {
     return uiString(R.string.today_last_night_date, d.format(DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())))
 }
 
-/** One iOS `vitalRow`: a 26dp mini liquid RING filled to [fraction] in [tint], the label (subhead,
- *  secondary), a spacer, and the value (number 15, primary). Replaces the old flat-Material-icon row. */
+/** One recovery-vital row: the chosen ring or a distinct glyph, label, spacer, and value. */
 @Composable
 private fun HeroVitalRow(
     label: String,
     value: String,
+    icon: ImageVector,
     tint: Color,
     fraction: Double?,
     // The metric-detail key this row opens, from `dashboardCardMetricKey` so the row and its dashboard-card
@@ -3852,7 +3856,7 @@ private fun HeroVitalRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Metrics.space12),
     ) {
-        // Ring or vessel per the Today gauge preference; both are static here.
+        // Preserve the Today ring preference; use the distinct glyph when it is off.
         val gaugeCtx = LocalContext.current
         if (remember { NoopPrefs.todayRingGauges(gaugeCtx) }) {
             GlowRing(
@@ -3864,11 +3868,11 @@ private fun HeroVitalRow(
                 showsLabel = false,
             )
         } else {
-            LiquidVessel(
-                value = fraction,
+            TintedMetricIcon(
+                icon = icon,
                 tint = tint,
-                animated = false,
-                modifier = Modifier.size(26.dp),
+                size = 28.dp,
+                iconSize = 14.dp,
             )
         }
         Text(label, style = NoopType.subhead, color = Palette.textSecondary, modifier = Modifier.weight(1f))
@@ -4231,7 +4235,6 @@ private fun YourCardsSection(
                         hydrationGoalMl = hydrationGoalMl,
                         spo2CandidateByDay = spo2CandidateByDay,
                     ),
-                    // The mini liquid ring's fill — the SAME per-card fraction iOS `liquidCard` uses.
                     fraction = dashboardCardFraction(
                         card = card,
                         stepsAverage30 = stepsAverage30.first,
@@ -4594,8 +4597,7 @@ private fun DashboardCardRow(
     ) {
         // A 30dp mini GlowRing filled to this card's fraction, tinted its domain colour — the
         // "small ring per icon" iOS shows. Static (GlowRing starts empty, springs to target once).
-        // Ring or vessel per the Today gauge preference. Static either way: the many small gauges
-        // cost nothing per frame, which is what the vessel's animated=false bought here too.
+        // Preserve the Today ring preference; use the distinct glyph when it is off.
         val cardGaugeCtx = LocalContext.current
         if (remember { NoopPrefs.todayRingGauges(cardGaugeCtx) }) {
             GlowRing(
@@ -4607,11 +4609,11 @@ private fun DashboardCardRow(
                 showsLabel = false,
             )
         } else {
-            LiquidVessel(
-                value = fraction,
+            TintedMetricIcon(
+                icon = card.icon,
                 tint = tint,
-                animated = false,
-                modifier = Modifier.size(30.dp),
+                size = 34.dp,
+                iconSize = 16.dp,
             )
         }
         Column(
@@ -4706,6 +4708,26 @@ private fun stepsCalibrationPrompt(context: Context, profileStore: ProfileStore)
             uiString(R.string.today_steps_headline_connect_phone)
         is StepsEstimateEngine.CalibrationStatus.Headline.NeedMoreDays ->
             uiString(R.string.today_steps_headline_more_days, headline.remaining)
+    }
+}
+
+/** A static metric glyph on a tinted tile, matching Apple's dashboard treatment and remaining legible
+ * when the surrounding glass surface reduces colour contrast. Decorative: the parent row owns semantics. */
+@Composable
+private fun TintedMetricIcon(icon: ImageVector, tint: Color, size: Dp, iconSize: Dp) {
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(RoundedCornerShape(size * 0.27f))
+            .background(tint.copy(alpha = 0.16f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(iconSize),
+        )
     }
 }
 
