@@ -99,19 +99,25 @@ struct RootTabView: View {
         }
     }
 
+    /// Whether the anywhere-swipe may switch tabs from the current tab: off on Today (tag 0) and Coach
+    /// (tag 3), whose own content takes horizontal drags. Read by both the recognizer mask and the
+    /// action, so a drag on those tabs never reaches the tab switch.
+    private var tabSwipeEnabled: Bool { selectedTab != 0 && selectedTab != 3 }
+
     /// The anywhere-swipe tab-switch drag (2026-07-02). Held as a property so the attachment site can
     /// enable or disable it through a `GestureMask` instead of attaching it conditionally: a conditional
     /// attachment changes view identity, and this condition toggles on every push and pop, which would
     /// rebuild the tab roots underneath it. The same class of rebuild is what #197 caused with an
     /// `.id()` reset and #198 had to undo — it lost scroll position and re-ran `.task`.
     ///
-    /// Only a decisive horizontal flick switches tabs, and Today is carved out because it uses
-    /// horizontal swipe to change DAYS. Both thresholds are unchanged from the original gesture.
+    /// Only a decisive horizontal flick switches tabs. Today is carved out because it uses horizontal
+    /// swipe to change DAYS, and Coach because its suggestion row scrolls sideways and its composer
+    /// takes drags for text selection: a simultaneous ancestor drag read both as tab switches. Both
+    /// thresholds are unchanged from the original gesture.
     private var tabSwipeGesture: some Gesture {
         DragGesture(minimumDistance: 24)
             .onEnded { v in
-                // Today (tab 0) uses horizontal swipe to change DAYS, so tab-swipe is off there.
-                guard selectedTab != 0 else { return }
+                guard tabSwipeEnabled else { return }
                 let dx = v.translation.width, dy = v.translation.height
                 guard abs(dx) > 60, abs(dx) > abs(dy) * 1.6 else { return }
                 let next = min(4, max(0, selectedTab + (dx < 0 ? 1 : -1)))
@@ -174,7 +180,7 @@ struct RootTabView: View {
             // the subview hierarchy TOO, which on a pushed screen would take out scrolling, taps and the
             // interactive-pop itself: far worse than the bug being fixed.
             .simultaneousGesture(tabSwipeGesture,
-                                 including: tabPaths[selectedTab].isEmpty ? .all : .subviews)
+                                 including: tabSwipeEnabled && tabPaths[selectedTab].isEmpty ? .all : .subviews)
         .task {
             await repo.refresh()
             // Backup & Sync: on-launch catch-up (see RootView). Detached + utility priority so a

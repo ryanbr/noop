@@ -90,6 +90,9 @@ struct CoachView: View {
                 setupCard
             }
         }
+        // The composer is the only field, and a tap outside it or a drag on the page puts the keyboard
+        // away. Without this the keyboard stayed up until a message was sent.
+        .dismissesKeyboardOnTap($composerFocused)
         // macOS only. On iOS these actions live in `connectionMenu` instead, because this bar is hidden for
         // a primary tab root and VISIBLE in the pillar sheet, so leaving them here would render nothing
         // on the Coach tab and a duplicate of the menu in the sheet. One control per platform, reachable

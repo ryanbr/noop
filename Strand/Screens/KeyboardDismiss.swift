@@ -34,6 +34,17 @@ extension View {
         self
         #endif
     }
+
+    /// The same, for a screen with a single field whose focus is a `Bool` (the Coach composer).
+    func dismissesKeyboardOnTap(_ focus: FocusState<Bool>.Binding) -> some View {
+        #if os(iOS)
+        self
+            .background(TapOutsideFields { focus.wrappedValue = false })
+            .scrollDismissesKeyboard(.interactively)
+        #else
+        self
+        #endif
+    }
 }
 
 #if os(iOS)
