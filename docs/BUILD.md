@@ -254,18 +254,20 @@ swift run backfill
 
 ---
 
-## iOS (build-from-source only)
+<a id="ios-build-from-source-only"></a>
 
-iOS ships as a **build-from-source-only** target, folded into main in v1.94. There is **no App
-Store or TestFlight build** — both require a real Apple Developer identity, which is fundamentally
-at odds with NOOP staying anonymous, so the only way to run it is to build it yourself in Xcode.
-The iOS app is **newer and less battle-tested** than macOS and Android: live BLE on a real iPhone
-isn't yet fully validated. It shares the same analytics packages, so once data is in, results match
-macOS.
+## iOS
+
+iOS is available as an unsigned IPA for AltStore/SideStore or as a source build in Xcode. For
+installation, signing and sideloader troubleshooting, see [the iOS guide](IOS.md). There is no
+App Store or TestFlight release. The steps below are for building the app from source.
+
+The iOS app shares the macOS analytics packages. Validate Bluetooth behaviour on a physical iPhone;
+the simulator cannot connect to a strap.
 
 The `NOOPiOS` app target (plus the `NOOPiOSWidgets` WidgetKit / Live Activity extension) already
-exists in `project.yml` — you don't need to add it. All five packages target `.iOS(.v16)`, so the
-protocol, storage, analytics, import, and design cores compile for iOS unmodified; the iOS app
+exists in `project.yml` — you don't need to add it. The protocol, storage, analytics, import and
+design packages support iOS, so their shared logic compiles unmodified; the iOS app
 shell lives in `StrandiOS/` with shared iOS code in `StrandiOSShared/`.
 
 ### Build & run

@@ -26,8 +26,12 @@ When replying across many issues/PRs (e.g. a board sweep), vary the wording and/
 **4. Throttle automated API activity.**
 Batch API operations; don't burst-create commits, issues, or comments. Stats badges (`refresh-stats-badges.py`) write to the working tree and ride the normal commit — they no longer push a burst of API commits.
 
-**5. GitHub Actions stays OFF.**
-We build and verify **centrally/locally**, so we don't need CI runners. Actions is disabled on the repo (`gh api -X PUT repos/ryanbr/noop/actions/permissions -F enabled=false`). This removes the "unusual Actions volume" flag vector and the supply-chain exposure of third-party actions. Re-enable only deliberately, and SHA-pin every `uses:` if you do.
+**5. Follow the current verification workflow.**
+GitHub Actions runs the checks described in [Contributing](../CONTRIBUTING.md#what-ci-checks) and the
+[full contributing guide](CONTRIBUTING.md#what-ci-gates--and-what-it-deliberately-doesnt). The earlier
+instruction to keep Actions disabled predates those active gates. Use local checks while developing,
+avoid redundant workflow dispatches, and keep required verification intact. Changes to CI policy
+need the workflow files and contributor guidance updated together.
 
 ## If it happens again
 Don't evade or create replacement accounts (that makes a suspension permanent and violates the rules). Appeal at support.github.com with the facts: NOOP reads a device the user owns, offline, no account/cloud/credentials, no proprietary code — there is nothing to violate. The appeal worked once; the facts haven't changed.
