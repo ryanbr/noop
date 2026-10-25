@@ -356,6 +356,10 @@ struct StrandiOSApp: App {
                 liveActivity.appBecameActive()
                 // End a "Connecting…" sync island whose sync never came, rather than leave it greyed.
                 SyncLiveActivityController.shared.reconcile(live: model.live)
+                // NOOP is running again: a "strap not synced" reminder already shown is over, and the next
+                // one is three hours from now unless a sync moves it further.
+                SyncReminder.clearDelivered()
+                model.rearmSyncReminder()
                 // Re-arm the strap's smart alarm on foreground: the firmware alarm is a single instant
                 // and iOS can't re-arm it while suspended, so it would otherwise fire once and stop.
                 model.applySmartAlarm()
@@ -392,6 +396,9 @@ struct StrandiOSApp: App {
                     await watch.pushLatest(from: model)
                 }
             } else if phase == .background {
+                // Leaving the screen is the last moment NOOP is sure to be running: a swipe away ends it from
+                // here. Three hours on, with no sync since, the reminder shows.
+                model.rearmSyncReminder()
                 // Re-submit on every transition because iOS may discard an old best-effort request.
                 HealthWritebackBackgroundScheduler.updateSchedule(
                     isAuthorized: health.auth == .authorized)
