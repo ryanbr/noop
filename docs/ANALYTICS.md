@@ -205,7 +205,8 @@ Source: `StrainScorer.swift`. Produces **Effort** — *"how hard did your heart 
 1. **Heart-Rate Reserve (Karvonen 1957):** `HRR = HRmax − RHR`.
 2. **Per-sample intensity** as `%HRR = (HR − RHR) / HRR × 100`, clamped `[0, 100]`.
 3. **TRIMP accumulation** over the window, by one of two methods:
-   - **Edwards (1993) 5-zone summation (default):** each sample contributes its zone weight (`1…5` at the `50 / 60 / 70 / 80 / 90 %HRR` cut-offs) × duration.
+   - **Edwards-*style* 5-zone summation (default):** each sample contributes its zone weight (`1…5` at the `50 / 60 / 70 / 80 / 90 %HRR` cut-offs) × duration.
+     - ***Style*, not Edwards.** Edwards (1993) defines its five zones on **%HRmax**; these cut-offs are read off **%HRR** (#2835). With HRmax 190 and RHR 50, 133 bpm is 70 %HRmax and so zone 3 by the source, against 59 %HRR and zone 1 here. The %HRR reading is deliberate — it is the quantity the whole pipeline is built on — and re-cutting the zones on %HRmax would move every Effort number, so it stays. What was wrong was calling it Edwards without the qualifier.
    - **Banister (1991) exponential:** each sample contributes `duration × x × 0.64 × e^(b·x)`, where `x = %HRR/100` and `b = 1.92` (men) / `1.67` (women).
 4. **Logarithmic compression** onto `[0, 100]`:
 
@@ -283,7 +284,11 @@ same constants, recurrence, deadband, nap credit, and 14-usable-night bound.
 
 Source: `SleepStager.swift`. Detects in-bed sessions from gravity/HR/RR/respiration and produces a 30-second hypnogram of `{wake, light, deep, rem}`. These stages and the AASM roll-up below are the raw material the **Rest** score composite consumes (see *The Rest score composite* immediately after this section).
 
-> **Honest hedging.** These stages are **approximations**, not PSG-validated, not medical advice. The EEG-free 4-class ceiling is ~65–73% epoch agreement (Walch 2019). **Light/deep separation is the weakest link — deep-minute estimates are the least reliable output.**
+> **Honest hedging.** These stages are **approximations**, not PSG-validated, not medical advice. **Light/deep separation is the weakest link — deep-minute estimates are the least reliable output.**
+>
+> **What the EEG-free literature actually measures, and why it flatters us (#2835).** This note used to read "the EEG-free 4-class ceiling is ~65–73% epoch agreement (Walch 2019)". Walch et al. (2019) report a **three-class** task — wake / NREM / REM, about 72% — alongside a separate **two-class** sleep/wake result near 90%. It attempts **no** light/deep separation, so it publishes no four-class ceiling, and the range was attributed to a task the paper did not run.
+>
+> The correction makes this hedge **stronger**, not weaker. The four classes NOOP outputs are a harder problem than the three Walch scored, so ~72% is an **upper bound from an easier task** rather than a ceiling for ours — and the sentence immediately above, that light/deep is the weakest link, is precisely about the class that literature never had to separate. No four-class figure is quoted here because the cited work has none to quote.
 
 ### Stage 0 — gravity-stillness sleep/wake spine (`detectSleep`)
 

@@ -24,8 +24,14 @@ import kotlin.math.roundToLong
  *   1. Heart-Rate Reserve (Karvonen): HRR = HRmax − RHR.
  *   2. Per-sample intensity as %HRR = (HR − RHR) / HRR × 100, clamped 0..100.
  *   3. TRIMP accumulated over the window:
- *        a. Edwards 5-zone summation (default): sample contributes its zone weight
+ *        a. Edwards-STYLE 5-zone summation (default): sample contributes its zone weight
  *           (1..5 at 50/60/70/80/90 %HRR cut-offs) × duration.
+ *           STYLE, not Edwards: Edwards (1993) defines its five zones on %HRmax, and these cut-offs are
+ *           read off %HRR (#2835, @yashkgp). With HRmax 190 and RHR 50, 133 bpm is 70 %HRmax and so
+ *           zone 3 by the source, against 59 %HRR and zone 1 here. The %HRR reading is deliberate and
+ *           stays: it is the quantity this whole file is built on, and re-cutting the zones on %HRmax
+ *           would move every user's Effort number, which is a scoring change needing its own evidence
+ *           rather than a citation repair. What was wrong was calling it Edwards unqualified.
  *        b. Banister exponential: sample contributes duration × x × 0.64 × e^(b·x).
  *   4. Logarithmic compression onto [0, 100]:
  *        effort = 100 × ln(TRIMP + 1) / ln(D)
@@ -161,7 +167,10 @@ object StrainScorer {
     const val banisterBMen: Double = 1.92
     const val banisterBWomen: Double = 1.67
 
-    /** Edwards zone cut-offs as (%HRR threshold, weight), highest-first. */
+    /** Edwards-STYLE zone cut-offs as (%HRR threshold, weight), highest-first.
+     *
+     *  The thresholds are %HRR, where Edwards (1993) defines its zones on %HRmax (#2835). Deliberate,
+     *  and documented at the pipeline note in this file's header rather than restated here. */
     val edwardsZones: List<Pair<Double, Int>> = listOf(
         90.0 to 5, 80.0 to 4, 70.0 to 3, 60.0 to 2, 50.0 to 1,
     )

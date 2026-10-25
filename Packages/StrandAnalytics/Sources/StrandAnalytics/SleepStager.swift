@@ -6,7 +6,11 @@ import WhoopProtocol
 // Ported from server/ingest/app/analysis/sleep.py and sleep_features.py.
 //
 // HONEST HEDGING: these stages are APPROXIMATIONS, not PSG-validated, not medical
-// advice. The EEG-free 4-class ceiling is ~65–73% epoch agreement (Walch 2019).
+// advice. No four-class ceiling is quoted here, and the reason is a correction (#2835): this line used
+// to cite "~65–73% epoch agreement (Walch 2019)" for one, but Walch et al. (2019) report a THREE-class
+// task (wake/NREM/REM, about 72%) and a separate two-class sleep/wake result near 90%, attempting no
+// light/deep separation at all. The four classes staged below are a harder problem than the three that
+// number came from, so it is an upper bound from an easier task rather than a ceiling for this one.
 // Light/deep separation is the weakest link — deep-minute estimates are the least
 // reliable output.
 //

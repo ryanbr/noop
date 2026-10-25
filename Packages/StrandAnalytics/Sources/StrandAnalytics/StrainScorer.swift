@@ -17,8 +17,15 @@ import WhoopProtocol
 //   1. Heart-Rate Reserve (Karvonen): HRR = HRmax − RHR.
 //   2. Per-sample intensity as %HRR = (HR − RHR) / HRR × 100, clamped 0..100.
 //   3. TRIMP accumulated over the window:
-//        a. Edwards 5-zone summation (default): sample contributes its zone weight
+//        a. Edwards-STYLE 5-zone summation (default): sample contributes its zone weight
 //           (1..5 at 50/60/70/80/90 %HRR cut-offs) × duration.
+//           STYLE, not Edwards: Edwards (1993) defines its five zones on %HRmax, and these cut-offs
+//           are read off %HRR (#2835, @yashkgp). With HRmax 190 and RHR 50, 133 bpm is 70 %HRmax and
+//           so zone 3 by the source, against 59 %HRR and zone 1 here. The %HRR reading is deliberate
+//           and stays: it is the quantity this whole file is built on, every other stage of the
+//           pipeline is Karvonen reserve, and re-cutting the zones on %HRmax would move every user's
+//           Effort number, which is a scoring change needing its own evidence rather than a citation
+//           repair. What was wrong was calling the result Edwards without qualification.
 //        b. Banister exponential: sample contributes duration × x × 0.64 × e^(b·x).
 //   4. Logarithmic compression onto [0, 100]:
 //        strain = 100 × ln(TRIMP + 1) / ln(D)
@@ -26,7 +33,8 @@ import WhoopProtocol
 //      sex-independent 7200 ceiling), Banister its own sex-dependent ceiling + 1. See
 //      `logMapDenominator(method:sex:)` — reusing one for the other silently rescales the axis (#1545).
 //
-// References: Karvonen 1957 (%HRR); Edwards 1993 (5-zone TRIMP); Banister 1991
+// References: Karvonen 1957 (%HRR); Edwards 1993 (5-zone TRIMP, defined on %HRmax; see the
+// Edwards-STYLE note above for why these cut-offs read %HRR instead); Banister 1991
 // (exponential TRIMP, b = 1.92 men / 1.67 women); Tanaka 2001 (HRmax = 208 − 0.7×age).
 
 public enum StrainScorer {
@@ -140,7 +148,10 @@ public enum StrainScorer {
     public static let banisterBMen: Double = 1.92
     public static let banisterBWomen: Double = 1.67
 
-    /// Edwards zone cut-offs as (%HRR threshold, weight), highest-first.
+    /// Edwards-STYLE zone cut-offs as (%HRR threshold, weight), highest-first.
+    ///
+    /// The thresholds are %HRR, where Edwards (1993) defines its zones on %HRmax (#2835). Deliberate,
+    /// and documented at the pipeline note in this file's header rather than restated here.
     static let edwardsZones: [(threshold: Double, weight: Int)] = [
         (90.0, 5), (80.0, 4), (70.0, 3), (60.0, 2), (50.0, 1),
     ]
