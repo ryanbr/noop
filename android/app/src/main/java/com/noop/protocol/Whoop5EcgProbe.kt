@@ -219,11 +219,25 @@ object Whoop5EcgProbe {
      * [SELECT_OR_STOP] stays at 30. Those runs wait for a COMMAND_RESPONSE rather than for a reading, so
      * the longer window would be dead time in front of an answer that already arrived.
      *
-     * [TERMINAL_GRACE] is how long a run keeps listening AFTER the terminal frame instead of ending on it.
-     * @meta1971 measured the variability field sitting at `0xffff` for 2 to 9 s past that frame before it
-     * settled, so a probe that stopped on the terminal frame would pin the unset value as the reading's
-     * own. It also means a run that ends early reports early: a terminal frame at 12 s renders the verdict
-     * at 22 s rather than holding the sheet for the rest of the window.
+     * [TERMINAL_GRACE] is how long a run keeps listening AFTER the terminal frame instead of ending on it,
+     * so that a probe stopping on that frame does not pin the still-unset variability field as the
+     * reading's own. It also means a run that ends early reports early: a terminal frame at 12 s renders
+     * the verdict at 22 s rather than holding the sheet for the rest of the window.
+     *
+     * AN EVIDENCE WINDOW, NOT A GUARANTEE, and 10 s does not cover the measured spread. The first figure
+     * here came from @meta1971's original five MG sessions, where the field cleared 2 to 9 s past the
+     * terminal frame. Their later 16-run series on the same firmware is much wider: the first valid value
+     * landed between 3 s BEFORE and 17 s after the verdict frame in 9 runs, at +113 and +120 s in 2, and
+     * never at all before the recording ended in 5 (those recordings ran 20 to 144 s past the verdict). By
+     * their own count a 10 s window would have caught 4 of the 16 and a 20 s window 9, and their reading
+     * of it is that the delay is not fixed on this firmware.
+     *
+     * The constant stays at 10 regardless, and the honest reason is that no number here is right: 20 s
+     * buys five more runs out of sixteen and still misses the +113 s pair and the five that never filled,
+     * while every second of it is a sheet held shut in front of a reading that is already over. What the
+     * window must not do is let an unset field be reported as a value, and that is a property of the
+     * reader rather than of the duration. An `0xffff` at the end of the grace is UNAVAILABLE: not zero,
+     * and not a reading that failed to complete.
      */
     object Window {
         const val SELECT_OR_STOP = 30

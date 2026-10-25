@@ -1004,6 +1004,21 @@ private func decodeWhoop5CommandResponse(_ frame: [UInt8], fb: FieldBuilder, sch
     // Origin-seq echo + result code, the 4.0 offsets shifted by the usual +4 (#894). The Kotlin twin has
     // always published both here; this decoder published neither. Bounded by `pay` so a short reply
     // decodes nothing rather than reading the CRC32 trailer as a result.
+    //
+    // WHICH COUNTER IS WHICH, measured, and the opposite of what #891 first recorded. Byte 11 is the
+    // ECHO of the seq THIS HOST sent: @meta1971's paired TX/RX capture matched it in 53 of 53 replies,
+    // and @vishk23 and @DX23876 agreed independently. Byte 9, which `ParsedFrame.seq` carries for a
+    // response, is the STRAP's own counter and matches nothing we sent. The first reading had the two the
+    // other way round and no frame could have settled it, because both counters were incrementing
+    // together at a near-constant offset; the paired capture is what separated them. Structurally the
+    // echo is also the more natural reading, since each sender's own seq sits at inner offset 1 in both
+    // directions.
+    //
+    // So `resp_seq` names the host's number coming back, not a strap sequence, and a duplicated value in
+    // a log is OUR write queue repeating a send (#791) rather than the strap repeating itself. The KEY
+    // keeps the name: it is published in strap logs and pinned by fixtures and tests on both platforms
+    // and on the 4.0 path, so renaming it is a contract change and belongs in its own commit rather than
+    // riding along with a comment correction.
     if pay.count >= 1 { fb.add(11, 1, "resp_seq", "cmd", value: .int(Int(pay[0]))) }
     if pay.count >= 2 {
         fb.add(12, 1, "result", "cmd", value: .string(schema.enumName("CommandResult", Int(pay[1]))))
