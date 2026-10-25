@@ -78,6 +78,7 @@ struct StrandApp: App {
                 // this target is macOS 13.
                 .onChange(of: scenePhase) { phase in
                     if phase == .active { model.ble.requestSync(.foreground) }
+                    if phase == .background { model.persistActiveWorkout() }
                 }
         }
         .windowStyle(.hiddenTitleBar)
