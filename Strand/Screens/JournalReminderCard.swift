@@ -30,15 +30,21 @@ struct JournalReminderCard: View {
     private static let stripDays = 7
 
     var body: some View {
-        Group {
-            if reminderEnabled, let logged = loggedDays {
-                card(logged)
+        if reminderEnabled {
+            // A VStack, not a Group: a Group hands its modifiers to its children, and before the first load
+            // there is no child, so the `.task` below never ran, `loggedDays` stayed nil and the card never
+            // appeared. The stack is a view of its own even while empty, so the load always starts.
+            VStack(spacing: 0) {
+                if let logged = loggedDays {
+                    card(logged)
+                }
             }
-        }
-        // Re-read whenever a sync bumps refreshSeq or the toggle flips (mirrors AutoWorkoutCard's task id),
-        // so the strip and the "logged today" state stay current after the user logs and comes back.
-        .task(id: JournalReminderLoadKey(seq: repo.refreshSeq, enabled: reminderEnabled)) {
-            await reload()
+            // Re-read whenever a sync bumps refreshSeq, so the strip and the "logged today" state stay current
+            // after the user logs and comes back. Flipping the toggle removes and recreates this view, which
+            // starts a fresh task on its own, so the toggle needs no place in the id.
+            .task(id: repo.refreshSeq) {
+                await reload()
+            }
         }
     }
 
@@ -140,10 +146,4 @@ struct JournalReminderCard: View {
             Repository.localDayKey(cal.date(byAdding: .day, value: -n, to: today) ?? today)
         }
     }
-}
-
-/// Reload key: a sync (seq) or toggle flip re-reads completion. Mirrors `AutoWorkoutLoadKey`.
-private struct JournalReminderLoadKey: Equatable {
-    let seq: Int
-    let enabled: Bool
 }
