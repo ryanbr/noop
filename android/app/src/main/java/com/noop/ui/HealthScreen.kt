@@ -285,7 +285,7 @@ private fun SyncStatusSection(vm: AppViewModel, onSyncNow: () -> Unit) {
         SectionHeader(
             "Sync",
             overline = "Strap history",
-            trailing = if (live.connected) (if (live.bonded) "Connected" else "Pairing…") else "Offline",
+            trailing = if (live.connected) "Connected" else "Offline",
         )
 
         NoopCard(tint = Palette.chargeColor) {
@@ -315,7 +315,7 @@ private fun SyncStatusSection(vm: AppViewModel, onSyncNow: () -> Unit) {
                         // sync", not pulsing, directly above a DISABLED Sync now — on exactly the strap
                         // that cannot sync. Before the button was gated the two agreed (both wrong);
                         // gating one without the other is what made them contradict.
-                        title = if (live.historyReady) "Ready to sync" else "Pairing…",
+                        title = if (live.historyReady) "Ready to sync" else uiString(R.string.health_sync_pill_not_fully_paired),
                         tone = StrandTone.Accent,
                         showsDot = true,
                         pulsing = !live.historyReady,
@@ -339,6 +339,8 @@ private fun SyncStatusSection(vm: AppViewModel, onSyncNow: () -> Unit) {
                                 "for the next automatic sync."
                         } else if (live.backfilling) {
                             "Sync now. A sync is already in progress."
+                        } else if (live.connected) {
+                            uiString(R.string.health_sync_hint_needs_full_pairing)
                         } else {
                             "Sync now. Connect your strap first."
                         }
@@ -368,7 +370,8 @@ private fun syncHelperText(live: LiveState): String = when {
     // handshake fell through to the "syncs right away" line, directly under a Sync-now button that had
     // just been disabled. Same condition as the button and the card title, so all three agree.
     !live.historyReady ->
-        "Finishing the pairing handshake. Sync now becomes available once the strap is paired."
+        "Sync now needs the strap's full secure pairing, which hasn't completed. Until it does, the " +
+            "strap can't hand over its stored history."
     else -> "Syncs your strap's stored history right away, instead of waiting for the next automatic sync."
 }
 

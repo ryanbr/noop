@@ -5917,7 +5917,7 @@ enum RecordingState: Equatable {
         case .recording:           return "Your strap is connected and saving data."
         case .lastSynced:          return "Reconnect to pull the latest."
         case .notRecording:        return "Strap not connected. Tap to connect."
-        case .historyExperimental: return "History sync is experimental on 5.0."
+        case .historyExperimental: return "History sync is experimental on WHOOP 5.0/MG."
         case .connectedNoData:     return "No live heart rate or synced history yet this session."
         }
     }
@@ -5932,7 +5932,7 @@ enum RecordingState: Equatable {
         case .notRecording:
             return String(localized: "Not recording. Strap not connected. Tap to connect.")
         case .historyExperimental:
-            return String(localized: "Connected. History sync is experimental on 5.0.")
+            return String(localized: "Connected. History sync is experimental on WHOOP 5.0/MG.")
         case .connectedNoData:
             return String(localized: "Connected. No live heart rate or synced history yet this session.")
         }

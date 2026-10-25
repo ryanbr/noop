@@ -453,7 +453,7 @@ object LogExport {
             !whoop5Connected ->
                 "Raw capture records WHOOP 5/MG history syncs and doesn't apply to WHOOP 4.0 (already fully decoded).$tail"
             !captureEnabled ->
-                "No raw capture yet. Turn on \"Record 5/MG raw capture\" above, then let a history sync run.$tail"
+                "No raw capture yet. Turn on \"Passive history/protocol trace\" above, then let a history sync run.$tail"
             // #1635: do NOT tell someone to wait for a history sync their strap cannot reach. Without the
             // encrypted bond there is no puffin channel and no offload, so "let a sync run" names a remedy
             // that will never arrive — the same confidently-wrong guidance this issue kept producing.

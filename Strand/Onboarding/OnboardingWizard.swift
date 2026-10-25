@@ -641,7 +641,7 @@ private struct ScanStep: View {
                         .foregroundStyle(StrandPalette.textPrimary)
                 }
 
-                Text("WHOOP straps don't appear in your \(Platform.deviceNoun)'s Bluetooth settings. They advertise on a custom profile that only apps like NOOP can find, so there's nothing to pair there, and you shouldn't try.")
+                Text("You don't pair a WHOOP strap from your \(Platform.deviceNoun)'s Bluetooth settings. It advertises on a custom profile that only apps like NOOP can find, so don't try to pair it there. If a WHOOP is already listed there from an earlier pairing, leave it unless NOOP's re-pair steps ask you to forget it.")
                     .font(StrandFont.subhead)
                     .foregroundStyle(StrandPalette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)

@@ -366,8 +366,10 @@ fun TestCentreScreen(vm: AppViewModel, onOpenGroundTruthCollector: () -> Unit = 
                     // consent given for a session probe.
                     DeveloperToggleRow(
                         title = stringResource(R.string.raw_diag_ecg_probe),
-                        detail = "Sends the three MG ECG session toggles and listens for 30 s. Hold both " +
-                            "clasp electrodes with your other hand for the whole window, or the trace is " +
+                        detail = "Sends the three MG ECG session toggles and listens for up to about a minute: " +
+                            "the run ends 10 s after the strap's final ECG frame (around 40 s in on the straps " +
+                            "measured so far), or at 60 s if that frame never comes. Hold both clasp electrodes " +
+                            "with your other hand until the verdict appears in the strap log, or the trace is " +
                             "flat by design. Instrumentation, not a medical ECG feature.",
                         checked = ecgProbe,
                         onCheckedChange = {

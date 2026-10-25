@@ -184,6 +184,17 @@ struct SmartAlarmView: View {
         }
     }
 
+    /// Body of the honesty card. Split by platform because the backup notification only exists on iOS
+    /// (`scheduleSmartAlarmBackupNotification` is a no-op on macOS), and the strap buzz is conditional
+    /// on a 5/MG having Protocol probes on.
+    private var honestyBody: LocalizedStringKey {
+        #if os(iOS)
+        return "When it is armed, the wake-alarm above buzzes your wrist from the strap's own firmware. On a WHOOP 5/MG that needs Protocol probes on (Test Centre → 5/MG protocol diagnostics). It can't sound a loud alarm. NOOP also schedules a backup notification at your wake time, but a sideloaded app can't sound a guaranteed wake on this device (that needs a critical-alert permission this build doesn't have), so Focus or silent mode can still mute it. Keep your phone's built-in Clock alarm as your real backup. NOOP's phone-based smart wake (light-sleep detection) is available on the Android app."
+        #else
+        return "When it is armed, the wake-alarm above buzzes your wrist from the strap's own firmware. On a WHOOP 5/MG that needs Protocol probes on (Test Centre → 5/MG protocol diagnostics). It can't sound a loud alarm, and NOOP on a Mac schedules no backup notification, so nothing else goes off at your wake time. Keep your phone's built-in Clock alarm as your real backup. NOOP's phone-based smart wake (light-sleep detection) is available on the Android app."
+        #endif
+    }
+
     // The up-front, honest note about the difference between the strap's silent buzz (above) and a loud
     // phone wake. The strap alarm is real, but it's a gentle wrist buzz, not a sound, so we say plainly
     // to keep a backup, and that the louder smart wake lives on Android.
@@ -197,7 +208,7 @@ struct SmartAlarmView: View {
                     Text("The strap alarm is a silent buzz, not a sound")
                         .font(StrandFont.headline)
                         .foregroundStyle(StrandPalette.textPrimary)
-                    Text("The wake-alarm above buzzes your wrist from the strap's own firmware. It can't sound a loud alarm. We also schedule a backup notification at your wake time, but a sideloaded app can't sound a guaranteed wake on this device (that needs a critical-alert permission this build doesn't have), so Focus or silent mode can still mute it. Keep your phone's built-in Clock alarm as your real backup. NOOP's phone-based smart wake (light-sleep detection) is available on the Android app.")
+                    Text(honestyBody)
                         .font(StrandFont.footnote)
                         .foregroundStyle(StrandPalette.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -231,7 +242,7 @@ struct SmartAlarmView: View {
                         Text("Wake me with a strap buzz")
                             .font(StrandFont.body)
                             .foregroundStyle(StrandPalette.textPrimary)
-                        Text("Arms the strap to buzz at your wake time, even if NOOP is closed. Sends the exact alarm command the official app sends, confirmed buzzing on a real WHOOP 4.0 (community wire capture + on-device test, #535). Keep a backup alarm for anything you truly can't miss.")
+                        Text("Arms the strap to buzz at your wake time, even if NOOP is closed. Sends the exact alarm command the official app sends, confirmed buzzing on a real WHOOP 4.0 (community wire capture + on-device test, #535). On a WHOOP 5/MG this is experimental and only arms while Protocol probes is on (Test Centre → 5/MG protocol diagnostics). Keep a backup alarm for anything you truly can't miss.")
                             .font(StrandFont.footnote)
                             .foregroundStyle(StrandPalette.textTertiary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -279,7 +290,7 @@ struct SmartAlarmView: View {
                     // capture + on-device buzz by the capture author); 5/MG remains experimental, so this
                     // gated branch keeps its backup-alarm wording.
                     if model.whoop5Detected && !PuffinExperiment.isEnabled {
-                        Text("WHOOP 5/MG strap alarms require Protocol probes (Test Centre → 5/MG protocol diagnostics). Your wake time is saved, but the strap is not armed yet. Keep a backup alarm.")
+                        Text("WHOOP 5/MG strap alarms require Protocol probes (Test Centre → 5/MG protocol diagnostics). Your wake time is saved, but NOOP does not send it to the strap while Protocol probes is off. An alarm sent earlier may still be set on the strap. Keep a backup alarm.")
                             .font(StrandFont.footnote)
                             .foregroundStyle(StrandPalette.statusWarning)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -287,7 +298,7 @@ struct SmartAlarmView: View {
                         // 5/MG with Protocol probes ON: the rev-4 command arms the strap. One wake was
                         // captured on an MG (#864) and one reported on a 5.0 without a log (#2464);
                         // neither repeated, so the copy simplifies both to "reported" and promises none.
-                        Text("Armed on the strap with an experimental 5/MG command. Strap-driven wakes have been reported on 5.0 and MG, but are not guaranteed. Keep a backup alarm for anything you cannot miss.")
+                        Text("NOOP sets this on the strap with an experimental 5/MG command whenever the strap connects or you change the alarm. Strap-driven wakes have been reported on 5.0 and MG, but are not guaranteed. Keep a backup alarm for anything you cannot miss.")
                             .font(StrandFont.footnote)
                             .foregroundStyle(StrandPalette.textTertiary)
                             .frame(maxWidth: .infinity, alignment: .leading)

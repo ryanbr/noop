@@ -459,12 +459,13 @@ $BIN --json capture.json           # machine-readable, for piping into your own 
 $BIN --family whoop5 --hex aa0108000001e67123019101363e5c8d   # one frame ad hoc
 ```
 
-## Import into the noop Android app
+## Android app import (not yet in the UI)
 
-The noop Android app's **Data Sources → "Raw capture (.json)"** reads the same `capture.json` this
-tool emits and decodes its frames on-device (HR / RR / gravity / …) through the *same* historical
-decoder a live BLE offload uses — so history captured here on Linux lands in the app exactly as if the
-phone had synced it. Produce one file per device:
+The noop Android app contains an importer (`CaptureImporter`) for the same `capture.json` this tool
+emits (WHOOP 4.0 or 5/MG frames). It decodes frames through the same historical decoder a live BLE
+offload uses, but it is **not yet exposed in the app**: Data Sources has no raw-capture import, so
+there is currently no in-app way to load the file. Until it is, decode a capture with `whoop-decode`
+(above) or `whoop_sync.py decode`. The export command is (one file per device):
 
 ```bash
 .venv/bin/python whoop_sync.py export \
@@ -472,8 +473,7 @@ phone had synced it. Produce one file per device:
 ```
 
 **What `capture.json` is.** It is simply your strap's history saved as one file. `sync` already pulled
-the data off your strap and stored it; `export` just writes a copy of it for one strap into a file the
-phone app can open. Your data isn't changed or re-processed on the way out — the app does all the
+the data off your strap and stored it; `export` just writes a copy of it for one strap into a single file. Your data isn't changed or re-processed on the way out — the app does all the
 decoding (heart rate, sleep, and so on) itself, so the file works the same whether you make it here or
 the phone captured it directly.
 
@@ -482,12 +482,10 @@ If you want a smaller file, two optional flags narrow it down:
 - `--only-type 47` — just the main once-per-second records.
 - `--since <unix-time>` — only data newer than a given moment.
 
-Then transfer `capture.json` to your phone (any file transfer works), open NOOP, and pick it from
-**Data Sources → Raw capture**. Importing the same file twice is safe — NOOP skips anything it already
-has — so you can re-run it without making duplicates. Export one file per strap; a file is normally a
-single strap, but a mixed one still imports fine. The phone treats the file as untrusted input (size +
-frame-count bounded, malformed rows skipped), so a stray or corrupt file is rejected cleanly rather
-than crashing the import.
+Once the app exposes the importer, the file can be transferred to the phone (any file transfer works)
+and imported there. Until then, decode it on the desktop with `whoop-decode` (above). The importer is
+written to treat the file as untrusted input (size and frame-count bounded, malformed rows skipped),
+and importing the same file twice is designed to be safe (rows are natural-key deduped).
 
 ## Troubleshooting
 

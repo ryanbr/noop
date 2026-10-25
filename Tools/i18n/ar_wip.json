@@ -1170,8 +1170,7 @@
    "ar": "قد يوقف هاتفك (%1$s) التطبيقات العاملة في الخلفية لتوفير البطارية، مما قد يجعل NOOP يفوّت بيانات النوم والتعافي الليلية. اضغط «سماح» لإضافة NOOP إلى الاستثناءات.\\n\\nسيسأل Android «إيقاف تحسين استخدام البطارية؟» وينبّه إلى أن NOOP قد يستنزف البطارية — وهذه صياغته المعتادة لأي تطبيق يُسمح له بالعمل في الخلفية. اضغط «سماح». تُستهلك البطارية في المزامنة الليلية التي فعّلتها بالفعل أعلاه؛ وهذا يمنع Android فقط من قطعها."
   },
   "l10n_add_device_wizard_a_whoop_strap_bonds_to_a_d39bdf4a": {
-   "en": "A WHOOP strap bonds to a single device. While it\\'s connected to NOOP it won\\'t stream ",
-   "ar": "يقترن سوار WHOOP بجهاز واحد فقط. وأثناء اتصاله بـ NOOP لن يبثّ "
+   "en": "A WHOOP strap bonds to a single device. Pairing it with NOOP can take it away from the official WHOOP app, and the other way round. It\\'s reversible: pair it in the other app whenever you want it back."
   },
   "l10n_add_device_wizard_add_61cc55aa": {
    "en": "Add",
@@ -1338,8 +1337,7 @@
    "ar": "تعذّر الاستحواذ على هذا الخاتم."
   },
   "l10n_add_device_wizard_whoop_5_0_mg_support_is_e452e686": {
-   "en": "WHOOP 5.0 / MG support is newer and still experimental in NOOP.",
-   "ar": "دعم WHOOP 5.0 / MG أحدث وما زال تجريبيًا في NOOP."
+   "en": "WHOOP 5.0 / MG supports live data and strap history. Protocol-research tools are available separately in Test Centre."
   },
   "l10n_add_device_wizard_whoop_is_noop_s_primary_fully_ac6fa33b": {
    "en": "WHOOP is NOOP\\'s primary, fully-supported band. Other heart-rate straps stream live heart rate and HRV, but not WHOOP\\'s deeper sleep and recovery data.",
@@ -2342,8 +2340,7 @@
    "ar": "مراجعة الأسبوع صادقة بشأن أسبوع غير مكتمل"
   },
   "l10n_app_changelog_whoop_4_0_is_the_supported_16893d9d": {
-   "en": "WHOOP 4.0 is the supported path",
-   "ar": "‏WHOOP 4.0 هو المسار المدعوم"
+   "en": "WHOOP 4.0 is the most tested path"
   },
   "l10n_app_changelog_whoop_5_0_history_decoding_comes_a8848386": {
    "en": "WHOOP 5.0 history decoding comes to Android",
@@ -3166,8 +3163,7 @@
    "ar": "لا يتصل؟ راجع هذه الخطوات"
   },
   "l10n_connection_help_your_strap_is_connected_and_we_8ab98ac6": {
-   "en": "Your strap is connected and we\\'re trying an experimental handshake to bring up live ",
-   "ar": "سوارك متصل ونحن نجرّب مصافحة تجريبية لتشغيل البث المباشر "
+   "en": "Your strap is connected and we\\'re trying an experimental handshake to bring up live heart rate from the standard profile. This isn\\'t verified on 5/MG hardware yet, so HR may or may not appear, and some 5/MG overnight inputs are still incomplete, so sleep stages are approximate. Nothing\\'s wrong with your strap - WHOOP 4.0 is fully supported."
   },
   "l10n_coupled_screen_calibrating_calibrationnights_of_baselines_minnightsseed_nights_1a7e8f8e": {
    "en": "Calibrating, %1$s of %2$s nights",
@@ -3370,8 +3366,7 @@
    "ar": "نتيجة فحص البطارية (#592)"
   },
   "l10n_devices_screen_battery_probe_explainer_2858bb6a": {
-   "en": "Two independent protocol tables disagree on the extended-battery opcode (98 vs 87). This sends the curated read-only 98 and dumps the strap\\'s full raw reply to the strap log. A battery-style payload confirms 98 on your firmware; a short stub means it stays ambiguous. Nothing is written to the strap. Please export and share the strap log afterwards.",
-   "ar": "تختلف جدولان مستقلان للبروتوكول حول رمز البطارية الممتد (98 مقابل 87). يرسل هذا الأمر 98 للقراءة فقط ويكتب رد السوار الخام الكامل في سجل السوار. الرد بصيغة بطارية يؤكد 98 على برنامجك الثابت؛ والرد المختصر يعني بقاء الأمر ملتبسًا. لا يُكتب شيء على السوار. يُرجى تصدير سجل السوار ومشاركته بعد ذلك."
+   "en": "Two independent protocol tables disagree on the extended-battery opcode (98 vs 87). This sends the curated read-only 98 and shows the strap\\'s full raw reply (also written to the strap log). On a WHOOP 4.0 a battery-style payload confirms 98 on your firmware and the result decodes the pack voltage; a short stub means it stays ambiguous. On a WHOOP 5/MG, 98 is not where the pack\\'s charge comes from (that is the battery-pack reading, command 151), NOOP decodes no value from the reply, and the line to read is \\'Result code\\': UNSUPPORTED means this firmware rejects 98. Nothing is written to the strap. Please export and share the strap log afterwards."
   },
   "l10n_devices_screen_body_location_probe_690_re_7def8c39": {
    "en": "Body-location probe (#690 RE)…",
@@ -3842,8 +3837,7 @@
    "ar": "يخزّن سوارك القنوات الضوئية الخام، لكن NOOP لا يحوّلها إلى نسبة أكسجين في الدم، لذا يبقى هذا فارغًا مهما طال ارتداؤك له. استورد ملف تصدير WHOOP في «مصادر البيانات» لملئه من سجل حسابك."
   },
   "l10n_health_screen_your_strap_reports_a_blood_oxygen_349fe34a": {
-   "en": "Your strap reports a blood oxygen estimate, but it is unverified and off by default. Turn on the strap estimate in Settings to see it, or import a WHOOP export in Data Sources for the calibrated value.",
-   "ar": "يسجّل سوارك تقديرًا لأكسجين الدم، لكنه غير متحقق منه ومعطّل افتراضيًا. فعّل تقدير السوار في الإعدادات لرؤيته، أو استورد ملف تصدير WHOOP في «مصادر البيانات» للقيمة المعايرة."
+   "en": "Your strap reports a blood oxygen estimate, but it is unverified and off by default. To see it, turn on \\\"Blood Oxygen: strap estimate\\\" in Settings → Advanced → Diagnostics, or import a WHOOP export in Data Sources for the calibrated value."
   },
   "l10n_how_noop_works_screen_close_bbfa773e": {
    "en": "Close",
@@ -4414,8 +4408,7 @@
    "ar": "اهتزاز"
   },
   "l10n_live_screen_can_t_connect_your_strap_s_cf78be83": {
-   "en": "Can\\'t connect - your strap\\'s pairing was reset",
-   "ar": "تعذّر الاتصال — أُعيد ضبط اقتران سوارك"
+   "en": "Your strap needs help to reconnect - steps below"
   },
   "l10n_live_screen_charging_5f99fe21": {
    "en": "Charging",
@@ -4506,8 +4499,7 @@
    "ar": "المنطقة العليا"
   },
   "l10n_live_screen_whoop_5_0_mg_pairs_with_b93143f2": {
-   "en": "WHOOP 5.0/MG pairs with one app at a time. If a scan finds nothing, unpair it in ",
-   "ar": "يقترن WHOOP 5.0/MG بتطبيق واحد في كل مرة. إذا لم يجد البحث شيئًا، فألغِ اقترانه في "
+   "en": "WHOOP 5.0/MG pairs with one app at a time. If a scan finds nothing, unpair it in the official WHOOP app and fully close that app, then Connect again."
   },
   "l10n_live_screen_zone_zone_b8e9c0f9": {
    "en": "ZONE %1$s",

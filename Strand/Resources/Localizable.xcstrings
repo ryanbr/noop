@@ -1,6 +1,11 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Waiting for your strap…": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "Warte auf deinen Strap…"}}, "es": {"stringUnit": {"state": "translated", "value": "Esperando a tu pulsera…"}}, "fr": {"stringUnit": {"state": "translated", "value": "En attente de votre bracelet…"}}, "it": {"stringUnit": {"state": "translated", "value": "In attesa della tua fascia…"}}, "pl": {"stringUnit": {"state": "translated", "value": "Czekam na Twoją opaskę…"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "A aguardar a tua pulseira…"}}, "ru": {"stringUnit": {"state": "translated", "value": "Ожидание браслета…"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "正在等待你的手环…"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "正在等待你的手環…"}}}},
+    "Available once the strap finishes pairing.": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "Verfügbar, sobald der Strap die Kopplung abgeschlossen hat."}}, "es": {"stringUnit": {"state": "translated", "value": "Disponible cuando la pulsera termine de emparejarse."}}, "fr": {"stringUnit": {"state": "translated", "value": "Disponible une fois l'appairage du bracelet terminé."}}, "it": {"stringUnit": {"state": "translated", "value": "Disponibile quando la fascia ha terminato l'associazione."}}, "pl": {"stringUnit": {"state": "translated", "value": "Dostępne po zakończeniu parowania opaski."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Disponível quando a pulseira terminar o emparelhamento."}}, "ru": {"stringUnit": {"state": "translated", "value": "Станет доступно, когда браслет завершит сопряжение."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "手环完成配对后可用。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "手環完成配對後可用。"}}}},
+    "No raw SpO₂ counts (WHOOP 4.0 only)": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "Keine rohen SpO₂-Zählwerte (nur WHOOP 4.0)"}}, "es": {"stringUnit": {"state": "translated", "value": "Sin recuentos brutos de SpO₂ (solo WHOOP 4.0)"}}, "fr": {"stringUnit": {"state": "translated", "value": "Pas de valeurs brutes de SpO₂ (WHOOP 4.0 uniquement)"}}, "it": {"stringUnit": {"state": "translated", "value": "Nessun conteggio SpO₂ grezzo (solo WHOOP 4.0)"}}, "pl": {"stringUnit": {"state": "translated", "value": "Brak surowych odczytów SpO₂ (tylko WHOOP 4.0)"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Sem contagens brutas de SpO₂ (apenas WHOOP 4.0)"}}, "ru": {"stringUnit": {"state": "translated", "value": "Нет сырых значений SpO₂ (только WHOOP 4.0)"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "无原始 SpO₂ 计数（仅限 WHOOP 4.0）"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "無原始 SpO₂ 計數（僅限 WHOOP 4.0）"}}}},
+    "This strap doesn’t send an SpO₂ signal for this chart. Import a WHOOP export or Apple Health data to see it.": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "Dieser Strap sendet kein SpO₂-Signal für dieses Diagramm. Importiere einen WHOOP-Export oder Apple-Health-Daten, um es zu sehen."}}, "es": {"stringUnit": {"state": "translated", "value": "Esta pulsera no envía una señal de SpO₂ para este gráfico. Importa una exportación de WHOOP o datos de Apple Health para verla."}}, "fr": {"stringUnit": {"state": "translated", "value": "Ce bracelet n’envoie pas de signal SpO₂ pour ce graphique. Importez un export WHOOP ou des données Apple Health pour le voir."}}, "it": {"stringUnit": {"state": "translated", "value": "Questa fascia non invia un segnale SpO₂ per questo grafico. Importa un’esportazione WHOOP o i dati di Apple Health per vederlo."}}, "pl": {"stringUnit": {"state": "translated", "value": "Ta opaska nie wysyła sygnału SpO₂ dla tego wykresu. Zaimportuj eksport WHOOP lub dane Apple Health, aby go zobaczyć."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Esta pulseira não envia um sinal de SpO₂ para este gráfico. Importa uma exportação da WHOOP ou dados do Apple Health para o ver."}}, "ru": {"stringUnit": {"state": "translated", "value": "Этот браслет не передаёт сигнал SpO₂ для этого графика. Импортируйте экспорт WHOOP или данные Apple Health, чтобы увидеть его."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "此手环不会为该图表发送 SpO₂ 信号。导入 WHOOP 导出文件或 Apple Health数据即可查看。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "此手環不會為此圖表傳送 SpO₂ 訊號。匯入 WHOOP 匯出檔案或 Apple Health資料即可查看。"}}}},
+    "When it is armed, the wake-alarm above buzzes your wrist from the strap's own firmware. On a WHOOP 5/MG that needs Protocol probes on (Test Centre → 5/MG protocol diagnostics). It can't sound a loud alarm, and NOOP on a Mac schedules no backup notification, so nothing else goes off at your wake time. Keep your phone's built-in Clock alarm as your real backup. NOOP's phone-based smart wake (light-sleep detection) is available on the Android app.": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "Wenn er eingestellt ist, lässt der Weckalarm oben dein Handgelenk über die eigene Firmware des Straps vibrieren. Auf einem WHOOP 5/MG setzt das voraus, dass Protokolltests an sind (Testzentrum → 5/MG-Protokolldiagnose). Einen lauten Alarm kann er nicht abspielen, und NOOP plant auf dem Mac keine Ersatz-Mitteilung, sodass zu deiner Weckzeit sonst nichts ausgelöst wird. Behalte den eingebauten Wecker deines Telefons als echten Ersatz. NOOPs telefonbasiertes Smart-Wecken (Leichtschlaf-Erkennung) gibt es in der Android-App."}}, "es": {"stringUnit": {"state": "translated", "value": "Cuando está programada, la alarma de despertar de arriba hace vibrar tu muñeca desde el propio firmware de la pulsera. En una WHOOP 5/MG eso requiere tener activadas las Sondas de protocolo (Centro de pruebas → Diagnóstico del protocolo 5/MG). No puede sonar como una alarma fuerte, y NOOP en un Mac no programa ninguna notificación de respaldo, así que a tu hora de despertar no suena nada más. Mantén la alarma del Reloj de tu teléfono como tu verdadero respaldo. El despertar inteligente de NOOP basado en el teléfono (detección de sueño ligero) está disponible en la app de Android."}}, "fr": {"stringUnit": {"state": "translated", "value": "Une fois programmée, l’alarme de réveil ci-dessus fait vibrer votre poignet depuis le micrologiciel du bracelet lui-même. Sur un WHOOP 5/MG, cela exige que Sondes de protocole soit activé (Centre de test → Diagnostics du protocole 5/MG). Elle ne peut pas émettre d’alarme sonore forte, et NOOP sur Mac ne programme aucune notification de secours : rien d’autre ne se déclenche à l’heure de votre réveil. Gardez l’alarme de l’app Horloge de votre téléphone comme véritable solution de secours. Le réveil intelligent de NOOP basé sur le téléphone (détection du sommeil léger) est disponible dans l’app Android."}}, "it": {"stringUnit": {"state": "translated", "value": "Quando è impostata, la sveglia qui sopra fa vibrare il polso dal firmware della fascia stessa. Su un WHOOP 5/MG richiede che le Sonde di protocollo siano attive (Centro test → Diagnostica protocollo 5/MG). Non può emettere una sveglia sonora forte e NOOP su Mac non programma alcuna notifica di riserva, quindi all’ora della sveglia non scatta nient’altro. Tieni la sveglia dell’app Orologio del telefono come vera riserva. La sveglia intelligente di NOOP basata sul telefono (rilevamento del sonno leggero) è disponibile nell’app Android."}}, "pl": {"stringUnit": {"state": "translated", "value": "Gdy jest ustawiony, powyższy alarm budzenia wibruje na nadgarstku dzięki oprogramowaniu wbudowanemu paska. Na WHOOP 5/MG wymaga to włączonych Sond protokołu (Centrum Testowe → Diagnostyka protokołu 5/MG). Nie może włączyć głośnego alarmu, a NOOP na Macu nie planuje powiadomienia zapasowego, więc o godzinie pobudki nic innego się nie włączy. Zachowaj wbudowany budzik w telefonie jako prawdziwą kopię zapasową. Inteligentne budzenie w telefonie NOOP (wykrywanie lekkiego snu) jest dostępne w aplikacji Android."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Depois de armado, o alarme acima faz vibrar o teu pulso a partir do firmware da própria pulseira. Num WHOOP 5/MG, isso requer as Sondas de protocolo ativadas (Centro de testes → Diagnóstico do protocolo 5/MG). Não pode fazer soar um alarme alto e o NOOP num Mac não agenda nenhuma notificação de reserva, pelo que nada mais dispara à hora de acordar. Mantém o alarme da app Relógio do teu telemóvel como a tua verdadeira reserva. O despertar inteligente do NOOP baseado no telefone (deteção de sono leve) está disponível na app Android."}}, "ru": {"stringUnit": {"state": "translated", "value": "Когда будильник установлен, он заставляет браслет вибрировать на запястье с помощью собственной прошивки. На WHOOP 5/MG для этого должны быть включены Пробы протокола (Тестовый центр → Диагностика протокола 5/MG). Громкий звуковой сигнал он подать не может, а NOOP на Mac не планирует резервное уведомление, поэтому в время пробуждения больше ничего не сработает. Используйте встроенный будильник «Часы» на телефоне как настоящий резервный вариант. Умное пробуждение NOOP на основе телефона (определение лёгкого сна) доступно в приложении для Android."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "设置后，上方的唤醒闹钟会通过手环自身的固件震动你的手腕。在 WHOOP 5/MG 上，这需要开启“协议探测”（测试中心 → 5/MG 协议诊断）。它无法发出响亮的闹铃，而且 NOOP 在 Mac 上不会安排备用通知，因此到起床时间不会有其他提醒。请保留手机自带的时钟闹钟作为真正的后备。NOOP 基于手机的智能唤醒（浅睡检测）在 Android 应用上可用。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "設定後，上方的喚醒鬧鐘會透過手環自身的韌體震動你的手腕。在 WHOOP 5/MG 上，這需要開啟「協定探測」（測試中心 → 5/MG 協定診斷）。它無法發出響亮的鬧鈴，而且 NOOP 在 Mac 上不會安排備用通知，因此到起床時間不會有其他提醒。請保留手機內建的時鐘鬧鐘作為真正的備援。NOOP 基於手機的智慧喚醒（淺睡偵測）在 Android 應用程式上可用。"}}}},
     "Move, relative to tonight": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Move, relative to tonight"}}, "de": {"stringUnit": {"state": "translated", "value": "Bewegung, relativ zu dieser Nacht"}}, "es": {"stringUnit": {"state": "translated", "value": "Movimiento, en relación con esta noche"}}, "fr": {"stringUnit": {"state": "translated", "value": "Mouvement, par rapport à cette nuit"}}, "it": {"stringUnit": {"state": "translated", "value": "Movimento, rispetto a questa notte"}}, "pl": {"stringUnit": {"state": "translated", "value": "Ruch, w odniesieniu do tej nocy"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Movimento, em relação a esta noite"}}, "ru": {"stringUnit": {"state": "translated", "value": "Движение, относительно этой ночи"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "活动，相对于今晚"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "活動，相對於今晚"}}}},
     "Route and GPS distance, without the heart-rate and calorie summary": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Route and GPS distance, without the heart-rate and calorie summary"}}, "de": {"stringUnit": {"state": "translated", "value": "Route und GPS-Distanz, ohne die Herzfrequenz- und Kalorienübersicht"}}, "es": {"stringUnit": {"state": "translated", "value": "Ruta y distancia GPS, sin el resumen de frecuencia cardiaca y calorías"}}, "fr": {"stringUnit": {"state": "translated", "value": "Itinéraire et distance GPS, sans le récapitulatif de fréquence cardiaque et de calories"}}, "it": {"stringUnit": {"state": "translated", "value": "Percorso e distanza GPS, senza il riepilogo di frequenza cardiaca e calorie"}}, "pl": {"stringUnit": {"state": "translated", "value": "Trasa i dystans GPS, bez podsumowania tętna i kalorii"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Rota e distância GPS, sem o resumo de frequência cardíaca e calorias"}}, "ru": {"stringUnit": {"state": "translated", "value": "Маршрут и GPS-дистанция, без сводки пульса и калорий"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "路线和 GPS 距离，不含心率和卡路里摘要"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "路線和 GPS 距離，不含心率和卡路里摘要"}}}},
     "Export Workout Route": {"localizations": {"en": {"stringUnit": {"state": "translated", "value": "Export Workout Route"}}, "de": {"stringUnit": {"state": "translated", "value": "Trainingsroute exportieren"}}, "es": {"stringUnit": {"state": "translated", "value": "Exportar ruta del entrenamiento"}}, "fr": {"stringUnit": {"state": "translated", "value": "Exporter l’itinéraire de la séance"}}, "it": {"stringUnit": {"state": "translated", "value": "Esporta il percorso dell’allenamento"}}, "pl": {"stringUnit": {"state": "translated", "value": "Eksportuj trasę treningu"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Exportar rota do treino"}}, "ru": {"stringUnit": {"state": "translated", "value": "Экспортировать маршрут тренировки"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "导出运动路线"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "匯出運動路線"}}}},
@@ -513,64 +518,7 @@
         }
       }
     },
-    "NOOP is connecting to your strap and will sync as soon as it's ready.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "NOOP verbindet sich mit deinem Strap und synchronisiert, sobald er bereit ist."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "NOOP se está conectando a tu pulsera y sincronizará en cuanto esté lista."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "NOOP se connecte à votre bracelet et synchronisera dès qu'il sera prêt."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "NOOP si sta collegando alla fascia e sincronizzerà non appena sarà pronta."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O NOOP está a ligar-se à sua pulseira e sincronizará assim que estiver pronta."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "NOOP подключается к браслету и синхронизирует, как только он будет готов."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "NOOP 正在连接你的手环，准备就绪后会立即同步。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "NOOP 正在連接你的手環，準備就緒後會立即同步。"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "NOOP łączy się z paskiem i zsynchronizuje go, gdy tylko będzie gotowy."
-          }
-        }
-      }
-    },
+    "Your strap isn't ready to hand over its history yet, so the sync is waiting. It starts if the strap is connected and paired within the next 10 minutes. Open NOOP to see the strap's status.": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "Dein Strap ist noch nicht bereit, seinen Verlauf herauszugeben, daher wartet die Synchronisierung. Sie startet, wenn der Strap innerhalb der nächsten 10 Minuten verbunden und gekoppelt ist. Öffne NOOP, um den Status des Straps zu sehen."}}, "es": {"stringUnit": {"state": "translated", "value": "Tu pulsera aún no está lista para entregar su historial, así que la sincronización está en espera. Empieza si la pulsera se conecta y se empareja en los próximos 10 minutos. Abre NOOP para ver el estado de la pulsera."}}, "fr": {"stringUnit": {"state": "translated", "value": "Votre bracelet n'est pas encore prêt à livrer son historique, la synchronisation est donc en attente. Elle démarre si le bracelet est connecté et appairé dans les 10 prochaines minutes. Ouvrez NOOP pour voir l'état du bracelet."}}, "it": {"stringUnit": {"state": "translated", "value": "La tua fascia non è ancora pronta a fornire la sua cronologia, quindi la sincronizzazione è in attesa. Parte se la fascia si connette e si associa entro i prossimi 10 minuti. Apri NOOP per vedere lo stato della fascia."}}, "pl": {"stringUnit": {"state": "translated", "value": "Twoja opaska nie jest jeszcze gotowa do przekazania historii, więc synchronizacja czeka. Rozpocznie się, jeśli opaska połączy się i sparuje w ciągu najbliższych 10 minut. Otwórz NOOP, aby zobaczyć stan opaski."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "A tua pulseira ainda não está pronta para entregar o seu histórico, por isso a sincronização está em espera. Começa se a pulseira se ligar e emparelhar nos próximos 10 minutos. Abre o NOOP para ver o estado da pulseira."}}, "ru": {"stringUnit": {"state": "translated", "value": "Ваш браслет ещё не готов передать свою историю, поэтому синхронизация ожидает. Она начнётся, если браслет подключится и сопряжётся в ближайшие 10 минут. Откройте NOOP, чтобы увидеть состояние браслета."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "你的手环尚未准备好提供其历史数据，因此同步正在等待。如果手环在接下来 10 分钟内连接并完成配对，同步就会开始。打开 NOOP 查看手环状态。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "你的手環尚未準備好提供其歷史資料，因此同步正在等待。如果手環在接下來 10 分鐘內連線並完成配對，同步就會開始。開啟 NOOP 查看手環狀態。"}}}},
     "No heart rate stored for today yet": {
       "localizations": {
         "de": {
@@ -18387,122 +18335,8 @@
         }
       }
     },
-    "* on-device estimate: skin temp is a nightly ±°C deviation (firmware-dependent); no steps over BLE on a 4.0. No SpO₂ % off the strap; import a WHOOP CSV for a real %.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "* Schätzung auf dem Gerät: Hauttemperatur ist eine nächtliche ±°C-Abweichung (firmwareabhängig); keine Schritte über BLE auf einem 4.0. Kein SpO₂-%-Wert vom Strap; importiere einen WHOOP-CSV-Export für echte %."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "* estimación en el dispositivo: la temperatura cutánea es una desviación nocturna de ±°C (depende del firmware); sin pasos por BLE en un 4.0. Sin % de SpO₂ desde la pulsera; importa un CSV de WHOOP para un % real."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "* estimation sur l'appareil : la température cutanée est un écart nocturne en ±°C (selon le micrologiciel) ; pas de pas via BLE sur un 4.0. Pas de % de SpO₂ depuis le bracelet ; importez un CSV WHOOP pour un % réel."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "* stima sul dispositivo: la temperatura della pelle è una deviazione notturna in ±°C (dipende dal firmware); nessun passo via BLE su un 4.0. Nessuna % di SpO₂ dalla fascia; importa un CSV WHOOP per una % reale."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "* estimativa no dispositivo: a temperatura da pele é um desvio noturno de ±°C (depende do firmware); nenhuma etapa sobre BLE num 4.0. Sem SpO₂% de desconto na bracelete; importar um CSV WHOOP por % real."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "* оценка на устройстве: температура кожи — это ночное отклонение ±°C (зависит от прошивки); шаги по BLE недоступны на 4.0. Кислород в крови (SpO₂) с браслета не передаётся; импортируйте CSV WHOOP, чтобы получить реальный %."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "* 设备端估算：皮肤温度为每晚 ±°C 偏差（取决于固件）；4.0 无法通过 BLE 读取步数。手环无法提供 SpO₂ %；导入 WHOOP CSV 可获得真实百分比。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "* 裝置端估算：皮膚溫度為每晚 ±°C 的偏差值（視韌體而定）；4.0 無法透過 BLE 讀取步數。手環無法提供 SpO₂ %；匯入 WHOOP CSV 才能取得真實百分比。"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "* szacunki na urządzeniu: temperatura skóry to nocne odchylenie ±°C (zależne od oprogramowania sprzętowego); żadnych kroków w stosunku do BLE w wersji 4.0. Nie SpO₂ % off pasek; zaimportuj WHOOP CSV za prawdziwy %."
-          }
-        }
-      }
-    },
-    "* on-device estimate: skin temp is a nightly ±°C deviation, steps are a raw motion count (#78). No SpO₂ % off the strap; import a WHOOP CSV for a real %.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "* Schätzung auf dem Gerät: Hauttemperatur ist eine nächtliche ±°C-Abweichung, Schritte sind ein roher Bewegungszähler (#78). Kein SpO₂-%-Wert vom Strap; importiere einen WHOOP-CSV-Export für echte %."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "* estimación en el dispositivo: la temperatura cutánea es una desviación nocturna de ±°C, los pasos son un conteo bruto de movimiento (#78). Sin % de SpO₂ desde la pulsera; importa un CSV de WHOOP para un % real."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "* estimation sur l'appareil : la température cutanée est un écart nocturne en ±°C, les pas sont un décompte brut de mouvement (#78). Pas de % de SpO₂ depuis le bracelet ; importez un CSV WHOOP pour un % réel."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "* stima sul dispositivo: la temperatura della pelle è una deviazione notturna in ±°C, i passi sono un conteggio grezzo del movimento (#78). Nessuna % di SpO₂ dalla fascia; importa un CSV WHOOP per una % reale."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "* estimativa no dispositivo: a temperatura da pele é um desvio noturno de ±°C, os passos são uma contagem bruta de movimentos (#78). Sem SpO₂% de desconto na bracelete; importar um CSV WHOOP por % real."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "* оценка на устройстве: температура кожи — это ночное отклонение ±°C, шаги — необработанный подсчёт движений (#78). С браслета не поступает % SpO₂; импортируйте CSV WHOOP, чтобы получить реальный %."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "* 设备端估算：皮肤温度为每晚 ±°C 偏差，步数为原始运动计数（#78）。手环无法提供 SpO₂ %；导入 WHOOP CSV 可获得真实百分比。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "* 裝置端估算：皮膚溫度為每晚 ±°C 的偏差值，步數是原始動作計數（#78）。手環無法提供 SpO₂ %；匯入 WHOOP CSV 才能取得真實百分比。"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "* szacunki na urządzeniu: temperatura skóry to nocne odchylenie ±°C, kroki to surowa liczba ruchów (#78). Nie SpO₂ % off pasek; zaimportuj WHOOP CSV za prawdziwy %."
-          }
-        }
-      }
-    },
+    "* on-device estimate: skin temp is measured nightly (firmware-dependent; °C, or vs your baseline); no steps over BLE on a 4.0. No SpO₂ % off the strap; import a WHOOP CSV for a real %.": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "* Schätzung auf dem Gerät: Die Hauttemperatur wird nächtlich gemessen (abhängig von der Firmware; °C oder im Vergleich zu deiner Basislinie); keine Schritte über BLE bei einem 4.0. Kein SpO₂-Wert in % vom Strap; importiere eine WHOOP-CSV für einen echten Wert."}}, "es": {"stringUnit": {"state": "translated", "value": "* Estimación en el dispositivo: la temperatura cutánea se mide por la noche (según el firmware; °C, o respecto a tu línea base); sin pasos por BLE en un 4.0. Sin SpO₂ % desde la pulsera; importa un CSV de WHOOP para un valor real."}}, "fr": {"stringUnit": {"state": "translated", "value": "* Estimation sur l’appareil : la température cutanée est mesurée chaque nuit (selon le firmware ; °C, ou par rapport à votre référence) ; pas de pas via BLE sur un 4.0. Pas de SpO₂ % depuis le bracelet ; importez un CSV WHOOP pour une vraie valeur."}}, "it": {"stringUnit": {"state": "translated", "value": "* Stima sul dispositivo: la temperatura cutanea viene misurata ogni notte (dipende dal firmware; °C, o rispetto alla tua linea di base); nessun passo via BLE su un 4.0. Nessun SpO₂ % dalla fascia; importa un CSV WHOOP per un valore reale."}}, "pl": {"stringUnit": {"state": "translated", "value": "* Szacunek na urządzeniu: temperatura skóry jest mierzona co noc (zależnie od firmware’u; °C lub względem Twojej wartości bazowej); brak kroków przez BLE w modelu 4.0. Brak SpO₂ % z opaski; zaimportuj WHOOP CSV, aby uzyskać prawdziwą wartość."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "* Estimativa no dispositivo: a temperatura da pele é medida durante a noite (depende do firmware; °C, ou face à tua linha de base); sem passos por BLE num 4.0. Sem SpO₂ % a partir da pulseira; importa um CSV da WHOOP para um valor real."}}, "ru": {"stringUnit": {"state": "translated", "value": "* Оценка на устройстве: температура кожи измеряется каждую ночь (зависит от прошивки; °C или относительно вашей базовой линии); шагов по BLE на 4.0 нет. SpO₂ % с браслета нет; для реального значения импортируйте CSV из WHOOP."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "* 设备端估算：皮肤温度每晚测量（取决于固件；°C，或相对于你的基线）；WHOOP 4.0 无法通过 BLE 获取步数。手环不提供 SpO₂ %；导入 WHOOP CSV 可获得真实数值。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "* 裝置端估算：皮膚溫度每晚測量（取決於韌體；°C，或相對於你的基線）；WHOOP 4.0 無法透過 BLE 取得步數。手環不提供 SpO₂ %；匯入 WHOOP CSV 可取得真實數值。"}}}},
+    "* on-device estimate: respiratory rate is derived from beat-to-beat data, and steps count the strap's motion counter only while it reports walking or running, scaled by your Step calibration. Skin temp is measured nightly (°C, or vs your baseline). No verified SpO₂ % off the strap: an unverified estimate is opt-in via “Blood Oxygen: strap estimate (WHOOP 5/MG, Oura)”; import a WHOOP CSV for a real %.": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "* Schätzung auf dem Gerät: Die Atemfrequenz wird aus Schlag-zu-Schlag-Daten abgeleitet, und die Schritte zählen den Bewegungszähler des Straps nur, solange er Gehen oder Laufen meldet, skaliert mit deiner Schrittkalibrierung. Die Hauttemperatur wird nächtlich gemessen (°C oder im Vergleich zu deiner Basislinie). Kein verifizierter SpO₂-Wert vom Strap: Eine unverifizierte Schätzung gibt es optional über „Blood Oxygen: strap estimate (WHOOP 5/MG, Oura)“; importiere eine WHOOP-CSV für einen echten Wert."}}, "es": {"stringUnit": {"state": "translated", "value": "* Estimación en el dispositivo: la frecuencia respiratoria se deriva de datos latido a latido, y los pasos cuentan el contador de movimiento de la pulsera solo mientras indica caminar o correr, escalado con tu calibración de pasos. La temperatura cutánea se mide por la noche (°C, o respecto a tu línea base). Sin SpO₂ % verificado desde la pulsera: una estimación no verificada es opcional mediante “Blood Oxygen: strap estimate (WHOOP 5/MG, Oura)”; importa un CSV de WHOOP para un valor real."}}, "fr": {"stringUnit": {"state": "translated", "value": "* Estimation sur l’appareil : la fréquence respiratoire est dérivée des données battement par battement, et les pas comptent le compteur de mouvement du bracelet uniquement lorsqu’il indique de la marche ou de la course, mis à l’échelle par votre étalonnage des pas. La température cutanée est mesurée chaque nuit (°C, ou par rapport à votre référence). Pas de SpO₂ % vérifié depuis le bracelet : une estimation non vérifiée est disponible en option via « Blood Oxygen: strap estimate (WHOOP 5/MG, Oura) » ; importez un CSV WHOOP pour une vraie valeur."}}, "it": {"stringUnit": {"state": "translated", "value": "* Stima sul dispositivo: la frequenza respiratoria deriva dai dati battito per battito e i passi contano il contatore di movimento della fascia solo mentre segnala camminata o corsa, scalato con la tua calibrazione dei passi. La temperatura cutanea viene misurata ogni notte (°C, o rispetto alla tua linea di base). Nessun SpO₂ % verificato dalla fascia: una stima non verificata è disponibile come opzione tramite “Blood Oxygen: strap estimate (WHOOP 5/MG, Oura)”; importa un CSV WHOOP per un valore reale."}}, "pl": {"stringUnit": {"state": "translated", "value": "* Szacunek na urządzeniu: częstość oddechów wynika z danych uderzenie po uderzeniu, a kroki liczą licznik ruchu opaski tylko wtedy, gdy zgłasza ona chód lub bieg, przeskalowany Twoją kalibracją kroków. Temperatura skóry jest mierzona co noc (°C lub względem Twojej wartości bazowej). Brak zweryfikowanego SpO₂ % z opaski: niezweryfikowany szacunek jest opcjonalny przez „Blood Oxygen: strap estimate (WHOOP 5/MG, Oura)”; zaimportuj WHOOP CSV, aby uzyskać prawdziwą wartość."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "* Estimativa no dispositivo: a frequência respiratória é derivada de dados batimento a batimento, e os passos contam o contador de movimento da pulseira apenas enquanto este indica caminhada ou corrida, escalado pela tua calibração de passos. A temperatura da pele é medida durante a noite (°C, ou face à tua linha de base). Sem SpO₂ % verificado a partir da pulseira: uma estimativa não verificada está disponível como opção em “Blood Oxygen: strap estimate (WHOOP 5/MG, Oura)”; importa um CSV da WHOOP para um valor real."}}, "ru": {"stringUnit": {"state": "translated", "value": "* Оценка на устройстве: частота дыхания выводится из данных от удара к удару, а шаги считаются по счётчику движения браслета только пока он сообщает ходьбу или бег, с учётом вашей калибровки шагов. Температура кожи измеряется каждую ночь (°C или относительно вашей базовой линии). Подтверждённого SpO₂ % с браслета нет: неподтверждённая оценка включается опционально через «Blood Oxygen: strap estimate (WHOOP 5/MG, Oura)»; для реального значения импортируйте CSV из WHOOP."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "* 设备端估算：呼吸率由逐拍数据推算；步数仅在手环报告步行或跑步时才计入其运动计数器，并按你的步数校准进行换算。皮肤温度每晚测量（°C，或相对于你的基线）。手环没有经过验证的 SpO₂ %：可通过“Blood Oxygen: strap estimate (WHOOP 5/MG, Oura)”选择启用未经验证的估算值；导入 WHOOP CSV 可获得真实数值。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "* 裝置端估算：呼吸率由逐拍資料推算；步數僅在手環回報步行或跑步時才計入其動作計數器，並依你的步數校準進行換算。皮膚溫度每晚測量（°C，或相對於你的基線）。手環沒有經過驗證的 SpO₂ %：可透過「Blood Oxygen: strap estimate (WHOOP 5/MG, Oura)」選擇啟用未經驗證的估算值；匯入 WHOOP CSV 可取得真實數值。"}}}},
     "+%lld pt": {
       "localizations": {
         "de": {
@@ -33965,64 +33799,7 @@
         }
       }
     },
-    "Armed on the strap with an experimental 5/MG command. Strap-driven wakes have been reported on 5.0 and MG, but are not guaranteed. Keep a backup alarm for anything you cannot miss.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Der Alarm wurde mit einem experimentellen 5/MG-Befehl auf dem Strap aktiviert. Weckvorgänge durch den Strap wurden für 5.0 und MG gemeldet, sind aber nicht garantiert. Behalte für alles Wichtige einen Ersatzwecker."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La alarma se activó en la pulsera con un comando experimental 5/MG. Se han comunicado despertares desde pulseras 5.0 y MG, pero no están garantizados. Mantén una alarma de respaldo para lo que no puedas perderte."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "L’alarme est activée sur le bracelet avec une commande expérimentale 5/MG. Des réveils par le bracelet ont été signalés sur 5.0 et MG, sans être garantis. Gardez une alarme de secours pour tout réveil important."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La sveglia è stata attivata sulla fascia con un comando sperimentale 5/MG. Sono stati segnalati risvegli dalla fascia su 5.0 e MG, ma non sono garantiti. Tieni una sveglia di riserva per gli impegni importanti."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O alarme foi armado na pulseira com um comando experimental 5/MG. Foram comunicados despertares pela pulseira em 5.0 e MG, mas não são garantidos. Mantém um alarme de reserva para tudo o que não podes perder."
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Alarm uzbrojono na opasce eksperymentalnym poleceniem 5/MG. Zgłaszano wybudzanie przez opaski 5.0 i MG, ale nie jest ono gwarantowane. Zachowaj alarm zapasowy na ważne okazje."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Будильник установлен на браслете экспериментальной командой 5/MG. Сообщалось о срабатывании на 5.0 и MG, но оно не гарантировано. Оставьте резервный будильник для важных событий."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已通过实验性 5/MG 命令在手环上设置闹钟。有用户报告 5.0 和 MG 手环能够唤醒，但不保证每次生效。重要事项请保留备用闹钟。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已透過實驗性 5/MG 指令在手環上設定鬧鐘。有使用者回報 5.0 和 MG 手環能夠喚醒，但不保證每次生效。重要事項請保留備用鬧鐘。"
-          }
-        }
-      }
-    },
+    "NOOP sets this on the strap with an experimental 5/MG command whenever the strap connects or you change the alarm. Strap-driven wakes have been reported on 5.0 and MG, but are not guaranteed. Keep a backup alarm for anything you cannot miss.": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "NOOP stellt den Alarm mit einem experimentellen 5/MG-Befehl auf dem Strap ein, sobald sich der Strap verbindet oder du den Alarm änderst. Weckvorgänge durch den Strap wurden für 5.0 und MG gemeldet, sind aber nicht garantiert. Behalte für alles Wichtige einen Ersatzwecker."}}, "es": {"stringUnit": {"state": "translated", "value": "NOOP lo configura en la pulsera con un comando experimental 5/MG cada vez que la pulsera se conecta o cambias la alarma. Se han comunicado despertares desde pulseras 5.0 y MG, pero no están garantizados. Mantén una alarma de respaldo para lo que no puedas perderte."}}, "fr": {"stringUnit": {"state": "translated", "value": "NOOP l’enregistre sur le bracelet avec une commande expérimentale 5/MG à chaque connexion du bracelet et à chaque modification de l’alarme. Des réveils par le bracelet ont été signalés sur 5.0 et MG, sans être garantis. Gardez une alarme de secours pour tout réveil important."}}, "it": {"stringUnit": {"state": "translated", "value": "NOOP la imposta sulla fascia con un comando sperimentale 5/MG ogni volta che la fascia si connette o modifichi la sveglia. Sono stati segnalati risvegli dalla fascia su 5.0 e MG, ma non sono garantiti. Tieni una sveglia di riserva per gli impegni importanti."}}, "pl": {"stringUnit": {"state": "translated", "value": "NOOP ustawia ją na opasce eksperymentalnym poleceniem 5/MG za każdym razem, gdy opaska się połączy lub zmienisz alarm. Zgłaszano wybudzanie przez opaski 5.0 i MG, ale nie jest ono gwarantowane. Zachowaj alarm zapasowy na ważne okazje."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "O NOOP define-o na pulseira com um comando experimental 5/MG sempre que a pulseira se liga ou alteras o alarme. Foram comunicados despertares pela pulseira em 5.0 e MG, mas não são garantidos. Mantém um alarme de reserva para tudo o que não podes perder."}}, "ru": {"stringUnit": {"state": "translated", "value": "NOOP устанавливает его на браслете экспериментальной командой 5/MG при каждом подключении браслета и при каждом изменении будильника. Сообщалось о срабатывании на 5.0 и MG, но оно не гарантировано. Оставьте резервный будильник для важных событий."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "每当手环连接或你更改闹钟时，NOOP 都会通过实验性 5/MG 命令将其设置到手环上。有用户报告 5.0 和 MG 手环能够唤醒，但不保证每次生效。重要事项请保留备用闹钟。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "每當手環連線或你更改鬧鐘時，NOOP 都會透過實驗性 5/MG 指令將其設定到手環上。有使用者回報 5.0 和 MG 手環能夠喚醒，但不保證每次生效。重要事項請保留備用鬧鐘。"}}}},
     "Armed on the strap itself, so it can buzz at your wake time even if your phone is asleep or NOOP is closed. Sends the exact alarm command the official app sends, confirmed buzzing on a real WHOOP 4.0 (community wire capture + on-device test, #535). Keep a backup alarm for anything you truly can't miss.": {
       "localizations": {
         "de": {
@@ -34139,122 +33916,7 @@
         }
       }
     },
-    "Arms the strap to buzz at your wake time, even if NOOP is closed. Sends the exact alarm command the official app sends, confirmed buzzing on a real WHOOP 4.0 (community wire capture + on-device test, #535). Keep a backup alarm for anything you truly can't miss.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Armiert den Riemen, um zu deiner Weckzeit zu summen, auch wenn NOOP geschlossen ist. Sendet den genauen Alarmbefehl, den die offizielle App sendet, bestätigtes Summen auf einem echten WHOOP 4.0 (Community-Wire-Capture + On-Device-Test, #535). Halte einen Backup-Alarm für alles, was du wirklich nicht verpassen kannst."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Arma la correa para zumbir en su tiempo de vela, incluso si NOOP está cerrado. Envía el comando de alarma exacto que la aplicación oficial envía, confirma el zumbido en un WHOOP 4.0 real (community wire capture + on-device test, #535). Mantenga una alarma de respaldo para cualquier cosa que realmente no pueda faltar."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bras la sangle pour bourdonner à votre réveil, même si NOOP est fermé. Envoie la commande d'alarme exacte que l'application officielle envoie, confirmé bourdonnement sur un vrai WHOOP 4.0 (prise de fil communautaire + test sur l'appareil, #535). Gardez une alarme de secours pour tout ce que vous ne pouvez vraiment pas manquer."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Imposta la fascia per vibrare all'orario di sveglia, anche se NOOP è chiuso. Invia esattamente lo stesso comando sveglia dell'app ufficiale, con vibrazione confermata su un vero WHOOP 4.0 (cattura del traffico dalla community + test sul dispositivo, #535). Tieni una sveglia di riserva per tutto ciò che non puoi assolutamente perdere."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Arma a pega para vibrar na hora de acordar, mesmo que o NOOP esteja fechado. Envia o comando de alarme exato que a aplicação oficial envia, zumbido confirmado num WHOOP 4.0 real (captura de fio da comunidade + teste no dispositivo, #535). Mantenha um alarme de reserva para qualquer coisa que não possa realmente perder."
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Uzbraja pasek, aby brzęczał w momencie przebudzenia, nawet jeśli NOOP jest zamknięty. Wysyła dokładną komendę alarmową wysyłaną przez oficjalną aplikację, potwierdzone brzęczenie na prawdziwym WHOOP 4.0 (przechwytywanie połączeń społecznościowych + test na urządzeniu, #535). Zachowaj alarm zapasowy na wypadek wszystkiego, czego naprawdę nie możesz przegapić."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Настраивает браслет на вибрацию в час пробуждения, даже если NOOP закрыт. Отправляет ровно ту команду будильника, что и официальное приложение; вибрация подтверждена на настоящем WHOOP 4.0 (перехват трафика сообществом + проверка на устройстве, #535). Оставьте резервный будильник для всего, что действительно нельзя пропустить."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "设置手环在你的起床时间震动，即使 NOOP 已关闭。发送与官方应用完全相同的闹钟命令，已在真实的 WHOOP 4.0 上确认可以震动（社区抓包 + 设备实测，#535）。对于绝不能错过的事项请保留备用闹钟。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "設定手環在你的起床時間震動，即使 NOOP 已關閉。傳送與官方應用程式完全相同的鬧鐘指令，已在真實的 WHOOP 4.0 上確認可以震動（社群封包擷取 + 裝置實測，#535）。對於絕不能錯過的事項請保留備用鬧鐘。"
-          }
-        }
-      }
-    },
-    "Arms the strap to buzz at your wake time, even if NOOP is closed. Still experimental on WHOOP 4.0, so keep a backup alarm until you've confirmed it wakes you.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Stellt den Strap scharf, damit er zu deiner Aufwachzeit vibriert, selbst wenn NOOP geschlossen ist. Auf WHOOP 4.0 noch experimentell, also halte einen Ersatzwecker bereit, bis du bestätigt hast, dass es dich weckt."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Programa la pulsera para vibrar a tu hora de despertar, aunque NOOP esté cerrado. Aún es experimental en WHOOP 4.0, así que mantén una alarma de respaldo hasta confirmar que te despierta."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Arme le bracelet pour vibrer à votre heure de réveil, même si NOOP est fermé. Encore expérimental sur WHOOP 4.0, donc gardez une alarme de secours jusqu'à ce que vous ayez confirmé qu'elle vous réveille."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Imposta la fascia per vibrare all'ora del risveglio, anche se NOOP è chiuso. È ancora sperimentale su WHOOP 4.0, quindi tieni una sveglia di riserva finché non hai verificato che ti svegli."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Arma a pega para vibrar na hora de acordar, mesmo que o NOOP esteja fechado. Ainda experimental no WHOOP 4.0, por isso mantenha um alarme de reserva até confirmar que o acorda."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Активирует вибрацию браслета в момент пробуждения, даже если NOOP закрыт. На WHOOP 4.0 это всё ещё экспериментальная функция, поэтому держите резервный будильник, пока не убедитесь, что она вас будит."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "设定手环在你的起床时间震动，即使 NOOP 已关闭。在 WHOOP 4.0 上仍属实验性，因此在你确认它能叫醒你之前，请保留一个备用闹钟。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "設定手環在你的起床時間震動，即使 NOOP 已關閉。在 WHOOP 4.0 上仍屬實驗性，因此在你確認它能叫醒你之前，請保留一個備用鬧鐘。"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Uzbraja pasek, aby brzęczał w momencie przebudzenia, nawet jeśli NOOP jest zamknięty. Wciąż eksperymentuję z WHOOP 4.0, więc przechowuj alarm zapasowy, dopóki nie potwierdzisz, że cię obudzi."
-          }
-        }
-      }
-    },
+    "Arms the strap to buzz at your wake time, even if NOOP is closed. Sends the exact alarm command the official app sends, confirmed buzzing on a real WHOOP 4.0 (community wire capture + on-device test, #535). On a WHOOP 5/MG this is experimental and only arms while Protocol probes is on (Test Centre → 5/MG protocol diagnostics). Keep a backup alarm for anything you truly can't miss.": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "Stellt den Strap so ein, dass er zu deiner Weckzeit vibriert, auch wenn NOOP geschlossen ist. Sendet genau den Alarmbefehl, den auch die offizielle App sendet; Vibration auf einem echten WHOOP 4.0 bestätigt (Community-Funkmitschnitt + Test am Gerät, #535). Auf einem WHOOP 5/MG ist das experimentell und wird nur eingestellt, solange Protokolltests an sind (Testzentrum → 5/MG-Protokolldiagnose). Behalte einen Ersatzwecker für alles, was du wirklich nicht verpassen darfst."}}, "es": {"stringUnit": {"state": "translated", "value": "Programa la pulsera para vibrar a tu hora de despertar, incluso con NOOP cerrado. Envía exactamente el mismo comando de alarma que la app oficial; la vibración está confirmada en un WHOOP 4.0 real (captura de tráfico de la comunidad + prueba en el dispositivo, #535). En un WHOOP 5/MG es experimental y solo se programa mientras las Sondas de protocolo estén activadas (Centro de pruebas → Diagnóstico del protocolo 5/MG). Mantén una alarma de respaldo para lo que no puedas perderte."}}, "fr": {"stringUnit": {"state": "translated", "value": "Programme le bracelet pour vibrer à votre heure de réveil, même si NOOP est fermé. Envoie exactement la commande d’alarme que l’app officielle envoie ; vibration confirmée sur un vrai WHOOP 4.0 (capture de trames par la communauté + test sur l’appareil, #535). Sur un WHOOP 5/MG, c’est expérimental et l’alarme n’est programmée que lorsque Sondes de protocole est activé (Centre de test → Diagnostics du protocole 5/MG). Gardez une alarme de secours pour tout ce que vous ne pouvez pas manquer."}}, "it": {"stringUnit": {"state": "translated", "value": "Imposta la fascia per vibrare all’ora della sveglia, anche se NOOP è chiuso. Invia esattamente lo stesso comando sveglia dell’app ufficiale; vibrazione confermata su un vero WHOOP 4.0 (cattura del traffico dalla community + test sul dispositivo, #535). Su un WHOOP 5/MG è sperimentale e viene impostata solo con Sonde di protocollo attive (Centro test → Diagnostica protocollo 5/MG). Tieni una sveglia di riserva per tutto ciò che non puoi assolutamente perdere."}}, "pl": {"stringUnit": {"state": "translated", "value": "Ustawia opaskę tak, aby zawibrowała o godzinie pobudki, nawet gdy NOOP jest zamknięty. Wysyła dokładnie to samo polecenie alarmu co oficjalna aplikacja; wibracja potwierdzona na prawdziwym WHOOP 4.0 (przechwycenie transmisji przez społeczność + test na urządzeniu, #535). Na WHOOP 5/MG jest to funkcja eksperymentalna i alarm jest ustawiany tylko przy włączonych Sondach protokołu (Centrum Testowe → Diagnostyka protokołu 5/MG). Zachowaj alarm zapasowy na wszystko, czego naprawdę nie możesz przegapić."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Programa a pulseira para vibrar à hora de acordar, mesmo com o NOOP fechado. Envia exatamente o mesmo comando de alarme que a app oficial; vibração confirmada num WHOOP 4.0 real (captura de tráfego da comunidade + teste no dispositivo, #535). Num WHOOP 5/MG é experimental e só é programado enquanto as Sondas de protocolo estiverem ativadas (Centro de testes → Diagnóstico do protocolo 5/MG). Mantém um alarme de reserva para tudo o que não podes perder."}}, "ru": {"stringUnit": {"state": "translated", "value": "Настраивает браслет на вибрацию в час пробуждения, даже если NOOP закрыт. Отправляет ровно ту же команду будильника, что и официальное приложение; вибрация подтверждена на настоящем WHOOP 4.0 (перехват трафика сообществом + проверка на устройстве, #535). На WHOOP 5/MG это экспериментально: будильник устанавливается, только пока включены Пробы протокола (Тестовый центр → Диагностика протокола 5/MG). Оставьте резервный будильник для всего, что действительно нельзя пропустить."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "设置手环在你的起床时间震动，即使 NOOP 已关闭。发送与官方应用完全相同的闹钟命令，已在真实的 WHOOP 4.0 上确认可以震动（社区抓包 + 设备实测，#535）。在 WHOOP 5/MG 上此功能为实验性，仅在“协议探测”开启时才会设置（测试中心 → 5/MG 协议诊断）。对于绝不能错过的事项请保留备用闹钟。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "設定手環在你的起床時間震動，即使 NOOP 已關閉。傳送與官方應用程式完全相同的鬧鐘指令，已在真實的 WHOOP 4.0 上確認可以震動（社群封包擷取 + 裝置實測，#535）。在 WHOOP 5/MG 上此功能為實驗性，僅在「協定探測」開啟時才會設定（測試中心 → 5/MG 協定診斷）。對於絕不能錯過的事項請保留備用鬧鐘。"}}}},
     "Arrange Today": {
       "localizations": {
         "de": {
@@ -42935,64 +42597,6 @@
         }
       }
     },
-    "Broadcasts the live heart rate NOOP derives from the strap once connected.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sendet die Live-Herzfrequenz, die NOOP aus dem Strap ableitet, sobald verbunden."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Difunde la frecuencia cardíaca en vivo que NOOP obtiene de la pulsera una vez conectada."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Diffuse la fréquence cardiaque en direct que NOOP déduit du bracelet une fois connecté."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Trasmette la frequenza cardiaca in diretta che NOOP ricava dalla fascia una volta connessa."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Transmite a frequência cardíaca em direto que o NOOP deriva da bracelete, uma vez ligada."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Транслирует пульс в реальном времени, который NOOP вычисляет по данным браслета после подключения."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "连接后广播 NOOP 从手环解析出的实时心率。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "連接後，廣播 NOOP 從手環推算出的即時心率。"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Transmituje na żywo tętno NOOP uzyskane z paska po podłączeniu."
-          }
-        }
-      }
-    },
     "Broadcasts the strap's own live heart rate over Bluetooth.": {
       "localizations": {
         "de": {
@@ -46926,64 +46530,7 @@
         }
       }
     },
-    "Can't connect: your strap's pairing was reset": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verbindung nicht möglich: Die Kopplung deines Straps wurde zurückgesetzt"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No se puede conectar: el emparejamiento de tu pulsera se restableció"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Connexion impossible : le jumelage de votre bracelet a été réinitialisé"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Impossibile connettersi, l'associazione della tua fascia è stata reimpostata"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Não é possível ligar: ​​o emparelhamento da tua bracelete foi redefinido"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Не удаётся подключиться: сопряжение браслета было сброшено"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无法连接，你的手环配对已被重置"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "無法連接，你的手環配對已被重置"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nie można się połączyć: parowanie paska zostało zresetowane"
-          }
-        }
-      }
-    },
+    "Your strap needs help to reconnect: steps below": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "Dein Strap braucht Hilfe beim Wiederverbinden: Schritte unten"}}, "es": {"stringUnit": {"state": "translated", "value": "Tu pulsera necesita ayuda para volver a conectarse: pasos abajo"}}, "fr": {"stringUnit": {"state": "translated", "value": "Votre bracelet a besoin d'aide pour se reconnecter : étapes ci-dessous"}}, "it": {"stringUnit": {"state": "translated", "value": "La tua fascia ha bisogno di aiuto per riconnettersi: passaggi qui sotto"}}, "pl": {"stringUnit": {"state": "translated", "value": "Twoja opaska potrzebuje pomocy, aby się ponownie połączyć: kroki poniżej"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "A tua pulseira precisa de ajuda para voltar a ligar-se: passos abaixo"}}, "ru": {"stringUnit": {"state": "translated", "value": "Браслету нужна помощь с повторным подключением: шаги ниже"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "你的手环需要帮助才能重新连接：请见下方步骤"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "你的手環需要協助才能重新連線：請見下方步驟"}}}},
     "Cancel": {
       "localizations": {
         "de": {
@@ -55795,64 +55342,7 @@
         }
       }
     },
-    "Connected. History sync is experimental on 5.0.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verbunden. Verlaufssynchronisierung ist auf 5.0 experimentell."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Conectada. La sincronización del historial es experimental en la 5.0."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Connecté. La synchronisation de l'historique est expérimentale sur la 5.0."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Connessa. La sincronizzazione della cronologia è sperimentale su 5.0."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ligado. A sincronização do histórico é experimental na versão 5.0."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Подключено. Синхронизация истории на 5.0 экспериментальная."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已连接。5.0 上的历史同步为实验性功能。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已連接。歷史同步在 5.0 上仍屬實驗性。"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Połączony. Synchronizacja historii jest eksperymentalna w wersji 5.0."
-          }
-        }
-      }
-    },
+    "Connected. History sync is experimental on WHOOP 5.0/MG.": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "Verbunden. Verlaufssynchronisierung ist auf WHOOP 5.0/MG experimentell."}}, "es": {"stringUnit": {"state": "translated", "value": "Conectada. La sincronización del historial es experimental en WHOOP 5.0/MG."}}, "fr": {"stringUnit": {"state": "translated", "value": "Connecté. La synchronisation de l'historique est expérimentale sur WHOOP 5.0/MG."}}, "it": {"stringUnit": {"state": "translated", "value": "Connessa. La sincronizzazione della cronologia è sperimentale su WHOOP 5.0/MG."}}, "pl": {"stringUnit": {"state": "translated", "value": "Połączono. Synchronizacja historii jest eksperymentalna na WHOOP 5.0/MG."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Ligado. A sincronização do histórico é experimental no WHOOP 5.0/MG."}}, "ru": {"stringUnit": {"state": "translated", "value": "Подключено. Синхронизация истории на WHOOP 5.0/MG экспериментальная."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "已连接。WHOOP 5.0/MG 上的历史同步为实验性功能。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "已連接。歷史同步在 WHOOP 5.0/MG 上仍屬實驗性。"}}}},
     "Connected. New strap data is written automatically, with periodic background refresh when iOS allows it.": {
       "localizations": {
         "de": {
@@ -57983,64 +57473,7 @@
         }
       }
     },
-    "Counter ticks per step. Leave at 1.0 unless your steps run high. On a WHOOP 5/MG they can run very high (10× or more), so this goes up to 30. Walk a known 1,000 steps and divide NOOP's count by the real count to get your value.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zählerticks pro Schritt. Lass es auf 1,0, außer deine Schritte fallen zu hoch aus. Auf einem WHOOP 5/MG können sie sehr hoch ausfallen (10× oder mehr), daher geht das hier bis 30. Geh bekannte 1.000 Schritte und teile NOOPs Zählung durch die echte Zahl, um deinen Wert zu erhalten."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pulsos del contador por paso. Déjalo en 1.0 salvo que tus pasos salgan altos. En una WHOOP 5/MG pueden salir muy altos (10× o más), por eso llega hasta 30. Camina 1.000 pasos conocidos y divide el conteo de NOOP entre el conteo real para obtener tu valor."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Impulsions du compteur par pas. Laissez à 1,0 sauf si vos pas sont très élevés. Sur un WHOOP 5/MG, ils peuvent être très élevés (10× ou plus), donc ceci va jusqu'à 30. Marchez un nombre connu de 1 000 pas et divisez le comptage de NOOP par le comptage réel pour obtenir votre valeur."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Conteggi del contatore per passo, lascia a 1.0 a meno che i tuoi passi non siano molto elevati. Su un WHOOP 5/MG possono essere molto alti (10× o più), quindi questo arriva fino a 30. Cammina per 1.000 passi noti e dividi il conteggio di NOOP per quello reale per ottenere il tuo valore."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Contador de ticks por etapa. Deixe em 1,0, a menos que os teus passos sejam altos. Num WHOOP 5/MG podem correr muito alto (10× ou mais), por isso isto vai até 30. Caminhe 1.000 passos conhecidos e divida a contagem do NOOP pela contagem real para obter o teu valor."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Тиков счётчика на шаг. Оставьте 1,0, если только количество шагов не завышено. На WHOOP 5/MG оно может быть очень высоким (в 10 раз и более), поэтому значение доходит до 30. Пройдите известные 1000 шагов и разделите счёт NOOP на реальное количество, чтобы получить своё значение."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "每步的计数器计数，除非你的步数偏高，否则保持为 1.0。在 WHOOP 5/MG 上，它们可能非常高（10 倍或更多），因此此值最高可到 30。走一段已知的 1,000 步，用 NOOP 的计数除以真实计数，即可得到你的数值。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "每步的計數器計數，除非你的步數偏高，否則保持為 1.0。在 WHOOP 5/MG 上，它們可能非常高（10 倍或更多），因此此值最高可到 30。走一段已知的 1,000 步，用 NOOP 的計數除以真實計數，即可得到你的數值。"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Licznik taktów na krok. Zostaw na 1,0, chyba że Twoje kroki będą wysokie. Na WHOOP 5/MG mogą biegać bardzo wysoko (10× lub więcej), więc liczba ta wzrasta do 30. Przejdź znane 1000 kroków i podziel liczbę NOOP przez liczbę rzeczywistą, aby otrzymać wartość."
-          }
-        }
-      }
-    },
+    "Counter ticks per step for a WHOOP 5/MG's own step counter (a WHOOP 4.0 uses the Steps estimate below instead). Leave at 1.0 unless your steps consistently read high or low. Walk a known 1,000 steps and divide NOOP's count by the real count to get your value.": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "Zählerticks pro Schritt für den eigenen Schrittzähler eines WHOOP 5/MG (ein WHOOP 4.0 nutzt stattdessen die Schrittschätzung unten). Lass es auf 1,0, außer deine Schritte fallen durchgehend zu hoch oder zu niedrig aus. Geh 1.000 bekannte Schritte und teile NOOPs Zählung durch die echte Zahl, um deinen Wert zu erhalten."}}, "es": {"stringUnit": {"state": "translated", "value": "Pulsos del contador por paso para el contador de pasos propio de una WHOOP 5/MG (una WHOOP 4.0 usa en su lugar la estimación de pasos de más abajo). Déjalo en 1.0 salvo que tus pasos salgan siempre altos o bajos. Camina 1.000 pasos conocidos y divide el conteo de NOOP entre el conteo real para obtener tu valor."}}, "fr": {"stringUnit": {"state": "translated", "value": "Impulsions du compteur par pas pour le compteur de pas propre à un WHOOP 5/MG (un WHOOP 4.0 utilise à la place l’estimation des pas ci-dessous). Laissez à 1,0 sauf si vos pas sont systématiquement trop élevés ou trop bas. Marchez 1 000 pas connus et divisez le comptage de NOOP par le comptage réel pour obtenir votre valeur."}}, "it": {"stringUnit": {"state": "translated", "value": "Conteggi del contatore per passo, per il contapassi interno di un WHOOP 5/MG (un WHOOP 4.0 usa invece la stima dei passi qui sotto). Lascia a 1.0 a meno che i tuoi passi risultino costantemente troppo alti o troppo bassi. Cammina per 1.000 passi noti e dividi il conteggio di NOOP per quello reale per ottenere il tuo valore."}}, "pl": {"stringUnit": {"state": "translated", "value": "Takty licznika na krok dla własnego licznika kroków WHOOP 5/MG (WHOOP 4.0 używa zamiast tego szacunku kroków poniżej). Zostaw 1,0, chyba że Twoje kroki są stale zawyżone lub zaniżone. Przejdź znane 1000 kroków i podziel liczbę NOOP przez liczbę rzeczywistą, aby otrzymać swoją wartość."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Ticks do contador por passo para o contador de passos próprio de um WHOOP 5/MG (um WHOOP 4.0 usa, em vez disso, a estimativa de passos abaixo). Deixa em 1,0, a menos que os teus passos saiam sistematicamente altos ou baixos. Caminha 1.000 passos conhecidos e divide a contagem do NOOP pela contagem real para obteres o teu valor."}}, "ru": {"stringUnit": {"state": "translated", "value": "Тиков счётчика на шаг для собственного счётчика шагов WHOOP 5/MG (WHOOP 4.0 вместо этого использует оценку шагов ниже). Оставьте 1,0, если только шаги стабильно не завышены или не занижены. Пройдите известные 1000 шагов и разделите счёт NOOP на реальное количество, чтобы получить своё значение."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "适用于 WHOOP 5/MG 自带计步器的每步计数器计数（WHOOP 4.0 改用下方的步数估算）。除非你的步数持续偏高或偏低，否则保持为 1.0。走一段已知的 1,000 步，用 NOOP 的计数除以真实计数，即可得到你的数值。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "適用於 WHOOP 5/MG 內建計步器的每步計數器計數（WHOOP 4.0 改用下方的步數估算）。除非你的步數持續偏高或偏低，否則保持為 1.0。走一段已知的 1,000 步，用 NOOP 的計數除以真實計數，即可得到你的數值。"}}}},
     "Coupled read": {
       "localizations": {
         "de": {
@@ -74425,64 +73858,7 @@
         }
       }
     },
-    "Finishing the pairing handshake. Sync now becomes available once the strap is paired.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kopplungs-Handshake wird abgeschlossen. „Jetzt synchronisieren“ wird verfügbar, sobald der Strap gekoppelt ist."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Terminando el handshake de emparejamiento. Sincronizar ahora estará disponible una vez que la pulsera esté emparejada."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Finalisation de la poignée de main d'appairage. La synchronisation immédiate devient disponible une fois le bracelet appairé."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Completamento della procedura di abbinamento. La sincronizzazione immediata sarà disponibile una volta abbinata la fascia."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Finalização do aperto de mão de emparelhamento. A sincronização fica agora disponível quando a bracelete é emparelhada."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Завершение процедуры сопряжения. Синхронизация станет доступна, как только браслет будет сопряжён."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在完成配对握手。手环配对后即可使用同步。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在完成配對交握。手環配對完成後，即可使用「立即同步」。"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zakończenie uścisku dłoni w ramach parowania. Synchronizacja staje się teraz dostępna po sparowaniu paska."
-          }
-        }
-      }
-    },
+    "Sync now isn't available on this connection yet. Pulling stored history needs the strap's full secure pairing, which hasn't completed.": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "„Jetzt synchronisieren“ ist auf dieser Verbindung noch nicht verfügbar. Das Abrufen des gespeicherten Verlaufs braucht die vollständige, sichere Kopplung des Straps, die noch nicht abgeschlossen ist."}}, "es": {"stringUnit": {"state": "translated", "value": "«Sincronizar ahora» aún no está disponible en esta conexión. Obtener el historial almacenado requiere el emparejamiento seguro completo de la pulsera, que no se ha completado."}}, "fr": {"stringUnit": {"state": "translated", "value": "« Synchroniser maintenant » n'est pas encore disponible sur cette connexion. La récupération de l'historique stocké nécessite l'appairage sécurisé complet du bracelet, qui n'est pas terminé."}}, "it": {"stringUnit": {"state": "translated", "value": "«Sincronizza ora» non è ancora disponibile su questa connessione. Recuperare la cronologia memorizzata richiede l'associazione sicura completa della fascia, che non è stata completata."}}, "pl": {"stringUnit": {"state": "translated", "value": "„Zsynchronizuj teraz” nie jest jeszcze dostępne przy tym połączeniu. Pobranie zapisanej historii wymaga pełnego, bezpiecznego sparowania opaski, które nie zostało ukończone."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "«Sincronize agora» ainda não está disponível nesta ligação. Obter o histórico guardado requer o emparelhamento seguro completo da pulseira, que não foi concluído."}}, "ru": {"stringUnit": {"state": "translated", "value": "«Синхронизировать сейчас» пока недоступно при этом подключении. Для получения сохранённой истории нужно полное защищённое сопряжение браслета, которое не завершено."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "此连接上暂时无法使用“立即同步”。拉取已存储的历史数据需要手环完成完整的安全配对，而配对尚未完成。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "此連線上暫時無法使用「立即同步」。拉取已儲存的歷史資料需要手環完成完整的安全配對，而配對尚未完成。"}}}},
     "Fire a single haptic pulse on the strap (requires a bonded connection)": {
       "localizations": {
         "de": {
@@ -81927,64 +81303,7 @@
         }
       }
     },
-    "Heart rate · HRV · Skin temp* · Resp rate* · Steps* · Sleep · Strain · Battery": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Herzfrequenz · HRV · Hauttemp.* · Atemfreq.* · Schritte* · Schlaf · Belastung · Akku"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Frecuencia cardíaca · VFC · Temp. cutánea* · Frec. respiratoria* · Pasos* · Sueño · Esfuerzo · Batería"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fréquence cardiaque · VFC · Temp. cutanée* · Fréq. respiratoire* · Pas* · Sommeil · Effort · Batterie"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Frequenza cardiaca · HRV · Temp. cutanea* · Freq. respiratoria* · Passi* · Sonno · Carico · Batteria"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Frequência cardíaca · VFC · Temperatura da pele* · Frequência respiratória* · Passos* · Sono · Tensão · Bateria"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Пульс · ВСР · Темп. кожи* · Частота дыхания* · Шаги* · Сон · Нагрузка · Батарея"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "心率 · HRV · 皮肤温度* · 呼吸频率* · 步数* · 睡眠 · 强度 · 电量"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "心率 · HRV · 皮膚溫度* · 呼吸率* · 步數* · 睡眠 · 強度 · 電量"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tętno · HRV · Temperatura skóry* · Częstość oddechów* · Kroki* · Sen · Obciążenie · Bateria"
-          }
-        }
-      }
-    },
+    "Heart rate · HRV · Skin temp · Resp rate* · Steps* · Sleep · Strain · Battery": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "Herzfrequenz · HRV · Hauttemp. · Atemfreq.* · Schritte* · Schlaf · Belastung · Akku"}}, "es": {"stringUnit": {"state": "translated", "value": "Frecuencia cardíaca · VFC · Temp. cutánea · Frec. respiratoria* · Pasos* · Sueño · Esfuerzo · Batería"}}, "fr": {"stringUnit": {"state": "translated", "value": "Fréquence cardiaque · VFC · Temp. cutanée · Fréq. respiratoire* · Pas* · Sommeil · Effort · Batterie"}}, "it": {"stringUnit": {"state": "translated", "value": "Frequenza cardiaca · HRV · Temp. cutanea · Freq. respiratoria* · Passi* · Sonno · Carico · Batteria"}}, "pl": {"stringUnit": {"state": "translated", "value": "Tętno · HRV · Temperatura skóry · Częstość oddechów* · Kroki* · Sen · Obciążenie · Bateria"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Frequência cardíaca · VFC · Temperatura da pele · Frequência respiratória* · Passos* · Sono · Tensão · Bateria"}}, "ru": {"stringUnit": {"state": "translated", "value": "Пульс · ВСР · Темп. кожи · Частота дыхания* · Шаги* · Сон · Нагрузка · Батарея"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "心率 · HRV · 皮肤温度 · 呼吸频率* · 步数* · 睡眠 · 强度 · 电量"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "心率 · HRV · 皮膚溫度 · 呼吸率* · 步數* · 睡眠 · 強度 · 電量"}}}},
     "Heart rate · HRV* · Sleep · Resting HR · Skin temp* · Battery": {
       "localizations": {
         "de": {
@@ -83383,64 +82702,7 @@
         }
       }
     },
-    "History sync is experimental on 5.0.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verlaufssynchronisierung ist auf 5.0 experimentell."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La sincronización del historial es experimental en la 5.0."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La synchronisation de l'historique est expérimentale sur 5.0."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La sincronizzazione della cronologia è sperimentale su 5.0."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A sincronização do histórico é experimental na versão 5.0."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Синхронизация истории экспериментальна на 5.0."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "历史同步在 5.0 上属实验性。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "歷史同步在 5.0 上屬實驗性。"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Synchronizacja historii jest eksperymentalna w wersji 5.0."
-          }
-        }
-      }
-    },
+    "History sync is experimental on WHOOP 5.0/MG.": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "Verlaufssynchronisierung ist auf WHOOP 5.0/MG experimentell."}}, "es": {"stringUnit": {"state": "translated", "value": "La sincronización del historial es experimental en WHOOP 5.0/MG."}}, "fr": {"stringUnit": {"state": "translated", "value": "La synchronisation de l'historique est expérimentale sur WHOOP 5.0/MG."}}, "it": {"stringUnit": {"state": "translated", "value": "La sincronizzazione della cronologia è sperimentale su WHOOP 5.0/MG."}}, "pl": {"stringUnit": {"state": "translated", "value": "Synchronizacja historii jest eksperymentalna na WHOOP 5.0/MG."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "A sincronização do histórico é experimental no WHOOP 5.0/MG."}}, "ru": {"stringUnit": {"state": "translated", "value": "Синхронизация истории на WHOOP 5.0/MG экспериментальная."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "WHOOP 5.0/MG 上的历史同步为实验性功能。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "歷史同步在 WHOOP 5.0/MG 上仍屬實驗性。"}}}},
     "History synced": {
       "localizations": {
         "de": {
@@ -106755,10 +106017,7 @@
       "comment": "MEDICAL SAFETY COPY — needs a native speaker, not a machine translation. Deliberately left untranslated: a disclaimer that drifts in meaning is worse than one shown in English. Until a human translates it, the absent localizations make the runtime fall back to this English source text, which is correct and complete. Keep every element when translating: not a medical device, not a diagnosis, and the instruction to see a doctor.",
       "shouldTranslate": false
     },
-    "NOOP is not a medical device and this is not an ECG test. It asks your MG to start its ECG subsystem and logs whatever comes back — unvalidated instrumentation for protocol research, never a measurement or a diagnosis, including any heart-rhythm classification the strap happens to send. Don't use it to make a health decision; see a doctor if you have symptoms.\n\nHold the two indents on the clasp with the fingers of your other hand for the whole capture. The MG measures across your wrist AND that clasp, so until you hold it the circuit is open, the strap has nothing to record, and you would see zero packets whatever the firmware did.\n\nNobody has confirmed a strap honours these commands, so the likely outcome is that nothing happens. Everything here is reversible: “Stop” turns the streams back off. Results land in the strap log.": {
-      "comment": "MEDICAL SAFETY COPY — needs a native speaker, not a machine translation. Deliberately left untranslated: a disclaimer that drifts in meaning is worse than one shown in English. Until a human translates it, the absent localizations make the runtime fall back to this English source text, which is correct and complete. Keep every element when translating: not a medical device, not a diagnosis, and the instruction to see a doctor. The middle paragraph is a RUN INSTRUCTION, not a disclaimer: without the clasp held the electrode circuit is open and the capture returns zero packets for a reason that has nothing to do with the firmware, so a translation that loses it produces false negatives in the very reports #891 is asking people for.",
-      "shouldTranslate": false
-    },
+    "NOOP is not a medical device and this is not an ECG test. It asks your MG to start its ECG subsystem and logs whatever comes back — unvalidated instrumentation for protocol research, never a measurement or a diagnosis, including any heart-rhythm classification the strap happens to send. Don't use it to make a health decision; see a doctor if you have symptoms.\n\nHold the two indents on the clasp with the fingers of your other hand for the whole capture. The MG measures across your wrist AND that clasp, so until you hold it the circuit is open, the strap has nothing to record, and you would see zero packets whatever the firmware did.\n\nResults vary between straps: some MG runs have streamed live ECG frames, others acknowledge every command and send nothing, so an empty capture is a common result. Everything here is reversible: “Stop” turns the streams back off. Results land in the strap log.": {"comment": "MEDICAL SAFETY COPY — needs a native speaker, not a machine translation. Deliberately left untranslated: a disclaimer that drifts in meaning is worse than one shown in English. Until a human translates it, the absent localizations make the runtime fall back to this English source text, which is correct and complete. Keep every element when translating: not a medical device, not a diagnosis, and the instruction to see a doctor. The middle paragraph is a RUN INSTRUCTION, not a disclaimer: without the clasp held the electrode circuit is open and the capture returns zero packets for a reason that has nothing to do with the firmware, so a translation that loses it produces false negatives in the very reports #891 is asking people for.", "shouldTranslate": false},
     "NOOP is not a medical device. It is for informational and personal-insight purposes only and is not intended to diagnose, treat, cure or prevent any condition. Talk to a clinician for medical advice.": {
       "localizations": {
         "de": {
@@ -123940,64 +123199,7 @@
         }
       }
     },
-    "Pairing…": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wird gekoppelt…"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Emparejando…"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Association…"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Abbinamento in corso…"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Emparelhamento…"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Сопряжение…"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "配对中…"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "配對中…"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Łączenie w pary…"
-          }
-        }
-      }
-    },
+    "Not fully paired": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "Nicht vollständig gekoppelt"}}, "es": {"stringUnit": {"state": "translated", "value": "No totalmente emparejada"}}, "fr": {"stringUnit": {"state": "translated", "value": "Pas entièrement appairé"}}, "it": {"stringUnit": {"state": "translated", "value": "Non completamente associata"}}, "pl": {"stringUnit": {"state": "translated", "value": "Nie w pełni sparowana"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Não totalmente emparelhada"}}, "ru": {"stringUnit": {"state": "translated", "value": "Сопряжение не завершено"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "尚未完全配对"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "尚未完全配對"}}}},
     "Pairs directly with your strap over Bluetooth: no WHOOP app, no cloud.": {
       "localizations": {
         "de": {
@@ -128454,64 +127656,7 @@
         }
       }
     },
-    "Put the band into pairing mode, on your wrist and awake.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Versetze das Band in den Kopplungsmodus, am Handgelenk und wach."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pon la banda en modo de emparejamiento, en tu muñeca y activa."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mettez la bande en mode d'appairage, à votre poignet et activée."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Metti la band in modalità abbinamento, al polso e attiva."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Coloque a bracelete no modo de emparelhamento, no pulso e acordada."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Переведите браслет в режим сопряжения, наденьте на запястье и убедитесь, что он активен."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "让手环进入配对模式，戴在手腕上并保持唤醒。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "讓手環進入配對模式，戴在你的手腕上並保持喚醒。"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Przełącz opaskę w tryb parowania, załóż ją na nadgarstek i obudź się."
-          }
-        }
-      }
-    },
+    "Put the band into pairing mode: tap it repeatedly until its LEDs flash blue. Keep it on your wrist and awake.": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "Versetze das Band in den Kopplungsmodus: Tippe wiederholt darauf, bis die LEDs blau blinken. Trage es am Handgelenk und lass es wach."}}, "es": {"stringUnit": {"state": "translated", "value": "Pon la banda en modo de emparejamiento: tócala repetidamente hasta que sus LED parpadeen en azul. Mantenla en la muñeca y activa."}}, "fr": {"stringUnit": {"state": "translated", "value": "Mettez le bracelet en mode d'appairage : tapotez-le à plusieurs reprises jusqu'à ce que ses LED clignotent en bleu. Gardez-le au poignet et éveillé."}}, "it": {"stringUnit": {"state": "translated", "value": "Metti la fascia in modalità di associazione: toccala ripetutamente finché i LED non lampeggiano in blu. Tienila al polso e attiva."}}, "pl": {"stringUnit": {"state": "translated", "value": "Włącz na opasce tryb parowania: stukaj w nią wielokrotnie, aż diody LED zaczną migać na niebiesko. Trzymaj ją na nadgarstku i w stanie aktywnym."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Coloca a pulseira em modo de emparelhamento: toca nela repetidamente até os LED piscarem a azul. Mantém-na no pulso e ativa."}}, "ru": {"stringUnit": {"state": "translated", "value": "Переведите браслет в режим сопряжения: несколько раз постучите по нему, пока светодиоды не замигают синим. Держите его на запястье и в активном состоянии."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "让手环进入配对模式：反复轻拍手环，直到指示灯闪烁蓝色。请将其戴在手腕上并保持唤醒。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "讓手環進入配對模式：反覆輕拍手環，直到指示燈閃爍藍色。請將其戴在手腕上並保持喚醒。"}}}},
     "Put the strap on first. The deep stream is on-wrist only.": {
       "localizations": {
         "de": {
@@ -134871,64 +134016,7 @@
         }
       }
     },
-    "Recovery, Test Centre, experimental probes, and backup. Tucked away to keep the everyday screen tidy.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Erholung, Testzentrum, experimentelle Sonden und Sicherung. Verstaut, damit der Alltags-Bildschirm aufgeräumt bleibt."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Recuperación, Test Centre, pruebas experimentales y respaldo. Guardado aparte para mantener ordenada la pantalla de uso diario."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Récupération, Centre de test, sondes expérimentales et sauvegarde. Rangés à part pour garder l'écran du quotidien épuré."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Recupero, Centro test, sonde sperimentali e backup. Messi da parte per mantenere ordinata la schermata di tutti i giorni."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Recuperação, Centro de Testes, sondas experimentais e cópia de segurança. Escondido para manter o ecrã do dia a dia organizado."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Восстановление, Тестовый центр, экспериментальные пробы и резервное копирование. Убрано подальше, чтобы не загромождать повседневный экран."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "恢复、测试中心、实验性探测和备份。收纳于此，让日常界面保持整洁。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "恢復、測試中心、實驗性探測和備份。收納於此，讓日常畫面保持整潔。"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Regeneracja, Centrum testowe, sondy eksperymentalne i kopia zapasowa. Schowany, aby utrzymać porządek na ekranie na co dzień."
-          }
-        }
-      }
-    },
+    "Recovery, HRV tuning, Test Centre (including the WHOOP 5/MG protocol probes), experimental features, and backup. Tucked away to keep the everyday screen tidy.": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "Erholung, HRV-Abstimmung, Testzentrum (einschließlich der Protokolltests für WHOOP 5/MG), experimentelle Funktionen und Sicherung. Verstaut, damit der Alltags-Bildschirm aufgeräumt bleibt."}}, "es": {"stringUnit": {"state": "translated", "value": "Recuperación, ajuste de HRV, Centro de pruebas (incluidas las sondas de protocolo de WHOOP 5/MG), funciones experimentales y respaldo. Guardado aparte para mantener ordenada la pantalla de uso diario."}}, "fr": {"stringUnit": {"state": "translated", "value": "Récupération, réglage de la VFC, Centre de test (y compris les sondes de protocole WHOOP 5/MG), fonctions expérimentales et sauvegarde. Rangés à part pour garder l'écran du quotidien épuré."}}, "it": {"stringUnit": {"state": "translated", "value": "Recupero, regolazione HRV, Centro test (comprese le sonde di protocollo WHOOP 5/MG), funzioni sperimentali e backup. Messi da parte per mantenere ordinata la schermata di tutti i giorni."}}, "pl": {"stringUnit": {"state": "translated", "value": "Regeneracja, strojenie HRV, Centrum testowe (w tym sondy protokołu WHOOP 5/MG), funkcje eksperymentalne i kopia zapasowa. Schowane, aby utrzymać porządek na ekranie na co dzień."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Recuperação, ajuste de HRV, Centro de Testes (incluindo as sondas de protocolo do WHOOP 5/MG), funcionalidades experimentais e cópia de segurança. Escondido para manter o ecrã do dia a dia organizado."}}, "ru": {"stringUnit": {"state": "translated", "value": "Восстановление, настройка HRV, Тестовый центр (включая пробы протокола WHOOP 5/MG), экспериментальные функции и резервное копирование. Убрано подальше, чтобы не загромождать повседневный экран."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "恢复、HRV 调校、测试中心（包括 WHOOP 5/MG 协议探测）、实验性功能和备份。收纳于此，让日常界面保持整洁。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "恢復、HRV 調校、測試中心（包括 WHOOP 5/MG 協定探測）、實驗性功能和備份。收納於此，讓日常畫面保持整潔。"}}}},
     "Recovery, strain and sleep in one glance": {
       "localizations": {
         "de": {
@@ -164565,64 +163653,6 @@
         }
       }
     },
-    "The WHOOP MG has ECG electrodes in its clasp. This unlocks a gated, hand-run probe on the Devices screen that asks the strap to start its ECG subsystem and logs whatever comes back. MG only — a plain WHOOP 5.0 has no electrodes, and NOOP will refuse to send unless your strap identifies itself as an MG. Nobody has confirmed a strap honours these commands, so it may simply do nothing. Turn on “Record puffin frames to a file” below first if you want a complete byte-level capture to share.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Der WHOOP MG hat EKG-Elektroden im Verschluss. Das schaltet auf dem Bildschirm „Geräte“ eine abgesicherte, von Hand gestartete Probe frei, die den Strap auffordert, sein EKG-Subsystem zu starten, und alles protokolliert, was zurückkommt. Nur MG — ein einfacher WHOOP 5.0 hat keine Elektroden, und NOOP sendet nur, wenn sich dein Strap als MG ausweist. Niemand hat bestätigt, dass ein Strap diese Befehle befolgt, es kann also schlicht nichts passieren. Schalte zuerst unten „Puffin-Frames in eine Datei aufzeichnen“ ein, wenn du eine vollständige Aufzeichnung auf Byte-Ebene zum Teilen möchtest."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "El WHOOP MG tiene electrodos de ECG en el cierre. Esto desbloquea en la pantalla «Dispositivos» una sonda restringida y de ejecución manual que pide a la pulsera que inicie su subsistema de ECG y registra todo lo que llegue. Solo MG: una WHOOP 5.0 normal no tiene electrodos, y NOOP se negará a enviar a menos que tu pulsera se identifique como MG. Nadie ha confirmado que una pulsera obedezca estos comandos, así que puede que simplemente no haga nada. Activa antes «Graba fotogramas puffin en un archivo», más abajo, si quieres una captura completa a nivel de bytes para compartir."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Le WHOOP MG possède des électrodes ECG dans son fermoir. Cela débloque, sur l'écran « Appareils », une sonde restreinte et lancée à la main qui demande au bracelet de démarrer son sous-système ECG et journalise tout ce qui revient. MG uniquement — un WHOOP 5.0 ordinaire n'a pas d'électrodes, et NOOP refusera d'envoyer si votre bracelet ne s'identifie pas comme un MG. Personne n'a confirmé qu'un bracelet honore ces commandes, il se peut donc qu'il ne se passe rien. Activez d'abord « Enregistrer les trames puffin dans un fichier » ci-dessous si vous voulez une capture complète au niveau des octets à partager."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Il WHOOP MG ha elettrodi ECG nella chiusura. Questo sblocca, nella schermata «Dispositivi», una sonda vincolata ed eseguita a mano che chiede alla fascia di avviare il suo sottosistema ECG e registra tutto ciò che torna indietro. Solo MG — un normale WHOOP 5.0 non ha elettrodi e NOOP si rifiuterà di inviare se la fascia non si identifica come MG. Nessuno ha confermato che una fascia rispetti questi comandi, quindi potrebbe semplicemente non fare nulla. Attiva prima «Registra i frame puffin in un file» qui sotto se vuoi un'acquisizione completa a livello di byte da condividere."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O WHOOP MG tem elétrodos de ECG no fecho. Isto desbloqueia, no ecrã «Dispositivos», uma sonda restrita e executada à mão que pede à bracelete para iniciar o seu subsistema de ECG e regista tudo o que voltar. Apenas MG — um WHOOP 5.0 normal não tem elétrodos, e o NOOP recusa enviar a menos que a tua bracelete se identifique como MG. Ninguém confirmou que uma bracelete cumpra estes comandos, por isso pode simplesmente não fazer nada. Ativa primeiro «Gravar frames de papagaios-do-mar num ficheiro», abaixo, se quiseres uma captura completa ao nível dos bytes para partilhar."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "У WHOOP MG есть электроды ЭКГ в застёжке. Это открывает на экране «Устройства» ограниченную пробу, запускаемую вручную: она просит браслет запустить подсистему ЭКГ и записывает всё, что придёт в ответ. Только MG — у обычного WHOOP 5.0 электродов нет, и NOOP откажется отправлять команды, если браслет не идентифицирует себя как MG. Никто не подтвердил, что браслет выполняет эти команды, поэтому может просто ничего не произойти. Сначала включите ниже «Записывать пакеты данных puffin в файл», если хотите получить полную побайтовую запись, которой можно поделиться."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WHOOP MG 的表扣中带有心电图电极。此选项会在「设备」界面解锁一个受限的手动探测：它请求手环启动其心电图子系统，并记录返回的所有内容。仅限 MG——普通的 WHOOP 5.0 没有电极，除非你的手环表明自己是 MG，否则 NOOP 将拒绝发送。没有人确认过手环会执行这些命令，因此可能根本不会有任何反应。如果你想获得完整的字节级采集以便分享，请先启用下方的「将 puffin 帧记录到文件」。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WHOOP MG 的錶扣中帶有心電圖電極。此選項會在「裝置」畫面解鎖一個受限的手動探測：它請求手環啟動其心電圖子系統，並記錄回傳的所有內容。僅限 MG——一般的 WHOOP 5.0 沒有電極，除非你的手環表明自己是 MG，否則 NOOP 將拒絕傳送。沒有人確認過手環會執行這些命令，因此可能根本不會有任何反應。如果你想取得完整的位元組層級擷取以便分享，請先啟用下方的「將 puffin 幀記錄到檔案」。"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WHOOP MG ma w zapięciu elektrody ECG. Odblokowuje to bramkowaną, ręcznie uruchamianą sondę na ekranie Urządzenia, która prosi pasek o uruchomienie podsystemu ECG i rejestruje wszystko, co wróci. Tylko MG — zwykły WHOOP 5.0 nie ma elektrod, a NOOP odmówi wysłania, chyba że Twój pasek zidentyfikuje się jako MG. Nikt nie potwierdził, że pasek spełnia te polecenia, więc może po prostu nic nie robić. Włącz najpierw opcję „Nagraj klatki maskonurów do pliku” poniżej, jeśli chcesz udostępnić pełne przechwycenie na poziomie bajtów."
-          }
-        }
-      }
-    },
     "The average above was edited. The graph, zones and Effort stay from the recorded session.": {
       "localizations": {
         "de": {
@@ -165615,123 +164645,7 @@
         }
       }
     },
-    "The wake-alarm above buzzes your wrist from the strap's own firmware. It can't sound a loud alarm, and a sideloaded app can't sound a reliable background wake on this device either (that needs a critical-alert permission this build doesn't have). Keep your phone's built-in Clock alarm as a backup. NOOP's phone-based smart wake (light-sleep detection) is available on the Android app.": {
-      "extractionState": "stale",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Der Weckalarm oben vibriert dein Handgelenk aus der Firmware des Straps. Er kann keinen lauten Alarm abspielen, und eine sideloadete App kann auf diesem Gerät auch kein zuverlässiges Hintergrund-Wecken abspielen (dafür braucht es eine Berechtigung für kritische Hinweise, die dieser Build nicht hat). Behalte den eingebauten Wecker deines Telefons als Backup. NOOPs telefonbasiertes Smart-Wecken (Leichtschlaf-Erkennung) gibt es in der Android-App."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La alarma de despertar de arriba vibra en tu muñeca desde el propio firmware de la pulsera. No puede sonar como una alarma fuerte, y una app instalada por sideload tampoco puede garantizar un despertar en segundo plano en este dispositivo (eso requiere un permiso de alertas críticas que esta versión no tiene). Mantén la alarma del Reloj de tu teléfono como respaldo. El despertar inteligente de NOOP basado en el teléfono (detección de sueño ligero) está disponible en la app de Android."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "L'alarme de réveil ci-dessus fait vibrer votre poignet depuis le micrologiciel du bracelet lui-même. Elle ne peut pas émettre une alarme sonore forte, et une app installée en sideload ne peut pas non plus émettre un réveil fiable en arrière-plan sur cet appareil (cela nécessite une autorisation d'alerte critique que cette version n'a pas). Gardez l'alarme intégrée de l'app Horloge de votre téléphone comme solution de secours. Le réveil intelligent de NOOP basé sur le téléphone (détection du sommeil léger) est disponible dans l'app Android."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La sveglia qui sopra fa vibrare il tuo polso dal firmware stesso della fascia. Non può emettere una sveglia sonora, e nemmeno un'app installata tramite sideload può emettere una sveglia in background affidabile su questo dispositivo (servirebbe un permesso di avviso critico che questa build non ha). Tieni la sveglia integrata Orologio del tuo telefono come riserva. La sveglia intelligente di NOOP basata sul telefono (rilevamento del sonno leggero) è disponibile nell'app Android."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O despertador acima vibra no teu pulso a partir do firmware da própria bracelete. Não pode fazer soar um alarme alto e uma aplicação transferida por sideload também não pode fazer soar uma ativação de fundo fiável neste dispositivo (que precisa de uma permissão de alerta crítico que esta compilação não tem). Mantenha o alarme do relógio integrado do teu telemóvel como cópia de segurança. O smart wake baseado no telefone do NOOP (deteção de sono leve) está disponível na aplicação Android."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Будильник выше вибрирует на запястье силами собственной прошивки браслета. Он не может подать громкий звуковой сигнал, а стороннее (сайдлоаднутое) приложение также не может надёжно разбудить в фоне на этом устройстве (для этого нужно разрешение критических уведомлений, которого нет в этой сборке). Используйте встроенный будильник «Часы» на телефоне как резервный вариант. Умное пробуждение NOOP на основе телефона (определение лёгкого сна) доступно в приложении для Android."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "上方的唤醒闹钟通过手环自身的固件震动你的手腕。它无法发出响亮的闹钟声，而旁加载的应用在此设备上也无法发出可靠的后台唤醒（那需要此版本所不具备的关键提醒权限）。请保留你手机内置的「时钟」闹钟作为备用。NOOP 基于手机的智能唤醒（浅睡检测）在 Android 应用上可用。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "上方的喚醒鬧鐘透過手環自身的韌體震動你的手腕。它無法發出響亮的鬧鐘聲，而側載的應用程式在此裝置上也無法發出可靠的背景喚醒（那需要此版本所不具備的關鍵提醒權限）。請保留你手機內建的「時鐘」鬧鐘作為備用。NOOP 基於手機的智慧喚醒（淺睡偵測）在 Android 應用程式上可用。"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Powyższy alarm budzenia włączy się na nadgarstku za pomocą oprogramowania wbudowanego paska. Nie może włączyć głośnego alarmu, a aplikacja załadowana z boku nie może również wywołać niezawodnego wybudzenia w tle na tym urządzeniu (co wymaga pozwolenia na alert krytyczny, którego nie ma ta kompilacja). Zachowaj wbudowany budzik w telefonie jako kopię zapasową. Inteligentne budzenie w telefonie NOOP (wykrywanie lekkiego snu) jest dostępne w aplikacji Android."
-          }
-        }
-      }
-    },
-    "The wake-alarm above buzzes your wrist from the strap's own firmware. It can't sound a loud alarm. We also schedule a backup notification at your wake time, but a sideloaded app can't sound a guaranteed wake on this device (that needs a critical-alert permission this build doesn't have), so Focus or silent mode can still mute it. Keep your phone's built-in Clock alarm as your real backup. NOOP's phone-based smart wake (light-sleep detection) is available on the Android app.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Der Weckalarm oben vibriert dein Handgelenk aus der Firmware des Straps. Er kann keinen lauten Alarm abspielen. Wir planen zusätzlich eine Backup-Mitteilung zu deiner Aufwachzeit, aber eine sideloadete App kann auf diesem Gerät kein garantiertes Wecken abspielen (dafür braucht es eine Berechtigung für kritische Hinweise, die dieser Build nicht hat) – Fokus oder Lautlos können sie also stummschalten. Behalte den eingebauten Wecker deines Telefons als echtes Backup. NOOPs telefonbasiertes Smart-Wecken (Leichtschlaf-Erkennung) gibt es in der Android-App."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La alarma de despertar de arriba vibra en tu muñeca desde el propio firmware de la pulsera. No puede sonar como una alarma fuerte. También programamos una notificación de respaldo a tu hora de despertar, pero una app instalada por sideload no puede garantizar un despertar en este dispositivo (eso requiere un permiso de alertas críticas que esta versión no tiene), así que un modo de concentración o el silencio pueden acallarla. Mantén la alarma del Reloj de tu teléfono como tu verdadero respaldo. El despertar inteligente de NOOP basado en el teléfono (detección de sueño ligero) está disponible en la app de Android."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "L'alarme de réveil ci-dessus fait vibrer votre poignet depuis le micrologiciel du bracelet lui-même. Elle ne peut pas émettre une alarme sonore forte. Nous programmons aussi une notification de secours à l'heure de votre réveil, mais une app installée en sideload ne peut pas garantir un réveil sonore sur cet appareil (cela nécessite une autorisation d'alerte critique que cette version n'a pas), donc le mode Focus ou le mode silencieux peuvent quand même la couper. Gardez l'alarme intégrée de l'app Horloge de votre téléphone comme véritable solution de secours. Le réveil intelligent de NOOP basé sur le téléphone (détection du sommeil léger) est disponible dans l'app Android."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La sveglia qui sopra ti fa vibrare il polso dal firmware della fascia stessa. Non può suonare una sveglia sonora. Programmiamo anche una notifica di riserva alla tua ora di risveglio, ma un'app sideloaded non può garantire un risveglio sonoro su questo dispositivo (servirebbe il permesso per avvisi critici che questa build non ha), quindi Full immersion o la modalità silenziosa possono comunque silenziarla. Tieni la sveglia dell'app Orologio del telefono come vera riserva. La sveglia smart di NOOP basata sul telefono (rilevamento del sonno leggero) è disponibile nell'app Android."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O despertador acima vibra no teu pulso a partir do firmware da própria bracelete. Não pode fazer soar um alarme alto. Também agendamos uma notificação de cópia de segurança no horário de ativação, mas uma aplicação transferida por sideload não pode soar uma ativação garantida neste dispositivo (que precisa de uma permissão de alerta crítico que esta compilação não tem), pelo que o modo Foco ou silencioso ainda pode silenciá-lo. Mantenha o alarme de relógio integrado do teu telemóvel como o teu verdadeiro cópia de segurança. O smart wake baseado no telefone do NOOP (deteção de sono leve) está disponível na aplicação Android."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Будильник выше вибрирует на запястье силами собственной прошивки браслета. Он не может подать громкий звуковой сигнал. Мы также планируем резервное уведомление на время пробуждения, но стороннее (сайдлоаднутое) приложение не может гарантированно разбудить на этом устройстве (для этого нужно разрешение критических уведомлений, которого нет в этой сборке), поэтому режим «Не беспокоить» или беззвучный режим всё равно может его заглушить. Используйте встроенный будильник «Часы» на телефоне как настоящий резервный вариант. Умное пробуждение NOOP на основе телефона (определение лёгкого сна) доступно в приложении для Android."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "上方的唤醒闹钟由手环自身固件震动你的手腕，无法发出响亮的闹铃。我们也会在你的起床时间安排一条备用通知，但侧载应用在此设备上无法保证响铃唤醒（那需要本构建版本没有的重要提醒权限），因此专注模式或静音模式仍可能将其静音。请保留手机自带时钟闹钟作为真正的后备。NOOP 基于手机的智能唤醒（浅睡检测）在 Android 应用上可用。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "上方的喚醒鬧鐘由手環自身的韌體震動你的手腕，它無法發出響亮的鬧鈴。我們也會在你的起床時間安排一則備用通知，但側載應用程式無法在此裝置上保證發出喚醒聲音（那需要此建置版本沒有的重要警示權限），因此專注模式或靜音模式仍可能將其靜音。請保留手機內建的時鐘鬧鐘作為你真正的備援。NOOP 基於手機的智慧喚醒（淺睡偵測）在 Android 應用程式上可用。"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Powyższy alarm budzenia włączy się na nadgarstku za pomocą oprogramowania wbudowanego paska. To nie może wywołać głośnego alarmu. Planujemy również powiadomienie o kopii zapasowej w momencie wybudzenia, ale aplikacja załadowana z boku nie może zagwarantować gwarantowanego wybudzenia na tym urządzeniu (co wymaga pozwolenia na alert krytyczny, którego nie ma ta kompilacja), więc skupienie lub tryb cichy mogą nadal je wyciszyć. Zachowaj wbudowany budzik w telefonie jako prawdziwą kopię zapasową. Inteligentne budzenie w telefonie NOOP (wykrywanie lekkiego snu) jest dostępne w aplikacji Android."
-          }
-        }
-      }
-    },
+    "When it is armed, the wake-alarm above buzzes your wrist from the strap's own firmware. On a WHOOP 5/MG that needs Protocol probes on (Test Centre → 5/MG protocol diagnostics). It can't sound a loud alarm. NOOP also schedules a backup notification at your wake time, but a sideloaded app can't sound a guaranteed wake on this device (that needs a critical-alert permission this build doesn't have), so Focus or silent mode can still mute it. Keep your phone's built-in Clock alarm as your real backup. NOOP's phone-based smart wake (light-sleep detection) is available on the Android app.": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "Wenn er eingestellt ist, lässt der Weckalarm oben dein Handgelenk über die eigene Firmware des Straps vibrieren. Auf einem WHOOP 5/MG setzt das voraus, dass Protokolltests an sind (Testzentrum → 5/MG-Protokolldiagnose). Einen lauten Alarm kann er nicht abspielen. NOOP plant zusätzlich eine Ersatz-Mitteilung zu deiner Weckzeit, aber eine sideloadete App kann auf diesem Gerät kein garantiertes Wecken auslösen (dafür braucht es eine Berechtigung für kritische Hinweise, die dieser Build nicht hat). Fokus oder Lautlos können sie also trotzdem stummschalten. Behalte den eingebauten Wecker deines Telefons als echten Ersatz. NOOPs telefonbasiertes Smart-Wecken (Leichtschlaf-Erkennung) gibt es in der Android-App."}}, "es": {"stringUnit": {"state": "translated", "value": "Cuando está programada, la alarma de despertar de arriba hace vibrar tu muñeca desde el propio firmware de la pulsera. En una WHOOP 5/MG eso requiere tener activadas las Sondas de protocolo (Centro de pruebas → Diagnóstico del protocolo 5/MG). No puede sonar como una alarma fuerte. NOOP también programa una notificación de respaldo a tu hora de despertar, pero una app instalada por sideload no puede garantizar un despertar en este dispositivo (eso requiere un permiso de alertas críticas que esta versión no tiene), así que un modo de concentración o el silencio pueden acallarla. Mantén la alarma del Reloj de tu teléfono como tu verdadero respaldo. El despertar inteligente de NOOP basado en el teléfono (detección de sueño ligero) está disponible en la app de Android."}}, "fr": {"stringUnit": {"state": "translated", "value": "Une fois programmée, l’alarme de réveil ci-dessus fait vibrer votre poignet depuis le micrologiciel du bracelet lui-même. Sur un WHOOP 5/MG, cela exige que Sondes de protocole soit activé (Centre de test → Diagnostics du protocole 5/MG). Elle ne peut pas émettre d’alarme sonore forte. NOOP programme aussi une notification de secours à l’heure de votre réveil, mais une app installée en sideload ne peut pas garantir un réveil sonore sur cet appareil (cela nécessite une autorisation d’alerte critique que cette version n’a pas), donc le mode Concentration ou le mode silencieux peuvent quand même la couper. Gardez l’alarme de l’app Horloge de votre téléphone comme véritable solution de secours. Le réveil intelligent de NOOP basé sur le téléphone (détection du sommeil léger) est disponible dans l’app Android."}}, "it": {"stringUnit": {"state": "translated", "value": "Quando è impostata, la sveglia qui sopra fa vibrare il polso dal firmware della fascia stessa. Su un WHOOP 5/MG richiede che le Sonde di protocollo siano attive (Centro test → Diagnostica protocollo 5/MG). Non può emettere una sveglia sonora forte. NOOP programma anche una notifica di riserva all’ora della sveglia, ma un’app installata tramite sideload non può garantire una sveglia sonora su questo dispositivo (servirebbe il permesso per gli avvisi critici che questa build non ha), quindi Focus o la modalità silenziosa possono comunque silenziarla. Tieni la sveglia dell’app Orologio del telefono come vera riserva. La sveglia intelligente di NOOP basata sul telefono (rilevamento del sonno leggero) è disponibile nell’app Android."}}, "pl": {"stringUnit": {"state": "translated", "value": "Gdy jest ustawiony, powyższy alarm budzenia wibruje na nadgarstku dzięki oprogramowaniu wbudowanemu paska. Na WHOOP 5/MG wymaga to włączonych Sond protokołu (Centrum Testowe → Diagnostyka protokołu 5/MG). Nie może włączyć głośnego alarmu. NOOP planuje też powiadomienie zapasowe na godzinę pobudki, ale aplikacja zainstalowana spoza sklepu (sideload) nie może na tym urządzeniu zagwarantować budzenia (wymaga to uprawnienia do alertów krytycznych, którego ta kompilacja nie ma), więc tryb Skupienia lub tryb cichy nadal mogą je wyciszyć. Zachowaj wbudowany budzik w telefonie jako prawdziwą kopię zapasową. Inteligentne budzenie w telefonie NOOP (wykrywanie lekkiego snu) jest dostępne w aplikacji Android."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Depois de armado, o alarme acima faz vibrar o teu pulso a partir do firmware da própria pulseira. Num WHOOP 5/MG, isso requer as Sondas de protocolo ativadas (Centro de testes → Diagnóstico do protocolo 5/MG). Não pode fazer soar um alarme alto. O NOOP também agenda uma notificação de reserva à hora de acordar, mas uma app instalada por sideload não consegue garantir um despertar neste dispositivo (isso requer uma permissão de alertas críticos que esta compilação não tem), pelo que o modo Foco ou o silencioso ainda a podem silenciar. Mantém o alarme da app Relógio do teu telemóvel como a tua verdadeira reserva. O despertar inteligente do NOOP baseado no telefone (deteção de sono leve) está disponível na app Android."}}, "ru": {"stringUnit": {"state": "translated", "value": "Когда будильник установлен, он заставляет браслет вибрировать на запястье с помощью собственной прошивки. На WHOOP 5/MG для этого должны быть включены Пробы протокола (Тестовый центр → Диагностика протокола 5/MG). Громкий звуковой сигнал он подать не может. NOOP также планирует резервное уведомление на время пробуждения, но установленное вне App Store (сайдлоад) приложение не может гарантированно разбудить на этом устройстве (для этого нужно разрешение критических уведомлений, которого нет в этой сборке), поэтому режим «Фокусировка» или беззвучный режим всё равно могут его заглушить. Используйте встроенный будильник «Часы» на телефоне как настоящий резервный вариант. Умное пробуждение NOOP на основе телефона (определение лёгкого сна) доступно в приложении для Android."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "设置后，上方的唤醒闹钟会通过手环自身的固件震动你的手腕。在 WHOOP 5/MG 上，这需要开启“协议探测”（测试中心 → 5/MG 协议诊断）。它无法发出响亮的闹铃。NOOP 也会在你的起床时间安排一条备用通知，但侧载应用在此设备上无法保证响铃唤醒（那需要本构建版本没有的重要提醒权限），因此专注模式或静音模式仍可能将其静音。请保留手机自带的时钟闹钟作为真正的后备。NOOP 基于手机的智能唤醒（浅睡检测）在 Android 应用上可用。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "設定後，上方的喚醒鬧鐘會透過手環自身的韌體震動你的手腕。在 WHOOP 5/MG 上，這需要開啟「協定探測」（測試中心 → 5/MG 協定診斷）。它無法發出響亮的鬧鈴。NOOP 也會在你的起床時間安排一則備用通知，但側載應用程式無法在此裝置上保證發出喚醒聲音（那需要此建置版本沒有的重要警示權限），因此專注模式或靜音模式仍可能將其靜音。請保留手機內建的時鐘鬧鐘作為真正的備援。NOOP 基於手機的智慧喚醒（淺睡偵測）在 Android 應用程式上可用。"}}}},
     "Theme": {
       "localizations": {
         "de": {
@@ -172834,64 +171748,7 @@
         }
       }
     },
-    "Two independent protocol tables disagree on the extended-battery opcode (98 vs 87). This sends the curated read-only 98 and shows the strap's full raw reply. A battery-style payload confirms 98 on your firmware; a short stub means it stays ambiguous. Nothing is written to the strap.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zwei unabhängige Protokolltabellen widersprechen sich beim Extended-Battery-Opcode (98 vs. 87). Dies sendet das kuratierte, nur lesende 98 und zeigt die vollständige Rohantwort des Bands. Eine batterieartige Nutzlast bestätigt 98 auf deiner Firmware; ein kurzer Stub bleibt mehrdeutig. Es wird nichts auf das Band geschrieben."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dos tablas de protocolo independientes discrepan sobre el opcode de batería extendida (98 vs 87). Esto envía el 98 curado y de solo lectura y muestra la respuesta cruda completa de la banda. Una carga tipo batería confirma 98 en tu firmware; un stub corto lo deja ambiguo. No se escribe nada en la banda."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Deux tables de protocole indépendantes divergent sur l'opcode de batterie étendue (98 contre 87). Ceci envoie le 98 curé en lecture seule et affiche la réponse brute complète du bracelet. Une charge de type batterie confirme 98 sur votre firmware ; un stub court le laisse ambigu. Rien n'est écrit sur le bracelet."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Due tabelle di protocollo indipendenti non concordano sull'opcode della batteria estesa (98 vs 87). Questo invia il comando curato in sola lettura 98 e mostra la risposta grezza completa della fascia. Un payload di tipo batteria conferma 98 sul tuo firmware; una risposta breve significa che resta ambiguo. Nulla viene scritto sulla fascia."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Duas tabelas de protocolo independentes discordam quanto ao opcode de bateria alargada (98 vs 87). Isto envia o 98 de leitura, validado e mostra a resposta bruta completa da bracelete. Uma carga útil tipo bateria confirma 98 no teu firmware; um esboço curto significa que permanece ambíguo. Nada é escrito na bracelete."
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dwie niezależne tabele protokołów nie zgadzają się co do kodu operacji o rozszerzonej baterii (98 vs 87). Spowoduje to wysłanie wybranego numeru 98 w trybie tylko do odczytu i wyświetlenie pełnej nieprzetworzonej odpowiedzi paska. Ładunek przypominający baterię potwierdza 98 w oprogramowaniu sprzętowym; krótki odcinek oznacza, że ​​pozostaje niejednoznaczny. Na pasku nic nie jest zapisane."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Две независимые таблицы протокола расходятся в коде расширенных данных о батарее (98 против 87). Здесь отправляется проверенная команда только для чтения 98 и показывается полный сырой ответ браслета. Ответ в формате батареи подтверждает 98 на вашей прошивке; короткая заглушка означает, что вопрос остаётся открытым. На браслет ничего не записывается."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "两份独立的协议表对扩展电池操作码存在分歧（98 与 87）。此操作发送经整理的只读 98 并显示手环的完整原始回复。返回电池格式的负载即可确认你的固件使用 98；若只返回简短存根，则仍无法确定。不会向手环写入任何内容。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "兩份獨立的協定表對擴充電池操作碼存在分歧（98 與 87）。此操作傳送經整理的唯讀 98 並顯示手環的完整原始回覆。返回電池格式的酬載即可確認你的韌體使用 98；若只返回簡短存根，則仍無法確定。不會向手環寫入任何內容。"
-          }
-        }
-      }
-    },
+    "Two independent protocol tables disagree on the extended-battery opcode (98 vs 87). This sends the curated read-only 98 and shows the strap's full raw reply. On a WHOOP 4.0, a battery-style payload confirms 98 on your firmware and the result decodes the pack voltage; a short stub means it stays ambiguous. On a WHOOP 5/MG, NOOP decodes no value from the reply and the pack charge does not come from this command; read the \"Result code\" line instead: UNSUPPORTED means this firmware rejects 98. Nothing is written to the strap.": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "Zwei unabhängige Protokolltabellen widersprechen sich bei der Opcode-Nummer für erweiterte Akkuinfos (98 vs. 87). Das sendet das kuratierte, rein lesende 98 und zeigt die vollständige Rohantwort des Straps. Bei einem WHOOP 4.0 bestätigt eine akkutypische Nutzlast 98 auf deiner Firmware, und das Ergebnis dekodiert die Packspannung; ein kurzer Stub bleibt uneindeutig. Bei einem WHOOP 5/MG dekodiert NOOP keinen Wert aus der Antwort, und der Ladestand des Akkupacks stammt nicht aus diesem Befehl; lies stattdessen die Zeile „Result code“: UNSUPPORTED bedeutet, dass diese Firmware 98 ablehnt. Es wird nichts auf den Strap geschrieben."}}, "es": {"stringUnit": {"state": "translated", "value": "Dos tablas de protocolo independientes no coinciden en el opcode de batería ampliada (98 frente a 87). Esto envía el 98 curado, de solo lectura, y muestra la respuesta completa en bruto de la pulsera. En un WHOOP 4.0, una carga útil de tipo batería confirma el 98 en tu firmware y el resultado decodifica el voltaje del pack; un stub corto lo deja ambiguo. En un WHOOP 5/MG, NOOP no decodifica ningún valor de la respuesta y la carga del pack no procede de este comando; lee en su lugar la línea «Result code»: UNSUPPORTED significa que este firmware rechaza el 98. No se escribe nada en la pulsera."}}, "fr": {"stringUnit": {"state": "translated", "value": "Deux tables de protocole indépendantes divergent sur l'opcode de batterie étendue (98 contre 87). Ceci envoie le 98 retenu, en lecture seule, et affiche la réponse brute complète du bracelet. Sur un WHOOP 4.0, une charge utile de type batterie confirme le 98 sur votre firmware et le résultat décode la tension du pack ; un stub court reste ambigu. Sur un WHOOP 5/MG, NOOP ne décode aucune valeur de la réponse et la charge du pack ne provient pas de cette commande ; lisez plutôt la ligne « Result code » : UNSUPPORTED signifie que ce firmware rejette le 98. Rien n'est écrit sur le bracelet."}}, "it": {"stringUnit": {"state": "translated", "value": "Due tabelle di protocollo indipendenti non concordano sull'opcode della batteria estesa (98 contro 87). Questo invia il 98 selezionato, di sola lettura, e mostra la risposta grezza completa della fascia. Su un WHOOP 4.0, un payload di tipo batteria conferma il 98 sul tuo firmware e il risultato decodifica la tensione del pacco; un breve stub resta ambiguo. Su un WHOOP 5/MG, NOOP non decodifica alcun valore dalla risposta e la carica del pacco non deriva da questo comando; leggi invece la riga «Result code»: UNSUPPORTED significa che questo firmware rifiuta il 98. Non viene scritto nulla sulla fascia."}}, "pl": {"stringUnit": {"state": "translated", "value": "Dwie niezależne tabele protokołu różnią się co do kodu operacji rozszerzonych informacji o baterii (98 vs 87). Wysyła to wybrane, tylko do odczytu 98 i pokazuje pełną surową odpowiedź opaski. Na WHOOP 4.0 ładunek w stylu baterii potwierdza 98 w Twoim firmware, a wynik dekoduje napięcie pakietu; krótki stub pozostaje niejednoznaczny. Na WHOOP 5/MG NOOP nie dekoduje żadnej wartości z odpowiedzi, a poziom naładowania pakietu nie pochodzi z tego polecenia; zamiast tego czytaj wiersz „Result code”: UNSUPPORTED oznacza, że to oprogramowanie odrzuca 98. Nic nie jest zapisywane na opasce."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Duas tabelas de protocolo independentes divergem quanto ao opcode da bateria alargada (98 vs 87). Isto envia o 98 selecionado, só de leitura, e mostra a resposta bruta completa da pulseira. Num WHOOP 4.0, um payload do tipo bateria confirma o 98 no teu firmware e o resultado descodifica a tensão do pack; um stub curto continua ambíguo. Num WHOOP 5/MG, o NOOP não descodifica nenhum valor da resposta e a carga do pack não vem deste comando; lê antes a linha «Result code»: UNSUPPORTED significa que este firmware rejeita o 98. Nada é escrito na pulseira."}}, "ru": {"stringUnit": {"state": "translated", "value": "Две независимые таблицы протокола расходятся в коде операции расширенной информации о батарее (98 против 87). Эта проверка отправляет выбранную команду 98 (только чтение) и показывает полный необработанный ответ браслета. На WHOOP 4.0 данные в формате батареи подтверждают 98 на вашей прошивке, а результат расшифровывает напряжение батареи; короткая заглушка остаётся неоднозначной. На WHOOP 5/MG NOOP не расшифровывает значение из ответа, а заряд батарейного блока берётся не из этой команды; смотрите строку «Result code»: UNSUPPORTED означает, что эта прошивка отвергает 98. На браслет ничего не записывается."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "两份独立的协议表对扩展电池信息的操作码存在分歧（98 与 87）。此操作会发送经过筛选的只读 98，并显示手环的完整原始回复。在 WHOOP 4.0 上，电池格式的负载可在你的固件上确认 98，结果会解码电池组电压；较短的占位回复则仍不确定。在 WHOOP 5/MG 上，NOOP 不会从回复中解码任何数值，电池组电量也并非来自此命令；请改看“Result code”一行：UNSUPPORTED 表示此固件拒绝 98。不会向手环写入任何内容。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "兩份獨立的協定表對擴充電池資訊的操作碼存在分歧（98 與 87）。此操作會傳送經過篩選的唯讀 98，並顯示手環的完整原始回覆。在 WHOOP 4.0 上，電池格式的負載可在你的韌體上確認 98，結果會解碼電池組電壓；較短的佔位回覆則仍不確定。在 WHOOP 5/MG 上，NOOP 不會從回覆中解碼任何數值，電池組電量也並非來自此指令；請改看「Result code」一行：UNSUPPORTED 表示此韌體拒絕 98。不會向手環寫入任何內容。"}}}},
     "Type in a blood-pressure reading or a cholesterol value from your last appointment. It stays on %@, and over time you'll see how it lines up with your sleep, heart rate and recovery.": {
       "localizations": {
         "de": {
@@ -175776,122 +174633,8 @@
         }
       }
     },
-    "WHOOP 4.0 is tested and works end to end. WHOOP 5.0/MG is newer: live heart rate works today, but deeper metrics (recovery, strain, sleep) for 5/MG are still being figured out. NOOP always tells you what's live versus still building.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WHOOP 4.0 ist getestet und funktioniert durchgehend. WHOOP 5.0/MG ist neuer: Live-Herzfrequenz funktioniert heute, aber tiefere Metriken (Erholung, Belastung, Schlaf) für 5/MG werden noch entschlüsselt. NOOP sagt dir immer, was live ist und was noch im Aufbau."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WHOOP 4.0 está probado y funciona de principio a fin. WHOOP 5.0/MG es más nuevo: la frecuencia cardíaca en vivo funciona hoy, pero las métricas más profundas (recuperación, esfuerzo, sueño) para 5/MG aún se están resolviendo. NOOP siempre te dice qué está activo y qué sigue en construcción."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WHOOP 4.0 est testé et fonctionne de bout en bout. WHOOP 5.0/MG est plus récent : la fréquence cardiaque en direct fonctionne dès aujourd'hui, mais les métriques plus poussées (récupération, effort, sommeil) pour le 5/MG sont encore en cours de résolution. NOOP vous indique toujours ce qui est actif et ce qui est encore en construction."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WHOOP 4.0 è testato e funziona da cima a fondo. WHOOP 5.0/MG è più recente: la frequenza cardiaca dal vivo funziona già, ma le metriche più profonde (recupero, carico, sonno) per 5/MG sono ancora in fase di studio. NOOP ti dice sempre cosa è attivo e cosa è ancora in costruzione."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O WHOOP 4.0 foi testado e funciona de uma ponta à outra. WHOOP 5.0/MG é mais recente: a frequência cardíaca em direto funciona hoje, mas métricas mais profundas (recuperação, esforço, sono) para 5/MG ainda estão a ser descobertas. O NOOP informa sempre o que está ativo e o que ainda está em construção."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WHOOP 4.0 протестирован и работает от начала до конца. WHOOP 5.0/MG новее: пульс в реальном времени уже работает, но более глубокие метрики (восстановление, нагрузка, сон) для 5/MG всё ещё дорабатываются. NOOP всегда сообщает, что уже работает, а что ещё в разработке."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WHOOP 4.0 已经过测试，端到端可用。WHOOP 5.0/MG 较新：实时心率现已可用，但 5/MG 的深层指标（恢复、强度、睡眠）仍在研究中。NOOP 始终会告诉你哪些已可用、哪些仍在开发。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WHOOP 4.0 已通過測試，可完整運作。WHOOP 5.0/MG 較新：即時心率現在可用，但 5/MG 的深層指標（恢復、強度、睡眠）仍在破解中。NOOP 永遠會告訴你哪些已可用、哪些還在建置。"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WHOOP 4.0 został przetestowany i działa kompleksowo. WHOOP 5.0/MG jest nowszy: tętno na żywo działa już dzisiaj, ale głębsze wskaźniki (regeneracja, wysiłek, sen) dla 5/MG wciąż są opracowywane. NOOP zawsze informuje Cię, co jest na żywo, a co wciąż budowane."
-          }
-        }
-      }
-    },
-    "WHOOP 4.0 is the supported path": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WHOOP 4.0 ist der unterstützte Weg"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WHOOP 4.0 es la vía compatible"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WHOOP 4.0 est la voie prise en charge"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WHOOP 4.0 è il percorso supportato"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WHOOP 4.0 é o caminho suportado"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WHOOP 4.0 — поддерживаемый вариант"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WHOOP 4.0 是受支持的路线"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WHOOP 4.0 是受支援的路徑"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Obsługiwana ścieżka to WHOOP 4.0"
-          }
-        }
-      }
-    },
+    "WHOOP 4.0 is tested and works end to end. WHOOP 5.0/MG is newer: live heart rate and strap history work, and NOOP scores sleep, recovery and strain from them on your device. Some overnight inputs are still incomplete on 5/MG, so its sleep stages are approximate. NOOP always tells you what's live versus still building.": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "WHOOP 4.0 ist getestet und funktioniert durchgängig. WHOOP 5.0/MG ist neuer: Live-Herzfrequenz und Bandverlauf funktionieren, und NOOP berechnet daraus auf deinem Gerät Schlaf, Erholung und Belastung. Einige nächtliche Eingangsdaten sind beim 5/MG noch unvollständig, daher sind seine Schlafphasen nur Näherungen. NOOP zeigt dir immer, was bereits live läuft und was noch im Aufbau ist."}}, "es": {"stringUnit": {"state": "translated", "value": "WHOOP 4.0 está probada y funciona de principio a fin. WHOOP 5.0/MG es más reciente: la frecuencia cardiaca en vivo y el historial de la pulsera funcionan, y NOOP calcula a partir de ellos el sueño, la recuperación y el esfuerzo en tu dispositivo. Algunos datos nocturnos aún están incompletos en la 5/MG, así que sus fases de sueño son aproximadas. NOOP siempre te dice qué está activo y qué sigue en desarrollo."}}, "fr": {"stringUnit": {"state": "translated", "value": "Le WHOOP 4.0 est testé et fonctionne de bout en bout. Le WHOOP 5.0/MG est plus récent : la fréquence cardiaque en direct et l'historique du bracelet fonctionnent, et NOOP en calcule le sommeil, la récupération et l'effort sur votre appareil. Certaines données nocturnes sont encore incomplètes sur le 5/MG, ses phases de sommeil sont donc approximatives. NOOP vous indique toujours ce qui est actif et ce qui est encore en construction."}}, "it": {"stringUnit": {"state": "translated", "value": "WHOOP 4.0 è testato e funziona da capo a fondo. WHOOP 5.0/MG è più recente: frequenza cardiaca live e cronologia della fascia funzionano, e NOOP ne ricava sul tuo dispositivo sonno, recupero e sforzo. Alcuni dati notturni sono ancora incompleti sul 5/MG, quindi le sue fasi del sonno sono approssimative. NOOP ti dice sempre cosa è attivo e cosa è ancora in costruzione."}}, "pl": {"stringUnit": {"state": "translated", "value": "WHOOP 4.0 jest przetestowany i działa od początku do końca. WHOOP 5.0/MG jest nowszy: tętno na żywo i historia opaski działają, a NOOP wylicza z nich na Twoim urządzeniu sen, regenerację i wysiłek. Niektóre dane nocne na 5/MG są wciąż niepełne, więc jego fazy snu są przybliżone. NOOP zawsze mówi, co działa na żywo, a co jest jeszcze w budowie."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "O WHOOP 4.0 está testado e funciona de ponta a ponta. O WHOOP 5.0/MG é mais recente: a frequência cardíaca em direto e o histórico da pulseira funcionam, e o NOOP calcula a partir deles o sono, a recuperação e o esforço no teu dispositivo. Alguns dados noturnos ainda estão incompletos no 5/MG, por isso as suas fases do sono são aproximadas. O NOOP diz-te sempre o que já está ativo e o que ainda está em construção."}}, "ru": {"stringUnit": {"state": "translated", "value": "WHOOP 4.0 проверен и работает от начала до конца. WHOOP 5.0/MG новее: пульс в реальном времени и история браслета работают, а NOOP считает по ним сон, восстановление и нагрузку на вашем устройстве. Часть ночных данных на 5/MG пока неполна, поэтому фазы сна на нём приблизительны. NOOP всегда показывает, что уже работает, а что ещё в разработке."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "WHOOP 4.0 经过测试，可完整使用。WHOOP 5.0/MG 较新：实时心率和手环历史数据均可使用，NOOP 会据此在你的设备上计算睡眠、恢复和负荷。5/MG 的部分夜间输入数据仍不完整，因此其睡眠分期只是近似值。NOOP 始终会告诉你哪些功能已可用、哪些仍在完善中。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "WHOOP 4.0 經過測試，可完整使用。WHOOP 5.0/MG 較新：即時心率和手環歷史資料均可使用，NOOP 會據此在你的裝置上計算睡眠、恢復和負荷。5/MG 的部分夜間輸入資料仍不完整，因此其睡眠分期只是近似值。NOOP 始終會告訴你哪些功能已可用、哪些仍在完善中。"}}}},
+    "WHOOP 4.0 is the most tested path": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "WHOOP 4.0 ist der am besten getestete Weg"}}, "es": {"stringUnit": {"state": "translated", "value": "WHOOP 4.0 es la vía más probada"}}, "fr": {"stringUnit": {"state": "translated", "value": "WHOOP 4.0 est la voie la plus testée"}}, "it": {"stringUnit": {"state": "translated", "value": "WHOOP 4.0 è il percorso più testato"}}, "pl": {"stringUnit": {"state": "translated", "value": "WHOOP 4.0 to najlepiej przetestowana ścieżka"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "WHOOP 4.0 é o caminho mais testado"}}, "ru": {"stringUnit": {"state": "translated", "value": "WHOOP 4.0 — наиболее проверенный вариант"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "WHOOP 4.0 是经过最多测试的路线"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "WHOOP 4.0 是經過最多測試的路徑"}}}},
     "WHOOP 4.0 protocol": {
       "localizations": {
         "de": {
@@ -176814,129 +175557,7 @@
         }
       }
     },
-    "WHOOP straps don't appear in macOS System Settings → Bluetooth. They advertise on a custom profile that only apps like NOOP can find, so there's nothing to pair there, and you shouldn't try.": {
-      "extractionState": "stale",
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WHOOP-Straps erscheinen nicht in den macOS-Systemeinstellungen → Bluetooth. Sie senden über ein eigenes Profil, das nur Apps wie NOOP finden können, dort gibt es also nichts zu koppeln, und du solltest es nicht versuchen."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WHOOP straps don't appear in macOS System Settings → Bluetooth. They advertise on a custom profile that only apps like NOOP can find, so there's nothing to pair there, and you shouldn't try."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Las pulseras WHOOP no aparecen en Ajustes del sistema de macOS → Bluetooth. Se anuncian con un perfil personalizado que solo apps como NOOP pueden encontrar, así que no hay nada que emparejar ahí y no deberías intentarlo."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Les bracelets WHOOP n'apparaissent pas dans Réglages Système macOS → Bluetooth. Ils diffusent sur un profil personnalisé que seules des apps comme NOOP peuvent détecter ; il n'y a donc rien à associer là-bas, et vous ne devriez pas essayer."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Le fasce WHOOP non compaiono in Impostazioni di Sistema → Bluetooth su macOS. Si annunciano su un profilo personalizzato che solo app come NOOP possono trovare, quindi non c'è nulla da abbinare lì e non dovresti provarci."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "As braceletes WHOOP não aparecem nas definições do sistema do macOS → Bluetooth. Anunciam num perfil personalizado que apenas aplicações como o NOOP podem encontrar, por isso não há nada para emparelhar lá e não deve tentar."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Браслеты WHOOP не отображаются в «Системных настройках» macOS → Bluetooth. Они работают через особый профиль, который видят только приложения вроде NOOP, поэтому там нечего подключать, и пытаться не нужно."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WHOOP 手环不会出现在 macOS 的「系统设置 → 蓝牙」中。它们通过一个只有 NOOP 这类应用才能找到的自定义配置文件进行广播，，所以那里没有可配对的设备，你也不应尝试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WHOOP 手環不會出現在 macOS 的「系統設定 → 藍牙」中。它們透過一個只有 NOOP 這類應用程式才能找到的自訂設定檔進行廣播，，所以那裡沒有可配對的裝置，你也不應嘗試。"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Paski WHOOP nie pojawiają się w Ustawieniach systemu macOS → Bluetooth. Reklamują się na niestandardowym profilu, który mogą znaleźć tylko aplikacje takie jak NOOP, więc nie ma tam nic do sparowania i nie powinieneś próbować."
-          }
-        }
-      }
-    },
-    "WHOOP straps don't appear in your %@'s Bluetooth settings. They advertise on a custom profile that only apps like NOOP can find, so there's nothing to pair there, and you shouldn't try.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WHOOP-Straps erscheinen nicht in den Bluetooth-Einstellungen deines %@. Sie senden auf einem eigenen Profil, das nur Apps wie NOOP finden – dort gibt es also nichts zu koppeln, und du solltest es nicht versuchen."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Las pulseras WHOOP no aparecen en los ajustes de Bluetooth de tu %@. Se anuncian en un perfil propio que solo apps como NOOP pueden encontrar, así que ahí no hay nada que emparejar, y no deberías intentarlo."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Les bracelets WHOOP n'apparaissent pas dans les réglages Bluetooth de votre %@. Ils s'annoncent sur un profil personnalisé que seules des applications comme NOOP peuvent détecter, il n'y a donc rien à associer là-bas, et vous ne devriez pas essayer."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Le fasce WHOOP non compaiono nelle impostazioni Bluetooth del tuo %@. Si annunciano su un profilo personalizzato che solo app come NOOP possono trovare, quindi non c'è nulla da associare lì, e non dovresti provarci."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "As braceletes WHOOP não aparecem nas definições Bluetooth do teu %@. Anunciam num perfil personalizado que apenas aplicações como o NOOP podem encontrar, por isso não há nada para emparelhar lá e não deve tentar."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Браслеты WHOOP не отображаются в настройках Bluetooth на вашем %@. Они используют собственный профиль, который могут найти только такие приложения, как NOOP, поэтому сопрягать их там не с чем — и не стоит пытаться."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WHOOP 手环不会出现在你 %@ 的蓝牙设置中。它们通过一个只有 NOOP 这类应用才能找到的自定义配置文件进行广播，所以那里没有可配对的设备，你也不应尝试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WHOOP 手環不會出現在你 %@ 的藍牙設定中。它們透過一個只有 NOOP 這類應用程式才能找到的自訂設定檔進行廣播，所以那裡沒有可配對的裝置，你也不應嘗試。"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Paski WHOOP nie pojawiają się w ustawieniach Bluetooth %@. Reklamują się na niestandardowym profilu, który mogą znaleźć tylko aplikacje takie jak NOOP, więc nie ma tam nic do sparowania i nie powinieneś próbować."
-          }
-        }
-      }
-    },
+    "You don't pair a WHOOP strap from your %@'s Bluetooth settings. It advertises on a custom profile that only apps like NOOP can find, so don't try to pair it there. If a WHOOP is already listed there from an earlier pairing, leave it unless NOOP's re-pair steps ask you to forget it.": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "Einen WHOOP-Strap koppelst du nicht in den Bluetooth-Einstellungen deines %@. Er sendet auf einem eigenen Profil, das nur Apps wie NOOP finden – versuche also nicht, ihn dort zu koppeln. Ist dort bereits ein WHOOP von einer früheren Kopplung aufgeführt, lass ihn bestehen, außer die Neukopplungs-Schritte von NOOP verlangen, ihn zu entfernen."}}, "es": {"stringUnit": {"state": "translated", "value": "Una pulsera WHOOP no se empareja desde los ajustes de Bluetooth de tu %@. Se anuncia en un perfil propio que solo apps como NOOP pueden encontrar, así que no intentes emparejarla ahí. Si ya aparece un WHOOP en esa lista por un emparejamiento anterior, déjalo, salvo que los pasos de reemparejamiento de NOOP te pidan olvidarlo."}}, "fr": {"stringUnit": {"state": "translated", "value": "On n'associe pas un bracelet WHOOP depuis les réglages Bluetooth de votre %@. Il s'annonce sur un profil personnalisé que seules des applications comme NOOP peuvent détecter, n'essayez donc pas de l'y associer. Si un WHOOP y figure déjà à la suite d'un appairage précédent, laissez-le, sauf si les étapes de ré-appairage de NOOP vous demandent de l'oublier."}}, "it": {"stringUnit": {"state": "translated", "value": "Una fascia WHOOP non si associa dalle impostazioni Bluetooth del tuo %@. Si annuncia su un profilo personalizzato che solo app come NOOP possono trovare, quindi non provare ad associarla da lì. Se un WHOOP è già elencato lì da un'associazione precedente, lascialo, a meno che i passaggi di riassociazione di NOOP non ti chiedano di dimenticarlo."}}, "pl": {"stringUnit": {"state": "translated", "value": "Opaski WHOOP nie paruje się w ustawieniach Bluetooth %@. Reklamuje się ona na niestandardowym profilu, który mogą znaleźć tylko aplikacje takie jak NOOP, więc nie próbuj parować jej tam. Jeśli WHOOP jest już tam widoczny po wcześniejszym sparowaniu, zostaw go, chyba że kroki ponownego parowania w NOOP każą go zapomnieć."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Uma pulseira WHOOP não se emparelha a partir das definições Bluetooth do teu %@. Anuncia-se num perfil personalizado que apenas aplicações como o NOOP podem encontrar, por isso não tentes emparelhá-la aí. Se um WHOOP já estiver listado aí por um emparelhamento anterior, deixa-o, a menos que os passos de reemparelhamento do NOOP te peçam para o esqueceres."}}, "ru": {"stringUnit": {"state": "translated", "value": "Браслет WHOOP не сопрягают в настройках Bluetooth на вашем %@. Он использует собственный профиль, который могут найти только такие приложения, как NOOP, поэтому не пытайтесь сопрягать его там. Если WHOOP уже есть в этом списке после прежнего сопряжения, оставьте его, если только шаги повторного сопряжения в NOOP не просят его забыть."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "WHOOP 手环不是在你 %@ 的蓝牙设置中配对的。它通过一个只有 NOOP 这类应用才能找到的自定义配置文件进行广播，所以请不要尝试在那里配对。如果那里已经列出了之前配对过的 WHOOP，请保持原样，除非 NOOP 的重新配对步骤要求你将其忽略。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "WHOOP 手環不是在你 %@ 的藍牙設定中配對的。它透過一個只有 NOOP 這類應用程式才能找到的自訂設定檔進行廣播，所以請不要嘗試在那裡配對。如果那裡已經列出了之前配對過的 WHOOP，請保持原樣，除非 NOOP 的重新配對步驟要求你將其忽略。"}}}},
     "WHOOP's imported per-zone split for this session.": {
       "localizations": {
         "de": {
@@ -186579,64 +185200,7 @@
         }
       }
     },
-    "WHOOP 5/MG strap alarms require Protocol probes (Test Centre → 5/MG protocol diagnostics). Your wake time is saved, but the strap is not armed yet. Keep a backup alarm.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WHOOP 5/MG-Strapalarme benötigen Protokolltests (Testcenter → 5/MG-Protokolldiagnose). Deine Weckzeit ist gespeichert, aber der Strap ist noch nicht scharfgestellt. Behalte einen Ersatzwecker."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Las alarmas de la pulsera WHOOP 5/MG requieren Sondas de protocolo (Centro de pruebas → Diagnóstico del protocolo 5/MG). La hora de despertar está guardada, pero la pulsera aún no está armada. Mantén una alarma de respaldo."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Les alarmes du bracelet WHOOP 5/MG nécessitent Sondes de protocole (Centre de test → Diagnostics du protocole 5/MG). L’heure de réveil est enregistrée, mais le bracelet ne porte pas encore une alarme active. Gardez une alarme de secours."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Le sveglie sulla fascia WHOOP 5/MG richiedono Sonde di protocollo (Centro test → Diagnostica protocollo 5/MG). L’ora di sveglia è salvata, ma la fascia non è ancora armata. Tieni una sveglia di riserva."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Os alarmes da pulseira WHOOP 5/MG requerem Sondas de protocolo (Centro de testes → Diagnóstico do protocolo 5/MG). A hora de despertar está guardada, mas a pulseira ainda não está armada. Mantém um alarme de reserva."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Для будильника на браслете WHOOP 5/MG включите Пробы протокола (Тестовый центр → Диагностика протокола 5/MG). Время пробуждения сохранено, но будильник на браслете ещё не активирован. Оставьте резервный будильник."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WHOOP 5/MG 手环闹钟需要开启“协议探测”（测试中心 → 5/MG 协议诊断）。唤醒时间已保存，但手环闹钟尚未启用。请保留备用闹钟。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "WHOOP 5/MG 手環鬧鐘需要開啟「協定探測」（測試中心 → 5/MG 協定診斷）。喚醒時間已儲存，但手環鬧鐘尚未啟用。請保留備用鬧鐘。"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Alarm na opasce WHOOP 5/MG wymaga włączenia Testów protokołu (Centrum Testowe → Diagnostyka protokołu 5/MG). Godzina pobudki została zapisana, ale alarm na opasce nie jest jeszcze uzbrojony. Zachowaj alarm zapasowy."
-          }
-        }
-      }
-    },
+    "WHOOP 5/MG strap alarms require Protocol probes (Test Centre → 5/MG protocol diagnostics). Your wake time is saved, but NOOP does not send it to the strap while Protocol probes is off. An alarm sent earlier may still be set on the strap. Keep a backup alarm.": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "WHOOP-5/MG-Strapalarme benötigen Protokolltests (Testzentrum → 5/MG-Protokolldiagnose). Deine Weckzeit ist gespeichert, aber NOOP sendet sie nicht an den Strap, solange Protokolltests aus sind. Ein früher gesendeter Alarm kann noch auf dem Strap eingestellt sein. Behalte einen Ersatzwecker."}}, "es": {"stringUnit": {"state": "translated", "value": "Las alarmas de la pulsera WHOOP 5/MG requieren Sondas de protocolo (Centro de pruebas → Diagnóstico del protocolo 5/MG). La hora de despertar está guardada, pero NOOP no la envía a la pulsera mientras las Sondas de protocolo estén desactivadas. Una alarma enviada antes puede seguir configurada en la pulsera. Mantén una alarma de respaldo."}}, "fr": {"stringUnit": {"state": "translated", "value": "Les alarmes du bracelet WHOOP 5/MG nécessitent Sondes de protocole (Centre de test → Diagnostics du protocole 5/MG). L’heure de réveil est enregistrée, mais NOOP ne l’envoie pas au bracelet tant que Sondes de protocole est désactivé. Une alarme envoyée plus tôt peut encore être programmée sur le bracelet. Gardez une alarme de secours."}}, "it": {"stringUnit": {"state": "translated", "value": "Le sveglie sulla fascia WHOOP 5/MG richiedono Sonde di protocollo (Centro test → Diagnostica protocollo 5/MG). L’ora di sveglia è salvata, ma NOOP non la invia alla fascia finché Sonde di protocollo è disattivato. Una sveglia inviata in precedenza potrebbe essere ancora impostata sulla fascia. Tieni una sveglia di riserva."}}, "pl": {"stringUnit": {"state": "translated", "value": "Alarm na opasce WHOOP 5/MG wymaga włączenia Sond protokołu (Centrum Testowe → Diagnostyka protokołu 5/MG). Godzina pobudki została zapisana, ale NOOP nie wysyła jej na opaskę, gdy Sondy protokołu są wyłączone. Alarm wysłany wcześniej może nadal być ustawiony na opasce. Zachowaj alarm zapasowy."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Os alarmes da pulseira WHOOP 5/MG requerem Sondas de protocolo (Centro de testes → Diagnóstico do protocolo 5/MG). A hora de despertar está guardada, mas o NOOP não a envia para a pulseira enquanto as Sondas de protocolo estiverem desligadas. Um alarme enviado antes pode continuar definido na pulseira. Mantém um alarme de reserva."}}, "ru": {"stringUnit": {"state": "translated", "value": "Для будильника на браслете WHOOP 5/MG включите Пробы протокола (Тестовый центр → Диагностика протокола 5/MG). Время пробуждения сохранено, но пока Пробы протокола выключены, NOOP не отправляет его на браслет. Ранее отправленный будильник может оставаться на браслете. Оставьте резервный будильник."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "WHOOP 5/MG 手环闹钟需要开启“协议探测”（测试中心 → 5/MG 协议诊断）。唤醒时间已保存，但在“协议探测”关闭期间，NOOP 不会把它发送到手环。之前发送过的闹钟可能仍保留在手环上。请保留备用闹钟。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "WHOOP 5/MG 手環鬧鐘需要開啟「協定探測」（測試中心 → 5/MG 協定診斷）。喚醒時間已儲存，但在「協定探測」關閉期間，NOOP 不會把它傳送到手環。先前傳送過的鬧鐘可能仍保留在手環上。請保留備用鬧鐘。"}}}},
     "Your WHOOP is at 100%.": {
       "localizations": {
         "de": {
@@ -207946,64 +206510,7 @@
         }
       }
     },
-    "No nightly skin-temp yet — needs ~4 worn nights (or import a WHOOP CSV)": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Noch keine nächtliche Hauttemperatur — benötigt ~4 getragene Nächte (oder importiere eine WHOOP-CSV)"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aún no hay temperatura cutánea nocturna: necesita ~4 noches de uso (o importa un CSV de WHOOP)"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pas encore de température cutanée nocturne — nécessite ~4 nuits portées (ou importez un CSV WHOOP)"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ancora nessuna temperatura cutanea notturna — servono ~4 notti indossate (o importa un CSV WHOOP)"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ainda sem temperatura da pele noturna — precisa de ~4 noites de utilização (ou importe um CSV da WHOOP)"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Пока нет ночной температуры кожи — нужно ~4 ночи ношения (или импортируйте CSV из WHOOP)"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "暂无夜间皮肤温度 — 需要约 4 个佩戴夜晚（或导入 WHOOP CSV）"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "尚無夜間皮膚溫度 — 需要約 4 個佩戴夜晚（或匯入 WHOOP CSV）"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nie ma jeszcze nocnej temperatury skóry — potrzeba ~4 przepracowanych nocy (lub zaimportuj WHOOP CSV)"
-          }
-        }
-      }
-    },
+    "No nightly skin-temp yet — wear the strap overnight and let it sync (or import a WHOOP CSV)": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "Noch keine nächtliche Hauttemperatur — trage den Strap über Nacht und lass ihn synchronisieren (oder importiere eine WHOOP-CSV)"}}, "es": {"stringUnit": {"state": "translated", "value": "Aún no hay temperatura cutánea nocturna: usa la pulsera durante la noche y deja que sincronice (o importa un CSV de WHOOP)"}}, "fr": {"stringUnit": {"state": "translated", "value": "Pas encore de température cutanée nocturne — portez le bracelet pendant la nuit et laissez-le se synchroniser (ou importez un CSV WHOOP)"}}, "it": {"stringUnit": {"state": "translated", "value": "Ancora nessuna temperatura cutanea notturna — indossa la fascia durante la notte e lasciala sincronizzare (o importa un CSV WHOOP)"}}, "pl": {"stringUnit": {"state": "translated", "value": "Nie ma jeszcze nocnej temperatury skóry — noś opaskę przez noc i poczekaj na synchronizację (lub zaimportuj WHOOP CSV)"}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Ainda sem temperatura da pele noturna — usa a pulseira durante a noite e deixa-a sincronizar (ou importa um CSV da WHOOP)"}}, "ru": {"stringUnit": {"state": "translated", "value": "Пока нет ночной температуры кожи — наденьте браслет на ночь и дайте ему синхронизироваться (или импортируйте CSV из WHOOP)"}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "暂无夜间皮肤温度 — 请佩戴手环过夜并等待同步（或导入 WHOOP CSV）"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "尚無夜間皮膚溫度 — 請佩戴手環過夜並等待同步（或匯入 WHOOP CSV）"}}}},
     "Skin Temp Δ": {
       "localizations": {
         "en": {
@@ -217511,7 +216018,7 @@
     "A cardiovascular load from time in heart-rate zones (Edwards TRIMP): each zone is weighted so harder ones count for more, summed into one daily figure. Settings offers an exponential alternative (Banister) that credits short, hard efforts more.": { "localizations": {
       "de": { "stringUnit": { "state": "translated", "value": "Eine kardiovaskuläre Last aus der Zeit in den Herzfrequenzzonen (Edwards-TRIMP): Jede Zone wird gewichtet, sodass härtere Zonen mehr zählen, aufsummiert zu einer Tageszahl. In den Einstellungen gibt es eine exponentielle Alternative (Banister), die kurze, harte Belastungen stärker anrechnet." } }, "en": { "stringUnit": { "state": "translated", "value": "A cardiovascular load from time in heart-rate zones (Edwards TRIMP): each zone is weighted so harder ones count for more, summed into one daily figure. Settings offers an exponential alternative (Banister) that credits short, hard efforts more." } }, "es": { "stringUnit": { "state": "translated", "value": "Una carga cardiovascular a partir del tiempo en las zonas de frecuencia cardíaca (TRIMP de Edwards): cada zona se pondera para que las más duras cuenten más, sumado en una sola cifra diaria. En Ajustes hay una alternativa exponencial (Banister) que valora más los esfuerzos cortos e intensos." } }, "fr": { "stringUnit": { "state": "translated", "value": "Une charge cardiovasculaire issue du temps passé dans les zones de fréquence cardiaque (TRIMP d’Edwards) : chaque zone est pondérée pour que les plus intenses comptent davantage, additionnée en un seul chiffre journalier. Les Réglages proposent une alternative exponentielle (Banister) qui valorise davantage les efforts courts et intenses." } }, "it": { "stringUnit": { "state": "translated", "value": "Un carico cardiovascolare dato dal tempo nelle zone di frequenza cardiaca (TRIMP di Edwards): ogni zona è ponderata in modo che quelle più dure contino di più, sommato in un unico dato giornaliero. Nelle Impostazioni c’è un’alternativa esponenziale (Banister) che premia di più gli sforzi brevi e intensi." } }, "pl": { "stringUnit": { "state": "translated", "value": "Obciążenie układu krążenia wynikające z czasu w strefach tętna (TRIMP Edwardsa): każda strefa jest ważona tak, aby trudniejsze liczyły się bardziej, zsumowane w jedną wartość dzienną. W Ustawieniach jest alternatywa wykładnicza (Banister), która mocniej docenia krótkie, intensywne wysiłki." } }, "pt-PT": { "stringUnit": { "state": "translated", "value": "Uma carga cardiovascular a partir do tempo nas zonas de frequência cardíaca (TRIMP de Edwards): cada zona é ponderada para que as mais difíceis contem mais, resumido num valor diário. Nas Definições existe uma alternativa exponencial (Banister) que valoriza mais os esforços curtos e intensos." } }, "ru": { "stringUnit": { "state": "translated", "value": "Сердечно-сосудистая нагрузка по времени в пульсовых зонах (TRIMP Эдвардса): каждая зона взвешивается так, что более тяжёлые учитываются сильнее, и всё суммируется в одно дневное значение. В настройках есть экспоненциальная альтернатива (Banister), которая сильнее засчитывает короткие интенсивные усилия." } }, "zh-Hans": { "stringUnit": { "state": "translated", "value": "根据你在各心率区间的时长得出的心血管负荷（Edwards TRIMP）：区间越高权重越大，汇总为一个每日数字。设置中提供指数式替代方案（Banister），会更看重短时高强度的努力。" } }, "zh-Hant": { "stringUnit": { "state": "translated", "value": "根據你在各心率區間停留時間得出的心血管負荷（Edwards TRIMP）：區間越高權重越大，加總成每日一個數字。設定中提供指數式替代方案（Banister），會更看重短時高強度的努力。" } }
     } },
-    "WHOOP 5.0 / MG supports live data and strap history. Protocol-research tools are available separately in Test Centre.": {"shouldTranslate":false,"localizations":{"de":{"stringUnit":{"state":"translated","value":"WHOOP 5.0/MG unterstützt Live-Daten und Bandverlauf. Protokollwerkzeuge sind separat im Testcenter."}},"es":{"stringUnit":{"state":"translated","value":"WHOOP 5.0/MG admite datos en directo e historial. Las herramientas de protocolo están aparte en el Centro de pruebas."}},"fr":{"stringUnit":{"state":"translated","value":"WHOOP 5.0/MG gère les données en direct et l’historique. Les outils de protocole sont séparés dans le Centre de test."}},"pt-PT":{"stringUnit":{"state":"translated","value":"WHOOP 5.0/MG suporta dados em direto e histórico. As ferramentas de protocolo estão separadas no Centro de testes."}},"it":{"stringUnit":{"state":"translated","value":"WHOOP 5.0/MG supporta i dati in tempo reale e la cronologia della fascia. Gli strumenti di ricerca sul protocollo sono separati nel Centro test."}},"pl":{"stringUnit":{"state":"translated","value":"WHOOP 5.0/MG obsługuje dane na żywo i historię paska. Narzędzia badawcze protokołu są dostępne osobno w Centrum Testowym."}},"ru":{"stringUnit":{"state":"translated","value":"WHOOP 5.0/MG поддерживает данные в реальном времени и историю браслета. Инструменты исследования протокола вынесены в Тестовый центр."}},"zh-Hans":{"stringUnit":{"state":"translated","value":"WHOOP 5.0/MG 支持实时数据和手环历史。协议研究工具单独位于测试中心。"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"WHOOP 5.0/MG 支援即時資料與手環歷史。協定研究工具另置於測試中心。"}}}},
+    "WHOOP 5.0 / MG supports live data and strap history. Protocol-research tools are available separately in Test Centre.": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "WHOOP 5.0/MG unterstützt Live-Daten und Bandverlauf. Protokollwerkzeuge sind separat im Testzentrum."}}, "es": {"stringUnit": {"state": "translated", "value": "WHOOP 5.0/MG admite datos en directo e historial. Las herramientas de protocolo están aparte en el Centro de pruebas."}}, "fr": {"stringUnit": {"state": "translated", "value": "WHOOP 5.0/MG gère les données en direct et l’historique. Les outils de protocole sont séparés dans le Centre de test."}}, "it": {"stringUnit": {"state": "translated", "value": "WHOOP 5.0/MG supporta i dati in tempo reale e la cronologia della fascia. Gli strumenti di ricerca sul protocollo sono separati nel Centro test."}}, "pl": {"stringUnit": {"state": "translated", "value": "WHOOP 5.0/MG obsługuje dane na żywo i historię paska. Narzędzia badawcze protokołu są dostępne osobno w Centrum Testowym."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "WHOOP 5.0/MG suporta dados em direto e histórico. As ferramentas de protocolo estão separadas no Centro de testes."}}, "ru": {"stringUnit": {"state": "translated", "value": "WHOOP 5.0/MG поддерживает данные в реальном времени и историю браслета. Инструменты исследования протокола вынесены в Тестовый центр."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "WHOOP 5.0/MG 支持实时数据和手环历史。协议研究工具单独位于测试中心。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "WHOOP 5.0/MG 支援即時資料與手環歷史。協定研究工具另置於測試中心。"}}}},
     "Delete this session?": {"shouldTranslate":false,"localizations":{"de":{"stringUnit":{"state":"translated","value":"Diese Session löschen?"}},"es":{"stringUnit":{"state":"translated","value":"¿Eliminar esta sesión?"}},"fr":{"stringUnit":{"state":"translated","value":"Supprimer cette session ?"}},"pt-PT":{"stringUnit":{"state":"translated","value":"Eliminar esta sessão?"}},"it":{"stringUnit":{"state":"translated","value":"Eliminare questa sessione?"}},"pl":{"stringUnit":{"state":"translated","value":"Usunąć tę sesję?"}},"ru":{"stringUnit":{"state":"translated","value":"Удалить эту сессию?"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"要删除此会话吗？"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"要刪除此工作階段嗎？"}}}},
     "The session %@ and its captured raw data will be deleted permanently.": {"shouldTranslate":false,"localizations":{"de":{"stringUnit":{"state":"translated","value":"Die Session %@ und ihre Rohdaten werden dauerhaft gelöscht."}},"es":{"stringUnit":{"state":"translated","value":"La sesión %@ y sus datos se eliminarán permanentemente."}},"fr":{"stringUnit":{"state":"translated","value":"La session %@ et ses données seront définitivement supprimées."}},"pt-PT":{"stringUnit":{"state":"translated","value":"A sessão %@ e os dados serão eliminados permanentemente."}},"it":{"stringUnit":{"state":"translated","value":"La sessione %@ e i suoi dati grezzi verranno eliminati definitivamente."}},"pl":{"stringUnit":{"state":"translated","value":"Sesja %@ i jej surowe dane zostaną trwale usunięte."}},"ru":{"stringUnit":{"state":"translated","value":"Сессия %@ и её сырые данные будут удалены безвозвратно."}},"zh-Hans":{"stringUnit":{"state":"translated","value":"会话 %@ 及其采集的原始数据将被永久删除。"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"工作階段 %@ 及其擷取的原始資料將被永久刪除。"}}}},
     "Delete all sessions?": {"shouldTranslate":false,"localizations":{"de":{"stringUnit":{"state":"translated","value":"Alle Sessions löschen?"}},"es":{"stringUnit":{"state":"translated","value":"¿Eliminar todas las sesiones?"}},"fr":{"stringUnit":{"state":"translated","value":"Supprimer toutes les sessions ?"}},"pt-PT":{"stringUnit":{"state":"translated","value":"Eliminar todas as sessões?"}},"it":{"stringUnit":{"state":"translated","value":"Eliminare tutte le sessioni?"}},"pl":{"stringUnit":{"state":"translated","value":"Usunąć wszystkie sesje?"}},"ru":{"stringUnit":{"state":"translated","value":"Удалить все сессии?"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"要删除所有会话吗？"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"要刪除所有工作階段嗎？"}}}},
@@ -217533,7 +216040,7 @@
     "Last exported %@ · export remains available": {"localizations":{"de":{"stringUnit":{"state":"translated","value":"Zuletzt exportiert: %@ · Export bleibt verfügbar"}},"es":{"stringUnit":{"state":"translated","value":"Última exportación: %@ · la exportación sigue disponible"}},"fr":{"stringUnit":{"state":"translated","value":"Dernier export : %@ · l’export reste disponible"}},"it":{"stringUnit":{"state":"translated","value":"Ultima esportazione: %@ · l’esportazione resta disponibile"}},"pl":{"stringUnit":{"state":"translated","value":"Ostatnio wyeksportowano: %@ · eksport pozostaje dostępny"}},"pt-PT":{"stringUnit":{"state":"translated","value":"Última exportação: %@ · a exportação continua disponível"}},"ru":{"stringUnit":{"state":"translated","value":"Последний экспорт: %@ · экспорт остаётся доступен"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"上次导出：%@ · 仍可再次导出"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"上次匯出：%@ · 仍可再次匯出"}}}},
     "Export status: %lld raw batches": {"shouldTranslate":false,"localizations":{"de":{"stringUnit":{"state":"translated","value":"Exportstatus: %lld Rohdatenblöcke"}},"es":{"stringUnit":{"state":"translated","value":"Estado: %lld bloques sin procesar"}},"fr":{"stringUnit":{"state":"translated","value":"État : %lld blocs bruts"}},"pt-PT":{"stringUnit":{"state":"translated","value":"Estado: %lld blocos em bruto"}},"it":{"stringUnit":{"state":"translated","value":"Stato esportazione: %lld blocchi di dati grezzi"}},"pl":{"stringUnit":{"state":"translated","value":"Stan eksportu: %lld partii surowych danych"}},"ru":{"stringUnit":{"state":"translated","value":"Состояние экспорта: %lld пакетов сырых данных"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"导出状态：%lld 批原始数据"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"匯出狀態：%lld 批原始資料"}}}},
     "Legacy R22 feature-flag experiment. The strap accepts these writes, but NOOP has not observed them enabling a separate live stream. This is not required for normal WHOOP 5/MG support or for the Raw Data Collector. It writes persistent strap settings and may do nothing on your firmware.": {"shouldTranslate":false,"localizations":{"de":{"stringUnit":{"state":"translated","value":"Altes R22-Experiment. Für normalen 5/MG-Betrieb und den Rohdaten-Collector ist es nicht erforderlich."}},"es":{"stringUnit":{"state":"translated","value":"Experimento R22 antiguo. No es necesario para el uso normal ni para el recopilador de datos."}},"fr":{"stringUnit":{"state":"translated","value":"Ancienne expérience R22. Elle n’est pas requise pour l’usage normal ni pour le collecteur."}},"pt-PT":{"stringUnit":{"state":"translated","value":"Experiência R22 antiga. Não é necessária para o uso normal nem para o coletor."}},"it":{"stringUnit":{"state":"translated","value":"Vecchio esperimento con i flag R22. La fascia accetta queste scritture, ma NOOP non ha osservato l'attivazione di un flusso dal vivo separato. Non è necessario per il normale supporto WHOOP 5/MG né per il Raccoglitore dati grezzi. Scrive impostazioni persistenti sulla fascia e potrebbe non avere effetto sul tuo firmware."}},"pl":{"stringUnit":{"state":"translated","value":"Dawny eksperyment z flagami R22. Pasek przyjmuje te zapisy, ale NOOP nie zaobserwował uruchomienia osobnego strumienia na żywo. Nie jest to wymagane do normalnej obsługi WHOOP 5/MG ani do Kolektora danych surowych. Zapisuje trwałe ustawienia paska i może nie działać na Twoim oprogramowaniu."}},"ru":{"stringUnit":{"state":"translated","value":"Старый эксперимент с флагами R22. Браслет принимает эти записи, но NOOP не наблюдал включения отдельного живого потока. Для обычной поддержки WHOOP 5/MG и Сборщика сырых данных это не требуется. Записывает постоянные настройки браслета и может ничего не дать на вашей прошивке."}},"zh-Hans":{"stringUnit":{"state":"translated","value":"旧的 R22 功能标记实验。手环会接受这些写入，但 NOOP 未观察到由此启用独立的实时数据流。正常的 WHOOP 5/MG 支持和原始数据采集器都不需要它。它会写入持久的手环设置，在你的固件上可能毫无作用。"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"舊的 R22 功能標記實驗。手環會接受這些寫入，但 NOOP 未觀察到因此啟用獨立的即時資料流。正常的 WHOOP 5/MG 支援與原始資料收集器都不需要它。它會寫入持久的手環設定，在你的韌體上可能毫無作用。"}}}},
-    "NOOP estimates your steps from your WHOOP's stored motion, calibrated to your phone's step count. It's an estimate, not a hardware step counter; normal WHOOP 5/MG history sync supplies the motion data.": {"shouldTranslate":false,"localizations":{"de":{"stringUnit":{"state":"translated","value":"NOOP schätzt Schritte aus gespeicherter Bewegung und kalibriert sie mit dem Telefon. Es ist kein Hardware-Schrittzähler."}},"es":{"stringUnit":{"state":"translated","value":"NOOP estima los pasos desde el movimiento y los calibra con el teléfono. No es un contador físico."}},"fr":{"stringUnit":{"state":"translated","value":"NOOP estime les pas depuis le mouvement et les calibre avec le téléphone. Ce n’est pas un compteur matériel."}},"pt-PT":{"stringUnit":{"state":"translated","value":"O NOOP estima os passos a partir do movimento e calibra-os com o telefone. Não é um contador físico."}},"it":{"stringUnit":{"state":"translated","value":"NOOP stima i tuoi passi dal movimento memorizzato dal WHOOP, calibrato sul contapassi del telefono. È una stima, non un contapassi hardware; i dati di movimento arrivano dalla normale sincronizzazione della cronologia WHOOP 5/MG."}},"pl":{"stringUnit":{"state":"translated","value":"NOOP szacuje kroki na podstawie ruchu zapisanego przez WHOOP, kalibrując je licznikiem kroków telefonu. To oszacowanie, a nie sprzętowy krokomierz; dane o ruchu pochodzą ze zwykłej synchronizacji historii WHOOP 5/MG."}},"ru":{"stringUnit":{"state":"translated","value":"NOOP оценивает шаги по сохранённому движению WHOOP, калибруя их по шагомеру телефона. Это оценка, а не аппаратный шагомер; данные о движении приходят из обычной синхронизации истории WHOOP 5/MG."}},"zh-Hans":{"stringUnit":{"state":"translated","value":"NOOP 根据 WHOOP 存储的运动数据估算步数，并以手机步数进行校准。这是估算值，而非硬件计步器；运动数据来自正常的 WHOOP 5/MG 历史同步。"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"NOOP 根據 WHOOP 儲存的運動資料估算步數，並以手機步數進行校準。這是估算值，而非硬體計步器；運動資料來自正常的 WHOOP 5/MG 歷史同步。"}}}},
+    "On a WHOOP 5.0/MG, the Steps tile shows your strap's own step counter (adjust it with Step calibration in Profile) or your phone's count. On days that have neither, NOOP estimates steps from your WHOOP's stored motion, calibrated to your phone's step count. That's what this screen tunes. It's an estimate, not a step counter; normal WHOOP 5/MG history sync supplies the motion data.": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "Auf einem WHOOP 5.0/MG zeigt die Schritte-Kachel den eigenen Schrittzähler deines Straps (anpassbar mit der Schrittkalibrierung im Profil) oder die Zählung deines Telefons. An Tagen mit keinem von beiden schätzt NOOP die Schritte aus der gespeicherten Bewegung deines WHOOP, kalibriert an der Schrittzahl deines Telefons. Genau das stellt dieser Bildschirm ein. Es ist eine Schätzung, kein Schrittzähler; die Bewegungsdaten stammen aus der normalen Verlaufssynchronisierung des WHOOP 5/MG."}}, "es": {"stringUnit": {"state": "translated", "value": "En un WHOOP 5.0/MG, el mosaico de pasos muestra el contador de pasos propio de la pulsera (ajústalo con la calibración de pasos en Perfil) o el conteo de tu teléfono. En los días sin ninguno de los dos, NOOP estima los pasos a partir del movimiento almacenado de tu WHOOP, calibrado con el conteo de pasos de tu teléfono. Eso es lo que ajusta esta pantalla. Es una estimación, no un contador de pasos; los datos de movimiento proceden de la sincronización normal del historial del WHOOP 5/MG."}}, "fr": {"stringUnit": {"state": "translated", "value": "Sur un WHOOP 5.0/MG, la tuile Pas affiche le compteur de pas propre au bracelet (réglable avec l’étalonnage des pas dans Profil) ou le décompte de votre téléphone. Les jours où il n’y a ni l’un ni l’autre, NOOP estime les pas à partir du mouvement enregistré par votre WHOOP, calibré sur le nombre de pas de votre téléphone. C’est ce que règle cet écran. C’est une estimation, pas un compteur de pas ; les données de mouvement proviennent de la synchronisation normale de l’historique du WHOOP 5/MG."}}, "it": {"stringUnit": {"state": "translated", "value": "Su un WHOOP 5.0/MG, il riquadro Passi mostra il contapassi della fascia (regolabile con la calibrazione dei passi in Profilo) o il conteggio del telefono. Nei giorni senza né l’uno né l’altro, NOOP stima i passi dal movimento memorizzato dal WHOOP, calibrato sul conteggio passi del telefono. È ciò che questa schermata regola. È una stima, non un contapassi; i dati di movimento arrivano dalla normale sincronizzazione della cronologia del WHOOP 5/MG."}}, "pl": {"stringUnit": {"state": "translated", "value": "Na WHOOP 5.0/MG kafelek Kroki pokazuje własny licznik kroków opaski (dostosujesz go kalibracją kroków w Profilu) lub liczbę kroków z telefonu. W dni bez żadnego z nich NOOP szacuje kroki na podstawie ruchu zapisanego przez WHOOP, kalibrując je liczbą kroków z telefonu. To właśnie ustawia ten ekran. To oszacowanie, a nie licznik kroków; dane o ruchu pochodzą ze zwykłej synchronizacji historii WHOOP 5/MG."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Num WHOOP 5.0/MG, o cartão de passos mostra o contador de passos da própria pulseira (ajustável com a calibração de passos no Perfil) ou a contagem do telemóvel. Nos dias sem nenhum dos dois, o NOOP estima os passos a partir do movimento guardado pelo WHOOP, calibrado com a contagem de passos do telemóvel. É isso que este ecrã ajusta. É uma estimativa, não um contador de passos; os dados de movimento vêm da sincronização normal do histórico do WHOOP 5/MG."}}, "ru": {"stringUnit": {"state": "translated", "value": "На WHOOP 5.0/MG плитка шагов показывает собственный счётчик шагов браслета (его можно настроить калибровкой шагов в Профиле) или счёт с телефона. В дни, где нет ни того, ни другого, NOOP оценивает шаги по сохранённому движению WHOOP, калибруя их по шагам телефона. Именно это настраивает данный экран. Это оценка, а не счётчик шагов; данные о движении приходят из обычной синхронизации истории WHOOP 5/MG."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "在 WHOOP 5.0/MG 上，“步数”卡片显示手环自带的计步器读数（可在“个人资料”中通过步数校准调整）或手机的计步数。对于两者都没有的日子，NOOP 会根据 WHOOP 存储的运动数据估算步数，并以手机步数进行校准，这正是本页面所调整的内容。这是估算值，而非计步器读数；运动数据来自正常的 WHOOP 5/MG 历史同步。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "在 WHOOP 5.0/MG 上，「步數」卡片顯示手環內建計步器的讀數（可在「個人資料」中透過步數校準調整）或手機的步數。對於兩者都沒有的日子，NOOP 會根據 WHOOP 儲存的運動資料估算步數，並以手機步數進行校準，這正是本頁面所調整的內容。這是估算值，而非計步器讀數；運動資料來自正常的 WHOOP 5/MG 歷史同步。"}}}},
     "5/MG RAW DATA COLLECTOR": {"shouldTranslate":false,"localizations":{"de":{"stringUnit":{"state":"translated","value":"5/MG-ROHDATEN-COLLECTOR"}},"es":{"stringUnit":{"state":"translated","value":"RECOPILADOR DE DATOS 5/MG"}},"fr":{"stringUnit":{"state":"translated","value":"COLLECTEUR DE DONNÉES 5/MG"}},"pt-PT":{"stringUnit":{"state":"translated","value":"RECOLHA DE DADOS 5/MG"}},"it":{"stringUnit":{"state":"translated","value":"RACCOGLITORE DATI GREZZI 5/MG"}},"pl":{"stringUnit":{"state":"translated","value":"KOLEKTOR DANYCH SUROWYCH 5/MG"}},"ru":{"stringUnit":{"state":"translated","value":"СБОРЩИК СЫРЫХ ДАННЫХ 5/MG"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"5/MG 原始数据采集器"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"5/MG 原始資料收集器"}}}},
     "Record, review, export, and delete bounded 100 Hz motion sessions. Normal sync is unchanged.": {"shouldTranslate":false,"localizations":{"de":{"stringUnit":{"state":"translated","value":"Begrenzte 100-Hz-Sessions aufnehmen, prüfen, exportieren und löschen. Normale Synchronisierung bleibt unverändert."}},"es":{"stringUnit":{"state":"translated","value":"Graba, revisa, exporta y elimina sesiones limitadas a 100 Hz. La sincronización normal no cambia."}},"fr":{"stringUnit":{"state":"translated","value":"Enregistrez, consultez, exportez et supprimez des sessions limitées à 100 Hz. La synchronisation normale ne change pas."}},"pt-PT":{"stringUnit":{"state":"translated","value":"Grave, reveja, exporte e elimine sessões limitadas a 100 Hz. A sincronização normal não muda."}},"it":{"stringUnit":{"state":"translated","value":"Registra, esamina, esporta ed elimina sessioni di movimento a 100 Hz delimitate. La sincronizzazione normale non cambia."}},"pl":{"stringUnit":{"state":"translated","value":"Nagrywaj, przeglądaj, eksportuj i usuwaj ograniczone sesje ruchu 100 Hz. Zwykła synchronizacja pozostaje bez zmian."}},"ru":{"stringUnit":{"state":"translated","value":"Записывайте, просматривайте, экспортируйте и удаляйте ограниченные сессии движения 100 Гц. Обычная синхронизация не меняется."}},"zh-Hans":{"stringUnit":{"state":"translated","value":"记录、查看、导出和删除有时长限制的 100 Hz 运动会话。正常同步不受影响。"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"記錄、檢視、匯出並刪除有時長限制的 100 Hz 運動工作階段。正常同步不受影響。"}}}},
     "Open raw-data collector": {"shouldTranslate":false,"localizations":{"de":{"stringUnit":{"state":"translated","value":"Rohdaten-Collector öffnen"}},"es":{"stringUnit":{"state":"translated","value":"Abrir recopilador de datos"}},"fr":{"stringUnit":{"state":"translated","value":"Ouvrir le collecteur de données"}},"pt-PT":{"stringUnit":{"state":"translated","value":"Abrir recolha de dados"}},"it":{"stringUnit":{"state":"translated","value":"Apri il raccoglitore dati grezzi"}},"pl":{"stringUnit":{"state":"translated","value":"Otwórz kolektor danych surowych"}},"ru":{"stringUnit":{"state":"translated","value":"Открыть сборщик сырых данных"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"打开原始数据采集器"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"開啟原始資料收集器"}}}},
@@ -217542,7 +216049,7 @@
     "5/MG PROTOCOL DIAGNOSTICS": {"shouldTranslate":false,"localizations":{"de":{"stringUnit":{"state":"translated","value":"5/MG-PROTOKOLLDIAGNOSE"}},"es":{"stringUnit":{"state":"translated","value":"DIAGNÓSTICO DEL PROTOCOLO 5/MG"}},"fr":{"stringUnit":{"state":"translated","value":"DIAGNOSTICS DU PROTOCOLE 5/MG"}},"pt-PT":{"stringUnit":{"state":"translated","value":"DIAGNÓSTICO DO PROTOCOLO 5/MG"}},"it":{"stringUnit":{"state":"translated","value":"DIAGNOSTICA PROTOCOLLO 5/MG"}},"pl":{"stringUnit":{"state":"translated","value":"DIAGNOSTYKA PROTOKOŁU 5/MG"}},"ru":{"stringUnit":{"state":"translated","value":"ДИАГНОСТИКА ПРОТОКОЛА 5/MG"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"5/MG 协议诊断"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"5/MG 協定診斷"}}}},
     "Developer tools for unmapped protocol features. None of these are required for normal WHOOP 5/MG recording, history sync, or the bounded Raw Data Collector.": {"shouldTranslate":false,"localizations":{"de":{"stringUnit":{"state":"translated","value":"Entwicklerwerkzeuge für nicht zugeordnete Protokollfunktionen. Für normale Aufnahme, Verlauf und Rohdaten-Collector nicht erforderlich."}},"es":{"stringUnit":{"state":"translated","value":"Herramientas para funciones de protocolo sin asignar. No son necesarias para el uso normal."}},"fr":{"stringUnit":{"state":"translated","value":"Outils pour les fonctions de protocole non identifiées. Ils ne sont pas requis pour l’usage normal."}},"pt-PT":{"stringUnit":{"state":"translated","value":"Ferramentas para funções de protocolo não identificadas. Não são necessárias para o uso normal."}},"it":{"stringUnit":{"state":"translated","value":"Strumenti per sviluppatori per funzioni di protocollo non mappate. Nessuno è necessario per la normale registrazione WHOOP 5/MG, la sincronizzazione della cronologia o il Raccoglitore dati grezzi."}},"pl":{"stringUnit":{"state":"translated","value":"Narzędzia deweloperskie do niezmapowanych funkcji protokołu. Żadne z nich nie są wymagane do zwykłego nagrywania WHOOP 5/MG, synchronizacji historii ani Kolektora danych surowych."}},"ru":{"stringUnit":{"state":"translated","value":"Инструменты разработчика для неразобранных функций протокола. Ничего из этого не требуется для обычной записи WHOOP 5/MG, синхронизации истории или Сборщика сырых данных."}},"zh-Hans":{"stringUnit":{"state":"translated","value":"用于未映射协议功能的开发者工具。正常的 WHOOP 5/MG 记录、历史同步和原始数据采集器都不需要这些。"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"用於未對應協定功能的開發者工具。正常的 WHOOP 5/MG 記錄、歷史同步與原始資料收集器都不需要這些。"}}}},
     "Protocol probes": {"shouldTranslate":false,"localizations":{"de":{"stringUnit":{"state":"translated","value":"Protokolltests"}},"es":{"stringUnit":{"state":"translated","value":"Sondas de protocolo"}},"fr":{"stringUnit":{"state":"translated","value":"Sondes de protocole"}},"pt-PT":{"stringUnit":{"state":"translated","value":"Sondas de protocolo"}},"it":{"stringUnit":{"state":"translated","value":"Sonde di protocollo"}},"pl":{"stringUnit":{"state":"translated","value":"Sondy protokołu"}},"ru":{"stringUnit":{"state":"translated","value":"Пробы протокола"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"协议探测"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"協定探測"}}}},
-    "Sends experimental protocol queries and records replies in the strap log. Also enables the experimental 5/MG strap alarm.": {"shouldTranslate":true,"localizations":{"de":{"stringUnit":{"state":"translated","value":"Sendet experimentelle Protokollabfragen und protokolliert die Antworten im Strap-Log. Aktiviert auch den experimentellen 5/MG-Strapalarm."}},"es":{"stringUnit":{"state":"translated","value":"Envía consultas de protocolo experimentales y registra las respuestas en el registro de la pulsera. También habilita la alarma experimental de la pulsera 5/MG."}},"fr":{"stringUnit":{"state":"translated","value":"Envoie des requêtes de protocole expérimentales et consigne les réponses dans le journal du bracelet. Active aussi l’alarme expérimentale du bracelet 5/MG."}},"pt-PT":{"stringUnit":{"state":"translated","value":"Envia consultas experimentais de protocolo e regista as respostas no diário da pulseira. Também ativa o alarme experimental da pulseira 5/MG."}},"it":{"stringUnit":{"state":"translated","value":"Invia richieste di protocollo sperimentali e registra le risposte nel log della fascia. Abilita anche la sveglia sperimentale della fascia 5/MG."}},"pl":{"stringUnit":{"state":"translated","value":"Wysyła eksperymentalne zapytania protokołu i zapisuje odpowiedzi w dzienniku opaski. Włącza też eksperymentalny alarm opaski 5/MG."}},"ru":{"stringUnit":{"state":"translated","value":"Отправляет экспериментальные запросы протокола и записывает ответы в журнал браслета. Также включает экспериментальный будильник браслета 5/MG."}},"zh-Hans":{"stringUnit":{"state":"translated","value":"发送实验性协议查询并将回复记录到手环日志中。还会启用实验性的 5/MG 手环闹钟。"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"傳送實驗性協定查詢並將回覆記錄到手環日誌中。也會啟用實驗性的 5/MG 手環鬧鐘。"}}}},
+    "Sends experimental protocol queries and records replies in the strap log. Also allows the experimental 5/MG strap alarm: NOOP sends it the next time the strap connects or you change the alarm. Turning this off does not clear an alarm that is already on the strap.": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "Sendet experimentelle Protokollabfragen und protokolliert die Antworten im Strap-Log. Erlaubt außerdem den experimentellen 5/MG-Strapalarm: NOOP sendet ihn beim nächsten Verbinden des Straps oder wenn du den Alarm änderst. Das Ausschalten löscht keinen Alarm, der bereits auf dem Strap ist."}}, "es": {"stringUnit": {"state": "translated", "value": "Envía consultas de protocolo experimentales y registra las respuestas en el registro de la pulsera. También permite la alarma experimental de la pulsera 5/MG: NOOP la envía la próxima vez que la pulsera se conecte o cambies la alarma. Desactivar esto no borra una alarma que ya esté en la pulsera."}}, "fr": {"stringUnit": {"state": "translated", "value": "Envoie des requêtes de protocole expérimentales et consigne les réponses dans le journal du bracelet. Autorise aussi l’alarme expérimentale du bracelet 5/MG : NOOP l’envoie à la prochaine connexion du bracelet ou lorsque vous modifiez l’alarme. La désactiver n’efface pas une alarme déjà présente sur le bracelet."}}, "it": {"stringUnit": {"state": "translated", "value": "Invia richieste di protocollo sperimentali e registra le risposte nel log della fascia. Consente anche la sveglia sperimentale della fascia 5/MG: NOOP la invia alla prossima connessione della fascia o quando modifichi la sveglia. Disattivarlo non cancella una sveglia già presente sulla fascia."}}, "pl": {"stringUnit": {"state": "translated", "value": "Wysyła eksperymentalne zapytania protokołu i zapisuje odpowiedzi w dzienniku opaski. Zezwala też na eksperymentalny alarm opaski 5/MG: NOOP wysyła go przy następnym połączeniu opaski lub gdy zmienisz alarm. Wyłączenie tej opcji nie usuwa alarmu, który jest już na opasce."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Envia consultas experimentais de protocolo e regista as respostas no diário da pulseira. Também permite o alarme experimental da pulseira 5/MG: o NOOP envia-o da próxima vez que a pulseira se ligar ou alterares o alarme. Desligar isto não apaga um alarme que já esteja na pulseira."}}, "ru": {"stringUnit": {"state": "translated", "value": "Отправляет экспериментальные запросы протокола и записывает ответы в журнал браслета. Также разрешает экспериментальный будильник браслета 5/MG: NOOP отправляет его при следующем подключении браслета или при изменении будильника. Выключение не удаляет будильник, уже находящийся на браслете."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "发送实验性协议查询并将回复记录到手环日志中。同时允许实验性的 5/MG 手环闹钟：NOOP 会在手环下次连接或你更改闹钟时发送。关闭此开关不会清除已在手环上的闹钟。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "傳送實驗性協定查詢並將回覆記錄到手環日誌中。同時允許實驗性的 5/MG 手環鬧鐘：NOOP 會在手環下次連線或你更改鬧鐘時傳送。關閉此開關不會清除已在手環上的鬧鐘。"}}}},
     "Broadcast heart rate from the strap": {"shouldTranslate":false,"localizations":{"de":{"stringUnit":{"state":"translated","value":"Herzfrequenz vom Band übertragen"}},"es":{"stringUnit":{"state":"translated","value":"Transmitir frecuencia cardíaca desde la pulsera"}},"fr":{"stringUnit":{"state":"translated","value":"Diffuser la fréquence cardiaque du bracelet"}},"pt-PT":{"stringUnit":{"state":"translated","value":"Transmitir frequência cardíaca da bracelete"}},"it":{"stringUnit":{"state":"translated","value":"Trasmetti la frequenza cardiaca dalla fascia"}},"pl":{"stringUnit":{"state":"translated","value":"Nadawaj tętno z paska"}},"ru":{"stringUnit":{"state":"translated","value":"Транслировать пульс с браслета"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"从手环广播心率"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"從手環廣播心率"}}}},
     "Writes the reversible 5/MG advertising flag for Garmin, Zwift, and compatible gym equipment.": {"shouldTranslate":false,"localizations":{"de":{"stringUnit":{"state":"translated","value":"Setzt das umkehrbare 5/MG-Werbe-Flag für kompatible Geräte."}},"es":{"stringUnit":{"state":"translated","value":"Activa el indicador reversible 5/MG para equipos compatibles."}},"fr":{"stringUnit":{"state":"translated","value":"Active l’indicateur réversible 5/MG pour les appareils compatibles."}},"pt-PT":{"stringUnit":{"state":"translated","value":"Ativa o indicador reversível 5/MG para equipamento compatível."}},"it":{"stringUnit":{"state":"translated","value":"Scrive il flag di advertising 5/MG reversibile per Garmin, Zwift e attrezzature da palestra compatibili."}},"pl":{"stringUnit":{"state":"translated","value":"Zapisuje odwracalną flagę rozgłaszania 5/MG dla Garmina, Zwifta i zgodnego sprzętu na siłowni."}},"ru":{"stringUnit":{"state":"translated","value":"Записывает обратимый флаг вещания 5/MG для Garmin, Zwift и совместимых тренажёров."}},"zh-Hans":{"stringUnit":{"state":"translated","value":"写入可撤销的 5/MG 广播标记，供 Garmin、Zwift 及兼容健身器材使用。"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"寫入可撤銷的 5/MG 廣播標記，供 Garmin、Zwift 及相容健身器材使用。"}}}},
     "Legacy R22 feature-flag experiment": {"shouldTranslate":false,"localizations":{"de":{"stringUnit":{"state":"translated","value":"Altes R22-Feature-Flag-Experiment"}},"es":{"stringUnit":{"state":"translated","value":"Experimento antiguo de indicadores R22"}},"fr":{"stringUnit":{"state":"translated","value":"Ancienne expérience d’indicateurs R22"}},"pt-PT":{"stringUnit":{"state":"translated","value":"Experiência antiga de indicadores R22"}},"it":{"stringUnit":{"state":"translated","value":"Vecchio esperimento con i flag R22"}},"pl":{"stringUnit":{"state":"translated","value":"Dawny eksperyment z flagami R22"}},"ru":{"stringUnit":{"state":"translated","value":"Старый эксперимент с флагами R22"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"旧的 R22 功能标记实验"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"舊的 R22 功能標記實驗"}}}},
@@ -217595,7 +216102,7 @@
     "iCloud Drive": {"localizations":{"de":{"stringUnit":{"state":"translated","value":"iCloud Drive"}},"es":{"stringUnit":{"state":"translated","value":"iCloud Drive"}},"fr":{"stringUnit":{"state":"translated","value":"iCloud Drive"}},"it":{"stringUnit":{"state":"translated","value":"iCloud Drive"}},"pl":{"stringUnit":{"state":"translated","value":"iCloud Drive"}},"pt-PT":{"stringUnit":{"state":"translated","value":"iCloud Drive"}},"ru":{"stringUnit":{"state":"translated","value":"iCloud Drive"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"iCloud 云盘"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"iCloud 雲碟"}}}},
     "iCloud Drive › %@": {"localizations":{"de":{"stringUnit":{"state":"translated","value":"iCloud Drive › %@"}},"es":{"stringUnit":{"state":"translated","value":"iCloud Drive › %@"}},"fr":{"stringUnit":{"state":"translated","value":"iCloud Drive › %@"}},"it":{"stringUnit":{"state":"translated","value":"iCloud Drive › %@"}},"pl":{"stringUnit":{"state":"translated","value":"iCloud Drive › %@"}},"pt-PT":{"stringUnit":{"state":"translated","value":"iCloud Drive › %@"}},"ru":{"stringUnit":{"state":"translated","value":"iCloud Drive › %@"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"iCloud 云盘 › %@"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"iCloud 雲碟 › %@"}}}},
     "NOOP (in Files)": {"localizations":{"de":{"stringUnit":{"state":"translated","value":"NOOP (in Dateien)"}},"es":{"stringUnit":{"state":"translated","value":"NOOP (en Archivos)"}},"fr":{"stringUnit":{"state":"translated","value":"NOOP (dans Fichiers)"}},"it":{"stringUnit":{"state":"translated","value":"NOOP (in File)"}},"pl":{"stringUnit":{"state":"translated","value":"NOOP (w Plikach)"}},"pt-PT":{"stringUnit":{"state":"translated","value":"NOOP (em Ficheiros)"}},"ru":{"stringUnit":{"state":"translated","value":"NOOP (в Файлах)"}},"zh-Hans":{"stringUnit":{"state":"translated","value":"NOOP（在“文件”中）"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"NOOP（在「檔案」中）"}}}},
-    "Live heart rate is streaming, but your strap is not fully paired. The encrypted pairing is what carries motion, skin temperature, SpO₂ and respiratory rate — without it, sleep is staged from heart rate alone. Buzz, alarms and history sync need it too.": {"localizations":{"de":{"stringUnit":{"state":"translated","value":"Die Live-Herzfrequenz wird übertragen, aber dein Strap ist nicht vollständig gekoppelt. Die verschlüsselte Kopplung liefert Bewegung, Hauttemperatur, SpO₂ und Atemfrequenz — ohne sie wird der Schlaf allein aus der Herzfrequenz abgeleitet. Auch Buzz, Wecker und Verlaufssynchronisierung brauchen sie."}},"es":{"stringUnit":{"state":"translated","value":"La frecuencia cardíaca en vivo se está transmitiendo, pero tu correa no está totalmente emparejada. El emparejamiento cifrado es el que aporta movimiento, temperatura de la piel, SpO₂ y frecuencia respiratoria: sin él, el sueño se calcula solo a partir de la frecuencia cardíaca. El zumbido, las alarmas y la sincronización del historial también lo necesitan."}},"fr":{"stringUnit":{"state":"translated","value":"La fréquence cardiaque en direct est transmise, mais votre bracelet n'est pas entièrement appairé. C'est l'appairage chiffré qui transporte le mouvement, la température cutanée, la SpO₂ et la fréquence respiratoire — sans lui, le sommeil est estimé à partir de la seule fréquence cardiaque. Le buzz, les alarmes et la synchronisation de l'historique en ont besoin aussi."}},"it":{"stringUnit":{"state":"translated","value":"La frequenza cardiaca live viene trasmessa, ma il tuo strap non è completamente associato. È l'associazione cifrata a trasportare movimento, temperatura della pelle, SpO₂ e frequenza respiratoria — senza di essa il sonno viene stimato dalla sola frequenza cardiaca. Anche buzz, sveglie e sincronizzazione della cronologia ne hanno bisogno."}},"pl":{"stringUnit":{"state":"translated","value":"Tętno na żywo jest przesyłane, ale opaska nie jest w pełni sparowana. To szyfrowane parowanie przenosi ruch, temperaturę skóry, SpO₂ i częstość oddechów — bez niego sen jest wyznaczany wyłącznie z tętna. Wibracje, alarmy i synchronizacja historii też go wymagają."}},"pt-PT":{"stringUnit":{"state":"translated","value":"A frequência cardíaca em direto está a ser transmitida, mas a sua pulseira não está totalmente emparelhada. É o emparelhamento encriptado que transporta movimento, temperatura da pele, SpO₂ e taxa respiratória — sem ele, o sono é calculado apenas a partir da frequência cardíaca. O zumbido, os alarmes e a sincronização do histórico também precisam dele."}},"ru":{"stringUnit":{"state":"translated","value":"Пульс передаётся в реальном времени, но ремешок сопряжён не полностью. Именно зашифрованное сопряжение передаёт движение, температуру кожи, SpO₂ и частоту дыхания — без него сон определяется только по пульсу. Вибрация, будильники и синхронизация истории тоже требуют его."}},"zh-Hans":{"stringUnit":{"state":"translated","value":"实时心率正在传输，但你的手环尚未完全配对。加密配对才能传输动作、皮肤温度、SpO₂ 和呼吸频率——没有它，睡眠只能依据心率推算。震动、闹钟和历史同步同样需要它。"}},"zh-Hant":{"stringUnit":{"state":"translated","value":"即時心率正在傳輸，但你的手環尚未完全配對。加密配對才能傳輸動作、皮膚溫度、SpO₂ 和呼吸頻率——沒有它，睡眠只能依據心率推算。震動、鬧鐘和歷史同步同樣需要它。"}}}},
+    "Live heart rate is streaming, but your strap is not fully paired. The encrypted pairing is what carries the strap's stored history, including motion and skin temperature — without it, sleep is staged from heart rate alone. Buzz, alarms and history sync need it too.": {"localizations": {"de": {"stringUnit": {"state": "translated", "value": "Die Live-Herzfrequenz wird übertragen, aber dein Strap ist nicht vollständig gekoppelt. Die verschlüsselte Kopplung liefert den gespeicherten Verlauf des Straps, darunter Bewegung und Hauttemperatur — ohne sie wird der Schlaf allein aus der Herzfrequenz abgeleitet. Auch Buzz, Wecker und Verlaufssynchronisierung brauchen sie."}}, "es": {"stringUnit": {"state": "translated", "value": "La frecuencia cardíaca en vivo se está transmitiendo, pero tu correa no está totalmente emparejada. El emparejamiento cifrado es el que aporta el historial almacenado de la pulsera, incluidos el movimiento y la temperatura de la piel: sin él, el sueño se calcula solo a partir de la frecuencia cardíaca. El zumbido, las alarmas y la sincronización del historial también lo necesitan."}}, "fr": {"stringUnit": {"state": "translated", "value": "La fréquence cardiaque en direct est transmise, mais votre bracelet n'est pas entièrement appairé. C'est l'appairage chiffré qui transporte l'historique stocké du bracelet, y compris le mouvement et la température cutanée — sans lui, le sommeil est estimé à partir de la seule fréquence cardiaque. Le buzz, les alarmes et la synchronisation de l'historique en ont besoin aussi."}}, "it": {"stringUnit": {"state": "translated", "value": "La frequenza cardiaca live viene trasmessa, ma il tuo strap non è completamente associato. È l'associazione cifrata a trasportare la cronologia memorizzata dello strap, inclusi movimento e temperatura della pelle — senza di essa il sonno viene stimato dalla sola frequenza cardiaca. Anche buzz, sveglie e sincronizzazione della cronologia ne hanno bisogno."}}, "pl": {"stringUnit": {"state": "translated", "value": "Tętno na żywo jest przesyłane, ale opaska nie jest w pełni sparowana. To szyfrowane parowanie przenosi zapisaną historię opaski, w tym ruch i temperaturę skóry — bez niego sen jest wyznaczany wyłącznie z tętna. Wibracje, alarmy i synchronizacja historii też go wymagają."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "A frequência cardíaca em direto está a ser transmitida, mas a sua pulseira não está totalmente emparelhada. É o emparelhamento encriptado que transporta o histórico guardado da pulseira, incluindo movimento e temperatura da pele — sem ele, o sono é calculado apenas a partir da frequência cardíaca. O zumbido, os alarmes e a sincronização do histórico também precisam dele."}}, "ru": {"stringUnit": {"state": "translated", "value": "Пульс передаётся в реальном времени, но ремешок сопряжён не полностью. Именно зашифрованное сопряжение передаёт сохранённую историю браслета, включая движение и температуру кожи — без него сон определяется только по пульсу. Вибрация, будильники и синхронизация истории тоже требуют его."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "实时心率正在传输，但你的手环尚未完全配对。加密配对才能传输手环存储的历史数据，包括动作和皮肤温度——没有它，睡眠只能依据心率推算。震动、闹钟和历史同步同样需要它。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "即時心率正在傳輸，但你的手環尚未完全配對。加密配對才能傳輸手環儲存的歷史資料，包括動作和皮膚溫度——沒有它，睡眠只能依據心率推算。震動、鬧鐘和歷史同步同樣需要它。"}}}},
     "Clear conversation": {"localizations": {
         "en": {"stringUnit": {"state": "translated", "value": "Clear conversation"}},
         "de": {"stringUnit": {"state": "translated", "value": "Unterhaltung löschen"}},

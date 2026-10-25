@@ -72,8 +72,11 @@ switchable off in Settings → About, and the full detail is in
 
 ## Which numbers are measured, and which are NOOP's own estimates?
 
-Measured from the strap: heart rate, R-R intervals, resting HR, skin temperature, respiratory rate,
-sleep duration and stages.
+Measured from the strap: heart rate, R-R intervals and, where the strap provides it, skin temperature.
+
+NOOP's own on-device estimates from those signals: resting HR (the night's lowest sustained level),
+respiratory rate (from beat-to-beat variation on WHOOP straps; a WHOOP 5.0/MG sends no breathing
+channel), and sleep detection, duration and stages.
 
 NOOP's own on-device scores, not clinical measures: Charge (recovery), Effort (strain), Rest (sleep
 performance), Stress, Fitness Age and Vitality. [docs/ANALYTICS.md](ANALYTICS.md) documents the

@@ -50,7 +50,7 @@ checks that both continue to exist.
 | [WHOOP 5 command builder](PROTOCOL_TRANSPORT.md#format-1-framing) | [puffinCommandFrame(cmd:seq:payload:type:header:)](../Packages/WhoopProtocol/Sources/WhoopProtocol/Framing.swift) | [Framing.puffinCommandFrame](../android/app/src/main/java/com/noop/protocol/Framing.kt) | Pads the inner record before checksums |
 | [Clock 8/9-byte forms](PROTOCOL_COMMANDS.md#whoop-4) | [setClockPayload(now:)](../Strand/BLE/BLEManager.swift), [setClockPayloadLegacy(now:)](../Strand/BLE/BLEManager.swift) | [setClockPayload](../android/app/src/main/java/com/noop/ble/WhoopBleClient.kt), [setClockPayloadLegacy](../android/app/src/main/java/com/noop/ble/WhoopBleClient.kt) | WHOOP 4 sends both accepted lengths |
 | [Alarm 9-byte body](PROTOCOL_ALARMS.md#scheduled-alarm-lifecycle-on-whoop-4) | [WhoopCommand.setAlarmPayload(epochSec:)](../Strand/BLE/Commands.swift) | [whoop4AlarmPayload](../android/app/src/main/java/com/noop/ble/WhoopBleClient.kt) | Two trailing bytes remain explicit |
-| [Advertising name](PROTOCOL_COMMANDS.md#whoop-4) | [WhoopCommand.advertisingNamePayload(_:)](../Strand/BLE/Commands.swift) | [renameStrap](../android/app/src/main/java/com/noop/ble/WhoopBleClient.kt) | WHOOP 4 only; client bytes are bounded |
+| [Advertising name](PROTOCOL_COMMANDS.md#whoop-4) | [WhoopCommand.advertisingNamePayload(_:)](../Strand/BLE/Commands.swift) | [renameStrap](../android/app/src/main/java/com/noop/ble/WhoopBleClient.kt), [probeAdvertisingName](../android/app/src/main/java/com/noop/ble/WhoopBleClient.kt) | WHOOP 4 (77) on both platforms; client bytes are bounded. Android only, for 5/MG: an unconfirmed write (140, payload shape mirrored from WHOOP 4) and a read-only check (141), both only while Test Centre → Connection & Sync is on. Swift renames WHOOP 4 only. |
 | [Haptic preset](PROTOCOL_ALARMS.md#immediate-whoop-4-haptics) | [MaverickHaptics.notificationBuzz(loops:)](../Packages/WhoopProtocol/Sources/WhoopProtocol/HapticPayloads.swift) | [maverickHapticBody](../android/app/src/main/java/com/noop/ble/WhoopBleClient.kt) | Android remaps the common request to the family body |
 | [Wrist and ECG controls](PROTOCOL_ECG.md#commands-and-independent-output-gates) | [Whoop5Ecg.selectWristPayload(_:)](../Packages/WhoopProtocol/Sources/WhoopProtocol/Whoop5Ecg.swift), [Whoop5Ecg.togglePayload(on:)](../Packages/WhoopProtocol/Sources/WhoopProtocol/Whoop5Ecg.swift) | [Whoop5Ecg.selectWristPayload](../android/app/src/main/java/com/noop/protocol/Whoop5Ecg.kt), [Whoop5Ecg.togglePayload](../android/app/src/main/java/com/noop/protocol/Whoop5Ecg.kt) | MG capability gate is separate from framing |
 | [Feature-flag and device-config probes](PROTOCOL_CONFIGURATION.md#named-configuration-interface) | [FeatureFlagProbe](../Packages/WhoopProtocol/Sources/WhoopProtocol/FeatureFlagProbe.swift), [DeviceConfigReadProbe](../Packages/WhoopProtocol/Sources/WhoopProtocol/DeviceConfigReadProbe.swift) | [FeatureFlagProbe](../android/app/src/main/java/com/noop/protocol/FeatureFlagProbe.kt), [DeviceConfigReadProbe](../android/app/src/main/java/com/noop/protocol/DeviceConfigReadProbe.kt) | Read paths are bounded and namespace-aware |
@@ -500,7 +500,7 @@ establish a feature gate or contradict the later version-bound mapping. See
 
 NOOP sends these only from the gated, hand-run MG ECG probe described in
 [ECG controls](PROTOCOL_ECG.md#commands-and-independent-output-gates) — never automatically, never on a plain WHOOP 5 or WHOOP 4, and only
-behind the Experimental opt-in plus a positively-identified MG. Existing probe implementation and
+behind a default-off ECG opt-in plus a positively-identified MG. On Android that opt-in is the "WHOOP MG ECG turn-on probe" switch in Test Centre → 5/MG protocol diagnostics; the Apple apps currently have no control that turns it on, so their Devices-screen ECG entry stays hidden unless the stored key was already set. Existing probe implementation and
 older observations must be distinguished from the expanded contract.
 
 On the wire, live IMU control is 106 and BLE UART control is 103; they are distinct
@@ -545,7 +545,7 @@ both platforms; it was missing from this table, so nothing recorded that it must
   `WhoopBleClient.rebootStrap()`) (#166).
 - **`POWER_CYCLE_STRAP` (32)** — a harder restart, in the enum as `powerCycleStrap` **only** for the
   WHOOP 4 reboot probe variants `powerCycle32Empty` and `powerCycle32Payload1` (below). Each is gated
-  behind Test Centre → Connection + a confirmation, and WHOOP-4-only. Never on a default install.
+  behind Test Centre → Connection & Sync + a confirmation, and WHOOP-4-only. Never on a default install.
 
 Everything else in this table stays out of the enum entirely.
 
@@ -555,7 +555,7 @@ Everything else in this table stays out of the enum entirely.
 
 The documented 41.17.6.0 contract does not evaluate the body for either restart
 command: empty, `00` and `01` are equivalent, and an accepted request returns result 1.
-The NOOP probe (Test Centre → Connection, WHOOP 4 only) sends one candidate at a time:
+The NOOP probe (Test Centre → Connection & Sync, WHOOP 4 only) sends one candidate at a time:
 `REBOOT_STRAP(29)` empty, `POWER_CYCLE_STRAP(32)` empty,
 `REBOOT_STRAP(29)` with `[0x01]`, `POWER_CYCLE_STRAP(32)` with `[0x01]`, or
 `REBOOT_STRAP(29)` with `[0x00]`. It reuses the reboot watchdog so the strap log shows
@@ -568,7 +568,7 @@ show a response, disconnect or reboot for command 29, so that physical effect is
 
 This paragraph records the older client decoder; the [current response body](PROTOCOL_COMMANDS.md#ordinary-service-commands) is documented separately.
 
-A read-only, user-triggered diagnostic (Test Centre → Connection, both
+A read-only, user-triggered diagnostic (Test Centre → Connection & Sync, both
 families) that sends `GET_BODY_LOCATION_AND_STATUS` (84 / `0x54`) and dumps the strap's full raw
 COMMAND_RESPONSE to the strap log + a copyable dialog. The 4-byte inner-payload record is
 `revision · location · confidence · status`; `location` maps `0 UNKNOWN, 1 WRIST, 2 BICEP, 3 CALF,
@@ -617,7 +617,7 @@ count plus 4, or a hard cap of 128 replies. Each next-record request is only sen
 lands. Both CRCs are verified before any field is read; a failed CRC, a non-COMMAND_RESPONSE type, or a
 short record ends the walk with a named reason instead of a decode, and the RAW record bytes of every
 reply are logged beside the fields decoded from them. Driven by `BLEManager.probeFeatureFlags()` /
-`WhoopBleClient.probeFeatureFlags()` (user-triggered, Test Centre → Connection, both families) and
+`WhoopBleClient.probeFeatureFlags()` (user-triggered, Test Centre → Connection & Sync, both families) and
 allowlisted for 5/MG framing **only while a probe is in flight**; parsed + rendered by the pure
 `FeatureFlagProbe` / `FeatureFlagProbeReport` twins (Swift↔Kotlin byte-parity, unit-tested on synthetic
 frames). Result goes to a copyable dialog + the strap log; no storage. The field

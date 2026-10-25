@@ -2519,8 +2519,8 @@ enum AppChangelog {
             body: String(localized: "NOOP is a personal, open project: not the WHOOP app, and not affiliated with WHOOP. It reads a strap you own, on your own device. Treat it as a capable work-in-progress rather than a finished product.")),
         Expectation(
             icon: "checkmark.seal",
-            title: String(localized: "WHOOP 4.0 is the supported path"),
-            body: String(localized: "WHOOP 4.0 is tested and works end to end. WHOOP 5.0/MG is newer: live heart rate works today, but deeper metrics (recovery, strain, sleep) for 5/MG are still being figured out. NOOP always tells you what's live versus still building.")),
+            title: String(localized: "WHOOP 4.0 is the most tested path"),
+            body: String(localized: "WHOOP 4.0 is tested and works end to end. WHOOP 5.0/MG is newer: live heart rate and strap history work, and NOOP scores sleep, recovery and strain from them on your device. Some overnight inputs are still incomplete on 5/MG, so its sleep stages are approximate. NOOP always tells you what's live versus still building.")),
         Expectation(
             icon: "hourglass",
             title: String(localized: "Your scores build over a few nights"),

@@ -1821,10 +1821,13 @@ private fun deviceProfile(device: PairedDeviceRow): DeviceCapabilityProfile {
     if (model.contains("5") || model.contains("mg")) {
         return DeviceCapabilityProfile(
             displayModel = "WHOOP 5.0 / MG",
-            captures = "Heart rate · HRV · Skin temp* · Resp rate* · Steps* · Sleep · Strain · Battery",
+            captures = "Heart rate · HRV · Skin temp · Resp rate* · Steps* · Sleep · Strain · Battery",
             powers = whoopPowers,
-            footnote = "* on-device estimate: skin temp is a nightly ±°C deviation, steps are a raw " +
-                "motion count (#78). No SpO₂ % off the strap; import a WHOOP CSV for a real %.",
+            footnote = "* on-device estimate: respiratory rate is derived from beat-to-beat data, and steps " +
+                "count the strap's motion counter only while it reports walking or running, scaled by " +
+                "your Step calibration. Skin temp is measured nightly (°C, or vs your baseline). No " +
+                "verified SpO₂ % off the strap: an unverified estimate is opt-in via “Blood Oxygen: " +
+                "strap estimate”; import a WHOOP CSV for a real %.",
         )
     }
     // WHOOP 4.0 — NOOP's primary band; no steps over BLE.
@@ -1833,8 +1836,9 @@ private fun deviceProfile(device: PairedDeviceRow): DeviceCapabilityProfile {
             displayModel = "WHOOP 4.0",
             captures = "Heart rate · HRV · Skin temp* · Resp rate* · Sleep · Strain · Battery",
             powers = whoopPowers,
-            footnote = "* on-device estimate: skin temp is a nightly ±°C deviation (firmware-dependent); " +
-                "no steps over BLE on a 4.0. No SpO₂ % off the strap; import a WHOOP CSV for a real %.",
+            footnote = "* on-device estimate: skin temp is measured nightly (firmware-dependent; °C, or vs " +
+                "your baseline); no steps over BLE on a 4.0. No SpO₂ % off the strap; import a WHOOP " +
+                "CSV for a real %.",
         )
     }
     // Legacy / unknown WHOOP (the seeded device, model just "WHOOP") — show only the common-to-all set.

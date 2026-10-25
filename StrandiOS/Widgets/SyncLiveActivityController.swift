@@ -76,7 +76,7 @@ final class SyncLiveActivityController {
     }
 
     /// The Sync Strap shortcut's entry: may start the activity from the background because the intent is
-    /// a `LiveActivityIntent`. Shows "Connecting…" until the link is up, or the running sync's state if
+    /// a `LiveActivityIntent`. Shows "Waiting for your strap…" until the strap can serve history, or the running sync's state if
     /// one is already going.
     func startFromShortcut(live: LiveState) {
         adoptExisting()
@@ -84,7 +84,7 @@ final class SyncLiveActivityController {
         request(state: live.backfilling ? state(syncing(live)) : state(SyncActivityCopy.connecting()))
     }
 
-    /// The shortcut found no model, or asked and nothing started: do not leave a "Connecting…" island up
+    /// The shortcut found no model, or asked and nothing started: do not leave a "Waiting for your strap…" island up
     /// for a sync that is not coming.
     func shortcutDidNotStart() {
         guard let activity else { return }

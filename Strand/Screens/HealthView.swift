@@ -143,7 +143,7 @@ private struct SyncStatusSection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: NoopMetrics.gap) {
             SectionHeader("Sync", overline: "Strap history",
-                          trailing: live.connected ? (live.bonded ? String(localized: "Connected") : String(localized: "Pairing…")) : String(localized: "Offline"))
+                          trailing: live.connected ? String(localized: "Connected") : String(localized: "Offline"))
 
             NoopCard(tint: StrandPalette.chargeColor) {
                 VStack(alignment: .leading, spacing: NoopMetrics.cardInnerSpacing) {
@@ -163,7 +163,8 @@ private struct SyncStatusSection: View {
                     .accessibilityLabel("Sync now")
                     .accessibilityHint(canSync
                         ? "Pulls your strap's stored history immediately, without waiting for the next automatic sync."
-                        : (live.backfilling ? "A sync is already in progress." : "Connect your strap first."))
+                        : (live.backfilling ? "A sync is already in progress."
+                           : (live.connected ? "Available once the strap finishes pairing." : "Connect your strap first.")))
 
                     Text(helperText)
                         .font(StrandFont.footnote)
@@ -192,7 +193,7 @@ private struct SyncStatusSection: View {
         } else {
             // Same condition as the button below it. Keyed on `bonded` this said "Ready to sync" directly
             // above a DISABLED Sync now, on exactly the strap that cannot sync.
-            StatePill(live.historyReady ? "Ready to sync" : "Pairing…",
+            StatePill(live.historyReady ? "Ready to sync" : "Not fully paired",
                       tone: .accent, showsDot: true, pulsing: !live.historyReady)
         }
     }
@@ -209,7 +210,7 @@ private struct SyncStatusSection: View {
         // handshake fell through to the "syncs right away" line, under a Sync-now button that had just
         // been disabled. Same condition as the button and the pill, so all three agree.
         if !live.historyReady {
-            return String(localized: "Finishing the pairing handshake. Sync now becomes available once the strap is paired.")
+            return String(localized: "Sync now isn't available on this connection yet. Pulling stored history needs the strap's full secure pairing, which hasn't completed.")
         }
         return String(localized: "Syncs your strap's stored history right away, instead of waiting for the next automatic sync.")
     }

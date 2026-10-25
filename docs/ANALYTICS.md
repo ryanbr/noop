@@ -217,7 +217,7 @@ Effort = 100 · ln(TRIMP + 1) / ln(D),    D = strainDenominator = 7201
 
 ### Steps / active-energy floor
 
-A long walk with little cardio still counts: when cardio TRIMP is low but step / active-kcal load is high, Effort is raised to a movement-derived floor so non-cardio activity still registers. (5/MG continuity: Effort already reads `COALESCE(measured HR, ppg_hr)` via hrBuckets, so 5-series users get Effort from live + PPG HR.)
+A long walk with little cardio still counts: when cardio TRIMP is low but step / active-kcal load is high, Effort is raised to a movement-derived floor so non-cardio activity still registers. (5/MG continuity: Effort reads HR measured-first, `COALESCE(measured HR, ppg_hr)`, through the same anti-join as `hrSamples` / `hrBuckets`. On a 5/MG day the measured part is live HR plus any per-second HR banked from a history offload, when the strap's firmware serves one. The v26 PPG-derived estimate only fills seconds that have no measured HR.)
 
 ### HRmax estimation (`estimateHRmax`)
 
@@ -368,7 +368,7 @@ Source: assembled in `AnalyticsEngine` from the `SleepStager` outputs above. Res
 | Consistency (sleep/wake regularity) | 0.10 | how consistent your sleep and wake timing is |
 
 - **Personal sleep need:** 8 h default, refined by your recent average; the hours-vs-need term clamps at 100.
-- Rest consumes whatever stages each device provides (v25 motion on 4.0; PPG/IMU on 5/MG as it unlocks) — the sleep-staging algorithm itself is unchanged.
+- Rest consumes the stages the on-device stager produces from each strap's motion and heart rate (v25 motion on 4.0; the per-second v18 motion, HR and R-R on 5/MG). One staging algorithm serves both generations with no per-model branch, and the Rest composite does not change it.
 - The `sleep_performance` key now stores this 0–100 composite. The **Charge** "Rest quality" driver reads it (÷100) instead of raw efficiency.
 
 This composite is similar *in spirit* to WHOOP's Sleep Performance %, but the blend is our own.

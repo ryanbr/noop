@@ -20,7 +20,7 @@ class ExtendedBatteryProbeFormatTest {
     @Test fun whoop4_realCapture_acceptedWithVoltageAndGrid() {
         val (text, payHex) = WhoopBleClient.formatExtendedBatteryProbe(hexToBytes(realFrame), cmdOff = 6, isWhoop5 = false, prevPayloadHex = null)
         assertTrue(text.contains("WHOOP 4.0"))
-        assertTrue(text.contains("opcode 98 ACCEPTED — 29-byte payload"))
+        assertTrue(text.contains("opcode 98 answered — 29-byte payload (not a success verdict; see the bytes below)"))
         assertTrue(text.contains(realFrame))                 // full raw hex on one copyable line
         assertTrue(text.contains("Voltage: 3.97 V"))         // pay[7..8] = 0x0f82 = 3970 mV
         assertTrue(text.contains("(mV=3970 @07)"))

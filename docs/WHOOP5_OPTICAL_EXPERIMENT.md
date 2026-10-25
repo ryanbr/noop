@@ -35,8 +35,12 @@ replacement, covering, and pressure transitions out of the steady-state summarie
 Use a normal connected WHOOP 5/MG with its clock synchronized. Do not change R22/config flags during
 this experiment. If deep-history capture is not already working, establish that separately first.
 
-1. In **Settings → Advanced → Experimental · WHOOP 5 / MG**, enable **Record puffin frames to a
-   file**.
+1. In **Test Centre → 5/MG protocol diagnostics**, enable **Passive history/protocol trace** (it records
+   frames that already arrive, does not start sensors, and can create large files).
+
+> **Status:** the phase-marking and export controls described in steps 2–9 are not currently reachable
+> from any screen: no code path opens the phase picker. The procedure below is the intended design and
+> cannot be run from the app as written until those controls are wired.
 2. Tap **Mark phase… → On wrist · still**. Sit still for 2 minutes.
 3. Tap **On wrist · gentle pressure**. Apply only comfortable, steady pressure to the strap for 2
    minutes; stop if there is discomfort.

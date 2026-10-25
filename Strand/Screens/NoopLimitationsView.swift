@@ -128,7 +128,7 @@ struct NoopLimitationsView: View {
                     .foregroundStyle(StrandPalette.textTertiary)
                 legendRow(.full, "Read live off the strap")
                 legendRow(.partial, "On-device estimate, or experimental / firmware-gated")
-                legendRow(.none, "Not from the strap. SpO₂ can be filled by importing a WHOOP or Health export.")
+                legendRow(.none, "No verified value from the strap. A verified SpO₂ % comes from importing a WHOOP or Health export.")
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }

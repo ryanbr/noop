@@ -395,7 +395,7 @@ internal fun vitalsFor(
             // full u16 span just keeps the tile cyan (never "off range"); `stateCaption` labels it
             // uncalibrated, so we never assert an in/out-of-range clinical judgment on raw sensor data.
             key = "spo2raw", label = uiString(R.string.l10n_health_screen_raw_spo_ccfe80c1), unit = "ADC",
-            missingCaption = "No raw SpO₂ decode for the night",
+            missingCaption = uiString(R.string.l10n_health_screen_no_raw_spo2_counts_4_0_only),
             value = d?.let(spo2RawMean), format = { String.format("%.0f", it) },
             deltaText = deltaText(d?.let(spo2RawMean), previous(spo2RawMean), decimals = 0),
             readingDay = todayKey,
@@ -444,7 +444,7 @@ internal fun vitalsFor(
         ),
         Vital(
             key = "skin", label = skinTitle, unit = skinUnitLabel,
-            // #548/#622: empty is often calibrating (~4 nights for ±deviation) or import-less — not a
+            // #548/#622: calibration only withholds the ± deviation; an empty tile means no worn, scored night yet or no import — not a
             // silent broken sensor. Absolute °C still arrives via WHOOP CSV / Health Connect import.
             missingCaption = uiString(R.string.skin_temp_missing_caption),
             value = skin, format = skinFormat,

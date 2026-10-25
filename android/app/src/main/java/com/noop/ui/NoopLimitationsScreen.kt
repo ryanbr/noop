@@ -110,7 +110,7 @@ private fun LegendCard() {
             Overline("Legend")
             LegendRow(LimitState.FULL, "Read live off the strap")
             LegendRow(LimitState.PARTIAL, "On-device estimate, or experimental / firmware-gated")
-            LegendRow(LimitState.NONE, "Not from the strap. SpO₂ can be filled by importing a WHOOP or Health export.")
+            LegendRow(LimitState.NONE, "No verified value from the strap. A verified SpO₂ % comes from importing a WHOOP or Health export.")
         }
     }
 }

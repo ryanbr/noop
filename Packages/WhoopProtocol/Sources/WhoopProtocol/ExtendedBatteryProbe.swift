@@ -37,7 +37,7 @@ public enum ExtendedBatteryProbe {
         if resultCode == 3 {
             verdict = "opcode 98 REJECTED by firmware (UNSUPPORTED) — evidence for the decompile's 87"
         } else if hasPayload {
-            verdict = "opcode 98 ACCEPTED — \(pay.count)-byte payload"
+            verdict = "opcode 98 answered — \(pay.count)-byte payload (not a success verdict; see the bytes below)"
         } else {
             verdict = "opcode 98 answered with a bare stub — ambiguous"
         }
