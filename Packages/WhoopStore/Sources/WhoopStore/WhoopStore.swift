@@ -162,8 +162,10 @@ public actor WhoopStore {
     // regular (non-async) functions, so overload resolution always selects the synchronous
     // GRDB API — which then blocks on the actor's serial executor (off main thread).
 
+    /// `nonisolated`: it touches only `dbWriter`, an immutable `Sendable` handle, so a read need not queue behind
+    /// the actor's current work. `DatabasePool` reads run on their own WAL snapshots, in parallel with the writer.
     @inline(__always)
-    func syncRead<T>(_ block: (Database) throws -> T) throws -> T {
+    nonisolated func syncRead<T>(_ block: (Database) throws -> T) throws -> T {
         try dbWriter.read(block)
     }
 

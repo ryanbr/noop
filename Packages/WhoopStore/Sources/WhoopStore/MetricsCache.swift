@@ -394,7 +394,7 @@ extension WhoopStore {
 
     /// The persisted per-epoch motion magnitudes for one session, or nil when the column is NULL / the
     /// session doesn't exist / the JSON is unparseable (absent stays absent). Keyed by detected startTs.
-    public func sessionMotion(deviceId: String, sessionStart: Int) async throws -> [Double]? {
+    public nonisolated func sessionMotion(deviceId: String, sessionStart: Int) async throws -> [Double]? {
         try syncRead { db in
             let json = try String.fetchOne(db, sql: """
                 SELECT motionJSON FROM sleepSession WHERE deviceId = ? AND startTs = ?
@@ -420,7 +420,7 @@ extension WhoopStore {
 
     /// The persisted decoded v18 band sleep_state per epoch for one session, or nil when unset / unparseable
     /// (absent stays absent). Keyed by detected startTs.
-    public func sessionSleepState(deviceId: String, sessionStart: Int) async throws -> [Int]? {
+    public nonisolated func sessionSleepState(deviceId: String, sessionStart: Int) async throws -> [Int]? {
         try syncRead { db in
             let json = try String.fetchOne(db, sql: """
                 SELECT sleepStateJSON FROM sleepSession WHERE deviceId = ? AND startTs = ?
@@ -439,7 +439,7 @@ extension WhoopStore {
     /// `(deviceId, startTs)` is the primary key, so a start maps to exactly one end and the dictionary
     /// loses nothing. Unpaged on purpose: the window bounds the result, and a page limit sized from a
     /// caller's own list would silently drop rows for a caller that passed a sparse subset of a wide span.
-    public func sleepSessionBounds(deviceId: String, from: Int, to: Int) async throws -> [Int: Int] {
+    public nonisolated func sleepSessionBounds(deviceId: String, from: Int, to: Int) async throws -> [Int: Int] {
         try syncRead { db in
             var out: [Int: Int] = [:]
             let rows = try Row.fetchAll(db, sql: """
@@ -457,7 +457,7 @@ extension WhoopStore {
     /// the result (absent stays absent, never a fabricated zero array) — but without the per-session
     /// round-trip the Sleep tab's main-night group used to pay (N single-row reads → one). The `IN (…)` list
     /// is de-duplicated and chunked to stay well under SQLite's bound-parameter ceiling.
-    public func sessionMotions(deviceId: String, sessionStarts: [Int]) async throws -> [Int: [Double]] {
+    public nonisolated func sessionMotions(deviceId: String, sessionStarts: [Int]) async throws -> [Int: [Double]] {
         guard !sessionStarts.isEmpty else { return [:] }
         return try syncRead { db in
             var out: [Int: [Double]] = [:]
@@ -489,7 +489,7 @@ extension WhoopStore {
     /// SAME `[from, to]` window as its `sleepSessions` call, so a single range scan replaces the per-session
     /// round-trip (N single-row reads → one); the caller looks each kept (deduped) session up by startTs.
     /// NULL/absent columns are omitted (absent stays absent), identical to the single-key accessor.
-    public func sessionSleepStates(deviceId: String, from: Int, to: Int) async throws -> [Int: [Int]] {
+    public nonisolated func sessionSleepStates(deviceId: String, from: Int, to: Int) async throws -> [Int: [Int]] {
         try syncRead { db in
             var out: [Int: [Int]] = [:]
             let rows = try Row.fetchAll(db, sql: """
@@ -616,7 +616,7 @@ extension WhoopStore {
     // MARK: - Reads
 
     /// Cached sleep sessions overlapping [from, to] (by startTs), oldest first.
-    public func sleepSessions(deviceId: String, from: Int, to: Int, limit: Int) async throws -> [CachedSleepSession] {
+    public nonisolated func sleepSessions(deviceId: String, from: Int, to: Int, limit: Int) async throws -> [CachedSleepSession] {
         try syncRead { db in
             try Row.fetchAll(db, sql: """
                 SELECT startTs, endTs, efficiency, restingHr, avgHrv, stagesJSON, userEdited,
@@ -638,7 +638,7 @@ extension WhoopStore {
     }
 
     /// Cached daily metrics for days in [from, to] (lexicographic YYYY-MM-DD compare), oldest first.
-    public func dailyMetrics(deviceId: String, from: String, to: String) async throws -> [DailyMetric] {
+    public nonisolated func dailyMetrics(deviceId: String, from: String, to: String) async throws -> [DailyMetric] {
         try syncRead { db in
             try Row.fetchAll(db, sql: """
                 SELECT day, totalSleepMin, efficiency, deepMin, remMin, lightMin, disturbances,

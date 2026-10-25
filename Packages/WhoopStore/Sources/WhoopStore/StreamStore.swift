@@ -502,7 +502,7 @@ extension WhoopStore {
     ///
     /// `since` is a unix-seconds floor (caller passes now-24h); rows with `ts >= since` for `deviceId`
     /// are included. Writes to a temp file and returns its URL (caller hands it to the share/save flow).
-    public func exportRawCSV(deviceId: String, since: TimeInterval) async throws -> URL {
+    public nonisolated func exportRawCSV(deviceId: String, since: TimeInterval) async throws -> URL {
         let floor = Int(since)
         let rows: [RawCSVRow] = try syncRead { db in
             var out: [RawCSVRow] = []
@@ -662,7 +662,7 @@ extension WhoopStore {
 
     // MARK: - Test helpers
 
-    public func storageStats_rowCountsForTest() async throws
+    public nonisolated func storageStats_rowCountsForTest() async throws
         -> (hr: Int, rr: Int, events: Int, battery: Int,
             spo2: Int, skinTemp: Int, resp: Int, gravity: Int) {
         // Bind each count to its own `let` before assembling the tuple. Returning the whole tuple of
@@ -682,7 +682,7 @@ extension WhoopStore {
         }
     }
 
-    public func stepCountForTest() async throws -> Int {
+    public nonisolated func stepCountForTest() async throws -> Int {
         try syncRead { db in try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM stepSample") ?? 0 }
     }
 
@@ -690,7 +690,7 @@ extension WhoopStore {
     /// ts. Each `(ts, state)` is the raw @81 high-nibble code (0 wake/1 still/2 asleep/3 up) carried
     /// verbatim off the offload stream. Empty when the strap never reported it (a WHOOP 4.0, or a not-yet-
     /// offloaded window). Feeds the Deep Timeline band-state track and the per-session grid the H7 guard reads.
-    public func sleepStateSamples(deviceId: String, from: Int, to: Int, limit: Int = 200_000) async throws
+    public nonisolated func sleepStateSamples(deviceId: String, from: Int, to: Int, limit: Int = 200_000) async throws
         -> [SleepStateSample] {
         try syncRead { db in
             try Row.fetchAll(db, sql: """
@@ -704,7 +704,7 @@ extension WhoopStore {
         }
     }
 
-    public func sleepStateCountForTest() async throws -> Int {
+    public nonisolated func sleepStateCountForTest() async throws -> Int {
         try syncRead { db in try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM sleepStateSample") ?? 0 }
     }
 
@@ -712,7 +712,7 @@ extension WhoopStore {
     /// Each row is one strap-second's slots, decoded from the compact blob by `V18AuxCodec`. Empty for a
     /// WHOOP 4.0 and for any window offloaded before v31. INSTRUMENTATION: no analytic calls this — it
     /// exists so the banked bytes are reachable for a census, and so the write path has a round-trip test.
-    public func v18AuxSamples(deviceId: String, from: Int, to: Int, limit: Int = 200_000) async throws
+    public nonisolated func v18AuxSamples(deviceId: String, from: Int, to: Int, limit: Int = 200_000) async throws
         -> [V18AuxSample] {
         try syncRead { db in
             try Row.fetchAll(db, sql: """
@@ -724,11 +724,11 @@ extension WhoopStore {
         }
     }
 
-    public func v18AuxCountForTest() async throws -> Int {
+    public nonisolated func v18AuxCountForTest() async throws -> Int {
         try syncRead { db in try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM v18AuxSample") ?? 0 }
     }
 
-    public func ppgHrCountForTest() async throws -> Int {
+    public nonisolated func ppgHrCountForTest() async throws -> Int {
         try syncRead { db in try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM ppgHrSample") ?? 0 }
     }
 
@@ -736,7 +736,7 @@ extension WhoopStore {
     /// device, ascending by ts. `samples` are the raw i16 ADC counts the strap sent, unpacked from the
     /// compact on-disk BLOB (`packPpgSamples`/`unpackPpgSamples`). Empty when the strap never emitted
     /// v26 (the WHOOP 4.0 / v18-only common case) or the window has no v26-heavy stretch.
-    public func ppgWaveformSamples(deviceId: String, from: Int, to: Int, limit: Int = 200_000) async throws
+    public nonisolated func ppgWaveformSamples(deviceId: String, from: Int, to: Int, limit: Int = 200_000) async throws
         -> [PpgWaveformSample] {
         try syncRead { db in
             try Row.fetchAll(db, sql: """
@@ -755,11 +755,11 @@ extension WhoopStore {
         }
     }
 
-    public func ppgWaveformCountForTest() async throws -> Int {
+    public nonisolated func ppgWaveformCountForTest() async throws -> Int {
         try syncRead { db in try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM ppgWaveformSample") ?? 0 }
     }
 
-    public func deviceRowForTest(id: String) async throws -> (mac: String?, name: String?)? {
+    public nonisolated func deviceRowForTest(id: String) async throws -> (mac: String?, name: String?)? {
         try syncRead { db in
             guard let row = try Row.fetchOne(db,
                 sql: "SELECT mac, name FROM device WHERE id = ?", arguments: [id]) else {
@@ -783,7 +783,7 @@ extension WhoopStore {
     }
 
     /// The stored `ord` values for one second, in read order. Test-only (#823).
-    public func rrOrdValuesForTest(deviceId: String, ts: Int) async throws -> [Int?] {
+    public nonisolated func rrOrdValuesForTest(deviceId: String, ts: Int) async throws -> [Int?] {
         try syncRead { db in
             try Row.fetchAll(db, sql: """
                 SELECT ord FROM rrInterval WHERE deviceId = ? AND ts = ?
@@ -795,7 +795,7 @@ extension WhoopStore {
     /// Every STORED R-R row for a device as `(rrMs, srcChannel)`, bypassing the scoring read's channel
     /// filter. Test-only (#1071): the fix is "filter at read, keep both channels on disk", and the only
     /// way to assert the second half is to look at the table itself rather than through `rrIntervals`.
-    public func rrRowsWithChannelForTest(deviceId: String) async throws -> [(rrMs: Int, srcChannel: Int?)] {
+    public nonisolated func rrRowsWithChannelForTest(deviceId: String) async throws -> [(rrMs: Int, srcChannel: Int?)] {
         try syncRead { db in
             try Row.fetchAll(db, sql: """
                 SELECT rrMs, srcChannel FROM rrInterval WHERE deviceId = ?
@@ -815,7 +815,7 @@ extension WhoopStore {
 
     /// Every STORED R-R row for a device as `(ts, tsSuspect)`, bypassing the scoring read's filter — so a
     /// test can assert which rows were quarantined AND that none were deleted. Test-only (#1073).
-    public func rrSuspectRowsForTest(deviceId: String) async throws -> [(ts: Int, tsSuspect: Int?)] {
+    public nonisolated func rrSuspectRowsForTest(deviceId: String) async throws -> [(ts: Int, tsSuspect: Int?)] {
         try syncRead { db in
             try Row.fetchAll(db, sql: """
                 SELECT ts, tsSuspect FROM rrInterval WHERE deviceId = ? ORDER BY ts ASC

@@ -225,7 +225,7 @@ extension WhoopStore {
 
     /// Journal entries for days in [from, to] (lexicographic YYYY-MM-DD compare),
     /// oldest day first, then by question.
-    public func journalEntries(deviceId: String, from: String, to: String) async throws -> [JournalEntry] {
+    public nonisolated func journalEntries(deviceId: String, from: String, to: String) async throws -> [JournalEntry] {
         try syncRead { db in
             try Row.fetchAll(db, sql: """
                 SELECT day, question, answeredYes, notes, numericValue FROM journal
@@ -242,7 +242,7 @@ extension WhoopStore {
     }
 
     /// Workouts overlapping [from, to] (by startTs), oldest first.
-    public func workouts(deviceId: String, from: Int, to: Int, limit: Int) async throws -> [WorkoutRow] {
+    public nonisolated func workouts(deviceId: String, from: Int, to: Int, limit: Int) async throws -> [WorkoutRow] {
         try syncRead { db in
             try Row.fetchAll(db, sql: """
                 SELECT startTs, endTs, sport, source, durationS, energyKcal, avgHr, maxHr,
@@ -264,7 +264,7 @@ extension WhoopStore {
     /// recompute an activity-file day's step total from ALL its sessions, so a second file on the same day
     /// adds rather than clobbers — and re-importing a file is idempotent (its row's steps are replaced,
     /// not re-added, by `upsertWorkouts`). Returns 0 when no session in the range carried steps.
-    public func sumWorkoutSteps(deviceId: String, from: Int, to: Int) async throws -> Int {
+    public nonisolated func sumWorkoutSteps(deviceId: String, from: Int, to: Int) async throws -> Int {
         try syncRead { db in
             try Int.fetchOne(db, sql: """
                 SELECT COALESCE(SUM(steps), 0) FROM workout
@@ -274,7 +274,7 @@ extension WhoopStore {
     }
 
     /// Apple-Health daily aggregates for days in [from, to] (lexicographic compare), oldest first.
-    public func appleDaily(deviceId: String, from: String, to: String) async throws -> [AppleDaily] {
+    public nonisolated func appleDaily(deviceId: String, from: String, to: String) async throws -> [AppleDaily] {
         try syncRead { db in
             try Row.fetchAll(db, sql: """
                 SELECT day, steps, activeKcal, basalKcal, vo2max, avgHr, maxHr, walkingHr, weightKg

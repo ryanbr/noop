@@ -52,7 +52,7 @@ extension WhoopStore {
     /// same suspect-timestamp exclusion as the scoring read (#1073), so it cannot name a day that
     /// scoring would then refuse. The caller turns it into a local day key; the calendar is the app's
     /// policy, not the store's.
-    public func firstScorableWhoop5RRTimestamp(deviceId: String) async throws -> Int? {
+    public nonisolated func firstScorableWhoop5RRTimestamp(deviceId: String) async throws -> Int? {
         try syncRead { db in
             try Int.fetchOne(db, sql: """
                 SELECT MIN(ts) FROM rrInterval
@@ -67,7 +67,7 @@ extension WhoopStore {
     /// The lower bound on the "cannot be scored" explanation: it is what separates history this strap
     /// actually recorded from history imported from somewhere else, and only the former can have lost
     /// anything to a labelling change. Same shape and same suspect exclusion as the scorable read above.
-    public func firstRecordedRRTimestamp(deviceId: String) async throws -> Int? {
+    public nonisolated func firstRecordedRRTimestamp(deviceId: String) async throws -> Int? {
         try syncRead { db in
             try Int.fetchOne(db, sql: """
                 SELECT MIN(ts) FROM rrInterval
@@ -80,7 +80,7 @@ extension WhoopStore {
     /// unlabelled, non-quarantined legacy rows and no verified scoring transport. This is deliberately
     /// narrower than "the R-R read was empty": an unworn night, WHOOP 4, another brand, and a labelled
     /// but insufficient transport all return false and therefore remain ordinary current-score outcomes.
-    public func legacyWhoop5RRWithheld(deviceId: String, from: Int, to: Int,
+    public nonisolated func legacyWhoop5RRWithheld(deviceId: String, from: Int, to: Int,
                                        unlabelledAliasOfWhoop5: Bool = false) async throws -> Bool {
         try syncRead { db in
             guard try Self.isWhoop5RRSource(db: db, deviceId: deviceId,
@@ -102,7 +102,7 @@ extension WhoopStore {
     }
 
     /// Shared by RR reads and consumers whose cached/union reads must obey the same owner policy.
-    public func isWhoop5RRSource(deviceId: String, unlabelledAliasOfWhoop5: Bool = false) async throws -> Bool {
+    public nonisolated func isWhoop5RRSource(deviceId: String, unlabelledAliasOfWhoop5: Bool = false) async throws -> Bool {
         try syncRead { try Self.isWhoop5RRSource(db: $0, deviceId: deviceId,
                                               unlabelledAliasOfWhoop5: unlabelledAliasOfWhoop5) }
     }

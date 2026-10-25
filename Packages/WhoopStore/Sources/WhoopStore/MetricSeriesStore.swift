@@ -54,7 +54,7 @@ extension WhoopStore {
 
     /// Points for a single `key` on days in [from, to] (lexicographic YYYY-MM-DD compare),
     /// oldest day first. Served index-only by idx_metricSeries_device_key_day.
-    public func metricSeries(deviceId: String, key: String, from: String, to: String) async throws -> [MetricPoint] {
+    public nonisolated func metricSeries(deviceId: String, key: String, from: String, to: String) async throws -> [MetricPoint] {
         try syncRead { db in
             try Row.fetchAll(db, sql: """
                 SELECT day, key, value FROM metricSeries
@@ -66,7 +66,7 @@ extension WhoopStore {
     }
 
     /// Distinct metric keys present for a device, sorted ascending.
-    public func metricKeys(deviceId: String) async throws -> [String] {
+    public nonisolated func metricKeys(deviceId: String) async throws -> [String] {
         try syncRead { db in
             try String.fetchAll(db, sql: """
                 SELECT DISTINCT key FROM metricSeries
@@ -77,7 +77,7 @@ extension WhoopStore {
     }
 
     /// Earliest and latest day for a given metric `key`, or nil if the key has no points.
-    public func metricDays(deviceId: String, key: String) async throws -> (earliest: String, latest: String)? {
+    public nonisolated func metricDays(deviceId: String, key: String) async throws -> (earliest: String, latest: String)? {
         try syncRead { db in
             guard let row = try Row.fetchOne(db, sql: """
                 SELECT MIN(day) AS earliest, MAX(day) AS latest FROM metricSeries

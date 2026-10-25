@@ -40,7 +40,7 @@ public struct CoachMessageRow: Equatable, Codable, Sendable {
 extension WhoopStore {
 
     /// The full stored conversation, oldest first (by `orderIndex`).
-    public func coachMessages() async throws -> [CoachMessageRow] {
+    public nonisolated func coachMessages() async throws -> [CoachMessageRow] {
         try syncRead { db in
             try Row.fetchAll(db, sql: "SELECT * FROM coachMessage ORDER BY orderIndex ASC")
                 .map(CoachMessageRow.decode)

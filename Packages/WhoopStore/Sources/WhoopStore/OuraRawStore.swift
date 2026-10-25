@@ -56,7 +56,7 @@ extension WhoopStore {
     /// the pages of that fetch are no longer contiguous. That is the honest ordering, since the row really
     /// was fetched later, but a reader that needs the pages of one fetch together has to group on
     /// `fetchedAt` itself rather than assume this read hands them over adjacent.
-    public func ouraRaw(deviceId: String, endpoint: String) async throws -> [OuraRawRow] {
+    public nonisolated func ouraRaw(deviceId: String, endpoint: String) async throws -> [OuraRawRow] {
         try syncRead { db in
             try Row.fetchAll(db, sql: """
                 SELECT endpoint, documentId, day, payloadJSON, fetchedAt FROM ouraRaw
@@ -69,7 +69,7 @@ extension WhoopStore {
     }
 
     /// Count archived payloads for a device + endpoint (diagnostics / import summary).
-    public func ouraRawCount(deviceId: String, endpoint: String) async throws -> Int {
+    public nonisolated func ouraRawCount(deviceId: String, endpoint: String) async throws -> Int {
         try syncRead { db in
             try Int.fetchOne(db, sql:
                 "SELECT COUNT(*) FROM ouraRaw WHERE deviceId = ? AND endpoint = ?",

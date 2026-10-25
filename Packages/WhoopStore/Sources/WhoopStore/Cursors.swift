@@ -10,7 +10,7 @@ extension WhoopStore {
                 """, arguments: [name, value])
         }
     }
-    public func cursor(_ name: String) async throws -> Int? {
+    public nonisolated func cursor(_ name: String) async throws -> Int? {
         try syncRead { db in
             try Int.fetchOne(db, sql: "SELECT value FROM cursors WHERE name = ?", arguments: [name])
         }

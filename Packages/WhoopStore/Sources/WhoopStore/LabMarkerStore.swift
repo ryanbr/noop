@@ -148,7 +148,7 @@ extension WhoopStore {
 
     /// All readings in a category, oldest first (by takenAt). Served by
     /// `idx_labMarker_device_category` + the takenAt index.
-    public func labMarkers(deviceId: String, category: String) async throws -> [LabMarkerRow] {
+    public nonisolated func labMarkers(deviceId: String, category: String) async throws -> [LabMarkerRow] {
         try syncRead { db in
             try Row.fetchAll(db, sql: """
                 SELECT * FROM labMarker
@@ -160,7 +160,7 @@ extension WhoopStore {
 
     /// Full reading history for one marker, oldest first (by takenAt). Served
     /// index-only by `idx_labMarker_device_marker_takenAt`.
-    public func labMarkers(deviceId: String, markerKey: String) async throws -> [LabMarkerRow] {
+    public nonisolated func labMarkers(deviceId: String, markerKey: String) async throws -> [LabMarkerRow] {
         try syncRead { db in
             try Row.fetchAll(db, sql: """
                 SELECT * FROM labMarker
@@ -171,7 +171,7 @@ extension WhoopStore {
     }
 
     /// Distinct marker keys present for a device, sorted ascending.
-    public func markerKeysPresent(deviceId: String) async throws -> [String] {
+    public nonisolated func markerKeysPresent(deviceId: String) async throws -> [String] {
         try syncRead { db in
             try String.fetchAll(db, sql: """
                 SELECT DISTINCT markerKey FROM labMarker

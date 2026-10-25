@@ -419,7 +419,7 @@ extension WhoopStore {
 
     /// The user's exercises, most recently used first and never-used ones after, alphabetical within
     /// each. This is the picker's list — built entirely from what they have typed.
-    public func liftExercises(deviceId: String) async throws -> [LiftExerciseRow] {
+    public nonisolated func liftExercises(deviceId: String) async throws -> [LiftExerciseRow] {
         try syncRead { db in
             try Row.fetchAll(db, sql: """
                 SELECT * FROM liftExercise
@@ -468,7 +468,7 @@ extension WhoopStore {
 
     /// Programs for a device, most recently touched first. `includeArchived` defaults false so the
     /// picker shows only live programs.
-    public func liftPrograms(deviceId: String, includeArchived: Bool = false) async throws -> [LiftProgramRow] {
+    public nonisolated func liftPrograms(deviceId: String, includeArchived: Bool = false) async throws -> [LiftProgramRow] {
         try syncRead { db in
             let sql = includeArchived
                 ? """
@@ -524,7 +524,7 @@ extension WhoopStore {
     }
 
     /// A program's exercise lines in program order.
-    public func liftProgramItems(programId: String) async throws -> [LiftProgramItemRow] {
+    public nonisolated func liftProgramItems(programId: String) async throws -> [LiftProgramItemRow] {
         try syncRead { db in
             try Row.fetchAll(db, sql: """
                 SELECT * FROM liftProgramItem
@@ -567,7 +567,7 @@ extension WhoopStore {
     }
 
     /// Sessions for a device that started within `[fromTs, toTs]` inclusive, most recent first.
-    public func liftSessions(deviceId: String, fromTs: Int, toTs: Int) async throws -> [LiftSessionRow] {
+    public nonisolated func liftSessions(deviceId: String, fromTs: Int, toTs: Int) async throws -> [LiftSessionRow] {
         try syncRead { db in
             try Row.fetchAll(db, sql: """
                 SELECT * FROM liftSession
@@ -647,7 +647,7 @@ extension WhoopStore {
     }
 
     /// Every set in a session, in the order they were performed.
-    public func liftSets(sessionId: String) async throws -> [LiftSetRow] {
+    public nonisolated func liftSets(sessionId: String) async throws -> [LiftSetRow] {
         try syncRead { db in
             try Row.fetchAll(db, sql: """
                 SELECT * FROM liftSet
@@ -665,7 +665,7 @@ extension WhoopStore {
     /// `startTs`) so a running session never pre-fills from itself. Sets with zero reps were not
     /// performed (`LiftMetrics.isPerformed`) and are skipped, so a discarded set never becomes the next
     /// session's grey numbers, and a session holding only such sets is not "last time" for the exercise.
-    public func lastLiftSets(deviceId: String, exercise: String, before: Int? = nil) async throws -> [LiftSetRow] {
+    public nonisolated func lastLiftSets(deviceId: String, exercise: String, before: Int? = nil) async throws -> [LiftSetRow] {
         try syncRead { db in
             // Two steps rather than a correlated subquery: find the latest qualifying session, then
             // read its sets in order. Served by idx_liftSet_device_exercise + idx_liftSession_natural.
