@@ -18,12 +18,32 @@ final class StrainBanisterDenominatorTests: XCTestCase {
 
     // MARK: - The derivation
 
-    /// Ceiling = 24 h × ΔHRR 1.0 × 0.64 × e^b, stated independently of the implementation.
+    /// Ceiling = 24 h × ΔHRR 1.0 × scale × e^b, stated independently of the implementation, with the
+    /// PUBLISHED pair per sex: 0.64 and 1.92 for men, 0.86 and 1.67 for women.
+    ///
+    /// REPINNED (#2835). The women's line used to read `1440.0 * 0.64 * exp(1.67)`, hardcoding the men's
+    /// coefficient against the women's exponent, which is what the implementation did. So this test
+    /// agreed with the code because both made the same mistake, and its own doc claimed the ceiling was
+    /// "stated independently of the implementation" while restating the implementation's error. An
+    /// independent statement means the numbers come from the paper, which is now what these two lines
+    /// hold.
     func testTheDailyCeilingIsTwentyFourHoursAtFullReserve() {
-        XCTAssertEqual(StrainScorer.banisterDailyCeiling(b: StrainScorer.banisterBMen),
+        XCTAssertEqual(StrainScorer.banisterDailyCeiling(StrainScorer.banisterCoefficients(sexF: false)),
                        1440.0 * 0.64 * exp(1.92), accuracy: d)
-        XCTAssertEqual(StrainScorer.banisterDailyCeiling(b: StrainScorer.banisterBWomen),
-                       1440.0 * 0.64 * exp(1.67), accuracy: d)
+        XCTAssertEqual(StrainScorer.banisterDailyCeiling(StrainScorer.banisterCoefficients(sexF: true)),
+                       1440.0 * 0.86 * exp(1.67), accuracy: d)
+    }
+
+    /// The pair cannot be split, which is the repair #2835 actually asked for. Selecting a sex yields
+    /// BOTH of that sex's published coefficients, so the earlier failure, women's exponent with men's
+    /// multiplier, is no longer expressible.
+    func testEachSexGetsBothOfItsPublishedCoefficients() {
+        XCTAssertEqual(StrainScorer.banisterCoefficients(sexF: false).scale, 0.64, accuracy: d)
+        XCTAssertEqual(StrainScorer.banisterCoefficients(sexF: false).b, 1.92, accuracy: d)
+        XCTAssertEqual(StrainScorer.banisterCoefficients(sexF: true).scale, 0.86, accuracy: d)
+        XCTAssertEqual(StrainScorer.banisterCoefficients(sexF: true).b, 1.67, accuracy: d)
+        XCTAssertNotEqual(StrainScorer.banisterCoefficients(sexF: true).scale, StrainScorer.banisterCoefficients(sexF: false).scale,
+                          "a shared multiplier is the defect this pair exists to prevent")
     }
 
     /// The denominator is (ceiling MINUS a full day of sedentary baseline) + 1.
@@ -34,11 +54,11 @@ final class StrainBanisterDenominatorTests: XCTestCase {
     /// end only would trade one mismatch for the other.
     func testTheDenominatorIsCeilingMinusBaselinePlusOne() {
         XCTAssertEqual(StrainScorer.logMapDenominator(method: .banister, sex: "male"),
-                       StrainScorer.banisterDailyCeiling(b: StrainScorer.banisterBMen) -
-                        StrainScorer.banisterBaseline(minutes: 24.0 * 60.0, b: StrainScorer.banisterBMen) + 1.0, accuracy: d)
+                       StrainScorer.banisterDailyCeiling(StrainScorer.banisterCoefficients(sexF: false)) -
+                        StrainScorer.banisterBaseline(minutes: 24.0 * 60.0, StrainScorer.banisterCoefficients(sexF: false)) + 1.0, accuracy: d)
         XCTAssertEqual(StrainScorer.logMapDenominator(method: .banister, sex: "female"),
-                       StrainScorer.banisterDailyCeiling(b: StrainScorer.banisterBWomen) -
-                        StrainScorer.banisterBaseline(minutes: 24.0 * 60.0, b: StrainScorer.banisterBWomen) + 1.0, accuracy: d)
+                       StrainScorer.banisterDailyCeiling(StrainScorer.banisterCoefficients(sexF: true)) -
+                        StrainScorer.banisterBaseline(minutes: 24.0 * 60.0, StrainScorer.banisterCoefficients(sexF: true)) + 1.0, accuracy: d)
     }
 
     /// The property the whole derivation exists for: a theoretical maximum day maps to exactly 100 under
@@ -49,24 +69,27 @@ final class StrainBanisterDenominatorTests: XCTestCase {
         XCTAssertEqual(edwards, 100.0, accuracy: 1e-6)
 
         for sex in ["male", "female"] {
-            let b = sex == "female" ? StrainScorer.banisterBWomen : StrainScorer.banisterBMen
+            let c = StrainScorer.banisterCoefficients(sexF: sex == "female")
             // #1624: the quantity that maps to the top is a maximum day's EXCESS over the sedentary
             // baseline, not its raw TRIMP — that is what the scorer now feeds the log map. Feeding the raw
             // ceiling overshoots (100.21), which is the arithmetic working, not breaking.
-            let ceiling = StrainScorer.banisterDailyCeiling(b: b) -
-                StrainScorer.banisterBaseline(minutes: 24.0 * 60.0, b: b)
+            let ceiling = StrainScorer.banisterDailyCeiling(c) -
+                StrainScorer.banisterBaseline(minutes: 24.0 * 60.0, c)
             let mapped = StrainScorer.trimpToStrain(
                 ceiling, denominator: StrainScorer.logMapDenominator(method: .banister, sex: sex))
             XCTAssertEqual(mapped, 100.0, accuracy: 1e-6, "\(sex) ceiling should map to the top of the scale")
         }
     }
 
-    /// Sex matters, and in the direction the coefficients imply: the smaller exponent gives the lower
-    /// ceiling, so a woman's denominator is the smaller of the two.
-    func testTheFemaleDenominatorIsSmaller() {
+    /// Sex matters, and the DIRECTION reversed with #2835, which is worth stating rather than quietly
+    /// re-sorting. Under the old single 0.64 the women's smaller exponent alone decided it, so the
+    /// women's denominator was the smaller. With the published pair the larger multiplier more than
+    /// offsets the smaller exponent (0.86·e^1.67 = 4.57 against 0.64·e^1.92 = 4.36), so it is now the
+    /// larger. The point of the test is unchanged: the two are not interchangeable.
+    func testTheDenominatorsDifferBySexAndFemaleIsNowTheLarger() {
         let male = StrainScorer.logMapDenominator(method: .banister, sex: "male")
         let female = StrainScorer.logMapDenominator(method: .banister, sex: "female")
-        XCTAssertLessThan(female, male)
+        XCTAssertGreaterThan(female, male)
         // "f", "F", "Female" all select it — the same prefix rule the scorer itself uses.
         for spelling in ["f", "F", "Female", "female"] {
             XCTAssertEqual(StrainScorer.logMapDenominator(method: .banister, sex: spelling), female, accuracy: d)
@@ -79,12 +102,21 @@ final class StrainBanisterDenominatorTests: XCTestCase {
     /// would ever see the top of the scale, and the shortfall differs by sex, so the two would not even
     /// be wrong in the same way.
     func testEdwardsDenominatorWouldCapBanisterBelowFull() {
-        for sex in ["male", "female"] {
-            let b = sex == "female" ? StrainScorer.banisterBWomen : StrainScorer.banisterBMen
-            let wrong = StrainScorer.trimpToStrain(StrainScorer.banisterDailyCeiling(b: b),
+        // REPINNED from a 90-to-99 band to the exact figures (#2835). The band was chosen when a woman's
+        // ceiling was 4,896 and scored 95.66 through 7201; with the published 0.86 it is 6,579 and scores
+        // 98.98, which still satisfies `< 99.0` by two hundredths. A bound that survives by a sixtieth of a point
+        // is not testing anything, and the next coefficient change would have broken it without any
+        // statement of what the right answer is. Exact values also make THIS test catch a wrong
+        // coefficient: the old pairing scored 95.66 here, three points away. Pinned exactly rather
+        // than with a tolerance because `trimpToStrain` rounds to two decimals, so these ARE the outputs.
+        let expected = ["male": 98.47, "female": 98.98]
+        for (sex, want) in expected {
+            let c = StrainScorer.banisterCoefficients(sexF: sex == "female")
+            let wrong = StrainScorer.trimpToStrain(StrainScorer.banisterDailyCeiling(c),
                                                    denominator: StrainScorer.strainDenominator)
-            XCTAssertLessThan(wrong, 99.0, "\(sex): reusing 7201 should visibly under-score, and does")
-            XCTAssertGreaterThan(wrong, 90.0, "\(sex): but not so far off that it looks obviously broken")
+            XCTAssertEqual(wrong, want, accuracy: 1e-9,
+                           "\(sex): reusing 7201 caps a maximum Banister day here")
+            XCTAssertLessThan(wrong, 100.0, "\(sex): nobody would ever see the top of the scale")
         }
     }
 

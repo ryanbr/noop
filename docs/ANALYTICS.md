@@ -207,7 +207,8 @@ Source: `StrainScorer.swift`. Produces **Effort** — *"how hard did your heart 
 3. **TRIMP accumulation** over the window, by one of two methods:
    - **Edwards-*style* 5-zone summation (default):** each sample contributes its zone weight (`1…5` at the `50 / 60 / 70 / 80 / 90 %HRR` cut-offs) × duration.
      - ***Style*, not Edwards.** Edwards (1993) defines its five zones on **%HRmax**; these cut-offs are read off **%HRR** (#2835). With HRmax 190 and RHR 50, 133 bpm is 70 %HRmax and so zone 3 by the source, against 59 %HRR and zone 1 here. The %HRR reading is deliberate — it is the quantity the whole pipeline is built on — and re-cutting the zones on %HRmax would move every Effort number, so it stays. What was wrong was calling it Edwards without the qualifier.
-   - **Banister (1991) exponential:** each sample contributes `duration × x × 0.64 × e^(b·x)`, where `x = %HRR/100` and `b = 1.92` (men) / `1.67` (women).
+   - **Banister (1991) exponential:** each sample contributes `duration × x × a × e^(b·x)`, where `x = %HRR/100` and the coefficient pair is `a = 0.64, b = 1.92` (men) / `a = 0.86, b = 1.67` (women).
+     - **Both halves are sex-selected together (#2835).** This read `0.64` for everyone until then, so a woman was scored with the women's exponent and the men's multiplier, which is neither published pair. The two now travel as one value, `BanisterCoefficients`, so selecting half of a pair cannot be expressed. Effort moves by at most **+1.6 points** for women on this method, largest in the light-activity middle and zero at both ends of the axis; Edwards, the default, is untouched.
 4. **Logarithmic compression** onto `[0, 100]`:
 
 ```

@@ -21,8 +21,11 @@ class BanisterParityOracleTest {
         val rest = 50.0
         val mx = 190.0
         val reserve = mx - rest
-        val b = StrainScorer.banisterBMen
-        val floor = StrainScorer.banisterBaselineRatePerMinute(b)
+        // MEN, deliberately, and the expectations below are UNCHANGED by #2835. The women's multiplier
+        // was the half that was wrong, so this oracle reproducing byte-for-byte is the evidence that the
+        // repair left men's scores exactly where they were.
+        val c = StrainScorer.banisterCoefficients(false)
+        val floor = StrainScorer.banisterBaselineRatePerMinute(c)
         val denom = StrainScorer.logMapDenominator(StrainScorer.Method.BANISTER, "male")
 
         val out = StringBuilder()
@@ -30,7 +33,7 @@ class BanisterParityOracleTest {
             val bpm = (rest + f * (mx - rest)).toInt()
             val hr = (0 until 24 * 60 * 60).map { HrSample(deviceId = "t", ts = it.toLong(), bpm = bpm) }
             val durs = List(hr.size) { 1.0 / 60.0 }
-            val trimp = StrainScorer.banisterTRIMP(hr, rest, reserve, durs, b, floorRatePerMinute = floor)
+            val trimp = StrainScorer.banisterTRIMP(hr, rest, reserve, durs, c, floorRatePerMinute = floor)
             val score = StrainScorer.trimpToStrain(trimp, denom)
             out.append(String.format(java.util.Locale.ROOT, "%.2f=%.6f%n", f, score))
         }

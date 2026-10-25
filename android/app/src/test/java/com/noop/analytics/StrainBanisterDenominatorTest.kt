@@ -2,6 +2,7 @@ package com.noop.analytics
 
 import com.noop.data.HrSample
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -26,13 +27,22 @@ class StrainBanisterDenominatorTest {
 
     // ── The derivation ──────────────────────────────────────────────────────────────────────────
 
-    /** Ceiling = 24 h × ΔHRR 1.0 × 0.64 × e^b, stated independently of the implementation. */
+    /**
+     * Ceiling = 24 h × ΔHRR 1.0 × scale × e^b, stated independently of the implementation, with the
+     * PUBLISHED pair per sex: 0.64 and 1.92 for men, 0.86 and 1.67 for women.
+     *
+     * REPINNED (#2835). The women's line used to read `1440.0 * 0.64 * exp(1.67)`, hardcoding the men's
+     * coefficient against the women's exponent, which is what the implementation did. So this test agreed
+     * with the code because both made the same mistake, while its own doc claimed the ceiling was stated
+     * independently of the implementation. An independent statement means the numbers come from the
+     * paper, which is now what these two lines hold.
+     */
     @Test
     fun theDailyCeilingIsTwentyFourHoursAtFullReserve() {
         assertEquals(1440.0 * 0.64 * exp(1.92),
-            StrainScorer.banisterDailyCeiling(StrainScorer.banisterBMen), eps)
-        assertEquals(1440.0 * 0.64 * exp(1.67),
-            StrainScorer.banisterDailyCeiling(StrainScorer.banisterBWomen), eps)
+            StrainScorer.banisterDailyCeiling(StrainScorer.banisterCoefficients(false)), eps)
+        assertEquals(1440.0 * 0.86 * exp(1.67),
+            StrainScorer.banisterDailyCeiling(StrainScorer.banisterCoefficients(true)), eps)
     }
 
     /**
@@ -47,9 +57,9 @@ class StrainBanisterDenominatorTest {
     fun theDenominatorIsCeilingMinusBaselinePlusOne() {
         val day = 24.0 * 60.0
         for (sex in listOf("male", "female")) {
-            val b = if (sex == "female") StrainScorer.banisterBWomen else StrainScorer.banisterBMen
+            val c = StrainScorer.banisterCoefficients(sex == "female")
             assertEquals(
-                StrainScorer.banisterDailyCeiling(b) - StrainScorer.banisterBaseline(day, b) + 1.0,
+                StrainScorer.banisterDailyCeiling(c) - StrainScorer.banisterBaseline(day, c) + 1.0,
                 StrainScorer.logMapDenominator(StrainScorer.Method.BANISTER, sex), eps)
         }
     }
@@ -63,29 +73,53 @@ class StrainBanisterDenominatorTest {
     fun aMaximumDayIsOneHundredUnderBothMethods() {
         assertEquals(100.0, StrainScorer.trimpToStrain(7200.0, StrainScorer.strainDenominator), 1e-6)
         for (sex in listOf("male", "female")) {
-            val b = if (sex == "female") StrainScorer.banisterBWomen else StrainScorer.banisterBMen
+            val c = StrainScorer.banisterCoefficients(sex == "female")
             // #1624: the quantity that maps to the top is a maximum day's EXCESS over the sedentary
             // baseline, not its raw TRIMP — because that is what the scorer now feeds the log map. Feeding
             // the raw ceiling here overshoots (100.21), which is the arithmetic working, not breaking.
             // The end-to-end invariant — real samples at full reserve through strain() scoring exactly
             // 100 — is pinned in BanisterBaselineTest.
-            val ceiling = StrainScorer.banisterDailyCeiling(b) -
-                StrainScorer.banisterBaseline(24.0 * 60.0, b)
+            val ceiling = StrainScorer.banisterDailyCeiling(c) -
+                StrainScorer.banisterBaseline(24.0 * 60.0, c)
             assertEquals("$sex ceiling should map to the top of the scale", 100.0,
                 StrainScorer.trimpToStrain(
                     ceiling, StrainScorer.logMapDenominator(StrainScorer.Method.BANISTER, sex)), 1e-6)
         }
     }
 
-    /** The smaller exponent gives the lower ceiling, so a woman's denominator is the smaller of the two. */
+    /**
+     * Sex matters, and the DIRECTION reversed with #2835, which is worth stating rather than quietly
+     * re-sorting. Under the old single 0.64 the women's smaller exponent alone decided it, so the women's
+     * denominator was the smaller. With the published pair the larger multiplier more than offsets the
+     * smaller exponent (0.86·e^1.67 = 4.57 against 0.64·e^1.92 = 4.36), so it is now the larger. The
+     * point of the test is unchanged: the two are not interchangeable.
+     */
     @Test
-    fun theFemaleDenominatorIsSmaller() {
+    fun theDenominatorsDifferBySexAndFemaleIsNowTheLarger() {
         val male = StrainScorer.logMapDenominator(StrainScorer.Method.BANISTER, "male")
         val female = StrainScorer.logMapDenominator(StrainScorer.Method.BANISTER, "female")
-        assertTrue("female $female should be below male $male", female < male)
+        assertTrue("female $female should now be above male $male", female > male)
         for (spelling in listOf("f", "F", "Female", "female")) {
             assertEquals(female, StrainScorer.logMapDenominator(StrainScorer.Method.BANISTER, spelling), eps)
         }
+    }
+
+    /**
+     * The pair cannot be split, which is the repair #2835 actually asked for. Selecting a sex yields BOTH
+     * of that sex's published coefficients, so the earlier failure, women's exponent with men's
+     * multiplier, is no longer expressible.
+     */
+    @Test
+    fun eachSexGetsBothOfItsPublishedCoefficients() {
+        assertEquals(0.64, StrainScorer.banisterCoefficients(false).scale, eps)
+        assertEquals(1.92, StrainScorer.banisterCoefficients(false).b, eps)
+        assertEquals(0.86, StrainScorer.banisterCoefficients(true).scale, eps)
+        assertEquals(1.67, StrainScorer.banisterCoefficients(true).b, eps)
+        assertNotEquals(
+            "a shared multiplier is the defect this pair exists to prevent",
+            StrainScorer.banisterCoefficients(false).scale,
+            StrainScorer.banisterCoefficients(true).scale,
+        )
     }
 
     // ── Why reusing Edwards' denominator would be wrong ─────────────────────────────────────────
@@ -97,12 +131,19 @@ class StrainBanisterDenominatorTest {
      */
     @Test
     fun edwardsDenominatorWouldCapBanisterBelowFull() {
-        for (sex in listOf("male", "female")) {
-            val b = if (sex == "female") StrainScorer.banisterBWomen else StrainScorer.banisterBMen
+        // REPINNED from a 90-to-99 band to the exact figures (#2835). The band was chosen when a woman's
+        // ceiling was 4,896 and scored 95.66 through 7201; with the published 0.86 it is 6,579 and scores
+        // 98.98, which still satisfies `< 99.0` by two hundredths. A bound that survives by a sixtieth of a point
+        // is not testing anything, and the next coefficient change would have broken it without any
+        // statement of what the right answer is. Exact values also make THIS test catch a wrong
+        // coefficient: the old pairing scored 95.66 here, three points away. Pinned exactly rather
+        // than with a tolerance because `trimpToStrain` rounds to two decimals, so these ARE the outputs.
+        for ((sex, want) in listOf("male" to 98.47, "female" to 98.98)) {
+            val c = StrainScorer.banisterCoefficients(sex == "female")
             val wrong = StrainScorer.trimpToStrain(
-                StrainScorer.banisterDailyCeiling(b), StrainScorer.strainDenominator)
-            assertTrue("$sex: reusing 7201 should visibly under-score, and does ($wrong)", wrong < 99.0)
-            assertTrue("$sex: but not so far off that it looks obviously broken ($wrong)", wrong > 90.0)
+                StrainScorer.banisterDailyCeiling(c), StrainScorer.strainDenominator)
+            assertEquals("$sex: reusing 7201 caps a maximum Banister day here", want, wrong, 1e-9)
+            assertTrue("$sex: nobody would ever see the top of the scale ($wrong)", wrong < 100.0)
         }
     }
 

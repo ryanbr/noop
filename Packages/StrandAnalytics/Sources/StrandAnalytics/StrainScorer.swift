@@ -35,7 +35,9 @@ import WhoopProtocol
 //
 // References: Karvonen 1957 (%HRR); Edwards 1993 (5-zone TRIMP, defined on %HRmax; see the
 // Edwards-STYLE note above for why these cut-offs read %HRR instead); Banister 1991
-// (exponential TRIMP, b = 1.92 men / 1.67 women); Tanaka 2001 (HRmax = 208 − 0.7×age).
+// (exponential TRIMP; Morton/Fitz-Clarke/Banister 1990 publish 0.64·e^(1.92x) for men and
+// 0.86·e^(1.67x) for women, and both halves of that pair are sex-selected together, see
+// `BanisterCoefficients`); Tanaka 2001 (HRmax = 208 − 0.7×age).
 
 public enum StrainScorer {
 
@@ -80,12 +82,16 @@ public enum StrainScorer {
     static var lnStrainDenominator: Double { log(strainDenominator) }
 
     /// Banister's daily ceiling: 24 h held at ΔHRR = 1.0. Unlike Edwards' 7200 this is SEX-DEPENDENT,
-    /// because the exponent `b` differs — which is the whole reason `strainDenominator` cannot be reused
+    /// because BOTH coefficients differ — which is the whole reason `strainDenominator` cannot be reused
     /// for it. Feeding Banister TRIMP through the Edwards denominator would score every day against a
-    /// ceiling ~14% (men) or ~32% (women) higher than Banister can actually reach, so nobody would ever
+    /// ceiling ~13% (men) or ~9% (women) higher than Banister can actually reach, so nobody would ever
     /// see 100 and the two methods would not be on the same axis. (#1545)
-    static func banisterDailyCeiling(b: Double) -> Double {
-        24.0 * 60.0 * 1.0 * banisterScale * exp(b)
+    ///
+    /// Those two percentages moved with #2835, and the women's figure moved a long way: 32% on the old
+    /// single multiplier, 9% once the published 0.86 is used, because the ceiling itself rises from
+    /// 4,896 to 6,579. The men's is unchanged at 6,286.
+    static func banisterDailyCeiling(_ c: BanisterCoefficients) -> Double {
+        24.0 * 60.0 * 1.0 * c.scale * exp(c.b)
     }
 
     /// The %HRR a waking, sedentary body sits at — the "cost of being alive", not training load.
@@ -104,16 +110,16 @@ public enum StrainScorer {
     public static let banisterSedentaryHRR: Double = 0.10
 
     /// TRIMP per minute at `banisterSedentaryHRR` — the rate subtracted from every day.
-    static func banisterBaselineRatePerMinute(b: Double) -> Double {
-        banisterScale * banisterSedentaryHRR * exp(b * banisterSedentaryHRR)
+    static func banisterBaselineRatePerMinute(_ c: BanisterCoefficients) -> Double {
+        c.scale * banisterSedentaryHRR * exp(c.b * banisterSedentaryHRR)
     }
 
     /// The sedentary TRIMP accrued over `minutes`, subtracted from a day's Banister TRIMP so the axis
     /// starts where Edwards' does. Subtracted from the DENOMINATOR too, so the top is unmoved and a
     /// theoretical maximum day still maps to exactly `maxStrain` — anchoring only the bottom would trade
     /// one mismatched end for the other.
-    static func banisterBaseline(minutes: Double, b: Double) -> Double {
-        banisterBaselineRatePerMinute(b: b) * minutes
+    static func banisterBaseline(minutes: Double, _ c: BanisterCoefficients) -> Double {
+        banisterBaselineRatePerMinute(c) * minutes
     }
 
 
@@ -125,10 +131,10 @@ public enum StrainScorer {
         case .edwards:
             return strainDenominator
         case .banister:
-            let b = sex.lowercased().hasPrefix("f") ? banisterBWomen : banisterBMen
+            let c = banisterCoefficients(sexF: sex.lowercased().hasPrefix("f"))
             // Ceiling MINUS a full day of sedentary baseline, matching what is subtracted from the day
             // itself, so both ends of the axis line up with Edwards (#1624).
-            return banisterDailyCeiling(b: b) - banisterBaseline(minutes: 24.0 * 60.0, b: b) + 1.0
+            return banisterDailyCeiling(c) - banisterBaseline(minutes: 24.0 * 60.0, c) + 1.0
         }
     }
 
@@ -144,9 +150,54 @@ public enum StrainScorer {
     public static let hrmaxPercentile: Double = 99.5
 
     /// Banister coefficients.
+    /// Banister's two coefficients, which are a PAIR and must travel as one (#2835, @yashkgp).
+    ///
+    /// Morton, Fitz-Clarke and Banister (1990) publish `0.64·e^(1.92x)` for men and `0.86·e^(1.67x)` for
+    /// women. This file used to hold the exponent as two sex-selected constants and the coefficient as a
+    /// single 0.64 for everyone, so a woman was scored with the women's exponent and the men's
+    /// coefficient: neither published pair.
+    ///
+    /// The repair is the type, not the number. Keeping them in one value makes selecting half of a pair
+    /// impossible to express, which is what went wrong; two loose constants beside each other invite
+    /// exactly the omission that happened here, and a comment asking the next reader to remember would
+    /// have been weaker than a signature that cannot be called wrongly.
+    public struct BanisterCoefficients: Equatable, Sendable {
+        /// The multiplier, 0.64 for men and 0.86 for women.
+        public let scale: Double
+        /// The exponent, 1.92 for men and 1.67 for women.
+        public let b: Double
+        public init(scale: Double, b: Double) {
+            self.scale = scale
+            self.b = b
+        }
+    }
+
+    /// The four published numbers, kept as named constants because the parity ledger inventories
+    /// literal constants and pairs them across the two languages. These four names are what holds Swift
+    /// and Kotlin to the SAME four numbers, and coefficients are exactly the kind of thing worth
+    /// pinning, this issue being the evidence.
+    ///
+    /// `banisterScale` KEEPS ITS NAME, which is the one awkward part and is worth stating plainly. It is
+    /// the men's multiplier and always was; the defect was that women read it too. The parity ratchet
+    /// does not permit removing a constant pair at all, and no disposition can waive one, so renaming it
+    /// to `banisterScaleMen` for symmetry is not available. The value and its correct applicability are
+    /// unchanged, so retaining the name costs nothing beyond the asymmetry you see here.
+    ///
+    /// Use `banisterCoefficients(sexF:)` rather than any of these. Reading one half directly is how the
+    /// defect happened.
     public static let banisterScale: Double = 0.64
+    public static let banisterScaleWomen: Double = 0.86
     public static let banisterBMen: Double = 1.92
     public static let banisterBWomen: Double = 1.67
+
+    /// The published pair for this wearer. `sexF` is the single bit the recipe reads, so "female", "f"
+    /// and "F" all land here together.
+    ///
+    /// Kotlin twin: `banisterCoefficients`.
+    public static func banisterCoefficients(sexF: Bool) -> BanisterCoefficients {
+        sexF ? BanisterCoefficients(scale: banisterScaleWomen, b: banisterBWomen)
+             : BanisterCoefficients(scale: banisterScale, b: banisterBMen)
+    }
 
     /// Edwards-STYLE zone cut-offs as (%HRR threshold, weight), highest-first.
     ///
@@ -328,13 +379,13 @@ public enum StrainScorer {
     ///   day would net negative and clamp to zero — erasing exactly the intermittent effort this recipe
     ///   exists to capture.
     static func banisterTRIMP(_ hr: [HRSample], restingHR: Double, hrReserve: Double,
-                              durations: [Double], b: Double,
+                              durations: [Double], _ c: BanisterCoefficients,
                               floorRatePerMinute: Double = 0.0) -> Double {
         var acc = 0.0
         for i in hr.indices {
             let x = pctHRR(Double(hr[i].bpm), restingHR: restingHR, hrReserve: hrReserve) / 100.0
             if x > 0 {
-                let rate = x * banisterScale * exp(b * x)
+                let rate = x * c.scale * exp(c.b * x)
                 acc += durations[i] * max(rate - floorRatePerMinute, 0.0)
             }
         }
@@ -642,12 +693,12 @@ public enum StrainScorer {
         let trimp: Double
         switch method {
         case .banister:
-            let b = sex.lowercased().hasPrefix("f") ? banisterBWomen : banisterBMen
+            let c = banisterCoefficients(sexF: sex.lowercased().hasPrefix("f"))
             // Excess over the sedentary baseline for the SAME span, floored at zero. Without this a desk
             // day scores ~45 on a 0-100 axis whose bottom is supposed to be no exertion (#1624).
             trimp = banisterTRIMP(hr, restingHR: restingHR, hrReserve: hrReserve,
-                                  durations: durations, b: b,
-                                  floorRatePerMinute: banisterBaselineRatePerMinute(b: b))
+                                  durations: durations, c,
+                                  floorRatePerMinute: banisterBaselineRatePerMinute(c))
         case .edwards:
             trimp = edwardsTRIMP(hr, restingHR: restingHR, hrReserve: hrReserve,
                                  durations: durations)
