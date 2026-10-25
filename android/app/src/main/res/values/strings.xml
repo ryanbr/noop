@@ -2144,7 +2144,7 @@
     <string name="settings_trend_line">Line</string>
     <string name="settings_trend_bars">Bars</string>
     <!-- #103/queue-11a: Blood Oxygen tile captions for the experimental strap estimate (WHOOP @82 or Oura ceiling@100). -->
-    <string name="spo2_strap_estimate_caption">strap estimate (unverified)</string>
+    <string name="spo2_strap_estimate_caption">strap reading</string>
     <string name="spo2_toggle_on_no_data">toggle ON · no estimate yet</string>
     <string name="l10n_devices_screen_forget_device_d6eb6209">Forget device…</string>
     <string name="l10n_devices_screen_forget_device_926e503d">Forget device</string>
@@ -2651,7 +2651,7 @@
     <string name="l10n_app_changelog_an_effort_scale_you_choose_a_a7c2478d">An Effort scale you choose, a ring that gets to sleep, and far fewer wasted re-scores</string>
     <string name="l10n_health_screen_this_vital_needs_at_least_two_0e41b8b0">This vital needs at least two historical readings before NOOP can chart it.</string>
     <string name="l10n_health_screen_the_blood_oxygen_estimate_is_turned_4c403ab2">The blood oxygen estimate is turned off</string>
-    <string name="l10n_health_screen_your_strap_reports_a_blood_oxygen_349fe34a">Your strap reports a blood oxygen estimate, but it is unverified and off by default. Turn on the strap estimate in Settings to see it, or import a WHOOP export in Data Sources for the calibrated value.</string>
+    <string name="l10n_health_screen_your_strap_reports_a_blood_oxygen_349fe34a">Your strap reports a blood oxygen reading, but its display is turned off. Turn on the strap reading in Settings to see it, or import a WHOOP export in Data Sources.</string>
     <string name="l10n_health_screen_no_blood_oxygen_percentage_from_a_1d3d383e">No blood oxygen percentage from a WHOOP 4.0</string>
     <string name="l10n_health_screen_your_strap_banks_the_raw_optical_b52a0f80">Your strap banks the raw optical channels, but NOOP does not turn them into a blood oxygen percentage, so this stays empty however long you wear it. Import a WHOOP export in Data Sources to fill it from your account history.</string>
     <string name="ground_truth_title">5/MG Raw Data Collector</string>

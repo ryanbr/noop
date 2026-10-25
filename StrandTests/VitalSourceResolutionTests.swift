@@ -158,7 +158,7 @@ final class VitalSourceResolutionTests: XCTestCase {
     // MARK: - #103 SpO₂ candidate @82 fallback
 
     /// When the toggle is ON and no calibrated `spo2Pct` exists, the Blood O₂ tile falls back to the
-    /// `spo2_candidate` mean from metricSeries, labelled "strap estimate (unverified)".
+    /// `spo2_candidate` value from metricSeries, labelled "strap reading".
     func testSpo2CandidateFallsBackWhenNoCalibratedSpo2Pct() {
         UserDefaults.standard.set(true, forKey: PuffinExperiment.spo2CandidateDisplayKey)
         defer { UserDefaults.standard.set(false, forKey: PuffinExperiment.spo2CandidateDisplayKey) }
@@ -175,7 +175,7 @@ final class VitalSourceResolutionTests: XCTestCase {
         let spo2 = readings.first { $0.key == "spo2" }
         XCTAssertEqual(spo2?.value, 96.0)
         XCTAssertEqual(spo2?.source, .noopComputed)
-        XCTAssertTrue(spo2?.missingCaption.contains("strap estimate") == true)
+        XCTAssertTrue(spo2?.missingCaption.contains("strap reading") == true)
     }
 
     /// When the toggle is OFF, the candidate is never surfaced even if data exists.
@@ -214,8 +214,8 @@ final class VitalSourceResolutionTests: XCTestCase {
         let spo2 = readings.first { $0.key == "spo2" }
         XCTAssertEqual(spo2?.value, 98)
         XCTAssertEqual(spo2?.source, .whoopImport)
-        // The calibrated caption, NOT the "strap estimate" one.
-        XCTAssertFalse(spo2?.missingCaption.contains("strap estimate") == true)
+        // The calibrated caption, NOT the "strap reading" one.
+        XCTAssertFalse(spo2?.missingCaption.contains("strap reading") == true)
     }
 
     // MARK: - Carry staleness

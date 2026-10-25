@@ -935,7 +935,7 @@ struct TodayView: View {
         // other candidate-fallback surface uses — never a device name, which would misrepresent an
         // unvalidated estimate as a calibrated reading in this table's Source column.
         if rawSource == spo2CandidateAttributionSource {
-            return String(localized: "strap estimate (unverified)")
+            return String(localized: "strap reading")
         }
         if rawSource.hasSuffix("-noop") { return String(localized: "On-device") }
         if rawSource == deviceId || rawSource == Repository.whoopSource { return Self.whoopBrandName }
@@ -4043,7 +4043,7 @@ struct TodayView: View {
                 ? String(format: "%.0f%%", locale: AppLanguage.activeLocale, candidateTail!)
                 : spo2.value
             let spo2Caption: String = spo2.value == "—" && candidateTail != nil
-                ? String(localized: "strap estimate (unverified)")
+                ? String(localized: "strap reading")
                 : (spo2.value == "—" && spo2CandidateOn
                    ? String(localized: "toggle ON · no estimate yet")
                    : (spo2.caption ?? ""))

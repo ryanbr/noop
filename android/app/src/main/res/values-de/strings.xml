@@ -2036,7 +2036,7 @@
     <string name="settings_chart_classic">Klassisch</string>
     <string name="settings_trend_line">Linie</string>
     <string name="settings_trend_bars">Balken</string>
-    <string name="spo2_strap_estimate_caption">Armband-Schätzung (unbestätigt)</string>
+    <string name="spo2_strap_estimate_caption">Messwert des Armbands</string>
     <string name="spo2_toggle_on_no_data">Schalter EIN · noch keine Schätzung</string>
     <string name="l10n_devices_screen_forget_device_d6eb6209">Gerät vergessen…</string>
     <string name="l10n_devices_screen_forget_device_926e503d">Gerät vergessen</string>
@@ -2626,7 +2626,7 @@
     <string name="l10n_app_changelog_an_effort_scale_you_choose_a_a7c2478d">Eine Effort-Skala nach Wahl, ein Ring, der schlafen darf, und weit weniger vergebliche Neuberechnungen</string>
     <string name="l10n_health_screen_this_vital_needs_at_least_two_0e41b8b0">Für dieses Vitalzeichen braucht NOOP mindestens zwei historische Messwerte, um es darzustellen.</string>
     <string name="l10n_health_screen_the_blood_oxygen_estimate_is_turned_4c403ab2">Die Sauerstoffsättigungs-Schätzung ist deaktiviert</string>
-    <string name="l10n_health_screen_your_strap_reports_a_blood_oxygen_349fe34a">Dein Strap liefert eine Schätzung der Sauerstoffsättigung, sie ist aber unbestätigt und standardmäßig aus. Aktiviere die Strap-Schätzung in den Einstellungen, oder importiere einen WHOOP-Export unter Datenquellen für den kalibrierten Wert.</string>
+    <string name="l10n_health_screen_your_strap_reports_a_blood_oxygen_349fe34a">Dein Strap liefert einen Messwert der Sauerstoffsättigung, aber die Anzeige ist ausgeschaltet. Schalte sie in den Einstellungen ein oder importiere einen WHOOP-Export unter Datenquellen.</string>
     <string name="l10n_health_screen_no_blood_oxygen_percentage_from_a_1d3d383e">Kein Sauerstoffsättigungswert von einem WHOOP 4.0</string>
     <string name="l10n_health_screen_your_strap_banks_the_raw_optical_b52a0f80">Dein Strap speichert die optischen Rohkanäle, aber NOOP rechnet sie nicht in einen Sauerstoffsättigungswert um - dies bleibt also leer, egal wie lange du ihn trägst. Importiere einen WHOOP-Export unter Datenquellen, um es aus deinem Kontoverlauf zu füllen.</string>
     <string name="l10n_settings_screen_ask_android_to_pair_experimental_250a81e9">Android um Kopplung bitten (experimentell)</string>

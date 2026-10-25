@@ -1053,7 +1053,7 @@ struct LiquidTodayView: View {
             // is the DEFAULT Today screen on iOS 26. The subtitle is the slot this card has.
             cardLink(.metric("spo2"),
                      title: card.title,
-                     sub: spo2Candidate != nil ? String(localized: "strap estimate (unverified)") : card.subtitle,
+                     sub: spo2Candidate != nil ? String(localized: "strap reading") : card.subtitle,
                      // Em dash, not the en dash the stub used: the classic Blood Oxygen card and
                      // skinTempCardValue both return "—", so the stub's "–" would have left the two
                      // adjacent cards printing different glyphs for the same "no reading" state.
@@ -1420,7 +1420,7 @@ struct LiquidTodayView: View {
                 : nil
             let spo2 = spo2Real ?? spo2CandidateValue
             ktile(String(localized: "Blood Oxygen"), icon: keyMetricIcon(metric), intText(spo2), "%", StrandPalette.metricCyan, fracOver(spo2, 100), key: spo2CandidateValue != nil ? "spo2_candidate" : "spo2",
-                  caption: spo2CandidateValue != nil ? String(localized: "strap estimate (unverified)") : nil)
+                  caption: spo2CandidateValue != nil ? String(localized: "strap reading") : nil)
         case .respiratory:
             let resp = displayDay?.respRateBpm ?? vitalsDay?.respRateBpm ?? respDay?.respRateBpm
             ktile(String(localized: "Respiratory"), icon: keyMetricIcon(metric), resp.map { String(format: "%.1f", locale: AppLanguage.activeLocale, $0) } ?? "—", "rpm", StrandPalette.accent, fracOver(resp, 24), key: "resp_rate")

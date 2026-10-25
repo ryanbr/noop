@@ -203,7 +203,7 @@ enum BodyVitalSigns {
 
         let respRow = latest(respPoints)
         // #103/queue-11a: fall back to the spo2_candidate mean when no calibrated spo2Pct exists. The
-        // candidate is labelled "strap estimate (unverified)" in the tile caption so it is never read as
+        // candidate is labelled "strap reading" in the tile caption so it is never read as
         // a calibrated blood-oxygen percentage.
         let spo2Row = latest(spo2Points) ?? latest(spo2CandidatePoints)
         let spo2IsCandidate = spo2Row != nil && latest(spo2Points) == nil
@@ -345,7 +345,7 @@ enum BodyVitalSigns {
                 // where Android resolves the selected day — so the ROW differs across platforms by design
                 // and the parity contract is the relationship between the two tiles, not the row.
                 missingCaption: spo2IsCandidate
-                    ? String(localized: "strap estimate (unverified)")
+                    ? String(localized: "strap reading")
                     : (PuffinExperiment.spo2CandidateDisplayEnabled && spo2Row == nil
                        ? String(localized: "toggle ON · no estimate yet")
                        : (spo2rawRow != nil

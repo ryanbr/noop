@@ -73,7 +73,11 @@ enum PuffinExperiment {
     /// ON. Mirrors the Android `NoopPrefs.KEY_SPO2_CANDIDATE_DISPLAY`.
     static let spo2CandidateDisplayKey = "noopSpo2CandidateDisplay"
 
-    static var spo2CandidateDisplayEnabled: Bool { UserDefaults.standard.bool(forKey: spo2CandidateDisplayKey) }
+    /// Default ON in this fork: the strap computes this value itself (wearable5.0 FINDINGS §13), and the
+    /// nightly figure is now the windowed median rather than a raw mean. An explicit off still wins.
+    static var spo2CandidateDisplayEnabled: Bool {
+        UserDefaults.standard.object(forKey: spo2CandidateDisplayKey) as? Bool ?? true
+    }
 
     /// Opt-in "Personal daytime-stress baseline" (#463): score TODAY's intraday stress timeline against a
     /// PERSONAL cross-day rolling baseline (Oura-style `.baselineRelative`) instead of the day's own calm

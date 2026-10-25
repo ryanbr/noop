@@ -1994,7 +1994,7 @@
     <string name="settings_chart_classic">Классические</string>
     <string name="settings_trend_line">Линия</string>
     <string name="settings_trend_bars">Столбцы</string>
-    <string name="spo2_strap_estimate_caption">оценка браслета (не проверена)</string>
+    <string name="spo2_strap_estimate_caption">показание браслета</string>
     <string name="spo2_toggle_on_no_data">переключатель ВКЛ · оценки пока нет</string>
     <string name="l10n_devices_screen_forget_device_d6eb6209">Забыть устройство…</string>
     <string name="l10n_devices_screen_forget_device_926e503d">Забыть устройство</string>
@@ -2457,7 +2457,7 @@
     <string name="l10n_app_changelog_an_effort_scale_you_choose_a_a7c2478d">Шкала Усилия на ваш выбор, кольцо, которое засыпает, и намного меньше лишних пересчётов</string>
     <string name="l10n_health_screen_this_vital_needs_at_least_two_0e41b8b0">Этому показателю нужно минимум два измерения в истории, прежде чем NOOP сможет построить график.</string>
     <string name="l10n_health_screen_the_blood_oxygen_estimate_is_turned_4c403ab2">Оценка насыщения крови кислородом отключена</string>
-    <string name="l10n_health_screen_your_strap_reports_a_blood_oxygen_349fe34a">Ваш браслет сообщает оценку насыщения крови кислородом, но она не проверена и по умолчанию отключена. Включите оценку браслета в Настройках, чтобы увидеть её, или импортируйте выгрузку WHOOP в «Источниках данных» для калиброванного значения.</string>
+    <string name="l10n_health_screen_your_strap_reports_a_blood_oxygen_349fe34a">Ваш браслет сообщает показание насыщения крови кислородом, но его отображение выключено. Включите его в Настройках или импортируйте экспорт WHOOP в разделе «Источники данных».</string>
     <string name="l10n_health_screen_no_blood_oxygen_percentage_from_a_1d3d383e">WHOOP 4.0 не даёт процент насыщения крови кислородом</string>
     <string name="l10n_health_screen_your_strap_banks_the_raw_optical_b52a0f80">Ваш браслет накапливает сырые оптические каналы, но NOOP не превращает их в процент насыщения крови кислородом, поэтому здесь будет пусто, сколько бы вы его ни носили. Импортируйте выгрузку WHOOP в разделе «Источники данных», чтобы заполнить это из истории вашего аккаунта.</string>
     <string name="ground_truth_title">Сборщик сырых данных 5/MG</string>
