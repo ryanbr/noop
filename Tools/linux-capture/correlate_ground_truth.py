@@ -36,11 +36,12 @@ import whoop_frame as wf
 
 # Canonical WHOOP export filenames (English). Localized bundles rename the files; we match by these
 # after aliasing, and fall back to header-sniffing, exactly like the Swift importer.
-CYCLES_FILES = {"physiological_cycles.csv", "physiologische_zyklen.csv", "ciclos_fisiologicos.csv"}
-SLEEP_FILES = {"sleeps.csv", "schlaf.csv", "sueno.csv", "sueños.csv"}
+CYCLES_FILES = {"physiological_cycles.csv", "physiologische_zyklen.csv", "ciclos_fisiologicos.csv",
+                "cicli_fisiologici.csv"}
+SLEEP_FILES = {"sleeps.csv", "schlaf.csv", "sueno.csv", "sueños.csv", "sonno.csv"}
 
 # Localized column header → canonical key. Mirrors HeaderNorm.foreignAliases in CSVParsing.swift
-# (German + Spanish subset that covers the physiologic/sleep numeric fields we correlate on). English
+# (German, Spanish and Italian subset that covers the physiologic/sleep numeric fields we correlate on). English
 # headers pass through unchanged, so an English export needs no alias.
 HEADER_ALIASES = {
     # English (official app.whoop.com export — headers are title case; we lowercase first)
@@ -76,6 +77,20 @@ HEADER_ALIASES = {
     "oxígeno en sangre %": "blood_oxygen_pct",
     "frecuencia respiratoria (rpm)": "respiratory_rate_rpm",
     "hora de inicio del ciclo": "cycle_start_time",
+    # Italian (cicli_fisiologici.csv / sonno.csv)
+    "ora di inizio ciclo": "cycle_start_time",
+    "ora di fine ciclo": "cycle_end_time",
+    "punteggio di recupero %": "recovery_score_pct",
+    "frequenza cardiaca a riposo (bpm)": "resting_heart_rate_bpm",
+    "variabilità della frequenza cardiaca (ms)": "heart_rate_variability_ms",
+    "temp. cutanea (c)": "skin_temp_celsius",
+    "ossigeno nel sangue %": "blood_oxygen_pct",
+    "frequenza respiratoria (rpm)": "respiratory_rate_rpm",
+    "durata del sonno (min)": "asleep_duration_min",
+    "durata profondo (sws) (min)": "deep_sws_duration_min",
+    "durata rem (min)": "rem_duration_min",
+    "inizio del sonno": "sleep_onset",
+    "inizio del risveglio": "wake_onset",
 }
 
 # Numeric fields we correlate on, with the scale factor the raw record is *likely* to carry the value
