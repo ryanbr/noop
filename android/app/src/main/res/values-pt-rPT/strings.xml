@@ -210,7 +210,7 @@
     <string name="l10n_add_device_wizard_try_again_042c862e">Tente novamente</string>
     <string name="l10n_add_device_wizard_use_file_import_0e092cb4">Usar importação de ficheiros</string>
     <string name="l10n_add_device_wizard_we_could_not_take_over_this_fec1ce93">Não poderíamos assumir este anel.</string>
-    <string name="l10n_add_device_wizard_whoop_5_0_mg_support_is_e452e686">O suporte ao WHOOP 5.0/MG é mais recente e ainda experimental no NOOP.</string>
+    <string name="l10n_add_device_wizard_whoop_5_0_mg_support_is_e452e686">WHOOP 5.0/MG suporta dados em direto e histórico. As ferramentas de protocolo estão separadas no Centro de testes.</string>
     <string name="l10n_add_device_wizard_whoop_is_noop_s_primary_fully_ac6fa33b">WHOOP é a banda principal e totalmente suportada do NOOP. Outras gamas de frequência cardíaca transmitem a frequência cardíaca e a VFC em direto, mas não os dados de sono e recuperação mais profundos do WHOOP.</string>
     <string name="l10n_app_root_more_4bab2d8f">Mais</string>
     <string name="l10n_app_root_moregroupchevron_b2b36ec6">moreGroupChevron</string>
@@ -1948,7 +1948,7 @@
     <string name="recording_chip_detail_recording">A tua bracelete está conectada e a guardar dados.</string>
     <string name="recording_chip_detail_last_synced">Volte a ligar para obter o mais recente.</string>
     <string name="recording_chip_detail_not_recording">Correia não ligada. Toque para ligar.</string>
-    <string name="recording_chip_detail_history_experimental">A sincronização do histórico é experimental na versão 5.0.</string>
+    <string name="recording_chip_detail_history_experimental">A última sincronização não trouxe histórico desta bracelete 5.0.</string>
     <string name="recording_chip_detail_connected_no_data">Ainda não há frequência cardíaca em direto nem histórico sincronizado nesta sessão.</string>
     <string name="score_state_title_calibrating">A calibrar</string>
     <string name="l10n_stress_glance_widget_resumes_in_the_morning_a640b49f">Retoma de manhã</string>

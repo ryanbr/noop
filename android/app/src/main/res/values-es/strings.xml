@@ -45,7 +45,7 @@
     <string name="l10n_add_device_wizard_try_again_042c862e">Inténtalo de nuevo</string>
     <string name="l10n_add_device_wizard_use_file_import_0e092cb4">Usar importación de archivos</string>
     <string name="l10n_add_device_wizard_we_could_not_take_over_this_fec1ce93">No pudimos tomar el control de este anillo.</string>
-    <string name="l10n_add_device_wizard_whoop_5_0_mg_support_is_e452e686">La compatibilidad con WHOOP 5.0 / MG es más nueva y sigue siendo experimental en NOOP.</string>
+    <string name="l10n_add_device_wizard_whoop_5_0_mg_support_is_e452e686">WHOOP 5.0/MG admite datos en directo e historial. Las herramientas de protocolo están aparte en el Centro de pruebas.</string>
     <string name="l10n_add_device_wizard_whoop_is_noop_s_primary_fully_ac6fa33b">WHOOP es la banda principal y totalmente compatible de NOOP. Otras bandas de frecuencia cardíaca transmiten frecuencia cardíaca y VFC en vivo, pero no los datos más profundos de sueño y recuperación de WHOOP.</string>
     <string name="l10n_app_root_more_4bab2d8f">Más</string>
     <string name="l10n_app_root_moregroupchevron_b2b36ec6">másGroupChevron</string>
@@ -1955,7 +1955,7 @@
     <string name="recording_chip_detail_recording">Tu pulsera está conectada y guardando datos.</string>
     <string name="recording_chip_detail_last_synced">Reconecta para extraer lo más reciente.</string>
     <string name="recording_chip_detail_not_recording">Pulsera no conectada. Toca para conectar.</string>
-    <string name="recording_chip_detail_history_experimental">La sincronización del historial es experimental en la 5.0.</string>
+    <string name="recording_chip_detail_history_experimental">La última sincronización no trajo historial de esta pulsera 5.0.</string>
     <string name="recording_chip_detail_connected_no_data">Aún no hay frecuencia cardíaca en vivo ni historial sincronizado en esta sesión.</string>
     <string name="score_state_title_calibrating">Calibrando</string>
     <string name="l10n_stress_glance_widget_resumes_in_the_morning_a640b49f">Se reanuda por la mañana</string>

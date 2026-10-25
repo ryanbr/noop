@@ -45,7 +45,7 @@
     <string name="l10n_add_device_wizard_try_again_042c862e">Réessayer</string>
     <string name="l10n_add_device_wizard_use_file_import_0e092cb4">Utiliser l\'import de fichier</string>
     <string name="l10n_add_device_wizard_we_could_not_take_over_this_fec1ce93">Nous n\'avons pas pu prendre le contrôle de cet anneau.</string>
-    <string name="l10n_add_device_wizard_whoop_5_0_mg_support_is_e452e686">La prise en charge du WHOOP 5.0 / MG est plus récente et encore expérimentale dans NOOP.</string>
+    <string name="l10n_add_device_wizard_whoop_5_0_mg_support_is_e452e686">WHOOP 5.0/MG gère les données en direct et l’historique. Les outils de protocole sont séparés dans le Centre de test.</string>
     <string name="l10n_add_device_wizard_whoop_is_noop_s_primary_fully_ac6fa33b">WHOOP est le bracelet principal et entièrement pris en charge par NOOP. Les autres bracelets de fréquence cardiaque diffusent la fréquence cardiaque et la VFC en direct, mais pas les données plus poussées de sommeil et de récupération de WHOOP.</string>
     <string name="l10n_app_root_more_4bab2d8f">Plus</string>
     <string name="l10n_app_root_moregroupchevron_b2b36ec6">plus de GroupeChevron</string>
@@ -1973,7 +1973,7 @@
     <string name="recording_chip_detail_recording">Votre bracelet est connecté et enregistre les données.</string>
     <string name="recording_chip_detail_last_synced">Reconnectez-vous pour récupérer les dernières données.</string>
     <string name="recording_chip_detail_not_recording">Bracelet non connecté. Touchez pour vous connecter.</string>
-    <string name="recording_chip_detail_history_experimental">La synchronisation de l\'historique est expérimentale sur 5.0.</string>
+    <string name="recording_chip_detail_history_experimental">La dernière synchronisation n\'a rapporté aucun historique de ce bracelet 5.0.</string>
     <string name="recording_chip_detail_connected_no_data">Aucune fréquence cardiaque en direct ni historique synchronisé durant cette session.</string>
     <string name="score_state_title_calibrating">Calibration en cours</string>
     <string name="l10n_stress_glance_widget_resumes_in_the_morning_a640b49f">Reprend le matin</string>

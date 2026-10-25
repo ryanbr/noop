@@ -296,7 +296,7 @@
     <string name="l10n_add_device_wizard_try_again_042c862e">Riprova</string>
     <string name="l10n_add_device_wizard_use_file_import_0e092cb4">Usa l\'importazione da file</string>
     <string name="l10n_add_device_wizard_we_could_not_take_over_this_fec1ce93">Non siamo riusciti a prendere il controllo di questo anello.</string>
-    <string name="l10n_add_device_wizard_whoop_5_0_mg_support_is_e452e686">Il supporto per WHOOP 5.0 / MG è più recente e ancora sperimentale in NOOP.</string>
+    <string name="l10n_add_device_wizard_whoop_5_0_mg_support_is_e452e686">WHOOP 5.0/MG supporta i dati in tempo reale e la cronologia della fascia. Gli strumenti di ricerca sul protocollo sono separati nel Centro test.</string>
     <string name="l10n_add_device_wizard_whoop_is_noop_s_primary_fully_ac6fa33b">WHOOP è la fascia principale e pienamente supportata di NOOP. Le altre fasce per la frequenza cardiaca trasmettono la frequenza cardiaca in diretta e l\'HRV, ma non i dati più approfonditi sul sonno e sul recupero di WHOOP.</string>
     <string name="l10n_app_root_more_4bab2d8f">Altro</string>
     <string name="l10n_app_root_moregroupchevron_b2b36ec6">moreGroupChevron</string>
@@ -2042,7 +2042,7 @@
     <string name="recording_chip_detail_recording">La tua fascia è connessa e sta salvando i dati.</string>
     <string name="recording_chip_detail_last_synced">Riconnettiti per recuperare i dati più recenti.</string>
     <string name="recording_chip_detail_not_recording">Fascia non connessa. Tocca per connettere.</string>
-    <string name="recording_chip_detail_history_experimental">La sincronizzazione della cronologia è sperimentale su 5.0.</string>
+    <string name="recording_chip_detail_history_experimental">L\'ultima sincronizzazione non ha portato cronologia da questa fascia 5.0.</string>
     <string name="recording_chip_detail_connected_no_data">Ancora nessuna frequenza cardiaca in diretta né cronologia sincronizzata in questa sessione.</string>
     <string name="score_state_title_calibrating">Calibrazione</string>
     <string name="l10n_stress_glance_widget_resumes_in_the_morning_a640b49f">Riprende al mattino</string>

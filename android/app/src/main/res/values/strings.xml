@@ -325,7 +325,7 @@
     <string name="l10n_add_device_wizard_try_again_042c862e">Try again</string>
     <string name="l10n_add_device_wizard_use_file_import_0e092cb4">Use file import</string>
     <string name="l10n_add_device_wizard_we_could_not_take_over_this_fec1ce93">We could not take over this ring.</string>
-    <string name="l10n_add_device_wizard_whoop_5_0_mg_support_is_e452e686">WHOOP 5.0 / MG support is newer and still experimental in NOOP.</string>
+    <string name="l10n_add_device_wizard_whoop_5_0_mg_support_is_e452e686">WHOOP 5.0 / MG supports live data and strap history. Protocol-research tools are available separately in Test Centre.</string>
     <string name="l10n_add_device_wizard_whoop_is_noop_s_primary_fully_ac6fa33b">WHOOP is NOOP\'s primary, fully-supported band. Other heart-rate straps stream live heart rate and HRV, but not WHOOP\'s deeper sleep and recovery data.</string>
     <string name="l10n_app_root_more_4bab2d8f">More</string>
     <string name="l10n_app_root_moregroupchevron_b2b36ec6">moreGroupChevron</string>
@@ -2094,7 +2094,7 @@
     <string name="recording_chip_detail_recording">Your strap is connected and saving data.</string>
     <string name="recording_chip_detail_last_synced">Reconnect to pull the latest.</string>
     <string name="recording_chip_detail_not_recording">Strap not connected. Tap to connect.</string>
-    <string name="recording_chip_detail_history_experimental">History sync is experimental on 5.0.</string>
+    <string name="recording_chip_detail_history_experimental">The last sync brought no history from this 5.0 strap.</string>
     <string name="recording_chip_detail_connected_no_data">No live heart rate or synced history yet this session.</string>
     <string name="score_state_title_calibrating">Calibrating</string>
     <string name="l10n_stress_glance_widget_resumes_in_the_morning_a640b49f">Resumes in the morning</string>

@@ -287,7 +287,7 @@
     <string name="l10n_add_device_wizard_try_again_042c862e">Повторить</string>
     <string name="l10n_add_device_wizard_use_file_import_0e092cb4">Использовать импорт файла</string>
     <string name="l10n_add_device_wizard_we_could_not_take_over_this_fec1ce93">Не удалось перехватить управление этим кольцом.</string>
-    <string name="l10n_add_device_wizard_whoop_5_0_mg_support_is_e452e686">Поддержка WHOOP 5.0 / MG в NOOP новее и всё ещё экспериментальна.</string>
+    <string name="l10n_add_device_wizard_whoop_5_0_mg_support_is_e452e686">WHOOP 5.0/MG поддерживает данные в реальном времени и историю браслета. Инструменты исследования протокола вынесены в Тестовый центр.</string>
     <string name="l10n_add_device_wizard_whoop_is_noop_s_primary_fully_ac6fa33b">WHOOP — основной, полностью поддерживаемый браслет NOOP. Другие пульсометры передают живой пульс и ВСР, но не более глубокие данные WHOOP о сне и восстановлении.</string>
     <string name="l10n_app_root_more_4bab2d8f">Ещё</string>
     <string name="l10n_apple_health_screen_no_readings_recorded_05018b26">Пока нет записанных измерений.</string>
@@ -1947,7 +1947,7 @@
     <string name="recording_chip_detail_recording">Ваш браслет подключён и сохраняет данные.</string>
     <string name="recording_chip_detail_last_synced">Переподключитесь, чтобы получить последние данные.</string>
     <string name="recording_chip_detail_not_recording">Браслет не подключён. Нажмите, чтобы подключить.</string>
-    <string name="recording_chip_detail_history_experimental">Синхронизация истории экспериментальна на 5.0.</string>
+    <string name="recording_chip_detail_history_experimental">Последняя синхронизация не принесла истории с этого браслета 5.0.</string>
     <string name="recording_chip_detail_connected_no_data">Пока нет ни пульса в реальном времени, ни синхронизированной истории в этой сессии.</string>
     <string name="score_state_title_calibrating">Калибровка</string>
     <string name="l10n_stress_glance_widget_resumes_in_the_morning_a640b49f">Возобновится утром</string>

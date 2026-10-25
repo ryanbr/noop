@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.PhonelinkErase
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Warning
@@ -862,16 +863,16 @@ private fun PrepStep(type: DeviceType, onScan: () -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Palette.statusWarning.copy(alpha = 0.10f))
+                    .background(Palette.accent.copy(alpha = 0.10f))
                     .padding(12.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.Top,
             ) {
-                Icon(Icons.Filled.Science, contentDescription = null, tint = Palette.statusWarning, modifier = Modifier.size(18.dp))
+                Icon(Icons.Filled.Info, contentDescription = null, tint = Palette.accent, modifier = Modifier.size(18.dp))
                 Text(
                     uiString(R.string.l10n_add_device_wizard_whoop_5_0_mg_support_is_e452e686),
                     style = NoopType.footnote,
-                    color = Palette.statusWarning,
+                    color = Palette.textSecondary,
                 )
             }
         } else if (type.isExperimental) {

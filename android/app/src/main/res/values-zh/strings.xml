@@ -207,7 +207,7 @@
     <string name="l10n_add_device_wizard_try_again_042c862e">重试</string>
     <string name="l10n_add_device_wizard_use_file_import_0e092cb4">使用文件导入</string>
     <string name="l10n_add_device_wizard_we_could_not_take_over_this_fec1ce93">抱歉，我们无法接管这枚戒指。</string>
-    <string name="l10n_add_device_wizard_whoop_5_0_mg_support_is_e452e686">对 WHOOP 5.0 (MG) 的支持在 NOOP 中仍处于实验阶段。</string>
+    <string name="l10n_add_device_wizard_whoop_5_0_mg_support_is_e452e686">WHOOP 5.0/MG 支持实时数据和手环历史。协议研究工具单独位于测试中心。</string>
     <string name="l10n_add_device_wizard_whoop_is_noop_s_primary_fully_ac6fa33b">WHOOP 是 NOOP 首要且完全支持的核心设备。其他心率带只能提供基础的实时心率流。</string>
     <string name="l10n_app_root_more_4bab2d8f">更多</string>
     <string name="l10n_app_root_moregroupchevron_b2b36ec6">更多</string>
@@ -1877,7 +1877,7 @@
     <string name="recording_chip_detail_recording">你的手环已连接并正在保存数据。</string>
     <string name="recording_chip_detail_last_synced">重新连接以拉取最新内容。</string>
     <string name="recording_chip_detail_not_recording">手环未连接。点击以连接。</string>
-    <string name="recording_chip_detail_history_experimental">历史同步在 5.0 上属实验性。</string>
+    <string name="recording_chip_detail_history_experimental">上次同步未从这条 5.0 手环获取到历史记录。</string>
     <string name="recording_chip_detail_connected_no_data">本次连接尚无实时心率或已同步的历史记录。</string>
     <string name="score_state_title_calibrating">校准中</string>
     <string name="l10n_stress_glance_widget_resumes_in_the_morning_a640b49f">早晨恢复</string>

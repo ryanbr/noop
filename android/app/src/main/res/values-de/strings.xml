@@ -227,7 +227,7 @@
     <string name="l10n_add_device_wizard_try_again_042c862e">Erneut versuchen</string>
     <string name="l10n_add_device_wizard_use_file_import_0e092cb4">Dateiimport verwenden</string>
     <string name="l10n_add_device_wizard_we_could_not_take_over_this_fec1ce93">Wir konnten diesen Ring nicht übernehmen.</string>
-    <string name="l10n_add_device_wizard_whoop_5_0_mg_support_is_e452e686">Die Unterstützung für WHOOP 5.0 / MG ist neuer und in NOOP noch experimentell.</string>
+    <string name="l10n_add_device_wizard_whoop_5_0_mg_support_is_e452e686">WHOOP 5.0/MG unterstützt Live-Daten und Bandverlauf. Protokollwerkzeuge sind separat im Testcenter.</string>
     <string name="l10n_add_device_wizard_whoop_is_noop_s_primary_fully_ac6fa33b">WHOOP ist NOOPs primäres, voll unterstütztes Band. Andere Herzfrequenzgurte streamen Live-Herzfrequenz und HRV, aber nicht WHOOPs tiefere Schlaf- und Erholungsdaten.</string>
     <string name="l10n_app_root_more_4bab2d8f">Mehr</string>
     <string name="l10n_app_root_moregroupchevron_b2b36ec6">moreGroupChevron</string>
@@ -1987,7 +1987,7 @@
     <string name="recording_chip_detail_recording">Dein Strap ist verbunden und speichert Daten.</string>
     <string name="recording_chip_detail_last_synced">Verbinde neu, um das Neueste zu laden.</string>
     <string name="recording_chip_detail_not_recording">Strap nicht verbunden. Tippe zum Verbinden.</string>
-    <string name="recording_chip_detail_history_experimental">Verlaufssynchronisierung ist auf 5.0 experimentell.</string>
+    <string name="recording_chip_detail_history_experimental">Die letzte Synchronisierung brachte keinen Verlauf von diesem 5.0-Armband.</string>
     <string name="recording_chip_detail_connected_no_data">Noch keine Live-Herzfrequenz und kein synchronisierter Verlauf in dieser Sitzung.</string>
     <string name="score_state_title_calibrating">Kalibrierung</string>
     <string name="l10n_stress_glance_widget_resumes_in_the_morning_a640b49f">Wird morgens fortgesetzt</string>

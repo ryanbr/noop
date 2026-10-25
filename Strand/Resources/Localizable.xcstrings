@@ -55795,64 +55795,9 @@
         }
       }
     },
-    "Connected. History sync is experimental on 5.0.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verbunden. Verlaufssynchronisierung ist auf 5.0 experimentell."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Conectada. La sincronización del historial es experimental en la 5.0."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Connecté. La synchronisation de l'historique est expérimentale sur la 5.0."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Connessa. La sincronizzazione della cronologia è sperimentale su 5.0."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ligado. A sincronização do histórico é experimental na versão 5.0."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Подключено. Синхронизация истории на 5.0 экспериментальная."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已连接。5.0 上的历史同步为实验性功能。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已連接。歷史同步在 5.0 上仍屬實驗性。"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Połączony. Synchronizacja historii jest eksperymentalna w wersji 5.0."
-          }
-        }
-      }
-    },
+    "Connected. The last sync brought no history from this 5.0 strap.": { "localizations": {
+          "de": {"stringUnit": {"state": "translated", "value": "Verbunden. Die letzte Synchronisierung brachte keinen Verlauf von diesem 5.0-Armband."}}, "es": {"stringUnit": {"state": "translated", "value": "Conectado. La última sincronización no trajo historial de esta pulsera 5.0."}}, "fr": {"stringUnit": {"state": "translated", "value": "Connecté. La dernière synchronisation n'a rapporté aucun historique de ce bracelet 5.0."}}, "it": {"stringUnit": {"state": "translated", "value": "Connesso. L'ultima sincronizzazione non ha portato cronologia da questa fascia 5.0."}}, "pl": {"stringUnit": {"state": "translated", "value": "Połączono. Ostatnia synchronizacja nie przyniosła historii z tej opaski 5.0."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "Ligado. A última sincronização não trouxe histórico desta pulseira 5.0."}}, "ru": {"stringUnit": {"state": "translated", "value": "Подключено. Последняя синхронизация не принесла истории с этого браслета 5.0."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "已连接。上次同步未从这条 5.0 手环获取到历史记录。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "已連線。上次同步未從這條 5.0 手環取得歷史記錄。"}}
+        } },
     "Connected. New strap data is written automatically, with periodic background refresh when iOS allows it.": {
       "localizations": {
         "de": {
@@ -83383,64 +83328,9 @@
         }
       }
     },
-    "History sync is experimental on 5.0.": {
-      "localizations": {
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verlaufssynchronisierung ist auf 5.0 experimentell."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La sincronización del historial es experimental en la 5.0."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La synchronisation de l'historique est expérimentale sur 5.0."
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La sincronizzazione della cronologia è sperimentale su 5.0."
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A sincronização do histórico é experimental na versão 5.0."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Синхронизация истории экспериментальна на 5.0."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "历史同步在 5.0 上属实验性。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "歷史同步在 5.0 上屬實驗性。"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Synchronizacja historii jest eksperymentalna w wersji 5.0."
-          }
-        }
-      }
-    },
+    "The last sync brought no history from this 5.0 strap.": { "localizations": {
+          "de": {"stringUnit": {"state": "translated", "value": "Die letzte Synchronisierung brachte keinen Verlauf von diesem 5.0-Armband."}}, "es": {"stringUnit": {"state": "translated", "value": "La última sincronización no trajo historial de esta pulsera 5.0."}}, "fr": {"stringUnit": {"state": "translated", "value": "La dernière synchronisation n'a rapporté aucun historique de ce bracelet 5.0."}}, "it": {"stringUnit": {"state": "translated", "value": "L'ultima sincronizzazione non ha portato cronologia da questa fascia 5.0."}}, "pl": {"stringUnit": {"state": "translated", "value": "Ostatnia synchronizacja nie przyniosła historii z tej opaski 5.0."}}, "pt-PT": {"stringUnit": {"state": "translated", "value": "A última sincronização não trouxe histórico desta pulseira 5.0."}}, "ru": {"stringUnit": {"state": "translated", "value": "Последняя синхронизация не принесла истории с этого браслета 5.0."}}, "zh-Hans": {"stringUnit": {"state": "translated", "value": "上次同步未从这条 5.0 手环获取到历史记录。"}}, "zh-Hant": {"stringUnit": {"state": "translated", "value": "上次同步未從這條 5.0 手環取得歷史記錄。"}}
+        } },
     "History synced": {
       "localizations": {
         "de": {
