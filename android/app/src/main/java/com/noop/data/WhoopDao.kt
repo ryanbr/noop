@@ -1365,10 +1365,13 @@ interface WhoopDao : DeviceRegistryDao {
     //
     // ONE query returning both columns, not two returning one each. Two would let an insert land between
     // them and yield a count from before it beside a newest-timestamp from after — a witness describing a
-    // state the day was never in. The pair has to be read atomically to mean anything.
+    // state the day was never in. Scalar subqueries preserve one statement/snapshot but let MAX seek
+    // the index endpoint instead of updating it for every counted row. COUNT still walks the range.
     @Query(
-        "SELECT COUNT(*) AS c, COALESCE(MAX(ts), 0) AS m FROM gravitySample " +
-            "WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to"
+        "SELECT (SELECT COUNT(*) FROM gravitySample " +
+            "WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to) AS c, " +
+            "COALESCE((SELECT MAX(ts) FROM gravitySample " +
+            "WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to), 0) AS m"
     )
     suspend fun gravityWitnessInWindow(deviceId: String, from: Long, to: Long): GravityWitness
     // #29: the same per-day (device + window) witness for every OTHER scored stream — see
