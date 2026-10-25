@@ -162,12 +162,14 @@ final class IntelligenceRRSourceTests: XCTestCase {
             let restored = try await score()
             XCTAssertGreaterThan(try XCTUnwrap(restored.avgHrv), 0)
             XCTAssertNotEqual(restored.avgHrv, legacySnapshot.avgHrv)
-            XCTAssertNotNil(restored.recovery)
+            // #2126: the first labelled night restores HRV, but Charge recalibrates against
+            // labelled nights rather than scoring against the eight pre-label seed nights.
+            XCTAssertNil(restored.recovery)
             XCTAssertNotEqual(restored.respRateBpm, legacySnapshot.respRateBpm)
             XCTAssertNotEqual(restored.avgSdnn, legacySnapshot.avgSdnn)
             let promotedSource = try await store.scoreInputSource(deviceId: canonical + "-noop",
                 day: input.day, key: "recovery")
-            XCTAssertEqual(promotedSource, active, "freshly scored provenance replaces the snapshot")
+            XCTAssertNil(promotedSource, "a calibrating Charge has no scoring provenance")
             let restoredGap = try await showsLegacyGap(restored, store: store, owner: active)
             XCTAssertFalse(restoredGap)
             let idle = try await score()
