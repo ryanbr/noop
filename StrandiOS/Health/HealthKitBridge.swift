@@ -1369,40 +1369,7 @@ final class HealthKitBridge: ObservableObject {
     /// member; unknown labels fall back to `.other`, never dropped.
     private static func activityType(forSport sport: String) -> HKWorkoutActivityType {
         if sport == LiftingImporter.sport { return .traditionalStrengthTraining }
-        switch sport.lowercased() {
-        case "running":       return .running
-        case "walking":       return .walking
-        case "hiking":        return .hiking
-        case "cycling":       return .cycling
-        case "hiit":          return .highIntensityIntervalTraining
-        case "core training": return .coreTraining
-        case "yoga":          return .yoga
-        case "pilates":       return .pilates
-        case "rowing":        return .rowing
-        case "elliptical":    return .elliptical
-        case "stairs":        return .stairClimbing
-        case "jump rope":     return .jumpRope
-        case "boxing":        return .boxing
-        case "basketball":    return .basketball
-        case "soccer":        return .soccer
-        case "football":      return .americanFootball
-        case "baseball":      return .baseball
-        case "badminton":     return .badminton
-        case "tennis":        return .tennis
-        case "table tennis":  return .tableTennis
-        case "volleyball":    return .volleyball
-        case "squash":        return .squash
-        case "martial arts":  return .martialArts
-        case "dancing":       return .dance
-        case "golf":          return .golf
-        case "climbing":      return .climbing
-        case "skiing":        return .downhillSkiing
-        case "snowboarding":  return .snowboarding
-        case "swimming":      return .swimming
-        case "surfing":       return .surfingSports
-        case "paddling":      return .paddleSports
-        default:              return .other
-        }
+        return HealthWorkoutType.activityType(forSport: sport)
     }
 
     /// Which distance quantity a sport's `distanceM` maps to; nil for sports whose Health distance
