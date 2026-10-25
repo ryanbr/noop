@@ -1,6 +1,7 @@
 package com.noop.ble
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -82,6 +83,35 @@ class SystemInitiatedConnectTest {
         val grants = Regex("""helloRetryRequested\s*=\s*true""").findAll(src).count()
         assertEquals("the retry is granted in exactly one place, behind the userInitiated flag", 1, grants)
         assertTrue("that one place must be gated on userInitiated",
-                   src.contains("if (userInitiated) helloRetryRequested = true"))
+                   hasUserGatedGrant(src))
+    }
+
+    // Require the grant immediately inside the gate, before any nested branch or closing brace.
+    private fun hasUserGatedGrant(src: String): Boolean =
+        Regex("""if\s*\(userInitiated\)\s*(?:\{\s*)?helloRetryRequested\s*=\s*true\b""")
+            .containsMatchIn(src)
+
+    @Test
+    fun `hello retry guard accepts inline and braced user gates`() {
+        assertTrue(hasUserGatedGrant("if (userInitiated) helloRetryRequested = true"))
+        assertTrue(hasUserGatedGrant("""
+            if (userInitiated) {
+                helloRetryRequested = true
+                offloadRecoveryBudget.resetByUser()
+            }
+        """.trimIndent()))
+    }
+
+    @Test
+    fun `hello retry guard rejects unconditional and system grants`() {
+        listOf(
+            "helloRetryRequested = true",
+            "if (!userInitiated) { helloRetryRequested = true }",
+            "if (userInitiated) { reset() }; helloRetryRequested = true",
+            "if (userInitiated) { reset() } else { helloRetryRequested = true }",
+            "if (userInitiated) { if (!userInitiated) helloRetryRequested = true }",
+        ).forEach { src ->
+            assertFalse("must reject an unguarded or system-only grant: $src", hasUserGatedGrant(src))
+        }
     }
 }

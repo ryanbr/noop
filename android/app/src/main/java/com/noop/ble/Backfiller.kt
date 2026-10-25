@@ -131,6 +131,8 @@ class Backfiller(
     private val ppgHrSubLagInterp: () -> Boolean = { false },
     /** Live UI/export observation of the historical record layout (`hist_version`). */
     private val firmwareLayout: (Int) -> Unit = {},
+    /** Android drain retirement fence; a timed-out persist must not acknowledge on a later link. */
+    private val sessionActive: () -> Boolean = { true },
 ) {
 
     /**
@@ -265,8 +267,9 @@ class Backfiller(
     private var loggedFutureRtc = false
 
     /**
-     * The trim cursor of the LAST chunk this Backfiller acked (durably persisted + confirmed to the
-     * strap). Survives across sessions on the same connection so the auto-continue gate (#364) can ask
+     * The trim cursor of the LAST chunk this Backfiller persisted and handed to [ackTrim]. The
+     * Android callback queues a confirmed write; this value alone does not prove delivery to the strap.
+     * Survives across sessions on the same connection so the auto-continue gate (#364) can ask
      * "did the offload actually advance the strap's trim this session?" — the spin-detector signal that
      * stops it re-kicking forever when the cursor is frozen. null until the first ack. NOT reset in
      * [begin] (it's a cross-session high-water mark, not a per-session tally). Mirrors Swift
@@ -401,6 +404,7 @@ class Backfiller(
      */
     suspend fun ingest(frame: ByteArray) {
         mutex.withLock {
+            if (!sessionActive()) return@withLock
             when (val meta = classifyHistoricalMeta(Framing.parseFrame(frame, family))) {
                 is HistoricalMeta.Start -> {
                     isBackfilling = true
@@ -692,6 +696,7 @@ class Backfiller(
                 // key has already absorbed part of it.
                 val rrCensus = com.noop.analytics.RrEmissionStats.compute(decoded.rr.map { it.ts.toInt() to it.rrMs })
                 val counts = repository.insert(decoded, deviceId)
+                if (!sessionActive()) return
                 onBankedOffload(counts)
                 committed = decoded
                 // Success-side observability (#150): tally what actually persisted so the session can emit
@@ -788,6 +793,7 @@ class Backfiller(
         // Persist the trim cursor BEFORE acking (so a crash between persist and ack still resumes
         // from the right place). Stored via [TrimCursorStore] because the Room schema has no cursor
         // table — see the port FLAG. trim is a u32 carried as Long (unsigned-safe).
+        if (!sessionActive()) return
         try {
             cursorStore.set(STRAP_TRIM_CURSOR, trim)
         } catch (t: Throwable) {
@@ -801,6 +807,7 @@ class Backfiller(
             return
         }
 
+        if (!sessionActive()) return
         ackTrim(trim, endData)
         lastAckedTrim = trim   // #364: record the advanced cursor for the auto-continue spin-detector
         committed?.takeIf { !it.isEmpty }?.let(onChunkCommitted)

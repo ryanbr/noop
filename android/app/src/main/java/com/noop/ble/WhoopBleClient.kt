@@ -1523,10 +1523,15 @@ class WhoopBleClient(
          *
          *  A future-dated clock still wins: it names a cause and a remedy, and #324/#928 showed that strap
          *  times out precisely BECAUSE of the bad clock. Twin of the Swift `timeoutSyncError`. */
-        fun timeoutSyncError(futureClockBanner: String?, bankedThisOffload: Boolean): String? =
-            futureClockBanner
-                ?: if (bankedThisOffload) null
-                else "Sync interrupted - the strap went quiet. It will retry on the next sync."
+        fun timeoutSyncError(
+            futureClockBanner: String?,
+            bankedThisOffload: Boolean,
+            durableProgressDeadline: Boolean = false,
+        ): String? = futureClockBanner
+            ?: if (bankedThisOffload) null
+            else if (durableProgressDeadline)
+                "History sync stopped advancing. It will retry on the next sync."
+            else "Sync interrupted - the strap went quiet. It will retry on the next sync."
 
         /**
          * Pure classification of a COMPLETED (HISTORY_COMPLETE) offload, extracted from exitBackfilling
@@ -3035,15 +3040,10 @@ class WhoopBleClient(
 
     /** Fired if a scan finds nothing in [SCAN_TIMEOUT_MS]; stops scanning and explains why. */
     private val scanTimeoutRunnable = Runnable {
-        if (scanning && !_state.value.connected) {
+        if (scanning) {
             stopScan()
-            log("No WHOOP strap found within ${SCAN_TIMEOUT_MS / 1000}s")
-            _state.update { it.copy(
-                scanning = false,
-                statusNote = "No strap found. Check it's charged and on your wrist, and that the " +
-                    "official WHOOP app isn't connected to it (a strap will only pair with one app " +
-                    "at a time). Then tap Connect again.",
-            ) }
+            log("WHOOP search ended after ${SCAN_TIMEOUT_MS / 1000}s")
+            _state.update(ScanOutcome::timeout)
         }
     }
 
@@ -3055,7 +3055,7 @@ class WhoopBleClient(
             val fallback = selectedModel.fallbackScanModel
             log("No ${selectedModel.displayName} found yet — trying ${fallback.displayName}")
             stopScan()   // clears the scanning flag + the LE scan; startScan re-arms both
-            startScan(fallback, allowFallback = true)
+            startScan(fallback, allowFallback = false)
         }
     }
 
@@ -3124,11 +3124,14 @@ class WhoopBleClient(
         }
     }
 
-    /** The offload state machine. Ack callback writes HISTORICAL_DATA_RESULT (with response). */
+    private val offloadSession = OffloadSession(BACKFILL_IDLE_TIMEOUT_MS)
+
+    /** The offload state machine. Ack callback queues HISTORICAL_DATA_RESULT (with response). */
     private val backfiller = Backfiller(
         repository = repository,
         deviceId = deviceId,
         cursorStore = cursorStore,
+        sessionActive = { offloadSession.current() != null },
         ackTrim = { trim, endData -> ackHistoricalChunk(trim, endData) },
         onBankedOffload = { counts -> addBankedOffload(counts) },
         onChunkCommitted = { batch -> onBackfillChunkCommitted(batch) },
@@ -3651,7 +3654,10 @@ class WhoopBleClient(
      *  kicks — the Android side of the Swift `BLEManager.lastBackfillAt`. */
     @Volatile private var lastBackfillAtMs: Long? = null
 
-    private val backfillTimeoutRunnable = Runnable { onBackfillTimeout() }
+    private val offloadRecoveryBudget = OffloadRecoveryBudget()
+    private var backfillTimeoutRunnable: Runnable? = null
+    private var offloadRecoveryNeeded = false
+    private var deferredOffloadGeneration: Long? = null
 
     /** Live-stream keep-alive (port of BLEManager.keepAliveTimer): re-arms realtime, polls battery,
      *  and bounces a stalled link. Handler-posted on every connect handshake; cancelled in reset(). */
@@ -3810,7 +3816,25 @@ class WhoopBleClient(
         // #1635: an explicit Connect is the user saying "try the handshake again" — the documented way out
         // of hello suppression, and the reason suppression is never a permanent verdict. Consumed by the
         // first connect that reaches the hello decision, so it is granted here and nowhere else.
-        if (userInitiated) helloRetryRequested = true
+        if (userInitiated) {
+            helloRetryRequested = true
+            offloadRecoveryBudget.resetByUser()
+            if (_state.value.connected && connectedFamily == DeviceFamily.WHOOP4 && didBond &&
+                model == selectedModel && (offloadRecoveryNeeded ||
+                    System.currentTimeMillis() - lastDataAtMs < liveLinkStallFuseMs())
+            ) {
+                stopScan()
+                cancelPendingReconnect()
+                helloRetryRequested = false
+                if (offloadRecoveryNeeded) {
+                    recoverStalledOffload()
+                } else {
+                    log("Connect: keeping the established WHOOP 4.0 link; history watchdog remains active")
+                    _state.update { it.copy(scanning = false, statusNote = "Already connected to your WHOOP 4.0.") }
+                }
+                return
+            }
+        }
         // PR #588: an explicit user-driven Connect is never an out-of-range retry — clear the involuntary-
         // reconnect streak so this scan (and any reconnects it spawns) starts back at the snappy
         // LOW_LATENCY scan mode + the 3s backoff base, never inheriting a backed-off lower-power scan.
@@ -6518,7 +6542,9 @@ class WhoopBleClient(
 
     @SuppressLint("MissingPermission")
     private fun stopScan() {
+        handler.removeCallbacks(scanTimeoutRunnable)
         handler.removeCallbacks(scanFallbackRunnable)
+        _state.update { it.copy(scanning = false) }
         if (!scanning) return
         scanning = false
         try {
@@ -6627,8 +6653,12 @@ class WhoopBleClient(
         }
 
         override fun onScanFailed(errorCode: Int) {
-            scanning = false
-            log("Scan failed: ${scanFailureLabel(errorCode)}")
+            handler.post {
+                stopScan()
+                val failure = scanFailureLabel(errorCode)
+                log("Scan failed: $failure")
+                _state.update { ScanOutcome.failed(it, failure) }
+            }
         }
     }
 
@@ -8547,12 +8577,18 @@ class WhoopBleClient(
                     }
                     if (backfilling) {
                         // Historical offload: route ONLY genuine offload frames (47/48/49/50) through
-                        // the serial drain (preserves chunk order) + re-arm the idle watchdog on them.
+                        // the serial drain (preserves chunk order).
                         // The live type-40/43 flood is dropped here (extractHistoricalStreams ignores
                         // it; feeding it only delays each chunk's insert->trim-ack and stalls the strap).
                         if (isOffloadFrame(frame, connectedFamily)) {
                             offloadFramesThisSession++
-                            armBackfillTimeout()
+                            // WHOOP4 needs durable cursor progress; EVENT/CONSOLE/data reception
+                            // alone cannot extend its deadline. Keep 5/MG's frame-idle policy.
+                            if (connectedFamily == DeviceFamily.WHOOP5) {
+                                offloadSession.current()?.let {
+                                    offloadSession.frameReceived(it, SystemClock.elapsedRealtime(), connectedFamily)
+                                }
+                            }
                             routeBackfillFrame(frame)
                         }
                     } else {
@@ -10914,6 +10950,14 @@ class WhoopBleClient(
             return
         }
         if (backfilling) return
+        val session = offloadSession.begin(SystemClock.elapsedRealtime(), backfiller.lastAckedTrim)
+        if (session == null) {
+            deferredOffloadGeneration = offloadSession.generation()
+            log("Backfill: waiting for retired storage work before starting another session")
+            return
+        }
+        deferredOffloadGeneration = null
+        backfillDrain.reset()
         // #700: if GET_CLOCK never responded (Android has no explicit clockRef on the client — the
         // Backfiller defaults to identity), seed a rough correlation from the Data Range's newest-banked
         // timestamp. The offset is approximate but vastly better than identity (offset 0), which can
@@ -10972,7 +11016,7 @@ class WhoopBleClient(
             // proven blind-fire path untouched.
             send(CommandNumber.GET_DATA_RANGE, byteArrayOf(), withResponse = true)
             handler.postDelayed({
-                if (backfilling && !historicalKickSent) {
+                if (offloadSession.isCurrent(session) && backfilling && !historicalKickSent) {
                     log("Backfill: GET_DATA_RANGE unanswered — requesting history anyway (fail-open)")
                     sendHistoricalKick()
                 }
@@ -11087,6 +11131,7 @@ class WhoopBleClient(
      * END chunk assembly is never reordered. Port of `routeBackfillFrame` + the serial drain task.
      */
     private fun routeBackfillFrame(frame: ByteArray) {
+        val session = offloadSession.current() ?: return
         val lease = backfillDrain.enqueue(frame) ?: return
         ioScope.launch {
             var ownsDrain = true
@@ -11100,32 +11145,99 @@ class WhoopBleClient(
                         ownsDrain = false
                         break
                     }
+                    if (!offloadSession.enter(session)) break
                     try {
                         backfiller.ingest(f)
                     } catch (t: Throwable) {
                         log("Backfill: drain error (${t.message}) — skipping frame, offload continues")
+                    } finally {
+                        offloadSession.leave()
                     }
                     // If the Backfiller consumed all historical data, exit the session cleanly.
                     if (backfilling && !backfiller.isBackfilling) {
-                        handler.post { exitBackfilling("HISTORY_COMPLETE") }
+                        handler.post {
+                            if (offloadSession.isCurrent(session)) exitBackfilling("HISTORY_COMPLETE")
+                        }
                     }
                 }
             } finally {
                 if (ownsDrain) backfillDrain.release(lease)
+                handler.post { resumeDeferredOffload() }
             }
         }
     }
 
-    /**
-     * Re-arm the idle watchdog. Called on every offload frame during backfill; if the strap goes
-     * silent the timer fires and we exit the session. Port of `armBackfillTimeout`.
-     */
+    /** Resume once retired storage has left; a later session/reset invalidates this request. */
+    private fun resumeDeferredOffload() {
+        val generation = deferredOffloadGeneration ?: return
+        if (offloadSession.generation() != generation || offloadSession.hasWorker() ||
+            !_state.value.connected || !_state.value.bonded
+        ) return
+        deferredOffloadGeneration = null
+        requestSync(BackfillTrigger.AUTO_CONTINUE)
+    }
+
+    /** Session-scoped timer; WHOOP4 advances only when a distinct trim is durably committed. */
     private fun armBackfillTimeout() {
-        handler.removeCallbacks(backfillTimeoutRunnable)
-        handler.postDelayed(backfillTimeoutRunnable, BACKFILL_IDLE_TIMEOUT_MS)
+        cancelBackfillTimeout()
+        val session = offloadSession.current() ?: return
+        val remaining = offloadSession.remainingMs(session, SystemClock.elapsedRealtime()) ?: return
+        val timeout = Runnable {
+            val left = offloadSession.remainingMs(session, SystemClock.elapsedRealtime()) ?: return@Runnable
+            if (left > 0L) armBackfillTimeout() else if (backfilling) onBackfillTimeout()
+        }
+        backfillTimeoutRunnable = timeout
+        handler.postDelayed(timeout, remaining)
+    }
+
+    private fun cancelBackfillTimeout() {
+        backfillTimeoutRunnable?.let { handler.removeCallbacks(it) }
+        backfillTimeoutRunnable = null
+    }
+
+    /** Restart only when retired drain/write work could obstruct the next request, at most twice. */
+    private fun recoverStalledOffload() {
+        if (!_state.value.connected) return
+        if (!offloadRecoveryBudget.take()) {
+            log("Backfill: automatic history recovery exhausted; tap Connect to retry")
+            _state.update { it.copy(statusNote = "History sync stalled. Tap Connect to retry.") }
+            return
+        }
+        if (!writeInFlight && writeQueue.isEmpty() && pendingRetry == null) {
+            // Storage alone cannot be repaired by dropping a live BLE connection. Retire the old
+            // work, then retry once it has finished; an indefinitely blocked write stays fenced.
+            deferredOffloadGeneration = offloadSession.generation()
+            log("Backfill: waiting for retired storage before retrying history on the existing link")
+            _state.update { it.copy(statusNote = "History sync is waiting for local storage to finish.") }
+            resumeDeferredOffload()
+            return
+        }
+        log("Backfill: locally closing the stalled history link (cause unconfirmed); " +
+            "teardown uses synthetic GATT_FAILURE, no failure callback observed")
+        noteLocalTeardown("offloadProgressTimeout")
+        // Full local teardown also clears a write whose completion callback never arrived. Do not
+        // wait for disconnect(), which can itself lose its callback. Existing reconnect backoff owns
+        // the next connection; the recovery budget deliberately survives reset().
+        intentionalDisconnect = false
+        handleDisconnect(BluetoothGatt.GATT_FAILURE)
     }
 
     private fun onBackfillTimeout() {
+        if (!backfilling) return
+        if (connectedFamily == DeviceFamily.WHOOP4) {
+            val storageBusy = offloadSession.hasWorker()
+            val outboundBusy = writeInFlight || writeQueue.isNotEmpty() || pendingRetry != null
+            log("Backfill: no durable cursor progress for ${BACKFILL_IDLE_TIMEOUT_MS / 1000}s " +
+                "(frames=$offloadFramesThisSession queuedAcks=$ackedChunksThisSession " +
+                "storageBusy=$storageBusy writeInFlight=$writeInFlight queuedWrites=${writeQueue.size}); cause unconfirmed")
+            offloadRecoveryNeeded = storageBusy || outboundBusy
+            if (offloadRecoveryNeeded) {
+                backfiller.timeoutFired()
+                exitBackfilling("progress stalled")
+                recoverStalledOffload()
+                return
+            }
+        }
         // 5/MG: a session that timed out with ZERO offload frames means the strap never answered the
         // history request (seen on real hardware — the first request after connect can be swallowed).
         // Retry once with a clean teardown; after 2 attempts the 900s periodic timer owns it. (#78 fork)
@@ -11136,12 +11248,16 @@ class WhoopBleClient(
             backfiller.timeoutFired()
             backfilling = false
             _state.update { it.copy(backfilling = false, syncChunksThisSession = 0) }
-            handler.removeCallbacks(backfillTimeoutRunnable)
-            backfillDrain.clear()
+            cancelBackfillTimeout()
+            offloadSession.retire()
+            backfillDrain.reset()
             log("Backfill: no history frames arrived — retrying request (attempt ${whoop5HistoryAttempts + 1})")
             // Bounded mid-attempt retry (whoop5HistoryAttempts < 2): AUTO_CONTINUE so the 90s event floor
             // can't suppress it — it's continuing THIS connect's offload, not a fresh periodic kick.
-            handler.postDelayed({ requestSync(BackfillTrigger.AUTO_CONTINUE) }, WHOOP5_HISTORY_RETRY_DELAY_MS)
+            val generation = offloadSession.generation()
+            handler.postDelayed({
+                if (offloadSession.generation() == generation) requestSync(BackfillTrigger.AUTO_CONTINUE)
+            }, WHOOP5_HISTORY_RETRY_DELAY_MS)
             return
         }
         backfiller.timeoutFired()
@@ -11187,6 +11303,7 @@ class WhoopBleClient(
     /** Tear down the backfill session. Port of `exitBackfilling`. Does NOT auto-start live HR. */
     private fun exitBackfilling(reason: String) {
         if (!backfilling) return
+        offloadSession.retire()
         backfilling = false
         refreshConnectionPriority()   // #477: offload done — drop back to idle priority. No-op unless enabled.
         // #533: offload done — hand the PHY back to 1M too, so the 2M preference is BOUNDED to the burst
@@ -11391,8 +11508,14 @@ class WhoopBleClient(
                             rows = rowsThisSession,
                             deepPackets = it.deepPacketsThisSession,
                         ),
+                        durableProgressDeadline = connectedFamily == DeviceFamily.WHOOP4,
                     ),
                 historySyncExperimental = whoop5HistoryExperimental,
+            )
+            "progress stalled" -> it.copy(
+                backfilling = false,
+                syncChunksThisSession = ackedChunksThisSession,
+                lastSyncError = "History sync stopped advancing. Stored history is safe; tap Connect to retry.",
             )
             else -> it.copy(
                 backfilling = false,
@@ -11400,8 +11523,8 @@ class WhoopBleClient(
                 historySyncExperimental = whoop5HistoryExperimental,
             )
         } }
-        handler.removeCallbacks(backfillTimeoutRunnable)
-        backfillDrain.clear()
+        cancelBackfillTimeout()
+        backfillDrain.reset()
         closeWhoop5BackfillCapture(flushSummary = true)
         log("Backfill: session ended — reason=$reason" + sessionEndedOutcome(reason, persistedSensorRows))
         // Downstream export also treats a WHOOP 4 idle timeout with persisted rows as successful: that
@@ -11522,8 +11645,10 @@ class WhoopBleClient(
         if (!s.connected || !s.bonded) return
         val newest = strapNewestTs
         val count = consecutiveAutoContinues
+        val generation = offloadSession.generation()
         ioScope.launch {
             val frontier = runCatching { repository.latestHrSampleTs(deviceId) }.getOrNull()
+            if (offloadSession.generation() != generation) return@launch
             val wallNow = System.currentTimeMillis() / 1000L   // #928: real wall clock, at decision time
             // #1164: publish whether the strap has banked records newer than our local frontier, so the
             // Today Rest card can show "Pending sync" instead of a provisional number. Same behind check
@@ -11600,14 +11725,16 @@ class WhoopBleClient(
                 // STAYS engaged for the rest of this connection (the 900s floor takes over); zeroing it here
                 // would immediately re-arm the cap and let a runaway strap spin again.
                 if (count < MAX_AUTO_CONTINUES) {
-                    handler.post { consecutiveAutoContinues = 0 }
+                    handler.post {
+                        if (offloadSession.generation() == generation) consecutiveAutoContinues = 0
+                    }
                 }
                 return@launch
             }
             handler.post {
                 // Re-check on the main looper: a real backfill may already have re-started (periodic) in
                 // the gap. requestSync's own gate handles that, but skip the log/counter churn if so.
-                if (backfilling) return@post
+                if (backfilling || offloadSession.generation() != generation) return@post
                 consecutiveAutoContinues += 1
                 log(
                     "Backfill: auto-continuing (#364/#451) — the trim advanced and the strap is still " +
@@ -11629,18 +11756,23 @@ class WhoopBleClient(
      * metadata.data[10:18]. Port of `BLEManager.ackHistoricalChunk`.
      */
     private fun ackHistoricalChunk(trim: Long, endData: ByteArray) {
-        val payload = ByteArray(1 + endData.size)
-        payload[0] = 0x01
-        System.arraycopy(endData, 0, payload, 1, endData.size)
-        send(CommandNumber.HISTORICAL_DATA_RESULT, payload, withResponse = true)
-        // Progress signal for the "Syncing strap history…" UI (#77). Republish every 10th chunk only —
-        // the FGS notification re-posts on every LiveState emission. Runs on the single serial drain
-        // coroutine, so the counter is race-free.
-        ackedChunksThisSession += 1
-        if (ackedChunksThisSession % 10 == 0) {
-            _state.update { it.copy(syncChunksThisSession = ackedChunksThisSession) }
+        val session = offloadSession.current() ?: return
+        // Backfiller has finished data -> reject archive -> durable cursor. Queueing is not proof of
+        // delivery; only distinct durable trims extend the progress deadline.
+        if (connectedFamily == DeviceFamily.WHOOP4) {
+            offloadSession.cursorCommitted(session, trim, SystemClock.elapsedRealtime())
         }
-        log("Backfill: acked chunk trim=$trim")
+        val payload = byteArrayOf(0x01) + endData
+        handler.post {
+            if (!offloadSession.isCurrent(session) || !backfilling) return@post
+            offloadRecoveryNeeded = false
+            send(CommandNumber.HISTORICAL_DATA_RESULT, payload, withResponse = true)
+            ackedChunksThisSession += 1
+            if (ackedChunksThisSession % 10 == 0) {
+                _state.update { it.copy(syncChunksThisSession = ackedChunksThisSession) }
+            }
+            log("Backfill: queued chunk acknowledgement trim=$trim")
+        }
     }
 
     // ====================================================================================
@@ -12274,8 +12406,12 @@ class WhoopBleClient(
             log("Backfill: ${offloadThroughputLine(offloadFramesThisSession,
                 System.currentTimeMillis() - backfillStartedAtMs)} (interrupted)")
         }
+        offloadSession.retire()
+        backfiller.timeoutFired()
         backfilling = false
         backfillDrain.reset()
+        offloadRecoveryNeeded = false
+        deferredOffloadGeneration = null
         strapNewestTs = null
         strapNewestTsWall = null
         offloadFramesThisSession = 0
@@ -12292,7 +12428,7 @@ class WhoopBleClient(
         // A mid-offload link drop must still flush the capture file (summary already logged or not —
         // don't double-log it here).
         closeWhoop5BackfillCapture(flushSummary = false)
-        handler.removeCallbacks(backfillTimeoutRunnable)
+        cancelBackfillTimeout()
         stopBackfillTimer()
         stopKeepAlive()
         // The bonded-handshake watchdog (#50) is per-connection — cancel it so a pending bounce can't
