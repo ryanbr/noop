@@ -431,6 +431,12 @@ static func runShortcut(_ name: String) {
 > NOOP** for inbound automation and (b) **x-callback-url / `shortcuts://` deep links**
 > for outbound calls, and remove `lockScreen` from the iOS action set.
 
+The **Log Sleep Mark** action offers Bedtime (default) and Wake in Shortcuts. It captures the
+invocation time without opening NOOP and queues the mark in the App Group. NOOP saves it when the
+app next becomes active, using the captured time even if that happens the next day. The reply reports
+that the mark is queued. These marks are logging only; they do not set sleep bounds or feed detection.
+Caffeine and water logging actions are not available yet (Refs #2266).
+
 ### 4. Pasteboard
 
 `Strand/Screens/SupportView.swift` copies a string with `NSPasteboard.general`. The

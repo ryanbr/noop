@@ -1851,26 +1851,23 @@ final class AppModel: ObservableObject {
     }
 
     /// #461: record a "sleep mark" , a bedtime / wake / mid-night tap. Stored like moments (survives
-    /// relaunch) and written as a distinct, greppable "Sleep mark @ HH:mm" line into the strap log so it
+    /// relaunch) and written as a typed, greppable "Sleep mark" line into the strap log so it
     /// rides along in the shared log / raw export. A single buzz confirms it registered. No start/end
     /// smarts yet (Phase 1): marks are logged in sequence; pairing into sleep bounds comes later.
     func markSleep() { markSleep(at: Date()) }
-    func markSleep(at date: Date) {
+    func markSleep(at date: Date, type: SleepMarkType = .bedtime) {
         sleepMarks.append(date)
         if sleepMarks.count > 500 { sleepMarks.removeFirst(sleepMarks.count - 500) }
         UserDefaults.standard.set(sleepMarks.map(\.timeIntervalSince1970), forKey: "sleepMarks")
         buzz(loops: 1)
-        let hhmm = DateFormatter()
-        hhmm.locale = Locale(identifier: "en_US_POSIX")
-        hhmm.dateFormat = "HH:mm"
-        live.append(log: "Sleep mark @ \(hhmm.string(from: date))")
+        let mark = SleepMark(type: type, at: date)
+        live.append(log: mark.logLine)
         // Persistence parity with Android's `AppViewModel.markSleep` (#461): also upsert the TYPED
         // `sleep_mark` metric-series row that the Sleep screen reads back (SleepView.logMark writes the
         // same row when the user taps a button). A physical double-tap can't choose bedtime vs wake, so
-        // it defaults to `.bedtime` , the boundary the gesture most naturally marks. Idempotent by
+        // it defaults to `.bedtime`; the Shortcut can explicitly choose `.wake` (#2266). Idempotent by
         // (deviceId, day, key) through the repo's live store handle: no new Repository API, no schema
-        // change. The UserDefaults list + buzz + freetext log line above are unchanged.
-        let mark = SleepMark(type: .bedtime, at: date)
+        // change. The UserDefaults timestamp list and confirming buzz above retain the existing path.
         Task { [weak self] in
             guard let self, let store = await self.repo.storeHandle() else { return }
             try? await store.upsertMetricSeries([mark.metricPoint], deviceId: self.repo.deviceId)
