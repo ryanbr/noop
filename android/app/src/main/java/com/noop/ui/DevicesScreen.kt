@@ -170,6 +170,11 @@ fun DevicesScreen(
     // #1300 tier 2: recompute the two-strap comparison when the strap set changes.
     LaunchedEffect(activeDevices) { strapCompare = loadStrapCompare(viewModel.repo, activeDevices) }
     val removedDevices = all.filter { it.status == DeviceStatus.archived.name }
+    // The strap switcher's choices: every non-archived device plus any removed Bluetooth strap, so a
+    // dropped strap stays selectable instead of the switcher vanishing with it.
+    val switcherDevices = all.filter {
+        it.status != DeviceStatus.archived.name || it.sourceKind == SourceKind.liveBLE.name
+    }
     val currentActiveName =
         all.firstOrNull { it.status == DeviceStatus.active.name }?.let { displayName(it) }
             ?: "Your current strap"
@@ -227,10 +232,10 @@ fun DevicesScreen(
         }
 
         // #1300: a prominent switcher to flip which strap is active — the "switch, don't combine" option
-        // for a user with two straps (e.g. a 4.0 + a 5/MG). Shown only with 2+ straps, so it collapses
-        // when one is forgotten. Reuses the existing active-strap confirmation (switchTarget).
-        if (activeDevices.size > 1) {
-            item { StrapSwitcher(devices = activeDevices, onSelect = { switchTarget = it }) }
+        // for a user with two straps (e.g. a 4.0 + a 5/MG). Always shown while there is a device to pick,
+        // including a removed Bluetooth strap. Reuses the existing active-strap confirmation (switchTarget).
+        if (switcherDevices.isNotEmpty()) {
+            item { StrapSwitcher(devices = switcherDevices, onSelect = { switchTarget = it }) }
         }
         items(activeDevices) { device ->
             DeviceCard(
