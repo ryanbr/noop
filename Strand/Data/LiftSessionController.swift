@@ -29,6 +29,7 @@ final class LiftSessionController: ObservableObject {
     @Published private(set) var programName: String?
     /// True while the full sheet is presented; false when minimised to the bottom bar.
     @Published var isPresented = false
+    @Published var sessionRpeText = "" { didSet { persist() } }
 
     /// Bumped each time a finished session is written. The session sheet is presented above every
     /// screen, so its save cannot call back into the one listing sessions; that screen reloads on this.
@@ -50,6 +51,22 @@ final class LiftSessionController: ObservableObject {
         .eraseToAnyPublisher()
 
     var isActive: Bool { engine != nil && engine?.isFinished == false }
+    private(set) var sessionID = UUID().uuidString
+    private(set) var pausedForPulseLoss = false
+
+    func pause(at now: Int = LiftSessionController.unixNow, pulseLoss: Bool = false) {
+        guard isActive, engine?.isPaused == false else { return }
+        pausedForPulseLoss = pulseLoss
+        engine?.pause(now: now)
+        persist()
+    }
+
+    func resume(at now: Int = LiftSessionController.unixNow) {
+        guard !isSaving, engine?.isPaused == true else { return }
+        pausedForPulseLoss = false
+        engine?.resume(now: now)
+        persist()
+    }
 
     /// Rest period the five-second warning has already fired for. Lives HERE, not in a view, so
     /// re-opening the sheet mid-rest cannot re-fire it.
@@ -126,9 +143,101 @@ final class LiftSessionController: ObservableObject {
         self.log = log
     }
 
+    func start(program: LiftProgramRow, repo: Repository, present: Bool = true) async throws {
+        guard !isActive else { if present { isPresented = true }; return }
+        guard let store = await repo.storeHandle() else { throw CocoaError(.fileReadUnknown) }
+        let items = try await store.liftProgramItems(programId: program.id)
+        guard !items.isEmpty else { throw CocoaError(.fileReadNoSuchFile) }
+        let vocabulary = try await store.liftExercises(deviceId: repo.deviceId)
+
+        let plan = items.map { item -> LiftPlanItem in
+            // The classification comes from the exercise vocabulary, which is the one place that owns
+            // it — the program line deliberately stores no muscle of its own to drift from.
+            let known = vocabulary.first { $0.name == item.exercise }
+            return LiftPlanItem(exercise: item.exercise,
+                                primaryMuscle: known?.primaryMuscle,
+                                secondaryMuscles: known?.secondaryMuscles ?? [],
+                                targetSets: item.targetSets,
+                                restSec: item.restSec,
+                                targetRepsLow: item.targetRepsLow,
+                                targetRepsHigh: item.targetRepsHigh,
+                                targetRpe: item.targetRpe,
+                                targetWeightKg: item.targetWeightKg,
+                                note: item.note,
+                                // Carried so a set added or dropped mid-session can be written back
+                                // onto the line it came from, and be there next time.
+                                programItemId: item.id)
+        }
+        guard !isActive else { if present { isPresented = true }; return }
+        start(plan: plan, programId: program.id, programName: program.name)
+        isPresented = present
+        await loadLastSession(repo: repo)
+    }
+
+    func loadLastSession(repo: Repository) async {
+        guard let engine, let store = await repo.storeHandle() else { return }
+        let id = sessionID
+        let exercises = Set(engine.plan.map(\.exercise))
+        guard Set(lastSession.keys) != exercises else { return }
+        var out: [String: [Int: LiftSetCarry]] = [:]
+        for exercise in exercises {
+            let rows = (try? await store.lastLiftSets(deviceId: repo.deviceId, exercise: exercise, before: engine.startTs)) ?? []
+            var bySet: [Int: LiftSetCarry] = [:]
+            for row in rows where !row.isWarmup { bySet[row.setIndex] = LiftSetCarry(weightKg: row.weightKg, reps: row.reps) }
+            out[exercise] = bySet
+        }
+        guard sessionID == id, Set(self.engine?.plan.map(\.exercise) ?? []) == exercises else { return }
+        setLastSession(out)
+    }
+
+    private(set) var isSaving = false
+
+    /// Retains the paused session until all writes succeed; stable IDs make a retry idempotent.
+    func save(repo: Repository, completingUnfinished: Bool, sessionRpe: Double?) async throws -> (plan: [LiftPlanItem], sets: [FinishedSet]) {
+        guard !isSaving, engine != nil else { throw CocoaError(.userCancelled) }
+        isSaving = true
+        defer { isSaving = false }
+        pause()
+        guard var finishedEngine = engine, let store = await repo.storeHandle() else { throw CocoaError(.fileWriteUnknown) }
+        let endTs = Self.unixNow
+        let duration = finishedEngine.elapsed(now: endTs)
+        finishedEngine.finish(now: endTs)
+        let finished = setsToSave(completingUnfinished: completingUnfinished, using: finishedEngine)
+        if Self.anyPerformed(finished) {
+            let row = LiftSessionRow(id: sessionID, deviceId: repo.deviceId, startTs: finishedEngine.startTs,
+                                     endTs: endTs, sport: "Strength", programId: programId,
+                                     programName: programName, sessionRpe: sessionRpe ?? LiftFormat.number(sessionRpeText), note: programName)
+            _ = try await store.upsertLiftSessions([row])
+            let rows = finished.enumerated().map { ord, set in
+                let item = finishedEngine.planItem(for: set.slot)
+                return LiftSetRow(id: "\(sessionID):\(set.slot.exerciseIndex):\(set.slot.setIndex)",
+                                  deviceId: repo.deviceId, sessionId: sessionID, ord: ord,
+                                  exercise: item?.exercise ?? "", primaryMuscle: item?.primaryMuscle,
+                                  secondaryMuscles: item?.secondaryMuscles ?? [], setIndex: set.slot.setIndex,
+                                  weightKg: set.weightKg, reps: set.reps, rpe: set.rpe, isWarmup: set.isWarmup,
+                                  startTs: set.startTs, endTs: set.endTs, restSec: set.restSec, note: nil)
+            }
+            let existing = try await store.liftSets(sessionId: sessionID)
+            let savedIDs = Set(rows.map(\.id))
+            _ = try await store.upsertLiftSets(rows)
+            _ = try await store.deleteLiftSets(ids: existing.filter { !savedIDs.contains($0.id) }.map(\.id))
+            let workout = WorkoutRow(startTs: finishedEngine.startTs, endTs: endTs, sport: "Strength", source: "manual",
+                                     durationS: Double(duration), energyKcal: nil, avgHr: nil, maxHr: nil, strain: nil,
+                                     distanceM: nil, zonesJSON: nil, notes: programName, steps: nil)
+            _ = try await store.upsertWorkouts([workout], deviceId: repo.deviceId)
+
+        }
+        return (finishedEngine.plan, finished)
+    }
+
     // MARK: - Lifecycle
 
     func start(plan: [LiftPlanItem], programId: String?, programName: String?) {
+        guard !isActive else { return }
+        sessionID = UUID().uuidString
+        lastSession = [:]
+        pausedForPulseLoss = false
+        sessionRpeText = ""
         let stamp = Int(Date().timeIntervalSince1970)
         engine = LiftSessionEngine(plan: plan, startTs: stamp)
         self.programId = programId
@@ -158,6 +267,9 @@ final class LiftSessionController: ObservableObject {
     /// Rehydrate an interrupted session found on disk. Does NOT present the sheet: the session comes
     /// back as the bottom bar, and the user opens it if they want to.
     func resume(from snapshot: LiftSessionPersistence.Snapshot, present: Bool = false) {
+        lastSession = [:]
+        sessionID = snapshot.sessionID ?? "lift-\(snapshot.startSec)"
+        pausedForPulseLoss = snapshot.pausedForPulseLoss ?? false
         engine = LiftSessionPersistence.engine(from: snapshot)
         programId = snapshot.programId
         programName = snapshot.programName
@@ -176,11 +288,13 @@ final class LiftSessionController: ObservableObject {
             warnedFor = nil
         }
         isPresented = present
+        sessionRpeText = snapshot.sessionRpeText ?? ""
         claimStrap()
     }
 
     /// Give up the session without saving.
     func discard() {
+        guard !isSaving else { return }
         teardown()
         LiftSessionPersistence.clear()
     }
@@ -194,6 +308,7 @@ final class LiftSessionController: ObservableObject {
 
     private func teardown() {
         engine = nil
+        sessionRpeText = ""
         programId = nil
         programName = nil
         warnedFor = nil
@@ -213,13 +328,13 @@ final class LiftSessionController: ObservableObject {
     }
 
     /// The current unix second. Read when needed; nothing about a session is stored per second.
-    static var unixNow: Int { Int(Date().timeIntervalSince1970) }
+    nonisolated static var unixNow: Int { Int(Date().timeIntervalSince1970) }
 
     // MARK: - Actions
 
     /// The one action. `fromStrap` earns a single confirming buzz, unless the tap reads as a knock.
     func advance(fromStrap: Bool = false) {
-        guard let current = engine else { return }
+        guard !isSaving, let current = engine, !current.isPaused else { return }
         let stamp = Int(Date().timeIntervalSince1970)
         if fromStrap {
             if let last = lastStrapStepAt,
@@ -291,7 +406,12 @@ final class LiftSessionController: ObservableObject {
 
     func presentation(system: UnitSystem) -> Presentation? {
         guard let engine, !engine.isFinished else { return nil }
-        let started = Date(timeIntervalSince1970: TimeInterval(engine.stageStartedAt))
+        let started = Date(timeIntervalSince1970: TimeInterval(engine.stageStartedAt + engine.stagePausedDuration))
+        if engine.isPaused {
+            return Presentation(isResting: false, exercise: engine.currentSlot.flatMap { engine.planItem(for: $0)?.exercise } ?? programName ?? String(localized: "Session"),
+                                status: String(localized: "Paused"), detail: nil, next: Self.nextLine(engine),
+                                stageStartedAt: started, restEndsAt: nil)
+        }
         let next = Self.nextLine(engine)
 
         guard let slot = engine.currentSlot, let item = engine.planItem(for: slot) else {
@@ -536,8 +656,8 @@ final class LiftSessionController: ObservableObject {
     /// (`LiftMetrics.isPerformed`) and Edit sets still shows, so a discard made by mistake can be filled
     /// back in. Done sets keep the order they happened in and their timing; sets never started follow in
     /// plan order, with no timing.
-    func setsToSave(completingUnfinished: Bool) -> [FinishedSet] {
-        guard let engine else { return [] }
+    func setsToSave(completingUnfinished: Bool, using override: LiftSessionEngine? = nil) -> [FinishedSet] {
+        guard let engine = override ?? engine else { return [] }
         // The plan's max RPE, which the session shows grey in the RPE field.
         func planned(_ slot: LiftSlot) -> Double? { engine.planItem(for: slot)?.targetRpe }
         var out = engine.sets.map { set -> FinishedSet in
@@ -677,7 +797,7 @@ final class LiftSessionController: ObservableObject {
 
     /// Re-arm the rest's timers when the rest changed — a new rest, a rest undone or cut short, no rest.
     private func scheduleRestTimers() {
-        let endsAt: Int? = { if case .resting(_, let end) = engine?.stage { return end }; return nil }()
+        let endsAt: Int? = { if engine?.isPaused == false, case .resting(_, let end) = engine?.stage { return end }; return nil }()
         guard endsAt != scheduledRestEnd else { return }
         scheduledRestEnd = endsAt
         restTimers.forEach { $0.cancel() }
@@ -710,7 +830,7 @@ final class LiftSessionController: ObservableObject {
     }
 
     private func fireRestWarningIfDue() {
-        guard let engine, case .resting(_, let endsAt) = engine.stage else { return }
+        guard let engine, !engine.isPaused, case .resting(_, let endsAt) = engine.stage else { return }
         guard warnedFor != endsAt else { return }
         guard endsAt - Self.unixNow <= LiftSessionController.restWarningLeadSec else { return }
         warnedFor = endsAt
@@ -727,11 +847,14 @@ final class LiftSessionController: ObservableObject {
 
     private func persist() {
         guard let engine, !engine.isFinished else { return }
-        LiftSessionPersistence.store(
-            LiftSessionPersistence.snapshot(engine: engine,
+        var snapshot = LiftSessionPersistence.snapshot(engine: engine,
                                             programId: programId,
                                             programName: programName,
                                             pendingValues: pendingValues,
-                                            pendingWarmups: pendingWarmups))
+                                            pendingWarmups: pendingWarmups)
+        snapshot.sessionID = sessionID
+        snapshot.pausedForPulseLoss = pausedForPulseLoss
+        snapshot.sessionRpeText = sessionRpeText.isEmpty ? nil : sessionRpeText
+        LiftSessionPersistence.store(snapshot)
     }
 }
