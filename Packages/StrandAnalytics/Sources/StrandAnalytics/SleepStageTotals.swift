@@ -132,15 +132,12 @@ public enum SleepStageTotals {
 
     // MARK: - Canonical main-night selection (#525 / #547 — learned-timing scored pick)
 
-    /// Broad overnight band used ONLY for the cold-start alignment bonus (NOT a gate). A block whose
-    /// midpoint lands near this band's center earns the timing credit when we have no learned habitual
-    /// midsleep yet. The band is [`overnightStartHour`, `overnightEndHour`) local, reconciled with the
-    /// detector's `SleepStager.isOvernightOnset` window [20:00, 11:00) so the selector and detector agree
-    /// (this removes the old [10:00, 11:00) off-by-one where the detector kept a ~10:30 onset as "night"
-    /// but the selector demoted it to a nap). (#547)
-    public static let overnightStartHour = 20
-    /// Local hour (exclusive) that closes the cold-start overnight band. Now 11 (was 10) to match the
-    /// detector's [20:00, 11:00) onset window. A block onset in [`overnightEndHour`, `overnightStartHour`)
+    /// Broad overnight band for the cold-start timing bonus and physiological-day eligibility.
+    /// The 19:00 edge admits early bedtimes (#2626); the 11:00 closing edge retains late-morning onsets.
+    /// The raw detector has its own onset band, which is unchanged by this selection policy.
+    public static let overnightStartHour = 19
+    /// Local hour (exclusive) that closes the cold-start overnight band at 11, matching the
+    /// detector's late-morning edge. A block onset in [`overnightEndHour`, `overnightStartHour`)
     /// is daytime; everything else is overnight.
     public static let overnightEndHour = 11
 
@@ -234,8 +231,9 @@ public enum SleepStageTotals {
 
     /// True when a block's onset falls in the cold-start overnight band (≥ `overnightStartHour` or
     /// < `overnightEndHour`, local). Retained for callers/tests that still ask the binary question, but
-    /// the scored selector no longer GATES on it — it only feeds the cold-start alignment bonus.
-    /// Mirrors `SleepStager.isOvernightOnset`. `offsetSec` is seconds EAST of UTC. (#525 / #547)
+    /// the scored selector no longer GATES on it. Physiological-day classification still uses this band
+    /// to exclude unclassified daytime naps; the early edge admits 19:00 bedtimes (#2626).
+    /// `offsetSec` is seconds EAST of UTC.
     public static func isOvernightOnset(_ ts: Int, offsetSec: Int) -> Bool {
         let local = ts + offsetSec
         let secOfDay = ((local % secondsPerDay) + secondsPerDay) % secondsPerDay
