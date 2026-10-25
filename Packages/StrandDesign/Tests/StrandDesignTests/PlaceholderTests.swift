@@ -48,11 +48,23 @@ final class StrandDesignTests: XCTestCase {
     }
 
     func testRecoveryStateWords() {
-        XCTAssertEqual(StrandPalette.recoveryState(10), "DEPLETED")
-        XCTAssertEqual(StrandPalette.recoveryState(40), "LOW")
-        XCTAssertEqual(StrandPalette.recoveryState(60), "MODERATE")
-        XCTAssertEqual(StrandPalette.recoveryState(80), "PRIMED")
-        XCTAssertEqual(StrandPalette.recoveryState(95), "PEAK")
+        // State words come from the package bundle in the host's language. English literals reject
+        // correct output on a localized Mac; pin the bands using labels resolved from that same bundle.
+        let depleted = String(localized: "DEPLETED", bundle: .module)
+        let low = String(localized: "LOW", bundle: .module)
+        let moderate = String(localized: "MODERATE", bundle: .module)
+        let primed = String(localized: "PRIMED", bundle: .module)
+        let peak = String(localized: "PEAK", bundle: .module)
+        let cases: [(Double, String)] = [
+            (-1, depleted), (10, depleted), (24.999, depleted),
+            (25, low), (40, low), (49.999, low),
+            (50, moderate), (60, moderate), (69.999, moderate),
+            (70, primed), (80, primed), (87.999, primed),
+            (88, peak), (95, peak), (101, peak),
+        ]
+        for (score, expected) in cases {
+            XCTAssertEqual(StrandPalette.recoveryState(score), expected, "score \(score)")
+        }
     }
 
     func testStrainColorScaleAndEndpoints() {
