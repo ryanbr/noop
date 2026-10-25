@@ -89,7 +89,7 @@ struct CoachSettingsView: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(StrandPalette.accent)
-                    .disabled(!coach.hasKey)
+                    .disabled(coach.provider == .custom ? !coach.customConnected : !coach.hasKey)
                     .accessibilityLabel("Refresh models from provider")
                 }
                 Picker("Model", selection: $coach.model) {

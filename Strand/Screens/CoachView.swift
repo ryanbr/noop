@@ -226,11 +226,11 @@ struct CoachView: View {
                     .accessibilityLabel("Provider")
                 }
 
-                // Server URL (Custom / local LLM only)
+                // Server URL (Custom / OpenAI-compatible gateway)
                 if coach.provider == .custom {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Server URL").strandOverline()
-                        TextField("http://localhost:11434/v1", text: $coach.customBaseURL)
+                        TextField("https://litellm.example.com/v1", text: $coach.customBaseURL)
                             .textFieldStyle(.plain)
                             .font(StrandFont.body)
                             .foregroundStyle(StrandPalette.textPrimary)
@@ -241,7 +241,7 @@ struct CoachView: View {
                                 .strokeBorder(StrandPalette.hairline, lineWidth: 1))
                             .disableAutocorrection(true)
                             .accessibilityLabel("Server URL")
-                        Text("Any OpenAI-compatible server: Ollama, LM Studio, llama.cpp, or your own gateway. Stays on your network; nothing leaves \(Platform.deviceNounPhrase).")
+                        Text("Works with LiteLLM and other OpenAI-compatible servers. Use the server's /v1 base URL and a model name from its LiteLLM model list. On iPhone, use your Mac's LAN address instead of localhost (for example, http://192.168.1.20:4000/v1). Coach sends requests only to this server; your metric summary is included only if you enable data access.")
                             .font(StrandFont.footnote)
                             .foregroundStyle(StrandPalette.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -257,7 +257,7 @@ struct CoachView: View {
                         .labelsHidden()
                         .pickerStyle(.segmented)
                         .accessibilityLabel("Key header")
-                        Text("Use Bearer for most local servers; use x-api-key for gateways that require the key in that header.")
+                        Text("LiteLLM uses a Bearer key. Leave this empty only if your proxy allows unauthenticated requests.")
                             .font(StrandFont.footnote)
                             .foregroundStyle(StrandPalette.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -271,7 +271,7 @@ struct CoachView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(coach.provider == .custom ? "API key (optional)" : "API key").strandOverline()
                     SecureField(coach.provider == .custom
-                                ? "Only if your server requires one"
+                                ? "LiteLLM virtual key (if required)"
                                 : "Paste your \(coach.provider.displayName) API key", text: $keyDraft)
                         .textFieldStyle(.plain)
                         .font(StrandFont.body)
@@ -327,8 +327,8 @@ struct CoachView: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(StrandPalette.accent)
-                .disabled(!coach.hasKey)
-                .help("Fetch the available models from \(coach.provider.displayName) using your saved key")
+                .disabled(coach.provider == .custom ? !coach.customConnected : !coach.hasKey)
+                .help("Fetch the available models from the configured provider")
                 .accessibilityLabel("Refresh models from provider")
             }
 
@@ -884,7 +884,7 @@ struct CoachView: View {
     private var privacyFootnote: some View {
         Label {
             Text(coach.provider == .custom
-                 ? "Coach talks only to the server URL you set. Point it at a local model (Ollama, LM Studio, llama.cpp) to keep everything on your own machine. Nothing is sent until you ask."
+                 ? "Coach talks only to the server URL you set. That can be a local model or a remote LiteLLM gateway. Your metric summary is included only if you enable data access."
                  : "This is the only feature that leaves \(Platform.deviceNounPhrase). It sends a summary of your metrics to \(coach.provider.displayName) using your own key. Nothing is sent until you ask.")
                 .font(StrandFont.footnote)
                 .foregroundStyle(StrandPalette.textTertiary)
