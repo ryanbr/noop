@@ -4,6 +4,8 @@ import android.database.Cursor
 import androidx.room.withTransaction
 import androidx.sqlite.db.SimpleSQLiteQuery
 import com.noop.data.WhoopDatabase
+import java.time.LocalDate
+import java.time.ZoneId
 
 /** SQL-side upper bound evaluated before Android materializes any unrestricted TEXT value. */
 internal object PushSnapshotPreflight {
@@ -22,9 +24,14 @@ internal object PushSnapshotPreflight {
         }
     }
 
-    fun query(table: String, columns: List<String>, predicate: String, orderBy: String): String =
-        "SELECT COALESCE(SUM(${rowEstimateExpression(columns)}), 0) FROM " +
-            "(SELECT ${columns.joinToString()} FROM $table WHERE $predicate ORDER BY $orderBy LIMIT ?)"
+    fun query(
+        table: String,
+        columns: List<String>,
+        predicate: String,
+        orderBy: String,
+        projections: List<String> = columns,
+    ): String = "SELECT COALESCE(SUM(${rowEstimateExpression(columns)}), 0) FROM " +
+        "(SELECT ${projections.joinToString()} FROM $table WHERE $predicate ORDER BY $orderBy LIMIT ?)"
 }
 
 internal object PushDeviceDiscovery {
@@ -44,7 +51,7 @@ internal object PushDeviceDiscovery {
 class PushDao internal constructor(private val db: WhoopDatabase) : PushSnapshotSource {
     override suspend fun knownDeviceIds(capabilities: PushCapabilities): List<String> = db.withTransaction {
         val supportedTables = capabilities.appendTables.map(::appendSpec) +
-            capabilities.mutableTables.map(::mutableSpec)
+            capabilities.mutableTables.map { mutableSpec(it, capabilities.protocolVersion) }
         val sql = PushDeviceDiscovery.query(supportedTables.map(TableSpec::sqlName))
         db.query(SimpleSQLiteQuery(sql)).use { cursor ->
             buildList {
@@ -102,9 +109,17 @@ class PushDao internal constructor(private val db: WhoopDatabase) : PushSnapshot
         deviceId: String,
         window: PushWindow,
         limit: Int,
+    ): List<PushMutableRecord> = mutableRows(table, deviceId, window, limit, PushProtocol.VERSION)
+
+    override suspend fun mutableRows(
+        table: PushMutableTable,
+        deviceId: String,
+        window: PushWindow,
+        limit: Int,
+        protocolVersion: String,
     ): List<PushMutableRecord> {
         require(limit in 1..(PushProtocol.MAX_MUTABLE_SNAPSHOT_RECORDS + 1))
-        val spec = mutableSpec(table)
+        val spec = mutableSpec(table, protocolVersion)
         return db.withTransaction {
             val (predicate, bounds) = when (table) {
                 PushMutableTable.DAILY_METRIC, PushMutableTable.JOURNAL ->
@@ -113,7 +128,7 @@ class PushDao internal constructor(private val db: WhoopDatabase) : PushSnapshot
                     "startTs >= ? AND startTs < ?" to
                         arrayOf<Any?>(window.startTsInclusive, window.endTsExclusive)
             }
-            val sql = "SELECT ${spec.columns.joinToString()} FROM ${spec.sqlName} " +
+            val sql = "SELECT ${spec.projections.joinToString()} FROM ${spec.sqlName} " +
                 "WHERE deviceId = ? AND $predicate ORDER BY ${spec.keyColumns.joinToString()} ASC LIMIT ?"
             val args = arrayOfNulls<Any?>(bounds.size + 2)
             args[0] = deviceId
@@ -125,15 +140,89 @@ class PushDao internal constructor(private val db: WhoopDatabase) : PushSnapshot
                     spec.columns,
                     "deviceId = ? AND $predicate",
                     "${spec.keyColumns.joinToString()} ASC",
+                    spec.projections,
                 ),
                 args,
             )
-            db.query(SimpleSQLiteQuery(sql, args)).use { cursor ->
+            val records = db.query(SimpleSQLiteQuery(sql, args)).use { cursor ->
                 buildList {
                     while (cursor.moveToNext()) add(cursor.mutableRecord(spec))
                 }
             }
+            if (table != PushMutableTable.DAILY_METRIC ||
+                protocolVersion != PushProtocol.LATEST_VERSION || records.isEmpty()
+            ) {
+                records
+            } else if (records.last().data["sleepConsistency"] != null) {
+                // SleepModel prefers the imported consistency series as a whole when its latest day has a
+                // point; don't mix imported values and the locally calculated fallback in one series.
+                records
+            } else {
+                // When the latest day has no imported consistency score, SleepModel uses the local
+                // bedtime-spread calculation for the series. Never substitute recovery or performance.
+                val computedConsistency = sleepConsistencyByWakeDay(deviceId, window)
+                records.map { record ->
+                    val day = record.key["day"] as? String
+                    record.copy(data = record.data + ("sleepConsistency" to day?.let(computedConsistency::get)))
+                }
+            }
         }
+    }
+
+    /**
+     * Compute the existing trailing-14 bedtime-onset score for each local wake day in the export window.
+     * Fetching the previous 13 sessions before the first in-window wake keeps the first exported score
+     * identical to the Sleep screen without loading unbounded sleep history.
+     */
+    private fun sleepConsistencyByWakeDay(deviceId: String, window: PushWindow): Map<String, Double> {
+        val zone = ZoneId.systemDefault()
+        val start = LocalDate.parse(window.fromDay).atStartOfDay(zone).toEpochSecond()
+        val end = LocalDate.parse(window.toDay).plusDays(1).atStartOfDay(zone).toEpochSecond()
+        val inWindow = db.query(
+            SimpleSQLiteQuery(
+                "SELECT startTs, endTs, startTsAdjusted FROM sleepSession " +
+                    "WHERE deviceId = ? AND endTs >= ? AND endTs < ? ORDER BY startTs ASC LIMIT ?",
+                arrayOf(deviceId, start, end, PushProtocol.MAX_MUTABLE_SNAPSHOT_RECORDS + 1),
+            ),
+        ).use { cursor ->
+            buildList {
+                while (cursor.moveToNext()) {
+                    val adjusted = cursor.getColumnIndexOrThrow("startTsAdjusted")
+                    add(
+                        SleepConsistencySession(
+                            startTs = cursor.getLong(cursor.getColumnIndexOrThrow("startTs")),
+                            endTs = cursor.getLong(cursor.getColumnIndexOrThrow("endTs")),
+                            startTsAdjusted = if (cursor.isNull(adjusted)) null else cursor.getLong(adjusted),
+                        ),
+                    )
+                }
+            }
+        }
+        if (inWindow.size > PushProtocol.MAX_MUTABLE_SNAPSHOT_RECORDS) {
+            throw PushProtocolException("sleep consistency snapshot exceeds local row limit")
+        }
+        val firstStartTs = inWindow.firstOrNull()?.startTs ?: return emptyMap()
+        val prior = db.query(
+            SimpleSQLiteQuery(
+                "SELECT startTs, endTs, startTsAdjusted FROM sleepSession " +
+                    "WHERE deviceId = ? AND startTs < ? ORDER BY startTs DESC LIMIT 13",
+                arrayOf(deviceId, firstStartTs),
+            ),
+        ).use { cursor ->
+            buildList {
+                while (cursor.moveToNext()) {
+                    val adjusted = cursor.getColumnIndexOrThrow("startTsAdjusted")
+                    add(
+                        SleepConsistencySession(
+                            startTs = cursor.getLong(cursor.getColumnIndexOrThrow("startTs")),
+                            endTs = cursor.getLong(cursor.getColumnIndexOrThrow("endTs")),
+                            startTsAdjusted = if (cursor.isNull(adjusted)) null else cursor.getLong(adjusted),
+                        ),
+                    )
+                }
+            }
+        }.asReversed()
+        return SleepConsistencyPushProjection.byWakeDay(prior + inWindow, zone)
     }
 
     private fun ensureSnapshotBounded(sql: String, args: Array<Any?>) {
@@ -182,8 +271,10 @@ class PushDao internal constructor(private val db: WhoopDatabase) : PushSnapshot
         val keyColumns: List<String>,
         val dataColumns: List<String>,
         val booleanColumns: Set<String> = emptySet(),
+        val projectionOverrides: Map<String, String> = emptyMap(),
     ) {
         val columns: List<String> = keyColumns + dataColumns
+        val projections: List<String> = columns.map { projectionOverrides[it] ?: it }
     }
 
     private fun appendSpec(table: PushAppendTable): TableSpec = when (table) {
@@ -197,8 +288,11 @@ class PushDao internal constructor(private val db: WhoopDatabase) : PushSnapshot
         PushAppendTable.GRAVITY_SAMPLE -> GRAVITY
     }
 
-    private fun mutableSpec(table: PushMutableTable): TableSpec = when (table) {
-        PushMutableTable.DAILY_METRIC -> DAILY
+    private fun mutableSpec(
+        table: PushMutableTable,
+        protocolVersion: String = PushProtocol.VERSION,
+    ): TableSpec = when (table) {
+        PushMutableTable.DAILY_METRIC -> if (protocolVersion == PushProtocol.LATEST_VERSION) DAILY_V11 else DAILY
         PushMutableTable.SLEEP_SESSION -> SLEEP
         PushMutableTable.WORKOUT -> WORKOUT
         PushMutableTable.JOURNAL -> JOURNAL
@@ -235,6 +329,17 @@ class PushDao internal constructor(private val db: WhoopDatabase) : PushSnapshot
                 "totalSleepMin", "efficiency", "deepMin", "remMin", "lightMin",
                 "disturbances", "restingHr", "avgHrv", "recovery", "strain", "exerciseCount", "spo2Pct",
                 "skinTempDevC", "respRateBpm", "steps", "activeKcalEst", "spo2Red", "spo2Ir",
+            ),
+        )
+        val DAILY_V11 = DAILY.copy(
+            dataColumns = DAILY.dataColumns + listOf("sleepPerformance", "sleepConsistency"),
+            projectionOverrides = mapOf(
+                "sleepPerformance" to "(SELECT value FROM metricSeries AS pushScore " +
+                    "WHERE pushScore.deviceId = dailyMetric.deviceId AND pushScore.day = dailyMetric.day " +
+                    "AND pushScore.key = 'sleep_performance' LIMIT 1) AS sleepPerformance",
+                "sleepConsistency" to "(SELECT value FROM metricSeries AS pushConsistency " +
+                    "WHERE pushConsistency.deviceId = dailyMetric.deviceId AND pushConsistency.day = dailyMetric.day " +
+                    "AND pushConsistency.key = 'sleep_consistency' LIMIT 1) AS sleepConsistency",
             ),
         )
         val SLEEP = TableSpec(

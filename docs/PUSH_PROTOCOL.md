@@ -1,10 +1,12 @@
 # Self-hosted push protocol
 
 This document specifies the wire contract for NOOP's **Experimental**, default-off export to a
-user-owned HTTP(S) endpoint. Protocol version **1.0** covers the Android-first client. It is a
-one-way export protocol: the on-device database is authoritative, the receiver acknowledges writes
-and may advertise only which fixed v1 streams it accepts. NOOP never reads health data, commands,
-URLs, field names, or other configuration back from the receiver.
+user-owned HTTP(S) endpoint. Protocol versions **1.0** and **1.1** cover the Android-first client.
+Version 1.1 adds explicit nullable daily `sleepPerformance` and `sleepConsistency` projections; it does
+not add a stream or export the general metric-series table. This is a one-way export protocol: the on-device
+database is authoritative, the receiver acknowledges writes and may advertise only which fixed v1
+streams it accepts. NOOP never reads health data, commands, URLs, field names, or other configuration
+back from the receiver.
 
 NOOP does not ship, operate, or endorse a receiver. A receiver is not part of this repository, and
 this contract must not be interpreted as an account, hosted-sync, restore, or two-way-sync API.
@@ -19,7 +21,7 @@ does not open the health database or send a batch.
 GET /the/user-configured-path HTTP/1.1
 Accept: application/json
 Authorization: Bearer <user-supplied-token>
-NOOP-Push-Accept-Version: 1.0
+NOOP-Push-Accept-Version: 1.1, 1.0
 ```
 
 A successful capability response has these required members:
@@ -293,7 +295,7 @@ null. The database's `deviceId` is supplied by the header and `synced` is intent
 
 | `stream` | Key | Window selector | `data` members |
 |---|---|---|---|
-| `dailyMetric` | `day` | `day` | `totalSleepMin`, `efficiency`, `deepMin`, `remMin`, `lightMin`, `disturbances`, `restingHr`, `avgHrv`, `recovery`, `strain`, `exerciseCount`, `spo2Pct`, `skinTempDevC`, `respRateBpm`, `steps`, `activeKcalEst`, `spo2Red`, `spo2Ir` (all nullable) |
+| `dailyMetric` | `day` | `day` | `totalSleepMin`, `efficiency`, `deepMin`, `remMin`, `lightMin`, `disturbances`, `restingHr`, `avgHrv`, `recovery`, `strain`, `exerciseCount`, `spo2Pct`, `skinTempDevC`, `respRateBpm`, `steps`, `activeKcalEst`, `spo2Red`, `spo2Ir` (all nullable); v1.1 adds nullable `sleepPerformance` and `sleepConsistency` |
 | `sleepSession` | `startTs` | `startTs` | `endTs`, `efficiency`, `restingHr`, `avgHrv`, `stagesJSON`, `userEdited`, `startTsAdjusted`, `motionJSON`, `sleepStateJSON`, `stagingSparse` |
 | `workout` | `startTs`, `sport` | `startTs` | `endTs`, `source`, `durationS`, `energyKcal`, `avgHr`, `maxHr`, `strain`, `distanceM`, `zonesJSON`, `notes`, `routePolyline`, `steps` |
 | `journal` | `day`, `question` | `day` | `answeredYes`, `notes`, `numericValue` |
@@ -305,9 +307,35 @@ are integers; metric and measurement fields are finite numbers. See [DATA_MODEL.
 and `android/app/src/main/java/com/noop/data/Entities.kt` for the local meanings and units. The wire
 registry, not automatic reflection over either database, determines what is sent.
 
-Newer tables such as `ppgHrSample`, `stepSample`, `sleepStateSample`, `metricSeries`, raw waveform /
-IMU tables, and any future schema additions are not silently exported by v1. Adding a stream or an
-optional `data` member requires a documented registry update and protocol minor version.
+The `dailyMetric` field list in protocol 1.0 is unchanged. Protocol 1.1 adds two nullable 0–100 values:
+
+- `data.sleepPerformance` is sourced from the matching `metricSeries` row whose key is
+  `sleep_performance` and whose source/day match the enclosing `dailyMetric` row. It is not mapped from
+  `recovery`. When there is no matching score point, the field is JSON `null`.
+- `data.sleepConsistency` uses the matching `metricSeries` row whose key is `sleep_consistency` when the
+  latest exported daily day has a point, matching SleepModel's imported-series preference. Otherwise
+  Android reproduces the Sleep screen's existing bedtime-onset consistency for the same source: for each
+  local wake day, it uses the trailing up-to-14 sleep sessions ordered by detected `startTs`, with an
+  edited onset (`startTsAdjusted`) taking precedence. After wrapping after-midnight bedtimes past noon,
+  population SD of bedtime minutes maps to `100 * (1 - SD / 120)`, clamped to 0–100; fewer than three
+  sessions yields JSON `null`. A day with multiple sessions uses its last session's point. It is not
+  mapped from `recovery` or `sleepPerformance`.
+
+Both values are source-local: Sleep Performance may be an imported value or NOOP's locally computed
+approximate Rest composite; sleep consistency may be imported or the NOOP bedtime-regularity calculation
+above. The Rest composite is not WHOOP's proprietary score. The exporter does not merge values across
+device/source scopes; receivers can distinguish scopes from the batch `deviceId` and should label the
+scores honestly. Neither field is a recovery score.
+
+A receiver that selects protocol 1.0 receives the original field set. It does not receive either new
+field, preserving compatibility with existing receivers.
+
+Newer tables such as `ppgHrSample`, `stepSample`, `sleepStateSample`, raw waveform / IMU tables,
+and any future schema additions are not silently exported. The general `metricSeries` table is not
+a stream: v1.1 projects only the matching `sleep_performance` and `sleep_consistency` values for each
+exported `dailyMetric` source/day (the latter falls back to the documented session calculation when the
+latest exported day has no imported consistency point). Other metric-series keys remain local. Adding a
+stream or optional `data` member requires a documented registry update and protocol minor version.
 
 ## Acceptance, errors, and retry idempotency
 
@@ -373,7 +401,8 @@ opened; senders never optimistically emit a version the receiver did not select.
   reject an unsupported major version.
 - A minor version may add an optional header/data member or a registry stream. Receivers supporting
   the same major must ignore unknown object members. They may reject an unknown stream without
-  rejecting batches for supported streams.
+  rejecting batches for supported streams. Specifically, v1.1 adds only the nullable
+  `dailyMetric.data.sleepPerformance` and `dailyMetric.data.sleepConsistency` fields described above.
 - A sender must not emit a new stream or field while claiming an older minor version. Removing or
   changing the meaning/type of a field, or changing a stream key or delivery mode, requires a new
   major version.
@@ -388,6 +417,9 @@ endpoint, request diagnostics, set cadence, or otherwise control NOOP.
 
 The contract is platform-neutral. NOOP on iOS/macOS uses GRDB/SQLite with the same natural keys and
 logical v1 streams, but every implementation uses explicit registry projections rather than reflection
-or `SELECT *`. A platform lacking a nullable exported column emits `null`; platform-only columns stay
-absent until a later negotiated registry version. Scheduling and credential storage are platform
-concerns and do not change NDJSON, acknowledgement, idempotency, or replacement semantics.
+or `SELECT *`. A sender may continue to negotiate protocol 1.0. A sender that advertises 1.1 must
+project `sleepPerformance` from the matching `sleep_performance` metric-series point and `sleepConsistency`
+from either the matching `sleep_consistency` metric-series point or the documented same-source sleep-session
+calculation. Missing values emit `null`. Other metric-series keys and platform-only columns stay absent.
+Scheduling and credential storage are platform concerns and do not change NDJSON, acknowledgement,
+idempotency, or replacement semantics.

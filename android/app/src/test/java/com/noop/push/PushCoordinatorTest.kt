@@ -514,6 +514,39 @@ class PushCoordinatorTest {
     }
 
     @Test
+    fun negotiatedV11IsUsedForSnapshotEncodingAndAcknowledgement() = runBlocking {
+        val day = "2026-08-18"
+        val score = PushMutableRecord(
+            linkedMapOf("day" to day),
+            linkedMapOf(
+                "totalSleepMin" to null, "efficiency" to null, "deepMin" to null, "remMin" to null,
+                "lightMin" to null, "disturbances" to null, "restingHr" to null, "avgHrv" to null,
+                "recovery" to null, "strain" to null, "exerciseCount" to null, "spo2Pct" to null,
+                "skinTempDevC" to null, "respRateBpm" to null, "steps" to null, "activeKcalEst" to null,
+                "spo2Red" to null, "spo2Ir" to null, "sleepPerformance" to 88.0,
+                "sleepConsistency" to 73.0,
+            ),
+        )
+        val source = FakePushSource(
+            mutable = mutableMapOf(key(PushMutableTable.DAILY_METRIC, "strap-noop") to mutableListOf(score)),
+        )
+        val transport = AckingTransport()
+        val capabilities = PushCapabilities(
+            appendTables = emptySet(),
+            mutableTables = setOf(PushMutableTable.DAILY_METRIC),
+            protocolVersion = PushProtocol.LATEST_VERSION,
+        )
+
+        PushCoordinator(source, transport, MemoryProgress(), SOURCE_A, pinnedToday, ZoneId.of("UTC"))
+            .pushKnownDevices(capabilities = capabilities)
+
+        val batch = transport.batches.single()
+        assertEquals(PushProtocol.LATEST_VERSION, batch.protocolVersion)
+        assertTrue(batch.body.toString(Charsets.UTF_8).contains("\"sleepPerformance\":88.0"))
+        assertTrue(batch.body.toString(Charsets.UTF_8).contains("\"sleepConsistency\":73.0"))
+    }
+
+    @Test
     fun emptyCapabilitiesAvoidEvenDeviceDiscovery() = runBlocking {
         val source = FakePushSource().apply { knownDeviceIdsFailure = AssertionError("Room must stay unopened") }
 
