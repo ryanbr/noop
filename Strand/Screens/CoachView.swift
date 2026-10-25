@@ -486,7 +486,7 @@ struct CoachView: View {
                         // `maxStoredMessages` cap the transcript is already bounded, this keeps render cost flat.
                         LazyVStack(alignment: .leading, spacing: 12) {
                             ForEach(coach.messages) { message in
-                                bubble(message).id(message.id)
+                                CoachBubble(message: message, onSave: saveAdvice).equatable().id(message.id)
                             }
                             if coach.sending {
                                 typingIndicator.id("typing")
@@ -526,66 +526,6 @@ struct CoachView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, minHeight: 180, alignment: .topLeading)
-    }
-
-    @ViewBuilder
-    private func bubble(_ message: ChatMessage) -> some View {
-        switch message.role {
-        case .user:
-            HStack {
-                Spacer(minLength: 48)
-                Text(message.text)
-                    .font(StrandFont.body)
-                    .foregroundStyle(StrandPalette.surfaceBase)
-                    .textSelection(.enabled)
-                    .multilineTextAlignment(.leading)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(StrandPalette.accent, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .frame(maxWidth: 520, alignment: .trailing)
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("You said: \(message.text)")
-        case .assistant:
-            // LLM replies arrive as Markdown (bold, lists, headings, tables),             // rendered with the chat-bubble-sized Strand theme. User bubbles stay
-            // verbatim `Text` so typed `*`/`#` never turn into surprise formatting.
-            // The reply sits on a frosted Charge-tinted surface, a card, not a flat box.
-            // K8: context menu (long-press / right-click) with Copy, Share, and Save actions.
-            HStack {
-                Markdown(message.text)
-                    .markdownTheme(.strand)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 11)
-                    .frostedCardSurface(tint: StrandPalette.chargeColor, cornerRadius: 16)
-                    .frame(maxWidth: 560, alignment: .leading)
-                    // K8: Copy / Share / Save context menu on assistant replies.
-                    .contextMenu {
-                        Button {
-                            #if os(macOS)
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(message.text, forType: .string)
-                            #else
-                            UIPasteboard.general.string = message.text
-                            #endif
-                        } label: {
-                            Label("Copy", systemImage: "doc.on.doc")
-                        }
-                        ShareLink(item: message.text) {
-                            Label("Share", systemImage: "square.and.arrow.up")
-                        }
-                        Button {
-                            saveAdvice(message.text)
-                        } label: {
-                            Label("Save to Journal", systemImage: "square.and.pencil")
-                        }
-                    }
-                Spacer(minLength: 48)
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("Coach said: \(message.text)")
-        }
     }
 
     private var typingIndicator: some View {
@@ -954,6 +894,76 @@ struct CoachView: View {
             } else if let last = coach.messages.last {
                 proxy.scrollTo(last.id, anchor: .bottom)
             }
+        }
+    }
+}
+
+/// One transcript bubble. Equatable on the message alone, so a redraw of `CoachView` (each composer
+/// keypress, each streamed chunk of the newest reply) skips every bubble whose text did not change.
+/// Without that, every visible reply re-parsed its Markdown on every keypress, which made typing
+/// lag in proportion to the conversation.
+private struct CoachBubble: View, Equatable {
+    let message: ChatMessage
+    let onSave: (String) -> Void
+
+    static func == (lhs: CoachBubble, rhs: CoachBubble) -> Bool { lhs.message == rhs.message }
+
+    var body: some View {
+        switch message.role {
+        case .user:
+            HStack {
+                Spacer(minLength: 48)
+                Text(message.text)
+                    .font(StrandFont.body)
+                    .foregroundStyle(StrandPalette.surfaceBase)
+                    .textSelection(.enabled)
+                    .multilineTextAlignment(.leading)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(StrandPalette.accent, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .frame(maxWidth: 520, alignment: .trailing)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("You said: \(message.text)")
+        case .assistant:
+            // LLM replies arrive as Markdown (bold, lists, headings, tables),             // rendered with the chat-bubble-sized Strand theme. User bubbles stay
+            // verbatim `Text` so typed `*`/`#` never turn into surprise formatting.
+            // The reply sits on a frosted Charge-tinted surface, a card, not a flat box.
+            // K8: context menu (long-press / right-click) with Copy, Share, and Save actions.
+            HStack {
+                Markdown(message.text)
+                    .markdownTheme(.strand)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 11)
+                    .frostedCardSurface(tint: StrandPalette.chargeColor, cornerRadius: 16)
+                    .frame(maxWidth: 560, alignment: .leading)
+                    // K8: Copy / Share / Save context menu on assistant replies.
+                    .contextMenu {
+                        Button {
+                            #if os(macOS)
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(message.text, forType: .string)
+                            #else
+                            UIPasteboard.general.string = message.text
+                            #endif
+                        } label: {
+                            Label("Copy", systemImage: "doc.on.doc")
+                        }
+                        ShareLink(item: message.text) {
+                            Label("Share", systemImage: "square.and.arrow.up")
+                        }
+                        Button {
+                            onSave(message.text)
+                        } label: {
+                            Label("Save to Journal", systemImage: "square.and.pencil")
+                        }
+                    }
+                Spacer(minLength: 48)
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Coach said: \(message.text)")
         }
     }
 }
