@@ -687,6 +687,8 @@ private fun TestCentreLiveReadoutPanel(
     activeStrapId: String,
     vm: AppViewModel,
 ) {
+    val context = LocalContext.current
+    val testCentre = remember(context) { TestCentre.from(context) }
     var hrSamples by remember(mode.id) { mutableStateOf(emptyList<HrSample>()) }
     var gravitySamples by remember(mode.id) { mutableStateOf(emptyList<GravitySample>()) }
     var batteryEstimate by remember(mode.id) { mutableStateOf<BatteryEstimator.Estimate?>(null) }
@@ -748,6 +750,7 @@ private fun TestCentreLiveReadoutPanel(
             domainLogLines = domainLogLines,
             nowUnix = nowUnix,
             connected = live.connected,
+            cumulativeDrainedRows = if (mode.domain == TestDomain.CONNECTION) testCentre.cumulativeDrainedRows() else 0,
             batteryPct = live.batteryPct,
             batteryEstimate = batteryEstimate,
             hrSamples = hrSamples,
@@ -757,9 +760,17 @@ private fun TestCentreLiveReadoutPanel(
     Column(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.padding(top = 2.dp)) {
         rows.forEach { row ->
             Row(Modifier.fillMaxWidth()) {
-                Text(row.label, style = NoopType.footnote, color = Palette.textTertiary)
+                val label = when (row.id) {
+                    "sessionRows" -> stringResource(R.string.test_centre_rows_drained_session)
+                    "allTimeRows" -> stringResource(R.string.test_centre_rows_drained_all_time)
+                    else -> row.label
+                }
+                val value = if (row.id == "sessionRows" && row.value == "no offload yet") {
+                    stringResource(R.string.test_centre_no_offload_yet)
+                } else row.value
+                Text(label, style = NoopType.footnote, color = Palette.textTertiary)
                 Spacer(Modifier.weight(1f))
-                Text(row.value, style = NoopType.mono, color = Palette.textSecondary)
+                Text(value, style = NoopType.mono, color = Palette.textSecondary)
             }
         }
     }
