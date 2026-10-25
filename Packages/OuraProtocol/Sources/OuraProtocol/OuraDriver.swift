@@ -61,9 +61,9 @@ public final class OuraDriver {
     /// Per OURA_PROTOCOL.md s3.2 (the 0x24 SetAuthKey is a DANGEROUS, one-time provisioning write).
     public let allowKeyInstall: Bool
     /// The SetNotification mask both handshake paths send (`.ready` and the post-install re-auth).
-    /// `OuraCommands.notificationMaskDefault` (`3f`) unless the Test Centre A/B asks for the official
-    /// app's `ff` — see `OuraCommands.notificationMaskFull`. Reversible: the next session sends the
-    /// mask it is constructed with, nothing persists on the ring.
+    /// `OuraCommands.notificationMaskDefault` (`ff`, the official app's mask) unless a test injects
+    /// another. Reversible: the next session sends the mask it is constructed with, nothing persists
+    /// on the ring.
     public let notificationMask: UInt8
 
     public private(set) var phase: OuraDriverPhase = .idle

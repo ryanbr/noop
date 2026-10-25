@@ -88,9 +88,9 @@ class OuraDriver(
     val allowKeyInstall: Boolean = false,
     /**
      * The SetNotification mask both handshake paths send (Ready and the post-install re-auth).
-     * [OuraCommands.NOTIFICATION_MASK_DEFAULT] (`3f`) unless the Test Centre A/B asks for the official
-     * app's `ff` — see [OuraCommands.NOTIFICATION_MASK_FULL]. Reversible: the next session sends the mask
-     * it is constructed with, nothing persists on the ring. Twin of Swift's `notificationMask`.
+     * [OuraCommands.NOTIFICATION_MASK_DEFAULT] (`ff`, the official app's mask) unless a test injects
+     * another. Reversible: the next session sends the mask it is constructed with, nothing persists on
+     * the ring. Twin of Swift's `notificationMask`.
      */
     val notificationMask: Int = OuraCommands.NOTIFICATION_MASK_DEFAULT,
     /**

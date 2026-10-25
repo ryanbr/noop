@@ -258,10 +258,6 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     /// #1284 residual 3 (default OFF): read live at persist — when true, an Oura hypnogram night is keyed on
     /// its rounded 0x49 onset (stable per-night anchor) instead of the end-anchored first-code time.
     private let onsetKeying: () -> Bool
-    /// Packed-notification A/B (default OFF): read once per connect — when true the session's
-    /// SetNotification is the official app's `ff` instead of `3f` (OURA_PROTOCOL.md s2.3). The next
-    /// connect re-reads it, so switching the toggle off restores the default with nothing left on the ring.
-    private let notifyMaskFull: () -> Bool
     /// Item 27: the Experimental "Oura ring: all-day heart rate & HRV" toggle, read at every decision so a flip takes
     /// effect within one re-engage tick / one history-fetch tick, never at the next launch.
     private let allDayLiveHR: () -> Bool
@@ -1440,7 +1436,6 @@ public final class OuraLiveSource: NSObject, ObservableObject {
                 onModel: @escaping (String) -> Void = { _ in },
                 onSerial: @escaping (String) -> Void = { _ in },
                 onsetKeying: @escaping () -> Bool = { false },
-                notifyMaskFull: @escaping () -> Bool = { false },
                 feedsLive: Bool = true,
                 adoptIntent: Bool = false) {
         self.live = live
@@ -1456,7 +1451,6 @@ public final class OuraLiveSource: NSObject, ObservableObject {
         self.onModel = onModel
         self.onSerial = onSerial
         self.onsetKeying = onsetKeying
-        self.notifyMaskFull = notifyMaskFull
         self.feedsLive = feedsLive
         self.adoptIntent = adoptIntent
         // Tier-B MET research corpus: only on a live/persisting source, never the discovery-only scanner.
@@ -2052,6 +2046,27 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     }
 
     // MARK: - Live ingest
+
+    /// ALWAYS-ON evidence (deliberately not Test-Centre-gated): a notification LONGER than one BLE
+    /// packet that the strict tiling rejected, so `OuraReassembler.feed` kept its first packet and read
+    /// no record from the rest of the value. Under the `3f` mask that fallback was the correct answer,
+    /// because a notification was a single <= 20-byte packet; under the official app's `ff` the ring
+    /// packs 10-17 records per notification, so the same fallback drops 9-16 of them and the loss is
+    /// invisible - a history drain that looks like it worked and banks a tenth of the records
+    /// (OURA_PROTOCOL.md s2.3). It costs a line only when it happens, and it is what is missing when
+    /// someone reports thin history with no Test Centre enabled.
+    ///
+    /// Reports only what it can attribute: the notification's length, its first 4 bytes (tag, `len` and
+    /// two timestamp bytes - no payload, so no measurement of the wearer), how many of its bytes no
+    /// record covered, and this session's running count. The reassembler rate-limits the reports (the
+    /// first few, then one per decade), so a ring that packs nothing readable cannot flood the
+    /// ring-buffered strap log. Twin of Kotlin's `reportPackedTilingFailures`.
+    private func reportPackedTilingFailures() {
+        for f in reassembler.takePackedTilingFailures() {
+            let head = f.head.map { String(format: "%02x", $0) }.joined(separator: " ")
+            log("Oura: packed notification did not tile - \(f.length)B, head \(head), \(f.unreadBytes)B of it unread, #\(f.count) this session - kept the first packet only")
+        }
+    }
 
     /// Fold TLV records decoded from the notify stream — these are HISTORY-LOG records (the live-HR path
     /// is `ingestLiveHRPush`): every envelope ring-time advances the drain's in-session continuation
@@ -2971,17 +2986,10 @@ extension OuraLiveSource: @preconcurrency CBCentralManagerDelegate {
         // ring actually sends (raw bytes per kind, decoded MET for 0x50) so the layouts can be validated
         // against real captures. It can never leak a value into scoring: OuraStreamMapping drops
         // .tierB/.activityInfo unconditionally - the Tier-discipline gate that matters lives there, not here.
-        // Packed-notification A/B: the mask is decided here, once per session, and named on its own line
-        // ONLY when it is not the default - the `-> notify_all(ff)` write line then confirms it went out.
-        let notificationMask = notifyMaskFull() ? OuraCommands.notificationMaskFull : OuraCommands.notificationMaskDefault
-        if notificationMask != OuraCommands.notificationMaskDefault {
-            log("Oura: SetNotification mask \(String(format: "%02x", notificationMask)) this session (packed-notification A/B, Test Centre) - default is \(String(format: "%02x", OuraCommands.notificationMaskDefault))")
-        }
         driver = OuraDriver(ringGen: ringGen,
                             authKey: authKey().map { [UInt8]($0) },
                             allowTierB: true,
-                            allowKeyInstall: adoptIntent,
-                            notificationMask: notificationMask)
+                            allowKeyInstall: adoptIntent)
         reachedStreaming = false
         clearAuthWatchdog()   // a fresh session starts with a clean escalation count
         authEscalations = 0
@@ -3315,6 +3323,7 @@ extension OuraLiveSource: @preconcurrency CBPeripheralDelegate {
                 }
                 observeUserInfoRecords(in: tlvBytes)
                 ingestHistory(driver.ingest(notification: tlvBytes, reassembler: reassembler))
+                reportPackedTilingFailures()
             }
             return
         }
@@ -3328,6 +3337,7 @@ extension OuraLiveSource: @preconcurrency CBPeripheralDelegate {
         }
         observeUserInfoRecords(in: bytes)
         ingestHistory(driver.ingest(notification: bytes, reassembler: reassembler))
+        reportPackedTilingFailures()
     }
 
     /// The ring-time floor the 0x13 unit test disambiguates against: the persisted resume cursor, or the

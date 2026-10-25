@@ -147,6 +147,14 @@ public extension OuraFraming {
     /// The minimum legal TLV `len` field: it must cover the 4 timestamp bytes. Per OURA_PROTOCOL.md s2.3.
     static let minRecordLen = 4
 
+    /// The largest notification value the one-packet framing can carry: 20 bytes (the default 23-byte
+    /// ATT MTU minus its 3-byte notification header). A value of AT MOST this length is a single packet,
+    /// so reading one lenient packet from it is the whole value; a LONGER value is one the ring packed,
+    /// and reading one packet from that keeps only its first record. Used solely to decide whether a
+    /// tiling failure is worth reporting (`OuraReassembler.takePackedTilingFailures`), never to parse.
+    /// Per OURA_PROTOCOL.md s2.3.
+    static let singlePacketNotificationMaxLen = 20
+
     /// Parse ONE TLV inner record from a single BLE notification, the open_oura way (protocol.rs
     /// `Packet::parse`): read `type`/`len` from the first two bytes, then take the payload LENIENTLY —
     /// exactly `len - 4` payload bytes when the notification carries them, otherwise whatever payload
@@ -198,6 +206,37 @@ public extension OuraFraming {
 
 // MARK: - Notification → record (open_oura one-packet-per-notification model)
 
+/// One notification that was LONGER than a single BLE packet and that the strict tiling rejected, so
+/// `OuraReassembler.feed` fell back to the one lenient packet and no record was read from the rest of
+/// the value. Observability only — never produced on a path that changes what is parsed.
+///
+/// It reports what it can attribute and nothing more: how long the notification was, its first few
+/// bytes, and how many of its bytes no record covered. `head` is capped at
+/// `OuraReassembler.tilingFailureHeadBytes` (4) deliberately: tag, `len` and the first two timestamp
+/// bytes are enough to recognise the shape, and they carry no payload, so a strap log that prints this
+/// line carries no measurement of the wearer. The Android side carries the same value type as the
+/// OuraPackedTilingFailure data class in Framing.kt.
+public struct OuraPackedTilingFailure: Equatable, Sendable {
+    /// The notification's byte count.
+    public let length: Int
+    /// Its first `OuraReassembler.tilingFailureHeadBytes` bytes (fewer only if it is shorter).
+    public let head: [UInt8]
+    /// How many of its bytes no record was read from: everything past the lenient packet's declared
+    /// end, or the whole value when not even one packet could be parsed.
+    public let unreadBytes: Int
+    /// This reassembler's running count of such notifications since the last `reset()`, INCLUDING this
+    /// one. Carried here so one log line is self-describing and cannot disagree with a second read of
+    /// the counter.
+    public let count: Int
+
+    public init(length: Int, head: [UInt8], unreadBytes: Int, count: Int) {
+        self.length = length
+        self.head = head
+        self.unreadBytes = unreadBytes
+        self.count = count
+    }
+}
+
 /// Turn each BLE notification into its TLV inner record(s): ONE lenient packet per notification, matching
 /// open_oura's `Packet::parse` (protocol.rs), with NO cross-notification buffering and NO byte-drop
 /// "resync" — plus the one case the ring has been seen to send that the one-packet model loses: a
@@ -218,16 +257,78 @@ public extension OuraFraming {
 /// it runs only when every packet's declared length lands exactly on the next tag and the last one on the
 /// value's final byte, so a lone packet with a disagreeing `len` is still read as that one packet.
 ///
-/// The type name and `feed`/`reset` API are kept so the driver call sites are unchanged; there is simply
-/// no longer any state to carry. Platform-pure, value types only.
+/// The type name and `feed`/`reset` API are kept so the driver call sites are unchanged; no PARSING
+/// state is carried. The only state here is the non-tiling counter and its pending reports
+/// (`takePackedTilingFailures`), which nothing reads to decide what to parse. Platform-pure, value
+/// types only.
 public final class OuraReassembler {
+    /// How many leading bytes of a non-tiling packed notification are reported (tag, `len`, and the
+    /// first two timestamp bytes). Enough to recognise the shape, and short enough to carry no payload.
+    /// Byte-identical twin of Kotlin `tilingFailureHeadBytes`.
+    public static let tilingFailureHeadBytes = 4
+    /// How many non-tiling packed notifications are reported in full before the per-decade rule below
+    /// takes over. Byte-identical twin of Kotlin `tilingFailureReportCap`.
+    public static let tilingFailureReportCap = 5
+
     public init() {}
+
+    /// This session's running count of notifications LONGER than one BLE packet that the strict tiling
+    /// rejected — every one of them a value `feed` read one record from and dropped the rest of. Reset
+    /// by `reset()`, so it counts per connection. Observability only: nothing reads it to decide what to
+    /// parse.
+    public private(set) var packedTilingFailureCount = 0
+
+    /// The failures recorded but not yet reported, oldest first.
+    private var pendingTilingFailures: [OuraPackedTilingFailure] = []
+
+    /// Hand the caller the non-tiling packed notifications recorded since the last call, and forget them
+    /// — the transport logs each one on an ALWAYS-ON line (not Test-Centre-gated: it costs a line only
+    /// when it happens, and it is exactly what is missing when someone reports thin history with no Test
+    /// Centre enabled). Byte-identical twin of Kotlin `takePackedTilingFailures`.
+    public func takePackedTilingFailures() -> [OuraPackedTilingFailure] {
+        let out = pendingTilingFailures
+        pendingTilingFailures = []
+        return out
+    }
+
+    /// Whether the `n`-th non-tiling packed notification of a session is reported. The first
+    /// `tilingFailureReportCap` are, and after that one per decade (10, 100, 1000, …). A ring that
+    /// packs nothing we can read would otherwise flood the ring-buffered strap log and destroy the rest
+    /// of the evidence; this keeps the line count at `cap + log10(n)` while still putting the session's
+    /// final magnitude on record within a factor of ten. Byte-identical twin of Kotlin
+    /// `shouldReportTilingFailure`.
+    public static func shouldReportTilingFailure(_ n: Int) -> Bool {
+        if n <= tilingFailureReportCap { return true }
+        var decade = 10
+        while decade < n { decade *= 10 }
+        return decade == n
+    }
+
+    /// Record a notification `feed` could not read whole, when it was longer than one BLE packet.
+    /// `read` is how many of its bytes a record did cover (0 when not even one packet parsed). A value
+    /// of at most `singlePacketNotificationMaxLen` is a single packet, so the lenient read was the whole
+    /// value and there is nothing to report. Byte-identical twin of Kotlin `noteTilingFailure`.
+    private func noteTilingFailure(_ bytes: [UInt8], read: Int) {
+        guard bytes.count > OuraFraming.singlePacketNotificationMaxLen else { return }
+        packedTilingFailureCount += 1
+        guard Self.shouldReportTilingFailure(packedTilingFailureCount) else { return }
+        pendingTilingFailures.append(OuraPackedTilingFailure(
+            length: bytes.count,
+            head: Array(bytes.prefix(Self.tilingFailureHeadBytes)),
+            unreadBytes: bytes.count - read,
+            count: packedTilingFailureCount))
+    }
 
     /// Parse one notification value into at most one record (open_oura `Packet::parse`, lenient). Returns
     /// `[]` when the notification is not a usable TLV record (too short, or `len < 4`). Never buffers,
     /// never spans, never resyncs — a garbled notification is dropped whole, not walked byte-by-byte.
     public func feed(_ fragment: [UInt8]) -> [OuraRecord] {
-        guard let rec = OuraFraming.parseRecord(fragment) else { return [] }
+        guard let rec = OuraFraming.parseRecord(fragment) else {
+            // Nothing parsed at all. Harmless on a short notification, but a LONG one means the whole
+            // packed value was dropped, which `noteTilingFailure` reports (read: 0 bytes covered).
+            noteTilingFailure(fragment, read: 0)
+            return []
+        }
         // A PACKED notification carries several complete packets back to back. The ring does this on
         // some sessions and not others: every NOOP drain captured to date arrives one packet per
         // ≤ 20-byte notification, but the same ring serving the official app on the same link (same
@@ -239,13 +340,28 @@ public final class OuraReassembler {
         // the notification length still yields exactly that packet unless its tail happens to tile
         // into whole packets ending on the last byte — which no value in 40,696 captured notifications
         // does.
-        if let packed = OuraFraming.tiledRecords(fragment), packed.count >= 2 { return packed }
+        let packed = OuraFraming.tiledRecords(fragment)
+        if let packed, packed.count >= 2 { return packed }
+        // `packed == nil` is the strict walk REJECTING the value. Under the `3f` mask that was the
+        // correct answer, because a notification was one <= 20-byte packet; under the official app's
+        // `ff` the ring packs 10-17 records per notification, so the same fallback now drops 9-16 of
+        // them (OURA_PROTOCOL.md s2.3) and the loss is invisible in a drain that otherwise looks like it
+        // worked. Record it so the transport can say so on an always-on line. A non-nil `packed` of
+        // count 1 is the value tiling exactly into ONE packet: nothing is dropped, nothing to report.
+        if packed == nil {
+            noteTilingFailure(fragment, read: min(2 + Int(fragment[1]), fragment.count))
+        }
         return [rec]
     }
 
-    /// No-op retained for call-site compatibility (disconnect teardown). There is no buffered state to
-    /// clear in the one-packet-per-notification model, so a half-record can never bleed across sessions.
-    public func reset() {}
+    /// Clear the per-session observability state (disconnect teardown). No PARSING state exists to clear
+    /// in the one-packet-per-notification model — a half-record can never bleed across sessions — so
+    /// this only resets the non-tiling counter and drops any failure not yet taken, which is what makes
+    /// `packedTilingFailureCount` a per-connection figure.
+    public func reset() {
+        packedTilingFailureCount = 0
+        pendingTilingFailures = []
+    }
 
     /// Always 0: no bytes are ever buffered between notifications (observability only).
     public var bufferedByteCount: Int { 0 }

@@ -27,8 +27,8 @@ final class OuraDriverTests: XCTestCase {
         // ready -> enable notifications + request nonce.
         let onReady = d.nextStep(after: .ready)
         XCTAssertEqual(d.phase, .authenticating)
-        XCTAssertEqual(onReady.map { $0.label }, ["notify_all", "get_nonce"])
-        XCTAssertEqual(onReady[0].bytes, [0x1C, 0x01, 0x3F])   // the default mask, unchanged
+        XCTAssertEqual(onReady.map { $0.label }, ["notify_all(ff)", "get_nonce"])
+        XCTAssertEqual(onReady[0].bytes, [0x1C, 0x01, 0xFF])   // the default mask, the official app's
         XCTAssertEqual(onReady[1].bytes, [0x2F, 0x01, 0x2B])
 
         // nonce -> submit proof.
@@ -155,7 +155,7 @@ final class OuraDriverTests: XCTestCase {
 
         // The ring acks with `25 01 00`; the transport calls back and the driver drives re-auth.
         let onAck = d.keyInstallAcknowledged()
-        XCTAssertEqual(onAck.map { $0.label }, ["notify_all", "get_nonce"])
+        XCTAssertEqual(onAck.map { $0.label }, ["notify_all(ff)", "get_nonce"])
         XCTAssertEqual(onAck[1].bytes, [0x2F, 0x01, 0x2B])
         XCTAssertEqual(d.phase, .authenticating)
 
@@ -771,20 +771,25 @@ final class OuraDriverTests: XCTestCase {
         XCTAssertNotEqual(OuraCommands.getBattery().bytes.first, 0x1A)
     }
 
-    // MARK: - SetNotification mask (the packed-notification A/B, OURA_PROTOCOL.md s2.3)
+    // MARK: - SetNotification mask (OURA_PROTOCOL.md s2.3)
 
-    /// The official app's `ff` mask reaches BOTH handshake paths (`.ready` and the post-install re-auth),
-    /// carries its value in the label so the strap log shows which shape the session ran under, and
-    /// changes nothing else: same nonce request, same phases. The default stays `3f`.
-    func testNotificationMaskFullReachesBothHandshakePaths() throws {
-        XCTAssertEqual(OuraCommands.enableAllNotifications().bytes, [0x1C, 0x01, 0x3F])
-        XCTAssertEqual(OuraCommands.enableAllNotifications().label, "notify_all")
-        XCTAssertEqual(OuraCommands.enableAllNotifications(mask: OuraCommands.notificationMaskFull).bytes,
-                       [0x1C, 0x01, 0xFF])
-        XCTAssertEqual(OuraCommands.enableAllNotifications(mask: OuraCommands.notificationMaskFull).label,
-                       "notify_all(ff)")
+    /// The default mask is the official app's `ff` on BOTH handshake paths (`.ready` and the post-install
+    /// re-auth) with no injection, and changes nothing else: same nonce request, same phases. EVERY mask
+    /// names itself in the label, default included, so a `-> notify_all(..)` strap-log line attributes the
+    /// session's framing shape without cross-referencing the build marker.
+    func testDefaultNotificationMaskIsFfOnBothHandshakePaths() throws {
+        XCTAssertEqual(OuraCommands.enableAllNotifications().bytes, [0x1C, 0x01, 0xFF])
+        XCTAssertEqual(OuraCommands.enableAllNotifications().label, "notify_all(ff)")
+        XCTAssertEqual(OuraCommands.enableAllNotifications(mask: 0x3F).bytes, [0x1C, 0x01, 0x3F])
+        XCTAssertEqual(OuraCommands.enableAllNotifications(mask: 0x3F).label, "notify_all(3f)")
+        // No mask may render as a bare `notify_all`: that text meant `3f` before the s2.3 default moved
+        // and `ff` after it, so it cannot attribute a session on its own.
+        for mask in UInt8.min...UInt8.max {
+            XCTAssertEqual(OuraCommands.enableAllNotifications(mask: mask).label,
+                           String(format: "notify_all(%02x)", mask))
+        }
 
-        let d = OuraDriver(ringGen: .gen3, authKey: key, notificationMask: OuraCommands.notificationMaskFull)
+        let d = OuraDriver(ringGen: .gen3, authKey: key)
         let onReady = d.nextStep(after: .ready)
         XCTAssertEqual(d.phase, .authenticating)
         XCTAssertEqual(onReady.map { $0.label }, ["notify_all(ff)", "get_nonce"])
@@ -792,8 +797,7 @@ final class OuraDriverTests: XCTestCase {
         XCTAssertEqual(onReady[1].bytes, [0x2F, 0x01, 0x2B])
 
         // The post-install re-auth path sends the same mask.
-        let installing = OuraDriver(ringGen: .gen3, authKey: nil, allowKeyInstall: true,
-                                    notificationMask: OuraCommands.notificationMaskFull)
+        let installing = OuraDriver(ringGen: .gen3, authKey: nil, allowKeyInstall: true)
         XCTAssertEqual(installing.nextStep(after: .ready), [])
         XCTAssertNotNil(installing.beginKeyInstall(key: key))
         let onAck = installing.keyInstallAcknowledged()
