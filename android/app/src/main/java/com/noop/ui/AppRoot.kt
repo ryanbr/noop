@@ -30,6 +30,7 @@ import androidx.compose.material.icons.automirrored.filled.CompareArrows
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.Air
 import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Bolt
@@ -187,6 +188,9 @@ internal enum class Destination(
     BackupSync("backup_sync", R.string.nav_backup_sync, Icons.Filled.CloudSync),
     FusedRecord("fused_record", R.string.nav_fused_record, Icons.AutoMirrored.Filled.CompareArrows),
     Notifications("notifications", R.string.nav_notifications, Icons.Filled.Notifications),
+    // The discovered "Other apps" wrist-alert picker: reached ONLY from the Notifications screen's
+    // button, so (like CoachSettings/StepsCalibration) it is deliberately absent from [drawerGroups].
+    OtherApps("other_apps", R.string.l10n_notifications_settings_screen_app_notifications_00e65fd6, Icons.Filled.Apps),
     PowerSaving("power_saving", R.string.nav_power_saving, Icons.Filled.BatteryStd),
     Settings("settings", R.string.nav_settings, Icons.Filled.Settings),
     // Experimental and intentionally absent from More: reachable only through Settings > Advanced.
@@ -766,7 +770,8 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
                 composable(Destination.DataSources.route) { DataSourcesScreen(viewModel) }
                 composable(Destination.NoopLimitations.route) { NoopLimitationsScreen() }
                 composable(Destination.BackupSync.route) { BackupSyncScreen() }
-                composable(Destination.Notifications.route) { NotificationsSettingsScreen(viewModel) }
+                composable(Destination.Notifications.route) { NotificationsSettingsScreen(viewModel, onOpenOtherApps = { nav.navigate(Destination.OtherApps.route) }) }
+                composable(Destination.OtherApps.route) { OtherAppsScreen(viewModel) }
                 composable(Destination.PowerSaving.route) { PowerSavingScreen(viewModel) }
                 composable(Destination.Settings.route) {
                     SettingsScreen(

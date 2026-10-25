@@ -2828,4 +2828,17 @@
     <string name="raw_diag_ecg_probe_running">Una acquisizione potrebbe essere ancora attiva su questo strap. Il verdetto va nello strap log.</string>
     <string name="today_customize_live_session_availability">Compare oggi se le sessioni in diretta sono attivate nelle Impostazioni o una sessione è attiva.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Oggi a modo tuo, frequenza cardiaca leggibile da ogni app e l\'italiano</string>
+    <string name="l10n_notifications_settings_screen_apps_on_this_phone_that_can_6b7ae956">App su questo telefono che possono inviare notifiche. NOOP le scopre quando ti notificano — sceglile una per una qui sotto.</string>
+    <string name="l10n_notifications_settings_screen_search_apps_ca3ce8f3">Cerca app</string>
+    <string name="l10n_notifications_settings_screen_scan_again_f6ab55dd">Scansiona di nuovo</string>
+    <string name="l10n_notifications_settings_screen_no_apps_discovered_post_a_notification_0ca6e7bc">Nessuna app scoperta. Invia una notifica da un’app e scansiona di nuovo.</string>
+    <string name="l10n_notifications_settings_screen_also_buzz_for_apps_not_listed_e60214ec">Vibra anche per le app non elencate sopra. NOOP scopre le app quando ti notificano, quindi un’app mai vista nell’elenco sopra vibrerà comunque con questa opzione. Può essere insistente; le ore di silenzio e «vibra solo quando indossato» si applicano comunque.</string>
+    <string name="l10n_notifications_settings_screen_notification_access_is_on_for_this_af3ffc72">L\'accesso alle notifiche è attivo per questa app. Gli avvisi al polso possono arrivare.</string>
+    <string name="l10n_notifications_settings_screen_notification_access_is_off_for_this_b27ba957">L\'accesso alle notifiche è disattivo per questa app. Apri le impostazioni qui sotto e attiva NOOP, altrimenti gli avvisi al polso non possono arrivare.</string>
+    <string name="l10n_notifications_settings_screen_when_all_other_apps_is_every_bf6e5671">Quando Tutte le altre app è attivo, ogni app fa vibrare il polso, quindi gli interruttori individuali qui sotto sono disattivati. Disattivalo per scegliere le app una per una.</string>
+    <string name="l10n_notifications_settings_screen_other_apps_notifications_8bcd3596">Notifiche delle altre app</string>
+    <string name="l10n_notifications_settings_screen_installed_apps_c21260b2">App installate</string>
+    <string name="l10n_notifications_settings_screen_app_notifications_00e65fd6">Notifiche delle app</string>
+    <string name="l10n_notifications_settings_screen_choose_apps_72d037f2">Scegli app</string>
+    <string name="l10n_notifications_settings_screen_scanning_installed_04ab2344">Scansione delle app installate…</string>
 </resources>

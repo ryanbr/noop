@@ -153,6 +153,18 @@
         <package android:name="com.vivo.permissionmanager" />
         <package android:name="com.huawei.systemmanager" />
         <package android:name="com.meizu.safe" />
+
+        <!-- Wrist-alert app picker: visibility of every launchable app, so InstalledNotifierApps
+             can enumerate "apps that can notify you" (filtered by POST_NOTIFICATIONS declaration)
+             without QUERY_ALL_PACKAGES (Play-restricted, and NOOP ships sideloaded — keep the
+             narrow intent-shaped query). Apps that post notifications without declaring the
+             permission (pre-API-33 targets) are discovered through the notification listener
+             itself: the Notification Access grant carries their visibility.
+             See com/noop/notif/NotifierAppDiscovery.kt. -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
     </queries>
 
     <application

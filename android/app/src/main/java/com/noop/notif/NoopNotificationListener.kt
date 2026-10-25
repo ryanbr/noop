@@ -31,6 +31,13 @@ class NoopNotificationListener : NotificationListenerService() {
         val ctx = applicationContext
         val n = sbn.notification ?: return
 
+        // Discovery for the per-app picker: every package that posts becomes selectable in the
+        // Notifications screen's "Other apps" card. Package NAME only — content is never read.
+        // The notification-access grant that delivers this callback also grants visibility of the
+        // posting package, which is what lets us list apps a PackageManager query cannot see
+        // (pre-API-33 targets that never declare POST_NOTIFICATIONS). See NotifierAppDiscovery.
+        NotifierAppDiscovery.record(ctx, sbn.packageName)
+
         if (VoipCallClassifier.isKnownVoipPackage(sbn.packageName)) {
             val metadata = VoipCallClassifier.metadataOf(n, isOngoing = sbn.isOngoing)
             if (VoipCallClassifier.isIncomingCallNotification(sbn.packageName, metadata)) {
@@ -63,8 +70,13 @@ class NoopNotificationListener : NotificationListenerService() {
             // Buzz at most ONCE per notification key. `add()` is the LAST term, so a key is recorded only
             // when we actually buzz (deliverable) — a re-posting/updating notification can't storm, and a
             // genuine re-ring gets a fresh key (cleared in onNotificationRemoved) so it buzzes again.
+            // No progress buzzes here either: a running timer posts as a CATEGORY_ALARM row with a
+            // countdown bar, so the gate silences timer STARTS; the alarm going off is a fresh post
+            // without progress, so rings keep their triple buzz (ongoing stays allowed on this path —
+            // that is the whole point of #1115 — so the persistent gate is deliberately NOT applied).
             if (ble != null && !NotifPrefs.inQuietHours(ctx) &&
                 (!NotifPrefs.getBool(ctx, NotifPrefs.WORN, true) || ble.state.value.worn) &&
+                !WristAlertFilters.isProgressNotification(n) &&
                 buzzedAlarmKeys.add(sbn.key)) {
                 ble.buzz(3)   // a strong triple cue; send() no-ops if the strap isn't connected
             }
@@ -82,6 +94,10 @@ class NoopNotificationListener : NotificationListenerService() {
         if (sbn.isOngoing) return
         if ((n.flags and Notification.FLAG_GROUP_SUMMARY) != 0) return
         if ((n.flags and Notification.FLAG_FOREGROUND_SERVICE) != 0) return
+        // Buzz specificity: progress notifications (downloads, uploads, timer countdown bars) and
+        // persistent non-dismissable rows are app state readouts, not alerts — never buzz for them.
+        if (WristAlertFilters.isProgressNotification(n)) return
+        if (WristAlertFilters.isPersistentNotification(n)) return
 
         if (NotifPrefs.inQuietHours(ctx)) return
 

@@ -2859,4 +2859,17 @@
     <string name="raw_diag_ecg_probe_running">Une capture est peut-être encore active sur ce bracelet. Le verdict est écrit dans le strap log.</string>
     <string name="today_customize_live_session_availability">Apparaît aujourd’hui si les sessions en direct sont activées dans Paramètres ou si une session est active.</string>
     <string name="l10n_app_changelog_today_your_way_heart_rate_any_5e1308b3">Aujourd\'hui à votre façon, fréquence cardiaque lisible par toute application, et l\'italien</string>
+    <string name="l10n_notifications_settings_screen_apps_on_this_phone_that_can_6b7ae956">Applications sur ce téléphone pouvant envoyer des notifications. NOOP les découvre dès qu’elles vous notifient — choisissez-les une par une ci-dessous.</string>
+    <string name="l10n_notifications_settings_screen_search_apps_ca3ce8f3">Rechercher des applications</string>
+    <string name="l10n_notifications_settings_screen_scan_again_f6ab55dd">Relancer l’analyse</string>
+    <string name="l10n_notifications_settings_screen_no_apps_discovered_post_a_notification_0ca6e7bc">Aucune application découverte pour l’instant. Envoyez une notification depuis une application, puis relancez l’analyse.</string>
+    <string name="l10n_notifications_settings_screen_also_buzz_for_apps_not_listed_e60214ec">Vibre aussi pour les applications qui ne figurent pas dans la liste ci-dessus. NOOP découvre les applications dès qu’elles vous notifient — une application jamais vue dans la liste vibrera donc aussi avec cette option. Peut être bavard ; les heures silencieuses et « vibrer uniquement si porté » s’appliquent toujours.</string>
+    <string name="l10n_notifications_settings_screen_notification_access_is_on_for_this_af3ffc72">L\'accès aux notifications est activé pour cette application. Les alertes au poignet peuvent arriver.</string>
+    <string name="l10n_notifications_settings_screen_notification_access_is_off_for_this_b27ba957">L\'accès aux notifications est désactivé pour cette application. Ouvrez les réglages ci-dessous et activez NOOP, sinon les alertes au poignet ne peuvent pas arriver.</string>
+    <string name="l10n_notifications_settings_screen_when_all_other_apps_is_every_bf6e5671">Quand Toutes les autres applications est activé, chaque application fait vibrer votre poignet, donc les interrupteurs individuels ci-dessous sont désactivés. Désactivez-le pour choisir les applications une par une.</string>
+    <string name="l10n_notifications_settings_screen_other_apps_notifications_8bcd3596">Notifications des autres applications</string>
+    <string name="l10n_notifications_settings_screen_installed_apps_c21260b2">Applications installées</string>
+    <string name="l10n_notifications_settings_screen_app_notifications_00e65fd6">Notifications des applications</string>
+    <string name="l10n_notifications_settings_screen_choose_apps_72d037f2">Choisir les applications</string>
+    <string name="l10n_notifications_settings_screen_scanning_installed_04ab2344">Analyse des applications installées…</string>
 </resources>
