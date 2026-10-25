@@ -389,10 +389,10 @@ extension WhoopStore {
                 SELECT (ts / ?) * ? AS bucket, AVG(bpm) AS avgBpm, MIN(conf) AS minConf,
                        MIN(bpm) AS minBpm, MAX(bpm) AS maxBpm FROM (
                     SELECT ts, bpm, 1.0 AS conf FROM hrSample
-                    WHERE deviceId = ? AND ts >= ? AND ts <= ?
+                    WHERE deviceId = ? AND ts >= ? AND ts <= ? AND bpm > 0
                     UNION ALL
                     SELECT p.ts, p.bpm, p.conf FROM ppgHrSample p
-                    WHERE p.deviceId = ? AND p.ts >= ? AND p.ts <= ?
+                    WHERE p.deviceId = ? AND p.ts >= ? AND p.ts <= ? AND p.bpm > 0
                       AND NOT EXISTS (
                         SELECT 1 FROM hrSample h
                         WHERE h.deviceId = p.deviceId AND h.ts = p.ts)

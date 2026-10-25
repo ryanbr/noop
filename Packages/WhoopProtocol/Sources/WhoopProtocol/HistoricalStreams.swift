@@ -423,7 +423,7 @@ public func extractHistoricalStreams(_ parsed: [ParsedFrame],
                                              sessionNewestUnix: sessionNewestUnix) { rtTs = w }
                 else { droppedImplausible += 1 }
             }
-            if let ts = rtTs, let bpm = p["heart_rate"]?.intValue {
+            if let ts = rtTs, let bpm = p["heart_rate"]?.intValue, bpm > 0 {
                 out.hr.append(HRSample(ts: ts, bpm: bpm))
             }
             if let ts = rtTs, let rrs = p["rr_intervals"]?.intArrayValue {

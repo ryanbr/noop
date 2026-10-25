@@ -848,7 +848,8 @@ public func extractStreams(_ parsed: [ParsedFrame],
         switch r.typeName {
         case "REALTIME_DATA":
             let ts = toWall(p["timestamp"]?.intValue, deviceClockRef, wallClockRef)
-            if let ts = ts, let bpm = p["heart_rate"]?.intValue {
+            // #2800: skip startup hr=0 (matches historical extraction `bpm != 0`).
+            if let ts = ts, let bpm = p["heart_rate"]?.intValue, bpm > 0 {
                 out.hr.append(HRSample(ts: ts, bpm: bpm))
             }
             // Unlike Python, drop RR rows when timestamp is absent (a ts-less RR row is unstorable).

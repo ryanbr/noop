@@ -341,7 +341,8 @@ fun extractStreams(parsed: List<ParsedFrame>, deviceClockRef: Int, wallClockRef:
             "REALTIME_DATA" -> {
                 val ts = toWall(p.intOrNull("timestamp"), deviceClockRef, wallClockRef)
                 if (ts != null) {
-                    p.intOrNull("heart_rate")?.let { bpm -> out.hr.add(HrSample(ts, bpm)) }
+                    // #2800: skip startup hr=0 (matches historical extraction `bpm != 0`).
+                    p.intOrNull("heart_rate")?.let { bpm -> if (bpm > 0) out.hr.add(HrSample(ts, bpm)) }
                     // Drop RR rows when timestamp is absent (a ts-less RR row is unstorable).
                     p.intArrayOrNull("rr_intervals")?.let { rrs ->
                         val source = RrSourceChannel.fromCode(p.intOrNull("rr_source_channel"))

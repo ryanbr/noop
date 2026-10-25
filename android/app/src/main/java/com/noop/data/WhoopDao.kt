@@ -584,10 +584,10 @@ interface WhoopDao : DeviceRegistryDao {
         "SELECT (ts / :bucketSeconds) * :bucketSeconds AS bucket, AVG(bpm) AS avgBpm, " +
             "MIN(bpm) AS minBpm, MAX(bpm) AS maxBpm FROM (" +
             "SELECT ts, bpm FROM hrSample " +
-            "WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to " +
+            "WHERE deviceId = :deviceId AND ts >= :from AND ts <= :to AND bpm > 0 " +
             "UNION ALL " +
             "SELECT p.ts AS ts, p.bpm AS bpm FROM ppgHrSample p " +
-            "WHERE p.deviceId = :deviceId AND p.ts >= :from AND p.ts <= :to " +
+            "WHERE p.deviceId = :deviceId AND p.ts >= :from AND p.ts <= :to AND p.bpm > 0 " +
             "AND NOT EXISTS (SELECT 1 FROM hrSample h WHERE h.deviceId = p.deviceId AND h.ts = p.ts)" +
             ") GROUP BY ts / :bucketSeconds ORDER BY bucket ASC"
     )

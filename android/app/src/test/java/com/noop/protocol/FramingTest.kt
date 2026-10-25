@@ -428,6 +428,17 @@ class FramingTest {
             whoop4.rr.map { it.srcChannel })
     }
 
+    @Test
+    fun extractStreams_dropsStartupZeroHeartRate() {
+        val parsed = ParsedFrame(
+            ok = true,
+            typeName = "REALTIME_DATA",
+            parsed = mapOf("timestamp" to 1700000000, "heart_rate" to 0),
+        )
+        val streams = extractStreams(listOf(parsed), deviceClockRef = 1700000000, wallClockRef = 1700000000)
+        assertTrue("startup heart_rate = 0 must not produce an HR row", streams.hr.isEmpty())
+    }
+
     // MARK: - WHOOP 5.0/MG REALTIME_DATA (+4) + family-aware reassembly
 
     private fun fromHex(s: String): ByteArray =
