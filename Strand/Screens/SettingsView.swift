@@ -158,6 +158,10 @@ struct SettingsView: View {
     /// sustained-elevated window and offers — via a single dismissible card — to save it as a workout.
     /// Nothing is ever created automatically. Mirrors the Android `NoopPrefs.KEY_AUTO_DETECT_WORKOUTS`.
     @AppStorage(PuffinExperiment.autoDetectWorkoutsKey) private var autoDetectWorkoutsEnabled = false
+    #if os(iOS)
+    /// Buzz the strap while an incoming call rings (`CallBuzzMonitor`). Default off.
+    @AppStorage(CallBuzzMonitor.enabledKey) private var callBuzzEnabled = false
+    #endif
 
     /// "Journal reminder" (#627, default ON). When ON, Today shows the persistent journal widget
     /// (last-7-days strip + tap-through). Mirrors the Android `NoopPrefs.KEY_JOURNAL_REMINDER_ENABLED`.
@@ -1716,6 +1720,25 @@ struct SettingsView: View {
                     .font(StrandFont.caption)
                     .foregroundStyle(StrandPalette.textTertiary)
                     .fixedSize(horizontal: false, vertical: true)
+                #if os(iOS)
+                rowDivider
+                Toggle(isOn: $callBuzzEnabled) {
+                    Text("Buzz strap for incoming calls")
+                        .font(StrandFont.subhead)
+                        .foregroundStyle(StrandPalette.textPrimary)
+                }
+                .toggleStyle(.switch)
+                .tint(StrandPalette.accent)
+                .accessibilityHint("Buzzes your strap while a call is ringing")
+                Text("Buzzes your strap while a call rings: phone calls, FaceTime, and apps that ring like a phone call, such as WhatsApp voice and video. Keeps buzzing until you answer or decline, or the call ends. Double-tap the strap to stop the buzzing (the call itself keeps ringing on your phone). NOOP only sees that a call is ringing, never who is calling.")
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("iOS only lets NOOP react while it is running. With the app in the background it relies on the strap waking it, so turn on Continuous HRV capture (and turn off Overnight only) for alerts all day. Does not work after NOOP is swiped away in the app switcher.")
+                    .font(StrandFont.caption)
+                    .foregroundStyle(StrandPalette.textTertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                #endif
 
                 rowDivider
 

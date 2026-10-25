@@ -40,8 +40,13 @@ public enum MaverickHaptics {
     /// `UInt8(clamping:)` admitted 255, a value nothing has ever observed on the wire.
     ///
     /// Kotlin twin: `WhoopBleClient.maverickHapticBody`.
-    public static func notificationBuzz(loops: Int) -> [UInt8] {
-        [0x01] + waveformEffects + [0x00, 0x00, UInt8(min(max(loops, 1), 8) - 1)]
+    public static func notificationBuzz(loops: Int, effect: UInt8 = 47) -> [UInt8] {
+        // `effect` swaps the first waveform slot. The strap's haptic driver is a TI DRV2625 (it names it
+        // in its own log), whose ROM library has 47 = "Buzz 1 – 100%" and 48…51 = 80/60/40/20%. The
+        // second slot (152 = 0x80 | 24) is a 240 ms pause, kept as is. Only 47 is hardware-confirmed.
+        var effects = waveformEffects
+        effects[0] = effect
+        return [0x01] + effects + [0x00, 0x00, UInt8(min(max(loops, 1), 8) - 1)]
     }
 }
 

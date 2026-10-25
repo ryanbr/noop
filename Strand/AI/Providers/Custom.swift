@@ -47,13 +47,37 @@ struct CustomClient: AIProviderClient {
         var wire: [[String: Any]] = [["role": "system", "content": systemPrompt]]
         for m in messages { wire.append(["role": m.role.rawValue, "content": m.content]) }
 
-        let body: [String: Any] = [
-            "model": model,
-            "messages": wire,
-            "temperature": 0.6,
-            "max_tokens": 4096,
-            "stream": true
-        ]
+        // Same modern-params retry as `send`: the 400 arrives before any delta, so re-streaming is safe.
+        do {
+            try await streamChat(key: key, model: model, wire: wire, modernParams: false,
+                                 session: session, onDelta: onDelta)
+        } catch let AICoachError.server(code, detail) where code == 400 {
+            let d = detail.lowercased()
+            if d.contains("max_completion_tokens") || d.contains("max_tokens")
+                || d.contains("temperature") || d.contains("unsupported") {
+                try await streamChat(key: key, model: model, wire: wire, modernParams: true,
+                                     session: session, onDelta: onDelta)
+                return
+            }
+            throw AICoachError.server(code, detail)
+        }
+    }
+
+    private func streamChat(
+        key: String,
+        model: String,
+        wire: [[String: Any]],
+        modernParams: Bool,
+        session: URLSession,
+        onDelta: (String) -> Void
+    ) async throws {
+        var body: [String: Any] = ["model": model, "messages": wire, "stream": true]
+        if modernParams {
+            body["max_completion_tokens"] = 4096
+        } else {
+            body["temperature"] = 0.6
+            body["max_tokens"] = 4096
+        }
 
         var req = URLRequest(url: AIProvider.custom.endpoint)
         req.httpMethod = "POST"
