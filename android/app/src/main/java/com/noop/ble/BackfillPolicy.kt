@@ -59,6 +59,10 @@ object BackfillPolicy {
      * near-useless (#1012) while each ~60s offload holds the link — so PERIODIC/STRAP are SKIPPED ENTIRELY
      * while the clock is untrusted. The per-connection CONNECT pass still runs, so a clock that later
      * self-corrects is picked up on the next connection (or a manual sync).
+     *
+     * [automaticFloorSeconds] applies the active Power saving cadence to BOTH automatic triggers.
+     * Otherwise strap events bypass the slower periodic timer through the 90 s event floor. Zero
+     * preserves normal event-driven syncing; max composes it with empty backoff without multiplying it.
      */
     fun shouldRun(
         trigger: BackfillTrigger,
@@ -66,6 +70,7 @@ object BackfillPolicy {
         lastBackfillAtSeconds: Double?,
         emptyStreak: Int = 0,
         clockUntrusted: Boolean = false,
+        automaticFloorSeconds: Double = 0.0,
     ): Boolean {
         val last = lastBackfillAtSeconds ?: return true
         val elapsed = nowSeconds - last
@@ -79,8 +84,8 @@ object BackfillPolicy {
             // (bounded by the caller's consecutive-cap, not here).
             BackfillTrigger.MANUAL, BackfillTrigger.AUTO_CONTINUE -> true
             BackfillTrigger.CONNECT, BackfillTrigger.FOREGROUND -> elapsed >= EVENT_FLOOR_SECONDS
-            BackfillTrigger.STRAP -> !clockUntrusted && elapsed >= EVENT_FLOOR_SECONDS * backoff
-            BackfillTrigger.PERIODIC -> !clockUntrusted && elapsed >= PERIODIC_FLOOR_SECONDS * backoff
+            BackfillTrigger.STRAP -> !clockUntrusted && elapsed >= maxOf(EVENT_FLOOR_SECONDS * backoff, automaticFloorSeconds)
+            BackfillTrigger.PERIODIC -> !clockUntrusted && elapsed >= maxOf(PERIODIC_FLOOR_SECONDS * backoff, automaticFloorSeconds)
         }
     }
 }

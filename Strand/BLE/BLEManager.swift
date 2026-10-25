@@ -4972,12 +4972,20 @@ public final class BLEManager: NSObject, ObservableObject {
         // live HR lapses. Feed the already-tracked future-dated signal into BackfillPolicy, which SKIPS
         // the .strap/.periodic triggers entirely for such a strap (the .connect pass still re-checks it).
         let clockUntrusted = BackfillContinuation.isFutureDatedNewest(strapNewestTs, wallNowUnix: Int(now))
+        // Power saving must gate pushed events too: a slower timer alone still permits an offload
+        // every 90 s. Reuse the timer's cadence only while a user-elected saving lever is active;
+        // ordinary event syncing retains its existing floor, including above the battery threshold.
+        let (pct, charging) = batteryPctAndCharging()
+        let powerSavingActive = lowRefreshMode || BLEManager.lowPowerThrottleActive(
+            batteryPct: pct, charging: charging, thresholdPct: lowBatteryOffloadPct)
+        let automaticFloor = powerSavingActive ? TimeInterval(nextBackfillInterval()) : 0
         guard BackfillPolicy.shouldRun(trigger: trigger, now: now, lastBackfillAt: last,
                                        // #battery: back off on EITHER a console-only streak (clock-lost) OR a
                                        // plain empty-offload streak incl. idle-timeout stalls — the latter is
                                        // what stops the 15-min poll spinning on a caught-up strap.
                                        emptyStreak: max(emptySyncTracker.consecutiveEmptySyncs, consecutiveEmptyOffloads),
-                                       clockUntrusted: clockUntrusted) else {
+                                       clockUntrusted: clockUntrusted,
+                                       automaticFloorSeconds: automaticFloor) else {
             log("Backfill: \(trigger) skipped (rate-limited; last \(last.map { Int(now - $0) } ?? -1)s ago)")
             return
         }
