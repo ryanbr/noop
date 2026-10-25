@@ -61,10 +61,24 @@ struct CustomClient: AIProviderClient {
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
 
-        try await performStreamingRequest(req, session: session) { payload in
-            if let delta = SseDeltas.openAiDelta(payload) {
-                onDelta(delta)
+        do {
+            try await performStreamingRequest(req, session: session) { payload in
+                if let delta = SseDeltas.openAiDelta(payload) {
+                    onDelta(delta)
+                }
             }
+        } catch let AICoachError.server(code, detail) where code == 400 {
+            // GPT-5 / reasoning models reject `max_tokens` + `temperature`. The 400 arrives before
+            // any delta, so fall back to `send` (which retries with `max_completion_tokens`) and
+            // emit the full reply as one delta.
+            let d = detail.lowercased()
+            guard d.contains("max_completion_tokens") || d.contains("max_tokens")
+                    || d.contains("temperature") || d.contains("unsupported") else {
+                throw AICoachError.server(code, detail)
+            }
+            let reply = try await send(key: key, model: model, systemPrompt: systemPrompt,
+                                       messages: messages, session: session)
+            onDelta(reply)
         }
     }
 
@@ -150,6 +164,7 @@ struct CustomClient: AIProviderClient {
 
         var req = URLRequest(url: AIProvider.custom.endpoint)
         req.httpMethod = "POST"
+        req.timeoutInterval = 300   // reasoning models (GPT-5) can sit silent >60s before the first byte
         AIProvider.applyCustomAuthHeader(key, to: &req)
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.httpBody = try JSONSerialization.data(withJSONObject: body)
