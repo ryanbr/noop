@@ -491,6 +491,7 @@ public struct WorkoutTypeIcon: View {
             switch WorkoutTypeIconography.glyph(for: type) {
             case .system(let name):
                 Image(systemName: name)
+                    .resizable().scaledToFit()
                     .font(.system(size: size, weight: weight))
                     .symbolRenderingMode(.monochrome)
             case .custom(let custom):

@@ -243,7 +243,10 @@ final class Repository: ObservableObject {
         workoutsLog(build())
     }
 
-    init(deviceId: String) { self.deviceId = deviceId }
+    init(deviceId: String, store: WhoopStore? = nil) {
+        self.deviceId = deviceId
+        self.store = store
+    }
 
     /// Re-point the read model's ACTIVE-strap id at the device registry's active device, so a re-added
     /// strap's LIVE raw (written under its fresh "whoop-<uuid>" id) surfaces on the dashboard (#814).

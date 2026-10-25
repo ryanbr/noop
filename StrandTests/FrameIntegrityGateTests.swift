@@ -48,6 +48,24 @@ final class FrameIntegrityGateTests: XCTestCase {
 
     // MARK: - the router drives no state from a frame that is not intact
 
+    func testFreshReceiptsIncludeRepeatedBpmAndExcludeInvalidFrames() {
+        let live = LiveState()
+        let router = FrameRouter(state: live)
+        var receipts = 0
+        var valueBeforePublication: Int?
+        live.onReadableHeartRate = { _ in
+            receipts += 1
+            if receipts == 1 { valueBeforePublication = live.heartRate }
+        }
+        let valid = bytes(realtimeHex)
+        router.handle(frame: valid)
+        router.handle(frame: valid)
+        XCTAssertEqual(receipts, 2, "a repeated bpm and a throttled silence timer still deliver fresh receipts")
+        XCTAssertNil(valueBeforePublication, "deadline reconciliation precedes the biometric write")
+        router.handle(frame: headerBroken())
+        XCTAssertEqual(receipts, 2)
+    }
+
     func testRouterRejectsABrokenHeaderChecksum() {
         let frame = headerBroken()
         let parsed = parseFrame(frame, family: .whoop4)
