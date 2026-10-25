@@ -1,5 +1,7 @@
 package com.noop.ui
 
+import java.io.File
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -12,6 +14,26 @@ import org.junit.Test
  * the same split [CoachConversationDayTest] uses for [CoachViewModel.isStaleConversation].
  */
 class CoachCatalogueStaleTest {
+
+    @Test
+    fun `opening settings invokes the gated refresh rather than an unconditional pull`() {
+        var dir: File? = File(requireNotNull(System.getProperty("user.dir")))
+        var source: String? = null
+        repeat(5) {
+            val current = dir ?: return@repeat
+            val file = File(current, "app/src/main/java/com/noop/ui/CoachSettingsScreen.kt")
+            if (file.isFile) source = file.readText()
+            dir = current.parentFile
+        }
+        val code = requireNotNull(source) { "CoachSettingsScreen.kt not found" }
+            .replace(Regex("/\\*.*?\\*/", RegexOption.DOT_MATCHES_ALL), "")
+            .replace(Regex("//[^\\n]*"), "")
+        val effect = requireNotNull(
+            Regex("LaunchedEffect\\(Unit\\)\\s*\\{([^}]*)}").find(code),
+        ) { "settings entry effect not found" }.groupValues[1]
+        assertEquals(1, Regex("vm\\.refreshModelsIfStale\\(context\\)").findAll(effect).count())
+        assertFalse("entry must keep the weekly/key/Custom gates", effect.contains("vm.refreshModels("))
+    }
 
     private val week = CoachViewModel.MODEL_REFRESH_INTERVAL_MS
     private val now = 1_800_000_000_000L
