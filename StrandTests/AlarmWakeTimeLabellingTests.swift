@@ -1,13 +1,14 @@
 import XCTest
 @testable import Strand
 
-/// The Alarms screen carries two time pickers and only one of them wakes anybody.
+/// The Alarms screen used to carry two wake-time pickers, and only one of them woke anybody.
 ///
-/// The strap wake-alarm's "Wake at" arms the strap's firmware alarm. The wind-down card's picker is an
-/// INPUT to the reminder's arithmetic: nudge = wake - sleep need - lead. Both were labelled "Wake time"
-/// for VoiceOver, both sat on the same screen, and the two values are stored independently
-/// (`behavior.smartAlarmMinutes` vs `windDown.wakeMinutes`) so they routinely disagree. A reporter asked
-/// outright which of the two times would wake them, which is the question this screen must never provoke.
+/// The strap wake-alarm's "Wake at" armed the strap's firmware alarm; the wind-down card's picker was an
+/// INPUT to the reminder's arithmetic (nudge = wake - sleep need - lead). Both were labelled "Wake time"
+/// for VoiceOver, and the two values were stored independently (`behavior.smartAlarmMinutes` vs
+/// `windDown.wakeMinutes`) so they routinely disagreed. A reporter asked outright which of the two times
+/// would wake them. The screen now has ONE wake schedule that both features read, in its own card; these
+/// tests pin that it stays one, and that it says when it actually wakes you.
 ///
 /// Source-asserted because SwiftUI labels have no unit seam, the same reason `PiiRedactionTests` reads
 /// source. These pin the wording contract, not the layout.
@@ -32,13 +33,48 @@ final class AlarmWakeTimeLabellingTests: XCTestCase {
                        "\"Wake time\" is ambiguous on this screen: say whose wake time it is")
     }
 
-    /// The wind-down field must say, in its own card, that it does not wake anyone. Without this the
-    /// only disclaimer is "It's a suggestion, not an alarm" in tertiary footnote text above the toggle,
-    /// several rows away from the picker people actually read.
-    func testTheWindDownFieldSaysItDoesNotWakeYou() throws {
+    /// The shared wake time must say, beside its own picker, that it only wakes you when the strap alarm
+    /// is on. It drives the reminder too, so read alone it could be taken for an alarm that will go off.
+    func testTheWakeTimeSaysWhenItWakesYou() throws {
         let src = try Self.alarmViewSource()
-        XCTAssertTrue(src.contains("This time does not wake you."),
-                      "the wind-down wake field must disclaim waking, next to the field itself")
+        XCTAssertTrue(src.contains("It only wakes you when the strap alarm is on."),
+                      "the wake time must say when it wakes anybody, next to the field itself")
+    }
+
+    /// One wake time on the screen, and the per-day times edited in the same card as it. Two pickers for
+    /// the same idea is the confusion this screen was rebuilt to remove; per-day times in another card is
+    /// how the alarm card ended up reading 10:00 during a week whose Saturday fired at 20:30.
+    func testOneWakeTimeAndItsPerDayTimesShareACard() throws {
+        let src = try Self.alarmViewSource()
+        XCTAssertEqual(src.components(separatedBy: "selection: wakeBinding").count - 1, 1,
+                       "exactly one picker edits the base wake time")
+        XCTAssertFalse(src.contains("alarmTimeBinding"), "the alarm must not get its own time back")
+        let card = try Self.body(of: "private var wakeScheduleCard: some View {", in: src)
+        XCTAssertTrue(card.contains("selection: wakeBinding"), "the base time lives in the wake-time card")
+        XCTAssertTrue(card.contains("perDaySection"), "the per-day times sit beside the base time they vary")
+        XCTAssertEqual(src.components(separatedBy: "perDaySection").count - 1, 2,
+                       "declared once and shown once: in the wake-time card, under neither feature")
+    }
+
+    /// The schedule is editable with the alarm off, and re-arming then would write a disable to the strap
+    /// on every reminder edit. Every schedule edit goes through the gated helper instead.
+    func testScheduleEditsOnlyReArmAnAlarmThatIsOn() throws {
+        let src = try Self.alarmViewSource()
+        let helper = try Self.body(of: "private func rearmStrapAlarmIfOn() {", in: src)
+        XCTAssertTrue(helper.contains("if behavior.smartAlarmEnabled { model.applySmartAlarm() }"))
+        // Only the alarm's own switch and its weekday chips call it directly: both only matter to the alarm.
+        XCTAssertEqual(src.components(separatedBy: "model.applySmartAlarm()").count - 1, 3,
+                       "schedule edits must re-arm through rearmStrapAlarmIfOn, not applySmartAlarm")
+    }
+
+    /// Deselecting a weekday on the alarm must not delete that day's own time: the reminder still fires
+    /// that evening and reads it, and selecting the day again has to bring it back unchanged.
+    func testDeselectingAnAlarmDayKeepsItsPerDayTime() throws {
+        let src = try Self.alarmViewSource()
+        XCTAssertTrue(src.contains(".onChangeCompat(of: behavior.smartAlarmWeekdays) { _ in model.applySmartAlarm() }"),
+                      "a weekday change only re-arms; it must not clear overrides")
+        XCTAssertTrue(src.contains("ForEach(Self.weekdayOrder, id: \\.self) { weekday in"),
+                      "the per-day editor lists every day, since the reminder fires every evening")
     }
 
     /// #1864 made the per-day overrides drive the STRAP ALARM as well as the nudge, but the copy still
@@ -50,15 +86,13 @@ final class AlarmWakeTimeLabellingTests: XCTestCase {
                       "per-day overrides drive applySmartAlarm(), so the copy must name the strap alarm")
     }
 
-    /// A day with no override of its own has no single fallback to show: the alarm falls back to its own
-    /// time, the reminder to the usual wake time. The row can only display one number and displays the
-    /// reminder's, so both have to be named underneath rather than one silently standing for both.
-    func testUntouchedDaysNameBothFallbacks() throws {
+    /// With one schedule a day without an override has exactly one fallback, and the explainer says so
+    /// instead of naming two times that are now always equal.
+    func testUntouchedDaysHaveOneFallback() throws {
         let src = try Self.alarmViewSource()
-        XCTAssertTrue(src.contains("Days you leave alone keep your strap alarm at"),
-                      "the untouched-day explainer must name the strap alarm's own fallback")
-        XCTAssertTrue(src.contains("and time the reminder from"),
-                      "the untouched-day explainer must name the reminder's fallback too")
+        XCTAssertTrue(src.contains("Days you leave alone use the usual wake time above."))
+        XCTAssertFalse(src.contains("and time the reminder from"),
+                       "there is no second fallback left to name")
     }
 
     /// The line naming what wakes you must resolve the NEXT fire, not print `smartAlarmMinutes`.
@@ -82,19 +116,6 @@ final class AlarmWakeTimeLabellingTests: XCTestCase {
                       "it must resolve through the funnel, which is what passes the per-day overrides in")
         XCTAssertFalse(body.contains("timeLabel("),
                        "timeLabel is 24-hour regardless of locale; this line uses a localised template")
-    }
-
-    /// The strap alarm card must disclose that per-day overrides re-time it.
-    ///
-    /// Those overrides are edited under the wind-down card, so this card can read "10:00" during a week
-    /// whose Saturday fires at 20:30, and checking your alarm is the one thing someone opens this card to
-    /// do. The disclosure is gated on an override existing, so it stays absent for the common case.
-    func testTheAlarmCardDisclosesPerDayOverrides() throws {
-        let src = try Self.alarmViewSource()
-        XCTAssertTrue(src.contains("Some days have a time of their own"),
-                      "the alarm card must say when a per-day time will override the picker above it")
-        XCTAssertTrue(src.contains("if !overrides.isEmpty, let next = nextStrapAlarmLabel {"),
-                      "the disclosure must be gated on an override existing, and name the real next fire")
     }
 
     /// No countdown, and no hero alarm figure, for an alarm that will not arm.
@@ -222,16 +243,21 @@ final class AlarmWakeTimeLabellingTests: XCTestCase {
     }
 
     /// The body of `windowHero`, bounded at its own closing brace.
-    ///
-    /// The brace is matched at four-space indent, which is the property's own level. Every brace nested
-    /// inside it sits deeper, so this cannot stop early on a closure.
     private static func windowHeroBody(in src: String) throws -> String {
-        guard let start = src.range(of: "private var windowHero: some View {") else {
-            throw SourceNotReachable(path: "windowHero not found in SmartAlarmView.swift")
+        try body(of: "private var windowHero: some View {", in: src)
+    }
+
+    /// The body of the member that `signature` opens, bounded at its own closing brace.
+    ///
+    /// The brace is matched at four-space indent, which is the member's own level. Every brace nested
+    /// inside it sits deeper, so this cannot stop early on a closure.
+    private static func body(of signature: String, in src: String) throws -> String {
+        guard let start = src.range(of: signature) else {
+            throw SourceNotReachable(path: "\(signature) not found in SmartAlarmView.swift")
         }
         let after = src[start.upperBound...]
         guard let end = after.range(of: "\n    }") else {
-            throw SourceNotReachable(path: "windowHero's closing brace not found")
+            throw SourceNotReachable(path: "closing brace of \(signature) not found")
         }
         return String(after[..<end.lowerBound])
     }
