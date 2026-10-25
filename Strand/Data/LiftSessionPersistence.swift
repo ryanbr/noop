@@ -35,6 +35,12 @@ enum LiftSessionPersistence {
         /// as absent and the session resumes with nothing pending, which is exactly right.
         var pendingValues: [PendingValue]?
         var pendingWarmups: [SlotBox]?
+        var sessionID: String? = nil
+        var pausedAt: Int? = nil
+        var pausedDuration: Int? = nil
+        var stagePausedDuration: Int? = nil
+        var pausedForPulseLoss: Bool? = nil
+        var sessionRpeText: String? = nil
 
         struct PendingValue: Codable, Equatable {
             var exerciseIndex: Int
@@ -176,7 +182,10 @@ enum LiftSessionPersistence {
                 },
             pendingWarmups: pendingWarmups
                 .sorted { ($0.exerciseIndex, $0.setIndex) < ($1.exerciseIndex, $1.setIndex) }
-                .map { Snapshot.SlotBox(exerciseIndex: $0.exerciseIndex, setIndex: $0.setIndex) })
+                .map { Snapshot.SlotBox(exerciseIndex: $0.exerciseIndex, setIndex: $0.setIndex) },
+            pausedAt: engine.pausedAt,
+            pausedDuration: engine.pausedDuration == 0 ? nil : engine.pausedDuration,
+            stagePausedDuration: engine.stagePausedDuration == 0 ? nil : engine.stagePausedDuration)
     }
 
     /// The numbers typed in advance, back as the controller holds them.
@@ -219,7 +228,9 @@ enum LiftSessionPersistence {
                             restSec: $0.restSec)
         }
         return LiftSessionEngine(restoring: plan, startTs: s.startSec,
-                                 stage: unbox(s.stage), sets: sets, stageStartedAt: s.stageStartedAt)
+                                 stage: unbox(s.stage), sets: sets, stageStartedAt: s.stageStartedAt,
+                                 pausedAt: s.pausedAt, pausedDuration: s.pausedDuration ?? 0,
+                                 stagePausedDuration: s.stagePausedDuration ?? 0)
     }
 
     private static func box(_ stage: LiftSessionEngine.Stage) -> Snapshot.StageBox {

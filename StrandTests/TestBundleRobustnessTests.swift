@@ -76,9 +76,16 @@ final class TestBundleRobustnessTests: XCTestCase {
     func testActiveDomainsIncludesUniversalOnlyWhenAModeIsOn() {
         // Isolate UserDefaults so the suite doesn't depend on ambient Test Centre state.
         let defaults = UserDefaults.standard
+        let keys = TestDomain.allCases.map { "testcentre.active.\($0.id)" }
+        let prior = keys.map { ($0, defaults.object(forKey: $0)) }
+        defer {
+            for (key, value) in prior {
+                if let value { defaults.set(value, forKey: key) }
+                else { defaults.removeObject(forKey: key) }
+            }
+        }
+        keys.forEach { defaults.removeObject(forKey: $0) }
         let key = "testcentre.active.sleep"
-        let prior = defaults.object(forKey: key)
-        defer { if let prior { defaults.set(prior, forKey: key) } else { defaults.removeObject(forKey: key) } }
 
         defaults.set(false, forKey: key)
         XCTAssertFalse(TestBundleAssembler.activeDomains().contains(.universal),

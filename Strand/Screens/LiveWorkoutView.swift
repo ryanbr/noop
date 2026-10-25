@@ -38,6 +38,7 @@ struct LiveWorkoutView: View {
     /// control must not end the workout instantly with no way back.
     @State private var showEndConfirm = false
     @State private var showDeleteConfirm = false
+    @State private var showSaveError = false
 
     private var zoneSet: HRZoneSet { model.profile.hrZoneSet }
     private var zone: Int { model.bpm.map { zoneSet.zoneNumber(forBPM: Double($0)) } ?? 0 }
@@ -112,12 +113,17 @@ struct LiveWorkoutView: View {
                isPresented: $showEndConfirm) {
             Button("Cancel", role: .cancel) { }
             Button("End", role: .destructive) {
-                model.endWorkout()
-                onClose()
+                Task {
+                    do { try await model.finishWorkout(); onClose() }
+                    catch { showSaveError = true }
+                }
             }
         } message: {
             Text("This stops recording and saves what's captured so far. It can't be resumed.")
         }
+        .alert("Training could not be saved", isPresented: $showSaveError) {
+            Button("OK", role: .cancel) {}
+        } message: { Text("Your paused training is still available. Please try again.") }
         .confirmationDialog("Delete", isPresented: $showDeleteConfirm,
                             titleVisibility: .visible) {
             Button("Delete", role: .destructive) {
