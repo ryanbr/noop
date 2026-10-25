@@ -29,13 +29,17 @@ public struct OverviewHRChart: View {
     }
 
     /// A workout window; the sport glyph is placed at the HR peak inside [start, end].
-    public struct WorkoutSpan: Identifiable, Sendable {
-        public let id = UUID()
+    public struct WorkoutSpan: Identifiable, Sendable, Hashable {
+        // Today reconstructs annotations on redraw; unchanged spans must retain chart identity.
+        public var id: Self { self }
         public var start: Date
         public var end: Date
         public var symbol: String          // SF Symbol (see `sportSymbol`)
-        public init(start: Date, end: Date, symbol: String) {
+        public var sport: String?
+        public var source: String?
+        public init(start: Date, end: Date, symbol: String, sport: String? = nil, source: String? = nil) {
             self.start = start; self.end = end; self.symbol = symbol
+            self.sport = sport; self.source = source
         }
     }
 
@@ -149,6 +153,10 @@ public struct OverviewHRChart: View {
 
     /// Smallest zoom window we allow (1 minute) — past this the line is just two points and pinch jitters.
     public static let minZoomSpan: TimeInterval = 60
+
+    static func isHorizontalPan(_ translation: CGSize) -> Bool {
+        abs(translation.width) > abs(translation.height)
+    }
 
     // MARK: Zoom / pan math (pure, testable in isolation)
 
@@ -711,6 +719,9 @@ private struct ZoomPanModifier: ViewModifier {
         // the 6–8 pt overlap band is what let a held-then-dragged finger begin panning during a scrub.
         let drag = DragGesture(minimumDistance: 10)
             .onChanged { value in
+                #if os(iOS)
+                guard OverviewHRChart.isHorizontalPan(value.translation) else { return }
+                #endif
                 let base = anchor ?? current()
                 if anchor == nil { anchor = base }
                 apply(pan(base, value.translation.width, plotWidth, bounds))
