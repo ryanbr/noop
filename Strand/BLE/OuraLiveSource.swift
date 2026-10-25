@@ -262,6 +262,13 @@ public final class OuraLiveSource: NSObject, ObservableObject {
     /// SetNotification is the official app's `ff` instead of `3f` (OURA_PROTOCOL.md s2.3). The next
     /// connect re-reads it, so switching the toggle off restores the default with nothing left on the ring.
     private let notifyMaskFull: () -> Bool
+    /// #2242: persist one anchored 0x50 record's samples as `ouraMetSample` rows (one per minute) — wired at
+    /// the composition root to `store.insertOuraMetSamples(_:deviceId:)`; default no-op keeps the
+    /// discovery-only scanner and tests inert.
+    private let persistMetSamples: ([OuraMetSample]) -> Void
+    /// #2242 (default OFF): read live per record — the writer above runs only while this is true, so an
+    /// install that never turns the Experimental toggle on never grows the table.
+    private let metCalories: () -> Bool
     /// Item 27: the Experimental "Oura ring: all-day heart rate & HRV" toggle, read at every decision so a flip takes
     /// effect within one re-engage tick / one history-fetch tick, never at the next launch.
     private let allDayLiveHR: () -> Bool
@@ -1433,6 +1440,8 @@ public final class OuraLiveSource: NSObject, ObservableObject {
                 authKey: @escaping () -> Data?,
                 persist: @escaping (Streams) -> Void = { _ in },
                 persistSleepSession: @escaping (CachedSleepSession) -> Void = { _ in },
+                persistMetSamples: @escaping ([OuraMetSample]) -> Void = { _ in },
+                metCalories: @escaping () -> Bool = { false },
                 allDayLiveHR: @escaping () -> Bool = { false },
                 nightBand: @escaping () -> NightStandDown.Band? = { nil },
                 log: @escaping (String) -> Void = { _ in },
@@ -1449,6 +1458,8 @@ public final class OuraLiveSource: NSObject, ObservableObject {
         self.authKey = authKey
         self.persist = persist
         self.persistSleepSession = persistSleepSession
+        self.persistMetSamples = persistMetSamples
+        self.metCalories = metCalories
         self.allDayLiveHR = allDayLiveHR
         self.nightBand = nightBand
         self.log = log
@@ -2378,6 +2389,21 @@ public final class OuraLiveSource: NSObject, ObservableObject {
                 if let utc = utc {
                     activityDump?.record(ringTs: info.ringTimestamp, utc: utc, state: info.state,
                                          secPerSample: Int(activityEpochSeconds), met: info.met)
+                }
+                // #2242: persist the record as one row per minute when the Experimental MET-calories toggle
+                // is on (anchored records only, same rule as the sidecar; the (deviceId, ts) key absorbs a
+                // re-serve). Placing the samples on the clock is `OuraActivityRecordTiming` (OuraProtocol):
+                // the record's timestamp is the END of its LAST sample, so the series is addressed backwards
+                // from it, and a record straddling local midnight lands its minutes on the right days. The
+                // rule, its evidence and its edge cases are pinned there against a fixture the Kotlin twin
+                // asserts too — this call site only supplies the anchor, the cadence and the toggle.
+                if let utc = utc, metCalories(), !info.met.isEmpty {
+                    let epoch = Int(activityEpochSeconds)
+                    let starts = OuraActivityRecordTiming.sampleStarts(
+                        endUtc: utc, sampleCount: info.met.count, epochSeconds: epoch)
+                    persistMetSamples(zip(starts, info.met).map { ts, met in
+                        OuraMetSample(ts: ts, met: met, state: info.state, epochS: epoch)
+                    })
                 }
                 // Accumulate the MET series by local day for the drain-end estimate, and observe the
                 // per-sample cadence from consecutive record times (both investigation-only, never scored).

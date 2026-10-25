@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "note": "Canonical cross-platform contract for placing a 0x50 activity record's MET samples on the clock (#2242). The record timestamp is the END of its last sample, so sample i starts at endUtc - (N - i) * epoch. Generated from the Swift twin OuraActivityRecordTiming compiled standalone; regenerate from Swift, never hand-edit a number.",
+  "cases": [
+    {
+      "id": "single_sample_record",
+      "note": "N=1: the one sample starts exactly one epoch before the record timestamp.",
+      "endUtc": 1755208800,
+      "sampleCount": 1,
+      "epochSeconds": 60,
+      "expectedStarts": [1755208740]
+    },
+    {
+      "id": "typical_26_sample_record",
+      "note": "The common shape on the wire: 26 one-minute samples, 26.0 min of coverage.",
+      "endUtc": 1755212400,
+      "sampleCount": 26,
+      "epochSeconds": 60,
+      "expectedStarts": [1755210840, 1755210900, 1755210960, 1755211020, 1755211080, 1755211140, 1755211200, 1755211260, 1755211320, 1755211380, 1755211440, 1755211500, 1755211560, 1755211620, 1755211680, 1755211740, 1755211800, 1755211860, 1755211920, 1755211980, 1755212040, 1755212100, 1755212160, 1755212220, 1755212280, 1755212340]
+    },
+    {
+      "id": "straddles_local_midnight",
+      "note": "Record timestamped 00:10 Paris carrying 26 min: 10 min land on the new local day, 16 on the old one. This is the case the inline arithmetic decided silently.",
+      "endUtc": 1755209400,
+      "sampleCount": 26,
+      "epochSeconds": 60,
+      "expectedStarts": [1755207840, 1755207900, 1755207960, 1755208020, 1755208080, 1755208140, 1755208200, 1755208260, 1755208320, 1755208380, 1755208440, 1755208500, 1755208560, 1755208620, 1755208680, 1755208740, 1755208800, 1755208860, 1755208920, 1755208980, 1755209040, 1755209100, 1755209160, 1755209220, 1755209280, 1755209340]
+    },
+    {
+      "id": "ends_exactly_on_local_midnight",
+      "note": "Record timestamped exactly at local midnight: every sample belongs to the PREVIOUS local day, because the timestamp is the exclusive end of the record.",
+      "endUtc": 1755208800,
+      "sampleCount": 26,
+      "epochSeconds": 60,
+      "expectedStarts": [1755207240, 1755207300, 1755207360, 1755207420, 1755207480, 1755207540, 1755207600, 1755207660, 1755207720, 1755207780, 1755207840, 1755207900, 1755207960, 1755208020, 1755208080, 1755208140, 1755208200, 1755208260, 1755208320, 1755208380, 1755208440, 1755208500, 1755208560, 1755208620, 1755208680, 1755208740]
+    },
+    {
+      "id": "two_minute_cadence",
+      "note": "A cadence other than 60 s: epochS is carried per row so the estimator scales rather than skews.",
+      "endUtc": 1755216000,
+      "sampleCount": 10,
+      "epochSeconds": 120,
+      "expectedStarts": [1755214800, 1755214920, 1755215040, 1755215160, 1755215280, 1755215400, 1755215520, 1755215640, 1755215760, 1755215880]
+    },
+    {
+      "id": "long_record_60_samples",
+      "note": "A full hour in one record - the samples must stay contiguous with no drift.",
+      "endUtc": 1755295200,
+      "sampleCount": 60,
+      "epochSeconds": 60,
+      "expectedStarts": [1755291600, 1755291660, 1755291720, 1755291780, 1755291840, 1755291900, 1755291960, 1755292020, 1755292080, 1755292140, 1755292200, 1755292260, 1755292320, 1755292380, 1755292440, 1755292500, 1755292560, 1755292620, 1755292680, 1755292740, 1755292800, 1755292860, 1755292920, 1755292980, 1755293040, 1755293100, 1755293160, 1755293220, 1755293280, 1755293340, 1755293400, 1755293460, 1755293520, 1755293580, 1755293640, 1755293700, 1755293760, 1755293820, 1755293880, 1755293940, 1755294000, 1755294060, 1755294120, 1755294180, 1755294240, 1755294300, 1755294360, 1755294420, 1755294480, 1755294540, 1755294600, 1755294660, 1755294720, 1755294780, 1755294840, 1755294900, 1755294960, 1755295020, 1755295080, 1755295140]
+    },
+    {
+      "id": "empty_record",
+      "note": "N=0: nothing to place on the clock.",
+      "endUtc": 1755208800,
+      "sampleCount": 0,
+      "epochSeconds": 60,
+      "expectedStarts": []
+    },
+    {
+      "id": "zero_epoch",
+      "note": "A non-positive epoch is not a cadence; refuse rather than stack every sample on one second.",
+      "endUtc": 1755208800,
+      "sampleCount": 5,
+      "epochSeconds": 0,
+      "expectedStarts": []
+    },
+    {
+      "id": "negative_epoch",
+      "note": "Same rule as zero: refuse rather than walk the samples forward.",
+      "endUtc": 1755208800,
+      "sampleCount": 5,
+      "epochSeconds": -60,
+      "expectedStarts": []
+    },
+    {
+      "id": "negative_sample_count",
+      "note": "A decoder that handed back a negative count is a bug upstream; place nothing.",
+      "endUtc": 1755208800,
+      "sampleCount": -3,
+      "epochSeconds": 60,
+      "expectedStarts": []
+    },
+    {
+      "id": "pre_epoch_timestamp",
+      "note": "An unanchored or garbage timestamp is the caller's problem, but the arithmetic must stay total and not trap.",
+      "endUtc": 30,
+      "sampleCount": 3,
+      "epochSeconds": 60,
+      "expectedStarts": [-150, -90, -30]
+    }
+  ]
+}
