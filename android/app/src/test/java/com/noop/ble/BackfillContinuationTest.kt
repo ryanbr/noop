@@ -513,6 +513,22 @@ class BackfillContinuationTest {
         )
     }
 
+    // ---- #1992 strap ring backlog ----
+
+    /** A pass whose GET_DATA_RANGE read 0 pages behind stops; any backlog, or no reading, is unchanged.
+     *  Twin of the Swift `testZeroPagesBehindStopsWhoop5Drain`. */
+    @Test
+    fun zeroPagesBehind_stopsWhoop5Drain() {
+        fun cont(pages: Int?) = WhoopBleClient.shouldAutoContinue(
+            stillConnected = true, strapNewestTs = null, ourFrontierTs = wallNow - 3600L,
+            wallNowUnix = wallNow, lastTrimAdvanced = true, consecutiveCount = 1,
+            persistedSensorRows = true, strapPagesBehind = pages,
+        )
+        assertFalse(cont(0))
+        assertTrue(cont(12))
+        assertTrue(cont(null))
+    }
+
     // ---- #1598 clock-correlation family gate ----
 
     /**

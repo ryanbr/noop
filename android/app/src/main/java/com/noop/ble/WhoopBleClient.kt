@@ -2047,6 +2047,7 @@ class WhoopBleClient(
             lastTrimAdvanced: Boolean,
             consecutiveCount: Int,
             persistedSensorRows: Boolean = false,
+            strapPagesBehind: Int? = null,
             maxAutoContinues: Int = MAX_AUTO_CONTINUES,
             behindGapSeconds: Long = AUTO_CONTINUE_BEHIND_GAP_SECONDS,
             futureSkewSeconds: Long = AUTO_CONTINUE_FUTURE_SKEW_SECONDS,
@@ -2069,6 +2070,10 @@ class WhoopBleClient(
             // banks 0 NEW rows — it must also stop, not spin on already-synced data). Stop and let the 15-min
             // floor retry; a real backlog pass persists new rows so this only bites the empty/dup spin.
             if (!persistedSensorRows) return false
+            // 3c (#1992): the strap's own ring backlog, read by GET_DATA_RANGE at the start of THIS pass, says
+            // nothing is pending: stop. A 5/MG reply carries no timestamp, so 2a can never fire there and 2b
+            // alone would keep re-kicking while rows persist. null = not read this pass = unchanged behaviour.
+            if (strapPagesBehind == 0) return false
             // #928: a strap clock set in the FUTURE makes "newest" read ahead of ANY real frontier, so 2a
             // would report backlog forever and drive up to the full cap in EMPTY offloads on every
             // connect. A newest more than [futureSkewSeconds] past [wallNowUnix] (the REAL wall clock,
@@ -3592,6 +3597,8 @@ class WhoopBleClient(
      *  many completions can't reset the cap each slice (#25). Main-looper only. Mirrors Swift
      *  `consecutiveAutoContinues`. */
     private var consecutiveAutoContinues = 0
+    /** #1992: GET_DATA_RANGE pages behind, read by the 5/MG gate at the start of the current pass. */
+    private var pagesBehindThisPass: Int? = null
 
     /** #battery: consecutive offload sessions that handed over ZERO sensor rows — whether a clean
      *  HISTORY_COMPLETE-empty OR an idle-timeout STALL (`result=stalled … rows=0`). Feeds BackfillPolicy's
@@ -8352,6 +8359,7 @@ class WhoopBleClient(
                                 // #815: confirmed on both WHOOP 4.0 and 5.0/MG, so bank it unconditionally.
                                 // The Today sync chip reads this while backfilling is true.
                                 _state.update { it.copy(pagesBehindAtConnect = pagesBehind.toInt()) }
+                                pagesBehindThisPass = pagesBehind.toInt()
                             } else {
                                 log(
                                     "Strap backlog pages behind: not decodable from this frame (#689 — offsets may " +
@@ -10970,6 +10978,7 @@ class WhoopBleClient(
             // hardware sometimes swallows the first GET_DATA_RANGE entirely, so a 2s fallback fires
             // the transfer anyway — the gate can delay the kick but never block it. WHOOP4 keeps its
             // proven blind-fire path untouched.
+            pagesBehindThisPass = null
             send(CommandNumber.GET_DATA_RANGE, byteArrayOf(), withResponse = true)
             handler.postDelayed({
                 if (backfilling && !historicalKickSent) {
@@ -11522,6 +11531,7 @@ class WhoopBleClient(
         if (!s.connected || !s.bonded) return
         val newest = strapNewestTs
         val count = consecutiveAutoContinues
+        val pagesBehind = if (connectedFamily == DeviceFamily.WHOOP5) pagesBehindThisPass else null   // #1992
         ioScope.launch {
             val frontier = runCatching { repository.latestHrSampleTs(deviceId) }.getOrNull()
             val wallNow = System.currentTimeMillis() / 1000L   // #928: real wall clock, at decision time
@@ -11573,8 +11583,12 @@ class WhoopBleClient(
                     lastTrimAdvanced = trimAdvanced,
                     consecutiveCount = count,
                     persistedSensorRows = persistedSensorRows,
+                    strapPagesBehind = pagesBehind,
                 )
             ) {
+                if (pagesBehind == 0 && stillConnected && persistedSensorRows && trimAdvanced) {
+                    log("Backfill: not auto-continuing (#1992) - GET_DATA_RANGE reports 0 pages behind for this pass, so the strap ring is drained.")
+                }
                 // #1012: name the stop honestly when the future-clock gate is what ended the chain —
                 // without this line the log just goes quiet after one pass and a strap-log export can't
                 // tell "caught up" from "future-dated range refused". Fires ONLY when 2b would otherwise

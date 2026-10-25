@@ -423,6 +423,7 @@ struct BackfillContinuation {
                                    persistedSensorRows: Bool = false,
                                    lastTrimAdvanced: Bool,
                                    consecutiveCount: Int,
+                                   strapPagesBehind: Int? = nil,
                                    maxAutoContinues: Int = defaultMaxAutoContinues,
                                    behindGapSeconds: Int = defaultBehindGapSeconds,
                                    futureSkewSeconds: Int = defaultFutureSkewSeconds) -> Bool {
@@ -444,6 +445,10 @@ struct BackfillContinuation {
         // Stop and let the periodic floor retry; a real backlog pass persists new rows so this only bites the
         // empty/dup spin.
         guard persistedSensorRows else { return false }
+        // 3c (#1992): the strap's own ring backlog, read by GET_DATA_RANGE at the start of THIS pass, says
+        // nothing is pending: stop. A 5/MG reply carries no timestamp, so 2a can never fire there and 2b
+        // alone would keep re-kicking while rows persist. nil = not read this pass = unchanged behaviour.
+        if strapPagesBehind == 0 { return false }
         // #928: a strap clock set in the FUTURE makes "newest" read ahead of ANY real frontier, so 2a
         // would report backlog forever and drive up to the full cap in EMPTY offloads on every connect.
         // A newest more than futureSkewSeconds past the wall clock is implausible: exclude it from 2a.
@@ -882,6 +887,9 @@ public final class BLEManager: NSObject, ObservableObject {
     /// (its else path, under the cap) and on disconnect — NOT unconditionally on every HISTORY_COMPLETE,
     /// so a strap that slices one offload into many completions can't reset the cap each slice (#25).
     private var consecutiveAutoContinues = 0
+    /// #1992: GET_DATA_RANGE pages behind, read at the start of the current offload pass (5/MG re-polls it
+    /// on every auto-continue pass). nil until a reply lands; cleared on disconnect.
+    private var pagesBehindThisPass: Int?
     /// #battery: consecutive offload sessions that banked ZERO sensor rows — a clean HISTORY_COMPLETE-empty
     /// OR an idle-timeout STALL. Feeds BackfillPolicy's exponential backoff so the 15-min periodic poll
     /// stops spinning the radio on a strap returning nothing (a capture showed ~6 empty stalls/hour with no
@@ -2596,6 +2604,12 @@ public final class BLEManager: NSObject, ObservableObject {
         state.r22FlagsAccepted = 0
         state.deepPacketsThisSession = 0
         historicalAckLogCounter = 0
+        // #1992: like the official app, read the ring backlog before each 5/MG continuation pass so the
+        // auto-continue decision can see "0 pages behind". Read-only; the connect pass already has one.
+        if isWhoop5 && consecutiveAutoContinues > 0 {
+            pagesBehindThisPass = nil
+            send(.getDataRange)
+        }
         // Payload MUST be [0x00], NOT empty: verified on-device that this strap serves type-47 only with
         // [0x00] (empty → 0 frames on a clean stable link with ~2k records pending); the Mac ground-truth
         // offload (re/sync_openwhoop.py, re/diagnose_biometrics.py) uses [0x00] too. Plain offload — the
@@ -3047,6 +3061,7 @@ public final class BLEManager: NSObject, ObservableObject {
         guard state.connected, state.bonded else { return }
         let newest = strapNewestTs
         let count = consecutiveAutoContinues
+        let pagesBehind = isWhoop5 ? pagesBehindThisPass : nil   // #1992: 5/MG only until a 4.0 needs it
         Task { @MainActor in
             let frontier = await collector?.latestHRSampleTs() ?? nil
             let wallNow = Int(Date().timeIntervalSince1970)   // #928: real wall clock, at decision time
@@ -3090,7 +3105,11 @@ public final class BLEManager: NSObject, ObservableObject {
                 wallNowUnix: wallNow,
                 persistedSensorRows: persistedSensorRows,
                 lastTrimAdvanced: trimAdvanced,
-                consecutiveCount: count) else {
+                consecutiveCount: count,
+                strapPagesBehind: pagesBehind) else {
+                if pagesBehind == 0, stillConnected, persistedSensorRows, trimAdvanced {
+                    log("Backfill: not auto-continuing (#1992) - GET_DATA_RANGE reports 0 pages behind for this pass, so the strap ring is drained.")
+                }
                 // #1012: name the stop honestly when the future-clock gate is what ended the chain —
                 // without this line the log just goes quiet after one pass and a strap-log export can't
                 // tell "caught up" from "future-dated range refused". Fires ONLY when 2b would otherwise
@@ -6370,6 +6389,7 @@ extension BLEManager: @preconcurrency CBCentralManagerDelegate {
         // #689/#815: the backlog sample is "at connect" by definition, so it must not survive the link it
         // was taken on — a stale figure under a fresh connection would be a plain lie.
         state.pagesBehindAtConnect = nil
+        pagesBehindThisPass = nil
         lastBatteryReadAt = nil   // #battery: next connect's first enableLiveNotifications re-seeds the 5/MG battery reading
         // #612: the display flag only, not the underlying emptySyncTracker streak (that counter
         // deliberately survives a reconnect — unchanged, existing behaviour). A fresh link re-derives
@@ -7228,6 +7248,7 @@ extension BLEManager: @preconcurrency CBPeripheralDelegate {
                 // #815: confirmed on both WHOOP 4.0 and 5.0/MG, so bank it unconditionally. The Today sync
                 // chip reads this while backfilling is true. Twin of the Android FrameRouter branch.
                 state.pagesBehindAtConnect = Int(pages)
+                pagesBehindThisPass = Int(pages)
             } else {
                 log("Strap backlog pages behind: not decodable from this frame (#689 — offsets may have moved; "
                     + "the raw frame above is the input). Diagnostic only, sync is unaffected.")

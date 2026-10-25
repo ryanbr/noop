@@ -428,6 +428,22 @@ final class BackfillContinuationTests: XCTestCase {
             consecutiveCount: 0))
     }
 
+    // MARK: - #1992 strap ring backlog
+
+    /// A 5/MG reply has no timestamp, so only 2b (rows persisted) drives it. A pass whose GET_DATA_RANGE
+    /// read 0 pages behind stops; any backlog, or no reading at all, keeps today's behaviour.
+    func testZeroPagesBehindStopsWhoop5Drain() {
+        func cont(_ pages: Int?) -> Bool {
+            BackfillContinuation.shouldAutoContinue(
+                stillConnected: true, strapNewestTs: nil, ourFrontierTs: wallNow - 3600,
+                wallNowUnix: wallNow, persistedSensorRows: true, lastTrimAdvanced: true,
+                consecutiveCount: 1, strapPagesBehind: pages)
+        }
+        XCTAssertFalse(cont(0))
+        XCTAssertTrue(cont(12))
+        XCTAssertTrue(cont(nil))
+    }
+
     // MARK: - #1598 clock-correlation family gate
 
     /// A 5/MG must never chase or DERIVE a GET_CLOCK correlation: its records already carry real-unix
